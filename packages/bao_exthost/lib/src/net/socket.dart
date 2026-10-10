@@ -32,26 +32,44 @@ final class IoExtHostSocket implements ExtHostSocket {
   final Socket _socket;
   Future<void> _flushing = Future.value();
 
+  /// While the socket flushes it takes no writes (a [StateError]): they
+  /// wait here, in order, until it is done.
+  BytesBuilder? _held;
+  bool _closed = false;
+
   @override
   Stream<Uint8List> get data => _socket;
 
   @override
   void write(Uint8List bytes) {
+    if (_closed) return;
+    if (_held case final held?) {
+      held.add(bytes);
+      return;
+    }
     _socket.add(bytes);
   }
 
   @override
-  Future<void> drain() => _flushing = _flushing
-      .then((_) => _socket.flush())
-      .catchError((Object _) {});
+  Future<void> drain() => _flushing = _flushing.then((_) => _flush());
 
-  @override
-  Future<void> close() async {
+  Future<void> _flush() async {
+    if (_closed) return;
+    final held = _held = BytesBuilder(copy: false);
     try {
       await _socket.flush();
     } on Object {
-      // Already closed.
+      // Closed by the other side: the reader sees it.
+    } finally {
+      _held = null;
+      if (held.isNotEmpty && !_closed) _socket.add(held.takeBytes());
     }
+  }
+
+  @override
+  Future<void> close() async {
+    await (_flushing = _flushing.then((_) => _flush()));
+    _closed = true;
     _socket.destroy();
   }
 }
