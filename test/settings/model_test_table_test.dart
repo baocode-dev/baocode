@@ -164,6 +164,21 @@ void main() {
               expect(fit[ModelTestColumn.model.index], greaterThan(420));
               expect(widths[ModelTestColumn.tokens.index], greaterThan(100));
               expect(widths[ModelTestColumn.output.index], lessThan(300));
+              final inherited = DefaultTextStyle.of(context).style;
+              final measured = TextPainter(
+                textDirection: TextDirection.ltr,
+                text: TextSpan(
+                  text: rows.first.cells[ModelTestColumn.speed.index],
+                  style: inherited.merge(
+                    const TextStyle(fontSize: 12, fontFamily: 'JetBrains Mono'),
+                  ),
+                ),
+              )..layout();
+              expect(
+                widths[ModelTestColumn.speed.index],
+                greaterThan(measured.width + 20),
+              );
+              measured.dispose();
               return const SizedBox();
             },
           ),

@@ -177,7 +177,7 @@ class ModelTestTableState {
   }
 
   /// Measure all rows, not only the current page. Outlier model IDs have an
-  /// auto-width cap; manual resizing/double-click fit can exceed that cap.
+  /// auto-width cap; manual resizing can exceed that cap.
   List<double> autoWidths(
     BuildContext context,
     List<ModelTestTableRow> rows, {
@@ -190,7 +190,11 @@ class ModelTestTableState {
       maxLines: 1,
     );
     double measure(String text, TextStyle style) {
-      painter.text = TextSpan(text: text, style: style);
+      // Native text inherits theme letter spacing and fallback fonts too.
+      painter.text = TextSpan(
+        text: text,
+        style: DefaultTextStyle.of(context).style.merge(style),
+      );
       painter.layout();
       return painter.width.ceilToDouble();
     }
@@ -214,7 +218,7 @@ class ModelTestTableState {
                         : null,
                   ),
                 ) +
-                20,
+                24,
           );
         }
       }
