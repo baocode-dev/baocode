@@ -23,12 +23,26 @@ Future<void> pumpMacApp(WidgetTester tester, {double width = 1400}) async {
   await tester.pump();
 }
 
-/// The colors painted under [finder], nearest first.
+/// The colors painted under [finder], nearest first: the boxes' and the
+/// materials' (the window's canvas is a [Material]).
 List<Color> colorsUnder(WidgetTester tester, Finder finder) => [
   for (final widget in tester.widgetList(
-    find.ancestor(of: finder, matching: find.byType(ColoredBox)),
+    find.ancestor(
+      of: finder,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is ColoredBox ||
+            widget is Material &&
+                widget.type != MaterialType.transparency &&
+                widget.color != null,
+      ),
+    ),
   ))
-    (widget as ColoredBox).color,
+    switch (widget) {
+      ColoredBox(:final color) => color,
+      Material(:final color) => color!,
+      _ => throw StateError('$widget'),
+    },
 ];
 
 Color sidebarColor(WidgetTester tester) => tester
