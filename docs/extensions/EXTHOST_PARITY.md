@@ -8,84 +8,84 @@ under `lib/extensions/` that extends a generated `MainThread*Unsupported` and
 overrides the method. Every other method replies `RpcUnsupported` and is counted
 at run time by `ExtHostParity`.
 
-**Total: 2/523 methods (0%), 1/87 shapes started.**
+**Total: 354/523 methods (68%), 57/87 shapes started.**
 
 | Shape | Implemented | Implementations |
 | --- | --- | --- |
-| MainThreadAuthentication | 0/15 | — |
-| MainThreadBulkEdits | 0/1 | — |
+| MainThreadAuthentication | 15/15 | `MainThreadAuthentication` (lib/extensions/main_thread/main_thread_authentication.dart) |
+| MainThreadBulkEdits | 1/1 | `MainThreadBulkEdits` (lib/extensions/main_thread/main_thread_bulk_edits.dart) |
 | MainThreadLanguageModels | 0/12 | — |
 | MainThreadEmbeddings | 0/3 | — |
 | MainThreadChatAgents2 | 0/22 | — |
 | MainThreadCodeMapper | 0/3 | — |
-| MainThreadLanguageModelTools | 0/7 | — |
+| MainThreadLanguageModelTools | 6/7 | `MainThreadLanguageModelTools` (lib/extensions/main_thread/main_thread_degraded.dart) |
 | MainThreadGitExtension | 0/1 | — |
-| MainThreadClipboard | 0/2 | — |
-| MainThreadCommands | 0/5 | — |
+| MainThreadClipboard | 2/2 | `MainThreadClipboard` (lib/extensions/main_thread/main_thread_clipboard.dart) |
+| MainThreadCommands | 5/5 | `MainThreadCommands` (lib/extensions/main_thread/main_thread_commands.dart) |
 | MainThreadComments | 0/9 | — |
 | MainThreadConfiguration | 2/2 | `MainThreadConfiguration` (lib/extensions/main_thread/main_thread_configuration.dart) |
-| MainThreadConsole | 0/1 | — |
-| MainThreadDebugService | 0/21 | — |
-| MainThreadDecorations | 0/3 | — |
-| MainThreadDiagnostics | 0/2 | — |
-| MainThreadDialogs | 0/2 | — |
-| MainThreadDocuments | 0/3 | — |
-| MainThreadDocumentContentProviders | 0/3 | — |
-| MainThreadTextEditors | 0/13 | — |
+| MainThreadConsole | 1/1 | `MainThreadConsole` (lib/extensions/main_thread/main_thread_console.dart) |
+| MainThreadDebugService | 21/21 | `MainThreadDebugService` (lib/extensions/main_thread/main_thread_debug_service.dart) |
+| MainThreadDecorations | 3/3 | `MainThreadDecorations` (lib/extensions/main_thread/main_thread_decorations.dart) |
+| MainThreadDiagnostics | 2/2 | `MainThreadDiagnostics` (lib/extensions/main_thread/main_thread_diagnostics.dart) |
+| MainThreadDialogs | 2/2 | `MainThreadDialogs` (lib/extensions/main_thread/main_thread_dialogs.dart) |
+| MainThreadDocuments | 3/3 | `MainThreadDocuments` (lib/extensions/main_thread/main_thread_documents.dart) |
+| MainThreadDocumentContentProviders | 3/3 | `MainThreadDocumentContentProviders` (lib/extensions/main_thread/main_thread_document_content_providers.dart) |
+| MainThreadTextEditors | 13/13 | `MainThreadTextEditors` (lib/extensions/main_thread/main_thread_text_editors.dart) |
 | MainThreadEditorInsets | 0/5 | — |
-| MainThreadEditorTabs | 0/3 | — |
-| MainThreadErrors | 0/1 | — |
-| MainThreadTreeViews | 0/9 | — |
-| MainThreadDownloadService | 0/1 | — |
-| MainThreadLanguageFeatures | 0/47 | — |
-| MainThreadLanguages | 0/5 | — |
-| MainThreadLogger | 0/6 | — |
-| MainThreadMessageService | 0/1 | — |
-| MainThreadOutputService | 0/5 | — |
-| MainThreadProgress | 0/3 | — |
+| MainThreadEditorTabs | 3/3 | `MainThreadEditorTabs` (lib/extensions/main_thread/main_thread_editor_tabs.dart) |
+| MainThreadErrors | 1/1 | `MainThreadErrors` (lib/extensions/main_thread/main_thread_errors.dart) |
+| MainThreadTreeViews | 6/9 | `MainThreadTreeViews` (lib/extensions/main_thread/main_thread_tree_views.dart) |
+| MainThreadDownloadService | 1/1 | `MainThreadDownloadService` (lib/extensions/main_thread/main_thread_download_service.dart) |
+| MainThreadLanguageFeatures | 35/47 | `MainThreadLanguageFeatures` (lib/extensions/main_thread/main_thread_language_features.dart) |
+| MainThreadLanguages | 4/5 | `MainThreadLanguages` (lib/extensions/main_thread/main_thread_languages.dart) |
+| MainThreadLogger | 6/6 | `MainThreadLogger` (lib/extensions/main_thread/main_thread_logger.dart) |
+| MainThreadMessageService | 1/1 | `MainThreadMessageService` (lib/extensions/main_thread/main_thread_message_service.dart) |
+| MainThreadOutputService | 5/5 | `MainThreadOutputService` (lib/extensions/main_thread/main_thread_output_service.dart) |
+| MainThreadProgress | 3/3 | `MainThreadProgress` (lib/extensions/main_thread/main_thread_progress.dart) |
 | MainThreadQuickDiff | 0/4 | — |
 | MainThreadAgentEditorComments | 0/4 | — |
 | MainThreadDocumentDiff | 0/1 | — |
-| MainThreadQuickOpen | 0/6 | — |
-| MainThreadStatusBar | 0/2 | — |
-| MainThreadSecretState | 0/4 | — |
-| MainThreadStorage | 0/3 | — |
+| MainThreadQuickOpen | 4/6 | `MainThreadQuickOpen` (lib/extensions/main_thread/main_thread_quick_open.dart) |
+| MainThreadStatusBar | 2/2 | `MainThreadStatusBar` (lib/extensions/main_thread/main_thread_status_bar.dart) |
+| MainThreadSecretState | 4/4 | `MainThreadSecretState` (lib/extensions/main_thread/main_thread_secret_state.dart) |
+| MainThreadStorage | 3/3 | `MainThreadStorage` (lib/extensions/main_thread/main_thread_storage.dart) |
 | MainThreadSpeech | 0/5 | — |
-| MainThreadTelemetry | 0/2 | — |
-| MainThreadMeteredConnection | 0/0 | — |
-| MainThreadTerminalService | 0/23 | — |
-| MainThreadTerminalShellIntegration | 0/1 | — |
-| MainThreadWebviews | 0/3 | — |
-| MainThreadWebviewPanels | 0/7 | — |
-| MainThreadWebviewViews | 0/6 | — |
-| MainThreadCustomEditors | 0/5 | — |
-| MainThreadUrls | 0/3 | — |
+| MainThreadTelemetry | 2/2 | `MainThreadTelemetry` (lib/extensions/main_thread/main_thread_telemetry.dart) |
+| MainThreadMeteredConnection | 0/0 | `MainThreadMeteredConnection` (lib/extensions/main_thread/main_thread_metered_connection.dart) |
+| MainThreadTerminalService | 23/23 | `MainThreadTerminalService` (lib/extensions/main_thread/main_thread_terminal_service.dart) |
+| MainThreadTerminalShellIntegration | 1/1 | `MainThreadTerminalShellIntegration` (lib/extensions/main_thread/main_thread_terminal_shell_integration.dart) |
+| MainThreadWebviews | 3/3 | `MainThreadWebviews` (lib/extensions/main_thread/main_thread_webviews.dart) |
+| MainThreadWebviewPanels | 7/7 | `MainThreadWebviewPanels` (lib/extensions/main_thread/main_thread_webviews.dart) |
+| MainThreadWebviewViews | 6/6 | `MainThreadWebviewViews` (lib/extensions/main_thread/main_thread_webviews.dart) |
+| MainThreadCustomEditors | 5/5 | `MainThreadCustomEditors` (lib/extensions/main_thread/main_thread_webviews.dart) |
+| MainThreadUrls | 3/3 | `MainThreadUrls` (lib/extensions/main_thread/main_thread_urls.dart) |
 | MainThreadUriOpeners | 0/2 | — |
-| MainThreadProfileContentHandlers | 0/2 | — |
-| MainThreadWorkspace | 0/20 | — |
-| MainThreadFileSystem | 0/12 | — |
-| MainThreadFileSystemEventService | 0/2 | — |
-| MainThreadExtensionService | 0/8 | — |
-| MainThreadSCM | 0/17 | — |
-| MainThreadSearch | 0/8 | — |
+| MainThreadProfileContentHandlers | 2/2 | `MainThreadProfileContentHandlers` (lib/extensions/main_thread/main_thread_degraded.dart) |
+| MainThreadWorkspace | 20/20 | `MainThreadWorkspace` (lib/extensions/main_thread/main_thread_workspace.dart) |
+| MainThreadFileSystem | 12/12 | `MainThreadFileSystem` (lib/extensions/main_thread/main_thread_file_system.dart) |
+| MainThreadFileSystemEventService | 2/2 | `MainThreadFileSystemEventService` (lib/extensions/main_thread/main_thread_file_system_event_service.dart) |
+| MainThreadExtensionService | 8/8 | `MainThreadExtensionService` (lib/extensions/main_thread/main_thread_extension_service.dart) |
+| MainThreadSCM | 17/17 | `MainThreadSCM` (lib/extensions/main_thread/main_thread_scm.dart) |
+| MainThreadSearch | 8/8 | `MainThreadSearch` (lib/extensions/main_thread/main_thread_search.dart) |
 | MainThreadShare | 0/2 | — |
-| MainThreadTask | 0/10 | — |
-| MainThreadWindow | 0/3 | — |
-| MainThreadPower | 0/7 | — |
-| MainThreadLabelService | 0/2 | — |
-| MainThreadNotebook | 0/5 | — |
-| MainThreadNotebookDocuments | 0/3 | — |
-| MainThreadNotebookEditors | 0/3 | — |
-| MainThreadNotebookKernels | 0/18 | — |
-| MainThreadNotebookRenderers | 0/1 | — |
+| MainThreadTask | 10/10 | `MainThreadTask` (lib/extensions/main_thread/main_thread_task.dart) |
+| MainThreadWindow | 3/3 | `MainThreadWindow` (lib/extensions/main_thread/main_thread_window.dart) |
+| MainThreadPower | 7/7 | `MainThreadPower` (lib/extensions/main_thread/main_thread_power.dart) |
+| MainThreadLabelService | 2/2 | `MainThreadLabelService` (lib/extensions/main_thread/main_thread_label_service.dart) |
+| MainThreadNotebook | 5/5 | `MainThreadNotebook` (lib/extensions/main_thread/main_thread_notebook.dart) |
+| MainThreadNotebookDocuments | 3/3 | `MainThreadNotebookDocuments` (lib/extensions/main_thread/main_thread_notebook.dart) |
+| MainThreadNotebookEditors | 3/3 | `MainThreadNotebookEditors` (lib/extensions/main_thread/main_thread_notebook.dart) |
+| MainThreadNotebookKernels | 10/18 | `MainThreadNotebookKernels` (lib/extensions/main_thread/main_thread_notebook.dart) |
+| MainThreadNotebookRenderers | 1/1 | `MainThreadNotebookRenderers` (lib/extensions/main_thread/main_thread_notebook.dart) |
 | MainThreadInteractive | 0/0 | — |
-| MainThreadTheming | 0/0 | — |
-| MainThreadTunnelService | 0/11 | — |
+| MainThreadTheming | 0/0 | `MainThreadTheming` (lib/extensions/main_thread/main_thread_theming.dart) |
+| MainThreadTunnelService | 3/11 | `MainThreadTunnelService` (lib/extensions/main_thread/main_thread_degraded.dart) |
 | MainThreadManagedSockets | 0/5 | — |
 | MainThreadBrowserTunnelProxy | 0/1 | — |
-| MainThreadTimeline | 0/3 | — |
-| MainThreadTesting | 0/21 | — |
-| MainThreadLocalization | 0/2 | — |
+| MainThreadTimeline | 3/3 | `MainThreadTimeline` (lib/extensions/main_thread/main_thread_degraded.dart) |
+| MainThreadTesting | 21/21 | `MainThreadTesting` (lib/extensions/main_thread/main_thread_testing.dart) |
+| MainThreadLocalization | 2/2 | `MainThreadLocalization` (lib/extensions/main_thread/main_thread_localization.dart) |
 | MainThreadMcp | 0/10 | — |
 | MainThreadAiRelatedInformation | 0/3 | — |
 | MainThreadAiEmbeddingVector | 0/2 | — |
@@ -93,7 +93,7 @@ at run time by `ExtHostParity`.
 | MainThreadChatQuota | 0/1 | — |
 | MainThreadChatInputNotification | 0/2 | — |
 | MainThreadAiSettingsSearch | 0/3 | — |
-| MainThreadDataChannels | 0/5 | — |
+| MainThreadDataChannels | 5/5 | `MainThreadDataChannels` (lib/extensions/main_thread/main_thread_degraded.dart) |
 | MainThreadChatSessions | 0/14 | — |
 | MainThreadChatOutputRenderer | 0/2 | — |
 | MainThreadChatContext | 0/6 | — |
@@ -104,13 +104,13 @@ at run time by `ExtHostParity`.
 
 ### MainThreadAuthentication
 
-- Implemented (0): —
-- Unsupported (15): `$registerAuthenticationProvider`, `$unregisterAuthenticationProvider`, `$ensureProvider`, `$sendDidChangeSessions`, `$getSession`, `$getAccounts`, `$removeSession`, `$waitForUriHandler`, `$showContinueNotification`, `$showDeviceCodeModal`, `$promptForClientRegistration`, `$promptForResourceClientSecret`, `$registerDynamicAuthenticationProvider`, `$setSessionsForDynamicAuthProvider`, `$sendDidChangeDynamicProviderInfo`
+- Implemented (15): `$registerAuthenticationProvider`, `$unregisterAuthenticationProvider`, `$ensureProvider`, `$sendDidChangeSessions`, `$getSession`, `$getAccounts`, `$removeSession`, `$waitForUriHandler`, `$showContinueNotification`, `$showDeviceCodeModal`, `$promptForClientRegistration`, `$promptForResourceClientSecret`, `$registerDynamicAuthenticationProvider`, `$setSessionsForDynamicAuthProvider`, `$sendDidChangeDynamicProviderInfo`
+- Unsupported (0): —
 
 ### MainThreadBulkEdits
 
-- Implemented (0): —
-- Unsupported (1): `$tryApplyWorkspaceEdit`
+- Implemented (1): `$tryApplyWorkspaceEdit`
+- Unsupported (0): —
 
 ### MainThreadLanguageModels
 
@@ -134,8 +134,8 @@ at run time by `ExtHostParity`.
 
 ### MainThreadLanguageModelTools
 
-- Implemented (0): —
-- Unsupported (7): `$getTools`, `$acceptToolProgress`, `$invokeTool`, `$countTokensForInvocation`, `$registerTool`, `$registerToolWithDefinition`, `$unregisterTool`
+- Implemented (6): `$getTools`, `$acceptToolProgress`, `$invokeTool`, `$registerTool`, `$registerToolWithDefinition`, `$unregisterTool`
+- Unsupported (1): `$countTokensForInvocation`
 
 ### MainThreadGitExtension
 
@@ -144,13 +144,13 @@ at run time by `ExtHostParity`.
 
 ### MainThreadClipboard
 
-- Implemented (0): —
-- Unsupported (2): `$readText`, `$writeText`
+- Implemented (2): `$readText`, `$writeText`
+- Unsupported (0): —
 
 ### MainThreadCommands
 
-- Implemented (0): —
-- Unsupported (5): `$registerCommand`, `$unregisterCommand`, `$fireCommandActivationEvent`, `$executeCommand`, `$getCommands`
+- Implemented (5): `$registerCommand`, `$unregisterCommand`, `$fireCommandActivationEvent`, `$executeCommand`, `$getCommands`
+- Unsupported (0): —
 
 ### MainThreadComments
 
@@ -164,43 +164,43 @@ at run time by `ExtHostParity`.
 
 ### MainThreadConsole
 
-- Implemented (0): —
-- Unsupported (1): `$logExtensionHostMessage`
+- Implemented (1): `$logExtensionHostMessage`
+- Unsupported (0): —
 
 ### MainThreadDebugService
 
-- Implemented (0): —
-- Unsupported (21): `$registerDebugTypes`, `$sessionCached`, `$acceptDAMessage`, `$acceptDAError`, `$acceptDAExit`, `$registerDebugConfigurationProvider`, `$registerDebugAdapterDescriptorFactory`, `$unregisterDebugConfigurationProvider`, `$unregisterDebugAdapterDescriptorFactory`, `$startDebugging`, `$stopDebugging`, `$setDebugSessionName`, `$customDebugAdapterRequest`, `$getDebugProtocolBreakpoint`, `$appendDebugConsole`, `$registerBreakpoints`, `$unregisterBreakpoints`, `$registerDebugVisualizer`, `$unregisterDebugVisualizer`, `$registerDebugVisualizerTree`, `$unregisterDebugVisualizerTree`
+- Implemented (21): `$registerDebugTypes`, `$sessionCached`, `$acceptDAMessage`, `$acceptDAError`, `$acceptDAExit`, `$registerDebugConfigurationProvider`, `$registerDebugAdapterDescriptorFactory`, `$unregisterDebugConfigurationProvider`, `$unregisterDebugAdapterDescriptorFactory`, `$startDebugging`, `$stopDebugging`, `$setDebugSessionName`, `$customDebugAdapterRequest`, `$getDebugProtocolBreakpoint`, `$appendDebugConsole`, `$registerBreakpoints`, `$unregisterBreakpoints`, `$registerDebugVisualizer`, `$unregisterDebugVisualizer`, `$registerDebugVisualizerTree`, `$unregisterDebugVisualizerTree`
+- Unsupported (0): —
 
 ### MainThreadDecorations
 
-- Implemented (0): —
-- Unsupported (3): `$registerDecorationProvider`, `$unregisterDecorationProvider`, `$onDidChange`
+- Implemented (3): `$registerDecorationProvider`, `$unregisterDecorationProvider`, `$onDidChange`
+- Unsupported (0): —
 
 ### MainThreadDiagnostics
 
-- Implemented (0): —
-- Unsupported (2): `$changeMany`, `$clear`
+- Implemented (2): `$changeMany`, `$clear`
+- Unsupported (0): —
 
 ### MainThreadDialogs
 
-- Implemented (0): —
-- Unsupported (2): `$showOpenDialog`, `$showSaveDialog`
+- Implemented (2): `$showOpenDialog`, `$showSaveDialog`
+- Unsupported (0): —
 
 ### MainThreadDocuments
 
-- Implemented (0): —
-- Unsupported (3): `$tryCreateDocument`, `$tryOpenDocument`, `$trySaveDocument`
+- Implemented (3): `$tryCreateDocument`, `$tryOpenDocument`, `$trySaveDocument`
+- Unsupported (0): —
 
 ### MainThreadDocumentContentProviders
 
-- Implemented (0): —
-- Unsupported (3): `$registerTextContentProvider`, `$unregisterTextContentProvider`, `$onVirtualDocumentChange`
+- Implemented (3): `$registerTextContentProvider`, `$unregisterTextContentProvider`, `$onVirtualDocumentChange`
+- Unsupported (0): —
 
 ### MainThreadTextEditors
 
-- Implemented (0): —
-- Unsupported (13): `$tryShowTextDocument`, `$registerTextEditorDecorationType`, `$removeTextEditorDecorationType`, `$tryShowEditor`, `$tryHideEditor`, `$trySetOptions`, `$trySetDecorations`, `$trySetDecorationsFast`, `$tryRevealRange`, `$trySetSelections`, `$tryApplyEdits`, `$tryInsertSnippet`, `$getDiffInformation`
+- Implemented (13): `$tryShowTextDocument`, `$registerTextEditorDecorationType`, `$removeTextEditorDecorationType`, `$tryShowEditor`, `$tryHideEditor`, `$trySetOptions`, `$trySetDecorations`, `$trySetDecorationsFast`, `$tryRevealRange`, `$trySetSelections`, `$tryApplyEdits`, `$tryInsertSnippet`, `$getDiffInformation`
+- Unsupported (0): —
 
 ### MainThreadEditorInsets
 
@@ -209,53 +209,53 @@ at run time by `ExtHostParity`.
 
 ### MainThreadEditorTabs
 
-- Implemented (0): —
-- Unsupported (3): `$moveTab`, `$closeTab`, `$closeGroup`
+- Implemented (3): `$moveTab`, `$closeTab`, `$closeGroup`
+- Unsupported (0): —
 
 ### MainThreadErrors
 
-- Implemented (0): —
-- Unsupported (1): `$onUnexpectedError`
+- Implemented (1): `$onUnexpectedError`
+- Unsupported (0): —
 
 ### MainThreadTreeViews
 
-- Implemented (0): —
-- Unsupported (9): `$registerTreeViewDataProvider`, `$refresh`, `$reveal`, `$setMessage`, `$setTitle`, `$setBadge`, `$resolveDropFileData`, `$disposeTree`, `$logResolveTreeNodeFailure`
+- Implemented (6): `$registerTreeViewDataProvider`, `$refresh`, `$reveal`, `$setMessage`, `$setTitle`, `$setBadge`
+- Unsupported (3): `$resolveDropFileData`, `$disposeTree`, `$logResolveTreeNodeFailure`
 
 ### MainThreadDownloadService
 
-- Implemented (0): —
-- Unsupported (1): `$download`
+- Implemented (1): `$download`
+- Unsupported (0): —
 
 ### MainThreadLanguageFeatures
 
-- Implemented (0): —
-- Unsupported (47): `$unregister`, `$registerDocumentSymbolProvider`, `$registerCodeLensSupport`, `$emitCodeLensEvent`, `$registerDefinitionSupport`, `$registerDeclarationSupport`, `$registerImplementationSupport`, `$registerTypeDefinitionSupport`, `$registerHoverProvider`, `$registerEvaluatableExpressionProvider`, `$registerInlineValuesProvider`, `$emitInlineValuesEvent`, `$registerDocumentHighlightProvider`, `$registerMultiDocumentHighlightProvider`, `$registerLinkedEditingRangeProvider`, `$registerReferenceSupport`, `$registerCodeActionSupport`, `$registerPasteEditProvider`, `$registerDocumentFormattingSupport`, `$registerRangeFormattingSupport`, `$registerOnTypeFormattingSupport`, `$registerNavigateTypeSupport`, `$registerRenameSupport`, `$registerNewSymbolNamesProvider`, `$registerDocumentSemanticTokensProvider`, `$emitDocumentSemanticTokensEvent`, `$registerDocumentRangeSemanticTokensProvider`, `$emitDocumentRangeSemanticTokensEvent`, `$registerCompletionsProvider`, `$registerInlineCompletionsSupport`, `$emitInlineCompletionsChange`, `$emitInlineCompletionModelInfoChange`, `$emitInlineCompletionProviderOptionsChange`, `$registerSignatureHelpProvider`, `$registerInlayHintsProvider`, `$emitInlayHintsEvent`, `$registerDocumentLinkProvider`, `$registerDocumentColorProvider`, `$registerFoldingRangeProvider`, `$emitFoldingRangeEvent`, `$registerSelectionRangeProvider`, `$registerCallHierarchyProvider`, `$registerTypeHierarchyProvider`, `$registerDocumentOnDropEditProvider`, `$resolvePasteFileData`, `$resolveDocumentOnDropFileData`, `$setLanguageConfiguration`
+- Implemented (35): `$unregister`, `$registerDocumentSymbolProvider`, `$registerCodeLensSupport`, `$emitCodeLensEvent`, `$registerDefinitionSupport`, `$registerDeclarationSupport`, `$registerImplementationSupport`, `$registerTypeDefinitionSupport`, `$registerHoverProvider`, `$registerEvaluatableExpressionProvider`, `$registerInlineValuesProvider`, `$emitInlineValuesEvent`, `$registerDocumentHighlightProvider`, `$registerMultiDocumentHighlightProvider`, `$registerLinkedEditingRangeProvider`, `$registerReferenceSupport`, `$registerCodeActionSupport`, `$registerPasteEditProvider`, `$registerRangeFormattingSupport`, `$registerNavigateTypeSupport`, `$registerRenameSupport`, `$registerNewSymbolNamesProvider`, `$registerDocumentSemanticTokensProvider`, `$emitDocumentSemanticTokensEvent`, `$registerDocumentRangeSemanticTokensProvider`, `$emitDocumentRangeSemanticTokensEvent`, `$registerCompletionsProvider`, `$emitFoldingRangeEvent`, `$registerSelectionRangeProvider`, `$registerCallHierarchyProvider`, `$registerTypeHierarchyProvider`, `$registerDocumentOnDropEditProvider`, `$resolvePasteFileData`, `$resolveDocumentOnDropFileData`, `$setLanguageConfiguration`
+- Unsupported (12): `$registerDocumentFormattingSupport`, `$registerOnTypeFormattingSupport`, `$registerInlineCompletionsSupport`, `$emitInlineCompletionsChange`, `$emitInlineCompletionModelInfoChange`, `$emitInlineCompletionProviderOptionsChange`, `$registerSignatureHelpProvider`, `$registerInlayHintsProvider`, `$emitInlayHintsEvent`, `$registerDocumentLinkProvider`, `$registerDocumentColorProvider`, `$registerFoldingRangeProvider`
 
 ### MainThreadLanguages
 
-- Implemented (0): —
-- Unsupported (5): `$changeLanguage`, `$tokensAtPosition`, `$computeFullSyntaxHighlighting`, `$setLanguageStatus`, `$removeLanguageStatus`
+- Implemented (4): `$changeLanguage`, `$tokensAtPosition`, `$setLanguageStatus`, `$removeLanguageStatus`
+- Unsupported (1): `$computeFullSyntaxHighlighting`
 
 ### MainThreadLogger
 
-- Implemented (0): —
-- Unsupported (6): `$log`, `$flush`, `$createLogger`, `$registerLogger`, `$deregisterLogger`, `$setVisibility`
+- Implemented (6): `$log`, `$flush`, `$createLogger`, `$registerLogger`, `$deregisterLogger`, `$setVisibility`
+- Unsupported (0): —
 
 ### MainThreadMessageService
 
-- Implemented (0): —
-- Unsupported (1): `$showMessage`
+- Implemented (1): `$showMessage`
+- Unsupported (0): —
 
 ### MainThreadOutputService
 
-- Implemented (0): —
-- Unsupported (5): `$register`, `$update`, `$reveal`, `$close`, `$dispose`
+- Implemented (5): `$register`, `$update`, `$reveal`, `$close`, `$dispose`
+- Unsupported (0): —
 
 ### MainThreadProgress
 
-- Implemented (0): —
-- Unsupported (3): `$startProgress`, `$progressReport`, `$progressEnd`
+- Implemented (3): `$startProgress`, `$progressReport`, `$progressEnd`
+- Unsupported (0): —
 
 ### MainThreadQuickDiff
 
@@ -274,23 +274,23 @@ at run time by `ExtHostParity`.
 
 ### MainThreadQuickOpen
 
-- Implemented (0): —
-- Unsupported (6): `$show`, `$setItems`, `$setError`, `$input`, `$createOrUpdate`, `$dispose`
+- Implemented (4): `$show`, `$setItems`, `$setError`, `$input`
+- Unsupported (2): `$createOrUpdate`, `$dispose`
 
 ### MainThreadStatusBar
 
-- Implemented (0): —
-- Unsupported (2): `$setEntry`, `$disposeEntry`
+- Implemented (2): `$setEntry`, `$disposeEntry`
+- Unsupported (0): —
 
 ### MainThreadSecretState
 
-- Implemented (0): —
-- Unsupported (4): `$getPassword`, `$setPassword`, `$deletePassword`, `$getKeys`
+- Implemented (4): `$getPassword`, `$setPassword`, `$deletePassword`, `$getKeys`
+- Unsupported (0): —
 
 ### MainThreadStorage
 
-- Implemented (0): —
-- Unsupported (3): `$initializeExtensionStorage`, `$setValue`, `$registerExtensionStorageKeysToSync`
+- Implemented (3): `$initializeExtensionStorage`, `$setValue`, `$registerExtensionStorageKeysToSync`
+- Unsupported (0): —
 
 ### MainThreadSpeech
 
@@ -299,8 +299,8 @@ at run time by `ExtHostParity`.
 
 ### MainThreadTelemetry
 
-- Implemented (0): —
-- Unsupported (2): `$publicLog`, `$publicLog2`
+- Implemented (2): `$publicLog`, `$publicLog2`
+- Unsupported (0): —
 
 ### MainThreadMeteredConnection
 
@@ -309,38 +309,38 @@ at run time by `ExtHostParity`.
 
 ### MainThreadTerminalService
 
-- Implemented (0): —
-- Unsupported (23): `$createTerminal`, `$dispose`, `$hide`, `$sendText`, `$show`, `$registerProcessSupport`, `$registerProfileProvider`, `$unregisterProfileProvider`, `$registerCompletionProvider`, `$unregisterCompletionProvider`, `$registerQuickFixProvider`, `$unregisterQuickFixProvider`, `$setEnvironmentVariableCollection`, `$startSendingDataEvents`, `$stopSendingDataEvents`, `$startSendingCommandEvents`, `$stopSendingCommandEvents`, `$startLinkProvider`, `$stopLinkProvider`, `$sendProcessData`, `$sendProcessReady`, `$sendProcessProperty`, `$sendProcessExit`
+- Implemented (23): `$createTerminal`, `$dispose`, `$hide`, `$sendText`, `$show`, `$registerProcessSupport`, `$registerProfileProvider`, `$unregisterProfileProvider`, `$registerCompletionProvider`, `$unregisterCompletionProvider`, `$registerQuickFixProvider`, `$unregisterQuickFixProvider`, `$setEnvironmentVariableCollection`, `$startSendingDataEvents`, `$stopSendingDataEvents`, `$startSendingCommandEvents`, `$stopSendingCommandEvents`, `$startLinkProvider`, `$stopLinkProvider`, `$sendProcessData`, `$sendProcessReady`, `$sendProcessProperty`, `$sendProcessExit`
+- Unsupported (0): —
 
 ### MainThreadTerminalShellIntegration
 
-- Implemented (0): —
-- Unsupported (1): `$executeCommand`
+- Implemented (1): `$executeCommand`
+- Unsupported (0): —
 
 ### MainThreadWebviews
 
-- Implemented (0): —
-- Unsupported (3): `$setHtml`, `$setOptions`, `$postMessage`
+- Implemented (3): `$setHtml`, `$setOptions`, `$postMessage`
+- Unsupported (0): —
 
 ### MainThreadWebviewPanels
 
-- Implemented (0): —
-- Unsupported (7): `$createWebviewPanel`, `$disposeWebview`, `$reveal`, `$setTitle`, `$setIconPath`, `$registerSerializer`, `$unregisterSerializer`
+- Implemented (7): `$createWebviewPanel`, `$disposeWebview`, `$reveal`, `$setTitle`, `$setIconPath`, `$registerSerializer`, `$unregisterSerializer`
+- Unsupported (0): —
 
 ### MainThreadWebviewViews
 
-- Implemented (0): —
-- Unsupported (6): `$registerWebviewViewProvider`, `$unregisterWebviewViewProvider`, `$setWebviewViewTitle`, `$setWebviewViewDescription`, `$setWebviewViewBadge`, `$show`
+- Implemented (6): `$registerWebviewViewProvider`, `$unregisterWebviewViewProvider`, `$setWebviewViewTitle`, `$setWebviewViewDescription`, `$setWebviewViewBadge`, `$show`
+- Unsupported (0): —
 
 ### MainThreadCustomEditors
 
-- Implemented (0): —
-- Unsupported (5): `$registerTextEditorProvider`, `$registerCustomEditorProvider`, `$unregisterEditorProvider`, `$onDidEdit`, `$onContentChange`
+- Implemented (5): `$registerTextEditorProvider`, `$registerCustomEditorProvider`, `$unregisterEditorProvider`, `$onDidEdit`, `$onContentChange`
+- Unsupported (0): —
 
 ### MainThreadUrls
 
-- Implemented (0): —
-- Unsupported (3): `$registerUriHandler`, `$unregisterUriHandler`, `$createAppUri`
+- Implemented (3): `$registerUriHandler`, `$unregisterUriHandler`, `$createAppUri`
+- Unsupported (0): —
 
 ### MainThreadUriOpeners
 
@@ -349,38 +349,38 @@ at run time by `ExtHostParity`.
 
 ### MainThreadProfileContentHandlers
 
-- Implemented (0): —
-- Unsupported (2): `$registerProfileContentHandler`, `$unregisterProfileContentHandler`
+- Implemented (2): `$registerProfileContentHandler`, `$unregisterProfileContentHandler`
+- Unsupported (0): —
 
 ### MainThreadWorkspace
 
-- Implemented (0): —
-- Unsupported (20): `$startFileSearch`, `$startTextSearch`, `$checkExists`, `$save`, `$saveAll`, `$updateWorkspaceFolders`, `$resolveProxy`, `$lookupAuthorization`, `$lookupKerberosAuthorization`, `$loadCertificates`, `$requestResourceTrust`, `$requestWorkspaceTrust`, `$isResourceTrusted`, `$registerEditSessionIdentityProvider`, `$unregisterEditSessionIdentityProvider`, `$registerCanonicalUriProvider`, `$unregisterCanonicalUriProvider`, `$resolveDecoding`, `$validateDetectedEncoding`, `$resolveEncoding`
+- Implemented (20): `$startFileSearch`, `$startTextSearch`, `$checkExists`, `$save`, `$saveAll`, `$updateWorkspaceFolders`, `$resolveProxy`, `$lookupAuthorization`, `$lookupKerberosAuthorization`, `$loadCertificates`, `$requestResourceTrust`, `$requestWorkspaceTrust`, `$isResourceTrusted`, `$registerEditSessionIdentityProvider`, `$unregisterEditSessionIdentityProvider`, `$registerCanonicalUriProvider`, `$unregisterCanonicalUriProvider`, `$resolveDecoding`, `$validateDetectedEncoding`, `$resolveEncoding`
+- Unsupported (0): —
 
 ### MainThreadFileSystem
 
-- Implemented (0): —
-- Unsupported (12): `$registerFileSystemProvider`, `$unregisterProvider`, `$onFileSystemChange`, `$stat`, `$readdir`, `$readFile`, `$writeFile`, `$rename`, `$copy`, `$mkdir`, `$delete`, `$ensureActivation`
+- Implemented (12): `$registerFileSystemProvider`, `$unregisterProvider`, `$onFileSystemChange`, `$stat`, `$readdir`, `$readFile`, `$writeFile`, `$rename`, `$copy`, `$mkdir`, `$delete`, `$ensureActivation`
+- Unsupported (0): —
 
 ### MainThreadFileSystemEventService
 
-- Implemented (0): —
-- Unsupported (2): `$watch`, `$unwatch`
+- Implemented (2): `$watch`, `$unwatch`
+- Unsupported (0): —
 
 ### MainThreadExtensionService
 
-- Implemented (0): —
-- Unsupported (8): `$getExtension`, `$activateExtension`, `$onWillActivateExtension`, `$onDidActivateExtension`, `$onExtensionActivationError`, `$onExtensionRuntimeError`, `$setPerformanceMarks`, `$asBrowserUri`
+- Implemented (8): `$getExtension`, `$activateExtension`, `$onWillActivateExtension`, `$onDidActivateExtension`, `$onExtensionActivationError`, `$onExtensionRuntimeError`, `$setPerformanceMarks`, `$asBrowserUri`
+- Unsupported (0): —
 
 ### MainThreadSCM
 
-- Implemented (0): —
-- Unsupported (17): `$registerSourceControl`, `$updateSourceControl`, `$unregisterSourceControl`, `$registerGroups`, `$updateGroup`, `$updateGroupLabel`, `$unregisterGroup`, `$spliceResourceStates`, `$setInputBoxValue`, `$setInputBoxPlaceholder`, `$setInputBoxEnablement`, `$setInputBoxVisibility`, `$showValidationMessage`, `$setValidationProviderIsEnabled`, `$onDidChangeHistoryProviderCurrentHistoryItemRefs`, `$onDidChangeHistoryProviderHistoryItemRefs`, `$onDidChangeArtifacts`
+- Implemented (17): `$registerSourceControl`, `$updateSourceControl`, `$unregisterSourceControl`, `$registerGroups`, `$updateGroup`, `$updateGroupLabel`, `$unregisterGroup`, `$spliceResourceStates`, `$setInputBoxValue`, `$setInputBoxPlaceholder`, `$setInputBoxEnablement`, `$setInputBoxVisibility`, `$showValidationMessage`, `$setValidationProviderIsEnabled`, `$onDidChangeHistoryProviderCurrentHistoryItemRefs`, `$onDidChangeHistoryProviderHistoryItemRefs`, `$onDidChangeArtifacts`
+- Unsupported (0): —
 
 ### MainThreadSearch
 
-- Implemented (0): —
-- Unsupported (8): `$registerFileSearchProvider`, `$registerAITextSearchProvider`, `$registerTextSearchProvider`, `$unregisterProvider`, `$handleFileMatch`, `$handleTextMatch`, `$handleKeywordResult`, `$handleTelemetry`
+- Implemented (8): `$registerFileSearchProvider`, `$registerAITextSearchProvider`, `$registerTextSearchProvider`, `$unregisterProvider`, `$handleFileMatch`, `$handleTextMatch`, `$handleKeywordResult`, `$handleTelemetry`
+- Unsupported (0): —
 
 ### MainThreadShare
 
@@ -389,48 +389,48 @@ at run time by `ExtHostParity`.
 
 ### MainThreadTask
 
-- Implemented (0): —
-- Unsupported (10): `$createTaskId`, `$registerTaskProvider`, `$unregisterTaskProvider`, `$fetchTasks`, `$getTaskExecution`, `$executeTask`, `$terminateTask`, `$registerTaskSystem`, `$customExecutionComplete`, `$registerSupportedExecutions`
+- Implemented (10): `$createTaskId`, `$registerTaskProvider`, `$unregisterTaskProvider`, `$fetchTasks`, `$getTaskExecution`, `$executeTask`, `$terminateTask`, `$registerTaskSystem`, `$customExecutionComplete`, `$registerSupportedExecutions`
+- Unsupported (0): —
 
 ### MainThreadWindow
 
-- Implemented (0): —
-- Unsupported (3): `$getInitialState`, `$openUri`, `$asExternalUri`
+- Implemented (3): `$getInitialState`, `$openUri`, `$asExternalUri`
+- Unsupported (0): —
 
 ### MainThreadPower
 
-- Implemented (0): —
-- Unsupported (7): `$getSystemIdleState`, `$getSystemIdleTime`, `$getCurrentThermalState`, `$isOnBatteryPower`, `$startPowerSaveBlocker`, `$stopPowerSaveBlocker`, `$isPowerSaveBlockerStarted`
+- Implemented (7): `$getSystemIdleState`, `$getSystemIdleTime`, `$getCurrentThermalState`, `$isOnBatteryPower`, `$startPowerSaveBlocker`, `$stopPowerSaveBlocker`, `$isPowerSaveBlockerStarted`
+- Unsupported (0): —
 
 ### MainThreadLabelService
 
-- Implemented (0): —
-- Unsupported (2): `$registerResourceLabelFormatter`, `$unregisterResourceLabelFormatter`
+- Implemented (2): `$registerResourceLabelFormatter`, `$unregisterResourceLabelFormatter`
+- Unsupported (0): —
 
 ### MainThreadNotebook
 
-- Implemented (0): —
-- Unsupported (5): `$registerNotebookSerializer`, `$unregisterNotebookSerializer`, `$registerNotebookCellStatusBarItemProvider`, `$unregisterNotebookCellStatusBarItemProvider`, `$emitCellStatusBarEvent`
+- Implemented (5): `$registerNotebookSerializer`, `$unregisterNotebookSerializer`, `$registerNotebookCellStatusBarItemProvider`, `$unregisterNotebookCellStatusBarItemProvider`, `$emitCellStatusBarEvent`
+- Unsupported (0): —
 
 ### MainThreadNotebookDocuments
 
-- Implemented (0): —
-- Unsupported (3): `$tryCreateNotebook`, `$tryOpenNotebook`, `$trySaveNotebook`
+- Implemented (3): `$tryCreateNotebook`, `$tryOpenNotebook`, `$trySaveNotebook`
+- Unsupported (0): —
 
 ### MainThreadNotebookEditors
 
-- Implemented (0): —
-- Unsupported (3): `$tryShowNotebookDocument`, `$tryRevealRange`, `$trySetSelections`
+- Implemented (3): `$tryShowNotebookDocument`, `$tryRevealRange`, `$trySetSelections`
+- Unsupported (0): —
 
 ### MainThreadNotebookKernels
 
-- Implemented (0): —
-- Unsupported (18): `$postMessage`, `$addKernel`, `$updateKernel`, `$removeKernel`, `$updateNotebookPriority`, `$createExecution`, `$updateExecution`, `$completeExecution`, `$createNotebookExecution`, `$beginNotebookExecution`, `$completeNotebookExecution`, `$addKernelDetectionTask`, `$removeKernelDetectionTask`, `$addKernelSourceActionProvider`, `$removeKernelSourceActionProvider`, `$emitNotebookKernelSourceActionsChangeEvent`, `$receiveVariable`, `$variablesUpdated`
+- Implemented (10): `$postMessage`, `$addKernel`, `$updateKernel`, `$removeKernel`, `$updateNotebookPriority`, `$addKernelDetectionTask`, `$removeKernelDetectionTask`, `$addKernelSourceActionProvider`, `$removeKernelSourceActionProvider`, `$emitNotebookKernelSourceActionsChangeEvent`
+- Unsupported (8): `$createExecution`, `$updateExecution`, `$completeExecution`, `$createNotebookExecution`, `$beginNotebookExecution`, `$completeNotebookExecution`, `$receiveVariable`, `$variablesUpdated`
 
 ### MainThreadNotebookRenderers
 
-- Implemented (0): —
-- Unsupported (1): `$postMessage`
+- Implemented (1): `$postMessage`
+- Unsupported (0): —
 
 ### MainThreadInteractive
 
@@ -444,8 +444,8 @@ at run time by `ExtHostParity`.
 
 ### MainThreadTunnelService
 
-- Implemented (0): —
-- Unsupported (11): `$openTunnel`, `$closeTunnel`, `$getTunnels`, `$setTunnelProvider`, `$hasTunnelProvider`, `$setRemoteTunnelService`, `$setCandidateFilter`, `$onFoundNewCandidates`, `$setCandidatePortSource`, `$registerPortsAttributesProvider`, `$unregisterPortsAttributesProvider`
+- Implemented (3): `$setRemoteTunnelService`, `$registerPortsAttributesProvider`, `$unregisterPortsAttributesProvider`
+- Unsupported (8): `$openTunnel`, `$closeTunnel`, `$getTunnels`, `$setTunnelProvider`, `$hasTunnelProvider`, `$setCandidateFilter`, `$onFoundNewCandidates`, `$setCandidatePortSource`
 
 ### MainThreadManagedSockets
 
@@ -459,18 +459,18 @@ at run time by `ExtHostParity`.
 
 ### MainThreadTimeline
 
-- Implemented (0): —
-- Unsupported (3): `$registerTimelineProvider`, `$unregisterTimelineProvider`, `$emitTimelineChangeEvent`
+- Implemented (3): `$registerTimelineProvider`, `$unregisterTimelineProvider`, `$emitTimelineChangeEvent`
+- Unsupported (0): —
 
 ### MainThreadTesting
 
-- Implemented (0): —
-- Unsupported (21): `$registerTestController`, `$updateController`, `$unregisterTestController`, `$subscribeToDiffs`, `$unsubscribeFromDiffs`, `$publishDiff`, `$getCoverageDetails`, `$publishTestRunProfile`, `$updateTestRunConfig`, `$removeTestProfile`, `$runTests`, `$addTestsToRun`, `$updateTestStateInRun`, `$appendTestMessagesInRun`, `$appendOutputToRun`, `$appendCoverage`, `$startedTestRunTask`, `$finishedTestRunTask`, `$startedExtensionTestRun`, `$finishedExtensionTestRun`, `$markTestRetired`
+- Implemented (21): `$registerTestController`, `$updateController`, `$unregisterTestController`, `$subscribeToDiffs`, `$unsubscribeFromDiffs`, `$publishDiff`, `$getCoverageDetails`, `$publishTestRunProfile`, `$updateTestRunConfig`, `$removeTestProfile`, `$runTests`, `$addTestsToRun`, `$updateTestStateInRun`, `$appendTestMessagesInRun`, `$appendOutputToRun`, `$appendCoverage`, `$startedTestRunTask`, `$finishedTestRunTask`, `$startedExtensionTestRun`, `$finishedExtensionTestRun`, `$markTestRetired`
+- Unsupported (0): —
 
 ### MainThreadLocalization
 
-- Implemented (0): —
-- Unsupported (2): `$fetchBuiltInBundleUri`, `$fetchBundleContents`
+- Implemented (2): `$fetchBuiltInBundleUri`, `$fetchBundleContents`
+- Unsupported (0): —
 
 ### MainThreadMcp
 
@@ -509,8 +509,8 @@ at run time by `ExtHostParity`.
 
 ### MainThreadDataChannels
 
-- Implemented (0): —
-- Unsupported (5): `$createLinkPresentationWatcher`, `$disposeLinkPresentationWatcher`, `$registerLinkPresentationProvider`, `$unregisterLinkPresentationProvider`, `$acceptLinkPresentationProviderData`
+- Implemented (5): `$createLinkPresentationWatcher`, `$disposeLinkPresentationWatcher`, `$registerLinkPresentationProvider`, `$unregisterLinkPresentationProvider`, `$acceptLinkPresentationProviderData`
+- Unsupported (0): —
 
 ### MainThreadChatSessions
 
