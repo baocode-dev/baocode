@@ -15,7 +15,7 @@ import 'dart:io';
 import 'package:bao_exthost/bao_exthost.dart' show exthostProtocolMethods;
 
 const _sources = 'lib/extensions';
-const _output = 'docs/extensions/EXTHOST_PARITY.md';
+const exthostParityOutput = 'docs/extensions/EXTHOST_PARITY.md';
 
 /// A class that (eventually) extends a `MainThread*Unsupported`.
 final class _Impl {
@@ -42,6 +42,28 @@ final _overridePattern = RegExp(
 
 void main(List<String> arguments) {
   final check = arguments.contains('--check');
+  final (:report, :warnings) = exthostParityReport();
+  for (final w in warnings) {
+    stderr.writeln('warning: $w');
+  }
+  final out = File(exthostParityOutput);
+  if (check) {
+    if (!out.existsSync() || out.readAsStringSync() != report) {
+      stderr.writeln(
+        '$exthostParityOutput is out of date: run dart run tool/generate_exthost_parity.dart',
+      );
+      exit(1);
+    }
+    return;
+  }
+  out.parent.createSync(recursive: true);
+  out.writeAsStringSync(report);
+  stdout.writeln('Wrote $exthostParityOutput');
+}
+
+/// The report for the sources under lib/extensions, and what in them did
+/// not fit a shape. Read from the current directory (the repository root).
+({String report, List<String> warnings}) exthostParityReport() {
   final impls = <String, _Impl>{};
   final dir = Directory(_sources);
   if (dir.existsSync()) {
@@ -105,23 +127,7 @@ void main(List<String> arguments) {
     byShape.putIfAbsent(shape, () => []).add(impl);
   }
 
-  final report = _render(byShape);
-  for (final w in warnings) {
-    stderr.writeln('warning: $w');
-  }
-  final out = File(_output);
-  if (check) {
-    if (!out.existsSync() || out.readAsStringSync() != report) {
-      stderr.writeln(
-        '$_output is out of date: run dart run tool/generate_exthost_parity.dart',
-      );
-      exit(1);
-    }
-    return;
-  }
-  out.parent.createSync(recursive: true);
-  out.writeAsStringSync(report);
-  stdout.writeln('Wrote $_output');
+  return (report: _render(byShape), warnings: warnings);
 }
 
 String _render(Map<String, List<_Impl>> byShape) {

@@ -161,7 +161,7 @@ Open VSX 的包缓存在 `/tmp/exthost-dl/openvsx-cache`，第一次会下载。
 | 九.6 SSH 远程 | `ssh_remote_exthost_test.dart`（协议在内存里）、`ssh_docker_exthost_test.dart`（真实 ssh 到 Docker 里的 Linux） |
 | 九.7 崩溃恢复、离线、下载重试 | `fresh_runtime_ts_exthost_test.dart` |
 | 九.8 移除旧 LSP | `flutter analyze` 与全量测试 |
-| 九.9 文档与 parity | 本文；`dart run tool/generate_exthost_parity.dart` 生成 `docs/extensions/EXTHOST_PARITY.md` |
+| 九.9 文档与 parity | 本文；`dart run tool/generate_exthost_parity.dart` 生成 `docs/extensions/EXTHOST_PARITY.md`，`test/tool/exthost_parity_test.dart` 检查它是最新的 |
 
 ### 离屏截图
 
