@@ -9,7 +9,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'credential_manager_backend.dart';
+import 'credential_manager_backend_stub.dart'
+    if (dart.library.ffi) 'credential_manager_backend.dart';
 import 'encrypted_file_backend.dart';
 import 'keychain_backend.dart';
 import 'secret_tool_backend.dart';

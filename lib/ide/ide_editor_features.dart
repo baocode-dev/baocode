@@ -6,7 +6,6 @@
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:bao_editor/monaco/flutter/editor_decorations.dart'
     show EditorGutterIcon;
@@ -29,6 +28,7 @@ import 'package:bao_editor/monaco/flutter/editor_inlay_hints.dart';
 import 'package:bao_editor/monaco/flutter/editor_inline_suggest.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 
+import '../platform/svg_file.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart';
 import 'ide_editor_colors.dart';
@@ -220,7 +220,7 @@ Widget ideGutterIconBuilder(BuildContext context, EditorGutterIcon icon) {
   final file = File(path);
   if (!file.existsSync()) return const SizedBox.shrink();
   return icon.isSvg
-      ? SvgPicture.file(file, fit: BoxFit.contain)
+      ? svgFile(path)
       : Image.file(
           file,
           fit: BoxFit.contain,

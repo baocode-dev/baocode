@@ -13,9 +13,10 @@
 //
 // Deviations: [ExtensionTargetPlatform.current] reads Dart's
 // `Abi.current()` (upstream asks the running Node for its platform and
-// arch, and checks for Alpine's musl).
+// arch, and checks for Alpine's musl); [web] without dart:ffi.
 
-import 'dart:ffi' show Abi;
+import 'target_platform_current.dart'
+    if (dart.library.ffi) 'target_platform_current_ffi.dart';
 
 /// `TargetPlatform`.
 enum ExtensionTargetPlatform {
@@ -52,18 +53,7 @@ enum ExtensionTargetPlatform {
   }
 
   /// This machine's, as `getTargetPlatform(platform, arch)`.
-  static ExtensionTargetPlatform get current => fromAbi(Abi.current());
-
-  static ExtensionTargetPlatform fromAbi(Abi abi) => switch (abi) {
-    Abi.macosArm64 => darwinArm64,
-    Abi.macosX64 => darwinX64,
-    Abi.windowsX64 => win32X64,
-    Abi.windowsArm64 => win32Arm64,
-    Abi.linuxX64 => linuxX64,
-    Abi.linuxArm64 => linuxArm64,
-    Abi.linuxArm => linuxArmhf,
-    _ => unknown,
-  };
+  static ExtensionTargetPlatform get current => currentTargetPlatform();
 
   /// Whether an extension built for this platform is a platform-specific
   /// one (not [universal], [undefined] or [unknown]).

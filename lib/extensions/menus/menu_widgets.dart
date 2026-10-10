@@ -21,12 +21,12 @@ import 'dart:io';
 
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 import 'package:flutter/material.dart' hide ImageIcon;
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
 import '../../keybindings/keybinding_service.dart';
+import '../../platform/svg_file.dart';
 import '../../theme/codicons.dart';
 import '../../theme/icon_registry.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
@@ -146,7 +146,7 @@ Widget _image(VsUri uri, double size) {
   if (uri.scheme != 'file') return SizedBox.square(dimension: size);
   final path = uri.fsPath();
   return path.toLowerCase().endsWith('.svg')
-      ? SvgPicture.file(File(path), width: size, height: size)
+      ? svgFile(path, width: size, height: size)
       : Image.file(
           File(path),
           width: size,

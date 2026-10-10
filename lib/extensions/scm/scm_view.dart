@@ -28,7 +28,6 @@ import 'dart:io';
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 import 'package:flutter/material.dart' hide ImageIcon;
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
 
 import '../../ide/ide_hover.dart';
@@ -36,6 +35,7 @@ import '../../ide/ide_input.dart';
 import '../../ide/ide_list.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_panes.dart';
+import '../../platform/svg_file.dart';
 import '../../theme/codicons.dart';
 import '../../theme/icon_registry.dart';
 import '../../theme/material_file_icons.dart';
@@ -585,7 +585,7 @@ Widget _image(VsUri uri) {
   if (uri.scheme != 'file') return const SizedBox.square(dimension: 16);
   final path = uri.fsPath();
   return path.toLowerCase().endsWith('.svg')
-      ? SvgPicture.file(File(path), width: 16, height: 16)
+      ? svgFile(path, width: 16, height: 16)
       : Image.file(
           File(path),
           width: 16,

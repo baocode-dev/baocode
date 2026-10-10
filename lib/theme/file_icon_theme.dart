@@ -18,9 +18,9 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
 
+import '../platform/svg_file.dart';
 import '../settings/jsonc.dart';
 
 /// One icon of a theme: an image file, or a font's glyph.
@@ -390,7 +390,7 @@ class FileIconThemeIcon extends StatelessWidget {
     final path = definition.iconPath;
     if (path != null) {
       return path.toLowerCase().endsWith('.svg')
-          ? SvgPicture.file(File(path), width: size, height: size)
+          ? svgFile(path, width: size, height: size)
           : Image.file(
               File(path),
               width: size,

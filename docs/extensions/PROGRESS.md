@@ -240,18 +240,25 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   source; a README that failed to load in a tab not shown (the changelog) was an unhandled error. The page's bar names
   the extension as upstream's editor input (`Extension: {displayName}`).
 
+- The web build compiles the extensions again: dart:ffi (`Abi`, the Credential Manager) is behind
+  `if (dart.library.ffi)` imports, and SVG files go through lib/platform/svg_file.dart (flutter_svg's
+  `SvgPicture.file` takes its own `File` on the web). `web_stub_test.dart` guards both. main's own web build fails
+  on lib/remote/remote_binaries.dart (dart:ffi) and bao_remote's git_review_store.dart (a 64-bit literal); with those
+  two masked locally, `flutter build web` succeeds.
+
 ## In progress / next
 
-1. 九.1–九.8 are done (see Done).
-2. 九.9: docs/extensions.md, generated EXTHOST_PARITY.md, MANUAL_CHECKLIST.md, offscreen screenshots in
-   build/exthost-screens; then analyze, the full suite once, macOS build, merge.
+1. 九.1–九.9 are done (see Done). Final checks before the merge (main 9f84ede merged in): `flutter analyze --no-pub`
+   clean; `flutter build macos --debug` builds; the offscreen screenshots checked one by one; the full suite once:
+   all pass but 9 that fail on main 9f84ede too (codex_test "an account out of quota gives way to the next",
+   terminal_color_theme_test, search_palette_test ⌘[ ⌘], window_material_test ×3, quit_confirmation_test ×3).
+2. Merge into main (`git merge --no-ff`, no push).
 
 ## Decisions and deviations
 
 - An extension's README is markdown with HTML that upstream renders, sanitized, in a webview. Here its `<img>` and
   `<a>` are kept, block tags part paragraphs and other tags are dropped (`readme_html.dart`); HTML tables and
   alignment are not rendered.
-
 - `LanguageFeatures`/`lsp_protocol.dart` types are the editor UI's model and survive the LSP removal (moved out of
   lib/ide/lsp/); the extension host feeds them.
 - Language ids come from the bundled VS Code language contributions (bao_editor's TextMate manifest) plus
