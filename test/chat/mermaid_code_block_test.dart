@@ -418,11 +418,11 @@ void main() {
     await tester.runAsync(themes.initialize);
     await _pump(tester, _flow);
     final first = _scene(tester);
-    await tester.runAsync(() => themes.setColorTheme('Monokai'));
+    await tester.runAsync(() => themes.setColorTheme('Red'));
     await _pump(tester, _flow);
     expect(identical(_scene(tester), first), isFalse);
     final dark = _scene(tester);
-    await tester.runAsync(() => themes.setColorTheme('Quiet Light'));
+    await tester.runAsync(() => themes.setColorTheme('Solarized Light'));
     await _pump(tester, _flow);
     expect(identical(_scene(tester), dark), isFalse);
     expect(_scene(tester).background, isNull);

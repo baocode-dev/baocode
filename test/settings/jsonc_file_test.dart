@@ -205,9 +205,9 @@ void main() {
       expect(settings['workbench.colorTheme'], isNull);
       await settings.update('workbench.colorTheme', 'Monokai');
       await settings.update('editor.fontSize', 14);
-      await settings.update('workbench.colorTheme', 'Abyss');
+      await settings.update('workbench.colorTheme', 'Kimbie Dark');
       expect(settings.values, {
-        'workbench.colorTheme': 'Abyss',
+        'workbench.colorTheme': 'Kimbie Dark',
         'editor.fontSize': 14,
       });
       await settings.update('editor.fontSize', null);
@@ -215,7 +215,7 @@ void main() {
       final again = UserSettings(settings.path);
       addTearDown(again.dispose);
       await again.load();
-      expect(again.values, {'workbench.colorTheme': 'Abyss'});
+      expect(again.values, {'workbench.colorTheme': 'Kimbie Dark'});
     });
 
     test('ArgvSettings: the locale, read before the first frame', () async {
@@ -302,11 +302,11 @@ void main() {
     await eventually(() => files.settings['workbench.colorTheme'] == 'Red');
     expect(store.preferences['colorThemeData'], isA<String>());
 
-    await files.settings.writeText('{\n  "workbench.colorTheme": "Abyss"\n}');
-    await eventually(() => themes.colorThemeId == 'Abyss');
+    await files.settings.writeText('{\n  "workbench.colorTheme": "Kimbie Dark"\n}');
+    await eventually(() => themes.colorThemeId == 'Kimbie Dark');
     expect(
       File(files.settings.path).readAsStringSync(),
-      '{\n  "workbench.colorTheme": "Abyss"\n}',
+      '{\n  "workbench.colorTheme": "Kimbie Dark"\n}',
     );
 
     // Removed: the default theme.

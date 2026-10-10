@@ -93,7 +93,9 @@ void main() {
     // VS Code has no recording of Bao Dark: the styler is that of the
     // manifest's Bao Dark read from the files, and it styles tokens.
     final want = ideSemanticTokenStyler(
-      await fixture.loadTheme(ideDefaultColorThemeId),
+      (await tester.runAsync(
+        () => fixture.loadTheme(ideDefaultColorThemeId),
+      ))!,
     );
     final differences = <String>[];
     var styled = 0;

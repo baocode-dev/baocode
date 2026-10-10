@@ -17,6 +17,8 @@ import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart';
 import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
 import 'package:bao_editor/textmate/textmate_manifest.dart';
 
+import 'unlisted_themes.dart';
+
 Future<String> readAsset(String path) =>
     File('$textMateAssetDirectory/$path').readAsString();
 
@@ -109,12 +111,18 @@ void main() {
       .cast<Map<String, Object?>>();
   test('the fixture covers every bundled theme and color scheme', () {
     expect(
-      themes.map((t) => t['name']).whereType<String>().toSet(),
-      // VS Code's themes, not BaoCode's own.
-      manifest.themes
-          .where((t) => t.extension != 'theme-bao')
-          .map((t) => t.id)
+      themes
+          .map((t) => t['name'])
+          .whereType<String>()
+          .where((name) => !removedThemes.contains(name))
           .toSet(),
+      // VS Code's themes, not BaoCode's own.
+      {
+        ...manifest.themes
+            .where((t) => t.extension != 'theme-bao')
+            .map((t) => t.id),
+        ...unlistedThemes.map((t) => t.id),
+      },
     );
     expect(
       themes.where((t) => t['name'] == null).map((t) => t['type']).toSet(),
@@ -124,10 +132,11 @@ void main() {
 
   for (final entry in themes) {
     final name = entry['name'] as String?;
+    if (removedThemes.contains(name)) continue;
     test(name ?? 'no theme (${entry['type']})', () async {
       final ColorThemeData theme;
       if (name != null) {
-        final contribution = manifest.themeById(name)!;
+        final contribution = recordedTheme(manifest, name)!;
         theme = ColorThemeData.fromExtensionTheme(
           contribution,
           contribution.assetPath,

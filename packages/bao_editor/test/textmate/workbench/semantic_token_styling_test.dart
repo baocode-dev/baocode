@@ -17,6 +17,8 @@ import 'package:bao_editor/monaco/vs/workbench/services/themes/common/token_clas
 import 'package:bao_editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart';
 import 'package:bao_editor/textmate/textmate_manifest.dart';
 
+import 'unlisted_themes.dart';
+
 const fixturePath = 'test/fixtures/theme/semantic_tokens.json.gz';
 
 Map<String, Object?> readSemanticTokenFixture() =>
@@ -137,8 +139,9 @@ void main() {
   group('bundled themes match VS Code', () {
     for (final entry in fixture['themes'] as List) {
       final expected = entry as Map<String, Object?>;
+      if (removedThemes.contains(expected['id'])) continue;
       test(expected['id'] as String, () async {
-        final contribution = manifest.themeById(expected['id'] as String)!;
+        final contribution = recordedTheme(manifest, expected['id'] as String)!;
         final theme = ColorThemeData.fromExtensionTheme(
           contribution,
           contribution.assetPath,
