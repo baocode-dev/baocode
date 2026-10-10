@@ -36,7 +36,11 @@ import 'package:bao_editor/monaco/vs/editor/common/languages/language_configurat
     show plainTextLanguageConfiguration;
 import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
 import 'package:bao_editor/textmate/textmate_syntax.dart';
+import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 
+import '../debug/base/event.dart' show DisposableStore;
+import '../debug/service/debug_service.dart';
+import 'debug_editor_glue.dart';
 import 'git/git_blame.dart';
 import 'ide_color_picker.dart';
 import 'ide_commands.dart';
@@ -90,6 +94,7 @@ class IdeEditor extends StatefulWidget {
     this.gitBlame = true,
     this.keyResolver,
     this.onPaste,
+    this.debug,
   });
 
   final IdeWorkspace workspace;
@@ -137,6 +142,10 @@ class IdeEditor extends StatefulWidget {
   /// markdown document's files): whether it pasted.
   final Future<bool> Function(IdeDocument doc, EditorSurfaceController editor)?
   onPaste;
+
+  /// The debugger, when there is one: its breakpoints and stopped frames in
+  /// the glyph margin, a click there adding or removing one.
+  final DebugService? debug;
 
   @override
   State<IdeEditor> createState() => IdeEditorState();
@@ -266,9 +275,64 @@ class IdeEditorState extends State<IdeEditor> {
     if (widget.nativeEditorEnabled) _activateNativeController();
     _selectionChanged();
     _updateBlame(navigated: false);
+    _listenToDebug();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.onEditorStatus(_editorStatus);
     });
+  }
+
+  /// What [IdeEditor.debug] shows changes with.
+  DisposableStore? _debugListeners;
+
+  void _listenToDebug() {
+    _debugListeners?.dispose();
+    _debugListeners = null;
+    final debug = widget.debug;
+    if (debug == null) return;
+    void changed() => _rebuildSoon();
+    _debugListeners = DisposableStore()
+      ..add(debug.model.onDidChangeBreakpoints((_) => changed()))
+      ..add(debug.model.onDidChangeCallStack(changed))
+      ..add(debug.viewModel.onDidFocusStackFrame((_) => changed()))
+      ..add(debug.onDidChangeState((_) => changed()));
+  }
+
+  /// Over the editor's glyph margin, where a click adds a breakpoint to a
+  /// file a debugger takes them in (`canSetBreakpointsIn`) or removes one.
+  Widget? _debugGlyphMargin() {
+    final debug = widget.debug;
+    if (debug == null ||
+        !widget.nativeEditorEnabled ||
+        _nativeController == null ||
+        _diffOf(widget.active) != null) {
+      return null;
+    }
+    final uri = VsUri.file(widget.active.path);
+    final languageId = _textMateDocuments[widget.active]?.$2.languageId;
+    if (!debugCanSetBreakpoints(debug, languageId) &&
+        debug.model.getBreakpoints(uri: uri).isEmpty) {
+      return null;
+    }
+    return DebugGlyphMargin(
+      key: ValueKey(widget.active.path),
+      service: debug,
+      uri: uri,
+      surfaceKey: _surfaceKey,
+    );
+  }
+
+  /// The debugger's decorations of the active document.
+  List<EditorDecoration> _debugDecorations() {
+    final debug = widget.debug;
+    final controller = _nativeController;
+    if (debug == null || controller == null) return const [];
+    final snapshot = controller.document.snapshot;
+    return debugEditorDecorations(
+      debug,
+      VsUri.file(widget.active.path),
+      lineStarts: snapshot.lineStarts,
+      documentEnd: snapshot.text.length,
+    );
   }
 
   /// Shows [_blame] for the active document's carets, where it can be.
@@ -1202,6 +1266,7 @@ class IdeEditorState extends State<IdeEditor> {
   @override
   void didUpdateWidget(IdeEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.debug != widget.debug) _listenToDebug();
     final workspaceChanged = oldWidget.workspace != widget.workspace;
     if (workspaceChanged) {
       oldWidget.workspace.removeListener(_workspaceChanged);
@@ -1241,6 +1306,7 @@ class IdeEditorState extends State<IdeEditor> {
   void dispose() {
     widget.workspace.removeListener(_workspaceChanged);
     _themes.removeListener(_colorThemeChanged);
+    _debugListeners?.dispose();
     _blame.dispose();
     _features.dispose();
     _disposeNativeControllers();
@@ -2022,6 +2088,7 @@ class IdeEditorState extends State<IdeEditor> {
           ..._snippetDecorations(_nativeController!, colors),
           ..._findDecorations,
           ..._blameDecorations(colors),
+          ..._debugDecorations(),
         ],
         decorationProviders: switch (_features.ofDocument(widget.active)) {
           final features? => [
@@ -2249,6 +2316,8 @@ class IdeEditorState extends State<IdeEditor> {
                         ),
                 ),
               ),
+              if (_debugGlyphMargin() case final margin?)
+                Positioned(left: 0, top: 0, bottom: 0, child: margin),
               if (_language case final session?)
                 Positioned.fill(
                   // Hovers and suggestions are sized with the code.

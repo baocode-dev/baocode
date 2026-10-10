@@ -3658,6 +3658,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                 gitBlame: _gitBlame,
                                 keyResolver: _resolveEditorKey,
                                 onPaste: _pasteInEditor,
+                                debug: _debug,
                               ),
                   ),
                 ),

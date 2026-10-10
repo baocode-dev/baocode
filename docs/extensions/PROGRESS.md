@@ -225,6 +225,10 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - A remote window's search reached this machine's ripgrep (`spawn rg ENOENT` on the remote path): this machine's host
   registered its provider for `file`, replacing the remote host's. Search provider and document selector schemes now
   go through the connection's URI transformer, as its URIs do (this machine's `file` is `vscode-local` there).
+- Found in the Python breakpoint screenshot: the editor showed no breakpoints or paused line (`debug_editor_glue` was
+  never used). The IDE editor now shows breakpoint glyphs, the stopped threads' top frames and the focused frame (line
+  highlight, stack frame glyph in the focused session) and inline values; a click in the glyph margin adds or removes a
+  breakpoint (widget test in ide_workbench_extensions_test).
 
 ## In progress / next
 
@@ -319,3 +323,6 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   transforms them before sending, but ours knows no remote authority.
 - A Linux host's extension host offers its port finder (`$setRemoteTunnelService`); with no Ports view upstream's
   ports features stay disabled, so it is never asked (`$registerCandidateFinder`). No port forwarding for extensions.
+- Breakpoint glyph margin: a click removes a line's breakpoints at once (upstream first asks about a breakpoint with a
+  condition or log message); ⇧-click toggles them enabled; a secondary click toggles them too (upstream opens the
+  breakpoint context menu); no Alt-click editing. Glyphs are `codicon:` gutter icons painted as text.

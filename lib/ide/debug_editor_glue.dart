@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_exthost/bao_exthost.dart' show VsUri;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HardwareKeyboard;
 
 import '../debug/common/debug_model.dart';
 import '../debug/common/debug_source.dart';
@@ -25,6 +26,7 @@ import '../debug/common/debug_types.dart';
 import '../debug/service/debug_service.dart';
 import '../debug/ui/debug_icons.dart';
 import '../debug/ui/debug_strings.dart';
+import '../theme/codicons.dart';
 
 /// The UTF-16 offset of [lineNumber]'s start, and of its content end, in a
 /// document whose [lineStarts] are its lines' offsets (1-based lines; the
@@ -36,9 +38,16 @@ import '../debug/ui/debug_strings.dart';
   return (start: start, end: end < start ? start : end);
 }
 
+/// A codicon in the glyph margin, as an [EditorGutterIcon] for
+/// `ideGutterIconBuilder` (`codicon:<code point>?color=<ARGB>`).
+EditorGutterIcon debugGlyph(IconData icon, Color color) => EditorGutterIcon(
+  'codicon:${icon.codePoint.toRadixString(16)}?color=${color.toARGB32().toRadixString(16).padLeft(8, '0')}',
+);
+
 /// The decorations of the file [uri] while [service] runs: each
 /// breakpoint's glyph in the margin (normal, conditional, log, disabled,
-/// unverified), the focused frame's line, and inline values. For
+/// unverified), the stopped threads' top frames and the focused frame
+/// (`createCallStackDecorations`), and inline values. For
 /// `IdeCodeEditor.decorations`.
 ///
 /// [lineStarts] is `EditorDocumentModel.lineStarts`; [documentEnd] its
@@ -61,35 +70,61 @@ List<EditorDecoration> debugEditorDecorations(
     final range = _lineRange(lineStarts, bp.lineNumber, documentEnd);
     if (range == null) continue;
     final presentation = breakpointPresentation(state, activated, bp, strings, model: model);
-    // A breakpoint's own column, where it has one.
-    final start = bp.column != null && bp.column! > 0 ? range.start + bp.column! - 1 : range.start;
     decorations.add(
       EditorDecoration(
-        start: start,
-        end: range.end < start ? start : range.end,
-        isWholeLine: true,
-        lineDecorationIcon: presentation.icon,
-        lineDecorationColor: presentation.color,
-        hoverMessage: presentation.message,
+        start: range.start,
+        end: range.start,
+        showIfCollapsed: true,
+        gutterIcon: debugGlyph(presentation.icon, presentation.color),
       ),
     );
   }
 
-  final frame = service.viewModel.focusedStackFrame;
-  if (frame != null && frame.source.uri.toString() == uri.toString()) {
-    final range = _lineRange(lineStarts, frame.range.startLineNumber, documentEnd);
-    if (range != null) {
-      final column = frame.range.startColumn > 0 ? frame.range.startColumn : 1;
-      decorations.add(
-        EditorDecoration(
-          start: range.start + column - 1,
-          end: range.end,
-          backgroundColor: debugColor('editor.stackFrameHighlightBackground'),
-          borderColor: debugColor('editor.focusedStackFrameHighlightBackground'),
-          isWholeLine: true,
-          showIfCollapsed: true,
-        ),
-      );
+  // Each stopped thread's top frame, and the focused frame when it is not
+  // one: the line from the frame's column, and (in the focused session) the
+  // margin's arrow, over a breakpoint's dot.
+  final focused = service.viewModel.focusedStackFrame;
+  for (final session in model.getSessions()) {
+    final sessionFocused = identical(session, focused?.thread.session);
+    for (final thread in session.getAllThreads()) {
+      if (!thread.stopped) continue;
+      final callStack = thread.getCallStack();
+      if (callStack.isEmpty) continue;
+      final top = callStack.first;
+      for (final frame in [if (focused != null && !focused.equals(top)) focused, top]) {
+        if (frame.source.uri.toString() != uri.toString()) continue;
+        final range = _lineRange(lineStarts, frame.range.startLineNumber, documentEnd);
+        if (range == null) continue;
+        final isTop = frame.equals(top);
+        final column = frame.range.startColumn > 0 ? frame.range.startColumn : 1;
+        final start = (range.start + column - 1).clamp(range.start, range.end);
+        decorations.add(
+          EditorDecoration(
+            start: start,
+            end: range.end,
+            backgroundColor: debugColor(
+              isTop ? 'editor.stackFrameHighlightBackground' : 'editor.focusedStackFrameHighlightBackground',
+            ),
+            isWholeLine: true,
+            showIfCollapsed: true,
+          ),
+        );
+        if (sessionFocused) {
+          decorations.add(
+            EditorDecoration(
+              start: range.start,
+              end: range.start,
+              showIfCollapsed: true,
+              gutterIcon: debugGlyph(
+                isTop ? Codicons.debugStackframe : Codicons.debugStackframeFocused,
+                debugColor(
+                  isTop ? 'debugIcon.breakpointCurrentStackframeForeground' : 'debugIcon.breakpointStackframeForeground',
+                ),
+              ),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -146,16 +181,13 @@ final _inlineValues = <String, List<DebugInlineValue>>{};
 /// enabled state). Upstream puts this in the editor's own contribution;
 /// until the editor calls back, this sits over its glyph margin.
 class DebugGlyphMargin extends StatefulWidget {
-  const DebugGlyphMargin({super.key, required this.service, required this.uri, required this.surfaceKey, required this.width});
+  const DebugGlyphMargin({super.key, required this.service, required this.uri, required this.surfaceKey});
 
   final DebugService service;
   final VsUri uri;
 
   /// The [EditorSurface]'s key, whose state is an [EditorSurfaceView].
   final GlobalKey surfaceKey;
-
-  /// The glyph margin's width.
-  final double width;
 
   @override
   State<DebugGlyphMargin> createState() => _DebugGlyphMarginState();
@@ -183,15 +215,20 @@ class _DebugGlyphMarginState extends State<DebugGlyphMargin> {
   Breakpoint? _breakpointAt(int line) =>
       widget.service.model.getBreakpoints(uri: widget.uri, lineNumber: line).firstOrNull;
 
+  /// A click on [line]'s glyph: adds a breakpoint, or removes the line's
+  /// (with ⇧, enables or disables them).
   Future<void> _tap(int line, {required bool toggleEnabled}) async {
     final service = widget.service;
-    final existing = _breakpointAt(line);
-    if (existing == null) {
+    final existing = service.model.getBreakpoints(uri: widget.uri, lineNumber: line);
+    if (existing.isEmpty) {
       await service.addBreakpoints(widget.uri, [BreakpointData(lineNumber: line)]);
     } else if (toggleEnabled) {
-      await service.enableOrDisableBreakpoints(!existing.enabled, existing);
+      final enabled = existing.any((bp) => bp.enabled);
+      for (final bp in existing) {
+        await service.enableOrDisableBreakpoints(!enabled, bp);
+      }
     } else {
-      await service.removeBreakpoints([existing.getId()]);
+      await service.removeBreakpoints([for (final bp in existing) bp.getId()]);
     }
   }
 
@@ -199,56 +236,59 @@ class _DebugGlyphMarginState extends State<DebugGlyphMargin> {
   Widget build(BuildContext context) {
     final surface = _surface;
     final visible = surface?.visibleLineRange;
+    final width = visible == null ? null : surface?.glyphMarginRect(visible.first)?.width;
+    if (surface == null || width == null) {
+      // The surface lays out after this; its margin is known next frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _surface?.visibleLineRange != null) setState(() {});
+      });
+      return const SizedBox.shrink();
+    }
+    final hint = switch (_hoveredLine) {
+      final line? when _breakpointAt(line) == null => surface.glyphMarginRect(line),
+      _ => null,
+    };
     return SizedBox(
-      width: widget.width,
-      child: surface == null || visible == null
-          ? const SizedBox.expand()
-          : MouseRegion(
-              cursor: SystemMouseCursors.click,
-              onHover: (event) {
-                final line = _lineAt(event.localPosition);
-                if (line != _hoveredLine) setState(() => _hoveredLine = line);
-              },
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (details) {
-                  final line = _lineAt(details.localPosition);
-                  if (line != null) unawaited(_tap(line, toggleEnabled: false));
-                },
-                onSecondaryTapUp: (details) {
-                  final line = _lineAt(details.localPosition);
-                  if (line == null) return;
-                  final bp = _breakpointAt(line);
-                  if (bp != null) unawaited(widget.service.enableOrDisableBreakpoints(!bp.enabled, bp));
-                },
-                child: CustomPaint(
-                  painter: _GlyphHoverPainter(
-                    rects: [?_hoveredLine == null ? null : surface.glyphMarginRect(_hoveredLine!)],
-                    color: debugColor('editorGutter.background').withValues(alpha: 0.5),
+      width: width,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onHover: (event) {
+          final line = _lineAt(event.localPosition);
+          if (line != _hoveredLine) setState(() => _hoveredLine = line);
+        },
+        onExit: (_) {
+          if (_hoveredLine != null) setState(() => _hoveredLine = null);
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapUp: (details) {
+            final line = _lineAt(details.localPosition);
+            if (line == null) return;
+            unawaited(_tap(line, toggleEnabled: HardwareKeyboard.instance.isShiftPressed));
+          },
+          onSecondaryTapUp: (details) {
+            final line = _lineAt(details.localPosition);
+            if (line == null) return;
+            final bp = _breakpointAt(line);
+            if (bp != null) unawaited(widget.service.enableOrDisableBreakpoints(!bp.enabled, bp));
+          },
+          child: Stack(
+            children: [
+              // `breakpointHelperDecoration`: the hint where a click adds one.
+              if (hint != null)
+                Positioned.fromRect(
+                  rect: hint,
+                  child: Opacity(
+                    opacity: 0.4,
+                    child: Icon(Codicons.debugHint, size: 14, color: debugColor('debugIcon.breakpointForeground')),
                   ),
                 ),
-              ),
-            ),
+            ],
+          ),
+        ),
+      ),
     );
   }
-}
-
-class _GlyphHoverPainter extends CustomPainter {
-  _GlyphHoverPainter({required this.rects, required this.color});
-
-  final List<Rect> rects;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color;
-    for (final rect in rects) {
-      canvas.drawRect(rect, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GlyphHoverPainter oldDelegate) => oldDelegate.rects != rects || oldDelegate.color != color;
 }
 
 /// Whether a file of [languageId] can take breakpoints (`canSetBreakpointsIn`).

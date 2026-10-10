@@ -10,8 +10,11 @@ import 'package:baocode/debug/ui/debug_toolbar.dart';
 import 'package:baocode/debug/ui/debug_view.dart';
 import 'package:baocode/debug/ui/run_and_debug_view.dart';
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
+import 'package:baocode/ide/debug_editor_glue.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';
+import 'package:baocode/theme/codicons.dart';
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -165,6 +168,42 @@ void main() {
       expect(find.byType(DebugView), findsOneWidget);
     },
   );
+
+  testWidgets('a click in the glyph margin adds a breakpoint the margin '
+      'shows, and another removes it', (tester) async {
+    final fixture = await createFakeDebugService();
+    addTearDown(fixture.service.dispose);
+    await pumpWorkbench(
+      tester,
+      {'a.js': 'const a = 1;\nconst b = 2;\n'},
+      open: ['a.js'],
+      debugService: fixture.service,
+      nativeEditor: true,
+    );
+    // The editor knows the file's language once TextMate has it.
+    for (var i = 0; i < 20 && find.byType(DebugGlyphMargin).evaluate().isEmpty; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+    }
+    final surface = find.byType(EditorSurface);
+    final view = tester.state(surface) as EditorSurfaceView;
+    final margin = view.glyphMarginRect(2)!;
+    final dot = find.text(String.fromCharCode(Codicons.debugBreakpoint.codePoint));
+    expect(dot, findsNothing);
+
+    await tester.tapAt(tester.getTopLeft(surface) + margin.center);
+    await tester.pumpAndSettle();
+    final breakpoints = fixture.service.model.getBreakpoints();
+    expect([for (final bp in breakpoints) bp.lineNumber], [2]);
+    expect(breakpoints.single.uri.path, endsWith('/a.js'));
+    expect(dot, findsOneWidget);
+    expect(tester.getCenter(dot).dy, closeTo(tester.getTopLeft(surface).dy + margin.center.dy, 1));
+
+    await tester.tapAt(tester.getTopLeft(surface) + margin.center);
+    await tester.pumpAndSettle();
+    expect(fixture.service.model.getBreakpoints(), isEmpty);
+    expect(dot, findsNothing);
+  });
 
   testWidgets('without extensions, the panel has no OUTPUT tab', (
     tester,

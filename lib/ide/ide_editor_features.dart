@@ -29,6 +29,7 @@ import 'package:bao_editor/monaco/flutter/editor_inlay_hints.dart';
 import 'package:bao_editor/monaco/flutter/editor_inline_suggest.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 
+import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart';
 import 'ide_editor_colors.dart';
 import 'ide_editor_links.dart';
@@ -194,9 +195,25 @@ EditorDecorationTheme ideDecorationTheme(WorkbenchColors colors) =>
 
 /// The image of a decoration's `gutterIconPath` (a file path or `file:` URI):
 /// an SVG through flutter_svg, anything else through the platform's codecs,
-/// nothing when it cannot be read or decoded.
+/// nothing when it cannot be read or decoded. A `codicon:` one is a glyph
+/// margin codicon (`debugGlyph`, upstream's `glyphMarginClassName`).
 Widget ideGutterIconBuilder(BuildContext context, EditorGutterIcon icon) {
   final value = Uri.tryParse(icon.path);
+  if (value != null && value.scheme == 'codicon') {
+    final codePoint = int.tryParse(value.path, radix: 16);
+    if (codePoint == null) return const SizedBox.shrink();
+    final color = int.tryParse(value.queryParameters['color'] ?? '', radix: 16);
+    // Text, not an `IconData`, whose code point must be a constant.
+    return Text(
+      String.fromCharCode(codePoint),
+      style: TextStyle(
+        fontFamily: Codicons.fontFamily,
+        fontSize: 14,
+        height: 1,
+        color: color == null ? null : Color(color),
+      ),
+    );
+  }
   final path = value != null && value.scheme == 'file'
       ? value.toFilePath()
       : icon.path;
