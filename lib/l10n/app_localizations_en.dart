@@ -7911,4 +7911,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get extRestartExtensions => 'Restart Extensions';
+
+  @override
+  String get extHostAutoRestart =>
+      'The extension host terminated unexpectedly. Restarting...';
+
+  @override
+  String get extHostRemoteAutoRestart =>
+      'The remote extension host terminated unexpectedly. Restarting...';
+
+  @override
+  String get extHostCrashed =>
+      'Extension host terminated unexpectedly 3 times within the last 5 minutes.';
+
+  @override
+  String get extHostRemoteCrashed =>
+      'Remote Extension host terminated unexpectedly 3 times within the last 5 minutes.';
+
+  @override
+  String get extHostRestart => 'Restart Extension Host';
+
+  @override
+  String get extHostRemoteRestart => 'Restart Remote Extension Host';
 }

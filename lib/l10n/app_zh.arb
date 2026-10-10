@@ -2153,5 +2153,11 @@
   "extInstallVsixsDone": "扩展安装完成。",
   "extInstallVsixRestart": "扩展安装完成。请重启扩展以启用它。",
   "extInstallVsixsRestart": "扩展安装完成。请重启扩展以启用它们。",
-  "extRestartExtensions": "重启扩展"
+  "extRestartExtensions": "重启扩展",
+  "extHostAutoRestart": "扩展宿主意外终止，正在重启...",
+  "extHostRemoteAutoRestart": "远程扩展宿主意外终止，正在重启...",
+  "extHostCrashed": "扩展宿主在过去 5 分钟内意外终止了 3 次。",
+  "extHostRemoteCrashed": "远程扩展宿主在过去 5 分钟内意外终止了 3 次。",
+  "extHostRestart": "重启扩展宿主",
+  "extHostRemoteRestart": "重启远程扩展宿主"
 }

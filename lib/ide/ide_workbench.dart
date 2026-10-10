@@ -550,6 +550,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   String? _statusMessage;
   Timer? _statusMessageTimer;
 
+  /// The extension host's status messages (restarting after a crash).
+  StreamSubscription<String>? _hostStatus;
+
   /// Reads the Git status again when the app comes back to the front: a
   /// pull or a commit made elsewhere may have changed it unseen.
   AppLifecycleListener? _lifecycle;

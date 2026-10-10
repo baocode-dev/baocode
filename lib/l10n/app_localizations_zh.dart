@@ -7480,4 +7480,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get extRestartExtensions => '重启扩展';
+
+  @override
+  String get extHostAutoRestart => '扩展宿主意外终止，正在重启...';
+
+  @override
+  String get extHostRemoteAutoRestart => '远程扩展宿主意外终止，正在重启...';
+
+  @override
+  String get extHostCrashed => '扩展宿主在过去 5 分钟内意外终止了 3 次。';
+
+  @override
+  String get extHostRemoteCrashed => '远程扩展宿主在过去 5 分钟内意外终止了 3 次。';
+
+  @override
+  String get extHostRestart => '重启扩展宿主';
+
+  @override
+  String get extHostRemoteRestart => '重启远程扩展宿主';
 }

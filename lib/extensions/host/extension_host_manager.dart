@@ -151,22 +151,24 @@ final class ExtensionHostManager extends ChangeNotifier {
     _responsiveness = null;
     if (_disposed || _stopping) return;
     _crashTracker.registerCrash();
-    _onDidCrash.add(null);
     if (_crashTracker.shouldAutomaticallyRestart()) {
       _setState(ExtensionHostState.restarting);
+      _onDidCrash.add(true);
       unawaited(_restartWithEvents());
     } else {
       _error =
           'The extension host terminated unexpectedly 3 times within '
           'the last 5 minutes.';
       _setState(ExtensionHostState.failed);
+      _onDidCrash.add(false);
     }
   }
 
-  final _onDidCrash = StreamController<void>.broadcast();
+  final _onDidCrash = StreamController<bool>.broadcast();
 
-  /// Each time it ends without being asked to.
-  Stream<void> get onDidCrash => _onDidCrash.stream;
+  /// Each time it ends without being asked to: whether it restarts by
+  /// itself (else it waits for the user, [ExtensionHostState.failed]).
+  Stream<bool> get onDidCrash => _onDidCrash.stream;
 
   Future<void> _restartWithEvents() async {
     try {

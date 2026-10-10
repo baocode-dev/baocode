@@ -26,7 +26,8 @@ import 'package:path/path.dart' as p;
 import '../../debug/common/debug_utils.dart' show DebugTargetOs;
 import '../../debug/service/debug_host.dart' show DebugPickItem;
 import '../../debug/service/debug_service.dart';
-import '../../ide/ide_notifications.dart' show IdeSeverity;
+import '../../ide/ide_notifications.dart'
+    show IdeNotificationAction, IdeSeverity;
 import '../../ide/file_service.dart' show IdeFileService;
 import '../../ide/ide_workspace.dart';
 import '../../ide/language/language_features.dart';
@@ -382,10 +383,11 @@ final class ExtensionsApp {
       localPool: pool,
       cacheDirectory: p.join(dataDirectory, 'cache', 'remote-vsix'),
       language: language,
-      configuredKinds: () => switch (userSettings.values['remote.extensionKind']) {
-        final Map<Object?, Object?> kinds => kinds.cast(),
-        _ => const {},
-      },
+      configuredKinds: () =>
+          switch (userSettings.values['remote.extensionKind']) {
+            final Map<Object?, Object?> kinds => kinds.cast(),
+            _ => const {},
+          },
     ),
   );
 
@@ -435,18 +437,19 @@ final class WorkspaceExtensions extends ChangeNotifier {
   late final ExtHostWorkspace extHostWorkspace = ExtHostWorkspace.folder(
     root,
     id: switch (remote) {
-      final remote? => md5
-          .convert(
-            utf8.encode(
-              VsUri.file(root)
-                  .replace(
-                    scheme: 'vscode-remote',
-                    authority: remote.extensions.authority,
-                  )
-                  .toString(),
-            ),
-          )
-          .toString(),
+      final remote? =>
+        md5
+            .convert(
+              utf8.encode(
+                VsUri.file(root)
+                    .replace(
+                      scheme: 'vscode-remote',
+                      authority: remote.extensions.authority,
+                    )
+                    .toString(),
+              ),
+            )
+            .toString(),
       null => null,
     },
   );
@@ -531,12 +534,14 @@ final class WorkspaceExtensions extends ChangeNotifier {
   /// The source controls extensions register.
   final ScmService scm = ScmService();
   final SearchService search = SearchService();
+
   /// A remote project's `file:` URIs are its host's files, this
   /// machine's `vscode-local:` ones (see [ExtensionHostPlacement]).
   late final FileService files = switch (remote) {
-    final remote? => FileService()
-      ..registerProvider('file', IdeFileSystemProvider(remote.files))
-      ..registerProvider('vscode-local', DiskFileSystemProvider()),
+    final remote? =>
+      FileService()
+        ..registerProvider('file', IdeFileSystemProvider(remote.files))
+        ..registerProvider('vscode-local', DiskFileSystemProvider()),
     null => FileService()..registerProvider('file', DiskFileSystemProvider()),
   };
 
@@ -653,8 +658,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
     exists: files.exists,
     readDirectory: (dir) async => [
       for (final child
-          in (await files.resolve(dir)).children ??
-              const <ResolvedFileStat>[])
+          in (await files.resolve(dir)).children ?? const <ResolvedFileStat>[])
         (child.name, child.isDirectory),
     ],
   );
@@ -965,7 +969,9 @@ final class WorkspaceExtensions extends ChangeNotifier {
             'extensions.supportUntrustedWorkspaces',
           ) as Map?)?.cast(),
         );
-    ExtensionHostService makeHost({required bool onRemote}) => ExtensionHostService(
+    ExtensionHostService makeHost({
+      required bool onRemote,
+    }) => ExtensionHostService(
       pool: onRemote ? remote!.extensions.pool : app.pool,
       placement: remote == null
           ? null
@@ -1090,6 +1096,16 @@ final class WorkspaceExtensions extends ChangeNotifier {
     );
     _host = makeHost(onRemote: remote != null);
     if (remote != null) _uiHost = makeHost(onRemote: false);
+    for (final host in hosts) {
+      final crashes = host.manager.onDidCrash.listen(
+        (restarting) => _hostCrashed(
+          host,
+          restarting: restarting,
+          remote: identical(host, _host) && remote != null,
+        ),
+      );
+      _stops.add(crashes.cancel);
+    }
     void runtimeChanged() => _extensionsModel?.runtimeChanged();
     for (final host in hosts) {
       host.pendingRestart.addListener(runtimeChanged);
@@ -1306,6 +1322,40 @@ final class WorkspaceExtensions extends ChangeNotifier {
     }
   }
 
+  /// What the workbench shows in the status bar for a while (upstream's
+  /// `INotificationService.status`): the extension host restarting.
+  Stream<String> get statusMessages => _statusMessages.stream;
+  final _statusMessages = StreamController<String>.broadcast();
+
+  /// Upstream's `_onExtensionHostCrashed`: a crash restarted by itself is
+  /// said in the status bar; the third within five minutes asks the user
+  /// to restart it.
+  void _hostCrashed(
+    ExtensionHostService host, {
+    required bool restarting,
+    required bool remote,
+  }) {
+    final l10n = app.l10n();
+    if (restarting) {
+      if (!_statusMessages.isClosed) {
+        _statusMessages.add(
+          remote ? l10n.extHostRemoteAutoRestart : l10n.extHostAutoRestart,
+        );
+      }
+      return;
+    }
+    _workspace?.notifications.notify(
+      IdeSeverity.error,
+      remote ? l10n.extHostRemoteCrashed : l10n.extHostCrashed,
+      primary: [
+        IdeNotificationAction(
+          remote ? l10n.extHostRemoteRestart : l10n.extHostRestart,
+          () => unawaited(host.manager.restart().then((_) {}, onError: (_) {})),
+        ),
+      ],
+    );
+  }
+
   void _logHostError(String message) => output.logExtensionHostMessage({
     'type': r'__$console',
     'severity': 'error',
@@ -1518,6 +1568,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
     for (final stop in _stops) {
       stop();
     }
+    unawaited(_statusMessages.close());
     documents.removeListener(_documentsChanged);
     final workspace = _workspace;
     if (workspace != null &&

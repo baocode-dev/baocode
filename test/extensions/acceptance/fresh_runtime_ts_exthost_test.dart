@@ -29,6 +29,7 @@ import 'package:baocode/extensions/configuration/core_configuration.dart';
 import 'package:baocode/extensions/host/extension_host_manager.dart';
 import 'package:baocode/extensions/runtime/extension_runtime_service.dart';
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
+import 'package:baocode/ide/ide_notifications.dart';
 import 'package:baocode/ide/ide_workspace.dart';
 import 'package:baocode/ide/language/language_types.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
@@ -303,23 +304,59 @@ Future<void> _body() async {
 
   // --- 九.7: the extension host killed comes back -------------------------
   final manager = extensions.host!.manager;
-  final pid = await _extensionHostPid(data);
-  expect(pid, isNotNull, reason: 'no extension host process found');
-  final starts = manager.starts;
-  expect(Process.killPid(pid!, ProcessSignal.sigkill), isTrue);
-  await _eventually(
-    'the restarted host',
-    () async =>
-        manager.starts > starts && manager.state == ExtensionHostState.running
-        ? true
-        : null,
-  );
-  expect(await _extensionHostPid(data), isNot(pid));
+  final status = <String>[];
+  final statusMessages = extensions.statusMessages.listen(status.add);
+  addTearDown(statusMessages.cancel);
+  Future<void> kill() async {
+    final pid = await _extensionHostPid(data);
+    expect(pid, isNotNull, reason: 'no extension host process found');
+    final starts = manager.starts;
+    expect(Process.killPid(pid!, ProcessSignal.sigkill), isTrue);
+    await _eventually(
+      'the restarted host',
+      () async =>
+          manager.starts > starts && manager.state == ExtensionHostState.running
+          ? true
+          : null,
+    );
+    expect(await _extensionHostPid(data), isNot(pid));
+  }
+
+  await kill();
+  // Said in the status bar, as upstream's `notificationService.status`.
+  expect(status, ['The extension host terminated unexpectedly. Restarting...']);
   final hover = await _eventually(
     'hover after the restart',
     () => extensions.languages.hover(file, const LspPosition(3, 7)),
   );
   expect(hover.markdown, contains('total'));
+
+  // Twice more within five minutes: the third crash waits for the user.
+  await kill();
+  final last = await _extensionHostPid(data);
+  expect(Process.killPid(last!, ProcessSignal.sigkill), isTrue);
+  await _eventually(
+    'the host given up on',
+    () async => manager.state == ExtensionHostState.failed ? true : null,
+  );
+  final crashed = workspace.notifications.notifications.firstWhere(
+    (n) =>
+        n.message ==
+        'Extension host terminated unexpectedly 3 times within the last 5 '
+            'minutes.',
+  );
+  expect(crashed.severity, IdeSeverity.error);
+  expect(crashed.primary.single.label, 'Restart Extension Host');
+  crashed.primary.single.run();
+  await _eventually(
+    'the host restarted by the user',
+    () async => manager.state == ExtensionHostState.running ? true : null,
+  );
+  final again = await _eventually(
+    'hover after Restart Extension Host',
+    () => extensions.languages.hover(file, const LspPosition(3, 7)),
+  );
+  expect(again.markdown, contains('total'));
 }
 
 Future<void> _typeScriptFeatures(

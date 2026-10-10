@@ -13036,6 +13036,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Restart Extensions'**
   String get extRestartExtensions;
+
+  /// Status bar, for 5 seconds: the extension host crashed and is being restarted automatically (VS Code's extensionService.autoRestart).
+  ///
+  /// In en, this message translates to:
+  /// **'The extension host terminated unexpectedly. Restarting...'**
+  String get extHostAutoRestart;
+
+  /// No description provided for @extHostRemoteAutoRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'The remote extension host terminated unexpectedly. Restarting...'**
+  String get extHostRemoteAutoRestart;
+
+  /// No description provided for @extHostCrashed.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension host terminated unexpectedly 3 times within the last 5 minutes.'**
+  String get extHostCrashed;
+
+  /// No description provided for @extHostRemoteCrashed.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote Extension host terminated unexpectedly 3 times within the last 5 minutes.'**
+  String get extHostRemoteCrashed;
+
+  /// No description provided for @extHostRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart Extension Host'**
+  String get extHostRestart;
+
+  /// No description provided for @extHostRemoteRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart Remote Extension Host'**
+  String get extHostRemoteRestart;
 }
 
 class _AppLocalizationsDelegate

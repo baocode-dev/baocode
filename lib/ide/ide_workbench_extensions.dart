@@ -171,6 +171,10 @@ extension _ExtensionsPart on IdeWorkbenchState {
     extensions.remote?.extensions.runtimeProgress.addListener(
       _extensionsUiChanged,
     );
+    _hostStatus = extensions.statusMessages.listen(
+      (message) =>
+          _setStatusMessage(message, hideAfter: const Duration(seconds: 5)),
+    );
     _attachViews(extensions);
     _syncExtensionKeybindings();
     _scheduleTrustPrompt();
@@ -257,6 +261,8 @@ extension _ExtensionsPart on IdeWorkbenchState {
     extensions.remote?.extensions.runtimeProgress.removeListener(
       _extensionsUiChanged,
     );
+    unawaited(_hostStatus?.cancel());
+    _hostStatus = null;
     _extensionKeys?.dispose();
     _extensionKeys = null;
   }

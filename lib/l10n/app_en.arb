@@ -6028,5 +6028,14 @@
   "extInstallVsixsDone": "Completed installing extensions.",
   "extInstallVsixRestart": "Completed installing extension. Please restart extensions to enable it.",
   "extInstallVsixsRestart": "Completed installing extensions. Please restart extensions to enable them.",
-  "extRestartExtensions": "Restart Extensions"
+  "extRestartExtensions": "Restart Extensions",
+  "extHostAutoRestart": "The extension host terminated unexpectedly. Restarting...",
+  "@extHostAutoRestart": {
+    "description": "Status bar, for 5 seconds: the extension host crashed and is being restarted automatically (VS Code's extensionService.autoRestart)."
+  },
+  "extHostRemoteAutoRestart": "The remote extension host terminated unexpectedly. Restarting...",
+  "extHostCrashed": "Extension host terminated unexpectedly 3 times within the last 5 minutes.",
+  "extHostRemoteCrashed": "Remote Extension host terminated unexpectedly 3 times within the last 5 minutes.",
+  "extHostRestart": "Restart Extension Host",
+  "extHostRemoteRestart": "Restart Remote Extension Host"
 }
