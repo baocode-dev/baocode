@@ -92,8 +92,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - Assembly (lib/extensions/workbench): `ExtensionsApp` (one per app) and `WorkspaceExtensions` (one per local IDE
   folder) over `IdeWorkspace` (`IdeTextEditors`, `IdeDocumentsPort`, `IdeWorkspaceEditApplier`); real-runtime test
   `test/extensions/workbench/workspace_extensions_exthost_test.dart` (TS diagnostics, completion, hover).
-- App wiring: main.dart makes the `ExtensionsApp`; workbench.dart gives each local IDE space its extensions (remote
-  folders: none yet); IdeWorkbench shows the Extensions view, extension pages, status bar entries, quick inputs,
+- App wiring: main.dart makes the `ExtensionsApp`; workbench.dart gives each IDE space its extensions (remote
+  folders: their host's and this machine's, see 九.6); IdeWorkbench shows the Extensions view, extension pages, status bar entries, quick inputs,
   OUTPUT, palette commands, keybindings, runtime download status, recommendations, .vsix/dev-folder drops
   (`test/extensions/workbench/ide_workbench_extensions_test.dart`). lib/ide/extensions (LSP catalog view) removed.
 - Workbench extension views: TreeViews in Explorer/activity-bar containers and panel containers; view/title and item
@@ -179,18 +179,34 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   settled before the first failure is thrown, upstream's notifications. Extension deltas follow
   `_deltaExtensions`: one whose activation started is neither removed nor replaced; it waits in `pendingRestart`
   and the Extensions view and page offer Restart Extensions (no automatic host restart on update/uninstall).
+- 九.3 management (`management_exthost_test.dart`): a .vsix dropped and installed (activating in the running host),
+  import from VS Code and Cursor (Open VSX reinstall, alternatives, settings and keybindings), enable/disable in the
+  workspace and globally (Restart Extensions for those that ran), update, uninstall, then a second app on the same data
+  folder keeps all of it. Extensions added while the host runs activate without a restart (`_deltaExtensions`).
+- 九.6 remote projects (lib/extensions/workbench/remote_extensions.dart, lib/remote/remote_exthost.dart,
+  bao_remote `exthost/*`): the BaoCode server installs the runtime on the host (the host downloads it; when it cannot,
+  this machine downloads it and sends it over SSH), starts its VS Code server there, and the app reaches it through
+  the SSH connection's port forwarding. Each extension runs by `extensionKind` (manifest, `remote.extensionKind`,
+  product.json's `extensionKind`/`extensionPointExtensionKind`): workspace ones in the host's extension host
+  (`isRemote`, authority `ssh-remote+<host>`, upstream's URI transformer on the RPC and the init data), ui ones in
+  this machine's (its URIs `vscode-remote` there). The host's user extensions follow this machine's. File service,
+  tasks, terminals, debug machine (os, home, env), problems and language configuration read the host. The status bar
+  shows the install on the host. Tests: `ssh_remote_exthost_test.dart` (the server in memory, this machine as the
+  host) and `ssh_docker_exthost_test.dart` (real `ssh` to a Debian container, test/fixtures/extensions/sshd, runtime
+  sent from here): TypeScript diagnostics/completion/hover on the host, VSCodeVim here editing and saving the host's
+  file, Python (debugpy installed there) and Node (js-debug) debugging on the host. Unit: `uri_transformer_test.dart`,
+  host_test's init data transform, remote_server_test's "extension runtime" group.
+- IoExtHostSocket holds writes while it flushes (Dart's IOSink throws on `add` during `flush`): a reply written
+  while a terminate was drained used to escape as an error (`socket_test.dart`).
 
 ## In progress / next
 
-1. Editor-feature rendering from the registry is complete (CodeLens, inlay hints, inline completions, highlights,
-   folding, links, colors).
-2. 九.2 and 九.4 are covered. Next: 九.3 management end to end (drop/import, enable/disable, update, uninstall,
-   persistence across restarts) and 九.7 (crash recovery, offline, download retry).
-3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
-   bao_remote LSP, docs and l10n), after replacing its language capability coverage.
-4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
-5. Real-extension integration tests and screenshots, docs and generated parity; then analyze, full test once, macOS
-   build, merge.
+1. 九.1–九.7 are covered by tagged acceptance tests (see Done).
+2. 九.8: remove the LSP implementation (lib/ide/lsp, assets/lsp, tool/generate_lsp_languages.mjs,
+   tool/generate_mason_registry.mjs, lib/remote/remote_lsp.dart, bao_remote's LSP, language-packs/lsp.json, docs and
+   l10n); `LanguageFeatures`/`LspPosition` and the other editor models move out of lib/ide/lsp.
+3. 九.9: docs/extensions.md, generated EXTHOST_PARITY.md, MANUAL_CHECKLIST.md, offscreen screenshots in
+   build/exthost-screens; then analyze, the full suite once, macOS build, merge.
 
 ## Decisions and deviations
 
@@ -264,3 +280,11 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - CodeLLDB reports its `rust_panic` filter's stop as a breakpoint in `__rustc::rust_panic`; its console runs LLDB
   commands (`?` evaluates an expression). An empty `cwd` in `runInTerminal` is the workspace folder (upstream's
   `getCwd`); a terminal launched in `''` used to exit at once.
+- Remote projects: upstream leaves installing local extensions on the host to the user; BaoCode keeps the host's in
+  step with this machine's (Open VSX package for the host's platform, else the folder packed as a .vsix). Each extension
+  host is told only the extensions it runs, so a dependency on an extension of the other side is not found. This
+  machine's ui host gets no remote authority (`vscode.env.remoteName` is undefined there; upstream says the remote's).
+  The host's VS Code server lives as long as the connection: a lost connection restarts both. Handle-keyed registries
+  shared by both hosts (SCM, tree views) key by handle only; language features keep each host's handles apart.
+- A Linux host's extension host offers its port finder (`$setRemoteTunnelService`); with no Ports view upstream's
+  ports features stay disabled, so it is never asked (`$registerCandidateFinder`). No port forwarding for extensions.
