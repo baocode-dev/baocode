@@ -212,7 +212,7 @@ class _ServerRow extends StatelessWidget {
                 activeThumbColor: AppColors.textPrimary,
                 activeTrackColor: AppColors.accent,
                 inactiveThumbColor: AppColors.textMuted,
-                inactiveTrackColor: AppColors.border,
+                inactiveTrackColor: AppColors.partBorder,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),

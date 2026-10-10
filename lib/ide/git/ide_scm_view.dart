@@ -29,6 +29,7 @@
 // commit input keeps no history of messages (`scm.viewPreviousCommit`).
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -1554,7 +1555,7 @@ class IdeScmViewState extends State<IdeScmView>
                   onPressed: action.run,
                 ),
             const SizedBox(width: 6),
-            IdeCountBadge(resources.length),
+            IdeTitleBadge(resources.length),
           ],
         ),
       ),
@@ -2997,47 +2998,52 @@ class _Repositories extends StatelessWidget {
                   focused: true,
                   tooltip: root,
                   onTap: () => workspace.selectRepository(git),
+                  // Upstream's `.scm-provider`: the icon (`repo-selected` on
+                  // the one shown), the name in bold, then the actions,
+                  // the branch's among them, at the right end; they are cut
+                  // short before the name is (`flex: 1 10000 auto`, at
+                  // least 24px). The count badge is not shown, as
+                  // `scm.providerCountBadge` is `hidden` by default.
                   builder: (context, hovered) => Padding(
                     padding: const EdgeInsets.only(left: 12, right: 8),
                     child: Row(
                       children: [
                         Icon(
-                          Codicons.repo,
+                          identical(git, active)
+                              ? Codicons.repoSelected
+                              : Codicons.repo,
                           size: 16,
                           color: themeColors['icon.foreground'],
                         ),
                         const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            p.basename(root),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ),
-                        if (git.state?.head.branch case final branch?) ...[
-                          const SizedBox(width: 6),
-                          Icon(
-                            Codicons.gitBranch,
-                            size: 12,
-                            color: themeColors['descriptionForeground'],
-                          ),
-                          const SizedBox(width: 2),
-                          Flexible(
-                            child: Text(
-                              branch,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: themeColors['descriptionForeground'],
-                              ),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) => Row(
+                              children: [
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: math.max(
+                                      0,
+                                      constraints.maxWidth - 24,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    p.basename(root),
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                if (git.state?.head.branch case final branch?)
+                                  Expanded(child: _RepositoryBranch(branch)),
+                              ],
                             ),
                           ),
-                        ],
-                        const Spacer(),
-                        if (git.state?.count case final count? when count > 0)
-                          IdeCountBadge(count),
+                        ),
                       ],
                     ),
                   ),
@@ -3046,6 +3052,38 @@ class _Repositories extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// A repository's branch, as its status bar action: the branch icon and
+/// name, right-aligned, the name cut short when there is no room.
+class _RepositoryBranch extends StatelessWidget {
+  const _RepositoryBranch(this.branch);
+
+  final String branch;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = themeColors['descriptionForeground'];
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Icon(Codicons.gitBranch, size: 12, color: color),
+          const SizedBox(width: 2),
+          Flexible(
+            child: Text(
+              branch,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: color),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

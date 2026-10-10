@@ -19,7 +19,8 @@ import '../../ide/ide_list.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_modern_ui.dart';
 import '../../ide/ide_panes.dart';
-import '../../ide/ide_tab_bar.dart' show ideTabDescriptions;
+import '../../ide/ide_tab_bar.dart'
+    show IdeEditorTab, IdeTabStrip, ideTabDescriptions;
 import '../../ide/save_copy.dart';
 import '../../ide/tab_strip_scroll.dart';
 import '../../ide/terminal/links/terminal_links.dart' show TerminalLink;
@@ -39,7 +40,6 @@ import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_session.dart';
 import '../widgets/code_citation.dart' show CodeColorizer;
-import '../widgets/hover_builder.dart';
 import '../chat_column.dart';
 import '../composer/composer_files.dart';
 import '../composer/file_drag.dart';
@@ -140,9 +140,9 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
               left: 0,
               top: 0,
               bottom: 0,
-              right: shown && !overlay
-                  ? width + AgentSidePanelArea.sashWidth
-                  : 0,
+              // Up to the sash's line; the rest of the sash is over it, so
+              // nothing shows between the two.
+              right: shown && !overlay ? width + 1 : 0,
               child: ChatColumnInset(
                 right: !shown && widget.rail != null
                     ? AgentSidePanelArea.railInset
@@ -264,7 +264,7 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           width: _dragging ? IdeModernUI.gap : 1,
-          color: _dragging ? IdeModernUI.sashHover : AppColors.border,
+          color: _dragging ? IdeModernUI.sashHover : AppColors.partBorder,
         ),
       ),
     ),
@@ -556,7 +556,7 @@ class AgentSidePanelView extends StatelessWidget {
                   IdePane(
                     id: 'changes',
                     title: l10n.sidePanelChanges,
-                    badge: _Badge(state.count),
+                    badge: IdeTitleBadge(state.count),
                     weight: 3,
                     actions: [
                       IdeActionButton(
@@ -789,6 +789,7 @@ class AgentSidePanelView extends StatelessWidget {
                           active: id == current?.id,
                           icon: const _TabIcon(Codicons.terminal),
                           label: shell.title,
+                          tooltip: shell.title,
                           onTap: () => panel.openTerminal(session, id),
                           onClose: () => panel.closeTerminal(session, id),
                           menu: () => menu(id),
@@ -1223,7 +1224,7 @@ class SidePanelRail extends StatelessWidget {
       padding: const EdgeInsets.all(_padding),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.partBorder),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
@@ -1248,7 +1249,10 @@ class SidePanelRail extends StatelessWidget {
                     top: -5,
                     right: -7,
                     child: IgnorePointer(
-                      child: _Badge(count, key: ValueKey(('rail', section))),
+                      child: IdeTitleBadge(
+                        count,
+                        key: ValueKey(('rail', section)),
+                      ),
                     ),
                   ),
               ],
@@ -1260,10 +1264,9 @@ class SidePanelRail extends StatelessWidget {
   );
 }
 
-/// The pages' bar, as the IDE panel's title: each page's icon and name
-/// (the icon alone where the panel is narrow), with a count of what is in
-/// it, the one shown underlined; then showing the lists and hiding the
-/// panel.
+/// The pages' bar, a strip of the editor's tabs: each page's icon and
+/// name (the icon alone where the panel is narrow), with a count of what
+/// is in it; then showing the lists and hiding the panel.
 class _SectionBar extends StatelessWidget {
   const _SectionBar({
     required this.panel,
@@ -1278,10 +1281,8 @@ class _SectionBar extends StatelessWidget {
   /// How many files Git has changed.
   final int changes;
 
-  static const height = 35.0;
-
   /// The list's toggle and the close button, at the right.
-  static const _actionsWidth = 2 * 22.0 + 2;
+  static const _actionsWidth = 2 * 22.0 + 2 + 6;
 
   /// The pages there: the plan's once there is one.
   List<SidePanelSection> get _sections => [
@@ -1313,19 +1314,21 @@ class _SectionBar extends StatelessWidget {
 
     var width = 0.0;
     for (final section in sections) {
+      // Its padding, icon, label and right border (see [IdeEditorTab]).
       width +=
-          2 * 2 +
-          2 * 8 +
-          15 +
-          5 +
-          measure(
-            section.label(context),
-            _SectionTab.labelStyle(selected: true),
-          );
+          2 * IdeEditorTab.padding +
+          IdeEditorTab.iconSize +
+          IdeEditorTab.gap +
+          measure(section.label(context), IdeEditorTab.labelStyleBase) +
+          1;
       final count = counts[section] ?? 0;
       if (count > 0) {
         width +=
-            5 + math.max(16, 2 * 4 + measure(_Badge.text(count), _Badge.style));
+            IdeEditorTab.gap +
+            math.max(
+              16,
+              2 * 4 + measure(IdeTitleBadge.text(count), IdeTitleBadge.style),
+            );
       }
     }
     return width;
@@ -1337,12 +1340,7 @@ class _SectionBar extends StatelessWidget {
     final running = session.terminalTasks
         .where((task) => task.status == CommandStatus.running)
         .length;
-    return Container(
-      height: height,
-      padding: const EdgeInsets.only(left: 6, right: 6),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
+    return IdeTabStrip(
       child: LayoutBuilder(
         builder: (context, constraints) {
           final sections = _sections;
@@ -1396,6 +1394,7 @@ class _SectionBar extends StatelessWidget {
                   onPressed: panel.hide,
                 ),
               ),
+              const SizedBox(width: 6),
             ],
           );
         },
@@ -1419,126 +1418,28 @@ class _SectionTab extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
 
-  static TextStyle labelStyle({required bool selected}) => TextStyle(
-    fontSize: 12,
-    height: 1.2,
-    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-  );
-
   @override
   Widget build(BuildContext context) {
-    final colors = themeColors;
     final label = section.label(context);
-    return IdeHover(
-      message: switch (section.command) {
+    return IdeEditorTab(
+      key: ValueKey(section),
+      icon: Icon(section.icon),
+      label: compact ? null : label,
+      trailing: count > 0 ? IdeTitleBadge(count) : null,
+      active: selected,
+      minWidth: 0,
+      // The page's sections, not files: no line above the one shown.
+      borderTop: false,
+      tooltip: switch (section.command) {
         final command? => KeybindingService.instance.titleWithKeybinding(
           label,
           command,
         ),
         null => label,
       },
-      child: Semantics(
-        selected: selected,
-        button: true,
-        label: compact ? label : null,
-        child: HoverBuilder(
-          cursor: SystemMouseCursors.click,
-          builder: (context, hovered) {
-            final foreground =
-                colors[selected || hovered
-                    ? 'panelTitle.activeForeground'
-                    : 'panelTitle.inactiveForeground'];
-            return GestureDetector(
-              key: ValueKey(section),
-              onTap: onTap,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: compact ? 6 : 8,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(section.icon, size: 15, color: foreground),
-                          if (!compact) ...[
-                            const SizedBox(width: 5),
-                            Text(
-                              label,
-                              maxLines: 1,
-                              style: labelStyle(selected: selected)
-                                  .copyWith(color: foreground),
-                            ),
-                          ],
-                          if (count > 0) ...[
-                            const SizedBox(width: 5),
-                            _Badge(count),
-                          ],
-                        ],
-                      ),
-                    ),
-                    // Under the icon and name, as the panel's title's.
-                    if (selected)
-                      Positioned(
-                        left: compact ? 4 : 6,
-                        right: compact ? 4 : 6,
-                        bottom: 0,
-                        height: 2,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: colors['panelTitle.activeBorder'],
-                            borderRadius: BorderRadius.circular(1),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+      onSelect: onTap,
     );
   }
-}
-
-/// A page's count in its tab, as the panel title's badge.
-class _Badge extends StatelessWidget {
-  const _Badge(this.count, {super.key});
-
-  final int count;
-
-  static String text(int count) => count > 99 ? '99+' : '$count';
-
-  static const style = TextStyle(fontSize: 10, height: 1.2);
-
-  @override
-  Widget build(BuildContext context) => Center(
-    widthFactor: 1,
-    heightFactor: 1,
-    child: Container(
-      constraints: const BoxConstraints(minWidth: 16),
-      height: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: themeColors['panelTitleBadge.background'],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Center(
-        widthFactor: 1,
-        child: Text(
-          text(count),
-          style: style.copyWith(
-            color: themeColors['panelTitleBadge.foreground'],
-          ),
-        ),
-      ),
-    ),
-  );
 }
 
 /// A page: [list] at the left while the panel's lists show, as wide as
@@ -1558,7 +1459,8 @@ class _Page extends StatefulWidget {
   final Widget? tabs;
   final Widget body;
 
-  /// The strip at the list's right edge that takes the drag.
+  /// The strip over the list's right edge, half on either side, that takes
+  /// the drag.
   static const sashWidth = 4.0;
 
   @override
@@ -1581,26 +1483,50 @@ class _PageState extends State<_Page> {
         _panel.listWidth,
         math.max(room * 0.45, room - 200),
       );
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      // The list against the tabs, the line between them its border; the
+      // sash over that line, as the IDE's are.
+      return Stack(
         children: [
-          if (_panel.listShown) ...[
-            SizedBox(
-              key: const ValueKey('side-panel-list'),
-              width: listWidth,
-              child: widget.list,
-            ),
-            _sash(listWidth),
-          ],
-          Expanded(
-            child: Column(
+          Positioned.fill(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ?widget.tabs,
-                Expanded(child: widget.body),
+                if (_panel.listShown)
+                  SizedBox(
+                    key: const ValueKey('side-panel-list'),
+                    width: listWidth,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          right: BorderSide(color: AppColors.partBorder),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 1),
+                        child: widget.list,
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ?widget.tabs,
+                      Expanded(child: widget.body),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
+          if (_panel.listShown)
+            Positioned(
+              left: listWidth - _Page.sashWidth / 2,
+              top: 0,
+              bottom: 0,
+              width: _Page.sashWidth,
+              child: _sash(listWidth),
+            ),
         ],
       );
     },
@@ -1627,14 +1553,11 @@ class _PageState extends State<_Page> {
         _panel.listWidth = AgentSidePanel.defaultListWidth;
         _panel.save();
       },
-      child: Container(
+      // Invisible over the line at rest; dragged, `sash.hoverBorder`.
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
         width: _Page.sashWidth,
-        alignment: Alignment.centerLeft,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          width: _dragging ? _Page.sashWidth : 1,
-          color: _dragging ? IdeModernUI.sashHover : AppColors.border,
-        ),
+        color: _dragging ? IdeModernUI.sashHover : Colors.transparent,
       ),
     ),
   );
@@ -1660,10 +1583,13 @@ class _ListHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: _TabStrip.height,
+    height: IdeTabStrip.height,
     padding: const EdgeInsets.only(left: 12, right: 6),
     decoration: BoxDecoration(
-      border: Border(bottom: BorderSide(color: _TabStrip.borderColor)),
+      border: switch (IdeTabStrip.border) {
+        final color? => Border(bottom: BorderSide(color: color)),
+        null => null,
+      },
     ),
     child: Row(
       children: [
@@ -1693,17 +1619,12 @@ class _ListHeader extends StatelessWidget {
   );
 }
 
-/// A page's tabs, as the IDE editor's: scrolled to keep the one in front
+/// A page's tabs, the IDE editor's ([IdeTabStrip]): scrolled to keep the one in front
 /// in sight.
 class _TabStrip extends StatefulWidget {
   const _TabStrip({super.key, required this.selected, required this.entries});
   final Object? selected;
   final List<({Object id, Widget child})> entries;
-
-  static const height = 32.0;
-
-  static Color get borderColor =>
-      themeColors.get('editorGroupHeader.tabsBorder') ?? AppColors.border;
 
   @override
   State<_TabStrip> createState() => _TabStripState();
@@ -1752,12 +1673,7 @@ class _TabStripState extends State<_TabStrip> {
   }
 
   @override
-  Widget build(BuildContext context) => Container(
-    height: _TabStrip.height,
-    decoration: BoxDecoration(
-      color: themeColors['editorGroupHeader.tabsBackground'],
-      border: Border(bottom: BorderSide(color: _TabStrip.borderColor)),
-    ),
+  Widget build(BuildContext context) => IdeTabStrip(
     child: TabStripScroll(
       controller: _scroll,
       child: Row(
@@ -1821,134 +1737,44 @@ class _Tab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = themeColors;
-    final tab = HoverBuilder(
-      cursor: SystemMouseCursors.click,
-      builder: (context, hover) {
-        // The tab in front is selected: hovering it changes nothing.
-        final hovered = hover && !active;
-        final foreground = active
-            ? colors['tab.activeForeground']
-            : (hovered ? colors.get('tab.hoverForeground') : null) ??
-                  colors['tab.inactiveForeground'];
-        final bottom = active ? colors.get('tab.activeBorder') : null;
-        final status = this.status;
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          // A middle click closes it, as an editor's tab.
-          onTertiaryTapUp: onClose == null ? null : (_) => onClose!(),
-          onSecondaryTapUp: menu == null
-              ? null
-              : (details) => unawaited(
-                  showIdeMenu(
-                    context,
-                    position: details.globalPosition,
-                    entries: menu!(),
-                  ),
-                ),
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 64, maxWidth: 200),
-            padding: EdgeInsets.only(left: 10, right: onClose == null ? 10 : 4),
-            decoration: BoxDecoration(
-              color: active
-                  ? colors['list.activeSelectionBackground']
-                  : (hovered ? colors.get('tab.hoverBackground') : null) ??
-                        colors['tab.inactiveBackground'],
-              border: Border(
-                right: BorderSide(
-                  color:
-                      colors.get('tab.border') ??
-                      colors.get('contrastBorder') ??
-                      _TabStrip.borderColor,
-                ),
+    final status = this.status;
+    return IdeEditorTab(
+      icon: icon,
+      label: label,
+      description: description,
+      labelStyle: status == null
+          ? null
+          : TextStyle(
+              color: status.color,
+              decoration: status.strikeThrough
+                  ? TextDecoration.lineThrough
+                  : null,
+            ),
+      trailing: status == null
+          ? null
+          : Text(
+              status.letter,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: status.color,
               ),
             ),
-            foregroundDecoration: bottom == null
-                ? null
-                : BoxDecoration(
-                    border: Border(bottom: BorderSide(color: bottom)),
-                  ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox.square(dimension: 16, child: Center(child: icon)),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text.rich(
-                    TextSpan(
-                      text: label,
-                      style: status == null
-                          ? null
-                          : TextStyle(
-                              color: status.color,
-                              decoration: status.strikeThrough
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                            ),
-                      children: [
-                        if (description case final description?)
-                          TextSpan(
-                            text: '  $description',
-                            style: TextStyle(
-                              color: foreground.withValues(
-                                alpha: foreground.a * .7,
-                              ),
-                              fontSize: 11,
-                              decoration: TextDecoration.none,
-                            ),
-                          ),
-                      ],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: foreground),
-                  ),
-                ),
-                if (status != null) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    status.letter,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: status.color,
-                    ),
-                  ),
-                ],
-                if (onClose case final close?) ...[
-                  const SizedBox(width: 2),
-                  SizedBox.square(
-                    dimension: 20,
-                    child: hover || active && !dirty
-                        ? IdeActionButton(
-                            icon: Codicons.close,
-                            size: 20,
-                            iconSize: 12,
-                            color: foreground,
-                            tooltip: context.l10n.sidePanelCloseTab,
-                            onPressed: close,
-                          )
-                        : dirty
-                        ? Icon(
-                            Codicons.circleFilled,
-                            size: 10,
-                            color: foreground,
-                          )
-                        : null,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
+      active: active,
+      tooltip: tooltip,
+      minWidth: 64,
+      onSelect: onTap,
+      mark: dirty
+          ? (color) => Icon(Codicons.circleFilled, size: 10, color: color)
+          : null,
+      closeTooltip: context.l10n.sidePanelCloseTab,
+      onClose: onClose,
+      onMenu: switch (menu) {
+        final menu? => (position) => unawaited(
+          showIdeMenu(context, position: position, entries: menu()),
+        ),
+        null => null,
       },
-    );
-    return Semantics(
-      button: true,
-      selected: active,
-      label: tooltip ?? label,
-      child: tooltip == null ? tab : IdeHover(message: tooltip!, child: tab),
     );
   }
 }
@@ -2008,7 +1834,9 @@ class _RepositoryList extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(vertical: 4),
     decoration: BoxDecoration(
-      border: Border(bottom: BorderSide(color: _TabStrip.borderColor)),
+      border: Border(
+        bottom: BorderSide(color: IdeTabStrip.border ?? AppColors.partBorder),
+      ),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2030,31 +1858,40 @@ class _RepositoryList extends StatelessWidget {
                     color: themeColors['icon.foreground'],
                   ),
                   const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      p.basename(root),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12.5),
+                  // The name and branch take what they need, the count
+                  // stays against the right edge.
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            p.basename(root),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12.5),
+                          ),
+                        ),
+                        if (git.state?.head.branch case final branch?) ...[
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              branch,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  if (git.state?.head.branch case final branch?) ...[
+                  if (git.state?.count case final count? when count > 0) ...[
                     const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        branch,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    ),
+                    IdeTitleBadge(count),
                   ],
-                  const Spacer(),
-                  if (git.state?.count case final count? when count > 0)
-                    _Badge(count),
                 ],
               ),
             ),

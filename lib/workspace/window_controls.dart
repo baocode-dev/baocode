@@ -99,9 +99,8 @@ abstract final class WindowControls {
   static Future<Size?> growRoom({int? viewId}) async {
     if (!canGrow) return null;
     try {
-      final room = await _of(viewId).invokeMapMethod<String, Object?>(
-        'windowRoom',
-      );
+      final room = await _of(viewId)
+          .invokeMapMethod<String, Object?>('windowRoom');
       if (room == null) return null;
       double size(String key) => (room[key] as num?)?.toDouble() ?? 0;
       return Size(size('width'), size('height'));

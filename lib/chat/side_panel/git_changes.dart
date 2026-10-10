@@ -476,7 +476,7 @@ class _GitChangeListState extends State<GitChangeList> {
               ),
             ),
             const SizedBox(width: 4),
-            IdeCountBadge(row.resources.length),
+            IdeTitleBadge(row.resources.length),
           ],
         ),
       ),

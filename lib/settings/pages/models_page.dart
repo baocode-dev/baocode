@@ -304,7 +304,7 @@ class _ProviderRow extends StatelessWidget {
           _Status.ready => SettingsSwitch.onColor,
           _Status.incomplete => AppColors.caution,
           _Status.failed => colors['errorForeground'],
-          _Status.off => AppColors.textFaint,
+          _Status.off => SettingsColors.textQuaternary,
         },
       ),
     );
@@ -353,7 +353,11 @@ class _ProviderRow extends StatelessWidget {
           ),
           if (onOpen != null) ...[
             const SizedBox(width: 8),
-            Icon(Codicons.chevronRight, size: 14, color: AppColors.textMuted),
+            Icon(
+              Codicons.chevronRight,
+              size: 14,
+              color: SettingsColors.textSecondary,
+            ),
           ],
         ],
       ),
@@ -1238,7 +1242,9 @@ class _ModelRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: SettingsText.label.copyWith(
-                          color: model.enabled ? null : AppColors.textMuted,
+                          color: model.enabled
+                              ? null
+                              : SettingsColors.textSecondary,
                         ),
                       ),
                     ),
@@ -1356,7 +1362,9 @@ class _AccountRow extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: SettingsText.label.copyWith(
-                          color: account.enabled ? null : AppColors.textMuted,
+                          color: account.enabled
+                              ? null
+                              : SettingsColors.textSecondary,
                         ),
                       ),
                     ),
@@ -1540,7 +1548,7 @@ class _Folding extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTap: onToggle,
             child: Padding(
-              padding: const EdgeInsets.only(left: 4, top: 8, bottom: 8),
+              padding: const EdgeInsets.only(left: 8, top: 8, bottom: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1549,7 +1557,7 @@ class _Folding extends StatelessWidget {
                       Icon(
                         open ? Codicons.chevronDown : Codicons.chevronRight,
                         size: 13,
-                        color: AppColors.textMuted,
+                        color: SettingsColors.textSecondary,
                       ),
                       const SizedBox(width: 4),
                       Text(title, style: SettingsText.heading),
@@ -1559,7 +1567,10 @@ class _Folding extends StatelessWidget {
                     const SizedBox(height: 2),
                     Padding(
                       padding: const EdgeInsets.only(left: 17),
-                      child: Text(description, style: SettingsText.description),
+                      child: Text(
+                        description,
+                        style: SettingsText.headingDescription,
+                      ),
                     ),
                   ],
                 ],

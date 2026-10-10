@@ -629,7 +629,7 @@ class _SearchPaletteState extends State<SearchPalette> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                   side: BorderSide(
-                    color: colors.get('widget.border') ?? AppColors.border,
+                    color: colors.get('widget.border') ?? AppColors.partBorder,
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -792,7 +792,7 @@ class _SearchPaletteState extends State<SearchPalette> {
       height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.border)),
+        border: Border(top: BorderSide(color: AppColors.partBorder)),
       ),
       child: Row(
         children: [

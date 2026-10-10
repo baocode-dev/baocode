@@ -2,44 +2,87 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
+import 'package:baocode/ide/ide_status_bar.dart';
 import 'package:baocode/ide/lsp_ui/hover_markdown.dart';
+import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 
 import 'workbench/fake_files.dart';
 
 void main() {
-  testWidgets('the parts are Modern UI cards, the activity bar VS Code\'s', (
+  testWidgets('the shell is the side bar\'s color, opaque on every platform '
+      '(the agents sidebar is a tint over the material)', (tester) async {
+    final side = WorkbenchThemeService.instance.colors['sideBar.background'];
+    expect(IdeModernUI.shell, side);
+    expect(IdeModernUI.shell.a, 1);
+    expect(AppColors.sidebarSurface.a, lessThan(1));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('the parts are flush and square, the activity bar VS Code\'s', (
     tester,
   ) async {
     await pumpWorkbench(tester, {'a.txt': 'a'});
-    Rect card(Finder of) => tester.getRect(
-      find.ancestor(of: of, matching: find.byType(IdeCard)).first,
+    Rect part(Finder of) => tester.getRect(
+      find.ancestor(of: of, matching: find.byType(IdePart)).first,
     );
-    final activityBar = card(find.byIcon(Codicons.files));
-    Rect cardIn(String key) => tester.getRect(
+    final activityBar = part(find.byIcon(Codicons.files));
+    Rect partIn(String key) => tester.getRect(
       find
           .descendant(
             of: find.byKey(ValueKey(key)),
-            matching: find.byType(IdeCard),
+            matching: find.byType(IdePart),
           )
           .first,
     );
-    final sidebar = cardIn('ide-sidebar');
-    final editor = cardIn('ide-editor');
-    // 4px from the window's side, 44px wide, joined to the side bar; the
-    // editor 4px on.
-    expect(activityBar.left, IdeModernUI.gap);
+    final sidebar = partIn('ide-sidebar');
+    final editor = partIn('ide-editor');
+    final chat = partIn('ide-chat');
+    // Against the window's side, 44px wide; each part against the next,
+    // down to the status bar.
+    expect(activityBar.left, 0);
     expect(activityBar.width, 44);
     expect(sidebar.left, activityBar.right);
-    expect(editor.left, sidebar.right + IdeModernUI.gap);
+    expect(editor.left, sidebar.right);
+    expect(chat.left, editor.right);
+    expect(chat.right, 1400);
     expect(editor.bottom, activityBar.bottom);
+    expect(tester.getRect(find.byType(IdeStatusBar)).top, activityBar.bottom);
+    // In the theme's colors: no card's border or corners.
+    final sidebarPart = tester.widget<IdePart>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('ide-sidebar')),
+            matching: find.byType(IdePart),
+          )
+          .first,
+    );
+    expect(sidebarPart.color, themeColors['sideBar.background']);
+    // The line beside it, the theme's: `sideBar.border`, else
+    // `surface.border`.
+    expect(
+      sidebarPart.border!.right.color,
+      themeColors.get('sideBar.border') ?? themeColors['surface.border'],
+    );
+    final statusBar = tester.widget<Container>(
+      find
+          .descendant(
+            of: find.byType(IdeStatusBar),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    expect(
+      (statusBar.decoration! as BoxDecoration).color,
+      themeColors['statusBar.background'],
+    );
 
     // 36px items, 8px apart, the first 4px (half the lane) from the top.
     Finder inBar(IconData icon) => find.descendant(
       of: find
           .ancestor(
             of: find.byIcon(Codicons.files),
-            matching: find.byType(IdeCard),
+            matching: find.byType(IdePart),
           )
           .first,
       matching: find.byIcon(icon),
@@ -60,7 +103,8 @@ void main() {
     expect(files.size, const Size.square(36));
     expect(search.top - files.bottom, 8);
     expect(files.top - activityBar.top, 4);
-    expect(files.center.dx, closeTo(activityBar.center.dx, 0.01));
+    // Centered, less `activityBar.border` where the theme has it.
+    expect(files.center.dx, closeTo(activityBar.center.dx, 0.5));
 
     // The Explorer is showing: its item is on the rounded box, the others
     // in the inactive color and no box.
@@ -85,19 +129,11 @@ void main() {
     );
     expect(tester.widget<Icon>(find.byIcon(Codicons.files)).size, 24);
 
-    // Closing the side bar rounds the activity bar all round.
+    // Closing the side bar unselects its item.
     await tester.tap(find.byIcon(Codicons.files));
     await tester.pump();
     expect(find.byKey(const ValueKey('ide-sidebar')), findsNothing);
-    final alone = tester.widget<IdeCard>(
-      find
-          .ancestor(
-            of: find.byIcon(Codicons.files),
-            matching: find.byType(IdeCard),
-          )
-          .first,
-    );
-    expect(alone.radius, BorderRadius.circular(8));
+    expect(box(Codicons.files).color, isNull);
   });
 
   group('hover markdown', () {

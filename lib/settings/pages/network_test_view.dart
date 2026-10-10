@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../ide/ide_hover.dart';
 import '../../l10n/l10n.dart';
 import '../../network/network_proxy.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'settings_widgets.dart';
 
@@ -60,7 +60,7 @@ class NetworkTestRow extends StatelessWidget {
     final error = themeColors['errorForeground'];
     // Figures of one width: the times line up row under row.
     final style = TextStyle(
-      color: AppColors.text,
+      color: SettingsColors.textPrimary,
       fontSize: 12.5,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
@@ -69,7 +69,10 @@ class NetworkTestRow extends StatelessWidget {
     switch (result) {
       case null:
         said = l10n.networkTestIdle;
-        end = Text('—', style: style.copyWith(color: AppColors.textFaint));
+        end = Text(
+          '—',
+          style: style.copyWith(color: SettingsColors.textQuaternary),
+        );
       case SiteTesting():
         said = l10n.networkTesting;
         end = SizedBox(
@@ -77,7 +80,7 @@ class NetworkTestRow extends StatelessWidget {
           height: 12,
           child: CircularProgressIndicator(
             strokeWidth: 1.5,
-            color: AppColors.textMuted,
+            color: SettingsColors.textSecondary,
           ),
         );
       case SiteReached(:final time):
@@ -97,7 +100,10 @@ class NetworkTestRow extends StatelessWidget {
             site.icon,
             width: 16,
             height: 16,
-            colorFilter: ColorFilter.mode(AppColors.textMuted, BlendMode.srcIn),
+            colorFilter: ColorFilter.mode(
+              SettingsColors.textSecondary,
+              BlendMode.srcIn,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -122,7 +128,7 @@ class NetworkTestRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: SettingsText.description.copyWith(
-                      color: AppColors.textFaint,
+                      color: SettingsColors.textQuaternary,
                     ),
                   ),
                 ),
@@ -151,6 +157,7 @@ class NetworkTestRow extends StatelessWidget {
       child: row,
     );
     if (detail == null) return semantics;
-    return Tooltip(message: detail, child: semantics);
+    // As a list row's: below it, from the pointer.
+    return IdeHover(message: detail, followMouse: true, child: semantics);
   }
 }

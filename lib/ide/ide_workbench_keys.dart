@@ -615,7 +615,8 @@ extension _SearchAndListKeys on IdeWorkbenchState {
   /// Find in Files (upstream `findInFilesCommand` with the view): the
   /// Search view shown with [args]' options (`query`, `replace`,
   /// `triggerSearch`, `filesToInclude`, `isRegex`…), its search input
-  /// focused; the replace input shows when [args] has `replace`.
+  /// focused; the replace input shows, with it, when [args] has `replace`,
+  /// and is left as it is when not.
   void _findInFiles([Object? args]) {
     final session = _search;
     final options = args is Map ? args : const {};
@@ -624,7 +625,10 @@ extension _SearchAndListKeys on IdeWorkbenchState {
       _ => null,
     };
     final replace = option<String>('replace');
-    session.replaceShown = replace != null;
+    if (replace != null) {
+      session.replaceShown = true;
+      session.replace.text = replace;
+    }
     if (option<bool>('isCaseSensitive') case final value?) {
       session.matchCase = value;
     }
@@ -639,7 +643,6 @@ extension _SearchAndListKeys on IdeWorkbenchState {
       session.excludes.text = value;
     }
     if (option<String>('query') case final value?) session.query.text = value;
-    session.replace.text = replace ?? '';
     if (option<bool>('preserveCase') case final value?) {
       session.preserveCase = value;
     }

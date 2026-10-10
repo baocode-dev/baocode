@@ -194,7 +194,7 @@ class WorkFoldLine extends StatelessWidget {
               child: header,
             ),
             const SizedBox(width: 10),
-            Expanded(child: Container(height: 1, color: AppColors.border)),
+            Expanded(child: Container(height: 1, color: AppColors.partBorder)),
           ],
         ),
       ),

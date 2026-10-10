@@ -127,7 +127,7 @@ class PlanCard extends StatelessWidget {
                   )
                 : AppColors.surface,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: AppColors.partBorder),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

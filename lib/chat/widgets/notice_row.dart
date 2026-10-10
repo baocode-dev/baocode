@@ -21,7 +21,7 @@ class NoticeRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
-              Expanded(child: Divider(color: AppColors.border)),
+              Expanded(child: Divider(color: AppColors.partBorder)),
               const SizedBox(width: 10),
               Icon(
                 Icons.compress_rounded,
@@ -36,7 +36,7 @@ class NoticeRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(child: Divider(color: AppColors.border)),
+              Expanded(child: Divider(color: AppColors.partBorder)),
             ],
           ),
         );
@@ -46,7 +46,7 @@ class NoticeRow extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: AppColors.partBorder),
           ),
           child: MarkdownView(
             text,

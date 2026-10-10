@@ -401,7 +401,7 @@ class CustomizeViewState extends State<CustomizeView> {
             ),
           ),
         ),
-        Container(width: 1, height: 16, color: AppColors.border),
+        Container(width: 1, height: 16, color: AppColors.partBorder),
         for (final kind in CustomizationKind.values)
           _Chip(
             selected: kind == _kind,
@@ -516,13 +516,13 @@ class CustomizeViewState extends State<CustomizeView> {
           decoration: BoxDecoration(
             color: themeColors['editorWidget.background'],
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
+            border: Border.all(color: AppColors.partBorder),
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
               for (final (i, item) in items.indexed) ...[
-                if (i > 0) Divider(height: 1, color: AppColors.border),
+                if (i > 0) Divider(height: 1, color: AppColors.partBorder),
                 _ItemRow(
                   item: item,
                   onOpen: () => setState(() => _open = item),
@@ -1053,7 +1053,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.border),
+                    border: Border.all(color: AppColors.partBorder),
                   ),
                   child: CallbackShortcuts(
                     bindings: {command: () => unawaited(_save())},

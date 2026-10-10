@@ -244,7 +244,8 @@ class _WindowHeaderState extends State<WindowHeader> {
               ? null
               : Border(
                   bottom: BorderSide(
-                    color: colors.get('titleBar.border') ?? AppColors.border,
+                    color:
+                        colors.get('titleBar.border') ?? AppColors.partBorder,
                   ),
                 ),
         ),

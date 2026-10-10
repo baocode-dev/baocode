@@ -504,9 +504,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     });
   }
 
-  /// Either side of the scrollbar's thumb, still the bar.
-  static const _scrollbarMargin = 4.0;
-
   /// The strip at the right of the list, beside its text: the scrollbar's.
   static const _scrollbarGutter = 24.0;
 
@@ -1383,9 +1380,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                 }
                 return colors['scrollbarSlider.background'];
               }),
-              // The thumb as thin as ever, easier to catch: its track (what
-              // takes a press) is that much wider on both sides.
-              crossAxisMargin: _scrollbarMargin,
             ),
             // Above the selection: the bar takes a press on it alone (what
             // it covers is not hit-tested), so dragging it never selects.

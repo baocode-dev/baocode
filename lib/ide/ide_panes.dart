@@ -68,9 +68,9 @@ abstract final class IdePaneColors {
   static Color get headerForeground =>
       themeColors['sideBarSectionHeader.foreground'];
 
-  /// The separator: `panel.border`, as the side bars' other dividers and
-  /// sashes ([AppColors.border]).
-  static Color get border => AppColors.border;
+  /// The separator: the parts' line, as the side bars' other dividers and
+  /// sashes ([AppColors.partBorder]).
+  static Color get border => AppColors.partBorder;
 
   /// Modern UI tints a header on hover.
   static Color get hoverBackground => themeColors['list.hoverBackground'];

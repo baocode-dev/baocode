@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/git/repository_scan.dart';
+import 'package:baocode/ide/ide_list.dart';
 import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/theme/codicons.dart';
 
 import '../git/fake_git.dart';
 import 'fake_files.dart';
@@ -127,6 +130,30 @@ void main() {
     expect(find.text('dev'), findsOneWidget);
     expect(find.text('README.md'), findsWidgets);
     expect(find.text('new.dart'), findsNothing);
+    // As upstream's rows: the branches at the right end, the one shown
+    // marked, and no count badge (`scm.providerCountBadge` is hidden).
+    final main = find
+        .descendant(of: find.byType(IdeListRow), matching: find.text('main'))
+        .first;
+    expect(
+      tester.getTopRight(find.text('dev')).dx,
+      tester.getTopRight(main).dx,
+    );
+    expect(
+      tester.getTopLeft(find.text('dev')).dx,
+      greaterThan(tester.getTopLeft(main).dx),
+    );
+    expect(find.byIcon(Codicons.repoSelected), findsOneWidget);
+    expect(find.byIcon(Codicons.repo), findsOneWidget);
+    for (final root in [testRoot, inRoot('app')]) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey(root)),
+          matching: find.byType(IdeCountBadge),
+        ),
+        findsNothing,
+      );
+    }
 
     await tester.tap(find.text('dev'));
     await tester.pumpAndSettle();

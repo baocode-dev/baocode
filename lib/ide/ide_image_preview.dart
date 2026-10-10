@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
 
+import '../platform/svg_text_transform.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'file_service.dart';
 import 'ide_editor_placeholder.dart';
@@ -161,8 +162,8 @@ class _IdeImagePreviewState extends State<IdeImagePreview> {
               ),
             );
           } else {
-            image = SvgPicture.memory(
-              loaded.bytes,
+            image = SvgPicture(
+              SvgTextBytesLoader(loaded.bytes),
               width: viewport.width,
               height: viewport.height,
               fit: BoxFit.scaleDown,

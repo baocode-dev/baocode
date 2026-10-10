@@ -299,7 +299,7 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           height: _dragging ? IdeModernUI.gap : 1,
-          color: _dragging ? IdeModernUI.sashHover : AppColors.border,
+          color: _dragging ? IdeModernUI.sashHover : AppColors.partBorder,
         ),
       ),
     ),

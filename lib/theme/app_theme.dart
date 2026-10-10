@@ -36,8 +36,7 @@ abstract final class AppColors {
 
   /// How much of the theme color covers the material. macOS's sidebar
   /// material is already a heavy frost (80%). Windows 11 acrylic is a
-  /// thinner blur, so the sidebar — and the IDE shell, which uses this
-  /// same tint — covers 96% of it.
+  /// thinner blur, so the sidebar covers 96% of it.
   static double get _sidebarTint => AppPlatform.isWindows11 ? 0.96 : 0.8;
 
   /// Denser than [_sidebarTint]: the conversation covers more of the material
@@ -58,6 +57,13 @@ abstract final class AppColors {
         : color;
   }
 
+  /// An unfocused conversation's, of several side by side, to tell them
+  /// apart: [background] (`sideBar.background`), over
+  /// [conversationSurface] as dense as that is over the material.
+  static Color get unfocusedConversationSurface => usesSystemMaterial
+      ? background.withValues(alpha: background.a * _conversationTint)
+      : background;
+
   /// `editorWidget.background`: cards and panels.
   static Color get surface => _colors['editorWidget.background'];
 
@@ -69,6 +75,12 @@ abstract final class AppColors {
 
   /// `panel.border`.
   static Color get border => _colors['panel.border'];
+
+  /// Between the window's parts, the IDE's line between its side bar, editor
+  /// and chat: `sideBar.border`, else the Modern UI's `surface.border`
+  /// (which every theme has). Sashes and dividers, not cards' outlines.
+  static Color get partBorder =>
+      _first(['sideBar.border', 'surface.border', 'panel.border']);
 
   /// `input.border`, else `dropdown.border`.
   static Color get borderStrong => _first(['input.border', 'dropdown.border']);
@@ -267,7 +279,7 @@ ThemeData buildAppTheme() {
       brightness: brightness,
       surface: AppColors.surface,
     ),
-    dividerColor: AppColors.border,
+    dividerColor: AppColors.partBorder,
     visualDensity: VisualDensity.compact,
     textSelectionTheme: TextSelectionThemeData(
       selectionColor: AppColors.textSelection,
@@ -279,6 +291,9 @@ ThemeData buildAppTheme() {
       trackBorderColor: const WidgetStatePropertyAll(Colors.transparent),
       thickness: const WidgetStatePropertyAll(7),
       radius: const Radius.circular(4),
+      // Against the edge, as VS Code's (Material's desktop default is 2px
+      // in).
+      crossAxisMargin: 0,
       minThumbLength: 48,
     ),
   );

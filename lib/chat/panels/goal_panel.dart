@@ -10,6 +10,7 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../widgets/agent_step.dart';
 import '../widgets/hover_builder.dart';
 import '../widgets/shimmer_text.dart';
+import '../../ide/ide_hover.dart';
 
 /// What the session's goal is up to, for [GoalPanel].
 enum GoalActivity {
@@ -574,7 +575,7 @@ class _IconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
+    return IdeHover(
       message: tooltip,
       child: HoverBuilder(
         cursor: SystemMouseCursors.click,

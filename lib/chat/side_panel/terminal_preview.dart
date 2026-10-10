@@ -224,7 +224,7 @@ class _TerminalPreviewState extends State<TerminalPreview> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppColors.border)),
+            border: Border(bottom: BorderSide(color: AppColors.partBorder)),
           ),
           child: Row(
             children: [

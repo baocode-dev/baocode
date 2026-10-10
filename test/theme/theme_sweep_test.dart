@@ -101,10 +101,10 @@ void main() {
         shift: true,
       );
       expect(tester.takeException(), isNull, reason: theme.settingsId);
-      final panel = tester.widget<IdeCard>(
+      final panel = tester.widget<IdePart>(
         find.ancestor(
           of: find.byType(IdeBottomPanel),
-          matching: find.byType(IdeCard),
+          matching: find.byType(IdePart),
         ),
       );
       expect(

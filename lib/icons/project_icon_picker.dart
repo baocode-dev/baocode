@@ -10,6 +10,7 @@ import '../chat/composer/file_drop.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/floating/floating_registry.dart';
 import '../chat/widgets/hover_builder.dart';
+import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../platform/app_platform.dart';
 import '../theme/app_theme.dart';
@@ -1245,23 +1246,27 @@ class _IconButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: label,
-    child: HoverBuilder(
-      cursor: SystemMouseCursors.click,
-      builder: (context, hovered) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: hovered
-                ? themeColors['toolbar.hoverBackground']
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+  Widget build(BuildContext context) => IdeHover(
+    message: label,
+    excludeFromSemantics: true,
+    child: Semantics(
+      button: true,
+      label: label,
+      child: HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: hovered
+                  ? themeColors['toolbar.hoverBackground']
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: 16, color: AppColors.textMuted),
           ),
-          child: Icon(icon, size: 16, color: AppColors.textMuted),
         ),
       ),
     ),

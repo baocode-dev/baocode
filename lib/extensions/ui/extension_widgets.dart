@@ -24,6 +24,7 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../capabilities/capability_analysis.dart';
 import '../gallery/open_vsx_client.dart';
 import '../vsix/engine_version.dart';
+import '../../ide/ide_hover.dart';
 
 /// `InstallCountWidget.getInstallLabel`: `9.4M`, `120K`, `950`.
 String formatInstallCount(int count) {
@@ -194,9 +195,8 @@ class CapabilityBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = capabilityStyle(context.l10n, level);
     final icon = Icon(style.icon, size: 14, color: style.color);
-    return Tooltip(
+    return IdeHover(
       message: '${style.label}: ${style.detail}',
-      waitDuration: const Duration(milliseconds: 500),
       child: Semantics(
         label: style.label,
         child: compact

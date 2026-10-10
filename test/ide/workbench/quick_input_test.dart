@@ -102,6 +102,19 @@ void main() {
     expect(_chatShown(tester), isTrue);
   });
 
+  testWidgets('on desktop the palette opens with the caret after >, not it '
+      'selected', (tester) async {
+    // A desktop's one-line field selects all of itself as it gets the focus.
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    await pumpWorkbench(tester, files, open: ['lib/main.dart']);
+    await chord(tester, LogicalKeyboardKey.keyP, control: true, shift: true);
+    await tester.pump();
+    final controller = tester.widget<TextField>(_input).controller!;
+    expect(controller.text, '>');
+    expect(controller.selection, const TextSelection.collapsed(offset: 1));
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('palette runs editor-independent commands from the welcome', (
     tester,
   ) async {

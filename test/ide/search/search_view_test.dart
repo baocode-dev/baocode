@@ -135,8 +135,7 @@ void main() {
   ) async {
     await pumpSearch(tester, open: ['lib/a.dart']);
     await search(tester, 'foo');
-    await tester.tap(find.byTooltip('Toggle Replace'));
-    await tester.pumpAndSettle();
+    // The replace input shows at first.
     await tester.enterText(input('Replace'), 'bar');
     await tester.pumpAndSettle();
     // The preview shows the replacement.
@@ -188,8 +187,7 @@ void main() {
     final details = find.byTooltip('Toggle Search Details (Ctrl+Shift+J)');
     expect(tester.getSize(details), const Size(25, 16));
 
-    await tester.tap(details);
-    await tester.pumpAndSettle();
+    // The details show at first.
     final exclude = box('files to exclude');
     expect(exclude.height, 28);
     final toggle = tester.getRect(

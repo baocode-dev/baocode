@@ -23,11 +23,13 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../../chat/widgets/code_citation.dart' show MarkdownCodeBlock;
 import '../../chat/widgets/markdown_view.dart';
+import '../../platform/svg_text_transform.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'markdown_block_editor.dart';
 import 'markdown_blocks.dart';
 import 'markdown_document.dart';
+import '../ide_hover.dart';
 
 /// Whether [path] is a markdown file the preview shows.
 bool isMarkdownPath(String path) {
@@ -595,8 +597,8 @@ class _MarkdownImage extends StatelessWidget {
           final bytes = snapshot.data;
           if (bytes == null) return const SizedBox(width: 16, height: 16);
           if (p.extension(path).toLowerCase() == '.svg') {
-            return SvgPicture.memory(
-              bytes,
+            return SvgPicture(
+              SvgTextBytesLoader(bytes),
               errorBuilder: (context, _, _) => _missing(),
             );
           }
@@ -610,7 +612,9 @@ class _MarkdownImage extends StatelessWidget {
       image = _missing();
     }
     final tip = title ?? (alt.isEmpty ? null : alt);
-    return tip == null ? image : Tooltip(message: tip, child: image);
+    return tip == null
+        ? image
+        : IdeHover(message: tip, followMouse: true, child: image);
   }
 
   Widget _missing() => Container(

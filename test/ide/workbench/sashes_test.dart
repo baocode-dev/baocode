@@ -30,11 +30,12 @@ void main() {
     final drag = await tester.startGesture(
       tester.getCenter(_part('ide-sidebar-sash')),
     );
-    // As far as the side bar goes: 660 of 1340.
+    // As far as the side bar goes: 676 of 1356 (the window less the
+    // activity bar).
     await drag.moveBy(const Offset(20, 0));
-    await drag.moveBy(const Offset(400, 0));
+    await drag.moveBy(const Offset(416, 0));
     await tester.pump();
-    expect(_width(tester, 'ide-sidebar'), 660);
+    expect(_width(tester, 'ide-sidebar'), 676);
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
     expect(_width(tester, 'ide-chat'), IdeColumns.minChat);
 
@@ -46,9 +47,9 @@ void main() {
     await tester.pump();
     expect(_width(tester, 'ide-chat'), 0);
     expect(find.byKey(chatKey), findsNothing);
-    expect(_width(tester, 'ide-sidebar'), 720);
+    expect(_width(tester, 'ide-sidebar'), 736);
 
-    await drag.moveBy(const Offset(-480, 0));
+    await drag.moveBy(const Offset(-496, 0));
     await tester.pump();
     expect(_width(tester, 'ide-sidebar'), IdeColumns.defaultSidebar);
     expect(_width(tester, 'ide-chat'), IdeColumns.defaultChat);
@@ -59,7 +60,7 @@ void main() {
     await tester.drag(_part('ide-chat-sash'), const Offset(-400, 0));
     await tester.pump();
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
-    expect(_width(tester, 'ide-sidebar'), 200);
+    expect(_width(tester, 'ide-sidebar'), 216);
     await tester.drag(_part('ide-chat-sash'), const Offset(-200, 0));
     await tester.pump();
     expect(_part('ide-sidebar'), findsNothing);
@@ -67,7 +68,7 @@ void main() {
     // Opened again, as wide as it was; the chat gives way to it.
     await tester.tap(find.byIcon(Codicons.files));
     await tester.pump();
-    expect(_width(tester, 'ide-sidebar'), 200);
+    expect(_width(tester, 'ide-sidebar'), 216);
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
     await tester.pump(kDoubleTapTimeout);
   });
@@ -111,11 +112,11 @@ void main() {
     await tester.pump();
     expect(_width(tester, 'ide-chat'), 0);
     expect(find.byKey(chatKey), findsNothing);
-    // Once the drag ends, no sash: the gap by the window's side is left to
-    // the window's own resizing edge.
+    // Once the drag ends, no sash: the window's side is left to its own
+    // resizing edge, the editor against it.
     expect(_part('ide-chat-sash'), findsNothing);
     expect(
-      tester.getRect(_part('ide-chat-gap')).right,
+      tester.getRect(_part('ide-editor')).right,
       tester.view.physicalSize.width,
     );
     await tester.tap(find.byIcon(Codicons.layoutSidebarRightOff));
@@ -164,7 +165,7 @@ void main() {
     await pumpWorkbench(tester, {'a.txt': 'a'});
     expect(tester.getSize(_part('ide-panel')).height, 0);
     final column = tester.getRect(_part('ide-editor-column'));
-    // Hidden, its sash is the gap above the status bar.
+    // Hidden, its sash is over the editor's bottom edge.
     expect(tester.getRect(_part('ide-panel-sash')).bottom, column.bottom);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
@@ -173,12 +174,19 @@ void main() {
     await tester.pump();
     final editor = tester.getRect(_part('ide-editor'));
     final panel = tester.getRect(_part('ide-panel'));
-    final room = column.height - IdeModernUI.gap * 2;
+    // Flush with the editor, the status bar under it.
+    final room = column.height;
     expect(panel.height, closeTo(room / 3, 0.01));
-    expect(panel.top, editor.bottom + IdeModernUI.gap);
+    expect(panel.top, editor.bottom);
     expect(panel.left, editor.left);
     expect(panel.right, editor.right);
-    expect(column.bottom - panel.bottom, IdeModernUI.gap);
+    expect(panel.bottom, column.bottom);
+    // Its sash over the line between the two.
+    expect(
+      tester.getCenter(_part('ide-panel-sash')).dy,
+      closeTo(panel.top, 0.01),
+    );
+    expect(tester.getSize(_part('ide-panel-sash')).height, IdeModernUI.gap);
     // The side bar and the chat keep the whole height.
     expect(tester.getRect(_part('ide-chat')).bottom, panel.bottom);
     expect(tester.getRect(_part('ide-sidebar')).bottom, panel.bottom);
@@ -233,7 +241,7 @@ void main() {
     final chat = tester.getRect(_part('ide-chat'));
     expect(chat.top, editor.top);
     expect(chat.bottom, editor.bottom);
-    expect(chat.left, editor.right + IdeModernUI.gap);
+    expect(chat.left, editor.right);
     expect(chat.width, IdeColumns.minChat);
     // The side bar gave way to the editor opened.
     expect(_part('ide-sidebar'), findsNothing);

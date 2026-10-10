@@ -988,7 +988,7 @@ class _Box extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? AppColors.code,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.partBorder),
       ),
       child: SingleChildScrollView(padding: padding, child: child),
     );

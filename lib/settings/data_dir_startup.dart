@@ -222,7 +222,7 @@ class _DataDirectoryRecoveryState extends State<DataDirectoryRecovery> {
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: AppColors.partBorder),
               boxShadow: [
                 BoxShadow(
                   color: colors['widget.shadow'],
