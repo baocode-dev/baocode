@@ -14,6 +14,8 @@
 // release.
 import 'dart:io';
 
+import 'test_models.dart' show runModelTests;
+
 /// Where the bundle flutter leaves behind goes, and where the installer is
 /// written. Under build/, which the repository already ignores and flutter
 /// clean already removes.
@@ -53,6 +55,10 @@ Future<void> main(List<String> arguments) async {
   final installers = Directory('${root.path}\\$_installersRelative');
   final version = _readVersion(File('${root.path}\\pubspec.yaml'));
 
+  // Even --skip-build packages a distribution: it must pass the same gate.
+  final testCode = await runModelTests(root.path);
+  if (testCode != 0) _fail('Model regression tests failed ($testCode).');
+
   if (!skipBuild) {
     _step('Building the Release bundle');
     await _run('flutter', ['build', 'windows', '--release'], root.path);
@@ -91,9 +97,9 @@ Future<void> main(List<String> arguments) async {
     File('${remote.path}\\$name').copySync('${bundleRemote.path}\\$name');
   }
   _checkBundle(bundle, [r'remote\VERSION', r'remote\servers.json']);
-  final remoteVersion = File(
-    '${remote.path}\\VERSION',
-  ).readAsStringSync().trim();
+  final remoteVersion = File('${remote.path}\\VERSION')
+      .readAsStringSync()
+      .trim();
 
   _step('Compiling the installer');
   final iscc = _findIscc();

@@ -10,6 +10,8 @@ import 'launch_environment.dart';
 import 'model_provider.dart';
 import 'model_providers.dart';
 import 'model_runtime.dart';
+import 'model_test.dart';
+import 'model_test_io.dart';
 import 'proxy/model_proxy.dart';
 import 'upstream.dart';
 
@@ -21,6 +23,18 @@ final CodexAccounts _codex = CodexAccounts(
 );
 
 CodexService get codexService => _codex;
+
+final modelTests = ModelTestService(
+  run: (provider, model, prompt, cancellation, emit) => runModelTest(
+    provider,
+    model,
+    prompt,
+    cancellation,
+    emit,
+    keyOf: (id) => ModelProviders.current.key(id),
+    codex: _codex,
+  ),
+);
 
 /// The app's proxy, over [ModelProviders.current].
 final ModelProxy _proxy = ModelProxy(
@@ -148,6 +162,7 @@ Future<Map<String, String>> providerLaunchEnvironment(
 }
 
 Future<void> stopModelProxy() async {
+  modelTests.dispose();
   _codex.close();
   await _proxy.close();
 }

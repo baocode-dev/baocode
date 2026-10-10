@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../ide/ide_button.dart';
+import '../../ide/ide_drag_selection.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_input.dart';
 import '../../l10n/l10n.dart';
 import '../../models/model_provider.dart';
+import '../../models/model_providers.dart';
+import 'model_table_pagination.dart';
 import '../../models/upstream.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
@@ -27,15 +30,26 @@ class ModelCheckbox extends StatelessWidget {
     required this.checked,
     required this.onChanged,
     required this.semanticLabel,
+    this.dragSelect = false,
+    this.hitSize = const Size(16, 16),
   });
 
   final bool checked;
   final ValueChanged<bool>? onChanged;
   final String semanticLabel;
+  final bool dragSelect;
+
+  /// Visual box stays compact; table selection cells provide a larger target.
+  final Size hitSize;
+
+  Widget _target() => SizedBox(
+    width: hitSize.width,
+    height: hitSize.height,
+    child: Center(child: _box()),
+  );
 
   @override
   Widget build(BuildContext context) {
-    final colors = themeColors;
     final onChanged = this.onChanged;
     return Semantics(
       checked: checked,
@@ -47,43 +61,56 @@ class ModelCheckbox extends StatelessWidget {
         cursor: onChanged == null
             ? MouseCursor.defer
             : SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onChanged == null ? null : () => onChanged(!checked),
-          child: Container(
-            width: 16,
-            height: 16,
-            decoration: BoxDecoration(
-              color: colors['checkbox.background'],
-              border: Border.all(color: colors['checkbox.border']),
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: checked
-                ? Icon(
-                    Codicons.check,
-                    size: 14,
-                    color: colors['checkbox.foreground'],
-                  )
-                : null,
-          ),
-        ),
+        child: dragSelect && onChanged != null
+            ? IdeDragSelectTarget(
+                checked: checked,
+                onChanged: onChanged,
+                child: _target(),
+              )
+            : GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onChanged == null ? null : () => onChanged(!checked),
+                child: _target(),
+              ),
       ),
+    );
+  }
+
+  Widget _box() {
+    final colors = themeColors;
+    return Container(
+      width: 16,
+      height: 16,
+      decoration: BoxDecoration(
+        color: colors['checkbox.background'],
+        border: Border.all(color: colors['checkbox.border']),
+        borderRadius: BorderRadius.circular(3),
+      ),
+      child: checked
+          ? Icon(Codicons.check, size: 14, color: colors['checkbox.foreground'])
+          : null,
     );
   }
 }
 
 /// The dialogs' frame: [title] over [child], [actions] under it, as the
 /// IDE's own dialogs look.
-class _ModelDialogFrame extends StatelessWidget {
-  const _ModelDialogFrame({
+class ModelDialogFrame extends StatelessWidget {
+  const ModelDialogFrame({
+    super.key,
     required this.title,
     required this.child,
     required this.actions,
     this.onSubmit,
+    this.maxWidth = 560,
+    this.actionsLeading,
   });
 
+  final double maxWidth;
   final String title;
   final Widget child;
   final List<Widget> actions;
+  final Widget? actionsLeading;
 
   /// Enter, outside a field that takes it.
   final VoidCallback? onSubmit;
@@ -94,7 +121,7 @@ class _ModelDialogFrame extends StatelessWidget {
     final border = colors.get('widget.border');
     final shadow = colors.get('widget.shadow');
     final size = MediaQuery.sizeOf(context);
-    final width = math.max(440.0, math.min(560.0, size.width * .9));
+    final width = math.min(maxWidth, size.width * .9);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -104,7 +131,7 @@ class _ModelDialogFrame extends StatelessWidget {
       child: FocusScope(
         autofocus: true,
         child: Align(
-          alignment: const Alignment(0, -0.5),
+          alignment: Alignment.center,
           child: Material(
             type: MaterialType.transparency,
             child: Container(
@@ -154,14 +181,35 @@ class _ModelDialogFrame extends StatelessWidget {
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 16, 8, 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        for (final (i, action) in actions.indexed) ...[
-                          if (i > 0) const SizedBox(width: 8),
-                          action,
-                        ],
-                      ],
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final buttons = Wrap(
+                          alignment: WrapAlignment.end,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: actions,
+                        );
+                        if (actionsLeading == null) return buttons;
+                        if (constraints.maxWidth < 460) {
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              actionsLeading!,
+                              const SizedBox(height: 8),
+                              buttons,
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: actionsLeading!),
+                            const SizedBox(width: 16),
+                            buttons,
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -194,14 +242,19 @@ Future<List<ProviderModel>?> showFetchModelsDialog(
   required ModelProvider provider,
   required Future<String?> Function() key,
   required ModelLister list,
+  ModelProviders? preferences,
 }) => showGeneralDialog<List<ProviderModel>>(
   context: context,
   barrierDismissible: true,
   barrierLabel: context.l10n.commonDismiss,
   barrierColor: const Color(0x80000000),
   transitionDuration: Duration.zero,
-  pageBuilder: (context, _, _) =>
-      FetchModelsDialog(provider: provider, keyOf: key, list: list),
+  pageBuilder: (context, _, _) => FetchModelsDialog(
+    provider: provider,
+    keyOf: key,
+    list: list,
+    preferences: preferences,
+  ),
 );
 
 class FetchModelsDialog extends StatefulWidget {
@@ -210,11 +263,13 @@ class FetchModelsDialog extends StatefulWidget {
     required this.provider,
     required this.keyOf,
     required this.list,
+    this.preferences,
   });
 
   final ModelProvider provider;
   final Future<String?> Function() keyOf;
   final ModelLister list;
+  final ModelProviders? preferences;
 
   @override
   State<FetchModelsDialog> createState() => _FetchModelsDialogState();
@@ -225,11 +280,19 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
   List<RemoteModel>? _listed;
   Object? _error;
   final Set<String> _checked = {};
+  final _scroll = ScrollController();
+  late final _page = ModelTablePage(
+    widget.preferences ?? ModelProviders.current,
+  );
 
   @override
   void initState() {
     super.initState();
-    _search.addListener(() => setState(() {}));
+    _search.addListener(
+      () => setState(() {
+        _page.index = 0;
+      }),
+    );
     // Those offered already stay checked.
     _checked.addAll([
       for (final model in widget.provider.models)
@@ -241,6 +304,7 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
   @override
   void dispose() {
     _search.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -314,122 +378,168 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
         child: Text(l10n.modelsFetchEmpty, style: _muted(context)),
       );
     } else {
-      final shown = _shown;
-      body = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IdeInputBox(
-            controller: _search,
-            autofocus: true,
-            placeholder: l10n.modelsSearch,
-            semanticsLabel: l10n.modelsSearch,
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  l10n.modelsFetchSelected(
-                    listed.where((m) => _checked.contains(m.id)).length,
-                    listed.length,
+      final filtered = _shown;
+      final shown = _page.visible(filtered);
+      body = SizedBox(
+        height: math.min(
+          MediaQuery.sizeOf(context).height * .85 - 110,
+          130 + 30.0 * math.max(1, shown.length),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            IdeInputBox(
+              controller: _search,
+              autofocus: true,
+              placeholder: l10n.modelsSearch,
+              semanticsLabel: l10n.modelsSearch,
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.modelsFetchSelected(
+                      listed.where((m) => _checked.contains(m.id)).length,
+                      listed.length,
+                    ),
+                    style: _muted(context),
                   ),
-                  style: _muted(context),
                 ),
-              ),
-              _LinkButton(
-                label: l10n.modelsFetchSelectAll,
-                onPressed: () => setState(
-                  () => _checked.addAll(shown.map((model) => model.id)),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _LinkButton(
-                label: l10n.modelsFetchSelectNone,
-                onPressed: () => setState(
-                  () => _checked.removeAll(shown.map((model) => model.id)),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Flexible(
-            child: shown.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(l10n.modelsNoMatch, style: _muted(context)),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: shown.length,
-                    itemExtent: 30,
-                    itemBuilder: (context, index) {
-                      final model = shown[index];
-                      final checked = _checked.contains(model.id);
-                      void toggle(bool value) => setState(
-                        () => value
-                            ? _checked.add(model.id)
-                            : _checked.remove(model.id),
-                      );
-                      final detail = [
-                        if (model.label case final label?
-                            when label != model.id)
-                          label,
-                        if (model.contextWindow case final tokens?)
-                          formatTokens(tokens),
-                      ].join(' · ');
-                      return MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => toggle(!checked),
-                          child: Row(
-                            children: [
-                              ModelCheckbox(
-                                checked: checked,
-                                semanticLabel: model.id,
-                                onChanged: toggle,
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  model.id,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: _text(context).copyWith(
-                                    fontFamily: AppFonts.mono,
-                                    fontFamilyFallback: AppFonts.monoFallbacks,
-                                  ),
-                                ),
-                              ),
-                              if (detail.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    detail,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: _muted(context),
-                                  ),
-                                ),
-                              ],
-                              if (!known.contains(model.id)) ...[
-                                const SizedBox(width: 6),
-                                ModelBadge(l10n.modelsFetchNew),
-                              ],
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: ModelCheckbox(
+                    hitSize: const Size(36, 30),
+                    checked:
+                        shown.isNotEmpty &&
+                        shown.every((m) => _checked.contains(m.id)),
+                    semanticLabel:
+                        shown.isNotEmpty &&
+                            shown.every((m) => _checked.contains(m.id))
+                        ? l10n.modelsFetchSelectNone
+                        : l10n.modelsFetchSelectAll,
+                    onChanged: shown.isEmpty
+                        ? null
+                        : (checked) => setState(() {
+                            final ids = shown.map((m) => m.id);
+                            if (checked) {
+                              _checked.addAll(ids);
+                            } else {
+                              _checked.removeAll(ids);
+                            }
+                          }),
                   ),
-          ),
-        ],
+                ),
+                Expanded(
+                  child: Text(l10n.modelsBenchmarkModel, style: _text(context)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: IdeDragSelection(
+                scrollController: _scroll,
+                child: shown.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(l10n.modelsNoMatch, style: _muted(context)),
+                      )
+                    : ListView.builder(
+                        controller: _scroll,
+                        shrinkWrap: true,
+                        itemCount: shown.length,
+                        itemExtent: 30,
+                        itemBuilder: (context, index) {
+                          final model = shown[index];
+                          final checked = _checked.contains(model.id);
+                          void toggle(bool value) => setState(
+                            () => value
+                                ? _checked.add(model.id)
+                                : _checked.remove(model.id),
+                          );
+                          final detail = [
+                            if (model.label case final label?
+                                when label != model.id)
+                              label,
+                            if (model.contextWindow case final tokens?)
+                              formatTokens(tokens),
+                          ].join(' · ');
+                          return MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: IdeDragSelectTarget(
+                              checked: checked,
+                              onChanged: toggle,
+                              child: Row(
+                                children: [
+                                  IgnorePointer(
+                                    child: ModelCheckbox(
+                                      checked: checked,
+                                      hitSize: const Size(36, 30),
+                                      semanticLabel: model.id,
+                                      onChanged: toggle,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      model.id,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: _text(context).copyWith(
+                                        fontFamily: AppFonts.mono,
+                                        fontFamilyFallback:
+                                            AppFonts.monoFallbacks,
+                                      ),
+                                    ),
+                                  ),
+                                  if (detail.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        detail,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: _muted(context),
+                                      ),
+                                    ),
+                                  ],
+                                  if (!known.contains(model.id)) ...[
+                                    const SizedBox(width: 6),
+                                    ModelBadge(l10n.modelsFetchNew),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        ),
       );
     }
-    return _ModelDialogFrame(
+    return ModelDialogFrame(
       title: l10n.modelsFetchTitle(widget.provider.name),
       onSubmit: listed == null ? null : _apply,
+      actionsLeading: listed == null || listed.isEmpty
+          ? null
+          : ModelTablePagination(
+              page: _page,
+              count: _shown.length,
+              onChanged: () {
+                if (mounted) {
+                  setState(() {
+                    if (_scroll.hasClients) _scroll.jumpTo(0);
+                  });
+                }
+              },
+            ),
       actions: [
         if (error != null)
           IdeButton(label: l10n.modelsRetry, onPressed: _fetch)
@@ -675,7 +785,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
     final contextError = _tried && parseTokens(_context.text) == -1
         ? l10n.modelsContextInvalid
         : null;
-    return _ModelDialogFrame(
+    return ModelDialogFrame(
       title: _adding ? l10n.modelsAddTitle : l10n.modelsEditTitle,
       onSubmit: _save,
       actions: [

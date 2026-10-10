@@ -8,6 +8,7 @@ import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/models/secret_store.dart';
 import 'package:baocode/models/upstream.dart';
 import 'package:baocode/settings/pages/model_dialogs.dart';
+import 'package:baocode/settings/pages/model_test_dialog.dart';
 import 'package:baocode/settings/pages/models_page.dart';
 import 'package:baocode/settings/pages/settings_widgets.dart';
 import 'package:flutter/material.dart';
@@ -150,6 +151,8 @@ void main() {
     expect(find.text('Models'), findsWidgets);
     expect(find.text("Claude Code (this machine's setup)"), findsOneWidget);
     expect(find.text('Built-in'), findsOneWidget);
+    expect(find.text('Batch Test…'), findsNothing);
+    expect(find.byType(ModelTestButton), findsNothing);
     await tester.tap(find.byType(SettingsSwitch));
     await tester.pump();
     expect(providers.builtinHidden, isTrue);
@@ -157,6 +160,8 @@ void main() {
     await tester.pump();
     // No page of its own to open, nor delete.
     expect(find.text('Connection'), findsNothing);
+    expect(find.text('Batch Test…'), findsNothing);
+    expect(find.byType(ModelTestButton), findsNothing);
   });
 
   testWidgets('an upstream is added, set up, its models fetched and its '
@@ -203,7 +208,11 @@ void main() {
     await tester.enterText(find.byType(EditableText).last, 'gpt');
     await tester.pumpAndSettle();
     expect(find.text('o3'), findsNothing);
-    await tester.tap(find.text('Select All'));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is ModelCheckbox && w.semanticLabel == 'Select All',
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('2 of 3 checked'), findsOneWidget);
     await tester.tap(find.text('Apply'));
@@ -217,12 +226,13 @@ void main() {
     expect(provider.models.first.contextWindow, 400000);
     expect(find.text('400K'), findsOneWidget);
 
-    // Only those checked are listed, unless all are shown.
+    // Manage additional models in a modal instead of expanding this page.
     expect(find.text('o3'), findsNothing);
-    await tester.tap(find.text('Show All (3)'));
+    await tester.tap(find.text('Select Models (3)…'));
     await tester.pumpAndSettle();
+    expect(find.byType(FetchModelsDialog), findsOneWidget);
     expect(find.text('o3'), findsOneWidget);
-    await tester.tap(find.text('Show Checked Only'));
+    await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(find.text('o3'), findsNothing);
 
@@ -247,6 +257,100 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets(
+    'fetch models paints boxes and select-all toggles filtered rows',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: FetchModelsDialog(
+            provider: const ModelProvider(id: 'p', name: 'Provider'),
+            keyOf: () async => null,
+            list: list,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Finder box(String label) => find.byWidgetPredicate(
+        (widget) => widget is ModelCheckbox && widget.semanticLabel == label,
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('gpt-5')),
+      );
+      await gesture.moveTo(tester.getCenter(find.text('o3')));
+      await gesture.up();
+      await tester.pump();
+      expect(find.text('3 of 3 checked'), findsOneWidget);
+      await tester.tapAt(
+        tester.getTopLeft(box('Select None')) + const Offset(3, 3),
+      );
+      await tester.pump();
+      expect(find.text('0 of 3 checked'), findsOneWidget);
+      await tester.enterText(find.byType(EditableText), 'gpt');
+      await tester.pump();
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is ModelCheckbox && w.semanticLabel == 'Select All',
+        ),
+      );
+      await tester.pump();
+      expect(find.text('2 of 3 checked'), findsOneWidget);
+      await tester.tapAt(
+        tester.getTopLeft(box('Select None')) + const Offset(3, 3),
+      );
+      await tester.pump();
+      expect(find.text('0 of 3 checked'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'provider deselection keeps rows stable until release and can select all again',
+    (tester) async {
+      await providers.save(
+        const ModelProvider(
+          id: 'p',
+          name: 'Paint',
+          models: [
+            ProviderModel(id: 'a'),
+            ProviderModel(id: 'hidden', enabled: false),
+            ProviderModel(id: 'b'),
+          ],
+        ),
+      );
+      await pump(tester);
+      await tester.tap(find.text('Paint'));
+      await tester.pumpAndSettle();
+      Finder box(String name) => find.byWidgetPredicate(
+        (widget) =>
+            widget is ModelCheckbox && widget.semanticLabel == 'Offer $name',
+      );
+      expect(find.text('hidden'), findsNothing);
+      final end = tester.getCenter(box('b'));
+      final gesture = await tester.startGesture(tester.getCenter(box('a')));
+      await tester.pump();
+      expect(find.text('hidden'), findsNothing);
+      expect(find.text('a'), findsOneWidget);
+      await gesture.moveTo(end);
+      await tester.pump();
+      expect(providers.provider('p')!.models.where((m) => m.enabled), isEmpty);
+      expect(find.text('b'), findsOneWidget);
+      await gesture.up();
+      await tester.pump();
+      expect(find.text('b'), findsNothing);
+      await tester.tap(find.text('Select Models (3)…'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is ModelCheckbox && w.semanticLabel == 'Select All',
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      expect(providers.provider('p')!.models.every((m) => m.enabled), isTrue);
+    },
+  );
 
   testWidgets('an auxiliary model is picked', (tester) async {
     await providers.save(

@@ -5837,6 +5837,188 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get modelsBenchmark => 'Test Model';
+
+  @override
+  String get modelsBenchmarkBatch => 'Batch Test…';
+
+  @override
+  String get modelsBenchmarkTitle => 'Model Tests';
+
+  @override
+  String get modelsBenchmarkPrompt => 'Test Prompt';
+
+  @override
+  String get modelsBenchmarkNumbers => 'Output Numbers 1–120';
+
+  @override
+  String get modelsBenchmarkShort => 'Short Reply';
+
+  @override
+  String get modelsBenchmarkCustom => 'Custom';
+
+  @override
+  String get modelsTableFilter => 'Filter';
+
+  @override
+  String get modelsTableClear => 'Clear Filters';
+
+  @override
+  String get modelsTableContains => 'Contains text';
+
+  @override
+  String get modelsTableMinimum => 'Minimum';
+
+  @override
+  String get modelsTableMaximum => 'Maximum';
+
+  @override
+  String get modelsTableInvalidRange =>
+      'Enter a valid range (minimum ≤ maximum).';
+
+  @override
+  String get modelsTableTimeRange => 'Time range (s, or suffix ms)';
+
+  @override
+  String get modelsTableNumberRange => 'Numeric range';
+
+  @override
+  String get modelsTableSearch => 'Search all model results…';
+
+  @override
+  String get modelsTableAutoWidth => 'Auto Width';
+
+  @override
+  String get modelsTableSelection => 'Selection column';
+
+  @override
+  String get modelsTableResize => 'Drag to resize column';
+
+  @override
+  String get modelsPresetAdd => 'Add Test Preset…';
+
+  @override
+  String get modelsPresetEdit => 'Edit Test Preset…';
+
+  @override
+  String get modelsPresetDelete => 'Delete Test Preset';
+
+  @override
+  String get modelsPresetRequired => 'Enter a name and test prompt.';
+
+  @override
+  String get modelsResultExpand => 'Expand';
+
+  @override
+  String get modelsResultCollapse => 'Collapse';
+
+  @override
+  String get modelsResultCopyAll => 'Copy All Results';
+
+  @override
+  String get modelsBenchmarkShortPrompt => 'Reply with exactly: OK';
+
+  @override
+  String get modelsBenchmarkStart => 'Test This Model';
+
+  @override
+  String get modelsPageRows => 'Rows per page';
+
+  @override
+  String get modelsPageUnlimited => 'Unlimited';
+
+  @override
+  String get modelsPagePrevious => 'Previous Page';
+
+  @override
+  String get modelsPageNext => 'Next Page';
+
+  @override
+  String get modelsBenchmarkStop => 'Stop Tests';
+
+  @override
+  String get modelsBenchmarkSession =>
+      'Results stay until the app exits. Closing this dialog does not stop tests. Up to 3 concurrent requests, 45 s timeout each.';
+
+  @override
+  String get modelsBenchmarkParameters =>
+      'No tools or history. Reasoning is not requested; effort=none is sent only when explicitly supported. Other models may still reason by default. Temperature uses the upstream default.';
+
+  @override
+  String get modelsBenchmarkMetrics =>
+      'First response includes text/reasoning; first text excludes reasoning. Speed = output tokens / total time. ~ marks UTF-8/4 estimates when usage is unavailable; output is retained up to 64K characters.';
+
+  @override
+  String get modelsBenchmarkModel => 'Model';
+
+  @override
+  String get modelsBenchmarkStatus => 'Status';
+
+  @override
+  String get modelsBenchmarkFirstEvent => 'First Response';
+
+  @override
+  String get modelsBenchmarkFirstText => 'First Text';
+
+  @override
+  String get modelsBenchmarkDuration => 'Total Time';
+
+  @override
+  String get modelsBenchmarkTokens => 'Output Tokens';
+
+  @override
+  String get modelsBenchmarkSpeed => 'Speed';
+
+  @override
+  String get modelsBenchmarkInputTokens => 'Input Tokens';
+
+  @override
+  String get modelsBenchmarkEstimated =>
+      '~ Estimated tokens; speed includes first-token latency.';
+
+  @override
+  String get modelsBenchmarkOutput => 'Response';
+
+  @override
+  String get modelsBenchmarkThinking => 'Reasoning Returned';
+
+  @override
+  String get modelsBenchmarkQueued => 'Queued';
+
+  @override
+  String get modelsBenchmarkRunning => 'Testing…';
+
+  @override
+  String get modelsBenchmarkPassed => 'Passed';
+
+  @override
+  String get modelsBenchmarkFailed => 'Failed';
+
+  @override
+  String get modelsBenchmarkCancelled => 'Stopped';
+
+  @override
+  String get modelsBenchmarkUntested => 'Not Tested';
+
+  @override
+  String get modelsBenchmarkView => 'View Response';
+
+  @override
+  String get modelsBenchmarkIncomplete =>
+      'The stream ended without a completion event.';
+
+  @override
+  String get modelsBenchmarkEmpty => 'The model returned no text.';
+
+  @override
+  String get modelsBenchmarkTimeout =>
+      'The model did not complete within 45 seconds.';
+
+  @override
+  String get modelsBenchmarkTruncated =>
+      'Response display limited to 64K characters.';
+
+  @override
   String get modelsTest => 'Test Connection';
 
   @override
@@ -5887,7 +6069,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String modelsShowAll(int count) {
-    return 'Show All ($count)';
+    return 'Select Models ($count)…';
   }
 
   @override

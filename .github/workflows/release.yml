@@ -198,7 +198,8 @@ jobs:
           path: build/remote
       - name: Install create-dmg
         run: brew install create-dmg
-      - name: Build, sign and notarise
+      # The shared model regression gate runs before build/sign/notarisation.
+      - name: Test models, build, sign and notarise
         env:
           BAOCODE_MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
           BAOCODE_NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
@@ -256,7 +257,9 @@ jobs:
         with:
           name: remote
           path: build/remote
-      - name: Build
+      # The packaging script runs tool/test_models.dart first and exits on any
+      # failed protocol/UI test; no installer is built or uploaded after failure.
+      - name: Test models and build
         run: dart run tool/build_windows.dart --remote-built
       - uses: actions/upload-artifact@v4
         with:

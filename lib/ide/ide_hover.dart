@@ -114,6 +114,7 @@ class IdeHover extends StatefulWidget {
     this.compact = true,
     this.followMouse = false,
     this.excludeFromSemantics = false,
+    this.enabled = true,
     required this.child,
   }) : assert(message != null || content != null);
 
@@ -138,6 +139,9 @@ class IdeHover extends StatefulWidget {
   final bool excludeFromSemantics;
   final Widget child;
 
+  /// Keep an external portal mounted while its active table cell changes.
+  final bool enabled;
+
   static const _gap = 4.0;
   static const _pointerSize = 3.0;
 
@@ -148,22 +152,53 @@ class IdeHover extends StatefulWidget {
 class _IdeHoverState extends State<IdeHover> {
   /// Where the pointer last moved over the target, in the target.
   Offset? _mouse;
+  final _tooltip = GlobalKey<RawTooltipState>();
+
+  @override
+  void didUpdateWidget(IdeHover oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.enabled && widget.enabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.enabled) {
+          _tooltip.currentState?.ensureTooltipVisible();
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final widget = this.widget;
     if (widget.message?.isEmpty ?? false) return widget.child;
+    // RawTooltip's exclusive mouse regions dismiss their parent tooltip when
+    // a nested action is hovered. Rich panels own one hover for their entire
+    // surface; keep inner action descriptions accessible without another portal.
+    if (context.dependOnInheritedWidgetOfExactType<_IdeHoverContentScope>() !=
+        null) {
+      return Semantics(
+        tooltip: widget.excludeFromSemantics ? null : widget.message,
+        child: widget.child,
+      );
+    }
     return RawTooltip(
+      key: _tooltip,
       semanticsTooltip: widget.excludeFromSemantics ? null : widget.message,
       hoverDelay: ideHoverDelay,
+      // Rich result hovers are interactive: leave time to cross the gap, and
+      // do not dismiss on pointer-down while selecting/copying their text.
+      dismissDelay: widget.content == null
+          ? const Duration(milliseconds: 100)
+          : const Duration(milliseconds: 600),
+      enableTapToDismiss: widget.content == null,
       triggerMode: TooltipTriggerMode.manual,
       animationStyle: const AnimationStyle(
         duration: Duration(milliseconds: 100),
         reverseDuration: Duration.zero,
       ),
       positionDelegate: widget.followMouse ? _placeAtMouse : _place,
-      tooltipBuilder: (context, animation) =>
-          FadeTransition(opacity: animation, child: _box()),
+      tooltipBuilder: (context, animation) => widget.enabled
+          ? FadeTransition(opacity: animation, child: _box())
+          : const SizedBox.shrink(),
       child: widget.followMouse
           ? MouseRegion(
               onHover: (event) => _mouse = event.localPosition,
@@ -189,9 +224,13 @@ class _IdeHoverState extends State<IdeHover> {
       null => left,
     };
     if (x < 0) x = left + 2;
-    final bottom = target.dy + half.height;
+    final bottom = widget.content != null && _mouse != null
+        ? target.dy - half.height + _mouse!.dy + 10
+        : target.dy + half.height;
     final y = bottom + size.height > overlay.height
-        ? target.dy - half.height - size.height
+        ? (widget.content != null
+              ? bottom - 20 - size.height
+              : target.dy - half.height - size.height)
         : bottom - 2;
     return Offset(
       x.clamp(0, math.max(0, overlay.width - size.width)),
@@ -203,7 +242,9 @@ class _IdeHoverState extends State<IdeHover> {
     final box = IdeHoverBox(
       compact: widget.compact,
       radius: widget.pointer ? 3 : 5,
-      child: widget.content ?? Text(widget.message!),
+      child: widget.content == null
+          ? Text(widget.message!)
+          : _IdeHoverContentScope(child: widget.content!),
     );
     if (!widget.pointer) return box;
     return CustomPaint(
@@ -265,6 +306,14 @@ class _IdeHoverState extends State<IdeHover> {
       offset.dy.clamp(0, math.max(0, overlay.height - size.height)),
     );
   }
+}
+
+/// Nested actions belong to the containing interactive hover's mouse region.
+class _IdeHoverContentScope extends InheritedWidget {
+  const _IdeHoverContentScope({required super.child});
+
+  @override
+  bool updateShouldNotify(_IdeHoverContentScope oldWidget) => false;
 }
 
 /// `.workbench-hover-pointer`: a 6px square turned 45°, half outside the
@@ -332,10 +381,18 @@ class IdeActionButton extends StatefulWidget {
     this.color,
     this.checked = false,
     this.hoverPosition = IdeHoverPosition.below,
+    this.label,
+    this.tooltipContent,
   });
 
   final IconData icon;
   final String tooltip;
+
+  /// Optional compact text beside the icon, sharing its hit target and hover.
+  final String? label;
+
+  /// Rich hover content; [tooltip] remains the accessible description.
+  final Widget? tooltipContent;
   final VoidCallback? onPressed;
   final double size;
 
@@ -371,6 +428,7 @@ class _IdeActionButtonState extends State<IdeActionButton> {
         : null;
     return IdeHover(
       message: widget.tooltip,
+      content: widget.tooltipContent,
       position: widget.hoverPosition,
       child: Semantics(
         button: true,
@@ -384,8 +442,12 @@ class _IdeActionButtonState extends State<IdeActionButton> {
             behavior: HitTestBehavior.opaque,
             onTap: widget.onPressed,
             child: Container(
-              width: widget.width ?? widget.size,
+              width:
+                  widget.width ?? (widget.label == null ? widget.size : null),
               height: widget.size,
+              padding: widget.label == null
+                  ? null
+                  : const EdgeInsets.symmetric(horizontal: 4),
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: !enabled
@@ -405,10 +467,25 @@ class _IdeActionButtonState extends State<IdeActionButton> {
                     ),
               child: Opacity(
                 opacity: enabled ? 1 : 0.4,
-                child: Icon(
-                  widget.icon,
-                  size: widget.iconSize,
-                  color: widget.color ?? IdeActionButton.foreground,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.icon,
+                      size: widget.iconSize,
+                      color: widget.color ?? IdeActionButton.foreground,
+                    ),
+                    if (widget.label case final label?) ...[
+                      const SizedBox(width: 4),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: widget.color ?? IdeActionButton.foreground,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),

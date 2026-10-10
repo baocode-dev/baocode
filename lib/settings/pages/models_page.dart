@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../ide/ide_button.dart';
+import '../../ide/ide_drag_selection.dart';
 import '../../ide/ide_dialog.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_input.dart';
@@ -15,10 +16,13 @@ import '../../models/codex/codex_usage.dart';
 import '../../models/model_provider.dart';
 import '../../models/model_providers.dart';
 import '../../models/model_runtime.dart';
+import '../../models/model_test.dart';
+import '../../models/upstream.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'model_dialogs.dart';
+import 'model_test_dialog.dart';
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 import '../../ide/ide_back_button.dart';
@@ -31,11 +35,13 @@ class ModelsSettingsPage extends StatefulWidget {
     super.key,
     required this.providers,
     this.listModels = listUpstreamModels,
+    this.tests,
     this.codex,
   });
 
   final ModelProviders providers;
   final ModelLister listModels;
+  final ModelTestService? tests;
 
   /// The ChatGPT (Codex) providers' accounts; the app's when null.
   final CodexService? codex;
@@ -81,6 +87,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
           providers: _providers,
           provider: open,
           listModels: widget.listModels,
+          tests: widget.tests,
           codex: widget.codex ?? codexService,
           onBack: () => setState(() => _open = null),
         );
@@ -385,6 +392,7 @@ class ProviderSettingsPage extends StatefulWidget {
     required this.provider,
     required this.listModels,
     required this.onBack,
+    this.tests,
     this.codex,
   });
 
@@ -392,6 +400,7 @@ class ProviderSettingsPage extends StatefulWidget {
   final ModelProvider provider;
   final ModelLister listModels;
   final VoidCallback onBack;
+  final ModelTestService? tests;
 
   /// The ChatGPT (Codex) providers' accounts; the app's when null.
   final CodexService? codex;
@@ -404,8 +413,6 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   final TextEditingController _search = TextEditingController();
   bool _showKey = false;
 
-  /// All the upstream's models listed, not only those checked.
-  bool _showAll = false;
   bool _rolesOpen = true;
   bool _advancedOpen = false;
 
@@ -426,6 +433,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   ModelProviders get _providers => widget.providers;
   ModelProvider get _provider => widget.provider;
   CodexService get _codex => widget.codex ?? codexService;
+  ModelTestService get _tests => widget.tests ?? modelTests;
 
   @override
   void initState() {
@@ -540,6 +548,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
       provider: _provider,
       key: () => _providers.key(_provider.id),
       list: widget.listModels,
+      preferences: _providers,
     );
     if (models != null) await _save(_providerNow.copyWith(models: models));
   }
@@ -547,6 +556,37 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   /// The provider as kept now: changed since this page was built, maybe.
   ModelProvider get _providerNow =>
       _providers.provider(_provider.id) ?? _provider;
+
+  Future<void> _selectModels() async {
+    final selected = await showFetchModelsDialog(
+      context,
+      provider: _providerNow,
+      key: () async => null,
+      preferences: _providers,
+      list: (provider, _) async => [
+        for (final model in provider.models)
+          RemoteModel(
+            model.id,
+            label: model.label,
+            contextWindow: model.contextWindow,
+          ),
+      ],
+    );
+    if (selected != null) {
+      final enabled = {
+        for (final model in selected)
+          if (model.enabled) model.id,
+      };
+      await _save(
+        _providerNow.copyWith(
+          models: [
+            for (final model in _providerNow.models)
+              model.copyWith(enabled: enabled.contains(model.id)),
+          ],
+        ),
+      );
+    }
+  }
 
   Future<void> _editModel([ProviderModel? model]) async {
     final edited = await showModelEditDialog(
@@ -901,81 +941,115 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     );
   }
 
+  Set<String>? _dragShown;
+
   Widget _models(BuildContext context) {
     final l10n = context.l10n;
     final provider = _provider;
     final query = _search.text.trim().toLowerCase();
     // Those checked, unless all are shown, or searched.
-    final all = _showAll || query.isNotEmpty;
-    final shown = [
+    final all = query.isNotEmpty;
+    final candidates = [
       for (final model in provider.models)
-        if ((all || model.enabled) &&
-            (query.isEmpty ||
-                model.id.toLowerCase().contains(query) ||
-                model.displayName.toLowerCase().contains(query)))
+        if (query.isEmpty ||
+            model.id.toLowerCase().contains(query) ||
+            model.displayName.toLowerCase().contains(query))
           model,
     ];
-    return SettingsGroup(
-      title: l10n.modelsModelsGroup,
-      description: l10n.modelsModelsDescription,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: provider.models.length > 8
-                    ? IdeInputBox(
-                        controller: _search,
-                        placeholder: l10n.modelsSearch,
-                        semanticsLabel: l10n.modelsSearch,
-                      )
-                    : const SizedBox.shrink(),
-              ),
-              const SizedBox(width: 8),
-              SettingsButtons(
-                children: [
-                  if (provider.models.isNotEmpty)
-                    IdeButton(
-                      label: _showAll
-                          ? l10n.modelsShowChecked
-                          : l10n.modelsShowAll(provider.models.length),
-                      secondary: true,
-                      onPressed: () => setState(() => _showAll = !_showAll),
-                    ),
-                  IdeButton(
-                    label: l10n.modelsFetch,
-                    icon: Codicons.cloudDownload,
-                    onPressed: !provider.connected
-                        ? null
-                        : () => unawaited(_fetch()),
+    // Keep visible membership stable while painting; unchecked rows must not
+    // disappear or reveal hidden rows underneath the pointer mid-stroke.
+    final shown = [
+      for (final model in candidates)
+        if (_dragShown?.contains(model.id) ?? (all || model.enabled)) model,
+    ];
+    return IdeDragSelection(
+      onStart: () =>
+          setState(() => _dragShown = shown.map((m) => m.id).toSet()),
+      onEnd: () => setState(() => _dragShown = null),
+      child: SettingsGroup(
+        title: l10n.modelsModelsGroup,
+        description: l10n.modelsModelsDescription,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (provider.models.length > 8) ...[
+                  IdeInputBox(
+                    controller: _search,
+                    placeholder: l10n.modelsSearch,
+                    semanticsLabel: l10n.modelsSearch,
                   ),
-                  IdeButton(
-                    label: l10n.modelsAddModel,
-                    icon: Codicons.add,
-                    secondary: true,
-                    onPressed: () => unawaited(_editModel()),
-                  ),
+                  const SizedBox(height: 8),
                 ],
-              ),
-            ],
-          ),
-        ),
-        if (provider.models.isEmpty)
-          SettingsRow(label: l10n.modelsNone)
-        else if (shown.isEmpty)
-          SettingsRow(label: all ? l10n.modelsNoMatch : l10n.modelsNoneChecked)
-        else
-          for (final model in shown)
-            _ModelRow(
-              model: model,
-              onEnabled: (value) => unawaited(
-                _save(_providerNow.withModel(model.copyWith(enabled: value))),
-              ),
-              onEdit: () => unawaited(_editModel(model)),
-              onRemove: () => unawaited(_removeModel(model)),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (provider.models.isNotEmpty)
+                      IdeButton(
+                        label: l10n.modelsShowAll(provider.models.length),
+                        secondary: true,
+                        onPressed: () => unawaited(_selectModels()),
+                      ),
+                    if (provider.id != builtinProviderId)
+                      IdeButton(
+                        label: l10n.modelsBenchmarkBatch,
+                        icon: Codicons.play,
+                        secondary: true,
+                        onPressed: provider.models.isEmpty
+                            ? null
+                            : () => unawaited(
+                                showModelTestDialog(
+                                  context,
+                                  provider: _providerNow,
+                                  service: _tests,
+                                  preferences: _providers,
+                                ),
+                              ),
+                      ),
+                    IdeButton(
+                      label: l10n.modelsFetch,
+                      icon: Codicons.cloudDownload,
+                      onPressed: !provider.connected
+                          ? null
+                          : () => unawaited(_fetch()),
+                    ),
+                    IdeButton(
+                      label: l10n.modelsAddModel,
+                      icon: Codicons.add,
+                      secondary: true,
+                      onPressed: () => unawaited(_editModel()),
+                    ),
+                  ],
+                ),
+              ],
             ),
-      ],
+          ),
+          if (provider.models.isEmpty)
+            SettingsRow(label: l10n.modelsNone)
+          else if (shown.isEmpty)
+            SettingsRow(
+              label: all ? l10n.modelsNoMatch : l10n.modelsNoneChecked,
+            )
+          else
+            for (final model in shown)
+              _ModelRow(
+                key: ValueKey(model.id),
+                model: model,
+                provider: provider,
+                tests: _tests,
+                preferences: _providers,
+                onEnabled: (value) => unawaited(
+                  _save(_providerNow.withModel(model.copyWith(enabled: value))),
+                ),
+                onEdit: () => unawaited(_editModel(model)),
+                onRemove: () => unawaited(_removeModel(model)),
+              ),
+        ],
+      ),
     );
   }
 
@@ -1202,13 +1276,20 @@ Map<String, String> parseEnvironment(String text) => {
 /// what it can do, and its menu.
 class _ModelRow extends StatelessWidget {
   const _ModelRow({
+    super.key,
     required this.model,
+    required this.provider,
+    required this.tests,
+    required this.preferences,
     required this.onEnabled,
     required this.onEdit,
     required this.onRemove,
   });
 
   final ProviderModel model;
+  final ModelProvider provider;
+  final ModelTestService tests;
+  final ModelProviders preferences;
   final ValueChanged<bool> onEnabled;
   final VoidCallback onEdit;
   final VoidCallback onRemove;
@@ -1222,6 +1303,7 @@ class _ModelRow extends StatelessWidget {
         children: [
           ModelCheckbox(
             checked: model.enabled,
+            dragSelect: true,
             semanticLabel: l10n.modelsEnableModel(model.displayName),
             onChanged: onEnabled,
           ),
@@ -1287,6 +1369,12 @@ class _ModelRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
+          ModelTestButton(
+            service: tests,
+            provider: provider,
+            model: model,
+            preferences: preferences,
+          ),
           const SizedBox(width: 4),
           Builder(
             builder: (context) => IdeActionButton(

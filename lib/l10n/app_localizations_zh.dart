@@ -5466,6 +5466,183 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get modelsBenchmark => '测试模型';
+
+  @override
+  String get modelsBenchmarkBatch => '批量测试…';
+
+  @override
+  String get modelsBenchmarkTitle => '模型测试';
+
+  @override
+  String get modelsBenchmarkPrompt => '测试文本';
+
+  @override
+  String get modelsBenchmarkNumbers => '输出数字 1–120';
+
+  @override
+  String get modelsBenchmarkShort => '简短回复';
+
+  @override
+  String get modelsBenchmarkCustom => '自定义';
+
+  @override
+  String get modelsTableFilter => '筛选';
+
+  @override
+  String get modelsTableClear => '清除筛选';
+
+  @override
+  String get modelsTableContains => '包含文本';
+
+  @override
+  String get modelsTableMinimum => '最小值';
+
+  @override
+  String get modelsTableMaximum => '最大值';
+
+  @override
+  String get modelsTableInvalidRange => '请输入有效范围（最小值不大于最大值）。';
+
+  @override
+  String get modelsTableTimeRange => '时间范围（秒，或填写 ms 单位）';
+
+  @override
+  String get modelsTableNumberRange => '数值范围';
+
+  @override
+  String get modelsTableSearch => '搜索所有模型结果…';
+
+  @override
+  String get modelsTableAutoWidth => '自动列宽';
+
+  @override
+  String get modelsTableSelection => '选择列';
+
+  @override
+  String get modelsTableResize => '拖动调整列宽';
+
+  @override
+  String get modelsPresetAdd => '添加测试预设…';
+
+  @override
+  String get modelsPresetEdit => '编辑测试预设…';
+
+  @override
+  String get modelsPresetDelete => '删除测试预设';
+
+  @override
+  String get modelsPresetRequired => '请填写名称和测试文本。';
+
+  @override
+  String get modelsResultExpand => '展开';
+
+  @override
+  String get modelsResultCollapse => '收起';
+
+  @override
+  String get modelsResultCopyAll => '复制全部结果';
+
+  @override
+  String get modelsBenchmarkShortPrompt => '请只回复：OK';
+
+  @override
+  String get modelsBenchmarkStart => '测试该模型';
+
+  @override
+  String get modelsPageRows => '每页条数';
+
+  @override
+  String get modelsPageUnlimited => '不限制';
+
+  @override
+  String get modelsPagePrevious => '上一页';
+
+  @override
+  String get modelsPageNext => '下一页';
+
+  @override
+  String get modelsBenchmarkStop => '停止测试';
+
+  @override
+  String get modelsBenchmarkSession =>
+      '结果保留至程序退出；关闭此弹窗不会停止测试。最多并发 3 个请求，每个超时 45 秒。';
+
+  @override
+  String get modelsBenchmarkParameters =>
+      '不带工具和历史；不主动开启思考，仅明确支持时发送 effort=none。其他模型仍可能默认思考。温度使用上游默认值。';
+
+  @override
+  String get modelsBenchmarkMetrics =>
+      '首响应包含正文/思考，首字不含思考；速度 = 输出 token / 总耗时。无 usage 时按 UTF-8/4 估算，以 ~ 标注；返回内容最多保留 64K 字符。';
+
+  @override
+  String get modelsBenchmarkModel => '模型';
+
+  @override
+  String get modelsBenchmarkStatus => '状态';
+
+  @override
+  String get modelsBenchmarkFirstEvent => '首响应';
+
+  @override
+  String get modelsBenchmarkFirstText => '首字';
+
+  @override
+  String get modelsBenchmarkDuration => '总耗时';
+
+  @override
+  String get modelsBenchmarkTokens => '输出 token';
+
+  @override
+  String get modelsBenchmarkSpeed => '速度';
+
+  @override
+  String get modelsBenchmarkInputTokens => '输入 token';
+
+  @override
+  String get modelsBenchmarkEstimated => '~ 为估算 token；速度包含首字等待时间。';
+
+  @override
+  String get modelsBenchmarkOutput => '返回内容';
+
+  @override
+  String get modelsBenchmarkThinking => '返回的思考';
+
+  @override
+  String get modelsBenchmarkQueued => '排队中';
+
+  @override
+  String get modelsBenchmarkRunning => '测试中…';
+
+  @override
+  String get modelsBenchmarkPassed => '通过';
+
+  @override
+  String get modelsBenchmarkFailed => '失败';
+
+  @override
+  String get modelsBenchmarkCancelled => '已停止';
+
+  @override
+  String get modelsBenchmarkUntested => '未测试';
+
+  @override
+  String get modelsBenchmarkView => '查看返回内容';
+
+  @override
+  String get modelsBenchmarkIncomplete => '流已中断，未收到完成事件。';
+
+  @override
+  String get modelsBenchmarkEmpty => '模型未返回正文。';
+
+  @override
+  String get modelsBenchmarkTimeout => '模型未在 45 秒内完成。';
+
+  @override
+  String get modelsBenchmarkTruncated => '返回内容显示已限制在 64K 字符以内。';
+
+  @override
   String get modelsTest => '测试连接';
 
   @override
@@ -5513,7 +5690,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String modelsShowAll(int count) {
-    return '显示全部（$count）';
+    return '选择模型（$count）…';
   }
 
   @override

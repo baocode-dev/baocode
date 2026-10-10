@@ -4,6 +4,7 @@
 
 import 'codex/codex_service.dart';
 import 'model_provider.dart';
+import 'model_test.dart';
 import 'model_runtime_stub.dart'
     if (dart.library.io) 'model_runtime_io.dart'
     as platform;
@@ -26,6 +27,9 @@ Future<Map<String, String>> providerLaunchEnvironment(
 
 /// The ChatGPT (Codex) providers' accounts: signing in, their quota.
 CodexService get codexService => platform.codexService;
+
+/// Shared for the life of the application, never owned by a settings route.
+ModelTestService get modelTests => platform.modelTests;
 
 /// Stops the local proxy, as the app quits.
 Future<void> stopModelProxy() => platform.stopModelProxy();
