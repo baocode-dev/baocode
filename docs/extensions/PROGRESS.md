@@ -81,7 +81,9 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   preview the provider's presentation and write on release; each write applies the main and additional edits as one
   undo step, and the picker tracks the color's range for the next request. External edits, Escape, outside taps and tab
   switches close it. Tests: `editor_feature_driver_test.dart`, `test/ide/ide_editor_colors_test.dart` (real editor,
-  screenshot `editor_color_picker.png`), `registry_language_features_test.dart`.
+  screenshot `editor_color_picker.png`), `registry_language_features_test.dart`; against the real REH,
+  `document_colors_exthost_test.dart` (the built-in CSS extension's color, and its presentations of a picked color as
+  edits of the color's text).
 - Acceptance 九.1/九.7 (tagged `exthost`): `test/extensions/acceptance/fresh_runtime_ts_exthost_test.dart` — fresh data
   folder, the real dl.baocode.dev archive served by a local mirror that drops the first transfer (failure leaves nothing
   behind; retry completes with downloading/installing/ready progress), TS completion/hover/definition/references/
