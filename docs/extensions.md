@@ -46,6 +46,10 @@ BaoCode (Dart, 主线程)                       插件进程 (Node)
   转发；插件按 `extensionKind` 分流——`workspace` 类在远端跑，`ui` 类在本机跑
   （`lib/extensions/host/extension_kind.dart`，规则照抄
   `extensionManifestPropertiesService.ts`）。
+- **Web 构建**：不跑扩展（`main.dart` 在没有本地文件时不创建
+  `ExtensionsApp`），但必须能编译：用到 dart:ffi 的代码（`Abi`、Windows
+  Credential Manager）只经 `if (dart.library.ffi)` 条件导入，SVG 文件经
+  `lib/platform/svg_file.dart`；`test/extensions/web_stub_test.dart` 守住这两点。
 
 ### 模块地图
 
