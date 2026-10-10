@@ -100,6 +100,67 @@ at run time by `ExtHostParity`.
 | MainThreadChatDebug | 0/5 | — |
 | MainThreadBrowsers | 0/5 | — |
 
+## Not supported, and why
+
+The capabilities BaoCode does not have, by shape (their methods are below).
+"Proposed" APIs are only open to extensions that enable the proposal.
+
+| Shape | Unsupported | Why |
+| --- | --- | --- |
+| MainThreadLanguageModels | 12/12 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadEmbeddings | 3/3 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadChatAgents2 | 22/22 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadCodeMapper | 3/3 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadLanguageModelTools | 1/7 | `$countTokensForInvocation` is asked while a chat invokes a tool; there is no chat (the tools are accepted, see below). |
+| MainThreadGitExtension | 1/1 | Repository changes for the workbench's Git extension service, which upstream's chat reads; BaoCode has no such service. The built-in Git extension's source control works (MainThreadSCM). |
+| MainThreadComments | 9/9 | The stable `vscode.comments` API (comment threads in the editor, e.g. GitHub Pull Requests' review comments): BaoCode's editor has no comment thread widget (a zone between lines with its own editor and reply box). Not ported. |
+| MainThreadEditorInsets | 5/5 | Proposed `editorInsets`: a webview inside the editor. BaoCode has no webviews (九.5). |
+| MainThreadTreeViews | 1/9 | `$resolveDropFileData`: files dropped on an extension's tree view. BaoCode's tree views have no drag and drop. |
+| MainThreadLanguages | 1/5 | `$computeFullSyntaxHighlighting`: proposed `documentSyntaxHighlighting`. |
+| MainThreadQuickDiff | 4/4 | A source control's `quickDiffProvider` (the original of a file for the editor's change markers): BaoCode's editor does not take quick diffs from extensions; its Git views come from its own Git (lib/ide/git). |
+| MainThreadAgentEditorComments | 4/4 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadDocumentDiff | 1/1 | Proposed `documentDiff`. |
+| MainThreadSpeech | 5/5 | Proposed `speech`: BaoCode has no voice input. |
+| MainThreadUriOpeners | 2/2 | Proposed `externalUriOpener`: links open in the system browser. |
+| MainThreadShare | 2/2 | Proposed `shareProvider`: BaoCode has no Share menu. |
+| MainThreadNotebookKernels | 8/18 | Cell executions: BaoCode has no notebook editor (九.5), so no cell is run. Kernels are accepted so that Jupyter and the like activate. |
+| MainThreadTunnelService | 8/11 | Proposed `tunnels` and port forwarding: BaoCode has no Ports view or port forwarding. Port attributes are accepted (see below). |
+| MainThreadManagedSockets | 5/5 | Proposed `resolvers`: a remote reached through an extension's resolver. BaoCode's SSH remote is built in (its own connection and runtime install), not an extension resolver. |
+| MainThreadBrowserTunnelProxy | 1/1 | Proposed `resolvers`: a remote reached through an extension's resolver. BaoCode's SSH remote is built in (its own connection and runtime install), not an extension resolver. |
+| MainThreadMcp | 10/10 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadAiRelatedInformation | 3/3 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadAiEmbeddingVector | 2/2 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadChatStatus | 2/2 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadChatQuota | 1/1 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadChatInputNotification | 2/2 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadAiSettingsSearch | 3/3 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadChatSessions | 14/14 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadChatOutputRenderer | 2/2 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadChatContext | 6/6 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadChatDebug | 5/5 | VS Code's chat and AI features: BaoCode's workbench has no chat view, language model service, chat participants or MCP host of VS Code's (its agents are its own, outside the extension host). What extensions register here is answered as unsupported; their other features work. |
+| MainThreadBrowsers | 5/5 | Proposed `browser` (browser tabs and their DevTools protocol): BaoCode has no browser tabs. |
+
+## Accepted but degraded
+
+Implemented so that the extensions using them activate and the rest of
+what they do works, but what they would show has no place in BaoCode.
+
+| Shape | What happens |
+| --- | --- |
+| MainThreadLanguageModelTools | Tools are kept, none listed or invoked: there is no chat. |
+| MainThreadWebviews | Webviews (九.5): none is shown; a placeholder names the extension, with a line in the "Extension Host" output; its other features work (lib/extensions/main_thread/main_thread_webviews.dart). |
+| MainThreadWebviewPanels | As MainThreadWebviews. |
+| MainThreadWebviewViews | As MainThreadWebviews. |
+| MainThreadCustomEditors | As MainThreadWebviews; the documents open in BaoCode's own editors. |
+| MainThreadProfileContentHandlers | No profile export to share. |
+| MainThreadNotebook | Notebooks (九.5): serializers are recorded, never asked for a notebook (the files open as text); opening or showing one fails with a notice (lib/extensions/main_thread/main_thread_notebook.dart). |
+| MainThreadNotebookDocuments | As MainThreadNotebook. |
+| MainThreadNotebookEditors | As MainThreadNotebook. |
+| MainThreadNotebookRenderers | As MainThreadNotebook. |
+| MainThreadTunnelService | Port attributes and the remote port finder are kept: no Ports view. |
+| MainThreadTimeline | No Timeline view. |
+| MainThreadDataChannels | Link presentation: no chat to present links in. |
+
 ## Methods by shape
 
 ### MainThreadAuthentication
