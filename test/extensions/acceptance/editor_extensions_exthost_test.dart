@@ -17,7 +17,7 @@ import 'package:bao_editor/monaco/flutter/editor_view_styles.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:baocode/extensions/views/tree_view.dart';
 import 'package:baocode/ide/ide_editor_views.dart';
-import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/language/language_types.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 

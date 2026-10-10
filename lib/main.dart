@@ -8,8 +8,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:bao_editor/monaco/flutter/language_assets.dart';
-
 import 'chat/chat_width.dart';
 import 'customize/customization_store.dart';
 import 'extensions/workbench/jsonc_settings_file.dart';
@@ -17,8 +15,6 @@ import 'extensions/workbench/window_file_pickers.dart';
 import 'extensions/workbench/workspace_extensions.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/git/repository_scan.dart';
-import 'ide/lsp/lsp_process.dart';
-import 'ide/lsp/packs/language_packs.dart';
 import 'ide/terminal/pty.dart';
 import 'ide/terminal/terminal_colors.dart';
 import 'ide/terminal/terminal_instance.dart';
@@ -91,14 +87,10 @@ Future<void> main(List<String> arguments) async {
     errors = ErrorLog(DataDirectory.current.logsDir)..install();
   }
   unawaited(reapClaudeProcesses());
-  unawaited(reapLspProcesses());
   unawaited(reapPtyProcesses());
   WidgetsFlutterBinding.ensureInitialized();
   // The Windows app's own logs go beside it.
   if (errors != null) unawaited(errors.shareWithHost());
-  // The editor's language packs are the language servers' (README.md in
-  // lib/ide/lsp/packs).
-  MonacoLanguageAssets.defaultPacks = () => LanguagePackRegistry.instance;
   // The user's settings files ([SettingsFiles.instance]): read before the
   // first frame, which is in their language and theme, and followed as
   // they change on disk.
@@ -436,8 +428,8 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
 
   /// Quitting ends the Claude Code processes too: left alone, one would
   /// finish its turn (subagents and all) unseen, and a resumed session would
-  /// then run beside it. Language servers end with the app as well, and the
-  /// terminals' shells are hung up, as closing their window would.
+  /// then run beside it. The extension hosts end with the app as well, and
+  /// the terminals' shells are hung up, as closing their window would.
   late final AppLifecycleListener _lifecycle = AppLifecycleListener(
     onExitRequested: () async {
       // The unsaved files of all windows asked about at once, then the
@@ -456,7 +448,6 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
         stopClaudeProcesses(),
         RemoteClaudeTransport.stopAll(),
         stopModelProxy(),
-        stopLspProcesses(),
         ?widget.extensions?.dispose(),
         stopPtyProcesses(),
       ]);

@@ -373,11 +373,6 @@ final Map<String, CommandInfo> commandCatalog = {
       category: 'Preferences',
     ),
     const CommandInfo(
-      'baocode.ide.retryLanguageServices',
-      'Retry Language Services',
-      category: 'Developer',
-    ),
-    const CommandInfo(
       'baocode.ide.backToChat',
       'Back to Chat',
       category: 'View',

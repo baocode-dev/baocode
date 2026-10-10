@@ -100,7 +100,7 @@ void main() {
               active: workspace.active!,
               nativeEditorEnabled: true,
               onError: (error) => fail('$error'),
-              onLspStatus: (_) {},
+              onEditorStatus: (_) {},
               onPositionChanged: (_) {},
             ),
           ),

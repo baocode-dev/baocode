@@ -31,8 +31,8 @@ import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 
 import '../ide_hover.dart';
 import '../ide_list.dart';
-import '../lsp/language_features.dart';
-import '../lsp/lsp_protocol.dart';
+import '../language/language_features.dart';
+import '../language/language_types.dart';
 import 'diagnostics.dart';
 import 'lsp_convert.dart';
 

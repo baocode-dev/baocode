@@ -86,7 +86,6 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
           : english.startsWith('Turn On')
           ? l10n.cmdTurnOnFormatOnSave
           : l10n.cmdToggleFormatOnSave,
-    'baocode.ide.retryLanguageServices' => l10n.cmdRetryLanguageServices,
     'baocode.ide.backToChat' => l10n.cmdBackToChat,
     WindowCommandIds.newWindow => l10n.cmdNewWindow,
     WindowCommandIds.closeWindow => l10n.cmdCloseWindow,

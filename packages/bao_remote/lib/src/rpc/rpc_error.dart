@@ -4,7 +4,6 @@ import 'package:bao_exthost/bao_exthost.dart'
 import '../claude/claude_unavailable.dart';
 import '../files/ide_file.dart';
 import '../git/git_types.dart';
-import '../lsp/lsp_server_definition.dart';
 import '../review/review_store.dart';
 import 'rpc_peer.dart';
 
@@ -74,11 +73,6 @@ class RpcError {
     ClaudeUnavailable(:final message, :final detail) => _typed(
       error,
       'claudeUnavailable',
-      {'message': message, 'detail': ?detail},
-    ),
-    LspInstallException(:final message, :final detail) => _typed(
-      error,
-      'lspInstall',
       {'message': message, 'detail': ?detail},
     ),
     ReviewUnavailable(:final message) => _typed(error, 'reviewUnavailable', {
@@ -161,10 +155,6 @@ class RpcError {
         detail: data['detail'] as String?,
       ),
       'claudeUnavailable' => ClaudeUnavailable(
-        text(),
-        detail: data['detail'] as String?,
-      ),
-      'lspInstall' => LspInstallException(
         text(),
         detail: data['detail'] as String?,
       ),

@@ -40,7 +40,7 @@ import 'ide/ide_quick_open.dart';
 import 'ide/ide_welcome.dart' show IdeRecentWorkspace;
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
-import 'ide/lsp/lsp_protocol.dart';
+import 'ide/language/language_types.dart';
 import 'ide/terminal/links/terminal_links.dart';
 import 'ide/terminal/terminal_instance.dart';
 import 'ide/terminal/terminal_panel.dart' show terminalCommandsToSkipShell;
@@ -526,7 +526,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// The IDE moved to windows of its own (`window.ideWindows`): the main
-  /// window's goes, its editors, terminals and language servers with it.
+  /// window's goes, its editors, terminals and extension host with it.
   void _windowsChanged() {
     if (!_multi || _ideWindow || _ideSpaces.isEmpty) return;
     final spaces = {..._ideSpaces};
@@ -2033,8 +2033,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             pinned: _pinned,
             onPinnedChanged: _setPinned,
             editorBuilder: widget.ideEditorBuilder,
-            ignoredRecommendations: _workspace.ignoredServerRecommendations,
-            onIgnoreRecommendation: _workspace.ignoreServerRecommendation,
+            ignoredRecommendations: _workspace.ignoredRecommendations,
+            onIgnoreRecommendation: _workspace.ignoreRecommendation,
             colorThemes: WorkbenchThemeService.instance,
             commands: _ideCommandsFor(path),
             recentFolders: _workspace.recentFolders,
@@ -2262,11 +2262,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// themselves elsewhere.
   /// The IDE's workspace for [folder], made the first time it is shown
   /// (the header, built first, may be the first to ask). Without a folder
-  /// ([_noFolder]), it is in the home folder, with no language servers
-  /// or Git.
+  /// ([_noFolder]), it is in the home folder, with no extensions or Git.
   ///
   /// A remote folder's is in its path on its host, its files, Git,
-  /// language servers and terminals there.
+  /// extensions and terminals there.
   IdeWorkspace _ideSpace(String folder) => _ideSpaces.putIfAbsent(folder, () {
     final host = ProjectHost.of(folder);
     final root = host.pathOf(folder);

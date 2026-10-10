@@ -1,10 +1,9 @@
 // Unpacking the extension runtime's archives: tar (gzipped) and ZIP.
 //
-// Adapted from packages/bao_remote/lib/src/lsp/install/archive.dart (the
-// language server installer's, which goes with the LSP code): this package
-// may not depend on bao_remote. Unlike that one, it streams: a tar is read
-// as it is downloaded or decompressed, and a ZIP from its file, so a
-// 400 MB runtime is never in memory whole.
+// Adapted from the former language server installer's archive.dart.
+// Unlike that one, it streams: a tar is read as it is downloaded or
+// decompressed, and a ZIP from its file, so a 400 MB runtime is never in
+// memory whole.
 
 import 'dart:async';
 import 'dart:convert';

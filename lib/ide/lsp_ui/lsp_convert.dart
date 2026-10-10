@@ -4,7 +4,7 @@ import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 
-import '../lsp/lsp_protocol.dart';
+import '../language/language_types.dart';
 
 /// The absolute path of a `file:` [uri] (other schemes: null).
 String? lspPathOfUri(String uri) {

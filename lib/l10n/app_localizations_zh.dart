@@ -1105,9 +1105,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdTurnOffFormatOnSave => '关闭保存时格式化';
 
   @override
-  String get cmdRetryLanguageServices => '重试语言服务';
-
-  @override
   String get cmdBackToChat => '返回聊天';
 
   @override
@@ -3724,9 +3721,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get extTitleRecommended => '扩展: 推荐';
 
   @override
-  String get extTitleMarketplace => '扩展: 商店';
-
-  @override
   String get extFilter => '筛选扩展...';
 
   @override
@@ -3737,9 +3731,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get extClearSearch => '清除扩展搜索结果';
-
-  @override
-  String get extSearchPlaceholder => '在商店中搜索扩展';
 
   @override
   String get extNoneFound => '找不到扩展。';
@@ -3765,90 +3756,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String extInstallError(String id, String error) {
     return '安装“$id”扩展时出错。$error';
-  }
-
-  @override
-  String extUninstallError(String id, String error) {
-    return '卸载“$id”扩展时出错。$error';
-  }
-
-  @override
-  String get extLanguageServer => '语言服务器';
-
-  @override
-  String extLanguageServerFor(String languages) {
-    return '适用于 $languages 的语言服务器';
-  }
-
-  @override
-  String extMissingRuntime(String id, String runtime) {
-    return '安装“$id”需要 $runtime，但未找到。请先安装 $runtime，然后重试。';
-  }
-
-  @override
-  String extUnavailable(String id) {
-    return '在 PATH 中找不到“$id”，且无法自动安装。';
-  }
-
-  @override
-  String langStarting(String id) {
-    return '$id: 正在启动…';
-  }
-
-  @override
-  String langStartingTooltip(String id) {
-    return '正在启动 $id';
-  }
-
-  @override
-  String langRunning(String id) {
-    return '$id 正在运行';
-  }
-
-  @override
-  String langRestarting(String id) {
-    return '$id: 正在重启…';
-  }
-
-  @override
-  String get langClickToRestart => '单击以立即重启';
-
-  @override
-  String langFailed(String id) {
-    return '$id 失败';
-  }
-
-  @override
-  String get langClickToRetry => '单击以重试';
-
-  @override
-  String langNotInstalled(String id) {
-    return '$id 未安装';
-  }
-
-  @override
-  String langNeedsRuntime(String id, String runtime) {
-    return '安装 $id 需要 $runtime，但未找到';
-  }
-
-  @override
-  String langClickToInstall(String id) {
-    return '单击以安装 $id';
-  }
-
-  @override
-  String langNotOnPath(String id) {
-    return '在 PATH 中找不到 $id';
-  }
-
-  @override
-  String langInstallingItem(String id) {
-    return '正在安装 $id…';
-  }
-
-  @override
-  String langInstallingTooltip(String id) {
-    return '正在安装 $id';
   }
 
   @override
@@ -4094,14 +4001,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String wbRecommendServer(String id, String language) {
-    return '是否要为 $language 语言安装推荐的“$id”语言服务器?';
-  }
-
-  @override
-  String get wbDontShowAgainServer => '不再针对此语言服务器显示';
-
-  @override
   String get wbQuickCommands => '键入要运行的命令的名称。';
 
   @override
@@ -4152,16 +4051,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get wbUnpinTimeline => '取消固定当前时间线';
 
   @override
-  String get wbLanguageServices => '语言服务';
-
-  @override
   String get wbMonacoEditor => 'Monaco 编辑器';
 
   @override
   String get wbTextEditor => '文本编辑器';
-
-  @override
-  String get wbRetryLanguageServices => '重试语言服务';
 
   @override
   String get wbNoProblems => '没有问题';
@@ -4435,8 +4328,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '重启后 BaoCode 将直接使用那里的数据；不会复制任何内容，当前文件夹中的数据保持不变。';
 
   @override
-  String get dataDirCopyDetail =>
-      'BaoCode 会将其设置、快捷键、语言服务器和状态复制到那里，并在重启后使用该文件夹。';
+  String get dataDirCopyDetail => 'BaoCode 会将其设置、快捷键、扩展和状态复制到那里，并在重启后使用该文件夹。';
 
   @override
   String get dataDirOtherFiles => '该文件夹中还有其他文件: 它们会保留，与 BaoCode 自己的文件并存。';
@@ -4514,7 +4406,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get dataDirDescription =>
-      'BaoCode 存放你的设置、快捷键、语言服务器及其自身状态的位置。其他程序也会在此存放文件(如网页视图的缓存)；BaoCode 从不移动或删除这些文件。';
+      'BaoCode 存放你的设置、快捷键、扩展及其自身状态的位置。其他程序也会在此存放文件(如网页视图的缓存)；BaoCode 从不移动或删除这些文件。';
 
   @override
   String get dataDirCurrentFolder => '当前文件夹';

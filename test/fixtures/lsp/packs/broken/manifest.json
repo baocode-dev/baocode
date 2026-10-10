@@ -1,7 +1,0 @@
-{
-  "name": "Broken",
-  "languages": [
-    {"extensions": [".nope"]},
-    {"id": "half", "extensions": ".half", "firstLine": "(unclosed"}
-  ]
-}

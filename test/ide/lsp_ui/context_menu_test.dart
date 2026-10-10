@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:baocode/ide/ide_quick_input.dart';
-import 'package:baocode/ide/lsp/language_features.dart';
-import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/language/language_features.dart';
+import 'package:baocode/ide/language/language_types.dart';
 
 import 'fake_language_features.dart';
 import 'lsp_test_helpers.dart';

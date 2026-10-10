@@ -12,8 +12,8 @@ import 'git/repository_scan.dart';
 import 'ide_editor_views.dart';
 import 'ide_layout.dart';
 import 'ide_notifications.dart';
-import 'lsp/language_features.dart';
-import 'lsp/lsp_protocol.dart';
+import 'language/language_features.dart';
+import 'language/language_types.dart';
 
 /// The original side of a diff tab: text at a revision, read again when
 /// the repository changes (VS Code's `git:` documents).
@@ -207,12 +207,11 @@ enum IdeSaveReason {
 
 /// Runs before the text of the file at [path] is written
 /// (`ITextFileSaveParticipant`); it may edit [model].
-typedef IdeSaveParticipant =
-    Future<void> Function(
-      String path,
-      EditorDocumentModel model,
-      IdeSaveReason reason,
-    );
+typedef IdeSaveParticipant = Future<void> Function(
+  String path,
+  EditorDocumentModel model,
+  IdeSaveReason reason,
+);
 
 /// Open files belong to the IDE pane, not to any one agent conversation.
 class IdeWorkspace extends ChangeNotifier {
@@ -422,7 +421,8 @@ class IdeWorkspace extends ChangeNotifier {
   final bool hasFolder;
   final IdeFileService files;
 
-  /// Language servers for this workspace's documents; null for none.
+  /// The language features of this workspace's documents (the
+  /// extensions'); null for none.
   ///
   /// When it is also a [LanguageDocumentSync] (the LSP manager), the
   /// workspace keeps it in sync: open, every change (incrementally), save
@@ -582,7 +582,7 @@ class IdeWorkspace extends ChangeNotifier {
   /// The workbench's notifications: its own and its extensions'.
   final IdeNotifications notifications = IdeNotifications();
 
-  /// Language server sync, by file model (a file's tabs share one).
+  /// Language features sync, by file model (a file's tabs share one).
   final Map<EditorDocumentModel, StreamSubscription<EditorContentChangeEvent>>
   _syncing = {};
   final List<IdeDocument> _documents = [];
@@ -1045,16 +1045,12 @@ class IdeWorkspace extends ChangeNotifier {
       isDirty: doc.dirty || doc.isUntitled,
     );
     _extensionSync[doc.model] = doc.model.changes.listen(
-      (event) => sync.changeDocument(
-        doc.path,
-        doc.model,
-        (
-          version: event.version,
-          changes: event.changes,
-          isUndoing: event.isUndoing,
-          isRedoing: event.isRedoing,
-        ),
-      ),
+      (event) => sync.changeDocument(doc.path, doc.model, (
+        version: event.version,
+        changes: event.changes,
+        isUndoing: event.isUndoing,
+        isRedoing: event.isRedoing,
+      )),
     );
   }
 

@@ -14,11 +14,12 @@ Authoritative inventories in the pinned VS Code checkout:
 - `src/vs/editor/editor.main.ts`: standalone composition.
 - Monaco's pinned repository: language definitions and language-service workers.
 
-The complete VS Code extension host is not part of Monaco Editor.
+The complete VS Code extension host is not part of Monaco Editor; the app
+runs VS Code's own (see `../../docs/extensions.md`).
 
 This checklist ships with the bao_editor package (MIT; not on pub.dev yet, see
 [HANDOFF.md](HANDOFF.md) for the publishing plan). Rows marked "BaoCode, not
-Monaco" and the contributions over LSP belong to the app (`../../lib/ide/`,
+Monaco" and the contributions from extensions belong to the app (`../../lib/ide/`,
 GPL-3.0-only), not to the package.
 
 | Boundary | Current state | Required before parity |
@@ -37,9 +38,9 @@ GPL-3.0-only), not to the package.
 | Accessibility | Pending native validation | Text semantics, navigation/announcements, accessible diff, VoiceOver/Narrator |
 | Rendering | Gutter with line numbers and fold chevrons, current line, multi-selection/carets with blink, bracket match, selection occurrences, indent guides, whitespace, overlay scrollbars with overview ruler, block minimap, Monarch token colors | Glyph widgets, sticky scroll, smooth scrolling, character minimap, rulers |
 | Tokenization and language providers | Token data and Monarch compiler/lexer ported, 86 pinned grammar variants/89 registrations bundled; first-line matching and prefix/converged-suffix reuse; opt-in surface uses built-in `vs-dark` rules | Full incremental invalidation, theme/provider registry, cancellation, language workers/services |
-| Editor contributions | Over LSP (`../../lib/ide/lsp_ui/`): diagnostics squiggles/overview marks/Problems panel/F8, markdown hover, definition/type definition/implementation/references (panel, not peek), ⌘-click links, back/forward, suggest widget with fuzzy filter (`filters.ts` port), resolve, commit characters and snippets (`snippetParser`/`snippetSession` ports), signature help, rename, document/selection formatting, document symbols in breadcrumbs/outline/`@` quick open, code actions (lightbulb, ⌘.), semantic token overlay; editor-side **inlay hints** (`editor_inlay_hints.dart`: word anchors, part-wise injected labels, paddings, kinds, links/tooltips, `maximumLength`), **CodeLens** (`editor_code_lens.dart`: zones above lines, ` \| ` separators, codicons, hover/click, lazy resolve) and **inline completion ghost text** (`editor_inline_suggest.dart`: single/multi-line, Tab/Escape/Cmd+Right) with the app glue in `../../lib/ide/ide_editor_features.dart` | Peek views, links/colors from the server, server folding, sticky scroll, word-distance ranking, nested snippets, Outline sort/filter |
+| Editor contributions | From the extensions' providers (`../../lib/ide/lsp_ui/`, fed by `../../lib/extensions/language/registry_language_features.dart`): diagnostics squiggles/overview marks/Problems panel/F8, markdown hover, definition/type definition/implementation/references (panel, not peek), ⌘-click links, back/forward, suggest widget with fuzzy filter (`filters.ts` port), resolve, commit characters and snippets (`snippetParser`/`snippetSession` ports), signature help, rename, document/selection formatting, document symbols in breadcrumbs/outline/`@` quick open, code actions (lightbulb, ⌘.), semantic token overlay; editor-side **inlay hints** (`editor_inlay_hints.dart`: word anchors, part-wise injected labels, paddings, kinds, links/tooltips, `maximumLength`), **CodeLens** (`editor_code_lens.dart`: zones above lines, ` \| ` separators, codicons, hover/click, lazy resolve) and **inline completion ghost text** (`editor_inline_suggest.dart`: single/multi-line, Tab/Escape/Cmd+Right) with the app glue in `../../lib/ide/ide_editor_features.dart` | Peek views, sticky scroll, word-distance ranking, nested snippets, Outline sort/filter |
 | Diff editor | Source-derived subset of line/character diff and range mappings; side-by-side/inline UI (900px breakpoint) with view zones, deleted code, decorations, overview ruler and sash, opened from Source Control changes | Moved-line heuristics, workers, navigation/revert, gutter menu, hidden unchanged regions, word wrap, accessibility; Timeline/Graph diffs |
-| Language servers (BaoCode, not Monaco) | Generic LSP 3.17 client over stdio (UTF-16, incremental sync, dynamic registration, configuration, watched files, progress, applyEdit); per-root × server processes with idle stop, crash backoff, reaping; Helix-derived language map; mason-registry installer; user overrides and language packs | Pull diagnostics, semantic token ranges/deltas, resource operations in workspace edits, `showDocument`, process-group kill, symlink-resolved document keys |
+| Language features (BaoCode, not Monaco) | VS Code extensions in VS Code's own extension host (VSCodium REH 1.135), the main thread ported to Dart: upstream's language feature registry and selectors, providers from any extension (language servers through `vscode-languageclient`), installed from Open VSX; see `../../docs/extensions.md` and `../../docs/extensions/EXTHOST_PARITY.md` | See EXTHOST_PARITY.md |
 | Workbench look (BaoCode, not Monaco) | VS Code 1.140 defaults: Modern UI cards (activity bar, side bar, editor, chat; 4px gaps, 8px corners, grip sashes), Dark 2026 colors, workbench hovers, codicons; editor hovers render markdown with editor-tokenized code blocks | Compact density, right-side activity bar, hover status bar actions, markdown tables/HTML in hovers |
 | Workbench side bar (BaoCode, not Monaco) | Explorer (Folders with Git decorations, inline new/rename, delete/trash confirmations, cut/copy/paste, VS Code context menu; Outline and Timeline panes), Source Control (tree view by default with View & Sort, changes, smart commit, undo, discard, Generate Commit Message with Claude Haiku, graph with lanes/references; rows grow in and shrink out on expand and refresh), Timeline (Git provider), Search (regex/case/word, include/exclude, `.gitignore`, replace with preserve case), Extensions (language servers: installed/recommended, search, install/uninstall via mason), animated panes, self-drawn context menus | Timeline/Graph diffs, fetch/stash/branches, multi-select, multi-line search, search editor/history, local history, extension details editor, VS Code extensions |
 | Standalone API/services | Pending | Editor/model creation, options/events/view state, actions/context keys, themes/markers/providers/workers |
@@ -59,7 +60,6 @@ GPL-3.0-only), not to the package.
 5. Full parity requires checking all public API/option/contribution entries,
    native platforms, and representative performance/large-file cases. This
    checklist is not yet complete and is not a declaration of completion.
-6. Language features go through `LanguageFeatures` (`../../lib/ide/lsp/language_features.dart`);
-   UI tests use an in-memory fake, the client is tested end to end against
-   `../../test/fixtures/lsp/fake_lsp_server.dart`, and the real `dart language-server`
-   smoke test runs only with `--run-skipped -t lsp-smoke`.
+6. Language features go through `LanguageFeatures` (`../../lib/ide/language/language_features.dart`);
+   UI tests use an in-memory fake, and the extensions' providers are tested
+   against the real extension host with `--run-skipped -t exthost`.

@@ -63,7 +63,7 @@ Widget _host(
         active: active,
         nativeEditorEnabled: true,
         onError: onError ?? (error) => fail('Unexpected editor error: $error'),
-        onLspStatus: onStatus ?? (_) {},
+        onEditorStatus: onStatus ?? (_) {},
         onPositionChanged: onPosition ?? (_) {},
       );
     },
@@ -121,7 +121,7 @@ void main() {
       workspace: workspace,
       active: workspace.active!,
       onError: (error) => fail('$error'),
-      onLspStatus: (_) {},
+      onEditorStatus: (_) {},
       onPositionChanged: (_) {},
       nativeEditorEnabled: false,
     );
@@ -130,7 +130,7 @@ void main() {
         workspace: workspace,
         active: workspace.active!,
         onError: (_) {},
-        onLspStatus: (_) {},
+        onEditorStatus: (_) {},
         onPositionChanged: (_) {},
       ).nativeEditorEnabled,
       isTrue,
@@ -276,8 +276,8 @@ void main() {
       files.writeError = StateError('write failed');
       await key.currentState!.save();
       expect(errors.single, same(files.writeError));
-      await key.currentState!.retryLanguageServer();
-      expect(statuses, ['Monaco editor', 'Monaco editor']);
+      expect(statuses, isNotEmpty);
+      expect(statuses, everyElement('Monaco editor'));
       await tester.pumpWidget(const SizedBox());
       // Disposing the editor releases controllers, not the workspace-owned model.
       expect(doc.model.undo(), isTrue);

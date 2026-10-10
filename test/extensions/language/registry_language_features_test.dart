@@ -10,8 +10,8 @@ import 'package:baocode/extensions/language/language_selector.dart';
 import 'package:baocode/extensions/language/language_types.dart';
 import 'package:baocode/extensions/language/marker_service.dart';
 import 'package:baocode/extensions/language/registry_language_features.dart';
-import 'package:baocode/ide/lsp/language_features.dart';
-import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/language/language_features.dart';
+import 'package:baocode/ide/language/language_types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 LanguageSelector sel(Object json) => LanguageSelector.parse(json)!;

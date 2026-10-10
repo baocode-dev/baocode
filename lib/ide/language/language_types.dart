@@ -1,14 +1,13 @@
-/// Language Server Protocol 3.17 structures the IDE uses, with JSON
-/// conversion. Positions are zero-based lines and UTF-16 code-unit
+/// The language features' structures the IDE uses: Language Server
+/// Protocol 3.17's shapes, with JSON conversion. Positions are zero-based lines and UTF-16 code-unit
 /// characters, the protocol's default encoding and the editor model's own.
 ///
 /// Each type keeps the server's [json] so what the client does not model
 /// (e.g. `data` for a later resolve) round-trips unchanged.
 library;
 
-import 'package:bao_remote/lsp.dart' show JsonMap;
-
-export 'package:bao_remote/lsp.dart' show JsonMap;
+/// A JSON object.
+typedef JsonMap = Map<String, Object?>;
 
 JsonMap? _map(Object? value) =>
     value is Map ? value.cast<String, Object?>() : null;

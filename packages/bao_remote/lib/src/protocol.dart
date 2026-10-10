@@ -9,7 +9,7 @@ import 'search/text_query.dart';
 /// A stream (a watch, a search) is opened by a request that answers with
 /// its id; its items come as [streamData], then [streamDone] or
 /// [streamError]; the app ends it early with [streamCancel]. A process
-/// (Claude Code, a language server, a command) is the same with its own
+/// (Claude Code, a command) is the same with its own
 /// notifications: [processOutput] for stdout and stderr, [processExit]
 /// once it is gone.
 abstract final class RemoteProtocol {
@@ -80,12 +80,6 @@ abstract final class RemoteProtocol {
   static const ptyExit = 'pty/exit';
   static const ptyProfiles = 'pty/profiles';
 
-  // Language servers.
-  static const lspLocate = 'lsp/locate';
-  static const lspInstall = 'lsp/install';
-  static const lspInstalled = 'lsp/installed';
-  static const lspUninstall = 'lsp/uninstall';
-
   // The extension runtime and its VS Code server.
   static const exthostInstall = 'exthost/install';
   static const exthostUpload = 'exthost/upload';
@@ -114,7 +108,8 @@ String encodeBytes(List<int> bytes) => base64Encode(bytes);
 Uint8List decodeBytes(Object? data) =>
     data is String ? base64Decode(data) : Uint8List(0);
 
-/// The machine the server runs on, as mason names platforms.
+/// The machine the server runs on (`linux`/`darwin`, `x64`/`arm64`, the
+/// C library).
 class RemotePlatform {
   const RemotePlatform(this.os, this.arch, {this.libc});
 
@@ -168,8 +163,7 @@ class RemoteHello {
   final String version;
   final RemotePlatform platform;
 
-  /// The server's process id: what language servers are told to outlive
-  /// no longer than.
+  /// The server's process id.
   final int pid;
 
   /// The user's home folder there.

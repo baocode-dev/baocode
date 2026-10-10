@@ -67,7 +67,7 @@ class IdeCodeHighlights {
 /// The IDE's editor on its own, for a file edited outside the IDE (a skill,
 /// a rule, settings.json): [controller]'s text in the workbench's theme,
 /// highlighted (TextMate, where the platform has it) and bracketed as the
-/// IDE does the language of [path]. No workspace, language server, find or
+/// IDE does the language of [path]. No workspace, language features, find or
 /// tabs: the text and its editing alone.
 class IdeCodeEditor extends StatefulWidget {
   const IdeCodeEditor({

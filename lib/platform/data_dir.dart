@@ -25,11 +25,10 @@ enum DataDirectorySource {
 /// out as VS Code's user data folder is:
 ///
 /// ```text
-/// <path>/User/{settings.json,keybindings.json,lsp.json}
+/// <path>/User/{settings.json,keybindings.json}
 /// <path>/argv.json                  the display language
 /// <path>/keymaps/
 /// <path>/state/{state.json,storage.json,*-processes.json}
-/// <path>/servers/  <path>/language-packs/
 /// <path>/checkpoints/             snapshots of the projects agents change
 /// <path>/workspaces/              the folders of multi-folder workspaces
 /// <path>/cache/                   what can be made again, to start faster
@@ -62,11 +61,10 @@ class DataDirectory {
   final String path;
   final DataDirectorySource source;
 
-  /// What the user edits: settings, keybindings, language servers.
+  /// What the user edits: settings, keybindings.
   String get userDir => p.join(path, 'User');
   String get settingsFile => p.join(userDir, 'settings.json');
   String get keybindingsFile => p.join(userDir, 'keybindings.json');
-  String get lspSettingsFile => p.join(userDir, 'lsp.json');
 
   /// The display language (`locale`), as VS Code's `argv.json`.
   String get argvFile => p.join(path, 'argv.json');
@@ -82,11 +80,9 @@ class DataDirectory {
   String get storageFile => p.join(stateDir, 'storage.json');
 
   /// Where the child processes of one kind are listed
-  /// (`ChildProcessRegistry`): `claude`, `lsp`, `pty`.
+  /// (`ChildProcessRegistry`): `claude`, `pty`.
   String processRegistryFile(String name) =>
       p.join(stateDir, '$name-processes.json');
-  String get serversDir => p.join(path, 'servers');
-  String get languagePacksDir => p.join(path, 'language-packs');
 
   /// A Git repository per project, of snapshots of its files, which the
   /// agents' changes are kept or undone against (see change_review.dart).
@@ -125,7 +121,8 @@ class DataDirectory {
   String get exthostDataDir => p.join(path, 'exthost-data');
 
   /// The app's own entries, all others' left alone: what moving the folder
-  /// copies and removing old data deletes.
+  /// copies and removing old data deletes. `servers` and `language-packs`
+  /// are earlier versions' (their language servers), removed with the rest.
   static const items = [
     'User',
     'argv.json',

@@ -1140,9 +1140,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdTurnOffFormatOnSave => 'Turn Off Format on Save';
 
   @override
-  String get cmdRetryLanguageServices => 'Retry Language Services';
-
-  @override
   String get cmdBackToChat => 'Back to Chat';
 
   @override
@@ -3996,9 +3993,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get extTitleRecommended => 'Extensions: Recommended';
 
   @override
-  String get extTitleMarketplace => 'Extensions: Marketplace';
-
-  @override
   String get extFilter => 'Filter Extensions...';
 
   @override
@@ -4009,9 +4003,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get extClearSearch => 'Clear Extensions Search Results';
-
-  @override
-  String get extSearchPlaceholder => 'Search Extensions in Marketplace';
 
   @override
   String get extNoneFound => 'No extensions found.';
@@ -4037,90 +4028,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String extInstallError(String id, String error) {
     return 'Error while installing \'$id\' extension. $error';
-  }
-
-  @override
-  String extUninstallError(String id, String error) {
-    return 'Error while uninstalling \'$id\' extension. $error';
-  }
-
-  @override
-  String get extLanguageServer => 'Language server';
-
-  @override
-  String extLanguageServerFor(String languages) {
-    return 'Language server for $languages';
-  }
-
-  @override
-  String extMissingRuntime(String id, String runtime) {
-    return 'Installing \'$id\' needs $runtime, which was not found. Install $runtime, then try again.';
-  }
-
-  @override
-  String extUnavailable(String id) {
-    return '\'$id\' was not found on PATH and cannot be installed automatically.';
-  }
-
-  @override
-  String langStarting(String id) {
-    return '$id: starting…';
-  }
-
-  @override
-  String langStartingTooltip(String id) {
-    return 'Starting $id';
-  }
-
-  @override
-  String langRunning(String id) {
-    return '$id is running';
-  }
-
-  @override
-  String langRestarting(String id) {
-    return '$id: restarting…';
-  }
-
-  @override
-  String get langClickToRestart => 'Click to restart now';
-
-  @override
-  String langFailed(String id) {
-    return '$id failed';
-  }
-
-  @override
-  String get langClickToRetry => 'Click to retry';
-
-  @override
-  String langNotInstalled(String id) {
-    return '$id not installed';
-  }
-
-  @override
-  String langNeedsRuntime(String id, String runtime) {
-    return 'Installing $id needs $runtime, which was not found';
-  }
-
-  @override
-  String langClickToInstall(String id) {
-    return 'Click to install $id';
-  }
-
-  @override
-  String langNotOnPath(String id) {
-    return '$id was not found on PATH';
-  }
-
-  @override
-  String langInstallingItem(String id) {
-    return 'Installing $id…';
-  }
-
-  @override
-  String langInstallingTooltip(String id) {
-    return 'Installing $id';
   }
 
   @override
@@ -4387,15 +4294,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String wbRecommendServer(String id, String language) {
-    return 'Do you want to install the recommended \'$id\' language server for the $language language?';
-  }
-
-  @override
-  String get wbDontShowAgainServer =>
-      'Don\'t Show Again for this Language Server';
-
-  @override
   String get wbQuickCommands => 'Type the name of a command to run.';
 
   @override
@@ -4448,16 +4346,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wbUnpinTimeline => 'Unpin the Current Timeline';
 
   @override
-  String get wbLanguageServices => 'Language services';
-
-  @override
   String get wbMonacoEditor => 'Monaco editor';
 
   @override
   String get wbTextEditor => 'Text editor';
-
-  @override
-  String get wbRetryLanguageServices => 'Retry language services';
 
   @override
   String get wbNoProblems => 'No Problems';
@@ -4748,7 +4640,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataDirCopyDetail =>
-      'BaoCode copies its settings, keybindings, language servers and state there, and uses that folder after a restart.';
+      'BaoCode copies its settings, keybindings, extensions and state there, and uses that folder after a restart.';
 
   @override
   String get dataDirOtherFiles =>
@@ -4829,7 +4721,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataDirDescription =>
-      'Where BaoCode keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view\'s caches); BaoCode never moves or removes those.';
+      'Where BaoCode keeps your settings, keybindings, extensions and its own state. Other programs keep files there too (the web view\'s caches); BaoCode never moves or removes those.';
 
   @override
   String get dataDirCurrentFolder => 'Current folder';

@@ -15,7 +15,7 @@ import 'package:baocode/extensions/configuration/core_configuration.dart';
 import 'package:baocode/extensions/host/extension_host_manager.dart';
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
 import 'package:baocode/ide/ide_workspace.dart';
-import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/language/language_types.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;

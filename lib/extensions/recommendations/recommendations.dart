@@ -1,8 +1,7 @@
 // Which Open VSX extensions to recommend for a file, when no installed
 // extension provides its language: a data table of languages (VS Code's
 // language ids), the file names and extensions that are theirs, and the
-// extensions for them, best first. It replaces the language server packs'
-// recommendations.
+// extensions for them, best first.
 //
 // Every id was checked to exist on Open VSX (2026-10-09).
 

@@ -1016,14 +1016,15 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   Map<String, String> get _preferredSettings => Map.unmodifiable(_settings);
   final Map<String, String> _settings = {};
 
-  /// Language servers the Fast Ide is not to recommend installing again.
-  Set<String> get ignoredServerRecommendations =>
+  /// Extensions the IDE is not to recommend installing again.
+  Set<String> get ignoredRecommendations =>
       Set.unmodifiable(_ignoredRecommendations);
   final Set<String> _ignoredRecommendations = {};
 
-  /// Don't Show Again for this Language Server: kept between runs.
-  void ignoreServerRecommendation(String serverId) {
-    if (!_ignoredRecommendations.add(serverId)) return;
+  /// Don't Show Again for an extension's recommendation: kept between
+  /// runs.
+  void ignoreRecommendation(String id) {
+    if (!_ignoredRecommendations.add(id)) return;
     _save();
     notifyListeners();
   }

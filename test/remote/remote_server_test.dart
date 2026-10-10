@@ -10,7 +10,6 @@ import 'package:bao_remote/files.dart';
 import 'package:bao_remote/git.dart';
 import 'package:bao_remote/local.dart'
     show ClaudeEnvironment, CliLocator, ClaudeUnavailable, watchRecursively;
-import 'package:bao_remote/lsp.dart';
 import 'package:bao_remote/search.dart';
 import 'package:bao_remote/server.dart' show ServerClaude;
 import 'package:flutter_test/flutter_test.dart';
@@ -608,7 +607,8 @@ printf '%s\n' "$line"
       );
       expect(File(path).readAsBytesSync(), source.readAsBytesSync());
       // A file of a whole number of pieces.
-      final even = File(at('even.vsix'))..writeAsBytesSync(List.filled(2000, 7));
+      final even = File(at('even.vsix'))
+        ..writeAsBytesSync(List.filled(2000, 7));
       final evenPath = await client().stageExtHostFile(
         even,
         'even.vsix',
@@ -617,17 +617,6 @@ printf '%s\n' "$line"
       expect(File(evenPath).lengthSync(), 2000);
       await client().unstageExtHostFile('demo-1.0.0.vsix');
       expect(File(path).existsSync(), isFalse);
-    });
-  });
-
-  group('language servers', () {
-    test('found on the PATH there', () async {
-      ClaudeEnvironment.use({'PATH': '/usr/bin:/bin'});
-      addTearDown(() => ClaudeEnvironment.use(null));
-      final found = await client().locateLanguageServer('sh');
-      expect(found, isA<LspServerFound>());
-      final missing = await client().locateLanguageServer('no-such-ls');
-      expect(missing, isA<LspServerMissing>());
     });
   });
 }

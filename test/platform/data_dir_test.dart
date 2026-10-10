@@ -129,7 +129,6 @@ void main() {
     const dir = DataDirectory('/data');
     expect(dir.settingsFile, '/data/User/settings.json');
     expect(dir.keybindingsFile, '/data/User/keybindings.json');
-    expect(dir.lspSettingsFile, '/data/User/lsp.json');
     expect(dir.argvFile, '/data/argv.json');
     expect(dir.keymapsDir, '/data/keymaps');
     expect(dir.stateFile, '/data/state/state.json');
@@ -138,8 +137,6 @@ void main() {
       dir.processRegistryFile('claude'),
       '/data/state/claude-processes.json',
     );
-    expect(dir.serversDir, '/data/servers');
-    expect(dir.languagePacksDir, '/data/language-packs');
   });
 
   test('under test, the current one is never the user\'s', () {
