@@ -79,8 +79,25 @@ abstract final class AppColors {
   /// Between the window's parts, the IDE's line between its side bar, editor
   /// and chat: `sideBar.border`, else the Modern UI's `surface.border`
   /// (which every theme has). Sashes and dividers, not cards' outlines.
-  static Color get partBorder =>
-      _first(['sideBar.border', 'surface.border', 'panel.border']);
+  ///
+  /// Many themes' `surface.border` is no line without Modern UI's gaps:
+  /// transparent (Quiet Light, Red…) or a background's own color (Dark+,
+  /// Monokai). Then the editor's foreground, faintly, as Cursor's strokes.
+  static Color get partBorder {
+    final line = _first(['sideBar.border', 'surface.border', 'panel.border']);
+    if (_stands(line, background) && _stands(line, code)) return line;
+    final foreground = _colors['editor.foreground'];
+    return foreground.withValues(alpha: foreground.a * 0.1);
+  }
+
+  /// Whether [line] over [background] can be told from it.
+  static bool _stands(Color line, Color background) {
+    final over = Color.alphaBlend(line, background).computeLuminance();
+    final under = background.computeLuminance();
+    final (light, dark) = over > under ? (over, under) : (under, over);
+    // Contrast ratio: Light 2026's line on its side bar is 1.08.
+    return (light + 0.05) / (dark + 0.05) >= 1.05;
+  }
 
   /// `input.border`, else `dropdown.border`.
   static Color get borderStrong => _first(['input.border', 'dropdown.border']);

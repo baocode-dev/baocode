@@ -469,9 +469,12 @@ class _Tab extends StatelessWidget {
 /// it over themselves, so the active one's `tab.activeBorder` is on top,
 /// as upstream's `.tabs-border-bottom::after`).
 class IdeTabStrip extends StatelessWidget {
-  const IdeTabStrip({super.key, required this.child});
+  const IdeTabStrip({super.key, required this.child, this.line});
 
   final Widget child;
+
+  /// The line under the tabs where the theme has none ([border]).
+  final Color? line;
 
   static const height = 35.0;
 
@@ -485,7 +488,7 @@ class IdeTabStrip extends StatelessWidget {
     child: DecoratedBox(
       decoration: BoxDecoration(
         color: themeColors['editorGroupHeader.tabsBackground'],
-        border: switch (border) {
+        border: switch (border ?? line) {
           final color? => Border(bottom: BorderSide(color: color)),
           null => null,
         },

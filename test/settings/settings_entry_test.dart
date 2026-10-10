@@ -275,6 +275,11 @@ void main() {
 
   testWidgets('Appearance lists the color themes by type, the current one '
       'ticked; one picked is applied and kept', (tester) async {
+    // The whole page in the window: one cut off at the bottom, the menu
+    // closing sends a semantics update the desktop engines reject.
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final themes = _FakeThemes();
     await tester.pumpWidget(
       MaterialApp(

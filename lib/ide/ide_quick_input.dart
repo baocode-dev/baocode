@@ -295,12 +295,22 @@ class IdeQuickInput extends StatefulWidget {
   /// 3px; a deviation, so both follow the widget's corners 6px in).
   static const innerRadius = 6.0;
 
-  /// `--vscode-shadow-xl`, `0 0 20px rgba(0, 0, 0, 0.15)`: CSS blurs to a
-  /// sigma of half the radius, Flutter to `radius * 0.57735 + 0.5`.
-  static const shadow = BoxShadow(
-    color: Color(0x26000000),
-    blurRadius: (10 - 0.5) / 0.57735,
-  );
+  /// `--vscode-shadow-xl`'s spread, `0 0 20px`, in the theme's
+  /// `widget.shadow` rather than its fixed 15% black, which dark themes
+  /// hide: CSS blurs to a sigma of half the radius, Flutter to
+  /// `radius * 0.57735 + 0.5`. None without one (high contrast).
+  static List<BoxShadow> get shadows => [
+    if (themeColors.get('widget.shadow') case final color?)
+      BoxShadow(color: color, blurRadius: (10 - 0.5) / 0.57735),
+  ];
+
+  /// `widget.border`, else the editor's foreground faintly: most themes
+  /// have none, and their widget's background is near the editor's.
+  static Color get border {
+    if (themeColors.get('widget.border') case final border?) return border;
+    final foreground = themeColors['editor.foreground'];
+    return foreground.withValues(alpha: foreground.a * 0.12);
+  }
 
   @override
   State<IdeQuickInput> createState() => IdeQuickInputState();
@@ -769,7 +779,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
                     borderRadius: BorderRadius.circular(
                       IdeQuickInput.cornerRadius,
                     ),
-                    boxShadow: const [IdeQuickInput.shadow],
+                    boxShadow: IdeQuickInput.shadows,
                   ),
                   child: Material(
                     color: colors['quickInput.background'],
@@ -777,10 +787,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
                       borderRadius: BorderRadius.circular(
                         IdeQuickInput.cornerRadius,
                       ),
-                      side: switch (colors.get('widget.border')) {
-                        final border? => BorderSide(color: border),
-                        null => BorderSide.none,
-                      },
+                      side: BorderSide(color: IdeQuickInput.border),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Column(

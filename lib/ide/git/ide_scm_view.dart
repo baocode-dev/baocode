@@ -2155,10 +2155,14 @@ class IdeGitGraph extends StatelessWidget {
     required this.controller,
     required this.root,
     required this.onOpen,
+    this.background,
   });
 
   final IdeGitRepository git;
   final IdeGitGraphController controller;
+
+  /// What it is on, behind the circles; the side bar's by default.
+  final Color? background;
 
   /// The repository's folder, the changed files' paths shown from.
   final String root;
@@ -2256,7 +2260,7 @@ class IdeGitGraph extends StatelessWidget {
                 : hovered
                 ? colors['list.hoverBackground']
                 : Colors.transparent,
-            colors['sideBar.background'],
+            this.background ?? colors['sideBar.background'],
           );
           return Padding(
             padding: const EdgeInsets.only(left: 4, right: 12),

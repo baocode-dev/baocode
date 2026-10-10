@@ -7,6 +7,7 @@ import '../ide/ide_hover.dart';
 import '../ide/ide_modern_ui.dart';
 import '../ide/ide_rows.dart';
 import '../ide/terminal/links/terminal_links.dart';
+import '../ide/terminal/terminal_colors.dart' show editorTerminalColorTheme;
 import '../ide/terminal/terminal_instance.dart';
 import '../ide/terminal/terminal_panel.dart';
 import '../ide/terminal/terminal_profiles.dart';
@@ -97,6 +98,8 @@ class ChatTerminals extends ChangeNotifier {
     () => TerminalService(
       root: pathOf?.call(root) ?? root,
       backend: backendFor?.call(root) ?? backend,
+      // On the editor's background, as the side panel is.
+      colorTheme: editorTerminalColorTheme,
     ),
   );
 

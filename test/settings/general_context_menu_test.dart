@@ -34,7 +34,7 @@ class _Menu implements ContextMenuInstaller {
 }
 
 Future<_Menu> _pump(WidgetTester tester, _Menu menu) async {
-  tester.view.physicalSize = const Size(1000, 1400);
+  tester.view.physicalSize = const Size(1000, 2000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   ContextMenu.debugInstaller = menu;

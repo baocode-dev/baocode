@@ -471,6 +471,11 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       colors.get,
       type: colors.type,
     );
+    editorTerminalColorTheme.value = TerminalColorTheme.resolve(
+      colors.get,
+      type: colors.type,
+      inEditor: true,
+    );
     final dark = colors.dark;
     if (dark == _darkAppearance) return;
     _darkAppearance = dark;

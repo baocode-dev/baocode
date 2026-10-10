@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../chat/widgets/hover_builder.dart';
 import '../ide/ide_fuzzy.dart';
-import '../ide/ide_quick_input.dart' show IdeKeycap;
+import '../ide/ide_quick_input.dart' show IdeKeycap, IdeQuickInput;
 import '../ide/ide_quick_open.dart';
 import '../l10n/l10n.dart';
 import '../platform/app_platform.dart';
@@ -628,9 +628,8 @@ class _SearchPaletteState extends State<SearchPalette> {
                 shadowColor: colors['widget.shadow'],
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: colors.get('widget.border') ?? AppColors.partBorder,
-                  ),
+                  // The command palette's: seen on every theme's editor.
+                  side: BorderSide(color: IdeQuickInput.border),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: SizedBox(

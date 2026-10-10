@@ -237,6 +237,7 @@ class SettingsDialogState extends State<SettingsDialog> {
                       : SettingsDialog.navWidth,
                   child: _nav(context),
                 ),
+                Container(width: 1, color: AppColors.partBorder),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -283,7 +284,7 @@ class SettingsDialogState extends State<SettingsDialog> {
             if (_matches(section)) section,
         ],
     ].where((sections) => sections.isNotEmpty).toList();
-    // On the page's color, no line between, as Cursor's.
+    // On the page's color, as Cursor's.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -306,7 +307,10 @@ class SettingsDialogState extends State<SettingsDialog> {
             height: 28,
             child: TextField(
               controller: _search,
-              style: TextStyle(color: SettingsColors.textPrimary, fontSize: 12),
+              style: TextStyle(
+                color: SettingsColors.textPrimary,
+                fontSize: 12.5,
+              ),
               cursorColor: SettingsColors.textPrimary,
               cursorHeight: 14,
               decoration: InputDecoration(
@@ -314,7 +318,7 @@ class SettingsDialogState extends State<SettingsDialog> {
                 hintText: l10n.settingsSearch,
                 hintStyle: TextStyle(
                   color: colors['input.placeholderForeground'],
-                  fontSize: 12,
+                  fontSize: 12.5,
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
@@ -393,11 +397,10 @@ class _NavItemState extends State<_NavItem> {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,
-          // Cursor's `.cursor-settings-sidebar-nav-cell`.
           child: Container(
-            height: 24,
+            height: 30,
             margin: const EdgeInsets.only(bottom: 1),
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               color: selected || _hover ? SettingsColors.hover : null,
               borderRadius: BorderRadius.circular(6),
@@ -406,12 +409,12 @@ class _NavItemState extends State<_NavItem> {
               children: [
                 Icon(
                   widget.icon,
-                  size: 14,
+                  size: 15,
                   color: selected
                       ? SettingsColors.textPrimary
                       : SettingsColors.iconTertiary,
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     widget.label,
@@ -421,8 +424,7 @@ class _NavItemState extends State<_NavItem> {
                       color: selected
                           ? SettingsColors.textPrimary
                           : SettingsColors.textSecondary,
-                      fontSize: 12,
-                      height: 16 / 12,
+                      fontSize: 13,
                     ),
                   ),
                 ),

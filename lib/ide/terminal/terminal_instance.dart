@@ -197,16 +197,17 @@ class TerminalInstance extends ChangeNotifier {
     this.shell,
     this._config,
     this.environmentMutator,
-  }) {
+    ValueListenable<TerminalColorTheme>? colorTheme,
+  }) : _colorTheme = colorTheme ?? terminalColorTheme {
     _initPlatform();
     xterm = TerminalXterm(
       vscodeTerminalOptions(
         cols: _columns,
         rows: _rows,
-        theme: terminalColorTheme.value,
+        theme: _colorTheme.value,
       ),
     );
-    terminalColorTheme.addListener(_updateTheme);
+    _colorTheme.addListener(_updateTheme);
     CodeFont.families.addListener(_updateFont);
     source = TerminalCoreSource(terminal, decorationService: decorations);
     clipboard = TerminalClipboard(
@@ -427,19 +428,22 @@ class TerminalInstance extends ChangeNotifier {
   /// Find in the terminal: made the first time it is asked for.
   late final TerminalFind find = () {
     _findCreated = true;
-    terminalColorTheme.addListener(_updateFindColors);
+    _colorTheme.addListener(_updateFindColors);
     return TerminalFind(
       xterm,
-      decorations: terminalColorTheme.value.toSearchDecorations(),
+      decorations: _colorTheme.value.toSearchDecorations(),
     );
   }();
   bool _findCreated = false;
+
+  /// Its colors: [terminalColorTheme], or where it is shown's.
+  final ValueListenable<TerminalColorTheme> _colorTheme;
 
   /// Upstream `_updateTheme`: the workbench's colors as xterm.js' `theme`
   /// option, which replaces the terminal's colors (and those escape
   /// sequences set), clears the contrast cache and redraws.
   void _updateTheme() {
-    xterm.options.theme = vscodeTerminalTheme(terminalColorTheme.value);
+    xterm.options.theme = vscodeTerminalTheme(_colorTheme.value);
   }
 
   /// The code font's family (Settings -> Appearance) as the terminal's
@@ -453,7 +457,7 @@ class TerminalInstance extends ChangeNotifier {
   /// The find widget's theme listener, with `_updateFindColors`' new colors.
   void _updateFindColors() {
     find
-      ..decorations = terminalColorTheme.value.toSearchDecorations()
+      ..decorations = _colorTheme.value.toSearchDecorations()
       ..handleColorThemeChange();
   }
 
@@ -818,7 +822,7 @@ class TerminalInstance extends ChangeNotifier {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    terminalColorTheme.removeListener(_updateTheme);
+    _colorTheme.removeListener(_updateTheme);
     CodeFont.families.removeListener(_updateFont);
     if (!_exited) _pty?.kill();
     unawaited(_printing?.cancel());
@@ -830,7 +834,7 @@ class TerminalInstance extends ChangeNotifier {
     unawaited(_onProcessExit.close());
     _onDidExecuteText.dispose();
     if (_findCreated) {
-      terminalColorTheme.removeListener(_updateFindColors);
+      _colorTheme.removeListener(_updateFindColors);
       find.dispose();
     }
     _shellIntegration?.dispose();

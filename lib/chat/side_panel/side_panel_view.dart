@@ -198,8 +198,10 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
                           },
                           child: Focus(
                             focusNode: _panel.focusNode,
+                            // The editor's background, all of it: the
+                            // conversation's side, not the window's.
                             child: ColoredBox(
-                              color: AppColors.background,
+                              color: AppColors.code,
                               child: widget.builder(context),
                             ),
                           ),
@@ -470,6 +472,7 @@ class AgentSidePanelView extends StatelessWidget {
                       ? _EmptyWorkspace(onAddFolder: onAddFolder)
                       : IdeExplorer(
                           key: ObjectKey(explorer),
+                          background: AppColors.code,
                           controller: explorer,
                           local: local,
                           onAddFolder: _isWorkspace ? onAddFolder : null,
@@ -619,6 +622,7 @@ class AgentSidePanelView extends StatelessWidget {
                       ),
                     ],
                     body: IdeGitGraph(
+                      background: AppColors.code,
                       git: git,
                       controller: scm.graph,
                       root: state.root,
@@ -1341,6 +1345,7 @@ class _SectionBar extends StatelessWidget {
         .where((task) => task.status == CommandStatus.running)
         .length;
     return IdeTabStrip(
+      line: AppColors.partBorder,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final sections = _sections;
@@ -1586,10 +1591,9 @@ class _ListHeader extends StatelessWidget {
     height: IdeTabStrip.height,
     padding: const EdgeInsets.only(left: 12, right: 6),
     decoration: BoxDecoration(
-      border: switch (IdeTabStrip.border) {
-        final color? => Border(bottom: BorderSide(color: color)),
-        null => null,
-      },
+      border: Border(
+        bottom: BorderSide(color: IdeTabStrip.border ?? AppColors.partBorder),
+      ),
     ),
     child: Row(
       children: [
@@ -1674,6 +1678,7 @@ class _TabStripState extends State<_TabStrip> {
 
   @override
   Widget build(BuildContext context) => IdeTabStrip(
+    line: AppColors.partBorder,
     child: TabStripScroll(
       controller: _scroll,
       child: Row(
@@ -2105,7 +2110,7 @@ class _TerminalListState extends State<_TerminalList> {
     final tasks = widget.tasks;
     return ColoredBox(
       key: const ValueKey('side-panel-terminals'),
-      color: AppColors.background,
+      color: AppColors.code,
       child: ListenableBuilder(
         listenable: Listenable.merge([...?shells]),
         builder: (context, _) => ListView(

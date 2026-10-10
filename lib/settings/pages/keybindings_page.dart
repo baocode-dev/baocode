@@ -63,7 +63,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../jsonc_file.dart' show JsoncFileException;
 import 'settings_dropdown.dart';
-import 'settings_widgets.dart' show SettingsColors, SettingsText;
+import 'settings_widgets.dart' show SettingsColors;
 
 /// A keymap [KeybindingsSettingsPage] offers.
 typedef KeymapChoice = ({String id, String name});
@@ -796,10 +796,14 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
         children: [
           // Room at the right for the dialog's close button.
           Padding(
-            padding: const EdgeInsets.fromLTRB(_inset, 20, 48, 0),
+            padding: const EdgeInsets.fromLTRB(_inset, 16, 48, 0),
             child: Text(
               context.l10n.settingsSectionKeyboard,
-              style: SettingsText.title,
+              style: TextStyle(
+                color: SettingsColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(height: 14),

@@ -9,6 +9,7 @@ import '../../ide/ide_hover.dart';
 import '../../ide/terminal/links/terminal_link_resolver.dart';
 import '../../ide/terminal/links/terminal_links.dart';
 import '../../ide/terminal/pty.dart';
+import '../../ide/terminal/terminal_colors.dart' show editorTerminalColorTheme;
 import '../../ide/terminal/terminal_instance.dart';
 import '../../ide/terminal/terminal_view.dart';
 import '../../kernel/kernel_types.dart';
@@ -66,6 +67,7 @@ class _TerminalPreviewState extends State<TerminalPreview> {
       start: (_) async => _pty,
       linkStat: widget.linkStat,
     ),
+    colorTheme: editorTerminalColorTheme,
   );
 
   /// What the screen was last given ([_screenText]), to print only what

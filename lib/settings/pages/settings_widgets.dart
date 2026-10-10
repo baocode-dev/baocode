@@ -49,43 +49,29 @@ abstract final class SettingsColors {
 abstract final class SettingsText {
   static TextStyle get title => TextStyle(
     color: SettingsColors.textPrimary,
-    fontSize: 17,
-    height: 21 / 17,
-    fontWeight: FontWeight.w500,
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
   );
 
   /// Under the page's title.
-  static TextStyle get lead => TextStyle(
-    color: SettingsColors.textSecondary,
-    fontSize: 13,
-    height: 18 / 13,
-  );
+  static TextStyle get lead => description;
 
   /// A group's heading, over its card.
   static TextStyle get heading => TextStyle(
     color: SettingsColors.textSecondary,
-    fontSize: 12,
-    height: 16 / 12,
+    fontSize: 12.5,
+    fontWeight: FontWeight.w500,
   );
 
   /// Under a group's heading.
-  static TextStyle get headingDescription => TextStyle(
-    color: SettingsColors.textTertiary,
-    fontSize: 12,
-    height: 16 / 12,
-  );
+  static TextStyle get headingDescription =>
+      description.copyWith(color: SettingsColors.textTertiary);
 
-  static TextStyle get label => TextStyle(
-    color: SettingsColors.textPrimary,
-    fontSize: 13,
-    height: 18 / 13,
-  );
+  static TextStyle get label =>
+      TextStyle(color: SettingsColors.textPrimary, fontSize: 13, height: 1.4);
 
-  static TextStyle get description => TextStyle(
-    color: SettingsColors.textSecondary,
-    fontSize: 13,
-    height: 18 / 13,
-  );
+  static TextStyle get description =>
+      TextStyle(color: SettingsColors.textSecondary, fontSize: 12, height: 1.5);
 
   static TextStyle get path => TextStyle(
     color: SettingsColors.textPrimary,
@@ -153,7 +139,9 @@ class SettingsColumn extends StatelessWidget {
                 double.infinity,
               );
         return ListView(
-          padding: EdgeInsets.fromLTRB(side, 48, side, 48),
+          // Under the window's draggable strip already: the title near the
+          // nav's back button.
+          padding: EdgeInsets.fromLTRB(side, 16, side, 48),
           children: children,
         );
       },
