@@ -6773,4 +6773,73 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get extsTabLanguageServers => '语言服务器';
+
+  @override
+  String get sidebarProjects => '项目';
+
+  @override
+  String get sidebarGroupBy => '分组方式';
+
+  @override
+  String get sidebarCreateProject => '创建项目';
+
+  @override
+  String get sidebarNoChats => '暂无聊天';
+
+  @override
+  String get projectCreateTitle => '创建项目';
+
+  @override
+  String get projectNameHint => '项目名称';
+
+  @override
+  String get projectSourceFolder => '源文件夹';
+
+  @override
+  String get projectAddFolderOn => '在';
+
+  @override
+  String get projectAddFolderSuffix => '上添加文件夹';
+
+  @override
+  String get projectThisComputer => '此电脑';
+
+  @override
+  String get projectRemoteDevices => '远程设备';
+
+  @override
+  String get projectAddRemoteHost => '添加远程主机';
+
+  @override
+  String get projectChangeFolder => '更换';
+
+  @override
+  String get projectNoFolder => '请选择项目的文件夹。';
+
+  @override
+  String get projectCreate => '创建项目';
+
+  @override
+  String get customizeRefresh => '刷新';
+
+  @override
+  String get customizeAboutPlugins => '在 Claude Code 中安装的插件，打包了技能、命令、智能体和服务器。';
+
+  @override
+  String get customizeAboutMcps => '通过 MCP 服务器，让 Claude Code 连接你的各类工具和数据。';
+
+  @override
+  String get customizeAboutSkills => '教 Claude Code 完成某类任务，合适时自动使用。';
+
+  @override
+  String get customizeAboutSubagents => 'Claude Code 可以把任务交给这些专职智能体，各自拥有独立上下文。';
+
+  @override
+  String get customizeAboutRules => 'Claude Code 在每次对话中都遵守的约定：CLAUDE.md 和规则文件。';
+
+  @override
+  String get customizeAboutCommands => '用斜杠调用的提示词，例如 /review。';
+
+  @override
+  String get customizeAboutHooks => '在 Claude Code 工作的特定时刻自动运行的命令，例如调用工具之前。';
 }

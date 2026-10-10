@@ -60,11 +60,11 @@ class UserMessageBubble extends StatefulWidget {
 /// Lines shown of a collapsed message. Messages up to one line longer show
 /// in full: hiding a single line is not worth it.
 const _collapsedLines = 3;
-const _lineHeight = 13.5 * 1.5;
+const _lineHeight = 13 * 1.5;
 
 TextStyle get _messageStyle => TextStyle(
   color: AppColors.textPrimary,
-  fontSize: 13.5,
+  fontSize: 13,
   height: 1.5,
   // Centers glyphs in the line box, which the inline tags center on.
   leadingDistribution: TextLeadingDistribution.even,

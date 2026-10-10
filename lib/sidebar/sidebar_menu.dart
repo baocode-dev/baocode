@@ -13,8 +13,32 @@ class SidebarMenuItem {
     this.icon,
     this.checked = false,
     this.destructive = false,
-  });
+  }) : divider = false,
+       heading = false;
 
+  /// A line between groups of items.
+  const SidebarMenuItem.divider()
+    : label = '',
+      onSelected = _none,
+      icon = null,
+      checked = false,
+      destructive = false,
+      divider = true,
+      heading = false;
+
+  /// A faint title over the items after it; not an item itself.
+  const SidebarMenuItem.heading(this.label)
+    : onSelected = _none,
+      icon = null,
+      checked = false,
+      destructive = false,
+      divider = false,
+      heading = true;
+
+  static void _none() {}
+
+  final bool divider;
+  final bool heading;
   final String label;
   final VoidCallback onSelected;
   final IconData? icon;
@@ -113,8 +137,12 @@ class SidebarMenuState extends State<SidebarMenu> {
   Widget _buildMenu(BuildContext context) {
     final items = widget.items();
     final colors = themeColors;
+    // At most most of the window tall: a long list scrolls, its last items
+    // still reachable.
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.6;
     return Container(
       width: widget.width,
+      constraints: BoxConstraints(maxHeight: maxHeight),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: colors['menu.background'],
@@ -128,13 +156,36 @@ class SidebarMenuState extends State<SidebarMenu> {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final item in items)
-            _MenuRow(item: item, onTap: () => _select(item)),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final item in items)
+              if (item.divider)
+                Container(
+                  height: 1,
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 4,
+                  ),
+                  color: colors['menu.separatorBackground'],
+                )
+              else if (item.heading)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+                  child: Text(
+                    item.label,
+                    style: TextStyle(
+                      color: AppColors.textFaint,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                )
+              else
+                _MenuRow(item: item, onTap: () => _select(item)),
+          ],
+        ),
       ),
     );
   }

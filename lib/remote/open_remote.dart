@@ -88,10 +88,13 @@ class OpenRemoteFlow {
     );
   }
 
+  /// Starts at [host], connected to without picking it first.
+  void startAt(String host) => _connect(host, now: true);
+
   /// Connects to [host] (its progress shown), then browses its home.
-  void _connect(String host) {
+  void _connect(String host, {bool now = false}) {
     final ssh = hosts[host];
-    _next(
+    (now ? show : _next)(
       IdeQuickPick(
         placeholder: l10n.remoteConnecting(host),
         items: [

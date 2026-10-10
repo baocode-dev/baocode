@@ -255,16 +255,7 @@ class CustomizeViewState extends State<CustomizeView> {
               leading,
               const SizedBox(width: 10),
             ],
-            Expanded(
-              child: Text(
-                l10n.customizeTitle,
-                style: TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
+            const Spacer(),
             SidebarIconButton(
               icon: Codicons.close,
               tooltip: l10n.customizeClose,
@@ -289,6 +280,26 @@ class CustomizeViewState extends State<CustomizeView> {
     ];
   }
 
+  /// The kinds' scopes, in the order their groups show.
+  List<CustomizationScope> get _scopes => [
+    if (_kind == CustomizationKind.plugins)
+      CustomizationScope.plugin
+    else ...[
+      CustomizationScope.user,
+      if (_kind == CustomizationKind.skills || _kind == CustomizationKind.mcps)
+        CustomizationScope.synced,
+      if (_project != null) ...[
+        CustomizationScope.project,
+        if (_kind == CustomizationKind.rules ||
+            _kind == CustomizationKind.mcps ||
+            _kind == CustomizationKind.hooks)
+          CustomizationScope.local,
+      ],
+    ],
+  ];
+
+  /// As Codex's plugins page: the kind's title and what it is for, search,
+  /// whose, refresh and Add on the right; then each scope's, two columns.
   Widget _buildList(AppLocalizations l10n) {
     if (!widget.store.supported) {
       return Center(
@@ -299,116 +310,187 @@ class CustomizeViewState extends State<CustomizeView> {
       );
     }
     final items = _shown;
-    final scopes = [
-      if (_kind == CustomizationKind.plugins)
-        CustomizationScope.plugin
-      else ...[
-        CustomizationScope.user,
-        if (_kind == CustomizationKind.skills ||
-            _kind == CustomizationKind.mcps)
-          CustomizationScope.synced,
-        if (_project != null) ...[
-          CustomizationScope.project,
-          if (_kind == CustomizationKind.rules ||
-              _kind == CustomizationKind.mcps ||
-              _kind == CustomizationKind.hooks)
-            CustomizationScope.local,
-        ],
-      ],
-    ];
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          children: [
-            _SearchBox(controller: _query),
-            const SizedBox(height: 12),
-            _buildChips(l10n),
-            if (_error case final error?) ...[
-              const SizedBox(height: 12),
-              Text(
-                l10n.customizeLoadFailed('$error'),
-                style: TextStyle(
-                  color: themeColors['errorForeground'],
-                  fontSize: 12,
-                ),
-              ),
-            ],
-            if (_items != null)
-              for (final scope in scopes)
-                ..._buildGroup(l10n, scope, [
-                  for (final item in items)
-                    if (item.scope == scope) item,
-                ]),
-          ],
+        constraints: const BoxConstraints(maxWidth: 940),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 700 ? 2 : 1;
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(40, 12, 40, 40),
+              children: [
+                _buildHeader(l10n),
+                if (_error case final error?) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.customizeLoadFailed('$error'),
+                    style: TextStyle(
+                      color: themeColors['errorForeground'],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                if (_items != null)
+                  for (final scope in _scopes)
+                    ..._buildGroup(l10n, scope, [
+                      for (final item in items)
+                        if (item.scope == scope) item,
+                    ], columns),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildChips(AppLocalizations l10n) {
-    final project = _project;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
+  Widget _buildHeader(AppLocalizations l10n) {
+    final creatable = _kind.creatable;
+    final configScope = _kind.configuredIn(CustomizationScope.user)
+        ? CustomizationScope.user
+        : _project != null && _kind.configuredIn(CustomizationScope.project)
+        ? CustomizationScope.project
+        : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SidebarMenu(
-          width: 220,
-          placement: (side: FloatingSide.bottom, align: FloatingAlign.start),
-          items: () => [
-            SidebarMenuItem(
-              l10n.customizeUserOnly,
-              icon: Icons.person_outline_rounded,
-              checked: project == null,
-              onSelected: () => _setProject(null),
-            ),
-            for (final other in widget.projects)
-              SidebarMenuItem(
-                other.name,
-                icon: Icons.folder_outlined,
-                checked: other.path == project?.path,
-                onSelected: () => _setProject(other),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(
+                _kind.label(l10n),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-          ],
-          builder: (context, menu) => _Chip(
-            selected: menu.isOpen,
-            onTap: menu.open,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Codicons.globe, size: 13, color: AppColors.textMuted),
-                const SizedBox(width: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 160),
-                  child: Text(
-                    project == null
-                        ? l10n.customizeUserOnly
-                        : '${l10n.customizeScopeUser} + ${project.name}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  size: 14,
-                  color: AppColors.textFaint,
-                ),
-              ],
             ),
-          ),
+            Flexible(
+              flex: 2,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  SizedBox(width: 220, child: _SearchBox(controller: _query)),
+                  _buildScopePicker(l10n),
+                  SidebarIconButton(
+                    icon: Icons.refresh_rounded,
+                    tooltip: l10n.customizeRefresh,
+                    size: 30,
+                    onTap: () => unawaited(_load()),
+                  ),
+                  if (creatable)
+                    _PrimaryButton(
+                      icon: Icons.add_rounded,
+                      label: l10n.customizeNew,
+                      onTap: () => unawaited(_create(CustomizationScope.user)),
+                    )
+                  else if (configScope != null)
+                    _PrimaryButton(
+                      icon: Codicons.edit,
+                      label: l10n.customizeEditFile(_configName(configScope)),
+                      onTap: () => unawaited(_openConfig(configScope)),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
-        Container(width: 1, height: 16, color: AppColors.partBorder),
-        for (final kind in CustomizationKind.values)
-          _Chip(
-            selected: kind == _kind,
-            onTap: () => show(kind),
-            child: Text(kind.label(l10n)),
+        const SizedBox(height: 6),
+        Text(
+          _kindDescription(l10n),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+        ),
+        ...[
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 4,
+            runSpacing: 6,
+            children: [
+              for (final kind in CustomizationKind.values)
+                _Chip(
+                  selected: kind == _kind,
+                  onTap: () => show(kind),
+                  child: Text(kind.label(l10n)),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  String _kindDescription(AppLocalizations l10n) => switch (_kind) {
+    CustomizationKind.plugins => l10n.customizeAboutPlugins,
+    CustomizationKind.mcps => l10n.customizeAboutMcps,
+    CustomizationKind.skills => l10n.customizeAboutSkills,
+    CustomizationKind.subagents => l10n.customizeAboutSubagents,
+    CustomizationKind.rules => l10n.customizeAboutRules,
+    CustomizationKind.commands => l10n.customizeAboutCommands,
+    CustomizationKind.hooks => l10n.customizeAboutHooks,
+  };
+
+  /// Whose are shown: the user's alone, or a project's too.
+  Widget _buildScopePicker(AppLocalizations l10n) {
+    final project = _project;
+    return SidebarMenu(
+      width: 220,
+      placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
+      items: () => [
+        SidebarMenuItem(
+          l10n.customizeUserOnly,
+          icon: Icons.person_outline_rounded,
+          checked: project == null,
+          onSelected: () => _setProject(null),
+        ),
+        if (widget.projects.isNotEmpty)
+          SidebarMenuItem.heading(l10n.sidebarProjects),
+        for (final other in widget.projects)
+          SidebarMenuItem(
+            other.name,
+            icon: Icons.folder_outlined,
+            checked: other.path == project?.path,
+            onSelected: () => _setProject(other),
           ),
       ],
+      builder: (context, menu) => _Chip(
+        selected: menu.isOpen,
+        onTap: menu.open,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              project == null
+                  ? Icons.laptop_mac_rounded
+                  : Icons.folder_outlined,
+              size: 14,
+              color: AppColors.textMuted,
+            ),
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: Text(
+                project == null ? l10n.customizeUserOnly : project.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 15,
+              color: AppColors.textFaint,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -416,6 +498,7 @@ class CustomizeViewState extends State<CustomizeView> {
     AppLocalizations l10n,
     CustomizationScope scope,
     List<Customization> items,
+    int columns,
   ) {
     final creatable =
         _kind.creatable &&
@@ -431,8 +514,30 @@ class CustomizeViewState extends State<CustomizeView> {
         (_kind == CustomizationKind.mcps && scope != CustomizationScope.synced);
     final searching = _query.text.trim().isNotEmpty;
     if (items.isEmpty && (searching || !shownEmpty)) return const [];
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += columns) {
+      rows.add(
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var j = 0; j < columns; j++) ...[
+              if (j > 0) const SizedBox(width: 24),
+              Expanded(
+                child: i + j < items.length
+                    ? _ItemRow(
+                        item: items[i + j],
+                        onOpen: () => setState(() => _open = items[i + j]),
+                        menu: () => _menu(items[i + j]),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
     return [
-      const SizedBox(height: 20),
+      const SizedBox(height: 28),
       // As tall as its button, with one or not: the groups line up from
       // kind to kind.
       SizedBox(
@@ -445,19 +550,22 @@ class CustomizeViewState extends State<CustomizeView> {
                   Text(
                     scope.label(l10n),
                     style: TextStyle(
-                      color: AppColors.text,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Text(
                     '${items.length}',
-                    style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+                    style: TextStyle(
+                      color: AppColors.textFaint,
+                      fontSize: 12.5,
+                    ),
                   ),
                   if (scope == CustomizationScope.project &&
                       _project != null) ...[
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     Flexible(
                       child: Text(
                         _project!.name,
@@ -465,7 +573,7 @@ class CustomizeViewState extends State<CustomizeView> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppColors.textFaint,
-                          fontSize: 12,
+                          fontSize: 12.5,
                         ),
                       ),
                     ),
@@ -474,64 +582,35 @@ class CustomizeViewState extends State<CustomizeView> {
               ),
             ),
             if (creatable)
-              _Chip(
-                outlined: true,
+              _TextAction(
+                icon: Icons.add_rounded,
+                label: l10n.customizeNew,
                 onTap: () => unawaited(_create(scope)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.add_rounded, size: 14, color: AppColors.text),
-                    const SizedBox(width: 3),
-                    Text(l10n.customizeNew),
-                  ],
-                ),
               ),
             if (configurable)
-              _Chip(
-                outlined: true,
+              _TextAction(
+                icon: Codicons.edit,
+                label: l10n.customizeEditFile(_configName(scope)),
                 onTap: () => unawaited(_openConfig(scope)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Codicons.edit, size: 13, color: AppColors.text),
-                    const SizedBox(width: 5),
-                    Text(l10n.customizeEditFile(_configName(scope))),
-                  ],
-                ),
               ),
           ],
         ),
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: 10),
       if (items.isEmpty)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.partBorder),
+          ),
           child: SelectableText(
             _emptyText(l10n, scope),
             style: TextStyle(color: AppColors.textFaint, fontSize: 12.5),
           ),
         )
       else
-        Container(
-          decoration: BoxDecoration(
-            color: themeColors['editorWidget.background'],
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.partBorder),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              for (final (i, item) in items.indexed) ...[
-                if (i > 0) Divider(height: 1, color: AppColors.partBorder),
-                _ItemRow(
-                  item: item,
-                  onOpen: () => setState(() => _open = item),
-                  menu: () => _menu(item),
-                ),
-              ],
-            ],
-          ),
-        ),
+        ...rows,
     ];
   }
 
@@ -624,7 +703,7 @@ class _SearchBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = themeColors;
     return SizedBox(
-      height: 34,
+      height: 30,
       child: TextField(
         controller: controller,
         style: TextStyle(color: colors['input.foreground'], fontSize: 13),
@@ -643,15 +722,15 @@ class _SearchBox extends StatelessWidget {
             color: AppColors.textFaint,
           ),
           prefixIconConstraints: const BoxConstraints(minWidth: 34),
-          contentPadding: const EdgeInsets.symmetric(vertical: 9),
+          contentPadding: const EdgeInsets.symmetric(vertical: 7),
           filled: true,
           fillColor: colors['input.background'],
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(17),
+            borderRadius: BorderRadius.circular(15),
             borderSide: BorderSide(color: AppColors.borderStrong),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(17),
+            borderRadius: BorderRadius.circular(15),
             borderSide: BorderSide(color: colors['focusBorder']),
           ),
         ),
@@ -665,13 +744,11 @@ class _Chip extends StatelessWidget {
     required this.child,
     required this.onTap,
     this.selected = false,
-    this.outlined = false,
   });
 
   final Widget child;
   final VoidCallback onTap;
   final bool selected;
-  final bool outlined;
 
   static const height = 26.0;
 
@@ -690,11 +767,7 @@ class _Chip extends StatelessWidget {
               ? AppColors.hover
               : Colors.transparent,
           borderRadius: BorderRadius.circular(13),
-          border: Border.all(
-            color: selected && !outlined
-                ? Colors.transparent
-                : AppColors.borderStrong,
-          ),
+          border: Border.all(color: Colors.transparent),
         ),
         child: DefaultTextStyle.merge(
           style: TextStyle(
@@ -720,101 +793,229 @@ class _ItemRow extends StatelessWidget {
   final VoidCallback onOpen;
   final List<SidebarMenuItem> Function() menu;
 
+  /// A colour of its own from its name, as Codex's apps have a logo each.
+  static const _tints = [
+    Color(0xFF5B8DEF),
+    Color(0xFF8E6CEF),
+    Color(0xFFE0738A),
+    Color(0xFFE8954A),
+    Color(0xFF3FB28C),
+    Color(0xFF3AA6C9),
+    Color(0xFFC9A23A),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final tint =
+        _tints[item.name.codeUnits.fold(0, (a, b) => a + b) % _tints.length];
     return SidebarMenu(
       items: menu,
       placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
       builder: (context, menuState) => HoverBuilder(
         cursor: SystemMouseCursors.click,
-        builder: (context, hovered) => GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onOpen,
-          onSecondaryTapUp: (details) => menuState.open(details.globalPosition),
-          child: Container(
-            color: hovered || menuState.isOpen
-                ? AppColors.hover
-                : Colors.transparent,
-            padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
-            child: Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: AppColors.hover,
-                    borderRadius: BorderRadius.circular(6),
+        builder: (context, hovered) {
+          final active = hovered || menuState.isOpen;
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onOpen,
+            onSecondaryTapUp: (details) =>
+                menuState.open(details.globalPosition),
+            child: Container(
+              height: 64,
+              margin: const EdgeInsets.symmetric(vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: active ? AppColors.hover : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: tint.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: tint.withValues(alpha: 0.28)),
+                    ),
+                    child: Icon(item.kind.icon, size: 17, color: tint),
                   ),
-                  child: Icon(
-                    item.kind.icon,
-                    size: 14,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              item.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 13,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                item.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
-                          ),
-                          if (item.enabled case final enabled?) ...[
-                            const SizedBox(width: 8),
-                            Text(
-                              enabled
-                                  ? l10n.customizeEnabled
-                                  : l10n.customizeDisabled,
-                              style: TextStyle(
+                            if (item.enabled case final enabled?) ...[
+                              const SizedBox(width: 8),
+                              _Badge(
+                                label: enabled
+                                    ? l10n.customizeEnabled
+                                    : l10n.customizeDisabled,
                                 color: enabled
                                     ? AppColors.added
                                     : AppColors.textFaint,
-                                fontSize: 11.5,
                               ),
-                            ),
+                            ],
                           ],
-                        ],
-                      ),
-                      if (item.description.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                        ),
+                        const SizedBox(height: 3),
                         Text(
-                          item.description,
+                          item.description.isEmpty
+                              ? p.basename(item.path)
+                              : item.description,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: AppColors.textMuted,
-                            fontSize: 12,
+                            fontSize: 12.5,
                           ),
                         ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                SidebarIconButton(
-                  icon: Icons.more_horiz_rounded,
-                  tooltip: l10n.sidebarMoreActions,
-                  size: 22,
-                  onTap: menuState.open,
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  AnimatedOpacity(
+                    opacity: active ? 1 : 0,
+                    duration: const Duration(milliseconds: 100),
+                    child: SidebarIconButton(
+                      icon: Icons.more_horiz_rounded,
+                      tooltip: l10n.sidebarMoreActions,
+                      size: 26,
+                      onTap: menuState.open,
+                    ),
+                  ),
+                ],
+              ),
             ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(label, style: TextStyle(color: color, fontSize: 11)),
+  );
+}
+
+/// The header's main action: filled, as Codex's Add.
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    return HoverBuilder(
+      cursor: SystemMouseCursors.click,
+      builder: (context, hovered) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color:
+                colors[hovered
+                    ? 'button.hoverBackground'
+                    : 'button.background'],
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: colors['button.foreground']),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: colors['button.foreground'],
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+}
+
+/// A group's own action, as quiet text beside its heading.
+class _TextAction extends StatelessWidget {
+  const _TextAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => HoverBuilder(
+    cursor: SystemMouseCursors.click,
+    builder: (context, hovered) => GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: _Chip.height,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: hovered ? AppColors.hover : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.textMuted),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 /// One customization's file, edited as text (⌘S saves); or, where it is

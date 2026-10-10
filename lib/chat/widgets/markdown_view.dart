@@ -27,7 +27,7 @@ class MarkdownView extends StatelessWidget {
   final TextStyle? style;
 
   static TextStyle get baseStyle =>
-      TextStyle(color: AppColors.text, fontSize: 13.5, height: 1.6);
+      TextStyle(color: AppColors.text, fontSize: 13, height: 1.6);
 
   /// Inline code's, its background painted by [InlineCodeText].
   static TextStyle get codeStyle =>
@@ -93,7 +93,7 @@ class MarkdownView extends StatelessWidget {
 @immutable
 class MarkdownOptions {
   const MarkdownOptions({
-    this.headingSizes = const [19, 17, 15, 13.5, 13.5, 13.5],
+    this.headingSizes = const [19, 17, 15, 13, 13, 13],
     this.headingRules = false,
     this.gap = 8,
     this.headingGap = 12,
