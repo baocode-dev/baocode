@@ -209,7 +209,8 @@ class ChangeReview extends ChangeNotifier {
     _snapshot = next;
     if (previous != null) {
       for (final change in await _store.diff(previous, next)) {
-        // Another repository inside the project: its own business.
+        // A repository inside the project the snapshots could not look
+        // into (those they can are in them, file by file).
         if (change.before?.mode == '160000' || change.after?.mode == '160000') {
           continue;
         }

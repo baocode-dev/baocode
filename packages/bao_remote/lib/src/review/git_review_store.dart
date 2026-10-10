@@ -199,22 +199,25 @@ class GitReviewStore implements ReviewStore {
 
   /// Runs `git` on the repository and the project, with the index at
   /// [index] (by default its own); fails unless the exit code is in [ok]
-  /// (null: any).
+  /// (null: any). With [repo], on that repository inside the project (see
+  /// [snapshot]) as the work tree, and by default its index.
   Future<_Output> _git(
     List<String> arguments, {
     List<int>? input,
     String? index,
+    String repo = '',
     Map<String, String> environment = const {},
     Set<int>? ok = const {0},
     Duration timeout = const Duration(seconds: 60),
   }) async {
+    final workTree = repo.isEmpty ? root : _full(repo);
     final Process process;
     try {
       process = await Process.start(
         'git',
         [
           '--git-dir=$gitDir',
-          '--work-tree=$root',
+          '--work-tree=$workTree',
           for (final setting in const [
             'core.autocrlf=false',
             'core.safecrlf=false',
@@ -224,11 +227,11 @@ class GitReviewStore implements ReviewStore {
           ]) ...['-c', setting],
           ...arguments,
         ],
-        workingDirectory: root,
+        workingDirectory: workTree,
         environment: {
           'GIT_TERMINAL_PROMPT': '0',
           'GIT_OPTIONAL_LOCKS': '0',
-          'GIT_INDEX_FILE': index ?? p.join(gitDir, 'index'),
+          'GIT_INDEX_FILE': index ?? _indexOf(repo),
           ...environment,
         },
       );
@@ -281,61 +284,233 @@ class GitReviewStore implements ReviewStore {
 
   // --- Snapshots -------------------------------------------------------------
 
+  /// The repositories inside the project the last snapshot looked into, by
+  /// path relative to the root, per repository of snapshots; null until
+  /// one did.
+  static final Map<String, Set<String>> _nested = {};
+
+  /// The index of [repo] (relative to the root; empty for the project).
+  String _indexOf(String repo) => repo.isEmpty
+      ? p.join(gitDir, 'index')
+      : p.join(gitDir, 'nested', _folderName(repo));
+
+  /// A repository inside the project (a package cloned into it, a folder
+  /// of projects opened as one) is a gitlink to Git, its files out of
+  /// sight. Each is snapshotted on its own, with its own index (its
+  /// `.gitignore` files followed, its `.git` never read), and its tree put
+  /// in place of the gitlink: the snapshot has its files as any others.
   @override
   Future<String> snapshot({Iterable<String>? paths}) => _locked(() async {
-    final specs = <String>[];
-    if (paths == null) {
-      final everything = [
-        '.',
-        if (_own case final own?) ':(exclude,literal)$own',
-      ];
-      final changed = (await _git([
-        'ls-files',
-        '-z',
-        '--others',
-        '--modified',
-        '--exclude-standard',
-        '--',
-        ...everything,
-      ], timeout: const Duration(minutes: 5))).records;
-      if (changed.length > maxFiles) {
-        throw ReviewUnavailable(
-          'The project has too many files to snapshot (${changed.length}).',
-        );
-      }
-      specs.addAll(everything);
-      for (final path in changed) {
-        if (_tooLarge(path)) specs.add(':(exclude,literal)$path');
-      }
-    } else {
-      final wanted = {
-        for (final path in paths)
-          if (!_isOwn(path)) path,
-      };
-      final missing = [
-        for (final path in wanted)
-          if (!_exists(path)) path,
-      ];
-      // A file gone counts where the snapshot had it.
-      final tracked = missing.isEmpty
-          ? const <String>{}
-          : (await _git([
-              'ls-files',
-              '-z',
-              '--',
-              for (final path in missing) ':(literal)$path',
-            ])).records.toSet();
-      for (final path in wanted) {
-        if (_exists(path) ? !_tooLarge(path) : tracked.contains(path)) {
-          specs.add(':(literal)$path');
-        }
+    Map<String, List<String>>? wanted;
+    if (paths != null) {
+      final nested = _nested[gitDir] ?? await _look();
+      wanted = {};
+      for (final path in paths) {
+        if (_isOwn(path)) continue;
+        final repo = _repoOf(path, nested);
+        wanted
+            .putIfAbsent(repo, () => [])
+            .add(repo.isEmpty ? path : path.substring(repo.length + 1));
       }
     }
-    if (specs.isNotEmpty) await _add(specs);
-    return (await _git(['write-tree'])).text.trim();
+    final trees = <String, String>{};
+    var files = 0;
+    Future<void> take(String repo) async {
+      // One not snapshotted before is, whole: else its other files would
+      // look deleted.
+      final whole = wanted == null || !File(_indexOf(repo)).existsSync();
+      final (:specs, :changed) = await _specs(
+        repo,
+        whole ? null : wanted[repo] ?? const [],
+      );
+      files += changed;
+      if (files > maxFiles) {
+        throw ReviewUnavailable(
+          'The project has too many files to snapshot ($files).',
+        );
+      }
+      if (specs.isNotEmpty) await _add(repo, specs);
+      final tree = trees[repo] = (await _git([
+        'write-tree',
+      ], repo: repo)).text.trim();
+      for (final link in await _gitlinks(repo, tree)) {
+        await take(repo.isEmpty ? link : '$repo/$link');
+      }
+    }
+
+    await take('');
+    _nested[gitDir] = {
+      for (final repo in trees.keys)
+        if (repo.isNotEmpty) repo,
+    };
+    return _compose(trees);
   });
 
-  Future<void> _add(List<String> specs) async {
+  /// The repositories inside the project as its indexes have them, for a
+  /// first snapshot of only some paths.
+  Future<Set<String>> _look() async {
+    final found = <String>{};
+    Future<void> visit(String repo) async {
+      if (!File(_indexOf(repo)).existsSync()) return;
+      final tree = (await _git(['write-tree'], repo: repo)).text.trim();
+      for (final link in await _gitlinks(repo, tree)) {
+        final nested = repo.isEmpty ? link : '$repo/$link';
+        found.add(nested);
+        await visit(nested);
+      }
+    }
+
+    await visit('');
+    return found;
+  }
+
+  /// The innermost of [nested] that [path] is in; empty for none.
+  static String _repoOf(String path, Set<String> nested) {
+    var repo = '';
+    for (final candidate in nested) {
+      if (path.startsWith('$candidate/') && candidate.length > repo.length) {
+        repo = candidate;
+      }
+    }
+    return repo;
+  }
+
+  /// What to add to [repo]'s index: [paths] (relative to it), or
+  /// everything; and how many files changed, for everything.
+  Future<({List<String> specs, int changed})> _specs(
+    String repo,
+    List<String>? paths,
+  ) async {
+    String inRoot(String path) => repo.isEmpty ? path : '$repo/$path';
+    final specs = <String>[];
+    if (paths == null) {
+      final own = switch (_own) {
+        final own? when repo.isEmpty => own,
+        final own? when p.isWithin(repo, own) => p.relative(own, from: repo),
+        _ => null,
+      };
+      final everything = ['.', if (own != null) ':(exclude,literal)$own'];
+      final changed = (await _git(
+        [
+          'ls-files',
+          '-z',
+          '--others',
+          '--modified',
+          '--exclude-standard',
+          '--',
+          ...everything,
+        ],
+        repo: repo,
+        timeout: const Duration(minutes: 5),
+      )).records;
+      specs.addAll(everything);
+      for (final path in changed) {
+        if (_tooLarge(inRoot(path))) specs.add(':(exclude,literal)$path');
+      }
+      return (specs: specs, changed: changed.length);
+    }
+    final missing = [
+      for (final path in paths)
+        if (!_exists(inRoot(path))) path,
+    ];
+    // A file gone counts where the snapshot had it.
+    final tracked = missing.isEmpty
+        ? const <String>{}
+        : (await _git([
+            'ls-files',
+            '-z',
+            '--',
+            for (final path in missing) ':(literal)$path',
+          ], repo: repo)).records.toSet();
+    for (final path in {...paths}) {
+      if (_exists(inRoot(path))
+          ? !_tooLarge(inRoot(path))
+          : tracked.contains(path)) {
+        specs.add(':(literal)$path');
+      }
+    }
+    return (specs: specs, changed: 0);
+  }
+
+  /// The gitlinks of each index, as its last tree has them.
+  static final Map<String, ({String tree, Set<String> links})> _links = {};
+
+  /// The gitlinks in [tree], [repo]'s: what changed since its last tree,
+  /// rather than the whole of it again.
+  Future<Set<String>> _gitlinks(String repo, String tree) async {
+    final index = _indexOf(repo);
+    final Set<String> links;
+    switch (_links[index]) {
+      case (tree: final last, links: final known) when last == tree:
+        return known;
+      case (tree: final last, links: final known):
+        links = {...known};
+        for (final change in await diff(last, tree)) {
+          if (change.after?.mode == _gitlink) {
+            links.add(change.path);
+          } else if (change.before?.mode == _gitlink) {
+            links.remove(change.path);
+          }
+        }
+      case null:
+        links = {
+          for (final record in (await _git([
+            'ls-tree',
+            '-r',
+            '-z',
+            tree,
+          ])).records)
+            if (record.startsWith('$_gitlink '))
+              record.substring(record.indexOf('\t') + 1),
+        };
+    }
+    _links[index] = (tree: tree, links: links);
+    return links;
+  }
+
+  static const _gitlink = '160000';
+
+  /// The project's tree with each repository inside it in place of its
+  /// gitlink, outer ones first.
+  Future<String> _compose(Map<String, String> trees) async {
+    if (trees.length == 1) return trees['']!;
+    final index = p.join(gitDir, 'compose-$pid-${_scratch++}');
+    try {
+      await _git(['read-tree', trees['']!], index: index);
+      for (final repo
+          in trees.keys.where((repo) => repo.isNotEmpty).toList()
+            ..sort((a, b) => a.length.compareTo(b.length))) {
+        await _git([
+          'update-index',
+          '--force-remove',
+          '--',
+          repo,
+        ], index: index);
+        await _git([
+          'read-tree',
+          '--prefix=$repo/',
+          trees[repo]!,
+        ], index: index);
+      }
+      return (await _git(['write-tree'], index: index)).text.trim();
+    } finally {
+      await _deleteIndex(index);
+    }
+  }
+
+  Future<void> _deleteIndex(String index) async {
+    for (final file in [index, '$index.lock']) {
+      try {
+        await File(file).delete();
+      } on FileSystemException {
+        // Not there.
+      }
+    }
+  }
+
+  Future<void> _add(String repo, List<String> specs) async {
+    final index = _indexOf(repo);
+    await Directory(p.dirname(index)).create(recursive: true);
     Future<void> add() => _git(
       [
         'add',
@@ -345,6 +520,7 @@ class GitReviewStore implements ReviewStore {
         '--pathspec-from-file=-',
         '--pathspec-file-nul',
       ],
+      repo: repo,
       input: utf8.encode(specs.join('\x00')),
       ok: const {0, 1},
       timeout: const Duration(minutes: 5),
@@ -354,7 +530,7 @@ class GitReviewStore implements ReviewStore {
     } on GitReviewError catch (error) {
       // Left by a Git that was killed (one here would have finished; one
       // of another run of the app, long since).
-      final lock = File(p.join(gitDir, 'index.lock'));
+      final lock = File('$index.lock');
       if (!error.stderr.contains('index.lock') ||
           !await lock.exists() ||
           DateTime.now().difference(await lock.lastModified()) <
@@ -443,13 +619,7 @@ class GitReviewStore implements ReviewStore {
       );
       return (await _git(['write-tree'], index: index)).text.trim();
     } finally {
-      for (final file in [index, '$index.lock']) {
-        try {
-          await File(file).delete();
-        } on FileSystemException {
-          // Not there.
-        }
-      }
+      await _deleteIndex(index);
     }
   }
 
