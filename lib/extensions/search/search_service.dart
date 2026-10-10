@@ -72,16 +72,18 @@ final class SearchService {
     QueryType.aiText: {},
   };
 
-  /// `registerSearchResultProvider`; the returned function unregisters.
+  /// `registerSearchResultProvider`: the last registered for a scheme is
+  /// its provider (a remote project's two extension hosts both register
+  /// `vscode-userdata`); the returned function unregisters it.
+  ///
+  /// Deviation: unregistering one that was replaced leaves the one that
+  /// replaced it (upstream deletes the scheme's).
   void Function() registerProvider(
     String scheme,
     int type,
     SearchResultProvider provider,
   ) {
     final providers = _providers[type]!;
-    if (providers.containsKey(scheme)) {
-      throw StateError('Search provider for scheme $scheme already registered');
-    }
     providers[scheme] = provider;
     _waiting[type]!.remove(scheme)?.complete(provider);
     return () {

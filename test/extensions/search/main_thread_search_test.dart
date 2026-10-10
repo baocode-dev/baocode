@@ -147,6 +147,45 @@ void main() {
     expect(harness.search.hasProvider('memfs', QueryType.text), isFalse);
   });
 
+  test('a second provider for a scheme replaces the first, as upstream',
+      () async {
+    // A remote project's two extension hosts both register
+    // `vscode-userdata`.
+    harness = MainThreadHarness(folder: temp);
+    for (final handle in [4, 5]) {
+      await harness.call(
+        MainContext.mainThreadSearch,
+        r'$registerTextSearchProvider',
+        [handle, 'vscode-userdata'],
+      );
+    }
+    final asked = <Object?>[];
+    harness.answer(
+      ExtHostContext.extHostSearch,
+      r'$provideTextSearchResults',
+      (args) async {
+        asked.add(args[0]);
+        return {'limitHit': false};
+      },
+    );
+    final query = {
+      'type': QueryType.text,
+      'folderQueries': [
+        {'folder': VsUri('vscode-userdata', path: '/u').toJson()},
+      ],
+    };
+    await harness.search.textSearch(query, CancellationToken.none, (_) {});
+    expect(asked, [5]);
+    // Unregistering the replaced one leaves the one that replaced it.
+    await harness.call(MainContext.mainThreadSearch, r'$unregisterProvider', [
+      4,
+    ]);
+    expect(
+      harness.search.hasProvider('vscode-userdata', QueryType.text),
+      isTrue,
+    );
+  });
+
   test('an AI provider is registered for its scheme', () async {
     harness = MainThreadHarness(folder: temp);
     await harness.call(
