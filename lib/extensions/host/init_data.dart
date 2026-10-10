@@ -12,9 +12,12 @@
 // (`getSingleFolderWorkspaceIdentifier`).
 //
 // Deviations:
-// - `remote.authority` is null even for a server on another machine: the
-//   extension host's URIs stay `file:` URIs of its own machine, and the
-//   app maps them (see server_uris.dart).
+// - `remote.authority` is null for the app's server on this machine (the
+//   server's own URIs are mapped by the app, see server_uris.dart). A
+//   remote project's host there is told the project's authority; this
+//   machine's host for its ui extensions is not (the server would turn
+//   the project's `vscode-remote:` URIs into its own `file:` ones), so
+//   `vscode.env.remoteName` is undefined in it.
 // - A folder's workspace id hashes its path only, not also its creation
 //   time.
 
@@ -141,6 +144,8 @@ Map<String, Object?> buildExtHostInitData({
   ExtHostLogLevel logLevel = ExtHostLogLevel.info,
   String firstSessionDate = '',
   bool autoStart = true,
+  bool isRemote = false,
+  String? remoteAuthority,
 }) {
   final ids = [for (final e in extensions) _identifierValue(e['identifier'])];
   return {
@@ -166,7 +171,11 @@ Map<String, Object?> buildExtHostInitData({
       'workspaceStorageHome': environment['workspaceStorageHome'],
     },
     'workspace': workspace?.toStaticJson(),
-    'remote': {'isRemote': false, 'authority': null, 'connectionData': null},
+    'remote': {
+      'isRemote': isRemote,
+      'authority': remoteAuthority,
+      'connectionData': null,
+    },
     'consoleForward': {'includeStack': false, 'logNative': false},
     'extensions': {
       'versionId': extensionsVersionId,
@@ -194,3 +203,43 @@ Map<String, Object?> buildExtHostInitData({
 
 String _identifierValue(Object? identifier) =>
     identifier is Map ? '${identifier['value']}' : '$identifier';
+
+/// [initData] as a host whose connection transforms URIs with [transformer]
+/// must be sent it: the URIs `ExtensionHostMain._transform` transforms on
+/// the way in, transformed on the way out.
+Map<String, Object?> transformInitDataOutgoing(
+  Map<String, Object?> initData,
+  UriTransformer transformer,
+) {
+  Object? out(Object? value) => transformOutgoingUris(value, transformer);
+  final environment = {
+    ...(initData['environment'] as Map).cast<String, Object?>(),
+  };
+  for (final key in const [
+    'appRoot',
+    'extensionDevelopmentLocationURI',
+    'extensionTestsLocationURI',
+    'globalStorageHome',
+    'workspaceStorageHome',
+  ]) {
+    if (environment.containsKey(key)) environment[key] = out(environment[key]);
+  }
+  final extensions = {
+    ...(initData['extensions'] as Map).cast<String, Object?>(),
+  };
+  extensions['allExtensions'] = [
+    for (final e in extensions['allExtensions'] as List)
+      {
+        ...(e as Map).cast<String, Object?>(),
+        if (e.containsKey('extensionLocation'))
+          'extensionLocation': out(e['extensionLocation']),
+      },
+  ];
+  return {
+    ...initData,
+    'environment': environment,
+    'extensions': extensions,
+    for (final key in const ['nlsBaseUrl', 'logsLocation', 'workspace'])
+      if (initData.containsKey(key)) key: out(initData[key]),
+  };
+}

@@ -19,6 +19,29 @@ import 'main_thread/main_thread_context.dart';
 /// (`IExtensionDescription`s with `file:` URIs).
 typedef ExtensionDescriptions = List<Map<String, Object?>>;
 
+/// Where a remote project's extension host runs, and how URIs cross its
+/// connection: the app's side speaks of the project's files (the remote
+/// host's) as `file:` URIs and of this machine's as `vscode-local:` ones,
+/// as upstream's remote extension host does (`createURITransformer`).
+final class ExtensionHostPlacement {
+  ExtensionHostPlacement({required this.authority, required this.remote})
+    : transformer = createUriTransformer(authority);
+
+  /// The project's remote authority (`ssh-remote+<host>`).
+  final String authority;
+
+  /// On the project's host; else on this machine, for the project's `ui`
+  /// extensions.
+  final bool remote;
+
+  final UriTransformer transformer;
+
+  /// What this host's server sends ([value], with its machine's `file:`
+  /// URIs), as the app's side speaks of it.
+  Object? fromServer(Object? value) =>
+      remote ? value : transformIncomingUris(value, transformer);
+}
+
 /// One workspace's extension host and what it needs: started on the first
 /// activation event (opening a file, running a command…), its main thread
 /// actors made from [customers] for every session.
@@ -37,7 +60,9 @@ final class ExtensionHostService extends ChangeNotifier {
     this.developmentLocations = const [],
     this.logger,
     this.includeExtension,
+    this.selectExtensions,
     this.activationHost,
+    this.placement,
     // Keep the public named argument `trusted` while storing its fallback.
     // ignore: prefer_initializing_formals
   }) : _trusted = trusted {
@@ -79,9 +104,18 @@ final class ExtensionHostService extends ChangeNotifier {
   /// registry altogether.
   final bool Function(Map<String, Object?> description)? includeExtension;
 
+  /// Of the scanned extensions [includeExtension] lets through, those
+  /// this host runs (a remote project's are split between its hosts by
+  /// their `extensionKind`); all when null.
+  final Future<ExtensionDescriptions> Function(ExtensionDescriptions scanned)?
+  selectExtensions;
+
   /// For the `workspaceContains:` events of extensions added while the
   /// host runs; without one they wait for another event.
   final ExtensionActivationHost? activationHost;
+
+  /// A remote project's; null for a project on this machine.
+  final ExtensionHostPlacement? placement;
 
   late final ExtensionHostManager manager;
 
@@ -141,13 +175,8 @@ final class ExtensionHostService extends ChangeNotifier {
       final Map<String, Object?> json => ExtHostProduct.fromJson(json),
       null => this.product ?? await loadProduct!(),
     };
-    final environment = await server.environment();
-    final scanned = _included(
-      await server.scanExtensions(
-        language: language,
-        developmentLocations: developmentLocations,
-      ),
-    );
+    final environment = _fromServer(await server.environment());
+    final scanned = await _scan(server);
     _checkNotDisposed();
     _activated.clear();
     _pendingRestart.value = const {};
@@ -163,17 +192,28 @@ final class ExtensionHostService extends ChangeNotifier {
       language: language,
       actorNames: proxyIdentifierNames,
       logger: logger,
-      initData: () => buildExtHostInitData(
-        product: product,
-        environment: environment,
-        extensions: scanned,
-        extensionsVersionId: _extensionsVersionId,
-        workspace: workspace,
-        language: language,
-        sessionId: _sessionId,
-        machineId: _machineId,
-        extensionDevelopmentLocations: developmentLocations,
-      ),
+      uriTransformer: placement?.transformer,
+      initData: () {
+        final placement = this.placement;
+        final initData = buildExtHostInitData(
+          product: product,
+          environment: environment,
+          extensions: scanned,
+          extensionsVersionId: _extensionsVersionId,
+          workspace: workspace,
+          language: language,
+          sessionId: _sessionId,
+          machineId: _machineId,
+          extensionDevelopmentLocations: developmentLocations,
+          isRemote: placement?.remote ?? false,
+          remoteAuthority: placement != null && placement.remote
+              ? placement.authority
+              : null,
+        );
+        return placement == null
+            ? initData
+            : transformInitDataOutgoing(initData, placement.transformer);
+      },
       actorsFor: (rpc) {
         _checkNotDisposed();
         context = MainThreadContext(
@@ -220,9 +260,25 @@ final class ExtensionHostService extends ChangeNotifier {
     return connection;
   }
 
-  List<Map<String, Object?>> _included(List<Map<String, Object?>> scanned) {
+  Map<String, Object?> _fromServer(Map<String, Object?> value) =>
+      switch (placement) {
+        final placement? =>
+          (placement.fromServer(value)! as Map).cast<String, Object?>(),
+        null => value,
+      };
+
+  /// The extensions [server] has that this host runs.
+  Future<ExtensionDescriptions> _scan(ExtensionServer server) async {
+    final scanned = [
+      for (final e in await server.scanExtensions(
+        language: language,
+        developmentLocations: developmentLocations,
+      ))
+        _fromServer(e),
+    ];
     final include = includeExtension;
-    return include == null ? scanned : [...scanned.where(include)];
+    final included = include == null ? scanned : [...scanned.where(include)];
+    return await selectExtensions?.call(included) ?? included;
   }
 
   static String _idOf(Map<String, Object?> description) =>
@@ -241,12 +297,7 @@ final class ExtensionHostService extends ChangeNotifier {
     final rpc = manager.rpc;
     if (rpc == null || manager.state != ExtensionHostState.running) return;
     final server = await pool.server;
-    final scanned = _included(
-      await server.scanExtensions(
-        language: language,
-        developmentLocations: developmentLocations,
-      ),
-    );
+    final scanned = await _scan(server);
     final (:toAdd, :toRemove, :kept, running: runs) = extensionsDelta(
       before: _extensions.value,
       after: scanned,

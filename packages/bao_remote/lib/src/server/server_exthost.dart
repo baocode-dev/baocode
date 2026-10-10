@@ -17,7 +17,8 @@ import 'server_streams.dart';
 /// connection ([RemoteProtocol.exthostStart]) and ended with it.
 ///
 /// Its state: `<dataDir>/exthost/runtimes/<id>/` (the runtimes),
-/// `uploads/` (archives being sent), `data/` (the server's data) and
+/// `uploads/` (archives being sent), `staged/` (the .vsix files the app
+/// sends its server to install), `data/` (the server's data) and
 /// `extensions/` (the extensions installed on this host).
 class ServerExtHost {
   ServerExtHost(RpcPeer peer, this._streams, {required this.directory}) {
@@ -27,6 +28,10 @@ class ServerExtHost {
         _upload(paramsOf(params));
     peer.handlers[RemoteProtocol.exthostStart] = (params, _) =>
         _start(paramsOf(params));
+    peer.handlers[RemoteProtocol.exthostStage] = (params, _) =>
+        _stage(paramsOf(params));
+    peer.handlers[RemoteProtocol.exthostUnstage] = (params, _) =>
+        _unstage(paramsOf(params));
   }
 
   final ServerStreams _streams;
@@ -36,6 +41,7 @@ class ServerExtHost {
 
   String get _runtimes => p.join(directory, 'runtimes');
   String get _uploads => p.join(directory, 'uploads');
+  String get _staged => p.join(directory, 'staged');
 
   StartedExtensionServer? _server;
   Future<Map<String, Object?>>? _starting;
@@ -113,6 +119,36 @@ class ServerExtHost {
     }
     await part.writeAsBytes(data, mode: FileMode.append, flush: true);
     return offset + data.length >= asset.size;
+  }
+
+  /// A piece of a file for the server: `{name, offset, data}`, in order.
+  /// Its path.
+  Future<String> _stage(Map<String, Object?> args) async {
+    final file = File(p.join(_staged, p.basename(args['name'] as String)));
+    final offset = args['offset'] as int;
+    if (offset == 0) {
+      await file.parent.create(recursive: true);
+      await file.writeAsBytes(const []);
+    } else if (!await file.exists() || await file.length() != offset) {
+      throw const ExtHostRuntimeException(
+        ExtHostRuntimeErrorKind.verification,
+        'The file was not sent whole',
+      );
+    }
+    await file.writeAsBytes(
+      decodeBytes(args['data']),
+      mode: FileMode.append,
+      flush: true,
+    );
+    return file.path;
+  }
+
+  Future<void> _unstage(Map<String, Object?> args) async {
+    try {
+      await File(p.join(_staged, p.basename(args['name'] as String))).delete();
+    } on FileSystemException {
+      // Not there.
+    }
   }
 
   Future<void> _deleteUploads(ExtHostRuntimeManifest manifest) async {

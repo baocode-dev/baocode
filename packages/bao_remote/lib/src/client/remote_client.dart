@@ -737,6 +737,36 @@ class RemoteClient {
     }
   }
 
+  /// Sends [file] for the VS Code server there (an extension's .vsix) as
+  /// [name]: its path there, until [unstageExtHostFile].
+  Future<String> stageExtHostFile(
+    File file,
+    String name, {
+    int chunkSize = 1 << 20,
+  }) async {
+    final input = await file.open();
+    try {
+      var offset = 0;
+      var path = '';
+      do {
+        final data = await input.read(chunkSize);
+        path = await _call<String>(RemoteProtocol.exthostStage, {
+          'name': name,
+          'offset': offset,
+          'data': encodeBytes(data),
+        });
+        offset += data.length;
+        if (data.length < chunkSize) return path;
+      } while (true);
+    } finally {
+      await input.close();
+    }
+  }
+
+  /// Deletes what [stageExtHostFile] sent as [name].
+  Future<void> unstageExtHostFile(String name) =>
+      _call(RemoteProtocol.exthostUnstage, {'name': name});
+
   /// The installed runtime's VS Code server there, started unless it runs
   /// (it ends with the connection): its port (on the host's 127.0.0.1, for
   /// [connectTcp]), connection token, platform and `product.json`.

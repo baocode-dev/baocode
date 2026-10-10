@@ -4,14 +4,25 @@ import 'package:flutter/foundation.dart';
 
 import 'extension_server_io.dart';
 
-/// The app's one VS Code server on this machine: started when an extension
-/// host first needs it (after the runtime is ready), started again when
-/// it ends, ended as the app quits.
+/// A VS Code server: the app's one on this machine (or a remote host's),
+/// started when an extension host first needs it (after the runtime is
+/// ready), started again when it ends, ended as the app quits.
 final class ExtensionServerPool {
-  ExtensionServerPool(this._launch, {this.start = ExtensionServer.start});
+  ExtensionServerPool(
+    Future<ExtensionServerLaunch> Function() launch, {
+    this.start = ExtensionServer.start,
+  }) : _make = (() async => start(await launch()));
 
-  /// How to run it: waits for the runtime (downloading it the first time).
-  final Future<ExtensionServerLaunch> Function() _launch;
+  /// A server [connect] starts (a remote host's, through its connection).
+  ExtensionServerPool.connecting(Future<ExtensionServer> Function() connect)
+    : start = _noLaunch,
+      _make = connect;
+
+  static Future<ExtensionServer> _noLaunch(ExtensionServerLaunch _) =>
+      throw UnsupportedError('Started by its connection');
+
+  /// Starts it: waits for the runtime (downloading it the first time).
+  final Future<ExtensionServer> Function() _make;
 
   @visibleForTesting
   final Future<ExtensionServer> Function(ExtensionServerLaunch launch) start;
@@ -24,7 +35,7 @@ final class ExtensionServerPool {
     if (current != null) return current;
     late final Future<ExtensionServer> starting;
     _server = starting = () async {
-      final server = await start(await _launch());
+      final server = await _make();
       unawaited(
         server.exited.then((_) {
           if (identical(_server, starting)) _server = null;

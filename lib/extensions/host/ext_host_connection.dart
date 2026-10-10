@@ -73,6 +73,7 @@ final class ExtHostConnection implements ExtHostSession {
     bool breakOnStart = false,
     SocketConnector? connector,
     RpcLogger? logger,
+    UriTransformer? uriTransformer,
     Duration timeout = const Duration(seconds: 60),
   }) async {
     final args = <String, Object?>{
@@ -127,6 +128,7 @@ final class ExtHostConnection implements ExtHostSession {
       ProtocolMessagePassing(protocol),
       actorNames: actorNames,
       logger: logger,
+      uriTransformer: uriTransformer,
     );
     // Set before the buffered requests are delivered (a microtask later).
     try {

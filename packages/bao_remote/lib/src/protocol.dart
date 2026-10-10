@@ -91,6 +91,13 @@ abstract final class RemoteProtocol {
   static const exthostUpload = 'exthost/upload';
   static const exthostStart = 'exthost/start';
 
+  /// A file sent for the server there (an extension's .vsix), in pieces:
+  /// `{name, offset, data}`, answered with its path there.
+  static const exthostStage = 'exthost/stage';
+
+  /// Deletes a file [exthostStage] sent: `{name}`.
+  static const exthostUnstage = 'exthost/unstage';
+
   // Port forwarding (the remote host's port to one of the app's), and
   // the app's connections to a port there ([tcpConnect]).
   static const tcpListen = 'tcp/listen';

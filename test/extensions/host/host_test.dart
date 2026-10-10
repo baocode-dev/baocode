@@ -204,6 +204,55 @@ void main() {
     expect((data['remote']! as Map)['authority'], isNull);
   });
 
+  test('a remote project\'s host is told its authority, its URIs as the '
+      'host\'s transformer takes them in', () {
+    const authority = 'ssh-remote+box';
+    final data = transformInitDataOutgoing(
+      buildExtHostInitData(
+        product: const ExtHostProduct(commit: 'c', version: '1.135.0'),
+        environment: {
+          'appRoot': VsUri.file('/srv/app').toJson(),
+          'globalStorageHome': VsUri.file('/home/u/data').toJson(),
+          'extensionHostLogsPath': VsUri.file('/home/u/logs').toJson(),
+        },
+        extensions: [
+          {
+            'identifier': {'value': 'A.b'},
+            'extensionLocation': VsUri.file('/home/u/ext/a.b').toJson(),
+            'icon': {r'$mid': 1, 'scheme': 'file', 'path': '/kept'},
+          },
+        ],
+        workspace: ExtHostWorkspace.folder('/home/u/proj'),
+        language: 'en',
+        sessionId: 's',
+        machineId: 'm',
+        isRemote: true,
+        remoteAuthority: authority,
+      ),
+      createUriTransformer(authority),
+    );
+    expect(data['remote'], {
+      'isRemote': true,
+      'authority': authority,
+      'connectionData': null,
+    });
+    String? scheme(Object? uri) => (uri! as Map)['scheme'] as String?;
+    final environment = data['environment']! as Map;
+    expect(scheme(environment['appRoot']), 'vscode-remote');
+    expect(scheme(environment['globalStorageHome']), 'vscode-remote');
+    expect(scheme(data['logsLocation']), 'vscode-remote');
+    final extension =
+        ((data['extensions']! as Map)['allExtensions'] as List).single as Map;
+    expect(extension['extensionLocation'], {
+      r'$mid': 1,
+      'path': '/home/u/ext/a.b',
+      'scheme': 'vscode-remote',
+      'authority': authority,
+    });
+    // Only what the host transforms on the way in.
+    expect(scheme(extension['icon']), 'file');
+  });
+
   group('ExtensionHostManager', () {
     late List<_Session> sessions;
     late List<_ExtensionService> services;
