@@ -99,12 +99,15 @@ class ViewportLineDecorations {
           );
         }
       }
+      // A whole-line decoration's content goes at the start of its first
+      // line and the end of its last (`_getOrCreateViewModelDecoration`).
+      final wholeLine = decoration.isWholeLine;
       if (decoration.before case final before?
           when decoration.start >= lineStart && decoration.start <= lineEnd) {
         (injections ??= []).add((
           0,
           order++,
-          ViewportInjection(decoration.start - lineStart, before),
+          ViewportInjection(wholeLine ? 0 : decoration.start - lineStart, before),
         ));
       }
       if (decoration.after case final after?
@@ -112,7 +115,10 @@ class ViewportLineDecorations {
         (injections ??= []).add((
           1,
           order++,
-          ViewportInjection(decoration.end - lineStart, after),
+          ViewportInjection(
+            wholeLine ? lineEnd - lineStart : decoration.end - lineStart,
+            after,
+          ),
         ));
       }
     }

@@ -218,6 +218,29 @@ void main() {
       expect(placed.before!.cursorStops, InjectedTextCursorStops.right);
     });
 
+    test('declarations written into a content\'s textDecoration apply, as '
+        'in the CSS rule', () {
+      // As Error Lens writes them.
+      final text = contentInjectedText(
+        const ContentDecorationRenderOptions(
+          contentText: 'message',
+          fontSize: '20px',
+          padding: '1px',
+          textDecoration:
+              'none;font-family: Menlo;;font-size: 12px;padding: 0 4px;'
+              'border-radius: 3px',
+        ),
+        _theme(),
+        isBefore: false,
+      )!;
+      expect(text.style!.fontFamily, 'Menlo');
+      expect(text.style!.decoration, TextDecoration.none);
+      // font-size is before text-decoration in the rule; padding after.
+      expect(text.fontSize, const EditorCssLength(12));
+      expect(text.padding.top, const EditorCssLength(1));
+      expect(text.borderRadius, const EditorCssLength(3));
+    });
+
     test('controller sets, fast-sets, restyles and drops removed types', () {
       final document = _document('one\ntwo\nthree');
       final registry = EditorDecorationTypeRegistry();

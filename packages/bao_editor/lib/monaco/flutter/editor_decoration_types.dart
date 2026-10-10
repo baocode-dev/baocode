@@ -25,6 +25,9 @@
 // `borderSpacing`, `verticalAlign`, `lineHeight` or `contentIconPath`; a
 // `fontFamily`/`fontSize` on a range applies to the text but the row keeps
 // its height; `border` shorthands with per-side widths take the first width.
+// Declarations an extension writes into a content's `textDecoration` after
+// a `;` apply as the rule's would (see [_withDeclarations]); not so for the
+// other properties' values or the range's own `textDecoration`.
 // `before`/`after` content is laid out as injected text that the caret steps
 // over (upstream it is a pseudo-element: the caret is measured around it in
 // the DOM); `before` stops right of it and `after` left of it.
@@ -385,6 +388,7 @@ EditorInjectedText? contentInjectedText(
   EditorDecorationTheme theme, {
   required bool isBefore,
 }) {
+  options = _withDeclarations(options);
   final text = options.contentText;
   if (text == null || text.isEmpty) return null;
   // Only the first line (`/^.*$/m`).
@@ -430,6 +434,54 @@ EditorInjectedText? contentInjectedText(
         ? InjectedTextCursorStops.right
         : InjectedTextCursorStops.left,
   );
+}
+
+/// [options] with the declarations its `textDecoration` carries past a
+/// `;` (`none; font-size: 12px; padding: 0 4px`, as Error Lens writes
+/// them): upstream the value goes into the rule as `text-decoration:{0};`,
+/// so they apply. The rule's properties before `text-decoration` (border,
+/// font) give way to them; those after it (color, opacity, background,
+/// margin, padding, size) win over them.
+ContentDecorationRenderOptions _withDeclarations(
+  ContentDecorationRenderOptions options,
+) {
+  final value = options.textDecoration;
+  if (value == null || !value.contains(';')) return options;
+  final parts = value.split(';');
+  final declarations = <String, String>{};
+  for (final part in parts.skip(1)) {
+    final colon = part.indexOf(':');
+    if (colon <= 0) continue;
+    final property = part.substring(0, colon).trim().toLowerCase();
+    final css = part
+        .substring(colon + 1)
+        .replaceAll(RegExp(r'\s*!important\s*$'), '')
+        .trim();
+    if (css.isNotEmpty) declarations[property] = css;
+  }
+  String? d(String property) => declarations[property];
+  CssColorValue? c(String property) =>
+      d(property) == null ? null : CssColor(d(property)!);
+  final before = ContentDecorationRenderOptions(
+    border: d('border'),
+    borderColor: c('border-color'),
+    borderRadius: d('border-radius'),
+    fontStyle: d('font-style'),
+    fontWeight: d('font-weight'),
+    fontSize: d('font-size'),
+    fontFamily: d('font-family'),
+    textDecoration: parts.first.trim(),
+  );
+  final after = ContentDecorationRenderOptions(
+    color: c('color'),
+    opacity: d('opacity'),
+    backgroundColor: c('background-color') ?? c('background'),
+    margin: d('margin'),
+    padding: d('padding'),
+    width: d('width'),
+    height: d('height'),
+  );
+  return after.overriddenBy(options).overriddenBy(before);
 }
 
 // ---- CSS values -------------------------------------------------------------

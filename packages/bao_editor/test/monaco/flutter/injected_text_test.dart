@@ -98,6 +98,27 @@ void main() {
       expect(line1.injections, isEmpty);
       expect((line1.styles.single.start, line1.styles.single.end), (1, 3));
     });
+
+    test('a whole-line decoration\'s content goes at its lines\' start and '
+        'end, as upstream', () {
+      // Error Lens: its message after a diagnostic's range, on a whole-line
+      // type.
+      final snapshot = DocumentSnapshot('// The recieved answer.\nnext');
+      final set = SortedDecorations([
+        const EditorDecoration(
+          start: 7,
+          end: 15,
+          isWholeLine: true,
+          before: EditorInjectedText('>'),
+          after: EditorInjectedText(' typo'),
+        ),
+      ]);
+      final line = ViewportLineDecorations.of(set, snapshot, 1);
+      expect(line.injections.map((i) => (i.offset, i.text.text)), [
+        (0, '>'),
+        (23, ' typo'),
+      ]);
+    });
   });
 
   group('layout with injected text', () {
