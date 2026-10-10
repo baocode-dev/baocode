@@ -35,19 +35,42 @@
     <p>This release is mostly about polishing the interface, and adds support for VS Code theme extensions.</p>
     <p>New</p>
     <ul>
-    <li>VS Code theme extensions: search Open VSX in the Extensions view, or drop in a .vsix file, to use its color themes and file icon themes.</li>
+    <li>VS Code theme extensions: search Open VSX in the Extensions view, or drop in a .vsix file, to install its color themes and file icon themes. An extension's page shows its README, features, changelog and compatibility; you can check for updates, switch to a pre-release, enable or disable it. No extension code runs: only the themes are used.</li>
+    <li>The Extensions view has Themes and Language Servers tabs, and lists popular themes.</li>
+    <li>Pick a file icon theme with Preferences: File Icon Theme in the Command Palette, previewing each with the arrow keys. JetBrains-style icons are drawn for the light or dark theme in use.</li>
     <li>New built-in themes, Bao Dark and Bao Light, now the default dark and light themes.</li>
-    <li>Mention files with @ in the input: pick any file or folder in the workspace, or type a path starting with /, ~/ or a drive letter to complete any file on your machine.</li>
-    <li>Test models in Settings → Models: from a model's menu, or all of them at once. Each shows how long it took, or why it failed.</li>
-    <li>Fork a conversation from its menu in the sidebar to carry on from a copy of it.</li>
+    <li>Mention files with @ in the input: pick any file or folder in the workspace, every folder of a multi-folder workspace included, or type a path starting with /, ~/ or a drive letter to complete any file on your machine (on the remote host, for a remote project).</li>
+    <li>Settings → Appearance → User message style: a bubble on the right (the default), or full width with the current turn's message staying at the top as you scroll.</li>
+    <li>Settings → Appearance → Terminal font size: follows the interface text size by default, or set it on its own.</li>
+    <li>Test models in Settings → Models: from a model's menu, or all of them at once (three at a time). Tests go through Claude Code itself, the way a conversation does; each shows how long it took, and on failure, the reply or error on hover.</li>
+    <li>ChatGPT (Codex) upstreams have a Codex version setting: the backend lists only the models that version supports, so if a new model is missing, enter a newer version and refresh the model list.</li>
+    <li>Fork a conversation from its menu in the sidebar to carry on from a copy of it, remote projects included.</li>
+    <li>Wherever a file can be revealed in Finder, it can be saved as a copy with Save As; a remote project's file is downloaded.</li>
+    <li>The sidebar's Archived menu adds Unarchive All and Delete All Archived.</li>
+    <li>In a multi-folder workspace, the agent's changes in every folder show in the review.</li>
     </ul>
     <p>Interface</p>
     <ul>
+    <li>An empty conversation shows the BaoCode logo.</li>
     <li>Message bubbles and the input share one fill and border; the focused input shows a shadow instead of changing its border color.</li>
-    <li>With several conversations side by side, the current one has a faint outline.</li>
+    <li>With several conversations side by side, the current one has a faint outline, inset from the window's edges.</li>
+    <li>Conversations fade out at their top and bottom edges as they scroll.</li>
     <li>Switches in Settings scale with the interface font; the active tab's top line is softer; the tab strip no longer fades at its ends.</li>
+    <li>The sidebar's Changes page shows the Source Control graph under the changes, both collapsible and resizable.</li>
+    <li>The terminal in the agent's side panel uses the editor's background, matching its surroundings.</li>
+    <li>The dividers between the sidebar's sections run edge to edge.</li>
+    <li>Settings → Updates shows this version's notes when it is the newest.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>The context ring updates after the context is compacted (Claude Code and Codex).</li>
+    <li>In SSH projects, Go to Definition opens the right file (on Windows, the path could lose its leading /).</li>
+    <li>Changes inside a Git repository nested in the project show in the review.</li>
+    <li>On Windows, typing with an input method no longer turns tags and images in the input into text.</li>
+    <li>A drag starting on a reply below a plan preview no longer selects the preview's hidden plan text.</li>
+    <li>Requests to upstreams send Claude Code's user agent, so relays such as agentrouter.org no longer answer 401 &quot;unauthorized client detected&quot;.</li>
+    <li>shields.io badges in READMEs and the Markdown preview no longer show their text far too large.</li>
     <li>Fixed the code area's scroll shadow turning black in some themes.</li>
-    <li>The sidebar's Changes page shows the Source Control graph under the changes.</li>
     </ul>
     <p>Changed</p>
     <ul>
