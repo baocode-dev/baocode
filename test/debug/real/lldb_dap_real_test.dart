@@ -142,7 +142,8 @@ void main() {
     // The REPL evaluates in the focused frame.
     await session.addReplExpression(frame, 'sum * 2');
     final result = session.getReplElements().whereType<ReplEvaluationResult>().last;
-    expect(result.value, '84');
+    // lldb-dap 21 answers in lldb's expression format (`(int) $0 = 84`).
+    expect(result.value, anyOf('84', endsWith(' = 84')));
 
     // A watch expression too.
     d.service.addWatchExpression('a - b');
@@ -176,7 +177,11 @@ void main() {
     expect(caps.flag('supportsFunctionBreakpoints'), isTrue);
     expect(caps.flag('supportsConditionalBreakpoints'), isTrue);
     expect(caps.flag('supportsLogPoints'), isTrue);
-    expect(d.service.viewModel.focusedThread!.stoppedDetails!.reason, 'function breakpoint');
+    // lldb-dap 21 reports it as a plain `breakpoint`.
+    expect(
+      d.service.viewModel.focusedThread!.stoppedDetails!.reason,
+      anyOf('function breakpoint', 'breakpoint'),
+    );
     expect(d.service.model.getFunctionBreakpoints().single.verified, isTrue);
     expect((await scopeValues(frame, 'Locals'))['limit'], '5');
 
