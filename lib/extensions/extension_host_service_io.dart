@@ -12,6 +12,7 @@ import 'host/extension_server_pool_io.dart';
 import 'host/extensions_delta.dart';
 import 'host/implicit_activation_events.dart';
 import 'host/init_data.dart';
+import 'host/workspace_contains.dart';
 import 'main_thread/main_thread_context.dart';
 
 /// The extensions a host runs, as the server scanned them
@@ -36,6 +37,7 @@ final class ExtensionHostService extends ChangeNotifier {
     this.developmentLocations = const [],
     this.logger,
     this.includeExtension,
+    this.activationHost,
     // Keep the public named argument `trusted` while storing its fallback.
     // ignore: prefer_initializing_formals
   }) : _trusted = trusted {
@@ -76,6 +78,10 @@ final class ExtensionHostService extends ChangeNotifier {
   /// all do when null. Upstream leaves disabled extensions out of the
   /// registry altogether.
   final bool Function(Map<String, Object?> description)? includeExtension;
+
+  /// For the `workspaceContains:` events of extensions added while the
+  /// host runs; without one they wait for another event.
+  final ExtensionActivationHost? activationHost;
 
   late final ExtensionHostManager manager;
 
@@ -250,19 +256,60 @@ final class ExtensionHostService extends ChangeNotifier {
     _extensionsVersionId++;
     _extensions.value = running;
     configuration.setExtensions(running);
-    Map<String, Object?> identifier(Map<String, Object?> e) {
-      final id = _idOf(e);
-      return {'value': id, '_lower': id.toLowerCase()};
-    }
-
+    final addActivationEvents = createActivationEventsMap(toAdd);
     await ExtHostExtensionServiceProxy(rpc).$deltaExtensions({
       'versionId': _extensionsVersionId,
-      'toRemove': [for (final e in toRemove) identifier(e)],
+      'toRemove': [for (final e in toRemove) _identifier(e)],
       'toAdd': toAdd,
-      'addActivationEvents': createActivationEventsMap(toAdd),
-      'myToRemove': [for (final e in toRemove) identifier(e)],
-      'myToAdd': [for (final e in toAdd) identifier(e)],
+      'addActivationEvents': addActivationEvents,
+      'myToRemove': [for (final e in toRemove) _identifier(e)],
+      'myToAdd': [for (final e in toAdd) _identifier(e)],
     });
+    for (final e in toAdd) {
+      unawaited(
+        _activateAddedExtensionIfNeeded(
+          e,
+          addActivationEvents[extensionDescriptionKey(e)] ?? const [],
+        ).catchError((Object _) {}),
+      );
+    }
+  }
+
+  static Map<String, Object?> _identifier(Map<String, Object?> e) {
+    final id = _idOf(e);
+    return {'value': id, '_lower': id.toLowerCase()};
+  }
+
+  /// `_activateAddedExtensionIfNeeded`: an extension added while the host
+  /// runs activates for an event already fired, `*`, `onStartupFinished`
+  /// or a `workspaceContains:` the workspace meets.
+  Future<void> _activateAddedExtensionIfNeeded(
+    Map<String, Object?> description,
+    List<String> activationEvents,
+  ) async {
+    final requested = manager.requestedEvents;
+    String? reason;
+    var hasWorkspaceContains = false;
+    for (final event in activationEvents) {
+      if (requested.contains(event) ||
+          event == '*' ||
+          event == 'onStartupFinished') {
+        reason = event;
+        break;
+      }
+      if (event.startsWith('workspaceContains')) hasWorkspaceContains = true;
+    }
+    final host = activationHost;
+    if (reason == null && hasWorkspaceContains && host != null) {
+      final explicit = switch (description['activationEvents']) {
+        final List<Object?> events => [for (final e in events) '$e'],
+        _ => const <String>[],
+      };
+      reason = await checkActivateWorkspaceContainsExtension(host, explicit);
+    }
+    if (reason != null) {
+      await manager.activate(_identifier(description), reason);
+    }
   }
 
   /// Starts the host when needed and activates [event]'s extensions.

@@ -60,6 +60,7 @@ import '../host/extension_host_manager.dart' show ExtensionHostState;
 import '../host/extension_server_io.dart';
 import '../host/extension_server_pool_io.dart';
 import '../host/init_data.dart';
+import '../host/workspace_contains.dart';
 import '../language/language_customers.dart';
 import '../language/language_selector.dart';
 import '../languages/language_registry.dart';
@@ -87,6 +88,7 @@ import '../main_thread/workspace_customers.dart';
 import '../runtime/extension_runtime_service.dart';
 import '../recommendations/recommendations.dart';
 import '../scm/scm_service.dart';
+import '../search/query_builder.dart';
 import '../search/search_service.dart';
 import '../testing/test_service.dart';
 import '../tasks/task_service.dart';
@@ -908,6 +910,14 @@ final class WorkspaceExtensions extends ChangeNotifier {
           }),
         ),
       },
+      activationHost: _WorkspaceActivationHost(
+        folders: [for (final f in extHostWorkspace.folders) f.uri],
+        search: search,
+        queryBuilder: QueryBuilder(
+          configuration: configuration,
+          workspace: workspaceContext,
+        ),
+      ),
       includeExtension: (description) =>
           app.enablement.isEnabled(
             _idOf(description),
@@ -1483,6 +1493,43 @@ final class _AuthSecrets implements AuthSecretStore {
   Stream<String> get onDidChange => secrets.changes
       .where((change) => change.extensionId == _owner)
       .map((change) => change.key);
+}
+
+/// The local folders' `workspaceContains:` checks: on disk, globs through
+/// the file search (`checkGlobFileExists`).
+final class _WorkspaceActivationHost implements ExtensionActivationHost {
+  _WorkspaceActivationHost({
+    required this.folders,
+    required this.search,
+    required this.queryBuilder,
+  });
+
+  @override
+  final List<VsUri> folders;
+  final SearchService search;
+  final QueryBuilder queryBuilder;
+
+  @override
+  bool get forceUsingSearch => false;
+
+  @override
+  Future<bool> exists(VsUri uri) async =>
+      await FileSystemEntity.type(uri.fsPath()) !=
+      FileSystemEntityType.notFound;
+
+  @override
+  Future<bool> checkExists(
+    List<VsUri> folders,
+    List<String> includes,
+    CancellationToken token,
+  ) async {
+    final query = queryBuilder.file(folders, {
+      '_reason': 'checkExists',
+      'includePattern': includes,
+      'exists': true,
+    });
+    return (await search.fileSearch(query, token)).limitHit;
+  }
 }
 
 /// The commands' activation once the host exists ([CommandActivation]).

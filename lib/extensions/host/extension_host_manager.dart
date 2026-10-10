@@ -223,6 +223,29 @@ final class ExtensionHostManager extends ChangeNotifier {
     }();
   }
 
+  /// The activation events asked for so far (`_allRequestedActivateEvents`).
+  Set<String> get requestedEvents => Set.unmodifiable(_requestedEvents);
+
+  /// `activate`: activates the extension [identifier] (an
+  /// `ExtensionIdentifier`) for [activationEvent] in the running session;
+  /// false when none runs.
+  Future<bool> activate(
+    Map<String, Object?> identifier,
+    String activationEvent,
+  ) async {
+    final session = _current;
+    if (session == null) return false;
+    final reply = await session.rpc.call(_extensionServiceId, r'$activate', [
+      identifier,
+      {
+        'startup': false,
+        'extensionId': identifier,
+        'activationEvent': activationEvent,
+      },
+    ]);
+    return reply == true;
+  }
+
   /// Whether [activationEvent] was sent to this session already.
   bool activatedOn(String activationEvent) =>
       _cachedActivations.containsKey(activationEvent);
