@@ -157,6 +157,8 @@ final class RemoteExtensions {
         (await client()).stageExtHostFile(File(vsix), p.basename(vsix)),
     unstage: (vsix) async =>
         (await client()).unstageExtHostFile(p.basename(vsix)),
+    // Its folders are on that host.
+    readsIcons: false,
   );
 
   late final ServerExtensionManagement _local = ServerExtensionManagement(

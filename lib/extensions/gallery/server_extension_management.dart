@@ -21,13 +21,16 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bao_exthost/bao_exthost.dart';
 
 import '../host/extension_server_io.dart';
 import '../host/server_uris.dart';
+import '../vsix/extension_files.dart';
 import '../vsix/extension_manifest.dart';
-import '../vsix/vsix_reader.dart' show readExtensionFolderManifest;
+import '../vsix/vsix_reader.dart'
+    show ExtensionPackage, readExtensionFolderManifest;
 import 'extension_enablement.dart';
 import 'extension_management_backend.dart';
 import 'open_vsx_client.dart';
@@ -51,7 +54,12 @@ final class ServerExtensionManagement
     this.developmentLocations = const [],
     this.stage,
     this.unstage,
+    this.readsIcons = true,
   });
+
+  /// Whether the server is on this machine: its extensions' icons are
+  /// read from their folders (upstream's `iconUrl`, from the location).
+  final bool readsIcons;
 
   /// Sends a .vsix to the server's machine (a remote host's): its path
   /// there. This machine's server reads it where it is.
@@ -118,7 +126,7 @@ final class ServerExtensionManagement
     for (final item in raw as List? ?? const []) {
       if (item is! Map) continue;
       final local = item.cast<String, Object?>();
-      final extension = _fromLocal(local);
+      final extension = _fromLocal(local, iconBytes: await _icon(local));
       if (extension == null) continue;
       _local[extension.id.toLowerCase()] = local;
       installed.add(extension);
@@ -130,14 +138,31 @@ final class ServerExtensionManagement
     return installed;
   }
 
-  InstalledExtension? _fromLocal(Map<String, Object?> local) {
+  /// The icon `package.json` names, from the extension's folder.
+  Future<Uint8List?> _icon(Map<String, Object?> local) async {
+    if (!readsIcons) return null;
+    final location = VsUri.tryRevive(fromServer(local['location']));
+    if (location == null || location.scheme != 'file') return null;
+    return switch (local['manifest']) {
+      {'icon': final String icon} when icon.isNotEmpty =>
+        FolderExtensionFiles(
+          location.fsPath(),
+        ).read(icon, maxBytes: ExtensionPackage.maxIconBytes),
+      _ => null,
+    };
+  }
+
+  InstalledExtension? _fromLocal(
+    Map<String, Object?> local, {
+    Uint8List? iconBytes,
+  }) {
     final manifest = switch (local['manifest']) {
       final Map<Object?, Object?> m => m.cast<String, Object?>(),
       _ => null,
     };
     if (manifest == null) return null;
     final info = ExtensionManifestInfo.fromSource(
-      ExtensionManifestSource(manifest: manifest),
+      ExtensionManifestSource(manifest: manifest, iconBytes: iconBytes),
     );
     final location = VsUri.tryRevive(fromServer(local['location']));
     final id = info.id;

@@ -40,13 +40,22 @@ void main() {
     );
     addTearDown(pool.dispose);
 
-    // The hello fixture as a .vsix: `extension/` plus the manifest.
+    // The hello fixture as a .vsix: `extension/` plus the manifest; with
+    // an icon.
     final fixture = Directory('test/fixtures/extensions/hello');
     final vsix = File(p.join(temp.path, 'hello.vsix'));
+    final package = jsonDecode(
+      File(p.join(fixture.path, 'package.json')).readAsStringSync(),
+    ) as Map<String, Object?>;
+    final icon = [0x89, 0x50, 0x4e, 0x47, 1, 2, 3];
     await vsix.writeAsBytes(
       buildZip({
         for (final file in fixture.listSync().whereType<File>())
           'extension/${p.basename(file.path)}': file.readAsBytesSync(),
+        'extension/package.json': utf8.encode(
+          jsonEncode({...package, 'icon': 'media/icon.png'}),
+        ),
+        'extension/media/icon.png': icon,
         '[Content_Types].xml': utf8.encode(
           '<?xml version="1.0" encoding="utf-8"?><Types '
           'xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
@@ -85,6 +94,8 @@ void main() {
     final listed = await management.getInstalled();
     final hello = listed.singleWhere((e) => e.id == 'baocode-test.hello');
     expect(hello.enabled, isTrue);
+    // Its icon, read from its folder, for the Extensions view.
+    expect(hello.manifest.iconBytes, icon);
 
     await management.setEnabled(
       'baocode-test.hello',
