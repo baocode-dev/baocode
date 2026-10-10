@@ -39,6 +39,7 @@ import '../../ide/ide_editor_views.dart';
 import '../../ide/ide_notifications.dart';
 import '../../ide/ide_workspace.dart';
 import '../../ide/lsp/lsp_protocol.dart';
+import '../../l10n/l10n.dart';
 import '../commands/command_arguments.dart';
 import '../commands/extension_command_registry.dart';
 import '../commands/type_command_interceptor.dart';
@@ -100,6 +101,16 @@ final class IdeBuiltinCommands
   /// Highlights the focused editor's occurrences again (the extensions'
   /// editor features set it).
   void Function()? onTriggerWordHighlight;
+
+  /// Whether an installed extension runs only once the extensions restart
+  /// (the extension host sets it).
+  bool Function(InstalledExtension installed)? needsRestart;
+
+  /// Restarts the extensions (the extension host sets it).
+  Future<void> Function()? restartExtensions;
+
+  /// The app's strings.
+  AppLocalizations Function() l10n = () => englishLocalizations;
 
   final TypeCommandInterceptor _typing;
   IdeEditorView? _shown;
@@ -503,6 +514,40 @@ final class IdeBuiltinCommands
 
   @override
   Future<void> uninstall(String id) => management.uninstall(id);
+
+  @override
+  Future<void> installVsixs(List<VsUri> vsixs) async {
+    // All of them, then the first failure (`Promise.allSettled`).
+    final installed = await Future.wait([
+      for (final vsix in vsixs)
+        management.install(
+          _localPath(vsix) ?? vsix.path,
+          options: const ExtensionInstallOptions(installGivenVersion: true),
+        ),
+    ]);
+    final restart = installed.any((e) => needsRestart?.call(e) ?? false);
+    final strings = l10n();
+    final several = vsixs.length > 1;
+    if (restart) {
+      workspace.notifications.notify(
+        IdeSeverity.info,
+        several
+            ? strings.extInstallVsixsRestart
+            : strings.extInstallVsixRestart,
+        primary: [
+          IdeNotificationAction(
+            strings.extRestartExtensions,
+            () => unawaited(restartExtensions?.call()),
+          ),
+        ],
+      );
+    } else {
+      workspace.notifications.notify(
+        IdeSeverity.info,
+        several ? strings.extInstallVsixsDone : strings.extInstallVsixDone,
+      );
+    }
+  }
 
   void dispose() {
     workspace.editorViews.removeListener(_shownChanged);

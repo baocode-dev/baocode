@@ -13122,6 +13122,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This view needs a Webview, which BaoCode does not support.'**
   String get extViewWebviewUnsupported;
+
+  /// No description provided for @extInstallVsixDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed installing extension.'**
+  String get extInstallVsixDone;
+
+  /// No description provided for @extInstallVsixsDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed installing extensions.'**
+  String get extInstallVsixsDone;
+
+  /// No description provided for @extInstallVsixRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed installing extension. Please restart extensions to enable it.'**
+  String get extInstallVsixRestart;
+
+  /// No description provided for @extInstallVsixsRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed installing extensions. Please restart extensions to enable them.'**
+  String get extInstallVsixsRestart;
+
+  /// No description provided for @extRestartExtensions.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart Extensions'**
+  String get extRestartExtensions;
 }
 
 class _AppLocalizationsDelegate

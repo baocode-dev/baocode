@@ -6112,5 +6112,10 @@
   "themeIconThemeBuiltIn": "Built-in",
   "extViewNoDataProvider": "There is no data provider registered that can provide view data.",
   "extViewCollapseAll": "Collapse All",
-  "extViewWebviewUnsupported": "This view needs a Webview, which BaoCode does not support."
+  "extViewWebviewUnsupported": "This view needs a Webview, which BaoCode does not support.",
+  "extInstallVsixDone": "Completed installing extension.",
+  "extInstallVsixsDone": "Completed installing extensions.",
+  "extInstallVsixRestart": "Completed installing extension. Please restart extensions to enable it.",
+  "extInstallVsixsRestart": "Completed installing extensions. Please restart extensions to enable them.",
+  "extRestartExtensions": "Restart Extensions"
 }

@@ -7544,4 +7544,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get extViewWebviewUnsupported => '此视图需要 Webview，BaoCode 不支持。';
+
+  @override
+  String get extInstallVsixDone => '扩展安装完成。';
+
+  @override
+  String get extInstallVsixsDone => '扩展安装完成。';
+
+  @override
+  String get extInstallVsixRestart => '扩展安装完成。请重启扩展以启用它。';
+
+  @override
+  String get extInstallVsixsRestart => '扩展安装完成。请重启扩展以启用它们。';
+
+  @override
+  String get extRestartExtensions => '重启扩展';
 }

@@ -2168,5 +2168,10 @@
   "themeIconThemeBuiltIn": "内置",
   "extViewNoDataProvider": "没有已注册的数据提供程序可提供此视图的数据。",
   "extViewCollapseAll": "全部折叠",
-  "extViewWebviewUnsupported": "此视图需要 Webview，BaoCode 不支持。"
+  "extViewWebviewUnsupported": "此视图需要 Webview，BaoCode 不支持。",
+  "extInstallVsixDone": "扩展安装完成。",
+  "extInstallVsixsDone": "扩展安装完成。",
+  "extInstallVsixRestart": "扩展安装完成。请重启扩展以启用它。",
+  "extInstallVsixsRestart": "扩展安装完成。请重启扩展以启用它们。",
+  "extRestartExtensions": "重启扩展"
 }

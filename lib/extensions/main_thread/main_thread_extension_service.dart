@@ -96,6 +96,7 @@ final class MainThreadExtensionService
   @override
   void $onWillActivateExtension(Map<String, Object?> extensionId) {
     final id = extensionIdFromWire(extensionId);
+    _host.didActivate(id);
     _extensions.willActivate(id, _nameOf(id), hostId);
   }
 

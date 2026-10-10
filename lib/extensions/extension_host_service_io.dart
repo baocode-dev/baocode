@@ -9,6 +9,7 @@ import 'host/ext_host_connection.dart';
 import 'host/extension_host_manager.dart';
 import 'host/extension_server_io.dart';
 import 'host/extension_server_pool_io.dart';
+import 'host/extensions_delta.dart';
 import 'host/implicit_activation_events.dart';
 import 'host/init_data.dart';
 import 'main_thread/main_thread_context.dart';
@@ -81,14 +82,41 @@ final class ExtensionHostService extends ChangeNotifier {
   /// `extensionRegistryVersionId`: bumped by every [refreshExtensions].
   int _extensionsVersionId = 0;
 
-  /// The extensions the running session activated (lowercase ids), told by
-  /// `MainThreadExtensionService`.
+  /// The extensions the running session started activating (lowercase
+  /// ids), told by `MainThreadExtensionService` (upstream's
+  /// `activationStarted`).
   final _activated = <String>{};
 
-  /// [id] was activated in the running session.
+  /// [id]'s activation started in the running session.
   void didActivate(String id) => _activated.add(id.toLowerCase());
 
   bool isActivated(String id) => _activated.contains(id.toLowerCase());
+
+  /// Extensions updated, uninstalled or disabled after their activation
+  /// started (lowercase ids): the host runs what it activated until it
+  /// restarts (upstream's `ExtensionRuntimeActionType.RestartExtensions`).
+  ValueListenable<Set<String>> get pendingRestart => _pendingRestart;
+  final _pendingRestart = ValueNotifier<Set<String>>(const {});
+
+  /// Whether [id] installed at [version] in [folder] needs the extensions
+  /// restarted to run: its activation started here at another version or
+  /// from another folder (upstream's runtime state).
+  bool needsRestartFor(
+    String id, {
+    required String version,
+    required String folder,
+  }) {
+    if (!isActivated(id)) return false;
+    final running = _extensions.value.where(
+      (e) => _idOf(e).toLowerCase() == id.toLowerCase(),
+    );
+    if (running.isEmpty) return false;
+    final location = switch (running.first['extensionLocation']) {
+      final Map<String, Object?> json => VsUri.revive(json).fsPath(),
+      _ => null,
+    };
+    return running.first['version'] != version || location != folder;
+  }
 
   /// The extensions of the running (or last) session.
   ValueListenable<ExtensionDescriptions> get extensions => _extensions;
@@ -113,6 +141,7 @@ final class ExtensionHostService extends ChangeNotifier {
     );
     _checkNotDisposed();
     _activated.clear();
+    _pendingRestart.value = const {};
     _extensions.value = List.unmodifiable(scanned);
     configuration.setExtensions(scanned);
     final previous = _context;
@@ -192,16 +221,12 @@ final class ExtensionHostService extends ChangeNotifier {
         final Object? other => '$other',
       };
 
-  /// What makes two scans of an extension the same one.
-  static String _signatureOf(Map<String, Object?> description) =>
-      '${description['version']}|${description['extensionLocation']}';
-
   /// The installed or enabled extensions changed: the running host gets
   /// them as `$deltaExtensions` (upstream's
-  /// `AbstractExtensionService._deltaExtensions`); one that must drop an
-  /// extension it activated (uninstalled, disabled, updated) is restarted,
-  /// as upstream asks the user to. A host not running scans afresh as it
-  /// starts.
+  /// `AbstractExtensionService._deltaExtensions`). An extension whose
+  /// activation started is neither removed nor replaced
+  /// (`canRemoveExtension`): it waits in [pendingRestart] for the user to
+  /// restart the extensions. A host not running scans afresh as it starts.
   Future<void> refreshExtensions() async {
     final rpc = manager.rpc;
     if (rpc == null || manager.state != ExtensionHostState.running) return;
@@ -212,30 +237,19 @@ final class ExtensionHostService extends ChangeNotifier {
         developmentLocations: developmentLocations,
       ),
     );
-    final before = {
-      for (final e in _extensions.value) _idOf(e).toLowerCase(): e,
-    };
-    final after = {for (final e in scanned) _idOf(e).toLowerCase(): e};
-    final toRemove = <Map<String, Object?>>[
-      for (final MapEntry(:key, :value) in before.entries)
-        if (after[key] == null ||
-            _signatureOf(after[key]!) != _signatureOf(value))
-          value,
-    ];
-    final toAdd = <Map<String, Object?>>[
-      for (final MapEntry(:key, :value) in after.entries)
-        if (before[key] == null ||
-            _signatureOf(before[key]!) != _signatureOf(value))
-          value,
-    ];
-    if (toAdd.isEmpty && toRemove.isEmpty) return;
-    if (toRemove.any((e) => isActivated(_idOf(e)))) {
-      await manager.restart();
-      return;
+    final (:toAdd, :toRemove, :kept, running: runs) = extensionsDelta(
+      before: _extensions.value,
+      after: scanned,
+      activated: isActivated,
+    );
+    if (kept.isNotEmpty) {
+      _pendingRestart.value = {..._pendingRestart.value, ...kept};
     }
+    if (toAdd.isEmpty && toRemove.isEmpty) return;
+    final running = List<Map<String, Object?>>.unmodifiable(runs);
     _extensionsVersionId++;
-    _extensions.value = List.unmodifiable(scanned);
-    configuration.setExtensions(scanned);
+    _extensions.value = running;
+    configuration.setExtensions(running);
     Map<String, Object?> identifier(Map<String, Object?> e) {
       final id = _idOf(e);
       return {'value': id, '_lower': id.toLowerCase()};
@@ -281,6 +295,7 @@ final class ExtensionHostService extends ChangeNotifier {
       ..dispose();
     unawaited(_context?.dispose());
     _extensions.dispose();
+    _pendingRestart.dispose();
     super.dispose();
   }
 

@@ -601,6 +601,13 @@ class ExtensionRow extends StatelessWidget {
                               label: l10n.extInstall,
                               onPressed: onInstall,
                             )
+                          else if (model.needsRestart(entry.key))
+                            ExtensionActionButton(
+                              label: l10n.extRestartExtensions,
+                              onPressed: model.restartExtensions == null
+                                  ? null
+                                  : () => unawaited(model.restartExtensions!()),
+                            )
                           else if (update != null)
                             ExtensionActionButton(
                               label: l10n.extsUpdateTo(update.version),

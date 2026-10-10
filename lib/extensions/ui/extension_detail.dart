@@ -473,6 +473,17 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
         ),
       );
     } else {
+      if (_model.needsRestart(widget.id.toLowerCase())) {
+        buttons.add(
+          ExtensionActionButton(
+            large: true,
+            label: l10n.extRestartExtensions,
+            onPressed: _model.restartExtensions == null
+                ? null
+                : () => unawaited(_model.restartExtensions!()),
+          ),
+        );
+      }
       if (update != null) {
         buttons.add(
           ExtensionActionButton(

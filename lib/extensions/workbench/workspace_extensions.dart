@@ -28,6 +28,7 @@ import '../../ide/ide_workspace.dart';
 import '../../ide/lsp/language_features.dart';
 import '../../ide/lsp/lsp_protocol.dart' show LspPosition, LspRange;
 import '../../ide/terminal/terminal_instance.dart' show TerminalBackend;
+import '../../l10n/l10n.dart';
 import '../../platform/data_dir.dart';
 import '../../settings/jsonc.dart';
 import '../../theme/file_icon_theme.dart';
@@ -172,6 +173,11 @@ final class ExtensionsApp {
   /// The display language, as VS Code names it (`en`, `zh-cn`): the
   /// extensions' localized manifests and `vscode.env.language`.
   String get language => _language?.call() ?? 'en';
+
+  /// The app's strings in [language].
+  AppLocalizations l10n() => language.startsWith('zh')
+      ? lookupAppLocalizations(const Locale('zh'))
+      : englishLocalizations;
 
   final OpenVsxClient? _gallery;
 
@@ -323,11 +329,12 @@ final class ExtensionsApp {
   void followIconThemeSetting() {
     if (_iconThemeListener != null) return;
     void follow() => unawaited(
-      FileIconThemeService.instance.select(switch (userSettings
-          .values['workbench.iconTheme']) {
-        final String id when id != FileIconThemeService.bundledId => id,
-        _ => null,
-      }),
+      FileIconThemeService.instance.select(
+        switch (userSettings.values['workbench.iconTheme']) {
+          final String id when id != FileIconThemeService.bundledId => id,
+          _ => null,
+        },
+      ),
     );
     userSettings.addListener(_iconThemeListener = follow);
     follow();
@@ -491,6 +498,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
     backend: management,
     gallery: app.gallery,
     locale: app.language,
+    pendingRestart: () => _host?.pendingRestart.value ?? const {},
+    restartExtensions: () async => _host?.manager.restart(),
   );
 
   /// The Open VSX extensions to recommend for [documents] (the open
@@ -672,6 +681,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
       notifications: workspace.notifications,
       dialogs: dialogs,
       commands: WorkbenchCommandExecutor(commands),
+      l10n: app.l10n,
     );
     await terminalEnvironment.load();
     if (_disposed) return;
@@ -912,6 +922,9 @@ final class WorkspaceExtensions extends ChangeNotifier {
             ) as Map?)?.cast(),
           ),
     );
+    void runtimeChanged() => _extensionsModel?.runtimeChanged();
+    host.pendingRestart.addListener(runtimeChanged);
+    _stops.add(() => host.pendingRestart.removeListener(runtimeChanged));
     void updateTrust() {
       trust.update();
       configuration.trusted = trust.isWorkspaceTrusted;
@@ -972,6 +985,16 @@ final class WorkspaceExtensions extends ChangeNotifier {
         }
       },
     );
+    builtins
+      ..l10n = app.l10n
+      ..restartExtensions = (() async => _host?.manager.restart())
+      ..needsRestart = (installed) =>
+          _host?.needsRestartFor(
+            installed.manifest.id,
+            version: installed.manifest.version,
+            folder: installed.location,
+          ) ??
+          false;
     _stops.add(
       registerWorkbenchBuiltinCommands(
         commands.builtins,

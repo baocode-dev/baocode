@@ -153,6 +153,11 @@ abstract interface class ExtensionManagementCommandsPort {
 
   /// `workbench.extensions.uninstallExtension`.
   Future<void> uninstall(String id);
+
+  /// `workbench.extensions.command.installFromVSIX`: installs [vsixs] at
+  /// their versions, then tells it (with Restart Extensions when one runs
+  /// another version); fails with the first install that fails.
+  Future<void> installVsixs(List<VsUri> vsixs);
 }
 
 int _num(Object? v, [int fallback = 0]) => v is num ? v.toInt() : fallback;
@@ -500,6 +505,18 @@ void Function() registerWorkbenchBuiltinCommands(
         throw ArgumentError('workbench.extensions.uninstallExtension: an id');
       }
       await extensions.uninstall(id);
+    });
+    regVoid('workbench.extensions.command.installFromVSIX', (args) async {
+      final a = arg(args, 0);
+      final vsixs = [
+        for (final r in a is List ? a : [a]) ?uriArg(r),
+      ];
+      if (vsixs.isEmpty) {
+        throw ArgumentError(
+          'workbench.extensions.command.installFromVSIX: URIs of .vsix files',
+        );
+      }
+      await extensions.installVsixs(vsixs);
     });
   }
 

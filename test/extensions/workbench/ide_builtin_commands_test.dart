@@ -18,6 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../ide/workbench/fake_files.dart';
+import '../ui/fake_backend.dart' show fakeManifest;
 
 final class _Management implements ExtensionManagementBackend {
   final calls = <String>[];
@@ -35,6 +36,21 @@ final class _Management implements ExtensionManagementBackend {
 
   @override
   Future<void> uninstall(String id) async => calls.add('uninstall $id');
+
+  @override
+  Future<InstalledExtension> install(
+    String vsixPath, {
+    ExtensionInstallOptions options = const ExtensionInstallOptions(),
+  }) async {
+    calls.add('vsix $vsixPath ${options.installGivenVersion}');
+    if (vsixPath.endsWith('bad.vsix')) throw StateError('corrupt');
+    return InstalledExtension(
+      manifest: fakeManifest(
+        'acme.${vsixPath.split('/').last.split('.').first}',
+      ),
+      location: '/ext/$vsixPath',
+    );
+  }
 
   @override
   Object? noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -290,6 +306,50 @@ void main() {
     expect(management.calls, [
       'gallery acme.tool 1.2.0 true',
       'uninstall acme.tool',
+    ]);
+  });
+
+  test('Install Extension VSIX: at its version, then told; Restart '
+      'Extensions when one runs another version', () async {
+    final restarts = <String>[];
+    builtins
+      ..needsRestart = ((e) => e.manifest.id == 'acme.running')
+      ..restartExtensions = () async => restarts.add('restart');
+    await commands.executeCommand(
+      'workbench.extensions.command.installFromVSIX',
+      [
+        [VsUri.file('/d/fresh.vsix')],
+      ],
+    );
+    expect(management.calls, ['vsix /d/fresh.vsix true']);
+    expect(
+      workspace.notifications.notifications.first.message,
+      'Completed installing extension.',
+    );
+
+    await commands.executeCommand(
+      'workbench.extensions.command.installFromVSIX',
+      [VsUri.file('/d/running.vsix')],
+    );
+    final told = workspace.notifications.notifications.first;
+    expect(
+      told.message,
+      'Completed installing extension. Please restart extensions to enable it.',
+    );
+    told.primary.single.run();
+    expect(restarts, ['restart']);
+
+    // All are installed, then the first failure.
+    management.calls.clear();
+    await expectLater(
+      commands.executeCommand('workbench.extensions.command.installFromVSIX', [
+        [VsUri.file('/d/bad.vsix'), VsUri.file('/d/other.vsix')],
+      ]),
+      throwsStateError,
+    );
+    expect(management.calls, [
+      'vsix /d/bad.vsix true',
+      'vsix /d/other.vsix true',
     ]);
   });
 }

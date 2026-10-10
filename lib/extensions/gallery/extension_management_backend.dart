@@ -92,6 +92,7 @@ class ExtensionInstallOptions {
   const ExtensionInstallOptions({
     this.preRelease = false,
     this.fromGallery = false,
+    this.installGivenVersion = false,
   });
 
   /// Installed as a pre-release: updates follow pre-releases.
@@ -100,6 +101,10 @@ class ExtensionInstallOptions {
   /// The .vsix came from the gallery (its metadata says `source: gallery`),
   /// not from the user.
   final bool fromGallery;
+
+  /// This version, kept (pinned: not updated automatically), as Install
+  /// Extension VSIX asks.
+  final bool installGivenVersion;
 }
 
 enum ExtensionManagementEventKind { installed, uninstalled, enablement }

@@ -7973,4 +7973,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get extViewWebviewUnsupported =>
       'This view needs a Webview, which BaoCode does not support.';
+
+  @override
+  String get extInstallVsixDone => 'Completed installing extension.';
+
+  @override
+  String get extInstallVsixsDone => 'Completed installing extensions.';
+
+  @override
+  String get extInstallVsixRestart =>
+      'Completed installing extension. Please restart extensions to enable it.';
+
+  @override
+  String get extInstallVsixsRestart =>
+      'Completed installing extensions. Please restart extensions to enable them.';
+
+  @override
+  String get extRestartExtensions => 'Restart Extensions';
 }

@@ -175,6 +175,7 @@ final class ServerExtensionManagement
       toServer(VsUri.file(File(vsixPath).absolute.path)).toJson(),
       {
         'installPreReleaseVersion': options.preRelease,
+        if (options.installGivenVersion) 'installGivenVersion': true,
         'isMachineScoped': false,
         // They come from Open VSX through BaoCode, below.
         'donotIncludePackAndDependencies': true,

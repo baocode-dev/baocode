@@ -71,12 +71,26 @@ class ExtensionsModel extends ChangeNotifier {
     required this.gallery,
     this.locale,
     this.searchDelay = const Duration(milliseconds: 300),
+    this.pendingRestart,
+    this.restartExtensions,
   }) {
     _changes = backend.onDidChange.listen((_) => unawaited(refreshInstalled()));
   }
 
   final ExtensionManagementBackend backend;
   final OpenVsxClient gallery;
+
+  /// The extensions (keys) that run another version, or were removed or
+  /// disabled, until the extensions restart (upstream's runtime state).
+  final Set<String> Function()? pendingRestart;
+
+  /// Restarts the extensions (Restart Extensions).
+  final Future<void> Function()? restartExtensions;
+
+  bool needsRestart(String key) => pendingRestart?.call().contains(key) ?? false;
+
+  /// What runs changed ([needsRestart]).
+  void runtimeChanged() => _notify();
 
   /// For localized manifests (`zh-cn`).
   final String? locale;
