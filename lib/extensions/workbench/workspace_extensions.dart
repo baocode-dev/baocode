@@ -1236,6 +1236,10 @@ final class WorkspaceExtensions extends ChangeNotifier {
       }()),
     );
     _stops.add(() => unawaited(changes.cancel()));
+    if (remote case final remote?) {
+      final messages = remote.extensions.messages.listen(_logHostError);
+      _stops.add(() => unawaited(messages.cancel()));
+    }
     _watcher = WorkspaceFileWatcher(
       files: files,
       workspace: workspaceContext,

@@ -77,6 +77,16 @@ final class RemoteExtensions {
   /// What could not be done.
   final void Function(String message)? log;
 
+  final _messages = StreamController<String>.broadcast();
+
+  /// What could not be done, as it happens.
+  Stream<String> get messages => _messages.stream;
+
+  void _log(String message) {
+    log?.call(message);
+    if (!_messages.isClosed) _messages.add(message);
+  }
+
   /// The runtime being installed there.
   final void Function(RemoteRuntimeProgress progress)? onProgress;
 
@@ -108,15 +118,20 @@ final class RemoteExtensions {
       onProgress: onProgress,
     );
     _server = server;
+    _product = server.product ?? const {};
     try {
       await _sync();
     } on Object catch (error) {
-      log?.call('Could not install the extensions on $name: $error');
+      _log('Could not install the extensions on $name: $error');
     }
     return server;
   }
 
   ExtensionServer? _server;
+
+  /// The runtime's `product.json` (its `extensionKind` and
+  /// `extensionPointExtensionKind`).
+  Map<String, Object?> _product = const {};
 
   /// The user's extensions there.
   late final ServerExtensionManagement management = ServerExtensionManagement(
@@ -184,7 +199,7 @@ final class RemoteExtensions {
           ),
         );
       } on Object catch (error) {
-        log?.call('Could not install ${extension.id} on $name: $error');
+        _log('Could not install ${extension.id} on $name: $error');
       }
     }
     for (final MapEntry(:key, value: extension) in there.entries) {
@@ -192,7 +207,7 @@ final class RemoteExtensions {
       try {
         await management.uninstall(extension.id);
       } on Object catch (error) {
-        log?.call('Could not uninstall ${extension.id} on $name: $error');
+        _log('Could not uninstall ${extension.id} on $name: $error');
       }
     }
   }
@@ -200,7 +215,12 @@ final class RemoteExtensions {
   List<ExtensionKind> _kinds(Map<String, Object?> manifest) => extensionKindOf(
     manifest,
     userConfigured: configuredKinds?.call() ?? const {},
+    product: _map(_product['extensionKind']),
+    productExtensionPoints: _map(_product['extensionPointExtensionKind']),
   );
+
+  static Map<String, Object?> _map(Object? value) =>
+      value is Map ? value.cast<String, Object?>() : const {};
 
   /// Whether [manifest]'s extension runs on the host when installed on
   /// both sides.
@@ -289,6 +309,7 @@ final class RemoteExtensions {
       };
 
   Future<void> dispose() async {
+    await _messages.close();
     _local.dispose();
     management.dispose();
     await pool.dispose();

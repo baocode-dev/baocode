@@ -15,10 +15,14 @@ import 'package:baocode/extensions/configuration/configuration_service.dart';
 import 'package:baocode/extensions/configuration/core_configuration.dart';
 import 'package:baocode/extensions/gallery/open_vsx_client.dart';
 import 'package:baocode/extensions/host/extension_host_manager.dart';
+import 'package:baocode/extensions/runtime/extension_runtime_service.dart';
+import 'package:baocode/extensions/window/output/extension_output_service.dart';
+import 'package:baocode/ide/terminal/terminal_instance.dart' show TerminalBackend;
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
 import 'package:baocode/ide/ide_editor_features.dart';
 import 'package:baocode/ide/ide_editor_views.dart';
 import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/remote/ssh_host.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -119,11 +123,14 @@ final class OpenVsxWorkspace {
     List<String> development = const [],
     void Function(String project)? prepare,
     String? reopen,
+    SshHost? remote,
+    String? remoteProject,
+    ExtensionRuntimeService? runtime,
   }) async {
     // The binding answers every HttpClient request with a 400: these
     // download for real.
     HttpOverrides.global = null;
-    final runtime = exthostRuntimeDir()!;
+    final runtimeDir = exthostRuntimeDir()!;
     final root =
         reopen ??
         (await Directory.systemTemp.createTemp('exthost-openvsx'))
@@ -140,7 +147,8 @@ final class OpenVsxWorkspace {
     final app = ExtensionsApp(
       userSettings: AcceptanceSettings({...settings}),
       dataDirectory: p.join(root, 'data'),
-      loadRuntime: () => ExtHostRuntime.load(runtime),
+      runtime: runtime,
+      loadRuntime: () => ExtHostRuntime.load(runtimeDir),
       coreConfiguration: () async => CoreConfiguration.fromJson(
         (jsonDecode(
           File('assets/exthost/core_configuration.json').readAsStringSync(),
@@ -149,9 +157,24 @@ final class OpenVsxWorkspace {
       ),
       gallery: OpenVsxClient(cacheDir: openVsxCacheDir()),
     );
-    final extensions = app.workspace(project);
+    // A remote project: [remote]'s, at [remoteProject] there (the
+    // project made here when the host is this machine).
+    final at = remoteProject ?? project;
+    final extensions = remote == null
+        ? app.workspace(project)
+        : app.workspace(
+            at,
+            remote: RemoteWorkspaceSite(
+              extensions: app.remote(remote.name, () => remote.ready),
+              files: remote.files(at),
+              connectedHello: () => remote.hello,
+            ),
+            terminals: remote.terminals(const TerminalBackend()),
+          );
     final workspace = IdeWorkspace(
-      project,
+      at,
+      files: remote?.files(at),
+      paths: remote?.paths,
       languages: extensions.languages,
       extensionLanguageId: extensions.languageIdFor,
     );
@@ -182,7 +205,7 @@ final class OpenVsxWorkspace {
     });
     final result = OpenVsxWorkspace._(
       root,
-      project,
+      at,
       app,
       extensions,
       workspace,
@@ -203,12 +226,16 @@ final class OpenVsxWorkspace {
     extensions.host!.developmentLocations = [
       for (final folder in development) VsUri.file(p.absolute(folder)),
     ];
-    await extensions.startHost().timeout(const Duration(minutes: 2));
-    expect(
-      extensions.host!.manager.state,
-      ExtensionHostState.running,
-      reason: '${extensions.host!.manager.error}',
+    await extensions.startHost().timeout(
+      Duration(minutes: remote == null ? 2 : 10),
     );
+    for (final host in extensions.hosts) {
+      expect(
+        host.manager.state,
+        ExtensionHostState.running,
+        reason: '${host.manager.error}',
+      );
+    }
     return result;
   }
 
@@ -289,5 +316,10 @@ final class OpenVsxWorkspace {
     'Unsupported: $unsupported',
     for (final e in extensions.running.withErrors)
       '${e.id}: ${e.errors.map((x) => x.message).join(' | ')}',
+    if (extensions.output.channel(
+          ExtensionOutputService.extensionHostChannelId,
+        )
+        case final channel?)
+      for (var i = 0; i < channel.text.length; i++) channel.text[i],
   ].join('\n');
 }
