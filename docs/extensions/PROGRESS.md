@@ -242,16 +242,18 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 
 - The web build compiles the extensions again: dart:ffi (`Abi`, the Credential Manager) is behind
   `if (dart.library.ffi)` imports, and SVG files go through lib/platform/svg_file.dart (flutter_svg's
-  `SvgPicture.file` takes its own `File` on the web). `web_stub_test.dart` guards both. main's own web build fails
-  on lib/remote/remote_binaries.dart (dart:ffi) and bao_remote's git_review_store.dart (a 64-bit literal); with those
-  two masked locally, `flutter build web` succeeds.
+  `SvgPicture.file` takes its own `File` on the web). `web_stub_test.dart` guards both. The two of main's that
+  also failed it are fixed (3efbf04): lib/remote/remote_binaries.dart's `Abi` is behind the same kind of import, and
+  bao_remote's git_review_store.dart builds its 64-bit FNV offset from two halves. `flutter build web --no-pub`
+  succeeds.
 
 ## In progress / next
 
-1. 九.1–九.9 are done (see Done). Final checks before the merge (main 9f84ede merged in): `flutter analyze --no-pub`
-   clean; `flutter build macos --debug` builds; the offscreen screenshots checked one by one; the full suite once:
-   all pass but 9 that fail on main 9f84ede too (codex_test "an account out of quota gives way to the next",
-   terminal_color_theme_test, search_palette_test ⌘[ ⌘], window_material_test ×3, quit_confirmation_test ×3).
+1. 九.1–九.9 are done (see Done). The 9 tests that failed on main 9f84ede too are brought up to main's changes
+   (ab07142: the terminal view's font size sync, the palette's new first actions, the window canvas as a Material,
+   a quit with nothing at work not asked about, the codex accounts' real clock). Final checks before the merge,
+   all passed: `flutter analyze --no-pub` clean; the full suite 6111 passed, 33 skipped, none failed;
+   `flutter build macos --debug` and `flutter build web --no-pub` build.
 2. Merge into main (`git merge --no-ff`, no push).
 
 ## Decisions and deviations
