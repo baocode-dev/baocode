@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/models/codex/codex_service.dart';
+import 'package:baocode/models/codex/codex_usage.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/models/secret_store.dart';
@@ -8,6 +12,87 @@ import 'package:baocode/settings/pages/models_page.dart';
 import 'package:baocode/settings/pages/settings_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Accounts signed in to by hand: [finish] ends the sign-in under way.
+class _FakeCodex extends CodexService {
+  _FakeCodex(this.providers);
+
+  final ModelProviders providers;
+  final Map<String, CodexUsage> usages = {};
+  final List<String> removed = [];
+  int refreshed = 0;
+  Completer<ProviderAccount>? _pending;
+
+  /// Whether sign-in finds its port free.
+  bool listening = true;
+  _FakeLogin? last;
+
+  void finish(ProviderAccount account) => _pending!.complete(account);
+
+  @override
+  Future<CodexLogin> login(String providerId) async {
+    final pending = _pending = Completer();
+    return last = _FakeLogin(
+      pending.future.then((account) async {
+        await providers.save(
+          providers.provider(providerId)!.withAccount(account),
+        );
+        notifyListeners();
+        return account;
+      }),
+      () {
+        if (!pending.isCompleted) pending.completeError(const CodexCancelled());
+      },
+    )..listening = listening;
+  }
+
+  @override
+  Future<void> refreshUsage(ModelProvider provider) async => refreshed++;
+
+  @override
+  CodexUsage? usage(String providerId, String accountId) => usages[accountId];
+
+  @override
+  String? error(String providerId, String accountId) =>
+      accountId == 'b' ? 'Signed out: sign in again.' : null;
+
+  @override
+  DateTime? limitedUntil(String providerId, String accountId) => null;
+
+  @override
+  Future<void> removeAccount(String providerId, String accountId) async {
+    removed.add(accountId);
+    final provider = providers.provider(providerId)!;
+    await providers.save(
+      provider.copyWith(
+        accounts: [
+          for (final account in provider.accounts)
+            if (account.id != accountId) account,
+        ],
+      ),
+    );
+  }
+}
+
+class _FakeLogin implements CodexLogin {
+  _FakeLogin(this.result, this._cancel);
+
+  @override
+  final Uri url = Uri.parse('https://auth.openai.com/oauth/authorize?x=1');
+  @override
+  final Future<ProviderAccount> result;
+  final void Function() _cancel;
+  final submitted = <String>[];
+
+  @override
+  bool listening = true;
+
+  @override
+  void submit(String callback) => submitted.add(callback);
+
+  @override
+  void cancel() => _cancel();
+}
 
 void main() {
   late ModelProviders providers;
@@ -29,14 +114,18 @@ void main() {
     ];
   }
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(WidgetTester tester, {CodexService? codex}) async {
     tester.view.physicalSize = const Size(1000, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: ModelsSettingsPage(providers: providers, listModels: list),
+          body: ModelsSettingsPage(
+            providers: providers,
+            listModels: list,
+            codex: codex,
+          ),
         ),
       ),
     );
@@ -270,5 +359,136 @@ void main() {
     expect(providers.providers, isEmpty);
     expect(await secrets.read('provider.gw'), isNull);
     expect(find.text('Add Upstream'), findsWidgets);
+  });
+
+  testWidgets('a ChatGPT upstream signs in to accounts, shows their quota, '
+      'and balances them', (tester) async {
+    await providers.save(
+      const ModelProvider(
+        id: 'cx',
+        name: 'ChatGPT',
+        protocol: ProviderProtocol.codex,
+        accounts: [
+          ProviderAccount(id: 'a', email: 'a@example.com', plan: 'plus'),
+        ],
+      ),
+    );
+    final codex = _FakeCodex(providers);
+    codex.usages['a'] = CodexUsage(
+      at: DateTime.now(),
+      primary: CodexWindow(
+        usedPercent: 42,
+        minutes: 300,
+        resetsAt: DateTime.now().add(const Duration(minutes: 90)),
+      ),
+      secondary: const CodexWindow(usedPercent: 7, minutes: 10080),
+    );
+    await pump(tester, codex: codex);
+    expect(find.textContaining('1 account'), findsOneWidget);
+    await tester.tap(find.text('ChatGPT'));
+    await tester.pumpAndSettle();
+
+    // Signed in to, not a URL and a key.
+    expect(find.text('Base URL'), findsNothing);
+    expect(find.text('API Key'), findsNothing);
+    expect(codex.refreshed, 1);
+    expect(find.text('a@example.com'), findsOneWidget);
+    expect(find.text('Plus'), findsOneWidget);
+    expect(find.text('5h'), findsOneWidget);
+    expect(find.text('Weekly'), findsOneWidget);
+    expect(find.textContaining('42% used · resets in 1 h '), findsOne);
+    expect(find.text('7% used'), findsOneWidget);
+    // One account: nothing to balance.
+    expect(find.text('Load Balancing'), findsNothing);
+
+    await tester.tap(find.text('Add Account').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Waiting for sign-in…'), findsOneWidget);
+    expect(find.text('Copy Link'), findsOneWidget);
+    codex.finish(const ProviderAccount(id: 'b', email: 'b@example.com'));
+    await tester.pumpAndSettle();
+    expect(find.text('Waiting for sign-in…'), findsNothing);
+    expect(find.text('b@example.com'), findsOneWidget);
+    expect(find.text('Signed out: sign in again.'), findsOneWidget);
+    expect(find.text('Quota not known yet'), findsNothing);
+
+    // Two: balanced, as picked.
+    expect(find.text('Load Balancing'), findsOneWidget);
+    expect(find.text('Round Robin'), findsOneWidget);
+    await tester.tap(find.text('Round Robin'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Most Remaining').last);
+    await tester.pumpAndSettle();
+    expect(providers.provider('cx')!.balance, AccountBalance.mostRemaining);
+
+    await tester.tap(find.bySemanticsLabel('Use a@example.com'));
+    await tester.pumpAndSettle();
+    expect(providers.provider('cx')!.account('a')!.enabled, isFalse);
+
+    await tester.tap(find.byTooltip('Remove account').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Remove “b@example.com”?'), findsOneWidget);
+    await tester.tap(find.text('Remove account').last);
+    await tester.pumpAndSettle();
+    expect(codex.removed, ['b']);
+    expect(providers.provider('cx')!.accounts.map((a) => a.id), ['a']);
+  });
+
+  testWidgets('signing in can be cancelled', (tester) async {
+    await providers.save(
+      const ModelProvider(
+        id: 'cx',
+        name: 'ChatGPT',
+        protocol: ProviderProtocol.codex,
+      ),
+    );
+    final codex = _FakeCodex(providers);
+    await pump(tester, codex: codex);
+    await tester.tap(find.text('ChatGPT'));
+    await tester.pumpAndSettle();
+    expect(find.text('No account yet'), findsOneWidget);
+    await tester.tap(find.text('Add Account').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Waiting for sign-in…'), findsNothing);
+    expect(find.textContaining('Sign-in failed'), findsNothing);
+  });
+
+  testWidgets('with the port taken, the address signed in to is pasted', (
+    tester,
+  ) async {
+    await providers.save(
+      const ModelProvider(
+        id: 'cx',
+        name: 'ChatGPT',
+        protocol: ProviderProtocol.codex,
+      ),
+    );
+    final codex = _FakeCodex(providers)..listening = false;
+    await pump(tester, codex: codex);
+    await tester.tap(find.text('ChatGPT'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Account').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Port 1455'), findsOneWidget);
+    expect(find.text('Address after sign-in'), findsOneWidget);
+    await tester.ensureVisible(find.text('Address after sign-in'));
+    await tester.pumpAndSettle();
+    // The last field: the name's, then the address's.
+    final address = find.byType(EditableText).last;
+    await tester.tap(address);
+    await tester.enterText(
+      address,
+      'http://localhost:1455/auth/callback?code=c&state=s',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(codex.last!.submitted, [
+      'http://localhost:1455/auth/callback?code=c&state=s',
+    ]);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Address after sign-in'), findsNothing);
   });
 }

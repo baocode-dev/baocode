@@ -142,7 +142,7 @@ class _InteractionPanelState extends State<InteractionPanel>
               ),
             if (question.allowOther)
               _Row(
-                l10n.interactionOther,
+                question.otherLabel ?? l10n.interactionOther,
                 textHint: l10n.interactionTypeYourAnswer,
               ),
           ],

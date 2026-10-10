@@ -13,7 +13,11 @@ enum ProviderProtocol {
   openaiChat('openai-chat'),
 
   /// OpenAI's Responses API: through the local proxy, translated.
-  openaiResponses('openai-responses');
+  openaiResponses('openai-responses'),
+
+  /// ChatGPT's Codex backend, signed in with ChatGPT accounts (OAuth), not
+  /// a key: through the local proxy, as Responses.
+  codex('codex');
 
   const ProviderProtocol(this.id);
 
@@ -22,6 +26,10 @@ enum ProviderProtocol {
 
   /// Spoken to through the proxy ([ModelProxy]).
   bool get proxied => this != anthropic;
+
+  /// Signed in to with accounts ([ModelProvider.accounts]), not a key and
+  /// a base URL.
+  bool get usesAccounts => this == codex;
 
   static ProviderProtocol parse(Object? id) =>
       values.where((value) => value.id == id).firstOrNull ?? anthropic;
@@ -340,6 +348,108 @@ class ProviderRoles {
   int get hashCode => Object.hashAll(_keys.map((key) => this[key]));
 }
 
+/// An account an upstream is signed in to with ([ProviderProtocol.codex]):
+/// what is shown of it, kept in settings.json; its refresh token in the
+/// keychain, under [ModelProvider.accountRefFor].
+class ProviderAccount {
+  const ProviderAccount({
+    required this.id,
+    this.email,
+    this.plan,
+    this.accountId,
+    this.enabled = true,
+  });
+
+  /// Its own, from who signed in to which workspace.
+  final String id;
+  final String? email;
+
+  /// The plan it had as it signed in (`plus`, `pro`, `team`…).
+  final String? plan;
+
+  /// The ChatGPT workspace its requests are made in.
+  final String? accountId;
+
+  /// Taken in turn with the others; off, left out.
+  final bool enabled;
+
+  String get displayName => switch (email?.trim()) {
+    final email? when email.isNotEmpty => email,
+    _ => id,
+  };
+
+  ProviderAccount copyWith({
+    String? email,
+    String? plan,
+    String? accountId,
+    bool? enabled,
+  }) => ProviderAccount(
+    id: id,
+    email: email ?? this.email,
+    plan: plan ?? this.plan,
+    accountId: accountId ?? this.accountId,
+    enabled: enabled ?? this.enabled,
+  );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'email': ?email,
+    'plan': ?plan,
+    'accountId': ?accountId,
+    if (!enabled) 'enabled': false,
+  };
+
+  static ProviderAccount? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final id = json['id'];
+    if (id is! String || id.trim().isEmpty) return null;
+    String? read(String key) => switch (json[key]) {
+      final String value when value.trim().isNotEmpty => value.trim(),
+      _ => null,
+    };
+    return ProviderAccount(
+      id: id.trim(),
+      email: read('email'),
+      plan: read('plan'),
+      accountId: read('accountId'),
+      enabled: json['enabled'] != false,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ProviderAccount &&
+      other.id == id &&
+      other.email == email &&
+      other.plan == plan &&
+      other.accountId == accountId &&
+      other.enabled == enabled;
+
+  @override
+  int get hashCode => Object.hash(id, email, plan, accountId, enabled);
+}
+
+/// Which of an upstream's accounts a request goes to.
+enum AccountBalance {
+  /// A conversation to the next account each, kept on it after (its cache
+  /// is there).
+  roundRobin('round-robin'),
+
+  /// The first account until it reaches its limit, then the next.
+  fillFirst('fill-first'),
+
+  /// A conversation to the account with the most of its quota left, kept
+  /// on it after.
+  mostRemaining('most-remaining');
+
+  const AccountBalance(this.id);
+
+  final String id;
+
+  static AccountBalance parse(Object? id) =>
+      values.where((value) => value.id == id).firstOrNull ?? roundRobin;
+}
+
 /// An upstream of models.
 class ModelProvider {
   const ModelProvider({
@@ -355,6 +465,8 @@ class ModelProvider {
     this.preserveThinking = false,
     this.promptCacheKey = true,
     this.env = const {},
+    this.accounts = const [],
+    this.balance = AccountBalance.roundRobin,
   });
 
   /// Its own, made once; models are picked as `@<id>/<model>`.
@@ -386,13 +498,32 @@ class ModelProvider {
   /// More environment for Claude Code, after what is set from the above.
   final Map<String, String> env;
 
+  /// The accounts it is signed in to, when it [ProviderProtocol.usesAccounts].
+  final List<ProviderAccount> accounts;
+
+  /// Which of [accounts] a request goes to.
+  final AccountBalance balance;
+
   /// Where its key is kept in the keychain.
   String get keyRef => keyRefFor(id);
 
   static String keyRefFor(String id) => 'provider.$id';
 
-  /// The host its base URL names, for the list.
-  String get host => Uri.tryParse(baseUrl.trim())?.host ?? '';
+  /// Where account [accountId]'s refresh token is kept in the keychain.
+  static String accountRefFor(String id, String accountId) =>
+      'provider.$id.$accountId';
+
+  /// The host its base URL names, for the list; ChatGPT's for Codex.
+  String get host => protocol == ProviderProtocol.codex
+      ? 'chatgpt.com'
+      : Uri.tryParse(baseUrl.trim())?.host ?? '';
+
+  /// Whether it has what it is reached with: a base URL, or an account.
+  bool get connected =>
+      protocol.usesAccounts ? accounts.isNotEmpty : host.isNotEmpty;
+
+  ProviderAccount? account(String id) =>
+      accounts.where((account) => account.id == id).firstOrNull;
 
   List<ProviderModel> get enabledModels => [
     for (final model in models)
@@ -414,6 +545,8 @@ class ModelProvider {
     bool? preserveThinking,
     bool? promptCacheKey,
     Map<String, String>? env,
+    List<ProviderAccount>? accounts,
+    AccountBalance? balance,
   }) => ModelProvider(
     id: id,
     name: name ?? this.name,
@@ -428,7 +561,19 @@ class ModelProvider {
     preserveThinking: preserveThinking ?? this.preserveThinking,
     promptCacheKey: promptCacheKey ?? this.promptCacheKey,
     env: env ?? this.env,
+    accounts: accounts ?? this.accounts,
+    balance: balance ?? this.balance,
   );
+
+  /// With [account] in place of the one of its id, or added.
+  ModelProvider withAccount(ProviderAccount account) {
+    final index = accounts.indexWhere((a) => a.id == account.id);
+    return copyWith(
+      accounts: index < 0
+          ? [...accounts, account]
+          : [...accounts.take(index), account, ...accounts.skip(index + 1)],
+    );
+  }
 
   /// With [model] in place of the one of its id, or added.
   ModelProvider withModel(ProviderModel model) {
@@ -453,6 +598,9 @@ class ModelProvider {
     if (preserveThinking) 'preserveThinking': true,
     if (!promptCacheKey) 'promptCacheKey': false,
     if (env.isNotEmpty) 'env': env,
+    if (accounts.isNotEmpty)
+      'accounts': [for (final account in accounts) account.toJson()],
+    if (balance != AccountBalance.roundRobin) 'balance': balance.id,
   };
 
   static ModelProvider? fromJson(Object? json) {
@@ -482,6 +630,11 @@ class ModelProvider {
           for (final MapEntry(:key, :value) in env.entries)
             if (key is String && key.isNotEmpty && value != null) key: '$value',
       },
+      accounts: [
+        for (final account in json['accounts'] as List? ?? const [])
+          ?ProviderAccount.fromJson(account),
+      ],
+      balance: AccountBalance.parse(json['balance']),
     );
   }
 

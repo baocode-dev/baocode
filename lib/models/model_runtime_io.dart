@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../network/network_proxy_io.dart';
+import '../workspace/editor_launcher.dart';
+import 'codex/codex_accounts_io.dart';
+import 'codex/codex_service.dart';
 import 'launch_environment.dart';
 import 'model_provider.dart';
 import 'model_providers.dart';
@@ -10,18 +13,31 @@ import 'model_runtime.dart';
 import 'proxy/model_proxy.dart';
 import 'upstream.dart';
 
+/// The app's ChatGPT (Codex) accounts, over [ModelProviders.current].
+final CodexAccounts _codex = CodexAccounts(
+  providers: () => ModelProviders.current,
+  findProxy: (url) => NetworkProxy.instance.findProxy(url),
+  openBrowser: openExternal,
+);
+
+CodexService get codexService => _codex;
+
 /// The app's proxy, over [ModelProviders.current].
 final ModelProxy _proxy = ModelProxy(
   provider: (id) => ModelProviders.current.provider(id),
   key: (id) => ModelProviders.current.key(id),
   onError: (id, error) => ModelProviders.current.reportError(id, error),
   findProxy: (url) => NetworkProxy.instance.findProxy(url),
+  codex: _codex,
 );
 
 Future<List<RemoteModel>> listUpstreamModels(
   ModelProvider provider,
   String? key,
 ) async {
+  if (provider.protocol == ProviderProtocol.codex) {
+    return _codex.listModels(provider);
+  }
   final urls = UpstreamUrls.models(provider);
   if (urls.isEmpty) {
     throw const UpstreamException('The base URL is not an http(s) URL.');
@@ -131,4 +147,7 @@ Future<Map<String, String>> providerLaunchEnvironment(
   );
 }
 
-Future<void> stopModelProxy() => _proxy.close();
+Future<void> stopModelProxy() async {
+  _codex.close();
+  await _proxy.close();
+}

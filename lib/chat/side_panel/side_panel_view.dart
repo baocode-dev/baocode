@@ -19,6 +19,7 @@ import '../../ide/ide_menu.dart';
 import '../../ide/ide_modern_ui.dart';
 import '../../ide/ide_panes.dart' show IdeViewTitle;
 import '../../ide/ide_tab_bar.dart' show ideTabDescriptions;
+import '../../ide/save_copy.dart';
 import '../../ide/tab_strip_scroll.dart';
 import '../../ide/terminal/links/terminal_links.dart' show TerminalLink;
 import '../../ide/terminal/terminal_instance.dart';
@@ -478,15 +479,7 @@ class AgentSidePanelView extends StatelessWidget {
                           onOpen: (path, _) =>
                               panel.open(session, FileOpenRequest(path)),
                           // A paste, rename or delete that failed.
-                          onError: (error) => unawaited(
-                            showIdeDialog(
-                              context,
-                              type: IdeDialogType.error,
-                              message: localizedFileError(l10n, error),
-                              buttons: const [],
-                              cancel: l10n.commonOk,
-                            ),
-                          ),
+                          onError: (error) => _showFileError(context, error),
                         ),
                 ),
               ],
@@ -590,6 +583,9 @@ class AgentSidePanelView extends StatelessWidget {
                         panel.open(session, FileOpenRequest(path)),
                     onRevealInFiles: _revealInFiles,
                     onAddToChat: session.draft.insertFiles,
+                    onSaveAs: canSaveFileCopy
+                        ? (path) => _saveAs(context, path)
+                        : null,
                   ),
           ),
         ],
@@ -607,6 +603,47 @@ class AgentSidePanelView extends StatelessWidget {
           : _EmptySection(l10n.sidePanelSelectChange),
     );
   }
+
+  /// Tells of a file operation that failed.
+  void _showFileError(BuildContext context, Object error) {
+    final l10n = context.l10n;
+    unawaited(
+      showIdeDialog(
+        context,
+        type: IdeDialogType.error,
+        message: localizedFileError(l10n, error),
+        buttons: const [],
+        cancel: l10n.commonOk,
+      ),
+    );
+  }
+
+  /// Save As… of [path] to this machine (from a remote project's host
+  /// too): [tab]'s text as edited when it has changes not saved.
+  void _saveAs(BuildContext context, String path, [SidePanelTab? tab]) {
+    final edit = tab?.edit;
+    unawaited(
+      saveFileCopyAs(
+        files,
+        path,
+        text: edit != null && edit.dirty ? edit.controller.document.text : null,
+      ).then<void>(
+        (_) {},
+        onError: (Object error) {
+          if (context.mounted) _showFileError(context, error);
+        },
+      ),
+    );
+  }
+
+  IdeMenuAction _saveAsItem(
+    BuildContext context,
+    String path, [
+    SidePanelTab? tab,
+  ]) => IdeMenuAction(
+    context.l10n.cmdSaveAs,
+    onSelected: () => _saveAs(context, path, tab),
+  );
 
   /// Shows [path] in the files page's tree.
   void _revealInFiles(String path) {
@@ -828,6 +865,7 @@ class AgentSidePanelView extends StatelessWidget {
         ),
       ],
       [
+        if (canSaveFileCopy) _saveAsItem(context, path, plan),
         if (local && WindowControls.canRevealInFileManager)
           IdeMenuAction(
             l10n.revealInFileManager,
@@ -992,6 +1030,7 @@ class AgentSidePanelView extends StatelessWidget {
             l10n.sidePanelRevealInFiles,
             onSelected: () => _revealInFiles(path),
           ),
+        if (canSaveFileCopy) _saveAsItem(context, path, tab),
         if (local && WindowControls.canRevealInFileManager)
           IdeMenuAction(
             l10n.revealInFileManager,

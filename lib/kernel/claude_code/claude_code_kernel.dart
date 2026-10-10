@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,12 +10,14 @@ import '../../models/launch_environment.dart';
 import '../../models/model_provider.dart';
 import '../../models/model_providers.dart';
 import '../../models/model_runtime.dart';
+import '../../workspace/editor_launcher.dart' show openExternal;
 import '../agent_kernel.dart';
 import '../commit_attribution.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
 import 'claude_code_transport.dart';
 import 'claude_code_translator.dart';
+import 'claude_elicitation.dart';
 import 'claude_goal.dart';
 import 'control_channel.dart';
 
@@ -23,6 +26,16 @@ import 'control_channel.dart';
 typedef ClaudeHistoryReader = Future<List<Map<String, Object?>>> Function(
   SessionRecord session,
 );
+
+/// Copies the session [id], run in [cwd], into a new one, [into] (see
+/// ClaudeSessions.fork): the new session's file.
+typedef ClaudeSessionForker = Future<String> Function(
+  String cwd,
+  String id,
+  String into, {
+  String? before,
+  String? title,
+});
 
 /// The setting Claude Code runs with that keeps it from asking for the
 /// plan usage, if one does.
@@ -60,6 +73,7 @@ class ClaudeCodeKernel
         QueuesMessages,
         RevertsChanges,
         RewindsConversation,
+        ForksConversation,
         RenamesSession,
         AcceptsImages,
         SuggestsPrompts,
@@ -71,10 +85,13 @@ class ClaudeCodeKernel
     required this._start,
     ClaudeHistoryReader? readHistory,
     this._readGoal,
+    this._forkSession,
     ClaudeUsageSwitch? usageOffBy,
     ModelProviders? providers,
     ProviderEnvironment? providerEnvironment,
-  }) : _usageOffBy = usageOffBy ?? _usageOn,
+    Future<bool> Function(String url)? openLink,
+  }) : _openLink = openLink ?? openExternal,
+       _usageOffBy = usageOffBy ?? _usageOn,
        _providers = providers ?? ModelProviders.current,
        _providerEnvironment = providerEnvironment ?? providerLaunchEnvironment {
     _translator = ClaudeTranslator(
@@ -108,8 +125,12 @@ class ClaudeCodeKernel
   @override
   final KernelDescriptor descriptor;
   final KernelContext _context;
+
+  /// Opens a link an MCP server asks the user to visit.
+  final Future<bool> Function(String url) _openLink;
   final ClaudeTransportFactory _start;
   final ClaudeGoalReader? _readGoal;
+  final ClaudeSessionForker? _forkSession;
   final ClaudeUsageSwitch _usageOffBy;
   late final ClaudeTranslator _translator;
 
@@ -652,6 +673,54 @@ class ClaudeCodeKernel
   }
 
   @override
+  bool get canFork => _forkSession != null && _sessionId != null;
+
+  /// Copied where the session is kept, as Claude Code wrote it so far: a
+  /// turn running goes on here alone.
+  @override
+  Future<SessionRecord?> fork({String? before, required String title}) async {
+    final (forkSession, id) = (_forkSession, _sessionId);
+    if (forkSession == null || id == null) return null;
+    final into = _newSessionId();
+    try {
+      final path = await forkSession(
+        _cwd,
+        id,
+        into,
+        before: before,
+        title: title,
+      );
+      return SessionRecord(
+        id: into,
+        title: title,
+        updatedAt: DateTime.now(),
+        cwd: _cwd,
+        path: path,
+      );
+    } on Object catch (error) {
+      emit(
+        ItemUpserted(
+          nextSeq,
+          'fork:${before ?? id}',
+          NoticeItem(NoticeKind.error, 'Could not fork: $error'),
+        ),
+      );
+      return null;
+    }
+  }
+
+  static final _random = math.Random.secure();
+
+  /// A random UUID (v4), as Claude Code names its sessions.
+  static String _newSessionId() {
+    String hex(int length) => [
+      for (var i = 0; i < length; i++) _random.nextInt(16).toRadixString(16),
+    ].join();
+    final variant = (8 + _random.nextInt(4)).toRadixString(16);
+    return '${hex(8)}-${hex(4)}-4${hex(3)}-$variant${hex(3)}-${hex(12)}';
+  }
+
+  @override
   void revertChanges({required String sinceTurn}) {
     unawaited(
       _request('rewind_files', {'user_message_id': sinceTurn})
@@ -842,6 +911,20 @@ class ClaudeCodeKernel
     final control = _control;
     if (permission == null || control == null) return;
     emit(InteractionResolved(nextSeq, requestId));
+    if (permission.elicitation case (:final fields, :final url)?) {
+      control.respond(requestId, switch (answer) {
+        QuestionAnswer() => elicitationResult(fields, answer),
+        ApprovalAnswer(decision: ApprovalDecision.deny) => {
+          'action': 'decline',
+        },
+        ApprovalAnswer() => () {
+          if (url != null && url.isNotEmpty) unawaited(_openLink(url));
+          return {'action': 'accept'};
+        }(),
+        PlanAnswer() => {'action': 'cancel'},
+      });
+      return;
+    }
     Map<String, Object?> allow({List<Object?>? rules}) => {
       'behavior': 'allow',
       'updatedInput': permission.input,
@@ -907,19 +990,14 @@ class ClaudeCodeKernel
     final tool = request['tool_name'] as String? ?? 'Tool';
     final input = (request['input'] as Map?)?.cast<String, Object?>() ?? {};
     final suggestions = request['permission_suggestions'] as List? ?? const [];
-    // Answered here, with nothing shown: in full access no one is waited
-    // on for a question while it builds (in Plan and Ask, questions are
-    // the point), and in Don't ask nothing that is not pre-approved is
-    // asked about (the CLI asks in Plan all the same). A plan is always
-    // the user's to approve.
-    if (switch ((_approval, tool)) {
-          ('bypassPermissions', 'AskUserQuestion') when _work == 'agent' =>
-            ClaudeTranslator.unattendedAnswer,
-          ('dontAsk', != 'AskUserQuestion' && != 'ExitPlanMode') => _notAsked,
-          _ => null,
-        }
-        case final message?) {
-      _control!.respond(requestId, {'behavior': 'deny', 'message': message});
+    // Answered here, with nothing shown: in Don't ask nothing that is not
+    // pre-approved is asked about (the CLI asks in Plan all the same). A
+    // question and a plan are always the user's to answer, in any mode:
+    // the approvals are about what the agent does, not what it asks.
+    if (_approval == 'dontAsk' &&
+        tool != 'AskUserQuestion' &&
+        tool != 'ExitPlanMode') {
+      _control!.respond(requestId, {'behavior': 'deny', 'message': _notAsked});
       return;
     }
     // Full access is approved here (see _cliApproval), but for what the
@@ -1152,6 +1230,9 @@ class ClaudeCodeKernel
           _beginTurn('${message['uuid'] ?? 'own:$nextSeq'}', unprompted: true);
         }
         _translator.translate(message);
+      case 'system' when message['subtype'] == 'compact_boundary':
+        _translator.translate(message);
+        _compacted(message);
       case 'system' when message['subtype'] == 'session_state_changed':
         _cliWorking = message['state'] != 'idle';
         // A turn's checks of the goal are all kept by now.
@@ -1190,10 +1271,48 @@ class ClaudeCodeKernel
       case 'can_use_tool':
         unawaited(_permission(id, request));
       case 'elicitation':
-        control.respond(id, {'action': 'decline'});
+        _elicitation(id, request);
       default:
         control.refuse(id, 'Not supported by this client');
     }
+  }
+
+  /// An MCP server asks the user for input: its form as questions, or a
+  /// link to visit as leave to open it. Asked in any mode, as a question
+  /// of the agent's is: it is not an action the approvals cover.
+  void _elicitation(String requestId, Map<String, Object?> request) {
+    final server =
+        request['display_name'] as String? ??
+        request['mcp_server_name'] as String? ??
+        'MCP';
+    final message = _clean(request['message'] as String?) ?? '';
+    final InteractionRequest interaction;
+    var fields = const <ElicitationField>[];
+    if (request['mode'] == 'url') {
+      final url = request['url'] as String? ?? '';
+      interaction = ApprovalRequest(
+        id: requestId,
+        title:
+            request['title'] as String? ?? '$server wants you to open a link',
+        toolName: 'mcp__$server',
+        reason: message.isEmpty ? null : message,
+        preview: TextPreview(url),
+      );
+    } else {
+      fields = elicitationFields(request['requested_schema']);
+      interaction = QuestionRequest(
+        id: requestId,
+        title: request['title'] as String? ?? '$server asks for input',
+        questions: elicitationQuestions(message, fields),
+      );
+    }
+    _permissions[requestId] = _Permission(
+      const {},
+      const [],
+      const [],
+      elicitation: (fields: fields, url: request['url'] as String?),
+    );
+    emit(InteractionRequested(nextSeq, interaction));
   }
 
   void _lifecycle(Map<String, Object?> message) {
@@ -1532,6 +1651,24 @@ class ClaudeCodeKernel
       ),
     ),
   );
+
+  /// The conversation was compacted, maybe mid-turn: the context shown
+  /// drops to what is left at once, then to what the CLI counts.
+  void _compacted(Map<String, Object?> message) {
+    final meta = message['compact_metadata'];
+    if (meta is Map && meta['post_tokens'] is int) {
+      emit(
+        UsageReported(
+          nextSeq,
+          ContextUsage(
+            window: _contextWindow,
+            used: meta['post_tokens'] as int,
+          ),
+        ),
+      );
+    }
+    unawaited(_refreshContext());
+  }
 
   Future<void> _refreshContext() async {
     final control = _control;
@@ -2097,7 +2234,7 @@ class ClaudeCodeKernel
       'bypassPermissions',
       'Full access',
       Icons.gpp_maybe_outlined,
-      'No checks, and no questions while it works',
+      'No checks: edits and commands run without asking',
       caution: true,
     ),
   ];
@@ -2292,7 +2429,16 @@ class ClaudeCodeKernel
 typedef _Request = (String, Map<String, Object?>);
 
 class _Permission {
-  const _Permission(this.input, this.suggestions, this.questions);
+  const _Permission(
+    this.input,
+    this.suggestions,
+    this.questions, {
+    this.elicitation,
+  });
+
+  /// For an MCP server's elicitation: its form's fields, or the link it
+  /// asks to open.
+  final ({List<ElicitationField> fields, String? url})? elicitation;
 
   final Map<String, Object?> input;
   final List<Object?> suggestions;

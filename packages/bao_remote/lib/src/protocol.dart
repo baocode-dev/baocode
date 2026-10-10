@@ -63,6 +63,7 @@ abstract final class RemoteProtocol {
   static const claudeRead = 'claude/read';
   static const claudeGoal = 'claude/goal';
   static const claudeDelete = 'claude/delete';
+  static const claudeFork = 'claude/fork';
   static const claudeUsageOffBy = 'claude/usageOffBy';
   static const claudeInstall = 'claude/install';
   static const claudeUpload = 'claude/upload';

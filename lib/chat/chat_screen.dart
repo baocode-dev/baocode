@@ -44,6 +44,7 @@ class ChatScreen extends StatefulWidget {
     this.trailing,
     this.titleBarInset,
     this.onRename,
+    this.onFork,
     this.autofocus = false,
     this.embedded = false,
     this.windowTitleBar = true,
@@ -76,6 +77,10 @@ class ChatScreen extends StatefulWidget {
 
   /// Given, a double click on the title edits it.
   final ValueChanged<String>? onRename;
+
+  /// Given, a finished turn's reply offers to fork the conversation from
+  /// there: the reply's item index.
+  final ValueChanged<int>? onFork;
 
   /// Focuses the composer once shown, e.g. for a new agent.
   final bool autofocus;
@@ -612,6 +617,7 @@ class _ChatScreenState extends State<ChatScreen>
                         maxContentWidth: _maxContentWidth,
                         onOpenAgent: _openAgent,
                         onSetGoal: _setGoal,
+                        onFork: widget.onFork,
                       ),
                       ListenableBuilder(
                         listenable: _session,

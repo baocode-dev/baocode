@@ -799,6 +799,20 @@ class RemoteClient {
   Future<void> claudeDelete(String id) =>
       _call(RemoteProtocol.claudeDelete, {'id': id});
 
+  /// Copies the session [id] into [into] (see [ClaudeSessions.fork]): the
+  /// new session's file.
+  Future<String> claudeFork(
+    String id,
+    String into, {
+    String? before,
+    String? title,
+  }) => _call(RemoteProtocol.claudeFork, {
+    'id': id,
+    'into': into,
+    'before': ?before,
+    'title': ?title,
+  });
+
   Future<String?> claudeUsageOffBy() => _call(RemoteProtocol.claudeUsageOffBy);
 
   // --- Review ----------------------------------------------------------------

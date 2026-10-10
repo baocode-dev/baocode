@@ -18,6 +18,12 @@ at commit `2044a01f422998de79a5da8015141b878886534d`:
 
 Their tests are ported beside them, under `test/models/proxy/translate/`.
 
+The ChatGPT (Codex) provider, in `lib/models/codex/`, follows the same
+project's Codex support (its Codex executor and Codex OAuth), written anew
+rather than ported line by line: the request as the backend takes it and
+its headers, a usage limit reached and the failover from it (`codex_api.dart`),
+signing in with PKCE and the ID token's claims (`codex_oauth.dart`).
+
 What differs from the original:
 
 - The Responses translator targets the standard OpenAI Responses API, not

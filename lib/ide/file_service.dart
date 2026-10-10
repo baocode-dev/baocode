@@ -91,6 +91,17 @@ Future<Uint8List> readFileBytes(String path) => platform.readFileBytes(path);
 Future<void> copyLocalTo(IdeFileService files, String from, String to) =>
     platform.copyLocalTo(files, from, to);
 
+/// Save As… of a file shown: writes it to [to] on this machine, written
+/// over (the save panel asked). [text] when given (an editor's, unsaved
+/// changes and all), else [from]'s bytes as read through [files]: from a
+/// remote project's host, a download.
+Future<void> saveCopyTo(
+  IdeFileService files,
+  String from,
+  String to, {
+  String? text,
+}) => platform.saveCopyTo(files, from, to, text: text);
+
 /// Changes to the entries of [directory] (not of its subfolders): files
 /// written, made, moved or deleted there, by anything. Empty where it
 /// cannot be watched.

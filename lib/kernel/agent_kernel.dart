@@ -206,6 +206,20 @@ abstract interface class RewindsConversation {
   });
 }
 
+/// Copies the conversation into a new session, to go on from there apart
+/// from it: the workspace's files are left as they are.
+abstract interface class ForksConversation {
+  /// Whether there is a conversation to copy yet (e.g. none before the
+  /// first message).
+  bool get canFork;
+
+  /// Copies the conversation into a new session of the kernel's catalog,
+  /// without the user message [before] (an item id) and what follows when
+  /// given, titled [title]: its record, to continue it by; null when it
+  /// could not (the kernel says why in the conversation).
+  Future<SessionRecord?> fork({String? before, required String title});
+}
+
 abstract interface class RenamesSession {
   void rename(String title);
 }

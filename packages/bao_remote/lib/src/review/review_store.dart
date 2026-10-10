@@ -62,7 +62,8 @@ abstract interface class ReviewStore {
   String get root;
 
   /// A snapshot of the project's files (only [paths], the rest as in the
-  /// last one), as a tree. Ignored files and files too large are left out.
+  /// last one), as a tree. Ignored files and files too large are left out;
+  /// those of a repository inside the project are in it.
   Future<String> snapshot({Iterable<String>? paths});
 
   /// The paths that differ from tree [from] to tree [to].

@@ -13,6 +13,7 @@ import '../workspace/window_controls.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_workspace.dart';
+import 'save_copy.dart';
 import 'tab_strip_scroll.dart';
 
 /// The actions of a tab's context menu.
@@ -24,6 +25,7 @@ enum IdeTabAction {
   closeAll,
   copyPath,
   copyRelativePath,
+  saveAs,
   revealInFileManager,
   openInDefaultApp,
   revealInExplorer,
@@ -254,6 +256,16 @@ class _IdeTabBarState extends State<IdeTabBar> {
           (
             id: '2_files',
             entries: [
+              // The editor's Save As; a picture's or binary file's is copied.
+              // Not a revision's.
+              if (canSaveFileCopy &&
+                  doc.readRevision == null &&
+                  doc.label == null)
+                item(
+                  IdeTabAction.saveAs,
+                  l10n.cmdSaveAs,
+                  command: 'workbench.action.files.saveAs',
+                ),
               // Not a revision's tab, whose file may be gone.
               if (widget.local &&
                   WindowControls.canRevealInFileManager &&

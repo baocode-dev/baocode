@@ -269,7 +269,7 @@ void main() {
   ) async {
     await pumpChat(tester);
     await tester.pump(const Duration(milliseconds: 300));
-    final modeRow = find.text('Plan, edit and run on its own');
+    final modeRow = find.text('Plan, edit and run code');
     expect(modeRow, findsNothing);
     await press(tester, LogicalKeyboardKey.period, control: true);
     await tester.pump(const Duration(milliseconds: 300));
@@ -303,7 +303,7 @@ void main() {
     await tester.pump();
     expect(composerMessage(tester), 'see @/tmp/notes.md');
 
-    final modeRow = find.text('Plan, edit and run on its own');
+    final modeRow = find.text('Plan, edit and run code');
     await press(tester, LogicalKeyboardKey.period, meta: true);
     await tester.pump(const Duration(milliseconds: 300));
     expect(modeRow, findsOneWidget);

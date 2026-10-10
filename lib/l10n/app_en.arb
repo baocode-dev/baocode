@@ -926,6 +926,18 @@
   "@sidebarCopySessionId": {
     "description": "An agent's menu in the sidebar: copies the id of its session, which Claude Code finds the conversation by."
   },
+  "sidebarFork": "Fork",
+  "@sidebarFork": {
+    "description": "An agent's menu in the sidebar: copies its conversation into a new agent, which opens."
+  },
+  "chatForkFromHere": "Fork from here",
+  "@chatForkFromHere": {
+    "description": "Under an agent's reply, on hover: copies the conversation up to the end of this turn into a new agent, which opens."
+  },
+  "chatCopyReply": "Copy reply",
+  "@chatCopyReply": {
+    "description": "Under an agent's reply, on hover: copies the reply's Markdown."
+  },
   "sidebarShowMore": "Show more ({count})",
   "@sidebarShowMore": {
     "placeholders": {
@@ -1386,7 +1398,7 @@
   "composerApprovalDontAsk": "Don't ask",
   "composerApprovalDontAskDetail": "Deny whatever is not pre-approved",
   "composerApprovalFullAccess": "Full access",
-  "composerApprovalFullAccessDetail": "No checks, and no questions while it works",
+  "composerApprovalFullAccessDetail": "No checks: edits and commands run without asking",
   "composerContextUsage": "Context usage",
   "composerSend": "Send  ↵",
   "composerStop": "Stop",
@@ -3860,6 +3872,129 @@
       }
     }
   },
+  "modelsAccounts": "Accounts",
+  "modelsAccountsDescription": "Sign in with ChatGPT to use Codex models on your plan's quota. With several accounts, requests are spread across them by the load balancing below, and one out of quota gives way to the next.",
+  "modelsAccountsNone": "No account yet",
+  "modelsAccountCount": "{count, plural, =0{no accounts} =1{1 account} other{{count} accounts}}",
+  "@modelsAccountCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsAddAccount": "Add Account",
+  "modelsAddAccountDescription": "Opens ChatGPT's sign-in page in the browser.",
+  "modelsAccountSigningIn": "Waiting for sign-in…",
+  "modelsAccountSigningInDetail": "Finish signing in in the browser. If it did not open, copy the link into it.",
+  "modelsAccountCopyLink": "Copy Link",
+  "modelsAccountSignInFailed": "Sign-in failed: {error}",
+  "@modelsAccountSignInFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsRefreshQuota": "Refresh Quota",
+  "modelsAccountRemove": "Remove account",
+  "modelsAccountRemoveConfirm": "Remove “{name}”?",
+  "@modelsAccountRemoveConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsAccountRemoveDetail": "Its sign-in is deleted from this machine.",
+  "modelsAccountEnable": "Use {name}",
+  "@modelsAccountEnable": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsAccountLimited": "Out of quota",
+  "modelsAccountQuotaUnknown": "Quota not known yet",
+  "modelsQuotaWeek": "Weekly",
+  "modelsQuotaHours": "{count}h",
+  "@modelsQuotaHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsQuotaDays": "{count}d",
+  "@modelsQuotaDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsQuotaUsed": "{percent}% used",
+  "@modelsQuotaUsed": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsQuotaResetsIn": "resets in {time}",
+  "@modelsQuotaResetsIn": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsQuotaResetsAt": "resets {time}",
+  "@modelsQuotaResetsAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsQuotaCredits": "Credits: {credits}",
+  "@modelsQuotaCredits": {
+    "placeholders": {
+      "credits": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsDurationMinutes": "{count} min",
+  "@modelsDurationMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsDurationHours": "{hours} h {minutes} min",
+  "@modelsDurationHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "modelsBalance": "Load Balancing",
+  "modelsBalanceRoundRobin": "Round Robin",
+  "modelsBalanceRoundRobinDescription": "Each new conversation goes to the next account, and stays on it (its cache is there).",
+  "modelsBalanceFillFirst": "Fill First",
+  "modelsBalanceFillFirstDescription": "Uses the first account until it is out of quota, then the next.",
+  "modelsBalanceMostRemaining": "Most Remaining",
+  "modelsBalanceMostRemainingDescription": "Each new conversation goes to the account with the most quota left.",
+  "modelsAccountPortBusy": "Port 1455, which sign-in comes back to, is used by another program (a proxy in Docker, or the Codex CLI signing in). Sign in in the browser all the same: the page it ends on will fail to load or show something else. Copy that page's full address and paste it below.",
+  "modelsAccountCallback": "Address after sign-in",
+  "modelsAccountCallbackDetail": "If the browser does not come back by itself, paste the address it ended on.",
   "modelsProtocolAnthropic": "Anthropic-compatible",
   "modelsConnection": "Connection",
   "modelsName": "Name",

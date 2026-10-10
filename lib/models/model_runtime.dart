@@ -2,6 +2,7 @@
 // models, the local proxy, and the environment a session on a provider
 // starts with. None of it on the web.
 
+import 'codex/codex_service.dart';
 import 'model_provider.dart';
 import 'model_runtime_stub.dart'
     if (dart.library.io) 'model_runtime_io.dart'
@@ -22,6 +23,9 @@ Future<Map<String, String>> providerLaunchEnvironment(
   ModelProvider provider,
   String model,
 ) => platform.providerLaunchEnvironment(provider, model);
+
+/// The ChatGPT (Codex) providers' accounts: signing in, their quota.
+CodexService get codexService => platform.codexService;
 
 /// Stops the local proxy, as the app quits.
 Future<void> stopModelProxy() => platform.stopModelProxy();

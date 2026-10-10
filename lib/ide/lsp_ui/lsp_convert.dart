@@ -6,14 +6,19 @@ import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 
 import '../language/language_types.dart';
 
-/// The absolute path of a `file:` [uri] (other schemes: null).
-String? lspPathOfUri(String uri) {
+/// The absolute path of a `file:` [uri] (other schemes: null), spelled as
+/// [paths] does: a remote project's host's (a Mac's `/Users/…` seen from
+/// Windows), else this machine's.
+String? lspPathOfUri(String uri, {p.Context? paths}) {
+  final context = paths ?? p.context;
   final parsed = Uri.tryParse(uri);
   if (parsed == null) return null;
-  if (parsed.scheme.isEmpty) return p.normalize(uri);
+  if (parsed.scheme.isEmpty) return context.normalize(uri);
   if (parsed.scheme != 'file') return null;
   try {
-    return p.normalize(parsed.toFilePath());
+    return context.normalize(
+      parsed.toFilePath(windows: context.style == p.Style.windows),
+    );
   } on UnsupportedError {
     return null;
   }
@@ -94,9 +99,10 @@ List<EditorOffsetEdit>? lspOffsetEdits(
 class IdeLocation {
   const IdeLocation(this.path, this.range);
 
-  /// The `file:` target of [location]; null for other schemes.
-  static IdeLocation? of(LspLocation location) {
-    final path = lspPathOfUri(location.uri);
+  /// The `file:` target of [location], spelled as [paths] (see
+  /// [lspPathOfUri]); null for other schemes.
+  static IdeLocation? of(LspLocation location, {p.Context? paths}) {
+    final path = lspPathOfUri(location.uri, paths: paths);
     return path == null ? null : IdeLocation(path, location.revealRange);
   }
 

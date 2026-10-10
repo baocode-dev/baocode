@@ -24,8 +24,8 @@ class ClaudeTranslator {
   /// asked afresh (see claude_goal.dart).
   final void Function()? goalSaid;
 
-  /// What a question is answered with in full access, the user not asked:
-  /// a question so answered shows as skipped.
+  /// What a question was answered with in full access, the user not asked,
+  /// as earlier versions did: a question so answered shows as skipped.
   static const unattendedAnswer =
       'The user has given full access and is not here to answer questions. '
       'Do not ask again: go with what seems best, say what you assumed, '

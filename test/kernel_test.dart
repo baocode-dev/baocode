@@ -989,15 +989,10 @@ void main() {
       };
       const command = {'command': 'npm test', 'description': 'Test'};
 
-      // Full access: a question is answered, in English, nothing shown.
+      // Full access approves what it does, not what it asks: a question is
+      // the user's in any mode.
       kernel.permission.select('bypassPermissions');
-      ask('r1', 'AskUserQuestion', question);
-      await pumpEventQueue();
-      expect(transcript.pendingInteraction, isNull);
-      expect(cli.responses.last['behavior'], 'deny');
-      expect(cli.responses.last['message'], ClaudeTranslator.unattendedAnswer);
-      // In Plan and Ask, questions are the point: asked.
-      for (final mode in ['plan', 'ask']) {
+      for (final mode in ['agent', 'plan', 'ask']) {
         kernel.mode.select(mode);
         ask('r1-$mode', 'AskUserQuestion', question);
         await pumpEventQueue();
@@ -1089,6 +1084,127 @@ void main() {
       ask('r6', 'ExitPlanMode', {'plan': '1. Do it'});
       await pumpEventQueue();
       expect(transcript.pendingInteraction, isA<PlanReviewRequest>());
+      kernel.dispose();
+    });
+
+    test('an MCP server\'s request for input is asked, in any mode', () async {
+      final cli = FakeCli();
+      final opened = <String>[];
+      final kernel = ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        const KernelContext(cwd: '/p'),
+        start: (_) async => cli,
+        openLink: (url) async {
+          opened.add(url);
+          return true;
+        },
+      );
+      final transcript = Transcript();
+      kernel.events.listen(transcript.apply);
+      kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+      await pumpEventQueue();
+      void elicit(String id, Map<String, Object?> request) => cli.push({
+        'type': 'control_request',
+        'request_id': id,
+        'request': {
+          'subtype': 'elicitation',
+          'mcp_server_name': 'github',
+          ...request,
+        },
+      });
+
+      for (final approval in ['bypassPermissions', 'dontAsk']) {
+        kernel.permission.select(approval);
+        elicit('e-$approval', {
+          'message': 'Pick a repository',
+          'requested_schema': {
+            'type': 'object',
+            'properties': {
+              'repo': {
+                'type': 'string',
+                'title': 'Repository',
+                'enum': ['a/one', 'b/two'],
+              },
+              'private': {'type': 'boolean', 'title': 'Private'},
+              'count': {'type': 'integer', 'title': 'How many'},
+            },
+            'required': ['repo', 'count'],
+          },
+        });
+        await pumpEventQueue();
+        final asked = transcript.pendingInteraction! as QuestionRequest;
+        expect(asked.title, 'github asks for input');
+        expect(asked.questions.first.prompt, startsWith('Pick a repository'));
+        expect(asked.questions.first.options.map((o) => o.label), [
+          'a/one',
+          'b/two',
+        ]);
+        expect(asked.questions[1].options.map((o) => o.label), [
+          'Yes',
+          'No',
+          'Leave blank',
+        ]);
+        expect(asked.questions[2].allowOther, isTrue);
+        kernel.answer(
+          'e-$approval',
+          const QuestionAnswer([
+            ['b/two'],
+            ['Leave blank'],
+            ['3'],
+          ]),
+        );
+        expect(transcript.pendingInteraction, isNull);
+        expect(cli.responses.last, {
+          'action': 'accept',
+          'content': {'repo': 'b/two', 'count': 3},
+        });
+      }
+
+      // Dismissed: cancelled.
+      elicit('e2', {
+        'message': 'Name?',
+        'requested_schema': {
+          'type': 'object',
+          'properties': {
+            'name': {'type': 'string'},
+          },
+        },
+      });
+      await pumpEventQueue();
+      kernel.answer('e2', const QuestionAnswer([], skipped: true));
+      expect(cli.responses.last, {'action': 'cancel'});
+
+      // A link to visit: opened when allowed.
+      elicit('e3', {
+        'mode': 'url',
+        'message': 'Authorize GitHub',
+        'url': 'https://github.com/login/oauth?x=1',
+        'elicitation_id': 'el-1',
+      });
+      await pumpEventQueue();
+      final link = transcript.pendingInteraction! as ApprovalRequest;
+      expect(link.title, 'github wants you to open a link');
+      expect(link.reason, 'Authorize GitHub');
+      expect(
+        (link.preview! as TextPreview).text,
+        'https://github.com/login/oauth?x=1',
+      );
+      kernel.answer('e3', const ApprovalAnswer(ApprovalDecision.allowOnce));
+      expect(cli.responses.last, {'action': 'accept'});
+      expect(opened, ['https://github.com/login/oauth?x=1']);
+      elicit('e4', {'mode': 'url', 'message': 'Again', 'url': 'https://x'});
+      await pumpEventQueue();
+      kernel.answer('e4', const ApprovalAnswer(ApprovalDecision.deny));
+      expect(cli.responses.last, {'action': 'decline'});
+      expect(opened, hasLength(1));
+
+      // Withdrawn by the CLI: no longer shown.
+      elicit('e5', {'message': 'Sure?'});
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isA<QuestionRequest>());
+      cli.push({'type': 'control_cancel_request', 'request_id': 'e5'});
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isNull);
       kernel.dispose();
     });
 
@@ -3699,6 +3815,62 @@ exec /bin/sh -c "\$command"
         );
       },
     );
+
+    test('a fork copies the conversation up to a message, apart', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      const id = 'aaaaaaaa-1111-4111-8111-111111111111';
+      const into = 'bbbbbbbb-2222-4222-8222-222222222222';
+      Map<String, Object?> line(String type, String uuid, String? parent) => {
+        'type': type,
+        'uuid': uuid,
+        'parentUuid': parent,
+        'sessionId': id,
+        'message': {'role': type, 'content': uuid},
+      };
+      final original = File('$config/projects/-p/$id.jsonl')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          [
+            line('user', 'u1', null),
+            line('assistant', 'a1', 'u1'),
+            // A branch left by a rewind: not on the way to the end.
+            line('user', 'old', 'a1'),
+            line('user', 'u2', 'a1'),
+            line('assistant', 'a2', 'u2'),
+            {'type': 'custom-title', 'customTitle': 'Mine', 'sessionId': id},
+          ].map((line) => '${jsonEncode(line)}\n').join(),
+        );
+      final before = original.readAsStringSync();
+      final storage = ClaudeStorage(configDir: config);
+      List<Map<String, Object?>> read(String path) => [
+        for (final line in File(path).readAsLinesSync())
+          (jsonDecode(line) as Map).cast<String, Object?>(),
+      ];
+
+      final path = await storage.fork(id, into, title: 'Mine (fork)');
+      expect(path, '$config/projects/-p/$into.jsonl');
+      final all = read(path);
+      expect(all.map((e) => e['uuid'] ?? e['customTitle']), [
+        'u1',
+        'a1',
+        'u2',
+        'a2',
+        'Mine (fork)',
+      ]);
+      expect(all.map((e) => e['sessionId']), everyElement(into));
+      expect(original.readAsStringSync(), before);
+
+      final cut = await storage.fork(id, into, before: 'u2', title: 'Cut');
+      expect(read(cut).map((e) => e['uuid'] ?? e['customTitle']), [
+        'u1',
+        'a1',
+        'Cut',
+      ]);
+      expect(storage.fork(id, into, before: 'nope'), throwsStateError);
+      expect(storage.fork('../p', into), throwsArgumentError);
+    });
   });
 
   group('control channel', () {

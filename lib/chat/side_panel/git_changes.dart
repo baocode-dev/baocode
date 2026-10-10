@@ -79,6 +79,7 @@ class GitChangeList extends StatefulWidget {
     this.onOpenFile,
     this.onRevealInFiles,
     this.onAddToChat,
+    this.onSaveAs,
     this.local = true,
     this.trash,
     this.onError,
@@ -98,6 +99,9 @@ class GitChangeList extends StatefulWidget {
 
   /// Puts files in the chat's composer.
   final ValueChanged<List<ComposerFile>>? onAddToChat;
+
+  /// Save As… of a file, to this machine.
+  final ValueChanged<String>? onSaveAs;
 
   /// Whether the files are this machine's: a remote project's are not
   /// shown in the file manager, nor copied to the system's clipboard.
@@ -391,6 +395,9 @@ class _GitChangeListState extends State<GitChangeList> {
                 l10n.sidePanelRevealInFiles,
                 onSelected: () => reveal(path),
               ),
+            if ((widget.onSaveAs, path) case (final save?, final path?)
+                when there)
+              IdeMenuAction(l10n.cmdSaveAs, onSelected: () => save(path)),
             if (path != null &&
                 there &&
                 widget.local &&

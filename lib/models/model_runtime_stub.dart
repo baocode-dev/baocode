@@ -1,3 +1,4 @@
+import 'codex/codex_service.dart';
 import 'model_provider.dart';
 import 'model_runtime.dart';
 import 'upstream.dart';
@@ -13,3 +14,5 @@ Future<Map<String, String>> providerLaunchEnvironment(
 ) async => throw const UpstreamException('Not available on the web.');
 
 Future<void> stopModelProxy() async {}
+
+final CodexService codexService = CodexUnavailable();

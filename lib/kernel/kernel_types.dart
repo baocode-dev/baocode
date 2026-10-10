@@ -407,6 +407,7 @@ class Question {
     this.header = '',
     this.allowMultiple = false,
     this.allowOther = true,
+    this.otherLabel,
   });
 
   final String prompt;
@@ -418,6 +419,10 @@ class Question {
 
   /// Whether the user may answer in their own words.
   final bool allowOther;
+
+  /// The option to answer in their own words, as it shows ("Other" when
+  /// null); left empty, the answer is this label.
+  final String? otherLabel;
 }
 
 /// The agent asks the user to choose.

@@ -1770,11 +1770,19 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// Asks where to save [doc] of [space] (Save As…, an untitled file's
   /// first save): where it is, or in the folder; noted among the recent.
   Future<String?> _askSavePath(IdeWorkspace space, IdeDocument doc) async {
+    // A remote project's folders are not this machine's, where the panel is.
+    final local = space.files is! IdeHostFiles;
     final path = await WindowControls.pickSaveFile(
-      directory: doc.isUntitled
+      directory: !local
+          ? null
+          : doc.isUntitled
           ? (space.hasFolder ? space.root : null)
           : p.dirname(doc.path),
-      name: doc.isUntitled ? doc.path : p.basename(doc.path),
+      name: doc.isUntitled
+          ? doc.path
+          : local
+          ? p.basename(doc.path)
+          : p.posix.basename(doc.path),
     );
     if (path != null) _workspace.addRecentFile(path);
     return path;
@@ -1830,6 +1838,23 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (current == null) return;
     _workspace.closeIdeChat(folder, current);
     if (_workspace.ideChat(folder) case final next?) _focusChat(next);
+  }
+
+  /// Forks [thread] from the reply at [index] (all of it without one), and
+  /// shows the fork where it was shown.
+  Future<void> _fork(
+    AgentThread thread,
+    int? index, {
+    bool embedded = false,
+  }) async {
+    final forked = await _workspace.fork(thread, index: index);
+    if (forked == null || !mounted) return;
+    if (embedded) {
+      _openIdeChat(_ideFolder, forked);
+    } else {
+      _workspace.select(forked);
+      _focusChat(forked);
+    }
   }
 
   void _openIdeChat(String folder, AgentThread thread) {
@@ -2949,6 +2974,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         title: thread.localizedTitle(context.l10n),
         autofocus: thread.session.itemCount == 0,
         onRename: (title) => _workspace.rename(thread, title),
+        onFork: (index) => unawaited(_fork(thread, index, embedded: embedded)),
         // Beside the sidebar, the traffic lights are over it, not here.
         titleBarInset: titleBarInset,
         leading: leading,

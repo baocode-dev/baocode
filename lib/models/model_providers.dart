@@ -157,8 +157,9 @@ class ModelProviders extends ChangeNotifier {
     await _writeProviders(list);
   }
 
-  /// Removes provider [id], and its key.
+  /// Removes provider [id], and its key (its accounts' tokens).
   Future<void> remove(String id) async {
+    final accounts = provider(id)?.accounts ?? const [];
     await _writeProviders([
       for (final provider in providers)
         if (provider.id != id) provider,
@@ -172,6 +173,9 @@ class ModelProviders extends ChangeNotifier {
     _errors.remove(id);
     try {
       await secrets.delete(ModelProvider.keyRefFor(id));
+      for (final account in accounts) {
+        await secrets.delete(ModelProvider.accountRefFor(id, account.id));
+      }
     } on SecretStoreException catch (error) {
       debugPrint('Key of $id not removed: $error');
     }

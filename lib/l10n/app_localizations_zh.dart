@@ -1668,6 +1668,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarCopySessionId => '复制会话 ID';
 
   @override
+  String get sidebarFork => 'Fork 对话';
+
+  @override
+  String get chatForkFromHere => '从此处 Fork';
+
+  @override
+  String get chatCopyReply => '复制回复';
+
+  @override
   String sidebarShowMore(int count) {
     return '显示更多（$count）';
   }
@@ -2253,7 +2262,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get composerApprovalFullAccess => '完全访问';
 
   @override
-  String get composerApprovalFullAccessDetail => '不做任何检查，执行时也不提问';
+  String get composerApprovalFullAccessDetail => '不做任何检查，编辑和命令直接执行';
 
   @override
   String get composerContextUsage => '上下文用量';
@@ -5208,6 +5217,141 @@ class AppLocalizationsZh extends AppLocalizations {
   String modelsModelCount(int count) {
     return '$count 个模型';
   }
+
+  @override
+  String get modelsAccounts => '账号';
+
+  @override
+  String get modelsAccountsDescription =>
+      '用 ChatGPT 账号登录，按套餐额度使用 Codex 模型。添加多个账号时，请求按下方的负载模式分配，额度用尽的账号会自动让给下一个。';
+
+  @override
+  String get modelsAccountsNone => '还没有账号';
+
+  @override
+  String modelsAccountCount(int count) {
+    return '$count 个账号';
+  }
+
+  @override
+  String get modelsAddAccount => '添加账号';
+
+  @override
+  String get modelsAddAccountDescription => '在浏览器中打开 ChatGPT 登录页。';
+
+  @override
+  String get modelsAccountSigningIn => '等待登录…';
+
+  @override
+  String get modelsAccountSigningInDetail => '请在浏览器中完成登录；如果浏览器没有打开，可复制链接手动打开。';
+
+  @override
+  String get modelsAccountCopyLink => '复制链接';
+
+  @override
+  String modelsAccountSignInFailed(String error) {
+    return '登录失败：$error';
+  }
+
+  @override
+  String get modelsRefreshQuota => '刷新额度';
+
+  @override
+  String get modelsAccountRemove => '移除账号';
+
+  @override
+  String modelsAccountRemoveConfirm(String name) {
+    return '移除“$name”？';
+  }
+
+  @override
+  String get modelsAccountRemoveDetail => '将从本机删除它的登录凭据。';
+
+  @override
+  String modelsAccountEnable(String name) {
+    return '使用 $name';
+  }
+
+  @override
+  String get modelsAccountLimited => '额度已用尽';
+
+  @override
+  String get modelsAccountQuotaUnknown => '额度尚未获取';
+
+  @override
+  String get modelsQuotaWeek => '每周';
+
+  @override
+  String modelsQuotaHours(int count) {
+    return '$count 小时';
+  }
+
+  @override
+  String modelsQuotaDays(int count) {
+    return '$count 天';
+  }
+
+  @override
+  String modelsQuotaUsed(int percent) {
+    return '已用 $percent%';
+  }
+
+  @override
+  String modelsQuotaResetsIn(String time) {
+    return '$time后重置';
+  }
+
+  @override
+  String modelsQuotaResetsAt(String time) {
+    return '$time 重置';
+  }
+
+  @override
+  String modelsQuotaCredits(String credits) {
+    return '额外点数：$credits';
+  }
+
+  @override
+  String modelsDurationMinutes(int count) {
+    return '$count 分钟';
+  }
+
+  @override
+  String modelsDurationHours(int hours, int minutes) {
+    return '$hours 小时 $minutes 分钟';
+  }
+
+  @override
+  String get modelsBalance => '负载模式';
+
+  @override
+  String get modelsBalanceRoundRobin => '轮询';
+
+  @override
+  String get modelsBalanceRoundRobinDescription =>
+      '每个新会话轮流分给下一个账号，之后一直留在该账号上（保留缓存）。';
+
+  @override
+  String get modelsBalanceFillFirst => '用完再换';
+
+  @override
+  String get modelsBalanceFillFirstDescription => '优先使用排在前面的账号，额度用尽后再换下一个。';
+
+  @override
+  String get modelsBalanceMostRemaining => '剩余优先';
+
+  @override
+  String get modelsBalanceMostRemainingDescription => '每个新会话分给剩余额度最多的账号。';
+
+  @override
+  String get modelsAccountPortBusy =>
+      '登录回调用的 1455 端口被其他程序占用了（例如 Docker 里的代理，或正在登录的 Codex CLI）。照常在浏览器里登录即可：登录后的页面会打不开或显示别的内容，把地址栏里的完整地址复制粘贴到下面。';
+
+  @override
+  String get modelsAccountCallback => '登录后的地址';
+
+  @override
+  String get modelsAccountCallbackDetail => '如果浏览器没有自动跳回，把登录后地址栏里的地址粘贴到这里。';
 
   @override
   String get modelsProtocolAnthropic => 'Anthropic 兼容';

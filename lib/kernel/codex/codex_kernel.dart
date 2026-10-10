@@ -295,7 +295,9 @@ class CodexKernel
             nextSeq,
             ContextUsage(
               window: usage['modelContextWindow'] as int? ?? contextWindow,
-              used: (usage['total'] as Map)['totalTokens'] as int,
+              // The last request's, which is what the context holds; the
+              // total adds up every request, and never drops on compacting.
+              used: (usage['last'] as Map)['totalTokens'] as int,
             ),
           ),
         );

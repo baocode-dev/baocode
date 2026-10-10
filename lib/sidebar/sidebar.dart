@@ -782,6 +782,11 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       },
       onPin: () => _workspace.setPinned(thread, !thread.pinned),
       onArchive: () => _workspace.setArchived(thread, !thread.archived),
+      onFork: () => unawaited(
+        _workspace.fork(thread).then((forked) {
+          if (forked != null && mounted) _open(forked);
+        }),
+      ),
       onDelete: () => _confirmDelete(thread),
     );
   }
@@ -1865,6 +1870,7 @@ class _ThreadRow extends StatelessWidget {
     required this.onRenamed,
     required this.onPin,
     required this.onArchive,
+    required this.onFork,
     required this.onDelete,
   });
 
@@ -1887,6 +1893,9 @@ class _ThreadRow extends StatelessWidget {
   final ValueChanged<String?> onRenamed;
   final VoidCallback onPin;
   final VoidCallback onArchive;
+
+  /// Copies the conversation into a new agent, shown.
+  final VoidCallback onFork;
   final VoidCallback onDelete;
 
   List<SidebarMenuItem> _items(AppLocalizations l10n) => [
@@ -1906,6 +1915,13 @@ class _ThreadRow extends StatelessWidget {
       icon: Icons.inventory_2_outlined,
       onSelected: onArchive,
     ),
+    // A conversation to copy: none before the first message.
+    if (thread.id != null && (!thread.isOpen || thread.session.canFork))
+      SidebarMenuItem(
+        l10n.sidebarFork,
+        icon: Codicons.repoForked,
+        onSelected: onFork,
+      ),
     // Claude Code finds the conversation by it (none before the first
     // message).
     if (thread.id case final id?)

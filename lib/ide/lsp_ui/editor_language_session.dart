@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../../l10n/l10n.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
@@ -150,6 +151,7 @@ class EditorLanguageSession extends ChangeNotifier
     required this.onShowReferences,
     required this.onApplyWorkspaceEdit,
     required this.onFocusEditor,
+    this.paths,
     this._semanticTokenStyler,
     this._languageId = 'plaintext',
     SemanticTokensSource? semanticSource,
@@ -198,6 +200,10 @@ class EditorLanguageSession extends ChangeNotifier
   onShowReferences;
   final Future<bool> Function(LspWorkspaceEdit edit) onApplyWorkspaceEdit;
   final VoidCallback onFocusEditor;
+
+  /// How the files' host spells paths (a remote project's); this
+  /// machine's when null.
+  final p.Context? paths;
 
   late final IdeSuggestSession suggest;
 
@@ -677,7 +683,7 @@ class EditorLanguageSession extends ChangeNotifier
     }
     final targets = <IdeLocation>[];
     for (final location in locations) {
-      final target = IdeLocation.of(location);
+      final target = IdeLocation.of(location, paths: paths);
       if (target != null && !targets.contains(target)) targets.add(target);
     }
     if (targets.isEmpty) {

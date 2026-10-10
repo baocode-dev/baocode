@@ -45,6 +45,13 @@ Future<Uint8List> readFileBytes(String path) =>
 Future<void> copyLocalTo(IdeFileService files, String from, String to) =>
     Future.error(UnsupportedError('Local editing requires the desktop app'));
 
+Future<void> saveCopyTo(
+  IdeFileService files,
+  String from,
+  String to, {
+  String? text,
+}) => Future.error(UnsupportedError('Local editing requires the desktop app'));
+
 Future<IdeFileListing> walkProjectFiles(
   String root,
   Set<String> excluded,

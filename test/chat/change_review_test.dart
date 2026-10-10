@@ -295,4 +295,81 @@ void main() {
     expect(await git(['for-each-ref']), isEmpty);
     expect(await git(['stash', 'list']), isEmpty);
   }, skip: !hasGit);
+
+  test(
+    'looks into repositories inside the project, leaving them alone',
+    () async {
+      // A folder of projects opened as one, each its own repository; one in
+      // another.
+      write('web/pages/a.vue', 'one\n');
+      write('web/.gitignore', 'dist/\n');
+      write('web/vendor/lib/c.js', 'c\n');
+      Future<String> git(String repo, List<String> arguments) async {
+        final result = await Process.run(
+          'git',
+          arguments,
+          workingDirectory: path(repo),
+        );
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        return '${result.stdout}';
+      }
+
+      for (final repo in ['web/vendor/lib', 'web']) {
+        await git(repo, ['init', '-q']);
+        await git(repo, ['add', '-A']);
+        await git(repo, [
+          '-c',
+          'user.name=t',
+          '-c',
+          'user.email=t@t',
+          'commit',
+          '-qm',
+          'i',
+        ]);
+      }
+      final status = await git('web', ['status', '--porcelain']);
+
+      final review = await open();
+      await review.begin();
+      write('a.txt', 'one\n');
+      write('web/pages/a.vue', 'one\ntwo\n');
+      write('web/vendor/lib/c.js', 'see\n');
+      write('web/dist/out.js', 'built\n');
+      for (final file in ['a.txt', 'web/pages/a.vue', 'web/vendor/lib/c.js']) {
+        review.report(FileChange(path: path(file), added: 1, removed: 0));
+      }
+      // Only the files reported, then all.
+      await review.observe(full: false);
+      expect(review.failure, isNull);
+      expect(
+        changesOf(review).keys,
+        unorderedEquals(['a.txt', 'web/pages/a.vue', 'web/vendor/lib/c.js']),
+      );
+      await review.observe();
+      expect(review.failure, isNull);
+      final changes = changesOf(review);
+      expect(
+        changes.keys,
+        unorderedEquals(['a.txt', 'web/pages/a.vue', 'web/vendor/lib/c.js']),
+      );
+      expect(changes['web/pages/a.vue']!.tracked, isTrue);
+      expect(
+        (
+          changes['web/pages/a.vue']!.added,
+          changes['web/pages/a.vue']!.removed,
+        ),
+        (1, 0),
+      );
+      expect(await review.original(path('web/pages/a.vue'))!(), 'one\n');
+      expect(await review.original(path('web/vendor/lib/c.js'))!(), 'c\n');
+
+      await review.undo([path('web/pages/a.vue'), path('web/vendor/lib/c.js')]);
+      expect(read('web/pages/a.vue'), 'one\n');
+      expect(read('web/vendor/lib/c.js'), 'c\n');
+      expect(changesOf(review).keys, ['a.txt']);
+      File(path('web/dist/out.js')).deleteSync();
+      expect(await git('web', ['status', '--porcelain']), status);
+    },
+    skip: !hasGit,
+  );
 }
