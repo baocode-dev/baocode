@@ -60,6 +60,14 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'workbench.action.terminal.focusNext' => l10n.cmdFocusNextTerminal,
     'workbench.action.terminal.focusPrevious' => l10n.cmdFocusPreviousTerminal,
     'workbench.action.terminal.focus' => l10n.cmdFocusTerminal,
+    'workbench.action.tasks.runTask' => l10n.cmdRunTask,
+    'workbench.action.tasks.build' => l10n.cmdRunBuildTask,
+    'workbench.action.tasks.test' => l10n.cmdRunTestTask,
+    'workbench.action.tasks.reRunTask' => l10n.cmdRerunTask,
+    'workbench.action.tasks.restartTask' => l10n.cmdRestartTask,
+    'workbench.action.tasks.terminate' => l10n.cmdTerminateTask,
+    'workbench.action.tasks.showLog' => l10n.cmdShowTaskLog,
+    'workbench.action.tasks.configureTaskRunner' => l10n.cmdConfigureTask,
     'workbench.view.explorer' => l10n.cmdShowExplorer,
     'workbench.view.search' => l10n.cmdShowSearch,
     'workbench.view.scm' => l10n.cmdShowSourceControl,
@@ -543,6 +551,7 @@ String localizedCommandCategory(AppLocalizations l10n, String english) =>
       'Search' => l10n.searchTitle,
       'Quick Input' => l10n.cmdCategoryQuickInput,
       'Chat' => l10n.cmdCategoryChat,
+      'Tasks' => l10n.cmdCategoryTasks,
       _ => english,
     };
 

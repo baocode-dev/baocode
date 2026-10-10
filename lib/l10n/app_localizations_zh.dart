@@ -116,6 +116,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdCategoryChat => '聊天';
 
   @override
+  String get cmdCategoryTasks => '任务';
+
+  @override
   String get cmdChatNewAgent => '新对话';
 
   @override
@@ -1046,6 +1049,30 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdFocusTerminal => '聚焦到终端';
+
+  @override
+  String get cmdRunTask => '运行任务';
+
+  @override
+  String get cmdRunBuildTask => '运行生成任务';
+
+  @override
+  String get cmdRunTestTask => '运行测试任务';
+
+  @override
+  String get cmdRerunTask => '重新运行上一个任务';
+
+  @override
+  String get cmdRestartTask => '重启正在运行的任务';
+
+  @override
+  String get cmdTerminateTask => '终止任务';
+
+  @override
+  String get cmdShowTaskLog => '显示任务日志';
+
+  @override
+  String get cmdConfigureTask => '配置任务';
 
   @override
   String get cmdShowExplorer => '显示资源管理器';

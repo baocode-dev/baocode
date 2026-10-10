@@ -117,6 +117,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdCategoryChat => 'Chat';
 
   @override
+  String get cmdCategoryTasks => 'Tasks';
+
+  @override
   String get cmdChatNewAgent => 'New Chat';
 
   @override
@@ -1077,6 +1080,30 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdFocusTerminal => 'Focus Terminal';
+
+  @override
+  String get cmdRunTask => 'Run Task';
+
+  @override
+  String get cmdRunBuildTask => 'Run Build Task';
+
+  @override
+  String get cmdRunTestTask => 'Run Test Task';
+
+  @override
+  String get cmdRerunTask => 'Rerun Last Task';
+
+  @override
+  String get cmdRestartTask => 'Restart Running Task';
+
+  @override
+  String get cmdTerminateTask => 'Terminate Task';
+
+  @override
+  String get cmdShowTaskLog => 'Show Task Log';
+
+  @override
+  String get cmdConfigureTask => 'Configure Task';
 
   @override
   String get cmdShowExplorer => 'Show Explorer';

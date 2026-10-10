@@ -111,6 +111,7 @@
     }
   },
   "cmdCategoryChat": "Chat",
+  "cmdCategoryTasks": "Tasks",
   "@cmdCategoryChat": {
     "description": "Command category: the chat window's commands."
   },
@@ -457,6 +458,14 @@
   "cmdFocusNextTerminal": "Focus Next Terminal Group",
   "cmdFocusPreviousTerminal": "Focus Previous Terminal Group",
   "cmdFocusTerminal": "Focus Terminal",
+  "cmdRunTask": "Run Task",
+  "cmdRunBuildTask": "Run Build Task",
+  "cmdRunTestTask": "Run Test Task",
+  "cmdRerunTask": "Rerun Last Task",
+  "cmdRestartTask": "Restart Running Task",
+  "cmdTerminateTask": "Terminate Task",
+  "cmdShowTaskLog": "Show Task Log",
+  "cmdConfigureTask": "Configure Task",
   "cmdShowExplorer": "Show Explorer",
   "cmdShowSearch": "Show Search",
   "cmdShowSourceControl": "Show Source Control",

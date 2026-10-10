@@ -290,6 +290,12 @@ abstract class AppLocalizations {
   /// **'Chat'**
   String get cmdCategoryChat;
 
+  /// No description provided for @cmdCategoryTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks'**
+  String get cmdCategoryTasks;
+
   /// No description provided for @cmdChatNewAgent.
   ///
   /// In en, this message translates to:
@@ -2131,6 +2137,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Focus Terminal'**
   String get cmdFocusTerminal;
+
+  /// No description provided for @cmdRunTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Run Task'**
+  String get cmdRunTask;
+
+  /// No description provided for @cmdRunBuildTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Run Build Task'**
+  String get cmdRunBuildTask;
+
+  /// No description provided for @cmdRunTestTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Run Test Task'**
+  String get cmdRunTestTask;
+
+  /// No description provided for @cmdRerunTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Rerun Last Task'**
+  String get cmdRerunTask;
+
+  /// No description provided for @cmdRestartTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Restart Running Task'**
+  String get cmdRestartTask;
+
+  /// No description provided for @cmdTerminateTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminate Task'**
+  String get cmdTerminateTask;
+
+  /// No description provided for @cmdShowTaskLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Task Log'**
+  String get cmdShowTaskLog;
+
+  /// No description provided for @cmdConfigureTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure Task'**
+  String get cmdConfigureTask;
 
   /// No description provided for @cmdShowExplorer.
   ///
