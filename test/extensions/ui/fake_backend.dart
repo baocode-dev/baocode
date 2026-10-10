@@ -2,7 +2,7 @@
 
 import 'dart:async';
 
-import 'package:bao_exthost/bao_exthost.dart';
+import 'package:baocode/base/cancellation.dart';
 import 'package:baocode/extensions/gallery/extension_management_backend.dart';
 import 'package:baocode/extensions/gallery/open_vsx_client.dart';
 import 'package:baocode/extensions/vsix/extension_manifest.dart';
@@ -113,19 +113,6 @@ class FakeBackend
   }
 
   @override
-  Future<InstalledExtension> installFromFolder(String path) async {
-    calls.add('installFromFolder $path');
-    final manifest = await readExtensionFolderManifest(path);
-    return _add(
-      InstalledExtension(
-        manifest: manifest,
-        location: path,
-        fromGallery: false,
-      ),
-    );
-  }
-
-  @override
   Future<void> uninstall(String id) async {
     calls.add('uninstall $id');
     installed.removeWhere((e) => e.key == id.toLowerCase());
@@ -135,17 +122,11 @@ class FakeBackend
   }
 
   @override
-  Future<void> setEnabled(
-    String id,
-    bool enabled, {
-    EnablementScope scope = EnablementScope.global,
-  }) async {
-    calls.add('setEnabled $id $enabled ${scope.name}');
+  Future<void> setEnabled(String id, bool enabled) async {
+    calls.add('setEnabled $id $enabled');
     final index = installed.indexWhere((e) => e.key == id.toLowerCase());
     if (index < 0) return;
-    installed[index] = scope == EnablementScope.global
-        ? installed[index].copyWith(enabledGlobally: enabled)
-        : installed[index].copyWith(enabledInWorkspace: () => enabled);
+    installed[index] = installed[index].copyWith(enabled: enabled);
     _changes.add(
       ExtensionManagementEvent(ExtensionManagementEventKind.enablement, id),
     );

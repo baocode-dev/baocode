@@ -593,33 +593,6 @@ printf '%s\n' "$line"
     });
   });
 
-  group('extension runtime', () {
-    test('a file staged for its server, in pieces, then deleted', () async {
-      final source = File(at('demo-1.0.0.vsix'))
-        ..writeAsBytesSync(List.generate(2500, (i) => i % 251));
-      final path = await client().stageExtHostFile(
-        source,
-        '../escape/demo-1.0.0.vsix',
-        chunkSize: 1000,
-      );
-      expect(
-        path,
-        p.join(remote.dataDir.path, 'exthost', 'staged', 'demo-1.0.0.vsix'),
-      );
-      expect(File(path).readAsBytesSync(), source.readAsBytesSync());
-      // A file of a whole number of pieces.
-      final even = File(at('even.vsix'))..writeAsBytesSync(List.filled(2000, 7));
-      final evenPath = await client().stageExtHostFile(
-        even,
-        'even.vsix',
-        chunkSize: 1000,
-      );
-      expect(File(evenPath).lengthSync(), 2000);
-      await client().unstageExtHostFile('demo-1.0.0.vsix');
-      expect(File(path).existsSync(), isFalse);
-    });
-  });
-
   group('language servers', () {
     test('found on the PATH there', () async {
       ClaudeEnvironment.use({'PATH': '/usr/bin:/bin'});

@@ -13,7 +13,6 @@
 // `SCMTreeSorter` in src/vs/workbench/contrib/scm/browser/scmViewPane.ts
 // and `compareFileNames` in src/vs/base/common/comparers.ts.
 
-
 import 'git_model.dart';
 
 /// A node of the tree: a folder or a changed file.

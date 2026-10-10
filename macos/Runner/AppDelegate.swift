@@ -51,27 +51,17 @@ class AppDelegate: FlutterAppDelegate {
 
   /// Files and folders the system asks the app to open: the `code`
   /// command's (`open -b`), Finder's Open With, those dropped on the Dock
-  /// icon (see CFBundleDocumentTypes in Info.plist); the Finder
-  /// extension's `baocode://` URLs and the extensions' (an OAuth callback;
-  /// see OpenRequests.request). At launch they come before Flutter is ready
-  /// for them, and wait (see OpenRequests).
+  /// icon (see CFBundleDocumentTypes in Info.plist); and the Finder
+  /// extension's `baocode://` URLs (see OpenRequests.request). At launch
+  /// they come before Flutter is ready for them, and wait (see
+  /// OpenRequests).
   override func application(_ application: NSApplication, open urls: [URL]) {
     let paths = urls.filter(\.isFileURL).map { $0.standardizedFileURL.path }
     let requests = urls.compactMap(OpenRequests.request(from:))
-    // An extension's URI opens nothing of its own: the app comes forward
-    // (from the browser, after signing in) as it was.
-    let uris = requests.filter { $0.first == OpenRequests.uriMarker }
-    let opens = requests.filter { $0.first != OpenRequests.uriMarker }
-    if !uris.isEmpty && !OpenRequests.shared.atLaunch && paths.isEmpty
-      && opens.isEmpty
-    {
-      bringWindowFront()
-    }
-    for request in uris { OpenRequests.shared.deliver(request: request) }
-    if !paths.isEmpty || !opens.isEmpty {
+    if !paths.isEmpty || !requests.isEmpty {
       let atLaunch = OpenRequests.shared.atLaunch
       if !paths.isEmpty { OpenRequests.shared.deliver(paths) }
-      for request in opens { OpenRequests.shared.deliver(request: request) }
+      for request in requests { OpenRequests.shared.deliver(request: request) }
       if atLaunch {
         // Launched for them, the app opens to what they open alone (see
         // OpenRequests.launchRequest): the main window stays out of sight
@@ -106,9 +96,6 @@ class AppDelegate: FlutterAppDelegate {
 /// system can ask before the window has its channel.
 final class OpenRequests {
   static let shared = OpenRequests()
-
-  /// The marker of an extension's URI (code_args.dart's uriRequestMarker).
-  static let uriMarker = "\u{0}uri"
 
   private var pending: [String] = []
   /// Requests that came before Flutter was ready, each whole: they go after
@@ -171,7 +158,7 @@ final class OpenRequests {
   /// Hands a request (see [request(from:)]) to Flutter, or keeps it until
   /// it is ready.
   func deliver(request: [String]) {
-    if atLaunch && launchRequest == nil && request.first != Self.uriMarker {
+    if atLaunch && launchRequest == nil {
       launchRequest = request.first == "\u{0}agent" ? "agent" : "ide"
     }
     if ready, let channel {
@@ -187,16 +174,11 @@ final class OpenRequests {
   /// Open with BaoCode, a new agent with the paths (its marker, then them);
   /// `ide`, Open with Fast Ide, the paths in a new window as `code -n`
   /// opens them (the `code` command's marker, a folder to start from, `-n`,
-  /// then them). Any other `baocode://` URL is an extension's
-  /// (`baocode://<publisher.name>/…`, see url_service.dart): its marker, then
-  /// it. Nil for another scheme, or Open with's without absolute paths.
+  /// then them). Nil for any other URL, or one without absolute paths.
   static func request(from url: URL) -> [String]? {
     guard url.scheme == "baocode",
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
     else { return nil }
-    guard components.host == "agent" || components.host == "ide" else {
-      return [uriMarker, url.absoluteString]
-    }
     let paths = (components.queryItems ?? [])
       .filter { $0.name == "path" }
       .compactMap(\.value)

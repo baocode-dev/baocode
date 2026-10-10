@@ -6,7 +6,7 @@
 // object stands for all of them, and every member has a harmless default
 // so tests and the glue override only what they have.
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import '../../base/uri.dart' show VsUri;
 
 import '../common/debug_model.dart';
 import '../common/debug_types.dart';

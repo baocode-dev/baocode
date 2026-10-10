@@ -1,6 +1,0 @@
-{
-  "name": "web-only", "publisher": "fixture", "version": "1.0.0",
-  "engines": { "vscode": "^1.90.0" },
-  "browser": "./dist/web.js",
-  "contributes": { "commands": [{ "command": "web.hello", "title": "Hello" }] }
-}

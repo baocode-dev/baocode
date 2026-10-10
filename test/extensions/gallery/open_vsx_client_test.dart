@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bao_exthost/bao_exthost.dart';
+import 'package:baocode/base/cancellation.dart';
 import 'package:baocode/extensions/gallery/gallery_models.dart';
 import 'package:baocode/extensions/gallery/open_vsx_client.dart';
 import 'package:baocode/extensions/vsix/target_platform.dart';

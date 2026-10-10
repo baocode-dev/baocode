@@ -21,7 +21,8 @@
 
 import 'dart:async';
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri, CancellationTokenSource;
+import '../../base/cancellation.dart' show CancellationTokenSource;
+import '../../base/uri.dart' show VsUri;
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 
 import '../base/event.dart';

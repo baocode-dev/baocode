@@ -20,7 +20,7 @@
 
 import 'dart:convert';
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import '../../base/uri.dart' show VsUri;
 import 'package:path/path.dart' as p;
 
 import 'debug_types.dart';

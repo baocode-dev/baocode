@@ -1,41 +1,22 @@
-// What the Extensions view, VSIX drops and importing install through: the
-// extension management of the VS Code server (its `extensions` channel:
-// `getInstalled`, `install(vsix)`, `installFromLocation`, `uninstall`, and
-// the enablement the workbench keeps), behind an interface so the view
-// works, and is tested, without the server.
+// What the Extensions view and VSIX drops install through (VS Code's
+// extension management: `getInstalled`, `install(vsix)`, `uninstall`, and
+// the enablement the workbench keeps), behind an interface so the view is
+// tested without the disk.
 
 import 'dart:async';
 
-import 'package:bao_exthost/bao_exthost.dart' show CancellationToken;
-
+import '../../base/cancellation.dart' show CancellationToken;
 import '../vsix/extension_manifest.dart';
 import '../vsix/target_platform.dart';
 import 'gallery_models.dart';
 import 'open_vsx_client.dart';
-
-/// Where an extension is enabled or disabled.
-enum EnablementScope { global, workspace }
-
-/// What kind of installed extension it is.
-enum InstalledExtensionKind {
-  /// Installed by the user (from the gallery, a .vsix or a folder copy).
-  user,
-
-  /// Shipped with the runtime: can be disabled, not uninstalled.
-  builtin,
-
-  /// Loaded from a folder in development (`extensionDevelopmentPath`).
-  development,
-}
 
 /// An installed extension, as the backend reports it.
 class InstalledExtension {
   const InstalledExtension({
     required this.manifest,
     required this.location,
-    this.kind = InstalledExtensionKind.user,
-    this.enabledGlobally = true,
-    this.enabledInWorkspace,
+    this.enabled = true,
     this.preRelease = false,
     this.fromGallery = true,
     this.installedAt,
@@ -45,11 +26,7 @@ class InstalledExtension {
 
   /// Its folder.
   final String location;
-  final InstalledExtensionKind kind;
-  final bool enabledGlobally;
-
-  /// Null when the workspace follows [enabledGlobally].
-  final bool? enabledInWorkspace;
+  final bool enabled;
 
   /// Whether it tracks pre-releases (installed as one).
   final bool preRelease;
@@ -62,29 +39,17 @@ class InstalledExtension {
   String get key => manifest.key;
   String get version => manifest.version;
 
-  /// In effect in this workspace.
-  bool get enabled => enabledInWorkspace ?? enabledGlobally;
-
-  bool get canUninstall => kind == InstalledExtensionKind.user;
-
-  InstalledExtension copyWith({
-    bool? enabledGlobally,
-    bool? Function()? enabledInWorkspace,
-  }) => InstalledExtension(
+  InstalledExtension copyWith({bool? enabled}) => InstalledExtension(
     manifest: manifest,
     location: location,
-    kind: kind,
-    enabledGlobally: enabledGlobally ?? this.enabledGlobally,
-    enabledInWorkspace: enabledInWorkspace == null
-        ? this.enabledInWorkspace
-        : enabledInWorkspace(),
+    enabled: enabled ?? this.enabled,
     preRelease: preRelease,
     fromGallery: fromGallery,
     installedAt: installedAt,
   );
 
   @override
-  String toString() => 'InstalledExtension($id@$version, $kind)';
+  String toString() => 'InstalledExtension($id@$version)';
 }
 
 /// How to install (`InstallOptions`).
@@ -93,7 +58,6 @@ class ExtensionInstallOptions {
     this.preRelease = false,
     this.fromGallery = false,
     this.installGivenVersion = false,
-    this.withDependencies = true,
   });
 
   /// Installed as a pre-release: updates follow pre-releases.
@@ -106,9 +70,6 @@ class ExtensionInstallOptions {
   /// This version, kept (pinned: not updated automatically), as Install
   /// Extension VSIX asks.
   final bool installGivenVersion;
-
-  /// Its `extensionDependencies` and `extensionPack` installed too.
-  final bool withDependencies;
 }
 
 enum ExtensionManagementEventKind { installed, uninstalled, enablement }
@@ -128,8 +89,7 @@ class ExtensionManagementEvent {
 
 /// Installs, uninstalls, enables and disables extensions.
 abstract interface class ExtensionManagementBackend {
-  /// The installed extensions: user ones, built-in ones and those in
-  /// development.
+  /// The installed extensions.
   Future<List<InstalledExtension>> getInstalled();
 
   /// Installs the .vsix at [vsixPath] (replacing another version).
@@ -147,19 +107,10 @@ abstract interface class ExtensionManagementBackend {
     CancellationToken cancel = CancellationToken.none,
   });
 
-  /// Installs a copy of the extension folder at [path]
-  /// (`installFromLocation`): an extension of another editor not on Open
-  /// VSX, with the user's consent.
-  Future<InstalledExtension> installFromFolder(String path);
-
   Future<void> uninstall(String id);
 
-  /// Enables or disables [id] globally or in the workspace.
-  Future<void> setEnabled(
-    String id,
-    bool enabled, {
-    EnablementScope scope = EnablementScope.global,
-  });
+  /// Enables or disables [id].
+  Future<void> setEnabled(String id, bool enabled);
 
   /// Told after each change.
   Stream<ExtensionManagementEvent> get onDidChange;

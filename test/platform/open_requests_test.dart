@@ -29,7 +29,6 @@ void main() {
     });
   });
   tearDown(() {
-    OpenRequests.onUri = null;
     OpenRequests.stop();
     messenger.setMockMethodCallHandler(_open, null);
   });
@@ -115,28 +114,6 @@ void main() {
       [code, r'C:\work', '.'],
       [agent, r'C:\x'],
     ]);
-  });
-
-  test("an extension's URI goes to the URI receiver, not the listener",
-      () async {
-    const uri = CodeArgs.uriRequestMarker;
-    const agent = CodeArgs.agentRequestMarker;
-    pending = [uri, 'baocode://a.b/cb?code=1', agent, r'C:\x'];
-    final opened = <List<String>>[];
-    final uris = <List<String>>[];
-    OpenRequests.onUri = uris.add;
-    OpenRequests.listen(opened.add);
-    await pumpEventQueue();
-    expect(uris, [
-      [uri, 'baocode://a.b/cb?code=1'],
-    ]);
-    expect(opened, [
-      [agent, r'C:\x'],
-    ]);
-
-    await send([uri, 'baocode://a.b/again']);
-    expect(uris.last, [uri, 'baocode://a.b/again']);
-    expect(opened, hasLength(1));
   });
 
   test('stopped, it delivers nothing and tells the window', () async {

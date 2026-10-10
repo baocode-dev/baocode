@@ -13,7 +13,7 @@
 // `$startDebugging`'s options, the `$acceptStackFrameFocus` listener,
 // `sendBreakpointsAndListen`).
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import '../../base/uri.dart' show VsUri;
 
 import '../service/debug_service.dart';
 import '../session/debug_session.dart';

@@ -16,7 +16,7 @@
 
 import 'dart:convert';
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import '../../base/uri.dart' show VsUri;
 
 import '../base/event.dart';
 import 'debug_model.dart';

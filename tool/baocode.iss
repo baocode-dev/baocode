@@ -107,21 +107,6 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
   ValueData: "{olddata};{app}"; Tasks: addtopath; \
   Check: (not IsAdminInstallMode) and NeedsAddPath(ExpandConstant('{app}'), False)
 
-; The baocode:// URL protocol, as VS Code's installer registers vscode://:
-; an extension's URI (its OAuth callback, from the browser) starts the app
-; with --open-url, which hands it to the copy running (see
-; windows/runner/open_requests.cpp) and on to the extension's URI handler.
-; HKA is the install mode's hive.
-Root: HKA; Subkey: "Software\Classes\baocode"; ValueType: string; \
-  ValueName: ""; ValueData: "URL:baocode"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\baocode"; ValueType: string; \
-  ValueName: "URL Protocol"; ValueData: ""
-Root: HKA; Subkey: "Software\Classes\baocode\DefaultIcon"; ValueType: string; \
-  ValueName: ""; ValueData: """{app}\baocode.exe"""
-Root: HKA; Subkey: "Software\Classes\baocode\shell\open\command"; \
-  ValueType: string; ValueName: ""; \
-  ValueData: """{app}\baocode.exe"" --open-url -- ""%1"""
-
 ; Explorer's context menu, on a file, a folder and a folder's background,
 ; each in a new window: Open with BaoCode, a new agent in a narrow window of
 ; its own (a file in its composer; see AppWindows.openAgent), and Open with

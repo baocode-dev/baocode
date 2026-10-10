@@ -13,7 +13,6 @@ import '../l10n/command_titles.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/code_font.dart';
-import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
 
 import 'package:bao_editor/monaco/flutter/diff_editor.dart';
@@ -36,17 +35,14 @@ import 'package:bao_editor/monaco/vs/editor/common/languages/language_configurat
     show plainTextLanguageConfiguration;
 import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
 import 'package:bao_editor/textmate/textmate_syntax.dart';
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+
+import '../base/uri.dart' show VsUri;
 
 import '../debug/base/event.dart' show DisposableStore;
 import '../debug/service/debug_service.dart';
 import 'debug_editor_glue.dart';
 import 'git/git_blame.dart';
-import 'ide_color_picker.dart';
 import 'ide_commands.dart';
-import 'ide_editor_colors.dart';
-import 'ide_editor_features.dart';
-import 'ide_editor_views.dart';
 import 'ide_find_widget.dart';
 import 'ide_menu.dart';
 import 'ide_status_bar.dart' show ideEolEdits;
@@ -90,7 +86,7 @@ class IdeEditor extends StatefulWidget {
     this.onOpenLocation,
     this.onShowReferences,
     this.onShowCommands,
-    this.extensionContextMenu,
+    this.formatOnSave = false,
     this.gitBlame = true,
     this.keyResolver,
     this.onPaste,
@@ -119,9 +115,9 @@ class IdeEditor extends StatefulWidget {
   /// Opens the Command Palette: the context menu's last item.
   final VoidCallback? onShowCommands;
 
-  /// The extensions' `editor/context` groups, merged into the context
-  /// menu's.
-  final List<IdeMenuGroup> Function()? extensionContextMenu;
+  /// Formats the document before saving (`editor.formatOnSave`, off by
+  /// default) when a language server can.
+  final bool formatOnSave;
 
   /// Shows who last changed each line with a caret, when, and why, after
   /// its end (`git.blame.editorDecoration.enabled`), in a repository.
@@ -158,7 +154,6 @@ class IdeEditorState extends State<IdeEditor> {
   late final FocusNode _focusNode = FocusNode(debugLabel: 'ide editor');
   // The surface's state implements EditorViewHost, which editor commands use.
   final GlobalKey _surfaceKey = GlobalKey();
-  final GlobalKey _areaKey = GlobalKey();
   late final ScrollController _scrollController = ScrollController();
   final TextEditingController _findController = TextEditingController();
   final TextEditingController _replaceController = TextEditingController();
@@ -201,12 +196,6 @@ class IdeEditorState extends State<IdeEditor> {
   late final IdeGitBlameController _blame = IdeGitBlameController()
     ..addListener(_rebuildSoon);
 
-  /// The editor features extensions drive (decoration types, inlay hints,
-  /// CodeLens, ghost text), one set per document.
-  late final IdeEditorFeaturesRegistry _features = IdeEditorFeaturesRegistry(
-    types: widget.workspace.editorViews.decorationTypes,
-  );
-
   /// The carets last moved without an edit ([IdeGitBlameController.update]).
   bool _caretsNavigated = false;
   EditorKeyChord? _pendingChord;
@@ -233,6 +222,9 @@ class IdeEditorState extends State<IdeEditor> {
     int caret,
   })?
   _markers;
+
+  /// The selection in the active document's text.
+  TextSelection get selection => _editingValue.selection;
 
   TextEditingValue get _editingValue =>
       _nativeController?.value ?? _controller.value;
@@ -268,7 +260,6 @@ class IdeEditorState extends State<IdeEditor> {
     super.initState();
     _path = widget.active.path;
     _controller.addListener(_selectionChanged);
-    _focusNode.addListener(_shownViewChanged);
     _findController.addListener(_refreshFindResults);
     widget.workspace.addListener(_workspaceChanged);
     _themes.addListener(_colorThemeChanged);
@@ -374,10 +365,6 @@ class IdeEditorState extends State<IdeEditor> {
       }
       controller.onPaste = () async =>
           await widget.onPaste?.call(doc, controller) ?? false;
-      // Its decorations/inlay hints/CodeLens, painted from the start.
-      _features
-          .of(doc, controller)
-          .setTheme(ideDecorationTheme(_themes.colors));
       unawaited(_loadLanguageConfiguration(doc, controller));
       var previousText = controller.value.text;
       controller.addListener(() {
@@ -389,7 +376,6 @@ class IdeEditorState extends State<IdeEditor> {
           _selectionChanged();
           if (textChanged) _refreshFindResults();
           _updateBlame(navigated: !textChanged);
-          _shownViewChanged();
         }
         if (textChanged) {
           widget.workspace.notifyDocumentChanged(doc);
@@ -398,7 +384,6 @@ class IdeEditorState extends State<IdeEditor> {
       });
       return controller;
     });
-    _showView(doc, _nativeController!);
     _workspaceChanged();
     _snapshot = doc.model.snapshot;
     _selectionChanged();
@@ -440,7 +425,6 @@ class IdeEditorState extends State<IdeEditor> {
           widget.onShowReferences?.call(title, locations),
       onApplyWorkspaceEdit: applyWorkspaceEdit,
       onFocusEditor: focus,
-      paths: widget.workspace.paths,
       semanticTokenStyler: _semanticTokenStyler,
       languageId: _textMateDocuments[doc]?.$2.languageId ?? 'plaintext',
       semanticSource: _semanticSources[doc],
@@ -539,13 +523,6 @@ class IdeEditorState extends State<IdeEditor> {
   /// editor's own bindings; everything else (e.g. F8, workbench shortcuts)
   /// keeps bubbling.
   KeyEventResult _onEditorKey(KeyEvent event) {
-    final colors = _features.ofDocument(widget.active)?.colors;
-    if (colors?.picker != null &&
-        event is KeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.escape) {
-      colors!.closePicker();
-      return KeyEventResult.handled;
-    }
     if (widget.keyResolver != null) return _onTextKey(event);
     final session = _language;
     if (session == null) return KeyEventResult.ignored;
@@ -835,80 +812,7 @@ class IdeEditorState extends State<IdeEditor> {
     LogicalKeyboardKey.altRight,
   };
 
-  /// Each open document's view, for the workspace's [IdeEditorViews].
-  final Map<IdeDocument, IdeEditorView> _views = {};
-
-  /// The view shown, and the workspace's views it is shown in.
-  IdeEditorView? _shownView;
-  IdeEditorViews? _shownIn;
-  int _foldingRequest = 0;
-
-  void _showView(IdeDocument doc, EditorSurfaceController controller) {
-    var view = _views[doc];
-    if (view == null || !identical(view.controller, controller)) {
-      bool shown() => identical(_nativeController, controller);
-      view = _views[doc] = IdeEditorView(
-        document: doc,
-        controller: controller,
-        features: _features.of(doc, controller),
-        visibleLines: () {
-          final state = _surfaceKey.currentState;
-          if (!shown() || state is! EditorSurfaceView) return null;
-          return (state as EditorSurfaceView).visibleLineRange;
-        },
-        hasFocus: () => shown() && _focusNode.hasFocus,
-        focus: () {
-          if (shown()) focus();
-        },
-        reveal: (start, end, {center = false}) {
-          if (!shown()) return;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final state = _surfaceKey.currentState;
-            if (mounted && shown() && state is EditorSurfaceView) {
-              (state as EditorSurfaceView).revealRange(start, end);
-            }
-          });
-          WidgetsBinding.instance.scheduleFrame();
-        },
-        setFoldingRanges: (ranges) {
-          if (!shown()) return;
-          final request = ++_foldingRequest;
-          final snapshot = controller.document.snapshot;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final state = _surfaceKey.currentState;
-            if (mounted &&
-                request == _foldingRequest &&
-                shown() &&
-                identical(controller.document.snapshot, snapshot) &&
-                state is EditorSurfaceView) {
-              (state as EditorSurfaceView).setFoldingRanges(ranges);
-            }
-          });
-          WidgetsBinding.instance.scheduleFrame();
-        },
-      );
-    }
-    final views = widget.workspace.editorViews;
-    if (!identical(_shownIn, views)) _hideView();
-    if (!identical(_shownView, view)) _foldingRequest++;
-    _shownView = view;
-    _shownIn = views..show(view);
-  }
-
-  void _hideView() {
-    _foldingRequest++;
-    final view = _shownView;
-    _shownView = null;
-    if (view != null) _shownIn?.hide(view);
-    _shownIn = null;
-  }
-
-  void _shownViewChanged() {
-    if (_shownView case final view?) _shownIn?.changed(view);
-  }
-
   void _viewChanged() {
-    _shownViewChanged();
     _language?.onViewChanged();
     _textMateViewportChanged();
     _languageChanged();
@@ -994,7 +898,6 @@ class IdeEditorState extends State<IdeEditor> {
   void _colorThemeChanged() {
     if (!mounted) return;
     _language?.semanticTokenStyler = _semanticTokenStyler;
-    _features.setTheme(ideDecorationTheme(_themes.colors));
     if (getThemeTypeSelector(_themes.colorTheme.type) == _monarchTheme) return;
     _theme = _loadMonarchTheme();
     _tokenizedDocuments.clear();
@@ -1145,8 +1048,6 @@ class IdeEditorState extends State<IdeEditor> {
             _disposeLanguageSession();
           }
           _semanticSources.remove(entry.key);
-          if (identical(_views.remove(entry.key), _shownView)) _hideView();
-          _features.release(entry.key);
           if (identical(_nativeController, controller)) {
             _nativeController = null;
             _focusNode.unfocus();
@@ -1174,8 +1075,6 @@ class IdeEditorState extends State<IdeEditor> {
   }
 
   void _disposeNativeControllers() {
-    _hideView();
-    _views.clear();
     _disposeLanguageSession();
     _nativeController = null;
     _syntaxRequest++;
@@ -1309,7 +1208,6 @@ class IdeEditorState extends State<IdeEditor> {
     _themes.removeListener(_colorThemeChanged);
     _debugListeners?.dispose();
     _blame.dispose();
-    _features.dispose();
     _disposeNativeControllers();
     _textMate.dispose();
     _findController.dispose();
@@ -1317,7 +1215,6 @@ class IdeEditorState extends State<IdeEditor> {
     _findFocusNode.dispose();
     _replaceFocusNode.dispose();
     _controller.dispose();
-    _focusNode.removeListener(_shownViewChanged);
     _focusNode.dispose();
     _areaFocusNode.dispose();
     _scrollController.dispose();
@@ -1465,53 +1362,41 @@ class IdeEditorState extends State<IdeEditor> {
       showIdeMenu(
         context,
         position: position,
-        entries: ideMergedMenuGroups([
-          (
-            id: 'navigation',
-            entries: languageItems(const [
-              'editor.action.revealDefinition',
-              'editor.action.goToTypeDefinition',
-              'editor.action.goToImplementation',
-              'editor.action.goToReferences',
+        entries: ideMenuGroups([
+          languageItems(const [
+            'editor.action.revealDefinition',
+            'editor.action.goToTypeDefinition',
+            'editor.action.goToImplementation',
+            'editor.action.goToReferences',
+          ]),
+          [
+            ...languageItems(const ['editor.action.rename']),
+            editorItem('editor.action.changeAll'),
+            ...languageItems([
+              'editor.action.formatDocument',
+              if (hasSelection) 'editor.action.formatSelection',
+              'editor.action.refactor',
+              'editor.action.sourceAction',
             ]),
-          ),
-          (
-            id: '1_modification',
-            entries: [
-              ...languageItems(const ['editor.action.rename']),
-              editorItem('editor.action.changeAll'),
-              ...languageItems([
-                'editor.action.formatDocument',
-                if (hasSelection) 'editor.action.formatSelection',
-                'editor.action.refactor',
-                'editor.action.sourceAction',
-              ]),
-            ],
-          ),
-          (
-            id: '9_cutcopypaste',
-            entries: [
-              editorItem('editor.action.clipboardCutAction'),
-              editorItem('editor.action.clipboardCopyAction'),
-              editorItem('editor.action.clipboardPasteAction'),
-            ],
-          ),
-          (
-            id: 'z_commands',
-            entries: [
-              if (showCommands != null)
-                IdeMenuAction(
-                  l10n.editorCommandPalette,
-                  keybinding: const IdeKeybinding(
-                    LogicalKeyboardKey.keyP,
-                    primary: true,
-                    shift: true,
-                  ).label(),
-                  onSelected: showCommands,
-                ),
-            ],
-          ),
-        ], widget.extensionContextMenu?.call() ?? const []),
+          ],
+          [
+            editorItem('editor.action.clipboardCutAction'),
+            editorItem('editor.action.clipboardCopyAction'),
+            editorItem('editor.action.clipboardPasteAction'),
+          ],
+          [
+            if (showCommands != null)
+              IdeMenuAction(
+                l10n.editorCommandPalette,
+                keybinding: const IdeKeybinding(
+                  LogicalKeyboardKey.keyP,
+                  primary: true,
+                  shift: true,
+                ).label(),
+                onSelected: showCommands,
+              ),
+          ],
+        ]),
       ),
     );
   }
@@ -2005,8 +1890,12 @@ class IdeEditorState extends State<IdeEditor> {
   Future<void> save() async {
     try {
       await flush();
-      // Format on save, code actions on save and the rest are the
-      // workspace's save participants.
+      final session = _language;
+      if (widget.formatOnSave &&
+          session != null &&
+          session.supports(LanguageRequest.format)) {
+        await session.format();
+      }
       final doc = widget.workspace.active;
       if (doc != null) await widget.workspace.save(doc);
     } catch (error) {
@@ -2069,11 +1958,6 @@ class IdeEditorState extends State<IdeEditor> {
       AppFonts.codeStyle(13)
           .copyWith(color: colors['editor.foreground'], height: 1.45);
 
-  /// The active document's editor features, for the extension host (null
-  /// until its editor exists).
-  IdeEditorFeatures? featuresOf(IdeDocument document) =>
-      _features.ofDocument(document);
-
   /// The active document's editor; in a diff, the modified side, with
   /// what the diff gives it ([side]).
   Widget _surface(WorkbenchColors colors, {DiffEditorSide? side}) =>
@@ -2095,22 +1979,6 @@ class IdeEditorState extends State<IdeEditor> {
           ..._blameDecorations(colors),
           ..._debugDecorations(),
         ],
-        decorationProviders: switch (_features.ofDocument(widget.active)) {
-          final features? => [
-            features.decorations,
-            features.inlayHints,
-            features.links,
-            features.colors,
-          ],
-          null => const [],
-        },
-        inlineSuggest: _features.ofDocument(widget.active)?.inlineSuggest,
-        codeLens: _features.ofDocument(widget.active)?.codeLens,
-        codeLensColors:
-            _features.ofDocument(widget.active)?.codeLensColors ??
-            EditorCodeLensColors.from(colors.get),
-        codeLensIcon: (name) => Codicons.byName[name],
-        gutterIconBuilder: ideGutterIconBuilder,
         // A diff editor's editors fold nothing and have no minimap.
         viewZones: side?.zones ?? const [],
         scrollPosition: side?.scrollPosition,
@@ -2118,60 +1986,17 @@ class IdeEditorState extends State<IdeEditor> {
         showMinimap: side == null,
         onKeyEvent: _onEditorKey,
         keyResolver: widget.keyResolver == null ? null : _resolveTextKey,
-        onHover: (offset, _) {
-          _language?.onPointerHover(offset);
-          final links = _features.ofDocument(widget.active)?.links;
-          final previous = links?.hovered;
-          links?.hover(widget.active.model.snapshot, offset);
-          if (!identical(previous, links?.hovered)) _rebuildSoon();
-        },
-        onContentPointerDown: (offset, event) {
-          final links = _features.ofDocument(widget.active)?.links;
-          if (links?.pointerDown(widget.active.model.snapshot, offset, event) ??
-              false) {
-            return true;
-          }
-          return _language?.onPointerDown(offset, event) ?? false;
-        },
+        onHover: _language == null
+            ? null
+            : (offset, _) => _language?.onPointerHover(offset),
+        onContentPointerDown: _language?.onPointerDown,
         onContextMenu: _showContextMenu,
         onViewChanged: _viewChanged,
-        contentCursor:
-            _language?.link == null &&
-                _features.ofDocument(widget.active)?.links.hovered == null
+        contentCursor: _language?.link == null
             ? null
             : SystemMouseCursors.click,
         style: _editorStyle(colors),
       );
-
-  /// The color picker open on a swatch, below where it was clicked (above
-  /// when there is no room), within the editor.
-  Widget _colorPicker(EditorColorPicker? picker, WorkbenchColors colors) {
-    final box = _areaKey.currentContext?.findRenderObject();
-    if (picker == null || box is! RenderBox || !box.hasSize) {
-      return const SizedBox.shrink();
-    }
-    final anchor = box.globalToLocal(picker.anchor);
-    final size = box.size;
-    final left = (anchor.dx - 12)
-        .clamp(0.0, math.max(0.0, size.width - IdeColorPicker.width))
-        .toDouble();
-    final below = anchor.dy + 12;
-    final top = below + IdeColorPicker.height <= size.height
-        ? below
-        : math.max(0.0, anchor.dy - 12 - IdeColorPicker.height);
-    return Stack(
-      children: [
-        Positioned(
-          left: left,
-          top: top,
-          child: TapRegion(
-            onTapOutside: (_) => picker.close(),
-            child: IdeColorPicker(picker: picker, colors: colors),
-          ),
-        ),
-      ],
-    );
-  }
 
   /// [_blame]'s lines, each after its end (`GitBlameEditorDecoration`).
   List<EditorDecoration> _blameDecorations(WorkbenchColors colors) {
@@ -2276,7 +2101,6 @@ class IdeEditorState extends State<IdeEditor> {
         child: ColoredBox(
           color: colors['editor.background'],
           child: Stack(
-            key: _areaKey,
             children: [
               Positioned.fill(
                 child: CodeTextScale(
@@ -2357,16 +2181,6 @@ class IdeEditorState extends State<IdeEditor> {
                         ),
                       ),
                     ),
-                  ),
-                ),
-              if (_features.ofDocument(widget.active)?.colors
-                  case final documentColors?
-                  when widget.nativeEditorEnabled)
-                Positioned.fill(
-                  child: ListenableBuilder(
-                    listenable: documentColors,
-                    builder: (context, _) =>
-                        _colorPicker(documentColors.picker, colors),
                   ),
                 ),
             ],

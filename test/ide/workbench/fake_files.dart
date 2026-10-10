@@ -1,4 +1,3 @@
-import 'package:baocode/extensions/workbench/workspace_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +7,7 @@ import 'package:baocode/ide/git/git_repository.dart';
 import 'package:baocode/ide/git/repository_scan.dart';
 import 'package:baocode/ide/ide_color_theme_picker.dart';
 import 'package:baocode/debug/service/debug_service.dart';
+import 'package:baocode/ide/extensions/ide_extensions.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/ide_workspace.dart';
 import 'package:baocode/ide/lsp/language_features.dart';
@@ -191,7 +191,7 @@ Future<IdeWorkspace> pumpWorkbench(
   VoidCallback? onAddFolder,
   ValueChanged<String>? onRemoveFolder,
   Project? project,
-  WorkspaceExtensions? extensions,
+  IdeExtensions? extensions,
   DebugService? debugService,
 }) async {
   tester.view.physicalSize = size;

@@ -1,125 +1,14 @@
 part of 'ide_workbench.dart';
 
-// The workbench's VS Code extensions (lib/extensions/workbench/): the
-// Extensions view and an extension's page, the extensions' status bar
-// entries, quick inputs, output channels, Command Palette commands and
-// keybindings, the runtime's download, recommendations for the files
-// opened, and .vsix files dropped on the window.
+// The workbench's extensions: the Extensions view (the color and file icon
+// theme extensions of lib/extensions/, and the language servers), a theme
+// extension's page, .vsix files dropped on the window, and the debugger's
+// listener.
+
+/// What the Extensions view shows.
+enum _ExtensionsTab { themes, languageServers }
 
 extension _ExtensionsPart on IdeWorkbenchState {
-  WorkspaceExtensions? get _workspaceExtensions => widget.extensions;
-
-  /// The Testing view, for the extensions' tests.
-  Widget _testingView() {
-    final testing = widget.extensions?.testing;
-    if (testing == null) return const SizedBox.shrink();
-    return TestingView(
-      key: _testingKey,
-      service: testing,
-      session: _testingSession,
-      onOpen: (uri, range) {
-        if (uri.scheme != 'file') return;
-        unawaited(
-          _open(
-            uri.fsPath(),
-            range: range == null
-                ? null
-                : LspRange(
-                    LspPosition(
-                      range.startLineNumber - 1,
-                      range.startColumn - 1,
-                    ),
-                    LspPosition(range.endLineNumber - 1, range.endColumn - 1),
-                  ),
-            select: true,
-            focusEditor: true,
-          ),
-        );
-      },
-      onShowOutput: () {
-        widget.extensions?.output.showChannel(testResultsOutputChannelId);
-      },
-    );
-  }
-
-  /// The Testing commands (testExplorerActions.ts) over the view's.
-  List<IdeCommand> _testingCommands() {
-    final testing = widget.extensions?.testing;
-    if (testing == null || testing.controllers.isEmpty) return const [];
-    void goToFailure() {
-      _showView(IdeSideView.testing);
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _testingKey.currentState?.goToNextFailure(),
-      );
-    }
-
-    return [
-      IdeCommand(
-        id: 'workbench.view.testing',
-        category: 'Testing',
-        label: 'Focus on Test Explorer View',
-        run: () => _showView(IdeSideView.testing),
-      ),
-      IdeCommand(
-        id: 'testing.runAll',
-        category: 'Test',
-        label: 'Run All Tests',
-        enabled: testing.hasGroup(TestRunGroup.run),
-        run: () => unawaited(
-          testing.runAll(TestRunGroup.run).catchError((Object _) => null),
-        ),
-      ),
-      IdeCommand(
-        id: 'testing.debugAll',
-        category: 'Test',
-        label: 'Debug All Tests',
-        enabled: testing.hasGroup(TestRunGroup.debug),
-        run: () => unawaited(
-          testing.runAll(TestRunGroup.debug).catchError((Object _) => null),
-        ),
-      ),
-      IdeCommand(
-        id: 'testing.refreshTests',
-        category: 'Test',
-        label: 'Refresh Tests',
-        run: () => unawaited(testing.refresh().catchError((Object _) {})),
-      ),
-      IdeCommand(
-        id: 'testing.cancelRun',
-        category: 'Test',
-        label: 'Cancel Test Run',
-        enabled: testing.isRunning,
-        run: testing.cancel,
-      ),
-      IdeCommand(
-        id: 'testing.goToNextMessage',
-        category: 'Test',
-        label: 'Go to Next Test Failure',
-        enabled: testing.failures().isNotEmpty,
-        run: goToFailure,
-      ),
-      IdeCommand(
-        id: 'testing.showMostRecentOutput',
-        category: 'Test',
-        label: 'Show Output',
-        run: () =>
-            widget.extensions?.output.showChannel(testResultsOutputChannelId),
-      ),
-    ];
-  }
-
-  /// The extensions' source controls in the Source Control view.
-  ExtensionScmUi? _extensionScm() => switch (widget.extensions) {
-    final extensions? => ExtensionScmUi(
-      service: extensions.scm,
-      menus: extensions.menus,
-      contextKeys: extensions.contextKeys,
-      executeCommand: extensions.commands.executeCommand,
-      onError: (message) => _notifications.notify(IdeSeverity.error, message),
-    ),
-    null => null,
-  };
-
   void _syncDebugListener() {
     final debug = _debug;
     if (identical(debug, _listenedDebug)) return;
@@ -128,230 +17,56 @@ extension _ExtensionsPart on IdeWorkbenchState {
   }
 
   void _debugChanged() {
-    if (!mounted) return;
-    _refresh(() {});
-    _workspaceExtensions?.contextKeys.notifyExternalChange();
+    if (mounted) _refresh(() {});
   }
 
-  void _panelFocusChanged() {
-    _workspaceExtensions?.contextKeys.notifyExternalChange();
-  }
-
-  /// Follows [extensions]' UI state: what the status bar and the panel
-  /// show of them, and the window dialogs are shown in.
-  void _attachExtensions(WorkspaceExtensions? extensions) {
-    _syncDebugListener();
-    _panelFocus.addListener(_panelFocusChanged);
-    if (extensions == null) return;
-    if (_terminals case final terminals?) extensions.terminals.bind(terminals);
-    extensions.dialogContext = () => mounted ? context : null;
-    extensions.contextKeys.fallback = keyContext;
-    final debugHost = extensions.debugHost;
-    if (debugHost != null) {
-      debugHost.onOpenDebugView = () => _showView(IdeSideView.debug);
-      debugHost.onOpenRepl = () => _selectPanel(IdePanelTab.debugConsole);
-    }
-    extensions.tasks?.onOpenProblems = _focusProblems;
-    extensions.builtinCommands
-      ?..onShowReferences = _showCommandReferences
-      ..onRevealInExplorer = _revealInExplorer
-      ..onOpenFolder = _openFolderForCommand;
-    extensions.statusBar.addListener(_extensionsUiChanged);
-    extensions.languageStatus.addListener(_extensionsUiChanged);
-    extensions.output
-      ..addListener(_extensionsUiChanged)
-      // `OutputChannel.show()`: the OUTPUT tab, focused unless asked not.
-      ..onRevealPanel = (preserveFocus) {
-        if (!mounted) return;
-        _selectPanel(IdePanelTab.output);
-        if (!preserveFocus) _focusPanel();
-      };
-    extensions.addListener(_extensionsUiChanged);
-    ExtensionRuntimeService.instance.addListener(_extensionsUiChanged);
-    extensions.remote?.extensions.runtimeProgress.addListener(
-      _extensionsUiChanged,
-    );
-    _hostStatus = extensions.statusMessages.listen(
-      (message) =>
-          _setStatusMessage(message, hideAfter: const Duration(seconds: 5)),
-    );
-    _attachViews(extensions);
-    // After the build: the workbench's commands the keybindings ask for
-    // need its context (extensions already running have some).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _syncExtensionKeybindings();
-    });
-    _scheduleTrustPrompt();
-  }
-
-  /// `editor.action.showReferences` and peeked locations: the References
-  /// panel, with the locations in files.
-  void _showCommandReferences(String title, List<CommandLocation> locations) {
-    if (!mounted) return;
-    _showReferences(title, [
-      for (final location in locations)
-        if (location.uri.scheme == 'file')
-          IdeLocation(
-            location.uri.fsPath(),
-            LspRange(
-              LspPosition(
-                location.range.startLineNumber - 1,
-                location.range.startColumn - 1,
-              ),
-              LspPosition(
-                location.range.endLineNumber - 1,
-                location.range.endColumn - 1,
-              ),
-            ),
-          ),
-    ]);
-  }
-
-  /// `vscode.openFolder`: [path] opened as a recent folder is, or the Open
-  /// Folder dialog.
-  Future<void> _openFolderForCommand(
-    String? path, {
-    required bool forceNewWindow,
-  }) async {
-    if (!mounted) return;
-    final open = widget.onOpenRecent;
-    if (path != null && open != null) {
-      open(path);
-    } else {
-      _hostCommand('workbench.action.files.openFolder')?.run();
-    }
-  }
-
-  void _scheduleTrustPrompt() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.visible) {
-        unawaited(_workspaceExtensions?.showStartupTrustPrompt());
-      }
-    });
-  }
-
-  void _detachExtensions(WorkspaceExtensions? extensions) {
-    _listenedDebug?.removeListener(_debugChanged);
-    _listenedDebug = null;
-    _panelFocus.removeListener(_panelFocusChanged);
-    if (extensions == null) return;
-    if (_terminals case final terminals?) {
-      extensions.terminals.unbind(terminals);
-    }
-    // First: what follows the context keys stops before they change.
-    _detachViews(extensions);
-    if (extensions.contextKeys.fallback == keyContext) {
-      extensions.contextKeys.fallback = null;
-    }
-    extensions.dialogContext = null;
-    final debugHost = extensions.debugHost;
-    if (debugHost != null) {
-      debugHost.onOpenDebugView = null;
-      debugHost.onOpenRepl = null;
-    }
-    extensions.tasks?.onOpenProblems = null;
-    extensions.builtinCommands
-      ?..onShowReferences = null
-      ..onRevealInExplorer = null
-      ..onOpenFolder = null;
-    extensions.statusBar.removeListener(_extensionsUiChanged);
-    extensions.languageStatus.removeListener(_extensionsUiChanged);
-    extensions.output
-      ..removeListener(_extensionsUiChanged)
-      ..onRevealPanel = null
-      ..panelVisible.value = false;
-    extensions.removeListener(_extensionsUiChanged);
-    ExtensionRuntimeService.instance.removeListener(_extensionsUiChanged);
-    extensions.remote?.extensions.runtimeProgress.removeListener(
-      _extensionsUiChanged,
-    );
-    unawaited(_hostStatus?.cancel());
-    _hostStatus = null;
-    _extensionKeys?.dispose();
-    _extensionKeys = null;
-  }
-
-  /// The Tasks commands, run by the workspace's task service.
-  List<IdeCommand> _taskCommands() {
-    final extensions = _workspaceExtensions;
-    if (extensions?.tasks == null) return const [];
-    IdeCommand task(String id) => _catalogCommand(
-      id,
-      () => unawaited(extensions!.commands.executeCommand(id)),
-      runWithArgs: (args) =>
-          unawaited(extensions!.commands.executeCommand(id, [args])),
-    );
-    return [
-      for (final id in const [
-        'workbench.action.tasks.runTask',
-        'workbench.action.tasks.build',
-        'workbench.action.tasks.test',
-        'workbench.action.tasks.reRunTask',
-        'workbench.action.tasks.restartTask',
-        'workbench.action.tasks.terminate',
-        'workbench.action.tasks.showLog',
-        'workbench.action.tasks.configureTaskRunner',
-      ])
-        task(id),
-    ];
-  }
-
-  void _extensionsUiChanged() {
-    _syncDebugListener();
-    if (mounted) {
-      _refresh(() {});
-      _scheduleTrustPrompt();
-    }
-  }
-
-  /// The keybinding service has the extensions' keybindings of the
-  /// workbench showing (it holds one set: the window's).
-  void _syncExtensionKeybindings() {
-    final extensions = _workspaceExtensions;
-    if (extensions == null || !widget.visible) {
-      _extensionKeys?.dispose();
-      _extensionKeys = null;
-      return;
-    }
-    _extensionKeys ??= ExtensionKeybindingsBridge(
-      registry: extensions.commands,
-      contextKeys: extensions.contextKeys,
-    );
-  }
-
-  /// The Extensions view; a message where this folder has none (a remote
-  /// one's, for now).
+  /// The Extensions view: Themes and Language Servers, as tabs (the
+  /// language servers alone without theme extensions).
   Widget _extensionsView() {
-    final extensions = _workspaceExtensions;
-    if (extensions == null) {
-      return Padding(
-        padding: const EdgeInsets.all(12),
-        child: Text(
-          context.l10n.extsNoHost,
-          style: TextStyle(color: themeColors['descriptionForeground']),
+    final themes = widget.themeExtensions;
+    final tab = themes == null
+        ? _ExtensionsTab.languageServers
+        : _extensionsTab;
+    final l10n = context.l10n;
+    final body = switch (tab) {
+      _ExtensionsTab.themes => ExtensionsView(
+        model: themes!.model,
+        onOpen: (entry) => _refresh(() => _extensionPage = entry.id),
+        onInstallFromVsix: () => unawaited(_installFromVsix()),
+        onError: _reportMessage,
+      ),
+      _ExtensionsTab.languageServers => IdeExtensionsView(
+        session: _extensions ??= IdeExtensionsSession(
+          widget.extensions ?? IdeLanguageServerExtensions(),
         ),
-      );
-    }
-    final model = extensions.extensionsModel;
-    if (model.installed == null && model.installedError == null) {
-      unawaited(model.refreshInstalled());
-    }
-    // The Recommended pane follows the files open (after this build: it
-    // notifies the view).
-    final recommended = extensions.recommendations(widget.workspace.documents);
-    if (!listEquals(recommended, model.recommendedIds)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!listEquals(recommended, model.recommendedIds)) {
-          unawaited(model.setRecommendations(recommended));
-        }
-      });
-    }
-    return ExtensionsView(
-      model: model,
-      onOpen: (entry) => _refresh(() => _extensionPage = entry.id),
-      onInstallFromVsix: () => unawaited(_installFromVsix()),
-      onImport: () => unawaited(_importExtensions()),
-      onError: _reportMessage,
+        recommended: _recommendedServers(),
+        onInstalled: _startServer,
+        onError: _report,
+      ),
+    };
+    if (themes == null) return body;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 30,
+          child: Row(
+            children: [
+              const SizedBox(width: 12),
+              for (final (value, label) in [
+                (_ExtensionsTab.themes, l10n.extsTabThemes),
+                (_ExtensionsTab.languageServers, l10n.extsTabLanguageServers),
+              ])
+                _ExtensionsTabButton(
+                  label: label,
+                  selected: tab == value,
+                  onTap: () => _refresh(() => _extensionsTab = value),
+                ),
+            ],
+          ),
+        ),
+        Expanded(child: body),
+      ],
     );
   }
 
@@ -360,80 +75,40 @@ extension _ExtensionsPart on IdeWorkbenchState {
 
   /// Install from VSIX...: one picked in the open panel.
   Future<void> _installFromVsix() async {
-    final extensions = _workspaceExtensions;
-    if (extensions == null) return;
+    final themes = widget.themeExtensions;
+    if (themes == null) return;
     final paths = await WindowControls.pickOpenFiles(multiple: false);
     if (paths.isEmpty || !mounted) return;
     await showVsixInstallSheet(
       context,
       paths.first,
-      backend: extensions.management,
-      locale: extensions.app.language,
+      backend: themes,
+      locale: themes.locale,
     );
   }
 
-  /// Import from VS Code, Cursor, Windsurf or VSCodium.
-  Future<void> _importExtensions() async {
-    final extensions = _workspaceExtensions;
-    if (extensions == null) return;
-    final app = extensions.app;
-    await showExtensionImportDialog(
-      context,
-      planner: ExtensionImportPlanner(
-        installs: VsCodeInstalls.current(),
-        gallery: app.gallery,
-        locale: app.language,
-      ),
-      importer: ExtensionImporter(
-        backend: extensions.management,
-        gallery: app.gallery,
-      ),
-      backend: extensions.management,
-      settingsPath: DataDirectory.current.settingsFile,
-    );
-  }
-
-  /// Takes the .vsix files and extension folders among [paths] dropped on
-  /// the window: false when there are none (they open as files do).
+  /// Takes the .vsix files among [paths] dropped on the window: false when
+  /// there are none (they open as files do).
   bool _dropExtensions(List<String> paths) {
-    final extensions = _workspaceExtensions;
-    if (extensions == null || !paths.any(_isExtensionDrop)) return false;
+    final themes = widget.themeExtensions;
+    if (themes == null || !paths.any(isVsixDrop)) return false;
     unawaited(
       handleExtensionDrop(
         context,
         paths,
-        backend: extensions.management,
-        locale: extensions.app.language,
-        onLoadDevelopmentFolder: (folder) =>
-            unawaited(extensions.loadDevelopmentExtension(folder)),
+        backend: themes,
+        locale: themes.locale,
       ),
     );
     return true;
   }
 
-  /// A .vsix, or a folder with an extension's package.json (what
-  /// [classifyExtensionDrop] tells apart, as the drop must be taken or
-  /// not at once).
-  static bool _isExtensionDrop(String path) {
-    if (path.toLowerCase().endsWith('.vsix')) return true;
-    try {
-      final manifest = File(p.join(path, 'package.json'));
-      if (!manifest.existsSync()) return false;
-      return switch (parseJsonc(manifest.readAsStringSync())) {
-        {'engines': {'vscode': String _}} => true,
-        _ => false,
-      };
-    } on Object {
-      return false;
-    }
-  }
-
-  /// An extension's page over the editors, with a bar to close it.
+  /// A theme extension's page over the editors, with a bar to close it.
   Widget _extensionPageView(String id) {
-    final extensions = _workspaceExtensions!;
+    final model = widget.themeExtensions!.model;
     final l10n = context.l10n;
     final key = id.toLowerCase();
-    final installed = extensions.extensionsModel.installed
+    final installed = model.installed
         ?.where((extension) => extension.key == key)
         .firstOrNull;
     return ColoredBox(
@@ -474,7 +149,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
           Expanded(
             child: ExtensionDetailPage(
               key: ValueKey(id),
-              model: extensions.extensionsModel,
+              model: model,
               id: id,
               onError: _reportMessage,
             ),
@@ -484,199 +159,23 @@ extension _ExtensionsPart on IdeWorkbenchState {
     );
   }
 
-  /// The OUTPUT tab's content; none without extensions. The output
-  /// service is told whether it shows ([shown]: the panel is up on it), as
-  /// a channel shown reads its file only then.
-  Widget? _extensionOutput({required bool shown}) {
-    final extensions = _workspaceExtensions;
-    if (extensions == null) return null;
-    final visible = extensions.output.panelVisible;
-    if (visible.value != shown) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (identical(_workspaceExtensions, extensions)) visible.value = shown;
-      });
-    }
-    return ExtensionOutputPanel(
-      service: extensions.output,
-      onOpenInEditor: (path) => unawaited(_open(path)),
-    );
-  }
-
-  /// The language status items of [path]'s document, as one entry.
-  IdeStatusBarItem? _extensionLanguageStatus(String path) {
-    final extensions = _workspaceExtensions;
-    if (extensions == null) return null;
-    return extensionLanguageStatusItem(
-      extensions.languageStatus.forDocument(
-        VsUri.file(path),
-        extensions.languageIdFor(path),
-      ),
-      name: 'Editor Language Status',
-      context: () => context,
-      run: (command) async {
-        final id = command['id'];
-        if (id is! String) return;
-        try {
-          await extensions.commands.executeCommand(id, [
-            ...?command['arguments'] as List?,
-          ]);
-        } on Object catch (error) {
-          _notifications.notify(IdeSeverity.error, '$error');
-        }
-      },
-    );
-  }
-
-  /// The extensions' status bar entries of a side, and on the left the
-  /// runtime's download (and its install on a remote project's host).
-  List<IdeStatusBarItem> _extensionStatusItems({required bool left}) {
-    final extensions = _workspaceExtensions;
-    if (extensions == null) return const [];
-    return [
-      if (extensions.trust case final trust? when left)
-        ?workspaceTrustStatusItem(
-          trust,
-          context.l10n,
-          onTrust: () => unawaited(trust.requestWorkspaceTrust()),
-        ),
-      if (left)
-        ?extensionRuntimeStatusItem(
-          ExtensionRuntimeService.instance.state,
-          l10n: context.l10n,
-          onRetry: () => unawaited(_retryRuntime(extensions)),
-        ),
-      if (extensions.remote?.extensions case final remote? when left)
-        ?remoteRuntimeStatusItem(
-          remote.runtimeProgress.value,
-          remote.name,
-          l10n: context.l10n,
-        ),
-      ...extensionStatusBarItems(
-        extensions.statusBar,
-        left: left,
-        commands: WorkbenchCommandExecutor(extensions.commands),
-        onContextMenu: (position, entry) => unawaited(
-          showExtensionStatusBarMenu(
-            context,
-            position,
-            extensions.statusBar,
-            entry,
-          ),
-        ),
-      ),
-    ];
-  }
-
-  Future<void> _retryRuntime(WorkspaceExtensions extensions) async {
-    try {
-      await ExtensionRuntimeService.instance.ensureReady();
-      await extensions.startHost();
-    } on Object {
-      // The status bar says it failed.
-    }
-  }
-
-  /// The extensions' commands for the Command Palette, and the
-  /// workbench's own over them.
-  List<IdeCommand> _extensionCommands() {
-    final extensions = _workspaceExtensions;
-    if (extensions == null) return const [];
-    return [
-      IdeCommand(
-        id: 'workbench.action.output.toggleOutput',
-        category: 'View',
-        label: 'Toggle Output',
-        run: () => _togglePanel(IdePanelTab.output),
-      ),
+  /// The Command Palette's extension commands.
+  List<IdeCommand> _extensionCommands() => [
+    if (widget.themeExtensions != null)
       IdeCommand(
         id: 'workbench.extensions.action.installVSIX',
         category: 'Extensions',
         label: 'Install from VSIX...',
         run: () => unawaited(_installFromVsix()),
       ),
-      IdeCommand(
-        id: 'baocode.extensions.import',
-        category: 'Extensions',
-        label: 'Import Extensions from Another Editor...',
-        run: () => unawaited(_importExtensions()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.selectIconTheme',
-        category: 'Preferences',
-        label: 'File Icon Theme',
-        enabled: widget.settings != null,
-        run: _selectIconTheme,
-      ),
-      IdeCommand(
-        id: 'editor.action.inlineSuggest.trigger',
-        label: 'Trigger Inline Suggestion',
-        enabled: widget.workspace.active != null,
-        run: () => unawaited(extensions.editorFeatures?.trigger()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.restartExtensionHost',
-        category: 'Developer',
-        label: 'Restart Extension Host',
-        run: () => unawaited(extensions.host?.manager.restart()),
-      ),
-      ...extensions.palette.commands(),
-    ];
-  }
-
-  /// Recommends the extensions of the active file's language when none
-  /// installed provides it, once a session each, as upstream's
-  /// `FileBasedRecommendations`: in the notification center, with Install.
-  void _recommendExtensions() {
-    final extensions = _workspaceExtensions;
-    final active = widget.workspace.active;
-    if (!_localized || extensions == null || active == null) return;
-    if (!active.isFile) return;
-    final installed = extensions.extensionsModel.installed;
-    // Recommended once the installed ones are known.
-    if (installed == null) {
-      unawaited(
-        extensions.extensionsModel.refreshInstalled().then((_) {
-          if (mounted && extensions.extensionsModel.installed != null) {
-            _recommendExtensions();
-          }
-        }),
-      );
-      return;
-    }
-    final ids = recommendationsFor(
-      active.path,
-      installed: {for (final extension in installed) extension.key},
-      providesLanguage: extensions.languageRegistry.installed.containsKey,
-    );
-    final id = ids.firstOrNull;
-    if (id == null ||
-        widget.ignoredRecommendations.contains(id) ||
-        !_recommendedExtensions.add(id)) {
-      return;
-    }
-    final language =
-        recommendationForPath(active.path)?.label ??
-        IdeLanguageNames.forPath(active.path);
-    final l10n = context.l10n;
-    _notifications.notify(
-      IdeSeverity.info,
-      l10n.wbRecommendExtension(id, language),
-      sticky: true,
-      silent: true,
-      primary: [
-        IdeNotificationAction(
-          l10n.extInstall,
-          () => unawaited(extensions.extensionsModel.install(id)),
-        ),
-      ],
-      secondary: [
-        IdeNotificationAction(
-          l10n.wbRecommendExtensionDontShow,
-          () => widget.onIgnoreRecommendation?.call(id),
-        ),
-      ],
-    );
-  }
+    IdeCommand(
+      id: 'workbench.action.selectIconTheme',
+      category: 'Preferences',
+      label: 'File Icon Theme',
+      enabled: widget.settings != null,
+      run: _selectIconTheme,
+    ),
+  ];
 
   /// Preferences: File Icon Theme: the bundled theme and the extensions';
   /// moving through them previews each, accepting keeps it in
@@ -734,6 +233,55 @@ extension _ExtensionsPart on IdeWorkbenchState {
         onDidHide: () {
           if (!accepted) unawaited(service.select(current));
         },
+      ),
+    );
+  }
+}
+
+/// A tab of the Extensions view's header.
+class _ExtensionsTabButton extends StatelessWidget {
+  const _ExtensionsTabButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: selected
+                    ? colors['panelTitle.activeBorder']
+                    : Colors.transparent,
+              ),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 11,
+              letterSpacing: 0.3,
+              color:
+                  colors[selected
+                      ? 'panelTitle.activeForeground'
+                      : 'panelTitle.inactiveForeground'],
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -13,7 +13,7 @@ import 'package:baocode/debug/common/debug_storage.dart';
 import 'package:baocode/debug/common/debug_model.dart';
 import 'package:baocode/debug/service/debug_configuration_manager.dart';
 import 'package:baocode/debug/service/debug_service.dart';
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import 'package:baocode/base/uri.dart' show VsUri;
 
 const fakeProgramPath = '/work/app/main.js';
 

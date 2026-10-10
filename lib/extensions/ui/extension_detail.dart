@@ -168,9 +168,7 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
 
   Future<GalleryExtension?> _fetchGallery() {
     final future = () async {
-      final version =
-          _version ??
-          (_preRelease ? 'pre-release' : null);
+      final version = _version ?? (_preRelease ? 'pre-release' : null);
       if (version == null) {
         // What installing picks: the newest compatible release (Open VSX's
         // `latest` may be a pre-release, as GitLens' is).
@@ -319,10 +317,6 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
                     if ((installed?.preRelease ?? false) ||
                         (gallery?.preRelease ?? false))
                       _pill(l10n.extsPreRelease, accent: true),
-                    if (installed?.kind == InstalledExtensionKind.builtin)
-                      _pill(l10n.extsBuiltin),
-                    if (installed?.kind == InstalledExtensionKind.development)
-                      _pill(l10n.extsDevelopment),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -375,7 +369,8 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
                         rating: rating,
                         count: gallery!.reviewCount,
                       ),
-                    if (capability != null) CapabilityBadge(capability.level)
+                    if (capability != null)
+                      CapabilityBadge(capability.level)
                     else
                       FutureBuilder<CapabilityReport?>(
                         future: _galleryCapability,
@@ -490,17 +485,6 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
         ),
       );
     } else {
-      if (_model.needsRestart(widget.id.toLowerCase())) {
-        buttons.add(
-          ExtensionActionButton(
-            large: true,
-            label: l10n.extRestartExtensions,
-            onPressed: _model.restartExtensions == null
-                ? null
-                : () => unawaited(_model.restartExtensions!()),
-          ),
-        );
-      }
       if (update != null) {
         buttons.add(
           ExtensionActionButton(
@@ -531,43 +515,19 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
         ExtensionActionButton(
           large: true,
           prominent: false,
-          label: installed.enabledGlobally ? l10n.extsDisable : l10n.extsEnable,
-          onPressed: () => unawaited(
-            _model.setEnabled(
-              widget.id,
-              !installed.enabledGlobally,
-              EnablementScope.global,
-            ),
-          ),
+          label: installed.enabled ? l10n.extsDisable : l10n.extsEnable,
+          onPressed: () =>
+              unawaited(_model.setEnabled(widget.id, !installed.enabled)),
         ),
       );
       buttons.add(
         ExtensionActionButton(
           large: true,
           prominent: false,
-          label: installed.enabled
-              ? l10n.extsDisableWorkspace
-              : l10n.extsEnableWorkspace,
-          onPressed: () => unawaited(
-            _model.setEnabled(
-              widget.id,
-              !installed.enabled,
-              EnablementScope.workspace,
-            ),
-          ),
+          label: l10n.extUninstall,
+          onPressed: () => unawaited(_guard(() => _model.uninstall(widget.id))),
         ),
       );
-      if (installed.canUninstall) {
-        buttons.add(
-          ExtensionActionButton(
-            large: true,
-            prominent: false,
-            label: l10n.extUninstall,
-            onPressed: () =>
-                unawaited(_guard(() => _model.uninstall(widget.id))),
-          ),
-        );
-      }
     }
     // Upstream's VersionWidget: an installed one's own version.
     final version = _version ?? installed?.version ?? gallery?.version;
@@ -741,8 +701,12 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
               style: MarkdownView.baseStyle,
               options: MarkdownOptions(
                 headingRules: true,
-                image: (src, alt, title) =>
-                    _MarkdownImage(src: src, alt: alt, base: readmeUrl, client: _client),
+                image: (src, alt, title) => _MarkdownImage(
+                  src: src,
+                  alt: alt,
+                  base: readmeUrl,
+                  client: _client,
+                ),
               ),
             ),
           );
@@ -824,7 +788,8 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
     decoration: BoxDecoration(
       border: Border(
         left: BorderSide(
-          color: themeColors.get('panelSection.border') ??
+          color:
+              themeColors.get('panelSection.border') ??
               themeColors['panel.border'],
         ),
       ),
@@ -888,14 +853,15 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
             future: _galleryCapability,
             builder: (context, snapshot) => snapshot.data == null
                 ? const SizedBox(height: 20)
-                : CapabilitySummary(snapshot.data!, fromManifest: true),
+                : CapabilitySummary(snapshot.data!),
           ),
         const SizedBox(height: 20),
         Text(l10n.extsInformation, style: heading),
         const SizedBox(height: 8),
         row(l10n.extsInfoIdentifier, widget.id),
         row(l10n.extsInfoVersion, installed?.version ?? gallery?.version),
-        if (installed != null && gallery != null &&
+        if (installed != null &&
+            gallery != null &&
             gallery.version != installed.version)
           row(l10n.extsInfoLatest, gallery.version),
         row(

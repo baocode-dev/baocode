@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// The Extensions view: a search box, then the Installed and Recommended
-// panes, or what a search found on Open VSX (`@installed`, `@builtin`,
-// `@recommended` and `@updates` filter instead). Each extension is a 72px
+// The Extensions view: a search box, then the Installed and Popular Themes
+// panes, or the themes a search found on Open VSX (`@installed` and
+// `@updates` filter instead). Each extension is a 72px
 // row: icon, name and version, description, publisher, its capability,
 // and Install, Update or the Manage menu.
 //
@@ -14,8 +14,9 @@
 // extensionsViews.ts, extensionsList.ts, extensionsActions.ts and their
 // media/extensionsViewlet.css, extension.css and extensionActions.css.
 //
-// Deviations: the gallery is Open VSX; a row shows the capability badge
-// (BaoCode has no webviews); a click opens the extension's page through
+// Deviations: the gallery is Open VSX, searched for themes (BaoCode runs no
+// extension code: only their color and file icon themes apply); a row shows
+// the capability badge; a click opens the extension's page through
 // [ExtensionsView.onOpen], which the workbench shows as an editor.
 
 import 'dart:async';
@@ -32,7 +33,6 @@ import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../capabilities/capability_analysis.dart';
-import '../gallery/extension_management_backend.dart';
 import 'extension_widgets.dart';
 import 'extensions_model.dart';
 
@@ -42,7 +42,6 @@ class ExtensionsView extends StatefulWidget {
     required this.model,
     this.onOpen,
     this.onInstallFromVsix,
-    this.onImport,
     this.onError,
   });
 
@@ -53,9 +52,6 @@ class ExtensionsView extends StatefulWidget {
 
   /// Picks a .vsix to install (then [showVsixInstallSheet]).
   final VoidCallback? onInstallFromVsix;
-
-  /// Opens the import dialog.
-  final VoidCallback? onImport;
   final ValueChanged<String>? onError;
 
   @override
@@ -77,6 +73,7 @@ class _ExtensionsViewState extends State<ExtensionsView> {
     _model.addListener(_changed);
     _listFocus.addListener(_changed);
     if (_model.installed == null) unawaited(_model.refreshInstalled());
+    unawaited(_model.loadPopular());
   }
 
   @override
@@ -129,7 +126,8 @@ class _ExtensionsViewState extends State<ExtensionsView> {
         IdeMenuAction(
           l10n.extInstall,
           enabled: !busy,
-          onSelected: () => unawaited(_guard(entry.id, () => _model.install(entry.id))),
+          onSelected: () =>
+              unawaited(_guard(entry.id, () => _model.install(entry.id))),
         )
       else ...[
         if (update != null)
@@ -140,29 +138,11 @@ class _ExtensionsViewState extends State<ExtensionsView> {
                 unawaited(_guard(entry.id, () => _model.update(entry.id))),
           ),
         IdeMenuAction(
-          installed.enabledGlobally ? l10n.extsDisable : l10n.extsEnable,
-          onSelected: () => unawaited(
-            _model.setEnabled(
-              entry.id,
-              !installed.enabledGlobally,
-              EnablementScope.global,
-            ),
-          ),
+          installed.enabled ? l10n.extsDisable : l10n.extsEnable,
+          onSelected: () =>
+              unawaited(_model.setEnabled(entry.id, !installed.enabled)),
         ),
-        IdeMenuAction(
-          installed.enabled
-              ? l10n.extsDisableWorkspace
-              : l10n.extsEnableWorkspace,
-          onSelected: () => unawaited(
-            _model.setEnabled(
-              entry.id,
-              !installed.enabled,
-              EnablementScope.workspace,
-            ),
-          ),
-        ),
-        if (installed.fromGallery &&
-            installed.kind == InstalledExtensionKind.user)
+        if (installed.fromGallery)
           IdeMenuAction(
             installed.preRelease
                 ? l10n.extsSwitchToRelease
@@ -171,20 +151,17 @@ class _ExtensionsViewState extends State<ExtensionsView> {
             onSelected: () => unawaited(
               _guard(
                 entry.id,
-                () => _model.install(
-                  entry.id,
-                  preRelease: !installed.preRelease,
-                ),
+                () =>
+                    _model.install(entry.id, preRelease: !installed.preRelease),
               ),
             ),
           ),
-        if (installed.canUninstall)
-          IdeMenuAction(
-            l10n.extUninstall,
-            enabled: !busy,
-            onSelected: () =>
-                unawaited(_guard(entry.id, () => _model.uninstall(entry.id))),
-          ),
+        IdeMenuAction(
+          l10n.extUninstall,
+          enabled: !busy,
+          onSelected: () =>
+              unawaited(_guard(entry.id, () => _model.uninstall(entry.id))),
+        ),
       ],
       const IdeMenuSeparator(),
       IdeMenuAction(
@@ -204,7 +181,6 @@ class _ExtensionsViewState extends State<ExtensionsView> {
         ? l10n.extTitle
         : switch (query.filter) {
             'installed' => l10n.extTitleInstalled,
-            'recommended' => l10n.extTitleRecommended,
             'updates' => l10n.extsTitleUpdates,
             _ => l10n.extsTitleOpenVsx,
           };
@@ -223,14 +199,6 @@ class _ExtensionsViewState extends State<ExtensionsView> {
                   IdeMenuAction(
                     l10n.extInstalled,
                     onSelected: () => _search('@installed '),
-                  ),
-                  IdeMenuAction(
-                    l10n.extsBuiltin,
-                    onSelected: () => _search('@builtin '),
-                  ),
-                  IdeMenuAction(
-                    l10n.extRecommended,
-                    onSelected: () => _search('@recommended '),
                   ),
                   IdeMenuAction(
                     l10n.extsUpdates,
@@ -258,11 +226,6 @@ class _ExtensionsViewState extends State<ExtensionsView> {
                     l10n.extsInstallFromVsix,
                     enabled: widget.onInstallFromVsix != null,
                     onSelected: widget.onInstallFromVsix,
-                  ),
-                  IdeMenuAction(
-                    l10n.extsImportFromEditors,
-                    enabled: widget.onImport != null,
-                    onSelected: widget.onImport,
                   ),
                   const IdeMenuSeparator(),
                   IdeMenuAction(
@@ -313,10 +276,6 @@ class _ExtensionsViewState extends State<ExtensionsView> {
     switch (query.filter) {
       case 'installed':
         return _list(model.installedEntries);
-      case 'builtin':
-        return _list(model.builtinEntries);
-      case 'recommended':
-        return _list(model.recommendedEntries);
       case 'updates':
         return _list(model.updateEntries);
     }
@@ -333,7 +292,7 @@ class _ExtensionsViewState extends State<ExtensionsView> {
       );
     }
     final installed = model.installedEntries;
-    final recommended = model.recommendedEntries;
+    final popular = model.popularEntries;
     return IdePaneContainer(
       panes: [
         IdePane(
@@ -344,11 +303,14 @@ class _ExtensionsViewState extends State<ExtensionsView> {
           body: _list(installed),
         ),
         IdePane(
-          id: 'recommended',
-          title: l10n.extRecommended,
-          weight: 40,
-          badge: IdeCountBadge(recommended.length),
-          body: _list(recommended),
+          id: 'popular',
+          title: l10n.extsPopularThemes,
+          weight: 100,
+          body: model.popularError != null && model.popular == null
+              ? _message(l10n.extsSearchFailed('${model.popularError}'))
+              : model.popular == null
+              ? const SizedBox.shrink()
+              : _list(popular),
         ),
       ],
       expanded: model.expanded,
@@ -514,7 +476,10 @@ class ExtensionRow extends StatelessWidget {
                                       padding: const EdgeInsets.only(left: 6),
                                       child: Text(
                                         version,
-                                        style: TextStyle(fontSize: 11, color: description),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: description,
+                                        ),
                                       ),
                                     ),
                                 ],
@@ -573,7 +538,9 @@ class ExtensionRow extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
-                                      color: selected ? foreground : description,
+                                      color: selected
+                                          ? foreground
+                                          : description,
                                     ),
                                   ),
                                 ),
@@ -583,7 +550,10 @@ class ExtensionRow extends StatelessWidget {
                                     child: Icon(
                                       Codicons.verifiedFilled,
                                       size: 13,
-                                      color: colors.get('extensionIcon.verifiedForeground') ??
+                                      color:
+                                          colors.get(
+                                            'extensionIcon.verifiedForeground',
+                                          ) ??
                                           colors['textLink.foreground'],
                                     ),
                                   ),
@@ -591,10 +561,11 @@ class ExtensionRow extends StatelessWidget {
                                   Padding(
                                     padding: const EdgeInsets.only(left: 6),
                                     child: Text(
-                                      installed.enabledGlobally
-                                          ? l10n.extsDisabledWorkspace
-                                          : l10n.extsDisabled,
-                                      style: TextStyle(fontSize: 11, color: description),
+                                      l10n.extsDisabled,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: description,
+                                      ),
                                     ),
                                   ),
                               ],
@@ -603,14 +574,20 @@ class ExtensionRow extends StatelessWidget {
                           if (capability != null &&
                               capability.level != ExtensionCapabilityLevel.full)
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 3),
-                              child: CapabilityBadge(capability.level, compact: true),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 3,
+                              ),
+                              child: CapabilityBadge(
+                                capability.level,
+                                compact: true,
+                              ),
                             ),
                           if (busy != null)
                             ExtensionActionButton(
                               label: switch (busy) {
                                 ExtensionBusy.installing => l10n.extInstalling,
-                                ExtensionBusy.uninstalling => l10n.extUninstalling,
+                                ExtensionBusy.uninstalling =>
+                                  l10n.extUninstalling,
                                 ExtensionBusy.updating => l10n.extsUpdating,
                               },
                             )
@@ -618,13 +595,6 @@ class ExtensionRow extends StatelessWidget {
                             ExtensionActionButton(
                               label: l10n.extInstall,
                               onPressed: onInstall,
-                            )
-                          else if (model.needsRestart(entry.key))
-                            ExtensionActionButton(
-                              label: l10n.extRestartExtensions,
-                              onPressed: model.restartExtensions == null
-                                  ? null
-                                  : () => unawaited(model.restartExtensions!()),
                             )
                           else if (update != null)
                             ExtensionActionButton(

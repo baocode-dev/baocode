@@ -12,7 +12,7 @@
 
 import 'dart:async';
 
-import 'package:bao_exthost/bao_exthost.dart' show CancellationTokenSource;
+import '../../base/cancellation.dart' show CancellationTokenSource;
 import 'package:flutter/material.dart';
 
 import '../../ide/ide_hover.dart';

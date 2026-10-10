@@ -40,12 +40,10 @@ const _extension = {
   'categories': ['Formatters'],
   'engines': {'vscode': '^1.101.0'},
   'files': {
-    'manifest':
-        'https://open-vsx.org/api/esbenp/prettier-vscode/12.4.0/file/package.json',
+    'manifest': 'https://open-vsx.org/api/esbenp/prettier-vscode/12.4.0/file/package.json',
     'readme':
         'https://open-vsx.org/api/esbenp/prettier-vscode/12.4.0/file/readme.md',
-    'changelog':
-        'https://open-vsx.org/api/esbenp/prettier-vscode/12.4.0/file/changelog.md',
+    'changelog': 'https://open-vsx.org/api/esbenp/prettier-vscode/12.4.0/file/changelog.md',
     'icon':
         'https://open-vsx.org/api/esbenp/prettier-vscode/12.4.0/file/icon.png',
   },
@@ -97,14 +95,12 @@ const _readmeText =
 /// The client requests as the page does, for the universal platform.
 FixtureHttp _http({List<int>? readme}) => FixtureHttp(recorded: false)
   ..addJson(_latest, _extension)
-  ..addJson(
-    '/api/esbenp/prettier-vscode/universal/pre-release',
-    {..._extension, 'version': '12.5.0', 'preRelease': true},
-  )
-  ..addJson(
-    '/api/esbenp/prettier-vscode/universal/12.4.0',
-    _extension,
-  )
+  ..addJson('/api/esbenp/prettier-vscode/universal/pre-release', {
+    ..._extension,
+    'version': '12.5.0',
+    'preRelease': true,
+  })
+  ..addJson('/api/esbenp/prettier-vscode/universal/12.4.0', _extension)
   ..add(_readme, readme ?? utf8.encode(_readmeText))
   ..add(_changelog, utf8.encode('# Changelog\n\n## 12.4.0\n\nFixed things.\n'))
   ..addJson(_manifestUrl, _manifest)
@@ -124,7 +120,10 @@ void main() {
     tester,
   ) async {
     final http = _http();
-    final model = ExtensionsModel(backend: FakeBackend(), gallery: _client(http));
+    final model = ExtensionsModel(
+      backend: FakeBackend(),
+      gallery: _client(http),
+    );
     await tester.pumpWidget(
       _app(ExtensionDetailPage(model: model, id: _prettier)),
     );
@@ -149,7 +148,10 @@ void main() {
 
   testWidgets('lists the contributions of the manifest', (tester) async {
     final http = _http();
-    final model = ExtensionsModel(backend: FakeBackend(), gallery: _client(http));
+    final model = ExtensionsModel(
+      backend: FakeBackend(),
+      gallery: _client(http),
+    );
     await tester.pumpWidget(
       _app(
         ExtensionDetailPage(
@@ -171,7 +173,10 @@ void main() {
     tester,
   ) async {
     final http = _http();
-    final model = ExtensionsModel(backend: FakeBackend(), gallery: _client(http));
+    final model = ExtensionsModel(
+      backend: FakeBackend(),
+      gallery: _client(http),
+    );
     await tester.pumpWidget(
       _app(ExtensionDetailPage(model: model, id: _prettier)),
     );
@@ -199,7 +204,10 @@ void main() {
     tester,
   ) async {
     final http = _http()..add(_changelog, const [], status: 500);
-    final model = ExtensionsModel(backend: FakeBackend(), gallery: _client(http));
+    final model = ExtensionsModel(
+      backend: FakeBackend(),
+      gallery: _client(http),
+    );
     await tester.pumpWidget(
       _app(ExtensionDetailPage(model: model, id: _prettier)),
     );
@@ -213,7 +221,10 @@ void main() {
 
   testWidgets('says so when the README is empty', (tester) async {
     final http = _http(readme: utf8.encode('   '));
-    final model = ExtensionsModel(backend: FakeBackend(), gallery: _client(http));
+    final model = ExtensionsModel(
+      backend: FakeBackend(),
+      gallery: _client(http),
+    );
     await tester.pumpWidget(
       _app(ExtensionDetailPage(model: model, id: _prettier)),
     );
@@ -243,7 +254,6 @@ void main() {
 
     expect(find.text('Uninstall'), findsOneWidget);
     expect(find.text('Disable'), findsOneWidget);
-    expect(find.text('Disable (Workspace)'), findsOneWidget);
     expect(find.text('Version'), findsOneWidget);
     // Upstream's VersionWidget: the installed version, not the gallery's.
     expect(find.text('v12.3.0'), findsOneWidget);
@@ -252,8 +262,15 @@ void main() {
   testWidgets("shows the newest release when Open VSX's latest is a "
       'pre-release (GitLens)', (tester) async {
     final http = _http()
-      ..addJson(_latest, {..._extension, 'version': '12.5.0', 'preRelease': true});
-    final model = ExtensionsModel(backend: FakeBackend(), gallery: _client(http));
+      ..addJson(_latest, {
+        ..._extension,
+        'version': '12.5.0',
+        'preRelease': true,
+      });
+    final model = ExtensionsModel(
+      backend: FakeBackend(),
+      gallery: _client(http),
+    );
     await tester.pumpWidget(
       _app(ExtensionDetailPage(model: model, id: _prettier)),
     );

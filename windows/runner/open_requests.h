@@ -36,7 +36,7 @@ class OpenRequests {
   // Hands |paths| (UTF-8, absolute) to Flutter, or keeps them until it is
   // ready; or a request (see IsRequest), which goes as it came, its flag
   // made the marker Flutter knows it by (lib/window/code_args.dart's
-  // requestMarker, agentRequestMarker, uriRequestMarker).
+  // requestMarker, agentRequestMarker).
   void Deliver(std::vector<std::string> paths);
 
  private:
@@ -63,21 +63,14 @@ constexpr char kCodeRequestFlag[] = "--baocode-cli";
 // openAgent).
 constexpr char kAgentRequestFlag[] = "--baocode-agent";
 
-// The flag the `baocode` URL protocol starts the app with (the installer
-// registers it, see tool/baocode.iss), `--` and the URI next, as VS Code's
-// `--open-url`: an extension's URI (an OAuth callback) for its URI handler
-// (lib/extensions/window/url_service.dart).
-constexpr char kUrlRequestFlag[] = "--open-url";
-
-// Whether |paths| are a request rather than paths: kCodeRequestFlag,
-// kAgentRequestFlag or kUrlRequestFlag first.
+// Whether |paths| are a request rather than paths: kCodeRequestFlag or
+// kAgentRequestFlag first.
 bool IsRequest(const std::vector<std::string>& paths);
 
 // The paths in the command line the app was started with, made absolute
 // from the folder it was started in, in UTF-8; its options (from `-`) left
 // out. Started by code.cmd, the request it makes instead, as it came; by
-// Open with BaoCode, its flag, then the paths; by a `baocode://` URI,
-// kUrlRequestFlag, then the URI (see IsRequest).
+// Open with BaoCode, its flag, then the paths (see IsRequest).
 std::vector<std::string> OpenPathsFromCommandLine();
 
 // Marks |window| as the one that takes the paths a second copy of the app

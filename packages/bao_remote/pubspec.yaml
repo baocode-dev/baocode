@@ -12,8 +12,6 @@ environment:
   sdk: ^3.13.4
 
 dependencies:
-  bao_exthost:
-    path: ../bao_exthost
   crypto: ^3.0.6
   meta: ^1.15.0
   path: ^1.9.1

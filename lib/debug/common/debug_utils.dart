@@ -13,7 +13,7 @@
 // Deviations: the platform overrides take the target platform as a
 // parameter; paths are told absolute for both POSIX and Windows.
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import '../../base/uri.dart' show VsUri;
 
 import 'debug_types.dart';
 

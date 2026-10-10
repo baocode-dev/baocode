@@ -2,7 +2,7 @@
 
 import 'dart:io';
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import '../../base/uri.dart' show VsUri;
 
 import 'debug_configuration_manager.dart';
 

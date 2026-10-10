@@ -1,7 +1,6 @@
 // Dropping a .vsix on the workbench: the confirmation shows what the
 // package is, whether it fits this VS Code and platform, and installs once
-// confirmed. Dropping an extension folder asks before loading it as a
-// development extension.
+// confirmed.
 //
 // The sheet reads the package while building, so its body runs inside
 // `tester.runAsync` ([_io]): those futures only complete with real IO.
@@ -67,6 +66,11 @@ void main() {
         // extension's is always accepted).
         'main': './extension.js',
         'engines': {'vscode': engine},
+        'contributes': {
+          'themes': [
+            {'label': 'Tool', 'uiTheme': 'vs-dark', 'path': './t.json'},
+          ],
+        },
       },
       'extension.js': 'exports.activate = () => {};',
     }, vsixManifest: vsixManifest);
@@ -104,7 +108,8 @@ void main() {
     expect(find.textContaining('acme.tool'), findsOneWidget);
     expect(find.text('Requires VS Code ^1.101.0.'), findsOneWidget);
     expect(find.text('Platform: universal'), findsOneWidget);
-    expect(find.text('Fully supported'), findsOneWidget);
+    // Its code does not run; its theme applies.
+    expect(find.text('Partly supported'), findsOneWidget);
 
     await _io(tester, () => tester.tap(find.text('Install')));
     expect(backend.calls.single, contains('tool.vsix'));
@@ -149,8 +154,10 @@ void main() {
     });
 
     expect(
-      find.textContaining('It is built for Windows 64 bit, not for Mac '
-          'Silicon.'),
+      find.textContaining(
+        'It is built for Windows 64 bit, not for Mac '
+        'Silicon.',
+      ),
       findsOneWidget,
     );
     await _io(tester, () async {
@@ -197,12 +204,9 @@ void main() {
               body: Builder(
                 builder: (context) => TextButton(
                   onPressed: () async {
-                    handled = await handleExtensionDrop(
-                      context,
-                      ['${dir.path}/notes.txt'],
-                      backend: backend,
-                      onLoadDevelopmentFolder: (_) {},
-                    );
+                    handled = await handleExtensionDrop(context, [
+                      '${dir.path}/notes.txt',
+                    ], backend: backend);
                   },
                   child: const Text('drop'),
                 ),
@@ -226,12 +230,9 @@ void main() {
             home: Scaffold(
               body: Builder(
                 builder: (context) => TextButton(
-                  onPressed: () => handleExtensionDrop(
-                    context,
-                    ['${dir.path}/tool.vsix'],
-                    backend: backend,
-                    onLoadDevelopmentFolder: (_) {},
-                  ),
+                  onPressed: () => handleExtensionDrop(context, [
+                    '${dir.path}/tool.vsix',
+                  ], backend: backend),
                   child: const Text('drop'),
                 ),
               ),
@@ -244,72 +245,11 @@ void main() {
       expect(find.text('Tool'), findsOneWidget);
     });
 
-    testWidgets('an extension folder is offered as a development one', (
-      tester,
-    ) async {
-      writeFolder('${dir.path}/acme.tool', {
-        'package.json': {
-          'name': 'tool',
-          'publisher': 'acme',
-          'version': '1.0.0',
-          'engines': {'vscode': '^1.101.0'},
-        },
-      });
-      final loaded = <String>[];
-      await _io(tester, () async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: Builder(
-                builder: (context) => TextButton(
-                  onPressed: () => handleExtensionDrop(
-                    context,
-                    ['${dir.path}/acme.tool'],
-                    backend: FakeBackend(),
-                    onLoadDevelopmentFolder: loaded.add,
-                  ),
-                  child: const Text('drop'),
-                ),
-              ),
-            ),
-          ),
-        );
-        await tester.tap(find.text('drop'));
-      });
-      expect(find.text('Development Extension'), findsOneWidget);
-      expect(
-        find.text('Load acme.tool as a development extension?'),
-        findsOneWidget,
-      );
-      await _io(tester, () => tester.tap(find.text('Load')));
-      expect(loaded, ['${dir.path}/acme.tool']);
-    });
-
-    testWidgets('classifies a dropped path', (tester) async {
-      writeVsix('tool.vsix');
-      writeFolder('${dir.path}/acme.tool', {
-        'package.json': {
-          'name': 'tool',
-          'publisher': 'acme',
-          'version': '1.0.0',
-          'engines': {'vscode': '^1.101.0'},
-        },
-      });
-      File('${dir.path}/notes.txt').writeAsStringSync('hello');
-      await tester.runAsync(() async {
-        expect(
-          await classifyExtensionDrop('${dir.path}/tool.vsix'),
-          ExtensionDropKind.vsix,
-        );
-        expect(
-          await classifyExtensionDrop('${dir.path}/acme.tool'),
-          ExtensionDropKind.developmentFolder,
-        );
-        expect(
-          await classifyExtensionDrop('${dir.path}/notes.txt'),
-          ExtensionDropKind.other,
-        );
-      });
+    test('only a .vsix is taken', () {
+      expect(isVsixDrop('/a/tool.vsix'), isTrue);
+      expect(isVsixDrop('/a/Tool.VSIX'), isTrue);
+      expect(isVsixDrop('/a/acme.tool'), isFalse);
+      expect(isVsixDrop('/a/notes.txt'), isFalse);
     });
   });
 }

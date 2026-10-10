@@ -15,7 +15,7 @@ import 'search/text_query.dart';
 abstract final class RemoteProtocol {
   /// Raise it whenever a method or a shape changes: an app and a server of
   /// another version do not talk, and the app puts its own server in place.
-  static const version = 4;
+  static const version = 5;
 
   static const initialize = 'initialize';
   static const shutdown = 'shutdown';
@@ -86,18 +86,6 @@ abstract final class RemoteProtocol {
   static const lspInstall = 'lsp/install';
   static const lspInstalled = 'lsp/installed';
   static const lspUninstall = 'lsp/uninstall';
-
-  // The extension runtime and its VS Code server.
-  static const exthostInstall = 'exthost/install';
-  static const exthostUpload = 'exthost/upload';
-  static const exthostStart = 'exthost/start';
-
-  /// A file sent for the server there (an extension's .vsix), in pieces:
-  /// `{name, offset, data}`, answered with its path there.
-  static const exthostStage = 'exthost/stage';
-
-  /// Deletes a file [exthostStage] sent: `{name}`.
-  static const exthostUnstage = 'exthost/unstage';
 
   // Port forwarding (the remote host's port to one of the app's), and
   // the app's connections to a port there ([tcpConnect]).

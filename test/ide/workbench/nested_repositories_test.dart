@@ -31,10 +31,10 @@ void main() {
 
     await pumpEventQueue();
     expect(searched, [testRoot]);
-    expect([for (final (root, _) in workspace.repositories) root], [
-      testRoot,
-      inRoot('app'),
-    ]);
+    expect(
+      [for (final (root, _) in workspace.repositories) root],
+      [testRoot, inRoot('app')],
+    );
     expect(workspace.git, same(ownGit));
     final appGit = workspace.repositories.last.$2;
     expect(workspace.gitAt(inRoot('app/lib/main.dart')), same(appGit));
@@ -62,9 +62,10 @@ void main() {
     var notified = 0;
     workspace.addListener(() => notified++);
     await pumpEventQueue();
-    expect([for (final (root, _) in workspace.repositories) root], [
-      inRoot('app'),
-    ]);
+    expect(
+      [for (final (root, _) in workspace.repositories) root],
+      [inRoot('app')],
+    );
     expect(workspace.git?.isRepository, isTrue);
     expect(notified, greaterThan(0));
   });
@@ -91,16 +92,16 @@ void main() {
     );
     addTearDown(workspace.dispose);
     await pumpEventQueue();
-    expect([for (final (root, _) in workspace.repositories) root], [
-      inRoot('site'),
-      inRoot('site/theme'),
-      inRoot('api'),
-    ]);
+    expect(
+      [for (final (root, _) in workspace.repositories) root],
+      [inRoot('site'), inRoot('site/theme'), inRoot('api')],
+    );
 
     workspace.roots = [inRoot('api')];
-    expect([for (final (root, _) in workspace.repositories) root], [
-      inRoot('api'),
-    ]);
+    expect(
+      [for (final (root, _) in workspace.repositories) root],
+      [inRoot('api')],
+    );
   });
 
   testWidgets('Source Control lists the repositories found in the folder, '

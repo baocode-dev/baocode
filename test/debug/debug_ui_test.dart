@@ -5,7 +5,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import 'package:baocode/base/uri.dart' show VsUri;
 import 'package:baocode/debug/common/debug_source.dart';
 import 'package:baocode/debug/common/debug_types.dart';
 import 'package:baocode/debug/common/repl_model.dart';
@@ -93,7 +93,8 @@ Future<ui.Image> _capture(
       pixelRatio: 2,
     );
     final bytes = await picture.toByteData(format: ui.ImageByteFormat.png);
-    await File(path).writeAsBytes(bytes!.buffer.asUint8List());
+    final file = File(path)..parent.createSync(recursive: true);
+    await file.writeAsBytes(bytes!.buffer.asUint8List());
     return picture;
   });
   return image!;
@@ -146,7 +147,7 @@ void main() {
     await _capture(
       tester,
       DebugView(service: service),
-      'build/exthost-screens/debug_paused.png',
+      'build/debug-screens/debug_paused.png',
     );
     expect(find.text('compute'), findsWidgets);
     expect(find.text('compute'), findsWidgets);
@@ -161,13 +162,13 @@ void main() {
     await _capture(
       tester,
       CallStackView(service: service),
-      'build/exthost-screens/debug_callstack.png',
+      'build/debug-screens/debug_callstack.png',
       size: const Size(340, 260),
     );
     await _capture(
       tester,
       BreakpointsView(service: service),
-      'build/exthost-screens/debug_breakpoints.png',
+      'build/debug-screens/debug_breakpoints.png',
       size: const Size(360, 220),
     );
     service.dispose();
@@ -229,7 +230,7 @@ void main() {
     await _capture(
       tester,
       console,
-      'build/exthost-screens/debug_console.png',
+      'build/debug-screens/debug_console.png',
       size: const Size(560, 420),
       key: key,
     );
@@ -291,7 +292,7 @@ void main() {
     await _capture(
       tester,
       console,
-      'build/exthost-screens/debug_console_expanded.png',
+      'build/debug-screens/debug_console_expanded.png',
       size: const Size(560, 420),
       key: key,
     );
@@ -308,7 +309,7 @@ void main() {
       Center(
         child: DebugToolbar(service: service, hotReload: (_) => null),
       ),
-      'build/exthost-screens/debug_toolbar.png',
+      'build/debug-screens/debug_toolbar.png',
       size: const Size(420, 120),
     );
     expect(find.byType(DebugToolbar), findsOneWidget);
