@@ -82,6 +82,7 @@ import 'lsp_ui/lsp_convert.dart';
 import 'lsp_ui/problems_panel.dart';
 import 'lsp_ui/workspace_edit.dart';
 import 'project_tools.dart';
+import 'save_copy.dart';
 import 'search/ide_search_view.dart';
 import 'search/text_search.dart';
 import 'terminal/links/terminal_links.dart';
@@ -1494,13 +1495,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     unawaited(_select(doc));
   }
 
-  /// Save As: the active editor's text to a file asked for, its tab then
-  /// that file's.
-  Future<void> _saveAs() async {
-    final doc = widget.workspace.active;
+  /// Save As: the editor's text ([doc]'s, else the active one's) to a file
+  /// asked for, its tab then that file's. A picture's or a file not shown
+  /// as text is copied instead.
+  Future<void> _saveAs([IdeDocument? doc]) async {
+    doc ??= widget.workspace.active;
     if (doc == null) return;
     try {
-      await _flushEditor();
+      if (!doc.isFile && !doc.isUntitled) {
+        await saveFileCopyAs(widget.workspace.files, doc.path);
+        return;
+      }
+      if (identical(doc, widget.workspace.active)) await _flushEditor();
       final saved = await widget.workspace.saveAs(doc);
       if (saved != null && mounted) _focusSoon();
     } catch (error) {
@@ -1564,6 +1570,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         unawaited(Clipboard.setData(ClipboardData(text: doc.path)));
       case IdeTabAction.copyRelativePath:
         unawaited(Clipboard.setData(ClipboardData(text: _relative(doc.path))));
+      case IdeTabAction.saveAs:
+        unawaited(_saveAs(doc));
       case IdeTabAction.revealInFileManager:
         unawaited(WindowControls.revealInFileManager(doc.path));
       case IdeTabAction.openInDefaultApp:

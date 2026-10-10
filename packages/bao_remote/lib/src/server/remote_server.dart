@@ -336,6 +336,15 @@ class RemoteServer {
       await _sessions.delete(paramsOf(params)['id'] as String);
       return null;
     };
+    handlers[RemoteProtocol.claudeFork] = (params, _) {
+      final args = paramsOf(params);
+      return _sessions.fork(
+        args['id'] as String,
+        args['into'] as String,
+        before: args['before'] as String?,
+        title: args['title'] as String?,
+      );
+    };
     handlers[RemoteProtocol.claudeUsageOffBy] = (_, _) async {
       const setting = ClaudeEnvironment.essentialTrafficVariable;
       final value = (await ClaudeEnvironment.of())[setting];

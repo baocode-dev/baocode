@@ -19,6 +19,7 @@ abstract final class KernelRegistry {
       start: startClaude,
       readHistory: readClaudeHistory,
       readGoal: readClaudeGoal,
+      forkSession: forkClaudeSession,
       usageOffBy: () => claudeUsageOffByAt(context.cwd),
     ),
     catalog: const ClaudeCatalog(),

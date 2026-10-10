@@ -9,6 +9,7 @@ import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer_draft.dart';
 import 'package:baocode/chat/widgets/fold_line.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 /// A conversation held in a list, changed by hand.
@@ -224,4 +225,43 @@ void main() {
       'Fix the bug\nWorked for 1m 5s · 1 file +1 -1\nDone, fixed.',
     );
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('a finished turn\'s reply offers to copy it, a running '
+      'one\'s not', (tester) async {
+    String? copied;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    final feed = _Feed([
+      ..._turn(worked: const Duration(seconds: 5)),
+      const UserMessageItem(text: 'And now?'),
+      const AssistantTextItem('Now **this**.'),
+    ]);
+    await _pump(tester, feed);
+    // The words in a turn are not its reply; its last are.
+    expect(find.byIcon(Codicons.copy), findsNWidgets(2));
+    await tester.tap(find.byIcon(Codicons.copy).last);
+    await tester.pump();
+    expect(copied, 'Now **this**.');
+    expect(find.byIcon(Codicons.check), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+
+    feed.update([
+      ...feed.items,
+      const UserMessageItem(text: 'More'),
+      const AssistantTextItem('Working on it'),
+    ], streaming: true);
+    await tester.pump();
+    expect(find.byIcon(Codicons.copy), findsNWidgets(2));
+    // Nothing forks without a session to copy.
+    expect(find.byIcon(Codicons.repoForked), findsNothing);
+  });
 }

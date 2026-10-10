@@ -43,6 +43,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
 import '../../workspace/window_controls.dart';
+import '../file_service.dart' show IdeHostFiles;
 import '../ide_animated_list.dart';
 import '../ide_commands.dart';
 import '../ide_dates.dart';
@@ -55,6 +56,7 @@ import '../ide_notifications.dart';
 import '../ide_panes.dart';
 import '../ide_spinning.dart';
 import '../ide_workspace.dart';
+import '../save_copy.dart';
 import 'commit_message.dart';
 import 'git_graph_painter.dart';
 import 'git_model.dart';
@@ -1734,7 +1736,21 @@ class IdeScmViewState extends State<IdeScmView>
         ],
         if (targets.length == 1)
           [
-            if (WindowControls.canRevealInFileManager && !_deleted(resource))
+            // To this machine, from a remote project's host too.
+            if (canSaveFileCopy && !_deleted(resource))
+              IdeMenuAction(
+                l10n.cmdSaveAs,
+                onSelected: () => unawaited(
+                  saveFileCopyAs(
+                    widget.workspace.files,
+                    resource.path,
+                  ).then<void>((_) {}, onError: _report),
+                ),
+              ),
+            // A remote project's files are not here.
+            if (WindowControls.canRevealInFileManager &&
+                widget.workspace.files is! IdeHostFiles &&
+                !_deleted(resource))
               IdeMenuAction(
                 l10n.revealInFileManager,
                 onSelected: () => unawaited(

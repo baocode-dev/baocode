@@ -33,6 +33,7 @@ import 'ide_dialog.dart';
 import 'ide_input.dart';
 import 'ide_list.dart';
 import 'ide_menu.dart';
+import 'save_copy.dart';
 
 /// One visible row of the explorer tree.
 @immutable
@@ -1361,6 +1362,17 @@ class IdeExplorerState extends State<IdeExplorer> {
                   if (!target.isDirectory) open(target.path);
                 }
               },
+            ),
+          // To this machine, from a remote project's host too.
+          if (!isFolder && !multiple && canSaveFileCopy)
+            IdeMenuAction(
+              l10n.cmdSaveAs,
+              onSelected: () => unawaited(
+                saveFileCopyAs(
+                  _controller.files,
+                  path,
+                ).then<void>((_) {}, onError: _report),
+              ),
             ),
         ],
         [

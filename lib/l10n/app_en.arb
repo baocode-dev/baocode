@@ -917,6 +917,18 @@
   "@sidebarCopySessionId": {
     "description": "An agent's menu in the sidebar: copies the id of its session, which Claude Code finds the conversation by."
   },
+  "sidebarFork": "Fork",
+  "@sidebarFork": {
+    "description": "An agent's menu in the sidebar: copies its conversation into a new agent, which opens."
+  },
+  "chatForkFromHere": "Fork from here",
+  "@chatForkFromHere": {
+    "description": "Under an agent's reply, on hover: copies the conversation up to the end of this turn into a new agent, which opens."
+  },
+  "chatCopyReply": "Copy reply",
+  "@chatCopyReply": {
+    "description": "Under an agent's reply, on hover: copies the reply's Markdown."
+  },
   "sidebarShowMore": "Show more ({count})",
   "@sidebarShowMore": {
     "placeholders": {

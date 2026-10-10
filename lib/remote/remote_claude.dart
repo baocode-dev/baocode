@@ -55,6 +55,23 @@ Future<List<Map<String, Object?>>> readClaudeGoal(String cwd, String id) async {
   return client.claudeGoal(id);
 }
 
+/// Copies the session [id], run in [cwd], into a new one, [into], where
+/// it was kept (see ClaudeSessions.fork): its file there.
+Future<String> forkClaudeSession(
+  String cwd,
+  String id,
+  String into, {
+  String? before,
+  String? title,
+}) async {
+  final host = RemoteLocation.hostOf(cwd);
+  if (host == null) {
+    return const ClaudeStorage().fork(id, into, before: before, title: title);
+  }
+  final client = await SshHosts.instance[host].ready;
+  return client.claudeFork(id, into, before: before, title: title);
+}
+
 /// The setting that keeps Claude Code from asking for the plan usage, as
 /// it runs where [cwd] is.
 Future<String?> claudeUsageOffByAt(String? cwd) async {

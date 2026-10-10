@@ -33,3 +33,19 @@ Future<void> copyLocalTo(IdeFileService files, String from, String to) async {
       throw IdeFileNotFoundException(from);
   }
 }
+
+Future<void> saveCopyTo(
+  IdeFileService files,
+  String from,
+  String to, {
+  String? text,
+}) async {
+  final file = File(to);
+  if (text != null) {
+    await file.writeAsString(text);
+  } else if (files is IdeHostFiles) {
+    await file.writeAsBytes(await files.readBytes(from));
+  } else if (!p.equals(from, to)) {
+    await File(from).copy(to);
+  }
+}

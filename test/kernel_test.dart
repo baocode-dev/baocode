@@ -3815,6 +3815,62 @@ exec /bin/sh -c "\$command"
         );
       },
     );
+
+    test('a fork copies the conversation up to a message, apart', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      const id = 'aaaaaaaa-1111-4111-8111-111111111111';
+      const into = 'bbbbbbbb-2222-4222-8222-222222222222';
+      Map<String, Object?> line(String type, String uuid, String? parent) => {
+        'type': type,
+        'uuid': uuid,
+        'parentUuid': parent,
+        'sessionId': id,
+        'message': {'role': type, 'content': uuid},
+      };
+      final original = File('$config/projects/-p/$id.jsonl')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          [
+            line('user', 'u1', null),
+            line('assistant', 'a1', 'u1'),
+            // A branch left by a rewind: not on the way to the end.
+            line('user', 'old', 'a1'),
+            line('user', 'u2', 'a1'),
+            line('assistant', 'a2', 'u2'),
+            {'type': 'custom-title', 'customTitle': 'Mine', 'sessionId': id},
+          ].map((line) => '${jsonEncode(line)}\n').join(),
+        );
+      final before = original.readAsStringSync();
+      final storage = ClaudeStorage(configDir: config);
+      List<Map<String, Object?>> read(String path) => [
+        for (final line in File(path).readAsLinesSync())
+          (jsonDecode(line) as Map).cast<String, Object?>(),
+      ];
+
+      final path = await storage.fork(id, into, title: 'Mine (fork)');
+      expect(path, '$config/projects/-p/$into.jsonl');
+      final all = read(path);
+      expect(all.map((e) => e['uuid'] ?? e['customTitle']), [
+        'u1',
+        'a1',
+        'u2',
+        'a2',
+        'Mine (fork)',
+      ]);
+      expect(all.map((e) => e['sessionId']), everyElement(into));
+      expect(original.readAsStringSync(), before);
+
+      final cut = await storage.fork(id, into, before: 'u2', title: 'Cut');
+      expect(read(cut).map((e) => e['uuid'] ?? e['customTitle']), [
+        'u1',
+        'a1',
+        'Cut',
+      ]);
+      expect(storage.fork(id, into, before: 'nope'), throwsStateError);
+      expect(storage.fork('../p', into), throwsArgumentError);
+    });
   });
 
   group('control channel', () {

@@ -30,7 +30,7 @@ Future<bool> applyLspWorkspaceEdit(
   final byPath = <String, List<LspTextEdit>>{};
   for (final MapEntry(key: uri, value: edits) in edit.changes.entries) {
     if (edits.isEmpty) continue;
-    final path = lspPathOfUri(uri);
+    final path = lspPathOfUri(uri, paths: workspace.paths);
     if (path == null) return false;
     byPath.putIfAbsent(path, () => []).addAll(edits);
   }

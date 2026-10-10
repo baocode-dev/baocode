@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -25,6 +26,16 @@ import 'control_channel.dart';
 typedef ClaudeHistoryReader = Future<List<Map<String, Object?>>> Function(
   SessionRecord session,
 );
+
+/// Copies the session [id], run in [cwd], into a new one, [into] (see
+/// ClaudeSessions.fork): the new session's file.
+typedef ClaudeSessionForker = Future<String> Function(
+  String cwd,
+  String id,
+  String into, {
+  String? before,
+  String? title,
+});
 
 /// The setting Claude Code runs with that keeps it from asking for the
 /// plan usage, if one does.
@@ -62,6 +73,7 @@ class ClaudeCodeKernel
         QueuesMessages,
         RevertsChanges,
         RewindsConversation,
+        ForksConversation,
         RenamesSession,
         AcceptsImages,
         SuggestsPrompts,
@@ -73,6 +85,7 @@ class ClaudeCodeKernel
     required this._start,
     ClaudeHistoryReader? readHistory,
     this._readGoal,
+    this._forkSession,
     ClaudeUsageSwitch? usageOffBy,
     ModelProviders? providers,
     ProviderEnvironment? providerEnvironment,
@@ -117,6 +130,7 @@ class ClaudeCodeKernel
   final Future<bool> Function(String url) _openLink;
   final ClaudeTransportFactory _start;
   final ClaudeGoalReader? _readGoal;
+  final ClaudeSessionForker? _forkSession;
   final ClaudeUsageSwitch _usageOffBy;
   late final ClaudeTranslator _translator;
 
@@ -659,6 +673,54 @@ class ClaudeCodeKernel
   }
 
   @override
+  bool get canFork => _forkSession != null && _sessionId != null;
+
+  /// Copied where the session is kept, as Claude Code wrote it so far: a
+  /// turn running goes on here alone.
+  @override
+  Future<SessionRecord?> fork({String? before, required String title}) async {
+    final (forkSession, id) = (_forkSession, _sessionId);
+    if (forkSession == null || id == null) return null;
+    final into = _newSessionId();
+    try {
+      final path = await forkSession(
+        _cwd,
+        id,
+        into,
+        before: before,
+        title: title,
+      );
+      return SessionRecord(
+        id: into,
+        title: title,
+        updatedAt: DateTime.now(),
+        cwd: _cwd,
+        path: path,
+      );
+    } on Object catch (error) {
+      emit(
+        ItemUpserted(
+          nextSeq,
+          'fork:${before ?? id}',
+          NoticeItem(NoticeKind.error, 'Could not fork: $error'),
+        ),
+      );
+      return null;
+    }
+  }
+
+  static final _random = math.Random.secure();
+
+  /// A random UUID (v4), as Claude Code names its sessions.
+  static String _newSessionId() {
+    String hex(int length) => [
+      for (var i = 0; i < length; i++) _random.nextInt(16).toRadixString(16),
+    ].join();
+    final variant = (8 + _random.nextInt(4)).toRadixString(16);
+    return '${hex(8)}-${hex(4)}-4${hex(3)}-$variant${hex(3)}-${hex(12)}';
+  }
+
+  @override
   void revertChanges({required String sinceTurn}) {
     unawaited(
       _request('rewind_files', {'user_message_id': sinceTurn})
@@ -1168,6 +1230,9 @@ class ClaudeCodeKernel
           _beginTurn('${message['uuid'] ?? 'own:$nextSeq'}', unprompted: true);
         }
         _translator.translate(message);
+      case 'system' when message['subtype'] == 'compact_boundary':
+        _translator.translate(message);
+        _compacted(message);
       case 'system' when message['subtype'] == 'session_state_changed':
         _cliWorking = message['state'] != 'idle';
         // A turn's checks of the goal are all kept by now.
@@ -1586,6 +1651,24 @@ class ClaudeCodeKernel
       ),
     ),
   );
+
+  /// The conversation was compacted, maybe mid-turn: the context shown
+  /// drops to what is left at once, then to what the CLI counts.
+  void _compacted(Map<String, Object?> message) {
+    final meta = message['compact_metadata'];
+    if (meta is Map && meta['post_tokens'] is int) {
+      emit(
+        UsageReported(
+          nextSeq,
+          ContextUsage(
+            window: _contextWindow,
+            used: meta['post_tokens'] as int,
+          ),
+        ),
+      );
+    }
+    unawaited(_refreshContext());
+  }
 
   Future<void> _refreshContext() async {
     final control = _control;

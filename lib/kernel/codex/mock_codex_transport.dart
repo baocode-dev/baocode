@@ -167,6 +167,7 @@ class MockCodexTransport implements CodexTransport {
       'threadId': _threadId,
       'tokenUsage': {
         'total': {'totalTokens': _tokens},
+        'last': {'totalTokens': _tokens},
         'modelContextWindow': _contextWindow,
       },
     });

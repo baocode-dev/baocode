@@ -1641,6 +1641,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarCopySessionId => '复制会话 ID';
 
   @override
+  String get sidebarFork => 'Fork 对话';
+
+  @override
+  String get chatForkFromHere => '从此处 Fork';
+
+  @override
+  String get chatCopyReply => '复制回复';
+
+  @override
   String sidebarShowMore(int count) {
     return '显示更多（$count）';
   }

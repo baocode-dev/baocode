@@ -2216,6 +2216,50 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     return thread;
   }
 
+  /// Copies [thread]'s conversation into a new agent of its project, up to
+  /// the end of the turn of the item at [index] (see [ChatSession.fork]):
+  /// listed, with [thread]'s settings, not shown. Null when it could not
+  /// be (its conversation says why).
+  Future<AgentThread?> fork(AgentThread thread, {int? index}) async {
+    final session = thread.session;
+    final title = '${thread.localizedTitle(l10n())} (fork)';
+    final record = await session.fork(title: title, index: index);
+    if (record == null || _disposed) return null;
+    final settings = {
+      for (final kind in KernelChoiceKind.values)
+        kind.name: ?session.selected(kind),
+    };
+    if (settings.isNotEmpty) {
+      _agentSettings[record.id] = settings;
+      while (_agentSettings.length > _keptAgents) {
+        _agentSettings.remove(_agentSettings.keys.first);
+      }
+    }
+    final kernel = thread.kernel;
+    final forked = AgentThread._(
+      project: thread.project,
+      kernel: kernel,
+      record: record,
+      title: title,
+      updatedAt: record.updatedAt,
+      open: () => ChatSession(
+        kernel: kernel,
+        kernels: kernels,
+        kernelContext: KernelContext(
+          cwd: record.cwd,
+          resume: record,
+          settings: {..._preferredSettings, ...?_agentSettings[record.id]},
+          workspace: () => _kernelWorkspace(record.cwd),
+        ),
+        historyCount: 0,
+      ),
+    );
+    _add(forked);
+    _save();
+    notifyListeners();
+    return forked;
+  }
+
   static bool _isUntouched(AgentThread thread) => thread.untouched;
 
   /// Takes the untouched [thread] off the list: nothing of it was kept, so

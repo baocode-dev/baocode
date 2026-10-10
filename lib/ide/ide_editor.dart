@@ -357,6 +357,7 @@ class IdeEditorState extends State<IdeEditor> {
           widget.onShowReferences?.call(title, locations),
       onApplyWorkspaceEdit: applyWorkspaceEdit,
       onFocusEditor: focus,
+      paths: widget.workspace.paths,
       semanticTokenStyler: _semanticTokenStyler,
       languageId: _textMateDocuments[doc]?.$2.languageId ?? 'plaintext',
       semanticSource: _semanticSources[doc],

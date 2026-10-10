@@ -133,6 +133,99 @@ class ClaudeSessions {
     final config = await _config();
     return Isolate.run(() => _goal(id, config));
   }
+
+  /// Copies the session [id] into a new one, [into], beside it: its
+  /// conversation along the branch it ended on, without the user message
+  /// [before] (by its uuid) and what follows, when given; titled [title].
+  /// Claude Code resumes it as it would the original there. Returns the new
+  /// session's file.
+  Future<String> fork(
+    String id,
+    String into, {
+    String? before,
+    String? title,
+  }) async {
+    _checkId(id);
+    _checkId(into);
+    final config = await _config();
+    return Isolate.run(() => _fork(id, into, config, before, title));
+  }
+}
+
+/// Writes the session [into] as a copy of [id] (see [ClaudeSessions.fork]).
+String _fork(
+  String id,
+  String into,
+  String config,
+  String? before,
+  String? title,
+) {
+  final projects = Directory('$config/projects');
+  final file = projects.existsSync()
+      ? projects
+            .listSync()
+            .whereType<Directory>()
+            .map((project) => File('${project.path}/$id.jsonl'))
+            .where((file) => file.existsSync())
+            .firstOrNull
+      : null;
+  if (file == null) throw StateError('No session $id');
+  final entries = [
+    for (final line in const LineSplitter().convert(file.readAsStringSync()))
+      ?_decode(line),
+  ];
+  final byId = <String, Map<String, Object?>>{
+    for (final entry in entries)
+      if (entry['uuid'] case final String uuid) uuid: entry,
+  };
+  String? parentOf(Map<String, Object?> entry) =>
+      (entry['parentUuid'] ?? entry['logicalParentUuid']) as String?;
+  final Map<String, Object?>? leaf;
+  if (before != null) {
+    final cut = byId[before];
+    if (cut == null) throw StateError('No message $before in session $id');
+    leaf = switch (parentOf(cut)) {
+      final parent? => byId[parent],
+      null => null,
+    };
+  } else {
+    leaf = entries.reversed
+        .where((e) => _kept(e) && e['isSidechain'] != true && e['uuid'] is String)
+        .firstOrNull;
+  }
+  // The chain to it, every line of it as written (attachments, compaction
+  // boundaries): what the CLI makes of the original, it makes of this.
+  final chain = <Map<String, Object?>>[];
+  final seen = <String>{};
+  for (var entry = leaf; entry != null;) {
+    if (!seen.add(entry['uuid'] as String)) break;
+    chain.add(entry);
+    entry = switch (parentOf(entry)) {
+      final parent? => byId[parent],
+      null => null,
+    };
+  }
+  if (chain.isEmpty) throw StateError('Nothing to fork in session $id');
+  final out = StringBuffer();
+  for (final entry in chain.reversed) {
+    out.writeln(jsonEncode({...entry, 'sessionId': into}));
+  }
+  if (title != null && title.trim().isNotEmpty) {
+    out.writeln(
+      jsonEncode({
+        'type': 'custom-title',
+        'customTitle': title.trim(),
+        'sessionId': into,
+      }),
+    );
+  }
+  final forked = File('${file.parent.path}/$into.jsonl');
+  // Whole or not at all: a half-written one would resume as a broken
+  // conversation.
+  final temp = File('${forked.path}.$pid.tmp');
+  temp.writeAsStringSync(out.toString(), flush: true);
+  temp.renameSync(forked.path);
+  return forked.path;
 }
 
 /// The `goal_status` lines of the session [id], wherever its project is.

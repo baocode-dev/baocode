@@ -47,6 +47,15 @@ class ClaudeStorage implements SessionCatalog {
   /// What the session [id] kept of its goal (see [ClaudeSessions.goal]).
   Future<List<Map<String, Object?>>> goal(String id) => _sessions.goal(id);
 
+  /// Copies the session [id] into a new one, [into] (see
+  /// [ClaudeSessions.fork]): its file.
+  Future<String> fork(
+    String id,
+    String into, {
+    String? before,
+    String? title,
+  }) => _sessions.fork(id, into, before: before, title: title);
+
   /// The session's conversation along the branch it ended on.
   static Future<List<Map<String, Object?>>> read(SessionRecord session) {
     final path = session.path;
