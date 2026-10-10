@@ -16,7 +16,7 @@ import 'settings_widgets.dart';
 
 /// Settings → Updates: the version running, when it last looked for
 /// another, what it found (Restart to Update), `update.mode`, and the new
-/// version's notes.
+/// version's notes (this one's, where it is the newest).
 class UpdatesSettingsPage extends StatefulWidget {
   const UpdatesSettingsPage({super.key, this.updates, this.settings});
 
@@ -93,7 +93,9 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
         service?.status == UpdateStatus.checking ||
         service?.status == UpdateStatus.downloading;
     final modeName = UpdatesSettingsPage.modeName(context, mode);
-    final notes = service?.release?.manifest.notesFor(l10n.localeName);
+    // The new version's, or this one's where it is the newest.
+    final noted = service?.release?.manifest ?? service?.installed;
+    final notes = noted?.notesFor(l10n.localeName);
     return SettingsPage(
       title: l10n.updatesSettingsTitle,
       description: l10n.updatesSettingsDescription,
@@ -144,9 +146,7 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
         ),
         if (notes != null)
           SettingsGroup(
-            title: l10n.updateReleaseNotesFor(
-              service!.release!.version.marketing,
-            ),
+            title: l10n.updateReleaseNotesFor(noted!.version.marketing),
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(

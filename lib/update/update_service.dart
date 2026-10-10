@@ -243,6 +243,11 @@ class UpdateService extends ChangeNotifier {
   UpdateRelease? _release;
   UpdateRelease? get release => _release;
 
+  /// The manifest of this very version, as the last check found it (the
+  /// newest is this one): its notes.
+  UpdateManifest? _installed;
+  UpdateManifest? get installed => _installed;
+
   /// Where [release] was downloaded to.
   String? _file;
 
@@ -392,6 +397,9 @@ class UpdateService extends ChangeNotifier {
         policy: UpdateUrlPolicy.forManifest(manifestUrl),
       );
       store.lastChecked = _now();
+      _installed = manifest.version.marketing == current.marketing
+          ? manifest
+          : null;
       final asset = manifest.version > current
           ? manifest.assetFor(platform!)
           : null;

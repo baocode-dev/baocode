@@ -91,6 +91,40 @@ void main() {
     service.dispose();
   });
 
+  testWidgets('up to date, this version\'s notes are shown', (tester) async {
+    final backend = FakeBackend(
+      manifestOf('1.0.0', notes: {'en': 'First release.'}),
+    );
+    final service = serviceOf(backend);
+    final controller = UpdateController(
+      service: service,
+      quit: () async {},
+      openUrl: (_) async {},
+    );
+    await show(
+      tester,
+      UpdatesSettingsPage(updates: controller, settings: settings),
+    );
+    expect(find.text('First release.'), findsNothing);
+
+    await tester.tap(button(l10n.updateCheckNow));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l10n.updateUpToDate), findsOneWidget);
+    expect(find.text(l10n.updateReleaseNotesFor('1.0.0')), findsOneWidget);
+    expect(find.text('First release.'), findsOneWidget);
+
+    // Not an older version's.
+    backend.manifest = manifestOf('0.9.0', notes: {'en': 'Older.'});
+    await tester.tap(button(l10n.updateCheckNow));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text(l10n.updateUpToDate), findsOneWidget);
+    expect(find.textContaining('Older'), findsNothing);
+    expect(find.text('First release.'), findsNothing);
+    service.dispose();
+  });
+
   testWidgets('a problem restarting is shown on the page', (tester) async {
     final installer = FakeInstaller()
       ..prepareError = const ManualUpdateRequired('read-only');
