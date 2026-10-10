@@ -17,7 +17,7 @@ import '../platform/app_paths.dart';
 import '../protocol.dart';
 import '../rpc/rpc_peer.dart';
 import '../search/local_search.dart';
-import 'server_lsp.dart';
+import 'server_exthost.dart';
 import 'server_claude.dart';
 import 'server_pty.dart';
 import 'server_review.dart';
@@ -32,7 +32,7 @@ Map<String, Object?> paramsOf(Object? params) => switch (params) {
 
 /// The server's side of a connection: everything a remote project needs
 /// of this machine, answered over [peer]. Each process it starts (Claude
-/// Code, language servers, terminals, commands) is its own to end: all of
+/// Code, the extension runtime's server, terminals, commands) is its own to end: all of
 /// them go with [shutdown], which the connection ending calls.
 class RemoteServer {
   RemoteServer(
@@ -49,10 +49,10 @@ class RemoteServer {
       claudeDirectory: () => _claude.commandDirectory(),
     );
     _tcp = ServerTcp(peer);
-    _lsp = ServerLsp(
+    _exthost = ServerExtHost(
       peer,
       _streams,
-      installRoot: p.join(dataDir, 'lsp', 'servers'),
+      directory: p.join(dataDir, 'exthost'),
     );
     _claude = ServerClaude(
       peer,
@@ -75,7 +75,7 @@ class RemoteServer {
   late final ServerStreams _streams;
   late final ServerPty _pty;
   late final ServerTcp _tcp;
-  late final ServerLsp _lsp;
+  late final ServerExtHost _exthost;
   late final ServerClaude _claude;
   final Map<String, LocalFiles> _files = {};
   final Map<int, _ServerProcess> _processes = {};
@@ -385,7 +385,7 @@ class RemoteServer {
     dataDir: dataDir,
   );
 
-  /// This machine, as mason names it.
+  /// This machine.
   static RemotePlatform currentPlatform() {
     final (os, arch) = switch (Abi.current()) {
       Abi.macosArm64 => ('darwin', 'arm64'),
@@ -421,7 +421,7 @@ class RemoteServer {
       _pty.stopAll(),
       _streams.closeAll(),
       _tcp.closeAll(),
-      _lsp.cancelAll(),
+      _exthost.stop(),
     ]);
     peer.close();
   }();

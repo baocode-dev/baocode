@@ -15,8 +15,8 @@ import 'package:bao_editor/monaco/vs/editor/contrib/codeAction/common/types.dart
 
 import '../ide_commands.dart';
 import '../ide_workspace.dart';
-import '../lsp/language_features.dart';
-import '../lsp/lsp_protocol.dart';
+import '../language/language_features.dart';
+import '../language/language_types.dart';
 import 'diagnostics.dart';
 import 'language_editor.dart';
 import 'lsp_convert.dart';

@@ -19,15 +19,36 @@ class JsoncFileException implements Exception {
   String toString() => '$path: $message';
 }
 
+/// Where a [JsoncFile] is when it is not on this machine's disk (a remote
+/// project's `.vscode/` files).
+abstract interface class JsoncFileStorage {
+  /// The file's text; null when it is missing. Throws a
+  /// [FileSystemException] when it cannot be read.
+  Future<String?> read(String path);
+
+  /// Writes [text] whole, making the folders it needs.
+  Future<void> write(String path, String text);
+
+  /// An event whenever the file may have changed.
+  Stream<void> changes(String path);
+}
+
 /// A JSON-with-comments file the user may edit while the app runs
 /// (settings.json, keybindings.json, argv.json): its last good [value], kept
 /// up to date as the file changes on disk ([watch]), and changed in place
 /// ([edit]) so that the user's comments and layout stay. Listeners hear of
 /// a change of [value] or [error].
 class JsoncFile extends ChangeNotifier {
-  JsoncFile(this.path, {this.debounce = const Duration(milliseconds: 100)});
+  JsoncFile(
+    this.path, {
+    this.debounce = const Duration(milliseconds: 100),
+    this.storage,
+  });
 
   final String path;
+
+  /// Where the file is; this machine's disk when null.
+  final JsoncFileStorage? storage;
 
   /// How long changes on disk settle before the file is read again.
   final Duration debounce;
@@ -52,7 +73,7 @@ class JsoncFile extends ChangeNotifier {
   String? _text;
 
   bool _disposed = false;
-  final List<StreamSubscription<FileSystemEvent>> _watchers = [];
+  final List<StreamSubscription<Object?>> _watchers = [];
   Timer? _settling;
 
   /// Reads the file (again).
@@ -74,6 +95,22 @@ class JsoncFile extends ChangeNotifier {
   /// A file linked elsewhere is watched there too.
   void watch() {
     if (_disposed || _watchers.isNotEmpty) return;
+    if (storage case final storage?) {
+      _watchers.add(
+        storage
+            .changes(path)
+            .listen(
+              (_) {
+                _settling?.cancel();
+                _settling = Timer(debounce, () => unawaited(load()));
+              },
+              onError: (Object _) {
+                // Not watched any more: read when asked only.
+              },
+            ),
+      );
+      return;
+    }
     final places = {(p.dirname(path), p.basename(path))};
     try {
       if (FileSystemEntity.isLinkSync(path)) {
@@ -204,6 +241,13 @@ class JsoncFile extends ChangeNotifier {
   }
 
   Future<({String? text, String? failure})> _read() async {
+    if (storage case final storage?) {
+      try {
+        return (text: await storage.read(path), failure: null);
+      } on Object catch (error) {
+        return (text: _text, failure: 'Cannot read the file: $error');
+      }
+    }
     try {
       return (text: await File(path).readAsString(), failure: null);
     } on PathNotFoundException {
@@ -217,6 +261,7 @@ class JsoncFile extends ChangeNotifier {
   /// Writes [text] whole or not at all; into the file a link points to,
   /// so the link stays.
   Future<void> _write(String text) async {
+    if (storage case final storage?) return storage.write(path, text);
     var file = File(path);
     if (await FileSystemEntity.isLink(path)) {
       file = File(await file.resolveSymbolicLinks());

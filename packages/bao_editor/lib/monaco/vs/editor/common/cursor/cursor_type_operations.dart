@@ -665,6 +665,51 @@ abstract final class TypeOperations {
     return typeWithoutInterceptors(prevEditOperationType, selections, ch);
   }
 
+  /// `compositionType` (`CompositionOperation.getEdits`): at each empty
+  /// selection, [text] replaces [replacePrevCharCnt] characters before the
+  /// caret and [replaceNextCharCnt] after it (within the line), the caret
+  /// ending [positionDelta] columns from the inserted text's end. What the
+  /// `replacePreviousChar` and `compositionType` commands do.
+  static EditOperationResult compositionType(
+    EditOperationType prevEditOperationType,
+    ICursorSimpleModel model,
+    List<Selection> selections,
+    String text,
+    int replacePrevCharCnt,
+    int replaceNextCharCnt,
+    int positionDelta,
+  ) {
+    CursorCommand? compositionType(Selection selection) {
+      // A cursor operation before a canceled composition
+      // (microsoft/vscode#2773): ignored.
+      if (!selection.isEmpty()) return null;
+      final pos = selection.getPosition();
+      final startColumn = (pos.column - replacePrevCharCnt) < 1
+          ? 1
+          : pos.column - replacePrevCharCnt;
+      final maxColumn = model.getLineMaxColumn(pos.lineNumber);
+      final endColumn = pos.column + replaceNextCharCnt > maxColumn
+          ? maxColumn
+          : pos.column + replaceNextCharCnt;
+      return ReplaceCommandWithOffsetCursorState(
+        Range(pos.lineNumber, startColumn, pos.lineNumber, endColumn),
+        text,
+        0,
+        positionDelta,
+      );
+    }
+
+    return EditOperationResult(
+      EditOperationType.typingOther,
+      [for (final selection in selections) compositionType(selection)],
+      shouldPushStackElementBefore: shouldPushStackElementBetween(
+        prevEditOperationType,
+        EditOperationType.typingOther,
+      ),
+      shouldPushStackElementAfter: false,
+    );
+  }
+
   static EditOperationResult typeWithoutInterceptors(
     EditOperationType prevEditOperationType,
     List<Selection> selections,

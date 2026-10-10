@@ -15,6 +15,8 @@ import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 import 'package:bao_editor/monaco/flutter/editor_view_painters.dart';
 import 'package:bao_editor/monaco/vs/editor/common/languages/language_configuration.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart'
+    show FoldRange;
 
 EditorSurfaceController _controller(String text) {
   final document = EditorDocumentModel(text);
@@ -317,6 +319,92 @@ void main() {
     expect(visible.value, isTrue); // no timer while unfocused
   });
 
+  testWidgets('caret styles and line number styles from the controller', (
+    tester,
+  ) async {
+    final controller = _controller(
+      List.generate(12, (i) => 'word ${i + 1}').join('\n'),
+    );
+    final focus = await _mount(tester, controller);
+    focus.requestFocus();
+    // Before line 3's `w`.
+    controller.setSelections([
+      TextSelection.collapsed(
+        offset: controller.document.snapshot.lineStarts[2],
+      ),
+    ]);
+    await tester.pump();
+    expect(_gutter(tester).numberOf(3), 3);
+    expect(_gutter(tester).numberOf(1), 1);
+
+    /// The caret painter's pixel at [local] (surface coordinates).
+    Future<Color> caretPixel(Offset local) async {
+      final painter = _painter<EditorCaretPainter>(tester);
+      final size = tester.getSize(find.byType(EditorSurface));
+      final recorder = ui.PictureRecorder();
+      painter.paint(Canvas(recorder), size);
+      final picture = recorder.endRecording();
+      final image = (await tester.runAsync(
+        () => picture.toImage(size.width.ceil(), size.height.ceil()),
+      ))!;
+      final bytes = (await tester.runAsync(
+        () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+      ))!;
+      image.dispose();
+      picture.dispose();
+      final index =
+          (local.dy.floor() * size.width.ceil() + local.dx.floor()) * 4;
+      return Color.fromARGB(
+        bytes.getUint8(index + 3),
+        bytes.getUint8(index),
+        bytes.getUint8(index + 1),
+        bytes.getUint8(index + 2),
+      );
+    }
+
+    final gutter = _gutter(tester);
+    final layout = gutter.layout;
+    final w = layout.caretRect(layout.snapshot.lineStarts[2]);
+    final o = layout.caretRect(layout.snapshot.lineStarts[2] + 1);
+    final left = gutter.geometry.contentLeft;
+    // Inside `w`, away from the line caret, near its top and its bottom.
+    final top = Offset(left + (w.left + o.left) / 2 + 1, w.top + 1);
+    final bottom = Offset(top.dx, w.bottom - 1);
+    const caret = Color(0xffaeafad);
+
+    expect(await caretPixel(top), isNot(caret));
+    controller.caretStyle = EditorCaretStyle.block;
+    await tester.pump();
+    expect(_painter<EditorCaretPainter>(tester).style, EditorCaretStyle.block);
+    expect(await caretPixel(top), caret);
+    controller.caretStyle = EditorCaretStyle.underline;
+    await tester.pump();
+    expect(await caretPixel(top), isNot(caret));
+    expect(await caretPixel(bottom), caret);
+
+    // Relative: the caret's line absolute, the others their distance.
+    controller.lineNumbersStyle = EditorLineNumbersStyle.relative;
+    await tester.pump();
+    expect(_gutter(tester).numberOf(3), 3);
+    expect(_gutter(tester).numberOf(1), 2);
+    expect(_gutter(tester).numberOf(7), 4);
+    // Interval: every tenth, the caret's and the last.
+    controller.lineNumbersStyle = EditorLineNumbersStyle.interval;
+    await tester.pump();
+    expect(
+      [for (var line = 1; line <= 12; line++) _gutter(tester).numberOf(line)],
+      [null, null, 3, null, null, null, null, null, null, 10, null, 12],
+    );
+    controller.lineNumbersStyle = EditorLineNumbersStyle.off;
+    await tester.pump();
+    expect(_gutter(tester).numberOf(3), isNull);
+    expect(_gutter(tester).geometry.lineNumbersWidth, 0);
+
+    expect(EditorCaretStyle.fromApi(2), EditorCaretStyle.block);
+    expect(EditorLineNumbersStyle.fromApi(2), EditorLineNumbersStyle.relative);
+    expect(EditorCaretStyle.fromApi(9), isNull);
+  });
+
   testWidgets('indent folding hides lines and unfolds for selections', (
     tester,
   ) async {
@@ -411,6 +499,42 @@ void main() {
       (1, 3),
     );
   });
+
+  testWidgets(
+    'provider folding replaces indentation and retains collapsed state',
+    (tester) async {
+      final controller = _controller('alpha\nbeta\ngamma\ndelta\nepsilon');
+      await _mount(tester, controller);
+      final surface =
+          tester.state(find.byType(EditorSurface)) as EditorSurfaceView;
+      expect(_gutter(tester).folding.regions.length, 0);
+
+      List<FoldRange> ranges() => [
+        FoldRange(startLineNumber: 1, endLineNumber: 4, type: 'region'),
+      ];
+      surface.setFoldingRanges(ranges());
+      await tester.pump();
+      var gutter = _gutter(tester);
+      expect(gutter.folding.regions.getType(0), 'region');
+      final chevron =
+          _origin(tester) +
+          Offset(
+            gutter.geometry.foldingLeft + gutter.geometry.foldingWidth / 2,
+            gutter.layout.lineHeight / 2,
+          );
+      await _click(tester, chevron, at: Duration.zero);
+      expect(_gutter(tester).layout.visibleLineNumbers.toList(), [1, 5]);
+
+      surface.setFoldingRanges(ranges());
+      await tester.pump();
+      expect(_gutter(tester).layout.visibleLineNumbers.toList(), [1, 5]);
+      surface.setFoldingRanges(null);
+      await tester.pump();
+      gutter = _gutter(tester);
+      expect(gutter.folding.regions.length, 0);
+      expect(gutter.layout.visibleLineNumbers.toList(), [1, 2, 3, 4, 5]);
+    },
+  );
 
   testWidgets('vertical scrollbar drags, pages, and overview marks', (
     tester,

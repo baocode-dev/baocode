@@ -332,9 +332,13 @@ class IdeActionButton extends StatefulWidget {
     this.color,
     this.checked = false,
     this.hoverPosition = IdeHoverPosition.below,
+    this.iconWidget,
   });
 
   final IconData icon;
+
+  /// Drawn instead of [icon] (an extension's image).
+  final Widget? iconWidget;
   final String tooltip;
   final VoidCallback? onPressed;
   final double size;
@@ -405,11 +409,13 @@ class _IdeActionButtonState extends State<IdeActionButton> {
                     ),
               child: Opacity(
                 opacity: enabled ? 1 : 0.4,
-                child: Icon(
-                  widget.icon,
-                  size: widget.iconSize,
-                  color: widget.color ?? IdeActionButton.foreground,
-                ),
+                child:
+                    widget.iconWidget ??
+                    Icon(
+                      widget.icon,
+                      size: widget.iconSize,
+                      color: widget.color ?? IdeActionButton.foreground,
+                    ),
               ),
             ),
           ),

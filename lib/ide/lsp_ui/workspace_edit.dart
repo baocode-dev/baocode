@@ -1,7 +1,7 @@
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 
 import '../ide_workspace.dart';
-import '../lsp/lsp_protocol.dart';
+import '../language/language_types.dart';
 import 'lsp_convert.dart';
 
 /// Applies an [IdeDocument]'s share of a workspace edit; returns whether it

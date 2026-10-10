@@ -3,7 +3,8 @@ tags:
   # `flutter test --run-skipped -t e2e`.
   e2e:
     skip: "Runs the real Claude Code CLI"
-  # Runs the local `dart language-server` (no network, no tokens): opt in
-  # with `flutter test --run-skipped -t lsp-smoke`.
-  lsp-smoke:
-    skip: "Runs a real language server"
+  # Runs a real VS Code server and extension host (needs the runtime under
+  # BAOCODE_EXTHOST_DIR or downloaded): opt in with
+  # `flutter test --run-skipped -t exthost`.
+  exthost:
+    skip: "Runs a real VS Code extension host"

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/language/language_types.dart';
 import 'package:baocode/ide/lsp_ui/lsp_convert.dart';
 
 void main() {

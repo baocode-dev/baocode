@@ -1,7 +1,6 @@
-// The IDE's services for a remote project: its files, Git, search,
-// terminals and language servers' processes, each a call to the host's
-// server over the host's connection (made again when lost: what watches
-// goes on once it is).
+// The IDE's services for a remote project: its files, Git, search and
+// terminals, each a call to the host's server over the host's connection
+// (made again when lost: what watches goes on once it is).
 
 import 'dart:async';
 import 'dart:typed_data';
@@ -11,7 +10,6 @@ import 'package:bao_remote/terminal.dart' show generateShellIntegrationNonce;
 
 import '../ide/file_service.dart';
 import '../ide/git/git_service.dart';
-import '../ide/lsp/lsp_process.dart';
 import '../ide/search/text_search.dart';
 import '../ide/terminal/pty.dart';
 import '../ide/terminal/terminal_instance.dart';
@@ -166,17 +164,20 @@ IdeGitService remoteGitService(SshHost host, String root) => IdeGitService(
 );
 
 /// The terminals of [host]'s projects: the user's shell there, on a pseudo
-/// terminal of the server's, with shell integration.
+/// terminal of the server's, with shell integration; in the server's
+/// environment (an extension's `env`, and the environment variable
+/// collections, do not reach it).
 TerminalBackend remoteTerminalBackend(SshHost host) => TerminalBackend(
-  launch: (root, {columns = 80, rows = 24, shell}) async => PtyLaunch(
-    executable: shell?.executable ?? '',
-    arguments: shell?.arguments ?? const [],
-    workingDirectory: root,
-    // What the shell integration trusts, given to the shell there.
-    environment: {'VSCODE_NONCE': generateShellIntegrationNonce()},
-    columns: columns,
-    rows: rows,
-  ),
+  launch: (root, {columns = 80, rows = 24, shell, environment}) async =>
+      PtyLaunch(
+        executable: shell?.executable ?? '',
+        arguments: shell?.arguments ?? const [],
+        workingDirectory: root,
+        // What the shell integration trusts, given to the shell there.
+        environment: {'VSCODE_NONCE': generateShellIntegrationNonce()},
+        columns: columns,
+        rows: rows,
+      ),
   start: (launch) async {
     final client = await host.ready;
     final pty = await client.startPty(
@@ -250,73 +251,3 @@ class RemotePtyAdapter extends Pty {
   @override
   void kill([PtySignal signal = PtySignal.hangup]) => _pty.kill(signal.number);
 }
-
-/// A language server's process on the remote host.
-class RemoteLspProcess implements LspProcess {
-  RemoteLspProcess(this._process);
-
-  final RemoteProcess _process;
-  bool _stopRequested = false;
-
-  @override
-  int get pid => _process.pid;
-
-  @override
-  Stream<List<int>> get stdout => _process.stdout;
-
-  @override
-  Stream<List<int>> get stderr => _process.stderr;
-
-  @override
-  void write(List<int> bytes) => _process.write(bytes);
-
-  @override
-  Future<void> closeStdin() => _process.closeStdin();
-
-  @override
-  Future<int> get exitCode => _process.exitCode;
-
-  @override
-  bool get stopRequested => _stopRequested;
-
-  @override
-  void kill({bool force = false}) {
-    _stopRequested = true;
-    _process.kill(force: force);
-  }
-}
-
-/// Starts language servers on [host], in its login shell's environment.
-LspProcessStarter remoteLspStarter(SshHost host) => (launch) async {
-  final client = await host.ready;
-  try {
-    return RemoteLspProcess(
-      await client.start(
-        launch.executable,
-        launch.arguments,
-        cwd: launch.workingDirectory,
-        environment: launch.environment.isEmpty ? null : launch.environment,
-      ),
-    );
-  } on RemoteException catch (error) {
-    throw LspStartException(
-      'Could not start ${launch.serverId} on ${host.host}',
-      detail: error.message,
-    );
-  }
-};
-
-/// Changes under a folder of [host], as language servers are told them.
-LspDirectoryWatcher remoteLspWatcher(SshHost host) =>
-    (root) =>
-        resilientStream(
-          host,
-          (client) =>
-              client.watchTree(root, excluded: ideIndexExcludedDirectories),
-        ).map(
-          (event) => LspFileEvent(event.path, switch (event.change) {
-            WatchChange.created => LspFileChangeType.created,
-            WatchChange.modified => LspFileChangeType.changed,
-            WatchChange.deleted => LspFileChangeType.deleted,
-          }),
-        );

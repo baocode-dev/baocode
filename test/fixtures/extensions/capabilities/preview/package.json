@@ -1,0 +1,12 @@
+{
+  "name": "preview", "publisher": "fixture", "version": "1.0.0",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [{ "command": "preview.open", "title": "Open Preview" }],
+    "keybindings": [{ "command": "preview.open", "key": "ctrl+k v" }],
+    "configuration": { "properties": { "preview.theme": { "type": "string" } } },
+    "customEditors": [{ "viewType": "preview.editor", "displayName": "Fancy Preview", "selector": [{ "filenamePattern": "*.fancy" }] }],
+    "languages": [{ "id": "fancy", "extensions": [".fancy"] }]
+  }
+}

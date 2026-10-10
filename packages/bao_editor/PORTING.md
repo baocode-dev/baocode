@@ -180,7 +180,7 @@ tokens; overlapping edits from multiple cursors drop the later edit; multi-line
 platform input bypasses the typing path; auto-closed pairs and decorations are
 tracked by offset; inserted newlines use the document's dominant EOL.
 
-## Language servers (LSP, 2026-09-29)
+## Language features (2026-09-29; the LSP client removed 2026-10)
 
 Ported from VS Code `6a598d4a…` (MIT header, upstream path and deviations in
 each file):
@@ -199,44 +199,17 @@ Flutter adaptations in `../../lib/ide/lsp_ui/` (not ports): the per-editor
 `EditorLanguageSession` (debounced, version-checked requests; hover, links,
 lightbulb, signature help, suggest), suggest/hover/signature/rename/code action
 widgets, the Problems and References panels, Outline, breadcrumbs symbols,
-semantic token overlay (Dark Modern semantic colors), language status items,
+semantic token overlay (Dark Modern semantic colors),
 minimal-edit formatting (line diff → one undo step keeping cursors) and
 workspace edit application. Rename edits to unopened files open them as dirty
 tabs; resource operations are refused. References go to a panel, not a peek.
 
-Client (`../../lib/ide/lsp/`, BaoCode code, not VS Code): `json_rpc.dart`,
-`lsp_client.dart`, `lsp_manager.dart`, `lsp_process*.dart`, `lsp_glob.dart`;
-contracts `lsp_protocol.dart`, `lsp_server_definition.dart`,
-`language_features.dart`. `EditorDocumentModel.changes` emits LSP-ordered
-content changes (CR/LF pairs are never split). Not advertised: pull
-diagnostics, semantic token ranges/deltas, resource operations, `showDocument`,
-completion `data`/`commitCharacters` item defaults.
-
-Catalog and installer:
-
-- `node ../../tool/generate_lsp_languages.mjs [helix-checkout|languages.toml]
-  [out-dir] [--mason registry.json(.zip)]` writes `../../assets/lsp/languages.json`
-  from Helix `languages.toml` at `ba40e547426b0f9896c8bdc699a4ab11f2b37dbc`
-  (MPL-2.0, `../../assets/lsp/LICENSE-helix`). Helix `config` is sent as
-  `initializationOptions` and answers `workspace/configuration`. Per-language
-  `only-features`/`except-features` become derived server ids
-  (`id#except=…`). Matching: file name, glob, longest extension, shebang,
-  then a pack's `firstLine`.
-- `node ../../tool/generate_mason_registry.mjs [registry.json(.zip)] [out-dir]`
-  writes `../../assets/lsp/mason-registry.json` from mason-registry
-  `2026-09-29-glass-hat` (`27cabd46dfb4e97187a4619d7de966589e3945f7`,
-  Apache-2.0, `../../assets/lsp/LICENSE-mason-registry`). Run it after the
-  languages script; without arguments both fetch the pinned inputs into /tmp.
-- `MasonServerProvider` installs github releases (per-platform assets),
-  npm, pypi (venv), golang and cargo packages into
-  `AppPaths.dataDir/servers/`, staged then renamed. opam, nuget, luarocks,
-  composer, gem, openvsx and build-from-source packages are not installable;
-  `version_overrides` are ignored. zip/tar/tar.gz/gz unpack in Dart;
-  `.tar.xz/.bz2/.zst` use the system `tar`.
-- User overrides: `AppPaths.dataDir/lsp.json`; language packs:
-  `AppPaths.dataDir/language-packs/<name>/` (`manifest.json`, Monarch
-  `grammar.json`, `configuration.json`, optional `server.json`), documented in
-  `../../lib/ide/lsp/packs/README.md`.
+The editor's contracts are `../../lib/ide/language/language_types.dart` and
+`language_features.dart` (LSP 3.17's shapes). They were first served by a
+BaoCode LSP client (Helix language map, mason installer, language packs),
+removed once VS Code's own extension host served them: the extensions'
+providers through `../../lib/extensions/language/registry_language_features.dart`
+(see `../../docs/extensions.md`).
 
 ## Workbench hover and codicons (2026-09-30)
 
@@ -857,3 +830,72 @@ resolves a key in its own context (`IdeEditorState.contextKey`) and runs the
 editor's and its widgets' commands; a key no keybinding has does nothing when
 the editor would otherwise use it (Enter types a line break), and macOS
 selectors are not used. Without a resolver the built-in keys still apply.
+
+## Editor decoration types, inlay hints, CodeLens and ghost text (2026-10-09)
+
+Ported from VS Code `08d4889f9ec4a1685d257b9b95de036c8e1ce1e5` (1.135.0),
+for the extension host's editor rendering; headers record the deviations per
+file.
+
+| Upstream VS Code path | Dart path |
+| --- | --- |
+| `src/vs/editor/common/editorCommon.ts` (`IEditorDecorationOptions` and the render options), `src/vs/editor/standalone/browser/standaloneCodeEditor.ts` (`registerTextEditorDecorationType`) | `flutter/editor_decorations.dart`, `vs/editor/common/decoration_render_options.dart` |
+| `src/vs/editor/common/services/abstractCodeEditorService.ts` (`DecorationTypeOptionsProvider`, `DecorationCSSRules`), `src/vs/editor/browser/services/codeEditorService.ts` (`registerDecorationType`, `removeDecorationType`, `resolveDecorationOptions`) | `flutter/editor_decoration_types.dart` |
+| `src/vs/editor/browser/widget/codeEditor/.../decorationStyle` CSS rules and `src/vs/editor/browser/viewParts/lineNumbers/...` (`gutterIconPath`), `viewParts/decorations/decorations.ts` (background, border, outline, text style, overview ruler) | `flutter/editor_decorations.dart` (`EditorDecoration`), `flutter/editor_view_painters.dart`, `flutter/editor_scrollbar.dart` |
+| `src/vs/editor/common/model/lineInjectedText.ts` (`LineInjectedText.fromDecorations`), `src/vs/editor/common/model/textModelLineProjection.ts` | `flutter/viewport_layout.dart` (`ViewportLineDecorations`, `ViewportInjection`, `_LineShape` projection, `injectionAt`, `lineEndRect`) |
+| `src/vs/editor/common/model/intervalTree.ts` (`TrackedRangeStickiness`, `acceptReplace`, `intervalSearch`) | `vs/editor/common/model/interval_tree.dart` (existing), `flutter/editor_tracked_decorations.dart` |
+| `src/vs/editor/contrib/inlayHints/browser/inlayHints.ts` (`InlayHintsFragments`, `InlayHintAnchor`), `inlayHintsController.ts` (`_updateHintsDecorators`, `_fillInColors`, `_getLayoutInfo`, `_installLinkGesture`) | `flutter/editor_inlay_hints.dart` |
+| `src/vs/editor/contrib/codelens/browser/codelensController.ts` (`resolveCodeLensesInViewport`, `getCodeLensCategories`), `codelensWidget.ts`/`codelensWidget.css` | `flutter/editor_code_lens.dart` |
+| `src/vs/editor/contrib/inlineCompletions/browser/model/computeGhostText.ts`, `model/ghostText.ts`, `model/inlineCompletionsModel.ts` (`accept`/`acceptNextWord`), `view/ghostText/ghostTextView.ts` and its CSS | `flutter/editor_inline_suggest.dart` |
+| (app glue, not a port) | `../../lib/ide/ide_editor_features.dart`, `../../lib/ide/ide_editor.dart`, `../../lib/ide/ide_code_editor.dart` |
+
+Decoration types: `DecorationRenderOptions.fromJson` takes upstream's
+`IDecorationRenderOptions` wire shape (a `ThemeColor` is `{id}` and resolves
+through the inline theme's color function, an unknown id becoming
+transparent; a light/dark block overrides the plain properties; a `file:`
+gutter icon path becomes a file path; `overviewRulerLane` defaults to the
+center, or to the right for diagnostics kinds). CSS values are parsed the way
+the browser does (`#rgb[a]`/`#rrggbb[aa]`, `rgb[a]()`, `hsl[a]()`, named
+colors, `px`/`em`/`rem`/`ch`/`%`, `thin`/`medium`/`thick`, border and text
+decoration shorthands). `EditorDecorationsController.setDecorations` /
+`setDecorationsFast` place them through the document's snapshot, keep them in
+the interval tree with the type's stickiness, restyle them when the theme
+changes and drop those of a removed type. The surface looks decorations up
+per shaped line (`ViewportLineDecorations.of` over the set's
+`intersecting`), it rebuilds a layout only when some source reports
+`affectsLayout`, and the composite set it paints is rebuilt only when one of
+its sets changed.
+
+Injected text is placed the way Monaco's `LineInjectedText.fromDecorations`
+orders it (by column, then `before` ahead of `after`, then in decoration
+order). Each injection is a placeholder of its own width in the paragraph, so
+it affects layout, while the caret, selection and hit-testing work in
+document columns and so skip it; `fromParagraph`/`toParagraph` and a caret
+stop per injection map between the two (see the deviation below).
+
+Deviations, documented in the file headers too:
+
+- Caret stops are decided statically (there is no view-position memory):
+  among the injections at one column the caret goes left of all of them when
+  the first allows a left stop, else at the first boundary one of the two
+  sides allows, else right of the last when it allows a right stop, else
+  left. Decoration `before` content uses a right stop, `after` content a
+  left one, ghost text a left one, and inlay hint parts none but the last
+  (a right one when no padding follows).
+- The ghost text diff is a greedy insert-only subsequence match, not
+  `LcsDiff` with smart bracket matching, so `subword` suggestions may split
+  into different parts; one suggestion shows at a time and it is the
+  caller's.
+- Inlay hints are the caller's (no providers, resolve, cache, debounce or
+  the fixed lengths used while typing); the word is the default word
+  pattern (no language word definitions or token fallback), box corners are
+  all rounded, and tooltips and double-click text edits are left to the
+  caller.
+- CodeLens has no providers or cache, a lens's tooltip is a plain `Tooltip`,
+  and multi-line CodeLens titles are one line.
+- `cursor` and `contentIconPath` render options are parsed but not painted;
+  gutter icons need the app's builder (`ideGutterIconBuilder`, SVG through
+  flutter_svg); `letterSpacing` and `lineHeight` are parsed for the text
+  style but not applied to injected text.
+- `EditorDecoration`'s legacy `afterText`/`afterColor`/`afterMargin` (Git
+  blame) stay paint-only and are painted after the line's injected text.

@@ -1,15 +1,16 @@
+import 'package:baocode/extensions/workbench/workspace_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/extensions/ide_extensions.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/git/commit_message.dart';
 import 'package:baocode/ide/git/git_repository.dart';
 import 'package:baocode/ide/git/repository_scan.dart';
 import 'package:baocode/ide/ide_color_theme_picker.dart';
+import 'package:baocode/debug/service/debug_service.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/ide_workspace.dart';
-import 'package:baocode/ide/lsp/language_features.dart';
+import 'package:baocode/ide/language/language_features.dart';
 import 'package:baocode/ide/search/text_search.dart';
 import 'package:baocode/ide/terminal/pty.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
@@ -174,7 +175,6 @@ Future<IdeWorkspace> pumpWorkbench(
   ValueChanged<String>? onIgnoreRecommendation,
   IdeGitRepository? git,
   IdeTextSearch? textSearch,
-  IdeExtensions? extensions,
   IdeCommitMessageModel? commitMessage,
   ValueChanged<bool>? onPinnedChanged,
   PtyStarter? startPty,
@@ -191,6 +191,8 @@ Future<IdeWorkspace> pumpWorkbench(
   VoidCallback? onAddFolder,
   ValueChanged<String>? onRemoveFolder,
   Project? project,
+  WorkspaceExtensions? extensions,
+  DebugService? debugService,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -229,6 +231,7 @@ Future<IdeWorkspace> pumpWorkbench(
         onIgnoreRecommendation: onIgnoreRecommendation,
         textSearch: textSearch ?? ideSearchText,
         extensions: extensions,
+        debugService: debugService,
         // Never the real Claude Code under test.
         commitMessage: commitMessage ?? _noModel,
         onPinnedChanged: onPinnedChanged,

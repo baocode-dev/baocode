@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'file_icon_theme.dart';
+import 'workbench_theme.dart' show themeColors;
+
 /// File and folder icons from the Material Icon Theme (the icons of
 /// material-icons-browser-extension), bundled by
 /// `tool/generate_material_icons.mjs` under `assets/material_icons/`.
@@ -113,9 +116,17 @@ class FileIcon extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => _ThemeIcon(
+  Widget build(BuildContext context) => _ExtensionThemeIcon(
     size: size,
-    id: () => MaterialFileIcons.instance.fileIcon(path),
+    icon: (theme, light) => theme.fileIcon(
+      path,
+      languageId: FileIconThemeService.instance.languageIdOf?.call(path),
+      light: light,
+    ),
+    bundled: _ThemeIcon(
+      size: size,
+      id: () => MaterialFileIcons.instance.fileIcon(path),
+    ),
   );
 }
 
@@ -135,13 +146,48 @@ class FolderIcon extends StatelessWidget {
   final bool root;
 
   @override
-  Widget build(BuildContext context) => _ThemeIcon(
+  Widget build(BuildContext context) => _ExtensionThemeIcon(
     size: size,
-    id: () => MaterialFileIcons.instance.folderIcon(
-      path,
-      expanded: expanded,
-      root: root,
+    icon: (theme, light) =>
+        theme.folderIcon(path, expanded: expanded, root: root, light: light),
+    bundled: _ThemeIcon(
+      size: size,
+      id: () => MaterialFileIcons.instance.folderIcon(
+        path,
+        expanded: expanded,
+        root: root,
+      ),
     ),
+  );
+}
+
+/// The icon of the extension's file icon theme in use
+/// (`workbench.iconTheme`), else [bundled].
+class _ExtensionThemeIcon extends StatelessWidget {
+  const _ExtensionThemeIcon({
+    required this.size,
+    required this.icon,
+    required this.bundled,
+  });
+
+  final double size;
+  final FileIconDefinition? Function(FileIconThemeData theme, bool light) icon;
+  final Widget bundled;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: FileIconThemeService.instance,
+    builder: (context, _) {
+      final theme = FileIconThemeService.instance.active;
+      if (theme == null) return bundled;
+      final definition = icon(theme, !themeColors.dark);
+      return SizedBox.square(
+        dimension: size,
+        child: definition == null
+            ? null
+            : FileIconThemeIcon(definition, size: size),
+      );
+    },
   );
 }
 

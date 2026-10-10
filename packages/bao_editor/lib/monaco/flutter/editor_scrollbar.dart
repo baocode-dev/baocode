@@ -75,7 +75,7 @@ class OverviewRulerCache {
 
   ui.Picture picture({
     required ViewportLayout layout,
-    required SortedDecorations decorations,
+    required EditorDecorationSet decorations,
     required EditorViewTheme theme,
     required Size size,
     required double scrollHeight,
@@ -102,16 +102,23 @@ class OverviewRulerCache {
         final color = decoration.resolvedOverviewRuler(theme);
         if (color == null) continue;
         final line = snapshot.positionAtOffset(decoration.start).lineNumber;
+        final endLine = decoration.end > decoration.start
+            ? snapshot.positionAtOffset(decoration.end).lineNumber
+            : line;
         final top = layout.lineTop(line) * scale;
-        final diagnostic =
-            decoration.kind == EditorDecorationKind.error ||
-            decoration.kind == EditorDecorationKind.warning ||
-            decoration.kind == EditorDecorationKind.info;
-        final left = 1 + (diagnostic ? 2 * lane : lane);
-        canvas.drawRect(
-          Rect.fromLTWH(left, top, lane, markHeight),
-          paint..color = color,
+        final height = math.max(
+          markHeight,
+          (layout.lineTop(endLine) + layout.lineHeight) * scale - top,
         );
+        // `OverviewRulerLane` bits: left 1, center 2, right 4.
+        final lanes = decoration.resolvedOverviewRulerLane;
+        for (var index = 0; index < 3; index++) {
+          if (lanes & (1 << index) == 0) continue;
+          canvas.drawRect(
+            Rect.fromLTWH(1 + index * lane, top, lane, height),
+            paint..color = color,
+          );
+        }
       }
     }
     _picture = recorder.endRecording();
@@ -159,7 +166,7 @@ class EditorScrollbarPainter extends CustomPainter {
   final double scrollTop;
   final double scrollLeft;
   final double scrollHeight;
-  final SortedDecorations decorations;
+  final EditorDecorationSet decorations;
   final OverviewRulerCache overviewCache;
 
   /// One-based model lines of the cursors (overview ruler cursor marks).

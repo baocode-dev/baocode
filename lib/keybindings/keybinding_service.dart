@@ -22,6 +22,36 @@ export 'keybinding_resolver.dart'
         MoreChordsNeeded,
         NoKeybinding;
 
+/// A keybinding an extension contributes (`contributes.keybindings`),
+/// after the app's defaults and before the keymap's and the user's.
+@immutable
+class ContributedKeybinding {
+  const ContributedKeybinding({
+    required this.entry,
+    required this.extensionId,
+    this.applies,
+  });
+
+  final KeybindingEntry entry;
+
+  /// The extension's id (`publisher.name`).
+  final String extensionId;
+
+  /// Whether its `when` clause (and its command's `enablement`) holds; null
+  /// reads [entry]'s `when` as the app's keybindings do.
+  final bool Function(ContextLookup context)? applies;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ContributedKeybinding &&
+      other.entry == entry &&
+      other.extensionId == extensionId &&
+      identical(other.applies, applies);
+
+  @override
+  int get hashCode => Object.hash(entry, extensionId);
+}
+
 /// The keybindings in effect and what a key press runs.
 class KeybindingService extends ChangeNotifier {
   KeybindingService({
@@ -101,10 +131,33 @@ class KeybindingService extends ChangeNotifier {
     _changed();
   }
 
+  /// Extensions' keybindings, in upstream's order (built-in extensions'
+  /// first, then by position in their lists and command).
+  List<ContributedKeybinding> get contributedKeybindings => _contributed;
+  List<ContributedKeybinding> _contributed = const [];
+  Set<String> _contributedCommands = const {};
+
+  /// Sets extensions' keybindings, and the commands extensions have (which
+  /// a keybinding may run).
+  void setContributedKeybindings(
+    List<ContributedKeybinding> keybindings, {
+    Set<String> commands = const {},
+  }) {
+    if (listEquals(keybindings, _contributed) &&
+        setEquals(commands, _contributedCommands)) {
+      return;
+    }
+    _contributed = List.unmodifiable(keybindings);
+    _contributedCommands = Set.unmodifiable(commands);
+    _changed();
+  }
+
   /// Whether BaoCode has [command]: a keybinding for one it has not (another
   /// editor's) is kept, but shown as not supported and never runs.
   bool isSupported(String command) =>
-      _commands.containsKey(command) || _extraCommands.contains(command);
+      _commands.containsKey(command) ||
+      _extraCommands.contains(command) ||
+      _contributedCommands.contains(command);
 
   final Map<KeybindingPlatform, KeybindingResolver> _resolvers = {};
 
@@ -124,6 +177,15 @@ class KeybindingService extends ChangeNotifier {
             source: KeybindingSource.defaults,
             platform: target,
             index: index,
+          ),
+        for (final (index, contributed) in _contributed.indexed)
+          KeybindingItem(
+            entry: contributed.entry,
+            source: KeybindingSource.defaults,
+            platform: target,
+            index: index,
+            extensionId: contributed.extensionId,
+            whenEvaluator: contributed.applies,
           ),
         for (final (index, entry) in _keymapEntries.indexed)
           KeybindingItem(

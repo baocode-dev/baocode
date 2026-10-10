@@ -62,6 +62,8 @@
 
 ## LSP 多语言支持（2026-09-29）
 
+> 2026-10 已移除：语言功能改由 VS Code 插件提供（`../../docs/extensions.md`），下文的 `lib/ide/lsp/`、`assets/lsp/`、生成脚本和 `lsp-smoke` 标签都已删除，仅作历史记录。
+
 - **结构**：`../../lib/ide/lsp/` 是通用客户端。
   - `json_rpc.dart`：Content-Length 帧、请求匹配、`$/cancelRequest`。
   - `lsp_client.dart`：单个连接，UTF-16 能力协商、动态注册、`workspace/configuration`、progress、applyEdit。

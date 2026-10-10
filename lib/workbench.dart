@@ -24,6 +24,7 @@ import 'chat/side_panel/side_panel_view.dart';
 import 'customize/customization_store.dart';
 import 'customize/customizations.dart';
 import 'customize/customize_view.dart';
+import 'extensions/workbench/workspace_extensions.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/git/repository_scan.dart';
 import 'ide/file_service.dart' show IdeFileService, IdeHostFiles, readFileBytes;
@@ -39,8 +40,7 @@ import 'ide/ide_quick_open.dart';
 import 'ide/ide_welcome.dart' show IdeRecentWorkspace;
 import 'ide/ide_workbench.dart';
 import 'ide/ide_workspace.dart';
-import 'ide/lsp/language_features.dart';
-import 'ide/lsp/lsp_protocol.dart';
+import 'ide/language/language_types.dart';
 import 'ide/terminal/links/terminal_links.dart';
 import 'ide/terminal/terminal_instance.dart';
 import 'ide/terminal/terminal_panel.dart' show terminalCommandsToSkipShell;
@@ -114,7 +114,7 @@ class Workbench extends StatefulWidget {
     super.key,
     required this.workspace,
     this.ideEditorBuilder,
-    this.languagesFor,
+    this.extensionsFor,
     this.gitFor,
     this.repositoriesIn,
     this.terminalBackend,
@@ -144,9 +144,9 @@ class Workbench extends StatefulWidget {
   /// more (e.g. under test).
   final AppSettings? settings;
 
-  /// The language servers for the project at a root, when the IDE opens it;
-  /// none when null.
-  final LanguageFeatures Function(String root)? languagesFor;
+  /// The extensions of the project in a folder, when the IDE opens it (its
+  /// language features among them); none when null, or when it gives null.
+  final WorkspaceExtensions? Function(String folder)? extensionsFor;
 
   /// The Git repository of the project at a root, when the IDE opens it;
   /// none when null.
@@ -526,24 +526,28 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// The IDE moved to windows of its own (`window.ideWindows`): the main
-  /// window's goes, its editors, terminals and language servers with it.
+  /// window's goes, its editors, terminals and extension host with it.
   void _windowsChanged() {
     if (!_multi || _ideWindow || _ideSpaces.isEmpty) return;
-    final spaces = _ideSpaces.values.toList();
+    final spaces = {..._ideSpaces};
     setState(() {
       _ideSpaces.clear();
       _ideKeys.clear();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      for (final space in spaces) {
-        space.dispose();
-      }
+      spaces.forEach(_disposeIdeSpace);
     });
   }
 
   /// Files dropped on the window where nothing in it takes them: opened
   /// as the `code` command opens them.
   bool _dropped(List<ComposerFile> files) {
+    // Extensions dropped on the IDE install (or run) there.
+    if (_showsIde &&
+        (_ide?.dropExtensions([for (final file in files) file.path]) ??
+            false)) {
+      return true;
+    }
     final opened = _windows?.dropped(_viewId, files) ?? false;
     // Opened as a project in the IDE: no agent's answer to wait for.
     if (opened && files.any((file) => file.directory)) {
@@ -646,9 +650,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     for (final index in _fileIndexes.values) {
       index.dispose();
     }
-    for (final ide in _ideSpaces.values) {
-      ide.dispose();
-    }
+    _ideSpaces.forEach(_disposeIdeSpace);
     super.dispose();
   }
 
@@ -2026,6 +2028,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           child: IdeWorkbench(
             key: _ideKeys.putIfAbsent(path, GlobalKey.new),
             workspace: space,
+            extensions: _ideExtensions[path],
             project: path == _noFolder
                 ? Project.at(space.root)
                 : _workspace.projectAt(path),
@@ -2038,8 +2041,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             pinned: _pinned,
             onPinnedChanged: _setPinned,
             editorBuilder: widget.ideEditorBuilder,
-            ignoredRecommendations: _workspace.ignoredServerRecommendations,
-            onIgnoreRecommendation: _workspace.ignoreServerRecommendation,
+            ignoredRecommendations: _workspace.ignoredRecommendations,
+            onIgnoreRecommendation: _workspace.ignoreRecommendation,
             colorThemes: WorkbenchThemeService.instance,
             commands: _ideCommandsFor(path),
             recentFolders: _workspace.recentFolders,
@@ -2267,27 +2270,27 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// themselves elsewhere.
   /// The IDE's workspace for [folder], made the first time it is shown
   /// (the header, built first, may be the first to ask). Without a folder
-  /// ([_noFolder]), it is in the home folder, with no language servers
-  /// or Git.
+  /// ([_noFolder]), it is in the home folder, with no extensions or Git.
   ///
   /// A remote folder's is in its path on its host, its files, Git,
-  /// language servers and terminals there.
+  /// extensions and terminals there.
   IdeWorkspace _ideSpace(String folder) => _ideSpaces.putIfAbsent(folder, () {
     final host = ProjectHost.of(folder);
     final root = host.pathOf(folder);
     final multi = _workspace.workspaceAt(folder);
+    // A workspace's extension host is its first folder's.
+    final extensions = folder == _noFolder
+        ? null
+        : widget.extensionsFor?.call(multi?.folders.firstOrNull ?? folder);
     final space = folder == _noFolder
         ? IdeWorkspace(homeDirectory ?? p.current, hasFolder: false)
         : multi != null
-        // A workspace's folders, each a root with its own repository; the
-        // language servers its first folder's.
+        // A workspace's folders, each a root with its own repository.
         ? IdeWorkspace(
             root,
             files: host.files(root),
-            languages: switch (multi.folders.firstOrNull) {
-              final first? => widget.languagesFor?.call(first),
-              null => null,
-            },
+            languages: extensions?.languages,
+            extensionLanguageId: extensions?.languageIdFor,
             roots: multi.folders,
             gitOf: (folder) => widget.gitFor?.call(folder),
             repositoryDetection: _repositoryDetection(host),
@@ -2296,7 +2299,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         : IdeWorkspace(
             root,
             files: host.files(root),
-            languages: widget.languagesFor?.call(folder),
+            languages: extensions?.languages,
+            extensionLanguageId: extensions?.languageIdFor,
             git: widget.gitFor?.call(folder),
             repositoryDetection: _repositoryDetection(host),
             paths: host.name == null ? null : host.paths,
@@ -2308,8 +2312,21 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         ..restore(kept);
     }
     if (_ideWindow) _trackEdited(space);
+    if (extensions != null) {
+      _ideExtensions[folder] = extensions;
+      unawaited(extensions.attach(space));
+    }
     return space..askSavePath = (doc) => _askSavePath(space, doc);
   });
+
+  /// The extensions of the IDE workspaces, by folder (see [_ideSpace]).
+  final Map<String, WorkspaceExtensions> _ideExtensions = {};
+
+  /// Ends [folder]'s IDE workspace: its extension host, then the rest.
+  void _disposeIdeSpace(String folder, IdeWorkspace space) {
+    _ideExtensions.remove(folder)?.dispose();
+    space.dispose();
+  }
 
   /// Finds the repositories of an IDE's folders' subfolders on [host], as
   /// settings.json's `git.autoRepositoryDetection` says when it opens.

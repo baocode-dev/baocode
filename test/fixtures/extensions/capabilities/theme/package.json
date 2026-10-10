@@ -1,0 +1,5 @@
+{
+  "name": "theme", "publisher": "fixture", "version": "1.0.0",
+  "engines": { "vscode": "^1.50.0" },
+  "contributes": { "themes": [{ "label": "Fixture Night", "uiTheme": "vs-dark", "path": "./themes/night.json" }] }
+}

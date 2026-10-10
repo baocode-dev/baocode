@@ -62,6 +62,7 @@ abstract final class PtyProcesses {
     required int rows,
     required bool shellIntegration,
     TerminalShell? shell,
+    TerminalEnvironmentRequest? environment,
   }) async {
     final os = _os;
     // As VS Code, whose terminals inherit the environment it resolved from
@@ -72,16 +73,26 @@ abstract final class PtyProcesses {
       executable: shell.executable,
       arguments: shell.arguments,
       workingDirectory: root,
-      environment: terminalEnvironment(
-        base,
-        os: os,
-        locale: Platform.localeName,
+      // VS Code adds the terminal's variables to a strict environment
+      // too (`addTerminalEnvironmentKeys`).
+      environment: _finish(
+        environment,
+        terminalEnvironment(
+          environment?.merge(base) ?? base,
+          os: os,
+          locale: Platform.localeName,
+        ),
       ),
       columns: columns,
       rows: rows,
     );
     return shellIntegration ? injectShellIntegration(launch, os: os) : launch;
   }
+
+  static Map<String, String> _finish(
+    TerminalEnvironmentRequest? request,
+    Map<String, String> environment,
+  ) => request?.finish(environment) ?? environment;
 
   static Future<TerminalProfiles> terminalProfiles({Object? configured}) async {
     final os = _os;

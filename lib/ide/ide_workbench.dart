@@ -1,14 +1,62 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io' show File;
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide ImageIcon;
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_keys.dart';
+import '../debug/common/debug_types.dart';
+import '../debug/service/debug_service.dart';
+import '../debug/ui/debug_strings.dart';
+import '../debug/ui/debug_toolbar.dart';
+import '../debug/ui/debug_view.dart';
+import '../debug/ui/run_and_debug_view.dart';
+import '../extensions/import/extension_import.dart';
+import '../extensions/keybindings/extension_keybindings.dart';
+import '../extensions/recommendations/recommendations.dart';
+import '../extensions/runtime/extension_runtime_service.dart';
+import '../extensions/runtime/runtime_status_item.dart';
+import '../extensions/ui/extension_detail.dart';
+import '../extensions/ui/extensions_view.dart';
+import '../extensions/trust/trust_ui.dart';
+import '../extensions/ui/import_dialog.dart';
+import '../extensions/ui/vsix_drop.dart';
+import '../extensions/window/output/output_panel.dart';
+import '../extensions/window/quick_input/quick_input_widget.dart';
+import '../extensions/window/status_bar_items.dart';
+import '../extensions/window/window_adapters.dart'
+    show WorkbenchCommandExecutor;
+
+import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+
+import '../extensions/commands/command_arguments.dart' show CommandLocation;
+import '../extensions/commands/command_contributions.dart'
+    show ImageIcon, ThemeIconRef;
+import '../extensions/contextkey/context_key_service.dart'
+    show ContextKeyService;
+import '../extensions/contextkey/workbench_context_keys.dart'
+    show resourceContextKeys;
+import '../extensions/menus/menu_service.dart'
+    show MenuCommandAction, MenuGroup, MenuSubmenuAction;
+import '../extensions/menus/menu_widgets.dart'
+    show ideMenuActionIcon, ideMenuActionImage, ideMenuGroupsOf;
+import '../extensions/views/tree_view_widget.dart';
+import '../extensions/views/view_contributions.dart';
+import '../extensions/languages/language_status_ui.dart';
+import '../extensions/scm/scm_view.dart';
+import '../extensions/testing/test_service.dart';
+import '../extensions/testing/testing_view.dart';
+import '../extensions/workbench/workspace_extensions.dart';
+import '../keybindings/vscode_import.dart' show VsCodeInstalls;
+import '../platform/data_dir.dart';
+import '../settings/jsonc.dart' show parseJsonc;
 import '../chat/composer/composer_files.dart' show ComposerFile;
 import '../chat/composer/file_drop.dart';
 import '../keybindings/default_keybindings.dart'
@@ -18,6 +66,8 @@ import '../l10n/l10n.dart';
 import '../keybindings/keybinding_service.dart';
 import '../settings/user_settings.dart';
 import '../theme/codicons.dart';
+import '../theme/icon_registry.dart';
+import '../theme/file_icon_theme.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/back_to_chat_button.dart';
@@ -37,8 +87,6 @@ import 'package:bao_editor/monaco/flutter/editor_keybindings.dart'
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:bao_editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart';
 
-import 'extensions/ide_extensions.dart';
-import 'extensions/ide_extensions_view.dart';
 import 'file_service.dart'
     show IdeFileListing, IdeHostFiles, localizedFileError, readFileBytes;
 import 'git/commit_message.dart';
@@ -64,6 +112,7 @@ import 'ide_explorer.dart';
 import 'ide_hover.dart';
 import 'ide_layout.dart';
 import 'ide_list.dart' show IdeKeyboardList;
+import 'ide_menu.dart' show IdeMenuGroup;
 import 'ide_modern_ui.dart';
 import 'ide_notifications.dart';
 import 'ide_panes.dart';
@@ -73,11 +122,10 @@ import 'ide_status_bar.dart';
 import 'ide_tab_bar.dart';
 import 'ide_welcome.dart';
 import 'ide_workspace.dart';
-import 'lsp/language_features.dart';
-import 'lsp/lsp_protocol.dart';
+import 'language/language_features.dart';
+import 'language/language_types.dart';
 import 'lsp_ui/diagnostics.dart';
 import 'lsp_ui/document_symbols.dart';
-import 'lsp_ui/language_status.dart';
 import 'lsp_ui/lsp_convert.dart';
 import 'lsp_ui/problems_panel.dart';
 import 'lsp_ui/workspace_edit.dart';
@@ -92,6 +140,8 @@ import 'terminal/terminal_profile_service.dart';
 import 'terminal/terminal_profiles.dart';
 import 'terminal/terminal_service.dart';
 
+part 'ide_workbench_extensions.dart';
+part 'ide_workbench_views.dart';
 part 'ide_workbench_keys.dart';
 
 /// The IDE shell is kept mounted when the user returns to the conversation.
@@ -114,6 +164,7 @@ class IdeWorkbench extends StatefulWidget {
     this.onIgnoreRecommendation,
     this.textSearch = ideSearchText,
     this.extensions,
+    @visibleForTesting this.debugService,
     this.commitMessage = ideClaudeCommitMessage,
     this.pinned = false,
     this.onPinnedChanged,
@@ -176,17 +227,22 @@ class IdeWorkbench extends StatefulWidget {
   /// Extra commands for the palette, after the workbench's and the editor's.
   final List<IdeCommand> commands;
 
-  /// Language servers not to recommend installing again (Don't Show Again
-  /// for this Language Server), kept by [onIgnoreRecommendation].
+  /// Extensions not to recommend installing again (Don't Show Again), kept
+  /// by [onIgnoreRecommendation].
   final Set<String> ignoredRecommendations;
   final ValueChanged<String>? onIgnoreRecommendation;
 
   /// The Search view's engine (a fake in widget tests).
   final IdeTextSearch textSearch;
 
-  /// What the Extensions view lists; the standard catalog's language
-  /// servers when null.
-  final IdeExtensions? extensions;
+  /// The workspace's VS Code extensions: the Extensions view, their status
+  /// bar entries, output, commands…; none for a folder without (the view
+  /// says so).
+  final WorkspaceExtensions? extensions;
+
+  /// Injected by focused workbench tests; normal windows use [extensions].
+  @visibleForTesting
+  final DebugService? debugService;
 
   /// Writes the Source Control view's commit messages (Claude Haiku; a
   /// fake in widget tests).
@@ -278,8 +334,20 @@ class IdeWorkbench extends StatefulWidget {
 }
 
 /// The side views of the activity bar. The outline is a pane of the
-/// explorer, as in VS Code; there is no Run and Debug view.
-enum IdeSideView { explorer, search, sourceControl, extensions }
+/// explorer, as in VS Code.
+enum IdeSideView {
+  explorer,
+  search,
+  sourceControl,
+  debug,
+  extensions,
+
+  /// The extensions' tests (shown once a test controller registers).
+  testing,
+
+  /// An extension's view container ([IdeWorkbenchState._viewContainer]).
+  container,
+}
 
 /// A navigation history entry (Go Back / Go Forward).
 typedef _NavigationEntry = ({String path, LspPosition position});
@@ -290,6 +358,8 @@ typedef _Chord = ({String label, List<KeyChord> chords, String message});
 
 class IdeWorkbenchState extends State<IdeWorkbench> {
   final _editorKey = GlobalKey<IdeEditorState>();
+  final _runAndDebugKey = GlobalKey<RunAndDebugViewState>();
+  DebugService? _listenedDebug;
 
   /// The markdown files shown as their source rather than their preview,
   /// the last switched last (a few hundred kept, with the window's state).
@@ -371,11 +441,32 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The panel's height, and the room for it, when its sash's drag began.
   ({IdeRows rows, double room})? _panelDragStart;
   IdeSideView _view = IdeSideView.explorer;
-  final IdeNotifications _notifications = IdeNotifications();
 
-  /// Servers whose install was recommended in this session.
-  final Set<String> _recommended = {};
-  String _lspStatus = 'Language services';
+  /// The extension view container the side bar shows when [_view] is
+  /// [IdeSideView.container].
+  String? _viewContainer;
+
+  /// The extension view container the panel shows when [_panel] is
+  /// [IdePanelTab.view].
+  String? _panelContainer;
+
+  /// The expanded panes of extension view containers, by container.
+  final Map<String, Set<String>> _containerPanes = {};
+
+  /// What extensions run of the workbench's commands, this frame
+  /// ([_ViewsPart._commandsForExtensions]).
+  Map<String, IdeCommand>? _appCommandsCache;
+  bool _makingAppCommands = false;
+
+  /// Stops following the context keys extension views and menus depend on.
+  void Function()? _stopViewContext;
+
+  /// The workspace's notifications (the extension host's go there too).
+  IdeNotifications get _notifications => widget.workspace.notifications;
+
+  /// The editor the active document is in (`Monaco editor`, `Text
+  /// editor`), once it says.
+  String? _editorStatus;
   Position _caretPosition = const Position(1, 1);
   int _statusColumn = 1;
   int _selectionLength = 0;
@@ -414,8 +505,19 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   final _scmKey = GlobalKey<IdeScmViewState>();
   IdeGitRepository? _git;
 
-  /// The Extensions view's list and search, made when it first shows.
-  IdeExtensionsSession? _extensions;
+  /// The extension whose page shows over the editors (its id).
+  String? _extensionPage;
+
+  /// Extensions recommended in this session.
+  final Set<String> _recommendedExtensions = {};
+
+  /// The extensions' keybindings in the keybinding service, while this
+  /// workbench shows.
+  ExtensionKeybindingsBridge? _extensionKeys;
+
+  /// What the Testing view keeps while another view shows.
+  final TestingViewSession _testingSession = TestingViewSession();
+  final _testingKey = GlobalKey<TestingViewState>();
 
   /// What the activity bar and the status bar show of [_git], rebuilt
   /// only when these change.
@@ -450,6 +552,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   String? _statusMessage;
   Timer? _statusMessageTimer;
 
+  /// The extension host's status messages (restarting after a crash).
+  StreamSubscription<String>? _hostStatus;
+
   /// Reads the Git status again when the app comes back to the front: a
   /// pull or a commit made elsewhere may have changed it unseen.
   AppLifecycleListener? _lifecycle;
@@ -466,6 +571,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   IdePanelTab? get _panel => _layout.panel;
   set _panel(IdePanelTab? tab) => _layout.panel = tab;
 
+  DebugService? get _debug => widget.debugService ?? widget.extensions?.debug;
+
   /// The tab the panel shows again when toggled back.
   IdePanelTab get _lastPanel => _layout.lastPanel;
 
@@ -481,6 +588,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The panel's terminals; none where they cannot run (the web).
   TerminalService? _terminals;
+  List<StreamSubscription<Object?>> _terminalRequests = const [];
   IdeReferences? _references;
 
   /// The Problems and References lists' focused rows and collapsed files.
@@ -544,6 +652,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (kept['view'] case final String name) {
       _view = IdeSideView.values.asNameMap()[name] ?? _view;
     }
+    if (kept['viewContainer'] case final String container) {
+      _viewContainer = container;
+    }
+    if (kept['panelContainer'] case final String container) {
+      _panelContainer = container;
+    }
+    if (_view == IdeSideView.container && _viewContainer == null) {
+      _view = IdeSideView.explorer;
+    }
     if (kept['markdownSource'] case final List<Object?> paths) {
       _markdownSources.addAll(paths.whereType<String>());
     }
@@ -582,6 +699,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'panelHeight': ?_panelHeight,
       ..._layout.toJson(),
       'view': _view.name,
+      'viewContainer': ?_viewContainer,
+      'panelContainer': ?_panelContainer,
       if (_markdownSources.isNotEmpty) 'markdownSource': [..._markdownSources],
       'editors': editors,
       if (editors.contains(active)) 'active': active,
@@ -885,14 +1004,26 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     FocusManager.instance.addLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.addListener(_keybindingsChanged);
     _registerCommandKeybindings();
-    _notifications.addListener(_notificationsChanged);
     widget.settings?.addListener(_settingsChanged);
     widget.remote?.addListener(_remoteChanged);
     if (widget.terminalBackend.supported) {
-      _terminals = TerminalService(
+      final terminals = _terminals = TerminalService(
         root: widget.workspace.root,
         backend: widget.terminalBackend,
       )..addListener(_terminalsChanged);
+      // An extension's `Terminal.show()` and `hide()`.
+      _terminalRequests = [
+        terminals.onDidRequestShow.listen((preserveFocus) {
+          if (!mounted) return;
+          setState(() => _panel = IdePanelTab.terminal);
+          if (!preserveFocus) _focusTerminalSoon();
+        }),
+        terminals.onDidRequestHide.listen((_) {
+          if (mounted && _panel == IdePanelTab.terminal) {
+            setState(() => _panel = null);
+          }
+        }),
+      ];
     }
     _restoreView();
     _attach();
@@ -915,11 +1046,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     super.didChangeDependencies();
     if (_localized) return;
     _localized = true;
-    _recommendServers();
+    _recommendExtensions();
   }
 
   void _attach() {
     final workspace = widget.workspace;
+    workspace.notifications.addListener(_notificationsChanged);
     workspace.layout.terminals = _terminals != null;
     _explorer = IdeExplorerController(
       files: workspace.files,
@@ -969,6 +1101,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // New terminals start in the project (a workspace's first folder);
     // those running stay where they are.
     _terminals?.root = workspace.roots.firstOrNull ?? workspace.root;
+    // Last: extensions already running (the workbench built again for
+    // them) ask for its commands at once.
+    _attachExtensions(widget.extensions);
   }
 
   /// A multi-folder workspace's folders, or the repository shown (of a
@@ -995,7 +1130,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// workspace but the one shown ([_scm]'s).
   final Map<IdeGitRepository?, IdeScmSession> _scmSessions = {};
 
-  void _detach(IdeWorkspace workspace) {
+  void _detach(IdeWorkspace workspace, WorkspaceExtensions? extensions) {
+    workspace.notifications.removeListener(_notificationsChanged);
+    _detachExtensions(extensions);
     workspace.removeListener(_workspaceChanged);
     for (final watch in _editWatches.values) {
       unawaited(watch.cancel());
@@ -1025,7 +1162,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _languagesChanged() {
     if (!mounted) return;
-    _recommendServers();
     _markers = null;
     final symbols = _symbols;
     if (symbols != null && !symbols.loaded) symbols.refresh();
@@ -1116,11 +1252,17 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       oldWidget.remote?.removeListener(_remoteChanged);
       widget.remote?.addListener(_remoteChanged);
     }
-    if (oldWidget.workspace != widget.workspace) {
-      _detach(oldWidget.workspace);
+    if (oldWidget.debugService != widget.debugService) {
+      _syncDebugListener();
+      widget.extensions?.contextKeys.notifyExternalChange();
+    }
+    if (oldWidget.workspace != widget.workspace ||
+        oldWidget.extensions != widget.extensions) {
+      _detach(oldWidget.workspace, oldWidget.extensions);
       _attach();
       _readBranch();
     }
+    if (widget.visible != oldWidget.visible) _syncExtensionKeybindings();
     if (widget.visible && !oldWidget.visible) {
       _readBranch();
       _focusSoon();
@@ -1141,14 +1283,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // A quick pick or input box going with the workbench hides (the color
     // themes one applies the theme it started with again).
     _quickModel?.onDidHide?.call();
-    _detach(widget.workspace);
+    _detach(widget.workspace, widget.extensions);
     _workbenchFocus.dispose();
     _explorerFocus.dispose();
     _timeline.dispose();
     _search.dispose();
-    _extensions?.dispose();
-    _notifications.dispose();
     _scm.dispose();
+    for (final subscription in _terminalRequests) {
+      unawaited(subscription.cancel());
+    }
     _terminals
       ?..removeListener(_terminalsChanged)
       ..dispose();
@@ -1212,7 +1355,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // maximizing, and has the side bar give way to it rather than it to
     // the side bar.
     _layout.showEditor();
-    _recommendServers();
+    _extensionPage = null;
+    _recommendExtensions();
     _recentFiles.add(path);
     unawaited(_explorer.reveal(path));
   }
@@ -1788,6 +1932,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _togglePanel(IdePanelTab tab) =>
       setState(() => _panel = _panel == tab ? null : tab);
 
+  void _toggleDebugConsole() {
+    _togglePanel(IdePanelTab.debugConsole);
+    if (_panel == IdePanelTab.debugConsole) _focusPanel();
+  }
+
   void _selectPanel(IdePanelTab tab) => setState(() => _panel = tab);
 
   // --- Terminals -------------------------------------------------------------
@@ -1905,77 +2054,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final path = widget.workspace.active?.path;
     if (path == null) return;
     unawaited(_openLocation(IdeLocation(path, symbol.selectionRange)));
-  }
-
-  /// Recommends installing the active file's missing language servers,
-  /// once a session each, as VS Code recommends a language's extension
-  /// (`FileBasedRecommendations`): a notification with Install.
-  void _recommendServers() {
-    final languages = _languages;
-    final path = widget.workspace.active?.path;
-    if (!_localized || languages == null || path == null) return;
-    for (final status in languages.statusFor(path)) {
-      if (status.state == LanguageServerState.missing &&
-          status.installable &&
-          status.missingRuntime == null &&
-          !widget.ignoredRecommendations.contains(status.serverId) &&
-          _recommended.add(status.serverId)) {
-        // Only in the notification center: a toast for every file opened
-        // is too much.
-        _recommendServer(status, path, silent: true);
-      }
-    }
-  }
-
-  void _recommendServer(
-    LanguageServerStatus status,
-    String path, {
-    bool silent = false,
-  }) {
-    final id = status.serverId;
-    final language = IdeLanguageNames.forPath(path);
-    final l10n = context.l10n;
-    _notifications.notify(
-      IdeSeverity.info,
-      l10n.wbRecommendServer(id, language),
-      sticky: true,
-      silent: silent,
-      primary: [
-        IdeNotificationAction(l10n.extInstall, () => _install(id, path)),
-      ],
-      secondary: [
-        IdeNotificationAction(
-          l10n.wbDontShowAgainServer,
-          () => widget.onIgnoreRecommendation?.call(id),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _install(String id, String path) async {
-    try {
-      await _languages?.install(id, path: path);
-    } catch (error) {
-      _report(error);
-    }
-  }
-
-  /// The status bar's missing server: why it cannot be installed, or its
-  /// recommendation again.
-  void _installServer(LanguageServerStatus status) {
-    final path = widget.workspace.active?.path;
-    if (path == null) return;
-    if (status.installable && status.missingRuntime == null) {
-      _recommendServer(status, path);
-      return;
-    }
-    final runtime = status.missingRuntime;
-    _notifications.notify(
-      IdeSeverity.warning,
-      runtime != null
-          ? context.l10n.extMissingRuntime(status.serverId, runtime)
-          : (status.message ?? context.l10n.extUnavailable(status.serverId)),
-    );
   }
 
   // --- Layout ------------------------------------------------------------
@@ -2333,7 +2411,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     return KeybindingService.instance.resolveEvent(
       event,
       pending: pending,
-      context: keyContext,
+      // The extensions' keys (`setContext`) over the workbench's.
+      context: widget.extensions?.contextKeys.lookup ?? keyContext,
       canRun: (item) => byId[item.command]?.enabled ?? false,
     );
   }
@@ -2350,6 +2429,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ..._terminalKeyboardCommands(),
       ..._panelKeyboardCommands(),
       ..._scmKeyboardCommands(),
+      ..._viewKeyboardCommands(),
     ]) {
       byId.putIfAbsent(command.id, () => command);
     }
@@ -2945,13 +3025,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         enabled: widget.workspace.git != null,
       ),
       IdeCommand(
-        id: 'baocode.ide.retryLanguageServices',
-        category: 'Developer',
-        label: 'Retry Language Services',
-        enabled: active != null,
-        run: () => unawaited(_editor?.retryLanguageServer()),
-      ),
-      IdeCommand(
         id: 'baocode.ide.backToChat',
         category: 'View',
         label: 'Back to Chat',
@@ -2960,18 +3033,143 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ];
   }
 
+  void _runAndDebugAction(
+    Future<void> Function(RunAndDebugViewState view) action,
+  ) {
+    _showView(IdeSideView.debug);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final view = _runAndDebugKey.currentState;
+      if (view != null) unawaited(action(view));
+    });
+  }
+
+  List<IdeCommand> _debugCommands() {
+    final service = _debug;
+    if (service == null) return const [];
+    final session = service.viewModel.focusedSession;
+    final thread = debugActionThread(service);
+    return [
+      IdeCommand(
+        id: 'workbench.view.debug',
+        category: 'View',
+        label: DebugStrings.of(context).runAndDebug,
+        run: () => _showView(IdeSideView.debug),
+      ),
+      IdeCommand(
+        id: 'debug.start',
+        category: 'Debug',
+        label: 'Start Debugging',
+        run: () => _runAndDebugAction((view) => view.start()),
+      ),
+      IdeCommand(
+        id: 'debug.startFromConfig',
+        category: 'Debug',
+        label: 'Start Debugging from Configuration',
+        run: () => _runAndDebugAction((view) => view.start()),
+        runWithArgs: (args) {
+          final config = args is Map ? args.cast<String, Object?>() : null;
+          _runAndDebugAction((view) => view.start(config: config));
+        },
+      ),
+      IdeCommand(
+        id: 'debug.addConfiguration',
+        category: 'Debug',
+        label: 'Add Configuration...',
+        run: () => _runAndDebugAction((view) => view.addConfiguration()),
+      ),
+      IdeCommand(
+        id: 'debug.openConfigFile',
+        category: 'Debug',
+        label: 'Open launch.json',
+        run: () => _runAndDebugAction((view) => view.openConfigFile()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.run',
+        category: 'Debug',
+        label: 'Run Without Debugging',
+        run: () => _runAndDebugAction((view) => view.runWithoutDebugging()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.toggleRepl',
+        category: 'Debug',
+        label: 'Toggle Debug Console',
+        run: _toggleDebugConsole,
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.stop',
+        category: 'Debug',
+        label: 'Stop Debugging',
+        run: () => unawaited(service.stopSession(null)),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.restart',
+        category: 'Debug',
+        label: 'Restart Debugging',
+        enabled: session != null,
+        run: () {
+          if (session != null) unawaited(service.restartSession(session));
+        },
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.continue',
+        category: 'Debug',
+        label: 'Continue',
+        enabled: thread != null,
+        run: () => unawaited(thread?.continue_()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.pause',
+        category: 'Debug',
+        label: 'Pause',
+        enabled: thread != null,
+        run: () => unawaited(thread?.pause()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.stepOver',
+        category: 'Debug',
+        label: 'Step Over',
+        enabled: thread != null,
+        run: () => unawaited(thread?.next()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.stepInto',
+        category: 'Debug',
+        label: 'Step Into',
+        enabled: thread != null,
+        run: () => unawaited(thread?.stepIn()),
+      ),
+      IdeCommand(
+        id: 'workbench.action.debug.stepOut',
+        category: 'Debug',
+        label: 'Step Out',
+        enabled: thread != null,
+        run: () => unawaited(thread?.stepOut()),
+      ),
+    ];
+  }
+
   /// The workbench's commands, then the editor's, then [IdeWorkbench.commands].
   List<IdeCommand> _allCommands() => [
     ..._workbenchCommands(),
+    ..._debugCommands(),
     ..._editorCommands(),
     ..._layoutCommands(),
     ..._searchCommands(),
     ..._terminalCommands(),
+    ..._taskCommands(),
+    ..._testingCommands(),
     ..._panelCommands(),
     ..._scmCommands(),
     ...?_editor?.editorCommands,
     ...widget.commands,
+    ..._extensionCommands(),
+    ..._viewCommands(),
   ];
+
+  /// Takes the .vsix files and extension folders among [paths] dropped on
+  /// the window: false when there are none.
+  bool dropExtensions(List<String> paths) => _dropExtensions(paths);
 
   /// The commands for the current state, for the palette and for tests.
   @visibleForTesting
@@ -3039,10 +3237,25 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         badge: _gitCount,
       ),
       item(
+        IdeSideView.debug,
+        Codicons.debugAlt,
+        keys.titleWithKeybinding(
+          DebugStrings.of(context).runAndDebug,
+          'workbench.view.debug',
+        ),
+      ),
+      item(
         IdeSideView.extensions,
         Codicons.extensions,
         keys.titleWithKeybinding(l10n.extTitle, 'workbench.view.extensions'),
       ),
+      if (widget.extensions?.testing?.controllers.isNotEmpty ?? false)
+        item(
+          IdeSideView.testing,
+          Codicons.beaker,
+          keys.titleWithKeybinding('Testing', 'workbench.view.testing'),
+        ),
+      ..._extensionActivityItems(joined: joined),
     ];
     return SizedBox(
       width: IdeModernUI.activityBarWidth,
@@ -3102,45 +3315,19 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       onRevealInExplorer: _revealInExplorer,
       trash: WindowControls.canMoveToTrash ? WindowControls.moveToTrash : null,
       commitMessage: widget.commitMessage,
+      extensionScm: _extensionScm(),
     ),
-    IdeSideView.extensions => IdeExtensionsView(
-      session: _extensions ??= IdeExtensionsSession(
-        widget.extensions ?? IdeLanguageServerExtensions(),
+    IdeSideView.debug => switch (_debug) {
+      final debug? => DebugView(
+        service: debug,
+        runAndDebugKey: _runAndDebugKey,
       ),
-      recommended: _recommendedServers(),
-      onInstalled: _startServer,
-      onError: _report,
-    ),
+      null => const SizedBox.shrink(),
+    },
+    IdeSideView.extensions => _extensionsView(),
+    IdeSideView.testing => _testingView(),
+    IdeSideView.container => _extensionContainerView(),
   };
-
-  /// Starts the open files' servers named [id], and those limited to some
-  /// of its features (`ruff#only=format`), now that it is installed.
-  void _startServer(String id) {
-    final languages = _languages;
-    if (languages == null) return;
-    final ids = {
-      id,
-      for (final doc in widget.workspace.documents)
-        for (final status in languages.statusFor(doc.path))
-          if (status.serverId.split('#').first == id) status.serverId,
-    };
-    ids.forEach(languages.retry);
-  }
-
-  /// The servers the open files want and could install, less those not to
-  /// recommend: the Extensions view's Recommended pane.
-  Set<String> _recommendedServers() {
-    final languages = _languages;
-    if (languages == null) return const {};
-    return {
-      for (final doc in widget.workspace.documents)
-        for (final status in languages.statusFor(doc.path))
-          if (status.state == LanguageServerState.missing &&
-              status.installable &&
-              !widget.ignoredRecommendations.contains(status.serverId))
-            status.serverId.split('#').first,
-    };
-  }
 
   /// The Explorer view: the folder's tree, the active editor's outline and
   /// its file's timeline, as panes.
@@ -3244,6 +3431,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                               for (final (_, git) in workspace.repositories)
                                 git,
                             ],
+                            decorations: widget.extensions?.explorerDecorations,
+                            extensionContextMenu: _explorerExtensionMenu,
                             onAddFolder: workspace.isMultiRoot
                                 ? widget.onAddFolder
                                 : null,
@@ -3322,6 +3511,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     activePath: activePath,
                   ),
                 ),
+                ..._extensionPanes(BuiltinViewContainers.explorer),
               ],
             ),
           ),
@@ -3332,11 +3522,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   Widget _editorArea(List<IdeCommand> commands) {
     final active = widget.workspace.active;
+    final debug = _debug;
+    final dockedToolbar =
+        debug != null && debug.settings().toolBarLocation == 'docked';
     return IdeCard(
       color: themeColors['editor.background'],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (dockedToolbar) DebugToolbar(service: debug),
           if (widget.workspace.documents.isNotEmpty) ...[
             IdeTabBar(
               documents: widget.workspace.documents,
@@ -3351,6 +3545,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   : null,
               onMarkdownPreview: (preview) =>
                   unawaited(_setMarkdownPreview(preview)),
+              extensionContextMenu: _tabExtensionMenu,
+              extensionTitleMenu: _editorTitleExtensionMenu,
+              extensionTitleActions: _editorTitleExtensionActions(),
             ),
             if (active != null && !active.isUntitled)
               IdeBreadcrumbs(
@@ -3362,94 +3559,121 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               ),
           ],
           Expanded(
-            child: _markdownDrops(
-              active,
-              active == null && !widget.workspace.hasFolder
-                  ? IdeStartPage(
-                      actions: [
-                        for (final id in const [
-                          'workbench.action.files.openFolder',
-                          'baocode.remote.openFolder',
-                          IdeWorkbench.createWorkspaceCommandId,
-                          'workbench.action.files.openFile',
-                          'workbench.action.files.newUntitledFile',
-                        ])
-                          ...commands.where((command) => command.id == id),
-                      ],
-                      recent: widget.recentFolders,
-                      onOpenRecent: widget.onOpenRecent,
-                      workspaceOf: widget.recentWorkspaceOf,
-                      onShowAllRecent: commands
-                          .where((c) => c.id == 'workbench.action.openRecent')
-                          .firstOrNull
-                          ?.run,
-                    )
-                  : active == null
-                  ? IdeWelcome(
-                      commands: [
-                        for (final id in const [
-                          'workbench.action.showCommands',
-                          'workbench.action.quickOpen',
-                          // Upstream's watermark: Show Search has no key of
-                          // its own, Find in Files takes its ⇧⌘F.
-                          'workbench.action.findInFiles',
-                          'actions.find',
-                          'workbench.action.gotoLine',
-                          'workbench.action.toggleSidebarVisibility',
-                          'workbench.action.toggleAuxiliaryBar',
-                        ])
-                          ...commands.where((command) => command.id == id),
-                      ],
-                    )
-                  : active.isMedia
-                  ? IdeImagePreview(
-                      key: ValueKey(active),
-                      path: active.path,
-                      read: switch (widget.workspace.files) {
-                        final IdeHostFiles files => files.readBytes,
-                        _ => null,
-                      },
-                      onOpenInDefaultApp:
-                          _local && WindowControls.canOpenInDefaultApp
-                          ? () => unawaited(_openInDefaultApp(active.path))
-                          : null,
-                    )
-                  : active.openError != null
-                  ? IdeEditorPlaceholder(
-                      key: ValueKey(active),
-                      error: active.openError!,
-                      onOpenAnyway: () => unawaited(
-                        widget.workspace.reopen(active, force: true),
-                      ),
-                      onRetry: () => unawaited(widget.workspace.reopen(active)),
-                      onOpenInDefaultApp:
-                          _local &&
-                              WindowControls.canOpenInDefaultApp &&
-                              active.readRevision == null
-                          ? () => unawaited(_openInDefaultApp(active.path))
-                          : null,
-                    )
-                  : _previewing(active)
-                  ? _markdownPreview(active)
-                  : widget.editorBuilder?.call(context, widget.workspace) ??
-                        IdeEditor(
-                          nativeEditorEnabled: widget.nativeEditorEnabled,
-                          key: _editorKey,
-                          workspace: widget.workspace,
-                          active: active,
-                          onError: _report,
-                          onLspStatus: (status) {
-                            if (mounted) setState(() => _lspStatus = status);
-                          },
-                          onPositionChanged: _positionChanged,
-                          onOpenLocation: _openLocation,
-                          onShowReferences: _showReferences,
-                          onShowCommands: () => _showQuickInput('>'),
-                          formatOnSave: _formatOnSave,
-                          gitBlame: _gitBlame,
-                          keyResolver: _resolveEditorKey,
-                          onPaste: _pasteInEditor,
-                        ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // The editors stay built under an extension's page.
+                Offstage(
+                  offstage: _extensionPage != null,
+                  child: _markdownDrops(
+                    active,
+                    active == null && !widget.workspace.hasFolder
+                        ? IdeStartPage(
+                            actions: [
+                              for (final id in const [
+                                'workbench.action.files.openFolder',
+                                'baocode.remote.openFolder',
+                                IdeWorkbench.createWorkspaceCommandId,
+                                'workbench.action.files.openFile',
+                                'workbench.action.files.newUntitledFile',
+                              ])
+                                ...commands.where(
+                                  (command) => command.id == id,
+                                ),
+                            ],
+                            recent: widget.recentFolders,
+                            onOpenRecent: widget.onOpenRecent,
+                            workspaceOf: widget.recentWorkspaceOf,
+                            onShowAllRecent: commands
+                                .where(
+                                  (c) => c.id == 'workbench.action.openRecent',
+                                )
+                                .firstOrNull
+                                ?.run,
+                          )
+                        : active == null
+                        ? IdeWelcome(
+                            commands: [
+                              for (final id in const [
+                                'workbench.action.showCommands',
+                                'workbench.action.quickOpen',
+                                // Upstream's watermark: Show Search has no key of
+                                // its own, Find in Files takes its ⇧⌘F.
+                                'workbench.action.findInFiles',
+                                'actions.find',
+                                'workbench.action.gotoLine',
+                                'workbench.action.toggleSidebarVisibility',
+                                'workbench.action.toggleAuxiliaryBar',
+                              ])
+                                ...commands.where(
+                                  (command) => command.id == id,
+                                ),
+                            ],
+                          )
+                        : active.isMedia
+                        ? IdeImagePreview(
+                            key: ValueKey(active),
+                            path: active.path,
+                            read: switch (widget.workspace.files) {
+                              final IdeHostFiles files => files.readBytes,
+                              _ => null,
+                            },
+                            onOpenInDefaultApp:
+                                _local && WindowControls.canOpenInDefaultApp
+                                ? () =>
+                                      unawaited(_openInDefaultApp(active.path))
+                                : null,
+                          )
+                        : active.openError != null
+                        ? IdeEditorPlaceholder(
+                            key: ValueKey(active),
+                            error: active.openError!,
+                            onOpenAnyway: () => unawaited(
+                              widget.workspace.reopen(active, force: true),
+                            ),
+                            onRetry: () =>
+                                unawaited(widget.workspace.reopen(active)),
+                            onOpenInDefaultApp:
+                                _local &&
+                                    WindowControls.canOpenInDefaultApp &&
+                                    active.readRevision == null
+                                ? () =>
+                                      unawaited(_openInDefaultApp(active.path))
+                                : null,
+                          )
+                        : _previewing(active)
+                        ? _markdownPreview(active)
+                        : widget.editorBuilder?.call(
+                                context,
+                                widget.workspace,
+                              ) ??
+                              IdeEditor(
+                                nativeEditorEnabled: widget.nativeEditorEnabled,
+                                key: _editorKey,
+                                workspace: widget.workspace,
+                                active: active,
+                                onError: _report,
+                                onEditorStatus: (status) {
+                                  if (mounted) {
+                                    setState(() => _editorStatus = status);
+                                  }
+                                },
+                                onPositionChanged: _positionChanged,
+                                onOpenLocation: _openLocation,
+                                onShowReferences: _showReferences,
+                                onShowCommands: () => _showQuickInput('>'),
+                                extensionContextMenu: _editorExtensionMenu,
+                                gitBlame: _gitBlame,
+                                keyResolver: _resolveEditorKey,
+                                onPaste: _pasteInEditor,
+                                debug: _debug,
+                              ),
+                  ),
+                ),
+                if (_extensionPage case final id?
+                    when widget.extensions != null)
+                  _extensionPageView(id),
+              ],
             ),
           ),
         ],
@@ -3564,6 +3788,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       editorHidden: editorHidden,
     );
     final sidebarVisible = columns.sidebar > 0;
+    _syncExtensionViews(sidebarVisible: sidebarVisible);
     final chatVisible = columns.chat > 0;
     final sidebar = SizedBox(
       key: const ValueKey('ide-sidebar'),
@@ -3681,6 +3906,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       minAbove: hidden ? IdeRows.minChat : IdeRows.minEditor,
     );
     final panelVisible = rows.panel > 0;
+    final debug = _debug;
+    final editor = KeyedSubtree(
+      key: const ValueKey('ide-editor'),
+      child: _editorArea(commands),
+    );
+    final toolbarLocation = debug?.settings().toolBarLocation;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -3694,10 +3925,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   enabled: !hidden,
                   child: ExcludeFocus(
                     excluding: hidden,
-                    child: KeyedSubtree(
-                      key: const ValueKey('ide-editor'),
-                      child: _editorArea(commands),
-                    ),
+                    child: toolbarLocation == 'floating' && debug != null
+                        ? FloatingDebugToolbar(service: debug, child: editor)
+                        : editor,
                   ),
                 ),
               ),
@@ -3833,6 +4063,19 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       ),
                       null => null,
                     },
+                    output: _extensionOutput(
+                      shown: shown && _panel == IdePanelTab.output,
+                    ),
+                    debugConsole: switch (_debug) {
+                      final debug? => DebugConsolePanel(service: debug),
+                      null => null,
+                    },
+                    viewTabs: _panelViewTabs(),
+                    selectedView: _panelContainer,
+                    onViewTab: (id) => setState(() {
+                      _panelContainer = id;
+                      _panel = IdePanelTab.view;
+                    }),
                     terminalActions: switch (_terminals) {
                       final terminals? => TerminalTitleActions(
                         terminals: terminals,
@@ -3990,19 +4233,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             ),
             onTap: () => _showView(IdeSideView.sourceControl),
           ),
-      IdeStatusBarItem(
-        switch (_lspStatus) {
-          'Language services' => l10n.wbLanguageServices,
+      if (_editorStatus case final status?)
+        IdeStatusBarItem(switch (status) {
           'Monaco editor' => l10n.wbMonacoEditor,
           'Text editor' => l10n.wbTextEditor,
           final status => status,
-        },
-        tooltip: keys.titleWithKeybinding(
-          l10n.wbRetryLanguageServices,
-          'baocode.ide.retryLanguageServices',
-        ),
-        onTap: () => unawaited(_editor?.retryLanguageServer()),
-      ),
+        }),
       if (_languages case final languages?) ...[
         () {
           final counts = ideDiagnosticCounts(languages.allDiagnostics);
@@ -4024,19 +4260,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             onTap: () => _togglePanel(IdePanelTab.problems),
           );
         }(),
-        if (widget.workspace.active case final doc?)
-          ...ideLanguageStatusItems(
-            languages,
-            doc.path,
-            onInstall: _installServer,
-            l10n: l10n,
-          ),
       ],
       if (_statusMessage case final message?) IdeStatusBarItem(message),
+      ..._extensionStatusItems(left: true),
     ];
     final bell = ideNotificationsStatusItem(_notifications, l10n: l10n);
+    final extensionItems = _extensionStatusItems(left: false);
     if (active == null || active.openError != null || active.isMedia) {
-      return IdeStatusBar(left: left, right: [bell]);
+      return IdeStatusBar(left: left, right: [...extensionItems, bell]);
     }
     final snapshot = active.model.snapshot;
     if (!identical(snapshot, _eolSnapshot)) {
@@ -4077,6 +4308,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           IdeLanguageNames.forPath(active.path),
           tooltip: l10n.wbLanguageMode,
         ),
+        ?_extensionLanguageStatus(active.path),
+        ...extensionItems,
         bell,
       ],
     );
@@ -4131,6 +4364,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     child: IdeNotificationToasts(notifications: _notifications),
                   ),
                 ),
+                if (widget.extensions case final extensions?)
+                  ExtensionQuickInputLayer(service: extensions.quickInput),
                 if (_quickModel != null || _quickInput != null)
                   Positioned.fill(
                     top: WindowControls.drawsHeader
@@ -4432,14 +4667,20 @@ class _SashGripPainter extends CustomPainter {
 /// the hovered item sit on a rounded 32px box.
 class _ActivityItem extends StatefulWidget {
   const _ActivityItem({
-    required this.icon,
+    super.key,
+    this.icon,
+    this.iconBuilder,
     required this.label,
     required this.selected,
     required this.onTap,
     this.badge,
-  });
+  }) : assert(icon != null || iconBuilder != null);
 
-  final IconData icon;
+  final IconData? icon;
+
+  /// An icon that is not a codicon (an extension's image), in the color
+  /// given.
+  final Widget Function(Color color)? iconBuilder;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -4518,16 +4759,19 @@ class _ActivityItemState extends State<_ActivityItem> {
           : null,
       borderRadius: BorderRadius.circular(IdeModernUI.activityItemRadius),
     ),
-    child: Icon(
-      widget.icon,
-      size: IdeModernUI.activityIconSize,
-      color: widget.selected
+    child: _glyph(
+      widget.selected
           ? IdeModernUI.activityActiveForeground
           : _hover
           ? IdeModernUI.activityHoverForeground
           : IdeModernUI.activityForeground,
     ),
   );
+
+  Widget _glyph(Color color) => switch (widget.iconBuilder) {
+    final build? => build(color),
+    null => Icon(widget.icon, size: IdeModernUI.activityIconSize, color: color),
+  };
 }
 
 /// The explorer of a window without a folder: says so, with Open Folder

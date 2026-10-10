@@ -1,0 +1,12 @@
+{
+  "name": "hello",
+  "displayName": "Hello",
+  "publisher": "baocode-test",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [{ "command": "hello.say", "title": "Say Hello" }]
+  }
+}

@@ -4,7 +4,7 @@ import 'package:path/path.dart' as p;
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
-import 'lsp/lsp_protocol.dart';
+import 'language/language_types.dart';
 import 'lsp_ui/language_icons.dart';
 
 /// The path of the active file under the tabs, one segment per folder with

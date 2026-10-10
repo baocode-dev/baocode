@@ -70,12 +70,26 @@ class EditorContentChange {
 
 /// A mutation of an [EditorDocumentModel]: applying [changes] in order to
 /// the previous text gives [text], the text at [version].
+///
+/// [isUndoing]/[isRedoing] say whether the mutation is an undo or a redo
+/// (VS Code's `IModelContentChangedEvent.isUndoing`/`isRedoing`, which its
+/// extension host turns into `TextDocumentChangeEvent.reason`); listeners
+/// that mirror the text (the extension host) need them, since the change
+/// itself cannot tell.
 class EditorContentChangeEvent {
-  const EditorContentChangeEvent(this.version, this.changes, this.text);
+  const EditorContentChangeEvent(
+    this.version,
+    this.changes,
+    this.text, {
+    this.isUndoing = false,
+    this.isRedoing = false,
+  });
 
   final int version;
   final List<EditorContentChange> changes;
   final String text;
+  final bool isUndoing;
+  final bool isRedoing;
 }
 
 class _OffsetEdit {
@@ -143,6 +157,12 @@ class EditorDocumentModel {
   /// Changes being gathered for [_changes] during a mutation; null when no
   /// one listens.
   List<EditorContentChange>? _pendingChanges;
+
+  /// Whether the mutation being gathered is an undo or a redo
+  /// ([EditorContentChangeEvent]); set by [undo]/[redo], cleared once the
+  /// event is out.
+  bool _pendingUndoing = false;
+  bool _pendingRedoing = false;
 
   /// Every text mutation (edits, undo, redo, [replaceText]), delivered
   /// synchronously once the model holds the new text.
@@ -348,31 +368,22 @@ class EditorDocumentModel {
   /// Ends the current undo step: the next coalescing edit starts a new one.
   void closeUndoGroup() => _undoOpen = false;
 
-  bool undo() {
-    if (_undo.isEmpty) return false;
-    final entry = _undo.removeLast();
-    _redo.add(
-      _HistoryEntry(
-        _applyGroups(entry.groups),
-        entry.selectionsBefore,
-        entry.selectionsAfter,
-      ),
-    );
-    _restore(entry.selectionsBefore);
-    return true;
-  }
+  bool undo() => _undoOrRedo(redo: false);
 
-  bool redo() {
-    if (_redo.isEmpty) return false;
-    final entry = _redo.removeLast();
-    _undo.add(
+  bool redo() => _undoOrRedo(redo: true);
+
+  bool _undoOrRedo({required bool redo}) {
+    final from = redo ? _redo : _undo;
+    if (from.isEmpty) return false;
+    final entry = from.removeLast();
+    (redo ? _undo : _redo).add(
       _HistoryEntry(
-        _applyGroups(entry.groups),
+        _applyGroups(entry.groups, undoing: !redo, redoing: redo),
         entry.selectionsBefore,
         entry.selectionsAfter,
       ),
     );
-    _restore(entry.selectionsAfter);
+    _restore(redo ? entry.selectionsAfter : entry.selectionsBefore);
     return true;
   }
 
@@ -385,14 +396,18 @@ class EditorDocumentModel {
   /// Applies [groups] in order and returns the groups that reverse them, in
   /// the order they must be applied. Every edit is sequential (valid against
   /// the state left by the previous one); the snapshot is rebuilt only once.
-  List<List<_OffsetEdit>> _applyGroups(List<List<_OffsetEdit>> groups) {
+  List<List<_OffsetEdit>> _applyGroups(
+    List<List<_OffsetEdit>> groups, {
+    bool undoing = false,
+    bool redoing = false,
+  }) {
     final tree = _buffer.getPieceTree();
     String read(int start, int end) => start >= end
         ? ''
         : tree.getValueInRange2(tree.nodeAt(start)!, tree.nodeAt(end)!);
     final reversed = <List<_OffsetEdit>>[];
     var changed = false;
-    _beginChanges();
+    _beginChanges(undoing: undoing, redoing: redoing);
     for (final group in groups) {
       final inverses = <_OffsetEdit>[];
       for (final edit in group) {
@@ -456,8 +471,11 @@ class EditorDocumentModel {
     return inverses.reversed.toList();
   }
 
-  void _beginChanges() =>
-      _pendingChanges = _changes.hasListener ? <EditorContentChange>[] : null;
+  void _beginChanges({bool undoing = false, bool redoing = false}) {
+    _pendingChanges = _changes.hasListener ? <EditorContentChange>[] : null;
+    _pendingUndoing = undoing;
+    _pendingRedoing = redoing;
+  }
 
   /// Records replacing [start, end) of the tree's current text with [text]
   /// as a protocol change, before the tree is edited.
@@ -497,9 +515,21 @@ class EditorDocumentModel {
 
   void _endChanges() {
     final changes = _pendingChanges;
+    final undoing = _pendingUndoing;
+    final redoing = _pendingRedoing;
     _pendingChanges = null;
+    _pendingUndoing = false;
+    _pendingRedoing = false;
     if (changes == null || changes.isEmpty || _changes.isClosed) return;
-    _changes.add(EditorContentChangeEvent(_version, changes, text));
+    _changes.add(
+      EditorContentChangeEvent(
+        _version,
+        changes,
+        text,
+        isUndoing: undoing,
+        isRedoing: redoing,
+      ),
+    );
   }
 
   void dispose() {

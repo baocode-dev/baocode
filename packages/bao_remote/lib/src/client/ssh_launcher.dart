@@ -260,7 +260,7 @@ exit 0
         "mv -f $temporary $serverPath'";
   }
 
-  /// [uname -m] as mason names it; null for one there is no build for.
+  /// [uname -m] as the server builds name it (`x64`, `arm64`); null for one there is no build for.
   static String? architecture(String machine) => switch (machine) {
     'x86_64' || 'amd64' => 'x64',
     'aarch64' || 'arm64' => 'arm64',

@@ -12,9 +12,6 @@ import 'package:bao_remote/local.dart' show ClaudeEnvironment, CliLocator;
 import 'package:baocode/chat/panels/health_banner.dart';
 import 'package:baocode/ide/git/git_model.dart' show IdeGitGroup;
 import 'package:baocode/ide/ide_quick_input.dart';
-import 'package:baocode/ide/lsp/lsp_manager.dart';
-import 'package:baocode/ide/lsp/language_features.dart';
-import 'package:baocode/ide/lsp/lsp_server_definition.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
@@ -31,8 +28,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
-import '../fixtures/lsp/fake_lsp.dart'
-    show FakeCatalog, dartExecutable, fakeServer;
 import 'remote_harness.dart';
 
 /// A remote project as the app has it: its location, its host's
@@ -348,63 +343,6 @@ void main() {
       final profiles = await backend.detectProfiles();
       expect(profiles.systemShell.executable, startsWith('/'));
     });
-
-    test('a language server runs there: its root found there, the server '
-        'its process, and started again after a reconnect', () async {
-      final host = hosts['dev'];
-      Directory(at('pkg/lib')).createSync(recursive: true);
-      File(at('pkg/marker.yaml')).writeAsStringSync('');
-      final path = at('pkg/lib/a.fake');
-      File(path).writeAsStringSync('hello');
-      final manager = LspManager(
-        root,
-        FakeCatalog([fakeServer('fake')], rootMarkers: ['marker.yaml']),
-        _DartProvider(),
-        startProcess: remoteLspStarter(host),
-        watchDirectory: remoteLspWatcher(host),
-        pathExists: (path) async => await (await host.ready).stat(path) != null,
-        listDirectory: (dir) async => (await host.ready).entries(dir),
-        paths: p.posix,
-        processId: () => host.hello?.pid,
-        shutdownTimeout: const Duration(seconds: 2),
-      );
-      addTearDown(manager.shutdown);
-      final reconnected = host.reconnected.listen(
-        (_) => manager.restartServers(),
-      );
-      addTearDown(reconnected.cancel);
-
-      manager.openDocument(path, 'hello');
-      Future<void> running() => until(
-        () =>
-            manager.statusFor(path).firstOrNull?.state ==
-            LanguageServerState.running,
-        timeout: const Duration(seconds: 30),
-      );
-      await running();
-      Future<Map<String, Object?>> state() async =>
-          (await manager
-                  .clientFor('fake', path: path)!
-                  .request('fake/state', {}))!
-              as Map<String, Object?>;
-      final initialize = (await state())['initializeParams']! as Map;
-      expect(initialize['rootUri'], Uri.directory(at('pkg')).toString());
-      expect(initialize['processId'], host.hello!.pid);
-
-      // Edited, unsaved, then the connection goes: started again with it.
-      manager.changeDocument(path, 'hello again', version: 2);
-      final back = host.reconnected.first;
-      await connector.links.single.drop();
-      await back;
-      await until(
-        () =>
-            manager.statusFor(path).firstOrNull?.state !=
-            LanguageServerState.running,
-      );
-      await running();
-      final docs = (await state())['docs']! as Map;
-      expect(docs[Uri.file(path).toString()], 'hello again');
-    }, timeout: const Timeout(Duration(minutes: 2)));
   });
 
   group('Claude Code', () {
@@ -660,21 +598,8 @@ printf '%s\n' "$line"
   });
 }
 
-/// Finds `dart` for every server: the fake one.
-class _DartProvider implements LspServerProvider {
-  @override
-  Future<LspServerLocation> locate(LspServerDefinition server) async =>
-      LspServerFound(dartExecutable);
-
-  @override
-  Future<void> install(
-    String package, {
-    void Function(String message)? onProgress,
-  }) async {}
-}
-
 /// Under flutter_test every HttpClient request gets a 400, unless the test
-/// clears the override (see remote_lsp_test.dart): skipped then.
+/// clears the override: skipped then.
 Object _httpOverridden() {
   HttpOverrides.global = null;
   return false;

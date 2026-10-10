@@ -8,8 +8,6 @@ import '../claude/claude_unavailable.dart';
 import '../files/ide_file.dart';
 import '../files/recursive_watch.dart';
 import '../git/git_types.dart';
-import '../lsp/install/mason_registry.dart';
-import '../lsp/lsp_server_definition.dart';
 import '../protocol.dart';
 import '../review/review_store.dart';
 import '../rpc/rpc_error.dart';
@@ -106,6 +104,72 @@ class RemoteForward {
   }
 }
 
+/// The VS Code server running on the remote host
+/// ([RemoteClient.startExtHostServer]).
+class RemoteExtHostServer {
+  RemoteExtHostServer._(Map<String, Object?> json)
+    : port = json['port'] as int,
+      connectionToken = json['connectionToken'] as String,
+      platform = json['platform'] as String,
+      product = (json['product'] as Map).cast<String, Object?>();
+
+  final int port;
+  final String connectionToken;
+
+  /// The runtime's platform there (`linux-x64`…).
+  final String platform;
+
+  /// The runtime's `product.json`.
+  final Map<String, Object?> product;
+}
+
+/// A connection from the app to a port of the remote host
+/// ([RemoteClient.connectTcp]), as a socket would be.
+class RemoteTunnel {
+  RemoteTunnel._(this._client, this.conn);
+
+  final RemoteClient _client;
+  final int conn;
+  final _data = StreamController<Uint8List>();
+  final _done = Completer<void>();
+  bool _closed = false;
+
+  /// What the other side sends; done once it closes. Single subscription.
+  Stream<Uint8List> get data => _data.stream;
+
+  /// Completes once either side closed it.
+  Future<void> get done => _done.future;
+
+  void add(List<int> bytes) {
+    if (_closed) return;
+    _client.peer.notify(RemoteProtocol.tcpData, {
+      'conn': conn,
+      'data': encodeBytes(bytes),
+    });
+  }
+
+  /// Closes it on both sides.
+  Future<void> close() async {
+    if (_closed) return;
+    _ended();
+    if (!_client.peer.isClosed) {
+      _client.peer.notify(RemoteProtocol.tcpClose, {'conn': conn});
+    }
+  }
+
+  void _receive(Uint8List bytes) {
+    if (!_closed) _data.add(bytes);
+  }
+
+  void _ended() {
+    if (_closed) return;
+    _closed = true;
+    _client._tunnels.remove(conn);
+    unawaited(_data.close());
+    _done.complete();
+  }
+}
+
 extension on RpcPeer {
   /// A request whose answer no one waits for (it fails quietly).
   void notifyOrRequest(String method, Object? params) {
@@ -190,7 +254,9 @@ class RemoteClient {
       final conn = args['conn'] as int;
       final data = decodeBytes(args['data']);
       final socket = _sockets[conn];
-      if (socket != null) {
+      if (_tunnels[conn] case final tunnel?) {
+        tunnel._receive(data);
+      } else if (socket != null) {
         socket.add(data);
       } else {
         (_pendingData[conn] ??= []).add(data);
@@ -198,6 +264,10 @@ class RemoteClient {
     };
     handlers[RemoteProtocol.tcpClose] = (params) {
       final conn = _map(params)['conn'] as int;
+      if (_tunnels[conn] case final tunnel?) {
+        tunnel._ended();
+        return;
+      }
       _sockets.remove(conn)?.destroy();
       _closedEarly.add(conn);
     };
@@ -214,6 +284,7 @@ class RemoteClient {
   final Map<int, RemotePty> _ptys = {};
   final Map<int, RemoteForward> _forwards = {};
   final Map<int, Socket> _sockets = {};
+  final Map<int, RemoteTunnel> _tunnels = {};
   final Map<int, List<Uint8List>> _pendingData = {};
   final Set<int> _closedEarly = {};
 
@@ -253,6 +324,9 @@ class RemoteClient {
       socket.destroy();
     }
     _sockets.clear();
+    for (final tunnel in [..._tunnels.values]) {
+      tunnel._ended();
+    }
     _forwards.clear();
   }
 
@@ -604,6 +678,104 @@ class RemoteClient {
     }
   }
 
+  // --- The extension runtime --------------------------------------------------
+
+  /// Installs the extension runtime of [manifest] (its JSON) there unless
+  /// it is: downloaded there, or from the archive sent with
+  /// [uploadExtHostRuntime] when [uploaded]. Throws what failed (an
+  /// [RpcError] whose data is the runtime error's).
+  Future<void> installExtHostRuntime(
+    Map<String, Object?> manifest, {
+    bool uploaded = false,
+    void Function(String phase, int received, int total)? onProgress,
+  }) async {
+    await for (final event in openStream(RemoteProtocol.exthostInstall, {
+      'manifest': manifest,
+      'uploaded': uploaded,
+    })) {
+      if (event case {
+        'phase': final String phase,
+        'received': final int received,
+        'total': final int total,
+      }) {
+        onProgress?.call(phase, received, total);
+      }
+    }
+  }
+
+  /// Sends [file], the archive of [manifest]'s runtime for the host's
+  /// platform downloaded here, for [installExtHostRuntime] with `uploaded`:
+  /// for a host that cannot reach the downloads.
+  Future<void> uploadExtHostRuntime(
+    Map<String, Object?> manifest,
+    File file, {
+    void Function(int sent, int size)? onProgress,
+    int chunkSize = 1 << 20,
+  }) async {
+    final size = await file.length();
+    final input = await file.open();
+    try {
+      var offset = 0;
+      while (true) {
+        final data = await input.read(chunkSize);
+        final whole = await _call<bool>(RemoteProtocol.exthostUpload, {
+          'manifest': manifest,
+          'offset': offset,
+          'data': encodeBytes(data),
+        });
+        offset += data.length;
+        onProgress?.call(offset, size);
+        if (whole) return;
+        if (data.isEmpty) {
+          throw StateError('The archive is shorter than the runtime');
+        }
+      }
+    } finally {
+      await input.close();
+    }
+  }
+
+  /// Sends [file] for the VS Code server there (an extension's .vsix) as
+  /// [name]: its path there, until [unstageExtHostFile].
+  Future<String> stageExtHostFile(
+    File file,
+    String name, {
+    int chunkSize = 1 << 20,
+  }) async {
+    final input = await file.open();
+    try {
+      var offset = 0;
+      var path = '';
+      do {
+        final data = await input.read(chunkSize);
+        path = await _call<String>(RemoteProtocol.exthostStage, {
+          'name': name,
+          'offset': offset,
+          'data': encodeBytes(data),
+        });
+        offset += data.length;
+        if (data.length < chunkSize) return path;
+      } while (true);
+    } finally {
+      await input.close();
+    }
+  }
+
+  /// Deletes what [stageExtHostFile] sent as [name].
+  Future<void> unstageExtHostFile(String name) =>
+      _call(RemoteProtocol.exthostUnstage, {'name': name});
+
+  /// The installed runtime's VS Code server there, started unless it runs
+  /// (it ends with the connection): its port (on the host's 127.0.0.1, for
+  /// [connectTcp]), connection token, platform and `product.json`.
+  Future<RemoteExtHostServer> startExtHostServer(
+    Map<String, Object?> manifest,
+  ) async => RemoteExtHostServer._(
+    _map(
+      await _call<Object?>(RemoteProtocol.exthostStart, {'manifest': manifest}),
+    ),
+  );
+
   Future<List<ClaudeProjectSummary>> claudeProjects() async => [
     for (final project in await _call<List>(RemoteProtocol.claudeProjects))
       ClaudeProjectSummary.fromJson(_map(project)),
@@ -709,50 +881,6 @@ class RemoteClient {
     );
   }
 
-  // --- Language servers ------------------------------------------------------
-
-  /// Where [command] is there; [packages] the registry's packages that may
-  /// install it.
-  Future<LspServerLocation> locateLanguageServer(
-    String command, {
-    String? masonPackage,
-    List<MasonPackage> packages = const [],
-  }) async {
-    final result = _map(
-      await peer.request(RemoteProtocol.lspLocate, {
-        'command': command,
-        'masonPackage': ?masonPackage,
-        'packages': [for (final package in packages) package.toJson()],
-      }),
-    );
-    if (result['found'] case final String executable) {
-      return LspServerFound(executable);
-    }
-    return LspServerMissing(
-      package: result['package'] as String?,
-      missingRuntime: result['missingRuntime'] as String?,
-    );
-  }
-
-  /// Installs [package] there; its progress lines go to [onProgress].
-  Future<void> installLanguageServer(
-    MasonPackage package, {
-    void Function(String message)? onProgress,
-  }) async {
-    await for (final line in openStream(RemoteProtocol.lspInstall, {
-      'package': package.name,
-      'packages': [package.toJson()],
-    })) {
-      if (line is String) onProgress?.call(line);
-    }
-  }
-
-  Future<List<String>> installedLanguageServers() async =>
-      (await _call<List>(RemoteProtocol.lspInstalled)).cast();
-
-  Future<void> uninstallLanguageServer(String package) =>
-      _call(RemoteProtocol.lspUninstall, {'package': package});
-
   // --- Port forwarding -------------------------------------------------------
 
   /// A port there whose connections go to [localPort] here (on
@@ -770,6 +898,23 @@ class RemoteClient {
   }
 
   final Map<int, String> _localHosts = {};
+
+  /// A connection to [port] of the remote host (on its [host]).
+  Future<RemoteTunnel> connectTcp(int port, {String host = '127.0.0.1'}) async {
+    final result = _map(
+      await peer.request(RemoteProtocol.tcpConnect, {
+        'host': host,
+        'port': port,
+      }),
+    );
+    final conn = result['conn'] as int;
+    final tunnel = _tunnels[conn] = RemoteTunnel._(this, conn);
+    for (final data in _pendingData.remove(conn) ?? const <Uint8List>[]) {
+      tunnel._receive(data);
+    }
+    if (_closedEarly.remove(conn)) tunnel._ended();
+    return tunnel;
+  }
 
   Future<void> _openForwarded(int listener, int conn) async {
     final forward = _forwards[listener];

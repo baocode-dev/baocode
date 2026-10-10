@@ -1,6 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/language/language_types.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 
 import '../lsp_ui/fake_language_features.dart';

@@ -25,6 +25,7 @@ environment:
 # pub.dev yet): see each one's HANDOFF.md.
 workspace:
   - packages/bao_editor
+  - packages/bao_exthost
   - packages/bao_pty
   - packages/bao_remote
   - packages/bao_xterm
@@ -38,6 +39,8 @@ workspace:
 dependencies:
   bao_editor:
     path: packages/bao_editor
+  bao_exthost:
+    path: packages/bao_exthost
   bao_pty:
     path: packages/bao_pty
   bao_remote:
@@ -82,7 +85,6 @@ flutter:
   generate: true
 
   assets:
-    - assets/lsp/
     - assets/material_icons/
     - assets/material_icons/icons/
     - assets/codicons/LICENSE
@@ -98,6 +100,9 @@ flutter:
     - assets/sounds/
     # Emojibase's emoji, for project icons (tool/generate_emoji.mjs).
     - assets/emoji/
+    # Where the extension runtime is downloaded from, per platform
+    # (tool/build_exthost_runtime.dart; lib/extensions/runtime/).
+    - assets/exthost/
     - assets/network/
     # VS Code TextMate grammars and color themes (tool/generate_textmate_assets.mjs).
 

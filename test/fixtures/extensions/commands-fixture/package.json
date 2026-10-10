@@ -1,0 +1,36 @@
+{
+  "name": "commands-fixture",
+  "displayName": "Commands Fixture",
+  "publisher": "baocode-test",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "fixture.say", "title": "Say", "category": "Fixture", "icon": "$(comment)" },
+      { "command": "fixture.setContext", "title": "Set Context" },
+      { "command": "fixture.runBuiltin", "title": "Run a Built-in Command" },
+      { "command": "fixture.enabledOnly", "title": "Enabled Only", "enablement": "fixture.on" },
+      { "command": "fixture.listCommands", "title": "List Commands" },
+      { "command": "fixture.typeText", "title": "Type Text" }
+    ],
+    "menus": {
+      "editor/title": [
+        { "command": "fixture.say", "group": "navigation@1", "when": "fixture.on" },
+        { "command": "fixture.enabledOnly", "group": "1_modification@1" }
+      ],
+      "commandPalette": [
+        { "command": "fixture.typeText", "when": "false" }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "fixture.say",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f",
+        "when": "editorTextFocus && fixture.on"
+      }
+    ]
+  }
+}

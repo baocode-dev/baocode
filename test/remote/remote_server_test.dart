@@ -1,6 +1,7 @@
 @TestOn('mac-os || linux')
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,7 +10,6 @@ import 'package:bao_remote/files.dart';
 import 'package:bao_remote/git.dart';
 import 'package:bao_remote/local.dart'
     show ClaudeEnvironment, CliLocator, ClaudeUnavailable, watchRecursively;
-import 'package:bao_remote/lsp.dart';
 import 'package:bao_remote/search.dart';
 import 'package:bao_remote/server.dart' show ServerClaude;
 import 'package:flutter_test/flutter_test.dart';
@@ -549,16 +549,74 @@ printf '%s\n' "$line"
       await forward.close();
       await echo.close();
     });
+
+    test('a connection from here to a port there, both ways, closed by '
+        'either side', () async {
+      final echo = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final accepted = <Socket>[];
+      final ends = <Completer<void>>[];
+      echo.listen((socket) {
+        accepted.add(socket);
+        final end = Completer<void>();
+        ends.add(end);
+        socket.listen(
+          socket.add,
+          onDone: () {
+            socket.destroy();
+            end.complete();
+          },
+          onError: (Object _) {},
+        );
+      });
+      final tunnel = await client().connectTcp(echo.port);
+      final replies = StreamIterator(tunnel.data);
+      tunnel.add(utf8.encode('ping'));
+      expect(
+        await replies.moveNext().timeout(const Duration(seconds: 5)),
+        isTrue,
+      );
+      expect(utf8.decode(replies.current), 'ping');
+      // Closed there: the tunnel ends.
+      accepted.single.destroy();
+      await tunnel.done.timeout(const Duration(seconds: 5));
+
+      // Closed here: the socket there ends.
+      final second = await client().connectTcp(echo.port);
+      await until(() => accepted.length == 2);
+      await second.close();
+      await ends.last.future.timeout(const Duration(seconds: 5));
+
+      // Nothing listening there.
+      await echo.close();
+      await expectLater(client().connectTcp(echo.port), throwsA(anything));
+    });
   });
 
-  group('language servers', () {
-    test('found on the PATH there', () async {
-      ClaudeEnvironment.use({'PATH': '/usr/bin:/bin'});
-      addTearDown(() => ClaudeEnvironment.use(null));
-      final found = await client().locateLanguageServer('sh');
-      expect(found, isA<LspServerFound>());
-      final missing = await client().locateLanguageServer('no-such-ls');
-      expect(missing, isA<LspServerMissing>());
+  group('extension runtime', () {
+    test('a file staged for its server, in pieces, then deleted', () async {
+      final source = File(at('demo-1.0.0.vsix'))
+        ..writeAsBytesSync(List.generate(2500, (i) => i % 251));
+      final path = await client().stageExtHostFile(
+        source,
+        '../escape/demo-1.0.0.vsix',
+        chunkSize: 1000,
+      );
+      expect(
+        path,
+        p.join(remote.dataDir.path, 'exthost', 'staged', 'demo-1.0.0.vsix'),
+      );
+      expect(File(path).readAsBytesSync(), source.readAsBytesSync());
+      // A file of a whole number of pieces.
+      final even = File(at('even.vsix'))
+        ..writeAsBytesSync(List.filled(2000, 7));
+      final evenPath = await client().stageExtHostFile(
+        even,
+        'even.vsix',
+        chunkSize: 1000,
+      );
+      expect(File(evenPath).lengthSync(), 2000);
+      await client().unstageExtHostFile('demo-1.0.0.vsix');
+      expect(File(path).existsSync(), isFalse);
     });
   });
 }

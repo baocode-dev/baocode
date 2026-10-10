@@ -9,8 +9,8 @@ import '../../theme/workbench_theme.dart';
 import '../ide_fuzzy.dart';
 import '../ide_quick_input.dart';
 import '../ide_workspace.dart';
-import '../lsp/language_features.dart';
-import '../lsp/lsp_protocol.dart';
+import '../language/language_features.dart';
+import '../language/language_types.dart';
 import 'language_icons.dart';
 
 /// The active document's symbols, re-requested (debounced) as it changes,
