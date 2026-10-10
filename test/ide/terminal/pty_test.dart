@@ -87,10 +87,16 @@ void main() {
 
   test('stopPtyProcesses hangs up every terminal and waits', () async {
     final (first, _) = await sh('sleep 10');
-    final (second, _) = await sh(
-      "trap '' HUP INT TERM; while :; do sleep 1; done",
+    final (second, printed) = await sh(
+      "trap '' HUP INT TERM; echo ready; while :; do sleep 1; done",
     );
-    await Future<void>.delayed(const Duration(milliseconds: 100));
+    // Its signals ignored before they come (a busy machine may start the
+    // shell later than any fixed wait).
+    final deadline = DateTime.now().add(timeout);
+    while (!printed.toString().contains('ready')) {
+      expect(DateTime.now().isBefore(deadline), isTrue, reason: '$printed');
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
     await PtyProcesses.stopAll(timeout: const Duration(milliseconds: 500));
     expect(await first.exitCode.timeout(timeout), -PtySignal.hangup.number);
     expect(await second.exitCode.timeout(timeout), -PtySignal.kill.number);
