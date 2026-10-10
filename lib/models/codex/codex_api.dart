@@ -4,17 +4,23 @@
 
 import 'dart:convert';
 
+import '../model_provider.dart';
 import '../upstream.dart';
 
-/// The Codex CLI's version this speaks as: the backend lists the models of
-/// it ([CodexEndpoints.models]).
-const codexClientVersion = '0.154.0';
+/// The Codex CLI's version this speaks as, unless the provider has its own
+/// ([ModelProvider.clientVersion]): the backend lists the models of it
+/// ([CodexEndpoints.models]), a model newer than it left out.
+const codexClientVersion = '0.159.0';
 
-/// What the requests go as, as the Codex CLI's: the backend's Cloudflare
-/// turns away other clients.
-const codexUserAgent =
-    'codex-tui/$codexClientVersion (Mac OS 26.5.2; arm64) iTerm.app/3.6.11 '
-    '(codex-tui; $codexClientVersion)';
+/// The Codex CLI's version [provider] speaks as.
+String codexVersionOf(ModelProvider provider) =>
+    provider.clientVersion ?? codexClientVersion;
+
+/// What the requests go as, as the Codex CLI's of [version]: the backend's
+/// Cloudflare turns away other clients.
+String codexUserAgent([String version = codexClientVersion]) =>
+    'codex-tui/$version (Mac OS 26.5.2; arm64) iTerm.app/3.6.11 '
+    '(codex-tui; $version)';
 
 const codexOriginator = 'codex-tui';
 
@@ -42,26 +48,30 @@ class CodexEndpoints {
   Uri get authorize => Uri.parse('$auth/oauth/authorize');
   Uri get token => Uri.parse('$auth/oauth/token');
   Uri get responses => Uri.parse('$backend/codex/responses');
-  Uri get models =>
-      Uri.parse('$backend/codex/models?client_version=$codexClientVersion');
+
+  /// The models the Codex CLI of [version] is offered.
+  Uri models([String version = codexClientVersion]) => Uri.parse(
+    '$backend/codex/models?client_version=${Uri.encodeQueryComponent(version)}',
+  );
   Uri get usage => Uri.parse('$backend/wham/usage');
   String get redirectUri => 'http://localhost:$callbackPort/auth/callback';
 }
 
 /// The headers a request to the backend goes with: [token] the account's
 /// access token, [accountId] its workspace; [session] the conversation's
-/// (its `prompt_cache_key`).
+/// (its `prompt_cache_key`); as the Codex CLI of [version].
 Map<String, String> codexHeaders(
   String token, {
   String? accountId,
   String? session,
   bool events = false,
+  String version = codexClientVersion,
 }) => {
   'authorization': 'Bearer $token',
   if (accountId != null && accountId.isNotEmpty)
     'chatgpt-account-id': accountId,
   'originator': codexOriginator,
-  'user-agent': codexUserAgent,
+  'user-agent': codexUserAgent(version),
   'accept': events ? 'text/event-stream' : 'application/json',
   if (session != null && session.isNotEmpty) 'session-id': session,
 };

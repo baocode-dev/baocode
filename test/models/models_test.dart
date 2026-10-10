@@ -54,11 +54,26 @@ void main() {
         preserveThinking: true,
         promptCacheKey: false,
         env: {'A': '1'},
+        clientVersion: '0.170.0',
       );
       final back = ModelProvider.fromJson(provider.toJson())!;
       expect(back.toJson(), provider.toJson());
       expect(back.models.single, provider.models.single);
       expect(back.roles, provider.roles);
+      expect(back.clientVersion, '0.170.0');
+    });
+
+    test('a Codex version that is not one is read as none', () {
+      ModelProvider read(Object? version) =>
+          ModelProvider.fromJson({'id': 'p', 'clientVersion': version})!;
+      expect(read(' 0.170.0 ').clientVersion, '0.170.0');
+      expect(read('').clientVersion, isNull);
+      expect(read('0.1\r\nx: y').clientVersion, isNull);
+      expect(read(170).clientVersion, isNull);
+      expect(
+        const ModelProvider(id: 'p', name: 'P').toJson(),
+        isNot(contains('clientVersion')),
+      );
     });
 
     test('leaves defaults out of JSON, and reads what it does not know as '
