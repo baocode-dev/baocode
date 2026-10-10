@@ -378,27 +378,32 @@ class _FilePreviewState extends State<FilePreview> {
       height: 30,
       padding: const EdgeInsets.only(left: 12, right: 6),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+        border: Border(bottom: BorderSide(color: AppColors.partBorder)),
       ),
       child: Row(
         children: [
           FileIcon(path, size: 14),
           const SizedBox(width: 6),
           Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(text: shown),
-                  if (range != null && !_request.diff)
-                    TextSpan(
-                      text: '  ${range.label}',
-                      style: TextStyle(color: AppColors.textFaint),
-                    ),
-                ],
+            // The whole path, which the bar may cut short.
+            child: IdeHover(
+              message: path,
+              followMouse: true,
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: shown),
+                    if (range != null && !_request.diff)
+                      TextSpan(
+                        text: '  ${range.label}',
+                        style: TextStyle(color: AppColors.textFaint),
+                      ),
+                  ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
           ),
           if (_isMarkdown && _markdown != null)
@@ -717,33 +722,38 @@ class _LinesState extends State<_Lines> {
         // The measured width already includes gutters and change markers.
         final width = math.max(constraints.maxWidth, widget.width + 24);
         // Both scrollbars at the edges of the view, not of the lines as
-        // wide as the longest.
+        // wide as the longest; drawn as the editor's are.
         return SelectionArea(
           child: SelectionContainer(
             delegate: _selection,
-            child: HoverScrollbar(
-              controller: _scroll,
-              notificationPredicate: (notification) =>
-                  notification.metrics.axis == Axis.vertical,
+            child: ScrollbarTheme(
+              data: _editorScrollbars(context),
               child: HoverScrollbar(
-                controller: _sideways,
+                controller: _scroll,
+                thickness: 14,
                 notificationPredicate: (notification) =>
-                    notification.metrics.axis == Axis.horizontal,
-                child: SingleChildScrollView(
+                    notification.metrics.axis == Axis.vertical,
+                child: HoverScrollbar(
                   controller: _sideways,
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: width,
-                    height: constraints.maxHeight,
-                    child: ListView.builder(
-                      controller: _scroll,
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemExtent: widget.lineHeight,
-                      itemCount: widget.count,
-                      itemBuilder: (context, index) => _SelectableRow(
-                        index: index,
-                        lines: _selection,
-                        child: widget.row(context, index, _sideways),
+                  thickness: 12,
+                  notificationPredicate: (notification) =>
+                      notification.metrics.axis == Axis.horizontal,
+                  child: SingleChildScrollView(
+                    controller: _sideways,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: width,
+                      height: constraints.maxHeight,
+                      child: ListView.builder(
+                        controller: _scroll,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        itemExtent: widget.lineHeight,
+                        itemCount: widget.count,
+                        itemBuilder: (context, index) => _SelectableRow(
+                          index: index,
+                          lines: _selection,
+                          child: widget.row(context, index, _sideways),
+                        ),
                       ),
                     ),
                   ),
@@ -755,6 +765,24 @@ class _LinesState extends State<_Lines> {
       },
     );
   }
+
+  /// The editor's sliders (`EditorScrollbarPainter`): square, edge to edge,
+  /// at least 20 long, in `scrollbarSlider.*` as hovered and dragged.
+  static ScrollbarThemeData _editorScrollbars(BuildContext context) =>
+      ScrollbarTheme.of(context).copyWith(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              themeColors[states.contains(WidgetState.dragged)
+                  ? 'scrollbarSlider.activeBackground'
+                  : states.contains(WidgetState.hovered)
+                  ? 'scrollbarSlider.hoverBackground'
+                  : 'scrollbarSlider.background'],
+        ),
+        radius: Radius.zero,
+        crossAxisMargin: 0,
+        mainAxisMargin: 0,
+        minThumbLength: 20,
+      );
 }
 
 /// The selection of [_Lines]: what is selected of each row, one to a line

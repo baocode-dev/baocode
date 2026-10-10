@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// VS Code's Modern UI (`workbench.experimental.modernUI`, on by default):
-// the activity bar, side bar, editor and secondary side bar are cards with
-// rounded corners, 4px apart on the shell.
+// VS Code's Modern UI (`workbench.experimental.modernUI`): its activity bar,
+// its items and sashes' colors. The parts are not its cards, though: they
+// are flush, square and told apart by the color theme's colors alone, as
+// the classic workbench (and Cursor) has them. The side bar, the editor and
+// the chat have a line between them, `sideBar.border` else `surface.border`
+// (which every theme has); the panel `panel.border` above it, the activity
+// bar `activityBar.border` where the theme gives it one.
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
-// src/vs/workbench/browser/media/floatingPanels.css,
-// src/vs/workbench/contrib/modernUI/browser/media/{activityBar,editorBorder,
-// sashHandles}.css, src/vs/workbench/browser/parts/activitybar/
-// activitybarPart.ts (the floating sizes) and the size tokens of
+// src/vs/workbench/contrib/modernUI/browser/media/activityBar.css,
+// src/vs/workbench/browser/parts/activitybar/activitybarPart.ts (the
+// floating sizes) and the size tokens of
 // src/vs/platform/theme/common/sizes/baseSizes.ts. The colors are the color
 // theme's, by the ids of src/vs/workbench/common/theme.ts.
 //
 // Deviations: only the default density (not `window.density.layout:
-// compact`), with the activity bar on the left. The shell is the agent
-// sidebar's color (a tint over the macOS material, which shows through),
-// not `modernUI.shellBackground`, and the status bar sits on it.
+// compact`), with the activity bar on the left. The title bar is on the
+// shell, the side bar's color (opaque on every platform), not
+// `modernUI.shellBackground`.
 
 import 'package:flutter/material.dart';
 
@@ -29,22 +32,14 @@ import '../theme/workbench_theme.dart';
 abstract final class IdeModernUI {
   static WorkbenchColors get _colors => WorkbenchThemeService.instance.colors;
 
-  /// Around the cards: the agent sidebar's color
-  /// ([AppColors.sidebarSurface]), so the system material shows through
-  /// as it does beside the chat. On Windows 11 that tint is 96%.
-  static Color get shell => AppColors.sidebarSurface;
+  /// Behind the title bar, the activity bar and between the parts:
+  /// `sideBar.background`, as the side bar is, opaque on every platform
+  /// (the system material does not show through, as it does beside the
+  /// chat).
+  static Color get shell => AppColors.background;
 
-  /// `surface.background`: the side bars' cards.
-  static Color get surface => _colors['surface.background'];
-
-  /// `surface.border`: every card's 1px border.
-  static Color get border => _colors['surface.border'];
-
-  /// `spacing.size40`: between the cards and around them.
+  /// `sash-size`: a sash's width, over the line between two parts.
   static const gap = 4.0;
-
-  /// `cornerRadius.large`: the cards' corners.
-  static const radius = 8.0;
 
   /// `activityBar.background`.
   static Color get activityBarBackground => _colors['activityBar.background'];
@@ -58,7 +53,7 @@ abstract final class IdeModernUI {
   /// `FLOATING_LANE`: room inside the card beside the items, both sides.
   static const activityLane = 8.0;
 
-  /// The activity bar card's width, borders included.
+  /// The activity bar's width.
   static const activityBarWidth = activityItemSize + activityLane;
 
   /// `ActivitybarPart.ICON_SIZE`.
@@ -95,56 +90,38 @@ abstract final class IdeModernUI {
   static Color get activityBadgeForeground =>
       _colors['activityBarBadge.foreground'];
 
-  /// `modernSash.gripForeground`: `foreground` at 40%.
-  static Color get sashGrip => _colors['modernSash.gripForeground'];
-
   /// `sash.hoverBorder` (`focusBorder`).
   static Color get sashHover => _colors['sash.hoverBorder'];
 }
 
-/// A part as a Modern UI card: [IdeModernUI.border] around [child],
-/// clipped to rounded corners. [radius] and [border] may square and open
-/// the side that meets another card (the side bar's, beside the activity
-/// bar, whose border is the seam).
-class IdeCard extends StatelessWidget {
-  const IdeCard({
-    super.key,
-    required this.child,
-    this.color,
-    this.radius = const BorderRadius.all(Radius.circular(IdeModernUI.radius)),
-    this.border,
-  });
+/// A part of the workbench: [color] behind [child], flush with the parts
+/// about it, with [border] on the sides that meet one where the theme has
+/// a color for it ([side]).
+class IdePart extends StatelessWidget {
+  const IdePart({super.key, required this.child, this.color, this.border});
 
   final Widget child;
   final Color? color;
-  final BorderRadius radius;
 
-  /// [IdeModernUI.border] all around when null.
+  /// None when null.
   final Border? border;
+
+  /// A side of [border] in the theme's color [id], else [fallback]'s; none
+  /// where the theme has neither (as upstream's `contrastBorder`, null but
+  /// in high contrast themes).
+  static BorderSide side(String id, {String? fallback}) =>
+      switch (themeColors.get(id) ??
+      (fallback == null ? null : themeColors.get(fallback))) {
+        final color? => BorderSide(color: color),
+        null => BorderSide.none,
+      };
 
   @override
   Widget build(BuildContext context) => Container(
     // The border insets the child.
-    decoration: BoxDecoration(
-      color: color,
-      border: border ?? Border.all(color: IdeModernUI.border),
-      borderRadius: radius,
-    ),
-    child: ClipRRect(
-      borderRadius: BorderRadius.only(
-        topLeft: _inner(radius.topLeft),
-        topRight: _inner(radius.topRight),
-        bottomLeft: _inner(radius.bottomLeft),
-        bottomRight: _inner(radius.bottomRight),
-      ),
-      child: child,
-    ),
+    decoration: BoxDecoration(color: color, border: border),
+    child: child,
   );
-
-  /// A corner inside the 1px border.
-  static Radius _inner(Radius outer) => outer == Radius.zero
-      ? Radius.zero
-      : Radius.elliptical(outer.x - 1, outer.y - 1);
 }
 
 /// `NumberBadge`'s label: over 999 in thousands (`1K`, `1K+`).

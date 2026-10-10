@@ -3243,12 +3243,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   // --- Widgets -------------------------------------------------------------
 
-  /// The activity bar's card, [joined] to the side bar beside it when that
-  /// is showing (their seam is this card's border).
-  Widget _activityBar({required bool joined}) {
+  /// The activity bar; its view's item is selected when [sidebarShowing].
+  Widget _activityBar({required bool sidebarShowing}) {
     Widget item(IdeSideView view, IconData icon, String label, {int? badge}) {
       // The side bar as it shows: one given way to the chat opens.
-      final selected = _view == view && joined;
+      final selected = _view == view && sidebarShowing;
       return _ActivityItem(
         icon: icon,
         label: label,
@@ -3270,9 +3269,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // (compositeBarActions.ts), then its badge's description.
     final keys = KeybindingService.instance;
     final l10n = context.l10n;
-    const radius = Radius.circular(IdeModernUI.radius);
-    // Half the lane each side, less the border already there.
-    const inset = IdeModernUI.activityLane / 2 - 1;
     final items = [
       item(
         IdeSideView.explorer,
@@ -3313,13 +3309,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ];
     return SizedBox(
       width: IdeModernUI.activityBarWidth,
-      child: IdeCard(
+      child: IdePart(
         color: IdeModernUI.activityBarBackground,
-        radius: joined
-            ? const BorderRadius.horizontal(left: radius)
-            : const BorderRadius.all(radius),
+        border: Border(right: IdePart.side('activityBar.border')),
         child: Padding(
-          padding: const EdgeInsets.all(inset),
+          // Half the lane above; the items centered across.
+          padding: const EdgeInsets.only(top: IdeModernUI.activityLane / 2),
           child: Column(
             children: [
               for (final (index, item) in items.indexed) ...[
@@ -3334,17 +3329,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
   }
 
-  /// The side bar's card, joined to the activity bar's on its left.
-  Widget _sidebarCard() => IdeCard(
-    color: IdeModernUI.surface,
-    radius: const BorderRadius.horizontal(
-      right: Radius.circular(IdeModernUI.radius),
-    ),
-    border: Border(
-      top: BorderSide(color: IdeModernUI.border),
-      right: BorderSide(color: IdeModernUI.border),
-      bottom: BorderSide(color: IdeModernUI.border),
-    ),
+  /// The side bar, its border on its right.
+  Widget _sidebarPart() => IdePart(
+    color: themeColors['sideBar.background'],
+    border: Border(right: _sideBarBorder),
     child: Focus(focusNode: _sidebarFocus, child: _sidePanel()),
   );
 
@@ -3602,7 +3590,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final debug = _debug;
     final dockedToolbar =
         debug != null && debug.settings().toolBarLocation == 'docked';
-    return IdeCard(
+    return IdePart(
       color: themeColors['editor.background'],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3784,20 +3772,27 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           offstage: !shown,
           child: TickerMode(
             enabled: shown,
-            child: ExcludeFocus(excluding: !shown, child: _chatCard()),
+            child: ExcludeFocus(excluding: !shown, child: _chatPart()),
           ),
         ),
       ),
     );
   }
 
-  /// The chat's card, which keeps its state as it moves to the editor's
-  /// place, maximized, and back.
-  Widget _chatCard() => IdeCard(
+  /// The chat, which keeps its state as it moves to the editor's place,
+  /// maximized, and back. Beside the editor, it is the secondary side bar,
+  /// the side bar's border on its left.
+  Widget _chatPart() => IdePart(
     key: _chatKey,
+    border: _layout.editorVisible ? Border(left: _sideBarBorder) : null,
     child: Focus(focusNode: _chatFocus, child: widget.chat),
   );
   final _chatKey = GlobalKey(debugLabel: 'ide chat');
+
+  /// Between the side bars and the editor: `sideBar.border`, else the
+  /// Modern UI's `surface.border`, so every theme has the line.
+  static BorderSide get _sideBarBorder =>
+      IdePart.side('sideBar.border', fallback: 'surface.border');
 
   /// What [IdeLayout.roomForBoth] and [IdeLayout.roomForSides] are to be,
   /// from the last layout: the layout's listeners build, so it is told
@@ -3824,35 +3819,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   final _sidebarKey = GlobalKey(debugLabel: 'ide side bar');
   final _sidebarSashKey = GlobalKey(debugLabel: 'ide side bar sash');
 
-  /// The Modern UI's cards on the shell: 4px apart, and 4px from the
-  /// window's sides and the status bar. The chat stays on the right however
-  /// narrow the window (see [IdeColumns.fit]). With the editor hidden
-  /// ([IdeLayout.editorHidden]), the chat has its place, beside the side bar
-  /// if that shows, the panel below the two.
+  /// The parts, flush and square: the activity bar, the side bar, the
+  /// editor (the panel below it) and the chat, each sash over the line
+  /// between two (VS Code's `sash-size`, half on either side). The chat
+  /// stays on the right however narrow the window (see [IdeColumns.fit]).
+  /// With the editor hidden ([IdeLayout.editorHidden]), the chat has its
+  /// place, beside the side bar if that shows, the panel below the two.
   Widget _split(Size size, List<IdeCommand> commands) {
-    const gap = IdeModernUI.gap;
-    // Hidden, the chat leaves a gap at the window's side, its sash's width
-    // but no sash: there it would take the window's own resizing edge. The
-    // gap above the status bar is each column's: the panel's sash, hidden.
-    final outside = EdgeInsets.fromLTRB(gap, 0, _chatShown ? gap : 0, 0);
-    // Keyed, so a sash keeps its drag as the columns change about it.
-    Widget above(Widget column, String slot) => Padding(
-      key: ValueKey('ide-row-$slot'),
-      padding: const EdgeInsets.only(bottom: gap),
-      child: column,
-    );
-    // The editor hidden, there is a sash less, but the chat is sized as
-    // though both were there: dragged back, the editor comes out where the
-    // pointer is.
-    final room =
-        size.width -
-        outside.horizontal -
-        IdeModernUI.activityBarWidth -
-        2 * _sashWidth;
-    final withChat = room - (_chatShown ? 0 : gap);
+    const bar = IdeModernUI.activityBarWidth;
+    // The editor hidden, the chat is sized as though it were there: dragged
+    // back, the editor comes out where the pointer is.
+    final room = size.width - bar;
     _noteRoom((
-      both: IdeColumns.roomForBoth(withChat),
-      sides: IdeColumns.roomForSides(withChat),
+      both: IdeColumns.roomForBoth(room),
+      sides: IdeColumns.roomForSides(room),
     ));
     final editorHidden = !_layout.editorVisible;
     final columns = IdeColumns.fit(
@@ -3866,15 +3846,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final sidebar = SizedBox(
       key: const ValueKey('ide-sidebar'),
       width: columns.sidebar,
-      child: KeyedSubtree(key: _sidebarKey, child: _sidebarCard()),
+      child: KeyedSubtree(key: _sidebarKey, child: _sidebarPart()),
     );
-    // With the side bar hidden, the gap by the activity bar: dragged out, it
-    // opens the side bar.
+    // With the side bar hidden, by the activity bar: dragged out, it opens
+    // the side bar.
     final sidebarSash = KeyedSubtree(
       key: _sidebarSashKey,
       child: _Sash(
         key: const ValueKey('ide-sidebar-sash'),
-        grip: sidebarVisible,
         canMoveBack: sidebarVisible,
         canMoveForward: columns.canGrowSidebar(room),
         onStart: () => _dragStart = (columns: columns, room: room),
@@ -3885,82 +3864,99 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         }),
       ),
     );
-    final chatSash = above(
-      _Sash(
-        key: const ValueKey('ide-chat-sash'),
-        grip: chatVisible,
-        canMoveBack: columns.canGrowChat(room),
-        canMoveForward: chatVisible,
-        onStart: () {
-          _dragStart = (columns: columns, room: room);
-          _chatSashDragging = true;
-        },
-        onEnd: () {
-          if (mounted) setState(() => _chatSashDragging = false);
-        },
-        onDrag: (dx) => _dragTo((start, room) => start.dragChat(room, dx)),
-        onReset: () => setState(() {
-          _layout
-            ..showChat()
-            ..showEditor();
-          _chatWidth = IdeColumns.defaultChat;
-        }),
-      ),
-      'chat-sash',
+    final chatSash = _Sash(
+      key: const ValueKey('ide-chat-sash'),
+      canMoveBack: columns.canGrowChat(room),
+      canMoveForward: chatVisible,
+      onStart: () {
+        _dragStart = (columns: columns, room: room);
+        _chatSashDragging = true;
+      },
+      onEnd: () {
+        if (mounted) setState(() => _chatSashDragging = false);
+      },
+      onDrag: (dx) => _dragTo((start, room) => start.dragChat(room, dx)),
+      onReset: () => setState(() {
+        _layout
+          ..showChat()
+          ..showEditor();
+        _chatWidth = IdeColumns.defaultChat;
+      }),
     );
     final chat = KeyedSubtree(
       key: const ValueKey('ide-chat'),
-      child: _chatCard(),
+      child: _chatPart(),
     );
-    return Padding(
-      padding: outside,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          above(_activityBar(joined: sidebarVisible), 'activity-bar'),
-          if (!editorHidden) ...[
-            if (sidebarVisible) above(sidebar, 'sidebar'),
-            above(sidebarSash, 'sidebar-sash'),
-          ] else if (!sidebarVisible)
-            // The chat maximized: its sash is by the activity bar, and
-            // dragged back, the editor comes out.
-            chatSash,
-          Expanded(
-            key: const ValueKey('ide-editor-column'),
-            child: _editorColumn(
-              size.height,
-              commands,
-              inPlace: !editorHidden
-                  ? null
-                  : sidebarVisible
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        sidebar,
-                        sidebarSash,
-                        Expanded(child: chat),
-                      ],
-                    )
-                  : chat,
-            ),
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              KeyedSubtree(
+                key: const ValueKey('ide-activity-bar'),
+                child: _activityBar(sidebarShowing: sidebarVisible),
+              ),
+              if (!editorHidden && sidebarVisible) sidebar,
+              Expanded(
+                key: const ValueKey('ide-editor-column'),
+                child: _editorColumn(
+                  size.height,
+                  commands,
+                  inPlace: !editorHidden
+                      ? null
+                      : sidebarVisible
+                      ? Stack(
+                          children: [
+                            Positioned.fill(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  sidebar,
+                                  Expanded(child: chat),
+                                ],
+                              ),
+                            ),
+                            _sashAt(columns.sidebar, room, sidebarSash),
+                          ],
+                        )
+                      : chat,
+                ),
+              ),
+              if (!editorHidden) _chatSlot(columns.chat),
+            ],
           ),
-          if (!editorHidden) ...[
-            if (chatVisible || _chatSashDragging)
-              chatSash
-            else
-              const SizedBox(key: ValueKey('ide-chat-gap'), width: _sashWidth),
-            above(_chatSlot(columns.chat), 'chat'),
-          ],
-        ],
-      ),
+        ),
+        if (!editorHidden)
+          _sashAt(bar + columns.sidebar, size.width, sidebarSash),
+        if (!editorHidden && (chatVisible || _chatSashDragging))
+          _sashAt(size.width - columns.chat, size.width, chatSash)
+        else if (editorHidden && !sidebarVisible)
+          // The chat maximized: its sash is by the activity bar, and
+          // dragged back, the editor comes out.
+          _sashAt(bar, size.width, chatSash),
+      ],
     );
   }
 
+  /// [sash] over the line [x] across a row [width] wide, inside it: at the
+  /// row's edge, all of it on the near side.
+  static Widget _sashAt(double x, double width, Widget sash) => Positioned(
+    key: ValueKey(sash.key),
+    left: (x - _sashWidth / 2)
+        .clamp(0.0, math.max(0.0, width - _sashWidth))
+        .toDouble(),
+    top: 0,
+    bottom: 0,
+    width: _sashWidth,
+    child: sash,
+  );
+
   /// The editor, and below it the panel (the terminal), as VS Code's panel
   /// at the bottom, centered: under the editor only. Hidden, the panel
-  /// leaves its sash as the gap above the status bar. [inPlace] has the
-  /// editor's place where it is hidden (the chat, and the side bar beside
-  /// it), above the panel; the editor is kept, as the chat hidden is.
+  /// leaves its sash at the bottom. [inPlace] has the editor's place where
+  /// it is hidden (the chat, and the side bar beside it), above the panel;
+  /// the editor is kept, as the chat hidden is.
   Widget _editorColumn(
     double height,
     List<IdeCommand> commands, {
@@ -3968,7 +3964,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }) {
     final hidden = inPlace != null;
     final shown = _panel != null;
-    final room = height - _sashWidth - (shown ? IdeModernUI.gap : 0);
+    final room = height;
     final rows = IdeRows.fit(
       room,
       panel: !shown
@@ -3985,55 +3981,58 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       child: _editorArea(commands),
     );
     final toolbarLocation = debug?.settings().toolBarLocation;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    final sashTop = (height - rows.panel - _sashWidth / 2)
+        .clamp(0.0, math.max(0.0, height - _sashWidth))
+        .toDouble();
+    return Stack(
       children: [
-        Expanded(
-          child: Stack(
-            fit: StackFit.expand,
+        Positioned.fill(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Offstage(
-                offstage: hidden,
-                child: TickerMode(
-                  enabled: !hidden,
-                  child: ExcludeFocus(
-                    excluding: hidden,
-                    child: toolbarLocation == 'floating' && debug != null
-                        ? FloatingDebugToolbar(service: debug, child: editor)
-                        : editor,
-                  ),
+              Expanded(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Offstage(
+                      offstage: hidden,
+                      child: TickerMode(
+                        enabled: !hidden,
+                        child: ExcludeFocus(
+                          excluding: hidden,
+                          child: toolbarLocation == 'floating' && debug != null
+                              ? FloatingDebugToolbar(
+                                  service: debug,
+                                  child: editor,
+                                )
+                              : editor,
+                        ),
+                      ),
+                    ),
+                    ?inPlace,
+                  ],
                 ),
               ),
-              ?inPlace,
+              _panelSlot(rows.panel),
             ],
           ),
         ),
-        // Under the side bar too, it keeps clear of the activity bar the
-        // side bar is joined to.
-        Padding(
-          padding: EdgeInsets.only(
-            left: hidden && _layout.sidebarVisible ? IdeModernUI.gap : 0,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _Sash(
-                key: const ValueKey('ide-panel-sash'),
-                axis: Axis.vertical,
-                grip: panelVisible,
-                canMoveBack: rows.canGrowPanel(room),
-                canMoveForward: panelVisible,
-                onStart: () => _panelDragStart = (rows: rows, room: room),
-                onDrag: _dragPanel,
-                onReset: () => setState(() {
-                  _panel ??= _lastPanel;
-                  _panelHeight = null;
-                }),
-              ),
-              _panelSlot(rows.panel),
-              if (shown) const SizedBox(height: IdeModernUI.gap),
-            ],
+        Positioned(
+          left: 0,
+          right: 0,
+          top: sashTop,
+          height: _sashWidth,
+          child: _Sash(
+            key: const ValueKey('ide-panel-sash'),
+            axis: Axis.vertical,
+            canMoveBack: rows.canGrowPanel(room),
+            canMoveForward: panelVisible,
+            onStart: () => _panelDragStart = (rows: rows, room: room),
+            onDrag: _dragPanel,
+            onReset: () => setState(() {
+              _panel ??= _lastPanel;
+              _panelHeight = null;
+            }),
           ),
         ),
       ],
@@ -4106,9 +4105,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               child: Focus(
                 focusNode: _panelFocus,
                 // panelPart.ts' `panel.background` (the editor's by
-                // default), not the shell's.
-                child: IdeCard(
+                // default), `panel.border` above.
+                child: IdePart(
                   color: themeColors['panel.background'],
+                  border: Border(top: IdePart.side('panel.border')),
                   child: IdeBottomPanel(
                     tab: _panel ?? _lastPanel,
                     root: widget.workspace.root,
@@ -4567,8 +4567,8 @@ class _CommandCenterState extends State<_CommandCenter> {
   }
 }
 
-/// A draggable border between two panes, highlighted while hovered or
-/// dragged. Its cursor says which ways it can go (`.monaco-sash.minimum`,
+/// A draggable line between two parts, over it: invisible at rest,
+/// `sash.hoverBorder` while hovered or dragged. Its cursor says which ways it can go (`.monaco-sash.minimum`,
 /// `.maximum`), and stays while dragged past where it stops; a double click
 /// resets what it sizes.
 class _Sash extends StatefulWidget {
@@ -4579,7 +4579,6 @@ class _Sash extends StatefulWidget {
     required this.onReset,
     this.onEnd,
     this.axis = Axis.horizontal,
-    this.grip = true,
     this.canMoveBack = true,
     this.canMoveForward = true,
   });
@@ -4593,10 +4592,6 @@ class _Sash extends StatefulWidget {
 
   /// Which way it moves: between columns, or (vertical) between rows.
   final Axis axis;
-
-  /// The Modern UI's grip dots at rest: not for a sash that stands for a
-  /// hidden part.
-  final bool grip;
 
   /// Whether it can go left (or up), and right (or down).
   final bool canMoveBack;
@@ -4693,46 +4688,15 @@ class _SashState extends State<_Sash> {
         onVerticalDragEnd: horizontal ? null : (_) => _end(),
         onVerticalDragCancel: horizontal ? null : _end,
         onDoubleTap: widget.onReset,
-        // At rest, the Modern UI's three grip dots; hovered or dragged,
-        // the `sash.hoverBorder` filling the gap.
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           width: horizontal ? IdeWorkbenchState._sashWidth : null,
           height: horizontal ? null : IdeWorkbenchState._sashWidth,
           color: active ? IdeModernUI.sashHover : Colors.transparent,
-          child: active || !widget.grip
-              ? null
-              : CustomPaint(painter: _SashGripPainter(widget.axis)),
         ),
       ),
     );
   }
-}
-
-/// `.modern-ui .monaco-sash.vertical::after`: a 2px dot at the middle and
-/// one 5px above and below it.
-class _SashGripPainter extends CustomPainter {
-  const _SashGripPainter(this.axis);
-
-  final Axis axis;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = IdeModernUI.sashGrip;
-    final center = size.center(Offset.zero);
-    for (final d in const [-5.0, 0.0, 5.0]) {
-      canvas.drawCircle(
-        axis == Axis.horizontal
-            ? center.translate(0, d)
-            : center.translate(d, 0),
-        1,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_SashGripPainter oldDelegate) => oldDelegate.axis != axis;
 }
 
 /// An activity bar item: a 24px codicon in a 36px square; the active and

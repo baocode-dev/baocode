@@ -17,16 +17,24 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import 'terminal_colors.dart';
 import 'terminal_instance.dart';
 import 'terminal_profile_service.dart';
 import 'terminal_profiles.dart';
 
 class TerminalService extends ChangeNotifier {
-  TerminalService({required this.root, this.backend = const TerminalBackend()});
+  TerminalService({
+    required this.root,
+    this.backend = const TerminalBackend(),
+    this.colorTheme,
+  });
 
   /// Where new terminals start: the project's folder.
   String root;
   final TerminalBackend backend;
+
+  /// Its terminals' colors, if not [terminalColorTheme].
+  final ValueListenable<TerminalColorTheme>? colorTheme;
 
   /// The shells a new terminal can start, and the default one.
   late final TerminalProfileService profiles = TerminalProfileService(backend);
@@ -119,6 +127,7 @@ class TerminalService extends ChangeNotifier {
           : profiles.defaultShell(),
       config: config,
       environmentMutator: environmentMutator,
+      colorTheme: colorTheme,
     )..onRequestClose = _closeRequested;
     _instances.add(instance);
     _onDidCreate.add(instance);

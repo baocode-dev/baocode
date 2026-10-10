@@ -303,7 +303,7 @@ class _AgentStepState extends State<AgentStep> {
                         ? themeColors['focusBorder']
                         : hovered && open != null
                         ? AppColors.borderStrong
-                        : AppColors.border,
+                        : AppColors.partBorder,
                   ),
                 ),
                 child: content,

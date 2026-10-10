@@ -337,7 +337,10 @@ void main() {
     await gesture.up();
     await tester.pump();
     expect(workspace.ideChats(folder), [others.last, thread, others.first]);
-    // A click is still a click.
+    // A click is still a click (the tabs as wide as the editor's, it may
+    // be scrolled out).
+    await tester.ensureVisible(tab(thread));
+    await tester.pump();
     await tester.tap(tab(thread));
     await tester.pump();
     expect(workspace.ideChat(folder), same(thread));

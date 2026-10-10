@@ -500,9 +500,13 @@ class IdeExplorer extends StatefulWidget {
     this.repositories = const [],
     this.onAddFolder,
     this.onRemoveFolder,
+    this.background,
   });
 
   final IdeExplorerController controller;
+
+  /// What it is on; the side bar's by default.
+  final Color? background;
 
   /// A multi-folder workspace's repositories, for the rows' colors and
   /// letters in place of [git]'s: each path's, that of the folder it is in.
@@ -1548,7 +1552,7 @@ class IdeExplorerState extends State<IdeExplorer> {
 
     return ColoredBox(
       // Modern UI: the panes are the side bar's.
-      color: themeColors['sideBar.background'],
+      color: widget.background ?? themeColors['sideBar.background'],
       child: Focus(
         focusNode: _focusNode,
         onKeyEvent: _onKey,

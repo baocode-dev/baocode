@@ -115,16 +115,16 @@ void main() {
     expect(
       find.descendant(
         of: rowOf('Staged Changes'),
-        matching: find.byType(IdeCountBadge),
+        matching: find.byType(IdeTitleBadge),
       ),
       findsOneWidget,
     );
     expect(
       tester
-          .widget<IdeCountBadge>(
+          .widget<IdeTitleBadge>(
             find.descendant(
               of: rowOf('Changes').last,
-              matching: find.byType(IdeCountBadge),
+              matching: find.byType(IdeTitleBadge),
             ),
           )
           .count,

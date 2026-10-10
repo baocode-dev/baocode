@@ -69,8 +69,8 @@ class IdeStatusBarItem {
 /// The workbench's bottom bar: [left] items after the window edge, [right]
 /// items against the other. In the color theme's `statusBar.*` and
 /// `statusBarItem.*` colors (workbench/browser/parts/statusbar/
-/// statusbarPart.ts, media/statusbarpart.css), but on the shell: no
-/// background or top border of its own.
+/// statusbarPart.ts, media/statusbarpart.css): `statusBar.background`,
+/// and `statusBar.border` above it where the theme has one.
 class IdeStatusBar extends StatelessWidget {
   const IdeStatusBar({super.key, required this.left, required this.right});
 
@@ -81,9 +81,17 @@ class IdeStatusBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = themeColors;
     return Container(
       height: height,
       padding: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        color: colors['statusBar.background'],
+        border: switch (colors.get('statusBar.border')) {
+          final border? => Border(top: BorderSide(color: border)),
+          null => null,
+        },
+      ),
       child: LayoutBuilder(
         builder: (context, constraints) => Row(
           children: [
@@ -135,20 +143,11 @@ class _StatusItemState extends State<_StatusItem> {
     final item = widget.item;
     final colors = themeColors;
     final hovered = _hover && item.onTap != null;
-    // The bar is on the shell (the side bar's color): `statusBar.*` text
-    // where the theme's bar has that color too (or none), else the side
-    // bar's, as white on Quiet Light's purple bar would not read there.
-    final onSideBar = switch (colors.get('statusBar.background')) {
-      null => true,
-      final background => background == colors.get('sideBar.background'),
-    };
     // Its icons too (`color: inherit`); its own color stays on hover.
     final color =
         item.color ??
-        (onSideBar
-            ? (hovered ? colors.get('statusBarItem.hoverForeground') : null) ??
-                  colors['statusBar.foreground']
-            : colors['sideBar.foreground']);
+        (hovered ? colors.get('statusBarItem.hoverForeground') : null) ??
+        colors['statusBar.foreground'];
     // High contrast themes outline a hovered item (dashed upstream).
     final outline = hovered ? colors.get('contrastActiveBorder') : null;
     Widget child = Container(

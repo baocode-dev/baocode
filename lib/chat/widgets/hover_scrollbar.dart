@@ -11,6 +11,7 @@ class HoverScrollbar extends StatelessWidget {
     required this.controller,
     required this.child,
     this.notificationPredicate,
+    this.thickness,
   });
 
   final ScrollController controller;
@@ -19,11 +20,15 @@ class HoverScrollbar extends StatelessWidget {
   /// Which scrolls it follows; those of [child] itself when null.
   final ScrollNotificationPredicate? notificationPredicate;
 
+  /// The theme's when null.
+  final double? thickness;
+
   @override
   Widget build(BuildContext context) => HoverBuilder(
     builder: (context, hovered) => Scrollbar(
       controller: controller,
       thumbVisibility: hovered,
+      thickness: thickness,
       notificationPredicate: notificationPredicate,
       child: child,
     ),

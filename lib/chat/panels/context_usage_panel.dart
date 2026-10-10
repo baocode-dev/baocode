@@ -158,7 +158,7 @@ class ContextUsagePanel extends StatelessWidget {
                     stats.limits.isNotEmpty ||
                     stats.limitsState != LimitsState.idle)) ...[
               const SizedBox(height: 12),
-              Divider(height: 1, color: AppColors.border),
+              Divider(height: 1, color: AppColors.partBorder),
               const SizedBox(height: 10),
               _PlanUsage(stats: stats),
             ],

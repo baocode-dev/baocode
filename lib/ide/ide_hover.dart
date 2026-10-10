@@ -24,7 +24,6 @@
 
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/workbench_theme.dart' show themeColors;
@@ -45,10 +44,9 @@ abstract final class IdeHoverColors {
 /// Which side of its target a hover shows on.
 enum IdeHoverPosition { below, above, right, left }
 
-/// `workbench.hover.delay`: 1500 ms on macOS, 500 ms elsewhere.
-Duration get ideHoverDelay => defaultTargetPlatform == TargetPlatform.macOS
-    ? const Duration(milliseconds: 1500)
-    : const Duration(milliseconds: 500);
+/// `workbench.hover.delay`: 500 ms on every platform (upstream waits
+/// 1500 ms on macOS, which reads as no hover at all).
+const ideHoverDelay = Duration(milliseconds: 500);
 
 /// A hover's box: VS Code's `.monaco-hover.workbench-hover`.
 class IdeHoverBox extends StatelessWidget {

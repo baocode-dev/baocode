@@ -91,6 +91,43 @@ class IdeCountBadge extends StatelessWidget {
   }
 }
 
+/// A count as the panel title's badge (`.monaco-count-badge` in a panel's
+/// title): 16px, round, in `panelTitleBadge.*`, `99+` past 99. The change
+/// groups' counts too, as the side panel's title shows them.
+class IdeTitleBadge extends StatelessWidget {
+  const IdeTitleBadge(this.count, {super.key});
+
+  final int count;
+
+  static String text(int count) => count > 99 ? '99+' : '$count';
+
+  static const style = TextStyle(fontSize: 10, height: 1.2);
+
+  @override
+  Widget build(BuildContext context) => Center(
+    widthFactor: 1,
+    heightFactor: 1,
+    child: Container(
+      constraints: const BoxConstraints(minWidth: 16),
+      height: 16,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: themeColors['panelTitleBadge.background'],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        widthFactor: 1,
+        child: Text(
+          text(count),
+          style: style.copyWith(
+            color: themeColors['panelTitleBadge.foreground'],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 /// A 22px row, inset and rounded as Modern UI's: hover and selection
 /// backgrounds, a click (and a double click), a secondary click for its
 /// context menu, and a [builder] told whether it is hovered (for actions

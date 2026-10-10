@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../chat/chat_keys.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
+import '../chat/widgets/hover_scrollbar.dart';
 import '../chat/widgets/inline_rename_field.dart';
 import '../icons/project_icon_picker.dart';
 import '../icons/project_icon_view.dart';
@@ -700,15 +701,19 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       children.add(const _DropLine());
     }
     _laidOut = laidOut;
+    // Its own scrollbar, shown while the pointer is over the list.
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: _Slot(
         slot: _listSlot,
         slots: _slots,
-        child: ListView(
+        child: HoverScrollbar(
           controller: _listScroll,
-          padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
-          children: children,
+          child: ListView(
+            controller: _listScroll,
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+            children: children,
+          ),
         ),
       ),
     );
@@ -1048,7 +1053,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     }
     return Container(
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.border)),
+        border: Border(top: BorderSide(color: AppColors.partBorder)),
       ),
       padding: const EdgeInsets.all(6),
       child: Column(
@@ -1769,7 +1774,7 @@ class _PinZone extends StatelessWidget {
     decoration: BoxDecoration(
       color: active ? AppColors.hover : Colors.transparent,
       border: Border.all(
-        color: active ? themeColors['focusBorder'] : AppColors.border,
+        color: active ? themeColors['focusBorder'] : AppColors.partBorder,
       ),
       borderRadius: BorderRadius.circular(5),
     ),

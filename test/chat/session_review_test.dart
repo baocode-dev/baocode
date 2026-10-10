@@ -4,6 +4,7 @@ import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/review/change_review.dart';
+import 'package:baocode/chat/review/change_reviews.dart';
 import 'package:baocode/chat/review/review_store.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/kernel_types.dart';
@@ -14,8 +15,10 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _NoStore implements ReviewStore {
+  _NoStore([this.root = '/p']);
+
   @override
-  String get root => '/p';
+  final String root;
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -24,7 +27,7 @@ class _NoStore implements ReviewStore {
 
 /// A review that records what the session asks of it.
 class _Review extends ChangeReview {
-  _Review() : super(_NoStore());
+  _Review([String root = '/p']) : super(_NoStore(root));
 
   final calls = <String>[];
   final reported = <String>[];
@@ -163,5 +166,55 @@ void main() {
     expect(session.fileChanges, isNot([change]));
     expect(session.undoChanges, isNull);
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  test('in a workspace, each folder\'s files are its review\'s', () async {
+    final reviews = <String, _Review>{};
+    final opened = <String>[];
+    final session = ChatSession(
+      kernel: MockKernels.claudeCode,
+      kernelContext: KernelContext(
+        cwd: '/w',
+        workspace: () =>
+            const KernelWorkspace(folders: ['/a', '/b', '/a/inner']),
+      ),
+      historyCount: 0,
+      openReview: (root, {session}) async {
+        opened.add(root);
+        return reviews[root] = _Review(root);
+      },
+    );
+    addTearDown(session.dispose);
+    session.attach();
+    await pumpEventQueue();
+    // A folder inside another is the other's.
+    expect(opened, ['/w', '/a', '/b']);
+
+    const inA = FileChange(path: '/a/lib/x.dart', added: 1, removed: 0);
+    const inB = FileChange(path: '/b/y.dart', added: 1, removed: 0);
+    reviews['/a']!.list(const [inA]);
+    reviews['/b']!.list(const [inB]);
+    expect(session.fileChanges, [inA, inB]);
+
+    session.keepChanges(const [inA]);
+    session.undoChanges!(const [inB]);
+    await pumpEventQueue();
+    expect(reviews['/a']!.calls, contains('keep /a/lib/x.dart'));
+    expect(reviews['/b']!.calls, contains('undo /b/y.dart'));
+    expect(reviews['/w']!.calls, isNot(contains(startsWith('keep'))));
+
+    // A file in none of them is the agent's directory's.
+    final parts = <String, _Review>{};
+    final both = await ChangeReviews.open([
+      '/w',
+      '/a',
+    ], open: (root, {session}) async => parts[root] = _Review(root));
+    addTearDown(both!.dispose);
+    both
+      ..report(const FileChange(path: 'notes.md', added: 1, removed: 0))
+      ..report(const FileChange(path: '/a/z.dart', added: 1, removed: 0))
+      ..report(const FileChange(path: '/elsewhere.txt', added: 1, removed: 0));
+    expect(parts['/w']!.reported, ['notes.md', '/elsewhere.txt']);
+    expect(parts['/a']!.reported, ['/a/z.dart']);
   });
 }

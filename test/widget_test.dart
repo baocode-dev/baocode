@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/chat/chat_history_view.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'package:baocode/chat/mock_conversation.dart';
@@ -84,10 +85,13 @@ void main() {
     await tester.pump();
     // The history's scrollbar (the composer has its own further down).
     final painterFinder = find
-        .byWidgetPredicate(
-          (widget) =>
-              widget is CustomPaint &&
-              widget.foregroundPainter is ScrollbarPainter,
+        .descendant(
+          of: find.byType(ChatHistoryView),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is CustomPaint &&
+                widget.foregroundPainter is ScrollbarPainter,
+          ),
         )
         .first;
     final painter =

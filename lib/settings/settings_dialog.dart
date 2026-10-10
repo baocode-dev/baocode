@@ -12,6 +12,7 @@ import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
 import '../ide/ide_back_button.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import 'pages/settings_widgets.dart' show SettingsColors;
 
 /// The settings dialog's pages.
 enum SettingsSection {
@@ -236,7 +237,7 @@ class SettingsDialogState extends State<SettingsDialog> {
                       : SettingsDialog.navWidth,
                   child: _nav(context),
                 ),
-                Container(width: 1, color: AppColors.border),
+                Container(width: 1, color: AppColors.partBorder),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -283,84 +284,82 @@ class SettingsDialogState extends State<SettingsDialog> {
             if (_matches(section)) section,
         ],
     ].where((sections) => sections.isNotEmpty).toList();
-    return ColoredBox(
-      color: AppColors.background,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Under the traffic lights.
-          if (!WindowControls.drawsHeader)
-            const TitleBarDoubleClick(
-              child: SizedBox(height: AppMetrics.titleBarHeight),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-            child: IdeBackButton(
-              label: l10n.settingsBack,
-              onTap: _close,
-              expand: true,
-            ),
+    // On the page's color, as Cursor's.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Under the traffic lights.
+        if (!WindowControls.drawsHeader)
+          const TitleBarDoubleClick(
+            child: SizedBox(height: AppMetrics.titleBarHeight),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
-            child: SizedBox(
-              height: 28,
-              child: TextField(
-                controller: _search,
-                style: TextStyle(
-                  color: colors['input.foreground'],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+          child: IdeBackButton(
+            label: l10n.settingsBack,
+            onTap: _close,
+            expand: true,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
+          child: SizedBox(
+            height: 28,
+            child: TextField(
+              controller: _search,
+              style: TextStyle(
+                color: SettingsColors.textPrimary,
+                fontSize: 12.5,
+              ),
+              cursorColor: SettingsColors.textPrimary,
+              cursorHeight: 14,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: l10n.settingsSearch,
+                hintStyle: TextStyle(
+                  color: colors['input.placeholderForeground'],
                   fontSize: 12.5,
                 ),
-                cursorColor: AppColors.text,
-                cursorHeight: 14,
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: l10n.settingsSearch,
-                  hintStyle: TextStyle(
-                    color: colors['input.placeholderForeground'],
-                    fontSize: 12.5,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    size: 15,
-                    color: AppColors.textFaint,
-                  ),
-                  prefixIconConstraints: const BoxConstraints(minWidth: 30),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 7),
-                  filled: true,
-                  fillColor: colors['input.background'],
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: BorderSide(color: AppColors.borderStrong),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    borderSide: BorderSide(color: colors['focusBorder']),
-                  ),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  size: 15,
+                  color: SettingsColors.iconTertiary,
+                ),
+                prefixIconConstraints: const BoxConstraints(minWidth: 30),
+                contentPadding: const EdgeInsets.symmetric(vertical: 7),
+                filled: true,
+                fillColor: SettingsColors.hover,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: SettingsColors.stroke),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(6),
+                  borderSide: BorderSide(color: colors['focusBorder']),
                 ),
               ),
             ),
           ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              children: [
-                for (final (i, sections) in groups.indexed) ...[
-                  // Groups apart, as Cursor's: by room, not headings.
-                  if (i > 0) const SizedBox(height: 14),
-                  for (final section in sections)
-                    _NavItem(
-                      icon: icon(section),
-                      label: label(context, section),
-                      selected: section == _section,
-                      onTap: () => show(section),
-                    ),
-                ],
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            children: [
+              for (final (i, sections) in groups.indexed) ...[
+                // Groups apart, as Cursor's: by room, not headings.
+                if (i > 0) const SizedBox(height: 14),
+                for (final section in sections)
+                  _NavItem(
+                    icon: icon(section),
+                    label: label(context, section),
+                    selected: section == _section,
+                    onTap: () => show(section),
+                  ),
               ],
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -387,7 +386,6 @@ class _NavItemState extends State<_NavItem> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = themeColors;
     final selected = widget.selected;
     return Semantics(
       button: true,
@@ -404,11 +402,7 @@ class _NavItemState extends State<_NavItem> {
             margin: const EdgeInsets.only(bottom: 1),
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
-              color: selected
-                  ? colors['list.inactiveSelectionBackground']
-                  : _hover
-                  ? AppColors.hover
-                  : null,
+              color: selected || _hover ? SettingsColors.hover : null,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
@@ -416,7 +410,9 @@ class _NavItemState extends State<_NavItem> {
                 Icon(
                   widget.icon,
                   size: 15,
-                  color: selected ? AppColors.text : AppColors.textMuted,
+                  color: selected
+                      ? SettingsColors.textPrimary
+                      : SettingsColors.iconTertiary,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -425,7 +421,9 @@ class _NavItemState extends State<_NavItem> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: selected ? AppColors.textPrimary : AppColors.text,
+                      color: selected
+                          ? SettingsColors.textPrimary
+                          : SettingsColors.textSecondary,
                       fontSize: 13,
                     ),
                   ),

@@ -43,9 +43,9 @@ void main() {
     expect(workspace.layout.editorVisible, isFalse);
     final sidebar = tester.getRect(_part('ide-sidebar'));
     final beside = tester.getRect(_part('ide-chat'));
-    expect(sidebar.left, IdeModernUI.gap + IdeModernUI.activityBarWidth);
-    expect(beside.left, sidebar.right + IdeModernUI.gap);
-    expect(beside.right, 740 - IdeModernUI.gap);
+    expect(sidebar.left, IdeModernUI.activityBarWidth);
+    expect(beside.left, sidebar.right);
+    expect(beside.right, 740);
     expect(tester.element(find.byKey(chatKey)), same(chat));
     expect(find.byIcon(Codicons.layoutSidebarLeft), findsOneWidget);
 
@@ -55,8 +55,8 @@ void main() {
     final top = tester.getRect(_part('ide-sidebar'));
     final panel = tester.getRect(_part('ide-panel'));
     expect(tester.getRect(_part('ide-chat')).bottom, top.bottom);
-    expect(panel.top, top.bottom + IdeModernUI.gap);
-    expect(panel.left, top.left + IdeModernUI.gap);
+    expect(panel.top, top.bottom);
+    expect(panel.left, top.left);
     expect(panel.right, beside.right);
 
     // Hidden again, the chat has its room, not the editor.
@@ -247,10 +247,10 @@ void main() {
     final drag = await tester.startGesture(
       tester.getCenter(_part('ide-chat-sash')),
     );
-    // Of 1340, the side bar snaps shut at a chat of 878⅓, and the editor
-    // at 1073⅓.
+    // Of 1356 (the window less the activity bar), the side bar snaps shut
+    // at a chat of 894⅓, and the editor at 1089⅓.
     await drag.moveBy(const Offset(-20, 0));
-    await drag.moveBy(const Offset(-633, 0));
+    await drag.moveBy(const Offset(-649, 0));
     await tester.pump();
     expect(_part('ide-sidebar'), findsNothing);
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
@@ -258,16 +258,17 @@ void main() {
     await tester.pump();
     expect(workspace.layout.chatMaximized, isTrue);
     expect(_part('ide-editor'), findsNothing);
-    const left = IdeModernUI.gap + IdeModernUI.activityBarWidth;
-    expect(tester.getRect(_part('ide-chat-sash')).left, left);
+    // Its sash over the activity bar's edge.
+    const left = IdeModernUI.activityBarWidth;
+    expect(tester.getCenter(_part('ide-chat-sash')).dx, left);
     final maximized = tester.getRect(_part('ide-chat'));
-    expect(maximized.left, left + IdeModernUI.gap);
-    expect(maximized.right, 1400 - IdeModernUI.gap);
+    expect(maximized.left, left);
+    expect(maximized.right, 1400);
     // The panel below it, as high as it was.
     final panel = tester.getRect(_part('ide-panel'));
     expect(panel.left, maximized.left);
     expect(panel.right, maximized.right);
-    expect(panel.top, maximized.bottom + IdeModernUI.gap);
+    expect(panel.top, maximized.bottom);
     expect(panel.height, closeTo(panelHeight, 0.01));
     // The same chat, moved.
     expect(tester.element(find.byKey(chatKey)), same(chat));
@@ -278,8 +279,8 @@ void main() {
     await tester.pump();
     expect(workspace.layout.chatMaximized, isFalse);
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
-    expect(_width(tester, 'ide-chat'), 1020);
-    expect(tester.getRect(_part('ide-panel')).left, left + IdeModernUI.gap);
+    expect(_width(tester, 'ide-chat'), 1036);
+    expect(tester.getRect(_part('ide-panel')).left, left);
     expect(tester.element(find.byKey(chatKey)), same(chat));
     await drag.up();
     await tester.pump();

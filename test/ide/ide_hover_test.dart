@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -66,14 +65,8 @@ void main() {
     expect(hoverRect.center.dx, closeTo(target.center.dx, 1));
   });
 
-  testWidgets('the delay is VS Code\'s: 1500 ms on macOS, else 500 ms', (
-    tester,
-  ) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-    expect(ideHoverDelay, const Duration(milliseconds: 1500));
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+  testWidgets('the delay is 500 ms everywhere, macOS too', (tester) async {
     expect(ideHoverDelay, const Duration(milliseconds: 500));
-    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('a hover with a pointer sits beside its target', (tester) async {

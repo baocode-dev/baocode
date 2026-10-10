@@ -432,6 +432,28 @@ void main() {
       expect(dark.renderer.debugCellColors(0, 0)!.fg, const Color(0xFFE5E510));
     });
 
+    test('among the editors, the background is the editor\'s, not the '
+        'panel\'s; the theme\'s terminal background where it has one', () {
+      Color? background(Map<String, Color> colors) =>
+          TerminalColorTheme.resolve(
+            (id) => colors[id],
+            type: ColorScheme.dark,
+            inEditor: true,
+          ).background;
+      const panel = Color(0xFF222222), editor = Color(0xFF333333);
+      expect(
+        background({'panel.background': panel, 'editor.background': editor}),
+        editor,
+      );
+      expect(
+        background({
+          'editor.background': editor,
+          'terminal.background': const Color(0xFF444444),
+        }),
+        const Color(0xFF444444),
+      );
+    });
+
     test('what a theme lacks: upstream fallbacks', () {
       final theme = TerminalColorTheme.resolve(
         (id) => switch (id) {

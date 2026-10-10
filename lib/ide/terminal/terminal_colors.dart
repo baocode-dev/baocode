@@ -64,6 +64,17 @@ import 'package:bao_xterm/typings/xterm.dart' show ITheme;
 final ValueNotifier<TerminalColorTheme> terminalColorTheme =
     ValueNotifier<TerminalColorTheme>(TerminalColorTheme.dark2026);
 
+/// As [terminalColorTheme], for terminals among the editors (upstream
+/// `TerminalLocation.Editor`): the agent's side panel's.
+final ValueNotifier<TerminalColorTheme> editorTerminalColorTheme =
+    ValueNotifier<TerminalColorTheme>(
+      TerminalColorTheme.resolve(
+        (colorId) => _dark2026Colors[colorId],
+        type: ColorScheme.dark,
+        inEditor: true,
+      ),
+    );
+
 /// A color theme's terminal colors, resolved.
 @immutable
 class TerminalColorTheme {
@@ -99,15 +110,19 @@ class TerminalColorTheme {
   /// The terminal colors of the theme [getColor] reads: the theme's value
   /// for a color id, else the registry's default for the theme's [type]
   /// (VS Code's `IColorTheme.getColor`).
+  ///
+  /// [inEditor], its background without `terminal.background` is the
+  /// editor's, as a terminal among the editors has it upstream.
   factory TerminalColorTheme.resolve(
     Color? Function(String colorId) getColor, {
     required ColorScheme type,
+    bool inEditor = false,
   }) {
-    // getXtermTheme, with TerminalInstanceColorProvider's background for a
-    // terminal in the panel.
+    // getXtermTheme, with TerminalInstanceColorProvider's background.
     final foreground = getColor('terminal.foreground');
     final background =
-        getColor('terminal.background') ?? getColor('panel.background');
+        getColor('terminal.background') ??
+        getColor(inEditor ? 'editor.background' : 'panel.background');
     return TerminalColorTheme._(
       type: type,
       foreground: foreground,

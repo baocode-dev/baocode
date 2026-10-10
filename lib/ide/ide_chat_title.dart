@@ -17,11 +17,12 @@ import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/workspace.dart';
 import 'ide_dates.dart';
-import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_panes.dart';
 import 'ide_quick_input.dart';
+import 'ide_tab_bar.dart';
 import 'ide_workbench.dart';
+import 'tab_strip_scroll.dart';
 
 class IdeChatTitle extends StatelessWidget {
   const IdeChatTitle({
@@ -112,8 +113,8 @@ class IdeChatTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final keybindings = KeybindingService.instance;
-    return SizedBox(
-      height: 35,
+    // The editor's tab strip, as its tabs are the editor's.
+    return IdeTabStrip(
       child: Row(
         children: [
           Expanded(
@@ -166,9 +167,6 @@ class _ChatTabs extends StatefulWidget {
   final ValueChanged<AgentThread> onPin;
   final void Function(AgentThread thread, int index) onMove;
 
-  /// As VS Code's `workbench.editor.titleScrollbarSizing` by default.
-  static const scrollbarThickness = 3.0;
-
   @override
   State<_ChatTabs> createState() => _ChatTabsState();
 }
@@ -176,7 +174,6 @@ class _ChatTabs extends StatefulWidget {
 class _ChatTabsState extends State<_ChatTabs> {
   final _scroll = ScrollController();
   final Map<AgentThread, GlobalKey> _keys = {};
-  bool _hover = false;
 
   /// The tab dragged, and where it would go: before the tab at that index,
   /// or after the last; none where it is already.
@@ -219,24 +216,6 @@ class _ChatTabsState extends State<_ChatTabs> {
       Scrollable.ensureVisible(
         context,
         alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-      );
-    });
-  }
-
-  /// A wheel, up and down or sideways, scrolls the tabs sideways.
-  void _wheel(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent || !_scroll.hasClients) return;
-    final delta = event.scrollDelta.dx != 0
-        ? event.scrollDelta.dx
-        : event.scrollDelta.dy;
-    if (delta == 0) return;
-    GestureBinding.instance.pointerSignalResolver.register(event, (_) {
-      final position = _scroll.position;
-      _scroll.jumpTo(
-        (position.pixels + delta).clamp(
-          position.minScrollExtent,
-          position.maxScrollExtent,
-        ),
       );
     });
   }
@@ -339,59 +318,35 @@ class _ChatTabsState extends State<_ChatTabs> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final tabs = widget.tabs;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Listener(
-        onPointerSignal: _wheel,
-        child: RawScrollbar(
-          controller: _scroll,
-          thumbVisibility: _hover,
-          interactive: true,
-          thickness: _ChatTabs.scrollbarThickness,
-          radius: Radius.zero,
-          crossAxisMargin: 0,
-          mainAxisMargin: 0,
-          minThumbLength: 24,
-          thumbColor: themeColors['scrollbarSlider.background'],
-          child: ScrollConfiguration(
-            // Its own bar alone, not the platform's thicker one too.
-            behavior: ScrollConfiguration.of(context)
-                .copyWith(scrollbars: false),
-            child: SingleChildScrollView(
-              controller: _scroll,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(left: 6),
-              child: Row(
-                children: [
-                  for (final (i, thread) in tabs.indexed) ...[
-                    if (_spot == i) const _DropLine(),
-                    _TabDragSource(
-                      enabled: tabs.length > 1,
-                      onStart: () => setState(() => _dragged = thread),
-                      onUpdate: _moveDrag,
-                      onEnd: _endDrag,
-                      child: Opacity(
-                        opacity: identical(thread, _dragged) ? .5 : 1,
-                        child: _ChatTab(
-                          key: _keys.putIfAbsent(thread, GlobalKey.new),
-                          thread: thread,
-                          title: thread.localizedTitle(l10n),
-                          active: identical(thread, widget.current),
-                          closeTooltip: l10n.commonClose,
-                          onSelect: () => widget.onOpen(thread),
-                          onClose: () => widget.onClose([thread]),
-                          onMenu: (position) => _showMenu(thread, position),
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (_spot == tabs.length) const _DropLine(),
-                ],
+    return TabStripScroll(
+      controller: _scroll,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (i, thread) in tabs.indexed) ...[
+            if (_spot == i) const _DropLine(),
+            _TabDragSource(
+              enabled: tabs.length > 1,
+              onStart: () => setState(() => _dragged = thread),
+              onUpdate: _moveDrag,
+              onEnd: _endDrag,
+              child: Opacity(
+                opacity: identical(thread, _dragged) ? .5 : 1,
+                child: _ChatTab(
+                  key: _keys.putIfAbsent(thread, GlobalKey.new),
+                  thread: thread,
+                  title: thread.localizedTitle(l10n),
+                  active: identical(thread, widget.current),
+                  closeTooltip: l10n.commonClose,
+                  onSelect: () => widget.onOpen(thread),
+                  onClose: () => widget.onClose([thread]),
+                  onMenu: (position) => _showMenu(thread, position),
+                ),
               ),
             ),
-          ),
-        ),
+          ],
+          if (_spot == tabs.length) const _DropLine(),
+        ],
       ),
     );
   }
@@ -544,9 +499,11 @@ class _DropLine extends StatelessWidget {
   );
 }
 
-/// One chat's tab: its title, and a close button while it is the shown one
-/// or hovered (as an editor tab's).
-class _ChatTab extends StatefulWidget {
+/// One chat's tab, as an editor's: its icon (a spinner while its agent
+/// runs), its title, and a close button while it is the shown one or
+/// hovered; a dot in its place when its agent asks or finished unseen, as
+/// an editor tab's dirty dot.
+class _ChatTab extends StatelessWidget {
   const _ChatTab({
     super.key,
     required this.thread,
@@ -569,118 +526,21 @@ class _ChatTab extends StatefulWidget {
   final ValueChanged<Offset> onMenu;
 
   @override
-  State<_ChatTab> createState() => _ChatTabState();
-}
-
-class _ChatTabState extends State<_ChatTab> {
-  bool _hover = false;
-
-  /// The title's width in bold whether or not the tab is active, so that
-  /// selecting a tab does not widen it and nudge the tabs after it.
-  double _titleWidth(BuildContext context) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: widget.title,
-        style: DefaultTextStyle.of(context).style
-            .merge(const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-      ),
-      maxLines: 1,
-      textDirection: Directionality.of(context),
-      textScaler: MediaQuery.textScalerOf(context),
-      locale: Localizations.maybeLocaleOf(context),
-    )..layout();
-    final width = painter.width.ceilToDouble();
-    painter.dispose();
-    return width > 140 ? 140 : width;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = themeColors;
-    final active = widget.active;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onSelect,
-        // A middle click closes it, as an editor tab.
-        onTertiaryTapUp: (_) => widget.onClose(),
-        onSecondaryTapUp: (details) => widget.onMenu(details.globalPosition),
-        child: Container(
-          height: 26,
-          margin: const EdgeInsets.only(right: 2),
-          padding: const EdgeInsets.only(left: 8, right: 2),
-          decoration: BoxDecoration(
-            // The same selection color the side bar's rows wear, whole: the
-            // chat's own tab is the one the pane shows, as a selected row
-            // is the one its pane shows.
-            color: active
-                ? colors['list.activeSelectionBackground']
-                : _hover
-                ? colors['list.hoverBackground']
-                : null,
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // A spinner before its title while its agent runs, hovered
-              // or not.
-              _StatusBuilder(
-                widget.thread,
-                (context, status) => status == ThreadStatus.running
-                    ? const Padding(
-                        padding: EdgeInsetsDirectional.only(end: 6),
-                        child: _StatusMark(ThreadStatus.running),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-              SizedBox(
-                width: _titleWidth(context),
-                child: Text(
-                  widget.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-                    color: active
-                        ? IdeViewTitle.foreground
-                        : colors['descriptionForeground'],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 2),
-              // A dot where the close button goes when its agent asks or
-              // finished unseen, but while the pointer is over it (as an
-              // editor tab's dirty dot).
-              _StatusBuilder(
-                widget.thread,
-                (context, status) =>
-                    (status == ThreadStatus.needsInput ||
-                            status == ThreadStatus.unread) &&
-                        !_hover
-                    ? SizedBox.square(
-                        dimension: 20,
-                        child: Center(child: _StatusMark(status)),
-                      )
-                    : Opacity(
-                        opacity: active || _hover ? 1 : 0,
-                        child: IdeActionButton(
-                          icon: Codicons.close,
-                          tooltip: widget.closeTooltip,
-                          onPressed: widget.onClose,
-                          size: 20,
-                          iconSize: 14,
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _StatusBuilder(
+    thread,
+    (context, status) => IdeEditorTab(
+      icon: _ThreadIcon(thread),
+      label: title,
+      active: active,
+      mark: switch (status) {
+        ThreadStatus.needsInput ||
+        ThreadStatus.unread => (_) => Center(child: _StatusMark(status)),
+        _ => null,
+      },
+      closeTooltip: closeTooltip,
+      onSelect: onSelect,
+      onClose: onClose,
+      onMenu: onMenu,
+    ),
+  );
 }

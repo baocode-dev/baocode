@@ -2085,7 +2085,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             commitMessage: (prompt, {cancel}) =>
                 ideClaudeCommitMessage(prompt, cancel: cancel, location: path),
             chat: shown
-                ? _conversation(_buildIdeChat(path))
+                ? _ideConversation(_buildIdeChat(path))
                 : const SizedBox.shrink(),
           ),
         ),
@@ -2120,12 +2120,20 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           // width), would each half cover the pixel there, and the material
           // would show through the seam.
           Expanded(
+            // The handle over the conversations' edge, its line alone
+            // beside them: nothing between a pane's color and the line.
             child: _conversation(
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              Stack(
+                fit: StackFit.expand,
                 children: [
-                  if (_sidebarDocked) _buildResizeHandle(),
-                  Expanded(child: panes),
+                  Positioned.fill(left: _sidebarDocked ? 1 : 0, child: panes),
+                  if (_sidebarDocked)
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: _buildResizeHandle(),
+                    ),
                 ],
               ),
             ),
@@ -2237,6 +2245,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   static Widget _conversation(Widget child) =>
       ColoredBox(color: AppColors.conversationSurface, child: child);
+
+  /// The IDE's chat: the editor's color, opaque, as the editor beside it.
+  static Widget _ideConversation(Widget child) =>
+      ColoredBox(color: AppColors.code, child: child);
 
   Widget _buildSidebar({VoidCallback? onOpened}) {
     // An agent's window shows what is picked or made here in its place;
@@ -2488,7 +2500,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 100),
             width: _dragging ? IdeModernUI.gap : 1,
-            color: _dragging ? IdeModernUI.sashHover : AppColors.border,
+            color: _dragging ? IdeModernUI.sashHover : AppColors.partBorder,
           ),
         ),
       ),
@@ -2805,6 +2817,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
       paneBuilder: (context, thread, place) =>
           _buildChat(showToggle: showToggle, pane: thread, place: place),
+      // Those not focused in the sidebar's color, set apart.
+      paneBackground: (thread) => identical(thread, _workspace.current)
+          ? null
+          : AppColors.unfocusedConversationSurface,
       onLinesMoved: _workspace.keepGridLines,
     );
   }

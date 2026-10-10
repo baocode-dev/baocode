@@ -74,8 +74,10 @@ class IdeSearchSession extends ChangeNotifier {
   bool useRegExp = false;
   bool preserveCase = false;
   bool useExcludesAndIgnoreFiles = true;
-  bool replaceShown = false;
-  bool detailsShown = false;
+  // All of it shows at first: the replace input, and the files to include
+  // and exclude (a deviation: upstream's are folded away).
+  bool replaceShown = true;
+  bool detailsShown = true;
 
   final List<IdeSearchFileResult> results = [];
   final Set<String> collapsed = {};

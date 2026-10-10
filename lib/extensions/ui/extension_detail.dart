@@ -26,6 +26,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../chat/widgets/markdown_view.dart';
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
+import '../../platform/svg_text_transform.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../capabilities/capability_analysis.dart';
@@ -39,6 +40,7 @@ import '../vsix/zip_reader.dart' show decodeText;
 import 'extension_widgets.dart';
 import 'extensions_model.dart';
 import 'readme_html.dart';
+import '../../ide/ide_hover.dart';
 
 enum ExtensionDetailTab { details, features, changelog }
 
@@ -335,7 +337,7 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
                         if (gallery?.verified ?? false)
                           Padding(
                             padding: const EdgeInsets.only(left: 4),
-                            child: Tooltip(
+                            child: IdeHover(
                               message: l10n.extsVerifiedPublisher,
                               child: Icon(
                                 Codicons.verifiedFilled,
@@ -969,7 +971,7 @@ class _MarkdownImageState extends State<_MarkdownImage> {
         return ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 480, maxWidth: 900),
           child: svg
-              ? SvgPicture.memory(data, height: 20)
+              ? SvgPicture(SvgTextBytesLoader(data), height: 20)
               : Image.memory(data, errorBuilder: (_, _, _) => alt),
         );
       },

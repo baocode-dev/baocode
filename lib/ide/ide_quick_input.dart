@@ -28,6 +28,7 @@
 // active item and then the match; and a quick navigation whose modifier was
 // let go before the quick input showed (it shows a frame later) accepts as
 // it shows.
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -287,6 +288,30 @@ class IdeQuickInput extends StatefulWidget {
   static const detailRowHeight = 44.0;
   static const maxVisibleRows = 14;
 
+  /// `cornerRadius.xLarge`.
+  static const cornerRadius = 12.0;
+
+  /// The input's and the rows': `cornerRadius.medium` (upstream's rows are
+  /// 3px; a deviation, so both follow the widget's corners 6px in).
+  static const innerRadius = 6.0;
+
+  /// `--vscode-shadow-xl`'s spread, `0 0 20px`, in the theme's
+  /// `widget.shadow` rather than its fixed 15% black, which dark themes
+  /// hide: CSS blurs to a sigma of half the radius, Flutter to
+  /// `radius * 0.57735 + 0.5`. None without one (high contrast).
+  static List<BoxShadow> get shadows => [
+    if (themeColors.get('widget.shadow') case final color?)
+      BoxShadow(color: color, blurRadius: (10 - 0.5) / 0.57735),
+  ];
+
+  /// `widget.border`, else the editor's foreground faintly: most themes
+  /// have none, and their widget's background is near the editor's.
+  static Color get border {
+    if (themeColors.get('widget.border') case final border?) return border;
+    final foreground = themeColors['editor.foreground'];
+    return foreground.withValues(alpha: foreground.a * 0.12);
+  }
+
   @override
   State<IdeQuickInput> createState() => IdeQuickInputState();
 }
@@ -371,6 +396,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
         ? TextSelection(baseOffset: 0, extentOffset: widget.initialText.length)
         : TextSelection.collapsed(offset: widget.initialText.length);
     _controller.addListener(_textEdited);
+    _focusNode.addListener(_keepSelection);
     widget.refresh?.addListener(_recompute);
     if (widget.inputBox case final box?) {
       _lastText = _controller.text;
@@ -403,6 +429,19 @@ class IdeQuickInputState extends State<IdeQuickInput> {
         _quickNavigate = null;
         if (_active != null) _accept();
       }
+    });
+  }
+
+  /// The selection as it was before the input had the focus: on desktop a
+  /// one-line field selects all of itself as it gets it, where upstream's
+  /// `>` keeps the caret after it. This listener is the focus node's first
+  /// (the field's comes after), so it sees the selection as it was.
+  void _keepSelection() {
+    if (!_focusNode.hasFocus) return;
+    final selection = _controller.selection;
+    if (!selection.isValid) return;
+    scheduleMicrotask(() {
+      if (mounted && _focusNode.hasFocus) _controller.selection = selection;
     });
   }
 
@@ -733,106 +772,117 @@ class IdeQuickInputState extends State<IdeQuickInput> {
                 left: (constraints.maxWidth - width) / 2,
                 width: width,
                 // `.quick-input-widget`: `quickInput.*`, `widget.border`
-                // and `widget.shadow` (quickInputService.ts).
-                child: Material(
-                  color: colors['quickInput.background'],
-                  elevation: 12,
-                  shadowColor: colors['widget.shadow'],
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    side: switch (colors.get('widget.border')) {
-                      final border? => BorderSide(color: border),
-                      null => BorderSide.none,
-                    },
+                // (quickInputController.ts), `cornerRadius.xLarge` and
+                // `--vscode-shadow-xl` (quickInput.css, style.css).
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(
+                      IdeQuickInput.cornerRadius,
+                    ),
+                    boxShadow: IdeQuickInput.shadows,
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (_inputHidden)
-                        const SizedBox(height: 4)
-                      else
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
-                          child: TextField(
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            autocorrect: false,
-                            enableSuggestions: false,
-                            cursorColor: IdeInputColors.foreground,
-                            cursorWidth: 1.5,
-                            cursorHeight: ideCaretHeight(13),
-                            style: TextStyle(
-                              color: IdeInputColors.foreground,
-                              fontSize: 13,
-                            ),
-                            decoration: InputDecoration(
-                              isDense: true,
-                              hintText: placeholder,
-                              hintStyle: TextStyle(
-                                color: IdeInputColors.placeholder,
+                  child: Material(
+                    color: colors['quickInput.background'],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        IdeQuickInput.cornerRadius,
+                      ),
+                      side: BorderSide(color: IdeQuickInput.border),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_inputHidden)
+                          const SizedBox(height: 4)
+                        else
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
+                            child: TextField(
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              cursorColor: IdeInputColors.foreground,
+                              cursorWidth: 1.5,
+                              cursorHeight: ideCaretHeight(13),
+                              style: TextStyle(
+                                color: IdeInputColors.foreground,
                                 fontSize: 13,
                               ),
-                              filled: true,
-                              fillColor: IdeInputColors.background,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 7,
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(3),
-                                borderSide: BorderSide(
-                                  color:
-                                      validationBorder ?? IdeInputColors.border,
+                              decoration: InputDecoration(
+                                isDense: true,
+                                hintText: placeholder,
+                                hintStyle: TextStyle(
+                                  color: IdeInputColors.placeholder,
+                                  fontSize: 13,
                                 ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(3),
-                                borderSide: BorderSide(
-                                  color:
-                                      validationBorder ??
-                                      IdeInputColors.focusBorder,
+                                filled: true,
+                                fillColor: IdeInputColors.background,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 7,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    IdeQuickInput.innerRadius,
+                                  ),
+                                  borderSide: BorderSide(
+                                    color:
+                                        validationBorder ??
+                                        IdeInputColors.border,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    IdeQuickInput.innerRadius,
+                                  ),
+                                  borderSide: BorderSide(
+                                    color:
+                                        validationBorder ??
+                                        IdeInputColors.focusBorder,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      if (widget.inputBox case final box?)
-                        _InputBoxMessage(
-                          prompt: box.prompt,
-                          validation: _validation,
-                        ),
-                      if (_rows.isNotEmpty)
-                        SizedBox(
-                          height: listHeight,
-                          child: ListView.builder(
-                            controller: _scroll,
-                            padding: EdgeInsets.zero,
-                            itemExtentBuilder: (index, _) =>
-                                index < _rows.length
-                                ? _heightOf(_rows[index])
-                                : null,
-                            itemCount: _rows.length,
-                            itemBuilder: (context, index) {
-                              final row = _rows[index];
-                              return _QuickPickRow(
-                                item: row.item,
-                                labelMatches: row.label,
-                                descriptionMatches: row.description,
-                                group: row.separator?.label ?? row.item.group,
-                                // Upstream draws no line on the first row.
-                                separatorLine:
-                                    row.separator != null && index > 0,
-                                message: !_selectable(row),
-                                selected: index == _selected,
-                                onTap: () => _accept(index),
-                              );
-                            },
+                        if (widget.inputBox case final box?)
+                          _InputBoxMessage(
+                            prompt: box.prompt,
+                            validation: _validation,
                           ),
-                        ),
-                      const SizedBox(height: 4),
-                    ],
+                        if (_rows.isNotEmpty)
+                          SizedBox(
+                            height: listHeight,
+                            child: ListView.builder(
+                              controller: _scroll,
+                              padding: EdgeInsets.zero,
+                              itemExtentBuilder: (index, _) =>
+                                  index < _rows.length
+                                  ? _heightOf(_rows[index])
+                                  : null,
+                              itemCount: _rows.length,
+                              itemBuilder: (context, index) {
+                                final row = _rows[index];
+                                return _QuickPickRow(
+                                  item: row.item,
+                                  labelMatches: row.label,
+                                  descriptionMatches: row.description,
+                                  group: row.separator?.label ?? row.item.group,
+                                  // Upstream draws no line on the first row.
+                                  separatorLine:
+                                      row.separator != null && index > 0,
+                                  message: !_selectable(row),
+                                  selected: index == _selected,
+                                  onTap: () => _accept(index),
+                                );
+                              },
+                            ),
+                          ),
+                        const SizedBox(height: 4),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1011,7 +1061,7 @@ class _QuickPickRowState extends State<_QuickPickRow> {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(3),
+        borderRadius: BorderRadius.circular(IdeQuickInput.innerRadius),
         border: outline == null ? null : Border.all(color: outline),
       ),
       child: line,

@@ -278,7 +278,7 @@ class StepBody extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           header,
-          Divider(height: 1, thickness: 1, color: AppColors.border),
+          Divider(height: 1, thickness: 1, color: AppColors.partBorder),
           body,
         ],
       );
@@ -289,7 +289,7 @@ class StepBody extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.code,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: AppColors.partBorder),
       ),
       clipBehavior: Clip.antiAlias,
       child: body,

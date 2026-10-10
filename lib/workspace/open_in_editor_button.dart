@@ -76,7 +76,7 @@ class OpenInEditorButton extends StatelessWidget {
         height: 22,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.partBorder),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -109,7 +109,7 @@ class OpenInEditorButton extends StatelessWidget {
                 ],
               ),
             ),
-            Container(width: 1, color: AppColors.border),
+            Container(width: 1, color: AppColors.partBorder),
             _Segment(
               semanticsLabel: context.l10n.workspaceChooseEditor,
               active: menu.isOpen,

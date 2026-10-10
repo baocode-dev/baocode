@@ -368,7 +368,7 @@ if (add(p, q).x >= 0 && p !== q) {
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: AppColors.partBorder),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),

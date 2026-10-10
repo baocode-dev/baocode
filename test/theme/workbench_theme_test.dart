@@ -114,6 +114,32 @@ void main() {
     );
   });
 
+  test('the line between the parts is the theme\'s, else where it would not '
+      'show, the editor\'s foreground faintly', () async {
+    final kept = WorkbenchThemeService.instance;
+    addTearDown(() => WorkbenchThemeService.instance = kept);
+    Future<Color> line(String setting) async {
+      final themes = WorkbenchThemeService()..restore(setting: setting);
+      await themes.initialize();
+      WorkbenchThemeService.instance = themes;
+      return AppColors.partBorder;
+    }
+
+    // Its side bar's border.
+    expect(await line('Dark Modern'), const Color(0xFF2B2B2B));
+    // Its `surface.border`, apart from both backgrounds.
+    expect(await line('Abyss'), const Color(0xFF2B2B4A));
+    // Transparent; its editor's background.
+    expect(
+      await line('Quiet Light'),
+      const Color(0xFF333333).withValues(alpha: 0.1),
+    );
+    expect(
+      await line('Monokai'),
+      const Color(0xFFF8F8F2).withValues(alpha: 0.1),
+    );
+  });
+
   test('a theme gone falls back to the default', () async {
     final themes = WorkbenchThemeService()..restore(setting: 'No Such Theme');
     await themes.initialize();

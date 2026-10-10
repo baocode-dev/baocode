@@ -14,6 +14,7 @@ import 'chat_models.dart';
 import 'composer/composer_draft.dart';
 import 'mock_conversation.dart';
 import 'review/change_review.dart';
+import 'review/change_reviews.dart';
 import 'review/review_store.dart';
 
 /// Opens the review of a project's changes (see [ChangeReview.open]).
@@ -159,8 +160,8 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   final ChangeReviewOpener? _openReview;
 
   /// The review of the changes, while it opens; null when there is none.
-  Future<ChangeReview?>? _reviewOpening;
-  ChangeReview? _review;
+  Future<ChangeReviews?>? _reviewOpening;
+  ChangeReviews? _review;
 
   /// Messages wait on the snapshot before them, and go in order.
   Future<void> _sending = Future.value();
@@ -170,33 +171,37 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   /// The review, while it holds: null before it opened, or once it failed
   /// (the changes are then those the kernel reported).
-  ChangeReview? get _activeReview => switch (_review) {
+  ChangeReviews? get _activeReview => switch (_review) {
     final review? when review.failure == null => review,
     _ => null,
   };
 
-  /// Opens the review of the project, the first time; and snapshots it,
-  /// so that the first message need not wait.
+  /// Opens the review of the project (each of its folders, in a
+  /// multi-folder workspace), the first time; and snapshots it, so that
+  /// the first message need not wait.
   void _startReview() {
     if (_reviewOpening != null) return;
     final open = _openReview;
     final root = kernelContext.cwd;
     if (open == null || root == null) return;
-    _reviewOpening = open(root, session: kernelContext.resume?.id).then((
-      review,
-    ) {
-      if (review == null) return null;
-      if (_disposed) {
-        review.dispose();
-        return null;
-      }
-      _review = review
-        ..session = sessionId
-        ..addListener(_reviewChanged);
-      unawaited(review.begin());
-      notifyListeners();
-      return review;
-    }, onError: (Object _) => null);
+    _reviewOpening =
+        ChangeReviews.open(
+          [root, ...?kernelContext.workspace?.call()?.folders],
+          open: open,
+          session: kernelContext.resume?.id,
+        ).then((review) {
+          if (review == null) return null;
+          if (_disposed) {
+            review.dispose();
+            return null;
+          }
+          _review = review
+            ..session = sessionId
+            ..addListener(_reviewChanged);
+          unawaited(review.begin());
+          notifyListeners();
+          return review;
+        }, onError: (Object _) => null);
   }
 
   void _reviewChanged() {

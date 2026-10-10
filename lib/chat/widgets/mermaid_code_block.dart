@@ -116,7 +116,7 @@ class _MermaidCodeBlockState extends State<MermaidCodeBlock> {
               lineColor: color(foreground),
               arrowheadColor: color(foreground),
               clusterBkg: color(background),
-              clusterBorder: color(AppColors.border),
+              clusterBorder: color(AppColors.partBorder),
               edgeLabelBackground: color(background),
               fontFamily: DefaultTextStyle.of(context).style.fontFamily,
               fontSize: 13,

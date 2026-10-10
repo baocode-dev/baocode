@@ -128,9 +128,17 @@ void main() {
     expect(queries.last.isWordMatch, isTrue);
     await press(tester, LogicalKeyboardKey.keyW, alt: true);
 
-    // Ctrl+Down: the results, their first row focused.
-    await press(tester, LogicalKeyboardKey.arrowDown, control: true);
-    expect(focused(state), 'listFocus');
+    // Ctrl+Down: through the inputs, all shown at first, to the results,
+    // their first row focused.
+    for (final next in const [
+      'replaceInputBoxFocus',
+      'patternIncludesInputBoxFocus',
+      'patternExcludesInputBoxFocus',
+      'listFocus',
+    ]) {
+      await press(tester, LogicalKeyboardKey.arrowDown, control: true);
+      expect(focused(state), next);
+    }
     expect(state.keyContext('inputFocus'), isFalse);
     expect(state.keyContext('firstMatchFocus'), isTrue);
     expect(state.keyContext('fileMatchFocus'), isTrue);
@@ -151,12 +159,12 @@ void main() {
     expect(find.text('foo one'), findsOneWidget);
     await press(tester, LogicalKeyboardKey.arrowRight);
     expect(state.keyContext('matchFocus'), isTrue);
-    // Ctrl+Up from the first row only: back to the search input.
+    // Ctrl+Up from the first row only: back to the last input.
     await press(tester, LogicalKeyboardKey.arrowUp, control: true);
     expect(focused(state), 'listFocus');
     await press(tester, LogicalKeyboardKey.arrowUp);
     await press(tester, LogicalKeyboardKey.arrowUp, control: true);
-    expect(focused(state), 'searchInputBoxFocus');
+    expect(focused(state), 'patternExcludesInputBoxFocus');
 
     // End, then Delete: b.dart's match is dismissed (search.action.remove).
     await press(tester, LogicalKeyboardKey.arrowDown, control: true);
@@ -204,29 +212,45 @@ void main() {
     await type(tester, 'Search', 'foo');
     await type(tester, 'Replace', 'bar');
     expect(focused(state), 'replaceInputBoxFocus');
-    // Ctrl+Up / Ctrl+Down: search, replace, then the results.
+    // Ctrl+Up / Ctrl+Down: search, replace, the files to include and
+    // exclude, then the results.
     await press(tester, LogicalKeyboardKey.arrowUp, control: true);
     expect(focused(state), 'searchInputBoxFocus');
-    await press(tester, LogicalKeyboardKey.arrowDown, control: true);
-    expect(focused(state), 'replaceInputBoxFocus');
-    await press(tester, LogicalKeyboardKey.arrowDown, control: true);
-    expect(focused(state), 'listFocus');
+    for (final next in const [
+      'replaceInputBoxFocus',
+      'patternIncludesInputBoxFocus',
+      'patternExcludesInputBoxFocus',
+      'listFocus',
+    ]) {
+      await press(tester, LogicalKeyboardKey.arrowDown, control: true);
+      expect(focused(state), next);
+    }
     // Ctrl+Shift+1 on a match replaces it.
     await press(tester, LogicalKeyboardKey.arrowDown);
     await press(tester, LogicalKeyboardKey.digit1, control: true, shift: true);
     final contents = (workspace.files as TreeFiles).contents;
     expect(contents[inRoot('lib/a.dart')], 'bar one\nFoo two');
     expect(find.text('2 results in 2 files'), findsOneWidget);
-    // Ctrl+Up from the first row: the replace input; Escape hides it.
+    // Ctrl+Up from the first row: back through the inputs to the replace
+    // input; Escape hides it.
     await press(tester, LogicalKeyboardKey.home);
-    await press(tester, LogicalKeyboardKey.arrowUp, control: true);
-    expect(focused(state), 'replaceInputBoxFocus');
+    for (final next in const [
+      'patternExcludesInputBoxFocus',
+      'patternIncludesInputBoxFocus',
+      'replaceInputBoxFocus',
+    ]) {
+      await press(tester, LogicalKeyboardKey.arrowUp, control: true);
+      expect(focused(state), next);
+    }
     await press(tester, LogicalKeyboardKey.escape);
     expect(state.keyContext('replaceActive'), isFalse);
     expect(input('Replace'), findsNothing);
     expect(focused(state), 'searchInputBoxFocus');
 
-    // Ctrl+Shift+J: the files to include, focused; then to exclude.
+    // Ctrl+Shift+J hides the files to include and exclude, shown at first;
+    // again, it shows them, the files to include focused.
+    await press(tester, LogicalKeyboardKey.keyJ, control: true, shift: true);
+    expect(input('files to include'), findsNothing);
     await press(tester, LogicalKeyboardKey.keyJ, control: true, shift: true);
     expect(focused(state), 'patternIncludesInputBoxFocus');
     await press(tester, LogicalKeyboardKey.arrowDown, control: true);
@@ -271,12 +295,17 @@ void main() {
     expect(queries.last.pattern, 'fo+');
     expect(queries.last.isRegExp, isTrue);
     expect(queries.last.includes, 'lib');
-    expect(find.text('files to include'), findsNothing);
+    // All the inputs show, as at first.
+    expect(find.text('files to include'), findsOneWidget);
     expect(find.text('3 results in 2 files'), findsOneWidget);
-    expect(state.keyContext('replaceActive'), isFalse);
+    expect(state.keyContext('replaceActive'), isTrue);
     expect(state.keyContext('viewHasFilePattern'), isTrue);
 
-    await press(tester, LogicalKeyboardKey.arrowDown, control: true);
+    // Past the replace input and the files to include and exclude.
+    for (var i = 0; i < 4; i++) {
+      await press(tester, LogicalKeyboardKey.arrowDown, control: true);
+    }
+    expect(focused(state), 'listFocus');
     await press(tester, LogicalKeyboardKey.keyJ, control: true, alt: true);
     final view = tester.state<IdeSearchViewState>(find.byType(IdeSearchView));
     expect(view.listFocusedIndex, 2);
@@ -284,9 +313,10 @@ void main() {
     await press(tester, LogicalKeyboardKey.keyR, control: true, alt: true);
     expect(state.keyContext('replaceActive'), isTrue);
     expect(tester.widget<EditableText>(input('Replace')).controller.text, 'x');
-    // Ctrl+Shift+F again: no replace.
+    // Ctrl+Shift+F again, without `replace`: the replace input as it was.
     await press(tester, LogicalKeyboardKey.keyF, control: true, shift: true);
-    expect(state.keyContext('replaceActive'), isFalse);
+    expect(state.keyContext('replaceActive'), isTrue);
+    expect(tester.widget<EditableText>(input('Replace')).controller.text, 'x');
   });
 
   testWidgets('macOS: ⌥⌘C toggles Match Case, or copies a file row\'s path', (

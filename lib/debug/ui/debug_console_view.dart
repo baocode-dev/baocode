@@ -12,6 +12,7 @@
 import 'dart:async';
 
 import '../../base/cancellation.dart' show CancellationTokenSource;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -33,11 +34,13 @@ import 'debug_icons.dart';
 import 'debug_strings.dart';
 import 'debug_toolbar.dart';
 import 'debug_widgets.dart';
+import '../../ide/ide_hover.dart';
 
 Color _severityColor(ReplSeverity sev) => switch (sev) {
   ReplSeverity.error => debugColor('debugConsole.errorForeground'),
   ReplSeverity.warning => debugColor('debugConsole.warningForeground'),
-  ReplSeverity.info || ReplSeverity.ignore => debugColor('debugConsole.infoForeground'),
+  ReplSeverity.info ||
+  ReplSeverity.ignore => debugColor('debugConsole.infoForeground'),
 };
 
 final _neverCancelled = CancellationTokenSource().token;
@@ -114,7 +117,13 @@ class DebugConsoleViewState extends State<DebugConsoleView> {
             '  .clear - Clear the console',
             '  .help - Show this help',
           ]) {
-            session.appendToRepl(NewReplElementData(output: '$line\n', sev: ReplSeverity.info, source: null));
+            session.appendToRepl(
+              NewReplElementData(
+                output: '$line\n',
+                sev: ReplSeverity.info,
+                source: null,
+              ),
+            );
           }
           _input.clear();
           setState(() {});
@@ -132,7 +141,8 @@ class DebugConsoleViewState extends State<DebugConsoleView> {
     final text = _input.text;
     if (session == null || text.isEmpty) return;
     final frame = service.viewModel.focusedStackFrame;
-    final threadId = frame?.thread.threadId ?? debugActionThread(service)?.threadId;
+    final threadId =
+        frame?.thread.threadId ?? debugActionThread(service)?.threadId;
     if (threadId == null) return;
     try {
       final response = await session.completions(
@@ -145,12 +155,18 @@ class DebugConsoleViewState extends State<DebugConsoleView> {
       final targets = response?.obj('body')?.objects('targets');
       if (targets == null || targets.isEmpty || !mounted) return;
       final box = _inputFocus.context?.findRenderObject() as RenderBox?;
-      final anchor = box != null ? box.localToGlobal(Offset.zero) & box.size : Offset.zero & const Size(1, 1);
+      final anchor = box != null
+          ? box.localToGlobal(Offset.zero) & box.size
+          : Offset.zero & const Size(1, 1);
       await showIdeMenu(
         context,
         anchor: anchor,
         entries: [
-          for (final t in targets) IdeMenuAction(t.str('label') ?? '', onSelected: () => _insertCompletion(t)),
+          for (final t in targets)
+            IdeMenuAction(
+              t.str('label') ?? '',
+              onSelected: () => _insertCompletion(t),
+            ),
         ],
       );
     } on Object {
@@ -162,8 +178,13 @@ class DebugConsoleViewState extends State<DebugConsoleView> {
     final label = target.str('text') ?? target.str('label') ?? '';
     final text = _input.text;
     final match = RegExp(r'[A-Za-z0-9_$]+$').firstMatch(text);
-    final replaced = match != null ? '${text.substring(0, match.start)}$label' : '$text$label';
-    _input.value = TextEditingValue(text: replaced, selection: TextSelection.collapsed(offset: replaced.length));
+    final replaced = match != null
+        ? '${text.substring(0, match.start)}$label'
+        : '$text$label';
+    _input.value = TextEditingValue(
+      text: replaced,
+      selection: TextSelection.collapsed(offset: replaced.length),
+    );
     _inputFocus.requestFocus();
     setState(() {});
   }
@@ -177,7 +198,11 @@ class DebugConsoleViewState extends State<DebugConsoleView> {
   void copyAll() {
     final session = _session;
     if (session == null) return;
-    unawaited(debugCopy([for (final e in session.getReplElements()) e.toString()].join('\n')));
+    unawaited(
+      debugCopy(
+        [for (final e in session.getReplElements()) e.toString()].join('\n'),
+      ),
+    );
   }
 
   void _historyMove(int delta) {
@@ -189,15 +214,28 @@ class DebugConsoleViewState extends State<DebugConsoleView> {
     ];
     if (expressions.isEmpty) return;
     _history = (_history + delta).clamp(-1, expressions.length - 1);
-    final text = _history < 0 ? '' : expressions[expressions.length - 1 - _history];
-    _input.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
+    final text = _history < 0
+        ? ''
+        : expressions[expressions.length - 1 - _history];
+    _input.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
     setState(() {});
   }
 
   /// The console's title actions.
   List<Widget> actions(BuildContext context) => [
-    IdePaneAction(icon: Codicons.clearAll, tooltip: DebugStrings.of(context).clearConsole, onPressed: clear),
-    IdePaneAction(icon: Codicons.copy, tooltip: DebugStrings.of(context).copyAll, onPressed: copyAll),
+    IdePaneAction(
+      icon: Codicons.clearAll,
+      tooltip: DebugStrings.of(context).clearConsole,
+      onPressed: clear,
+    ),
+    IdePaneAction(
+      icon: Codicons.copy,
+      tooltip: DebugStrings.of(context).copyAll,
+      onPressed: copyAll,
+    ),
   ];
 
   @override
@@ -209,12 +247,18 @@ class DebugConsoleViewState extends State<DebugConsoleView> {
       children: [
         Expanded(
           child: elements.isEmpty
-              ? DebugEmptyMessage(session == null ? s.noSession : s.debugConsole)
+              ? DebugEmptyMessage(
+                  session == null ? s.noSession : s.debugConsole,
+                )
               : ListView.builder(
                   controller: _scroll,
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   itemCount: elements.length,
-                  itemBuilder: (context, index) => _ReplRow(service: service, element: elements[index], depth: 0),
+                  itemBuilder: (context, index) => _ReplRow(
+                    service: service,
+                    element: elements[index],
+                    depth: 0,
+                  ),
                 ),
         ),
         _ConsoleInput(
@@ -253,10 +297,16 @@ class _ConsoleInput extends StatelessWidget {
     return Container(
       height: 32,
       padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(border: Border(top: BorderSide(color: debugColor('panel.border')))),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: debugColor('panel.border'))),
+      ),
       child: Row(
         children: [
-          Icon(Codicons.chevronRight, size: 14, color: debugColor('debugConsoleInputIcon.foreground')),
+          Icon(
+            Codicons.chevronRight,
+            size: 14,
+            color: debugColor('debugConsoleInputIcon.foreground'),
+          ),
           const SizedBox(width: 4),
           Expanded(
             child: IdeInputBox(
@@ -266,9 +316,12 @@ class _ConsoleInput extends StatelessWidget {
               semanticsLabel: s.debugConsole,
               onSubmitted: (_) => onSubmitted(),
               shortcuts: {
-                const SingleActivator(LogicalKeyboardKey.space, alt: true): onComplete,
-                const SingleActivator(LogicalKeyboardKey.arrowUp): () => onHistory(1),
-                const SingleActivator(LogicalKeyboardKey.arrowDown): () => onHistory(-1),
+                const SingleActivator(LogicalKeyboardKey.space, alt: true):
+                    onComplete,
+                const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+                    onHistory(1),
+                const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+                    onHistory(-1),
               },
             ),
           ),
@@ -282,8 +335,12 @@ class _ConsoleInput extends StatelessWidget {
 /// and without children lines up.
 const _twistieWidth = 16.0;
 
-TextStyle _rowStyle(Color color, {bool italic = false}) =>
-    TextStyle(fontSize: 13, height: 1.25, color: color, fontStyle: italic ? FontStyle.italic : null);
+TextStyle _rowStyle(Color color, {bool italic = false}) => TextStyle(
+  fontSize: 13,
+  height: 1.25,
+  color: color,
+  fontStyle: italic ? FontStyle.italic : null,
+);
 
 /// [text] as upstream's `white-space: pre` shows it: a last line break
 /// draws no empty line.
@@ -304,7 +361,11 @@ Color _inputIconColor() {
 }
 
 class _ReplRow extends StatelessWidget {
-  const _ReplRow({required this.service, required this.element, required this.depth});
+  const _ReplRow({
+    required this.service,
+    required this.element,
+    required this.depth,
+  });
 
   final DebugService service;
   final Object element;
@@ -320,12 +381,22 @@ class _ReplRow extends StatelessWidget {
       // The input with its marker in the twistie's place.
       ReplEvaluationInput() => _Row(
         depth: depth,
-        leading: Icon(Codicons.arrowSmallRight, size: 14, color: _inputIconColor()),
-        child: SelectableText(element.value, style: _rowStyle(debugColor('foreground'))),
+        leading: Icon(
+          Codicons.arrowSmallRight,
+          size: 14,
+          color: _inputIconColor(),
+        ),
+        child: SelectableText(
+          element.value,
+          style: _rowStyle(debugColor('foreground')),
+        ),
       ),
       _ => _Row(
         depth: depth,
-        child: SelectableText(_shown('$element'), style: _rowStyle(debugColor('foreground'))),
+        child: SelectableText(
+          _shown('$element'),
+          style: _rowStyle(debugColor('foreground')),
+        ),
       ),
     };
   }
@@ -341,7 +412,12 @@ class _Row extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(left: 8 + depth * IdeListColors.indent, right: 8, top: 1, bottom: 1),
+    padding: EdgeInsets.only(
+      left: 8 + depth * IdeListColors.indent,
+      right: 8,
+      top: 1,
+      bottom: 1,
+    ),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -355,7 +431,11 @@ class _Row extends StatelessWidget {
 /// An element that may have children: output (of a variable), a group, an
 /// evaluation's result and the variables under it, a raw object.
 class _NestingRow extends StatefulWidget {
-  const _NestingRow({required this.service, required this.element, required this.depth});
+  const _NestingRow({
+    required this.service,
+    required this.element,
+    required this.depth,
+  });
 
   final DebugService service;
 
@@ -368,7 +448,8 @@ class _NestingRow extends StatefulWidget {
 }
 
 class _NestingRowState extends State<_NestingRow> {
-  late bool _expanded = widget.element is ReplGroup && (widget.element as ReplGroup).autoExpand;
+  late bool _expanded =
+      widget.element is ReplGroup && (widget.element as ReplGroup).autoExpand;
   List<Object> _children = const [];
   bool _loaded = false;
 
@@ -417,7 +498,11 @@ class _NestingRowState extends State<_NestingRow> {
         ),
         if (_expanded)
           for (final child in children ?? _children)
-            _ReplRow(service: widget.service, element: child, depth: widget.depth + 1),
+            _ReplRow(
+              service: widget.service,
+              element: child,
+              depth: widget.depth + 1,
+            ),
       ],
     );
   }
@@ -440,12 +525,18 @@ class _NestingRowState extends State<_NestingRow> {
       Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (o.count >= 2) ...[IdeCountBadge(o.count), const SizedBox(width: 4)],
+          if (o.count >= 2) ...[
+            IdeCountBadge(o.count),
+            const SizedBox(width: 4),
+          ],
           Expanded(
             child: SelectableText.rich(
               ansiTextSpan(
                 _shown(o.value),
-                _rowStyle(_outputColor(o.severity), italic: o.severity == ReplSeverity.ignore),
+                _rowStyle(
+                  _outputColor(o.severity),
+                  italic: o.severity == ReplSeverity.ignore,
+                ),
                 background: debugColor('panel.background'),
               ),
             ),
@@ -457,16 +548,31 @@ class _NestingRowState extends State<_NestingRow> {
       g.session,
       g.sourceData,
       SelectableText.rich(
-        ansiTextSpan(_shown(g.name), _rowStyle(debugColor('foreground')), background: debugColor('panel.background')),
+        ansiTextSpan(
+          _shown(g.name),
+          _rowStyle(debugColor('foreground')),
+          background: debugColor('panel.background'),
+        ),
       ),
     ),
-    final ReplVariableElement v => _withSource(v.getSession(), v.sourceData, DebugExpressionLabel.of(v.expression)),
+    final ReplVariableElement v => _withSource(
+      v.getSession(),
+      v.sourceData,
+      DebugExpressionLabel.of(v.expression),
+    ),
     final DebugExpression e => DebugExpressionLabel.of(e),
-    _ => SelectableText(_shown('$element'), style: _rowStyle(debugColor('foreground'))),
+    _ => SelectableText(
+      _shown('$element'),
+      style: _rowStyle(debugColor('foreground')),
+    ),
   };
 
   /// [child] with its source on the right, a link to it (`SourceWidget`).
-  Widget _withSource(DebugSession session, ReplElementSource? data, Widget child) {
+  Widget _withSource(
+    DebugSession session,
+    ReplElementSource? data,
+    Widget child,
+  ) {
     final source = data?.source;
     if (data == null || source is! Source) return child;
     return Row(
@@ -476,7 +582,7 @@ class _NestingRowState extends State<_NestingRow> {
         const SizedBox(width: 8),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
-          child: Tooltip(
+          child: IdeHover(
             message: '${source.uri.path}:${data.lineNumber}',
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
@@ -485,7 +591,12 @@ class _NestingRowState extends State<_NestingRow> {
                   widget.service.openSource(
                     session,
                     source,
-                    DebugRange(data.lineNumber, data.column, data.lineNumber, data.column),
+                    DebugRange(
+                      data.lineNumber,
+                      data.column,
+                      data.lineNumber,
+                      data.column,
+                    ),
                   ),
                 ),
                 child: Text(
