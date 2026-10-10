@@ -727,6 +727,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
       activate: (event) async => _host?.activateByEvent(event),
       extensions: () => _host?.extensions.value ?? const [],
       progress: progress,
+      setContext: contextKeys.setContext,
     );
     final testResults = output.registerWorkbenchChannel(
       testResultsOutputChannelId,

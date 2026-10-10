@@ -64,6 +64,36 @@ void main() {
     },
   };
 
+  test('the supported executions set their context keys', () {
+    final keys = <String, Object?>{};
+    final withKeys = TaskService(
+      host: host,
+      terminals: () => terminals,
+      markers: markers,
+      variableResolver: _Variables(root.path),
+      setContext: (key, value) => keys[key] = value,
+    );
+    addTearDown(withKeys.dispose);
+    // As the Node extension host's ExtHostTask registers them.
+    withKeys.registerSupportedExecutions(custom: true);
+    expect(keys, {'customExecutionSupported': true});
+    withKeys.registerSupportedExecutions(
+      custom: true,
+      shell: true,
+      process: true,
+    );
+    expect(keys, {
+      'customExecutionSupported': true,
+      'shellExecutionSupported': true,
+      'processExecutionSupported': true,
+    });
+    expect(withKeys.supportedExecutions, (
+      custom: true,
+      shell: true,
+      process: true,
+    ));
+  });
+
   test('a shell task of tasks.json runs in a terminal: its problem matcher '
       'writes the markers and its exit code is the summary', () async {
     host.tasksJson = {

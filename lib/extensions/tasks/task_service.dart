@@ -145,6 +145,7 @@ final class TaskService {
     bool Function(VsUri resource)? isOpen,
     ProblemFileSystem? files,
     TaskPlatform? platform,
+    this.setContext,
   }) {
     _system = TerminalTaskSystem(
       terminals: terminals,
@@ -231,12 +232,24 @@ final class TaskService {
     _taskSystemInfos[scheme] = info;
   }
 
+  /// Sets the workbench's context keys (`shellExecutionSupported`…).
+  final void Function(String key, Object? value)? setContext;
+
+  /// Also sets `customExecutionSupported`, `shellExecutionSupported` and
+  /// `processExecutionSupported`, which extensions' contributions gate on
+  /// (debugpy's debugger: `shellExecutionSupported`). Upstream clears the
+  /// last two in a virtual workspace; BaoCode's folders never are.
   void registerSupportedExecutions({bool? custom, bool? shell, bool? process}) {
     _supportedExecutions = (
       custom: custom ?? _supportedExecutions.custom,
       shell: shell ?? _supportedExecutions.shell,
       process: process ?? _supportedExecutions.process,
     );
+    if (custom != null) setContext?.call('customExecutionSupported', custom);
+    if (shell != null) setContext?.call('shellExecutionSupported', shell);
+    if (process != null) {
+      setContext?.call('processExecutionSupported', process);
+    }
   }
 
   TaskSystemInfo? _taskSystemInfo(ExtHostWorkspaceFolder? folder) =>

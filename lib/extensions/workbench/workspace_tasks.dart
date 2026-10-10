@@ -53,6 +53,7 @@ final class WorkspaceTasks implements TaskServiceHost, DebugTaskRunnerHost {
     required this._activate,
     required this._extensions,
     this.progress,
+    void Function(String key, Object? value)? setContext,
   }) {
     _channel = output.registerWorkbenchChannel(tasksOutputChannelId, 'Tasks');
     service = TaskService(
@@ -66,6 +67,7 @@ final class WorkspaceTasks implements TaskServiceHost, DebugTaskRunnerHost {
           workspace.documents.any(
             (d) => d.isFile && d.path == resource.fsPath(),
           ),
+      setContext: setContext,
     );
     runner = DebugTaskRunner(tasks: service, markers: markers, host: this);
     debug.taskInputs = service.inputsOf;
