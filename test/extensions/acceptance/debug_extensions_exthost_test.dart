@@ -23,7 +23,8 @@ import 'open_vsx_workspace.dart';
 /// The 1-based line of [source] holding `BP:<marker>`.
 int _line(String source, String marker) {
   final lines = source.split('\n');
-  final index = lines.indexWhere((l) => l.contains('BP:$marker'));
+  final tag = RegExp('BP:${RegExp.escape(marker)}(?![\\w-])');
+  final index = lines.indexWhere(tag.hasMatch);
   if (index < 0) throw StateError('no BP:$marker');
   return index + 1;
 }
@@ -269,4 +270,119 @@ void main() {
         ? 'No python3'
         : openVsxSkip(),
   );
+
+  test(
+    '九.4: Go (Delve): function breakpoint, stepping, variables, watch, '
+    'console, panic',
+    () async {
+      final w = await OpenVsxWorkspace.create(
+        extensionIds: const ['golang.go'],
+        files: {
+          'go.mod': 'module example.com/demo\n\ngo 1.22\n',
+          'main.go': _go,
+        },
+      );
+      final d = _Debug(w);
+      final source = VsUri.file(w.path('main.go'));
+      // Before the start: a function breakpoint.
+      await d.service.addFunctionBreakpoint(
+        FunctionBreakpoint(name: 'main.scale'),
+      );
+      await d.start({
+        'type': 'go',
+        'request': 'launch',
+        'name': 'Go: main',
+        'mode': 'debug',
+        'program': w.project,
+      });
+      // Delve stops on the function's declaration.
+      var frame = await d.stopped(
+        _line(_go, 'scale-entry'),
+        function: 'scale',
+      );
+      expect(d.thread.stoppedDetails?.reason, 'function breakpoint');
+      expect(
+        d.session.capabilities.flag('supportsFunctionBreakpoints'),
+        isTrue,
+      );
+      expect(await d.callStack(2), [
+        contains('main.scale'),
+        contains('main.main'),
+      ]);
+      expect((await d.variables(frame))['k'], '2');
+
+      // During the session: a conditional breakpoint and a log point in
+      // place of it.
+      await d.service.removeFunctionBreakpoints();
+      await d.service.addBreakpoints(source, [
+        BreakpointData(lineNumber: _line(_go, 'loop'), condition: 'i == 3'),
+        BreakpointData(
+          lineNumber: _line(_go, 'print'),
+          logMessage: 'total={total}',
+        ),
+      ]);
+      await d.thread.continue_();
+      frame = await d.stopped(_line(_go, 'loop'), function: 'main');
+      expect((await d.variables(frame))['i'], '3');
+      expect(await d.watch(frame, 'i * 2'), '6');
+      expect(await d.evaluate(frame, 'total'), '6');
+
+      // In, over, out.
+      await d.thread.stepIn();
+      frame = await d.stopped(_line(_go, 'scale-entry'), function: 'scale');
+      await d.thread.next();
+      frame = await d.stopped(_line(_go, 'scale'), function: 'scale');
+      await d.thread.next();
+      frame = await d.stopped(_line(_go, 'scale-return'), function: 'scale');
+      expect((await d.variables(frame))['r'], contains('x: 6'));
+      await d.thread.stepOut();
+      frame = await d.stopped(_line(_go, 'loop'), function: 'main');
+
+      // The log point's message, the program's output, then its panic.
+      await d.service.removeBreakpoints([
+        for (final b in d.service.model.getBreakpoints())
+          if (b.condition != null) b.getId(),
+      ]);
+      await d.thread.continue_();
+      frame = await d.stopped(_line(_go, 'panic'), function: 'main');
+      expect(d.thread.stoppedDetails?.reason, anyOf('panic', 'exception'));
+      expect(d.console(), contains('total=20'));
+
+      await d.service.stopSession(null);
+      await d.ended();
+      expect(w.unsupported, isEmpty, reason: w.report());
+    },
+    timeout: const Timeout(Duration(minutes: 8)),
+    skip: openVsxSkip() == false && !_onPath('dlv') ? 'No dlv' : openVsxSkip(),
+  );
+}
+
+const _go = '''
+package main
+
+import "fmt"
+
+type point struct{ x, y int }
+
+func scale(p point, k int) point { // BP:scale-entry
+	r := point{p.x * k, p.y * k} // BP:scale
+	return r // BP:scale-return
+}
+
+func main() {
+	total := 0
+	for i := 0; i < 5; i++ {
+		total += scale(point{i, i + 1}, 2).x // BP:loop
+	}
+	fmt.Println("total", total) // BP:print
+	var m map[string]int
+	m["x"] = 1 // BP:panic
+}
+''';
+
+/// Whether [tool] is on PATH or in GOPATH's bin.
+bool _onPath(String tool) {
+  final home = Platform.environment['HOME'] ?? '';
+  final dirs = [...?Platform.environment['PATH']?.split(':'), '$home/go/bin'];
+  return dirs.any((dir) => File('$dir/$tool').existsSync());
 }
