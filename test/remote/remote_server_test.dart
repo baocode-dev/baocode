@@ -1,6 +1,7 @@
 @TestOn('mac-os || linux')
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -548,6 +549,47 @@ printf '%s\n' "$line"
       socket.destroy();
       await forward.close();
       await echo.close();
+    });
+
+    test('a connection from here to a port there, both ways, closed by '
+        'either side', () async {
+      final echo = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final accepted = <Socket>[];
+      final ends = <Completer<void>>[];
+      echo.listen((socket) {
+        accepted.add(socket);
+        final end = Completer<void>();
+        ends.add(end);
+        socket.listen(
+          socket.add,
+          onDone: () {
+            socket.destroy();
+            end.complete();
+          },
+          onError: (Object _) {},
+        );
+      });
+      final tunnel = await client().connectTcp(echo.port);
+      final replies = StreamIterator(tunnel.data);
+      tunnel.add(utf8.encode('ping'));
+      expect(
+        await replies.moveNext().timeout(const Duration(seconds: 5)),
+        isTrue,
+      );
+      expect(utf8.decode(replies.current), 'ping');
+      // Closed there: the tunnel ends.
+      accepted.single.destroy();
+      await tunnel.done.timeout(const Duration(seconds: 5));
+
+      // Closed here: the socket there ends.
+      final second = await client().connectTcp(echo.port);
+      await until(() => accepted.length == 2);
+      await second.close();
+      await ends.last.future.timeout(const Duration(seconds: 5));
+
+      // Nothing listening there.
+      await echo.close();
+      await expectLater(client().connectTcp(echo.port), throwsA(anything));
     });
   });
 

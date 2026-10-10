@@ -15,7 +15,7 @@ import 'search/text_query.dart';
 abstract final class RemoteProtocol {
   /// Raise it whenever a method or a shape changes: an app and a server of
   /// another version do not talk, and the app puts its own server in place.
-  static const version = 3;
+  static const version = 4;
 
   static const initialize = 'initialize';
   static const shutdown = 'shutdown';
@@ -86,10 +86,12 @@ abstract final class RemoteProtocol {
   static const lspInstalled = 'lsp/installed';
   static const lspUninstall = 'lsp/uninstall';
 
-  // Port forwarding (the remote host's port to one of the app's).
+  // Port forwarding (the remote host's port to one of the app's), and
+  // the app's connections to a port there ([tcpConnect]).
   static const tcpListen = 'tcp/listen';
   static const tcpUnlisten = 'tcp/unlisten';
   static const tcpOpen = 'tcp/open';
+  static const tcpConnect = 'tcp/connect';
   static const tcpData = 'tcp/data';
   static const tcpClose = 'tcp/close';
 }
