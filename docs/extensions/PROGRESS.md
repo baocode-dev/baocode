@@ -196,16 +196,21 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   sent from here): TypeScript diagnostics/completion/hover on the host, VSCodeVim here editing and saving the host's
   file, Python (debugpy installed there) and Node (js-debug) debugging on the host. Unit: `uri_transformer_test.dart`,
   host_test's init data transform, remote_server_test's "extension runtime" group.
+- 九.8 LSP removal: lib/ide/lsp (client, catalog, mason installer, language packs), assets/lsp, the Helix and
+  mason generators, lib/remote/remote_lsp.dart, bao_remote's LSP (lsp.dart, lsp_install.dart, src/lsp,
+  server_lsp.dart, `lsp/*` methods, `LspInstallException`), the language server status items, install
+  recommendations, Retry Language Services and their strings, data folder paths (`lsp.json`, `servers/`,
+  `language-packs/`: the folders stay in `DataDirectory.items` so old data is removed with the rest) and the
+  `lsp-smoke` tag. `LanguageFeatures`/`LanguageDocumentSync` and the LSP-shaped models moved to lib/ide/language
+  (`language_types.dart`); the emoji sheet has its own `HttpDownloader` (lib/platform/http_downloader_io.dart).
+  README, docs/ssh-remote.md, docs/auto-update.md and bao_editor's PARITY/PORTING/HANDOFF updated.
 - IoExtHostSocket holds writes while it flushes (Dart's IOSink throws on `add` during `flush`): a reply written
   while a terminate was drained used to escape as an error (`socket_test.dart`).
 
 ## In progress / next
 
-1. 九.1–九.7 are covered by tagged acceptance tests (see Done).
-2. 九.8: remove the LSP implementation (lib/ide/lsp, assets/lsp, tool/generate_lsp_languages.mjs,
-   tool/generate_mason_registry.mjs, lib/remote/remote_lsp.dart, bao_remote's LSP, language-packs/lsp.json, docs and
-   l10n); `LanguageFeatures`/`LspPosition` and the other editor models move out of lib/ide/lsp.
-3. 九.9: docs/extensions.md, generated EXTHOST_PARITY.md, MANUAL_CHECKLIST.md, offscreen screenshots in
+1. 九.1–九.8 are done (see Done).
+2. 九.9: docs/extensions.md, generated EXTHOST_PARITY.md, MANUAL_CHECKLIST.md, offscreen screenshots in
    build/exthost-screens; then analyze, the full suite once, macOS build, merge.
 
 ## Decisions and deviations
