@@ -823,16 +823,35 @@ class DebugService extends ChangeNotifier {
     bool sideBySide = false,
     bool pinned = false,
   }) async {
-    final source = frame.source;
-    if (!source.available) return;
     final range = DebugRange(
       frame.range.startLineNumber,
       frame.range.startColumn,
       frame.range.startLineNumber,
       frame.range.startColumn,
     );
+    await openSource(
+      frame.thread.session,
+      frame.source,
+      range,
+      preserveFocus: preserveFocus,
+      sideBySide: sideBySide,
+      pinned: pinned,
+    );
+  }
+
+  /// Opens [source] of [session] at [range] (`Source.openInEditor`): the
+  /// file, or what the adapter has of it.
+  Future<void> openSource(
+    DebugSession session,
+    Source source,
+    DebugRange range, {
+    bool preserveFocus = true,
+    bool sideBySide = false,
+    bool pinned = false,
+  }) async {
+    if (!source.available) return;
     if (source.uri.scheme == debugScheme) {
-      await host.openDebugSource(frame.thread.session, source.uri, selection: range, preserveFocus: preserveFocus);
+      await host.openDebugSource(session, source.uri, selection: range, preserveFocus: preserveFocus);
     } else {
       await host.openEditor(
         source.uri,

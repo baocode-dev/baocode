@@ -577,7 +577,8 @@ class _GhostLines extends StatelessWidget {
         for (final segments in lines)
           Text.rich(
             TextSpan(
-              style: style,
+              // Nothing drawn under the text from around the editor.
+              style: style.copyWith(decoration: TextDecoration.none),
               children: [
                 for (final (text, isGhost) in segments)
                   TextSpan(

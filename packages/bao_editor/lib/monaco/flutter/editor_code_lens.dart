@@ -446,6 +446,7 @@ class _CodeLensLineState extends State<_CodeLensLine> {
                 style: widget.style.copyWith(
                   color: const Color(0x00000000),
                   height: 1,
+                  decoration: TextDecoration.none,
                 ),
               ),
               TextSpan(

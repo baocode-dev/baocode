@@ -126,6 +126,10 @@ authorisation prompt itself cannot be driven from a test.
 ## 9. Windows
 
 Repeat on Windows, since everything above was checked on macOS:
+- Build it first (`flutter build windows`): the runner's `--open-url`
+  handling (`windows/runner/open_requests.cpp`, `main.cpp`) has never been
+  compiled, only read by `url_protocol_test.dart`. Then build the installer
+  (`tool/baocode.iss`) and install from it.
 - First-run download with the progress in the status bar.
 - Dragging a `.vsix` from Explorer.
 - `baocode://` registration (see 5).

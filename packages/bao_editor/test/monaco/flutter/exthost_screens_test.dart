@@ -57,10 +57,7 @@ Future<void> _loadFonts() async {
     '$material/Roboto-Italic.ttf',
     '$material/Roboto-Bold.ttf',
   ]);
-  await load('ScreenMono', [
-    '/System/Library/Fonts/Monaco.ttf',
-    '$material/Roboto-Italic.ttf',
-  ]);
+  await load('ScreenMono', ['/System/Library/Fonts/Monaco.ttf']);
   await load('codicon', ['../../assets/codicons/codicon.ttf']);
 }
 
@@ -120,6 +117,23 @@ Future<Uint8List> _iconPng() async {
   final data = await image.toByteData(format: ui.ImageByteFormat.png);
   image.dispose();
   return data!.buffer.asUint8List();
+}
+
+/// Expects no text of [text] to inherit an underline from around the
+/// editor (a view zone's widgets are under the app's text style).
+void _expectUndecorated(RichText text) {
+  void visit(InlineSpan span, TextDecoration? inherited) {
+    final decoration = span.style?.decoration ?? inherited;
+    if (span is TextSpan && (span.text ?? '').isNotEmpty) {
+      expect(decoration ?? TextDecoration.none, TextDecoration.none);
+    }
+    span.visitDirectChildren((child) {
+      visit(child, decoration);
+      return true;
+    });
+  }
+
+  visit(text.text, null);
 }
 
 void main() {
@@ -213,10 +227,10 @@ void main() {
     decorations
       ..setDecorations('error-line', [at(6, 1, 1)])
       ..setDecorations('boxed', [at(5, 22, 30)])
-      ..setDecorations('outlined', [at(3, 27, 39)])
+      ..setDecorations('outlined', [at(3, 28, 40)])
       ..setDecorations('styled', [at(7, 10, 20)])
       ..setDecorations('faded', [at(4, 3, 21)])
-      ..setDecorations('return-type', [at(3, 40, 40)])
+      ..setDecorations('return-type', [at(3, 41, 41)])
       ..setDecorationsFast('blame', [5, 44, 5, 44])
       ..setDecorations('badge', [at(10, 4, 8)]);
     final icon = await tester.runAsync(_iconPng);
@@ -416,6 +430,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
     expect(find.text('0 references', findRichText: true), findsOne);
+    // No span of a lens line, its indentation included, inherits an
+    // underline from around the editor.
+    final label = find.textContaining('5 references', findRichText: true);
+    final lines = tester.widgetList<RichText>(
+      find.ancestor(of: label, matching: find.byType(RichText)),
+    );
+    expect(lines, isNotEmpty);
+    lines.forEach(_expectUndecorated);
     // Hover "Debug Test": the link color.
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(mouse.removePointer);
@@ -512,6 +534,11 @@ void main() {
     expect(singleSuggest.isVisible, isTrue);
     expect(linesSuggest.isVisible, isTrue);
     expect(middleSuggest.isVisible, isTrue);
+    for (final line in ['  return fib(n - 1) + fib(n - 2);', '  shipping,']) {
+      _expectUndecorated(
+        tester.widget<RichText>(find.text(line, findRichText: true)),
+      );
+    }
     await _capture(tester, key, 'ghost_text.png');
   });
 }
