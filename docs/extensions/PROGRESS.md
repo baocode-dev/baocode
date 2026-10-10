@@ -268,6 +268,26 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   inlay hints, signature help, folding, colors, links and inline completions as unsupported although implemented
   and tested. Fixed (a space after each emptied string); `exthost_parity_test.dart` now also checks, line by
   line apart from the generator, that every `@override` of a shape's `$` method counts. 370/523 (71%).
+- 九.8 has a test of its own (cda43b6): `test/tool/lsp_removed_test.dart` checks that what the goal's 七 lists (the
+  LSP client, its installers, packs and assets) is not in the repository, that no code imports or reads it, and that
+  pubspec.yaml no longer bundles `assets/lsp`.
+- Every screenshot in build/exthost-screens was looked at one by one, regenerated first where it was older than the
+  code (the bao_editor ones by `exthost_screens_test.dart`, menus/runtime/settings with
+  `BAOCODE_EXTHOST_SCREENS=build/exthost-screens`). Found and fixed:
+  - Debug Console (d305376): it was a plain list. Now as upstream's REPL renderers: a twistie column on every row,
+    the input's `arrow-small-right`, results colored by kind and an unavailable one italic in the error color,
+    the count badge of repeated output, ANSI styles (`debug_ansi.dart`, a port of debugANSIHandling.ts with its
+    tests), `ignore` severity italic, a last newline not drawn as an empty line, the source link on the right
+    (`DebugService.openSource`). debug_console(_expanded).png and the real Python debug_breakpoint_hit.png show it.
+  - CodeLens and ghost text (2dc3b41): the lens line's indentation and the ghost text's lines below the caret are
+    widgets under the app's text style, and an ancestor's underline (the double yellow one without a Material) drew
+    under them. `decoration: none` as the lens titles have; the screenshot test checks every span.
+  - editor_decorations.png: the outline and the return-type hint were one column off in the test's ranges (the
+    hint was inside the parentheses); the ghost text and blame italic drew in Roboto because the test's mono family
+    took Roboto-Italic as its italic face.
+  The others (TS completion and hover, Extensions view and details, capability notice, GitLens + Error Lens, Todo
+  Tree, debug paused/breakpoints/call stack/toolbar, Webview notice, color picker, inlay hints, menus, runtime
+  download, extension settings) showed nothing wrong.
 
 ## In progress / next
 
@@ -278,8 +298,15 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
    `flutter build web --no-pub`.
 2. After the `baocode://`, keychain and parity fixes: the real REH tests (`flutter test --run-skipped -t exthost`)
    50 passed; the full suite 6118 passed / 33 skipped; `flutter build macos --debug` and `flutter build web --no-pub`
-   built; the parity, secrets and URL tests rerun on 8e3cb4b and `flutter analyze --no-pub` clean; pubspec.lock
-   unchanged. Next: merge again (`git merge --no-ff`, no push).
+   built; pubspec.lock unchanged. Merged (cee10ea), then the CSS extension's document colors test (3a4f068). That
+   second merge went in without a new full suite run; it was run afterwards on the same tree: the real REH tests
+   one at a time (`-j 1 --file-reporter json`) 51 passed, Go (Delve) among them, the full suite 6120 passed /
+   34 skipped, the macOS build built.
+3. After the 九.8 test and the screenshot fixes: analyze, the full suite, the macOS build and the real REH tests
+   again on the last commit, then merge (`git merge --no-ff`, no push).
+4. Not done and not doable here: the Windows runner's `--open-url` and the installer's scheme registration are
+   checked only as text (url_protocol_test); the runner has not been compiled and `start baocode://…` has not been
+   tried on Windows (no Windows machine). Linux has no package, so no scheme there. See MANUAL_CHECKLIST.md.
 
 ## Decisions and deviations
 
