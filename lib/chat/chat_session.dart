@@ -467,23 +467,14 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   };
 
   /// Copies the conversation into a new session titled [title] (see
-  /// [ForksConversation.fork]): up to the end of the turn of the item at
-  /// [index], or all of it but a turn under way; null when it could not.
-  Future<SessionRecord?> fork({required String title, int? index}) async {
+  /// [ForksConversation.fork]): all of it but a turn under way; null when
+  /// it could not.
+  Future<SessionRecord?> fork({required String title}) async {
     if (_kernel case final ForksConversation kernel when kernel.canFork) {
-      String? before;
-      if (index != null) {
-        // The next message sent: the turn it began, and all after, stay out.
-        for (var i = index + 1; i < _transcript.length; i++) {
-          if (_transcript.itemAt(i) case UserMessageItem(queued: false)) {
-            before = _transcript.idAt(i);
-            break;
-          }
-        }
-      } else if (_transcript.activeTurn case final turn?
-          when _transcript.indexOf(turn) != null) {
-        before = turn;
-      }
+      final before = switch (_transcript.activeTurn) {
+        final turn? when _transcript.indexOf(turn) != null => turn,
+        _ => null,
+      };
       return kernel.fork(before: before, title: title);
     }
     return null;

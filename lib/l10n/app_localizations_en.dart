@@ -1700,12 +1700,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarFork => 'Fork';
 
   @override
-  String get chatForkFromHere => 'Fork from here';
-
-  @override
-  String get chatCopyReply => 'Copy reply';
-
-  @override
   String sidebarShowMore(int count) {
     return 'Show more ($count)';
   }

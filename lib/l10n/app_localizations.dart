@@ -3266,18 +3266,6 @@ abstract class AppLocalizations {
   /// **'Fork'**
   String get sidebarFork;
 
-  /// Under an agent's reply, on hover: copies the conversation up to the end of this turn into a new agent, which opens.
-  ///
-  /// In en, this message translates to:
-  /// **'Fork from here'**
-  String get chatForkFromHere;
-
-  /// Under an agent's reply, on hover: copies the reply's Markdown.
-  ///
-  /// In en, this message translates to:
-  /// **'Copy reply'**
-  String get chatCopyReply;
-
   /// No description provided for @sidebarShowMore.
   ///
   /// In en, this message translates to:

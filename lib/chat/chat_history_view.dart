@@ -13,7 +13,6 @@ import 'package:super_sliver_list/super_sliver_list.dart';
 import '../ide/ide_hover.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
-import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_column.dart';
 import 'chat_feed.dart';
@@ -24,7 +23,6 @@ import 'composer/composer.dart';
 import 'composer/composer_draft.dart';
 import 'step_folds.dart';
 import 'widgets/chat_item_view.dart';
-import 'widgets/code_citation.dart' show CodeBlockIconButton;
 import 'widgets/edge_fade_mask.dart';
 import 'widgets/fold_line.dart';
 import 'widgets/user_message_bubble.dart';
@@ -38,7 +36,6 @@ class ChatHistoryView extends StatefulWidget {
     this.maxContentWidth = 760,
     this.onOpenAgent,
     this.onSetGoal,
-    this.onFork,
   });
 
   /// The conversation shown: a session's, or a subagent's.
@@ -50,10 +47,6 @@ class ChatHistoryView extends StatefulWidget {
 
   /// Sets a goal the agent proposed as the session's, from its card.
   final ValueChanged<String>? onSetGoal;
-
-  /// Copies the conversation up to the end of the turn whose reply is item
-  /// [index] into a new one, from the reply's actions.
-  final ValueChanged<int>? onFork;
 
   @override
   State<ChatHistoryView> createState() => _ChatHistoryViewState();
@@ -96,46 +89,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// Whether a turn was under way, as last seen: to tell when it ends.
   bool _wasLive = false;
 
-  void _refold() {
-    _folds = StepFolds.of(
-      _feed.itemCount,
-      _feed.itemAt,
-      live: _feed.isStreaming,
-    );
-    _turnEnds = _findTurnEnds();
-  }
-
-  // --- Turn actions ----------------------------------------------------------
-  //
-  // A finished turn's last reply has actions under it, shown on hover:
-  // copy the reply, fork the conversation from there.
-
-  /// The replies that end finished turns, latest first.
-  Set<int> _turnEnds = const {};
-
-  Set<int> _findTurnEnds() {
-    final ends = <int>{};
-    // Whether what comes after the turn being looked at is another's.
-    var ended = !_feed.isStreaming;
-    var replied = false;
-    for (var index = _feed.itemCount - 1; index >= 0; index--) {
-      switch (_feed.itemAt(index)) {
-        case UserMessageItem(queued: false):
-          ended = true;
-          replied = false;
-        case AssistantTextItem() when ended && !replied:
-          ends.add(index);
-          replied = true;
-        default:
-      }
-    }
-    return ends;
-  }
-
-  bool get _canFork =>
-      widget.onFork != null &&
-      _feed is ChatSession &&
-      (_feed as ChatSession).canFork;
+  void _refold() => _folds = StepFolds.of(
+    _feed.itemCount,
+    _feed.itemAt,
+    live: _feed.isStreaming,
+  );
 
   bool _isFoldOpen(StepFold fold) =>
       _foldOpen[fold.key] ??
@@ -1285,15 +1243,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           appear: _appearing.contains(index),
           onShown: () => _appearing.remove(index),
           ghost: index == _handoffIndex ? _statusGhost(index) : null,
-          child: _turnEnds.contains(index)
-              ? _TurnActions(
-                  text: (item as AssistantTextItem).text,
-                  // The last reply's, while nothing runs after it.
-                  pinned: !_feed.isStreaming && index == _turnEnds.first,
-                  onFork: _canFork ? () => widget.onFork!(index) : null,
-                  child: view,
-                )
-              : view,
+          child: view,
         ),
       };
     }
@@ -1357,16 +1307,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   }
 
   /// Vertical gap above [index]: roomy between turns, none between steps.
-  /// A turn's actions take part of the gap after it.
-  double _gapBefore(int index) {
-    final gap = _gapBetween(
-      index == 0 ? null : _feed.itemAt(index - 1),
-      _feed.itemAt(index),
-    );
-    return _turnEnds.contains(index - 1)
-        ? math.max(0, gap - _TurnActions.height)
-        : gap;
-  }
+  double _gapBefore(int index) => _gapBetween(
+    index == 0 ? null : _feed.itemAt(index - 1),
+    _feed.itemAt(index),
+  );
 
   double _gapBetween(ChatItem? previous, ChatItem item) {
     if (previous == null) return 0;
@@ -1576,99 +1520,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 /// scrollbar's track (its thumb and margins), so a press at the end of a
 /// line selects text rather than grabbing the bar.
 double chatGutter(double width) => width < 600 ? 16 : 24;
-
-/// A finished turn's reply, with its actions under it: shown while the
-/// pointer is over it, or for good when [pinned] (the latest turn's).
-class _TurnActions extends StatefulWidget {
-  const _TurnActions({
-    required this.text,
-    required this.pinned,
-    required this.onFork,
-    required this.child,
-  });
-
-  /// The room the actions take under the reply.
-  static const double height = 26;
-
-  /// The reply's Markdown, to copy.
-  final String text;
-  final bool pinned;
-
-  /// Null when the conversation cannot be forked (yet).
-  final VoidCallback? onFork;
-  final Widget child;
-
-  @override
-  State<_TurnActions> createState() => _TurnActionsState();
-}
-
-class _TurnActionsState extends State<_TurnActions> {
-  bool _hovered = false;
-  bool _copied = false;
-  Timer? _copiedTimer;
-
-  @override
-  void dispose() {
-    _copiedTimer?.cancel();
-    super.dispose();
-  }
-
-  void _copy() {
-    unawaited(Clipboard.setData(ClipboardData(text: widget.text)));
-    _copiedTimer?.cancel();
-    setState(() => _copied = true);
-    _copiedTimer = Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) setState(() => _copied = false);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final shown = widget.pinned || _hovered || _copied;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          widget.child,
-          SelectionContainer.disabled(
-            child: SizedBox(
-              height: _TurnActions.height,
-              child: Align(
-                alignment: Alignment.bottomLeft,
-                child: Visibility(
-                  visible: shown,
-                  maintainState: true,
-                  maintainAnimation: true,
-                  maintainSize: true,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 2,
-                    children: [
-                      CodeBlockIconButton(
-                        icon: _copied ? Codicons.check : Codicons.copy,
-                        tooltip: l10n.chatCopyReply,
-                        onTap: _copy,
-                      ),
-                      if (widget.onFork case final fork?)
-                        CodeBlockIconButton(
-                          icon: Codicons.repoForked,
-                          tooltip: l10n.chatForkFromHere,
-                          onTap: fork,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _JumpToBottomButton extends StatelessWidget {
   const _JumpToBottomButton({required this.visible, required this.onTap});

@@ -528,8 +528,6 @@
   "sidebarUnarchive": "取消归档",
   "sidebarCopySessionId": "复制会话 ID",
   "sidebarFork": "Fork 对话",
-  "chatForkFromHere": "从此处 Fork",
-  "chatCopyReply": "复制回复",
   "sidebarShowMore": "显示更多（{count}）",
   "sidebarShowLess": "收起",
   "sidebarNewAgentHere": "在此新建对话",
