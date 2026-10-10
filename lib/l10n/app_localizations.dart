@@ -9825,6 +9825,24 @@ abstract class AppLocalizations {
   /// **'More Actions'**
   String get modelsMore;
 
+  /// No description provided for @modelsTestModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Test'**
+  String get modelsTestModel;
+
+  /// No description provided for @modelsTestModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Test All'**
+  String get modelsTestModels;
+
+  /// No description provided for @modelsTestModelFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get modelsTestModelFailed;
+
   /// No description provided for @modelsEnableModel.
   ///
   /// In en, this message translates to:

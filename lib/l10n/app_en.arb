@@ -4195,6 +4195,9 @@
   "modelsEdit": "Edit…",
   "modelsRemove": "Remove",
   "modelsMore": "More Actions",
+  "modelsTestModel": "Test",
+  "modelsTestModels": "Test All",
+  "modelsTestModelFailed": "Failed",
   "modelsEnableModel": "Offer {name}",
   "@modelsEnableModel": {
     "placeholders": {

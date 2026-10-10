@@ -5559,6 +5559,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsMore => '更多操作';
 
   @override
+  String get modelsTestModel => '测试';
+
+  @override
+  String get modelsTestModels => '批量测试';
+
+  @override
+  String get modelsTestModelFailed => '失败';
+
+  @override
   String modelsEnableModel(String name) {
     return '启用 $name';
   }

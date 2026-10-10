@@ -114,7 +114,11 @@ void main() {
     ];
   }
 
-  Future<void> pump(WidgetTester tester, {CodexService? codex}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    CodexService? codex,
+    ModelTester testModel = testModelThroughClaudeCode,
+  }) async {
     tester.view.physicalSize = const Size(1000, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -124,6 +128,7 @@ void main() {
           body: ModelsSettingsPage(
             providers: providers,
             listModels: list,
+            testModel: testModel,
             codex: codex,
           ),
         ),
@@ -337,6 +342,92 @@ void main() {
     expect(find.text('Manual'), findsOneWidget);
     expect(find.text('Does not take images'), findsOneWidget);
     expect(find.text('128K'), findsOneWidget);
+  });
+
+  testWidgets('a model is tested from its menu, those listed all at once', (
+    tester,
+  ) async {
+    await providers.save(
+      const ModelProvider(
+        id: 'gw',
+        name: 'Gateway',
+        baseUrl: 'https://gw.example.com',
+        models: [
+          ProviderModel(id: 'up'),
+          ProviderModel(id: 'down'),
+        ],
+      ),
+    );
+    final asked = <String>[];
+    final replies = <String, Completer<String>>{};
+    var cancelled = false;
+    Future<String> testModel(
+      ModelProvider provider,
+      ProviderModel model, {
+      Future<void>? cancel,
+    }) {
+      asked.add('${provider.id}/${model.id}');
+      unawaited(cancel?.then((_) => cancelled = true));
+      return (replies[model.id] = Completer()).future;
+    }
+
+    final seconds = find.byWidgetPredicate(
+      (widget) =>
+          widget is Text && RegExp(r'^\d+\.\ds$').hasMatch(widget.data ?? ''),
+    );
+    await pump(tester, testModel: testModel);
+    await tester.tap(find.text('Gateway'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is IdeActionButton && widget.tooltip == 'More Actions',
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Test'));
+    // Run as the menu has closed.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    expect(asked, ['gw/up']);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    replies['up']!.complete('1 2 3');
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(seconds, findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is IdeHover && w.message == '1 2 3'),
+      findsOneWidget,
+    );
+
+    // All of them; one fails, and says why.
+    await tester.tap(find.text('Test All'));
+    await tester.pump();
+    expect(asked, ['gw/up', 'gw/up', 'gw/down']);
+    expect(find.byType(CircularProgressIndicator), findsNWidgets(2));
+    replies['up']!.complete('1 2 3');
+    replies['down']!.completeError(Exception('401 Unauthorized'));
+    await tester.pump();
+    expect(seconds, findsOneWidget);
+    expect(find.text('Failed'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is IdeHover && '${w.message}'.contains('401 Unauthorized'),
+      ),
+      findsOneWidget,
+    );
+
+    // A test under way stops as the page closes.
+    await tester.tap(find.text('Test All'));
+    await tester.pump();
+    expect(cancelled, isFalse);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(cancelled, isTrue);
   });
 
   testWidgets('deleting an upstream asks first, and takes its key', (

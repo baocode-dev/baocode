@@ -5934,6 +5934,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsMore => 'More Actions';
 
   @override
+  String get modelsTestModel => 'Test';
+
+  @override
+  String get modelsTestModels => 'Test All';
+
+  @override
+  String get modelsTestModelFailed => 'Failed';
+
+  @override
   String modelsEnableModel(String name) {
     return 'Offer $name';
   }
