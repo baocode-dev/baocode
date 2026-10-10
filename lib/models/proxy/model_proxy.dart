@@ -6,6 +6,9 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
+import '../codex/codex_accounts_io.dart';
+import '../codex/codex_api.dart';
+import '../codex/codex_service.dart';
 import '../launch_environment.dart';
 import '../model_provider.dart';
 import '../upstream.dart';
@@ -25,6 +28,9 @@ import 'translate/thinking.dart';
 /// `ANTHROPIC_AUTH_TOKEN`), made anew each run. The providers' keys stay
 /// here: read as each request goes out, so a key changed applies at once.
 ///
+/// A ChatGPT (Codex) provider's request goes as one of its accounts
+/// ([CodexAccounts]): to another when that one is out of quota.
+///
 /// `/p/<provider>/v1/messages` and `/p/<provider>/v1/messages/count_tokens`
 /// (an estimate: the upstreams have none).
 class ModelProxy {
@@ -33,10 +39,14 @@ class ModelProxy {
     required this._key,
     this._onError,
     this._findProxy,
+    this._codex,
     @visibleForTesting String? token,
   }) : token = token ?? _newToken();
 
   final ModelProvider? Function(String id) _provider;
+
+  /// The ChatGPT (Codex) providers' accounts.
+  final CodexAccounts? _codex;
   final Future<String?> Function(String id) _key;
   final void Function(String id, String? error)? _onError;
 
@@ -171,10 +181,6 @@ class ModelProxy {
     final effort = requested.hasSuffix ? requested.rawSuffix.trim() : '';
     final thinking = effort.isNotEmpty && effort != ThinkingLevel.none;
     final stream = body['stream'] == true;
-    final url = UpstreamUrls.conversation(provider);
-    if (url == null) {
-      return _fail(response, 400, '${provider.name} has no valid base URL');
-    }
     final Map<String, Object?> outgoing;
     if (provider.protocol == ProviderProtocol.openaiChat) {
       outgoing = convertClaudeRequestToOpenAI(
@@ -203,42 +209,58 @@ class ModelProxy {
       }
     }
 
-    final client = await _upstream();
-    final upstreamRequest = await client.postUrl(url);
-    final key = await _key(provider.id);
-    upstreamHeaders(provider, key).forEach(upstreamRequest.headers.set);
-    upstreamRequest.headers
-      ..contentType = ContentType.json
-      ..set(
-        HttpHeaders.acceptHeader,
-        stream || provider.protocol == ProviderProtocol.openaiResponses
-            ? 'text/event-stream'
-            : 'application/json',
+    final HttpClientResponse? upstream;
+    final Stream<String> lines;
+    if (provider.protocol == ProviderProtocol.codex) {
+      upstream = null;
+      final opened = await _openCodex(provider, body, outgoing, response);
+      if (opened == null) return;
+      lines = opened;
+    } else {
+      final url = UpstreamUrls.conversation(provider);
+      if (url == null) {
+        return _fail(response, 400, '${provider.name} has no valid base URL');
+      }
+      final client = await _upstream();
+      final upstreamRequest = await client.postUrl(url);
+      final key = await _key(provider.id);
+      upstreamHeaders(provider, key).forEach(upstreamRequest.headers.set);
+      upstreamRequest.headers
+        ..contentType = ContentType.json
+        ..set(
+          HttpHeaders.acceptHeader,
+          stream || provider.protocol == ProviderProtocol.openaiResponses
+              ? 'text/event-stream'
+              : 'application/json',
+        );
+      upstreamRequest.add(utf8.encode(jsonEncode(outgoing)));
+      // The client gone: so is the upstream's request.
+      unawaited(
+        response.done.then<void>(
+          (_) {},
+          onError: (_) => upstreamRequest.abort(),
+        ),
       );
-    upstreamRequest.add(utf8.encode(jsonEncode(outgoing)));
-    // The client gone: so is the upstream's request.
-    unawaited(
-      response.done.then<void>((_) {}, onError: (_) => upstreamRequest.abort()),
-    );
-    final upstream = await upstreamRequest.close();
-    if (upstream.statusCode >= 400) {
-      final text = await utf8.decodeStream(upstream);
-      final message = upstreamErrorMessage(upstream.statusCode, text);
-      _onError?.call(provider.id, message);
-      return _json(
-        response,
-        upstream.statusCode,
-        anthropicError(upstream.statusCode, message),
-      );
+      final answer = upstream = await upstreamRequest.close();
+      if (answer.statusCode >= 400) {
+        final text = await utf8.decodeStream(answer);
+        final message = upstreamErrorMessage(answer.statusCode, text);
+        _onError?.call(provider.id, message);
+        return _json(
+          response,
+          answer.statusCode,
+          anthropicError(answer.statusCode, message),
+        );
+      }
+      _onError?.call(provider.id, null);
+      lines = answer
+          .transform(const Utf8Decoder(allowMalformed: true))
+          .transform(const LineSplitter());
     }
-    _onError?.call(provider.id, null);
-    final lines = upstream
-        .transform(const Utf8Decoder(allowMalformed: true))
-        .transform(const LineSplitter());
 
     if (provider.protocol == ProviderProtocol.openaiChat) {
       if (!stream) {
-        final text = await utf8.decodeStream(upstream);
+        final text = await utf8.decodeStream(upstream!);
         return _json(
           response,
           200,
@@ -280,6 +302,150 @@ class ModelProxy {
       await response.flush();
     }
     return response.close();
+  }
+
+  /// Sends a Codex provider's request ([outgoing], as Responses) as one of
+  /// its accounts, and gives the lines of its stream; null when it was
+  /// answered here (it failed). An account out of quota, or signed out,
+  /// gives way to the next; the reasoning replayed is dropped when the
+  /// account taking it cannot read it (another's).
+  Future<Stream<String>?> _openCodex(
+    ModelProvider provider,
+    Map<String, Object?> body,
+    Map<String, Object?> outgoing,
+    HttpResponse response,
+  ) async {
+    final codex = _codex;
+    if (codex == null) {
+      await _fail(response, 501, 'ChatGPT accounts are not available here');
+      return null;
+    }
+    prepareCodexRequest(outgoing);
+    final session = promptCacheKey(body);
+    final client = await _upstream();
+    final tried = <String>{};
+    var stripped = false;
+    String? lastError;
+    var lastStatus = 429;
+    while (true) {
+      final account = codex.pick(provider, session: session, exclude: tried);
+      if (account == null) {
+        final message =
+            lastError ??
+            (provider.accounts.isEmpty
+                ? '${provider.name} is not signed in to a ChatGPT account'
+                : 'No ChatGPT account of ${provider.name} can be used now');
+        _onError?.call(provider.id, message);
+        await _json(response, lastStatus, anthropicError(lastStatus, message));
+        return null;
+      }
+      String? rejected;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        final String token;
+        try {
+          token = await codex.accessToken(
+            provider,
+            account,
+            rejected: rejected,
+          );
+        } on CodexException catch (error) {
+          lastError = '${account.displayName}: ${error.message}';
+          lastStatus = 401;
+          tried.add(account.id);
+          break;
+        }
+        final request = await client.postUrl(codex.endpoints.responses);
+        codexHeaders(
+          token,
+          accountId: account.accountId,
+          session: '${outgoing['prompt_cache_key'] ?? session ?? ''}',
+          events: true,
+        ).forEach(request.headers.set);
+        request.headers.contentType = ContentType.json;
+        request.add(utf8.encode(jsonEncode(outgoing)));
+        unawaited(
+          response.done.then<void>((_) {}, onError: (_) => request.abort()),
+        );
+        final upstream = await request.close();
+        codex.record(provider, account, upstream.headers.value);
+        final status = upstream.statusCode;
+        if (status >= 400) {
+          final text = await utf8.decodeStream(upstream);
+          if (status == 401 && rejected == null) {
+            rejected = token;
+            continue;
+          }
+          if (status == 400 &&
+              !stripped &&
+              isInvalidEncryptedContent(text) &&
+              stripReasoningItems(outgoing)) {
+            stripped = true;
+            continue;
+          }
+          final message = upstreamErrorMessage(status, text);
+          if (codexLimitReset(status, text, DateTime.now()) case final until?) {
+            codex.markLimited(provider, account, until);
+          }
+          if (status == 401 || status == 429) {
+            codex.markError(provider, account, message);
+            lastError = '${account.displayName}: $message';
+            lastStatus = status;
+            tried.add(account.id);
+            break;
+          }
+          _onError?.call(provider.id, message);
+          await _json(response, status, anthropicError(status, message));
+          return null;
+        }
+        // A limit reached may come as the stream's first event.
+        final iterator = StreamIterator(
+          upstream
+              .transform(const Utf8Decoder(allowMalformed: true))
+              .transform(const LineSplitter()),
+        );
+        final head = <String>[];
+        DateTime? limited;
+        String? limitMessage;
+        while (await iterator.moveNext()) {
+          final line = iterator.current;
+          head.add(line);
+          if (!line.startsWith('data:')) continue;
+          Object? event;
+          try {
+            event = jsonDecode(line.substring(5).trim());
+          } on FormatException {
+            event = null;
+          }
+          limited = codexLimitResetOf(event, DateTime.now());
+          if (limited != null) {
+            limitMessage = upstreamErrorMessage(429, line.substring(5).trim());
+          }
+          break;
+        }
+        if (limited != null) {
+          await iterator.cancel();
+          codex.markLimited(provider, account, limited);
+          lastError = '${account.displayName}: $limitMessage';
+          lastStatus = 429;
+          tried.add(account.id);
+          break;
+        }
+        codex.markError(provider, account, null);
+        _onError?.call(provider.id, null);
+        return _rest(head, iterator);
+      }
+      tried.add(account.id);
+    }
+  }
+
+  static Stream<String> _rest(
+    List<String> head,
+    StreamIterator<String> rest,
+  ) async* {
+    yield* Stream.fromIterable(head);
+    while (await rest.moveNext()) {
+      yield rest.current;
+    }
   }
 
   static void _startEvents(HttpResponse response) {

@@ -4223,7 +4223,7 @@ abstract class AppLocalizations {
   /// No description provided for @composerApprovalFullAccessDetail.
   ///
   /// In en, this message translates to:
-  /// **'No checks, and no questions while it works'**
+  /// **'No checks: edits and commands run without asking'**
   String get composerApprovalFullAccessDetail;
 
   /// No description provided for @composerContextUsage.
@@ -9350,6 +9350,222 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =0{no models} =1{1 model} other{{count} models}}'**
   String modelsModelCount(int count);
+
+  /// No description provided for @modelsAccounts.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts'**
+  String get modelsAccounts;
+
+  /// No description provided for @modelsAccountsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with ChatGPT to use Codex models on your plan\'s quota. With several accounts, requests are spread across them by the load balancing below, and one out of quota gives way to the next.'**
+  String get modelsAccountsDescription;
+
+  /// No description provided for @modelsAccountsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No account yet'**
+  String get modelsAccountsNone;
+
+  /// No description provided for @modelsAccountCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{no accounts} =1{1 account} other{{count} accounts}}'**
+  String modelsAccountCount(int count);
+
+  /// No description provided for @modelsAddAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Account'**
+  String get modelsAddAccount;
+
+  /// No description provided for @modelsAddAccountDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Opens ChatGPT\'s sign-in page in the browser.'**
+  String get modelsAddAccountDescription;
+
+  /// No description provided for @modelsAccountSigningIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for sign-in…'**
+  String get modelsAccountSigningIn;
+
+  /// No description provided for @modelsAccountSigningInDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish signing in in the browser. If it did not open, copy the link into it.'**
+  String get modelsAccountSigningInDetail;
+
+  /// No description provided for @modelsAccountCopyLink.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Link'**
+  String get modelsAccountCopyLink;
+
+  /// No description provided for @modelsAccountSignInFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in failed: {error}'**
+  String modelsAccountSignInFailed(String error);
+
+  /// No description provided for @modelsRefreshQuota.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Quota'**
+  String get modelsRefreshQuota;
+
+  /// No description provided for @modelsAccountRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove account'**
+  String get modelsAccountRemove;
+
+  /// No description provided for @modelsAccountRemoveConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove “{name}”?'**
+  String modelsAccountRemoveConfirm(String name);
+
+  /// No description provided for @modelsAccountRemoveDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Its sign-in is deleted from this machine.'**
+  String get modelsAccountRemoveDetail;
+
+  /// No description provided for @modelsAccountEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Use {name}'**
+  String modelsAccountEnable(String name);
+
+  /// No description provided for @modelsAccountLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Out of quota'**
+  String get modelsAccountLimited;
+
+  /// No description provided for @modelsAccountQuotaUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Quota not known yet'**
+  String get modelsAccountQuotaUnknown;
+
+  /// No description provided for @modelsQuotaWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly'**
+  String get modelsQuotaWeek;
+
+  /// No description provided for @modelsQuotaHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}h'**
+  String modelsQuotaHours(int count);
+
+  /// No description provided for @modelsQuotaDays.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}d'**
+  String modelsQuotaDays(int count);
+
+  /// No description provided for @modelsQuotaUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% used'**
+  String modelsQuotaUsed(int percent);
+
+  /// No description provided for @modelsQuotaResetsIn.
+  ///
+  /// In en, this message translates to:
+  /// **'resets in {time}'**
+  String modelsQuotaResetsIn(String time);
+
+  /// No description provided for @modelsQuotaResetsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'resets {time}'**
+  String modelsQuotaResetsAt(String time);
+
+  /// No description provided for @modelsQuotaCredits.
+  ///
+  /// In en, this message translates to:
+  /// **'Credits: {credits}'**
+  String modelsQuotaCredits(String credits);
+
+  /// No description provided for @modelsDurationMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} min'**
+  String modelsDurationMinutes(int count);
+
+  /// No description provided for @modelsDurationHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours} h {minutes} min'**
+  String modelsDurationHours(int hours, int minutes);
+
+  /// No description provided for @modelsBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Load Balancing'**
+  String get modelsBalance;
+
+  /// No description provided for @modelsBalanceRoundRobin.
+  ///
+  /// In en, this message translates to:
+  /// **'Round Robin'**
+  String get modelsBalanceRoundRobin;
+
+  /// No description provided for @modelsBalanceRoundRobinDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Each new conversation goes to the next account, and stays on it (its cache is there).'**
+  String get modelsBalanceRoundRobinDescription;
+
+  /// No description provided for @modelsBalanceFillFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Fill First'**
+  String get modelsBalanceFillFirst;
+
+  /// No description provided for @modelsBalanceFillFirstDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses the first account until it is out of quota, then the next.'**
+  String get modelsBalanceFillFirstDescription;
+
+  /// No description provided for @modelsBalanceMostRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'Most Remaining'**
+  String get modelsBalanceMostRemaining;
+
+  /// No description provided for @modelsBalanceMostRemainingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Each new conversation goes to the account with the most quota left.'**
+  String get modelsBalanceMostRemainingDescription;
+
+  /// No description provided for @modelsAccountPortBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Port 1455, which sign-in comes back to, is used by another program (a proxy in Docker, or the Codex CLI signing in). Sign in in the browser all the same: the page it ends on will fail to load or show something else. Copy that page\'s full address and paste it below.'**
+  String get modelsAccountPortBusy;
+
+  /// No description provided for @modelsAccountCallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Address after sign-in'**
+  String get modelsAccountCallback;
+
+  /// No description provided for @modelsAccountCallbackDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'If the browser does not come back by itself, paste the address it ended on.'**
+  String get modelsAccountCallbackDetail;
 
   /// No description provided for @modelsProtocolAnthropic.
   ///

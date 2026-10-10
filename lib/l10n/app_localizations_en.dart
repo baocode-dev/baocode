@@ -2299,7 +2299,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get composerApprovalFullAccessDetail =>
-      'No checks, and no questions while it works';
+      'No checks: edits and commands run without asking';
 
   @override
   String get composerContextUsage => 'Context usage';
@@ -5639,6 +5639,154 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get modelsAccounts => 'Accounts';
+
+  @override
+  String get modelsAccountsDescription =>
+      'Sign in with ChatGPT to use Codex models on your plan\'s quota. With several accounts, requests are spread across them by the load balancing below, and one out of quota gives way to the next.';
+
+  @override
+  String get modelsAccountsNone => 'No account yet';
+
+  @override
+  String modelsAccountCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count accounts',
+      one: '1 account',
+      zero: 'no accounts',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get modelsAddAccount => 'Add Account';
+
+  @override
+  String get modelsAddAccountDescription =>
+      'Opens ChatGPT\'s sign-in page in the browser.';
+
+  @override
+  String get modelsAccountSigningIn => 'Waiting for sign-in…';
+
+  @override
+  String get modelsAccountSigningInDetail =>
+      'Finish signing in in the browser. If it did not open, copy the link into it.';
+
+  @override
+  String get modelsAccountCopyLink => 'Copy Link';
+
+  @override
+  String modelsAccountSignInFailed(String error) {
+    return 'Sign-in failed: $error';
+  }
+
+  @override
+  String get modelsRefreshQuota => 'Refresh Quota';
+
+  @override
+  String get modelsAccountRemove => 'Remove account';
+
+  @override
+  String modelsAccountRemoveConfirm(String name) {
+    return 'Remove “$name”?';
+  }
+
+  @override
+  String get modelsAccountRemoveDetail =>
+      'Its sign-in is deleted from this machine.';
+
+  @override
+  String modelsAccountEnable(String name) {
+    return 'Use $name';
+  }
+
+  @override
+  String get modelsAccountLimited => 'Out of quota';
+
+  @override
+  String get modelsAccountQuotaUnknown => 'Quota not known yet';
+
+  @override
+  String get modelsQuotaWeek => 'Weekly';
+
+  @override
+  String modelsQuotaHours(int count) {
+    return '${count}h';
+  }
+
+  @override
+  String modelsQuotaDays(int count) {
+    return '${count}d';
+  }
+
+  @override
+  String modelsQuotaUsed(int percent) {
+    return '$percent% used';
+  }
+
+  @override
+  String modelsQuotaResetsIn(String time) {
+    return 'resets in $time';
+  }
+
+  @override
+  String modelsQuotaResetsAt(String time) {
+    return 'resets $time';
+  }
+
+  @override
+  String modelsQuotaCredits(String credits) {
+    return 'Credits: $credits';
+  }
+
+  @override
+  String modelsDurationMinutes(int count) {
+    return '$count min';
+  }
+
+  @override
+  String modelsDurationHours(int hours, int minutes) {
+    return '$hours h $minutes min';
+  }
+
+  @override
+  String get modelsBalance => 'Load Balancing';
+
+  @override
+  String get modelsBalanceRoundRobin => 'Round Robin';
+
+  @override
+  String get modelsBalanceRoundRobinDescription =>
+      'Each new conversation goes to the next account, and stays on it (its cache is there).';
+
+  @override
+  String get modelsBalanceFillFirst => 'Fill First';
+
+  @override
+  String get modelsBalanceFillFirstDescription =>
+      'Uses the first account until it is out of quota, then the next.';
+
+  @override
+  String get modelsBalanceMostRemaining => 'Most Remaining';
+
+  @override
+  String get modelsBalanceMostRemainingDescription =>
+      'Each new conversation goes to the account with the most quota left.';
+
+  @override
+  String get modelsAccountPortBusy =>
+      'Port 1455, which sign-in comes back to, is used by another program (a proxy in Docker, or the Codex CLI signing in). Sign in in the browser all the same: the page it ends on will fail to load or show something else. Copy that page\'s full address and paste it below.';
+
+  @override
+  String get modelsAccountCallback => 'Address after sign-in';
+
+  @override
+  String get modelsAccountCallbackDetail =>
+      'If the browser does not come back by itself, paste the address it ended on.';
 
   @override
   String get modelsProtocolAnthropic => 'Anthropic-compatible';

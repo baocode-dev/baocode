@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
@@ -8,6 +9,8 @@ import '../../ide/ide_hover.dart';
 import '../../ide/ide_input.dart';
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
+import '../../models/codex/codex_service.dart';
+import '../../models/codex/codex_usage.dart';
 import '../../models/model_provider.dart';
 import '../../models/model_providers.dart';
 import '../../models/model_runtime.dart';
@@ -27,10 +30,14 @@ class ModelsSettingsPage extends StatefulWidget {
     super.key,
     required this.providers,
     this.listModels = listUpstreamModels,
+    this.codex,
   });
 
   final ModelProviders providers;
   final ModelLister listModels;
+
+  /// The ChatGPT (Codex) providers' accounts; the app's when null.
+  final CodexService? codex;
 
   /// The protocol's name, as the list and the detail show it.
   static String protocolName(BuildContext context, ProviderProtocol value) {
@@ -39,6 +46,7 @@ class ModelsSettingsPage extends StatefulWidget {
       ProviderProtocol.anthropic => l10n.modelsProtocolAnthropic,
       ProviderProtocol.openaiChat => 'OpenAI Chat Completions',
       ProviderProtocol.openaiResponses => 'OpenAI Responses',
+      ProviderProtocol.codex => 'ChatGPT (Codex)',
     };
   }
 
@@ -72,6 +80,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
           providers: _providers,
           provider: open,
           listModels: widget.listModels,
+          codex: widget.codex ?? codexService,
           onBack: () => setState(() => _open = null),
         );
       }
@@ -216,7 +225,9 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                   provider.protocol,
                 ),
                 detail: [
-                  if (provider.host.isEmpty)
+                  if (provider.protocol.usesAccounts)
+                    l10n.modelsAccountCount(provider.accounts.length)
+                  else if (provider.host.isEmpty)
                     l10n.modelsProviderNoUrl
                   else
                     provider.host,
@@ -226,7 +237,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                     ? _Status.off
                     : _providers.error(provider.id) != null
                     ? _Status.failed
-                    : provider.enabledModels.isEmpty || provider.host.isEmpty
+                    : provider.enabledModels.isEmpty || !provider.connected
                     ? _Status.incomplete
                     : _Status.ready,
                 error: _providers.error(provider.id),
@@ -373,12 +384,16 @@ class ProviderSettingsPage extends StatefulWidget {
     required this.provider,
     required this.listModels,
     required this.onBack,
+    this.codex,
   });
 
   final ModelProviders providers;
   final ModelProvider provider;
   final ModelLister listModels;
   final VoidCallback onBack;
+
+  /// The ChatGPT (Codex) providers' accounts; the app's when null.
+  final CodexService? codex;
 
   @override
   State<ProviderSettingsPage> createState() => _ProviderSettingsPageState();
@@ -402,20 +417,70 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   String? _testResult;
   bool _testFailed = false;
 
+  /// Signing in to an account, while it is under way.
+  CodexLogin? _login;
+  String? _loginError;
+  bool _refreshingQuota = false;
+
   ModelProviders get _providers => widget.providers;
   ModelProvider get _provider => widget.provider;
+  CodexService get _codex => widget.codex ?? codexService;
 
   @override
   void initState() {
     super.initState();
     _search.addListener(() => setState(() {}));
     unawaited(_readKey());
+    if (_provider.protocol.usesAccounts && _provider.accounts.isNotEmpty) {
+      unawaited(_refreshQuota());
+    }
   }
 
   @override
   void dispose() {
+    _login?.cancel();
     _search.dispose();
     super.dispose();
+  }
+
+  Future<void> _addAccount() async {
+    setState(() => _loginError = null);
+    try {
+      final login = await _codex.login(_provider.id);
+      if (!mounted) {
+        login.cancel();
+        return;
+      }
+      setState(() => _login = login);
+      await login.result;
+    } on CodexCancelled {
+      // As asked.
+    } on Object catch (error) {
+      if (mounted) setState(() => _loginError = '$error');
+    } finally {
+      if (mounted) setState(() => _login = null);
+    }
+  }
+
+  Future<void> _refreshQuota() async {
+    setState(() => _refreshingQuota = true);
+    try {
+      await _codex.refreshUsage(_providerNow);
+    } finally {
+      if (mounted) setState(() => _refreshingQuota = false);
+    }
+  }
+
+  Future<void> _removeAccount(ProviderAccount account) async {
+    final l10n = context.l10n;
+    final choice = await showIdeDialog(
+      context,
+      message: l10n.modelsAccountRemoveConfirm(account.displayName),
+      detail: l10n.modelsAccountRemoveDetail,
+      buttons: [l10n.modelsAccountRemove],
+    );
+    if (choice != 0) return;
+    await _codex.removeAccount(_provider.id, account.id);
   }
 
   Future<void> _readKey() async {
@@ -539,6 +604,13 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
         Text(provider.name, style: SettingsText.title),
         const SizedBox(height: 16),
         _connection(context),
+        if (provider.protocol.usesAccounts) ...[
+          const SizedBox(height: 16),
+          ListenableBuilder(
+            listenable: _codex,
+            builder: (context, _) => _accounts(context),
+          ),
+        ],
         const SizedBox(height: 16),
         _models(context),
         const SizedBox(height: 16),
@@ -556,6 +628,155 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           onToggle: () => setState(() => _advancedOpen = !_advancedOpen),
           children: _advanced(context),
         ),
+      ],
+    );
+  }
+
+  /// Speaks [protocol] from now on: a new provider's name, left as it was
+  /// made, becomes ChatGPT's when it is that.
+  Future<void> _setProtocol(ProviderProtocol protocol) {
+    var provider = _providerNow.copyWith(protocol: protocol);
+    if (protocol == ProviderProtocol.codex &&
+        provider.name == context.l10n.modelsNewProviderName) {
+      provider = provider.copyWith(name: 'ChatGPT');
+    }
+    return _save(provider);
+  }
+
+  Widget _accounts(BuildContext context) {
+    final l10n = context.l10n;
+    final provider = _provider;
+    final login = _login;
+    String balanceName(AccountBalance value) => switch (value) {
+      AccountBalance.roundRobin => l10n.modelsBalanceRoundRobin,
+      AccountBalance.fillFirst => l10n.modelsBalanceFillFirst,
+      AccountBalance.mostRemaining => l10n.modelsBalanceMostRemaining,
+    };
+    final balance = balanceName(provider.balance);
+    return SettingsGroup(
+      title: l10n.modelsAccounts,
+      description: l10n.modelsAccountsDescription,
+      children: [
+        if (provider.accounts.isEmpty)
+          SettingsRow(label: l10n.modelsAccountsNone)
+        else
+          for (final account in provider.accounts)
+            _AccountRow(
+              account: account,
+              usage: _codex.usage(provider.id, account.id),
+              error: _codex.error(provider.id, account.id),
+              limitedUntil: _codex.limitedUntil(provider.id, account.id),
+              onEnabled: (value) => unawaited(
+                _save(
+                  _providerNow.withAccount(account.copyWith(enabled: value)),
+                ),
+              ),
+              onRemove: () => unawaited(_removeAccount(account)),
+            ),
+        if (provider.accounts.length > 1)
+          SettingsRow(
+            label: l10n.modelsBalance,
+            description: switch (provider.balance) {
+              AccountBalance.roundRobin =>
+                l10n.modelsBalanceRoundRobinDescription,
+              AccountBalance.fillFirst =>
+                l10n.modelsBalanceFillFirstDescription,
+              AccountBalance.mostRemaining =>
+                l10n.modelsBalanceMostRemainingDescription,
+            },
+            trailing: SettingsDropdown(
+              current: balance,
+              semanticLabel: l10n.modelsChoiceLabel(
+                l10n.modelsBalance,
+                balance,
+              ),
+              entries: () => [
+                for (final value in AccountBalance.values)
+                  IdeMenuAction(
+                    balanceName(value),
+                    checked: value == provider.balance,
+                    onSelected: () =>
+                        unawaited(_save(_providerNow.copyWith(balance: value))),
+                  ),
+              ],
+            ),
+          ),
+        SettingsRow(
+          label: login != null
+              ? l10n.modelsAccountSigningIn
+              : l10n.modelsAddAccount,
+          description: switch (login) {
+            null => l10n.modelsAddAccountDescription,
+            CodexLogin(listening: false) => l10n.modelsAccountPortBusy,
+            _ => l10n.modelsAccountSigningInDetail,
+          },
+          below: [
+            if (_loginError case final error?)
+              SelectableText(
+                l10n.modelsAccountSignInFailed(error),
+                style: SettingsText.description.copyWith(
+                  color: themeColors['errorForeground'],
+                ),
+              ),
+          ],
+          trailing: SettingsButtons(
+            children: [
+              if (login != null) ...[
+                IdeButton(
+                  label: l10n.modelsAccountCopyLink,
+                  icon: Codicons.copy,
+                  secondary: true,
+                  onPressed: () => unawaited(
+                    Clipboard.setData(ClipboardData(text: '${login.url}')),
+                  ),
+                ),
+                IdeButton(
+                  label: l10n.commonCancel,
+                  secondary: true,
+                  onPressed: login.cancel,
+                ),
+              ] else ...[
+                if (provider.accounts.isNotEmpty)
+                  IdeButton(
+                    label: l10n.modelsRefreshQuota,
+                    icon: Codicons.refresh,
+                    secondary: true,
+                    onPressed: _refreshingQuota
+                        ? null
+                        : () => unawaited(_refreshQuota()),
+                  ),
+                IdeButton(
+                  label: l10n.modelsAddAccount,
+                  icon: Codicons.add,
+                  onPressed: () => unawaited(_addAccount()),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (login != null)
+          SettingsRow(
+            label: l10n.modelsAccountCallback,
+            description: l10n.modelsAccountCallbackDetail,
+            trailing: _Field(
+              // Made anew for each sign-in.
+              key: ObjectKey(login),
+              value: '',
+              label: l10n.modelsAccountCallback,
+              placeholder: 'http://localhost:1455/auth/callback?code=…',
+              onCommit: (text) {
+                if (text.trim().isEmpty) return;
+                String? error;
+                try {
+                  login.submit(text);
+                } on CodexException catch (e) {
+                  error = e.message;
+                }
+                // Also written as the field goes, maybe with the page.
+                if (mounted) setState(() => _loginError = error);
+              },
+            ),
+          ),
       ],
     );
   }
@@ -595,61 +816,62 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                 IdeMenuAction(
                   ModelsSettingsPage.protocolName(context, value),
                   checked: value == provider.protocol,
-                  onSelected: () =>
-                      unawaited(_save(_providerNow.copyWith(protocol: value))),
+                  onSelected: () => unawaited(_setProtocol(value)),
                 ),
             ],
           ),
         ),
-        SettingsRow(
-          label: l10n.modelsBaseUrl,
-          description: provider.protocol.proxied
-              ? l10n.modelsBaseUrlOpenAIHint
-              : l10n.modelsBaseUrlAnthropicHint,
-          trailing: _Field(
-            value: provider.baseUrl,
+        if (!provider.protocol.usesAccounts) ...[
+          SettingsRow(
             label: l10n.modelsBaseUrl,
-            placeholder: provider.protocol.proxied
-                ? 'https://api.openai.com/v1'
-                : 'https://api.anthropic.com',
-            onCommit: (url) =>
-                unawaited(_save(_providerNow.copyWith(baseUrl: url.trim()))),
+            description: provider.protocol.proxied
+                ? l10n.modelsBaseUrlOpenAIHint
+                : l10n.modelsBaseUrlAnthropicHint,
+            trailing: _Field(
+              value: provider.baseUrl,
+              label: l10n.modelsBaseUrl,
+              placeholder: provider.protocol.proxied
+                  ? 'https://api.openai.com/v1'
+                  : 'https://api.anthropic.com',
+              onCommit: (url) =>
+                  unawaited(_save(_providerNow.copyWith(baseUrl: url.trim()))),
+            ),
           ),
-        ),
-        SettingsRow(
-          label: l10n.modelsApiKey,
-          description: l10n.modelsApiKeyDescription,
-          below: [
-            if (_keyError case final error?)
-              SelectableText(
-                l10n.modelsApiKeyError(error),
-                style: SettingsText.description.copyWith(
-                  color: themeColors['errorForeground'],
+          SettingsRow(
+            label: l10n.modelsApiKey,
+            description: l10n.modelsApiKeyDescription,
+            below: [
+              if (_keyError case final error?)
+                SelectableText(
+                  l10n.modelsApiKeyError(error),
+                  style: SettingsText.description.copyWith(
+                    color: themeColors['errorForeground'],
+                  ),
                 ),
-              ),
-          ],
-          trailing: _keyRead
-              ? _Field(
-                  value: _key ?? '',
-                  label: l10n.modelsApiKey,
-                  obscure: !_showKey,
-                  toggles: [
-                    IdeInputToggle(
-                      icon: _showKey ? Codicons.eyeClosed : Codicons.eye,
-                      tooltip: _showKey
-                          ? l10n.modelsApiKeyHide
-                          : l10n.modelsApiKeyShow,
-                      checked: false,
-                      onChanged: (_) => setState(() => _showKey = !_showKey),
-                    ),
-                  ],
-                  onCommit: (key) {
-                    _key = key.trim();
-                    unawaited(_setKey(key));
-                  },
-                )
-              : const SizedBox(width: _Field.width, height: 26),
-        ),
+            ],
+            trailing: _keyRead
+                ? _Field(
+                    value: _key ?? '',
+                    label: l10n.modelsApiKey,
+                    obscure: !_showKey,
+                    toggles: [
+                      IdeInputToggle(
+                        icon: _showKey ? Codicons.eyeClosed : Codicons.eye,
+                        tooltip: _showKey
+                            ? l10n.modelsApiKeyHide
+                            : l10n.modelsApiKeyShow,
+                        checked: false,
+                        onChanged: (_) => setState(() => _showKey = !_showKey),
+                      ),
+                    ],
+                    onCommit: (key) {
+                      _key = key.trim();
+                      unawaited(_setKey(key));
+                    },
+                  )
+                : const SizedBox(width: _Field.width, height: 26),
+          ),
+        ],
         SettingsRow(
           label: l10n.modelsTest,
           below: [
@@ -669,7 +891,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
             label: l10n.modelsTest,
             icon: Codicons.plug,
             secondary: true,
-            onPressed: _testing || provider.host.isEmpty
+            onPressed: _testing || !provider.connected
                 ? null
                 : () => unawaited(_test()),
           ),
@@ -723,7 +945,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                   IdeButton(
                     label: l10n.modelsFetch,
                     icon: Codicons.cloudDownload,
-                    onPressed: provider.host.isEmpty
+                    onPressed: !provider.connected
                         ? null
                         : () => unawaited(_fetch()),
                   ),
@@ -1066,6 +1288,203 @@ class _ModelRow extends StatelessWidget {
   }
 }
 
+/// An account of a ChatGPT (Codex) provider: who it is, its plan, how
+/// much of its quota is used; whether it takes requests, and its removal.
+class _AccountRow extends StatelessWidget {
+  const _AccountRow({
+    required this.account,
+    required this.usage,
+    required this.error,
+    required this.limitedUntil,
+    required this.onEnabled,
+    required this.onRemove,
+  });
+
+  final ProviderAccount account;
+  final CodexUsage? usage;
+  final String? error;
+  final DateTime? limitedUntil;
+  final ValueChanged<bool> onEnabled;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final usage = this.usage;
+    final plan = usage?.plan ?? account.plan;
+    final error = this.error;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        account.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: SettingsText.label.copyWith(
+                          color: account.enabled ? null : AppColors.textMuted,
+                        ),
+                      ),
+                    ),
+                    if (plan != null && plan.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      ModelBadge(plan[0].toUpperCase() + plan.substring(1)),
+                    ],
+                    if (limitedUntil != null) ...[
+                      const SizedBox(width: 6),
+                      ModelBadge(
+                        l10n.modelsAccountLimited,
+                        color: AppColors.caution,
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                if (usage == null || usage.windows.isEmpty)
+                  if (error == null)
+                    Text(
+                      l10n.modelsAccountQuotaUnknown,
+                      style: SettingsText.description,
+                    )
+                  else
+                    const SizedBox.shrink()
+                else ...[
+                  for (final window in usage.windows) _QuotaLine(window),
+                  if (usage.credits case final credits?)
+                    Text(
+                      l10n.modelsQuotaCredits(credits),
+                      style: SettingsText.description,
+                    ),
+                ],
+                if (error != null)
+                  SelectableText(
+                    error,
+                    maxLines: 3,
+                    style: SettingsText.description.copyWith(
+                      color: themeColors['errorForeground'],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          SettingsSwitch(
+            value: account.enabled,
+            semanticLabel: l10n.modelsAccountEnable(account.displayName),
+            onChanged: onEnabled,
+          ),
+          const SizedBox(width: 8),
+          IdeActionButton(
+            icon: Codicons.trash,
+            tooltip: l10n.modelsAccountRemove,
+            onPressed: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A window of an account's quota: how long it is, a bar of how much of
+/// it is used, and when it starts over.
+class _QuotaLine extends StatelessWidget {
+  const _QuotaLine(this.window);
+
+  final CodexWindow window;
+
+  static String name(BuildContext context, int? minutes) {
+    final l10n = context.l10n;
+    if (minutes == null || minutes <= 0) return '';
+    if (minutes % 10080 == 0 && minutes == 10080) return l10n.modelsQuotaWeek;
+    if (minutes % 1440 == 0) return l10n.modelsQuotaDays(minutes ~/ 1440);
+    return l10n.modelsQuotaHours((minutes / 60).round());
+  }
+
+  static String resets(BuildContext context, DateTime at, DateTime now) {
+    final l10n = context.l10n;
+    final left = at.difference(now);
+    if (left.inMinutes < 60) {
+      return l10n.modelsQuotaResetsIn(
+        l10n.modelsDurationMinutes(left.inMinutes < 1 ? 1 : left.inMinutes),
+      );
+    }
+    if (left.inHours < 24) {
+      return l10n.modelsQuotaResetsIn(
+        l10n.modelsDurationHours(left.inHours, left.inMinutes % 60),
+      );
+    }
+    final local = at.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return l10n.modelsQuotaResetsAt(
+      '${local.month}/${local.day} ${two(local.hour)}:${two(local.minute)}',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final used = window.usedPercent.clamp(0, 100).toDouble();
+    final color = used >= 90
+        ? themeColors['errorForeground']
+        : used >= 70
+        ? AppColors.caution
+        : SettingsSwitch.onColor;
+    final detail = [
+      l10n.modelsQuotaUsed(used.round()),
+      if (window.resetsAt case final at?) resets(context, at, DateTime.now()),
+    ].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 52,
+            child: Text(
+              name(context, window.minutes),
+              style: SettingsText.description,
+            ),
+          ),
+          Container(
+            width: 96,
+            height: 4,
+            alignment: AlignmentDirectional.centerStart,
+            decoration: BoxDecoration(
+              color: AppColors.textFaint.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: FractionallySizedBox(
+              widthFactor: used / 100,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              detail,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: SettingsText.description,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// A group whose heading folds it.
 class _Folding extends StatelessWidget {
   const _Folding({
@@ -1132,6 +1551,7 @@ class _Folding extends StatelessWidget {
 /// as each key is typed).
 class _Field extends StatefulWidget {
   const _Field({
+    super.key,
     required this.value,
     required this.label,
     required this.onCommit,
