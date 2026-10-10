@@ -168,8 +168,8 @@ Open VSX 的包缓存在 `/tmp/exthost-dl/openvsx-cache`，第一次会下载。
 `screens_exthost_test.dart` 在 flutter_tester 里离屏渲染整个工作台（不开窗口，
 不碰桌面），运行真实扩展，把截图写到 `build/exthost-screens/`（可用
 `BAOCODE_EXTHOST_SCREENS` 改位置），每张都要逐张看：运行时下载中、TS 补全与
-hover、扩展视图、GitLens blame 加 Error Lens、Todo Tree、断点命中时的调试视图、
-Webview 降级提示。截图用测试字体加载器加载字体；真实应用里的显示见
+hover、扩展视图、扩展详情页及其能力标注（GitLens：Partly supported）、GitLens
+blame 加 Error Lens、Todo Tree、断点命中时的调试视图、Webview 降级提示。截图用测试字体加载器加载字体；真实应用里的显示见
 `docs/extensions/MANUAL_CHECKLIST.md`。
 
 ## 故障排查

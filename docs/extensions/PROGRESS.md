@@ -234,6 +234,11 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   not read).
 - Found in the Todo Tree screenshot: a tree item that collapses showed a folder icon though it said `ThemeIcon.File`
   (Todo Tree's files); the theme icon decides first, as upstream's `getFileKind`.
+- Found in the extension details screenshot: an installed GitLens 19.3.0 showed Open VSX's `latest`, a pre-release
+  (2026.10.x), as its version; the page now asks for what installing picks (`resolveCompatible`: the newest compatible
+  release) and shows an installed extension's own version, as upstream's VersionWidget. Its README's HTML showed as
+  source; a README that failed to load in a tab not shown (the changelog) was an unhandled error. The page's bar names
+  the extension as upstream's editor input (`Extension: {displayName}`).
 
 ## In progress / next
 
@@ -242,6 +247,10 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
    build/exthost-screens; then analyze, the full suite once, macOS build, merge.
 
 ## Decisions and deviations
+
+- An extension's README is markdown with HTML that upstream renders, sanitized, in a webview. Here its `<img>` and
+  `<a>` are kept, block tags part paragraphs and other tags are dropped (`readme_html.dart`); HTML tables and
+  alignment are not rendered.
 
 - `LanguageFeatures`/`lsp_protocol.dart` types are the editor UI's model and survive the LSP removal (moved out of
   lib/ide/lsp/); the extension host feeds them.

@@ -19,6 +19,9 @@ import 'package:bao_exthost/bao_exthost.dart';
 import 'package:baocode/debug/common/debug_types.dart';
 import 'package:baocode/extensions/configuration/core_configuration.dart';
 import 'package:baocode/extensions/runtime/extension_runtime_service.dart';
+import 'package:baocode/chat/widgets/markdown_view.dart';
+import 'package:baocode/extensions/ui/extension_widgets.dart';
+import 'package:baocode/extensions/ui/extensions_view.dart';
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_workspace.dart';
@@ -177,8 +180,12 @@ Future<OpenVsxWorkspace> _workspace(
 Future<void> _close(WidgetTester tester, OpenVsxWorkspace w) async {
   await tester.pumpWidget(const SizedBox());
   await tester.runAsync(w.close);
-  // Open VSX connections the views opened in fake time idle out (15s).
-  await tester.pump(const Duration(seconds: 16));
+  // Open VSX connections the views opened in fake time idle out (15s), or
+  // time out connecting (20s); downloads (a README's images) end, or stall
+  // out (60s).
+  await tester.pump(const Duration(seconds: 21));
+  await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 2)));
+  await tester.pump(const Duration(seconds: 61));
 }
 
 IdeEditorState _editor(WidgetTester tester) =>
@@ -525,6 +532,13 @@ void main() {
         ]) {
           await w.activated(id);
         }
+        // What of each works here, analyzed in real time: started on the
+        // fake clock, its isolate's answer would not come.
+        final model = w.extensions.extensionsModel;
+        await model.refreshInstalled();
+        while (!model.capabilities.containsKey('eamodio.gitlens')) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
       });
       await _pumpWorkbench(tester, w);
 
@@ -564,6 +578,30 @@ void main() {
       );
       await _settle(tester, const Duration(seconds: 1));
       await _capture(tester, 'todo_tree');
+
+      // GitLens' details, with what of it works here.
+      await _command(tester, 'workbench.view.extensions');
+      await tester.tap(
+        find
+            .ancestor(
+              of: find.textContaining('GitLens'),
+              matching: find.byType(ExtensionRow),
+            )
+            .first,
+      );
+      await _until(
+        tester,
+        "GitLens' details",
+        () =>
+            find.byType(CapabilitySummary).evaluate().isNotEmpty &&
+            find.byType(MarkdownBlocks).evaluate().isNotEmpty,
+      );
+      await _settle(tester, const Duration(seconds: 1));
+      await _capture(tester, 'extension_details');
+      // Below its README in an editor this narrow: what of it works here.
+      await tester.ensureVisible(find.byType(CapabilitySummary));
+      await _settle(tester);
+      await _capture(tester, 'extension_capability');
       await _close(tester, w);
     },
     skip: skip,
