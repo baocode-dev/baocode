@@ -82,7 +82,8 @@ native ends agree with it. What is left to check by hand:
 - Windows: the same with `start baocode://…` after installing with the
   installer, with the app running (the URI reaches the window already open,
   no second window) and closed. The Windows runner change
-  (`windows/runner/open_requests.cpp`) was not compiled on macOS.
+  (`windows/runner/open_requests.cpp`) compiles and links with MinGW
+  (`tool/check_windows_runner.sh`) but has not been built with MSVC or run.
 - Linux: the repository has no Linux package (no `linux/` runner, no
   `.desktop` file), so there is nothing to register the scheme in yet.
 
@@ -127,9 +128,11 @@ authorisation prompt itself cannot be driven from a test.
 
 Repeat on Windows, since everything above was checked on macOS:
 - Build it first (`flutter build windows`): the runner's `--open-url`
-  handling (`windows/runner/open_requests.cpp`, `main.cpp`) has never been
-  compiled, only read by `url_protocol_test.dart`. Then build the installer
-  (`tool/baocode.iss`) and install from it.
+  handling (`windows/runner/open_requests.cpp`, `main.cpp`) has been
+  compiled and linked on macOS only with MinGW against the SDK's engine
+  headers (`tool/check_windows_runner.sh`), never with MSVC's `/W4 /WX`, and
+  never run. Then build the installer (`tool/baocode.iss`) and install from
+  it.
 - First-run download with the progress in the status bar.
 - Dragging a `.vsix` from Explorer.
 - `baocode://` registration (see 5).

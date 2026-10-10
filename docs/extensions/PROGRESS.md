@@ -302,11 +302,17 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
    second merge went in without a new full suite run; it was run afterwards on the same tree: the real REH tests
    one at a time (`-j 1 --file-reporter json`) 51 passed, Go (Delve) among them, the full suite 6120 passed /
    34 skipped, the macOS build built.
-3. After the 九.8 test and the screenshot fixes: analyze, the full suite, the macOS build and the real REH tests
-   again on the last commit, then merge (`git merge --no-ff`, no push).
-4. Not done and not doable here: the Windows runner's `--open-url` and the installer's scheme registration are
-   checked only as text (url_protocol_test); the runner has not been compiled and `start baocode://…` has not been
-   tried on Windows (no Windows machine). Linux has no package, so no scheme there. See MANUAL_CHECKLIST.md.
+3. After the 九.8 test and the screenshot fixes, on b0c5bd4: `flutter analyze --no-pub` clean, the full suite 6128
+   passed / 34 skipped, `flutter build macos --debug` built, the real REH tests one at a time 51 passed (Go (Delve)
+   among them). Merged (1d3951e).
+4. The Windows runner compiles and links (`tool/check_windows_runner.sh`): every runner source, the plugin
+   registrant, Flutter's C++ client wrapper and Runner.rc built with MinGW-w64 against the SDK's engine headers,
+   linked to a PE32+ GUI executable whose only unresolved names are 37 `FLUTTER_EXPORT`s of flutter_windows.dll
+   (two of them from flutter_windows_internal.h, declared in app_windows.cpp as the engine does) and each plugin's
+   registration. A syntax error or a name no DLL exports fails it.
+5. Not done and not doable here: building with MSVC (`flutter build windows`), running the runner, the installer's
+   scheme registration and `start baocode://…` on Windows (no Windows machine; Windows engine artifacts download
+   only there). Linux has no package, so no scheme there. See MANUAL_CHECKLIST.md 5 and 9.
 
 ## Decisions and deviations
 
