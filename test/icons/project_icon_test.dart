@@ -497,7 +497,7 @@ void main() {
       expect(
         find.descendant(
           of: headerIcon,
-          matching: find.byIcon(Icons.folder_outlined),
+          matching: find.byIcon(Icons.folder_open_outlined),
         ),
         findsOneWidget,
       );
@@ -515,7 +515,7 @@ void main() {
       expect(
         find.descendant(
           of: headerIcon,
-          matching: find.byIcon(Icons.folder_outlined),
+          matching: find.byIcon(Icons.folder_open_outlined),
         ),
         findsNothing,
       );

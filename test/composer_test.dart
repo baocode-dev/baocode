@@ -1455,7 +1455,7 @@ void main() {
     testWidgets('a turn\'s message sticks to the top, pushed off by the next', (
       tester,
     ) async {
-      await pumpScreen(tester, historyCount: 24);
+      await pumpScreen(tester, historyCount: 32);
       // Turn 3, then turn 2 just above it.
       await reveal(tester, '第 3 轮');
       await reveal(tester, '第 2 轮');
@@ -1640,7 +1640,7 @@ void main() {
       await reveal(tester, '第 3 轮');
       final longBubble = bubble('第 3 轮');
       // Three lines of text, plus the bubble's padding and border.
-      expect(tester.getSize(longBubble).height, 13.5 * 1.5 * 3 + 10 + 11 + 2);
+      expect(tester.getSize(longBubble).height, 13 * 1.5 * 3 + 10 + 11 + 2);
       expect(expandIcon(longBubble), findsOneWidget);
 
       // A short one is not cut: as tall as its text. (Its overlay is built

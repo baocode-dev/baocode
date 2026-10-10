@@ -453,10 +453,14 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     return project;
   }
 
-  /// [path]'s project: its folder's, or a workspace's of that name.
+  /// [path]'s project: its folder's, or a workspace's of that name, or the
+  /// name the user gave it (see [renameProject]).
   Project _projectNamed(String path) => switch (_workspaces[path]) {
     final workspace? => Project(workspace.name, path),
-    null => Project.at(path),
+    null => switch (_projectNames[path]) {
+      final name? => Project(name, path),
+      null => Project.at(path),
+    },
   };
 
   void _addKept(
@@ -1214,11 +1218,53 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (_hiddenProjects.remove(path) != null) _save();
   }
 
+  /// The names the user gave projects of a folder, by path (a workspace's
+  /// is its own, see [updateWorkspace]).
+  final Map<String, String> _projectNames = {};
+
+  /// Names [project] [name]; its folder's name again when null or empty.
+  /// Only the name shown changes: the folder stays as it is.
+  void renameProject(Project project, String? name) {
+    final trimmed = name?.trim() ?? '';
+    final folderName = Project.at(project.path).name;
+    if (trimmed.isEmpty || trimmed == folderName) {
+      _projectNames.remove(project.path);
+    } else {
+      _projectNames[project.path] = trimmed;
+    }
+    final renamed = Project(
+      trimmed.isEmpty ? folderName : trimmed,
+      project.path,
+    );
+    final index = _projects.indexWhere((p) => p.path == project.path);
+    if (index >= 0) _projects[index] = renamed;
+    for (final thread in _threads) {
+      if (thread.project.path == project.path) thread.project = renamed;
+    }
+    _save();
+    notifyListeners();
+  }
+
+  /// The projects the user pinned, by path, in the order pinned: listed
+  /// above the others.
+  final List<String> _pinnedProjects = [];
+
+  bool isProjectPinned(Project project) =>
+      _pinnedProjects.contains(project.path);
+
+  void setProjectPinned(Project project, bool pinned) {
+    _pinnedProjects.remove(project.path);
+    if (pinned) _pinnedProjects.add(project.path);
+    _save();
+    notifyListeners();
+  }
+
   /// The order the user dragged projects in, by path.
   final List<String> _projectOrder = [];
 
   /// The projects the sidebar lists, in its order: those not dragged yet
   /// (e.g. new) on top, most recent first; then as the user ordered them.
+  /// Pinned ones above all, in the order pinned.
   List<Project> get sidebarProjects {
     final shown = [
       for (final project in _projects)
@@ -1229,10 +1275,17 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       for (final project in shown)
         if (rank[project.path] != null) project,
     ]..sort((a, b) => rank[a.path]!.compareTo(rank[b.path]!));
-    return [
+    final ordered = [
       for (final project in shown)
         if (rank[project.path] == null) project,
       ...ranked,
+    ];
+    if (_pinnedProjects.isEmpty) return ordered;
+    final pinned = {for (final (i, path) in _pinnedProjects.indexed) path: i};
+    return [
+      ...ordered.where((p) => pinned.containsKey(p.path)).toList()
+        ..sort((a, b) => pinned[a.path]!.compareTo(pinned[b.path]!)),
+      ...ordered.where((p) => !pinned.containsKey(p.path)),
     ];
   }
 
@@ -1475,6 +1528,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _collapsedGroups.length,
       _expandedGroups.length,
       _projectOrder.length,
+      _pinnedProjects.length,
       _hiddenProjects.length,
       _order.length,
       _projectIcons.length,
@@ -1484,6 +1538,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _collapsedGroups.removeWhere(gone);
     _expandedGroups.removeWhere(gone);
     _projectOrder.retainWhere(paths.contains);
+    _pinnedProjects.retainWhere(paths.contains);
     _hiddenProjects.removeWhere((path, _) => !paths.contains(path));
     _order.removeWhere((path, _) => !paths.contains(path));
     _projectIcons.removeWhere((path, _) => !paths.contains(path));
@@ -1706,6 +1761,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _folders.addAll(list('folders'));
       _expandedGroups.addAll(list('expanded'));
       _projectOrder.addAll(list('projectOrder'));
+      _pinnedProjects.addAll(list('pinnedProjects'));
+      _projectNames.addAll(strings(sidebar['projectNames']));
       for (final MapEntry(:key, :value) in strings(
         sidebar['hiddenProjects'],
       ).entries) {
@@ -1805,6 +1862,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         'folders': [..._folders],
         'expanded': [..._expandedGroups],
         'projectOrder': [..._projectOrder],
+        'pinnedProjects': [..._pinnedProjects],
+        'projectNames': {..._projectNames},
         'hiddenProjects': {
           for (final MapEntry(:key, :value) in _hiddenProjects.entries)
             key: value.toIso8601String(),

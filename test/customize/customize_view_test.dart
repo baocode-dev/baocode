@@ -135,9 +135,11 @@ void main() {
     expect(find.byType(ChatScreen), findsNothing);
     expect(_inView(find.text('pdf')), findsOneWidget);
     expect(_inView(find.text('Reads PDF files')), findsOneWidget);
-    for (final chip in ['Plugins', 'MCPs', 'Skills', 'Subagents', 'Rules']) {
-      expect(_inView(find.text(chip)), findsOneWidget);
+    // A tab for each kind under the title, which names the one shown.
+    for (final kind in ['Plugins', 'MCPs', 'Subagents', 'Rules']) {
+      expect(_inView(find.text(kind)), findsOneWidget);
     }
+    expect(_inView(find.text('Skills')), findsNWidgets(2));
 
     // Searching keeps the ones that match.
     await tester.enterText(_inView(find.byType(TextField)), 'docx');

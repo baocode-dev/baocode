@@ -96,6 +96,7 @@ import 'workspace/title_bar_double_click.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/window_header/window_header.dart';
 import 'workspace/workspace.dart';
+import 'workspace/create_project_dialog.dart';
 import 'workspace/workspace_dialog.dart';
 
 /// The window: the agents sidebar on the left, the selected agent's chat
@@ -2270,6 +2271,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         onOpened?.call();
       },
       onOpenFolder: WindowControls.canPickDirectory ? _openFolder : null,
+      onCreateProject: WindowControls.canPickDirectory
+          ? () => unawaited(_createProject())
+          : null,
       onOpenSettings: () => unawaited(openSettings()),
       updates: widget.settings?.updates?.service,
       onUpdate: _restartToUpdate,
@@ -2527,6 +2531,63 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         },
       ).start(),
     );
+  }
+
+  /// Create Project: its name and folder (see [CreateProjectDialog]),
+  /// then a new agent there.
+  Future<void> _createProject() async {
+    final project = await showCreateProjectDialog(
+      context,
+      workspace: _workspace,
+      pickRemote: _pickRemoteFolder,
+    );
+    if (project == null || !mounted) return;
+    _closeDrawer();
+  }
+
+  /// A folder on [host] browsed to (a host picked first when null), as
+  /// Open Remote Project… does; null when the pick is dismissed.
+  Future<String?> _pickRemoteFolder(String? host) {
+    final picked = Completer<String?>();
+    // Each step's pick hides as the next shows: dismissed only when none
+    // showed after it.
+    var shown = 0;
+    final flow = OpenRemoteFlow(
+      show: (pick) {
+        final step = ++shown;
+        showQuickPick(
+          IdeQuickPick(
+            items: pick.items,
+            itemsFor: pick.itemsFor,
+            placeholder: pick.placeholder,
+            activeItems: pick.activeItems,
+            matchOnDescription: pick.matchOnDescription,
+            sortByLabel: pick.sortByLabel,
+            onDidChangeActive: pick.onDidChangeActive,
+            onDidChangeValue: pick.onDidChangeValue,
+            onDidAccept: pick.onDidAccept,
+            onDidHide: () {
+              pick.onDidHide?.call();
+              Timer(const Duration(milliseconds: 100), () {
+                if (step == shown && !picked.isCompleted) {
+                  picked.complete(null);
+                }
+              });
+            },
+          ),
+        );
+      },
+      l10n: context.l10n,
+      onOpen: (location) {
+        if (!picked.isCompleted) picked.complete(location);
+      },
+    );
+    if (host == null) {
+      unawaited(flow.start());
+    } else {
+      flow.startAt(host);
+    }
+    return picked.future;
   }
 
   Future<void> _openFolder() async {
