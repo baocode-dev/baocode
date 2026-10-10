@@ -1,9 +1,10 @@
 // 九.4: debugging with the debuggers' extensions from Open VSX, in a fresh
 // data folder, through the workbench's debug service as its views drive
-// it: Python (debugpy). Breakpoints of each kind the adapter supports
-// (hit count, conditional, log point, exception), set before and during
-// the session; the call stack, variables, watch expressions, the debug
-// console and stepping in, over and out.
+// it: Python (debugpy), Go (Delve), C++ and Rust (CodeLLDB). Breakpoints
+// of each kind the adapter supports (hit count, conditional, function,
+// data, log point, exception), set before and during the session; the
+// call stack, variables, watch expressions, the debug console, stepping
+// in, over and out, preLaunchTask and the debuggee's terminal.
 @Tags(['exthost'])
 @TestOn('mac-os || linux')
 library;
@@ -68,11 +69,12 @@ final class _Debug {
   ].join('\n');
 
   /// The focused thread stopped at [line] (any line when null; for
-  /// [reason], in [function]).
+  /// [reason], in [function]), in a stop after [past]'s.
   Future<StackFrame> stopped(
     int? line, {
     String? reason,
     String? function,
+    StackFrame? past,
   }) async {
     String state() {
       final thread = service.viewModel.focusedThread;
@@ -86,6 +88,7 @@ final class _Debug {
       final thread = service.viewModel.focusedThread;
       final frame = service.viewModel.focusedStackFrame;
       if (thread == null || frame == null || !thread.stopped) return null;
+      if (identical(frame, past)) return null;
       if (line != null && frame.range.startLineNumber != line) return null;
       if (reason != null && thread.stoppedDetails?.reason != reason) {
         return null;
@@ -457,7 +460,12 @@ void main() {
       ]);
       // Back in the loop (past the call: on its line or the loop's end).
       await d.thread.stepOut();
-      frame = await d.stopped(null, reason: 'step', function: 'main');
+      frame = await d.stopped(
+        null,
+        reason: 'step',
+        function: 'main',
+        past: frame,
+      );
       expect(
         frame.range.startLineNumber,
         greaterThanOrEqualTo(_line(_cpp, 'loop')),
@@ -492,7 +500,121 @@ void main() {
         ? 'No clang++'
         : openVsxSkip(),
   );
+  test(
+    '九.4: Rust (CodeLLDB): cargo build, conditional breakpoint, panic '
+    'filter, stepping, variables, watch, console',
+    () async {
+      final w = await OpenVsxWorkspace.create(
+        extensionIds: const ['vadimcn.vscode-lldb'],
+        files: {'Cargo.toml': _cargoToml, 'src/main.rs': _rust},
+      );
+      final d = _Debug(w);
+      final source = VsUri.file(w.path('src/main.rs'));
+      await d.service.addBreakpoints(source, [
+        BreakpointData(lineNumber: _line(_rust, 'loop'), condition: 'i == 2'),
+      ]);
+      // CodeLLDB builds with cargo and runs the binary it reports.
+      await d.start({
+        'type': 'lldb',
+        'request': 'launch',
+        'name': 'Rust: demo',
+        'cargo': {
+          'args': ['build', '--bin=demo', '--package=demo'],
+        },
+        'cwd': r'${workspaceFolder}',
+      });
+      var frame = await d.stopped(_line(_rust, 'loop'), function: 'main');
+      var locals = await d.variables(frame, 'Local');
+      expect(locals['i'], '2');
+      expect(locals['total'], '6');
+      expect(await d.watch(frame, 'total * 2'), '12');
+      expect(await d.evaluate(frame, '?total + 1'), '7');
+      await d.breakOnExceptions('rust_panic');
+
+      await d.thread.stepIn();
+      frame = await d.stopped(_line(_rust, 'scale'), function: 'scale');
+      locals = await d.variables(frame, 'Local');
+      expect((locals['v'], locals['k']), ('3', '2'));
+      expect(await d.callStack(2), [contains('scale'), contains('main')]);
+      await d.thread.next();
+      frame = await d.stopped(
+        _line(_rust, 'scale-return'),
+        function: 'scale',
+        past: frame,
+      );
+      expect((await d.variables(frame, 'Local'))['r'], '6');
+      await d.thread.stepOut();
+      frame = await d.stopped(
+        null,
+        reason: 'step',
+        function: 'main',
+        past: frame,
+      );
+
+      // The panic: CodeLLDB's filter is a breakpoint on `rust_panic`,
+      // under main.
+      await d.service.removeBreakpoints();
+      await d.thread.continue_();
+      await eventually('the panic', () {
+        final thread = d.service.viewModel.focusedThread;
+        final frame = d.service.viewModel.focusedStackFrame;
+        return thread != null &&
+                thread.stopped &&
+                frame != null &&
+                frame.name.contains('rust_panic')
+            ? true
+            : null;
+      }).catchError(
+        (Object e) => fail(
+          '$e\n${d.service.viewModel.focusedThread?.stoppedDetails?.reason} '
+          '${d.service.viewModel.focusedStackFrame?.name}\n${d.console()}\n'
+          '${d.terminals()}',
+        ),
+      );
+      await d.thread.fetchCallStack(40);
+      expect([
+        for (final f in d.thread.getCallStack()) f.name,
+      ], contains(contains('demo::main')));
+      expect(d.terminals(), contains('i 3 total 20'));
+
+      await d.service.stopSession(null);
+      await d.ended();
+      expect(w.unsupported, isEmpty, reason: w.report());
+    },
+    timeout: const Timeout(Duration(minutes: 10)),
+    skip: openVsxSkip() == false && !_onPath('cargo')
+        ? 'No cargo'
+        : openVsxSkip(),
+  );
 }
+
+const _cargoToml = '''
+[package]
+name = "demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+''';
+
+const _rust = '''
+fn scale(v: i32, k: i32) -> i32 {
+    let r = v * k; // BP:scale
+    eprintln!("scaled {}", r); // BP:scale-return
+    r
+}
+
+fn main() {
+    let values = vec![1, 2, 3, 4];
+    let mut total = 0;
+    for (i, v) in values.iter().enumerate() {
+        total += scale(*v, 2); // BP:loop
+        println!("i {} total {}", i, total);
+    }
+    let empty: Vec<i32> = Vec::new();
+    println!("first {}", empty[values.len()]); // BP:panic
+}
+''';
 
 const _cpp = '''
 #include <cstdio>
