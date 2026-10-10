@@ -223,8 +223,8 @@ void main() {
     await tester.pumpAndSettle();
     // One view: under the container's title, merged.
     expect(find.text('Dependencies: Packages'), findsOneWidget);
-    expect(find.text('lodash'), findsOneWidget);
-    expect(find.text('4.17.21'), findsOneWidget);
+    // The label, then its description.
+    expect(find.text('lodash  4.17.21'), findsOneWidget);
     expect(extensions.views.isVisible('acme.deps.tree'), isTrue);
 
     // The title's action.
@@ -234,7 +234,7 @@ void main() {
     expect((ran.last.$2.single as Map)[r'$treeViewId'], 'acme.deps.tree');
 
     // A collapsible item without a command expands on a click.
-    await tester.tap(find.text('lodash'));
+    await tester.tap(find.text('lodash  4.17.21'));
     await tester.pumpAndSettle();
     expect(find.text('README.md'), findsOneWidget);
     expect(tree.selection, ['lodash']);
@@ -249,7 +249,10 @@ void main() {
     });
 
     // Its context menu has the other groups.
-    await tester.tap(find.text('lodash'), buttons: kSecondaryButton);
+    await tester.tap(
+      find.text('lodash  4.17.21'),
+      buttons: kSecondaryButton,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Update Dependency'));
     await tester.pumpAndSettle();
@@ -266,7 +269,7 @@ void main() {
       'activity-workbench.view.extension.deps',
     )));
     await tester.pumpAndSettle();
-    expect(find.text('lodash'), findsNothing);
+    expect(find.text('lodash  4.17.21'), findsNothing);
     expect(extensions.views.isVisible('acme.deps.tree'), isFalse);
     await _end(tester);
   });

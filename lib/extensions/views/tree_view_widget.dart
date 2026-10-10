@@ -738,43 +738,36 @@ class _TreeRow extends StatelessWidget {
                   const SizedBox(width: 4),
                 ],
                 ?_icon(item, foreground),
-                // The label and its description take the row; the rest
-                // stays at its end (a Spacer took half the room).
+                // The label, then its description, on one line cut off at
+                // its end (upstream's icon label): side by side, each would
+                // get half the room.
                 Expanded(
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text.rich(
-                          _label(item, foreground),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          children: [_label(item, foreground)],
                           style: TextStyle(
-                            fontSize: 13,
-                            color: foreground,
                             decoration: decoration?.strikethrough ?? false
                                 ? TextDecoration.lineThrough
                                 : null,
                           ),
                         ),
-                      ),
-                      if (description != null)
-                        Flexible(
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: Text(
-                              description,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: selected
-                                    ? foreground.withValues(alpha: .8)
-                                    : IdeListColors.description,
-                              ),
+                        if (description != null)
+                          TextSpan(
+                            text: '  $description',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: selected
+                                  ? foreground.withValues(alpha: .8)
+                                  : IdeListColors.description,
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: foreground),
                   ),
                 ),
                 if (letter != null && actions.isEmpty)

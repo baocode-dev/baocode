@@ -307,7 +307,10 @@ void main() {
 
   testWidgets('a label takes the row\'s width, not half of it', (tester) async {
     const label = 'Scan mode: workspace, open files and more';
-    children[''] = [_item('scan', label: label)];
+    // A description too: side by side, each had half of the row.
+    children[''] = [
+      {..._item('scan', label: label), 'description': 'a description'},
+    ];
     final tree = views.treeView('acme.deps')!;
     await tester.runAsync(() async {
       await register();
@@ -326,7 +329,7 @@ void main() {
         home: Align(
           alignment: Alignment.topLeft,
           child: SizedBox(
-            width: 600,
+            width: 900,
             height: 200,
             child: ExtensionTreeViewBody(
               treeView: tree,
@@ -339,7 +342,7 @@ void main() {
       ),
     );
     await tester.pump();
-    final text = find.textContaining('Scan mode');
+    final text = find.textContaining('Scan mode', findRichText: true);
     expect(text, findsOneWidget);
     // It fits: nothing is cut off.
     final paragraph = tester.renderObject<RenderParagraph>(text);
