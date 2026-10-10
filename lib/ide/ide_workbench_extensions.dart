@@ -432,6 +432,10 @@ extension _ExtensionsPart on IdeWorkbenchState {
   Widget _extensionPageView(String id) {
     final extensions = _workspaceExtensions!;
     final l10n = context.l10n;
+    final key = id.toLowerCase();
+    final installed = extensions.extensionsModel.installed
+        ?.where((extension) => extension.key == key)
+        .firstOrNull;
     return ColoredBox(
       color: themeColors['editor.background'],
       child: Column(
@@ -450,7 +454,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    id,
+                    l10n.extsPageTitle(installed?.manifest.label ?? id),
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,

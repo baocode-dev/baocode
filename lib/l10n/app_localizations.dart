@@ -13265,6 +13265,12 @@ abstract class AppLocalizations {
   /// **'Close Extension'**
   String get extsPageClose;
 
+  /// No description provided for @extsPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Extension: {name}'**
+  String extsPageTitle(String name);
+
   /// No description provided for @themeSelectIconThemePlaceholder.
   ///
   /// In en, this message translates to:

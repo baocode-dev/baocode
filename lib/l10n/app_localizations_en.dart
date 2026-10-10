@@ -8062,6 +8062,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get extsPageClose => 'Close Extension';
 
   @override
+  String extsPageTitle(String name) {
+    return 'Extension: $name';
+  }
+
+  @override
   String get themeSelectIconThemePlaceholder =>
       'Select File Icon Theme (Up/Down Keys to Preview)';
 

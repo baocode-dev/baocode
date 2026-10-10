@@ -7623,6 +7623,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get extsPageClose => '关闭扩展';
 
   @override
+  String extsPageTitle(String name) {
+    return '扩展: $name';
+  }
+
+  @override
   String get themeSelectIconThemePlaceholder => '选择文件图标主题（按上下箭头键预览）';
 
   @override

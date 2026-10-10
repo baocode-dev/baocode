@@ -82,6 +82,8 @@ void main() {
     await tester.tap(find.text('Acme Tools'));
     await tester.pumpAndSettle();
     expect(find.text('acme.tools'), findsWidgets);
+    // Named as upstream's editor input: `Extension: {displayName}`.
+    expect(find.text('Extension: Acme Tools'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Close Extension'));
     await tester.pumpAndSettle();

@@ -6164,6 +6164,14 @@
   "wbRecommendExtensionDontShow": "Don't Show Again for This Extension",
   "extsNoHost": "Extensions are not available for this folder yet.",
   "extsPageClose": "Close Extension",
+  "extsPageTitle": "Extension: {name}",
+  "@extsPageTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "themeSelectIconThemePlaceholder": "Select File Icon Theme (Up/Down Keys to Preview)",
   "themeIconThemeBuiltIn": "Built-in",
   "extViewNoDataProvider": "There is no data provider registered that can provide view data.",

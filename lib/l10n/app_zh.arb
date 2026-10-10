@@ -2193,6 +2193,7 @@
   "wbRecommendExtensionDontShow": "不再为此扩展显示",
   "extsNoHost": "此文件夹暂不支持扩展。",
   "extsPageClose": "关闭扩展",
+  "extsPageTitle": "扩展: {name}",
   "themeSelectIconThemePlaceholder": "选择文件图标主题（按上下箭头键预览）",
   "themeIconThemeBuiltIn": "内置",
   "extViewNoDataProvider": "没有已注册的数据提供程序可提供此视图的数据。",
