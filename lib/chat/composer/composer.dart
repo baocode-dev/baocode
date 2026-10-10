@@ -29,6 +29,7 @@ import '../../workspace/window_controls.dart';
 import '../widgets/hover_builder.dart';
 import '../widgets/image_thumbnails.dart';
 import 'composer_caret.dart';
+import 'composer_controller.dart';
 import 'composer_draft.dart';
 import 'composer_embeds.dart';
 import 'composer_files.dart';
@@ -130,7 +131,7 @@ class ChatComposerState extends State<ChatComposer>
   static const _maxEditorLines = 10;
   static const _plainTextEmbed = '￼';
 
-  late final QuillController _controller = _createController();
+  late final ComposerController _controller = _createController();
   final FocusNode _focusNode = FocusNode(debugLabel: 'Composer');
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<EditorState> _editorKey = GlobalKey();
@@ -183,7 +184,7 @@ class ChatComposerState extends State<ChatComposer>
     return pool;
   }
 
-  QuillController _createController() {
+  ComposerController _createController() {
     final config = QuillControllerConfig(
       // Quill's only hook for taking over paste; experimental in 11.x.
       // ignore: experimental_member_use
@@ -192,7 +193,7 @@ class ChatComposerState extends State<ChatComposer>
     if (widget.draft case final draft? when draft.saved) {
       final document = Document.fromDelta(draft.content!);
       final end = document.length - 1;
-      return QuillController(
+      return ComposerController(
         document: document,
         selection: TextSelection(
           baseOffset: draft.selection.baseOffset.clamp(0, end),
@@ -212,7 +213,7 @@ class ChatComposerState extends State<ChatComposer>
     if (unreferred.isNotEmpty) {
       text = [unreferred.map(imageReference).join(' '), text].join(' ');
     }
-    if (text.isEmpty) return QuillController.basic(config: config);
+    if (text.isEmpty) return ComposerController.basic(config: config);
     final document = Document.fromDelta(
       composerDeltaFromText(
         text,
@@ -220,7 +221,7 @@ class ChatComposerState extends State<ChatComposer>
         images: numbers,
       ),
     );
-    return QuillController(
+    return ComposerController(
       document: document,
       selection: TextSelection.collapsed(offset: document.length - 1),
       config: config,

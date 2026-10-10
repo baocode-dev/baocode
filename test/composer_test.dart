@@ -796,6 +796,33 @@ void main() {
       await paste(tester, '@README.md');
       expect(content(tester), 'see [@README.md] \n');
     });
+
+    testWidgets('keeps a tag before a composition whose caret is not at its '
+        'end', (tester) async {
+      await pumpScreen(tester);
+      await paste(tester, '@lib/main.dart');
+      // As a Windows input method reports an inline emoji suggestion: the
+      // composition `ni hc〔表情：👋〕`, the caret after `hc`.
+      const composition = 'ni hc〔表情：👋〕';
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '￼ $composition\n',
+          selection: TextSelection.collapsed(offset: 7),
+          composing: TextRange(start: 2, end: 2 + composition.length),
+        ),
+      );
+      await tester.pump();
+      expect(content(tester), '[@lib/main.dart] $composition\n');
+      // The candidate picked ends the composition.
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '￼ 你好\n',
+          selection: TextSelection.collapsed(offset: 4),
+        ),
+      );
+      await tester.pump();
+      expect(content(tester), '[@lib/main.dart] 你好\n');
+    });
   });
 
   testWidgets(
