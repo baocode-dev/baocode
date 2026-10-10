@@ -551,7 +551,9 @@ void main() {
             _shows('GitLens') &&
             _shows('Error Lens') &&
             _shows('Todo Tree') &&
-            _shows('Code Spell Checker'),
+            _shows('Code Spell Checker') &&
+            // The recommendations, as Open VSX has them.
+            _shows('ESLint'),
       );
       await _settle(tester);
       await _capture(tester, 'extensions_view');
