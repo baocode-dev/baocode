@@ -85,11 +85,32 @@ void main() {
     }
   });
 
-  testWidgets('the default styler is Monokai, from the bundled assets', (
+  testWidgets('the default styler is Bao Dark, from the bundled assets', (
     tester,
   ) async {
+    expect(ideDefaultColorThemeId, 'Bao Dark');
     final styler = await ideDefaultSemanticTokenStyler();
-    expect(compareMatrix(ideDefaultColorThemeId, styler), isEmpty);
+    // VS Code has no recording of Bao Dark: the styler is that of the
+    // manifest's Bao Dark read from the files, and it styles tokens.
+    final want = ideSemanticTokenStyler(
+      await fixture.loadTheme(ideDefaultColorThemeId),
+    );
+    final differences = <String>[];
+    var styled = 0;
+    for (final language in fixture.languages) {
+      for (final type in fixture.tokenTypes) {
+        for (final set in fixture.modifierSets) {
+          final modifiers = fixture.modifiersOf(set);
+          final got = styler(type, modifiers, language);
+          if (got != null) styled++;
+          if (got != want(type, modifiers, language)) {
+            differences.add('$language $type $modifiers');
+          }
+        }
+      }
+    }
+    expect(differences, isEmpty);
+    expect(styled, greaterThan(0));
     expect(await ideDefaultSemanticTokenStyler(), same(styler));
   });
 
@@ -184,8 +205,9 @@ void main() {
   });
 
   test('a bundled theme\'s font styles reach the spans', () async {
-    // Monokai underlines and italicizes some token types.
-    const themeId = 'Monokai';
+    // Red italicizes some token types and clears bold and underline.
+    // (Setting underline is covered by Synthetic Dark above.)
+    const themeId = 'Red';
     final styler = ideSemanticTokenStyler(await fixture.loadTheme(themeId));
     final styled = <(String, Set<String>, IdeTokenStyle)>[];
     for (final type in fixture.tokenTypes) {
@@ -196,8 +218,9 @@ void main() {
       }
     }
     expect(styled, isNotEmpty);
-    expect(styled.map((s) => s.$3.underline), contains(true));
-    expect(styled.map((s) => s.$3.italic), contains(true));
+    expect(styled.map((s) => s.$3.underline), contains(false));
+    expect(styled.map((s) => s.$3.bold), contains(false));
+    expect(styled.map((s) => s.$3.italic), containsAll([true, false]));
     for (final (type, modifiers, style) in styled) {
       const text = 'name';
       final tokens = IdeSemanticTokens(
@@ -232,9 +255,8 @@ void main() {
   });
 
   test('a line whose text changed keeps its syntax spans', () async {
-    final styler = ideSemanticTokenStyler(
-      await fixture.loadTheme(ideDefaultColorThemeId),
-    );
+    const themeId = 'Dark Modern';
+    final styler = ideSemanticTokenStyler(await fixture.loadTheme(themeId));
     final tokens = IdeSemanticTokens(
       DocumentSnapshot('class Foo {}\nvar x;\n'),
       const [
@@ -251,9 +273,7 @@ void main() {
     expect(overlay[1], same(base[1]));
     expect(
       overlay[2]!.firstWhere((s) => s.text == 'x').style!.color,
-      fixture
-          .style(ideDefaultColorThemeId, 'variable', {}, 'plaintext')!
-          .foreground,
+      fixture.style(themeId, 'variable', {}, 'plaintext')!.foreground,
     );
   });
 }

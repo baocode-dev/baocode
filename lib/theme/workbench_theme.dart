@@ -54,23 +54,32 @@ export 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart'
         isHighContrast;
 
 /// `ThemeSettingDefaults`: the default theme of each color scheme. Ours are
-/// Monokai and Quiet Light, not upstream's Dark 2026 and Light 2026.
+/// Bao Dark and Bao Light, not upstream's Dark 2026 and Light 2026.
 abstract final class ThemeSettingDefaults {
-  static const colorThemeDark = 'Monokai';
-  static const colorThemeLight = 'Quiet Light';
+  static const colorThemeDark = 'Bao Dark';
+  static const colorThemeLight = 'Bao Light';
   static const colorThemeHcDark = 'Default High Contrast';
   static const colorThemeHcLight = 'Default High Contrast Light';
 }
 
 /// `migrateThemeSettingsId`: the current id of a theme once named
-/// [settingsId].
+/// [settingsId]. Themes no longer bundled (our former defaults among them)
+/// give way to the Bao theme of their color scheme.
 String migrateThemeSettingsId(String settingsId) => switch (settingsId) {
   'Default Dark Modern' => 'Dark Modern',
   'Default Light Modern' => 'Light Modern',
   'Default Dark+' => 'Dark+',
   'Default Light+' => 'Light+',
-  'Experimental Dark' || 'VS Code Dark' => 'Dark 2026',
-  'Experimental Light' || 'VS Code Light' => 'Light 2026',
+  'Experimental Dark' ||
+  'VS Code Dark' ||
+  'Dark 2026' ||
+  'Visual Studio Dark' ||
+  'Monokai' ||
+  'Abyss' => ThemeSettingDefaults.colorThemeDark,
+  'Experimental Light' ||
+  'VS Code Light' ||
+  'Light 2026' ||
+  'Quiet Light' => ThemeSettingDefaults.colorThemeLight,
   _ => settingsId,
 };
 
@@ -357,8 +366,8 @@ class WorkbenchThemeService extends ChangeNotifier
     theme ??= ColorThemeData.createUnloadedThemeForThemeType(
       ColorScheme.dark,
       switch (_setting) {
-        'Light 2026' => colorThemeLightInitialColors,
-        'Dark 2026' => colorThemeDarkInitialColors,
+        ThemeSettingDefaults.colorThemeLight => colorThemeLightInitialColors,
+        ThemeSettingDefaults.colorThemeDark => colorThemeDarkInitialColors,
         _ => null,
       },
     );

@@ -76,8 +76,8 @@ const ideSelectColorThemeKeybinding = IdeKeybinding(
 
 /// `ThemeSettingDefaults.COLOR_THEME_DARK` and `COLOR_THEME_LIGHT` (ours:
 /// workbench_theme.dart).
-const _defaultDark = 'Monokai';
-const _defaultLight = 'Quiet Light';
+const _defaultDark = 'Bao Dark';
+const _defaultLight = 'Bao Light';
 
 /// `defaultThemeDescriptions`.
 Map<String, String> _defaultThemeDescriptions(AppLocalizations l10n) => {

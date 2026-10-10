@@ -81,8 +81,8 @@ abstract final class AppColors {
   /// (which every theme has). Sashes and dividers, not cards' outlines.
   ///
   /// Many themes' `surface.border` is no line without Modern UI's gaps:
-  /// transparent (Quiet Light, Red…) or a background's own color (Dark+,
-  /// Monokai). Then the editor's foreground, faintly, as Cursor's strokes.
+  /// transparent (Red, Kimbie Dark…) or a background's own color (Dark+).
+  /// Then the editor's foreground, faintly, as Cursor's strokes.
   static Color get partBorder {
     final line = _first(['sideBar.border', 'surface.border', 'panel.border']);
     if (_stands(line, background) && _stands(line, code)) return line;
@@ -143,7 +143,8 @@ abstract final class AppColors {
 
   /// The theme's own `textLink.foreground`, else its `focusBorder`: links
   /// in the theme's color, not the registry's blue, in a theme that sets
-  /// none (Monokai, Quiet Light). The registry's link color in neither.
+  /// none (Kimbie Dark, Solarized Light). The registry's link color in
+  /// neither.
   static Color get accent {
     final colors = _colors;
     for (final id in const ['textLink.foreground', 'focusBorder']) {

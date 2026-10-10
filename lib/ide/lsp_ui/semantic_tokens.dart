@@ -170,7 +170,7 @@ Color _flutterColor(vs.Color color) => Color.fromARGB(
 
 /// The editor's default color theme (`workbench.colorTheme`):
 /// `ThemeSettingDefaults.colorThemeDark`.
-const String ideDefaultColorThemeId = 'Monokai';
+const String ideDefaultColorThemeId = 'Bao Dark';
 
 // The stylers, not futures of them: a future answers in the zone it was made
 // in, which may be gone (a widget test's fake async zone).

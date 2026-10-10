@@ -971,18 +971,24 @@ class _MessageShape extends OutlinedBorder {
 /// grows into the editor's own as [progress] goes from 0 to 1, the editor's
 /// contents coming in. One frame, from the bubble's to the editor's, its
 /// line turning to [border]; at 1, the editor's own.
+///
+/// [closing], it goes back the other way, over the message back in its
+/// place: from a bubble, what it fills fades with the editor's contents,
+/// into the message's.
 class UserMessageEditMorph extends SingleChildRenderObjectWidget {
   const UserMessageEditMorph({
     super.key,
     required this.from,
     required this.progress,
     required this.border,
+    this.closing = false,
     super.child,
   });
 
   final UserMessageFrame from;
   final double progress;
   final Color border;
+  final bool closing;
 
   /// The editor's corners (see ChatComposer).
   static const radius = 10.0;
@@ -994,6 +1000,7 @@ class UserMessageEditMorph extends SingleChildRenderObjectWidget {
     fill: AppColors.bubbleFill,
     fromBorder: AppColors.bubbleBorder(),
     border: border,
+    closing: closing,
   );
 
   @override
@@ -1003,7 +1010,8 @@ class UserMessageEditMorph extends SingleChildRenderObjectWidget {
       ..progress = progress
       ..fill = AppColors.bubbleFill
       ..fromBorder = AppColors.bubbleBorder()
-      ..border = border;
+      ..border = border
+      ..closing = closing;
   }
 }
 
@@ -1014,6 +1022,7 @@ class _RenderEditMorph extends RenderProxyBox {
     required this._fill,
     required this._fromBorder,
     required this._border,
+    required this._closing,
   });
 
   UserMessageFrame _from;
@@ -1056,6 +1065,13 @@ class _RenderEditMorph extends RenderProxyBox {
     markNeedsPaint();
   }
 
+  bool _closing;
+  set closing(bool value) {
+    if (value == _closing) return;
+    _closing = value;
+    markNeedsPaint();
+  }
+
   final _clip = LayerHandle<ClipPathLayer>();
   final _opacity = LayerHandle<OpacityLayer>();
 
@@ -1079,10 +1095,6 @@ class _RenderEditMorph extends RenderProxyBox {
     Path outline(Rect rect) =>
         _MessageShape._path(rect, tail: tail, radius: radius);
 
-    context.canvas.drawPath(
-      outline(rect).shift(offset),
-      Paint()..color = _fill,
-    );
     // From a frame as wide as this, the editor's text is where the
     // message's was: it shows from the start. From a narrower one (a bubble)
     // it is not; it comes in over the first part of the way.
@@ -1091,6 +1103,13 @@ class _RenderEditMorph extends RenderProxyBox {
     final alpha = moves
         ? (Curves.easeOut.transform(math.min(1, t * 1.5)) * 255).round()
         : 255;
+    context.canvas.drawPath(
+      outline(rect).shift(offset),
+      Paint()
+        ..color = _closing
+            ? _fill.withValues(alpha: _fill.a * alpha / 255)
+            : _fill,
+    );
     _clip.layer = context.pushClipPath(
       needsCompositing,
       offset,

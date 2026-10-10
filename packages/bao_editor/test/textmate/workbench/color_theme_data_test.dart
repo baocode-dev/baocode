@@ -108,7 +108,18 @@ void main() {
     }
 
     test('Dark 2026 follows its include chain', () async {
-      final theme = await bundled('Dark 2026');
+      // Not listed in the manifest, but kept as Bao Dark's include base.
+      final theme = ColorThemeData.fromExtensionTheme(
+        const IThemeExtensionPoint(
+          id: 'Dark 2026',
+          label: 'Dark 2026',
+          path: 'themes/2026-dark.json',
+          uiTheme: 'vs-dark',
+        ),
+        'themes/theme-defaults/themes/2026-dark.json',
+        extensionId: 'vscode.theme-defaults',
+      );
+      await theme.ensureLoaded(readAsset);
       expect(theme.id, 'vs-dark vscode-theme-defaults-themes-2026-dark-json');
       expect(theme.label, 'Dark 2026');
       expect(theme.settingsId, 'Dark 2026');

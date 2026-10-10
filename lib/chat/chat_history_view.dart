@@ -181,13 +181,26 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   UserMessageFrame? _editorFrom;
 
   /// The placeholder's height now, opening or open.
-  double get _editorShownHeight => _editorReveal.isCompleted
-      ? _editorHeight
-      : lerpDouble(
-          _editorFromHeight,
-          _editorHeight,
-          _motionCurve.transform(_editorReveal.value),
-        )!;
+  double get _editorShownHeight =>
+      lerpDouble(_editorFromHeight, _editorHeight, _editorOpened)!;
+
+  /// How far the editor has opened (curved), 1 open.
+  double get _editorOpened => _editorReveal.isCompleted
+      ? 1
+      : _motionCurve.transform(_editorReveal.value);
+
+  /// The editor closed, its frame shrinking back into the message's, from
+  /// as far as it had opened ([_closingFrom]); the message at [_closingIndex]
+  /// is back in the list, under it. Gone once there.
+  late final AnimationController _editorClose =
+      AnimationController(vsync: this, duration: _motionDuration)
+        ..addStatusListener((status) {
+          if (status.isCompleted && _closingIndex != null) {
+            setState(() => _closingIndex = null);
+          }
+        });
+  int? _closingIndex;
+  double _closingFrom = 1;
 
   /// The user message open for editing, if any, and the text it started
   /// from. The editor lives above the list (see [_buildEditorLayer]); the
@@ -377,6 +390,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _stickyKeys.clear();
       _stickyIndices = const {};
       _editingIndex = null;
+      _closingIndex = null;
       _foldOpen.clear();
       _unfoldedTurn = null;
       _wasLive = widget.feed.isStreaming;
@@ -448,6 +462,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _autoScroller?.stopAutoScroll();
     _editorMoved.dispose();
     _editorReveal.dispose();
+    _editorClose.dispose();
     _viewerScroll.dispose();
     _handoff.dispose();
     _selectionDelegate.dispose();
@@ -733,6 +748,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (_feed.isStreaming) _unfoldedTurn = null;
     if (ended && !_atBottom) _unfoldedTurn = _lastTurnWork()?.start;
     final editing = _editingIndex;
+    if (startedStreaming) _closingIndex = null;
     if (startedStreaming ||
         (editing != null &&
             (editing >= _feed.itemCount ||
@@ -754,7 +770,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (_feed.canEditMessages) {
       _feed.editing = (index: index, draft: ComposerDraft());
     }
+    _editorClose.stop();
     setState(() {
+      _closingIndex = null;
       _editingIndex = index;
       _editingText = item.text;
       _editingImages = item.images;
@@ -789,10 +807,22 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   void _cancelEditing() {
     _feed.editing = null;
     if (_editingIndex case final index?) {
-      // Back to the message: from the editor's height to its own (stuck to
-      // the top, to the message's copy there, in one go).
-      if (!_scrolledPast(index)) _animateItem(index);
-      setState(() => _editingIndex = null);
+      // Back to the message: from the editor's height to its own, the
+      // editor's frame shrinking back into the message's (stuck to the top,
+      // to the message's copy there, in one go).
+      final animate = !_scrolledPast(index);
+      if (animate) _animateItem(index);
+      final close =
+          animate &&
+          _editorFrom != null &&
+          !MediaQuery.disableAnimationsOf(context);
+      _editorReveal.stop();
+      setState(() {
+        _editingIndex = null;
+        _closingIndex = close ? index : null;
+        _closingFrom = _editorOpened;
+      });
+      if (close) _editorClose.forward(from: 0);
     }
   }
 
@@ -811,6 +841,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// placeholder is out of the built items, out of view.
   double? _editorTop(RenderBox layer) {
     const inset = _editorInset;
+    // Closing: on the message, below its gap (its placeholder is gone).
+    if (_closingIndex case final index?) {
+      final item = _laidOutItems()
+          .where((box) => _indexOf(box) == index)
+          .firstOrNull;
+      if (item == null) return null;
+      final top =
+          item.localToGlobal(Offset(0, _gapBefore(index))).dy -
+          layer.localToGlobal(Offset.zero).dy;
+      return _sticks ? math.max(top, inset) : top;
+    }
     final placeholder =
         _editorPlaceholderKey.currentContext?.findRenderObject() as RenderBox?;
     if (placeholder != null && placeholder.attached && placeholder.hasSize) {
@@ -1031,6 +1072,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   }
 
   Widget _buildEditorLayer(int index) {
+    final closing = _editingIndex == null;
     return Positioned.fill(
       // The editor's text area scrolls on its own. It is not inside the list,
       // so its scroll notifications would reach the history's scrollbar as
@@ -1046,6 +1088,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                 _scrollController,
                 _editorMoved,
                 _editorReveal,
+                _editorClose,
               ]),
               child: Align(
                 alignment: Alignment.topCenter,
@@ -1058,13 +1101,21 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                     // without one, as much of it as its placeholder has room
                     // for. It does not cover what is below it yet.
                     child: AnimatedBuilder(
-                      animation: _editorReveal,
+                      animation: Listenable.merge([
+                        _editorReveal,
+                        _editorClose,
+                      ]),
                       builder: (context, child) => _editorFrom != null
                           ? UserMessageEditMorph(
                               from: _editorFrom!,
-                              progress: _editorReveal.isCompleted
-                                  ? 1
-                                  : _motionCurve.transform(_editorReveal.value),
+                              progress: closing
+                                  ? _closingFrom *
+                                        (1 -
+                                            _motionCurve.transform(
+                                              _editorClose.value,
+                                            ))
+                                  : _editorOpened,
+                              closing: closing,
                               border: _feed.canEditMessages
                                   ? AppColors.bubbleBorder(focused: true)
                                   : AppColors.bubbleBorder(),
@@ -1079,36 +1130,43 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                             ),
                       child: _SizeReporter(
                         onSize: (size) => _setEditorHeight(size.height),
-                        child: Listener(
-                          // The editor takes focus itself; see _handlePointerDown.
-                          onPointerDown: (_) => _pressInEditor = true,
-                          // The editor is not in the list: pass the wheel on.
-                          onPointerSignal: _forwardWheel,
-                          onPointerPanZoomStart: _startEditorPan,
-                          onPointerPanZoomUpdate: _updateEditorPan,
-                          onPointerPanZoomEnd: _endEditorPan,
-                          child: TapRegion(
-                            groupId: _editorTapRegion,
-                            onTapOutside: _handleTapOutsideEditor,
-                            child: !_feed.canEditMessages
-                                ? UserMessageViewer(
-                                    text: _editingText,
-                                    images: _editingImages,
-                                    controller: _viewerScroll,
-                                    onClose: _cancelEditing,
-                                  )
-                                : ChatComposer(
-                                    key: _editComposerKey,
-                                    // Only a session's own messages are edited.
-                                    session: _feed as ChatSession,
-                                    initialText: _editingText,
-                                    initialImages: _editingImages,
-                                    draft: _feed.editing?.draft,
-                                    tapRegionGroupId: _editorTapRegion,
-                                    onSubmit: (message) =>
-                                        _submitEdit(index, message),
-                                    onCancel: _cancelEditing,
-                                  ),
+                        // Closing, it is only to be seen.
+                        child: IgnorePointer(
+                          ignoring: closing,
+                          child: ExcludeFocus(
+                            excluding: closing,
+                            child: Listener(
+                              // The editor takes focus itself; see _handlePointerDown.
+                              onPointerDown: (_) => _pressInEditor = true,
+                              // The editor is not in the list: pass the wheel on.
+                              onPointerSignal: _forwardWheel,
+                              onPointerPanZoomStart: _startEditorPan,
+                              onPointerPanZoomUpdate: _updateEditorPan,
+                              onPointerPanZoomEnd: _endEditorPan,
+                              child: TapRegion(
+                                groupId: _editorTapRegion,
+                                onTapOutside: _handleTapOutsideEditor,
+                                child: !_feed.canEditMessages
+                                    ? UserMessageViewer(
+                                        text: _editingText,
+                                        images: _editingImages,
+                                        controller: _viewerScroll,
+                                        onClose: _cancelEditing,
+                                      )
+                                    : ChatComposer(
+                                        key: _editComposerKey,
+                                        // Only a session's own messages are edited.
+                                        session: _feed as ChatSession,
+                                        initialText: _editingText,
+                                        initialImages: _editingImages,
+                                        draft: _feed.editing?.draft,
+                                        tapRegionGroupId: _editorTapRegion,
+                                        onSubmit: (message) =>
+                                            _submitEdit(index, message),
+                                        onCancel: _cancelEditing,
+                                      ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -1200,6 +1258,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (!_scrolledPast(index)) _animateItem(index);
     setState(() {
       _editingIndex = null;
+      _closingIndex = null;
       // Everything after the message is replaced; so are its steps.
       _expanded.removeWhere((i, _) => i > index);
       _foldOpen.removeWhere((key, _) => key.$2 > index);
@@ -1497,7 +1556,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                             ),
                           ),
                         ),
-                        if (_editingIndex case final index?)
+                        if (_editingIndex ?? _closingIndex case final index?)
                           _buildEditorLayer(index),
                         Positioned(
                           right: 0,

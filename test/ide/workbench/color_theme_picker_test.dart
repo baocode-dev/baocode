@@ -13,7 +13,7 @@ import '../lsp_ui/fake_language_features.dart';
 import '../lsp_ui/lsp_test_helpers.dart';
 import 'fake_files.dart';
 
-/// VS Code's built-in color themes, out of order.
+/// The bundled color themes, out of order.
 const _themes = [
   IdeColorThemeEntry(id: 'Red', label: 'Red', type: ColorScheme.dark),
   IdeColorThemeEntry(
@@ -27,16 +27,11 @@ const _themes = [
     label: 'Light High Contrast',
     type: ColorScheme.highContrastLight,
   ),
-  IdeColorThemeEntry(id: 'Monokai', label: 'Monokai', type: ColorScheme.dark),
+  IdeColorThemeEntry(id: 'Bao Dark', label: 'Bao Dark', type: ColorScheme.dark),
   IdeColorThemeEntry(
     id: 'Light Modern',
     label: 'Light Modern',
     type: ColorScheme.light,
-  ),
-  IdeColorThemeEntry(
-    id: 'Dark 2026',
-    label: 'Dark 2026',
-    type: ColorScheme.dark,
   ),
   IdeColorThemeEntry(
     id: 'Tomorrow Night Blue',
@@ -59,8 +54,8 @@ const _themes = [
     type: ColorScheme.dark,
   ),
   IdeColorThemeEntry(
-    id: 'Quiet Light',
-    label: 'Quiet Light',
+    id: 'Bao Light',
+    label: 'Bao Light',
     type: ColorScheme.light,
   ),
   IdeColorThemeEntry(
@@ -68,17 +63,6 @@ const _themes = [
     label: 'Monokai Dimmed',
     type: ColorScheme.dark,
   ),
-  IdeColorThemeEntry(
-    id: 'Light 2026',
-    label: 'Light 2026',
-    type: ColorScheme.light,
-  ),
-  IdeColorThemeEntry(
-    id: 'Dark (Visual Studio)',
-    label: 'Dark (Visual Studio)',
-    type: ColorScheme.dark,
-  ),
-  IdeColorThemeEntry(id: 'Abyss', label: 'Abyss', type: ColorScheme.dark),
   IdeColorThemeEntry(
     id: 'Solarized Dark',
     label: 'Solarized Dark',
@@ -190,15 +174,11 @@ void main() {
       ],
       [
         '-- light themes',
-        'Quiet Light (Default Light)',
-        'Light 2026',
+        'Bao Light (Default Light)',
         'Light Modern',
         'Solarized Light',
         '-- dark themes',
-        'Monokai (Default Dark)',
-        'Abyss',
-        'Dark (Visual Studio)',
-        'Dark 2026',
+        'Bao Dark (Default Dark)',
         'Dark Modern',
         'Dark+',
         'Kimbie Dark',
@@ -253,27 +233,27 @@ void main() {
       ),
       findsOneWidget,
     );
-    // The list builds the rows it shows.
-    expect(_rows(tester).take(16), [
-      'Quiet Light  Default Light',
+    // All the rows fit.
+    expect(_rows(tester), [
+      'Bao Light  Default Light',
       'light themes',
-      'Light 2026',
       'Light Modern',
       'Solarized Light',
-      'Monokai  Default Dark',
+      'Bao Dark  Default Dark',
       'dark themes',
-      'Abyss',
-      'Dark (Visual Studio)',
-      'Dark 2026',
       'Dark Modern',
       'Dark+',
       'Kimbie Dark',
       'Monokai Dimmed',
       'Red',
       'Solarized Dark',
+      'Tomorrow Night Blue',
+      'Dark High Contrast  Default High Contrast',
+      'high contrast themes',
+      'Light High Contrast  Default High Contrast Light',
     ]);
     // A line above each group but the first.
-    expect(_separatorLines(tester), 1);
+    expect(_separatorLines(tester), 2);
     expect(_active(tester), 'Dark Modern');
 
     // Upstream reports the active item as the picker shows: the current
@@ -284,13 +264,7 @@ void main() {
     expect(themes.calls, ['preview Dark Modern']);
 
     await _key(tester, LogicalKeyboardKey.pageDown);
-    expect(_rows(tester).skip(_rows(tester).length - 4), [
-      'Tomorrow Night Blue',
-      'Dark High Contrast  Default High Contrast',
-      'high contrast themes',
-      'Light High Contrast  Default High Contrast Light',
-    ]);
-    expect(_separatorLines(tester), 2);
+    expect(_active(tester), 'Light High Contrast');
 
     await _key(tester, LogicalKeyboardKey.escape);
     expect(_picker, findsNothing);
@@ -299,7 +273,7 @@ void main() {
 
   testWidgets('the palette lists Preferences: Color Theme with its chord and '
       'opens the picker', (tester) async {
-    final themes = _FakeColorThemes('Abyss');
+    final themes = _FakeColorThemes('Red');
     await pumpWorkbench(
       tester,
       _files,
@@ -321,11 +295,11 @@ void main() {
     );
     await _key(tester, LogicalKeyboardKey.enter);
     expect(_picker, findsOneWidget);
-    expect(_active(tester), 'Abyss');
+    expect(_active(tester), 'Red');
     expect(tester.widget<TextField>(_input).controller!.text, isEmpty);
     await _key(tester, LogicalKeyboardKey.escape);
     await tester.pump(const Duration(seconds: 1));
-    expect(themes.calls, ['apply Abyss']);
+    expect(themes.calls, ['apply Red']);
   });
 
   testWidgets('macOS labels and presses the chord with ⌘', (tester) async {
@@ -379,34 +353,34 @@ void main() {
     expect(_active(tester), 'Light High Contrast');
     await tester.pump(const Duration(milliseconds: 200));
     await _key(tester, LogicalKeyboardKey.pageUp);
-    expect(_active(tester), 'Solarized Light');
+    expect(_active(tester), 'Bao Light');
     await tester.pump(const Duration(milliseconds: 200));
     expect(themes.calls, [
       'preview Dark Modern',
       'preview Kimbie Dark',
       'preview Dark+',
       'preview Default High Contrast Light',
-      'preview Solarized Light',
+      'preview Bao Light',
     ]);
 
     // Enter applies at once, dropping the pending preview.
     await _key(tester, LogicalKeyboardKey.arrowDown);
-    expect(_active(tester), 'Monokai');
+    expect(_active(tester), 'Light Modern');
     await _key(tester, LogicalKeyboardKey.enter);
     expect(_picker, findsNothing);
     await tester.pump(const Duration(seconds: 1));
-    expect(themes.calls.skip(5), ['apply Monokai']);
+    expect(themes.calls.skip(5), ['apply Light Modern']);
 
     // A click on a row applies its theme too.
     await _openPicker(tester);
-    expect(_active(tester), 'Monokai');
+    expect(_active(tester), 'Light Modern');
     await tester.tap(
-      find.descendant(of: _picker, matching: find.text('Abyss')),
+      find.descendant(of: _picker, matching: find.text('Red')),
     );
     await tester.pump();
     expect(_picker, findsNothing);
     await tester.pump(const Duration(seconds: 1));
-    expect(themes.calls.skip(6), ['apply Abyss']);
+    expect(themes.calls.skip(6), ['apply Red']);
   });
 
   testWidgets('Escape, a click outside or another quick input restores the '
@@ -445,7 +419,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(themes.calls, ['preview Dark 2026', 'apply Dark Modern']);
+    expect(themes.calls, ['preview Bao Dark', 'apply Dark Modern']);
     await _key(tester, LogicalKeyboardKey.escape);
     await tester.pump(const Duration(seconds: 1));
     expect(themes.calls, hasLength(2));
@@ -462,13 +436,11 @@ void main() {
     await tester.pump();
     expect(_rows(tester), [
       'Dark+',
-      'Dark 2026',
       'Dark Modern',
       'Dark High Contrast  Default High Contrast',
-      'Dark (Visual Studio)',
+      'Bao Dark  Default Dark',
       'Kimbie Dark',
       'Solarized Dark',
-      'Monokai  Default Dark',
     ]);
     expect(_active(tester), 'Dark+');
     final highlighted = <String>[];
@@ -491,8 +463,8 @@ void main() {
     await tester.enterText(_input, 'default');
     await tester.pump();
     expect(_rows(tester), [
-      'Quiet Light  Default Light',
-      'Monokai  Default Dark',
+      'Bao Light  Default Light',
+      'Bao Dark  Default Dark',
       'Dark High Contrast  Default High Contrast',
       'Light High Contrast  Default High Contrast Light',
     ]);
@@ -521,7 +493,7 @@ void main() {
     await tester.enterText(_input, '');
     await tester.pump();
     expect(_rows(tester), contains('dark themes'));
-    expect(_active(tester), 'Quiet Light');
+    expect(_active(tester), 'Bao Light');
     await _key(tester, LogicalKeyboardKey.escape);
     await tester.pump(const Duration(seconds: 1));
   });
@@ -614,10 +586,8 @@ void main() {
     }
 
     await _openPicker(tester);
-    expect(_active(tester), 'Dark 2026');
-    for (var i = 0; i < 5; i++) {
-      await _key(tester, LogicalKeyboardKey.arrowUp);
-    }
+    expect(_active(tester), 'Bao Dark');
+    await _key(tester, LogicalKeyboardKey.arrowUp);
     expect(_active(tester), 'Solarized Light');
     await settle();
     expect(themes.colorThemeId, 'Solarized Light');
@@ -625,7 +595,7 @@ void main() {
     expect(storage.kept, isEmpty, reason: 'a preview is not kept');
     await _key(tester, LogicalKeyboardKey.escape);
     await settle();
-    expect(themes.colorThemeId, 'Dark 2026');
+    expect(themes.colorThemeId, 'Bao Dark');
 
     await _openPicker(tester);
     await _key(tester, LogicalKeyboardKey.arrowDown);

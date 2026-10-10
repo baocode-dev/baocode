@@ -48,8 +48,45 @@ class SemanticTokenFixture {
   List<Map<String, Object?>> get _synthetic =>
       (_json['syntheticThemes'] as List).cast<Map<String, Object?>>();
 
-  /// The bundled themes, in manifest order.
-  List<String> get themeIds => [for (final t in _bundled) t['id'] as String];
+  /// The recorded VS Code themes whose files still ship, in the recording's
+  /// manifest order: those the manifest lists and [_unlistedThemes]. (The
+  /// recording also holds themes no longer bundled, e.g. Monokai.)
+  List<String> get themeIds => [
+    for (final t in _bundled)
+      if (_manifest.themeById(t['id'] as String) != null ||
+          _unlistedThemes.containsKey(t['id']))
+        t['id'] as String,
+  ];
+
+  /// Recorded themes the manifest no longer lists whose files still ship as
+  /// the bases other themes include, as their manifest entries were.
+  static const _unlistedThemes = {
+    'Dark 2026': {
+      'extension': 'theme-defaults',
+      'id': 'Dark 2026',
+      'label': 'Dark 2026',
+      'uiTheme': 'vs-dark',
+      'path': 'themes/theme-defaults/themes/2026-dark.json',
+    },
+    'Light 2026': {
+      'extension': 'theme-defaults',
+      'id': 'Light 2026',
+      'label': 'Light 2026',
+      'uiTheme': 'vs',
+      'path': 'themes/theme-defaults/themes/2026-light.json',
+    },
+    'Visual Studio Dark': {
+      'extension': 'theme-defaults',
+      'id': 'Visual Studio Dark',
+      'label': 'Dark (Visual Studio)',
+      'uiTheme': 'vs-dark',
+      'path': 'themes/theme-defaults/themes/dark_vs.json',
+    },
+  };
+
+  static final TextMateManifest _manifest = TextMateManifest.parse(
+    File('$textMateAssetRoot/manifest.json').readAsStringSync(),
+  );
 
   Map<String, Object?> _theme(String id) =>
       [..._bundled, ..._synthetic].firstWhere((t) => t['id'] == id);
@@ -121,14 +158,17 @@ class SemanticTokenFixture {
     return Color((alpha << 24) | rgb);
   }
 
-  /// A theme of the fixture, loaded: bundled from packages/bao_editor/assets/textmate, synthetic
-  /// from the files the fixture holds.
+  /// A theme, loaded: a bundled one (any the manifest lists, or one of
+  /// [_unlistedThemes]) from packages/bao_editor/assets/textmate, a synthetic
+  /// one of the fixture from the files the fixture holds.
   Future<ColorThemeData> loadTheme(String themeId) async {
-    if (themeIds.contains(themeId)) {
-      final manifest = TextMateManifest.parse(
-        File('$textMateAssetRoot/manifest.json').readAsStringSync(),
-      );
-      final contribution = manifest.themeById(themeId)!;
+    final unlisted = _unlistedThemes[themeId];
+    final contribution =
+        _manifest.themeById(themeId) ??
+        (unlisted == null
+            ? null
+            : TextMateThemeContribution.fromJson(unlisted));
+    if (contribution != null) {
       final theme = ColorThemeData.fromExtensionTheme(
         contribution,
         contribution.assetPath,

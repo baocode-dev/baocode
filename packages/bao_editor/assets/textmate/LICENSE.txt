@@ -111,12 +111,8 @@ extensions' cgmanifest.json files:
 - extensions/swift: jtbandes/swift-tmlanguage  (https://github.com/jtbandes/swift-tmlanguage at 2be007b6bc88e54a0edfd3c313ff31276edc923d), MIT.
 - extensions/swift: vscode-swift 0.0.1 (https://github.com/owensd/vscode-swift at cec27af6662e3799120b208e64483efdfe5521f5), MIT.
   The files in the 'snippets' subfolder in this folder are based on https://github.com/owensd/vscode-swift.
-- extensions/theme-abyss: Colorsublime-Themes 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes at c10fdd8b144486b7a4f3cb4e2251c66df222a825).
-  The themes in this folders are copied from colorsublime.com. <<<TODO check the licenses, we can easily drop the themes>>>
 - extensions/theme-kimbie-dark: Colorsublime-Themes 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes at c10fdd8b144486b7a4f3cb4e2251c66df222a825).
-- extensions/theme-monokai: Colorsublime-Themes 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes at c10fdd8b144486b7a4f3cb4e2251c66df222a825).
 - extensions/theme-monokai-dimmed: Colorsublime-Themes 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes at c10fdd8b144486b7a4f3cb4e2251c66df222a825).
-- extensions/theme-quietlight: Colorsublime-Themes 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes at c10fdd8b144486b7a4f3cb4e2251c66df222a825).
 - extensions/theme-red: Colorsublime-Themes 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes at c10fdd8b144486b7a4f3cb4e2251c66df222a825).
 - extensions/theme-solarized-dark: Colorsublime-Themes 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes at c10fdd8b144486b7a4f3cb4e2251c66df222a825).
 - extensions/theme-solarized-light: Colorsublime-Themes 0.1.0 (https://github.com/Colorsublime/Colorsublime-Themes at c10fdd8b144486b7a4f3cb4e2251c66df222a825).

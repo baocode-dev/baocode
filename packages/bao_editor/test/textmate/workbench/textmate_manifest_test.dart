@@ -180,9 +180,10 @@ void main() {
     });
 
     test('themes', () {
-      // VS Code's 19 but Light (Visual Studio) and Light+, which the assets
-      // leave out, and BaoCode's own Bao Dark and Bao Light.
-      expect(manifest.themes, hasLength(19));
+      // VS Code's but Light (Visual Studio), Light+, Dark (Visual Studio),
+      // Dark 2026, Light 2026, Monokai, Abyss and Quiet Light, which the
+      // assets leave out, and BaoCode's own Bao Dark and Bao Light.
+      expect(manifest.themes, hasLength(13));
       final baoDark = manifest.themeById('Bao Dark')!;
       expect(baoDark.uiTheme, 'vs-dark');
       expect(
@@ -203,9 +204,19 @@ void main() {
       expect(darkPlus.uiTheme, 'vs-dark');
       expect(darkPlus.path, 'themes/dark_plus.json');
       expect(darkPlus.assetPath, 'themes/theme-defaults/themes/dark_plus.json');
+      for (final id in [
+        'Visual Studio Dark',
+        'Dark 2026',
+        'Light 2026',
+        'Monokai',
+        'Abyss',
+        'Quiet Light',
+      ]) {
+        expect(manifest.themeById(id), isNull, reason: id);
+      }
       expect(
-        manifest.themeById('Visual Studio Dark')!.label,
-        'Dark (Visual Studio)',
+        manifest.themeById('Default High Contrast')!.label,
+        'Dark High Contrast',
       );
       for (final theme in manifest.themes.where(
         (t) => t.extension != 'theme-bao',

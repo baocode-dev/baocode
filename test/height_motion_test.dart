@@ -198,6 +198,40 @@ void main() {
     expect(tester.widget<UserMessageEditMorph>(morph).progress, 1);
   });
 
+  testWidgets("closed, the editor's frame shrinks back into the message's", (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await reveal(tester, '第 2 轮');
+    final bubble = find.ancestor(
+      of: inList(find.textContaining('第 2 轮', findRichText: true)),
+      matching: find.byType(UserMessageBubble),
+    );
+    await tester.tap(bubble);
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    final morph = find.byType(UserMessageEditMorph);
+    double progress() => tester.widget<UserMessageEditMorph>(morph).progress;
+    expect(tester.widget<UserMessageEditMorph>(morph).closing, isTrue);
+    await tester.pump(const Duration(milliseconds: 60));
+    final midway = progress();
+    expect(midway, greaterThan(0));
+    expect(midway, lessThan(1));
+    // Only to be seen: a click on it goes to the message beneath.
+    expect(
+      find.ancestor(
+        of: find.byType(ChatComposer),
+        matching: find.byType(IgnorePointer),
+      ),
+      findsWidgets,
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(morph, findsNothing);
+    expect(bubble, findsOneWidget);
+  });
+
   testWidgets('stuck to the top, the editor takes over in one go', (
     tester,
   ) async {

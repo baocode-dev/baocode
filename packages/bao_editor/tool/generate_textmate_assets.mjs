@@ -41,8 +41,7 @@ if (process.argv.length > 3) throw new Error('Usage: node tool/generate_textmate
 
 const themeExtensions = [
   'theme-defaults', 'theme-monokai-dimmed', 'theme-solarized-dark',
-  'theme-solarized-light', 'theme-kimbie-dark', 'theme-quietlight',
-  'theme-red', 'theme-tomorrow-night-blue',
+  'theme-solarized-light', 'theme-kimbie-dark', 'theme-red', 'theme-tomorrow-night-blue',
 ];
 // Contributed themes left out of the manifest: Light (Visual Studio), Light+,
 // Dark (Visual Studio), Dark 2026 and Light 2026. Their files are still
@@ -370,7 +369,7 @@ for (const installed of installedExtensions) {
 }
 const license = [
   `Except for the installed extensions at the end and BaoCode's own themes`,
-  `(themes/${localThemes.map(theme => theme.extension).join(', themes/')}), the files in this directory`,
+  `(themes/${[...new Set(localThemes.map(theme => theme.extension))].join(', themes/')}), the files in this directory`,
   `were downloaded from Visual Studio Code (https://github.com/microsoft/vscode)`,
   `at revision ${revision}`,
   `by tool/generate_textmate_assets.mjs. The directory layout mirrors each`,

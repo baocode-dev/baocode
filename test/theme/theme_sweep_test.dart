@@ -62,7 +62,7 @@ void main() {
   testWidgets('every bundled theme paints the workbench and the chat', (
     tester,
   ) async {
-    expect(themes, hasLength(19));
+    expect(themes, hasLength(13));
     // Monarch highlights: a TextMate worker would outlive each editor here.
     final launcher = textMateWorkerLauncher;
     textMateWorkerLauncher = () async => null;

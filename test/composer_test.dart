@@ -1294,8 +1294,9 @@ void main() {
           .toList();
       expect(tokens, ['@lib/main.dart']);
 
-      // Esc cancels.
+      // Esc cancels: the editor goes back into the message.
       await pressKey(tester, LogicalKeyboardKey.escape);
+      await tester.pump(const Duration(milliseconds: 300));
       expect(editorInHistory(), findsNothing);
       expect(bubble('第 2 轮'), findsOneWidget);
       expect((session.itemAt(index) as UserMessageItem).text, original);
@@ -1608,6 +1609,7 @@ void main() {
       await mouse.down(const Offset(400, 10));
       await mouse.up();
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(editorInHistory(), findsNothing);
       expect(bubble('第 2 轮'), findsOneWidget);
       await mouse.removePointer();

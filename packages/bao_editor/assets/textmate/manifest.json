@@ -2299,20 +2299,6 @@
   "themes": [
     {
       "extension": "theme-defaults",
-      "id": "Light 2026",
-      "label": "Light 2026",
-      "uiTheme": "vs",
-      "path": "themes/theme-defaults/themes/2026-light.json"
-    },
-    {
-      "extension": "theme-defaults",
-      "id": "Dark 2026",
-      "label": "Dark 2026",
-      "uiTheme": "vs-dark",
-      "path": "themes/theme-defaults/themes/2026-dark.json"
-    },
-    {
-      "extension": "theme-defaults",
       "id": "Dark+",
       "label": "Dark+",
       "uiTheme": "vs-dark",
@@ -2334,13 +2320,6 @@
     },
     {
       "extension": "theme-defaults",
-      "id": "Visual Studio Dark",
-      "label": "Dark (Visual Studio)",
-      "uiTheme": "vs-dark",
-      "path": "themes/theme-defaults/themes/dark_vs.json"
-    },
-    {
-      "extension": "theme-defaults",
       "id": "Default High Contrast",
       "label": "Dark High Contrast",
       "uiTheme": "hc-black",
@@ -2352,13 +2331,6 @@
       "label": "Light High Contrast",
       "uiTheme": "hc-light",
       "path": "themes/theme-defaults/themes/hc_light.json"
-    },
-    {
-      "extension": "theme-monokai",
-      "id": "Monokai",
-      "label": "Monokai",
-      "uiTheme": "vs-dark",
-      "path": "themes/theme-monokai/themes/monokai-color-theme.json"
     },
     {
       "extension": "theme-monokai-dimmed",
@@ -2382,25 +2354,11 @@
       "path": "themes/theme-solarized-light/themes/solarized-light-color-theme.json"
     },
     {
-      "extension": "theme-abyss",
-      "id": "Abyss",
-      "label": "Abyss",
-      "uiTheme": "vs-dark",
-      "path": "themes/theme-abyss/themes/abyss-color-theme.json"
-    },
-    {
       "extension": "theme-kimbie-dark",
       "id": "Kimbie Dark",
       "label": "Kimbie Dark",
       "uiTheme": "vs-dark",
       "path": "themes/theme-kimbie-dark/themes/kimbie-dark-color-theme.json"
-    },
-    {
-      "extension": "theme-quietlight",
-      "id": "Quiet Light",
-      "label": "Quiet Light",
-      "uiTheme": "vs",
-      "path": "themes/theme-quietlight/themes/quietlight-color-theme.json"
     },
     {
       "extension": "theme-red",
