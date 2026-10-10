@@ -1022,7 +1022,9 @@ void main() {
     );
     expect(panel.tabsOf(session).diffs, hasLength(2));
 
-    // As a list: each file with its folder.
+    // As a list: each file with its folder. The pane's actions show on hover.
+    await drag.moveTo(tester.getCenter(list));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('side-panel-view-as')));
     await tester.pumpAndSettle();
     expect(panel.changesAsTree, isFalse);
@@ -1066,6 +1068,54 @@ void main() {
     await tester.tap(find.text('Stage Changes'));
     await tester.pumpAndSettle();
     expect(fake.callsTo('add').single, contains('lib/main.dart'));
+  });
+
+  testWidgets('under the changes, the Source Control view\'s graph: a '
+      'commit\'s files show once it is tapped, and a file opens', (
+    tester,
+  ) async {
+    final fake = FakeGit('/p')
+      ..status = '## main\x00 M lib/main.dart\x00'
+      ..log =
+          '${gitLogRecord('c2', ['c1'], 'Second', refs: 'HEAD -> refs/heads/main')}\n'
+          '${gitLogRecord('c1', [], 'First')}';
+    fake.refs['HEAD'] = 'c2';
+    fake.show['c2'] = 'M\x00lib/main.dart\x00';
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    final (:panel, :session, files: _) = await _pumpChat(
+      tester,
+      git: git,
+      texts: {'/p/lib/main.dart': 'main\n'},
+    );
+    panel.showSection(session, SidePanelSection.changes);
+    await tester.pumpAndSettle();
+    expect(find.text('Graph'), findsOneWidget);
+    final second = find.textContaining('Second', findRichText: true);
+    expect(second, findsOneWidget);
+    expect(find.textContaining('First', findRichText: true), findsOneWidget);
+    expect(find.byKey(const ValueKey('changes:c2')), findsNothing);
+
+    await tester.tap(second);
+    await tester.pumpAndSettle();
+    final changes = find.byKey(const ValueKey('changes:c2')).first;
+    expect(tester.getSize(changes).height, IdeListColors.rowHeight);
+    await tester.tap(
+      find
+          .descendant(
+            of: changes,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is IdeResourceLabel && widget.name == 'main.dart',
+            ),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      [for (final tab in panel.tabsOf(session).files) tab.path],
+      ['/p/lib/main.dart'],
+    );
   });
 
   testWidgets('the changes page commits as the Source Control view does: a '

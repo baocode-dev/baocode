@@ -2217,14 +2217,13 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     return thread;
   }
 
-  /// Copies [thread]'s conversation into a new agent of its project, up to
-  /// the end of the turn of the item at [index] (see [ChatSession.fork]):
-  /// listed, with [thread]'s settings, not shown. Null when it could not
-  /// be (its conversation says why).
-  Future<AgentThread?> fork(AgentThread thread, {int? index}) async {
+  /// Copies [thread]'s conversation into a new agent of its project (see
+  /// [ChatSession.fork]): listed, with [thread]'s settings, not shown. Null
+  /// when it could not be (its conversation says why).
+  Future<AgentThread?> fork(AgentThread thread) async {
     final session = thread.session;
     final title = '${thread.localizedTitle(l10n())} (fork)';
-    final record = await session.fork(title: title, index: index);
+    final record = await session.fork(title: title);
     if (record == null || _disposed) return null;
     final settings = {
       for (final kind in KernelChoiceKind.values)

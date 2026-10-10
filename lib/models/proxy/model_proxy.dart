@@ -360,6 +360,7 @@ class ModelProxy {
           accountId: account.accountId,
           session: '${outgoing['prompt_cache_key'] ?? session ?? ''}',
           events: true,
+          version: codexVersionOf(provider),
         ).forEach(request.headers.set);
         request.headers.contentType = ContentType.json;
         request.add(utf8.encode(jsonEncode(outgoing)));

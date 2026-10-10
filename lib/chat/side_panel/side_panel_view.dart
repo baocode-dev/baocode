@@ -10,6 +10,7 @@ import '../../ide/file_service.dart';
 import '../../ide/git/git_model.dart';
 import '../../ide/git/commit_message.dart';
 import '../../ide/git/git_repository.dart';
+import '../../ide/git/ide_scm_view.dart' show IdeGitGraph;
 import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
 import '../../ide/ide_explorer.dart';
@@ -17,7 +18,7 @@ import '../../ide/ide_hover.dart';
 import '../../ide/ide_list.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_modern_ui.dart';
-import '../../ide/ide_panes.dart' show IdeViewTitle;
+import '../../ide/ide_panes.dart';
 import '../../ide/ide_tab_bar.dart' show ideTabDescriptions;
 import '../../ide/save_copy.dart';
 import '../../ide/tab_strip_scroll.dart';
@@ -519,6 +520,7 @@ class AgentSidePanelView extends StatelessWidget {
     } else if (state == null) {
       list = const SizedBox.shrink();
     } else {
+      final scm = panel.scmOf(git);
       list = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -537,56 +539,96 @@ class AgentSidePanelView extends StatelessWidget {
             key: ObjectKey(git),
             git: git,
             state: state,
-            scm: panel.scmOf(git),
+            scm: scm,
             commitMessage: commitMessage,
           ),
-          _ListHeader(
-            title: l10n.sidePanelChanges,
-            count: state.count,
-            actions: [
-              IdeActionButton(
-                key: const ValueKey('side-panel-view-as'),
-                icon: panel.changesAsTree
-                    ? Codicons.listFlat
-                    : Codicons.listTree,
-                tooltip: panel.changesAsTree
-                    ? l10n.scmViewAsList
-                    : l10n.scmViewAsTree,
-                onPressed: () => panel.changesAsTree = !panel.changesAsTree,
-              ),
-              IdeActionButton(
-                icon: Codicons.refresh,
-                tooltip: l10n.commonRefresh,
-                onPressed: () => unawaited(git.refresh(force: true)),
-              ),
-            ],
-          ),
+          // The IDE's Source Control panes: the changes, and the history.
           Expanded(
-            child: state.count == 0
-                ? (none
-                      ? const SizedBox.shrink()
-                      : _EmptySection(l10n.sidePanelNoChanges))
-                : GitChangeList(
-                    git: git,
-                    state: state,
-                    tree: panel.changesAsTree,
-                    selected: active?.path,
-                    local: local,
-                    trash: local && WindowControls.canMoveToTrash
-                        ? WindowControls.moveToTrash
-                        : null,
-                    onOpen: (resource) => panel.open(
-                      session,
-                      gitChangeRequest(git, state, resource),
-                    ),
-                    onOpenFile: (path) =>
-                        panel.open(session, FileOpenRequest(path)),
-                    onRevealInFiles: _revealInFiles,
-                    onAddToChat: session.draft.insertFiles,
-                    onSaveAs: canSaveFileCopy
-                        ? (path) => _saveAs(context, path)
-                        : null,
+            child: StatefulBuilder(
+              builder: (context, setState) => IdePaneContainer(
+                expanded: scm.expandedPanes,
+                onToggle: (id) => setState(() {
+                  if (!scm.expandedPanes.remove(id)) {
+                    scm.expandedPanes.add(id);
+                  }
+                }),
+                panes: [
+                  IdePane(
+                    id: 'changes',
+                    title: l10n.sidePanelChanges,
+                    badge: _Badge(state.count),
+                    weight: 3,
+                    actions: [
+                      IdeActionButton(
+                        key: const ValueKey('side-panel-view-as'),
+                        icon: panel.changesAsTree
+                            ? Codicons.listFlat
+                            : Codicons.listTree,
+                        tooltip: panel.changesAsTree
+                            ? l10n.scmViewAsList
+                            : l10n.scmViewAsTree,
+                        onPressed: () =>
+                            panel.changesAsTree = !panel.changesAsTree,
+                      ),
+                      IdeActionButton(
+                        icon: Codicons.refresh,
+                        tooltip: l10n.commonRefresh,
+                        onPressed: () => unawaited(git.refresh(force: true)),
+                      ),
+                    ],
+                    body: state.count == 0
+                        ? (none
+                              ? const SizedBox.shrink()
+                              : _EmptySection(l10n.sidePanelNoChanges))
+                        : GitChangeList(
+                            git: git,
+                            state: state,
+                            tree: panel.changesAsTree,
+                            selected: active?.path,
+                            local: local,
+                            trash: local && WindowControls.canMoveToTrash
+                                ? WindowControls.moveToTrash
+                                : null,
+                            onOpen: (resource) => panel.open(
+                              session,
+                              gitChangeRequest(git, state, resource),
+                            ),
+                            onOpenFile: (path) =>
+                                panel.open(session, FileOpenRequest(path)),
+                            onRevealInFiles: _revealInFiles,
+                            onAddToChat: session.draft.insertFiles,
+                            onSaveAs: canSaveFileCopy
+                                ? (path) => _saveAs(context, path)
+                                : null,
+                          ),
                   ),
+                  IdePane(
+                    id: 'graph',
+                    title: l10n.scmGraph,
+                    weight: 2,
+                    actions: [
+                      IdeActionButton(
+                        icon: Codicons.target,
+                        tooltip: l10n.scmGoToCurrent,
+                        onPressed: () => scm.graph.goToCurrent(git),
+                      ),
+                      IdeActionButton(
+                        icon: Codicons.refresh,
+                        tooltip: l10n.commonRefresh,
+                        onPressed: () => unawaited(git.refresh(force: true)),
+                      ),
+                    ],
+                    body: IdeGitGraph(
+                      git: git,
+                      controller: scm.graph,
+                      root: state.root,
+                      onOpen: (path) =>
+                          panel.open(session, FileOpenRequest(path)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       );
@@ -1611,10 +1653,9 @@ class _PageState extends State<_Page> {
 /// [actions] at the end; as high as the tabs beside it, its line under it
 /// running on under theirs.
 class _ListHeader extends StatelessWidget {
-  const _ListHeader({required this.title, this.count, this.actions = const []});
+  const _ListHeader({required this.title, this.actions = const []});
 
   final String title;
-  final int? count;
   final List<Widget> actions;
 
   @override
@@ -1642,10 +1683,6 @@ class _ListHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              if (count case final count?) ...[
-                const SizedBox(width: 6),
-                _Badge(count),
-              ],
             ],
           ),
         ),

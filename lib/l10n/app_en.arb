@@ -930,14 +930,6 @@
   "@sidebarFork": {
     "description": "An agent's menu in the sidebar: copies its conversation into a new agent, which opens."
   },
-  "chatForkFromHere": "Fork from here",
-  "@chatForkFromHere": {
-    "description": "Under an agent's reply, on hover: copies the conversation up to the end of this turn into a new agent, which opens."
-  },
-  "chatCopyReply": "Copy reply",
-  "@chatCopyReply": {
-    "description": "Under an agent's reply, on hover: copies the reply's Markdown."
-  },
   "sidebarShowMore": "Show more ({count})",
   "@sidebarShowMore": {
     "placeholders": {
@@ -4088,6 +4080,8 @@
   "modelsPreserveThinkingDescription": "Replays the model's reasoning (reasoning_content) in later requests, as DeepSeek and others want.",
   "modelsPromptCacheKey": "Prompt Cache Key",
   "modelsPromptCacheKeyDescription": "Sends each conversation's own prompt_cache_key, so the upstream (or a relay in front of several) routes its requests to where the earlier ones are cached. Turn off for an upstream that rejects the field.",
+  "modelsCodexVersion": "Codex Version",
+  "modelsCodexVersionDescription": "The Codex CLI version requests are made as. The backend only lists models that version supports, so if new models are missing, enter a newer version and refresh the model list. Leave empty to use the app's default.",
   "modelsEnv": "Extra Environment",
   "modelsEnvDescription": "One KEY=VALUE a line, given to Claude Code after the settings above.",
   "modelsDelete": "Delete Upstream",

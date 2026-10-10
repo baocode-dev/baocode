@@ -1840,23 +1840,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (_workspace.ideChat(folder) case final next?) _focusChat(next);
   }
 
-  /// Forks [thread] from the reply at [index] (all of it without one), and
-  /// shows the fork where it was shown.
-  Future<void> _fork(
-    AgentThread thread,
-    int? index, {
-    bool embedded = false,
-  }) async {
-    final forked = await _workspace.fork(thread, index: index);
-    if (forked == null || !mounted) return;
-    if (embedded) {
-      _openIdeChat(_ideFolder, forked);
-    } else {
-      _workspace.select(forked);
-      _focusChat(forked);
-    }
-  }
-
   void _openIdeChat(String folder, AgentThread thread) {
     _workspace.openIdeChat(folder, thread);
     _focusChat(thread);
@@ -2974,7 +2957,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         title: thread.localizedTitle(context.l10n),
         autofocus: thread.session.itemCount == 0,
         onRename: (title) => _workspace.rename(thread, title),
-        onFork: (index) => unawaited(_fork(thread, index, embedded: embedded)),
         // Beside the sidebar, the traffic lights are over it, not here.
         titleBarInset: titleBarInset,
         leading: leading,

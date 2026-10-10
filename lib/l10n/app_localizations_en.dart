@@ -1727,12 +1727,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarFork => 'Fork';
 
   @override
-  String get chatForkFromHere => 'Fork from here';
-
-  @override
-  String get chatCopyReply => 'Copy reply';
-
-  @override
   String sidebarShowMore(int count) {
     return 'Show more ($count)';
   }
@@ -5924,6 +5918,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get modelsPromptCacheKeyDescription =>
       'Sends each conversation\'s own prompt_cache_key, so the upstream (or a relay in front of several) routes its requests to where the earlier ones are cached. Turn off for an upstream that rejects the field.';
+
+  @override
+  String get modelsCodexVersion => 'Codex Version';
+
+  @override
+  String get modelsCodexVersionDescription =>
+      'The Codex CLI version requests are made as. The backend only lists models that version supports, so if new models are missing, enter a newer version and refresh the model list. Leave empty to use the app\'s default.';
 
   @override
   String get modelsEnv => 'Extra Environment';
