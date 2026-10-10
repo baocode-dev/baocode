@@ -229,6 +229,9 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   never used). The IDE editor now shows breakpoint glyphs, the stopped threads' top frames and the focused frame (line
   highlight, stack frame glyph in the focused session) and inline values; a click in the glyph margin adds or removes a
   breakpoint (widget test in ide_workbench_extensions_test).
+- Found in the Webview screenshot: a Webview's notice named its source `null.null`, and every extension's panels,
+  views and custom editors shared that one notice (their descriptions are `{id, location}`, which `extensionIdOf` did
+  not read).
 
 ## In progress / next
 

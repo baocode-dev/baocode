@@ -12824,7 +12824,7 @@ abstract class AppLocalizations {
   /// No description provided for @windowWebviewPanelDetail.
   ///
   /// In en, this message translates to:
-  /// **'The \'{extension}\' extension opened \'{title}\', which is shown with a Webview. Its other features keep working.'**
+  /// **'The \'{extension}\' extension opened \'{title}\', which needs a Webview to show. Its other features keep working.'**
   String windowWebviewPanelDetail(String extension, String title);
 
   /// No description provided for @windowWebviewViewDetail.

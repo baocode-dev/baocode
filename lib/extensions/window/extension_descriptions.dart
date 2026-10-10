@@ -4,9 +4,10 @@
 /// `ExtensionIdentifier.toKey`: ids compare without case.
 String extensionKey(String id) => id.toLowerCase();
 
-/// The id (`publisher.name`) of [description].
+/// The id (`publisher.name`) of [description], or of a
+/// `WebviewExtensionDescription` (`{id, location}`).
 String extensionIdOf(Map<String, Object?> description) =>
-    switch (description['identifier']) {
+    switch (description['identifier'] ?? description['id']) {
       final Map<Object?, Object?> identifier => '${identifier['value']}',
       final String value => value,
       _ => '${description['publisher']}.${description['name']}',

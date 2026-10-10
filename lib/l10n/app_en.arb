@@ -5859,7 +5859,7 @@
   "windowRunningExtensionsHost": "Extension host",
   "windowWebviewUnsupported": "This feature needs Webview, which BaoCode does not support.",
   "windowWebviewTitle": "Webview not supported",
-  "windowWebviewPanelDetail": "The '{extension}' extension opened '{title}', which is shown with a Webview. Its other features keep working.",
+  "windowWebviewPanelDetail": "The '{extension}' extension opened '{title}', which needs a Webview to show. Its other features keep working.",
   "@windowWebviewPanelDetail": {
     "placeholders": {
       "extension": {

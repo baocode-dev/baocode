@@ -7768,7 +7768,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String windowWebviewPanelDetail(String extension, String title) {
-    return 'The \'$extension\' extension opened \'$title\', which is shown with a Webview. Its other features keep working.';
+    return 'The \'$extension\' extension opened \'$title\', which needs a Webview to show. Its other features keep working.';
   }
 
   @override

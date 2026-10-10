@@ -96,7 +96,10 @@ final class ExtensionWebviewNotices {
     notifications.notify(
       IdeSeverity.warning,
       '$message\n${reason ?? ui.strings.windowWebviewUnsupported}',
-      source: extensionDisplayName(extension),
+      // A Webview's description is its extension's id alone.
+      source:
+          ui.placeholders.nameOf?.call(extensionIdOf(extension)) ??
+          extensionDisplayName(extension),
       primary: primary,
     );
   }
