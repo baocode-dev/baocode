@@ -87,6 +87,7 @@ class IdeInputBox extends StatefulWidget {
     this.semanticsLabel,
     this.floatingValidation = false,
     this.obscureText = false,
+    this.borderRadius = 4,
   });
 
   final TextEditingController controller;
@@ -119,6 +120,7 @@ class IdeInputBox extends StatefulWidget {
 
   /// Its text as dots (a key, a password): one line only.
   final bool obscureText;
+  final double borderRadius;
 
   @override
   State<IdeInputBox> createState() => _IdeInputBoxState();
@@ -239,8 +241,8 @@ class _IdeInputBoxState extends State<IdeInputBox> {
         color: IdeInputColors.background,
         border: Border.all(color: outline),
         borderRadius: validation == null || floating
-            ? BorderRadius.circular(4)
-            : const BorderRadius.vertical(top: Radius.circular(4)),
+            ? BorderRadius.circular(widget.borderRadius)
+            : BorderRadius.vertical(top: Radius.circular(widget.borderRadius)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

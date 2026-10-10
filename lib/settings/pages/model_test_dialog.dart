@@ -7,7 +7,6 @@ import 'package:flutter/gestures.dart' show DragStartBehavior;
 import '../../ide/ide_button.dart';
 import '../../ide/ide_drag_selection.dart';
 import '../../ide/ide_hover.dart';
-import '../../ide/ide_input.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_spinning.dart';
 import '../../l10n/l10n.dart';
@@ -20,6 +19,7 @@ import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'model_dialogs.dart';
 import 'model_table_pagination.dart';
+import 'model_table_widgets.dart';
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 import 'model_test_result_view.dart';
@@ -53,7 +53,7 @@ class ModelTestButton extends StatelessWidget {
             final button = IdeActionButton(
               icon: switch (status) {
                 ModelTestStatus.passed => Codicons.check,
-                ModelTestStatus.failed => Codicons.error,
+                ModelTestStatus.failed => Codicons.close,
                 ModelTestStatus.running ||
                 ModelTestStatus.queued => Codicons.sync,
                 _ => Codicons.play,
@@ -62,15 +62,30 @@ class ModelTestButton extends StatelessWidget {
               label: status == ModelTestStatus.passed
                   ? modelTestSpeed(result)
                   : null,
-              tooltipContent: result == null
-                  ? null
-                  : ModelTestHoverDetails(service: service, result: result),
               tooltip: [
                 '${l10n.modelsBenchmark}: ${model.displayName}',
                 if (status != null) modelTestStatusText(l10n, status),
                 ?modelTestErrorText(l10n, result?.error),
               ].join('\n'),
-              onPressed: !provider.connected || result?.active == true
+              onPressed: result != null
+                  ? () => unawaited(
+                      showModelTestResultPanel(
+                        context,
+                        service: service,
+                        providerId: provider.id,
+                        modelId: model.id,
+                        onRefresh: !provider.connected
+                            ? null
+                            : () => service.start(
+                                provider,
+                                [model],
+                                prompt: (preferences ?? ModelProviders.current)
+                                    .selectedTestPreset
+                                    .prompt,
+                              ),
+                      ),
+                    )
+                  : !provider.connected
                   ? null
                   : () => service.start(
                       provider,
@@ -135,7 +150,7 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
   List<ModelTestTableRow>? _strokeRows;
   List<double> _autoWidths = [];
   int? _widthSignature;
-  double _selectionWidth = 36;
+  double _selectionWidth = 42;
   String? _hoveredModel;
 
   @override
@@ -149,8 +164,7 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
 
   void _start() => widget.service.start(
     widget.provider,
-    _page
-        .visible(_viewRows)
+    _viewRows
         .map((row) => row.model)
         .where((model) => _selected.contains(model.id)),
     prompt: _preferences.selectedTestPreset.prompt,
@@ -197,53 +211,65 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
     }
   });
 
-  Widget _header(ModelTestColumn column) => Row(
-    children: [
-      Expanded(
-        child: IdeHover(
-          message: column.label(context.l10n),
-          child: GestureDetector(
-            key: ValueKey('model-test-sort-${column.name}'),
-            behavior: HitTestBehavior.opaque,
-            onTap: () => setState(() {
-              _tableState.toggleSort(column);
-              _resetPage();
-            }),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    column.label(context.l10n),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: SettingsText.label,
-                  ),
-                ),
-                if (_tableState.sortColumn == column)
-                  Icon(
-                    _tableState.ascending
-                        ? Codicons.arrowUp
-                        : Codicons.arrowDown,
-                    size: 12,
-                    color: AppColors.textMuted,
-                  ),
-              ],
-            ),
+  Widget _header(ModelTestColumn column) => IdeHover(
+    message:
+        '${column.label(context.l10n)} · ${context.l10n.modelsCompactColumnHelp}',
+    child: GestureDetector(
+      key: ValueKey('model-test-sort-${column.name}'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() {
+        _tableState.toggleSort(column);
+        _resetPage();
+      }),
+      onSecondaryTapUp: (event) => unawaited(
+        showIdeMenu(
+          context,
+          anchor: Rect.fromLTWH(
+            event.globalPosition.dx,
+            event.globalPosition.dy,
+            1,
+            1,
           ),
+          entries: [
+            IdeMenuAction(
+              context.l10n.modelsTableFilter,
+              onSelected: () => unawaited(_filterColumn(column)),
+            ),
+            IdeMenuAction(
+              context.l10n.modelsTableAutoWidth,
+              onSelected: () => setState(() {
+                _tableState.widths.remove(column);
+                if (_horizontal.hasClients) _horizontal.jumpTo(0);
+              }),
+            ),
+          ],
         ),
       ),
-      IdeActionButton(
-        icon: Codicons.filter,
-        iconSize: 12,
-        size: 18,
-        color: _tableState.filters.containsKey(column)
-            ? themeColors['textLink.foreground']
-            : null,
-        tooltip:
-            '${context.l10n.modelsTableFilter}: ${column.label(context.l10n)}',
-        onPressed: () => unawaited(_filterColumn(column)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              column.label(context.l10n),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: SettingsText.description,
+            ),
+          ),
+          if (_tableState.sortColumn == column)
+            Icon(
+              _tableState.ascending ? Codicons.arrowUp : Codicons.arrowDown,
+              size: 11,
+              color: AppColors.textMuted,
+            ),
+          if (_tableState.filters.containsKey(column))
+            Icon(
+              Codicons.filter,
+              size: 11,
+              color: themeColors['textLink.foreground'],
+            ),
+        ],
       ),
-    ],
+    ),
   );
 
   Widget _textCell(
@@ -266,21 +292,15 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
   Widget _gridRow(
     List<Widget> cells, {
     bool header = false,
-    bool alternate = false,
+    bool selected = false,
     required List<double> widths,
   }) {
     final border = themeColors['editorHoverWidget.border'];
     return Semantics(
       container: true,
-      child: Container(
-        decoration: BoxDecoration(
-          color: header
-              ? themeColors['editorHoverWidget.background']
-              : alternate
-              ? themeColors['list.hoverBackground'].withValues(alpha: .25)
-              : null,
-          border: Border(bottom: BorderSide(color: border)),
-        ),
+      child: ModelTableRow(
+        header: header,
+        selected: selected,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -295,14 +315,9 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
                     alignment: index >= 3 && index <= 7
                         ? Alignment.centerRight
                         : Alignment.centerLeft,
-                    decoration: BoxDecoration(
-                      border: index == cells.length - 1
-                          ? null
-                          : Border(right: BorderSide(color: border)),
-                    ),
                     child: cell,
                   ),
-                  if (header)
+                  if (header && index != 0)
                     Positioned(
                       top: 0,
                       bottom: 0,
@@ -329,7 +344,10 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
                             child: SizedBox(
                               width: 6,
                               child: Center(
-                                child: Container(width: 1, color: border),
+                                child: Container(
+                                  width: 1,
+                                  color: border.withValues(alpha: .3),
+                                ),
                               ),
                             ),
                           ),
@@ -384,7 +402,9 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
           child: DecoratedBox(
             decoration: BoxDecoration(
               border: Border.all(
-                color: themeColors['editorHoverWidget.border'],
+                color: themeColors['editorHoverWidget.border'].withValues(
+                  alpha: .3,
+                ),
               ),
             ),
             child: Scrollbar(
@@ -399,31 +419,41 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
                   child: Column(
                     children: [
                       SizedBox(
-                        height: 36,
+                        height: 32,
                         child: _gridRow(
                           [
-                            Center(
-                              child: ModelCheckbox(
-                                hitSize: Size(widths[0], 36),
-                                checked:
-                                    models.isNotEmpty &&
-                                    models.every(
-                                      (m) => _selected.contains(m.id),
-                                    ),
-                                semanticLabel:
-                                    models.isNotEmpty &&
-                                        models.every(
-                                          (m) => _selected.contains(m.id),
-                                        )
-                                    ? l10n.modelsFetchSelectNone
-                                    : l10n.modelsFetchSelectAll,
-                                onChanged: (checked) => setState(() {
-                                  _selected.removeAll(models.map((m) => m.id));
-                                  if (checked) {
-                                    _selected.addAll(models.map((m) => m.id));
-                                  }
-                                }),
-                              ),
+                            ModelTableSelection(
+                              width: widths[0],
+                              checked:
+                                  models.isNotEmpty &&
+                                  models.every((m) => _selected.contains(m.id)),
+                              allChecked:
+                                  _allRows.isNotEmpty &&
+                                  _allRows.every(
+                                    (row) => _selected.contains(row.model.id),
+                                  ),
+                              onPageChanged: models.isEmpty
+                                  ? null
+                                  : (checked) => setState(() {
+                                      final ids = models.map((m) => m.id);
+                                      if (checked) {
+                                        _selected.addAll(ids);
+                                      } else {
+                                        _selected.removeAll(ids);
+                                      }
+                                    }),
+                              onAllChanged: _allRows.isEmpty
+                                  ? null
+                                  : (checked) => setState(() {
+                                      final ids = _allRows.map(
+                                        (row) => row.model.id,
+                                      );
+                                      if (checked) {
+                                        _selected.addAll(ids);
+                                      } else {
+                                        _selected.removeAll(ids);
+                                      }
+                                    }),
                             ),
                             for (final column in ModelTestColumn.values)
                               _header(column),
@@ -439,7 +469,7 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
                           onEnd: () => setState(() => _strokeRows = null),
                           child: ListView.builder(
                             controller: _vertical,
-                            itemExtent: 38,
+                            itemExtent: 32,
                             itemCount: models.length,
                             itemBuilder: (context, index) {
                               final row = rows[index];
@@ -460,7 +490,7 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
                                   [
                                     Center(
                                       child: ModelCheckbox(
-                                        hitSize: Size(widths[0], 38),
+                                        hitSize: Size(widths[0], 32),
                                         checked: _selected.contains(model.id),
                                         dragSelect: true,
                                         semanticLabel: model.displayName,
@@ -475,10 +505,9 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
                                       message: model.id,
                                       child: _textCell(model.displayName),
                                     ),
-                                    _textCell(
-                                      modelTestStatusText(l10n, result?.status),
-                                      color: modelTestStatusColor(
-                                        result?.status,
+                                    Center(
+                                      child: ModelTestStatusIcon(
+                                        status: result?.status,
                                       ),
                                     ),
                                     _textCell(
@@ -520,7 +549,7 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
                                       ),
                                     ),
                                   ],
-                                  alternate: index.isOdd,
+                                  selected: _selected.contains(model.id),
                                   widths: widths,
                                 ),
                               );
@@ -596,9 +625,7 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
             icon: Codicons.play,
             onPressed:
                 !provider.connected ||
-                    !_page
-                        .visible(_viewRows)
-                        .any((row) => _selected.contains(row.model.id)) ||
+                    !_viewRows.any((row) => _selected.contains(row.model.id)) ||
                     preset.prompt.trim().isEmpty
                 ? null
                 : _start,
@@ -612,107 +639,92 @@ class _ModelTestDialogState extends State<ModelTestDialog> {
         child: SizedBox(
           height: math.min(
             MediaQuery.sizeOf(context).height * .85 - 110,
-            202 + 38.0 * math.max(1, _page.visible(_viewRows).length),
+            112 + 32.0 * math.max(1, _page.visible(_viewRows).length),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  Text(l10n.modelsBenchmarkPrompt, style: SettingsText.label),
-                  SettingsDropdown(
-                    current: modelTestPresetName(l10n, preset),
-                    semanticLabel: l10n.modelsBenchmarkPrompt,
-                    entries: () => [
-                      for (final item in _preferences.testPresets)
-                        IdeMenuAction(
-                          modelTestPresetName(l10n, item),
-                          checked: item.id == preset.id,
-                          onSelected: () =>
-                              unawaited(_preferences.selectTestPreset(item.id)),
-                        ),
-                      const IdeMenuSeparator(),
-                      IdeMenuAction(
-                        l10n.modelsPresetAdd,
-                        onSelected: () => unawaited(_editPreset(adding: true)),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final presets = Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      SettingsDropdown(
+                        current: modelTestPresetName(l10n, preset),
+                        semanticLabel: l10n.modelsBenchmarkPrompt,
+                        entries: () => [
+                          for (final item in _preferences.testPresets)
+                            IdeMenuAction(
+                              modelTestPresetName(l10n, item),
+                              checked: item.id == preset.id,
+                              onSelected: () => unawaited(
+                                _preferences.selectTestPreset(item.id),
+                              ),
+                            ),
+                          const IdeMenuSeparator(),
+                          IdeMenuAction(
+                            l10n.modelsPresetAdd,
+                            onSelected: () =>
+                                unawaited(_editPreset(adding: true)),
+                          ),
+                        ],
+                      ),
+                      IdeActionButton(
+                        icon: Codicons.add,
+                        tooltip: l10n.modelsPresetAdd,
+                        onPressed: () => unawaited(_editPreset(adding: true)),
+                      ),
+                      IdeActionButton(
+                        icon: Codicons.edit,
+                        tooltip: l10n.modelsPresetEdit,
+                        onPressed: preset.builtin
+                            ? null
+                            : () => unawaited(_editPreset(adding: false)),
+                      ),
+                      IdeActionButton(
+                        icon: Codicons.trash,
+                        tooltip: l10n.modelsPresetDelete,
+                        onPressed: preset.builtin
+                            ? null
+                            : () => unawaited(
+                                _preferences.deleteTestPreset(preset.id),
+                              ),
                       ),
                     ],
-                  ),
-                  IdeActionButton(
-                    icon: Codicons.add,
-                    tooltip: l10n.modelsPresetAdd,
-                    onPressed: () => unawaited(_editPreset(adding: true)),
-                  ),
-                  IdeActionButton(
-                    icon: Codicons.edit,
-                    tooltip: l10n.modelsPresetEdit,
-                    onPressed: preset.builtin
-                        ? null
-                        : () => unawaited(_editPreset(adding: false)),
-                  ),
-                  IdeActionButton(
-                    icon: Codicons.trash,
-                    tooltip: l10n.modelsPresetDelete,
-                    onPressed: preset.builtin
-                        ? null
-                        : () => unawaited(
-                            _preferences.deleteTestPreset(preset.id),
-                          ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                color: themeColors['input.background'],
-                child: SelectableText(
-                  preset.prompt,
-                  maxLines: 3,
-                  style: SettingsText.description.copyWith(
-                    fontFamily: AppFonts.mono,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: IdeInputBox(
-                      controller: _search,
-                      placeholder: l10n.modelsTableSearch,
-                      semanticsLabel: l10n.modelsTableSearch,
-                      onChanged: (value) => setState(() {
-                        _tableState.query = value;
-                        _resetPage();
-                      }),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IdeButton(
-                    label: l10n.modelsTableClear,
-                    secondary: true,
-                    onPressed: () => setState(() {
-                      _search.clear();
-                      _tableState.query = '';
-                      _tableState.filters.clear();
-                      _tableState.sortColumn = null;
+                  );
+                  final search = ModelTableSearch(
+                    controller: _search,
+                    label: l10n.modelsTableSearch,
+                    onChanged: (value) => setState(() {
+                      _tableState.query = value;
                       _resetPage();
                     }),
-                  ),
-                  const SizedBox(width: 6),
-                  IdeButton(
-                    label: l10n.modelsTableAutoWidth,
-                    secondary: true,
-                    onPressed: () => setState(() {
-                      _tableState.widths.clear();
-                      _selectionWidth = 36;
-                      if (_horizontal.hasClients) _horizontal.jumpTo(0);
-                    }),
-                  ),
-                ],
+                    onClear: _search.text.isEmpty && _tableState.filters.isEmpty
+                        ? null
+                        : () => setState(() {
+                            _search.clear();
+                            _tableState.query = '';
+                            _tableState.filters.clear();
+                            _tableState.sortColumn = null;
+                            _resetPage();
+                          }),
+                  );
+                  if (constraints.maxWidth >= 700) {
+                    return Row(
+                      children: [
+                        presets,
+                        const SizedBox(width: 16),
+                        Expanded(child: search),
+                      ],
+                    );
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [presets, const SizedBox(height: 8), search],
+                  );
+                },
               ),
               const SizedBox(height: 8),
               Expanded(child: _table(context)),

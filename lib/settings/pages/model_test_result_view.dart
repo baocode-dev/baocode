@@ -70,25 +70,68 @@ Color? modelTestStatusColor(ModelTestStatus? status) => switch (status) {
   _ => null,
 };
 
-/// Shared compact result view for both model-row and batch-table hovers.
-class ModelTestDetails extends StatelessWidget {
+/// Status text remains available to filters and screen readers, not repeated
+/// as a wide visual column in the compact table or hover.
+class ModelTestStatusIcon extends StatelessWidget {
+  const ModelTestStatusIcon({super.key, required this.status});
+  final ModelTestStatus? status;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: modelTestStatusText(context.l10n, status),
+    child: Icon(
+      switch (status) {
+        ModelTestStatus.passed => Codicons.check,
+        ModelTestStatus.failed => Codicons.close,
+        ModelTestStatus.running => Codicons.sync,
+        ModelTestStatus.queued => Codicons.clock,
+        ModelTestStatus.cancelled => Codicons.circleSlash,
+        null => Codicons.dash,
+      },
+      size: 14,
+      color:
+          modelTestStatusColor(status) ?? themeColors['descriptionForeground'],
+    ),
+  );
+}
+
+/// The same compact, selectable detail appears in both benchmark entry points.
+class ModelTestDetails extends StatefulWidget {
   const ModelTestDetails({
     super.key,
     required this.result,
     this.showMetrics = true,
     this.hover = false,
     this.expanded = false,
+    this.onRefresh,
   });
   final ModelTestResult result;
   final bool showMetrics;
   final bool hover;
   final bool expanded;
+  final VoidCallback? onRefresh;
+  @override
+  State<ModelTestDetails> createState() => _ModelTestDetailsState();
+}
+
+class _ModelTestDetailsState extends State<ModelTestDetails> {
+  late bool _expanded = widget.expanded;
+  @override
+  void didUpdateWidget(ModelTestDetails oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.result != widget.result) _expanded = false;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final result = widget.result;
     final l10n = context.l10n;
-    final foreground = hover ? IdeHoverColors.foreground : AppColors.text;
-    final style = SettingsText.description.copyWith(color: foreground);
+    final foreground = widget.hover
+        ? IdeHoverColors.foreground
+        : AppColors.text;
+    final style = SettingsText.description.copyWith(
+      color: foreground,
+      fontSize: 11.5,
+    );
     final mono = style.copyWith(
       fontFamily: AppFonts.mono,
       fontFamilyFallback: AppFonts.monoFallbacks,
@@ -96,11 +139,14 @@ class ModelTestDetails extends StatelessWidget {
     final metrics = [
       (l10n.modelsBenchmarkSpeed, modelTestSpeed(result)),
       (l10n.modelsBenchmarkFirstText, modelTestDuration(result.firstText)),
-      (l10n.modelsBenchmarkFirstEvent, modelTestDuration(result.firstEvent)),
       (l10n.modelsBenchmarkDuration, modelTestDuration(result.elapsed)),
-      (l10n.modelsBenchmarkInputTokens, modelTestTokens(result.inputTokens)),
-      (l10n.modelsBenchmarkTokens, modelTestOutputTokens(result)),
     ];
+    final secondary =
+        '${l10n.modelsBenchmarkFirstEvent} ${modelTestDuration(result.firstEvent)}  ·  '
+        '${modelTestTokens(result.inputTokens)} / ${modelTestOutputTokens(result)}';
+    final error = modelTestErrorText(l10n, result.error);
+    String preview(String value) =>
+        _expanded ? value : modelTestOutputPreview(value, limit: 24);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -109,38 +155,27 @@ class ModelTestDetails extends StatelessWidget {
           children: [
             Expanded(
               child: SelectableText(
-                '${l10n.modelsBenchmarkOutput} · ${result.model.displayName}',
+                result.model.displayName,
                 maxLines: 1,
-                style: SettingsText.label.copyWith(color: foreground),
+                style: style.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
-            const SizedBox(width: 8),
-            SelectableText(
-              modelTestStatusText(l10n, result.status),
-              style: style.copyWith(color: modelTestStatusColor(result.status)),
-            ),
-            IdeActionButton(
-              icon: Codicons.copy,
-              tooltip: l10n.modelsResultCopyAll,
-              onPressed: () => Clipboard.setData(
-                ClipboardData(
-                  text: [
-                    result.model.displayName,
-                    modelTestStatusText(l10n, result.status),
-                    for (final (label, value) in metrics) '$label: $value',
-                    if (result.error != null)
-                      modelTestErrorText(l10n, result.error)!,
-                    result.output,
-                    if (result.thinking.isNotEmpty)
-                      '${l10n.modelsBenchmarkThinking}:\n${result.thinking}',
-                  ].join('\n'),
-                ),
+            const SizedBox(width: 6),
+            ModelTestStatusIcon(status: result.status),
+            if (widget.onRefresh != null) ...[
+              const SizedBox(width: 4),
+              IdeActionButton(
+                icon: Codicons.refresh,
+                size: 20,
+                iconSize: 13,
+                tooltip: l10n.modelsResultRetest,
+                onPressed: result.active ? null : widget.onRefresh,
               ),
-            ),
+            ],
           ],
         ),
-        const SizedBox(height: 8),
-        if (showMetrics) ...[
+        const SizedBox(height: 6),
+        if (widget.showMetrics) ...[
           Table(
             columnWidths: const {
               0: FlexColumnWidth(),
@@ -151,11 +186,11 @@ class ModelTestDetails extends StatelessWidget {
                 TableRow(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 4, right: 16),
+                      padding: const EdgeInsets.only(bottom: 2),
                       child: SelectableText(label, style: style),
                     ),
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.only(bottom: 2),
                       child: SelectableText(
                         value,
                         textAlign: TextAlign.right,
@@ -166,34 +201,57 @@ class ModelTestDetails extends StatelessWidget {
                 ),
             ],
           ),
-          Divider(
-            height: 12,
-            color: hover ? IdeHoverColors.border : themeColors['widget.border'],
+          SelectableText(
+            secondary,
+            style: style.copyWith(
+              color: themeColors['descriptionForeground'],
+              fontSize: 10.5,
+            ),
           ),
+          const SizedBox(height: 6),
         ],
-        if (modelTestErrorText(l10n, result.error) case final error?)
-          _ResultSection(
-            key: ValueKey('${result.model.id}-error'),
-            label: l10n.modelsBenchmarkFailed,
-            text: error,
-            style: mono,
-          ),
-        _ResultSection(
-          key: ValueKey('${result.model.id}-output'),
-          label: l10n.modelsBenchmarkOutput,
-          text: result.output.isEmpty ? '—' : result.output,
-          style: mono,
-          initiallyExpanded: expanded,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: SelectableText.rich(
+                TextSpan(
+                  style: mono,
+                  children: [
+                    if (error != null)
+                      TextSpan(
+                        text: '${preview(error)}\n',
+                        style: TextStyle(color: themeColors['errorForeground']),
+                      ),
+                    TextSpan(
+                      text: preview(
+                        result.output.isEmpty ? '—' : result.output,
+                      ),
+                    ),
+                    if (result.thinking.isNotEmpty)
+                      TextSpan(
+                        text:
+                            '\n${l10n.modelsCompactThinking} · ${preview(result.thinking)}',
+                        style: TextStyle(
+                          color: themeColors['descriptionForeground'],
+                          fontSize: 10.5,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            IdeActionButton(
+              icon: _expanded ? Codicons.chevronUp : Codicons.chevronDown,
+              size: 18,
+              iconSize: 12,
+              tooltip: _expanded
+                  ? l10n.modelsResultCollapse
+                  : l10n.modelsResultExpand,
+              onPressed: () => setState(() => _expanded = !_expanded),
+            ),
+          ],
         ),
-        if (result.thinking.isNotEmpty)
-          _ResultSection(
-            key: ValueKey('${result.model.id}-thinking'),
-            label: l10n.modelsBenchmarkThinking,
-            text: result.thinking,
-            style: mono,
-          ),
-        if (result.tokensEstimated && result.output.isNotEmpty)
-          SelectableText(l10n.modelsBenchmarkEstimated, style: style),
         if (result.outputTruncated || result.thinkingTruncated)
           SelectableText(l10n.modelsBenchmarkTruncated, style: style),
       ],
@@ -201,65 +259,80 @@ class ModelTestDetails extends StatelessWidget {
   }
 }
 
-/// Selection is independent from expansion; copy always copies the full text.
-class _ResultSection extends StatefulWidget {
-  const _ResultSection({
-    super.key,
-    required this.label,
-    required this.text,
-    required this.style,
-    this.initiallyExpanded = false,
-  });
-  final String label;
-  final String text;
-  final TextStyle style;
-  final bool initiallyExpanded;
-  @override
-  State<_ResultSection> createState() => _ResultSectionState();
-}
-
-class _ResultSectionState extends State<_ResultSection> {
-  late bool _expanded = widget.initiallyExpanded;
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: SelectableText(
-                widget.label,
-                style: widget.style.copyWith(fontWeight: FontWeight.w600),
+/// Results open only by explicit click. The transparent dismissible barrier
+/// keeps selection/expansion stable; leaving with the pointer is not dismissal.
+Future<void> showModelTestResultPanel(
+  BuildContext context, {
+  required ModelTestService service,
+  required String providerId,
+  required String modelId,
+  required VoidCallback? onRefresh,
+}) {
+  final box = context.findRenderObject()! as RenderBox;
+  final anchor = box.localToGlobal(Offset.zero) & box.size;
+  return showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: context.l10n.commonDismiss,
+    barrierColor: Colors.transparent,
+    transitionDuration: Duration.zero,
+    pageBuilder: (context, _, _) => CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.pop(context),
+      },
+      child: FocusScope(
+        autofocus: true,
+        child: CustomSingleChildLayout(
+          delegate: _ResultPanelPlacement(anchor),
+          child: Material(
+            type: MaterialType.transparency,
+            child: IdeHoverBox(
+              child: ListenableBuilder(
+                listenable: service,
+                builder: (context, _) {
+                  final result = service.result(providerId, modelId)!;
+                  return ModelTestHoverDetails(
+                    service: service,
+                    result: result,
+                    onRefresh: onRefresh,
+                  );
+                },
               ),
             ),
-            IdeActionButton(
-              icon: _expanded ? Codicons.chevronUp : Codicons.chevronDown,
-              tooltip: _expanded
-                  ? context.l10n.modelsResultCollapse
-                  : context.l10n.modelsResultExpand,
-              onPressed: () => setState(() => _expanded = !_expanded),
-            ),
-            IdeActionButton(
-              icon: Codicons.copy,
-              tooltip: '${context.l10n.commonCopy}: ${widget.label}',
-              onPressed: () =>
-                  Clipboard.setData(ClipboardData(text: widget.text)),
-            ),
-          ],
+          ),
         ),
-        const SizedBox(height: 4),
-        SelectableText(
-          _expanded
-              ? widget.text
-              : modelTestOutputPreview(widget.text, limit: 16),
-          style: widget.style,
-        ),
-      ],
+      ),
     ),
   );
+}
+
+class _ResultPanelPlacement extends SingleChildLayoutDelegate {
+  _ResultPanelPlacement(this.anchor);
+  final Rect anchor;
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      constraints.loosen();
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final left = (anchor.right - childSize.width).clamp(
+      8.0,
+      math.max(8.0, size.width - childSize.width - 8),
+    );
+    final top = anchor.top >= childSize.height + 8
+        ? anchor.top - childSize.height - 4
+        : anchor.bottom + 4;
+    return Offset(
+      left.toDouble(),
+      top
+          .clamp(8.0, math.max(8.0, size.height - childSize.height - 8))
+          .toDouble(),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_ResultPanelPlacement oldDelegate) =>
+      anchor != oldDelegate.anchor;
 }
 
 class ModelTestHoverDetails extends StatelessWidget {
@@ -267,18 +340,20 @@ class ModelTestHoverDetails extends StatelessWidget {
     super.key,
     required this.service,
     required this.result,
+    this.onRefresh,
   });
+  final VoidCallback? onRefresh;
   final ModelTestService service;
   final ModelTestResult result;
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: math.min(400, math.max(0, MediaQuery.sizeOf(context).width - 48)),
+    width: math.min(300, math.max(0, MediaQuery.sizeOf(context).width - 32)),
     child: ConstrainedBox(
       constraints: BoxConstraints(
-        maxHeight: math.min(420, MediaQuery.sizeOf(context).height * .7),
+        maxHeight: math.min(300, MediaQuery.sizeOf(context).height * .65),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: SingleChildScrollView(
           child: ListenableBuilder(
             listenable: service,
@@ -286,6 +361,7 @@ class ModelTestHoverDetails extends StatelessWidget {
               key: ObjectKey(result),
               result: result,
               hover: true,
+              onRefresh: onRefresh,
             ),
           ),
         ),

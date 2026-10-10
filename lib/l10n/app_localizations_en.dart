@@ -5885,6 +5885,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsBenchmarkCustom => 'Custom';
 
   @override
+  String get modelsSelectionScope => 'Selection scope';
+
+  @override
+  String get modelsSelectPage => 'Select this page';
+
+  @override
+  String get modelsSelectAllPages => 'Select all pages';
+
+  @override
+  String get modelsCompactThinking => 'Thinking';
+
+  @override
+  String get modelsResultRetest => 'Retest model';
+
+  @override
+  String get modelsCompactColumnHelp => 'Click to sort · right-click to filter';
+
+  @override
   String get modelsTableFilter => 'Filter';
 
   @override

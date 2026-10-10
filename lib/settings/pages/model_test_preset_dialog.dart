@@ -89,6 +89,7 @@ class _PresetEditorState extends State<_PresetEditor> {
             const SizedBox(height: 6),
             IdeInputBox(
               controller: _name,
+              borderRadius: 8,
               autofocus: true,
               semanticsLabel: l10n.modelsName,
               validation: _invalid && _name.text.trim().isEmpty
@@ -100,6 +101,7 @@ class _PresetEditorState extends State<_PresetEditor> {
             const SizedBox(height: 6),
             IdeInputBox(
               controller: _prompt,
+              borderRadius: 8,
               minLines: 4,
               maxLines: 10,
               semanticsLabel: l10n.modelsBenchmarkPrompt,

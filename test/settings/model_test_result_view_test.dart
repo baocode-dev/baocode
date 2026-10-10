@@ -1,10 +1,12 @@
 import 'dart:ui' show PointerDeviceKind;
+import 'dart:async';
 
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_test.dart';
 import 'package:baocode/settings/pages/model_test_dialog.dart';
 import 'package:baocode/settings/pages/model_test_result_view.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,27 +46,192 @@ void main() {
     expect(modelTestOutputPreview('a\n  bcdef'), 'a bc…');
   });
 
-  testWidgets('successful action shows speed and a single rich hover', (
+  testWidgets(
+    'compact hover stays interactive and dismisses promptly after leaving',
+    (tester) async {
+      final service = ModelTestService(
+        run: (_, _, _, _, emit) async => emit(
+          const ModelTestEvent(
+            text: 'Actual response',
+            thinking: 'Reasoning',
+            inputTokens: 12,
+            outputTokens: 100,
+            done: true,
+          ),
+        ),
+      );
+      addTearDown(service.dispose);
+      service.start(provider, provider.models);
+      await tester.pump();
+      service.result('custom', 'model')!
+        ..elapsed = const Duration(seconds: 2)
+        ..firstText = const Duration(milliseconds: 237)
+        ..firstEvent = const Duration(milliseconds: 100);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: IdeHover(
+                message: 'Batch result',
+                content: ModelTestHoverDetails(
+                  service: service,
+                  result: service.result('custom', 'model')!,
+                ),
+                child: const Text('Show result'),
+              ),
+            ),
+          ),
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(find.text('Show result')));
+      await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(find.text('237 ms'), findsOneWidget);
+      expect(find.text('2.00 s'), findsOneWidget);
+      expect(find.text('50.0 token/s'), findsOneWidget);
+      expect(find.textContaining('100 ms'), findsOneWidget);
+      expect(find.text('Passed'), findsNothing);
+      expect(find.byIcon(Codicons.copy), findsNothing);
+      expect(tester.getSize(find.byType(ModelTestHoverDetails)).width, 300);
+      expect(
+        tester.getSize(find.byType(ModelTestHoverDetails)).height,
+        lessThan(220),
+      );
+      final output = find.byWidgetPredicate(
+        (w) => w is SelectableText && w.textSpan != null,
+      );
+      expect(output, findsOneWidget);
+      expect(
+        tester.widget<SelectableText>(output).textSpan!.toPlainText(),
+        'Actual response\nThinking · Reasoning',
+      );
+      final expand = find.byWidgetPredicate(
+        (w) => w is IdeActionButton && w.tooltip == 'Expand',
+      );
+      await mouse.moveTo(tester.getCenter(expand));
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.byType(ModelTestDetails), findsOneWidget);
+      final box = tester.getRect(find.byType(IdeHoverBox).first);
+      await mouse.moveTo(Offset(box.left + 2, box.bottom - 2));
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.byType(ModelTestDetails), findsOneWidget);
+      await mouse.moveTo(tester.getCenter(output));
+      await tester.pump();
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final field = tester.state<EditableTextState>(
+        find.descendant(of: output, matching: find.byType(EditableText)),
+      );
+      field.selectAll(SelectionChangedCause.keyboard);
+      field.copySelection(SelectionChangedCause.keyboard);
+      await tester.pump();
+      expect(copied, contains('Actual response'));
+      expect(copied, contains('Reasoning'));
+      await mouse.moveTo(Offset.zero);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(ModelTestDetails), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'first click tests; completed result clicks only open and refresh is explicit',
+    (tester) async {
+      var calls = 0;
+      final gate = Completer<void>();
+      final service = ModelTestService(
+        run: (_, _, _, _, emit) async {
+          calls++;
+          if (calls == 2) await gate.future;
+          emit(const ModelTestEvent(text: 'OK', outputTokens: 10, done: true));
+        },
+      );
+      addTearDown(service.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: ModelTestButton(
+                service: service,
+                provider: provider,
+                model: provider.models.first,
+              ),
+            ),
+          ),
+        ),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await tester.tap(find.byType(ModelTestButton));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      expect(find.byType(ModelTestDetails), findsNothing);
+      await mouse.moveTo(tester.getCenter(find.byType(ModelTestButton)));
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.byType(ModelTestDetails), findsNothing);
+      expect(calls, 1);
+      await tester.tap(find.byType(ModelTestButton));
+      await tester.pumpAndSettle();
+      expect(find.byType(ModelTestDetails), findsOneWidget);
+      expect(calls, 1);
+      await mouse.moveTo(Offset.zero);
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.byType(ModelTestDetails), findsOneWidget);
+      final refresh = find.byWidgetPredicate(
+        (w) => w is IdeActionButton && w.tooltip == 'Retest model',
+      );
+      await tester.tap(refresh);
+      await tester.pump();
+      expect(calls, 2);
+      expect(tester.widget<IdeActionButton>(refresh).onPressed, isNull);
+      await tester.tap(refresh);
+      await tester.pump();
+      expect(calls, 2);
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(tester.widget<IdeActionButton>(refresh).onPressed, isNotNull);
+      expect(find.byType(ModelTestDetails), findsOneWidget);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(find.byType(ModelTestDetails), findsNothing);
+      await tester.tap(find.byType(ModelTestButton));
+      await tester.pumpAndSettle();
+      expect(calls, 2);
+      expect(find.byType(ModelTestDetails), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(ModelTestDetails), findsNothing);
+    },
+  );
+
+  testWidgets('failed result click opens error without retrying', (
     tester,
   ) async {
+    var calls = 0;
     final service = ModelTestService(
-      run: (_, _, _, _, emit) async => emit(
-        const ModelTestEvent(
-          text: 'Actual response',
-          thinking: 'Reasoning',
-          inputTokens: 12,
-          outputTokens: 100,
-          done: true,
-        ),
-      ),
+      run: (_, _, _, _, _) async {
+        calls++;
+        throw const FormatException('Example failure');
+      },
     );
     addTearDown(service.dispose);
-    service.start(provider, provider.models);
-    await tester.pump();
-    final result = service.result('custom', 'model')!
-      ..elapsed = const Duration(seconds: 2)
-      ..firstText = const Duration(milliseconds: 237)
-      ..firstEvent = const Duration(milliseconds: 100);
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -78,198 +245,85 @@ void main() {
         ),
       ),
     );
-    expect(find.text('50.0 token/s'), findsOneWidget);
-    expect(find.byType(IdeHover), findsOneWidget);
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    addTearDown(mouse.removePointer);
-    await mouse.moveTo(tester.getCenter(find.byType(IdeActionButton)));
-    await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
-    await tester.pump(const Duration(milliseconds: 150));
-    expect(find.text('237 ms'), findsOneWidget);
-    expect(find.text('100 ms'), findsOneWidget);
-    expect(find.text('2.00 s'), findsOneWidget);
-    expect(find.text('100 token'), findsOneWidget);
-    expect(find.text('12 token'), findsOneWidget);
-    expect(find.text('Actual response'), findsOneWidget);
-    expect(find.text('Reasoning'), findsOneWidget);
-    // Nested action tooltips must not dismiss the containing result panel.
-    for (final tooltip in [
-      'Expand',
-      'Copy: Response',
-      'Copy: Reasoning Returned',
-    ]) {
-      final action = find
-          .byWidgetPredicate(
-            (w) => w is IdeActionButton && w.tooltip == tooltip,
-          )
-          .first;
-      await mouse.moveTo(tester.getCenter(action));
-      await tester.pump(const Duration(seconds: 2));
-      expect(
-        find.text('Actual response'),
-        findsOneWidget,
-        reason: 'result panel stays open over $tooltip',
-      );
-      expect(find.text('Reasoning'), findsOneWidget);
-    }
-    final panel = tester.getRect(find.byType(IdeHoverBox).first);
-    await mouse.moveTo(Offset(panel.left + 2, panel.bottom - 2));
-    await tester.pump(const Duration(seconds: 2));
-    expect(
-      find.text('Actual response'),
-      findsOneWidget,
-      reason: 'result panel padding also keeps the panel open',
-    );
-    await mouse.moveTo(tester.getCenter(find.text('Actual response')));
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(find.text('Actual response'), findsOneWidget);
-    await mouse.down(tester.getCenter(find.text('Actual response')));
-    await mouse.up();
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(find.text('Actual response'), findsOneWidget);
-    String? copied;
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (call) async {
-        if (call.method == 'Clipboard.setData') {
-          copied = (call.arguments as Map)['text'] as String;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
-    await tester.tap(
-      find.byWidgetPredicate(
-        (w) => w is IdeActionButton && w.tooltip == 'Copy: Response',
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 800));
-    expect(copied, 'Actual response');
-    final metricsField = tester.state<EditableTextState>(
-      find.descendant(
-        of: find.byWidgetPredicate(
-          (w) => w is SelectableText && w.data == '237 ms',
-        ),
-        matching: find.byType(EditableText),
-      ),
-    );
-    metricsField.selectAll(SelectionChangedCause.keyboard);
-    metricsField.copySelection(SelectionChangedCause.keyboard);
-    await tester.pump();
-    expect(copied, '237 ms');
-    await tester.tap(
-      find.byWidgetPredicate(
-        (w) => w is IdeActionButton && w.tooltip == 'Copy All Results',
-      ),
-    );
-    await tester.pump();
-    expect(copied, contains('Speed: 50.0 token/s'));
-    expect(copied, contains('First Text: 237 ms'));
-    expect(copied, contains('Reasoning'));
-    expect(find.text('Actual response'), findsOneWidget);
-    expect(find.text('First Text'), findsOneWidget);
-    expect(find.text('50.0 token/s'), findsNWidgets(2));
-    expect(tester.takeException(), isNull);
-    // Retesting remains the same action, including the speed text hit target.
-    expect(
-      tester
-          .widget<IdeActionButton>(
-            find.byWidgetPredicate(
-              (w) =>
-                  w is IdeActionButton && w.tooltip.startsWith('Test Model:'),
-            ),
-          )
-          .onPressed,
-      isNotNull,
-    );
-    expect(result.status, ModelTestStatus.passed);
-    await mouse.moveTo(Offset.zero);
+    await tester.tap(find.byType(ModelTestButton));
+    await tester.pumpAndSettle();
+    expect(calls, 1);
+    await tester.tap(find.byType(ModelTestButton));
+    await tester.pumpAndSettle();
+    expect(calls, 1);
+    expect(find.byType(ModelTestDetails), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
     await tester.pumpAndSettle();
   });
 
-  testWidgets('long output and reasoning stay inside compact hover bounds', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(500, 600);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final service = ModelTestService(run: (_, _, _, _, _) async {});
-    addTearDown(service.dispose);
-    final result =
-        ModelTestResult(provider, provider.models.first, modelTestPrompt)
-          ..status = ModelTestStatus.failed
-          ..output = 'Long response\n' * 200
-          ..thinking = 'Long reasoning\n' * 200
-          ..error = 'Error\n' * 100;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: IdeHoverBox(
-              child: ModelTestHoverDetails(service: service, result: result),
+  testWidgets(
+    'one explicit expand reveals response and thinking inside bounded hover',
+    (tester) async {
+      tester.view.physicalSize = const Size(500, 600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final service = ModelTestService(run: (_, _, _, _, _) async {});
+      addTearDown(service.dispose);
+      final result =
+          ModelTestResult(provider, provider.models.first, modelTestPrompt)
+            ..status = ModelTestStatus.failed
+            ..output = 'Long response\n' * 200
+            ..thinking = 'Long reasoning\n' * 200
+            ..error = 'Example failure';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: IdeHoverBox(
+                child: ModelTestHoverDetails(service: service, result: result),
+              ),
             ),
           ),
         ),
-      ),
-    );
-    expect(
-      tester.getSize(find.byType(ModelTestHoverDetails)).height,
-      lessThanOrEqualTo(420),
-    );
-    final output = find.byWidgetPredicate(
-      (w) => w is SelectableText && (w.data ?? '').startsWith('Long response'),
-    );
-    expect(
-      tester.widget<SelectableText>(output).data,
-      modelTestOutputPreview(result.output, limit: 16),
-    );
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    addTearDown(mouse.removePointer);
-    await mouse.moveTo(tester.getCenter(find.byType(ModelTestHoverDetails)));
-    await tester.pump();
-    expect(tester.widget<SelectableText>(output).data, isNot(result.output));
-    await tester.tap(
-      find
-          .byWidgetPredicate(
-            (w) => w is IdeActionButton && w.tooltip == 'Expand',
-          )
-          .at(1),
-    );
-    await tester.pump();
-    expect(tester.widget<SelectableText>(output).data, result.output);
-    expect(find.text(result.thinking), findsNothing);
-    await tester.tap(
-      find.byWidgetPredicate(
-        (w) => w is IdeActionButton && w.tooltip == 'Collapse',
-      ),
-    );
-    await tester.pump();
-    expect(
-      tester.widget<SelectableText>(output).data,
-      modelTestOutputPreview(result.output, limit: 16),
-    );
-    await tester.ensureVisible(
-      find.byWidgetPredicate(
-        (w) => w is SelectableText && w.data == 'Reasoning Returned',
-      ),
-    );
-    await tester.pump();
-    await tester.tap(
-      find
-          .byWidgetPredicate(
-            (w) => w is IdeActionButton && w.tooltip == 'Expand',
-          )
-          .last,
-    );
-    await tester.pump();
-    expect(find.text(result.thinking), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      );
+      final body = find.byWidgetPredicate(
+        (w) => w is SelectableText && w.textSpan != null,
+      );
+      final before = tester
+          .widget<SelectableText>(body)
+          .textSpan!
+          .toPlainText();
+      expect(
+        before,
+        contains(modelTestOutputPreview(result.output, limit: 24)),
+      );
+      expect(before, isNot(contains(result.thinking)));
+      expect(
+        tester.getSize(find.byType(ModelTestHoverDetails)).height,
+        lessThan(240),
+      );
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is IdeActionButton && w.tooltip == 'Expand',
+        ),
+      );
+      await tester.pump();
+      final expanded = tester
+          .widget<SelectableText>(body)
+          .textSpan!
+          .toPlainText();
+      expect(expanded, contains(result.output));
+      expect(expanded, contains(result.thinking));
+      expect(
+        tester.getSize(find.byType(ModelTestHoverDetails)).height,
+        lessThanOrEqualTo(300),
+      );
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is IdeActionButton && w.tooltip == 'Collapse',
+        ),
+      );
+      await tester.pump();
+      expect(
+        tester.widget<SelectableText>(body).textSpan!.toPlainText(),
+        before,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

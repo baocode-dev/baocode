@@ -46,7 +46,6 @@ class ModelTablePagination extends StatelessWidget {
       spacing: 8,
       runSpacing: 4,
       children: [
-        Text(l10n.modelsPageRows, style: SettingsText.description),
         SettingsDropdown(
           current: page.size == 0 ? l10n.modelsPageUnlimited : '${page.size}',
           semanticLabel: l10n.modelsPageRows,

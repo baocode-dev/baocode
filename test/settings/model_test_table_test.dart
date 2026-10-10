@@ -244,10 +244,14 @@ void main() {
       await tester.tap(find.text('Test This Model'));
       await tester.pumpAndSettle();
       expect(tested, ['m104']);
-      await tester.tap(find.text('Clear Filters'));
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is IdeActionButton && w.tooltip == 'Clear Filters',
+        ),
+      );
       await tester.pump();
       expect(find.text('1 / 2 · 105'), findsOneWidget);
-      expect(tester.widget<ModelCheckbox>(box('m000')).checked, isFalse);
+      expect(tester.widget<ModelCheckbox>(box('m000')).checked, isTrue);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -302,11 +306,13 @@ void main() {
         const Offset(-500, 0),
       );
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.byWidgetPredicate(
-          (w) => w is IdeActionButton && w.tooltip == 'Filter: Speed',
-        ),
+      final filterGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('model-test-sort-speed'))),
+        buttons: 2,
       );
+      await filterGesture.up();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Filter'));
       await tester.pumpAndSettle();
       final minimum = find.descendant(
         of: find.byWidgetPredicate(
@@ -319,11 +325,30 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('alpha'), findsOneWidget);
       expect(find.text('beta'), findsNothing);
-      await tester.tap(find.text('Clear Filters'));
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is IdeActionButton && w.tooltip == 'Clear Filters',
+        ),
+      );
       await tester.pump();
       expect(find.text('beta'), findsOneWidget);
+      await tester.drag(
+        find.byWidgetPredicate(
+          (w) =>
+              w is SingleChildScrollView &&
+              w.scrollDirection == Axis.horizontal,
+        ),
+        const Offset(700, 0),
+      );
+      await tester.pumpAndSettle();
+      final resetGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const ValueKey('model-test-sort-model'))),
+        buttons: 2,
+      );
+      await resetGesture.up();
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Auto Width'));
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(tester.getCenter(handle).dx, closeTo(initial, 2));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

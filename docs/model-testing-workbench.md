@@ -16,12 +16,12 @@ The existing provider connection check only lists upstream models. A successful 
 
 ## Interface and persistence
 
-- Successful model actions show a green check and token/s. The interactive result hover keeps its whole surface open, including nested action buttons, selectable metrics and response/reasoning sections.
-- Table response cells stay short. Result sections show a 16-grapheme preview, expand only by explicit click, and provide full-text copy buttons. Titles, status and metrics are selectable; a copy-all action includes all measurements and retained output.
-- Batch testing uses a bordered, lazy-rendered table. Search and per-column filters/sorting operate on all rows before pagination. Numerical sorts use raw values, keep missing measurements last in either direction and use stable model-ID ties.
+- Successful model actions show a green check and token/s; failed runs show a red cross. Only the first click with no result sends a test request. Later clicks open a stable, compact result panel; only its explicit refresh icon retests, and refresh is disabled while running.
+- Table response cells stay short. A roughly 300px-wide result view combines response and subdued reasoning in one selectable text block, initially previewing 24 graphemes per part. A single expand action reveals full retained content. Metrics and text support manual selection/copy without redundant copy icons. Batch hovers stay open over their whole surface and dismiss about 120ms after leaving; clicked single-model panels dismiss only by clicking outside or pressing Escape.
+- Batch testing and model selection share quiet 32px rows, light horizontal separators, selection tint and enlarged selection hit areas. Search/clear icons are integrated into the field. Test prompt text is shown only in add/edit dialogs. Click a header to sort; its right-click menu provides filtering and automatic-width reset, avoiding persistent action icons in every column. Numerical sorts use raw values, keep missing measurements last in either direction and use stable model-ID ties.
 - Automatic column widths measure headers and all model rows, not just the current page. Extreme model names are capped; users can drag each column boundary and reset automatic widths. The response column does not grow to the full output length.
 - Checkbox strokes use the first checkbox state to choose selection/deselection for the entire gesture. Selection-cell whitespace is interactive, and discovered-model rows are full-row selection targets. Revisiting a row does not toggle it back. Edge scrolling supports lazy rows.
-- The select-all header changes only the current filtered page. Pages use 100 rows by default, with 1000, 10000 and unlimited choices. The preference is stored through the existing settings owner under `models.table.pageSize`.
+- The aligned top-level checkbox selects/deselects all provider models, including other pages and models hidden by search. Its adjacent scope menu offers explicit current-page selection. Testing executes all selected models within the active filtered dataset, not merely the visible page. Pages use 100 rows by default, with 1000, 10000 and unlimited choices, persisted under `models.table.pageSize`.
 - Prompt presets and the selected preset are stored under `models.test.presets` and `models.test.selectedPreset` in the existing `User/settings.json`. The two built-ins cannot be edited/deleted. Custom presets support add/edit/delete, prefill from the current prompt and are shared by single/batch testing.
 - The built-in number prompt is: `Output the numbers 1 through 120 separated by a single space. No commas, no newlines, no explanation.` Its source is cursor-byok; the UI displays only the prompt choice, not the project name.
 
@@ -33,9 +33,13 @@ These are native Windows renders of the actual widgets with **synthetic fixture 
 
 ![Batch testing table](images/model-testing/batch-workbench.png)
 
-### Compact copyable result detail
+### Compact click-open result panel with explicit refresh
 
 ![Result details](images/model-testing/result-hover.png)
+
+### Aligned model picker
+
+![Model picker](images/model-testing/model-picker.png)
 
 ### Per-column numeric filter
 
@@ -43,9 +47,9 @@ These are native Windows renders of the actual widgets with **synthetic fixture 
 
 ## Verification and release gate
 
-After merging upstream `main` at `792a96030d35d04d007a75cae61574f32ab31ca1`:
+After merging upstream `main` at `d27c9b604aaaa75204956784f4a9b49aa8399881`:
 
-- `dart run tool/test_models.dart`: **403 tests passed**, covering native protocol HTTP/SSE fixtures, Codex account handling, existing proxy translators, presets, persistence, pagination, sorting/filtering/resizing, selection and interactive hovers.
+- `dart run tool/test_models.dart`: **407 tests passed**, covering native protocol HTTP/SSE fixtures, Codex account handling, existing proxy translators, presets, persistence, pagination, sorting/filtering/resizing, selection and interactive hovers.
 - Targeted static analysis of the model runtime, settings workbench, shared hover/drag components and packaging tools: no issues.
 - The previously failing Codex quota-time assertion no longer fails against the merged upstream version; it was not skipped or bypassed.
 - Public screenshots were generated from an isolated, memory-only native fixture. Temporary screenshot harnesses were removed.

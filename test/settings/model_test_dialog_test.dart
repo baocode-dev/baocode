@@ -10,6 +10,7 @@ import 'package:baocode/models/model_test_preset.dart';
 import 'package:baocode/settings/pages/model_test_dialog.dart';
 import 'package:baocode/settings/pages/model_dialogs.dart';
 import 'package:baocode/settings/pages/settings_widgets.dart';
+import 'package:baocode/settings/pages/model_test_result_view.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -167,7 +168,13 @@ void main() {
       expect(result.outputTokens, 5);
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
-      expect(find.text('Passed'), findsOneWidget);
+      expect(find.text('Passed'), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is ModelTestStatusIcon && w.status == ModelTestStatus.passed,
+        ),
+        findsOneWidget,
+      );
       expect(find.text('237 ms'), findsOneWidget);
       expect(find.text('100 ms'), findsOneWidget);
       expect(find.text('2.00 s'), findsOneWidget);
@@ -235,7 +242,8 @@ void main() {
     );
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-    expect(find.text('测试文本'), findsOneWidget);
+    expect(find.text('测试文本'), findsNothing);
+    expect(find.text('输出数字 1–120'), findsOneWidget);
     await tester.tap(
       find.byWidgetPredicate(
         (w) => w is ModelCheckbox && w.semanticLabel == 'a',
@@ -244,7 +252,13 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('测试该模型'));
     await tester.pumpAndSettle();
-    expect(find.text('通过'), findsOneWidget);
+    expect(find.text('通过'), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is ModelTestStatusIcon && w.status == ModelTestStatus.passed,
+      ),
+      findsOneWidget,
+    );
     await tester.drag(
       find.byWidgetPredicate(
         (widget) =>
@@ -261,7 +275,10 @@ void main() {
     await mouse.moveTo(tester.getCenter(find.text('OK')));
     await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
     await tester.pump(const Duration(milliseconds: 150));
-    expect(find.text('返回内容 · a'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is SelectableText && w.data == 'a'),
+      findsOneWidget,
+    );
     await mouse.moveTo(Offset.zero);
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();

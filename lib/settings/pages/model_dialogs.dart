@@ -12,6 +12,7 @@ import '../../l10n/l10n.dart';
 import '../../models/model_provider.dart';
 import '../../models/model_providers.dart';
 import 'model_table_pagination.dart';
+import 'model_table_widgets.dart';
 import '../../models/upstream.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
@@ -383,17 +384,17 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
       body = SizedBox(
         height: math.min(
           MediaQuery.sizeOf(context).height * .85 - 110,
-          130 + 30.0 * math.max(1, shown.length),
+          92 + 32.0 * math.max(1, shown.length),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            IdeInputBox(
+            ModelTableSearch(
               controller: _search,
+              label: l10n.modelsSearch,
               autofocus: true,
-              placeholder: l10n.modelsSearch,
-              semanticsLabel: l10n.modelsSearch,
+              onChanged: (_) {},
             ),
             const SizedBox(height: 6),
             Row(
@@ -412,29 +413,33 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
             const SizedBox(height: 8),
             Row(
               children: [
-                SizedBox(
-                  width: 36,
-                  child: ModelCheckbox(
-                    hitSize: const Size(36, 30),
-                    checked:
-                        shown.isNotEmpty &&
-                        shown.every((m) => _checked.contains(m.id)),
-                    semanticLabel:
-                        shown.isNotEmpty &&
-                            shown.every((m) => _checked.contains(m.id))
-                        ? l10n.modelsFetchSelectNone
-                        : l10n.modelsFetchSelectAll,
-                    onChanged: shown.isEmpty
-                        ? null
-                        : (checked) => setState(() {
-                            final ids = shown.map((m) => m.id);
-                            if (checked) {
-                              _checked.addAll(ids);
-                            } else {
-                              _checked.removeAll(ids);
-                            }
-                          }),
-                  ),
+                ModelTableSelection(
+                  checked:
+                      shown.isNotEmpty &&
+                      shown.every((m) => _checked.contains(m.id)),
+                  allChecked:
+                      listed.isNotEmpty &&
+                      listed.every((m) => _checked.contains(m.id)),
+                  onPageChanged: shown.isEmpty
+                      ? null
+                      : (checked) => setState(() {
+                          final ids = shown.map((m) => m.id);
+                          if (checked) {
+                            _checked.addAll(ids);
+                          } else {
+                            _checked.removeAll(ids);
+                          }
+                        }),
+                  onAllChanged: listed.isEmpty
+                      ? null
+                      : (checked) => setState(() {
+                          final ids = listed.map((m) => m.id);
+                          if (checked) {
+                            _checked.addAll(ids);
+                          } else {
+                            _checked.removeAll(ids);
+                          }
+                        }),
                 ),
                 Expanded(
                   child: Text(l10n.modelsBenchmarkModel, style: _text(context)),
@@ -454,7 +459,7 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
                         controller: _scroll,
                         shrinkWrap: true,
                         itemCount: shown.length,
-                        itemExtent: 30,
+                        itemExtent: 32,
                         itemBuilder: (context, index) {
                           final model = shown[index];
                           final checked = _checked.contains(model.id);
@@ -475,44 +480,47 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
                             child: IdeDragSelectTarget(
                               checked: checked,
                               onChanged: toggle,
-                              child: Row(
-                                children: [
-                                  IgnorePointer(
-                                    child: ModelCheckbox(
-                                      checked: checked,
-                                      hitSize: const Size(36, 30),
-                                      semanticLabel: model.id,
-                                      onChanged: toggle,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      model.id,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: _text(context).copyWith(
-                                        fontFamily: AppFonts.mono,
-                                        fontFamilyFallback:
-                                            AppFonts.monoFallbacks,
+                              child: ModelTableRow(
+                                selected: checked,
+                                child: Row(
+                                  children: [
+                                    IgnorePointer(
+                                      child: ModelCheckbox(
+                                        checked: checked,
+                                        hitSize: const Size(42, 32),
+                                        semanticLabel: model.id,
+                                        onChanged: toggle,
                                       ),
                                     ),
-                                  ),
-                                  if (detail.isNotEmpty) ...[
-                                    const SizedBox(width: 8),
-                                    Flexible(
+                                    Expanded(
                                       child: Text(
-                                        detail,
+                                        model.id,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: _muted(context),
+                                        style: _text(context).copyWith(
+                                          fontFamily: AppFonts.mono,
+                                          fontFamilyFallback:
+                                              AppFonts.monoFallbacks,
+                                        ),
                                       ),
                                     ),
+                                    if (detail.isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      Flexible(
+                                        child: Text(
+                                          detail,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: _muted(context),
+                                        ),
+                                      ),
+                                    ],
+                                    if (!known.contains(model.id)) ...[
+                                      const SizedBox(width: 6),
+                                      ModelBadge(l10n.modelsFetchNew),
+                                    ],
                                   ],
-                                  if (!known.contains(model.id)) ...[
-                                    const SizedBox(width: 6),
-                                    ModelBadge(l10n.modelsFetchNew),
-                                  ],
-                                ],
+                                ),
                               ),
                             ),
                           );

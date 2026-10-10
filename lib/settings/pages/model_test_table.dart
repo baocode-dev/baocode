@@ -201,8 +201,9 @@ class ModelTestTableState {
 
     final result = <double>[];
     for (final column in ModelTestColumn.values) {
-      var width = measure(column.label(l10n), SettingsText.label) + 62;
-      if (column != ModelTestColumn.output) {
+      var width = measure(column.label(l10n), SettingsText.description) + 38;
+      if (column != ModelTestColumn.output &&
+          column != ModelTestColumn.status) {
         final style = SettingsText.description;
         // Layout repeated status/metric text only once per refresh.
         final values = rows.map((row) => row.cells[column.index]).toSet();
@@ -222,7 +223,7 @@ class ModelTestTableState {
           );
         }
       }
-      final min = column == ModelTestColumn.model ? 150.0 : 72.0;
+      final min = column == ModelTestColumn.model ? 150.0 : 64.0;
       final max = column == ModelTestColumn.model && fitColumn != column
           ? 420.0
           : 1400.0;

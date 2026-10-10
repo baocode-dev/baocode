@@ -5514,6 +5514,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsBenchmarkCustom => '自定义';
 
   @override
+  String get modelsSelectionScope => '选择范围';
+
+  @override
+  String get modelsSelectPage => '选择当前页';
+
+  @override
+  String get modelsSelectAllPages => '选择全部页';
+
+  @override
+  String get modelsCompactThinking => '思考';
+
+  @override
+  String get modelsResultRetest => '重新测试';
+
+  @override
+  String get modelsCompactColumnHelp => '点击排序 · 右键筛选';
+
+  @override
   String get modelsTableFilter => '筛选';
 
   @override

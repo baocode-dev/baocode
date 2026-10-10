@@ -200,7 +200,8 @@ void main() {
     expect(listed.last, (id, 'sk-secret'));
     expect(find.text('Connected: the upstream lists 3 models.'), findsOne);
 
-    // Fetched, two of them checked.
+    // Explicit page selection respects the filtered page; top-level select-all
+    // is covered separately and selects even models hidden by the search.
     await tester.tap(find.text('Fetch from Upstream…'));
     await tester.pumpAndSettle();
     expect(find.byType(FetchModelsDialog), findsOneWidget);
@@ -210,9 +211,11 @@ void main() {
     expect(find.text('o3'), findsNothing);
     await tester.tap(
       find.byWidgetPredicate(
-        (w) => w is ModelCheckbox && w.semanticLabel == 'Select All',
+        (w) => w is IdeActionButton && w.tooltip == 'Selection scope',
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Select this page'));
     await tester.pumpAndSettle();
     expect(find.text('2 of 3 checked'), findsOneWidget);
     await tester.tap(find.text('Apply'));
@@ -294,7 +297,7 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('2 of 3 checked'), findsOneWidget);
+      expect(find.text('3 of 3 checked'), findsOneWidget);
       await tester.tapAt(
         tester.getTopLeft(box('Select None')) + const Offset(3, 3),
       );

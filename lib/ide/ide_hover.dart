@@ -186,7 +186,7 @@ class _IdeHoverState extends State<IdeHover> {
       // do not dismiss on pointer-down while selecting/copying their text.
       dismissDelay: widget.content == null
           ? const Duration(milliseconds: 100)
-          : const Duration(milliseconds: 600),
+          : const Duration(milliseconds: 120),
       enableTapToDismiss: widget.content == null,
       triggerMode: TooltipTriggerMode.manual,
       animationStyle: const AnimationStyle(
@@ -223,11 +223,11 @@ class _IdeHoverState extends State<IdeHover> {
     };
     if (x < 0) x = left + 2;
     final bottom = widget.content != null && _mouse != null
-        ? target.dy - half.height + _mouse!.dy + 10
+        ? target.dy - half.height + _mouse!.dy + 2
         : target.dy + half.height;
     final y = bottom + size.height > overlay.height
         ? (widget.content != null
-              ? bottom - 20 - size.height
+              ? bottom - 4 - size.height
               : target.dy - half.height - size.height)
         : bottom - 2;
     return Offset(
@@ -260,7 +260,9 @@ class _IdeHoverState extends State<IdeHover> {
     final half = context.targetSize / 2;
     final size = context.tooltipSize;
     final overlay = context.overlaySize;
-    final gap = IdeHover._gap + (widget.pointer ? IdeHover._pointerSize : 0);
+    final gap =
+        (widget.content == null ? IdeHover._gap : 0.0) +
+        (widget.pointer ? IdeHover._pointerSize : 0);
     var side = widget.position;
     // Flip to the other side when this one has no room (pointers stay).
     if (!widget.pointer) {

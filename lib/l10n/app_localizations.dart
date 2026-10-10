@@ -9747,6 +9747,42 @@ abstract class AppLocalizations {
   /// **'Custom'**
   String get modelsBenchmarkCustom;
 
+  /// No description provided for @modelsSelectionScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Selection scope'**
+  String get modelsSelectionScope;
+
+  /// No description provided for @modelsSelectPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Select this page'**
+  String get modelsSelectPage;
+
+  /// No description provided for @modelsSelectAllPages.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all pages'**
+  String get modelsSelectAllPages;
+
+  /// No description provided for @modelsCompactThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking'**
+  String get modelsCompactThinking;
+
+  /// No description provided for @modelsResultRetest.
+  ///
+  /// In en, this message translates to:
+  /// **'Retest model'**
+  String get modelsResultRetest;
+
+  /// No description provided for @modelsCompactColumnHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to sort · right-click to filter'**
+  String get modelsCompactColumnHelp;
+
   /// No description provided for @modelsTableFilter.
   ///
   /// In en, this message translates to:
