@@ -85,4 +85,46 @@ void main() {
     await tester.pump();
     expect((await inCode()).toARGB32(), _selection.toARGB32());
   });
+
+  testWidgets('code put on the next line leaves no background behind for '
+      'its leading space', (tester) async {
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: RepaintBoundary(
+            key: key,
+            // "abcd " fills the first line; the code goes on the second.
+            child: const SizedBox(
+              width: 100,
+              child: InlineCodeText(
+                TextSpan(
+                  style: TextStyle(color: _hidden, fontSize: 20),
+                  children: [
+                    TextSpan(text: 'abcd'),
+                    InlineCodeSpan(text: ' code '),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final boundary =
+        key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final data = (await tester.runAsync(() async {
+      final image = await boundary.toImage();
+      return image.toByteData();
+    }))!;
+    final width = boundary.size.width.round();
+    int at(int x, int y) => data.getUint32((y * width + x) * 4);
+
+    // The leading space, at the end of the first line.
+    expect(at(4 * 20 + 10, 10), 0);
+    // The code, on the second.
+    expect(at(30, 30), isNot(0));
+  });
 }

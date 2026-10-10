@@ -51,6 +51,10 @@ Future<IdeGitOutput> runGit(
       result.stderr as String,
     );
   } on ProcessException catch (error) {
+    // Started in a folder there is not, the error is the same as for no Git.
+    if (!Directory(workingDirectory).existsSync()) {
+      throw IdeGitException('No such folder to run Git in: $workingDirectory');
+    }
     throw IdeGitException(
       'Git is not installed or could not be started: ${error.message}',
     );

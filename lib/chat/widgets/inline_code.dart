@@ -99,6 +99,19 @@ class RenderInlineCodeBackdrop extends RenderProxyBox {
     return ranges;
   }
 
+  /// [range] without the spaces that pad it at either end.
+  static TextSelection _trimmed(String text, TextSelection range) {
+    var start = range.start;
+    var end = range.end;
+    while (start < end && text[start] == ' ') {
+      start++;
+    }
+    while (end > start && text[end - 1] == ' ') {
+      end--;
+    }
+    return TextSelection(baseOffset: start, extentOffset: end);
+  }
+
   @override
   void paint(PaintingContext context, Offset offset) {
     if (_paragraph case final paragraph? when _color.a > 0) {
@@ -106,8 +119,21 @@ class RenderInlineCodeBackdrop extends RenderProxyBox {
       if (ranges.isNotEmpty) {
         final transform = paragraph.getTransformTo(this);
         final paint = Paint()..color = _color;
+        final text = paragraph.text.toPlainText(includeSemanticsLabels: false);
         for (final range in ranges) {
+          // A line may break after the code's leading space: that space alone
+          // at the end of the line above is no code, so it gets no background.
+          final lines = [
+            for (final box in paragraph.getBoxesForSelection(
+              _trimmed(text, range),
+            ))
+              box.toRect(),
+          ];
+          bool onCodeLine(Rect rect) => lines.any(
+            (line) => line.top < rect.bottom && rect.top < line.bottom,
+          );
           for (final box in paragraph.getBoxesForSelection(range)) {
+            if (!onCodeLine(box.toRect())) continue;
             final rect = MatrixUtils.transformRect(transform, box.toRect());
             context.canvas.drawRRect(
               RRect.fromRectAndRadius(rect.shift(offset), radius),

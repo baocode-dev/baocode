@@ -90,6 +90,30 @@ abstract final class AppColors {
     return foreground.withValues(alpha: foreground.a * 0.1);
   }
 
+  /// The chat's message bubbles and its input: their own color
+  /// (`agentsChatInput.background`, over [code]) a step towards the
+  /// editor's text, so it stands out from them however far they are from
+  /// the page, tinged with [accent]; the input's when typed into, a step on
+  /// towards [accent].
+  static Color bubbleBorder({bool focused = false}) {
+    final line = Color.lerp(
+      _towardsText(bubbleFill, 0.12),
+      accent.withValues(alpha: 1),
+      0.03,
+    )!;
+    return focused ? Color.lerp(line, accent.withValues(alpha: 1), 0.2)! : line;
+  }
+
+  /// The chat's message bubbles and its input, typed into or not:
+  /// `agentsChatInput.background` over [code].
+  static Color get bubbleFill => _bubble;
+
+  static Color get _bubble =>
+      Color.alphaBlend(_colors['agentsChatInput.background'], code);
+
+  static Color _towardsText(Color color, double t) =>
+      Color.lerp(color, _colors['editor.foreground'].withValues(alpha: 1), t)!;
+
   /// Whether [line] over [background] can be told from it.
   static bool _stands(Color line, Color background) {
     final over = Color.alphaBlend(line, background).computeLuminance();

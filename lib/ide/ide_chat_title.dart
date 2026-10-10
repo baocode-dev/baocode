@@ -17,8 +17,8 @@ import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/workspace.dart';
 import 'ide_dates.dart';
+import 'ide_hover.dart';
 import 'ide_menu.dart';
-import 'ide_panes.dart';
 import 'ide_quick_input.dart';
 import 'ide_tab_bar.dart';
 import 'ide_workbench.dart';
@@ -127,16 +127,19 @@ class IdeChatTitle extends StatelessWidget {
               onMove: onMove,
             ),
           ),
-          IdePaneAction(
+          // Squares nearer the strip's height than a view title's.
+          IdeActionButton(
             icon: Codicons.add,
+            size: 28,
             tooltip: keybindings.titleWithKeybinding(
               l10n.sidebarNewAgent,
               ChatCommandIds.newChat,
             ),
             onPressed: onNew,
           ),
-          IdePaneAction(
+          IdeActionButton(
             icon: Codicons.history,
+            size: 28,
             tooltip: l10n.ideChatHistory,
             onPressed: () => _showHistory(context),
           ),

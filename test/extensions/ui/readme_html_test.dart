@@ -41,6 +41,19 @@ void main() {
     );
   });
 
+  test("an image keeps its size in pixels (Material Icon Theme's logo)", () {
+    const readme =
+        '<p align="center">\n'
+        '  <img src="logo.png" alt="logo" width="120">\n'
+        '  <img src="a.png" alt="a" width="50%" height="32px">\n'
+        '</p>\n';
+    expect(
+      _html(readme),
+      '<p><img src="logo.png" alt="logo" width="120" /> '
+      '<img src="a.png" alt="a" height="32" /></p>',
+    );
+  });
+
   test('comments go; code keeps its tags', () {
     expect(
       _html('<!-- badges -->\n\nUse `<div>` here.\n\n```html\n<b>x</b>\n```'),

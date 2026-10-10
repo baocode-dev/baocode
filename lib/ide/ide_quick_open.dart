@@ -115,6 +115,34 @@ class IdeFileIndex extends ChangeNotifier {
     _lastMatches = matches;
   }
 
+  /// The paths matching [filter] (see [scoreFilePath]), best first, at most
+  /// [limit]: each absolute, and relative as [relativePaths] has it.
+  List<({String path, String relative})> search(
+    String filter, {
+    int limit = 50,
+  }) {
+    final scored = <({int index, int score})>[];
+    final matches = <int>[];
+    for (final i in _candidates(filter)) {
+      final result = scoreFilePath(filter, _relative[i]);
+      if (result == null) continue;
+      matches.add(i);
+      scored.add((index: i, score: result.score));
+    }
+    _matched(filter, matches);
+    scored.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      if (byScore != 0) return byScore;
+      final x = _relative[a.index], y = _relative[b.index];
+      final byLength = x.length.compareTo(y.length);
+      return byLength != 0 ? byLength : x.compareTo(y);
+    });
+    return [
+      for (final entry in scored.take(limit))
+        (path: _paths[entry.index], relative: _relative[entry.index]),
+    ];
+  }
+
   /// Starts a new listing unless one is already running.
   Future<void> refresh() => _pending ??= _load();
 

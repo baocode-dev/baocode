@@ -135,6 +135,7 @@ flutter:
     - assets/textmate/grammars/yaml/syntaxes/
     - assets/textmate/themes/theme-abyss/
     - assets/textmate/themes/theme-abyss/themes/
+    - assets/textmate/themes/theme-bao/themes/
     - assets/textmate/themes/theme-defaults/themes/
     - assets/textmate/themes/theme-kimbie-dark/
     - assets/textmate/themes/theme-kimbie-dark/themes/

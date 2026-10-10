@@ -368,6 +368,45 @@ void main() {
     expect(row(), findsNothing);
   });
 
+  testWidgets('the archived button\'s menu unarchives them all, or deletes '
+      'them all once confirmed', (tester) async {
+    final workspace = await pumpApp(tester);
+    final archived = workspace.threads.skip(1).take(2).toList();
+    void archive() {
+      for (final thread in archived) {
+        workspace.setArchived(thread, true);
+      }
+    }
+
+    Future<void> menu(String action) async {
+      await tester.tap(
+        inSidebar(find.text('Archived · 2')),
+        buttons: kSecondaryButton,
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.tap(find.text(action));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    archive();
+    await tester.pump();
+    await menu('Unarchive All');
+    expect(archived.where((thread) => thread.archived), isEmpty);
+    expect(inSidebar(find.textContaining('Archived')), findsNothing);
+
+    archive();
+    await tester.pump();
+    await menu('Delete All Archived…');
+    expect(find.text('Delete archived agents?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(GestureDetector, 'Delete').last);
+    await tester.pump(const Duration(milliseconds: 300));
+    for (final thread in archived) {
+      expect(workspace.threads, isNot(contains(thread)));
+    }
+    expect(workspace.threads, isNotEmpty);
+    expect(inSidebar(find.textContaining('Archived')), findsNothing);
+  });
+
   testWidgets('an agent\'s menu copies its session id, once it has one', (
     tester,
   ) async {

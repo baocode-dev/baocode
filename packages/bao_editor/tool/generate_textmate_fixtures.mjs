@@ -467,7 +467,9 @@ try {
   const themes = [];
   await rm(join(fixtures, 'themes'), { recursive: true, force: true });
   await mkdir(join(fixtures, 'themes'), { recursive: true });
-  for (const contribution of manifest.themes) {
+  // VS Code's themes; BaoCode's own (generate_textmate_assets.mjs `localThemes`)
+  // have no upstream to match.
+  for (const contribution of manifest.themes.filter(theme => theme.extension !== 'theme-bao')) {
     if (/[\\/:*?"<>|]/.test(contribution.id)) throw new Error(`Theme id ${contribution.id} is not a portable file name`);
     const result = { colors: {}, textMateRules: [], semanticTokenRules: [], semanticHighlighting: false }; // `load`
     await loadColorTheme(contribution.path, result);

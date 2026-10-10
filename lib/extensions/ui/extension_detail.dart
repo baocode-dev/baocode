@@ -703,9 +703,11 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
               style: MarkdownView.baseStyle,
               options: MarkdownOptions(
                 headingRules: true,
-                image: (src, alt, title) => _MarkdownImage(
+                image: (src, alt, title, {width, height}) => _MarkdownImage(
                   src: src,
                   alt: alt,
+                  width: width,
+                  height: height,
                   base: readmeUrl,
                   client: _client,
                 ),
@@ -921,17 +923,22 @@ class _VersionButton extends StatelessWidget {
 }
 
 /// A README's image: fetched from the registry (relative to the README),
-/// SVG or bitmap; its alt text while loading or when it cannot be.
+/// SVG or bitmap, at the [width] and [height] its HTML gives (one alone
+/// keeps its proportions); its alt text while loading or when it cannot be.
 class _MarkdownImage extends StatefulWidget {
   const _MarkdownImage({
     required this.src,
     required this.alt,
     required this.base,
     required this.client,
+    this.width,
+    this.height,
   });
 
   final String src;
   final String alt;
+  final double? width;
+  final double? height;
   final String? base;
   final OpenVsxClient client;
 
@@ -971,8 +978,18 @@ class _MarkdownImageState extends State<_MarkdownImage> {
         return ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 480, maxWidth: 900),
           child: svg
-              ? SvgPicture(SvgTextBytesLoader(data), height: 20)
-              : Image.memory(data, errorBuilder: (_, _, _) => alt),
+              ? SvgPicture(
+                  SvgTextBytesLoader(data),
+                  width: widget.width,
+                  // A badge's, unless it says.
+                  height: widget.height ?? (widget.width == null ? 20 : null),
+                )
+              : Image.memory(
+                  data,
+                  width: widget.width,
+                  height: widget.height,
+                  errorBuilder: (_, _, _) => alt,
+                ),
         );
       },
     );

@@ -1693,6 +1693,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarArchiveAll => '全部归档';
 
   @override
+  String get sidebarUnarchiveAll => '全部取消归档';
+
+  @override
+  String get sidebarDeleteArchived => '删除全部已归档…';
+
+  @override
+  String get sidebarDeleteArchivedTitle => '删除已归档的智能体？';
+
+  @override
+  String sidebarDeleteArchivedMessage(int count) {
+    return '$count 个已归档的智能体及其对话将被删除，内核中的记录也会一并删除。此操作无法撤销。';
+  }
+
+  @override
   String get sidebarRemoveFromList => '从列表移除';
 
   @override
@@ -2197,12 +2211,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatSubagent => '子智能体';
-
-  @override
-  String get chatEmptyTitle => '规划、构建，无所不能';
-
-  @override
-  String get chatEmptyHint => '@ 添加上下文 · / 使用命令';
 
   @override
   String get activityCompacting => '正在压缩对话';
@@ -5568,6 +5576,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsTestModelFailed => '失败';
 
   @override
+  String modelsTestFirstText(String seconds) {
+    return '首字 ${seconds}s';
+  }
+
+  @override
+  String modelsTestTotal(String seconds) {
+    return '总耗时 ${seconds}s';
+  }
+
+  @override
   String modelsEnableModel(String name) {
     return '启用 $name';
   }
@@ -5987,6 +6005,24 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get appearanceSettingsUserMessageStyle => '用户消息样式';
+
+  @override
+  String get appearanceSettingsUserMessageStyleDescription =>
+      '你发出的消息在对话中的样子：整宽显示，滚动时当前这轮的消息停在顶部；或者像聊天一样靠右显示为气泡，随内容滚走。';
+
+  @override
+  String get appearanceSettingsUserMessageStyleSticky => '整宽滚动吸顶';
+
+  @override
+  String get appearanceSettingsUserMessageStyleBubble => '用户对话风格';
+
+  @override
+  String appearanceSettingsUserMessageStyleLabel(String style) {
+    return '用户消息样式：$style';
+  }
+
+  @override
   String get appearanceSettingsCodeFont => '代码字体';
 
   @override
@@ -6009,7 +6045,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceSettingsCodeSizeDescription =>
-      'Fast IDE 编辑器及侧边栏文件、变更视图中源码的字号。终端和对话中的代码跟随界面文字大小。';
+      'Fast IDE 编辑器及侧边栏文件、变更视图中源码的字号。对话中的代码跟随界面文字大小，终端使用终端字号。';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -6028,11 +6064,32 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceSettingsUiScaleDescription =>
-      '缩放界面文字、对话中的代码和终端文字。Fast IDE 编辑器及侧边栏文件、变更中的源码使用代码字号。';
+      '缩放界面文字、对话中的代码，以及终端字号为“跟随界面文字大小”时的终端文字。Fast IDE 编辑器及侧边栏文件、变更中的源码使用代码字号。';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {
     return '界面文字大小：$percent%';
+  }
+
+  @override
+  String get appearanceSettingsTerminalSize => '终端字号';
+
+  @override
+  String get appearanceSettingsTerminalSizeDescription =>
+      '终端文字的字号。默认跟随界面文字大小，也可单独设定。';
+
+  @override
+  String get appearanceSettingsTerminalSizeFollow => '跟随界面文字大小';
+
+  @override
+  String get appearanceSettingsTerminalSizeCustom => '自定义';
+
+  @override
+  String get appearanceSettingsTerminalSizeValue => '自定义字号';
+
+  @override
+  String appearanceSettingsTerminalSizeLabel(String size) {
+    return '终端字号：$size';
   }
 
   @override
@@ -6744,9 +6801,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get extsPlatformUniversal => '通用';
-
-  @override
-  String get extsPageClose => '关闭扩展';
 
   @override
   String extsPageTitle(String name) {

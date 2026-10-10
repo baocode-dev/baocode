@@ -109,20 +109,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   }
 
-  testWidgets('a message waits for the snapshot before it', (tester) async {
+  testWidgets('a message goes without waiting for the snapshot before it', (
+    tester,
+  ) async {
     final session = await pump(tester);
     // The project was snapshotted as the conversation showed.
     expect(review.calls, ['begin']);
 
     review.holdBegin = Completer();
     session.send(const ComposerMessage(text: '把输入框改成随内容增高'));
-    await tester.pump(const Duration(milliseconds: 100));
+    // Shown at once, the snapshot taken as it goes.
     expect(review.calls, ['begin', 'begin']);
-    expect(session.itemCount, 0);
+    expect(session.itemCount, greaterThan(0));
 
     review.holdBegin!.complete();
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(session.itemCount, greaterThan(0));
     await finish(tester, session);
 
     // The edits it reported were looked at, and all at the turn's end.

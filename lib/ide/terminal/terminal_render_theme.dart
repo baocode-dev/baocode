@@ -433,12 +433,21 @@ String vscodeTerminalFontFamily() {
 /// part of the window's interface and is scaled by the interface text scale.
 const terminalBaseFontSize = 13.0;
 
-/// The terminal font size for the current interface text scale. The
-/// [TextScaler] is supplied by the terminal view because the xterm renderer is
-/// canvas-based and does not inherit Flutter's text scaling automatically.
-double vscodeTerminalFontSize([TextScaler? textScaler]) =>
-    textScaler?.scale(CodeFont.uiSized(terminalBaseFontSize)) ??
-    CodeFont.uiSized(terminalBaseFontSize);
+/// The terminal font size for the current interface text scale, or the size
+/// the user set ([CodeFont.terminalSize]), which only [systemScaler] (the
+/// system's text scale, before the interface's) moves. The scalers are
+/// supplied by the terminal view because the xterm renderer is canvas-based
+/// and does not inherit Flutter's text scaling automatically.
+double vscodeTerminalFontSize([
+  TextScaler? textScaler,
+  TextScaler? systemScaler,
+]) {
+  if (CodeFont.terminalSize.value case final size?) {
+    return (systemScaler ?? textScaler)?.scale(size) ?? size;
+  }
+  return textScaler?.scale(CodeFont.uiSized(terminalBaseFontSize)) ??
+      CodeFont.uiSized(terminalBaseFontSize);
+}
 
 /// The options VS Code's terminal creates xterm.js with that the renderer
 /// reads, at their defaults: the interface font at its interface size,

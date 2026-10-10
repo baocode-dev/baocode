@@ -205,8 +205,9 @@ class ComposerVocabulary extends InheritedWidget {
 
   final List<Suggestion> commands;
 
-  /// Files matching what follows an `@`; null when there is no looking.
-  final Future<List<FileSuggestion>> Function(String query)? suggestFiles;
+  /// Files and folders matching what follows an `@` (see [fileSuggestion]);
+  /// null when there is no looking.
+  final Future<List<Suggestion>> Function(String query)? suggestFiles;
 
   /// The conversations `@` offers ([Suggestion.session]s), as they are when
   /// it is typed; none without it.

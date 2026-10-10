@@ -43,9 +43,13 @@ class ExtensionsView extends StatefulWidget {
     this.onOpen,
     this.onInstallFromVsix,
     this.onError,
+    this.background,
   });
 
   final ExtensionsModel model;
+
+  /// What it is on; the side bar's by default.
+  final Color? background;
 
   /// Opens an extension's page.
   final ValueChanged<ExtensionEntry>? onOpen;
@@ -185,7 +189,7 @@ class _ExtensionsViewState extends State<ExtensionsView> {
             _ => l10n.extsTitleOpenVsx,
           };
     return ColoredBox(
-      color: AppColors.sidebarSurface,
+      color: widget.background ?? AppColors.sidebarSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

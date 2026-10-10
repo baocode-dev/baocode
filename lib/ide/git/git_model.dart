@@ -236,11 +236,16 @@ class IdeGitState {
     required List<IdeGitResource> resources,
     List<String> ignored = const [],
     this.didHitLimit = false,
+    p.Context? pathContext,
   }) : resources = List.unmodifiable(resources),
-       ignored = List.unmodifiable(ignored);
+       ignored = List.unmodifiable(ignored),
+       pathContext = pathContext ?? p.context;
 
   /// The repository's top level.
   final String root;
+
+  /// How the host the repository is on spells its paths.
+  final p.Context pathContext;
   final IdeGitHead head;
 
   /// Every group's resources, in status order.
@@ -343,7 +348,7 @@ class IdeGitDecoration {
 /// the color of a folder's most important change, and the ignored color for
 /// ignored paths and everything under them.
 class IdeGitDecorations {
-  IdeGitDecorations._(IdeGitState state) {
+  IdeGitDecorations._(IdeGitState state) : _paths = state.pathContext {
     for (final group in [
       IdeGitGroup.staged,
       IdeGitGroup.workingTree,
@@ -355,8 +360,8 @@ class IdeGitDecorations {
     }
     final root = state.root;
     for (final MapEntry(key: path, value: status) in _files.entries) {
-      if (!status.propagates || !ideGitIsWithin(root, path)) continue;
-      var folder = ideGitDirname(path);
+      if (!status.propagates || !ideGitIsWithin(root, path, _paths)) continue;
+      var folder = ideGitDirname(path, _paths);
       while (true) {
         final current = _folders[folder];
         // A folder's is its folders' too: from here up, they have it.
@@ -364,13 +369,15 @@ class IdeGitDecorations {
         _folders[folder] = status;
         // Up to the root, which is as long only when it is the root.
         if (folder.length <= root.length) break;
-        folder = ideGitDirname(folder);
+        folder = ideGitDirname(folder, _paths);
       }
     }
     for (final ignored in state.ignored) {
-      _ignored.add(p.normalize(ignored));
+      _ignored.add(_paths.normalize(ignored));
     }
   }
+
+  final p.Context _paths;
 
   final Map<String, IdeGitStatus> _files = {};
   final Map<String, IdeGitStatus> _folders = {};
@@ -387,7 +394,7 @@ class IdeGitDecorations {
     var current = path;
     while (true) {
       if (_ignored.contains(current)) return true;
-      final parent = p.dirname(current);
+      final parent = _paths.dirname(current);
       if (parent == current) return false;
       current = parent;
     }
@@ -395,7 +402,7 @@ class IdeGitDecorations {
 
   /// A file's decoration.
   IdeGitDecoration? file(String path) {
-    final normalized = p.normalize(path);
+    final normalized = _paths.normalize(path);
     final status = _files[normalized];
     if (status != null) {
       return IdeGitDecoration(
@@ -410,7 +417,7 @@ class IdeGitDecorations {
 
   /// A folder's decoration: ignored, or a dot for the changes inside.
   IdeGitDecoration? folder(String path) {
-    final normalized = p.normalize(path);
+    final normalized = _paths.normalize(path);
     if (_isIgnored(normalized)) return _ignoredDecoration;
     final status = _folders[normalized];
     if (status == null) return null;
@@ -422,31 +429,35 @@ class IdeGitDecorations {
   }
 }
 
-final _posix = p.style == p.Style.posix;
-
-/// [p.dirname] of a status's path (normalized, absolute): on POSIX without
-/// package:path's parsing, which its tens of thousands of paths, each
-/// walked up, would make a frame's work.
-String ideGitDirname(String path) {
-  if (_posix && !path.endsWith('/')) {
+/// [p.dirname] of a status's path (normalized, absolute), as [paths] (the
+/// local ones by default) spell it: for POSIX's without package:path's
+/// parsing, which its tens of thousands of paths, each walked up, would
+/// make a frame's work.
+String ideGitDirname(String path, [p.Context? paths]) {
+  final context = paths ?? p.context;
+  if (context.style == p.Style.posix && !path.endsWith('/')) {
     final slash = path.lastIndexOf('/');
     if (slash > 0) return path.substring(0, slash);
   }
-  return p.dirname(path);
+  return context.dirname(path);
 }
 
 /// [p.basename] of a status's path, as [ideGitDirname].
-String ideGitBasename(String path) => _posix && !path.endsWith('/')
-    ? path.substring(path.lastIndexOf('/') + 1)
-    : p.basename(path);
+String ideGitBasename(String path, [p.Context? paths]) {
+  final context = paths ?? p.context;
+  return context.style == p.Style.posix && !path.endsWith('/')
+      ? path.substring(path.lastIndexOf('/') + 1)
+      : context.basename(path);
+}
 
 /// [p.isWithin] for a status's paths under [root], as [ideGitDirname].
-bool ideGitIsWithin(String root, String path) {
-  if (_posix) {
+bool ideGitIsWithin(String root, String path, [p.Context? paths]) {
+  final context = paths ?? p.context;
+  if (context.style == p.Style.posix) {
     final prefix = root.endsWith('/') ? root : '$root/';
     if (path.length > prefix.length && path.startsWith(prefix)) return true;
   }
-  return p.isWithin(root, path);
+  return context.isWithin(root, path);
 }
 
 /// `git status -z --porcelain=v1 --branch` (with ignored entries) as
@@ -458,7 +469,9 @@ IdeGitState parseGitStatus(
   String root,
   String output, {
   bool truncated = false,
+  p.Context? pathContext,
 }) {
+  final paths = pathContext ?? p.context;
   var head = const IdeGitHead();
   final resources = <IdeGitResource>[];
   final ignored = <String>[];
@@ -473,16 +486,20 @@ IdeGitState parseGitStatus(
 
   // Git's paths are relative, `/`-separated and normalized but for an
   // ignored folder's trailing slash: on POSIX, joined as they are.
-  final posix = p.style == p.Style.posix && p.isAbsolute(root);
+  final posix = paths.style == p.Style.posix && paths.isAbsolute(root);
   final prefix = root.endsWith('/') ? root : '$root/';
   String absolute(String relative) {
     if (posix) {
       final end = relative.endsWith('/')
           ? relative.length - 1
           : relative.length;
-      return end == 0 ? p.normalize(root) : prefix + relative.substring(0, end);
+      return end == 0
+          ? paths.normalize(root)
+          : prefix + relative.substring(0, end);
     }
-    return p.normalize(p.join(root, p.joinAll(relative.split('/'))));
+    return paths.normalize(
+      paths.join(root, paths.joinAll(relative.split('/'))),
+    );
   }
 
   while (offset < output.length) {
@@ -573,6 +590,7 @@ IdeGitState parseGitStatus(
     resources: resources,
     ignored: ignored,
     didHitLimit: truncated,
+    pathContext: paths,
   );
 }
 

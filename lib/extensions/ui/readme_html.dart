@@ -143,7 +143,11 @@ List<md.Node> _inlines(List<_Token> tokens, {bool block = false}) {
           md.Element.empty('img')
             ..attributes['src'] = src
             ..attributes['alt'] = attributes['alt'] ?? ''
-            ..attributes.addAll({'title': ?attributes['title']}),
+            ..attributes.addAll({
+              'title': ?attributes['title'],
+              'width': ?_pixels(attributes['width']),
+              'height': ?_pixels(attributes['height']),
+            }),
         );
       case _Open(tag: 'br'):
         target().add(md.Element.empty('br'));
@@ -171,6 +175,14 @@ List<md.Node> _inlines(List<_Token> tokens, {bool block = false}) {
   if (!block) return out;
   return _collapse(out);
 }
+
+/// An `<img>`'s `width` or `height` in pixels (`120`, `120px`); null for
+/// none, or another unit (`50%`).
+String? _pixels(String? value) => switch (value?.trim()) {
+  final value? when RegExp(r'^\d+(\.\d+)?(px)?$').hasMatch(value) =>
+    value.replaceFirst('px', ''),
+  _ => null,
+};
 
 /// [nodes] with runs of white space as one space, and none at the ends.
 List<md.Node> _collapse(List<md.Node> nodes) {

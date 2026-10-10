@@ -147,6 +147,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     HardwareKeyboard.instance.addHandler(_modifiersChanged);
     _findText.addListener(_findTextChanged);
     _findFocus.addListener(_findFocusChanged);
+    CodeFont.terminalSize.addListener(_syncTerminalFontSize);
   }
 
   @override
@@ -156,7 +157,10 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   }
 
   void _syncTerminalFontSize() {
-    final size = vscodeTerminalFontSize(MediaQuery.textScalerOf(context));
+    final size = vscodeTerminalFontSize(
+      MediaQuery.textScalerOf(context),
+      SystemTextScale.maybeOf(context),
+    );
     if (size == _terminalFontSize) return;
     _terminalFontSize = size;
     _instance.xterm.options.fontSize = size;
@@ -254,6 +258,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
 
   @override
   void dispose() {
+    CodeFont.terminalSize.removeListener(_syncTerminalFontSize);
     HardwareKeyboard.instance.removeHandler(_modifiersChanged);
     _detach(_instance);
     _subscriptions.dispose();

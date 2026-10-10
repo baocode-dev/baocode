@@ -37,6 +37,7 @@ class ChatGridView extends StatefulWidget {
     required this.paneBuilder,
     this.onLinesMoved,
     this.paneBackground,
+    this.focused,
   });
 
   final ChatGrid<AgentThread> grid;
@@ -59,6 +60,17 @@ class ChatGridView extends StatefulWidget {
   /// of its place, up to the lines either side and the view's edges, so
   /// no gap shows between it and them.
   final Color? Function(AgentThread thread)? paneBackground;
+
+  /// The focused agent: of several, its pane outlined in the drop
+  /// preview's line (see [frameColor]).
+  final AgentThread? focused;
+
+  /// The focused pane's outline: `focusBorder`, a little faded, as the
+  /// drop preview's (see [_DropBox]).
+  static Color get frameColor {
+    final color = themeColors['focusBorder'];
+    return color.withValues(alpha: color.a * .8);
+  }
 
   /// Between two panes: the line in the middle, and the sash over it.
   static const gap = 5.0;
@@ -275,7 +287,10 @@ class _ChatGridViewState extends State<ChatGridView> {
                   widget.onFocus(thread);
                 }
               },
-              child: widget.paneBuilder(context, thread, _place(grid, thread)),
+              child: _framed(
+                identical(thread, widget.focused) && grid.panes.length > 1,
+                widget.paneBuilder(context, thread, _place(grid, thread)),
+              ),
             ),
           ),
         if (grid.columnsSplit)
@@ -298,6 +313,29 @@ class _ChatGridViewState extends State<ChatGridView> {
     );
   }
 }
+
+/// [child], outlined over it while [framed]: inset from its edges as the
+/// drop preview is (see [_DropPreview]), off the window's.
+Widget _framed(bool framed, Widget child) => Stack(
+  fit: StackFit.passthrough,
+  children: [
+    child,
+    if (framed)
+      Positioned.fill(
+        child: IgnorePointer(
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: ChatGridView.frameColor),
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+          ),
+        ),
+      ),
+  ],
+);
 
 /// Where a press does not focus the pane it is in: the window's own tools
 /// in the top right pane's title bar (which act on the focused agent, not

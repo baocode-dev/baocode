@@ -1268,6 +1268,23 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
+  /// Unarchives every archived agent.
+  void unarchiveAll() {
+    for (final thread in _threads) {
+      if (!thread.archived) continue;
+      thread.archived = false;
+      _keepMarks(thread);
+    }
+    notifyListeners();
+  }
+
+  /// Deletes every archived agent, each as [delete] does.
+  void deleteArchived() {
+    for (final thread in [..._threads]) {
+      if (thread.archived) delete(thread);
+    }
+  }
+
   // --- Workspaces -------------------------------------------------------------
 
   /// Where workspaces' folders are made.

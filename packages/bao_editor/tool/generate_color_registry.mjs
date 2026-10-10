@@ -666,6 +666,9 @@ function record(theme) {
 }
 
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+// VS Code's themes; BaoCode's own (generate_textmate_assets.mjs `localThemes`)
+// have no upstream to match.
+manifest.themes = manifest.themes.filter(theme => theme.extension !== 'theme-bao');
 // Contributed themes generate_textmate_assets.mjs leaves out of the manifest.
 const excludedThemes = ['Visual Studio Light', 'Light+'];
 const themeContributions = builtIns.flatMap(e => (e.manifest.contributes?.themes ?? []).map(t => ({ extension: e, theme: t })))

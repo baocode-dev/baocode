@@ -13,6 +13,7 @@ import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer_draft.dart';
+import 'package:baocode/chat/user_message_style.dart';
 import 'package:baocode/chat/widgets/edge_fade_mask.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/theme/app_theme.dart';
@@ -167,5 +168,118 @@ void main() {
     expect(copyFade(0), closeTo(0.5, 0.001));
     await put(height - 32);
     expect(copyFade(0), 1);
+  });
+
+  testWidgets('as bubbles, messages are at the right, as wide as their text, '
+      'and scroll away', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(800, 600);
+    addTearDown(tester.view.reset);
+    UserMessageStyle.current.value = UserMessageStyle.bubble;
+    addTearDown(() => UserMessageStyle.current.value = UserMessageStyle.sticky);
+    final feed = _TwoTurnFeed();
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pump();
+    final listView = find.byType(SuperListView);
+    final position = tester
+        .state<ScrollableState>(
+          find
+              .descendant(of: listView, matching: find.byType(Scrollable))
+              .first,
+        )
+        .position;
+    position.jumpTo(0);
+    await tester.pump();
+    await tester.pump();
+    Finder box(String text) => find
+        .descendant(
+          of: find.byWidgetPredicate(
+            (widget) => widget is UserMessageBubble && widget.text == text,
+          ),
+          matching: find.byType(Container),
+        )
+        .first;
+
+    // Narrow, at the right of the column the answers take.
+    final first = tester.getRect(box('First question'));
+    final answer = tester.getRect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is RichText &&
+            widget.text.toPlainText() ==
+                'Line 1 '
+                    'of the answer, long enough to wrap.',
+      ),
+    );
+    // The test font's glyphs are squares: 14 of them, the padding and the
+    // tail.
+    expect(first.width, lessThan(14 * 14 + 40));
+    expect(first.right, greaterThan(answer.left + 400));
+
+    // Scrolled past, the first message is not stuck to the top.
+    position.jumpTo(position.pixels + first.bottom + 100);
+    await tester.pump();
+    await tester.pump();
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is UserMessageBubble &&
+            widget.key == const ValueKey(('sticky', 0)),
+      ),
+      findsNothing,
+    );
+  });
+  testWidgets('the style is switched as the chat shows, its messages stuck '
+      'or not', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(800, 600);
+    addTearDown(tester.view.reset);
+    addTearDown(() => UserMessageStyle.current.value = UserMessageStyle.sticky);
+    final feed = _TwoTurnFeed();
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pump();
+    final position = tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(SuperListView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position;
+    position.jumpTo(0);
+    await tester.pump();
+    await tester.pump();
+    for (final offset in [0.0, 120.0]) {
+      position.jumpTo(offset);
+      await tester.pump();
+      await tester.pump();
+      for (final style in [
+        UserMessageStyle.bubble,
+        UserMessageStyle.sticky,
+        UserMessageStyle.bubble,
+        UserMessageStyle.sticky,
+      ]) {
+        UserMessageStyle.current.value = style;
+        await tester.pump();
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      }
+    }
   });
 }

@@ -163,9 +163,6 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   Future<ChangeReviews?>? _reviewOpening;
   ChangeReviews? _review;
 
-  /// Messages wait on the snapshot before them, and go in order.
-  Future<void> _sending = Future.value();
-
   /// Gives the edits reported a moment to settle before a look.
   Timer? _lookTimer;
 
@@ -197,6 +194,8 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
           }
           _review = review
             ..session = sessionId
+            // A message sent while it opened.
+            ..working = isStreaming
             ..addListener(_reviewChanged);
           unawaited(review.begin());
           notifyListeners();
@@ -827,29 +826,23 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       images: acceptsImages ? message.images : const [],
       now: now,
     );
-    final opening = _reviewOpening;
-    if (opening == null) {
-      _kernel.send(turn);
-      return;
-    }
     // A turn about to start, not one queued behind another: the project
-    // is snapshotted first, so that what the agent does is told apart.
-    final snapshot = !isStreaming;
-    _sending = _sending.then((_) async {
-      if (snapshot) {
-        final review = await opening;
-        if (review != null && !_disposed) {
-          review.working = true;
-          // Taken late, it would count some of the agent's work as what
-          // was there: the review gives way to what the kernel reports.
-          await review.begin().timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => review.abandon('The snapshot took too long.'),
-          );
-        }
-      }
-      if (!_disposed) _kernel.send(turn);
-    });
+    // is snapshotted, so that what the agent does is told apart. Not
+    // waited on: the agent takes a while before it edits anything, and
+    // the looks its edits bring on are queued behind this one. (A review
+    // still opening takes its own snapshot as it opens.)
+    if (_review case final review? when !isStreaming) {
+      review.working = true;
+      // Taken late, it would count some of the agent's work as what was
+      // there: the review gives way to what the kernel reports.
+      unawaited(
+        review.begin().timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => review.abandon('The snapshot took too long.'),
+        ),
+      );
+    }
+    _kernel.send(turn);
   }
 
   static final _random = math.Random.secure();

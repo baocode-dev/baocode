@@ -22,11 +22,14 @@ import 'fade_curve.dart';
 ///
 /// [topFadeAmount] eases the fade at the top, the edge's or the cover's, in
 /// and out (read at paint as well).
+///
+/// Along a horizontal [axis], [top] and [bottom] are its left and right edges.
 class EdgeFadeMask extends SingleChildRenderObjectWidget {
   const EdgeFadeMask({
     super.key,
     required this.top,
     required this.bottom,
+    this.axis = Axis.vertical,
     this.fadeLength = 32,
     this.fadeOffset = 4,
     this.topCover,
@@ -38,6 +41,7 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
 
   final bool top;
   final bool bottom;
+  final Axis axis;
   final double fadeLength;
   final double fadeOffset;
 
@@ -53,6 +57,7 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
   @override
   RenderEdgeFadeMask createRenderObject(BuildContext context) =>
       RenderEdgeFadeMask(top, bottom, fadeLength, fadeOffset)
+        ..axis = axis
         ..topCover = topCover
         ..coverFade = coverFade
         ..topFadeAmount = topFadeAmount
@@ -66,6 +71,7 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
     renderObject
       ..top = top
       ..bottom = bottom
+      ..axis = axis
       ..fadeLength = fadeLength
       ..fadeOffset = fadeOffset
       ..topCover = topCover
@@ -84,6 +90,13 @@ class RenderEdgeFadeMask extends RenderProxyBox {
   );
 
   static const _overshoot = 2.0;
+
+  Axis _axis = Axis.vertical;
+  set axis(Axis value) {
+    if (value == _axis) return;
+    _axis = value;
+    markNeedsPaint();
+  }
 
   double _fadeLength;
   set fadeLength(double value) {
@@ -166,14 +179,16 @@ class RenderEdgeFadeMask extends RenderProxyBox {
   @override
   bool get alwaysNeedsCompositing => _masked;
 
-  /// Over the child's [size] plus [_overshoot] above and below; hidden down
-  /// to [cover] when there is one, the fade at the top eased [amount] of the
-  /// way in.
+  /// Over the child's [size] plus [_overshoot] before and after along [_axis];
+  /// hidden down to [cover] when there is one, the fade at the top eased
+  /// [amount] of the way in.
   Shader _shader(Size size, double? cover, double amount) {
-    final height = size.height + 2 * _overshoot;
+    final vertical = _axis == Axis.vertical;
+    final extent = vertical ? size.height : size.width;
+    final height = extent + 2 * _overshoot;
     // Short children: the two fades meet in the middle rather than overlap.
-    final offset = math.min(_fadeOffset, size.height / 2);
-    final length = math.min(_fadeLength, size.height / 2 - offset);
+    final offset = math.min(_fadeOffset, extent / 2);
+    final length = math.min(_fadeLength, extent / 2 - offset);
     // From each end of the mask, hidden up to here.
     final hidden = _overshoot + offset;
     final colors = <Color>[];
@@ -208,11 +223,14 @@ class RenderEdgeFadeMask extends RenderProxyBox {
       stop(height, 1);
     }
     return LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
+      begin: vertical ? Alignment.topCenter : Alignment.centerLeft,
+      end: vertical ? Alignment.bottomCenter : Alignment.centerRight,
       colors: colors,
       stops: stops,
-    ).createShader(Offset.zero & Size(size.width, height));
+    ).createShader(
+      Offset.zero &
+          (vertical ? Size(size.width, height) : Size(height, size.height)),
+    );
   }
 
   @override
@@ -229,12 +247,19 @@ class RenderEdgeFadeMask extends RenderProxyBox {
     final mask = (layer as ShaderMaskLayer?) ?? ShaderMaskLayer();
     mask
       ..shader = _shader(size, cover, amount)
-      ..maskRect = Rect.fromLTRB(
-        offset.dx,
-        offset.dy - _overshoot,
-        offset.dx + size.width,
-        offset.dy + size.height + _overshoot,
-      )
+      ..maskRect = _axis == Axis.vertical
+          ? Rect.fromLTRB(
+              offset.dx,
+              offset.dy - _overshoot,
+              offset.dx + size.width,
+              offset.dy + size.height + _overshoot,
+            )
+          : Rect.fromLTRB(
+              offset.dx - _overshoot,
+              offset.dy,
+              offset.dx + size.width + _overshoot,
+              offset.dy + size.height,
+            )
       ..blendMode = BlendMode.dstIn;
     layer = mask;
     context.pushLayer(mask, super.paint, offset);

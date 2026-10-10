@@ -48,13 +48,21 @@ class IdeGitCommitChange {
 }
 
 /// Git for the repository containing [root]; [runner] and [watcher]
-/// replace running `git` and watching the files (for tests).
+/// replace running `git` and watching the files (for tests, and a remote
+/// host's), [pathContext] how the host Git runs on spells paths (a Linux
+/// or macOS host's from Windows).
 class IdeGitService {
-  IdeGitService(String root, {IdeGitRunner? runner, IdeGitWatcher? watcher})
-    : root = p.normalize(root),
-      _run = runner ?? platform.runGit,
-      _watch = watcher ?? platform.watchRepository;
+  IdeGitService(
+    String root, {
+    IdeGitRunner? runner,
+    IdeGitWatcher? watcher,
+    p.Context? pathContext,
+  }) : pathContext = pathContext ?? p.context,
+       root = (pathContext ?? p.context).normalize(root),
+       _run = runner ?? platform.runGit,
+       _watch = watcher ?? platform.watchRepository;
 
+  final p.Context pathContext;
   final String root;
   final IdeGitRunner _run;
   final IdeGitWatcher _watch;
@@ -88,7 +96,7 @@ class IdeGitService {
     if (output.exitCode != 0) return null;
     final top = output.stdout.trim();
     if (top.isEmpty) return null;
-    return _repositoryRoot = p.normalize(top);
+    return _repositoryRoot = pathContext.normalize(top);
   }
 
   /// Whether [root] is a working tree's top level, not a folder in one
@@ -119,7 +127,8 @@ class IdeGitService {
   }
 
   List<String> _relative(String top, Iterable<String> paths) => [
-    for (final path in paths) p.relative(path, from: top).replaceAll(r'\', '/'),
+    for (final path in paths)
+      pathContext.relative(path, from: top).replaceAll(r'\', '/'),
   ];
 
   /// [paths] relative to [top], or the whole tree (`.`) for none: long
@@ -161,7 +170,12 @@ class IdeGitService {
       ),
       'Cannot read the Git status.',
     );
-    return parseGitStatus(top, output.stdout, truncated: output.truncated);
+    return parseGitStatus(
+      top,
+      output.stdout,
+      truncated: output.truncated,
+      pathContext: pathContext,
+    );
   }
 
   /// `git add -A --`: stages the changes of [paths] (all when null),
@@ -490,8 +504,9 @@ class IdeGitService {
     );
     final fields = output.stdout.split('\x00');
     final changes = <IdeGitCommitChange>[];
-    String absolute(String relative) =>
-        p.normalize(p.join(top, p.joinAll(relative.split('/'))));
+    String absolute(String relative) => pathContext.normalize(
+      pathContext.join(top, pathContext.joinAll(relative.split('/'))),
+    );
     for (var i = 0; i + 1 < fields.length; i++) {
       final status = fields[i].trim();
       if (status.isEmpty) continue;

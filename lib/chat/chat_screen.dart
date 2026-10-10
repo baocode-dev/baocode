@@ -19,6 +19,7 @@ import 'chat_width.dart';
 import 'composer/composer.dart';
 import 'composer/composer_embeds.dart';
 import 'composer/composer_mock_data.dart';
+import 'composer/file_mentions.dart';
 import 'panels/activity_strip.dart';
 import 'panels/health_banner.dart';
 import 'panels/interaction_panel.dart';
@@ -58,6 +59,7 @@ class ChatScreen extends StatefulWidget {
     this.start,
     this.startHint,
     this.sessions,
+    this.fileMentions,
   });
 
   final String title;
@@ -131,6 +133,9 @@ class ChatScreen extends StatefulWidget {
   /// The other conversations its messages may refer to, which `@` in the
   /// composer offers (see [ComposerVocabulary.sessions]).
   final List<Suggestion> Function()? sessions;
+
+  /// Where `@` looks files up, besides the kernel (see [FileMentions]).
+  final FileMentions? fileMentions;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -533,6 +538,17 @@ class _ChatScreenState extends State<ChatScreen>
     links.open(opened);
   }
 
+  /// The files `@` offers: [ChatScreen.fileMentions]' with the kernel's, or
+  /// the kernel's alone; null when neither looks.
+  Future<List<Suggestion>> Function(String query)? _suggestFiles(String? root) {
+    final kernel = _session.suggestFiles;
+    if (widget.fileMentions case final mentions?) {
+      return (query) => mentions.suggest(query, root: root, kernel: kernel);
+    }
+    if (kernel == null) return null;
+    return (query) async => [...(await kernel(query)).map(fileSuggestion)];
+  }
+
   @override
   Widget build(BuildContext context) {
     final links = widget.fileLinks;
@@ -551,7 +567,7 @@ class _ChatScreenState extends State<ChatScreen>
           colorizeBlock: widget.colorizeCodeBlock,
           child: ComposerVocabulary(
             commands: _commandSuggestions(),
-            suggestFiles: _session.suggestFiles,
+            suggestFiles: _suggestFiles(root),
             sessions: widget.sessions,
             child: child!,
           ),
@@ -623,21 +639,11 @@ class _ChatScreenState extends State<ChatScreen>
                             child: SingleChildScrollView(
                               child: _ConversationColumn(
                                 maxWidth: _maxContentWidth,
-                                child: build(
-                                  context,
-                                  const IgnorePointer(
-                                    child: Padding(
-                                      padding: EdgeInsets.only(bottom: 16),
-                                      child: _EmptyHintText(),
-                                    ),
-                                  ),
-                                ),
+                                child: build(context, const SizedBox.shrink()),
                               ),
                             ),
                           ),
-                          // Just over the composer, where it waits in the
-                          // middle.
-                          _ => _EmptyHint(above: _starting),
+                          _ => const SizedBox.shrink(),
                         },
                       ),
                     ],
@@ -1027,52 +1033,6 @@ class _PanelSlot extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: gap),
       child: panel,
-    );
-  }
-}
-
-/// Shown in place of the history while an agent has no messages yet.
-class _EmptyHint extends StatelessWidget {
-  const _EmptyHint({this.above = false});
-
-  /// At the bottom, over the composer, rather than in the middle.
-  final bool above;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Align(
-        alignment: above ? Alignment.bottomCenter : Alignment.center,
-        child: Padding(
-          padding: EdgeInsets.only(bottom: above ? 28 : 0),
-          child: const _EmptyHintText(),
-        ),
-      ),
-    );
-  }
-}
-
-/// [_EmptyHint]'s words, where they are put.
-class _EmptyHintText extends StatelessWidget {
-  const _EmptyHintText();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.auto_awesome_outlined, size: 22, color: AppColors.textFaint),
-        SizedBox(height: 10),
-        Text(
-          context.l10n.chatEmptyTitle,
-          style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-        ),
-        SizedBox(height: 4),
-        Text(
-          context.l10n.chatEmptyHint,
-          style: TextStyle(color: AppColors.textFaint, fontSize: 12),
-        ),
-      ],
     );
   }
 }

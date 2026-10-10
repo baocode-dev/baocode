@@ -24,9 +24,9 @@ import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 import '../../ide/ide_back_button.dart';
 
-/// Asks [model] of [provider] [modelTestPrompt]; its reply. Completing
-/// [cancel] stops it.
-typedef ModelTester = Future<String> Function(
+/// Asks [model] of [provider] [modelTestPrompt]; its reply, timed.
+/// Completing [cancel] stops it.
+typedef ModelTester = Future<ClaudeTimedAnswer> Function(
   ModelProvider provider,
   ProviderModel model, {
   Future<void>? cancel,
@@ -39,15 +39,14 @@ const modelTestPrompt =
 
 /// Tests [model] through Claude Code, as a session reaches it: the
 /// provider's environment, the proxy, the upstream.
-Future<String> testModelThroughClaudeCode(
+Future<ClaudeTimedAnswer> testModelThroughClaudeCode(
   ModelProvider provider,
   ProviderModel model, {
   Future<void>? cancel,
-}) => askClaudeHaiku(
+}) => timeClaudeAnswer(
   'Do exactly as asked.',
   modelTestPrompt,
   model: modelRef(provider.id, model.id),
-  exact: true,
   cancel: cancel,
 );
 
@@ -332,7 +331,7 @@ class _ProviderRow extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: switch (status) {
-          _Status.ready => SettingsSwitch.onColor,
+          _Status.ready => AppColors.added,
           _Status.incomplete => AppColors.caution,
           _Status.failed => colors['errorForeground'],
           _Status.off => SettingsColors.textQuaternary,
@@ -602,19 +601,18 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     Future<void> next() async {
       while (queue.isNotEmpty && !_closed.isCompleted) {
         final model = queue.removeAt(0);
-        final watch = Stopwatch()..start();
         _ModelTest test;
         try {
-          final reply = await widget.testModel(
+          final answer = await widget.testModel(
             _providerNow,
             model,
             cancel: _closed.future,
           );
-          test = _ModelTest(elapsed: watch.elapsed, reply: reply.trim());
+          test = _ModelTest(answer: answer);
         } on ClaudeHaikuCancelled {
           return;
         } on Object catch (error) {
-          test = _ModelTest(elapsed: watch.elapsed, error: '$error');
+          test = _ModelTest(error: '$error');
         }
         if (mounted) setState(() => _modelTests[model.id] = test);
       }
@@ -963,7 +961,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                 style: SettingsText.description.copyWith(
                   color: _testFailed
                       ? themeColors['errorForeground']
-                      : SettingsSwitch.onColor,
+                      : AppColors.added,
                 ),
               ),
           ],
@@ -1419,29 +1417,41 @@ class _ModelRow extends StatelessWidget {
   }
 }
 
-/// A model's test, under way until [elapsed] is set: the reply it got, or
-/// why it got none.
+/// A model's test, under way until it has the [answer] it got, or the
+/// [error] it got instead.
 class _ModelTest {
-  const _ModelTest({this.elapsed, this.reply, this.error});
+  const _ModelTest({this.answer, this.error});
 
-  final Duration? elapsed;
-  final String? reply;
+  final ClaudeTimedAnswer? answer;
   final String? error;
 
-  bool get running => elapsed == null;
+  bool get running => answer == null && error == null;
 }
 
-/// How long a model's test took, or that it failed; the reply, or the
-/// error, on hover.
+/// How soon a model's first text came and how fast the rest, or that it
+/// failed; the reply, or the error, on hover.
 class _ModelTestResult extends StatelessWidget {
   const _ModelTestResult(this.test);
 
   final _ModelTest test;
 
+  static String _seconds(Duration time) =>
+      (time.inMilliseconds / 1000).toStringAsFixed(1);
+
   @override
   Widget build(BuildContext context) {
-    final elapsed = test.elapsed;
-    if (elapsed == null) {
+    final l10n = context.l10n;
+    final answer = test.answer;
+    if (test.error case final error?) {
+      return IdeHover(
+        message: error,
+        child: Text(
+          l10n.modelsTestModelFailed,
+          style: SettingsText.description,
+        ),
+      );
+    }
+    if (answer == null) {
       return SizedBox(
         width: 12,
         height: 12,
@@ -1451,18 +1461,17 @@ class _ModelTestResult extends StatelessWidget {
         ),
       );
     }
-    final error = test.error;
+    final speed = answer.tokensPerSecond;
     return IdeHover(
-      message: error ?? test.reply!,
+      message:
+          '${l10n.modelsTestTotal(_seconds(answer.lastText))}\n\n'
+          '${answer.text.trim()}',
       child: Text(
-        error != null
-            ? context.l10n.modelsTestModelFailed
-            : '${(elapsed.inMilliseconds / 1000).toStringAsFixed(1)}s',
-        style: SettingsText.description.copyWith(
-          color: error != null
-              ? themeColors['errorForeground']
-              : SettingsSwitch.onColor,
-        ),
+        [
+          l10n.modelsTestFirstText(_seconds(answer.firstText)),
+          if (speed != null) '${speed.round()} tok/s',
+        ].join(' · '),
+        style: SettingsText.description,
       ),
     );
   }
@@ -1618,7 +1627,7 @@ class _QuotaLine extends StatelessWidget {
         ? themeColors['errorForeground']
         : used >= 70
         ? AppColors.caution
-        : SettingsSwitch.onColor;
+        : AppColors.added;
     final detail = [
       l10n.modelsQuotaUsed(used.round()),
       if (window.resetsAt case final at?) resets(context, at, DateTime.now()),

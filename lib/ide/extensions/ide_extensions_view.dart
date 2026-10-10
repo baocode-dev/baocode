@@ -130,9 +130,13 @@ class IdeExtensionsView extends StatefulWidget {
     this.recommended = const {},
     this.onInstalled,
     this.onError,
+    this.background,
   });
 
   final IdeExtensionsSession session;
+
+  /// What it is on; the side bar's by default.
+  final Color? background;
 
   /// Servers the open files want and do not have.
   final Set<String> recommended;
@@ -257,7 +261,7 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
             _ => l10n.extTitleMarketplace,
           };
     return ColoredBox(
-      color: AppColors.sidebarSurface,
+      color: widget.background ?? AppColors.sidebarSurface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

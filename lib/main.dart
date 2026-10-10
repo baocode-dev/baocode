@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
 import 'chat/chat_width.dart';
+import 'chat/user_message_style.dart';
 import 'customize/customization_store.dart';
 import 'extensions/theme_extensions.dart';
 import 'ide/git/git_repository.dart';
@@ -120,6 +121,11 @@ Future<void> main(List<String> arguments) async {
     ChatWidth.follow(
       files.settings,
       () => files.settings[ChatWidth.settingKey],
+    );
+    // Settings → Appearance: how the user's messages show.
+    UserMessageStyle.follow(
+      files.settings,
+      () => files.settings[UserMessageStyle.settingKey],
     );
     // Settings → Appearance: the code's font, size and ligatures, and the
     // window's text size.

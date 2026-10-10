@@ -98,9 +98,14 @@ class IdeTabBar extends StatefulWidget {
     this.local = true,
     this.markdownPreview,
     this.onMarkdownPreview,
+    this.page,
   });
 
   final List<IdeDocument> documents;
+
+  /// A tab after the files' that is not a file's (an extension's page):
+  /// the one in front while [active] is null.
+  final Widget? page;
 
   /// Whether the files are this machine's: a remote project's are neither
   /// shown in the file manager nor opened in another app.
@@ -127,6 +132,7 @@ class IdeTabBar extends StatefulWidget {
 class _IdeTabBarState extends State<IdeTabBar> {
   final ScrollController _scroll = ScrollController();
   final Map<IdeDocument, GlobalKey> _keys = {};
+  final GlobalKey _pageKey = GlobalKey();
 
   @override
   void initState() {
@@ -138,7 +144,8 @@ class _IdeTabBarState extends State<IdeTabBar> {
   void didUpdateWidget(IdeTabBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.active, widget.active) ||
-        oldWidget.documents.length != widget.documents.length) {
+        oldWidget.documents.length != widget.documents.length ||
+        oldWidget.page?.key != widget.page?.key) {
       _scheduleReveal();
     }
     _keys.removeWhere((doc, _) => !widget.documents.contains(doc));
@@ -154,7 +161,9 @@ class _IdeTabBarState extends State<IdeTabBar> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final active = widget.active;
-      final context = active == null ? null : _keys[active]?.currentContext;
+      final context = active == null
+          ? _pageKey.currentContext
+          : _keys[active]?.currentContext;
       if (context == null) return;
       Scrollable.ensureVisible(
         context,
@@ -300,6 +309,8 @@ class _IdeTabBarState extends State<IdeTabBar> {
                             _showMenu(doc, position: position),
                       ),
                     ),
+                  if (widget.page case final page?)
+                    KeyedSubtree(key: _pageKey, child: page),
                 ],
               ),
             ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/kernel/claude_code/claude_haiku.dart';
 import 'package:baocode/models/codex/codex_service.dart';
 import 'package:baocode/models/codex/codex_usage.dart';
 import 'package:baocode/models/model_provider.dart';
@@ -359,9 +360,9 @@ void main() {
       ),
     );
     final asked = <String>[];
-    final replies = <String, Completer<String>>{};
+    final replies = <String, Completer<ClaudeTimedAnswer>>{};
     var cancelled = false;
-    Future<String> testModel(
+    Future<ClaudeTimedAnswer> testModel(
       ModelProvider provider,
       ProviderModel model, {
       Future<void>? cancel,
@@ -371,10 +372,14 @@ void main() {
       return (replies[model.id] = Completer()).future;
     }
 
-    final seconds = find.byWidgetPredicate(
-      (widget) =>
-          widget is Text && RegExp(r'^\d+\.\ds$').hasMatch(widget.data ?? ''),
+    // First text at 0.8s, the rest at 50 tokens a second.
+    const answer = ClaudeTimedAnswer(
+      '1 2 3',
+      firstText: Duration(milliseconds: 800),
+      lastText: Duration(milliseconds: 2800),
+      outputTokens: 100,
     );
+    final timed = find.text('First token 0.8s · 50 tok/s');
     await pump(tester, testModel: testModel);
     await tester.tap(find.text('Gateway'));
     await tester.pumpAndSettle();
@@ -395,12 +400,14 @@ void main() {
     await tester.pump();
     expect(asked, ['gw/up']);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    replies['up']!.complete('1 2 3');
+    replies['up']!.complete(answer);
     await tester.pump();
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(seconds, findsOneWidget);
+    expect(timed, findsOneWidget);
     expect(
-      find.byWidgetPredicate((w) => w is IdeHover && w.message == '1 2 3'),
+      find.byWidgetPredicate(
+        (w) => w is IdeHover && w.message == 'Total 2.8s\n\n1 2 3',
+      ),
       findsOneWidget,
     );
 
@@ -409,10 +416,10 @@ void main() {
     await tester.pump();
     expect(asked, ['gw/up', 'gw/up', 'gw/down']);
     expect(find.byType(CircularProgressIndicator), findsNWidgets(2));
-    replies['up']!.complete('1 2 3');
+    replies['up']!.complete(answer);
     replies['down']!.completeError(Exception('401 Unauthorized'));
     await tester.pump();
-    expect(seconds, findsOneWidget);
+    expect(timed, findsOneWidget);
     expect(find.text('Failed'), findsOneWidget);
     expect(
       find.byWidgetPredicate(

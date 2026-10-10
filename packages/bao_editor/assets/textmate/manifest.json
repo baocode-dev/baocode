@@ -2415,6 +2415,20 @@
       "label": "Tomorrow Night Blue",
       "uiTheme": "vs-dark",
       "path": "themes/theme-tomorrow-night-blue/themes/tomorrow-night-blue-color-theme.json"
+    },
+    {
+      "extension": "theme-bao",
+      "id": "Bao Dark",
+      "label": "Bao Dark",
+      "uiTheme": "vs-dark",
+      "path": "themes/theme-bao/themes/bao-dark-color-theme.json"
+    },
+    {
+      "extension": "theme-bao",
+      "id": "Bao Light",
+      "label": "Bao Light",
+      "uiTheme": "vs",
+      "path": "themes/theme-bao/themes/bao-light-color-theme.json"
     }
   ]
 }

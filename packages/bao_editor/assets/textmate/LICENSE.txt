@@ -1,4 +1,5 @@
-Except for the installed extensions at the end, the files in this directory
+Except for the installed extensions at the end and BaoCode's own themes
+(themes/theme-bao), the files in this directory
 were downloaded from Visual Studio Code (https://github.com/microsoft/vscode)
 at revision 6a598d4a13031703d483d103c1d934a36ad27971
 by tool/generate_textmate_assets.mjs. The directory layout mirrors each

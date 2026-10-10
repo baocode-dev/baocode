@@ -1749,6 +1749,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarArchiveAll => 'Archive All';
 
   @override
+  String get sidebarUnarchiveAll => 'Unarchive All';
+
+  @override
+  String get sidebarDeleteArchived => 'Delete All Archived…';
+
+  @override
+  String get sidebarDeleteArchivedTitle => 'Delete archived agents?';
+
+  @override
+  String sidebarDeleteArchivedMessage(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'The $count archived agents and their conversations will be deleted',
+      one: 'The archived agent and its conversation will be deleted',
+    );
+    return '$_temp0, from their kernels too. This cannot be undone.';
+  }
+
+  @override
   String get sidebarRemoveFromList => 'Remove from List';
 
   @override
@@ -2265,12 +2286,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatSubagent => 'Subagent';
-
-  @override
-  String get chatEmptyTitle => 'Plan, build, anything';
-
-  @override
-  String get chatEmptyHint => '@ to add context · / for commands';
 
   @override
   String get activityCompacting => 'Compacting conversation';
@@ -5943,6 +5958,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsTestModelFailed => 'Failed';
 
   @override
+  String modelsTestFirstText(String seconds) {
+    return 'First token ${seconds}s';
+  }
+
+  @override
+  String modelsTestTotal(String seconds) {
+    return 'Total ${seconds}s';
+  }
+
+  @override
   String modelsEnableModel(String name) {
     return 'Offer $name';
   }
@@ -6377,6 +6402,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get appearanceSettingsUserMessageStyle => 'Your Messages';
+
+  @override
+  String get appearanceSettingsUserMessageStyleDescription =>
+      'How the messages you send show in the conversation: as wide as it, the one you are reading under staying at the top as you scroll; or as chat bubbles at the right that scroll away.';
+
+  @override
+  String get appearanceSettingsUserMessageStyleSticky =>
+      'Full width, sticks to the top';
+
+  @override
+  String get appearanceSettingsUserMessageStyleBubble => 'Chat bubbles';
+
+  @override
+  String appearanceSettingsUserMessageStyleLabel(String style) {
+    return 'Your messages: $style';
+  }
+
+  @override
   String get appearanceSettingsCodeFont => 'Code Font';
 
   @override
@@ -6399,7 +6443,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsCodeSizeDescription =>
-      'The size of code in the IDE editor and the side panel\'s file and changes views. The terminal and chat follow the interface text size.';
+      'The size of code in the IDE editor and the side panel\'s file and changes views. Code in the chat follows the interface text size; the terminal has its own size.';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -6418,11 +6462,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceSettingsUiScaleDescription =>
-      'The size of interface text, code in the chat, and terminal text. Code in the IDE editor and side panel files and changes keeps its own size.';
+      'The size of interface text, code in the chat, and terminal text while the terminal size follows it. Code in the IDE editor and side panel files and changes keeps its own size.';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {
     return 'Interface text size: $percent%';
+  }
+
+  @override
+  String get appearanceSettingsTerminalSize => 'Terminal Font Size';
+
+  @override
+  String get appearanceSettingsTerminalSizeDescription =>
+      'The size of terminal text. By default it follows the interface text size; it can be set on its own.';
+
+  @override
+  String get appearanceSettingsTerminalSizeFollow =>
+      'Follow Interface Text Size';
+
+  @override
+  String get appearanceSettingsTerminalSizeCustom => 'Custom';
+
+  @override
+  String get appearanceSettingsTerminalSizeValue => 'Custom Size';
+
+  @override
+  String appearanceSettingsTerminalSizeLabel(String size) {
+    return 'Terminal font size: $size';
   }
 
   @override
@@ -7153,9 +7219,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get extsPlatformUniversal => 'universal';
-
-  @override
-  String get extsPageClose => 'Close Extension';
 
   @override
   String extsPageTitle(String name) {

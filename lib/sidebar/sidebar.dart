@@ -10,6 +10,7 @@ import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/hover_scrollbar.dart';
 import '../chat/widgets/inline_rename_field.dart';
+import '../chat/widgets/scroll_edge_fade.dart';
 import '../icons/project_icon_picker.dart';
 import '../icons/project_icon_view.dart';
 import '../ide/ide_button.dart' show IdeButtonColors;
@@ -701,7 +702,8 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       children.add(const _DropLine());
     }
     _laidOut = laidOut;
-    // Its own scrollbar, shown while the pointer is over the list.
+    // Its own scrollbar, shown while the pointer is over the list; the list
+    // fades out towards an edge it is scrolled past, under the scrollbar.
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: _Slot(
@@ -709,10 +711,12 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         slots: _slots,
         child: HoverScrollbar(
           controller: _listScroll,
-          child: ListView(
-            controller: _listScroll,
-            padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
-            children: children,
+          child: ScrollEdgeFade(
+            child: ListView(
+              controller: _listScroll,
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+              children: children,
+            ),
           ),
         ),
       ),
@@ -1051,10 +1055,8 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         widget.setup == null) {
       return const SizedBox.shrink();
     }
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.partBorder)),
-      ),
+    // No line over it: the list fades out above it instead.
+    return Padding(
       padding: const EdgeInsets.all(6),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1090,37 +1092,95 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     );
   }
 
+  /// Shows or hides the archived agents; its menu (a right click)
+  /// unarchives them all or deletes them all.
   Widget _buildArchivedToggle(int count) {
-    return HoverBuilder(
-      cursor: SystemMouseCursors.click,
-      builder: (context, hovered) => GestureDetector(
-        onTap: _toggleArchived,
-        child: Container(
-          height: 26,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: hovered ? AppColors.hover : Colors.transparent,
-            borderRadius: BorderRadius.circular(5),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.inventory_2_outlined,
-                size: 13,
-                color: AppColors.textMuted,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _showArchived
-                      ? context.l10n.sidebarHideArchived
-                      : context.l10n.sidebarArchivedCount(count),
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
+    return SidebarMenu(
+      items: () => _archivedItems(context.l10n),
+      placement: (side: FloatingSide.top, align: FloatingAlign.start),
+      builder: (context, menu) => HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          onTap: _toggleArchived,
+          onSecondaryTapUp: (details) => menu.open(details.globalPosition),
+          child: _buildArchivedLabel(count, hovered || menu.isOpen),
         ),
+      ),
+    );
+  }
+
+  List<SidebarMenuItem> _archivedItems(AppLocalizations l10n) => [
+    SidebarMenuItem(
+      // Checked while they show, as a click on the button switches them.
+      l10n.sidebarArchived,
+      icon: Icons.inventory_2_outlined,
+      checked: _showArchived,
+      onSelected: _toggleArchived,
+    ),
+    SidebarMenuItem(
+      l10n.sidebarUnarchiveAll,
+      icon: Icons.unarchive_outlined,
+      onSelected: () {
+        _workspace
+          ..unarchiveAll()
+          ..showArchived = false;
+      },
+    ),
+    SidebarMenuItem(
+      l10n.sidebarDeleteArchived,
+      icon: Icons.delete_outline_rounded,
+      destructive: true,
+      onSelected: () => unawaited(_confirmDeleteArchived()),
+    ),
+  ];
+
+  Future<void> _confirmDeleteArchived() async {
+    final count = _workspace.threads.where((t) => t.archived).length;
+    if (count == 0) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      // Black, not the theme's: as upstream's dialogs dim the window.
+      barrierColor: const Color(0x99000000),
+      builder: (context) {
+        final l10n = context.l10n;
+        return _ConfirmDialog(
+          title: l10n.sidebarDeleteArchivedTitle,
+          message: l10n.sidebarDeleteArchivedMessage(count),
+          action: l10n.commonDelete,
+        );
+      },
+    );
+    if (!(confirmed ?? false)) return;
+    _workspace
+      ..deleteArchived()
+      ..showArchived = false;
+  }
+
+  Widget _buildArchivedLabel(int count, bool active) {
+    return Container(
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: active ? AppColors.hover : Colors.transparent,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.inventory_2_outlined,
+            size: 13,
+            color: AppColors.textMuted,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _showArchived
+                  ? context.l10n.sidebarHideArchived
+                  : context.l10n.sidebarArchivedCount(count),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2155,7 +2215,8 @@ class _ThreadRow extends StatelessWidget {
                 : relativeTime(thread.updatedAt, DateTime.now(), l10n),
             textAlign: TextAlign.right,
             maxLines: 1,
-            style: TextStyle(color: AppColors.textFaint, fontSize: 11),
+            // The color of the buttons it gives way to on hover.
+            style: TextStyle(color: AppColors.textMuted, fontSize: 11),
           ),
         ),
       const SizedBox(width: 2),

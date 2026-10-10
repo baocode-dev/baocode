@@ -8,6 +8,7 @@ import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_them
 import 'package:bao_editor/textmate/textmate_manifest.dart';
 import 'package:bao_editor/textmate/textmate_syntax.dart';
 import 'package:bao_editor/textmate/textmate_worker.dart';
+import 'package:baocode/chat/user_message_style.dart';
 import 'package:baocode/ide/lsp/packs/language_packs.dart';
 import 'package:baocode/kernel/kernel_registry.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
@@ -23,7 +24,9 @@ import 'semantics_tree.dart';
 /// isolate, on its fake clock. Each test reads assets afresh: the bundle
 /// caches futures, which answer in the zone of the test that made them.
 /// Each test starts in [testColorTheme], restored as the app
-/// restores a kept theme, without reading assets. The `code` command and
+/// restores a kept theme, without reading assets, and with the user's
+/// messages [UserMessageStyle.sticky], which the chat's tests were written
+/// for, not the app's default. The `code` command and
 /// the context menu are stand-ins, never installed: none looks at the
 /// machine's own.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
@@ -34,13 +37,11 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   final defaultTheme = await _defaultColorTheme();
   setUp(() {
     rootBundle.clear();
+    UserMessageStyle.current.value = UserMessageStyle.sticky;
     ShellCommand.debugInstaller = _NoShellCommand();
     ContextMenu.debugInstaller = _NoContextMenu();
     WorkbenchThemeService.instance = WorkbenchThemeService()
-      ..restore(
-        setting: testColorTheme,
-        data: defaultTheme,
-      );
+      ..restore(setting: testColorTheme, data: defaultTheme);
   });
   await testMain();
 }

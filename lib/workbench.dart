@@ -17,6 +17,7 @@ import 'chat/chat_session.dart' show ChatSession;
 import 'chat/composer/composer_files.dart' show ComposerFile;
 import 'chat/composer/composer_mock_data.dart' show Suggestion;
 import 'chat/composer/file_drop.dart';
+import 'chat/composer/file_mentions.dart';
 import 'chat/panels/interaction_panel.dart';
 import 'chat/side_panel/file_open.dart';
 import 'chat/side_panel/side_panel_controller.dart';
@@ -979,6 +980,36 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// Each project's files, for the palette: listed again as it opens.
   final Map<String, IdeFileIndex> _fileIndexes = {};
 
+  /// [project]'s files, for the palette and `@` alike: listed once, then
+  /// again as either opens.
+  IdeFileIndex _fileIndexOf(Project project) => _fileIndexes.putIfAbsent(
+    project.path,
+    () => IdeFileIndex(
+      ProjectHost.of(project.path).files(project.root),
+      project.root,
+      pathContext: ProjectHost.of(project.path).paths,
+    ),
+  )..roots = _workspace.workspaceOf(project)?.folders;
+
+  final Map<String, FileMentions> _fileMentions = {};
+
+  /// Where `@` in [project]'s conversations looks files up.
+  FileMentions _fileMentionsOf(Project project) {
+    final index = _fileIndexOf(project);
+    final mentions = _fileMentions[project.path];
+    if (mentions != null && identical(mentions.index, index)) return mentions;
+    final location = project.path;
+    final host = ProjectHost.of(location);
+    return _fileMentions[location] = FileMentions(
+      files: _projectFileServices[location] ??= host.files(
+        host.pathOf(location),
+      ),
+      paths: host.paths,
+      index: index,
+      home: project.host == null ? homeDirectory : null,
+    );
+  }
+
   /// The project the palette's files are of: the window's agent's, or the
   /// current agent's, else the first listed.
   Project? get _paletteProject =>
@@ -994,16 +1025,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     try {
       _closeDrawer();
       final project = _paletteProject;
-      final files = project == null
-          ? null
-          : (_fileIndexes.putIfAbsent(
-              project.path,
-              () => IdeFileIndex(
-                ProjectHost.of(project.path).files(project.root),
-                project.root,
-                pathContext: ProjectHost.of(project.path).paths,
-              ),
-            )..roots = _workspace.workspaceOf(project)?.folders);
+      final files = project == null ? null : _fileIndexOf(project);
       await showSearchPalette(
         context,
         agents: [
@@ -2821,6 +2843,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       paneBackground: (thread) => identical(thread, _workspace.current)
           ? null
           : AppColors.unfocusedConversationSurface,
+      focused: _workspace.current,
       onLinesMoved: _workspace.keepGridLines,
     );
   }
@@ -3008,6 +3031,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           _ => null,
         },
         sessions: () => _mentionable(thread),
+        fileMentions: _fileMentionsOf(thread.project),
       ),
     );
     // The side panel's rail is over the top right pane alone.

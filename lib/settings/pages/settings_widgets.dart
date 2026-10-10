@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../chat/chat_width.dart';
+import '../../chat/widgets/scroll_edge_fade.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
@@ -138,11 +139,16 @@ class SettingsColumn extends StatelessWidget {
                 SettingsPage.inset,
                 double.infinity,
               );
-        return ListView(
-          // Under the window's draggable strip already: the title near the
-          // nav's back button.
-          padding: EdgeInsets.fromLTRB(side, 16, side, 48),
-          children: children,
+        // Fading out towards an edge it is scrolled past, over about two
+        // lines of a description.
+        return ScrollEdgeFade(
+          fadeLength: 56,
+          child: ListView(
+            // Under the window's draggable strip already: the title near the
+            // nav's back button.
+            padding: EdgeInsets.fromLTRB(side, 16, side, 48),
+            children: children,
+          ),
         );
       },
     ),
@@ -305,8 +311,8 @@ class SettingsRow extends StatelessWidget {
   }
 }
 
-/// A setting that is on or off, as a row's control: a switch, green when
-/// on.
+/// A setting that is on or off, as a row's control: a switch, in the
+/// theme's button colors when on.
 class SettingsSwitch extends StatelessWidget {
   const SettingsSwitch({
     super.key,
@@ -321,12 +327,22 @@ class SettingsSwitch extends StatelessWidget {
   final String semanticLabel;
   final bool enabled;
 
-  /// On: green, whatever the theme, as the system's switches.
-  static const onColor = Color(0xFF3DA35D);
-
   @override
   Widget build(BuildContext context) {
-    final off = AppColors.textFaint.withValues(alpha: 0.45);
+    final colors = themeColors;
+    // On: `button.background` under a `button.foreground` knob. Off: a faint
+    // track under a knob in the descriptions' color.
+    final track = value
+        ? colors['button.background']
+        : AppColors.textFaint.withValues(alpha: 0.45);
+    final knob = value
+        ? colors['button.foreground']
+        : SettingsColors.textSecondary;
+    // As tall as its label's letters, with the interface's font size.
+    final height = MediaQuery.textScalerOf(
+      context,
+    ).scale(SettingsText.label.fontSize! * 1.2).roundToDouble();
+    final knobSize = height - 4;
     return Semantics(
       toggled: value,
       enabled: enabled,
@@ -342,21 +358,23 @@ class SettingsSwitch extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 140),
               curve: Curves.easeOut,
-              width: 34,
-              height: 20,
+              width: (height * 1.75).roundToDouble(),
+              height: height,
               padding: const EdgeInsets.all(2),
               alignment: value ? Alignment.centerRight : Alignment.centerLeft,
               decoration: BoxDecoration(
-                color: value ? onColor : off,
-                borderRadius: BorderRadius.circular(10),
+                color: track,
+                borderRadius: BorderRadius.circular(height / 2),
               ),
-              child: Container(
-                width: 16,
-                height: 16,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 140),
+                curve: Curves.easeOut,
+                width: knobSize,
+                height: knobSize,
+                decoration: BoxDecoration(
+                  color: knob,
                   shape: BoxShape.circle,
-                  boxShadow: [
+                  boxShadow: const [
                     BoxShadow(color: Color(0x33000000), blurRadius: 2),
                   ],
                 ),

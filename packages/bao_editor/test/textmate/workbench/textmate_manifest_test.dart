@@ -181,8 +181,20 @@ void main() {
 
     test('themes', () {
       // VS Code's 19 but Light (Visual Studio) and Light+, which the assets
-      // leave out.
-      expect(manifest.themes, hasLength(17));
+      // leave out, and BaoCode's own Bao Dark and Bao Light.
+      expect(manifest.themes, hasLength(19));
+      final baoDark = manifest.themeById('Bao Dark')!;
+      expect(baoDark.uiTheme, 'vs-dark');
+      expect(
+        baoDark.assetPath,
+        'themes/theme-bao/themes/bao-dark-color-theme.json',
+      );
+      final baoLight = manifest.themeById('Bao Light')!;
+      expect(baoLight.uiTheme, 'vs');
+      expect(
+        baoLight.assetPath,
+        'themes/theme-bao/themes/bao-light-color-theme.json',
+      );
       expect(manifest.themeById('Visual Studio Light'), isNull);
       expect(manifest.themeById('Light+'), isNull);
       final darkPlus = manifest.themeById('Dark+')!;
@@ -195,7 +207,9 @@ void main() {
         manifest.themeById('Visual Studio Dark')!.label,
         'Dark (Visual Studio)',
       );
-      for (final theme in manifest.themes) {
+      for (final theme in manifest.themes.where(
+        (t) => t.extension != 'theme-bao',
+      )) {
         expect(
           File('test/fixtures/textmate/themes/${theme.id}.json').existsSync(),
           isTrue,

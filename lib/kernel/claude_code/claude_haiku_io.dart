@@ -22,6 +22,54 @@ Future<String> askClaudeHaiku(
   String? model,
   Map<String, String>? env,
 }) async {
+  final stdout = StringBuffer();
+  final (stderr, code) = await _run(
+    system,
+    prompt,
+    cancel: cancel,
+    model: model,
+    env: env,
+    stream: false,
+    onLine: stdout.writeln,
+  );
+  return claudeHaikuAnswer(stdout.toString(), stderr, code);
+}
+
+/// As [askClaudeHaiku], its answer streamed and timed.
+Future<ClaudeTimedAnswer> timeClaudeAnswer(
+  String system,
+  String prompt, {
+  Future<void>? cancel,
+  String? model,
+  Map<String, String>? env,
+}) async {
+  final timer = ClaudeAnswerTimer();
+  final clock = Stopwatch();
+  final (stderr, code) = await _run(
+    system,
+    prompt,
+    cancel: cancel,
+    model: model,
+    env: env,
+    stream: true,
+    onStart: clock.start,
+    onLine: (line) => timer.add(line, clock.elapsed),
+  );
+  return timer.answer(stderr, code);
+}
+
+/// Runs Claude Code, giving each line it prints to [onLine]: what it
+/// wrote to stderr and exited with.
+Future<(String, int)> _run(
+  String system,
+  String prompt, {
+  required Future<void>? cancel,
+  required String? model,
+  required Map<String, String>? env,
+  required bool stream,
+  required void Function(String line) onLine,
+  void Function()? onStart,
+}) async {
   final cli = await CliLocator.locate();
   final settingsFile = env == null
       ? null
@@ -31,7 +79,12 @@ Future<String> askClaudeHaiku(
   try {
     process = await Process.start(
       cli.executable,
-      claudeHaikuArguments(system, model: model, settingsFile: settingsFile),
+      claudeHaikuArguments(
+        system,
+        model: model,
+        settingsFile: settingsFile,
+        stream: stream,
+      ),
       workingDirectory: Directory.systemTemp.path,
       environment: {
         ...cli.environment,
@@ -47,6 +100,7 @@ Future<String> askClaudeHaiku(
     if (settingsFile != null) await ClaudeSettingsFile.delete(settingsFile);
     throw ClaudeHaikuException('Claude Code could not start: ${error.message}');
   }
+  onStart?.call();
   if (settingsFile != null) {
     unawaited(
       process.exitCode.then((_) => ClaudeSettingsFile.delete(settingsFile)),
@@ -59,7 +113,10 @@ Future<String> askClaudeHaiku(
       process.kill();
     }),
   );
-  final stdout = process.stdout.transform(utf8.decoder).join();
+  final stdout = process.stdout
+      .transform(utf8.decoder)
+      .transform(const LineSplitter())
+      .forEach(onLine);
   final stderr = process.stderr.transform(utf8.decoder).join();
   process.stdin.add(utf8.encode(prompt));
   unawaited(process.stdin.close().catchError((Object _) {}));
@@ -71,5 +128,6 @@ Future<String> askClaudeHaiku(
     },
   );
   if (cancelled) throw const ClaudeHaikuCancelled();
-  return claudeHaikuAnswer(await stdout, await stderr, code);
+  await stdout;
+  return (await stderr, code);
 }

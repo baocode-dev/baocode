@@ -14,7 +14,7 @@ import 'package:baocode/chat/panels/interaction_panel.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/chat/panels/mcp_servers_panel.dart';
 import 'package:baocode/chat/side_panel/file_open.dart';
-import 'package:baocode/chat/widgets/image_thumbnails.dart';
+import 'package:baocode/chat/composer/composer_embeds.dart';
 import 'package:baocode/chat/widgets/activity_row.dart';
 import 'package:baocode/chat/widgets/thinking_spark.dart';
 import 'package:baocode/chat/widgets/command_step.dart';
@@ -586,10 +586,14 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(
-      tester.widget<ImageThumbnails>(find.byType(ImageThumbnails)).images,
-      hasLength(1),
+    // Not referred to in the text: its tag after it.
+    final chip = tester.widget<ComposerImageChip>(
+      find.descendant(
+        of: find.byType(UserMessageBubble),
+        matching: find.byType(ComposerImageChip),
+      ),
     );
+    expect(chip.image?.bytes, const [1, 2, 3]);
     await runWhile(tester, () => session.pendingInteraction == null);
     session.stop();
     await tester.pump(const Duration(seconds: 1));

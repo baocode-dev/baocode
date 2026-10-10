@@ -12,6 +12,7 @@ class Suggestion {
     this.icon,
     this.group,
     this.id = '',
+    this.path,
   });
 
   /// A conversation titled [title] to refer to, by its session's [id],
@@ -24,7 +25,8 @@ class Suggestion {
        label = title,
        detail = '',
        icon = null,
-       group = project;
+       group = project,
+       path = null;
 
   final SuggestionKind kind;
 
@@ -41,10 +43,14 @@ class Suggestion {
   /// A conversation's session id.
   final String id;
 
+  /// What a file's or folder's tag refers to, when [detail] only shows
+  /// where it is (e.g. a workspace folder's file, by its absolute path).
+  final String? path;
+
   /// Value serialized into the sent message.
   String get value => switch (kind) {
-    SuggestionKind.file ||
-    SuggestionKind.folder => detail.isEmpty ? label : '$detail/$label',
+    SuggestionKind.file || SuggestionKind.folder =>
+      path ?? (detail.isEmpty ? label : '$detail/$label'),
     SuggestionKind.session => id,
     _ => label,
   };

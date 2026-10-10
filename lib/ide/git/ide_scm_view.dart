@@ -1073,7 +1073,7 @@ class IdeScmViewState extends State<IdeScmView>
       selected: _isSelected(key),
       focusedItem: _selected == key,
       focused: _listFocus.hasFocus,
-      tooltip: p.relative(folder.path, from: state.root),
+      tooltip: state.pathContext.relative(folder.path, from: state.root),
       onTap: () {
         _listFocus.requestFocus();
         if (_multiSelectClick(key)) return;
@@ -1674,8 +1674,9 @@ class IdeScmViewState extends State<IdeScmView>
     int? treeDepth,
   }) {
     final key = '${resource.group.name}:${resource.path}';
-    final relative = p.relative(resource.path, from: state.root);
-    final folder = p.dirname(relative);
+    final paths = state.pathContext;
+    final relative = paths.relative(resource.path, from: state.root);
+    final folder = paths.dirname(relative);
     List<IdeGitResource> targets() => _targets(key, resource.group, [resource]);
     final actions = _resourceActions(git, resource, targets);
     void open({bool focus = false}) =>
@@ -1687,7 +1688,7 @@ class IdeScmViewState extends State<IdeScmView>
       focusedItem: _selected == key,
       focused: _listFocus.hasFocus,
       tooltip:
-          '${p.join(state.root, relative)} • '
+          '${paths.join(state.root, relative)} • '
           '${resource.status.localizedLabel(context.l10n)}',
       onTap: () {
         _listFocus.requestFocus();
@@ -2101,10 +2102,11 @@ class IdeScmViewState extends State<IdeScmView>
   /// `git.ignore`: appends the files to the repository's `.gitignore` in
   /// its editor, and saves it.
   Future<void> _ignore(IdeGitState state, List<String> paths) async {
-    final ignoreFile = p.join(state.root, '.gitignore');
+    final pathContext = state.pathContext;
+    final ignoreFile = pathContext.join(state.root, '.gitignore');
     final lines = [
       for (final path in paths)
-        p
+        pathContext
             .relative(path, from: state.root)
             .replaceAllMapped(
               RegExp(r'\\|\['),
@@ -2120,7 +2122,7 @@ class IdeScmViewState extends State<IdeScmView>
       }
       await widget.onOpen(ignoreFile, focusEditor: true);
       final doc = workspace.documents
-          .where((d) => d.path == p.normalize(ignoreFile))
+          .where((d) => d.path == pathContext.normalize(ignoreFile))
           .firstOrNull;
       if (doc == null || doc.openError != null) return;
       final text = doc.text;

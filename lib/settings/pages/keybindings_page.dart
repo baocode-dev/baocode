@@ -49,6 +49,7 @@ import '../../ide/ide_input.dart';
 import '../../ide/ide_list.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_quick_input.dart' show IdeKeycap;
+import '../../chat/widgets/scroll_edge_fade.dart';
 import '../../keybindings/default_keybindings.dart';
 import '../../keybindings/key_chord.dart';
 
@@ -975,17 +976,19 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
     }
     return Focus(
       focusNode: _listFocus,
-      child: ListView.builder(
-        controller: _scroll,
-        padding: const EdgeInsets.fromLTRB(
-          _inset - IdeListColors.inset,
-          4,
-          _inset - IdeListColors.inset,
-          12,
+      child: ScrollEdgeFade(
+        child: ListView.builder(
+          controller: _scroll,
+          padding: const EdgeInsets.fromLTRB(
+            _inset - IdeListColors.inset,
+            4,
+            _inset - IdeListColors.inset,
+            12,
+          ),
+          itemExtent: KeybindingsSettingsPage.rowHeight,
+          itemCount: _shown.length,
+          itemBuilder: (context, index) => _rowAt(index, columns),
         ),
-        itemExtent: KeybindingsSettingsPage.rowHeight,
-        itemCount: _shown.length,
-        itemBuilder: (context, index) => _rowAt(index, columns),
       ),
     );
   }

@@ -7,9 +7,9 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../composer/composer_embeds.dart';
+import '../user_message_style.dart';
 import 'assistant_text.dart';
 import 'fade_curve.dart';
 import 'image_thumbnails.dart';
@@ -53,9 +53,37 @@ class UserMessageBubble extends StatefulWidget {
   /// Its corners; what answers it is inset this much at either side.
   static const radius = 8.0;
 
+  /// The bubble in [item] (an item of the history, laid out): where it is
+  /// on screen and its outline, for [UserMessageEditMorph] to open from.
+  static UserMessageFrame? frameIn(RenderObject item) {
+    _RenderWidthFactor? found;
+    void visit(RenderObject node) {
+      if (found != null) return;
+      if (node is _RenderWidthFactor) {
+        found = node;
+      } else {
+        node.visitChildren(visit);
+      }
+    }
+
+    visit(item);
+    final box = found?.child;
+    if (box == null || !box.attached || !box.hasSize) return null;
+    final fitted = UserMessageStyle.current.value == UserMessageStyle.bubble;
+    return (
+      rect: box.localToGlobal(Offset.zero) & box.size,
+      radius: fitted ? _MessageShape.radius : radius,
+      tail: fitted ? 1.0 : 0.0,
+    );
+  }
+
   @override
   State<UserMessageBubble> createState() => _UserMessageBubbleState();
 }
+
+/// A message's bubble: where it is on screen, its corners' radius, and how
+/// much of a tail it has (see [UserMessageStyle.bubble]).
+typedef UserMessageFrame = ({Rect rect, double radius, double tail});
 
 /// Lines shown of a collapsed message. Messages up to one line longer show
 /// in full: hiding a single line is not worth it.
@@ -70,7 +98,9 @@ TextStyle get _messageStyle => TextStyle(
   leadingDistribution: TextLeadingDistribution.even,
 );
 
-/// [text], its tokens and references to its [images] as tags.
+/// [text], its tokens and references to its [images] as tags; after it,
+/// tags for the images it does not refer to. The tags open the images:
+/// there are no thumbnails.
 TextSpan _messageSpan(
   String text,
   ComposerVocabulary vocabulary,
@@ -82,6 +112,17 @@ TextSpan _messageSpan(
     vocabulary,
     images: byNumber.keys.toSet(),
   ).toList();
+  final tagged = {
+    for (final op in ops)
+      if (op.data case {ComposerImageEmbed.type: final data})
+        ComposerImageEmbed.decode(data),
+  };
+  // Numbered as they would be in the text; one sent before images were
+  // numbered by its place among them.
+  final untagged = [
+    for (final (i, image) in images.indexed)
+      if (!tagged.contains(image.number)) (image.number ?? i + 1, image),
+  ];
   return TextSpan(
     style: _messageStyle,
     children: [
@@ -110,6 +151,10 @@ TextSpan _messageSpan(
           ),
           _ => const TextSpan(),
         },
+      for (final (i, (number, image)) in untagged.indexed) ...[
+        if (i > 0 || text.isNotEmpty) const TextSpan(text: ' '),
+        ComposerImageChip.span(number, image, _messageStyle),
+      ],
     ],
   );
 }
@@ -158,7 +203,29 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
 
   @override
   Widget build(BuildContext context) {
-    final bubble = KeyedSubtree(key: _bubbleKey, child: _buildBubble(context));
+    return ValueListenableBuilder(
+      valueListenable: UserMessageStyle.current,
+      builder: (context, style, _) => _build(context, style),
+    );
+  }
+
+  Widget _build(BuildContext context, UserMessageStyle style) {
+    final fitted = style == UserMessageStyle.bubble;
+    final message = KeyedSubtree(
+      key: _bubbleKey,
+      child: _buildBubble(context, fitted: fitted),
+    );
+    // As tall a tree either way, the bubble moving nowhere as the style
+    // changes. Fitted: at the right, as wide as its text up to most of the
+    // column; the Align takes the column's width, which centers what is
+    // narrower.
+    final bubble = Align(
+      alignment: Alignment.centerRight,
+      child: _WidthFactor(
+        maxWidthFactor: fitted ? _fittedWidth : 1,
+        child: message,
+      ),
+    );
     if (!widget.queued) return bubble;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -199,7 +266,11 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
     );
   }
 
-  Widget _buildBubble(BuildContext context) {
+  /// The most of the column a [UserMessageStyle.bubble] bubble takes.
+  static const _fittedWidth = 0.85;
+
+  Widget _buildBubble(BuildContext context, {required bool fitted}) {
+    final vocabulary = ComposerVocabulary.of(context);
     return Listener(
       onPointerDown: _handleDown,
       onPointerUp: _handleUp,
@@ -207,38 +278,36 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
       child: ImagePressScope(
         onPress: () => _pressOnImage = true,
         child: Container(
-          width: double.infinity,
+          // Constraints either way: a Container without them leaves out their
+          // box, building its child anew as the style changes.
+          constraints: fitted
+              ? const BoxConstraints()
+              : const BoxConstraints.tightFor(width: double.infinity),
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceRaised,
-            borderRadius: BorderRadius.circular(UserMessageBubble.radius),
-            border: Border.all(color: AppColors.borderStrong),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (widget.images.isNotEmpty)
-                ImageThumbnails(images: widget.images),
-              // As in its editor (the composer), so editing moves nothing.
-              if (widget.images.isNotEmpty && widget.text.isNotEmpty)
-                const SizedBox(height: 10),
-              if (widget.text.isNotEmpty || widget.images.isEmpty)
-                SelectionContainer(
-                  delegate: _selection,
-                  child: _Collapsed(
-                    collapsedHeight: _lineHeight * _collapsedLines,
-                    collapseAbove: _lineHeight * (_collapsedLines + 1),
-                    content: InlineCodeText(
-                      _messageSpan(
-                        widget.text,
-                        ComposerVocabulary.of(context),
-                        widget.images,
-                      ),
-                    ),
-                    overlay: const _CollapsedOverlay(),
+          // As its editor and viewer: the chat input's.
+          decoration: fitted
+              ? ShapeDecoration(
+                  color: AppColors.bubbleFill,
+                  shape: _MessageShape(
+                    side: BorderSide(color: AppColors.bubbleBorder()),
                   ),
+                )
+              : BoxDecoration(
+                  color: AppColors.bubbleFill,
+                  borderRadius: BorderRadius.circular(UserMessageBubble.radius),
+                  border: Border.all(color: AppColors.bubbleBorder()),
                 ),
-            ],
+          child: SelectionContainer(
+            delegate: _selection,
+            child: _Collapsed(
+              shrinkWrap: fitted,
+              collapsedHeight: _lineHeight * _collapsedLines,
+              collapseAbove: _lineHeight * (_collapsedLines + 1),
+              content: InlineCodeText(
+                _messageSpan(widget.text, vocabulary, widget.images),
+              ),
+              overlay: const _CollapsedOverlay(),
+            ),
           ),
         ),
       ),
@@ -295,8 +364,8 @@ class _UserMessageViewerState extends State<UserMessageViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = themeColors;
     final UserMessageViewer(:text, :images, :controller) = widget;
+    final vocabulary = ComposerVocabulary.of(context);
     return Focus(
       focusNode: _focus,
       onKeyEvent: (node, event) {
@@ -309,13 +378,10 @@ class _UserMessageViewerState extends State<UserMessageViewer> {
       },
       child: Container(
         decoration: BoxDecoration(
-          // The editor's, over the page (see ChatComposer).
-          color: Color.alphaBlend(
-            colors['chat.requestBubbleBackground'],
-            colors['editor.background'],
-          ),
+          // The editor's (see ChatComposer).
+          color: AppColors.bubbleFill,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: colors['agentsChatInput.border']),
+          border: Border.all(color: AppColors.bubbleBorder()),
         ),
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -337,21 +403,8 @@ class _UserMessageViewerState extends State<UserMessageViewer> {
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
                   // Its own selection: not the history's.
                   child: SelectionArea(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (images.isNotEmpty) ImageThumbnails(images: images),
-                        if (images.isNotEmpty && text.isNotEmpty)
-                          const SizedBox(height: 10),
-                        if (text.isNotEmpty)
-                          InlineCodeText(
-                            _messageSpan(
-                              text,
-                              ComposerVocabulary.of(context),
-                              images,
-                            ),
-                          ),
-                      ],
+                    child: InlineCodeText(
+                      _messageSpan(text, vocabulary, images),
                     ),
                   ),
                 ),
@@ -546,22 +599,26 @@ class _MessageSelectionDelegate extends SelectionContainerDelegate
 /// a long message never shows a frame at full height first.
 class _Collapsed extends MultiChildRenderObjectWidget {
   _Collapsed({
+    required this.shrinkWrap,
     required this.collapsedHeight,
     required this.collapseAbove,
     required Widget content,
     required Widget overlay,
   }) : super(children: [content, overlay]);
 
+  /// As wide as the text, rather than as the room it has.
+  final bool shrinkWrap;
   final double collapsedHeight;
   final double collapseAbove;
 
   @override
   _RenderCollapsed createRenderObject(BuildContext context) =>
-      _RenderCollapsed(collapsedHeight, collapseAbove);
+      _RenderCollapsed(shrinkWrap, collapsedHeight, collapseAbove);
 
   @override
   void updateRenderObject(BuildContext context, _RenderCollapsed renderObject) {
     renderObject
+      ..shrinkWrap = shrinkWrap
       ..collapsedHeight = collapsedHeight
       ..collapseAbove = collapseAbove;
   }
@@ -573,7 +630,18 @@ class _RenderCollapsed extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, _CollapsedParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, _CollapsedParentData> {
-  _RenderCollapsed(this._collapsedHeight, this._collapseAbove);
+  _RenderCollapsed(
+    this._shrinkWrap,
+    this._collapsedHeight,
+    this._collapseAbove,
+  );
+
+  bool _shrinkWrap;
+  set shrinkWrap(bool value) {
+    if (value == _shrinkWrap) return;
+    _shrinkWrap = value;
+    markNeedsLayout();
+  }
 
   double _collapsedHeight;
   set collapsedHeight(double value) {
@@ -642,7 +710,10 @@ class _RenderCollapsed extends RenderBox
       markNeedsCompositingBitsUpdate();
     }
     size = constraints.constrain(
-      Size(constraints.maxWidth, _collapsed ? _collapsedHeight : full),
+      Size(
+        _shrinkWrap ? _content.size.width : constraints.maxWidth,
+        _collapsed ? _collapsedHeight : full,
+      ),
     );
     final overlayHeight = _overlayHeight.clamp(0.0, size.height);
     _overlay.layout(
@@ -724,4 +795,334 @@ class _RenderCollapsed extends RenderBox
   @override
   double computeMaxIntrinsicHeight(double width) =>
       computeMinIntrinsicHeight(width);
+}
+
+/// Lets its child be at most [maxWidthFactor] of the width it is given.
+class _WidthFactor extends SingleChildRenderObjectWidget {
+  const _WidthFactor({required this.maxWidthFactor, super.child});
+
+  final double maxWidthFactor;
+
+  @override
+  _RenderWidthFactor createRenderObject(BuildContext context) =>
+      _RenderWidthFactor(maxWidthFactor);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderWidthFactor renderObject,
+  ) {
+    renderObject.maxWidthFactor = maxWidthFactor;
+  }
+}
+
+class _RenderWidthFactor extends RenderProxyBox {
+  _RenderWidthFactor(this._maxWidthFactor);
+
+  double _maxWidthFactor;
+  set maxWidthFactor(double value) {
+    if (value == _maxWidthFactor) return;
+    _maxWidthFactor = value;
+    markNeedsLayout();
+  }
+
+  BoxConstraints _childConstraints(BoxConstraints constraints) {
+    if (_maxWidthFactor == 1 || !constraints.hasBoundedWidth) {
+      return constraints;
+    }
+    final maxWidth = constraints.maxWidth * _maxWidthFactor;
+    return constraints.copyWith(
+      minWidth: math.min(constraints.minWidth, maxWidth),
+      maxWidth: maxWidth,
+    );
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    child.layout(_childConstraints(constraints), parentUsesSize: true);
+    size = constraints.constrain(child.size);
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final child = this.child;
+    if (child == null) return constraints.smallest;
+    return constraints.constrain(
+      child.getDryLayout(_childConstraints(constraints)),
+    );
+  }
+}
+
+/// A [UserMessageStyle.bubble] bubble's outline: its editor's corners
+/// (see ChatComposer), and a tail hooked out of its bottom right, toward
+/// its sender, as a chat's. The tail takes a strip at the right
+/// ([dimensions]), the body the rest.
+class _MessageShape extends OutlinedBorder {
+  const _MessageShape({super.side});
+
+  static const radius = 10.0;
+  static const tailWidth = 7.0;
+
+  @override
+  EdgeInsetsGeometry get dimensions => const EdgeInsets.only(right: tailWidth);
+
+  @override
+  _MessageShape copyWith({BorderSide? side}) =>
+      _MessageShape(side: side ?? this.side);
+
+  @override
+  ShapeBorder scale(double t) => _MessageShape(side: side.scale(t));
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) =>
+      _path(rect.deflate(side.strokeInset));
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) => _path(rect);
+
+  /// The outline in [rect], with [tail] of the tail (0: none, a rounded
+  /// rectangle's corner in its place) and corners of [radius].
+  static Path _path(Rect rect, {double tail = 1, double radius = radius}) {
+    final r = radius;
+    final Rect(:left, :top, :right, :bottom) = rect;
+    final body = right - tailWidth * tail;
+    // The bottom right corner, from the body's side, as three curves: the
+    // tail's (down the body's side and out to its tip, back under it, up
+    // into the body and round the rest of the corner)...
+    final p0 = Offset(body - 3.5, bottom - 2.5);
+    final q = Offset(body - 6, bottom);
+    final p1 = Offset(body - r, bottom);
+    final hooked = [
+      Offset(body, bottom - 6),
+      Offset(body + 2, bottom - 1),
+      Offset(body + tailWidth, bottom),
+      Offset(body + tailWidth - 4, bottom + 0.5),
+      Offset(body - 1, bottom - 0.5),
+      p0,
+      p0 + (q - p0) * (2 / 3),
+      p1 + (q - p1) * (2 / 3),
+      p1,
+    ];
+    // ...or a plain corner's: on down the side, and its arc in two halves.
+    final center = Offset(body - r, bottom - r);
+    final h = 0.26521 * r;
+    const s = math.sqrt1_2;
+    final middle = center + Offset(r * s, r * s);
+    final end = Offset(body - r, bottom);
+    final plain = [
+      Offset(body, bottom - 16 + (16 - r) / 3),
+      Offset(body, bottom - 16 + (16 - r) * 2 / 3),
+      Offset(body, bottom - r),
+      Offset(body, bottom - r + h),
+      middle + Offset(h * s, -h * s),
+      middle,
+      middle + Offset(-h * s, h * s),
+      end + Offset(h, 0),
+      end,
+    ];
+    final corner = [
+      for (var i = 0; i < hooked.length; i++)
+        Offset.lerp(plain[i], hooked[i], tail)!,
+    ];
+    final path = Path()
+      ..moveTo(left + r, top)
+      ..lineTo(body - r, top)
+      ..arcToPoint(Offset(body, top + r), radius: Radius.circular(r))
+      ..lineTo(body, bottom - 16);
+    for (var i = 0; i < corner.length; i += 3) {
+      path.cubicTo(
+        corner[i].dx,
+        corner[i].dy,
+        corner[i + 1].dx,
+        corner[i + 1].dy,
+        corner[i + 2].dx,
+        corner[i + 2].dy,
+      );
+    }
+    return path
+      ..lineTo(left + r, bottom)
+      ..arcToPoint(Offset(left, bottom - r), radius: Radius.circular(r))
+      ..lineTo(left, top + r)
+      ..arcToPoint(Offset(left + r, top), radius: Radius.circular(r))
+      ..close();
+  }
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
+    if (side.style == BorderStyle.none) return;
+    canvas.drawPath(_path(rect.deflate(side.width / 2)), side.toPaint());
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is _MessageShape && other.side == side;
+
+  @override
+  int get hashCode => side.hashCode;
+}
+
+/// A message opening for editing: its editor ([child]), in the outline of
+/// the bubble it opens from ([from], see [UserMessageBubble.frameIn]), which
+/// grows into the editor's own as [progress] goes from 0 to 1, the editor's
+/// contents coming in. One frame, from the bubble's to the editor's, its
+/// line turning to [border]; at 1, the editor's own.
+class UserMessageEditMorph extends SingleChildRenderObjectWidget {
+  const UserMessageEditMorph({
+    super.key,
+    required this.from,
+    required this.progress,
+    required this.border,
+    super.child,
+  });
+
+  final UserMessageFrame from;
+  final double progress;
+  final Color border;
+
+  /// The editor's corners (see ChatComposer).
+  static const radius = 10.0;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderEditMorph(
+    from: from,
+    progress: progress,
+    fill: AppColors.bubbleFill,
+    fromBorder: AppColors.bubbleBorder(),
+    border: border,
+  );
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) {
+    renderObject as _RenderEditMorph
+      ..from = from
+      ..progress = progress
+      ..fill = AppColors.bubbleFill
+      ..fromBorder = AppColors.bubbleBorder()
+      ..border = border;
+  }
+}
+
+class _RenderEditMorph extends RenderProxyBox {
+  _RenderEditMorph({
+    required this._from,
+    required this._progress,
+    required this._fill,
+    required this._fromBorder,
+    required this._border,
+  });
+
+  UserMessageFrame _from;
+  set from(UserMessageFrame value) {
+    if (value == _from) return;
+    _from = value;
+    _fromHere = null;
+    markNeedsPaint();
+  }
+
+  /// [_from]'s rect where this was first painted: it moves with this after,
+  /// as the list scrolls.
+  Rect? _fromHere;
+
+  double _progress;
+  set progress(double value) {
+    if (value == _progress) return;
+    _progress = value;
+    markNeedsPaint();
+  }
+
+  Color _fill;
+  set fill(Color value) {
+    if (value == _fill) return;
+    _fill = value;
+    markNeedsPaint();
+  }
+
+  Color _fromBorder;
+  set fromBorder(Color value) {
+    if (value == _fromBorder) return;
+    _fromBorder = value;
+    markNeedsPaint();
+  }
+
+  Color _border;
+  set border(Color value) {
+    if (value == _border) return;
+    _border = value;
+    markNeedsPaint();
+  }
+
+  final _clip = LayerHandle<ClipPathLayer>();
+  final _opacity = LayerHandle<OpacityLayer>();
+
+  @override
+  bool get alwaysNeedsCompositing => child != null && _progress < 1;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final t = _progress;
+    if (t >= 1 || child == null) {
+      _clip.layer = null;
+      _opacity.layer = null;
+      super.paint(context, offset);
+      return;
+    }
+    final from = _fromHere ??= _from.rect.shift(-localToGlobal(Offset.zero));
+    final rect = Rect.lerp(from, Offset.zero & size, t)!;
+    final radius =
+        _from.radius + (UserMessageEditMorph.radius - _from.radius) * t;
+    final tail = _from.tail * (1 - t);
+    Path outline(Rect rect) =>
+        _MessageShape._path(rect, tail: tail, radius: radius);
+
+    context.canvas.drawPath(
+      outline(rect).shift(offset),
+      Paint()..color = _fill,
+    );
+    // From a frame as wide as this, the editor's text is where the
+    // message's was: it shows from the start. From a narrower one (a bubble)
+    // it is not; it comes in over the first part of the way.
+    final moves =
+        from.left.abs() > 0.5 || (from.right - size.width).abs() > 0.5;
+    final alpha = moves
+        ? (Curves.easeOut.transform(math.min(1, t * 1.5)) * 255).round()
+        : 255;
+    _clip.layer = context.pushClipPath(
+      needsCompositing,
+      offset,
+      rect,
+      outline(rect),
+      (context, offset) {
+        if (alpha == 255) {
+          _opacity.layer = null;
+          super.paint(context, offset);
+          return;
+        }
+        _opacity.layer = context.pushOpacity(
+          offset,
+          alpha,
+          super.paint,
+          oldLayer: _opacity.layer,
+        );
+      },
+      oldLayer: _clip.layer,
+    );
+    context.canvas.drawPath(
+      outline(rect.deflate(0.5)).shift(offset),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..color = Color.lerp(_fromBorder, _border, t)!,
+    );
+  }
+
+  @override
+  void dispose() {
+    _clip.layer = null;
+    _opacity.layer = null;
+    super.dispose();
+  }
 }

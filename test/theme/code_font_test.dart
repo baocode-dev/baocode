@@ -1,6 +1,7 @@
+import 'package:baocode/ide/terminal/terminal_render_theme.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/code_font.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -9,6 +10,7 @@ void main() {
     CodeFont.size.value = CodeFont.defaultSize;
     CodeFont.ligatures.value = true;
     CodeFont.uiScale.value = CodeFont.defaultUiScale;
+    CodeFont.terminalSize.value = null;
   });
 
   test('a family list: comma-separated or an array, quotes and blanks '
@@ -91,6 +93,27 @@ void main() {
     expect(CodeFont.uiScaleSetting(125), 125);
   });
 
+  test('the terminal\'s size: unset follows the window\'s text, a number is '
+      'clamped to 8 to 32', () {
+    expect(CodeFont.parseTerminalSize(null), isNull);
+    expect(CodeFont.parseTerminalSize('big'), isNull);
+    expect(CodeFont.parseTerminalSize(4), CodeFont.minSize);
+    expect(CodeFont.parseTerminalSize(15), 15);
+    expect(CodeFont.terminalSizeSetting(null), isNull);
+    expect(CodeFont.terminalSizeSetting(15), 15);
+  });
+
+  test('the terminal draws at the window\'s text size unless its own is set, '
+      'which the window\'s scale does not move', () {
+    const window = TextScaler.linear(1.5);
+    const system = TextScaler.linear(1.25);
+    final follows = vscodeTerminalFontSize(window, system);
+    expect(follows, window.scale(CodeFont.uiSized(terminalBaseFontSize)));
+    CodeFont.terminalSize.value = 16;
+    expect(vscodeTerminalFontSize(window, system), 20);
+    expect(vscodeTerminalFontSize(), 16);
+  });
+
   test('follow sets the notifiers now, and again as settings.json changes', () {
     final settings = ValueNotifier<int>(0);
     final values = <String, Object?>{};
@@ -102,11 +125,13 @@ void main() {
     values[CodeFont.sizeSettingKey] = 18;
     values[CodeFont.ligaturesSettingKey] = false;
     values[CodeFont.uiScaleSettingKey] = 150;
+    values[CodeFont.terminalSizeSettingKey] = 15;
     settings.value++;
     expect(CodeFont.families.value, ['Iosevka']);
     expect(CodeFont.size.value, 18);
     expect(CodeFont.ligatures.value, isFalse);
     expect(CodeFont.uiScale.value, 150);
+    expect(CodeFont.terminalSize.value, 15);
     settings.dispose();
   });
 }

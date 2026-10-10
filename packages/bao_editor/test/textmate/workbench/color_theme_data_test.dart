@@ -70,7 +70,10 @@ void main() {
   );
 
   group('bundled themes match VS Code', () {
-    for (final contribution in manifest.themes) {
+    // VS Code's themes; BaoCode's own have no upstream to match.
+    for (final contribution in manifest.themes.where(
+      (t) => t.extension != 'theme-bao',
+    )) {
       test(contribution.id, () async {
         final fixture = jsonDecode(
           File('test/fixtures/textmate/themes/${contribution.id}.json')
@@ -119,6 +122,35 @@ void main() {
       // Rules accumulate in include order: 50 + 15 + 0 + 53.
       expect(theme.themeTokenColors.length, 118);
       expect(theme.semanticTokenColors.length, 4 + 4);
+    });
+
+    test('Bao Dark sets its colors over Dark 2026', () async {
+      final theme = await bundled('Bao Dark');
+      expect(theme.type, ColorScheme.dark);
+      expect(theme.semanticHighlighting, isTrue);
+      expect(theme.colors['editor.background'], '#292925');
+      expect(theme.colors['sideBar.background'], '#22211E');
+      expect(theme.colors['focusBorder'], '#E5BA7DB3');
+      // What it leaves unset, from Dark 2026's include chain.
+      expect(theme.colors['button.secondaryBackground'], '#00000000');
+      expect(theme.colors['agentsCard.border'], '#00000000');
+      // Dark 2026's 118 rules, then its own 53 over them.
+      expect(theme.themeTokenColors.length, 118 + 53);
+      expect(theme.semanticTokenColors.length, 4 + 4 + 4);
+    });
+
+    test('Bao Light sets its colors over Light 2026', () async {
+      final theme = await bundled('Bao Light');
+      expect(theme.type, ColorScheme.light);
+      expect(theme.semanticHighlighting, isTrue);
+      expect(theme.colors['editor.background'], '#FDFCF8');
+      expect(theme.colors['sideBar.background'], '#F5F4EE');
+      expect(theme.colors['button.background'], '#E2B373');
+      // What it leaves unset, from Light 2026's include chain.
+      expect(theme.colors['browser.border'], '#00000000');
+      // Light 2026's 113 rules, then its own 49 over them.
+      expect(theme.themeTokenColors.length, 113 + 49);
+      expect(theme.semanticTokenColors.length, 4 + 4 + 4);
     });
 
     test('Dark+ default rule and colors', () async {

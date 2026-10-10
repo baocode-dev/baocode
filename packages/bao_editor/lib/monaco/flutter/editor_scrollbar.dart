@@ -184,7 +184,9 @@ class EditorScrollbarPainter extends CustomPainter {
         rect,
         Paint()
           ..shader = ui.Gradient.linear(rect.topLeft, rect.bottomLeft, [
-            theme.scrollbarShadow.withValues(alpha: 0.6),
+            theme.scrollbarShadow.withValues(
+              alpha: theme.scrollbarShadow.a * 0.6,
+            ),
             theme.scrollbarShadow.withValues(alpha: 0),
           ]),
       );
@@ -200,7 +202,9 @@ class EditorScrollbarPainter extends CustomPainter {
         rect,
         Paint()
           ..shader = ui.Gradient.linear(rect.topLeft, rect.topRight, [
-            theme.scrollbarShadow.withValues(alpha: 0.6),
+            theme.scrollbarShadow.withValues(
+              alpha: theme.scrollbarShadow.a * 0.6,
+            ),
             theme.scrollbarShadow.withValues(alpha: 0),
           ]),
       );

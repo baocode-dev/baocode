@@ -287,6 +287,19 @@ void main() {
     );
     expect(setApart(first), isTrue);
     expect(setApart(second), isFalse);
+    // The focused one outlined in the drop preview's line.
+    final frame = find.byWidgetPredicate(
+      (widget) =>
+          widget is DecoratedBox &&
+          widget.decoration is BoxDecoration &&
+          (widget.decoration as BoxDecoration).border ==
+              Border.all(color: ChatGridView.frameColor),
+    );
+    // One frame, inside the pane and off its edges.
+    bool framed(String title) =>
+        tester.getRect(frame) == tester.getRect(pane(title)).deflate(4);
+    expect(framed(second), isTrue);
+    expect(framed(first), isFalse);
 
     // Clicked in the sidebar, one shown already is focused where it is.
     final left = tester.getRect(pane(first));
@@ -299,6 +312,8 @@ void main() {
     expect(tester.widget<ChatScreen>(pane(second)).focused, isFalse);
     expect(setApart(first), isFalse);
     expect(setApart(second), isTrue);
+    expect(framed(first), isTrue);
+    expect(framed(second), isFalse);
 
     await tester.tapAt(tester.getRect(pane(second)).center);
     await tester.pump();

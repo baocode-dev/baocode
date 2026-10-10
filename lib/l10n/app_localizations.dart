@@ -3356,6 +3356,30 @@ abstract class AppLocalizations {
   /// **'Archive All'**
   String get sidebarArchiveAll;
 
+  /// No description provided for @sidebarUnarchiveAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Unarchive All'**
+  String get sidebarUnarchiveAll;
+
+  /// No description provided for @sidebarDeleteArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete All Archived…'**
+  String get sidebarDeleteArchived;
+
+  /// No description provided for @sidebarDeleteArchivedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete archived agents?'**
+  String get sidebarDeleteArchivedTitle;
+
+  /// No description provided for @sidebarDeleteArchivedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{The archived agent and its conversation will be deleted} other{The {count} archived agents and their conversations will be deleted}}, from their kernels too. This cannot be undone.'**
+  String sidebarDeleteArchivedMessage(int count);
+
   /// No description provided for @sidebarRemoveFromList.
   ///
   /// In en, this message translates to:
@@ -4171,18 +4195,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Subagent'**
   String get chatSubagent;
-
-  /// Shown in an empty conversation.
-  ///
-  /// In en, this message translates to:
-  /// **'Plan, build, anything'**
-  String get chatEmptyTitle;
-
-  /// No description provided for @chatEmptyHint.
-  ///
-  /// In en, this message translates to:
-  /// **'@ to add context · / for commands'**
-  String get chatEmptyHint;
 
   /// No description provided for @activityCompacting.
   ///
@@ -9843,6 +9855,18 @@ abstract class AppLocalizations {
   /// **'Failed'**
   String get modelsTestModelFailed;
 
+  /// No description provided for @modelsTestFirstText.
+  ///
+  /// In en, this message translates to:
+  /// **'First token {seconds}s'**
+  String modelsTestFirstText(String seconds);
+
+  /// No description provided for @modelsTestTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total {seconds}s'**
+  String modelsTestTotal(String seconds);
+
   /// No description provided for @modelsEnableModel.
   ///
   /// In en, this message translates to:
@@ -10569,6 +10593,36 @@ abstract class AppLocalizations {
   /// **'Conversation width: {width}'**
   String appearanceSettingsChatWidthLabel(String width);
 
+  /// No description provided for @appearanceSettingsUserMessageStyle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Messages'**
+  String get appearanceSettingsUserMessageStyle;
+
+  /// No description provided for @appearanceSettingsUserMessageStyleDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'How the messages you send show in the conversation: as wide as it, the one you are reading under staying at the top as you scroll; or as chat bubbles at the right that scroll away.'**
+  String get appearanceSettingsUserMessageStyleDescription;
+
+  /// No description provided for @appearanceSettingsUserMessageStyleSticky.
+  ///
+  /// In en, this message translates to:
+  /// **'Full width, sticks to the top'**
+  String get appearanceSettingsUserMessageStyleSticky;
+
+  /// No description provided for @appearanceSettingsUserMessageStyleBubble.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat bubbles'**
+  String get appearanceSettingsUserMessageStyleBubble;
+
+  /// No description provided for @appearanceSettingsUserMessageStyleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Your messages: {style}'**
+  String appearanceSettingsUserMessageStyleLabel(String style);
+
   /// No description provided for @appearanceSettingsCodeFont.
   ///
   /// In en, this message translates to:
@@ -10608,7 +10662,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsCodeSizeDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of code in the IDE editor and the side panel\'s file and changes views. The terminal and chat follow the interface text size.'**
+  /// **'The size of code in the IDE editor and the side panel\'s file and changes views. Code in the chat follows the interface text size; the terminal has its own size.'**
   String get appearanceSettingsCodeSizeDescription;
 
   /// No description provided for @appearanceSettingsCodeSizeLabel.
@@ -10638,7 +10692,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsUiScaleDescription.
   ///
   /// In en, this message translates to:
-  /// **'The size of interface text, code in the chat, and terminal text. Code in the IDE editor and side panel files and changes keeps its own size.'**
+  /// **'The size of interface text, code in the chat, and terminal text while the terminal size follows it. Code in the IDE editor and side panel files and changes keeps its own size.'**
   String get appearanceSettingsUiScaleDescription;
 
   /// No description provided for @appearanceSettingsUiScaleLabel.
@@ -10646,6 +10700,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Interface text size: {percent}%'**
   String appearanceSettingsUiScaleLabel(String percent);
+
+  /// No description provided for @appearanceSettingsTerminalSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal Font Size'**
+  String get appearanceSettingsTerminalSize;
+
+  /// No description provided for @appearanceSettingsTerminalSizeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The size of terminal text. By default it follows the interface text size; it can be set on its own.'**
+  String get appearanceSettingsTerminalSizeDescription;
+
+  /// No description provided for @appearanceSettingsTerminalSizeFollow.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow Interface Text Size'**
+  String get appearanceSettingsTerminalSizeFollow;
+
+  /// No description provided for @appearanceSettingsTerminalSizeCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get appearanceSettingsTerminalSizeCustom;
+
+  /// No description provided for @appearanceSettingsTerminalSizeValue.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Size'**
+  String get appearanceSettingsTerminalSizeValue;
+
+  /// No description provided for @appearanceSettingsTerminalSizeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal font size: {size}'**
+  String appearanceSettingsTerminalSizeLabel(String size);
 
   /// No description provided for @generalSettingsContextMenuFinder.
   ///
@@ -11828,12 +11918,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'universal'**
   String get extsPlatformUniversal;
-
-  /// No description provided for @extsPageClose.
-  ///
-  /// In en, this message translates to:
-  /// **'Close Extension'**
-  String get extsPageClose;
 
   /// No description provided for @extsPageTitle.
   ///

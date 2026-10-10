@@ -348,7 +348,14 @@ class IdeMarkdownPreviewState extends State<IdeMarkdownPreview> {
   /// Opens the anchor [fragment] of the document (a link from another).
   void revealAnchor(String fragment) => _open(MarkdownAnchorLink(fragment));
 
-  Widget _image(String src, String alt, String? title) => _MarkdownImage(
+  // HTML shows as its source here: no image has a size of its own.
+  Widget _image(
+    String src,
+    String alt,
+    String? title, {
+    double? width,
+    double? height,
+  }) => _MarkdownImage(
     target: resolveMarkdownImage(src, widget.path, _context),
     alt: alt,
     title: title,

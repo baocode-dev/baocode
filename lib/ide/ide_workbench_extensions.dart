@@ -28,12 +28,15 @@ extension _ExtensionsPart on IdeWorkbenchState {
         ? _ExtensionsTab.languageServers
         : _extensionsTab;
     final l10n = context.l10n;
+    // Under the tabs, on the editor's color as the tab in front is.
+    final background = themes == null ? null : themeColors['editor.background'];
     final body = switch (tab) {
       _ExtensionsTab.themes => ExtensionsView(
         model: themes!.model,
-        onOpen: (entry) => _refresh(() => _extensionPage = entry.id),
+        onOpen: _openExtensionPage,
         onInstallFromVsix: () => unawaited(_installFromVsix()),
         onError: _reportMessage,
+        background: background,
       ),
       _ExtensionsTab.languageServers => IdeExtensionsView(
         session: _extensions ??= IdeExtensionsSession(
@@ -42,28 +45,24 @@ extension _ExtensionsPart on IdeWorkbenchState {
         recommended: _recommendedServers(),
         onInstalled: _startServer,
         onError: _report,
+        background: background,
       ),
     };
     if (themes == null) return body;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: 30,
-          child: Row(
-            children: [
-              const SizedBox(width: 12),
-              for (final (value, label) in [
-                (_ExtensionsTab.themes, l10n.extsTabThemes),
-                (_ExtensionsTab.languageServers, l10n.extsTabLanguageServers),
-              ])
-                _ExtensionsTabButton(
-                  label: label,
-                  selected: tab == value,
-                  onTap: () => _refresh(() => _extensionsTab = value),
-                ),
-            ],
-          ),
+        _ExtensionsTabs(
+          tabs: [
+            (_ExtensionsTab.themes, Codicons.symbolColor, l10n.extsTabThemes),
+            (
+              _ExtensionsTab.languageServers,
+              Codicons.extensions,
+              l10n.extsTabLanguageServers,
+            ),
+          ],
+          selected: tab,
+          onSelect: (value) => _refresh(() => _extensionsTab = value),
         ),
         Expanded(child: body),
       ],
@@ -103,61 +102,53 @@ extension _ExtensionsPart on IdeWorkbenchState {
     return true;
   }
 
-  /// A theme extension's page over the editors, with a bar to close it.
-  Widget _extensionPageView(String id) {
-    final model = widget.themeExtensions!.model;
+  /// Opens [entry]'s page as an editor, in place of the one open.
+  void _openExtensionPage(ExtensionEntry entry) => _refresh(() {
+    _extensionPage = entry;
+    _extensionPageShown = true;
+  });
+
+  void _closeExtensionPage() => _refresh(() {
+    _extensionPage = null;
+    _extensionPageShown = false;
+  });
+
+  /// The extension page's tab, after the files'.
+  Widget _extensionPageTab(ExtensionEntry entry) {
     final l10n = context.l10n;
-    final key = id.toLowerCase();
-    final installed = model.installed
+    final key = entry.key;
+    final installed = widget.themeExtensions!.model.installed
         ?.where((extension) => extension.key == key)
         .firstOrNull;
-    return ColoredBox(
-      color: themeColors['editor.background'],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            height: 35,
-            child: Row(
-              children: [
-                const SizedBox(width: 12),
-                Icon(
-                  Codicons.extensions,
-                  size: 16,
-                  color: themeColors['tab.activeForeground'],
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    l10n.extsPageTitle(installed?.manifest.label ?? id),
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: themeColors['tab.activeForeground'],
-                    ),
-                  ),
-                ),
-                IdeActionButton(
-                  icon: Codicons.close,
-                  tooltip: l10n.extsPageClose,
-                  onPressed: () => _refresh(() => _extensionPage = null),
-                ),
-                const SizedBox(width: 4),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ExtensionDetailPage(
-              key: ValueKey(id),
-              model: model,
-              id: id,
-              onError: _reportMessage,
-            ),
-          ),
-        ],
-      ),
+    final title = l10n.extsPageTitle(installed?.manifest.label ?? entry.label);
+    final shown = _extensionPageShown;
+    return IdeEditorTab(
+      key: ValueKey(key),
+      icon: const Icon(Codicons.extensions),
+      label: title,
+      active: shown,
+      closeTooltip: shown
+          ? KeybindingService.instance.titleWithKeybinding(
+              l10n.tabCloseNamed(title),
+              'workbench.action.closeActiveEditor',
+            )
+          : l10n.tabCloseNamed(title),
+      onSelect: () => _refresh(() => _extensionPageShown = true),
+      onClose: _closeExtensionPage,
     );
   }
+
+  /// A theme extension's page, in the editors' place while its tab is
+  /// the one in front.
+  Widget _extensionPageView(ExtensionEntry entry) => ColoredBox(
+    color: themeColors['editor.background'],
+    child: ExtensionDetailPage(
+      key: ValueKey(entry.key),
+      model: widget.themeExtensions!.model,
+      id: entry.id,
+      onError: _reportMessage,
+    ),
+  );
 
   /// The Command Palette's extension commands.
   List<IdeCommand> _extensionCommands() => [
@@ -238,51 +229,50 @@ extension _ExtensionsPart on IdeWorkbenchState {
   }
 }
 
-/// A tab of the Extensions view's header.
-class _ExtensionsTabButton extends StatelessWidget {
-  const _ExtensionsTabButton({
-    required this.label,
+/// The Extensions view's header: its [tabs] as the editor's, scrolling
+/// when the view is too narrow for them.
+class _ExtensionsTabs extends StatefulWidget {
+  const _ExtensionsTabs({
+    required this.tabs,
     required this.selected,
-    required this.onTap,
+    required this.onSelect,
   });
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final List<(_ExtensionsTab, IconData, String)> tabs;
+  final _ExtensionsTab selected;
+  final ValueChanged<_ExtensionsTab> onSelect;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = themeColors;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: selected
-                    ? colors['panelTitle.activeBorder']
-                    : Colors.transparent,
-              ),
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              letterSpacing: 0.3,
-              color:
-                  colors[selected
-                      ? 'panelTitle.activeForeground'
-                      : 'panelTitle.inactiveForeground'],
-            ),
-          ),
-        ),
-      ),
-    );
+  State<_ExtensionsTabs> createState() => _ExtensionsTabsState();
+}
+
+class _ExtensionsTabsState extends State<_ExtensionsTabs> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
+
+  @override
+  Widget build(BuildContext context) => IdeTabStrip(
+    child: TabStripScroll(
+      controller: _scroll,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (value, icon, label) in widget.tabs)
+            IdeEditorTab(
+              key: ValueKey(value),
+              icon: Icon(icon),
+              label: label,
+              active: widget.selected == value,
+              minWidth: 0,
+              onSelect: () => widget.onSelect(value),
+            ),
+        ],
+      ),
+    ),
+  );
 }

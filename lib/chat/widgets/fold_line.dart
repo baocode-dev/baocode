@@ -110,7 +110,7 @@ class StepsFoldLine extends StatelessWidget {
 }
 
 /// A finished turn's work, folded before its answer: "Worked for 4m 32s",
-/// with the files it edited, and a rule on to the edge. Opens to the work.
+/// with the files it edited. Opens to the work.
 class WorkFoldLine extends StatelessWidget {
   const WorkFoldLine({
     super.key,
@@ -183,21 +183,8 @@ class WorkFoldLine extends StatelessWidget {
     return _FoldSemantics(
       expanded: expanded,
       onToggle: onToggle,
-      child: LayoutBuilder(
-        builder: (context, constraints) => Row(
-          children: [
-            // As wide as it reads, leaving the rule some room.
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: (constraints.maxWidth - 40).clamp(0, double.infinity),
-              ),
-              child: header,
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Container(height: 1, color: AppColors.partBorder)),
-          ],
-        ),
-      ),
+      // As wide as it reads.
+      child: Align(alignment: Alignment.centerLeft, child: header),
     );
   }
 }

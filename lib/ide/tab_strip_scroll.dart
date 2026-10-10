@@ -5,7 +5,7 @@ import '../chat/widgets/hover_builder.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 /// A draggable horizontal scrollbar, with vertical wheels scrolling tabs too.
-class TabStripScroll extends StatelessWidget {
+class TabStripScroll extends StatefulWidget {
   const TabStripScroll({
     super.key,
     required this.controller,
@@ -17,7 +17,13 @@ class TabStripScroll extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
 
+  @override
+  State<TabStripScroll> createState() => _TabStripScrollState();
+}
+
+class _TabStripScrollState extends State<TabStripScroll> {
   void _wheel(PointerSignalEvent event) {
+    final controller = widget.controller;
     if (event is! PointerScrollEvent || !controller.hasClients) return;
     final delta = event.scrollDelta.dx != 0
         ? event.scrollDelta.dx
@@ -39,7 +45,7 @@ class TabStripScroll extends StatelessWidget {
     builder: (context, hovered) => ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: RawScrollbar(
-        controller: controller,
+        controller: widget.controller,
         thumbVisibility: hovered,
         interactive: true,
         thickness: 3,
@@ -49,10 +55,10 @@ class TabStripScroll extends StatelessWidget {
         child: Listener(
           onPointerSignal: _wheel,
           child: SingleChildScrollView(
-            controller: controller,
+            controller: widget.controller,
             scrollDirection: Axis.horizontal,
-            padding: padding,
-            child: child,
+            padding: widget.padding,
+            child: widget.child,
           ),
         ),
       ),

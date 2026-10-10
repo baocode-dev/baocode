@@ -11,7 +11,6 @@ import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/composer/composer_embeds.dart';
-import 'package:baocode/chat/widgets/image_thumbnails.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/theme/app_theme.dart';
@@ -53,18 +52,16 @@ String _content(WidgetTester tester) => [
     },
 ].join().trimRight();
 
-List<int?> _shown(WidgetTester tester) => [
-  for (final image
-      in tester
-          .widget<ImageThumbnails>(
-            find.descendant(
-              of: find.byType(ChatComposer).last,
-              matching: find.byType(ImageThumbnails),
-            ),
-          )
-          .images)
-    image.number,
-];
+/// The images the composer's references show (and would send), in order.
+List<int?> _shown(WidgetTester tester) => {
+  for (final chip in tester.widgetList<ComposerImageChip>(
+    find.descendant(
+      of: find.byType(ChatComposer).last,
+      matching: find.byType(ComposerImageChip),
+    ),
+  ))
+    if (chip.image case final image?) image.number,
+}.toList();
 
 Future<Uint8List> _png() async {
   final recorder = ui.PictureRecorder();
@@ -172,41 +169,6 @@ void main() {
     expect(_shown(tester), [1, 2]);
   }, variant: _macOS);
 
-  testWidgets('taking an image out leaves words where it was referred to', (
-    tester,
-  ) async {
-    await _pump(tester);
-    await _pasteImages(tester, 2);
-    _type(tester, '比较一下');
-    await tester.pump();
-
-    await _apart(tester);
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    addTearDown(mouse.removePointer);
-    final first = find.descendant(
-      of: find.byType(ImageThumbnails),
-      matching: find.byType(Image),
-    );
-    await mouse.moveTo(tester.getCenter(first.first));
-    await tester.pump();
-    await tester.tap(
-      find.descendant(
-        of: find.byType(ImageThumbnails),
-        matching: find.byIcon(Icons.close_rounded),
-      ),
-    );
-    await tester.pump();
-    expect(_content(tester), '[Image 1] <2> 比较一下');
-    expect(_shown(tester), [2]);
-
-    // One edit: undone, the reference and its image are back.
-    _controller(tester).undo();
-    await tester.pump();
-    expect(_content(tester), '<1> <2> 比较一下');
-    expect(_shown(tester), [1, 2]);
-  }, variant: _macOS);
-
   testWidgets('sends its text with the references, and the images they '
       'refer to, numbered on from the conversation', (tester) async {
     final session = await _pump(tester);
@@ -279,9 +241,13 @@ void main() {
     await _pump(tester);
     await _pasteImages(tester, 1);
     final bytes = tester
-        .widget<ImageThumbnails>(find.byType(ImageThumbnails).last)
-        .images
-        .single
+        .widget<ComposerImageChip>(
+          find.descendant(
+            of: find.byType(ChatComposer).last,
+            matching: find.byType(ComposerImageChip),
+          ),
+        )
+        .image!
         .bytes;
     final calls = _windowCalls(tester, chosen: 'copyImage');
 
@@ -357,23 +323,7 @@ void main() {
     expect(_preview, findsOneWidget);
     expect(editor, findsNothing);
 
-    // So does one on its thumbnail; one elsewhere opens the editor.
-    await tester.tapAt(const Offset(10, 10));
-    await tester.pumpAndSettle();
-    await _openPreview(
-      tester,
-      tester.tap(
-        find.descendant(
-          of: find.descendant(
-            of: bubble,
-            matching: find.byType(ImageThumbnails),
-          ),
-          matching: find.byType(Image),
-        ),
-      ),
-    );
-    expect(_preview, findsOneWidget);
-    expect(editor, findsNothing);
+    // One elsewhere opens the editor.
 
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();

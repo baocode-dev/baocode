@@ -443,4 +443,55 @@ void main() {
     await tester.pump();
     expect(copied, answer);
   });
+
+  testWidgets('a selection holds while items come in above text that '
+      'changes, in a scroll view or not', (tester) async {
+    const answer = 'The parser drops the last token.';
+    const head = <ChatItem>[
+      UserMessageItem(text: 'Why does it fail?'),
+      AssistantTextItem(answer),
+    ];
+    String table(int n) => '| a | b |\n|---|---|\n| cell $n | x |';
+    final feed = _Feed([...head, AssistantTextItem(table(0))]);
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.byWidgetPredicate(
+        (widget) => widget is RichText && widget.text.toPlainText() == answer,
+      ),
+    );
+    final mouse = await tester.startGesture(
+      paragraph.localToGlobal(Offset(0.5, paragraph.size.height / 2)),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await mouse.moveTo(
+      paragraph.localToGlobal(
+        Offset(paragraph.size.width - 0.5, paragraph.size.height / 2),
+      ),
+    );
+    await tester.pump();
+    await mouse.up();
+    await tester.pump();
+
+    // Each new step takes the place of what was there, which gets new text
+    // in the same frame; the table's cell too, a step further down.
+    for (var i = 1; i < 4; i++) {
+      feed.update([
+        ...head,
+        for (var j = 0; j < i; j++)
+          ToolCallItem(kind: ToolKind.read, target: 'file$j.dart'),
+        AssistantTextItem(table(i)),
+      ]);
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(tester.takeException(), isNull);
+    }
+  });
 }

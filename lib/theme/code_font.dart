@@ -7,7 +7,8 @@ import '../platform/app_platform.dart';
 
 /// The font code is drawn in, its size, its ligatures, and how large the
 /// window's text is: settings.json's `editor.fontFamily`, `editor.fontSize`,
-/// `editor.fontLigatures` and `window.uiScale`, as Settings → Appearance
+/// `editor.fontLigatures` and `window.uiScale`, and the terminal's size
+/// (`terminal.integrated.fontSize`), as Settings → Appearance
 /// picks them and VS Code keeps them. Unset: the defaults. A value is kept
 /// only when it differs from its default (see the `…Setting` functions).
 abstract final class CodeFont {
@@ -15,6 +16,7 @@ abstract final class CodeFont {
   static const sizeSettingKey = 'editor.fontSize';
   static const ligaturesSettingKey = 'editor.fontLigatures';
   static const uiScaleSettingKey = 'window.uiScale';
+  static const terminalSizeSettingKey = 'terminal.integrated.fontSize';
 
   /// The stack code is drawn in unless the setting names one. The first
   /// family installed is used, and the rest are what it falls back on (see
@@ -80,6 +82,10 @@ abstract final class CodeFont {
   /// The window's text scale, a percentage of the system's.
   static final ValueNotifier<int> uiScale = ValueNotifier(defaultUiScale);
 
+  /// The size the terminal draws its text at; null (the default) for the
+  /// window's text size, as [uiScale] moves it.
+  static final ValueNotifier<double?> terminalSize = ValueNotifier(null);
+
   /// [value] as settings.json has it: a family list, comma-separated or as
   /// an array; quotes and blanks are dropped, and none left is the default.
   static List<String> parseFamilies(Object? value) {
@@ -134,6 +140,20 @@ abstract final class CodeFont {
   static int? uiScaleSetting(int percent) =>
       percent == defaultUiScale ? null : percent;
 
+  /// [value] as settings.json has it, clamped to [minSize]..[maxSize]; null
+  /// (the window's text size) unless it is a number.
+  static double? parseTerminalSize(Object? value) => switch (value) {
+    final num size when size.isFinite => size.toDouble().clamp(
+      minSize,
+      maxSize,
+    ),
+    _ => null,
+  };
+
+  /// [size] as settings.json keeps it; null (not written) for the window's
+  /// text size.
+  static int? terminalSizeSetting(double? size) => size?.round();
+
   /// [base], a size code is drawn at on macOS, moved by the user's choice:
   /// at the default it is [base] there, and one point more on Windows.
   static double sized(double base) => base + size.value - _macSize;
@@ -157,6 +177,7 @@ abstract final class CodeFont {
       size.value = parseSize(read(sizeSettingKey));
       ligatures.value = parseLigatures(read(ligaturesSettingKey));
       uiScale.value = parseUiScale(read(uiScaleSettingKey));
+      terminalSize.value = parseTerminalSize(read(terminalSizeSettingKey));
     }
 
     update();

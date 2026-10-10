@@ -615,7 +615,7 @@ void main() {
 
     await _openPicker(tester);
     expect(_active(tester), 'Dark 2026');
-    for (var i = 0; i < 4; i++) {
+    for (var i = 0; i < 5; i++) {
       await _key(tester, LogicalKeyboardKey.arrowUp);
     }
     expect(_active(tester), 'Solarized Light');

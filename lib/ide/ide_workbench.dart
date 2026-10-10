@@ -17,6 +17,7 @@ import '../debug/ui/debug_view.dart';
 import '../debug/ui/run_and_debug_view.dart';
 import '../extensions/theme_extensions.dart';
 import '../extensions/ui/extension_detail.dart';
+import '../extensions/ui/extensions_model.dart';
 import '../extensions/ui/extensions_view.dart';
 import '../extensions/ui/vsix_drop.dart';
 import '../platform/data_dir.dart';
@@ -98,6 +99,7 @@ import 'project_tools.dart';
 import 'save_copy.dart';
 import 'search/ide_search_view.dart';
 import 'search/text_search.dart';
+import 'tab_strip_scroll.dart';
 import 'terminal/links/terminal_links.dart';
 import 'terminal/terminal_instance.dart';
 import 'terminal/terminal_panel.dart';
@@ -305,6 +307,10 @@ class IdeWorkbench extends StatefulWidget {
 /// explorer, as in VS Code.
 enum IdeSideView { explorer, search, sourceControl, debug, extensions }
 
+/// Whether Run and Debug is offered: its activity bar item and its
+/// commands. Off until the debugger is ready to ship.
+const _debugEntryShown = false;
+
 /// A navigation history entry (Go Back / Go Forward).
 typedef _NavigationEntry = ({String path, LspPosition position});
 
@@ -449,8 +455,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// What the Extensions view shows: the themes or the language servers.
   _ExtensionsTab _extensionsTab = _ExtensionsTab.themes;
 
-  /// The theme extension whose page shows over the editors (its id).
-  String? _extensionPage;
+  /// The theme extension whose page has a tab among the editors', as
+  /// VS Code's extension editor.
+  ExtensionEntry? _extensionPage;
+
+  /// Whether its tab is the one in front: another selected, it stays.
+  bool _extensionPageShown = false;
+
+  /// Editors close: the one in front changing for it does not put the
+  /// extension page behind.
+  bool _closingEditors = false;
 
   /// The workspace's debugger, when [IdeWorkbench.debugService] is not
   /// given: made as the workbench attaches to it.
@@ -1342,7 +1356,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // maximizing, and has the side bar give way to it rather than it to
     // the side bar.
     _layout.showEditor();
-    _extensionPage = null;
+    if (!_closingEditors) _extensionPageShown = false;
     _recommendServers();
     _recentFiles.add(path);
     unawaited(_explorer.reveal(path));
@@ -1407,6 +1421,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       await _flushEditor();
       await widget.workspace.open(path);
       if (!mounted) return;
+      // The one in front opened again puts the extension page behind too.
+      _extensionPageShown = false;
       // The active one opened again changes nothing [_workspaceChanged]
       // follows, but is asked for all the same.
       _layout.showEditor();
@@ -1507,6 +1523,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     setState(() => _busy = true);
     try {
       await _flushEditor();
+      _extensionPageShown = false;
       widget.workspace.select(doc.key);
     } catch (error) {
       _report(error);
@@ -1535,6 +1552,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   Future<void> _closeDocs(List<IdeDocument> docs) async {
     if (_busy || docs.isEmpty) return;
     setState(() => _busy = true);
+    _closingEditors = true;
     try {
       await _flushEditor();
       for (final doc in docs) {
@@ -1562,6 +1580,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     } catch (error) {
       _report(error);
     } finally {
+      _closingEditors = false;
       if (mounted) {
         setState(() => _busy = false);
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1574,6 +1593,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   Future<void> _close(IdeDocument doc) => _closeDocs([doc]);
 
   void _closeActive() {
+    if (_extensionPageShown && _extensionPage != null) {
+      _closeExtensionPage();
+      return;
+    }
     if (widget.workspace.active case final doc?) unawaited(_close(doc));
   }
 
@@ -3110,7 +3133,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   List<IdeCommand> _debugCommands() {
     final service = _debug;
-    if (service == null) return const [];
+    if (!_debugEntryShown || service == null) return const [];
     final session = service.viewModel.focusedSession;
     final thread = debugActionThread(service);
     return [
@@ -3293,14 +3316,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             (_gitCount > 0 ? ' - ${l10n.wbPendingChanges(_gitCount)}' : ''),
         badge: _gitCount,
       ),
-      item(
-        IdeSideView.debug,
-        Codicons.debugAlt,
-        keys.titleWithKeybinding(
-          DebugStrings.of(context).runAndDebug,
-          'workbench.view.debug',
+      if (_debugEntryShown)
+        item(
+          IdeSideView.debug,
+          Codicons.debugAlt,
+          keys.titleWithKeybinding(
+            DebugStrings.of(context).runAndDebug,
+            'workbench.view.debug',
+          ),
         ),
-      ),
       item(
         IdeSideView.extensions,
         Codicons.extensions,
@@ -3587,6 +3611,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   Widget _editorArea(List<IdeCommand> commands) {
     final active = widget.workspace.active;
+    final page = widget.themeExtensions == null ? null : _extensionPage;
+    final pageShown = page != null && _extensionPageShown;
     final debug = _debug;
     final dockedToolbar =
         debug != null && debug.settings().toolBarLocation == 'docked';
@@ -3596,22 +3622,24 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (dockedToolbar) DebugToolbar(service: debug),
-          if (widget.workspace.documents.isNotEmpty) ...[
+          if (widget.workspace.documents.isNotEmpty || page != null) ...[
             IdeTabBar(
               documents: widget.workspace.documents,
-              active: active,
+              active: pageShown ? null : active,
               root: widget.workspace.root,
               onSelect: (doc) => unawaited(_select(doc)),
               onClose: (doc) => unawaited(_close(doc)),
               onAction: _tabAction,
               local: _local,
-              markdownPreview: active != null && _hasPreview(active)
+              markdownPreview:
+                  !pageShown && active != null && _hasPreview(active)
                   ? _previewing(active)
                   : null,
               onMarkdownPreview: (preview) =>
                   unawaited(_setMarkdownPreview(preview)),
+              page: page == null ? null : _extensionPageTab(page),
             ),
-            if (active != null && !active.isUntitled)
+            if (!pageShown && active != null && !active.isUntitled)
               IdeBreadcrumbs(
                 root: widget.workspace.root,
                 path: active.path,
@@ -3626,7 +3654,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               children: [
                 // The editors stay built under an extension's page.
                 Offstage(
-                  offstage: _extensionPage != null,
+                  offstage: pageShown,
                   child: _markdownDrops(
                     active,
                     active == null && !widget.workspace.hasFolder
@@ -3732,9 +3760,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                               ),
                   ),
                 ),
-                if (_extensionPage case final id?
-                    when widget.themeExtensions != null)
-                  _extensionPageView(id),
+                // And it under them, while another tab is in front.
+                if (page != null)
+                  Offstage(
+                    offstage: !pageShown,
+                    child: _extensionPageView(page),
+                  ),
               ],
             ),
           ),

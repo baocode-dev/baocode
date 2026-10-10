@@ -30,7 +30,7 @@
 // they list are taken (Vue's extension also contributes configurations for `html`,
 // `markdown` and `jade`, which would replace VS Code's), with their grammars and the
 // injections into those (see Grammars).
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
 
 const revision = '6a598d4a13031703d483d103c1d934a36ad27971';
@@ -40,14 +40,14 @@ const output = process.argv[2] ?? 'assets/textmate';
 if (process.argv.length > 3) throw new Error('Usage: node tool/generate_textmate_assets.mjs [output-directory]');
 
 const themeExtensions = [
-  'theme-defaults', 'theme-monokai', 'theme-monokai-dimmed', 'theme-solarized-dark',
-  'theme-solarized-light', 'theme-abyss', 'theme-kimbie-dark', 'theme-quietlight',
+  'theme-defaults', 'theme-monokai-dimmed', 'theme-solarized-dark',
+  'theme-solarized-light', 'theme-kimbie-dark', 'theme-quietlight',
   'theme-red', 'theme-tomorrow-night-blue',
 ];
-// Contributed themes left out of the manifest: Light (Visual Studio) and
-// Light+. Their light_vs.json and light_plus.json are still copied, as Light
-// Modern includes them.
-const excludedThemes = ['Visual Studio Light', 'Light+'];
+// Contributed themes left out of the manifest: Light (Visual Studio), Light+,
+// Dark (Visual Studio), Dark 2026 and Light 2026. Their files are still
+// copied, as Light Modern, Dark+ and the Bao themes include them.
+const excludedThemes = ['Visual Studio Light', 'Light+', 'Visual Studio Dark', 'Dark 2026', 'Light 2026'];
 
 const installedExtensions = [
   {
@@ -308,6 +308,21 @@ for (const extension of themeExtensions) {
     themes.push({ extension, id: theme.id, label: theme.label, uiTheme: theme.uiTheme, path: await copyTheme(extension, theme.path) });
   }
 }
+// BaoCode's own themes, kept in tool/textmate_themes/<extension>/: each includes
+// a bundled theme (`../../theme-defaults/...`) and sets its colors over it.
+const localThemes = [
+  { extension: 'theme-bao', id: 'Bao Dark', label: 'Bao Dark', uiTheme: 'vs-dark', path: 'themes/bao-dark-color-theme.json' },
+  { extension: 'theme-bao', id: 'Bao Light', label: 'Bao Light', uiTheme: 'vs', path: 'themes/bao-light-color-theme.json' },
+];
+for (const theme of localThemes) {
+  const assetPath = `themes/${theme.extension}/${theme.path}`;
+  files.set(assetPath, await readFile(new URL(`textmate_themes/${theme.extension}/${theme.path}`, import.meta.url)));
+  themes.push({ ...theme, path: assetPath });
+  // The bundled theme it includes, listed or not.
+  const { include } = parseJsonc(files.get(assetPath).toString('utf8'));
+  const [, extension, relativePath] = include.match(/^\.\.\/\.\.\/([^/]+)\/(.+)$/);
+  await copyTheme(extension, relativePath);
+}
 
 // --- License: VS Code's MIT license, each bundled extension's cgmanifest.json
 // (copied beside its files) and the matching ThirdPartyNotices.txt entries ---
@@ -354,7 +369,8 @@ for (const installed of installedExtensions) {
   );
 }
 const license = [
-  `Except for the installed extensions at the end, the files in this directory`,
+  `Except for the installed extensions at the end and BaoCode's own themes`,
+  `(themes/${localThemes.map(theme => theme.extension).join(', themes/')}), the files in this directory`,
   `were downloaded from Visual Studio Code (https://github.com/microsoft/vscode)`,
   `at revision ${revision}`,
   `by tool/generate_textmate_assets.mjs. The directory layout mirrors each`,

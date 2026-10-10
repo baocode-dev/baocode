@@ -110,7 +110,11 @@ void main() {
   test('the fixture covers every bundled theme and color scheme', () {
     expect(
       themes.map((t) => t['name']).whereType<String>().toSet(),
-      manifest.themes.map((t) => t.id).toSet(),
+      // VS Code's themes, not BaoCode's own.
+      manifest.themes
+          .where((t) => t.extension != 'theme-bao')
+          .map((t) => t.id)
+          .toSet(),
     );
     expect(
       themes.where((t) => t['name'] == null).map((t) => t['type']).toSet(),

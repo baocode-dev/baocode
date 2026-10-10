@@ -231,10 +231,13 @@ class SettingsDialogState extends State<SettingsDialog> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(
+                // The nav on the side bar's color, the page on the editor's,
+                // as the IDE's side bar beside its editor.
+                Container(
                   width: width < 720
                       ? SettingsDialog.narrowNavWidth
                       : SettingsDialog.navWidth,
+                  color: AppColors.background,
                   child: _nav(context),
                 ),
                 Container(width: 1, color: AppColors.partBorder),
@@ -284,7 +287,6 @@ class SettingsDialogState extends State<SettingsDialog> {
             if (_matches(section)) section,
         ],
     ].where((sections) => sections.isNotEmpty).toList();
-    // On the page's color, as Cursor's.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

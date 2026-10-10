@@ -128,8 +128,16 @@ class MarkdownOptions {
   final Widget? Function(String? href)? linkIcon;
   final Widget? Function(String code)? codeIcon;
 
-  /// An image (`![alt](src "title")`); its alt text in brackets when null.
-  final Widget Function(String src, String alt, String? title)? image;
+  /// An image (`![alt](src "title")`, or HTML's with its [width] and
+  /// [height] in pixels); its alt text in brackets when null.
+  final Widget Function(
+    String src,
+    String alt,
+    String? title, {
+    double? width,
+    double? height,
+  })?
+  image;
 
   /// Called with a task list box's number (see [numberTasks]) when it is
   /// clicked; the boxes are only drawn when null.
@@ -597,6 +605,8 @@ InlineSpan _inline(md.Node node, MarkdownOptions options) {
           _unescape(node.attributes['src'] ?? ''),
           _unescape(node.attributes['alt'] ?? ''),
           node.attributes['title'],
+          width: double.tryParse(node.attributes['width'] ?? ''),
+          height: double.tryParse(node.attributes['height'] ?? ''),
         ),
       ),
       null => TextSpan(text: '[${node.attributes['alt'] ?? 'image'}]'),

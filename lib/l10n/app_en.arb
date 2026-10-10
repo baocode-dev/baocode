@@ -950,6 +950,17 @@
   },
   "sidebarSortByTime": "Sort by Time",
   "sidebarArchiveAll": "Archive All",
+  "sidebarUnarchiveAll": "Unarchive All",
+  "sidebarDeleteArchived": "Delete All Archived…",
+  "sidebarDeleteArchivedTitle": "Delete archived agents?",
+  "sidebarDeleteArchivedMessage": "{count, plural, =1{The archived agent and its conversation will be deleted} other{The {count} archived agents and their conversations will be deleted}}, from their kernels too. This cannot be undone.",
+  "@sidebarDeleteArchivedMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sidebarRemoveFromList": "Remove from List",
   "sidebarDropToPin": "Drop here to pin",
   "sidebarMoreActions": "More Actions…",
@@ -1353,11 +1364,6 @@
   "@chatSubagent": {
     "description": "Breadcrumb for a subagent without a description."
   },
-  "chatEmptyTitle": "Plan, build, anything",
-  "@chatEmptyTitle": {
-    "description": "Shown in an empty conversation."
-  },
-  "chatEmptyHint": "@ to add context · / for commands",
   "activityCompacting": "Compacting conversation",
   "activityPlanning": "Planning next move",
   "activityMusings": "Pondering\nNoodling\nPercolating\nCogitating\nSimmering\nMarinating\nTinkering\nGrokking\nMulling it over\nConnecting the dots\nChasing a hunch\nBrewing a plan\nHatching a plan\nWeighing the options\nUntangling threads\nHerding tokens\nSummoning context\nReticulating splines\nAsking the rubber duck\nReading the tea leaves\nSketching on a napkin\nDoodling in the margins\nSquinting at the diff\nCounting parentheses\nBefriending the compiler\nNegotiating with types\nWrangling edge cases\nTracing the stack\nFlipping through the docs\nSpelunking the codebase\nLining up the ducks\nShaking the magic 8-ball\nWarming up the neurons\nFolding thoughts\nTuning the vibes\nBinding the monad\nLifting into the monad\nAsking the oracle\nStirring the pot\nPolishing the plan",
@@ -4198,6 +4204,22 @@
   "modelsTestModel": "Test",
   "modelsTestModels": "Test All",
   "modelsTestModelFailed": "Failed",
+  "modelsTestFirstText": "First token {seconds}s",
+  "@modelsTestFirstText": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "modelsTestTotal": "Total {seconds}s",
+  "@modelsTestTotal": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
   "modelsEnableModel": "Offer {name}",
   "@modelsEnableModel": {
     "placeholders": {
@@ -4498,6 +4520,18 @@
       }
     }
   },
+  "appearanceSettingsUserMessageStyle": "Your Messages",
+  "appearanceSettingsUserMessageStyleDescription": "How the messages you send show in the conversation: as wide as it, the one you are reading under staying at the top as you scroll; or as chat bubbles at the right that scroll away.",
+  "appearanceSettingsUserMessageStyleSticky": "Full width, sticks to the top",
+  "appearanceSettingsUserMessageStyleBubble": "Chat bubbles",
+  "appearanceSettingsUserMessageStyleLabel": "Your messages: {style}",
+  "@appearanceSettingsUserMessageStyleLabel": {
+    "placeholders": {
+      "style": {
+        "type": "String"
+      }
+    }
+  },
   "appearanceSettingsCodeFont": "Code Font",
   "appearanceSettingsCodeFontDescription": "The font code is drawn in: in the editor, the terminal, the chat and the previews. Family names in order, separated by commas, or a preset.",
   "appearanceSettingsCodeFontDefault": "Default",
@@ -4511,7 +4545,7 @@
     }
   },
   "appearanceSettingsCodeSize": "Code Size",
-  "appearanceSettingsCodeSizeDescription": "The size of code in the IDE editor and the side panel's file and changes views. The terminal and chat follow the interface text size.",
+  "appearanceSettingsCodeSizeDescription": "The size of code in the IDE editor and the side panel's file and changes views. Code in the chat follows the interface text size; the terminal has its own size.",
   "appearanceSettingsCodeSizeLabel": "Code size: {size}",
   "@appearanceSettingsCodeSizeLabel": {
     "placeholders": {
@@ -4523,11 +4557,24 @@
   "appearanceSettingsLigatures": "Font Ligatures",
   "appearanceSettingsLigaturesDescription": "Draws sequences such as => and != as one glyph where the font has one. The terminal does not.",
   "appearanceSettingsUiScale": "Interface Text Size",
-  "appearanceSettingsUiScaleDescription": "The size of interface text, code in the chat, and terminal text. Code in the IDE editor and side panel files and changes keeps its own size.",
+  "appearanceSettingsUiScaleDescription": "The size of interface text, code in the chat, and terminal text while the terminal size follows it. Code in the IDE editor and side panel files and changes keeps its own size.",
   "appearanceSettingsUiScaleLabel": "Interface text size: {percent}%",
   "@appearanceSettingsUiScaleLabel": {
     "placeholders": {
       "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "appearanceSettingsTerminalSize": "Terminal Font Size",
+  "appearanceSettingsTerminalSizeDescription": "The size of terminal text. By default it follows the interface text size; it can be set on its own.",
+  "appearanceSettingsTerminalSizeFollow": "Follow Interface Text Size",
+  "appearanceSettingsTerminalSizeCustom": "Custom",
+  "appearanceSettingsTerminalSizeValue": "Custom Size",
+  "appearanceSettingsTerminalSizeLabel": "Terminal font size: {size}",
+  "@appearanceSettingsTerminalSizeLabel": {
+    "placeholders": {
+      "size": {
         "type": "String"
       }
     }
@@ -5178,7 +5225,6 @@
     }
   },
   "extsPlatformUniversal": "universal",
-  "extsPageClose": "Close Extension",
   "extsPageTitle": "Extension: {name}",
   "@extsPageTitle": {
     "placeholders": {

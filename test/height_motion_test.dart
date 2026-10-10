@@ -8,7 +8,7 @@ import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/widgets/fold_line.dart';
-import 'package:baocode/chat/widgets/image_thumbnails.dart';
+import 'package:baocode/chat/composer/composer_embeds.dart';
 import 'package:baocode/chat/widgets/tool_call_row.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/theme/app_theme.dart';
@@ -169,6 +169,35 @@ void main() {
     expect(next(), closeTo(before, 0.5));
   });
 
+  testWidgets("the editor's frame grows out of the message's", (tester) async {
+    await pumpScreen(tester);
+    await reveal(tester, '第 2 轮');
+    final bubble = find.ancestor(
+      of: inList(find.textContaining('第 2 轮', findRichText: true)),
+      matching: find.byType(UserMessageBubble),
+    );
+    final message = tester.getRect(bubble);
+
+    await tester.tap(bubble);
+    await tester.pump();
+    final morph = find.descendant(
+      of: find.byType(ChatHistoryView),
+      matching: find.byType(UserMessageEditMorph),
+    );
+    final from = tester.widget<UserMessageEditMorph>(morph).from;
+    // The message's own frame, where it was.
+    expect(message.top, lessThanOrEqualTo(from.rect.top + 0.5));
+    expect(message.bottom, greaterThanOrEqualTo(from.rect.bottom - 0.5));
+    expect(from.rect.right, closeTo(message.right, 0.5));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    final midway = tester.widget<UserMessageEditMorph>(morph).progress;
+    expect(midway, greaterThan(0));
+    expect(midway, lessThan(1));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.widget<UserMessageEditMorph>(morph).progress, 1);
+  });
+
   testWidgets('stuck to the top, the editor takes over in one go', (
     tester,
   ) async {
@@ -205,13 +234,13 @@ void main() {
     );
     expect(editor, findsOneWidget);
     // Whole at once: nothing of it cut off while it opens.
-    final clip = tester.widget<ClipRect>(
-      find.ancestor(of: editor, matching: find.byType(ClipRect)).first,
+    final morph = tester.widget<UserMessageEditMorph>(
+      find.ancestor(of: editor, matching: find.byType(UserMessageEditMorph)),
     );
-    expect(clip.clipBehavior, Clip.none);
+    expect(morph.progress, 1);
   });
 
-  testWidgets('editing moves nothing: its pictures and text stay put', (
+  testWidgets('editing moves nothing: its text and tags stay put', (
     tester,
   ) async {
     final session = ChatSession(historyCount: 0);
@@ -226,11 +255,12 @@ void main() {
     await tester.pump();
     session.send(
       ComposerMessage(
-        text: '已经吸顶的不要动画了',
+        text: '已经吸顶的不要动画了 [Image #1]',
         images: [
           ImageAttachment(
             bytes: Uint8List.fromList(const [1, 2, 3]),
             mediaType: 'image/png',
+            number: 1,
           ),
         ],
       ),
@@ -239,7 +269,7 @@ void main() {
     session.stop();
     await tester.pump(const Duration(seconds: 1));
 
-    // Where its pictures and its text are, within it.
+    // Where its text and its image's tag are, within it.
     (Offset, Offset) layout(Finder box) {
       final origin = tester.getTopLeft(box);
       final text = find.descendant(
@@ -251,7 +281,10 @@ void main() {
       );
       return (
         tester.getTopLeft(
-              find.descendant(of: box, matching: find.byType(ImageThumbnails)),
+              find.descendant(
+                of: box,
+                matching: find.byType(ComposerImageChip),
+              ),
             ) -
             origin,
         tester.getTopLeft(text.first) - origin,

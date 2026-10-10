@@ -22,6 +22,7 @@ import 'chat_session.dart';
 import 'composer/composer.dart';
 import 'composer/composer_draft.dart';
 import 'step_folds.dart';
+import 'user_message_style.dart';
 import 'widgets/chat_item_view.dart';
 import 'widgets/edge_fade_mask.dart';
 import 'widgets/fold_line.dart';
@@ -174,6 +175,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// The message's height, where the placeholder grows from.
   double _editorFromHeight = 0;
+
+  /// The message's frame, which the editor's grows from; none if it was not
+  /// on screen.
+  UserMessageFrame? _editorFrom;
 
   /// The placeholder's height now, opening or open.
   double get _editorShownHeight => _editorReveal.isCompleted
@@ -340,6 +345,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     super.initState();
     _scrollController.addListener(_handleScroll);
     _feed.addListener(_handleSessionChanged);
+    UserMessageStyle.current.addListener(_handleStyleChanged);
     _wasLive = _feed.isStreaming;
     _refold();
     _seeItems();
@@ -437,6 +443,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   @override
   void dispose() {
     _feed.removeListener(_handleSessionChanged);
+    UserMessageStyle.current.removeListener(_handleStyleChanged);
     _reselectTimer?.cancel();
     _autoScroller?.stopAutoScroll();
     _editorMoved.dispose();
@@ -755,6 +762,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _editorHeight = _editorFromHeight = laidOut.isEmpty
           ? 0
           : laidOut.first.size.height - _gapBefore(index);
+      _editorFrom = laidOut.isEmpty
+          ? null
+          : UserMessageBubble.frameIn(laidOut.first);
     });
     // Stuck to the top, it takes the place of the message's copy there, in
     // one go: nothing moves under it to follow.
@@ -796,8 +806,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   static const _editorInset = 8.0;
 
   /// Where the editor goes, relative to [layer]: on its placeholder, but
-  /// never above the top of the list (it sticks there once scrolled past).
-  /// Null when the placeholder is below the built items, out of view.
+  /// never above the top of the list (it sticks there once scrolled past),
+  /// unless the user's messages do not stick ([_sticks]). Null when the
+  /// placeholder is out of the built items, out of view.
   double? _editorTop(RenderBox layer) {
     const inset = _editorInset;
     final placeholder =
@@ -806,11 +817,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       final top =
           placeholder.localToGlobal(Offset.zero).dy -
           layer.localToGlobal(Offset.zero).dy;
-      return math.max(top, inset);
+      return _sticks ? math.max(top, inset) : top;
     }
     final first = _laidOutItems().firstOrNull;
     final index = _editingIndex;
-    if (first != null && index != null && index < _indexOf(first)) return inset;
+    if (_sticks && first != null && index != null && index < _indexOf(first)) {
+      return inset;
+    }
     return null;
   }
 
@@ -832,6 +845,16 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// their message to the top (the one at the top now is built in layout,
   /// besides). Which one shows, and where, is read at paint ([_stickyTop]),
   /// so a copy takes over in the very frame its message scrolls past.
+  /// Whether the user's messages stick to the top (see [UserMessageStyle]).
+  static bool get _sticks =>
+      UserMessageStyle.current.value == UserMessageStyle.sticky;
+
+  void _handleStyleChanged() {
+    setState(() {});
+    _editorMoved.value++;
+    _scheduleStickyUpdate();
+  }
+
   void _scheduleStickyUpdate() {
     if (_stickyUpdateScheduled) return;
     _stickyUpdateScheduled = true;
@@ -840,8 +863,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       if (!mounted) return;
       final indices = {
         ?_topTurnMessage(),
-        for (final item in _laidOutItems())
-          if (_feed.itemAt(_indexOf(item)) is UserMessageItem) _indexOf(item),
+        if (_sticks)
+          for (final item in _laidOutItems())
+            if (_feed.itemAt(_indexOf(item)) is UserMessageItem) _indexOf(item),
       };
       if (setEquals(indices, _stickyIndices)) return;
       _stickyKeys.removeWhere((index, _) => !indices.contains(index));
@@ -853,6 +877,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// scrolled past the top. (It keeps the top while the next one, below,
   /// pushes it away.)
   int? _topTurnMessage() {
+    if (!_sticks) return null;
     final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
     if (list == null || !list.attached || !list.hasSize) return null;
     int? first;
@@ -1006,7 +1031,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   }
 
   Widget _buildEditorLayer(int index) {
-    final shadow = themeColors['widget.shadow'];
     return Positioned.fill(
       // The editor's text area scrolls on its own. It is not inside the list,
       // so its scroll notifications would reach the history's scrollbar as
@@ -1030,70 +1054,61 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                   child: ChatColumn(
                     maxWidth: widget.maxContentWidth,
                     right: _columnRight,
-                    // Opening, as much of it as its placeholder has room
-                    // for: it does not cover what is below it yet.
+                    // Opening, the message's frame grows into the editor's;
+                    // without one, as much of it as its placeholder has room
+                    // for. It does not cover what is below it yet.
                     child: AnimatedBuilder(
                       animation: _editorReveal,
-                      builder: (context, child) => ClipRect(
-                        clipper: _RevealClipper(_editorShownHeight),
-                        clipBehavior: _editorReveal.isCompleted
-                            ? Clip.none
-                            : Clip.hardEdge,
-                        child: child,
-                      ),
+                      builder: (context, child) => _editorFrom != null
+                          ? UserMessageEditMorph(
+                              from: _editorFrom!,
+                              progress: _editorReveal.isCompleted
+                                  ? 1
+                                  : _motionCurve.transform(_editorReveal.value),
+                              border: _feed.canEditMessages
+                                  ? AppColors.bubbleBorder(focused: true)
+                                  : AppColors.bubbleBorder(),
+                              child: child,
+                            )
+                          : ClipRect(
+                              clipper: _RevealClipper(_editorShownHeight),
+                              clipBehavior: _editorReveal.isCompleted
+                                  ? Clip.none
+                                  : Clip.hardEdge,
+                              child: child,
+                            ),
                       child: _SizeReporter(
                         onSize: (size) => _setEditorHeight(size.height),
-                        // Lifted off the transcript: it floats over it when
-                        // stuck to the top. (Outside the reported size.)
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              // A deep, soft drop plus a tight contact
-                              // shadow, or it does not read against the page.
-                              BoxShadow(
-                                color: shadow,
-                                blurRadius: 32,
-                                offset: const Offset(0, 12),
-                              ),
-                              BoxShadow(
-                                color: shadow.withValues(alpha: shadow.a * 0.6),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Listener(
-                            // The editor takes focus itself; see _handlePointerDown.
-                            onPointerDown: (_) => _pressInEditor = true,
-                            // The editor is not in the list: pass the wheel on.
-                            onPointerSignal: _forwardWheel,
-                            onPointerPanZoomStart: _startEditorPan,
-                            onPointerPanZoomUpdate: _updateEditorPan,
-                            onPointerPanZoomEnd: _endEditorPan,
-                            child: TapRegion(
-                              groupId: _editorTapRegion,
-                              onTapOutside: _handleTapOutsideEditor,
-                              child: !_feed.canEditMessages
-                                  ? UserMessageViewer(
-                                      text: _editingText,
-                                      images: _editingImages,
-                                      controller: _viewerScroll,
-                                      onClose: _cancelEditing,
-                                    )
-                                  : ChatComposer(
-                                      key: _editComposerKey,
-                                      // Only a session's own messages are edited.
-                                      session: _feed as ChatSession,
-                                      initialText: _editingText,
-                                      initialImages: _editingImages,
-                                      draft: _feed.editing?.draft,
-                                      tapRegionGroupId: _editorTapRegion,
-                                      onSubmit: (message) =>
-                                          _submitEdit(index, message),
-                                      onCancel: _cancelEditing,
-                                    ),
-                            ),
+                        child: Listener(
+                          // The editor takes focus itself; see _handlePointerDown.
+                          onPointerDown: (_) => _pressInEditor = true,
+                          // The editor is not in the list: pass the wheel on.
+                          onPointerSignal: _forwardWheel,
+                          onPointerPanZoomStart: _startEditorPan,
+                          onPointerPanZoomUpdate: _updateEditorPan,
+                          onPointerPanZoomEnd: _endEditorPan,
+                          child: TapRegion(
+                            groupId: _editorTapRegion,
+                            onTapOutside: _handleTapOutsideEditor,
+                            child: !_feed.canEditMessages
+                                ? UserMessageViewer(
+                                    text: _editingText,
+                                    images: _editingImages,
+                                    controller: _viewerScroll,
+                                    onClose: _cancelEditing,
+                                  )
+                                : ChatComposer(
+                                    key: _editComposerKey,
+                                    // Only a session's own messages are edited.
+                                    session: _feed as ChatSession,
+                                    initialText: _editingText,
+                                    initialImages: _editingImages,
+                                    draft: _feed.editing?.draft,
+                                    tapRegionGroupId: _editorTapRegion,
+                                    onSubmit: (message) =>
+                                        _submitEdit(index, message),
+                                    onCancel: _cancelEditing,
+                                  ),
                           ),
                         ),
                       ),
@@ -1972,13 +1987,34 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
     }
   }
 
+  /// Reapplying the edges waits for the frame's other selection updates.
+  /// Text given new text this frame has none until its own container takes
+  /// the new text in (in its own update, after the frame); any event before
+  /// that takes it off its list, in the middle of the loop that sent it,
+  /// here or in a scroll view's (Flutter's).
   @override
   void didChangeSelectables() {
-    // The base delegate reapplies both edges to newly built items. Update its
-    // cached positions without clearing children while they are registering.
-    _refreshEdgeLocations();
-    super.didChangeSelectables();
-    _rememberEndText();
+    if (_changePending) return;
+    _changePending = true;
+    scheduleMicrotask(() {
+      _changePending = false;
+      if (_disposed) return;
+      // The base delegate reapplies both edges to newly built items. Update
+      // its cached positions without clearing children while they are
+      // registering.
+      _refreshEdgeLocations();
+      super.didChangeSelectables();
+      _rememberEndText();
+    });
+  }
+
+  bool _changePending = false;
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   void reapplyDragEnd() {
