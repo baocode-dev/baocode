@@ -177,7 +177,9 @@ void main() {
         files: {'a.ts': _source, 'tsconfig.json': '{}', 'a.txt': 'alpha\n'},
         remote: host,
         runtime: runtime,
-        development: [_probe(probes.path, 'probe.remote', ['workspace'])],
+        development: [
+          _probe(probes.path, 'probe.remote', ['workspace']),
+        ],
       );
       final extensions = w.extensions;
       expect(extensions.hosts, hasLength(2));
@@ -197,17 +199,19 @@ void main() {
       expect(_ids(there), contains('baocode-test.probe-remote'));
       expect(_ids(there), isNot(contains('vscodevim.vim')));
       expect(_ids(here), contains('vscodevim.vim'));
-      expect(_ids(here), isNot(contains('vscode.typescript-language-features')));
+      expect(
+        _ids(here),
+        isNot(contains('vscode.typescript-language-features')),
+      );
       expect(_ids(here), contains('vscode.github-authentication'));
       expect(_ids(there), isNot(contains('vscode.github-authentication')));
       expect(_ids(there), contains('vscode.emmet'));
       // Vim is not installed on the host: it does not run there.
       final installedThere = await extensions.remote!.extensions.management
           .getInstalled();
-      expect(
-        [for (final e in installedThere) e.id.toLowerCase()],
-        isNot(contains('vscodevim.vim')),
-      );
+      expect([
+        for (final e in installedThere) e.id.toLowerCase(),
+      ], isNot(contains('vscodevim.vim')));
 
       // The ui extension here: its own probe, loaded into this machine's
       // host.
@@ -241,15 +245,13 @@ void main() {
 
       // Each host sees the project as upstream's would: the host's own
       // files there (and it is remote), the remote authority's here.
-      final remote = (await extensions.commands.executeCommand(
-        'probe.remote',
-      ))! as Map;
+      final remote =
+          (await extensions.commands.executeCommand('probe.remote'))! as Map;
       expect(remote['remoteName'], 'ssh-remote');
       expect(remote['folder'], VsUri.file(w.project).toString());
       expect(remote['document'], VsUri.file(file).toString());
-      final local = (await extensions.commands.executeCommand(
-        'probe.local',
-      ))! as Map;
+      final local =
+          (await extensions.commands.executeCommand('probe.local'))! as Map;
       final authority = 'ssh-remote+memory-host';
       expect(
         local['folder'],
@@ -302,17 +304,28 @@ void main() {
       final there = w.extensions.hosts.first;
       // Installed there as they are installed here (the dependency after
       // the extension).
-      await eventually(
-        'the Python extensions there',
-        () => _ids(there).containsAll(['ms-python.python', 'ms-python.debugpy'])
-            ? true
-            : null,
-      ).catchError((Object e) => fail('$e\n${w.report()}'));
-      expect(_ids(w.extensions.hosts.last), isNot(contains('ms-python.python')));
+      try {
+        await eventually(
+          'the Python extensions there',
+          () =>
+              _ids(there).containsAll(['ms-python.python', 'ms-python.debugpy'])
+              ? true
+              : null,
+        );
+      } on Object catch (e) {
+        fail('$e\n${w.report()}');
+      }
+      expect(
+        _ids(w.extensions.hosts.last),
+        isNot(contains('ms-python.python')),
+      );
       final d = DebugDriver(w);
       final source = VsUri.file(w.path('main.py'));
       await d.service.addBreakpoints(source, [
-        BreakpointData(lineNumber: bpLine(_python, 'loop'), condition: 'i == 1'),
+        BreakpointData(
+          lineNumber: bpLine(_python, 'loop'),
+          condition: 'i == 1',
+        ),
       ]);
       await d.start({
         'type': 'debugpy',

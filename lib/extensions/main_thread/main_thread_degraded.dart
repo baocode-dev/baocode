@@ -16,8 +16,8 @@
 // mainThreadProfileContentHandlers.ts (no profile export to share),
 // mainThreadTimeline.ts (no Timeline view), mainThreadDataChannels.ts
 // (link presentation: no chat to present links in) and the ports
-// attributes of mainThreadTunnelService.ts (no Ports view or port
-// forwarding).
+// attributes and the remote host's port finder of mainThreadTunnelService.ts
+// (no Ports view or port forwarding).
 
 import 'package:bao_exthost/bao_exthost.dart';
 
@@ -152,4 +152,16 @@ final class MainThreadTunnelService extends MainThreadTunnelServiceUnsupported {
   @override
   void $unregisterPortsAttributesProvider(num providerHandle) =>
       portsAttributesProviders.remove(providerHandle);
+
+  /// The remote host's extension host, named as upstream names it in the
+  /// Ports view's process column.
+  final Map<num, String> namedProcesses = {};
+
+  /// A remote Linux host's extension host offering to find the ports its
+  /// processes listen on. Upstream asks it to (`$registerCandidateFinder`)
+  /// once the ports features are enabled; with no Ports view or port
+  /// forwarding they never are, so it is not asked.
+  @override
+  void $setRemoteTunnelService(num processId) =>
+      namedProcesses[processId] = 'Code Extension Host';
 }
