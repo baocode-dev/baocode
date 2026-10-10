@@ -19,9 +19,9 @@ import '../vsix/vsix_reader.dart';
 /// What an extension is doing.
 enum ExtensionBusy { installing, uninstalling, updating }
 
-/// What a search asks for: `@installed`, `@recommended`, `@updates`, or
-/// words to look for on Open VSX (in the installed ones' names with a
-/// filter).
+/// What a search asks for: `@installed`, `@builtin`, `@recommended`,
+/// `@updates`, or words to look for on Open VSX (in the installed ones'
+/// names with a filter).
 class ExtensionsQuery {
   const ExtensionsQuery({this.filter, this.text = ''});
 
@@ -31,7 +31,7 @@ class ExtensionsQuery {
     for (final word in input.trim().split(RegExp(r'\s+'))) {
       if (word.isEmpty) continue;
       switch (word.toLowerCase()) {
-        case '@installed' || '@recommended' || '@updates':
+        case '@installed' || '@builtin' || '@recommended' || '@updates':
           filter = word.substring(1).toLowerCase();
         default:
           words.add(word);
@@ -40,7 +40,7 @@ class ExtensionsQuery {
     return ExtensionsQuery(filter: filter, text: words.join(' '));
   }
 
-  /// `installed`, `recommended`, `updates`; null for Open VSX.
+  /// `installed`, `builtin`, `recommended`, `updates`; null for Open VSX.
   final String? filter;
   final String text;
 
@@ -266,19 +266,34 @@ class ExtensionsModel extends ChangeNotifier {
     _notify();
   }
 
-  /// The installed extensions [query]'s words match.
-  List<ExtensionEntry> get installedEntries {
+  /// The installed extensions [query]'s words match: as upstream's
+  /// `filterInstalledExtensions`, not the built-in ones unless they have an
+  /// update or wait for the extensions to restart (`@builtin` lists those).
+  List<ExtensionEntry> get installedEntries => [
+    for (final extension in _matching())
+      if (extension.kind != InstalledExtensionKind.builtin ||
+          updates.containsKey(extension.id.toLowerCase()) ||
+          needsRestart(extension.id.toLowerCase()))
+        ExtensionEntry(installed: extension),
+  ];
+
+  /// The built-in extensions [query]'s words match (`@builtin`).
+  List<ExtensionEntry> get builtinEntries => [
+    for (final extension in _matching())
+      if (extension.kind == InstalledExtensionKind.builtin)
+        ExtensionEntry(installed: extension),
+  ];
+
+  Iterable<InstalledExtension> _matching() {
     final words = query.text.toLowerCase().split(' ').where((w) => w.isNotEmpty);
-    return [
-      for (final extension in installed ?? const <InstalledExtension>[])
-        if (words.every(
-          (word) => '${extension.id} ${extension.manifest.label} '
-                  '${extension.manifest.description ?? ''}'
-              .toLowerCase()
-              .contains(word),
-        ))
-          ExtensionEntry(installed: extension),
-    ];
+    return (installed ?? const <InstalledExtension>[]).where(
+      (extension) => words.every(
+        (word) => '${extension.id} ${extension.manifest.label} '
+                '${extension.manifest.description ?? ''}'
+            .toLowerCase()
+            .contains(word),
+      ),
+    );
   }
 
   /// The recommended extensions not installed.

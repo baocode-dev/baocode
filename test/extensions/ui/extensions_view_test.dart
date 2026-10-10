@@ -79,6 +79,39 @@ void main() {
     expect(find.text('2'), findsOneWidget);
   });
 
+  testWidgets('built-in extensions are under @builtin, not Installed, as '
+      'upstream', (tester) async {
+    final backend = FakeBackend(
+      installed: [
+        _installed('esbenp.prettier-vscode', displayName: 'Prettier'),
+        _installed(
+          'vscode.typescript-language-features',
+          displayName: 'TypeScript and JavaScript Language Features',
+          kind: InstalledExtensionKind.builtin,
+        ),
+      ],
+    );
+    final model = _model(backend);
+    await tester.pumpWidget(_app(ExtensionsView(model: model)));
+    await tester.pumpAndSettle();
+    expect(find.text('Prettier'), findsOneWidget);
+    expect(
+      find.text('TypeScript and JavaScript Language Features'),
+      findsNothing,
+    );
+    expect(model.installedEntries.map((e) => e.id), [
+      'esbenp.prettier-vscode',
+    ]);
+
+    model.setQuery('@builtin ');
+    await tester.pumpAndSettle();
+    expect(
+      find.text('TypeScript and JavaScript Language Features'),
+      findsOneWidget,
+    );
+    expect(find.text('Prettier'), findsNothing);
+  });
+
   testWidgets('filters the installed list', (tester) async {
     final backend = FakeBackend(
       installed: [

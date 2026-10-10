@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // The Extensions view: a search box, then the Installed and Recommended
-// panes, or what a search found on Open VSX (`@installed`,
+// panes, or what a search found on Open VSX (`@installed`, `@builtin`,
 // `@recommended` and `@updates` filter instead). Each extension is a 72px
 // row: icon, name and version, description, publisher, its capability,
 // and Install, Update or the Manage menu.
@@ -225,6 +225,10 @@ class _ExtensionsViewState extends State<ExtensionsView> {
                     onSelected: () => _search('@installed '),
                   ),
                   IdeMenuAction(
+                    l10n.extsBuiltin,
+                    onSelected: () => _search('@builtin '),
+                  ),
+                  IdeMenuAction(
                     l10n.extRecommended,
                     onSelected: () => _search('@recommended '),
                   ),
@@ -309,6 +313,8 @@ class _ExtensionsViewState extends State<ExtensionsView> {
     switch (query.filter) {
       case 'installed':
         return _list(model.installedEntries);
+      case 'builtin':
+        return _list(model.builtinEntries);
       case 'recommended':
         return _list(model.recommendedEntries);
       case 'updates':

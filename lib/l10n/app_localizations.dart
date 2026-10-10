@@ -12101,6 +12101,12 @@ abstract class AppLocalizations {
   /// **'Open VSX'**
   String get extsTitleOpenVsx;
 
+  /// No description provided for @extsBuiltin.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get extsBuiltin;
+
   /// No description provided for @extsUpdates.
   ///
   /// In en, this message translates to:
@@ -12226,12 +12232,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pre-Release'**
   String get extsPreRelease;
-
-  /// No description provided for @extsBuiltin.
-  ///
-  /// In en, this message translates to:
-  /// **'Built-in'**
-  String get extsBuiltin;
 
   /// No description provided for @extsDevelopment.
   ///

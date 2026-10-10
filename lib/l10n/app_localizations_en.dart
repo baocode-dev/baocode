@@ -7341,6 +7341,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get extsTitleOpenVsx => 'Open VSX';
 
   @override
+  String get extsBuiltin => 'Built-in';
+
+  @override
   String get extsUpdates => 'Updates';
 
   @override
@@ -7408,9 +7411,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get extsPreRelease => 'Pre-Release';
-
-  @override
-  String get extsBuiltin => 'Built-in';
 
   @override
   String get extsDevelopment => 'Development';

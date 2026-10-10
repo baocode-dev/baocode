@@ -6923,6 +6923,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get extsTitleOpenVsx => 'Open VSX';
 
   @override
+  String get extsBuiltin => '内置';
+
+  @override
   String get extsUpdates => '更新';
 
   @override
@@ -6990,9 +6993,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get extsPreRelease => '预发布';
-
-  @override
-  String get extsBuiltin => '内置';
 
   @override
   String get extsDevelopment => '开发中';

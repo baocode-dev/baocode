@@ -1998,6 +1998,7 @@
   "extsEngineCompatible": "需要 VS Code {engine}。",
   "extsTitleUpdates": "更新",
   "extsTitleOpenVsx": "Open VSX",
+  "extsBuiltin": "内置",
   "extsUpdates": "更新",
   "extsCheckForUpdates": "检查更新",
   "extsMoreActions": "更多操作...",

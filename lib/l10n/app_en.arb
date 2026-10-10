@@ -5492,6 +5492,7 @@
   },
   "extsTitleUpdates": "Updates",
   "extsTitleOpenVsx": "Open VSX",
+  "extsBuiltin": "Built-in",
   "extsUpdates": "Updates",
   "extsCheckForUpdates": "Check for Updates",
   "extsMoreActions": "More Actions...",
