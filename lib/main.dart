@@ -252,13 +252,25 @@ Future<void> main(List<String> arguments) async {
     appLocale: locale,
     settings: settings,
     extensions: extensions,
-    // The extension host of a folder on this machine.
+    // The extension hosts of a folder: on this machine, or on a remote
+    // project's host (and here for its ui extensions).
     extensionsFor: extensions == null
         ? null
         : (folder) {
             final host = ProjectHost.of(folder);
-            if (host.name != null) return null;
-            return extensions.workspace(host.pathOf(folder));
+            final root = host.pathOf(folder);
+            if (host case final SshHost ssh) {
+              return extensions.workspace(
+                root,
+                remote: RemoteWorkspaceSite(
+                  extensions: extensions.remote(ssh.name, () => ssh.ready),
+                  files: ssh.files(root),
+                  connectedHello: () => ssh.hello,
+                ),
+                terminals: ssh.terminals(const TerminalBackend()),
+              );
+            }
+            return extensions.workspace(root);
           },
     gitFor: (folder) {
       final host = ProjectHost.of(folder);

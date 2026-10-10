@@ -21,6 +21,8 @@ import '../host/init_data.dart';
 import '../language/marker_service.dart';
 import '../main_thread/main_thread_terminal_service.dart';
 import '../tasks/debug_task_runner.dart';
+import '../tasks/problem_matcher.dart' show ProblemFileSystem;
+import '../tasks/task_configuration.dart' show TaskPlatform;
 import '../tasks/task_service.dart';
 import '../tasks/terminal_task_system.dart';
 import '../trust/workspace_trust.dart';
@@ -53,6 +55,9 @@ final class WorkspaceTasks implements TaskServiceHost, DebugTaskRunnerHost {
     required this._activate,
     required this._extensions,
     this.progress,
+    this.storage,
+    ProblemFileSystem? problemFiles,
+    TaskPlatform? platform,
     void Function(String key, Object? value)? setContext,
   }) {
     _channel = output.registerWorkbenchChannel(tasksOutputChannelId, 'Tasks');
@@ -67,6 +72,8 @@ final class WorkspaceTasks implements TaskServiceHost, DebugTaskRunnerHost {
           workspace.documents.any(
             (d) => d.isFile && d.path == resource.fsPath(),
           ),
+      files: problemFiles,
+      platform: platform,
       setContext: setContext,
     );
     runner = DebugTaskRunner(tasks: service, markers: markers, host: this);
@@ -97,6 +104,10 @@ final class WorkspaceTasks implements TaskServiceHost, DebugTaskRunnerHost {
   final ExtensionProgressService? progress;
   final Future<void> Function(String event) _activate;
   final List<Map<String, Object?>> Function() _extensions;
+
+  /// Where the `tasks.json` files are (a remote project's host); this
+  /// machine's disk when null.
+  final JsoncFileStorage? storage;
 
   late final TaskService service;
   late final DebugTaskRunner runner;
@@ -149,7 +160,7 @@ final class WorkspaceTasks implements TaskServiceHost, DebugTaskRunnerHost {
     }
     for (final path in paths) {
       if (_files.containsKey(path)) continue;
-      _files[path] = JsoncFile(path)
+      _files[path] = JsoncFile(path, storage: storage)
         ..addListener(service.invalidateWorkspaceTasks)
         ..watch();
     }
@@ -250,10 +261,14 @@ final class WorkspaceTasks implements TaskServiceHost, DebugTaskRunnerHost {
     String template,
   ) async {
     final path = _tasksJsonPath(folder);
-    final file = File(path);
-    if (!file.existsSync()) {
-      await file.parent.create(recursive: true);
-      await file.writeAsString(template);
+    if (storage case final storage?) {
+      if (await storage.read(path) == null) await storage.write(path, template);
+    } else {
+      final file = File(path);
+      if (!file.existsSync()) {
+        await file.parent.create(recursive: true);
+        await file.writeAsString(template);
+      }
     }
     await workspace.open(path);
   }

@@ -88,6 +88,21 @@ List<DebuggerExtension> debuggerExtensions(List<Json> descriptions) => [
       ),
 ];
 
+/// The machine a remote project's debugging runs on.
+final class DebugMachine {
+  const DebugMachine({
+    required this.os,
+    this.home,
+    this.environment = const {},
+  });
+
+  final DebugTargetOs os;
+  final String? home;
+
+  /// For `${env:…}`: what is known of it.
+  final Map<String, String> environment;
+}
+
 final class WorkspaceDebugHost extends DebugServiceHost {
   WorkspaceDebugHost({
     required this.workspace,
@@ -101,7 +116,12 @@ final class WorkspaceDebugHost extends DebugServiceHost {
     required this.activate,
     required this.extensions,
     this.language = 'en',
+    this.machine,
   });
+
+  /// A remote project's host (its OS, home and environment); this
+  /// machine when null.
+  final DebugMachine? Function()? machine;
 
   final IdeWorkspace workspace;
   final ConfigurationService configuration;
@@ -144,11 +164,13 @@ final class WorkspaceDebugHost extends DebugServiceHost {
   String get locale => language;
 
   @override
-  DebugTargetOs get targetOs => Platform.isWindows
-      ? DebugTargetOs.windows
-      : Platform.isLinux
-      ? DebugTargetOs.linux
-      : DebugTargetOs.macintosh;
+  DebugTargetOs get targetOs =>
+      machine?.call()?.os ??
+      (Platform.isWindows
+          ? DebugTargetOs.windows
+          : Platform.isLinux
+          ? DebugTargetOs.linux
+          : DebugTargetOs.macintosh);
 
   @override
   List<DebugWorkspaceFolder> get workspaceFolders => [
@@ -161,11 +183,14 @@ final class WorkspaceDebugHost extends DebugServiceHost {
   ];
 
   @override
-  Map<String, String> get environment => Platform.environment;
+  Map<String, String> get environment =>
+      machine?.call()?.environment ?? Platform.environment;
 
   @override
-  String? get userHome =>
-      Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+  String? get userHome => switch (machine?.call()) {
+    final machine? => machine.home,
+    null => Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'],
+  };
 
   @override
   String get execPath => Platform.resolvedExecutable;

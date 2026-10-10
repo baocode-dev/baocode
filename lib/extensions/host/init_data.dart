@@ -63,10 +63,11 @@ final class ExtHostWorkspace {
   });
 
   /// One folder.
-  factory ExtHostWorkspace.folder(String path, {String? name}) {
+  /// [id] defaults to [folderWorkspaceId] of [path].
+  factory ExtHostWorkspace.folder(String path, {String? name, String? id}) {
     final uri = VsUri.file(path);
     return ExtHostWorkspace(
-      id: folderWorkspaceId(path),
+      id: id ?? folderWorkspaceId(path),
       name:
           name ??
           uri.path.split('/').where((s) => s.isNotEmpty).lastOrNull ??

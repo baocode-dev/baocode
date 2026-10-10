@@ -191,6 +191,14 @@ class ExtensionRuntimeService extends ChangeNotifier {
     }
   }
 
+  /// The runtimes the app uses, one per platform (a remote host's too).
+  Future<ExtHostRuntimeManifest> manifest() async =>
+      (await _ensureInstaller()).manifest;
+
+  /// Where the archives a remote host cannot download are kept, to send.
+  String get remoteDownloads =>
+      p.join(directory ?? defaultDirectory, 'remote-downloads');
+
   Future<ExtHostRuntimeInstaller> _ensureInstaller() async {
     if (_installer case final installer?) return installer;
     final manifest = ExtHostRuntimeManifest.parse(await _loadManifest());

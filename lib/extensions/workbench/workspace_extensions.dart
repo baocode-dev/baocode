@@ -17,13 +17,17 @@ import 'dart:io';
 
 import 'package:bao_editor/textmate/textmate_syntax.dart';
 import 'package:bao_exthost/bao_exthost.dart';
+import 'package:bao_remote/client.dart' show RemoteClient, RemoteHello;
+import 'package:crypto/crypto.dart' show md5;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
+import '../../debug/common/debug_utils.dart' show DebugTargetOs;
 import '../../debug/service/debug_host.dart' show DebugPickItem;
 import '../../debug/service/debug_service.dart';
 import '../../ide/ide_notifications.dart' show IdeSeverity;
+import '../../ide/file_service.dart' show IdeFileService;
 import '../../ide/ide_workspace.dart';
 import '../../ide/lsp/language_features.dart';
 import '../../ide/lsp/lsp_protocol.dart' show LspPosition, LspRange;
@@ -50,6 +54,8 @@ import '../editors/editor_ports.dart';
 import '../extension_host_service_io.dart';
 import '../files/disk_file_system_provider_io.dart';
 import '../files/file_service.dart';
+import '../files/file_service_jsonc_storage.dart';
+import '../files/ide_file_system_provider.dart';
 import '../files/file_types.dart';
 import '../files/workspace_file_watcher.dart';
 import '../gallery/extension_enablement.dart';
@@ -91,6 +97,8 @@ import '../scm/scm_service.dart';
 import '../search/query_builder.dart';
 import '../search/search_service.dart';
 import '../testing/test_service.dart';
+import '../tasks/problem_matcher.dart' show ProblemFileSystem;
+import '../tasks/task_configuration.dart' show TaskPlatform;
 import '../tasks/task_service.dart';
 import '../ui/extensions_model.dart';
 import '../trust/trust_ui.dart';
@@ -129,6 +137,7 @@ import 'default_formatter.dart';
 import 'save_participants.dart';
 import 'ide_text_editors.dart';
 import 'jsonc_settings_file.dart';
+import 'remote_extensions.dart';
 import 'workspace_debug_host.dart';
 import 'workspace_tasks.dart';
 
@@ -342,15 +351,51 @@ final class ExtensionsApp {
     follow();
   }
 
-  /// A workspace's extensions; [root] is its folder.
-  WorkspaceExtensions workspace(String root) =>
-      WorkspaceExtensions(app: this, root: root);
+  /// A workspace's extensions; [root] is its folder (on [remote]'s host
+  /// for a remote project).
+  WorkspaceExtensions workspace(
+    String root, {
+    RemoteWorkspaceSite? remote,
+    TerminalBackend terminals = const TerminalBackend(),
+  }) => WorkspaceExtensions(
+    app: this,
+    root: root,
+    remote: remote,
+    terminalBackend: terminals,
+  );
+
+  final Map<String, RemoteExtensions> _remotes = {};
+
+  /// The extensions of the remote host [name] (reached through [client]):
+  /// one VS Code server there for all its projects.
+  RemoteExtensions remote(
+    String name,
+    Future<RemoteClient> Function() client,
+  ) => _remotes.putIfAbsent(
+    name,
+    () => RemoteExtensions(
+      name: name,
+      client: client,
+      runtime: runtime,
+      gallery: gallery,
+      enablement: enablement,
+      localPool: pool,
+      cacheDirectory: p.join(dataDirectory, 'cache', 'remote-vsix'),
+      language: language,
+      configuredKinds: () => switch (userSettings.values['remote.extensionKind']) {
+        final Map<Object?, Object?> kinds => kinds.cast(),
+        _ => const {},
+      },
+    ),
+  );
 
   Future<void> dispose() async {
     if (_iconThemeListener case final listener?) {
       userSettings.removeListener(listener);
     }
     await _changes.close();
+    await Future.wait([for (final remote in _remotes.values) remote.dispose()]);
+    _remotes.clear();
     await pool.dispose();
     trustStore.dispose();
   }
@@ -366,9 +411,13 @@ final class WorkspaceExtensions extends ChangeNotifier {
   WorkspaceExtensions({
     required this.app,
     required this.root,
+    this.remote,
     this._management,
     this._terminalBackend = const TerminalBackend(),
   });
+
+  /// A remote project's host; null for a folder on this machine.
+  final RemoteWorkspaceSite? remote;
 
   final ExtensionManagementBackend? _management;
 
@@ -381,7 +430,26 @@ final class WorkspaceExtensions extends ChangeNotifier {
   /// The workspace's folder.
   final String root;
 
-  late final ExtHostWorkspace extHostWorkspace = ExtHostWorkspace.folder(root);
+  /// A remote folder's id hashes its `vscode-remote:` URI
+  /// (`getSingleFolderWorkspaceIdentifier`).
+  late final ExtHostWorkspace extHostWorkspace = ExtHostWorkspace.folder(
+    root,
+    id: switch (remote) {
+      final remote? => md5
+          .convert(
+            utf8.encode(
+              VsUri.file(root)
+                  .replace(
+                    scheme: 'vscode-remote',
+                    authority: remote.extensions.authority,
+                  )
+                  .toString(),
+            ),
+          )
+          .toString(),
+      null => null,
+    },
+  );
 
   /// The extensions' environment variable collections, the persistent ones
   /// kept in the workspace's storage.
@@ -449,7 +517,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
   /// The extensions' view containers and views (`contributes.views`).
   late final ExtensionViewsService views = ExtensionViewsService(
     contextKeys: contextKeys,
-    activate: (event) async => _host?.activateByEvent(event),
+    activate: _activateByEvent,
   );
   final ExtensionQuickInputService quickInput = ExtensionQuickInputService();
   final ExtensionOutputService output = ExtensionOutputService();
@@ -463,16 +531,34 @@ final class WorkspaceExtensions extends ChangeNotifier {
   /// The source controls extensions register.
   final ScmService scm = ScmService();
   final SearchService search = SearchService();
-  late final FileService files = FileService()
-    ..registerProvider('file', DiskFileSystemProvider());
+  /// A remote project's `file:` URIs are its host's files, this
+  /// machine's `vscode-local:` ones (see [ExtensionHostPlacement]).
+  late final FileService files = switch (remote) {
+    final remote? => FileService()
+      ..registerProvider('file', IdeFileSystemProvider(remote.files))
+      ..registerProvider('vscode-local', DiskFileSystemProvider()),
+    null => FileService()..registerProvider('file', DiskFileSystemProvider()),
+  };
+
+  /// Where `.vscode/settings.json` and `tasks.json` are read and written:
+  /// a remote project's host (this machine's disk when null).
+  late final JsoncFileStorage? _storage = remote == null
+      ? null
+      : FileServiceJsoncStorage(files);
+
+  /// Whether the folder's paths ignore case.
+  bool get _ignorePathCase =>
+      remote == null && (Platform.isMacOS || Platform.isWindows);
+
   late final WorkspaceContextService workspaceContext = WorkspaceContextService(
     extHostWorkspace,
-    ignorePathCase: Platform.isMacOS || Platform.isWindows,
+    ignorePathCase: _ignorePathCase,
   );
   late final ExtensionLabelService labels = ExtensionLabelService(
-    userHome:
-        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'],
-    windows: Platform.isWindows,
+    userHome: remote == null
+        ? Platform.environment['HOME'] ?? Platform.environment['USERPROFILE']
+        : remote!.hello?.home,
+    windows: remote == null && Platform.isWindows,
   );
 
   /// The workbench's dialog context, set while its IDE is built.
@@ -500,8 +586,10 @@ final class WorkspaceExtensions extends ChangeNotifier {
     backend: management,
     gallery: app.gallery,
     locale: app.language,
-    pendingRestart: () => _host?.pendingRestart.value ?? const {},
-    restartExtensions: () async => _host?.manager.restart(),
+    pendingRestart: () => {
+      for (final host in hosts) ...host.pendingRestart.value,
+    },
+    restartExtensions: _restartHosts,
   );
 
   /// The Open VSX extensions to recommend for [documents] (the open
@@ -528,6 +616,49 @@ final class WorkspaceExtensions extends ChangeNotifier {
   }
 
   IdeWorkspace? _workspace;
+
+  /// A remote project's host for its `ui` extensions, on this machine.
+  ExtensionHostService? _uiHost;
+
+  /// The extension hosts: the workspace's own, and a remote project's on
+  /// this machine for its `ui` extensions.
+  List<ExtensionHostService> get hosts => [?_host, ?_uiHost];
+
+  /// The extensions every host runs.
+  List<Map<String, Object?>> _runningExtensions() => [
+    for (final host in hosts) ...host.extensions.value,
+  ];
+
+  /// [event] sent to every host.
+  Future<void> _activateByEvent(String event) =>
+      Future.wait([for (final host in hosts) host.activateByEvent(event)]);
+
+  Future<void> _restartHosts() =>
+      Future.wait([for (final host in hosts) host.manager.restart()]);
+
+  DebugMachine? _debugMachine() {
+    final hello = remote?.hello;
+    return DebugMachine(
+      os: switch (hello?.platform.os) {
+        'darwin' => DebugTargetOs.macintosh,
+        'win32' || 'windows' => DebugTargetOs.windows,
+        _ => DebugTargetOs.linux,
+      },
+      home: hello?.home,
+    );
+  }
+
+  /// A remote project's files, for the problem matchers.
+  ProblemFileSystem get _problemFiles => (
+    exists: files.exists,
+    readDirectory: (dir) async => [
+      for (final child
+          in (await files.resolve(dir)).children ??
+              const <ResolvedFileStat>[])
+        (child.name, child.isDirectory),
+    ],
+  );
+
   IdeTextEditors? _editors;
   DocumentsAndEditorsService? _documentsAndEditors;
   IdeDocumentsPort? _documentsPort;
@@ -594,6 +725,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
   Future<void> attach(IdeWorkspace workspace, {bool start = true}) async {
     if (_disposed || _workspace != null) return;
     _workspace = workspace;
+    final remote = this.remote;
     await app.load();
     final core = await app.coreConfiguration();
     try {
@@ -605,7 +737,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
     }
     if (_disposed) return;
     final folderSettings = _folderSettings = JsoncSettingsFile(
-      JsoncFile(p.join(root, '.vscode', 'settings.json'))..watch(),
+      JsoncFile(p.join(root, '.vscode', 'settings.json'), storage: _storage)
+        ..watch(),
     );
     unawaited(folderSettings.file.load());
     final configuration = _configuration = ConfigurationService(
@@ -707,14 +840,14 @@ final class WorkspaceExtensions extends ChangeNotifier {
       dialogs: dialogs,
       trust: trust,
       activate: (event) async {
-        final host = _host;
-        if (host == null) {
+        if (_host == null) {
           throw StateError('Workspace extensions are not attached');
         }
-        await host.activateByEvent(event);
+        await _activateByEvent(event);
       },
-      extensions: () => _host?.extensions.value ?? const [],
+      extensions: _runningExtensions,
       language: app.language,
+      machine: remote == null ? null : _debugMachine,
     );
     final debug = _debug = DebugService(
       host: debugHost,
@@ -736,10 +869,18 @@ final class WorkspaceExtensions extends ChangeNotifier {
       debug: debug,
       state: debugState,
       commands: commands.builtins,
-      activate: (event) async => _host?.activateByEvent(event),
-      extensions: () => _host?.extensions.value ?? const [],
+      activate: _activateByEvent,
+      extensions: _runningExtensions,
       progress: progress,
       setContext: contextKeys.setContext,
+      storage: _storage,
+      problemFiles: remote == null ? null : _problemFiles,
+      platform: switch (remote?.hello?.platform.os) {
+        null => null,
+        'darwin' => TaskPlatform.mac,
+        'win32' || 'windows' => TaskPlatform.windows,
+        _ => TaskPlatform.linux,
+      },
     );
     final testResults = output.registerWorkbenchChannel(
       testResultsOutputChannelId,
@@ -811,8 +952,34 @@ final class WorkspaceExtensions extends ChangeNotifier {
     final IdeSaveParticipant participate = saveParticipants.participate;
     workspace.saveParticipants.add(participate);
     _stops.add(() => workspace.saveParticipants.remove(participate));
-    final host = _host = ExtensionHostService(
-      pool: app.pool,
+    bool include(Map<String, Object?> description) =>
+        app.enablement.isEnabled(
+          _idOf(description),
+          workspaceId: extHostWorkspace.id,
+        ) &&
+        runsInWorkspace(
+          description,
+          trusted: trust.isWorkspaceTrusted,
+          trustEnabled: trust.isWorkspaceTrustEnabled,
+          configured: (configuration.getValue(
+            'extensions.supportUntrustedWorkspaces',
+          ) as Map?)?.cast(),
+        );
+    ExtensionHostService makeHost({required bool onRemote}) => ExtensionHostService(
+      pool: onRemote ? remote!.extensions.pool : app.pool,
+      placement: remote == null
+          ? null
+          : ExtensionHostPlacement(
+              authority: remote.extensions.authority,
+              remote: onRemote,
+            ),
+      selectExtensions: remote == null
+          ? null
+          : (scanned) => remote.extensions.runningOn(
+              scanned,
+              remote: onRemote,
+              include: include,
+            ),
       workspaceTrusted: () => trust.isWorkspaceTrusted,
       loadProduct: app.product,
       language: app.language,
@@ -912,29 +1079,22 @@ final class WorkspaceExtensions extends ChangeNotifier {
       },
       activationHost: _WorkspaceActivationHost(
         folders: [for (final f in extHostWorkspace.folders) f.uri],
+        files: files,
         search: search,
         queryBuilder: QueryBuilder(
           configuration: configuration,
           workspace: workspaceContext,
         ),
       ),
-      includeExtension: (description) =>
-          app.enablement.isEnabled(
-            _idOf(description),
-            workspaceId: extHostWorkspace.id,
-          ) &&
-          runsInWorkspace(
-            description,
-            trusted: trust.isWorkspaceTrusted,
-            trustEnabled: trust.isWorkspaceTrustEnabled,
-            configured: (configuration.getValue(
-              'extensions.supportUntrustedWorkspaces',
-            ) as Map?)?.cast(),
-          ),
+      includeExtension: include,
     );
+    _host = makeHost(onRemote: remote != null);
+    if (remote != null) _uiHost = makeHost(onRemote: false);
     void runtimeChanged() => _extensionsModel?.runtimeChanged();
-    host.pendingRestart.addListener(runtimeChanged);
-    _stops.add(() => host.pendingRestart.removeListener(runtimeChanged));
+    for (final host in hosts) {
+      host.pendingRestart.addListener(runtimeChanged);
+      _stops.add(() => host.pendingRestart.removeListener(runtimeChanged));
+    }
     void updateTrust() {
       trust.update();
       configuration.trusted = trust.isWorkspaceTrusted;
@@ -950,10 +1110,12 @@ final class WorkspaceExtensions extends ChangeNotifier {
       configuration.trusted = trusted;
       contextKeys.setContext('isWorkspaceTrusted', trusted);
       // JS trust can only be granted in place; revocation needs a fresh host.
-      if (!trusted && host.manager.rpc != null) {
-        unawaited(host.manager.restart());
-      } else {
-        unawaited(_refreshExtensions());
+      for (final host in hosts) {
+        if (!trusted && host.manager.rpc != null) {
+          unawaited(host.manager.restart());
+        } else {
+          unawaited(_refreshExtensions(host));
+        }
       }
       notifyListeners();
     });
@@ -976,7 +1138,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
       unawaited(saved.cancel());
       unawaited(fileChanges.cancel());
     });
-    commands.activation = ExtensionHostCommandActivation(host);
+    commands.activation = ExtensionHostCommandActivation.all(hosts);
     final builtins = _builtinCommands = IdeBuiltinCommands(
       workspace: workspace,
       editors: editors,
@@ -997,14 +1159,14 @@ final class WorkspaceExtensions extends ChangeNotifier {
     );
     builtins
       ..l10n = app.l10n
-      ..restartExtensions = (() async => _host?.manager.restart())
-      ..needsRestart = (installed) =>
-          _host?.needsRestartFor(
-            installed.manifest.id,
-            version: installed.manifest.version,
-            folder: installed.location,
-          ) ??
-          false;
+      ..restartExtensions = _restartHosts
+      ..needsRestart = (installed) => hosts.any(
+        (host) => host.needsRestartFor(
+          installed.manifest.id,
+          version: installed.manifest.version,
+          folder: installed.location,
+        ),
+      );
     _stops.add(
       registerWorkbenchBuiltinCommands(
         commands.builtins,
@@ -1012,7 +1174,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
         workbench: builtins,
         editor: builtins,
         extensions: builtins,
-        restartExtensionHost: () async => _host?.manager.restart(),
+        restartExtensionHost: _restartHosts,
       ),
     );
     _stops.add(registerLanguageCommands(languageRoot, commands.builtins));
@@ -1054,11 +1216,25 @@ final class WorkspaceExtensions extends ChangeNotifier {
           configuration.getValue(key, languageId: languageId),
     );
     builtins.onTriggerWordHighlight = _editorFeatures?.restoreHighlights;
-    host.extensions.addListener(_extensionsChanged);
-    host.addListener(notifyListeners);
+    for (final host in hosts) {
+      host.extensions.addListener(_extensionsChanged);
+      host.addListener(notifyListeners);
+    }
     // Installed, uninstalled, enabled or disabled anywhere: the running
-    // host is told (restarted when it must drop an extension it runs).
-    final changes = app.changes.listen((_) => unawaited(_refreshExtensions()));
+    // hosts are told (restarted when one must drop an extension it runs);
+    // a remote host's installs follow this machine's first.
+    final changes = app.changes.listen(
+      (_) => unawaited(() async {
+        if (remote case final remote?) {
+          try {
+            await remote.extensions.sync();
+          } on Object catch (error) {
+            _logHostError('Could not update the extensions there: $error');
+          }
+        }
+        await _refreshExtensions();
+      }()),
+    );
     _stops.add(() => unawaited(changes.cancel()));
     _watcher = WorkspaceFileWatcher(
       files: files,
@@ -1114,17 +1290,23 @@ final class WorkspaceExtensions extends ChangeNotifier {
     await host.manager.restart();
   }
 
-  Future<void> _refreshExtensions() async {
-    try {
-      await _host?.refreshExtensions();
-    } on Object catch (error) {
-      output.logExtensionHostMessage({
-        'type': r'__$console',
-        'severity': 'error',
-        'arguments': jsonEncode(['Could not update the extensions: $error']),
-      });
+  /// Tells [host] (every host when null) of the extensions now installed
+  /// and enabled.
+  Future<void> _refreshExtensions([ExtensionHostService? host]) async {
+    for (final each in host == null ? hosts : [host]) {
+      try {
+        await each.refreshExtensions();
+      } on Object catch (error) {
+        _logHostError('Could not update the extensions: $error');
+      }
     }
   }
+
+  void _logHostError(String message) => output.logExtensionHostMessage({
+    'type': r'__$console',
+    'severity': 'error',
+    'arguments': jsonEncode([message]),
+  });
 
   /// The language ids [selector] names (`*` and filters without one
   /// name none).
@@ -1152,18 +1334,17 @@ final class WorkspaceExtensions extends ChangeNotifier {
   /// Starts the extension host and runs the startup activation events;
   /// what went wrong is in the extension host's output.
   Future<void> startHost() async {
-    final host = _host;
-    if (host == null) return;
-    try {
-      await host.startup();
-      _documentsChanged();
-    } on Object catch (error) {
-      output.logExtensionHostMessage({
-        'type': r'__$console',
-        'severity': 'error',
-        'arguments': jsonEncode(['Extension host failed to start: $error']),
-      });
-    }
+    await Future.wait([
+      for (final host in hosts)
+        () async {
+          try {
+            await host.startup();
+            _documentsChanged();
+          } on Object catch (error) {
+            _logHostError('Extension host failed to start: $error');
+          }
+        }(),
+    ]);
   }
 
   /// The languages `onLanguage:` was sent for.
@@ -1172,8 +1353,7 @@ final class WorkspaceExtensions extends ChangeNotifier {
   /// A document opened in a language not seen before: its extensions
   /// activate (`onLanguage:<id>`, and `onLanguage`).
   void _documentsChanged() {
-    final host = _host;
-    if (host == null) return;
+    if (_host == null) return;
     final languages = {
       for (final document in documents.documents) document.mirror.languageId,
     };
@@ -1191,15 +1371,16 @@ final class WorkspaceExtensions extends ChangeNotifier {
     try {
       // Upstream fires both without waiting on either.
       await Future.wait([
-        for (final language in fresh)
-          host.activateByEvent('onLanguage:$language'),
-        host.activateByEvent('onLanguage'),
+        for (final language in fresh) _activateByEvent('onLanguage:$language'),
+        _activateByEvent('onLanguage'),
       ]);
     } on Object {
       // Logged by the host's output; the editor carries on without. When
-      // the host could not start (no runtime yet), the next start asks
+      // a host could not start (no runtime yet), the next start asks
       // again.
-      if (host.manager.state == ExtensionHostState.failed) {
+      if (hosts.any(
+        (host) => host.manager.state == ExtensionHostState.failed,
+      )) {
         _activatedLanguages.removeAll(fresh);
       }
     }
@@ -1208,9 +1389,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
   /// The installed extensions changed (the host scanned them): their
   /// commands, menus, status bar items and languages.
   void _extensionsChanged() {
-    final host = _host;
-    if (host == null) return;
-    final extensions = host.extensions.value;
+    if (_host == null) return;
+    final extensions = _runningExtensions();
     // Those of extensions gone go with them.
     terminalEnvironment.retain({
       for (final extension in extensions) _idOf(extension),
@@ -1289,14 +1469,19 @@ final class WorkspaceExtensions extends ChangeNotifier {
       ];
       final configurations = <String, Map<String, Object?>>{};
       final configurationPaths = <String, String>{};
-      if (location != null && location.scheme == 'file') {
+      if (location != null) {
         for (final language in contributions) {
           final languageId = language['id'];
           final relative = language['configuration'];
           if (languageId is! String || relative is! String) continue;
-          final path = p.normalize(p.join(location.fsPath(), relative));
+          final uri = location.replace(
+            path: p.posix.normalize(p.posix.join(location.path, relative)),
+          );
+          final path = uri.fsPath();
           try {
-            final json = parseJsonc(await File(path).readAsString());
+            final json = parseJsonc(
+              utf8.decode(await files.readFile(uri), allowMalformed: true),
+            );
             if (json is Map) {
               configurations[languageId] = json.cast();
               configurationPaths[languageId] = path;
@@ -1341,13 +1526,16 @@ final class WorkspaceExtensions extends ChangeNotifier {
     _debugHost?.dispose();
     _debugShutdown = () async {
       await _host?.context?.dispose();
+      await _uiHost?.context?.dispose();
       _debug?.dispose();
       await _debugState?.dispose();
     }();
-    _host
-      ?..extensions.removeListener(_extensionsChanged)
-      ..removeListener(notifyListeners)
-      ..dispose();
+    for (final host in hosts) {
+      host
+        ..extensions.removeListener(_extensionsChanged)
+        ..removeListener(notifyListeners)
+        ..dispose();
+    }
     _watcher?.dispose();
     terminals.dispose();
     unawaited(terminalEnvironment.store?.dispose());
@@ -1500,12 +1688,14 @@ final class _AuthSecrets implements AuthSecretStore {
 final class _WorkspaceActivationHost implements ExtensionActivationHost {
   _WorkspaceActivationHost({
     required this.folders,
+    required this.files,
     required this.search,
     required this.queryBuilder,
   });
 
   @override
   final List<VsUri> folders;
+  final FileService files;
   final SearchService search;
   final QueryBuilder queryBuilder;
 
@@ -1513,9 +1703,7 @@ final class _WorkspaceActivationHost implements ExtensionActivationHost {
   bool get forceUsingSearch => false;
 
   @override
-  Future<bool> exists(VsUri uri) async =>
-      await FileSystemEntity.type(uri.fsPath()) !=
-      FileSystemEntityType.notFound;
+  Future<bool> exists(VsUri uri) => files.exists(uri);
 
   @override
   Future<bool> checkExists(
@@ -1540,19 +1728,41 @@ final class _LazyCommandActivation implements CommandActivation {
 
   @override
   Future<void> activateByEvent(String activationEvent) =>
-      extensions.host?.activateByEvent(activationEvent) ?? Future.value();
+      extensions._activateByEvent(activationEvent);
 
   @override
   bool activationEventIsDone(String activationEvent) =>
-      extensions.host?.manager.activatedOn(activationEvent) ?? false;
+      extensions.hosts.isNotEmpty &&
+      extensions.hosts.every(
+        (host) => host.manager.activatedOn(activationEvent),
+      );
 
   @override
   bool get extensionHostIsReady =>
-      extensions.host?.manager.state == ExtensionHostState.running;
+      extensions.hosts.isNotEmpty &&
+      extensions.hosts.every(
+        (host) => host.manager.state == ExtensionHostState.running,
+      );
 }
 
 /// `ExtensionActivator` for the file system actors.
 ExtensionActivator extensionActivatorOf(WorkspaceExtensions extensions) =>
-    ExtensionActivator(
-      (event) => extensions.host?.activateByEvent(event) ?? Future.value(),
-    );
+    ExtensionActivator(extensions._activateByEvent);
+
+/// What a remote project's workspace is on: its host's extensions and
+/// files (the paths the host's), and what the host said of itself.
+final class RemoteWorkspaceSite {
+  const RemoteWorkspaceSite({
+    required this.extensions,
+    required this.files,
+    this.connectedHello,
+  });
+
+  final RemoteExtensions extensions;
+  final IdeFileService files;
+
+  /// What the BaoCode server there said, once connected.
+  final RemoteHello? Function()? connectedHello;
+
+  RemoteHello? get hello => connectedHello?.call() ?? extensions.hello;
+}

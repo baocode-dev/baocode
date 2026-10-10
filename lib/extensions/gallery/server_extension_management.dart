@@ -49,7 +49,16 @@ final class ServerExtensionManagement
     this.workspaceId,
     this.language = 'en',
     this.developmentLocations = const [],
+    this.stage,
+    this.unstage,
   });
+
+  /// Sends a .vsix to the server's machine (a remote host's): its path
+  /// there. This machine's server reads it where it is.
+  final Future<String> Function(String vsixPath)? stage;
+
+  /// Deletes what [stage] sent once it is installed.
+  final Future<void> Function(String vsixPath)? unstage;
 
   /// The server, started when needed.
   final Future<ExtensionServer> Function() server;
@@ -171,16 +180,22 @@ final class ServerExtensionManagement
     ExtensionInstallOptions options = const ExtensionInstallOptions(),
   }) async {
     final channel = await _channel();
-    final raw = await channel.call('install', [
-      toServer(VsUri.file(File(vsixPath).absolute.path)).toJson(),
-      {
-        'installPreReleaseVersion': options.preRelease,
-        if (options.installGivenVersion) 'installGivenVersion': true,
-        'isMachineScoped': false,
-        // They come from Open VSX through BaoCode, below.
-        'donotIncludePackAndDependencies': true,
-      },
-    ]);
+    final staged = await stage?.call(vsixPath);
+    final Object? raw;
+    try {
+      raw = await channel.call('install', [
+        toServer(VsUri.file(staged ?? File(vsixPath).absolute.path)).toJson(),
+        {
+          'installPreReleaseVersion': options.preRelease,
+          if (options.installGivenVersion) 'installGivenVersion': true,
+          'isMachineScoped': false,
+          // They come from Open VSX through BaoCode, below.
+          'donotIncludePackAndDependencies': true,
+        },
+      ]);
+    } finally {
+      if (staged != null) await unstage?.call(vsixPath);
+    }
     // Answered with the server's own URIs (upstream's channel does not
     // transform them): as it sends them, to send back.
     var local = (asSentByServer(raw)! as Map).cast<String, Object?>();
@@ -208,7 +223,9 @@ final class ServerExtensionManagement
         extension.id,
       ),
     );
-    await _installDependenciesAndPack(extension, previous, options);
+    if (options.withDependencies) {
+      await _installDependenciesAndPack(extension, previous, options);
+    }
     return extension;
   }
 

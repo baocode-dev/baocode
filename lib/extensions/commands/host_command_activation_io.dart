@@ -1,24 +1,29 @@
-// Activation for commands through the workspace's extension host.
+// Activation for commands through the workspace's extension hosts.
 
 import '../extension_host_service_io.dart';
 import '../host/extension_host_manager.dart';
 import 'extension_command_registry.dart';
 
-/// [CommandActivation] over an [ExtensionHostService].
+/// [CommandActivation] over a workspace's [ExtensionHostService]s (a remote
+/// project has two: its host's and this machine's).
 final class ExtensionHostCommandActivation implements CommandActivation {
-  ExtensionHostCommandActivation(this.host);
+  ExtensionHostCommandActivation(ExtensionHostService host) : hosts = [host];
 
-  final ExtensionHostService host;
+  ExtensionHostCommandActivation.all(this.hosts);
+
+  final List<ExtensionHostService> hosts;
 
   @override
-  Future<void> activateByEvent(String activationEvent) =>
-      host.activateByEvent(activationEvent);
+  Future<void> activateByEvent(String activationEvent) => Future.wait([
+    for (final host in hosts) host.activateByEvent(activationEvent),
+  ]);
 
   @override
   bool activationEventIsDone(String activationEvent) =>
-      host.manager.activatedOn(activationEvent);
+      hosts.every((host) => host.manager.activatedOn(activationEvent));
 
   @override
-  bool get extensionHostIsReady =>
-      host.manager.state == ExtensionHostState.running;
+  bool get extensionHostIsReady => hosts.every(
+    (host) => host.manager.state == ExtensionHostState.running,
+  );
 }

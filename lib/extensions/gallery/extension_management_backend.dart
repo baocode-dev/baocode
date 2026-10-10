@@ -93,6 +93,7 @@ class ExtensionInstallOptions {
     this.preRelease = false,
     this.fromGallery = false,
     this.installGivenVersion = false,
+    this.withDependencies = true,
   });
 
   /// Installed as a pre-release: updates follow pre-releases.
@@ -105,6 +106,9 @@ class ExtensionInstallOptions {
   /// This version, kept (pinned: not updated automatically), as Install
   /// Extension VSIX asks.
   final bool installGivenVersion;
+
+  /// Its `extensionDependencies` and `extensionPack` installed too.
+  final bool withDependencies;
 }
 
 enum ExtensionManagementEventKind { installed, uninstalled, enablement }
