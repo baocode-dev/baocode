@@ -8,7 +8,7 @@ import 'package:bao_remote/client.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
-import 'remote_harness.dart' show dartExecutable;
+import '../fixtures/lsp/fake_lsp.dart' show dartExecutable;
 
 /// The server's builds, as files; [reads] counts what was asked for.
 class FakeBinaries implements RemoteServerBinaries {

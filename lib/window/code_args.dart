@@ -53,20 +53,8 @@ class CodeArgs {
   /// hands it over as a request ([agentRequestMarker]).
   static const windowsAgentFlag = '--baocode-agent';
 
-  /// The marker of a `baocode://` URI the system asks the app to open (an
-  /// extension's OAuth callback; macOS's URL event, see AppDelegate.swift),
-  /// the URI next: for the extensions' URL service (see main.dart).
-  static const uriRequestMarker = '\u0000uri';
-
-  /// The flag the `baocode` URL protocol starts the Windows app with (the
-  /// installer registers it, see tool/baocode.iss), `--` and the URI next,
-  /// as VS Code's `--open-url`; the runner hands it over as a request
-  /// ([uriRequestMarker]).
-  static const windowsUrlFlag = '--open-url';
-
   /// Whether [argument] starts a request ([requestMarker],
-  /// [agentRequestMarker], [uriRequestMarker]) among what the system hands
-  /// over.
+  /// [agentRequestMarker]) among what the system hands over.
   static bool isMarker(String argument) => argument.startsWith('\u0000');
 
   /// Whether [paths], as the system hands them over, are a request of the
@@ -191,8 +179,6 @@ enum LaunchRequest {
     final first = arguments.firstOrNull;
     if (first == CodeArgs.windowsAgentFlag) return agent;
     if (first == CodeArgs.windowsRequestFlag) return ide;
-    // A URI for an extension: the windows of the last run, which take it.
-    if (first == CodeArgs.windowsUrlFlag) return none;
     final paths = arguments.where((a) => a.isNotEmpty && !a.startsWith('-'));
     return paths.isEmpty ? none : ide;
   }

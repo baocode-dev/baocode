@@ -63,7 +63,7 @@ String localizedDataDirectoryProblem(
 
 /// Whether [error] is a file in use for now, which may not be a moment
 /// later. On Windows ([windows]; this platform when null): open in a
-/// program that shares it with no one (an extension's process, git, a virus
+/// program that shares it with no one (a language server, git, a virus
 /// scanner, the search indexer), a part of it locked, or removed but still
 /// open (its folder then not empty yet). Elsewhere: busy.
 bool isFileInUse(FileSystemException error, {bool? windows}) {

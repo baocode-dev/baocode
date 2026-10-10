@@ -17,7 +17,6 @@ import '../update/update_controller.dart';
 import 'app_locale.dart';
 import 'pages/appearance_page.dart';
 import 'pages/data_dir_page.dart';
-import 'pages/extension_settings_page.dart';
 import 'pages/general_page.dart';
 import 'pages/keybindings_page.dart';
 import 'pages/models_page.dart';
@@ -129,8 +128,6 @@ class AppSettings {
                 : () => unawaited(showImport(context)),
           ),
         );
-      case SettingsSection.extensionSettings:
-        return const ExtensionSettingsPage();
       case SettingsSection.updates:
         return UpdatesSettingsPage(updates: updates, settings: files?.settings);
       case SettingsSection.dataDirectory:

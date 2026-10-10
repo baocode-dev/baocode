@@ -226,7 +226,7 @@ void main() {
             workspace: workspace,
             active: workspace.active!,
             onError: (error) => fail('$error'),
-            onEditorStatus: (_) {},
+            onLspStatus: (_) {},
             onPositionChanged: (_) {},
           ),
         ),

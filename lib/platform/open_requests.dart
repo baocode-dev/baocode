@@ -39,11 +39,6 @@ abstract final class OpenRequests {
 
   static void Function(List<String> paths)? _onOpen;
 
-  /// Where the `baocode://` URIs the system opens go: each request
-  /// ([CodeArgs.uriRequestMarker], then the URI), to the extensions' URL
-  /// service (see main.dart), not to [listen]'s. Without one, dropped.
-  static void Function(List<String> request)? onUri;
-
   /// What the macOS app was launched for: the first of what the system
   /// asked it to open before now (Finder's Open with BaoCode, an agent;
   /// anything else, the IDE), which [listen] then delivers; none, launched
@@ -107,12 +102,7 @@ abstract final class OpenRequests {
     var start = first;
     for (var index = first + 1; index <= all.length; index++) {
       if (index < all.length && !CodeArgs.isMarker(all[index])) continue;
-      final request = all.sublist(start, index);
-      if (request.first == CodeArgs.uriRequestMarker) {
-        onUri?.call(request);
-      } else {
-        _onOpen?.call(request);
-      }
+      _onOpen?.call(all.sublist(start, index));
       start = index;
     }
   }

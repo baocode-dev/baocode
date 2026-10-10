@@ -8,13 +8,16 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:bao_editor/monaco/flutter/language_assets.dart';
+
 import 'chat/chat_width.dart';
 import 'customize/customization_store.dart';
-import 'extensions/workbench/jsonc_settings_file.dart';
-import 'extensions/workbench/window_file_pickers.dart';
-import 'extensions/workbench/workspace_extensions.dart';
+import 'extensions/theme_extensions.dart';
 import 'ide/git/git_repository.dart';
 import 'ide/git/repository_scan.dart';
+import 'ide/lsp/language_features.dart';
+import 'ide/lsp/lsp_process.dart';
+import 'ide/lsp/packs/language_packs.dart';
 import 'ide/terminal/pty.dart';
 import 'ide/terminal/terminal_colors.dart';
 import 'ide/terminal/terminal_instance.dart';
@@ -87,10 +90,14 @@ Future<void> main(List<String> arguments) async {
     errors = ErrorLog(DataDirectory.current.logsDir)..install();
   }
   unawaited(reapClaudeProcesses());
+  unawaited(reapLspProcesses());
   unawaited(reapPtyProcesses());
   WidgetsFlutterBinding.ensureInitialized();
   // The Windows app's own logs go beside it.
   if (errors != null) unawaited(errors.shareWithHost());
+  // The editor's language packs are the language servers' (README.md in
+  // lib/ide/lsp/packs).
+  MonacoLanguageAssets.defaultPacks = () => LanguagePackRegistry.instance;
   // The user's settings files ([SettingsFiles.instance]): read before the
   // first frame, which is in their language and theme, and followed as
   // they change on disk.
@@ -192,7 +199,7 @@ Future<void> main(List<String> arguments) async {
       data: colorTheme.colorThemeData,
     )
     ..storage = colorTheme
-    // A theme of an extension applies once the extensions are read.
+    // A theme of an extension applies once they are read.
     ..waitsForExtensionThemes = files != null;
   if (colorTheme is ColorThemeSettings) colorTheme.follow(themes);
   unawaited(themes.initialize());
@@ -217,56 +224,35 @@ Future<void> main(List<String> arguments) async {
     );
     _startTelemetry(files);
   }
-  // VS Code's extensions (lib/extensions/): one runtime and server for
-  // the app, a host per IDE workspace.
-  final extensions = files == null
+  // The theme extensions (lib/extensions/): color and file icon themes
+  // from Open VSX or a .vsix, `workbench.iconTheme` followed as
+  // settings.json changes.
+  final themeExtensions = files == null
       ? null
-      : ExtensionsApp(
-          userSettings: JsoncSettingsFile(files.settings),
-          openExternal: openExternal,
-          filePickers: const WindowFilePickers(),
-          language: () =>
+      : ThemeExtensions.inDataDirectory(
+          DataDirectory.current.path,
+          locale:
               locale.setting ??
               switch (WidgetsBinding.instance.platformDispatcher.locale) {
                 Locale(languageCode: 'zh') => AppLocale.simplifiedChinese,
                 _ => AppLocale.english,
               },
         );
-  // `workbench.iconTheme`: an extension's file icon theme, followed as
-  // settings.json changes.
-  if (extensions != null) {
-    unawaited(extensions.applyInstalledThemes());
-    extensions.followIconThemeSetting();
-    // `baocode://` URIs the system opens (an extension's OAuth callback):
-    // to the extension's URI handler.
-    OpenRequests.onUri = extensions.urls.handleOpenRequest;
+  if (themeExtensions != null) {
+    unawaited(themeExtensions.apply());
+    themeExtensions.followIconThemeSetting(files!.settings);
   }
   final app = BaoCodeApp(
     windows: windows,
     workspace: workspace,
     appLocale: locale,
     settings: settings,
-    extensions: extensions,
-    // The extension hosts of a folder: on this machine, or on a remote
-    // project's host (and here for its ui extensions).
-    extensionsFor: extensions == null
-        ? null
-        : (folder) {
-            final host = ProjectHost.of(folder);
-            final root = host.pathOf(folder);
-            if (host case final SshHost ssh) {
-              return extensions.workspace(
-                root,
-                remote: RemoteWorkspaceSite(
-                  extensions: extensions.remote(ssh.name, () => ssh.ready),
-                  files: ssh.files(root),
-                  connectedHello: () => ssh.hello,
-                ),
-                terminals: ssh.terminals(const TerminalBackend()),
-              );
-            }
-            return extensions.workspace(root);
-          },
+    themeExtensions: themeExtensions,
+    // On the folder's host: this machine, or a remote one's.
+    languagesFor: (folder) {
+      final host = ProjectHost.of(folder);
+      return host.languages(host.pathOf(folder));
+    },
     gitFor: (folder) {
       final host = ProjectHost.of(folder);
       return host.git(host.pathOf(folder));
@@ -350,8 +336,8 @@ class BaoCodeApp extends StatefulWidget {
   const BaoCodeApp({
     super.key,
     this.workspace,
-    this.extensions,
-    this.extensionsFor,
+    this.themeExtensions,
+    this.languagesFor,
     this.gitFor,
     this.repositoriesIn,
     this.terminalBackend,
@@ -381,12 +367,11 @@ class BaoCodeApp extends StatefulWidget {
   /// [appLocale] and the app's keybindings.
   final AppSettings? settings;
 
-  /// The app's extensions, whose server stops as the app quits.
-  final ExtensionsApp? extensions;
+  /// The installed theme extensions (the Extensions view's).
+  final ThemeExtensions? themeExtensions;
 
-  /// The extensions of a project the IDE opens (its language features
-  /// among them); none when null, or when it gives null.
-  final WorkspaceExtensions? Function(String folder)? extensionsFor;
+  /// The language servers for a project the IDE opens; none when null.
+  final LanguageFeatures Function(String root)? languagesFor;
 
   /// The Git repository of a project the IDE opens; none when null.
   final IdeGitRepository Function(String root)? gitFor;
@@ -431,8 +416,8 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
 
   /// Quitting ends the Claude Code processes too: left alone, one would
   /// finish its turn (subagents and all) unseen, and a resumed session would
-  /// then run beside it. The extension hosts end with the app as well, and
-  /// the terminals' shells are hung up, as closing their window would.
+  /// then run beside it. Language servers end with the app as well, and the
+  /// terminals' shells are hung up, as closing their window would.
   late final AppLifecycleListener _lifecycle = AppLifecycleListener(
     onExitRequested: () async {
       // The unsaved files of all windows asked about at once, then the
@@ -451,7 +436,8 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
         stopClaudeProcesses(),
         RemoteClaudeTransport.stopAll(),
         stopModelProxy(),
-        ?widget.extensions?.dispose(),
+        stopLspProcesses(),
+        ?widget.themeExtensions?.dispose(),
         stopPtyProcesses(),
       ]);
       // The remote hosts' servers end, and all they run with them.
@@ -581,7 +567,8 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
       workspace: _workspace,
       windows: _windows,
       window: window,
-      extensionsFor: widget.extensionsFor,
+      languagesFor: widget.languagesFor,
+      themeExtensions: widget.themeExtensions,
       gitFor: widget.gitFor,
       repositoriesIn: widget.repositoriesIn,
       terminalBackend: widget.terminalBackend,

@@ -9,7 +9,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import 'package:baocode/base/uri.dart' show VsUri;
 import 'package:baocode/debug/common/debug_model.dart';
 import 'package:baocode/debug/common/debug_types.dart';
 import 'package:baocode/debug/common/repl_model.dart';

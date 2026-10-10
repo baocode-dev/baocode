@@ -1,4 +1,5 @@
-// The bottom panel: Problems, Output, References and the terminal's tab.
+// The bottom panel: Problems, References, Debug Console and the terminal's
+// tab.
 //
 // The lists' keyboard adapted from VS Code
 // 6a598d4a13031703d483d103c1d934a36ad27971:
@@ -31,30 +32,12 @@ import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 
 import '../ide_hover.dart';
 import '../ide_list.dart';
-import '../language/language_features.dart';
-import '../language/language_types.dart';
+import '../lsp/language_features.dart';
+import '../lsp/lsp_protocol.dart';
 import 'diagnostics.dart';
 import 'lsp_convert.dart';
 
-enum IdePanelTab {
-  problems,
-  output,
-  references,
-  debugConsole,
-  terminal,
-
-  /// An extension's view container ([IdeBottomPanel.viewTabs]).
-  view,
-}
-
-/// An extension's view container in the panel: its tab and what it shows.
-typedef IdePanelViewTab = ({
-  String id,
-  String label,
-  String tooltip,
-  String? badge,
-  Widget body,
-});
+enum IdePanelTab { problems, references, debugConsole, terminal }
 
 /// Locations Find References (or several definitions) produced.
 class IdeReferences {
@@ -215,19 +198,8 @@ class IdeBottomPanel extends StatelessWidget {
     this.referencesList,
     this.terminal,
     this.terminalActions,
-    this.output,
     this.debugConsole,
-    this.viewTabs = const [],
-    this.selectedView,
-    this.onViewTab,
   });
-
-  /// The extensions' view containers, after the panel's own tabs.
-  final List<IdePanelViewTab> viewTabs;
-
-  /// The one of [viewTabs] shown while [tab] is [IdePanelTab.view].
-  final String? selectedView;
-  final ValueChanged<String>? onViewTab;
 
   final IdePanelTab tab;
   final String root;
@@ -257,9 +229,6 @@ class IdeBottomPanel extends StatelessWidget {
 
   /// The terminal's title actions, before Close Panel while TERMINAL shows.
   final Widget? terminalActions;
-
-  /// The extensions' output channels; no OUTPUT tab without them.
-  final Widget? output;
 
   /// Debug Console; no tab when debugging is unavailable.
   final Widget? debugConsole;
@@ -308,16 +277,6 @@ class IdeBottomPanel extends StatelessWidget {
                             selected: tab == IdePanelTab.problems,
                             onTap: () => onTab(IdePanelTab.problems),
                           ),
-                          if (output != null)
-                            _Tab(
-                              label: context.l10n.panelOutput,
-                              tooltip: keys.titleWithKeybinding(
-                                context.l10n.idePanelOutput,
-                                'workbench.action.output.toggleOutput',
-                              ),
-                              selected: tab == IdePanelTab.output,
-                              onTap: () => onTab(IdePanelTab.output),
-                            ),
                           _Tab(
                             label: context.l10n.panelReferences,
                             tooltip: context.l10n.idePanelReferences,
@@ -344,17 +303,6 @@ class IdeBottomPanel extends StatelessWidget {
                               ),
                               selected: tab == IdePanelTab.terminal,
                               onTap: () => onTab(IdePanelTab.terminal),
-                            ),
-                          for (final view in viewTabs)
-                            _Tab(
-                              key: ValueKey('panel-${view.id}'),
-                              label: view.label.toUpperCase(),
-                              tooltip: view.tooltip,
-                              badge: view.badge,
-                              selected:
-                                  tab == IdePanelTab.view &&
-                                  view.id == _shownView?.id,
-                              onTap: () => onViewTab?.call(view.id),
                             ),
                         ],
                       ),
@@ -383,13 +331,11 @@ class IdeBottomPanel extends StatelessWidget {
             Expanded(
               child: switch (tab) {
                 IdePanelTab.problems => _problems(all, context.l10n),
-                IdePanelTab.output => output ?? const SizedBox.shrink(),
                 IdePanelTab.references => _references(context.l10n),
                 IdePanelTab.debugConsole =>
                   debugConsole ?? const SizedBox.shrink(),
                 IdePanelTab.terminal =>
                   terminal ?? _message(context.l10n.panelTerminalUnavailable),
-                IdePanelTab.view => _shownView?.body ?? const SizedBox.shrink(),
               },
             ),
           ],
@@ -399,14 +345,6 @@ class IdeBottomPanel extends StatelessWidget {
   }
 
   static final _never = ChangeNotifier();
-
-  /// The view tab shown: [selectedView], else the first.
-  IdePanelViewTab? get _shownView {
-    for (final view in viewTabs) {
-      if (view.id == selectedView) return view;
-    }
-    return viewTabs.firstOrNull;
-  }
 
   Widget _message(String text) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
@@ -524,7 +462,6 @@ class IdeBottomPanel extends StatelessWidget {
 
 class _Tab extends StatelessWidget {
   const _Tab({
-    super.key,
     required this.label,
     required this.tooltip,
     required this.selected,

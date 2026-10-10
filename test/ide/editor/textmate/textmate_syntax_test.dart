@@ -171,10 +171,7 @@ void main() {
     expect(await syntax.languageIdForPath('/w/a.kt'), isNull);
     expect(await syntax.languageIdForPath('/w/notes'), isNull);
     expect(await syntax.theme, isNotNull);
-    expect(
-      (await syntax.theme)!.data.settingsId,
-      testColorTheme,
-    );
+    expect((await syntax.theme)!.data.settingsId, testColorTheme);
   });
 
   test('tokenizes a document in the background', () async {

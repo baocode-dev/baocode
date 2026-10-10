@@ -258,9 +258,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get idePanelTerminal => 'Terminal';
 
   @override
-  String get idePanelOutput => 'Output';
-
-  @override
   String get cmdScmFocus => 'Focus on Changes View';
 
   @override
@@ -1165,6 +1162,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cmdTurnOffFormatOnSave => 'Turn Off Format on Save';
+
+  @override
+  String get cmdRetryLanguageServices => 'Retry Language Services';
 
   @override
   String get cmdBackToChat => 'Back to Chat';
@@ -4023,6 +4023,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get extTitleRecommended => 'Extensions: Recommended';
 
   @override
+  String get extTitleMarketplace => 'Extensions: Marketplace';
+
+  @override
   String get extFilter => 'Filter Extensions...';
 
   @override
@@ -4033,6 +4036,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get extClearSearch => 'Clear Extensions Search Results';
+
+  @override
+  String get extSearchPlaceholder => 'Search Extensions in Marketplace';
 
   @override
   String get extNoneFound => 'No extensions found.';
@@ -4058,6 +4064,90 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String extInstallError(String id, String error) {
     return 'Error while installing \'$id\' extension. $error';
+  }
+
+  @override
+  String extUninstallError(String id, String error) {
+    return 'Error while uninstalling \'$id\' extension. $error';
+  }
+
+  @override
+  String get extLanguageServer => 'Language server';
+
+  @override
+  String extLanguageServerFor(String languages) {
+    return 'Language server for $languages';
+  }
+
+  @override
+  String extMissingRuntime(String id, String runtime) {
+    return 'Installing \'$id\' needs $runtime, which was not found. Install $runtime, then try again.';
+  }
+
+  @override
+  String extUnavailable(String id) {
+    return '\'$id\' was not found on PATH and cannot be installed automatically.';
+  }
+
+  @override
+  String langStarting(String id) {
+    return '$id: starting…';
+  }
+
+  @override
+  String langStartingTooltip(String id) {
+    return 'Starting $id';
+  }
+
+  @override
+  String langRunning(String id) {
+    return '$id is running';
+  }
+
+  @override
+  String langRestarting(String id) {
+    return '$id: restarting…';
+  }
+
+  @override
+  String get langClickToRestart => 'Click to restart now';
+
+  @override
+  String langFailed(String id) {
+    return '$id failed';
+  }
+
+  @override
+  String get langClickToRetry => 'Click to retry';
+
+  @override
+  String langNotInstalled(String id) {
+    return '$id not installed';
+  }
+
+  @override
+  String langNeedsRuntime(String id, String runtime) {
+    return 'Installing $id needs $runtime, which was not found';
+  }
+
+  @override
+  String langClickToInstall(String id) {
+    return 'Click to install $id';
+  }
+
+  @override
+  String langNotOnPath(String id) {
+    return '$id was not found on PATH';
+  }
+
+  @override
+  String langInstallingItem(String id) {
+    return 'Installing $id…';
+  }
+
+  @override
+  String langInstallingTooltip(String id) {
+    return 'Installing $id';
   }
 
   @override
@@ -4186,9 +4276,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get panelTerminal => 'TERMINAL';
-
-  @override
-  String get panelOutput => 'OUTPUT';
 
   @override
   String get panelClose => 'Close Panel';
@@ -4324,6 +4411,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String wbRecommendServer(String id, String language) {
+    return 'Do you want to install the recommended \'$id\' language server for the $language language?';
+  }
+
+  @override
+  String get wbDontShowAgainServer =>
+      'Don\'t Show Again for this Language Server';
+
+  @override
   String get wbQuickCommands => 'Type the name of a command to run.';
 
   @override
@@ -4376,10 +4472,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wbUnpinTimeline => 'Unpin the Current Timeline';
 
   @override
+  String get wbLanguageServices => 'Language services';
+
+  @override
   String get wbMonacoEditor => 'Monaco editor';
 
   @override
   String get wbTextEditor => 'Text editor';
+
+  @override
+  String get wbRetryLanguageServices => 'Retry language services';
 
   @override
   String get wbNoProblems => 'No Problems';
@@ -4670,7 +4772,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataDirCopyDetail =>
-      'BaoCode copies its settings, keybindings, extensions and state there, and uses that folder after a restart.';
+      'BaoCode copies its settings, keybindings, language servers and state there, and uses that folder after a restart.';
 
   @override
   String get dataDirOtherFiles =>
@@ -4751,7 +4853,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataDirDescription =>
-      'Where BaoCode keeps your settings, keybindings, extensions and its own state. Other programs keep files there too (the web view\'s caches); BaoCode never moves or removes those.';
+      'Where BaoCode keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view\'s caches); BaoCode never moves or removes those.';
 
   @override
   String get dataDirCurrentFolder => 'Current folder';
@@ -6838,668 +6940,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only Baidu answers: the proxy isn\'t getting the others through. Check the proxy above, or Clash\'s mode and rules.';
 
   @override
-  String extRuntimeDownloading(int percent) {
-    return 'Downloading extension runtime $percent%';
-  }
-
-  @override
-  String get extRuntimeDownloadingStarting => 'Downloading extension runtime…';
-
-  @override
-  String extRuntimeDownloadingTooltip(String received, String total) {
-    return 'Downloading the extension runtime (once; it is kept for offline use): $received of $total';
-  }
-
-  @override
-  String get extRuntimeInstalling => 'Installing extension runtime…';
-
-  @override
-  String get extRuntimeInstallingTooltip => 'Unpacking the extension runtime';
-
-  @override
-  String get extRuntimeFailed => 'Extension runtime unavailable';
-
-  @override
-  String extRuntimeFailedTooltip(String error) {
-    return 'Could not get the extension runtime: $error';
-  }
-
-  @override
-  String get extRuntimeClickToRetry => 'Click to try again';
-
-  @override
-  String extRuntimeRemoteInstalling(String host, int percent) {
-    return 'Installing extension runtime on $host $percent%';
-  }
-
-  @override
-  String extRuntimeRemoteInstallingStarting(String host) {
-    return 'Installing extension runtime on $host…';
-  }
-
-  @override
-  String extRuntimeRemoteUploading(String host, int percent) {
-    return 'Sending extension runtime to $host $percent%';
-  }
-
-  @override
-  String extRuntimeRemoteTooltip(String host, String received, String total) {
-    return 'Installing the extension runtime on $host (once; it is kept there): $received of $total';
-  }
-
-  @override
-  String extRuntimeRemoteUploadingTooltip(
-    String host,
-    String received,
-    String total,
-  ) {
-    return '$host cannot reach the download server: the extension runtime is downloaded here and sent over SSH ($received of $total)';
-  }
-
-  @override
-  String windowUrlConfirm(String extension) {
-    return 'Allow \'$extension\' extension to open this URI?';
-  }
-
-  @override
-  String get windowUrlRemember => 'Do not ask me again for this extension';
-
-  @override
-  String get windowUrlOpen => 'Open';
-
-  @override
-  String get windowUrlInstallDetail => 'This extension wants to open a URI:';
-
-  @override
-  String get windowUrlOpenUri => 'Open URI';
-
-  @override
-  String get extensionSettingsSection => 'Extension Settings';
-
-  @override
-  String get extensionSettingsDescription =>
-      'Settings that extensions contribute, and VS Code\'s own settings that extensions read.';
-
-  @override
-  String get extensionSettingsSearch => 'Search settings';
-
-  @override
-  String get extensionSettingsUser => 'User';
-
-  @override
-  String get extensionSettingsWorkspace => 'Workspace';
-
-  @override
-  String get extensionSettingsShow => 'Show settings from';
-
-  @override
-  String get extensionSettingsSourceExtensions => 'Extensions';
-
-  @override
-  String get extensionSettingsSourceCore => 'VS Code';
-
-  @override
-  String get extensionSettingsSourceAll => 'All';
-
-  @override
-  String extensionSettingsResults(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count settings found',
-      one: '1 setting found',
-      zero: 'No settings found',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get extensionSettingsUnavailable =>
-      'Extension settings are not available yet.';
-
-  @override
-  String get extensionSettingsEmpty =>
-      'No installed extension contributes settings.';
-
-  @override
-  String get extensionSettingsOther => 'Other';
-
-  @override
-  String get extensionSettingsEditInJson => 'Edit in settings.json';
-
-  @override
-  String get extensionSettingsReset => 'Reset Setting';
-
-  @override
-  String get extensionSettingsCopyId => 'Copy Setting ID';
-
-  @override
-  String get extensionSettingsCopyJson => 'Copy Setting as JSON';
-
-  @override
-  String get extensionSettingsMoreActions => 'More Actions...';
-
-  @override
-  String get extensionSettingsModified => 'Modified';
-
-  @override
-  String extensionSettingsAlsoModifiedIn(String target) {
-    return 'Also modified in: $target';
-  }
-
-  @override
-  String get extensionSettingsAddItem => 'Add Item';
-
-  @override
-  String get extensionSettingsAddPattern => 'Add Pattern';
-
-  @override
-  String get extensionSettingsRemoveItem => 'Remove Item';
-
-  @override
-  String get extensionSettingsEditItem => 'Edit Item';
-
-  @override
-  String get extensionSettingsOk => 'OK';
-
-  @override
-  String get extensionSettingsCancel => 'Cancel';
-
-  @override
-  String extensionSettingsLanguage(String language) {
-    return 'Settings for $language: values are written to \"[$language]\".';
-  }
-
-  @override
-  String get extensionSettingsDeprecated => 'Deprecated';
-
-  @override
-  String get extensionSettingsValidationNumber => 'Value must be a number.';
-
-  @override
-  String get extensionSettingsValidationInteger => 'Value must be an integer.';
-
-  @override
-  String extensionSettingsValidationMin(String value) {
-    return 'Value must be greater than or equal to $value.';
-  }
-
-  @override
-  String extensionSettingsValidationMax(String value) {
-    return 'Value must be less than or equal to $value.';
-  }
-
-  @override
-  String extensionSettingsValidationExclusiveMin(String value) {
-    return 'Value must be strictly greater than $value.';
-  }
-
-  @override
-  String extensionSettingsValidationExclusiveMax(String value) {
-    return 'Value must be strictly less than $value.';
-  }
-
-  @override
-  String extensionSettingsValidationMultipleOf(String value) {
-    return 'Value must be a multiple of $value.';
-  }
-
-  @override
-  String extensionSettingsValidationMaxLength(String value) {
-    return 'Value must be $value or fewer characters long.';
-  }
-
-  @override
-  String extensionSettingsValidationMinLength(String value) {
-    return 'Value must be $value or more characters long.';
-  }
-
-  @override
-  String extensionSettingsValidationPattern(String pattern) {
-    return 'Value must match regex `$pattern`.';
-  }
-
-  @override
-  String extensionSettingsValidationEnum(String values) {
-    return 'Value is not accepted. Valid values: $values.';
-  }
-
-  @override
-  String get extensionSettingsValidationUniqueItems =>
-      'Array has duplicate items';
-
-  @override
-  String extensionSettingsValidationMinItems(String value) {
-    return 'Array must have at least $value items';
-  }
-
-  @override
-  String extensionSettingsValidationMaxItems(String value) {
-    return 'Array must have at most $value items';
-  }
-
-  @override
-  String get windowMessageDefaultSource => 'Extension';
-
-  @override
-  String get windowMessageManageExtension => 'Manage Extension';
-
-  @override
-  String windowStatusBarHide(String name) {
-    return 'Hide \'$name\'';
-  }
-
-  @override
-  String get windowStatusBarLoading => 'Loading...';
-
-  @override
-  String get windowSecretsFallbackWarning =>
-      'No system keyring answered (install and unlock a Secret Service such as GNOME Keyring or KWallet). Extension secrets are kept in an encrypted file in BaoCode\'s data folder instead, with its key in a file beside it that only you can read.';
-
-  @override
-  String get windowOutputExtensionHost => 'Extension Host';
-
-  @override
-  String get windowOutputSwitch => 'Switch Output';
-
-  @override
-  String get windowOutputClear => 'Clear Output';
-
-  @override
-  String get windowOutputScrollOff => 'Turn Auto Scrolling Off';
-
-  @override
-  String get windowOutputScrollOn => 'Turn Auto Scrolling On';
-
-  @override
-  String get windowOutputOpenInEditor => 'Open Output in Editor';
-
-  @override
-  String get windowOutputSetLogLevel => 'Set Log Level...';
-
-  @override
-  String get windowOutputSetAsDefault => 'Set As Default';
-
-  @override
-  String get windowOutputFilter => 'Filter';
-
-  @override
-  String get windowOutputLevelTrace => 'Trace';
-
-  @override
-  String get windowOutputLevelDebug => 'Debug';
-
-  @override
-  String get windowOutputLevelInfo => 'Info';
-
-  @override
-  String get windowOutputLevelWarning => 'Warning';
-
-  @override
-  String get windowOutputLevelError => 'Error';
-
-  @override
-  String get windowOutputLevelOff => 'Off';
-
-  @override
-  String get windowOutputNoChannels => 'No output channels.';
-
-  @override
-  String windowOutputTruncated(String size) {
-    return 'Only the last $size of this output are shown. Open it in the editor to see all of it.';
-  }
-
-  @override
-  String get trustFolderTitle =>
-      'Do you trust the authors of the files in this folder?';
-
-  @override
-  String get trustWorkspaceTitle =>
-      'Do you trust the authors of the files in this workspace?';
-
-  @override
-  String get trustStartupDetailsFolder =>
-      'BaoCode provides features that may automatically execute files in this folder.';
-
-  @override
-  String get trustStartupDetailsWorkspace =>
-      'BaoCode provides features that may automatically execute files in this workspace.';
-
-  @override
-  String get trustLearnMore =>
-      'If you don\'t trust the authors of these files, we recommend to continue in restricted mode as the files may be malicious.';
-
-  @override
-  String get trustOption => 'Yes, I trust the authors';
-
-  @override
-  String get trustFolderOptionDescription =>
-      'Trust folder and enable all features';
-
-  @override
-  String get trustWorkspaceOptionDescription =>
-      'Trust workspace and enable all features';
-
-  @override
-  String get dontTrustOption => 'No, I don\'t trust the authors';
-
-  @override
-  String get dontTrustFolderOptionDescription =>
-      'Open folder in restricted mode';
-
-  @override
-  String get dontTrustWorkspaceOptionDescription =>
-      'Open workspace in restricted mode';
-
-  @override
-  String trustParentFolder(String name) {
-    return 'Trust the authors of all files in the parent folder \'$name\'';
-  }
-
-  @override
-  String get trustImmediateRequestTitle =>
-      'Do you trust the authors of the files in this folder?';
-
-  @override
-  String get trustImmediateRequestDetails =>
-      'A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.';
-
-  @override
-  String get trustGrantFolder => 'Trust Folder & Continue';
-
-  @override
-  String get trustGrantWorkspace => 'Trust Workspace & Continue';
-
-  @override
-  String get trustManage => 'Manage';
-
-  @override
-  String get trustResourcesTitle =>
-      'Do you trust the authors of the files in this folder?';
-
-  @override
-  String get trustResourcesDetails =>
-      'You are trying to open an untrusted folder. Do you trust the authors of this content?';
-
-  @override
-  String get trustResourcesLearnMore =>
-      'If you don\'t trust the authors of these files, we recommend not continuing as the files may be malicious.';
-
-  @override
-  String get trustRestrictedMode => 'Restricted Mode';
-
-  @override
-  String get trustRestrictedModeAria =>
-      'Restricted Mode: Some features are disabled because this folder is not trusted.';
-
-  @override
-  String get trustRestrictedModeTooltip =>
-      'Some features are disabled because this folder is not trusted.';
-
-  @override
-  String get trustRestrictedModeTrust => 'Trust';
-
-  @override
-  String get trustRestrictedModeManage => 'Manage Workspace Trust';
-
-  @override
-  String get trustRequestCancelled => 'The trust request was cancelled.';
-
-  @override
-  String get filesParticipantOk => 'OK';
-
-  @override
-  String get filesParticipantPreview => 'Show Preview';
-
-  @override
-  String get filesParticipantSkip => 'Skip Changes';
-
-  @override
-  String get filesParticipantDontAsk => 'Do not ask me again';
-
-  @override
-  String filesParticipantCreate(String name) {
-    return 'Extension \'$name\' wants to make refactoring changes with this file creation.';
-  }
-
-  @override
-  String filesParticipantCopy(String name) {
-    return 'Extension \'$name\' wants to make refactoring changes with this file copy.';
-  }
-
-  @override
-  String filesParticipantMove(String name) {
-    return 'Extension \'$name\' wants to make refactoring changes with this file move.';
-  }
-
-  @override
-  String filesParticipantDelete(String name) {
-    return 'Extension \'$name\' wants to make refactoring changes with this file deletion.';
-  }
-
-  @override
-  String filesParticipantManyCreate(int count) {
-    return '$count extensions want to make refactoring changes with this file creation.';
-  }
-
-  @override
-  String filesParticipantManyCopy(int count) {
-    return '$count extensions want to make refactoring changes with this file copy.';
-  }
-
-  @override
-  String filesParticipantManyMove(int count) {
-    return '$count extensions want to make refactoring changes with this file move.';
-  }
-
-  @override
-  String filesParticipantManyDelete(int count) {
-    return '$count extensions want to make refactoring changes with this file deletion.';
-  }
-
-  @override
-  String get filesParticipantsCreate =>
-      'Running \'File Create\' participants...';
-
-  @override
-  String get filesParticipantsCopy => 'Running \'File Copy\' participants...';
-
-  @override
-  String get filesParticipantsMove => 'Running \'File Rename\' participants...';
-
-  @override
-  String get filesParticipantsDelete =>
-      'Running \'File Delete\' participants...';
-
-  @override
-  String workspaceFolderAddedOne(String name) {
-    return 'Extension \'$name\' added 1 folder to the workspace';
-  }
-
-  @override
-  String workspaceFolderAddedMany(String name, int count) {
-    return 'Extension \'$name\' added $count folders to the workspace';
-  }
-
-  @override
-  String workspaceFolderRemovedOne(String name) {
-    return 'Extension \'$name\' removed 1 folder from the workspace';
-  }
-
-  @override
-  String workspaceFolderRemovedMany(String name, int count) {
-    return 'Extension \'$name\' removed $count folders from the workspace';
-  }
-
-  @override
-  String workspaceFoldersChanged(String name) {
-    return 'Extension \'$name\' changed folders of the workspace';
-  }
-
-  @override
-  String windowAuthConfirmAccess(
-    String extension,
-    String provider,
-    String account,
-  ) {
-    return 'The extension \'$extension\' wants to access the $provider account \'$account\'.';
-  }
-
-  @override
-  String get windowAuthAllow => 'Allow';
-
-  @override
-  String get windowAuthDeny => 'Deny';
-
-  @override
-  String get windowAuthUseOtherAccount => 'Sign in to another account';
-
-  @override
-  String windowAuthSelectAccount(String extension, String provider) {
-    return 'The extension \'$extension\' wants to access a $provider account';
-  }
-
-  @override
-  String windowAuthSelectAccountPlaceholder(String extension) {
-    return 'Select an account for \'$extension\' to use or Esc to cancel';
-  }
-
-  @override
-  String windowAuthAccessRequest(String provider, String extension) {
-    return 'Grant access to $provider for $extension... (1)';
-  }
-
-  @override
-  String windowAuthSignInRequest(String provider, String extension) {
-    return 'Sign in with $provider to use $extension (1)';
-  }
-
-  @override
-  String get extMenusMoreActions => 'More Actions...';
-
-  @override
-  String get extMenusPaletteCategory => 'Extensions';
-
-  @override
   String get extsCapabilityFull => 'Fully supported';
 
   @override
   String get extsCapabilityFullDetail =>
-      'Runs on the extension host without webviews.';
+      'Its color or file icon themes all apply.';
 
   @override
   String get extsCapabilityPartial => 'Partly supported';
 
   @override
   String get extsCapabilityPartialDetail =>
-      'Runs, but some of its UI cannot be shown: BaoCode has no webviews.';
-
-  @override
-  String get extsCapabilityNeedsWebview => 'Needs a webview';
-
-  @override
-  String get extsCapabilityNeedsWebviewDetail =>
-      'Its main features are drawn in a webview, which BaoCode does not have.';
-
-  @override
-  String get extsCapabilityFromManifest =>
-      'From the manifest only; the code was not read.';
-
-  @override
-  String extsFindingWebviewView(String name) {
-    return 'Webview view: $name';
-  }
-
-  @override
-  String extsFindingCustomEditor(String name) {
-    return 'Custom editor: $name';
-  }
-
-  @override
-  String extsFindingNotebook(String name) {
-    return 'Notebooks: $name';
-  }
-
-  @override
-  String extsFindingNotebookRenderer(String name) {
-    return 'Notebook renderer: $name';
-  }
-
-  @override
-  String extsFindingWebviewPanelCode(String file) {
-    return 'Its code creates webview panels ($file).';
-  }
-
-  @override
-  String extsFindingWebviewViewCode(String file) {
-    return 'Its code creates webview views ($file).';
-  }
-
-  @override
-  String extsFindingCustomEditorCode(String file) {
-    return 'Its code registers a custom editor ($file).';
-  }
-
-  @override
-  String extsFindingNotebookCode(String file) {
-    return 'Its code registers a notebook ($file).';
-  }
-
-  @override
-  String get extsFindingBrowserOnly => 'It only runs in a browser.';
-
-  @override
-  String get extsFindingScanIncomplete => 'Not all of its code could be read.';
-
-  @override
-  String get extsCoreLanguageFeatures => 'language features';
-
-  @override
-  String get extsCoreLanguageServer => 'the language server';
-
-  @override
-  String get extsCoreSyntaxHighlighting => 'syntax highlighting';
-
-  @override
-  String get extsCoreSnippets => 'snippets';
-
-  @override
-  String get extsCoreDebugging => 'debugging';
-
-  @override
-  String get extsCoreThemes => 'themes';
-
-  @override
-  String get extsCoreTasks => 'tasks';
-
-  @override
-  String get extsCoreTreeViews => 'tree views';
-
-  @override
-  String get extsCoreSourceControl => 'source control';
-
-  @override
-  String get extsCoreTesting => 'testing';
-
-  @override
-  String get extsCoreJsonSchemas => 'JSON schemas';
-
-  @override
-  String get extsCoreTerminal => 'the terminal';
-
-  @override
-  String get extsCoreAuthentication => 'authentication';
-
-  @override
-  String get extsCoreLocalization => 'localization';
-
-  @override
-  String extsStillWorks(String features) {
-    return 'Still works: $features.';
-  }
-
-  @override
-  String get extsListSeparator => ', ';
+      'Its themes apply; the rest of it does nothing in BaoCode.';
 
   @override
   String extsEngineIncompatible(String current, String requested) {
@@ -7526,9 +6978,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get extsTitleOpenVsx => 'Open VSX';
 
   @override
-  String get extsBuiltin => 'Built-in';
-
-  @override
   String get extsUpdates => 'Updates';
 
   @override
@@ -7539,9 +6988,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get extsInstallFromVsix => 'Install from VSIX...';
-
-  @override
-  String get extsImportFromEditors => 'Import from VS Code...';
 
   @override
   String get extsSearchPlaceholder => 'Search Open VSX Extensions';
@@ -7569,16 +7015,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get extsDisable => 'Disable';
 
   @override
-  String get extsEnableWorkspace => 'Enable (Workspace)';
-
-  @override
-  String get extsDisableWorkspace => 'Disable (Workspace)';
-
-  @override
   String get extsDisabled => 'Disabled';
-
-  @override
-  String get extsDisabledWorkspace => 'Disabled (Workspace)';
 
   @override
   String get extsSwitchToPreRelease => 'Switch to Pre-Release Version';
@@ -7596,9 +7033,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get extsPreRelease => 'Pre-Release';
-
-  @override
-  String get extsDevelopment => 'Development';
 
   @override
   String get extsVerifiedPublisher => 'Verified publisher';
@@ -7712,354 +7146,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get extsPlatformUniversal => 'universal';
 
   @override
-  String get extsDevFolderTitle => 'Development Extension';
-
-  @override
-  String extsDevFolderDetail(String name) {
-    return 'Load $name as a development extension?';
-  }
-
-  @override
-  String get extsDevFolderLoad => 'Load';
-
-  @override
-  String get extsImportTitle => 'Import Extensions';
-
-  @override
-  String get extsImportDetecting => 'Looking for other editors...';
-
-  @override
-  String get extsImportNoEditors =>
-      'No VS Code, Cursor, Windsurf or VSCodium installation was found.';
-
-  @override
-  String get extsImportFrom => 'Import extensions from:';
-
-  @override
-  String extsImportProduct(String product, int count) {
-    return '$product ($count)';
-  }
-
-  @override
-  String get extsImportContinue => 'Continue';
-
-  @override
-  String extsImportScanning(int done, int total) {
-    return 'Checking the gallery... $done of $total';
-  }
-
-  @override
-  String extsImportSummary(int count, String products) {
-    return '$count extensions from $products.';
-  }
-
-  @override
-  String get extsImportSectionReinstall => 'On Open VSX';
-
-  @override
-  String get extsImportSectionProprietary => 'Proprietary';
-
-  @override
-  String get extsImportSectionCopy => 'Copy from disk';
-
-  @override
-  String get extsImportSectionUnavailable => 'Could not be checked';
-
-  @override
-  String get extsImportSectionSkipped => 'Skipped';
-
-  @override
-  String extsImportVersions(String installed, String remote) {
-    return 'v$installed here, v$remote on Open VSX';
-  }
-
-  @override
-  String get extsImportPreReleaseOnly => 'pre-release only';
-
-  @override
-  String get extsImportNoAlternative => 'No alternative is known.';
-
-  @override
-  String extsImportAlternativeUnavailable(String ids) {
-    return 'Alternatives ($ids) are not on Open VSX.';
-  }
-
-  @override
-  String extsImportAlternative(String label, String id) {
-    return 'Use $label ($id) instead.';
-  }
-
-  @override
-  String get extsImportCopyNotFound => 'It is not on Open VSX.';
-
-  @override
-  String get extsImportCopyEngine =>
-      'It is on Open VSX, but not for this version of VS Code.';
-
-  @override
-  String get extsImportCopyPlatform =>
-      'It is on Open VSX, but not for this platform.';
-
-  @override
-  String get extsImportCopyConsent =>
-      'Its files are copied as they are; it will not be updated.';
-
-  @override
-  String get extsImportSkipInstalled => 'Already installed.';
-
-  @override
-  String get extsImportSkipEditor => 'Only for another editor.';
-
-  @override
-  String extsImportUnavailable(String error) {
-    return 'Could not be checked: $error';
-  }
-
-  @override
-  String extsImportSettings(int count) {
-    return 'Import its settings ($count)';
-  }
-
-  @override
-  String extsImportButton(int count) {
-    return 'Import ($count)';
-  }
-
-  @override
-  String extsImportRunning(String name, int done, int total) {
-    return 'Importing $name... $done of $total';
-  }
-
-  @override
-  String get extsReportTitle => 'Import Report';
-
-  @override
-  String extsReportSummary(int count, int failed) {
-    return 'Imported $count, failed $failed.';
-  }
-
-  @override
-  String extsReportInstalled(String version) {
-    return 'Installed v$version.';
-  }
-
-  @override
-  String extsReportAlternative(String id) {
-    return 'Installed $id instead.';
-  }
-
-  @override
-  String get extsReportCopied => 'Copied from disk.';
-
-  @override
-  String get extsReportNotImported => 'Not imported.';
-
-  @override
-  String extsReportFailed(String error) {
-    return 'Failed: $error';
-  }
-
-  @override
-  String extsReportSettings(int added, int kept) {
-    return 'Settings: $added added, $kept kept.';
-  }
-
-  @override
-  String extsReportSettingsFailed(String error) {
-    return 'Could not write the settings: $error';
-  }
-
-  @override
-  String get extsProprietaryLicense =>
-      'Its license does not allow other editors to use it.';
-
-  @override
-  String get extsProprietaryRemote => 'It is part of Remote Development.';
-
-  @override
-  String get extsProprietaryAi => 'It is an AI assistant tied to GitHub.';
-
-  @override
-  String get extsProprietaryNotebooks => 'It is tied to Microsoft notebooks.';
-
-  @override
-  String windowExtensionMissingDependency(String extension, String dependency) {
-    return 'Cannot activate the \'$extension\' extension because it depends on the \'$dependency\' extension, which is not loaded. Would you like to reload the window to load the extension?';
-  }
-
-  @override
-  String get windowExtensionReloadWindow => 'Reload Window';
-
-  @override
-  String get windowRunningExtensionsTitle => 'Running Extensions';
-
-  @override
-  String get windowRunningExtensionsEmpty => 'No extensions are running.';
-
-  @override
-  String get windowRunningExtensionsActivating => 'Activating...';
-
-  @override
-  String windowRunningExtensionsStartup(String time) {
-    return 'Startup Activation: ${time}ms';
-  }
-
-  @override
-  String windowRunningExtensionsActivation(String time) {
-    return 'Activation: ${time}ms';
-  }
-
-  @override
-  String windowRunningExtensionsErrors(int count) {
-    return '$count uncaught errors';
-  }
-
-  @override
-  String get windowRunningExtensionsHost => 'Extension host';
-
-  @override
-  String get windowWebviewUnsupported =>
-      'This feature needs Webview, which BaoCode does not support.';
-
-  @override
-  String get windowWebviewTitle => 'Webview not supported';
-
-  @override
-  String windowWebviewPanelDetail(String extension, String title) {
-    return 'The \'$extension\' extension opened \'$title\', which needs a Webview to show. Its other features keep working.';
-  }
-
-  @override
-  String windowWebviewViewDetail(String extension, String title) {
-    return 'The \'$extension\' extension\'s \'$title\' view needs a Webview, which BaoCode does not support.';
-  }
-
-  @override
-  String windowWebviewCustomEditorDetail(String extension, String viewType) {
-    return 'The \'$extension\' extension\'s \'$viewType\' editor needs a Webview, which BaoCode does not support.';
-  }
-
-  @override
-  String windowNotebookDetail(String extension, String viewType) {
-    return 'The \'$extension\' extension\'s \'$viewType\' notebooks need a notebook editor, which BaoCode does not support; their files open as text.';
-  }
-
-  @override
-  String windowNotebookUnsupported(String name) {
-    return 'Notebooks are not supported in BaoCode: \'$name\' was not opened as a notebook.';
-  }
-
-  @override
-  String get windowWebviewOpenInBrowser => 'Open in Browser';
-
-  @override
-  String get windowWebviewShowOutput => 'Show Output';
-
-  @override
-  String get windowWebviewNoFallback =>
-      'This extension\'s UI cannot be shown here. Everything else it contributes works as usual.';
-
-  @override
-  String windowAuthConfirmLogin(String extension, String provider) {
-    return 'The extension \'$extension\' wants to sign in using $provider.';
-  }
-
-  @override
-  String windowAuthConfirmRelogin(String extension, String provider) {
-    return 'The extension \'$extension\' wants you to sign in again using $provider.';
-  }
-
-  @override
-  String get windowAuthLearnMore => 'Learn more';
-
-  @override
-  String get windowAuthDidNotConsent => 'User did not consent to login.';
-
-  @override
-  String get windowAuthDeviceCodeTitle => 'Device Code Authentication';
-
-  @override
-  String windowAuthDeviceCodeDetail(String code, String uri) {
-    return 'Your code: $code\n\nTo complete authentication, navigate to $uri and enter the code above.';
-  }
-
-  @override
-  String get windowAuthCopyAndContinue => 'Copy & Continue';
-
-  @override
-  String get windowAuthIncorrectAccount => 'Incorrect account detected';
-
-  @override
-  String windowAuthIncorrectAccountDetail(String chosen, String requested) {
-    return 'The chosen account, $chosen, does not match the requested account, $requested.';
-  }
-
-  @override
-  String get windowAuthContinue => 'Continue';
-
-  @override
-  String get windowAuthSignInAgain => 'Sign in again';
-
-  @override
-  String get windowQuickInputSelectAll => 'Select All';
-
-  @override
-  String windowQuickInputToggleOn(String label) {
-    return '$label: checked';
-  }
-
-  @override
-  String windowQuickInputToggleOff(String label) {
-    return '$label: unchecked';
-  }
-
-  @override
-  String get windowAuthAccounts => 'Accounts';
-
-  @override
-  String windowAuthAccountsWithRequests(int count) {
-    return '$count accounts requests';
-  }
-
-  @override
-  String get windowAuthSignOut => 'Sign Out';
-
-  @override
-  String windowAuthSignOutMenu(int count) {
-    return 'Sign out of $count accounts';
-  }
-
-  @override
-  String get windowAuthSignOutAll => 'Sign Out of All Accounts';
-
-  @override
-  String windowAuthSignOutConfirm(String account, String provider) {
-    return 'Sign out of the $account account of $provider?';
-  }
-
-  @override
-  String get windowAuthManageTrusted => 'Manage Trusted Extensions...';
-
-  @override
-  String get windowAuthNoTrustedExtensions =>
-      'No extensions have been given access to an account.';
-
-  @override
-  String get windowAuthRemoveAllTrusted => 'Remove All';
-
-  @override
-  String wbRecommendExtension(String name, String language) {
-    return 'The \'$name\' extension is recommended for $language files.';
-  }
-
-  @override
-  String get wbRecommendExtensionDontShow =>
-      'Don\'t Show Again for This Extension';
-
-  @override
-  String get extsNoHost => 'Extensions are not available for this folder yet.';
-
-  @override
   String get extsPageClose => 'Close Extension';
 
   @override
@@ -8075,52 +7161,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeIconThemeBuiltIn => 'Built-in';
 
   @override
-  String get extViewNoDataProvider =>
-      'There is no data provider registered that can provide view data.';
+  String get extsCapabilityUnsupported => 'Not supported';
 
   @override
-  String get extViewCollapseAll => 'Collapse All';
+  String get extsCapabilityUnsupportedDetail =>
+      'It has no color or file icon theme: BaoCode only uses themes from extensions.';
 
   @override
-  String get extViewWebviewUnsupported =>
-      'This view needs a Webview, which BaoCode does not support.';
+  String get extsFindingCode => 'Its code does not run.';
 
   @override
-  String get extInstallVsixDone => 'Completed installing extension.';
+  String extsFindingContribution(String name) {
+    return 'Not used: $name';
+  }
 
   @override
-  String get extInstallVsixsDone => 'Completed installing extensions.';
+  String get extsPopularThemes => 'Popular Themes';
 
   @override
-  String get extInstallVsixRestart =>
-      'Completed installing extension. Please restart extensions to enable it.';
+  String get extsTabThemes => 'Themes';
 
   @override
-  String get extInstallVsixsRestart =>
-      'Completed installing extensions. Please restart extensions to enable them.';
-
-  @override
-  String get extRestartExtensions => 'Restart Extensions';
-
-  @override
-  String get extHostAutoRestart =>
-      'The extension host terminated unexpectedly. Restarting...';
-
-  @override
-  String get extHostRemoteAutoRestart =>
-      'The remote extension host terminated unexpectedly. Restarting...';
-
-  @override
-  String get extHostCrashed =>
-      'Extension host terminated unexpectedly 3 times within the last 5 minutes.';
-
-  @override
-  String get extHostRemoteCrashed =>
-      'Remote Extension host terminated unexpectedly 3 times within the last 5 minutes.';
-
-  @override
-  String get extHostRestart => 'Restart Extension Host';
-
-  @override
-  String get extHostRemoteRestart => 'Restart Remote Extension Host';
+  String get extsTabLanguageServers => 'Language Servers';
 }

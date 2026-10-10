@@ -8,7 +8,7 @@
 
 import 'dart:async';
 
-import 'package:bao_exthost/bao_exthost.dart' show CancellationToken;
+import 'package:baocode/base/cancellation.dart' show CancellationToken;
 import 'package:baocode/debug/base/event.dart';
 import 'package:baocode/debug/common/debug_model.dart';
 import 'package:baocode/debug/common/debug_storage.dart';

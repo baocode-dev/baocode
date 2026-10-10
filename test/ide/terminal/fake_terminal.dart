@@ -18,9 +18,7 @@ Future<PtyLaunch> fakeTerminalLaunch(
   arguments: shell?.arguments ?? const ['-l'],
   workingDirectory: root,
   // [fakeTerminalEnvironment] as asked; none unless asked.
-  environment: environment?.finish(
-    environment.merge(fakeTerminalEnvironment),
-  ),
+  environment: environment?.finish(environment.merge(fakeTerminalEnvironment)),
   columns: columns,
   rows: rows,
 );

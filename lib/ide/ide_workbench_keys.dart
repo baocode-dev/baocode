@@ -574,19 +574,13 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     'editorIsOpen' => widget.workspace.documents.isNotEmpty,
     'sideBarVisible' => _layout.sidebarVisible,
     'sideBarFocus' => _sidebarFocus.hasFocus,
-    'activeViewlet' =>
-      !_layout.sidebarVisible
-          ? null
-          : _view == IdeSideView.container
-          ? _viewContainer
-          : _view.viewletId,
+    'activeViewlet' => _layout.sidebarVisible ? _view.viewletId : null,
     'explorerViewletFocus' =>
       _sidebarFocus.hasFocus && _view == IdeSideView.explorer,
     'panelVisible' => _panel != null,
     'panelFocus' => _panelFocus.hasFocus,
     'panelMaximized' => _panel != null && _panelMaximized,
-    'activePanel' =>
-      _panel == IdePanelTab.view ? _shownPanelContainer()?.id : _panel?.panelId,
+    'activePanel' => _panel?.panelId,
     'auxiliaryBarVisible' => _chatShown,
     'auxiliaryBarFocus' => _chatFocus.hasFocus,
     'focusedView' => _focusedView ?? '',
@@ -600,7 +594,6 @@ extension _WorkbenchKeys on IdeWorkbenchState {
 
   /// The id of the view with the keyboard (upstream `focusedView`).
   String? get _focusedView {
-    if (widget.extensions?.views.focusedView case final view?) return view;
     if (_explorerFocus.hasFocus) return 'workbench.explorer.fileView';
     if (_sidebarFocus.hasFocus) {
       return switch (_view) {
@@ -609,8 +602,6 @@ extension _WorkbenchKeys on IdeWorkbenchState {
         IdeSideView.sourceControl => 'workbench.scm',
         IdeSideView.debug => 'workbench.debug.viewlet',
         IdeSideView.extensions => 'workbench.views.extensions.installed',
-        IdeSideView.testing => 'workbench.view.testing',
-        IdeSideView.container => null,
       };
     }
     if (_panelFocus.hasFocus) return (_panel ?? _lastPanel).viewId;
@@ -1331,9 +1322,6 @@ extension on IdeSideView {
     IdeSideView.sourceControl => 'workbench.view.scm',
     IdeSideView.debug => 'workbench.view.debug',
     IdeSideView.extensions => 'workbench.view.extensions',
-    IdeSideView.testing => 'workbench.view.extension.test',
-    // Its container's id, which the workbench has.
-    IdeSideView.container => 'workbench.view.extension',
   };
 }
 
@@ -1341,22 +1329,16 @@ extension on IdePanelTab {
   /// Upstream's id of the panel (`activePanel`).
   String get panelId => switch (this) {
     IdePanelTab.problems => 'workbench.panel.markers',
-    IdePanelTab.output => 'workbench.panel.output',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
     IdePanelTab.debugConsole => 'workbench.panel.repl',
     IdePanelTab.terminal => 'terminal',
-    // Its container's id, which the workbench has.
-    IdePanelTab.view => 'workbench.panel.extension',
   };
 
   /// Upstream's id of its view (`focusedView`).
   String get viewId => switch (this) {
     IdePanelTab.problems => 'workbench.panel.markers.view',
-    IdePanelTab.output => 'workbench.panel.output',
     IdePanelTab.references => 'workbench.panel.referenceSearch',
     IdePanelTab.debugConsole => 'workbench.panel.repl',
     IdePanelTab.terminal => 'terminal',
-    // An extension view's, when it has the focus (see `_focusedView`).
-    IdePanelTab.view => 'workbench.panel.extension',
   };
 }

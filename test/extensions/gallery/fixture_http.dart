@@ -4,7 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bao_exthost/bao_exthost.dart';
+import 'package:baocode/base/cancellation.dart';
 import 'package:baocode/extensions/gallery/gallery_http.dart';
 
 const openVsxFixtures = 'test/fixtures/extensions/openvsx';

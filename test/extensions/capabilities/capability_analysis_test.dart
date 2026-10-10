@@ -4,17 +4,15 @@ import 'package:baocode/extensions/capabilities/capability_analysis.dart';
 import 'package:baocode/extensions/vsix/vsix_reader.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../ui/fake_backend.dart';
 import '../vsix/zip_writer.dart';
 
 const _fixtures = 'test/fixtures/extensions/capabilities';
 
-Future<CapabilityReport> _analyze(
-  String path, {
-  CapabilityScanLimits limits = const CapabilityScanLimits(),
-}) async {
+Future<CapabilityReport> _analyze(String path) async {
   final package = await ExtensionPackage.open(path);
   try {
-    return await analyzeExtensionPackage(package, limits: limits);
+    return analyzeExtensionPackage(package);
   } finally {
     await package.close();
   }
@@ -26,145 +24,99 @@ Map<String, Object> _read(String dir) => {
     file.path.substring(dir.length + 1): file.readAsBytesSync(),
 };
 
-void main() {
-  test('a language extension is fully usable', () async {
-    final report = await _analyze('$_fixtures/language');
-    expect(report.level, ExtensionCapabilityLevel.full);
-    expect(report.findings, isEmpty);
-    expect(
-      report.coreFeatures,
-      containsAll([
-        CoreFeature.languageFeatures,
-        CoreFeature.languageServer,
-        CoreFeature.syntaxHighlighting,
-      ]),
-    );
-    expect(report.scannedFiles, ['out/extension.js']);
-  });
+const _theme = {
+  'themes': [
+    {'label': 'Night', 'uiTheme': 'vs-dark', 'path': './night.json'},
+  ],
+};
 
-  test('a declarative theme is fully usable without code', () async {
+void main() {
+  test('a color theme alone is fully supported', () async {
     final report = await _analyze('$_fixtures/theme');
     expect(report.level, ExtensionCapabilityLevel.full);
-    expect(report.coreFeatures, {CoreFeature.themes});
-    expect(report.scannedFiles, isEmpty);
+    expect(report.findings, isEmpty);
+    expect(report.installable, isTrue);
   });
 
-  test(
-    'a preview needs webviews: commands and completion alone do not count',
-    () async {
-      final report = await _analyze('$_fixtures/preview');
-      expect(report.level, ExtensionCapabilityLevel.needsWebview);
-      expect(
-        report.findings,
-        containsAll(const [
-          CapabilityFinding(
-            CapabilityFindingKind.customEditor,
-            'Fancy Preview',
-          ),
-          CapabilityFinding(
-            CapabilityFindingKind.webviewPanelCode,
-            'dist/extension.js',
-          ),
-          CapabilityFinding(
-            CapabilityFindingKind.customEditorCode,
-            'dist/extension.js',
-          ),
-        ]),
-      );
-      expect(report.coreFeatures, isEmpty);
-    },
-  );
+  test('a .vsix is analyzed as its folder would be', () async {
+    final dir = Directory.systemTemp.createTempSync('capabilities');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final path = '${dir.path}/theme.vsix';
+    File(path).writeAsBytesSync(buildVsix(_read('$_fixtures/theme')));
+    final report = await _analyze(path);
+    expect(report.level, ExtensionCapabilityLevel.full);
+  });
 
-  test('tree views beside a webview view: partially usable', () async {
-    final report = await _analyze('$_fixtures/tree-and-panel');
-    expect(report.level, ExtensionCapabilityLevel.partial);
+  test('an extension without a theme is not supported', () async {
+    final report = await _analyze('$_fixtures/language');
+    expect(report.level, ExtensionCapabilityLevel.unsupported);
+    expect(report.installable, isFalse);
     expect(
       report.findings,
       containsAll(const [
-        CapabilityFinding(CapabilityFindingKind.webviewView, 'Home'),
-        CapabilityFinding(
-          CapabilityFindingKind.webviewViewCode,
-          'dist/main.js',
-        ),
+        CapabilityFinding(CapabilityFindingKind.code),
+        CapabilityFinding(CapabilityFindingKind.contribution, 'languages'),
       ]),
     );
-    expect(report.coreFeatures, {CoreFeature.treeViews});
   });
 
-  test('notebooks need webviews', () async {
-    final report = await _analyze('$_fixtures/notebooks');
-    expect(report.level, ExtensionCapabilityLevel.needsWebview);
-    expect(report.findings.map((finding) => finding.kind).toSet(), {
-      CapabilityFindingKind.notebook,
-      CapabilityFindingKind.notebookRenderer,
-      CapabilityFindingKind.notebookCode,
-    });
-  });
-
-  test('a web worker only extension is partially usable', () async {
-    final report = await _analyze('$_fixtures/web-only');
-    expect(report.level, ExtensionCapabilityLevel.partial);
-    expect(report.findings, [
-      const CapabilityFinding(CapabilityFindingKind.browserOnly),
-    ]);
-    expect(report.scannedFiles, ['dist/web.js']);
-  });
-
-  test('webviews in another chunk of the bundle are found', () async {
-    final report = await _analyze('$_fixtures/split-bundle');
-    expect(report.level, ExtensionCapabilityLevel.needsWebview);
-    expect(report.findings, [
-      const CapabilityFinding(
-        CapabilityFindingKind.webviewPanelCode,
-        'dist/chunks/ui.js',
-      ),
-    ]);
-  });
-
-  group('with node_modules', () {
-    late Directory dir;
-    setUp(() => dir = Directory.systemTemp.createTempSync('capabilities'));
-    tearDown(() => dir.deleteSync(recursive: true));
-
-    test('a module mentioning webviews is not scanned; a language client '
-        'module counts', () async {
-      writeFolder(dir.path, {
-        ..._read('$_fixtures/theme'),
-        'package.json': {
-          'name': 'mod',
-          'publisher': 'fixture',
-          'version': '1.0.0',
-          'engines': {'vscode': '^1.90.0'},
-          'main': 'main.js',
+  test('a theme beside code and other contributions is partly supported, '
+      'with what will not run', () {
+    final report = analyzeExtensionCapabilities(
+      fakeManifest(
+        'acme.mixed',
+        manifest: {
+          'main': './out/extension.js',
+          'contributes': {
+            ..._theme,
+            'colors': [
+              {'id': 'acme.color'},
+            ],
+            'commands': [
+              {'command': 'acme.go', 'title': 'Go'},
+            ],
+            'keybindings': <Object?>[],
+          },
         },
-        'main.js': 'exports.activate = () => {};',
-        'node_modules/lib/index.js': 'x.createWebviewPanel()',
-        'node_modules/vscode-languageclient/lib/node/main.js': '//',
-      });
-      final report = await _analyze(dir.path);
-      expect(report.level, ExtensionCapabilityLevel.full);
-      expect(report.coreFeatures, contains(CoreFeature.languageServer));
-      expect(report.scannedFiles, ['main.js']);
-    });
+      ),
+    );
+    expect(report.level, ExtensionCapabilityLevel.partial);
+    expect(report.findings, const [
+      CapabilityFinding(CapabilityFindingKind.code),
+      CapabilityFinding(CapabilityFindingKind.contribution, 'commands'),
+    ]);
+  });
 
-    test('a .vsix is scanned as its folder would be', () async {
-      final path = '${dir.path}/preview.vsix';
-      File(path).writeAsBytesSync(buildVsix(_read('$_fixtures/preview')));
-      final report = await _analyze(path);
-      expect(report.level, ExtensionCapabilityLevel.needsWebview);
-      expect(report.scannedFiles, ['dist/extension.js']);
-    });
+  test('a file icon theme counts as a theme', () {
+    final manifest = fakeManifest(
+      'acme.icons',
+      manifest: {
+        'contributes': {
+          'iconThemes': [
+            {'id': 'acme', 'label': 'Acme', 'path': './icons.json'},
+          ],
+          'icons': {'acme-logo': <String, Object?>{}},
+        },
+      },
+    );
+    expect(hasThemes(manifest), isTrue);
+    expect(
+      analyzeExtensionCapabilities(manifest).level,
+      ExtensionCapabilityLevel.full,
+    );
+  });
 
-    test('what the limits leave out is reported', () async {
-      final report = await _analyze(
-        '$_fixtures/split-bundle',
-        limits: const CapabilityScanLimits(maxFiles: 1),
-      );
-      expect(report.scannedFiles, ['dist/main.js']);
-      expect(report.findings, [
-        const CapabilityFinding(CapabilityFindingKind.scanIncomplete),
-      ]);
-      expect(report.level, ExtensionCapabilityLevel.full);
-    });
+  test('empty theme lists are no theme', () {
+    final manifest = fakeManifest(
+      'acme.empty',
+      manifest: {
+        'contributes': {'themes': <Object?>[], 'iconThemes': <Object?>[]},
+      },
+    );
+    expect(hasThemes(manifest), isFalse);
+    expect(
+      analyzeExtensionCapabilities(manifest).level,
+      ExtensionCapabilityLevel.unsupported,
+    );
   });
 }

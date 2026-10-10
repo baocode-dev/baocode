@@ -180,7 +180,7 @@ main.dart onExitRequested
        └─ 取消 → service.disarm()，应用继续运行
   5. service.launchArmed()               ← 启动安装程序（它会等应用退出）
        └─ 启动失败 → 取消退出，主窗口提示“更新失败”
-  6. 停止 Claude、扩展宿主、PTY 等子进程 → 应用退出
+  6. 停止 Claude、LSP、PTY 等子进程 → 应用退出
 ```
 
 ### 4.4 Windows 安装

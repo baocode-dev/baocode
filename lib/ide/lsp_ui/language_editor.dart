@@ -1,8 +1,8 @@
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 
 import '../ide_workspace.dart';
-import '../language/language_features.dart';
-import '../language/language_types.dart';
+import '../lsp/language_features.dart';
+import '../lsp/lsp_protocol.dart';
 
 /// What the language feature sessions need from the editor they serve.
 abstract interface class IdeLanguageEditor {

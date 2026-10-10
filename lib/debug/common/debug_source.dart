@@ -17,7 +17,7 @@
 // Deviations: URIs are not made canonical (no `IUriIdentityService`);
 // opening one in an editor is the host's (`DebugServiceHost.openSource`).
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import '../../base/uri.dart' show VsUri;
 
 import 'debug_types.dart';
 import 'debug_utils.dart';

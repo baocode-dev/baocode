@@ -1,27 +1,27 @@
 // The Extensions view's state, kept across switches to other views: the
 // installed extensions (from the [ExtensionManagementBackend]), an Open VSX
-// search, the recommended ones, what is being installed, updates, and each
-// extension's capability analysis.
+// search of its themes, the popular ones, what is being installed, updates,
+// and each extension's capability analysis.
 
 import 'dart:async';
 
-import 'package:bao_exthost/bao_exthost.dart' show CancellationTokenSource;
 import 'package:flutter/foundation.dart';
 
+import '../../base/cancellation.dart' show CancellationTokenSource;
 import '../capabilities/capability_analysis.dart';
 import '../gallery/extension_management_backend.dart';
 import '../gallery/gallery_models.dart';
 import '../gallery/open_vsx_client.dart';
-import '../vsix/extension_manifest.dart';
 import '../vsix/semver.dart';
-import '../vsix/vsix_reader.dart';
+
+/// The Open VSX category searched: color and file icon themes.
+const themesCategory = 'Themes';
 
 /// What an extension is doing.
 enum ExtensionBusy { installing, uninstalling, updating }
 
-/// What a search asks for: `@installed`, `@builtin`, `@recommended`,
-/// `@updates`, or words to look for on Open VSX (in the installed ones'
-/// names with a filter).
+/// What a search asks for: `@installed`, `@updates`, or words to look for
+/// among Open VSX's themes (in the installed ones' names with a filter).
 class ExtensionsQuery {
   const ExtensionsQuery({this.filter, this.text = ''});
 
@@ -31,7 +31,7 @@ class ExtensionsQuery {
     for (final word in input.trim().split(RegExp(r'\s+'))) {
       if (word.isEmpty) continue;
       switch (word.toLowerCase()) {
-        case '@installed' || '@builtin' || '@recommended' || '@updates':
+        case '@installed' || '@updates':
           filter = word.substring(1).toLowerCase();
         default:
           words.add(word);
@@ -40,7 +40,7 @@ class ExtensionsQuery {
     return ExtensionsQuery(filter: filter, text: words.join(' '));
   }
 
-  /// `installed`, `builtin`, `recommended`, `updates`; null for Open VSX.
+  /// `installed`, `updates`; null for Open VSX.
   final String? filter;
   final String text;
 
@@ -56,8 +56,7 @@ class ExtensionEntry {
 
   String get id => installed?.id ?? gallery!.id;
   String get key => id.toLowerCase();
-  String get label =>
-      installed?.manifest.label ?? gallery?.label ?? id;
+  String get label => installed?.manifest.label ?? gallery?.label ?? id;
   String? get description =>
       installed?.manifest.description ?? gallery?.description;
   String get publisher => id.split('.').first;
@@ -71,26 +70,12 @@ class ExtensionsModel extends ChangeNotifier {
     required this.gallery,
     this.locale,
     this.searchDelay = const Duration(milliseconds: 300),
-    this.pendingRestart,
-    this.restartExtensions,
   }) {
     _changes = backend.onDidChange.listen((_) => unawaited(refreshInstalled()));
   }
 
   final ExtensionManagementBackend backend;
   final OpenVsxClient gallery;
-
-  /// The extensions (keys) that run another version, or were removed or
-  /// disabled, until the extensions restart (upstream's runtime state).
-  final Set<String> Function()? pendingRestart;
-
-  /// Restarts the extensions (Restart Extensions).
-  final Future<void> Function()? restartExtensions;
-
-  bool needsRestart(String key) => pendingRestart?.call().contains(key) ?? false;
-
-  /// What runs changed ([needsRestart]).
-  void runtimeChanged() => _notify();
 
   /// For localized manifests (`zh-cn`).
   final String? locale;
@@ -111,10 +96,10 @@ class ExtensionsModel extends ChangeNotifier {
   bool searching = false;
   Object? searchError;
 
-  /// The ids to recommend (see recommendations.dart) and what Open VSX
-  /// says of them.
-  List<String> recommendedIds = const [];
-  final Map<String, GalleryExtensionSummary> _recommended = {};
+  /// Open VSX's most downloaded themes, null until asked ([loadPopular]).
+  List<GalleryExtensionSummary>? popular;
+  Object? popularError;
+  Future<void>? _popular;
 
   final Map<String, ExtensionBusy> busy = {};
 
@@ -128,8 +113,8 @@ class ExtensionsModel extends ChangeNotifier {
   /// The selected row's key.
   String? selected;
 
-  /// The panes open (`installed`, `recommended`).
-  final Set<String> expanded = {'installed', 'recommended'};
+  /// The panes open (`installed`, `popular`).
+  final Set<String> expanded = {'installed', 'popular'};
 
   Timer? _searchTimer;
   CancellationTokenSource? _search;
@@ -138,7 +123,8 @@ class ExtensionsModel extends ChangeNotifier {
 
   String get queryText => _queryText;
 
-  bool get loading => searching || (installed == null && installedError == null);
+  bool get loading =>
+      searching || (installed == null && installedError == null);
 
   InstalledExtension? installedFor(String id) {
     final key = id.toLowerCase();
@@ -162,33 +148,19 @@ class ExtensionsModel extends ChangeNotifier {
     } catch (error) {
       installedError = error;
     }
-    _notify();
     for (final extension in installed ?? const <InstalledExtension>[]) {
-      unawaited(_analyze(extension));
+      _analyze(extension);
     }
+    _notify();
   }
 
-  Future<void> _analyze(InstalledExtension extension) async {
+  void _analyze(InstalledExtension extension) {
     final version = '${extension.location}@${extension.version}';
     if (_analyzed[extension.key] == version) return;
     _analyzed[extension.key] = version;
-    CapabilityReport report;
-    try {
-      final package = await ExtensionPackage.openFolder(
-        extension.location,
-        locale: locale,
-      );
-      try {
-        report = await analyzeExtensionPackage(package);
-      } finally {
-        await package.close();
-      }
-    } on Object {
-      // Not readable here (a remote one): from the manifest alone.
-      report = await analyzeExtensionCapabilities(extension.manifest);
-    }
-    capabilities[extension.key] = report;
-    _notify();
+    capabilities[extension.key] = analyzeExtensionCapabilities(
+      extension.manifest,
+    );
   }
 
   /// Sets what is searched for; Open VSX is asked after [searchDelay].
@@ -220,7 +192,11 @@ class ExtensionsModel extends ChangeNotifier {
     _notify();
     try {
       final result = await gallery.search(
-        GallerySearchQuery(text: query.text, offset: more ? results.length : 0),
+        GallerySearchQuery(
+          text: query.text,
+          category: themesCategory,
+          offset: more ? results.length : 0,
+        ),
         cancel: cancel.token,
       );
       if (generation != _searchGeneration) return;
@@ -240,75 +216,49 @@ class ExtensionsModel extends ChangeNotifier {
     }
   }
 
-  /// Sets the recommended ids, then asks Open VSX about them.
-  Future<void> setRecommendations(List<String> ids) async {
-    recommendedIds = ids;
-    _notify();
-    await Future.wait([
-      for (final id in ids)
-        if (!_recommended.containsKey(id.toLowerCase()))
-          gallery.findExtension(id).then((extension) {
-            if (extension == null) return;
-            _recommended[id.toLowerCase()] = GalleryExtensionSummary(
-              namespace: extension.namespace,
-              name: extension.name,
-              version: extension.version,
-              displayName: extension.displayName,
-              description: extension.description,
-              iconUrl: extension.files.icon,
-              downloadCount: extension.downloadCount,
-              averageRating: extension.averageRating,
-              reviewCount: extension.reviewCount,
-              verified: extension.verified,
-            );
-          }, onError: (_) {}),
-    ]);
-    _notify();
-  }
-
-  /// The installed extensions [query]'s words match: as upstream's
-  /// `filterInstalledExtensions`, not the built-in ones unless they have an
-  /// update or wait for the extensions to restart (`@builtin` lists those).
-  List<ExtensionEntry> get installedEntries => [
-    for (final extension in _matching())
-      if (extension.kind != InstalledExtensionKind.builtin ||
-          updates.containsKey(extension.id.toLowerCase()) ||
-          needsRestart(extension.id.toLowerCase()))
-        ExtensionEntry(installed: extension),
-  ];
-
-  /// The built-in extensions [query]'s words match (`@builtin`).
-  List<ExtensionEntry> get builtinEntries => [
-    for (final extension in _matching())
-      if (extension.kind == InstalledExtensionKind.builtin)
-        ExtensionEntry(installed: extension),
-  ];
-
-  Iterable<InstalledExtension> _matching() {
-    final words = query.text.toLowerCase().split(' ').where((w) => w.isNotEmpty);
-    return (installed ?? const <InstalledExtension>[]).where(
-      (extension) => words.every(
-        (word) => '${extension.id} ${extension.manifest.label} '
-                '${extension.manifest.description ?? ''}'
-            .toLowerCase()
-            .contains(word),
-      ),
-    );
-  }
-
-  /// The recommended extensions not installed.
-  List<ExtensionEntry> get recommendedEntries => [
-    for (final id in recommendedIds)
-      if (installedFor(id) == null)
-        ExtensionEntry(
-          gallery:
-              _recommended[id.toLowerCase()] ??
-              GalleryExtensionSummary(
-                namespace: id.split('.').first,
-                name: id.substring(id.indexOf('.') + 1),
-                version: '',
-              ),
+  /// Asks Open VSX for its most downloaded themes, once (again after a
+  /// failure).
+  Future<void> loadPopular() => _popular ??= () async {
+    try {
+      final result = await gallery.search(
+        const GallerySearchQuery(
+          category: themesCategory,
+          sortBy: GallerySortBy.downloads,
+          size: 30,
         ),
+      );
+      popular = result.extensions;
+      popularError = null;
+    } catch (error) {
+      popularError = error;
+      _popular = null;
+    }
+    _notify();
+  }();
+
+  /// The installed extensions [query]'s words match.
+  List<ExtensionEntry> get installedEntries {
+    final words = query.text
+        .toLowerCase()
+        .split(' ')
+        .where((w) => w.isNotEmpty);
+    return [
+      for (final extension in installed ?? const <InstalledExtension>[])
+        if (words.every(
+          (word) =>
+              '${extension.id} ${extension.manifest.label} '
+                      '${extension.manifest.description ?? ''}'
+                  .toLowerCase()
+                  .contains(word),
+        ))
+          ExtensionEntry(installed: extension),
+    ];
+  }
+
+  /// The popular themes not installed.
+  List<ExtensionEntry> get popularEntries => [
+    for (final result in popular ?? const <GalleryExtensionSummary>[])
+      if (installedFor(result.id) == null) ExtensionEntry(gallery: result),
   ];
 
   List<ExtensionEntry> get updateEntries => [
@@ -352,8 +302,8 @@ class ExtensionsModel extends ChangeNotifier {
     );
   }
 
-  Future<void> setEnabled(String id, bool enabled, EnablementScope scope) async {
-    await backend.setEnabled(id, enabled, scope: scope);
+  Future<void> setEnabled(String id, bool enabled) async {
+    await backend.setEnabled(id, enabled);
     await refreshInstalled();
   }
 
@@ -361,10 +311,7 @@ class ExtensionsModel extends ChangeNotifier {
   /// came from Open VSX.
   Future<void> checkUpdates() async {
     for (final extension in installed ?? const <InstalledExtension>[]) {
-      if (!extension.fromGallery ||
-          extension.kind != InstalledExtensionKind.user) {
-        continue;
-      }
+      if (!extension.fromGallery) continue;
       try {
         final resolved = await gallery.resolveCompatible(
           extension.id,
@@ -405,18 +352,6 @@ class ExtensionsModel extends ChangeNotifier {
     await refreshInstalled();
   }
 
-  /// A capability analysis of a gallery extension, from its manifest
-  /// (`package.json`; its code is not downloaded).
-  Future<CapabilityReport?> galleryCapability(GalleryExtension extension) async {
-    final url = extension.files.manifest;
-    if (url == null) return null;
-    final text = await gallery.fetchText(url);
-    final manifest = ExtensionManifestInfo.fromSource(
-      ExtensionManifestSource(manifest: _decode(text)),
-    );
-    return analyzeExtensionCapabilities(manifest);
-  }
-
   void select(String? key) {
     selected = key;
     _notify();
@@ -439,9 +374,4 @@ class ExtensionsModel extends ChangeNotifier {
     unawaited(_changes.cancel());
     super.dispose();
   }
-}
-
-Map<String, Object?> _decode(String text) {
-  final json = parseManifestJson(text);
-  return json ?? const {};
 }

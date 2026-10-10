@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_tab_bar.dart';
 import 'package:baocode/ide/ide_workbench.dart';
-import 'package:baocode/ide/language/language_types.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 
 import 'fake_files.dart';
 

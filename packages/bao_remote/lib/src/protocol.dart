@@ -9,13 +9,13 @@ import 'search/text_query.dart';
 /// A stream (a watch, a search) is opened by a request that answers with
 /// its id; its items come as [streamData], then [streamDone] or
 /// [streamError]; the app ends it early with [streamCancel]. A process
-/// (Claude Code, a command) is the same with its own
+/// (Claude Code, a language server, a command) is the same with its own
 /// notifications: [processOutput] for stdout and stderr, [processExit]
 /// once it is gone.
 abstract final class RemoteProtocol {
   /// Raise it whenever a method or a shape changes: an app and a server of
   /// another version do not talk, and the app puts its own server in place.
-  static const version = 4;
+  static const version = 5;
 
   static const initialize = 'initialize';
   static const shutdown = 'shutdown';
@@ -81,17 +81,11 @@ abstract final class RemoteProtocol {
   static const ptyExit = 'pty/exit';
   static const ptyProfiles = 'pty/profiles';
 
-  // The extension runtime and its VS Code server.
-  static const exthostInstall = 'exthost/install';
-  static const exthostUpload = 'exthost/upload';
-  static const exthostStart = 'exthost/start';
-
-  /// A file sent for the server there (an extension's .vsix), in pieces:
-  /// `{name, offset, data}`, answered with its path there.
-  static const exthostStage = 'exthost/stage';
-
-  /// Deletes a file [exthostStage] sent: `{name}`.
-  static const exthostUnstage = 'exthost/unstage';
+  // Language servers.
+  static const lspLocate = 'lsp/locate';
+  static const lspInstall = 'lsp/install';
+  static const lspInstalled = 'lsp/installed';
+  static const lspUninstall = 'lsp/uninstall';
 
   // Port forwarding (the remote host's port to one of the app's), and
   // the app's connections to a port there ([tcpConnect]).
@@ -109,8 +103,7 @@ String encodeBytes(List<int> bytes) => base64Encode(bytes);
 Uint8List decodeBytes(Object? data) =>
     data is String ? base64Decode(data) : Uint8List(0);
 
-/// The machine the server runs on (`linux`/`darwin`, `x64`/`arm64`, the
-/// C library).
+/// The machine the server runs on, as mason names platforms.
 class RemotePlatform {
   const RemotePlatform(this.os, this.arch, {this.libc});
 
@@ -164,7 +157,8 @@ class RemoteHello {
   final String version;
   final RemotePlatform platform;
 
-  /// The server's process id.
+  /// The server's process id: what language servers are told to outlive
+  /// no longer than.
   final int pid;
 
   /// The user's home folder there.

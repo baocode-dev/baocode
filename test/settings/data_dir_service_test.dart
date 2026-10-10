@@ -31,7 +31,7 @@ void main() {
       ('state/state.json', '{"kernel": "claude"}'),
       ('state/storage.json', '{}'),
       ('state/claude-processes.json', '[{"pid": 1, "parent": 2}]'),
-      ('state/pty-processes.json.12.3.tmp', '[]'),
+      ('state/lsp-processes.json.12.3.tmp', '[]'),
       ('servers/tool/bin/tool', '#!/bin/sh'),
       ('language-packs/toy/manifest.json', '{}'),
       ('checkpoints/app-1f/HEAD', 'ref: refs/heads/main'),

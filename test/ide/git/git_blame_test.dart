@@ -285,7 +285,7 @@ void main() {
               nativeEditorEnabled: true,
               gitBlame: gitBlame,
               onError: (error) => fail('$error'),
-              onEditorStatus: (_) {},
+              onLspStatus: (_) {},
               onPositionChanged: (_) {},
             ),
           ),

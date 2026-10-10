@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:baocode/extensions/window/codicon_label.dart';
 import 'package:baocode/ide/ide_status_bar.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/icon_registry.dart';
@@ -138,8 +137,8 @@ void main() {
     expect(registry.contains('outside-icon'), isFalse);
   });
 
-  testWidgets('a status bar item and a label show an extension\'s icon in '
-      'its font, not its name', (tester) async {
+  testWidgets('a status bar item shows an extension\'s icon in its font, '
+      'not its name', (tester) async {
     registry.setExtensionIcons([
       gitLens({'gitlens-graph': glyph(r'\f102')}),
     ]);
@@ -152,8 +151,6 @@ void main() {
               left: [IdeStatusBarItem(r'$(gitlens-graph) Graph')],
               right: [],
             ),
-            ExtensionLabel.parse(r'$(gitlens-graph) $(nope-icon) Launchpad')
-                .build(fontSize: 12, color: const Color(0xffffffff)),
           ],
         ),
       ),
@@ -166,14 +163,7 @@ void main() {
               text.text.style?.fontFamily ==
               'eamodio.gitlens/dist/glicons.woff2',
         );
-    expect(glyphs, hasLength(2));
+    expect(glyphs, hasLength(1));
     expect(glyphs.first.text.toPlainText(), '\u{f102}');
-    // An unknown one is a generic icon, as in a label upstream.
-    expect(
-      find.byWidgetPredicate(
-        (w) => w is Icon && w.icon == Codicons.circleOutline,
-      ),
-      findsOneWidget,
-    );
   });
 }

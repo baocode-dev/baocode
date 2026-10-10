@@ -16,7 +16,7 @@
 // Deviations: DAP messages stay JSON maps (`Json`) with typed accessors
 // where the model reads them, instead of the `DebugProtocol` interfaces.
 
-import 'package:bao_exthost/bao_exthost.dart' show VsUri;
+import '../../base/uri.dart' show VsUri;
 
 import '../base/event.dart';
 

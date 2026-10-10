@@ -1,5 +1,0 @@
-tags:
-  # Runs a real VS Code server and extension host: opt in with
-  # `dart test --run-skipped -t exthost`.
-  exthost:
-    skip: "Runs a real VS Code extension host"

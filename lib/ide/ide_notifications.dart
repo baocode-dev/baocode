@@ -279,8 +279,7 @@ class IdeNotifications extends ChangeNotifier {
   bool isOpen(IdeNotification notification) => _all.contains(notification);
 
   /// Whether [notification] shows as a toast now.
-  bool isToast(IdeNotification notification) =>
-      toasts.contains(notification);
+  bool isToast(IdeNotification notification) => toasts.contains(notification);
 
   /// Changes [notification]'s message (`updateMessage`) or progress
   /// (`progress.total/worked/infinite`); [clearProgress] removes its bar.
@@ -291,7 +290,8 @@ class IdeNotifications extends ChangeNotifier {
     bool clearProgress = false,
   }) {
     if (!_all.contains(notification)) return;
-    if (message != null) notification._message = IdeNotification._limit(message);
+    if (message != null)
+      notification._message = IdeNotification._limit(message);
     if (progress != null || clearProgress) notification.progress = progress;
     if (!_disposed) notifyListeners();
   }

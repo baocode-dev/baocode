@@ -180,7 +180,7 @@ tokens; overlapping edits from multiple cursors drop the later edit; multi-line
 platform input bypasses the typing path; auto-closed pairs and decorations are
 tracked by offset; inserted newlines use the document's dominant EOL.
 
-## Language features (2026-09-29; the LSP client removed 2026-10)
+## Language servers (LSP, 2026-09-29)
 
 Ported from VS Code `6a598d4a…` (MIT header, upstream path and deviations in
 each file):
@@ -199,17 +199,44 @@ Flutter adaptations in `../../lib/ide/lsp_ui/` (not ports): the per-editor
 `EditorLanguageSession` (debounced, version-checked requests; hover, links,
 lightbulb, signature help, suggest), suggest/hover/signature/rename/code action
 widgets, the Problems and References panels, Outline, breadcrumbs symbols,
-semantic token overlay (Dark Modern semantic colors),
+semantic token overlay (Dark Modern semantic colors), language status items,
 minimal-edit formatting (line diff → one undo step keeping cursors) and
 workspace edit application. Rename edits to unopened files open them as dirty
 tabs; resource operations are refused. References go to a panel, not a peek.
 
-The editor's contracts are `../../lib/ide/language/language_types.dart` and
-`language_features.dart` (LSP 3.17's shapes). They were first served by a
-BaoCode LSP client (Helix language map, mason installer, language packs),
-removed once VS Code's own extension host served them: the extensions'
-providers through `../../lib/extensions/language/registry_language_features.dart`
-(see `../../docs/extensions.md`).
+Client (`../../lib/ide/lsp/`, BaoCode code, not VS Code): `json_rpc.dart`,
+`lsp_client.dart`, `lsp_manager.dart`, `lsp_process*.dart`, `lsp_glob.dart`;
+contracts `lsp_protocol.dart`, `lsp_server_definition.dart`,
+`language_features.dart`. `EditorDocumentModel.changes` emits LSP-ordered
+content changes (CR/LF pairs are never split). Not advertised: pull
+diagnostics, semantic token ranges/deltas, resource operations, `showDocument`,
+completion `data`/`commitCharacters` item defaults.
+
+Catalog and installer:
+
+- `node ../../tool/generate_lsp_languages.mjs [helix-checkout|languages.toml]
+  [out-dir] [--mason registry.json(.zip)]` writes `../../assets/lsp/languages.json`
+  from Helix `languages.toml` at `ba40e547426b0f9896c8bdc699a4ab11f2b37dbc`
+  (MPL-2.0, `../../assets/lsp/LICENSE-helix`). Helix `config` is sent as
+  `initializationOptions` and answers `workspace/configuration`. Per-language
+  `only-features`/`except-features` become derived server ids
+  (`id#except=…`). Matching: file name, glob, longest extension, shebang,
+  then a pack's `firstLine`.
+- `node ../../tool/generate_mason_registry.mjs [registry.json(.zip)] [out-dir]`
+  writes `../../assets/lsp/mason-registry.json` from mason-registry
+  `2026-09-29-glass-hat` (`27cabd46dfb4e97187a4619d7de966589e3945f7`,
+  Apache-2.0, `../../assets/lsp/LICENSE-mason-registry`). Run it after the
+  languages script; without arguments both fetch the pinned inputs into /tmp.
+- `MasonServerProvider` installs github releases (per-platform assets),
+  npm, pypi (venv), golang and cargo packages into
+  `AppPaths.dataDir/servers/`, staged then renamed. opam, nuget, luarocks,
+  composer, gem, openvsx and build-from-source packages are not installable;
+  `version_overrides` are ignored. zip/tar/tar.gz/gz unpack in Dart;
+  `.tar.xz/.bz2/.zst` use the system `tar`.
+- User overrides: `AppPaths.dataDir/lsp.json`; language packs:
+  `AppPaths.dataDir/language-packs/<name>/` (`manifest.json`, Monarch
+  `grammar.json`, `configuration.json`, optional `server.json`), documented in
+  `../../lib/ide/lsp/packs/README.md`.
 
 ## Workbench hover and codicons (2026-09-30)
 

@@ -5,15 +5,13 @@ import 'package:path/path.dart' as p;
 
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 
-import '../extensions/editors/extension_document_sync.dart';
 import 'file_service.dart';
 import 'git/git_repository.dart';
 import 'git/repository_scan.dart';
-import 'ide_editor_views.dart';
 import 'ide_layout.dart';
 import 'ide_notifications.dart';
-import 'language/language_features.dart';
-import 'language/language_types.dart';
+import 'lsp/language_features.dart';
+import 'lsp/lsp_protocol.dart';
 
 /// The original side of a diff tab: text at a revision, read again when
 /// the repository changes (VS Code's `git:` documents).
@@ -192,27 +190,6 @@ class IdeDocument {
   }
 }
 
-/// Why a file is saved (`SaveReason`, src/vs/workbench/common/editor.ts).
-enum IdeSaveReason {
-  explicit(1),
-  auto(2),
-  focusChange(3),
-  windowChange(4);
-
-  const IdeSaveReason(this.value);
-
-  /// Its number in the extension host protocol.
-  final int value;
-}
-
-/// Runs before the text of the file at [path] is written
-/// (`ITextFileSaveParticipant`); it may edit [model].
-typedef IdeSaveParticipant = Future<void> Function(
-  String path,
-  EditorDocumentModel model,
-  IdeSaveReason reason,
-);
-
 /// Open files belong to the IDE pane, not to any one agent conversation.
 class IdeWorkspace extends ChangeNotifier {
   IdeWorkspace(
@@ -221,8 +198,6 @@ class IdeWorkspace extends ChangeNotifier {
     this.languages,
     this._git,
     this.hasFolder = true,
-    this.extensionDocuments,
-    this.extensionLanguageId,
     Stream<void> Function(String directory)? watch,
     List<String> roots = const [],
     this._gitOf,
@@ -421,141 +396,12 @@ class IdeWorkspace extends ChangeNotifier {
   final bool hasFolder;
   final IdeFileService files;
 
-  /// The language features of this workspace's documents (the
-  /// extensions'); null for none.
+  /// Language servers for this workspace's documents; null for none.
   ///
   /// When it is also a [LanguageDocumentSync] (the LSP manager), the
   /// workspace keeps it in sync: open, every change (incrementally), save
   /// and close; disposing the workspace shuts it down.
   final LanguageFeatures? languages;
-
-  /// The extension host's view of this workspace's documents, when one
-  /// runs: the workspace reports every open, change, save, dirty state,
-  /// encoding and close through it (`ExtensionDocumentSync`), in place of
-  /// the LSP sync above.
-  ExtensionDocumentSync? extensionDocuments;
-
-  /// The language id [path]'s document is opened as, for
-  /// [extensionDocuments] (the app's language registry decides).
-  final String Function(String path)? extensionLanguageId;
-
-  /// Whether [doc]'s tab is meant to sync to the extension host: a file's
-  /// own tab (not a revision, a diff's original or a media preview), or a
-  /// new file's.
-  bool _syncsToExtensions(IdeDocument doc) =>
-      doc.isUntitled || (doc.isFile && doc.readRevision == null);
-
-  /// Reports the open documents to [extensionDocuments] (set after some
-  /// opened): those it was not told of yet open now.
-  void syncExtensionDocuments() {
-    if (_disposed) return;
-    for (final doc in _documents) {
-      _startExtensionSync(doc);
-    }
-    for (final MapEntry(key: path, value: model) in _background.entries) {
-      _startBackgroundSync(path, model);
-    }
-  }
-
-  /// The models of files opened without a tab (an extension's
-  /// `workspace.openTextDocument`), by path; a tab of one shares it.
-  final Map<String, EditorDocumentModel> _background = {};
-
-  /// The paths of the documents open without a tab, oldest first.
-  List<String> get backgroundPaths => List.unmodifiable(_background.keys);
-
-  /// The open model of [path]: its tab's, or one opened without a tab.
-  EditorDocumentModel? modelOf(String path) =>
-      _fileModel(path) ?? _background[paths.normalize(path)];
-
-  /// Opens [path]'s file without showing it (`openTextDocument`): its
-  /// model, shared with its tabs, and synced to the extension host until
-  /// [closeBackground]. Throws what reading it throws.
-  Future<EditorDocumentModel> openBackground(String path) async {
-    path = paths.normalize(paths.absolute(path));
-    if (modelOf(path) case final model?) return model;
-    final read = _reads.putIfAbsent(path, () => files.read(path));
-    final String text;
-    try {
-      text = await read;
-    } finally {
-      if (identical(_reads[path], read)) _reads.remove(path);
-    }
-    if (_disposed) throw StateError('The workspace is closed');
-    if (modelOf(path) case final model?) return model;
-    final model = EditorDocumentModel(text);
-    _background[path] = model;
-    _startBackgroundSync(path, model);
-    return model;
-  }
-
-  /// Lets [path]'s tab-less model go, unless a tab has it: the extension
-  /// host's document closes.
-  void closeBackground(String path) {
-    path = paths.normalize(path);
-    final model = _background.remove(path);
-    if (model == null) return;
-    if (_documents.any((d) => identical(d.model, model))) return;
-    _stopModelSync(path, model);
-    model.dispose();
-  }
-
-  /// Writes [path]'s tab-less model to its file.
-  Future<void> saveBackground(
-    String path, {
-    IdeSaveReason reason = IdeSaveReason.explicit,
-  }) async {
-    path = paths.normalize(path);
-    final model = _background[path];
-    if (model == null) return;
-    await _participate(path, model, reason);
-    if (_disposed || !identical(_background[path], model)) return;
-    final text = model.text;
-    await files.write(path, text, expectedText: model.savedText);
-    if (_disposed || !identical(_background[path], model)) return;
-    model.markSaved(text);
-    if (_extensionSyncing.contains(model)) {
-      extensionDocuments?.saveDocument(path, model, text);
-    }
-  }
-
-  void _startBackgroundSync(String path, EditorDocumentModel model) {
-    final sync = extensionDocuments;
-    if (sync == null || _extensionSyncing.contains(model)) return;
-    _extensionSyncing.add(model);
-    sync.openDocument(
-      path,
-      model,
-      text: model.text,
-      isUntitled: false,
-      languageId: extensionLanguageId?.call(path) ?? fallbackLanguageId,
-      isDirty: model.isDirty,
-    );
-    _extensionSync[model] = model.changes.listen(
-      (event) => sync.changeDocument(path, model, (
-        version: event.version,
-        changes: event.changes,
-        isUndoing: event.isUndoing,
-        isRedoing: event.isRedoing,
-      )),
-    );
-  }
-
-  void _stopModelSync(String path, EditorDocumentModel model) {
-    final extension = _extensionSync.remove(model);
-    _extensionSyncing.remove(model);
-    if (extension != null) {
-      unawaited(extension.cancel());
-      extensionDocuments?.closeDocument(path, model);
-    }
-  }
-
-  /// Tells the extension host [doc]'s unsaved state, after its saved text
-  /// changed without an edit (a reload).
-  void _extensionDirty(IdeDocument doc) {
-    if (!_extensionSyncing.contains(doc.model)) return;
-    extensionDocuments?.dirtyStateChanged(doc.path, doc.model, doc.dirty);
-  }
 
   /// The project's Git repository, for the explorer's decorations, Source
   /// Control and the timeline; null for none. Disposed with the workspace.
@@ -576,13 +422,10 @@ class IdeWorkspace extends ChangeNotifier {
   /// as well (see [IdeLayout]).
   final IdeLayout layout = IdeLayout();
 
-  /// The editors showing its documents (see [IdeEditorViews]).
-  final IdeEditorViews editorViews = IdeEditorViews();
-
-  /// The workbench's notifications: its own and its extensions'.
+  /// The workbench's notifications.
   final IdeNotifications notifications = IdeNotifications();
 
-  /// Language features sync, by file model (a file's tabs share one).
+  /// Language server sync, by file model (a file's tabs share one).
   final Map<EditorDocumentModel, StreamSubscription<EditorContentChangeEvent>>
   _syncing = {};
   final List<IdeDocument> _documents = [];
@@ -609,8 +452,11 @@ class IdeWorkspace extends ChangeNotifier {
 
   /// The open model of [path]'s file, which its tabs share.
   EditorDocumentModel? _fileModel(String path) =>
-      _documents.where((d) => d.path == path && d.isFile).firstOrNull?.model ??
-      _background[path];
+      _documents.where((d) => d.path == path && d.isFile).firstOrNull?.model;
+
+  /// The open model of [path]: its tab's.
+  EditorDocumentModel? modelOf(String path) =>
+      _fileModel(paths.normalize(path));
 
   /// The document [edit], [applyEdits], [undo] and [redo] change: [path]'s
   /// file's.
@@ -884,7 +730,6 @@ class IdeWorkspace extends ChangeNotifier {
       if (doc.dirty || text == doc.text) continue;
       doc.text = text;
       doc.savedText = text;
-      _extensionDirty(doc);
       changed = true;
     }
     if (changed && !_disposed) notifyListeners();
@@ -1004,7 +849,6 @@ class IdeWorkspace extends ChangeNotifier {
   }
 
   void _startSync(IdeDocument doc) {
-    _startExtensionSync(doc);
     final sync = _sync;
     if (sync == null || !doc.isFile || _syncing.containsKey(doc.model)) return;
     sync.openDocument(doc.path, doc.text, version: doc.model.version);
@@ -1027,76 +871,20 @@ class IdeWorkspace extends ChangeNotifier {
     );
   }
 
-  /// Reports a file tab to the extension host: its document opens (once per
-  /// model) and every change goes on. The extension host's sync lives on
-  /// the workspace (not per tab) because the mirror maps the model's raw
-  /// text. [doc]'s tabs share the model, as the LSP sync does.
-  void _startExtensionSync(IdeDocument doc) {
-    final sync = extensionDocuments;
-    if (sync == null || !_syncsToExtensions(doc)) return;
-    if (_extensionSyncing.contains(doc.model)) return;
-    _extensionSyncing.add(doc.model);
-    sync.openDocument(
-      doc.path,
-      doc.model,
-      text: doc.text,
-      isUntitled: doc.isUntitled,
-      languageId: extensionLanguageId?.call(doc.path) ?? fallbackLanguageId,
-      isDirty: doc.dirty || doc.isUntitled,
-    );
-    _extensionSync[doc.model] = doc.model.changes.listen(
-      (event) => sync.changeDocument(doc.path, doc.model, (
-        version: event.version,
-        changes: event.changes,
-        isUndoing: event.isUndoing,
-        isRedoing: event.isRedoing,
-      )),
-    );
-  }
-
-  /// The language the extension host is told a document has when the app
-  /// does not know one.
-  static const fallbackLanguageId = 'plaintext';
-
   /// Stops syncing [doc]'s file, once no other tab has it, or [force]d.
   void _stopSync(IdeDocument doc, {bool force = false}) {
-    if (!force &&
-        (_documents.any((d) => identical(d.model, doc.model)) ||
-            _background.values.any((m) => identical(m, doc.model)))) {
+    if (!force && _documents.any((d) => identical(d.model, doc.model))) {
       return;
     }
     final subscription = _syncing.remove(doc.model);
-    unawaited(subscription?.cancel());
-    if (subscription != null) _sync?.closeDocument(doc.path);
-    final extension = _extensionSync.remove(doc.model);
-    _extensionSyncing.remove(doc.model);
-    if (extension != null) {
-      unawaited(extension.cancel());
-      extensionDocuments?.closeDocument(doc.path, doc.model);
-    } else if (subscription == null && (doc.isFile || doc.isUntitled)) {
-      // A tab the LSP never synced (no LSP, an extension host only) still
-      // opened its document above; tell the host it is gone.
-      extensionDocuments?.closeDocument(doc.path, doc.model);
-    }
-  }
-
-  /// The extension-host sync of each open model (the mirror's changes).
-  final Map<EditorDocumentModel, StreamSubscription<EditorContentChangeEvent>>
-  _extensionSync = {};
-  final Set<EditorDocumentModel> _extensionSyncing = {};
-
-  /// Reports [path]'s document as saved ([IdeWorkspace.save] and
-  /// `saveTo` call it after the file was written).
-  void _extensionSaved(IdeDocument doc) {
-    final sync = extensionDocuments;
-    if (sync == null || !_extensionSyncing.contains(doc.model)) return;
-    sync.saveDocument(doc.path, doc.model, doc.text);
+    if (subscription == null) return;
+    unawaited(subscription.cancel());
+    _sync?.closeDocument(doc.path);
   }
 
   /// Disposes [doc], but not the model another tab still has.
   void _release(IdeDocument doc) {
-    if (_documents.any((d) => identical(d.model, doc.model)) ||
-        _background.values.any((m) => identical(m, doc.model))) {
+    if (_documents.any((d) => identical(d.model, doc.model))) {
       doc.diff?.dispose();
     } else {
       doc.dispose();
@@ -1118,6 +906,10 @@ class IdeWorkspace extends ChangeNotifier {
   /// Asks where to save a document (Save As): a path, or null when
   /// cancelled. Without it, a new file cannot be saved.
   Future<String?> Function(IdeDocument doc)? askSavePath;
+
+  /// Told the path of each file saved (the debugger's breakpoints verify
+  /// again).
+  void Function(String path)? onSaved;
 
   /// Opens a new file, not saved anywhere yet (`Untitled-1`), and selects
   /// it.
@@ -1172,50 +964,14 @@ class IdeWorkspace extends ChangeNotifier {
     if (_activeKey == doc.key) _activeKey = saved.key;
     _startSync(saved);
     if (_syncing.containsKey(saved.model)) _sync?.saveDocument(path, text);
-    _extensionSaved(saved);
     gitAt(path)?.scheduleRefresh();
     notifyListeners();
+    onSaved?.call(path);
     return saved;
   }
 
-  /// What runs before a file's text is written, in order
-  /// (`TextFileSaveParticipant`'s participants): each may edit the model.
-  final List<IdeSaveParticipant> saveParticipants = [];
-
-  /// Told what a save participant threw (the save goes on, as upstream's
-  /// does after logging it).
-  void Function(Object error, StackTrace stack)? onSaveParticipantError;
-
-  Future<void> _participate(
-    String path,
-    EditorDocumentModel model,
-    IdeSaveReason reason,
-  ) async {
-    for (final participant in [...saveParticipants]) {
-      if (_disposed) return;
-      try {
-        await participant(path, model, reason);
-      } catch (error, stack) {
-        onSaveParticipantError?.call(error, stack);
-      }
-    }
-  }
-
-  Future<void> save(
-    IdeDocument doc, {
-    IdeSaveReason reason = IdeSaveReason.explicit,
-  }) async {
-    if (doc.isUntitled) {
-      await saveAs(doc);
-      return;
-    }
-    if (saveParticipants.isNotEmpty && doc.isFile) {
-      await _participate(doc.path, doc.model, reason);
-    }
-    return _write(doc);
-  }
-
-  Future<void> _write(IdeDocument doc) {
+  Future<void> save(IdeDocument doc) {
+    if (doc.isUntitled) return saveAs(doc);
     final text = doc.text;
     final result = _saves.then((_) async {
       if (_disposed || !_documents.contains(doc) || !doc.isFile) {
@@ -1237,9 +993,9 @@ class IdeWorkspace extends ChangeNotifier {
       doc.deleted = false;
       doc.savedText = text;
       if (_syncing.containsKey(doc.model)) _sync?.saveDocument(doc.path, text);
-      _extensionSaved(doc);
       gitAt(doc.path)?.scheduleRefresh();
       notifyListeners();
+      onSaved?.call(doc.path);
     });
     _saves = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     return result;
@@ -1272,16 +1028,10 @@ class IdeWorkspace extends ChangeNotifier {
     final documents = _documents.toList();
     _documents.clear();
     final models = <EditorDocumentModel>{};
-    final background = Map.of(_background);
-    _background.clear();
     for (final doc in documents) {
       _stopSync(doc);
       doc.diff?.dispose();
       if (models.add(doc.model)) doc.model.dispose();
-    }
-    for (final MapEntry(key: path, value: model) in background.entries) {
-      _stopModelSync(path, model);
-      if (models.add(model)) model.dispose();
     }
     if (_sync case final sync?) unawaited(sync.shutdown());
     _git?.dispose();
@@ -1294,7 +1044,6 @@ class IdeWorkspace extends ChangeNotifier {
       }
     }
     layout.dispose();
-    editorViews.dispose();
     notifications.dispose();
     super.dispose();
   }

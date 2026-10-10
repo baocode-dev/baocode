@@ -18,7 +18,7 @@
 
 import 'dart:async';
 
-import 'package:bao_exthost/bao_exthost.dart' show CancellationToken;
+import '../../base/cancellation.dart' show CancellationToken;
 
 import '../base/event.dart';
 import '../common/debug_types.dart';

@@ -4,7 +4,8 @@
 
 import 'dart:async';
 
-import 'package:bao_exthost/bao_exthost.dart' show CancellationTokenSource, VsUri;
+import 'package:baocode/base/cancellation.dart' show CancellationTokenSource;
+import 'package:baocode/base/uri.dart' show VsUri;
 import 'package:baocode/debug/common/debug_model.dart';
 import 'package:baocode/debug/common/debug_types.dart';
 import 'package:baocode/debug/common/repl_model.dart';

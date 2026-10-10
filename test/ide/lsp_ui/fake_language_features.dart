@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:baocode/ide/language/language_features.dart';
-import 'package:baocode/ide/language/language_types.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 
 /// Scripted language services for widget tests: answers come from the
 /// `on*` callbacks (empty when unset) and every request is recorded in
@@ -21,6 +21,9 @@ class FakeLanguageFeatures extends ChangeNotifier implements LanguageFeatures {
 
   final List<String> requests = [];
   final List<(LspCommand, String?)> executed = [];
+  final List<String> retried = [];
+  final List<String> installed = [];
+  final Map<String, List<LanguageServerStatus>> statuses = {};
 
   LspHover? Function(String path, LspPosition position)? onHover;
   List<LspLocation> Function(String path, LspPosition position)? onDefinition;
@@ -55,11 +58,17 @@ class FakeLanguageFeatures extends ChangeNotifier implements LanguageFeatures {
   onCodeActions;
   LspCodeAction Function(LspCodeAction action)? onResolveCodeAction;
   List<LspSemanticToken>? Function(String path)? onSemanticTokens;
+  Future<void> Function(String serverId)? onInstall;
 
   final _workspaceEdits = StreamController<LspApplyEditRequest>.broadcast();
 
   void setDiagnostics(String path, List<LspDiagnostic> list) {
     diagnostics[path] = list;
+    notifyListeners();
+  }
+
+  void setStatus(String path, List<LanguageServerStatus> list) {
+    statuses[path] = list;
     notifyListeners();
   }
 
@@ -248,6 +257,19 @@ class FakeLanguageFeatures extends ChangeNotifier implements LanguageFeatures {
 
   @override
   Stream<LspApplyEditRequest> get workspaceEdits => _workspaceEdits.stream;
+
+  @override
+  List<LanguageServerStatus> statusFor(String path) =>
+      statuses[path] ?? const [];
+
+  @override
+  void retry(String serverId, {String? path}) => retried.add(serverId);
+
+  @override
+  Future<void> install(String serverId, {String? path}) async {
+    installed.add(serverId);
+    await onInstall?.call(serverId);
+  }
 
   @override
   void dispose() {

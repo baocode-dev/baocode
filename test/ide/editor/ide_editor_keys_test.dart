@@ -12,7 +12,7 @@ import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_find_widget.dart';
 import 'package:baocode/ide/ide_workspace.dart';
-import 'package:baocode/ide/language/language_types.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/ide/lsp_ui/language_widgets.dart';
 import 'package:baocode/ide/lsp_ui/lsp_convert.dart';
 import 'package:baocode/keybindings/default_keybindings.dart';
@@ -155,7 +155,7 @@ Future<_Bench> _pump(
             active: workspace.active!,
             nativeEditorEnabled: true,
             onError: (error) => fail('$error'),
-            onEditorStatus: (_) {},
+            onLspStatus: (_) {},
             onPositionChanged: (_) {},
             keyResolver: bench.resolve,
           ),

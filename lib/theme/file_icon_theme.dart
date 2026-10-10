@@ -273,13 +273,22 @@ class FileIconThemeData {
         if (section.folderNames[name] case final id?) return _definition(id);
       }
     }
-    for (final section in sections) {
-      final id = root
-          ? (expanded
-                ? section.rootFolderExpanded ?? section.folderExpanded
-                : section.rootFolder ?? section.folder)
-          : (expanded ? section.folderExpanded : section.folder);
-      if (id != null) return _definition(id);
+    // An expanded folder without an icon of its own has the collapsed one,
+    // as upstream's CSS falls through to `.folder-icon` (or
+    // `.rootfolder-icon`, `rootFolder || folder` in each section).
+    final kinds = <String? Function(_Associations section)>[
+      if (expanded)
+        root
+            ? (section) => section.rootFolderExpanded ?? section.folderExpanded
+            : (section) => section.folderExpanded,
+      root
+          ? (section) => section.rootFolder ?? section.folder
+          : (section) => section.folder,
+    ];
+    for (final kind in kinds) {
+      for (final section in sections) {
+        if (kind(section) case final id?) return _definition(id);
+      }
     }
     return null;
   }
@@ -378,19 +387,26 @@ class FileIconThemeService extends ChangeNotifier {
   }
 }
 
-/// [definition] drawn at [size].
+/// [definition] drawn at [size], an SVG's for the [dark] or light color
+/// scheme when it tells them apart.
 class FileIconThemeIcon extends StatelessWidget {
-  const FileIconThemeIcon(this.definition, {super.key, required this.size});
+  const FileIconThemeIcon(
+    this.definition, {
+    super.key,
+    required this.size,
+    this.dark = true,
+  });
 
   final FileIconDefinition definition;
   final double size;
+  final bool dark;
 
   @override
   Widget build(BuildContext context) {
     final path = definition.iconPath;
     if (path != null) {
       return path.toLowerCase().endsWith('.svg')
-          ? svgFile(path, width: size, height: size)
+          ? svgFile(path, width: size, height: size, dark: dark)
           : Image.file(
               File(path),
               width: size,

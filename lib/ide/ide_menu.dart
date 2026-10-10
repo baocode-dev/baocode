@@ -91,49 +91,6 @@ List<IdeMenuEntry> ideMenuGroups(List<List<IdeMenuEntry>> groups) => [
   ],
 ].skip(1).toList();
 
-/// A menu's group: its upstream id (`navigation`, `1_modification`…) and
-/// entries.
-typedef IdeMenuGroup = ({String id, List<IdeMenuEntry> entries});
-
-/// [builtin] groups, in their order, with [more] (extensions') merged in
-/// as menus sort groups: into the group of the same id, else before the
-/// first whose id sorts after theirs (`navigation` first); then
-/// [ideMenuGroups].
-List<IdeMenuEntry> ideMergedMenuGroups(
-  List<IdeMenuGroup> builtin,
-  List<IdeMenuGroup> more,
-) {
-  int compare(String a, String b) {
-    if (a == b) return 0;
-    if (a == 'navigation') return -1;
-    if (b == 'navigation') return 1;
-    // Unnamed groups last.
-    if (a.isEmpty) return 1;
-    if (b.isEmpty) return -1;
-    return a.compareTo(b);
-  }
-
-  final groups = [
-    for (final group in builtin) (id: group.id, entries: [...group.entries]),
-  ];
-  for (final group in more) {
-    if (group.entries.isEmpty) continue;
-    final same = groups.indexWhere((g) => g.id == group.id);
-    if (same >= 0) {
-      groups[same].entries.addAll(group.entries);
-      continue;
-    }
-    final after = groups.indexWhere((g) => compare(g.id, group.id) > 0);
-    final entry = (id: group.id, entries: [...group.entries]);
-    if (after < 0) {
-      groups.add(entry);
-    } else {
-      groups.insert(after, entry);
-    }
-  }
-  return ideMenuGroups([for (final group in groups) group.entries]);
-}
-
 /// Shows [entries] as a context menu at [position] (global), or below
 /// [anchor] (global) as a dropdown's, right-aligned to it when
 /// [alignRight]. Completes once it closes, after the chosen action ran.
@@ -550,7 +507,10 @@ class _MenuLayout extends SingleChildLayoutDelegate {
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
     final maxWidth = math.max(0.0, constraints.biggest.width - _edgeInset * 2);
-    final maxHeight = math.max(0.0, constraints.biggest.height - _edgeInset * 2);
+    final maxHeight = math.max(
+      0.0,
+      constraints.biggest.height - _edgeInset * 2,
+    );
     return BoxConstraints.loose(Size(maxWidth, maxHeight));
   }
 
@@ -615,9 +575,7 @@ class _MenuPanel extends StatelessWidget {
     ),
     child: ClipRRect(
       borderRadius: BorderRadius.circular(7),
-      // [DefaultTextStyle.merge]: the items keep the app's font (the
-      // theme's), as the rest of the window has it.
-      child: DefaultTextStyle.merge(
+      child: DefaultTextStyle(
         style: TextStyle(
           fontSize: 13,
           color: IdeMenuColors.foreground,

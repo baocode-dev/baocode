@@ -35,8 +35,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:bao_exthost/bao_exthost.dart'
+import '../../base/cancellation.dart'
     show CancellationException, CancellationToken;
+
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 

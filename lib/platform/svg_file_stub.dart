@@ -6,4 +6,5 @@ Widget svgFile(
   double? width,
   double? height,
   BoxFit fit = BoxFit.contain,
+  bool? dark,
 }) => SizedBox(width: width, height: height);
