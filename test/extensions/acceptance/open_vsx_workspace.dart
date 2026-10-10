@@ -249,6 +249,24 @@ final class OpenVsxWorkspace {
     }, timeout: timeout ?? const Duration(minutes: 2));
   }
 
+  /// Waits for a notification from [source] (an extension's name) and
+  /// picks its [action], as its user would.
+  Future<void> answer(String source, String action) async {
+    String shown() => [
+      for (final n in workspace.notifications.notifications)
+        '${n.source}: ${n.message} ${[for (final a in n.primary) a.label]}',
+    ].join('\n');
+    final notification = await eventually('a notification from $source', () {
+      for (final n in workspace.notifications.notifications) {
+        if (n.source?.contains(source) ?? false) return n;
+      }
+      return null;
+    }).catchError((Object e) => fail('$e\nNotifications:\n${shown()}'));
+    final labels = [for (final a in notification.primary) a.label];
+    expect(labels, contains(action), reason: shown());
+    notification.primary.firstWhere((a) => a.label == action).run();
+  }
+
   /// What went wrong in the extensions, for a failure's reason.
   String report() => [
     'Unsupported: $unsupported',

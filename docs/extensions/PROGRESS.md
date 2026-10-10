@@ -146,14 +146,34 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   save, format on save, insert final newline, trim final newlines, then `onWillSaveTextDocument` (1750 ms), in
   upstream's order, for every save (`IdeWorkspace.saveParticipants`); `editor.defaultFormatter` and the formatter
   pick (lib/extensions/workbench/default_formatter.dart). Test: `save_participants_exthost_test.dart`.
+- 九.2 editor extensions (`editor_extensions_exthost_test.dart`): GitLens (current-line blame decoration, hovers, its
+  views), Error Lens + Code Spell Checker (inline diagnostics decorations, spelling diagnostics and quick fixes),
+  Todo Tree (its tree and highlights), VSCodeVim (Normal/Insert modes, `x`, `dd`, `i`, Escape, `u`, the block
+  cursor and its status bar item). For these: decoration types/ranges from the registry, the editor's caret styles
+  (`TextEditorCursorStyle`, block/underline/outline painting) and line numbers styles (relative, interval) set by
+  extensions through `$trySetOptions`, the `type`/`default:type` override, configuration-driven context keys,
+  `editor.action.wordHighlight.trigger`, and V8-style stacks on errors sent back to the host.
+- 九.2 Docker (`docker_exthost_test.dart`): `ms-azuretools.vscode-docker` brings Container Tools; the Dockerfile
+  diagnostics, hover and completions, Compose completions, and the Images view listing the machine's images through
+  the Docker CLI (read only; skipped without a daemon).
+- 九.2 themes (`theme_extensions_exthost_test.dart`): Dracula (colors and TextMate rules applied from its file) and
+  vscode-icons (its welcome notification answered with Activate, which sets `workbench.iconTheme`; Python, npm,
+  TypeScript and `src` icons by name/extension/language from the installed folder); a second app on the same data
+  folder lists both and uses vscode-icons before any host runs. `ExtensionsApp.followIconThemeSetting` follows the
+  setting (main() and the test share it).
+- 九.2 all together (`all_extensions_exthost_test.dart`): the 15 Open VSX extensions in one data folder, each
+  activated on the project's files, no activation errors and no unsupported calls.
+- Startup follows upstream: only `*` is waited for; `onStartupFinished` extensions activate without the workbench
+  waiting (one may wait on its user, as vscode-icons' welcome does), and a restart resends the requested events
+  without waiting for their activations. A workspace disposed while its host starts no longer builds actors on
+  disposed services (the connection is closed instead).
 
 ## In progress / next
 
 1. Editor-feature rendering from the registry is complete (CodeLens, inlay hints, inline completions, highlights,
    folding, links, colors).
-2. 九.2 remaining: GitLens, Error Lens, Todo Tree, Code Spell Checker, VSCodeVim, Docker, a theme and an icon
-   theme. Then debugging acceptance beyond Node (Python, Go, Rust/C++ via CodeLLDB, controls, breakpoint variants,
-   preLaunchTask in a real session).
+2. 九.2 is covered. Next: debugging acceptance beyond Node (Python, Go, Rust/C++ via CodeLLDB, controls, breakpoint
+   variants, preLaunchTask in a real session).
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
    bao_remote LSP, docs and l10n), after replacing its language capability coverage.
 4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
@@ -213,3 +233,15 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   Format Document with several formatters and no default picks without the confirmation dialog first.
 - Dependencies and pack members are installed by BaoCode from Open VSX after the extension (`donotIncludePackAndDependencies`
   on the server's install), not with it; a dependency that cannot be installed fails a gallery install afterwards.
+- Todo Tree's Open VSX package lacks `@vscode/ripgrep`: the acceptance sets `todo-tree.ripgrep.ripgrep` to a ripgrep
+  binary. Its default highlight colors are `ThemeColor`s it constructs without `new`, which throws upstream too; the
+  test sets explicit colors. GitLens' onboarding is skipped by its setting (`gitlens.advanced.skipOnboarding`).
+- VSCodeVim: typing reaches it through the `type` command override; IME composition does not go through the
+  override yet (MANUAL_CHECKLIST). Its first start logs `ENOENT .registers` (the file does not exist yet), as upstream.
+- Block caret painting takes the next UTF-16 code point (surrogate pairs), not a full grapheme cluster, and redraws it
+  in the caret's inverted color without its token color.
+- Virtual documents from extensions are read-only; references show in the references panel instead of a peek;
+  `cursorMove` moves by logical lines.
+- On shutdown upstream's host invalidates its proxies before `deactivate`: extensions that call the main thread from
+  `deactivate` log `Channel has been closed`, as upstream (`ms-python.vscode-python-envs` also throws in its own
+  `deactivate`).

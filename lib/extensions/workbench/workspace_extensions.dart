@@ -315,11 +315,32 @@ final class ExtensionsApp {
     ]);
   }
 
+  VoidCallback? _iconThemeListener;
+
+  /// Follows [userSettings]' `workbench.iconTheme` with the file icon
+  /// theme in use, as settings.json or an extension (vscode-icons'
+  /// Activate) sets it.
+  void followIconThemeSetting() {
+    if (_iconThemeListener != null) return;
+    void follow() => unawaited(
+      FileIconThemeService.instance.select(switch (userSettings
+          .values['workbench.iconTheme']) {
+        final String id when id != FileIconThemeService.bundledId => id,
+        _ => null,
+      }),
+    );
+    userSettings.addListener(_iconThemeListener = follow);
+    follow();
+  }
+
   /// A workspace's extensions; [root] is its folder.
   WorkspaceExtensions workspace(String root) =>
       WorkspaceExtensions(app: this, root: root);
 
   Future<void> dispose() async {
+    if (_iconThemeListener case final listener?) {
+      userSettings.removeListener(listener);
+    }
     await _changes.close();
     await pool.dispose();
     trustStore.dispose();

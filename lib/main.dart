@@ -55,7 +55,6 @@ import 'telemetry/telemetry_service.dart';
 import 'telemetry/telemetry_store.dart';
 import 'theme/app_theme.dart';
 import 'theme/code_font.dart';
-import 'theme/file_icon_theme.dart';
 import 'theme/workbench_theme.dart';
 import 'update/update_controller.dart';
 import 'update/update_platform.dart';
@@ -241,20 +240,11 @@ Future<void> main(List<String> arguments) async {
                 _ => AppLocale.english,
               },
         );
-  if (extensions != null) unawaited(extensions.applyInstalledThemes());
   // `workbench.iconTheme`: an extension's file icon theme, followed as
   // settings.json changes.
-  if (files != null) {
-    void iconTheme() => unawaited(
-      FileIconThemeService.instance.select(
-        switch (files.settings['workbench.iconTheme']) {
-          final String id when id != FileIconThemeService.bundledId => id,
-          _ => null,
-        },
-      ),
-    );
-    files.settings.addListener(iconTheme);
-    iconTheme();
+  if (extensions != null) {
+    unawaited(extensions.applyInstalledThemes());
+    extensions.followIconThemeSetting();
   }
   final app = BaoCodeApp(
     windows: windows,

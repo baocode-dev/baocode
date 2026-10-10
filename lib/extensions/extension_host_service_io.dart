@@ -111,6 +111,7 @@ final class ExtensionHostService extends ChangeNotifier {
         developmentLocations: developmentLocations,
       ),
     );
+    _checkNotDisposed();
     _activated.clear();
     _extensions.value = List.unmodifiable(scanned);
     configuration.setExtensions(scanned);
@@ -135,6 +136,7 @@ final class ExtensionHostService extends ChangeNotifier {
         extensionDevelopmentLocations: developmentLocations,
       ),
       actorsFor: (rpc) {
+        _checkNotDisposed();
         context = MainThreadContext(
           rpc: rpc,
           services: {
@@ -253,13 +255,27 @@ final class ExtensionHostService extends ChangeNotifier {
   Future<void> activateByEvent(String event) => manager.activateByEvent(event);
 
   /// `*` then `onStartupFinished`, as the workbench does once it is up.
+  /// Only `*` is waited for: upstream's host activates the
+  /// `onStartupFinished` extensions without waiting for them
+  /// (`_activateOneStartupFinished`), and one may wait on its user (a
+  /// welcome message) for as long as they like.
   Future<void> startup() async {
     await activateByEvent('*');
-    await activateByEvent('onStartupFinished');
+    unawaited(activateByEvent('onStartupFinished').catchError((Object _) {}));
+  }
+
+  bool _disposed = false;
+
+  /// Disposed while a session was starting: its services are gone.
+  void _checkNotDisposed() {
+    if (_disposed) {
+      throw const ExtHostStartException('disposed while starting');
+    }
   }
 
   @override
   void dispose() {
+    _disposed = true;
     manager
       ..removeListener(notifyListeners)
       ..dispose();

@@ -198,6 +198,10 @@ void main() {
     );
 
     await service.startup().timeout(const Duration(seconds: 60));
+    // The fixture's activation, which startup does not wait for.
+    await service
+        .activateByEvent('onStartupFinished')
+        .timeout(const Duration(seconds: 60));
     expect(service.manager.state, ExtensionHostState.running);
     expect(
       service.extensions.value.map((e) => (e['identifier']! as Map)['value']),

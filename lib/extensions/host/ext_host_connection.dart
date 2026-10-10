@@ -129,7 +129,13 @@ final class ExtHostConnection implements ExtHostSession {
       logger: logger,
     );
     // Set before the buffered requests are delivered (a microtask later).
-    actorsFor(rpc).forEach(rpc.set);
+    try {
+      actorsFor(rpc).forEach(rpc.set);
+    } on Object {
+      protocol.dispose();
+      await protocol.close();
+      rethrow;
+    }
     final result = ExtHostConnection._(
       connection,
       rpc,

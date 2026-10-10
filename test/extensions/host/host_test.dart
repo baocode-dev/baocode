@@ -34,10 +34,16 @@ final class _Pipe implements MessagePassingProtocol {
 final class _ExtensionService implements RpcActor {
   final events = <String>[];
 
+  /// Events whose extensions never finish activating (one waiting on its
+  /// user).
+  static final waiting = <String>{};
+
   @override
   FutureOr<Object?> invoke(String method, List<Object?> args) {
-    if (method == r'$activateByEvent') events.add(args[0] as String);
-    return null;
+    if (method != r'$activateByEvent') return null;
+    final event = args[0] as String;
+    events.add(event);
+    return waiting.contains(event) ? Completer<void>().future : null;
   }
 }
 
@@ -217,6 +223,23 @@ void main() {
     setUp(() {
       sessions = [];
       services = [];
+      _ExtensionService.waiting.clear();
+    });
+
+    test('a restart does not wait for activations still running', () async {
+      _ExtensionService.waiting.add('onStartupFinished');
+      final manager = ExtensionHostManager(
+        start: start,
+        extensionServiceId: _service,
+      );
+      addTearDown(manager.dispose);
+      unawaited(manager.activateByEvent('onStartupFinished'));
+      await pumpEventQueue();
+      await manager.restart().timeout(const Duration(seconds: 5));
+      await pumpEventQueue();
+      expect(sessions, hasLength(2));
+      expect(services.last.events, ['onStartupFinished']);
+      expect(manager.state, ExtensionHostState.running);
     });
 
     test('starts lazily and sends each activation event once', () async {
@@ -256,6 +279,7 @@ void main() {
       expect(manager.state, ExtensionHostState.failed);
 
       await manager.restart();
+      await pumpEventQueue();
       expect(sessions, hasLength(4));
       expect(services.last.events, ['onStartupFinished']);
       manager.dispose();

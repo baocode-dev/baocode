@@ -174,10 +174,12 @@ final class ExtensionHostManager extends ChangeNotifier {
     } on Object {
       return;
     }
-    await Future.wait([
-      for (final event in _requestedEvents.toList())
-        activateByEvent(event).catchError((Object _) {}),
-    ]);
+    // Sent, not waited for (as upstream's start with its
+    // `initialActivationEvents`): an extension still activating, waiting
+    // on its user, does not hold the restart.
+    for (final event in _requestedEvents.toList()) {
+      unawaited(activateByEvent(event).catchError((Object _) {}));
+    }
   }
 
   bool _stopping = false;
