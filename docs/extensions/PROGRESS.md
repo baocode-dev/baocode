@@ -246,15 +246,26 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   also failed it are fixed (3efbf04): lib/remote/remote_binaries.dart's `Abi` is behind the same kind of import, and
   bao_remote's git_review_store.dart builds its 64-bit FNV offset from two halves. `flutter build web --no-pub`
   succeeds.
+- 五.8 (`baocode://` to the extensions' URI handlers) was only half there: the scheme was registered on macOS, but
+  nothing called `ExtensionUrlService.handleOpenRequest`, so an OAuth callback never reached GitHub
+  Authentication. Now (84e60f7): macOS's AppDelegate sends a URI that is not `agent`/`ide` over `baocode/open` as
+  `["\0uri", uri]` (at launch kept for `takePending`); the Windows runner takes `--open-url -- <uri>` (forwarded
+  to the running copy over WM_COPYDATA) and the installer registers `Software\Classes\baocode` with that command;
+  `OpenRequests.onUri` hands it to the app-wide `ExtensionUrlService`, which asks and runs commands through the
+  window's dialogs and commands of the host that has the extension, and keeps the trusted extensions in
+  `globalStorage/url-handler.json`. Tests: `url_protocol_test.dart` (channel → handler; Info.plist, Swift, C++
+  and .iss agree), `open_requests_test.dart`, `code_args_test.dart`, `window_services_test.dart`. Linux has no
+  package in the repository, so no scheme registration there.
 
 ## In progress / next
 
 1. 九.1–九.9 are done (see Done). The 9 tests that failed on main 9f84ede too are brought up to main's changes
    (ab07142: the terminal view's font size sync, the palette's new first actions, the window canvas as a Material,
-   a quit with nothing at work not asked about, the codex accounts' real clock). Final checks before the merge,
-   all passed: `flutter analyze --no-pub` clean; the full suite 6111 passed, 33 skipped, none failed;
-   `flutter build macos --debug` and `flutter build web --no-pub` build.
-2. Merge into main (`git merge --no-ff`, no push).
+   a quit with nothing at work not asked about, the codex accounts' real clock). The first merge (e4addcf) followed
+   `flutter analyze --no-pub` clean, the full suite 6111 passed / 33 skipped, `flutter build macos --debug` and
+   `flutter build web --no-pub`.
+2. After the `baocode://` fix: rerun the real REH tests (`flutter test --run-skipped -t exthost`), the final
+   checks again, and merge again (`git merge --no-ff`, no push).
 
 ## Decisions and deviations
 

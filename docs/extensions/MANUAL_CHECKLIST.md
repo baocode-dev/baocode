@@ -69,12 +69,22 @@ delivers (file URLs, promises, multiple items) is not.
    session.
 3. Sign out from the accounts menu and check the extension sees it.
 
-The `baocode://` scheme is registered in `macos/Runner/Info.plist`. Windows
-and Linux registration has to be done by the installer:
-- Windows: registry `HKEY_CLASSES_ROOT\baocode` with
-  `URL Protocol` and a `shell\open\command` of
-  `"<install dir>\baocode.exe" "%1"`.
-- Linux: a `.desktop` file with `MimeType=x-scheme-handler/baocode;`.
+The `baocode://` scheme is registered in `macos/Runner/Info.plist` and, on
+Windows, by the installer (`tool/baocode.iss`: `Software\Classes\baocode`,
+`"<install dir>\baocode.exe" --open-url -- "%1"`). The app hands the URI
+to the extension's URI handler (`OpenRequests.onUri` →
+`ExtensionUrlService.handleOpenRequest`); from the channel on this is tested
+(`test/extensions/url_protocol_test.dart`), and that test also checks the
+native ends agree with it. What is left to check by hand:
+- macOS: `open 'baocode://vscode.github-authentication/did-authenticate?x=1'`
+  with the app running and with it closed; the app comes forward and the
+  sign-in in progress finishes.
+- Windows: the same with `start baocode://…` after installing with the
+  installer, with the app running (the URI reaches the window already open,
+  no second window) and closed. The Windows runner change
+  (`windows/runner/open_requests.cpp`) was not compiled on macOS.
+- Linux: the repository has no Linux package (no `linux/` runner, no
+  `.desktop` file), so there is nothing to register the scheme in yet.
 
 ## 6. Keychain authorisation (secrets)
 
