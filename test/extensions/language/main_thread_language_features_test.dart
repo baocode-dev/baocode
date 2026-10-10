@@ -407,6 +407,42 @@ void main() {
   });
 
   group('registration', () {
+    test('two hosts (a remote project\'s and this machine\'s) keep their '
+        'handles apart, and each session ends alone', () async {
+      // The second host, with handles of its own.
+      final (a, b) = _Pipe.pair();
+      final otherMain = RpcProtocol(a, actorNames: proxyIdentifierNames);
+      final otherHost = RpcProtocol(b, actorNames: proxyIdentifierNames)
+        ..set(ExtHostContext.extHostLanguageFeatures.nid, _FakeExtHost());
+      root.beginSession(mainRpc);
+      root.beginSession(otherMain);
+      otherMain.set(
+        MainContext.mainThreadLanguageFeatures.nid,
+        MainThreadLanguageFeaturesActor(
+          MainThreadLanguageFeatures(root: root, proxy: otherMain),
+        ),
+      );
+      final selector = [
+        {'language': 'typescript'},
+      ];
+      await call(r'$registerHoverProvider', [1, selector]);
+      await otherHost.call(
+        MainContext.mainThreadLanguageFeatures.nid,
+        r'$registerHoverProvider',
+        [1, selector],
+      );
+      expect(root.service.hoverProvider.allNoModel(), hasLength(2));
+      await call(r'$unregister', [1]);
+      expect(root.service.hoverProvider.allNoModel(), hasLength(1));
+      await call(r'$registerHoverProvider', [1, selector]);
+      root.endSession(otherMain);
+      expect(root.service.hoverProvider.allNoModel(), hasLength(1));
+      expect(root.hasSession, isTrue);
+      root.endSession(mainRpc);
+      expect(root.service.hoverProvider.allNoModel(), isEmpty);
+      expect(root.hasSession, isFalse);
+    });
+
     test('a selector activates its languages once, and registers', () async {
       final activated = <String>[];
       root.activation = (selector) async {

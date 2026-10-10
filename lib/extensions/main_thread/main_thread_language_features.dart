@@ -66,10 +66,14 @@ final class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesUnsuppo
     this.activation,
     this.displayName,
     this.extensionId,
-  }) : _proxy = ExtHostLanguageFeaturesProxy(proxy);
+  }) : _rpc = proxy,
+       _proxy = ExtHostLanguageFeaturesProxy(proxy);
 
   final LanguageFeatureRoot root;
   final ExtHostLanguageFeaturesProxy _proxy;
+
+  /// The host's rpc: its session in [root].
+  final RpcProtocol _rpc;
 
   /// Activates `onLanguage:<id>` for a newly registered selector.
   final ProviderActivation? activation;
@@ -158,7 +162,11 @@ final class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesUnsuppo
   void _set<T>(num handle, LanguageFeatureRegistry<T> registry,
       LanguageSelector selector, T provider) {
     _providers[handle] = provider as Object;
-    root.track(handle, registry.register(selector, provider));
+    root.track(
+      handle,
+      registry.register(selector, provider),
+      session: _rpc,
+    );
   }
 
   /// The provider registered under [handle], if any.
@@ -190,7 +198,7 @@ final class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesUnsuppo
   void $unregister(num handle) {
     _handles.remove(handle);
     _providers.remove(handle);
-    root.untrack(handle);
+    root.untrack(handle, session: _rpc);
     final event = _events.remove(handle);
     unawaited(event?.close());
   }
@@ -517,6 +525,7 @@ final class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesUnsuppo
           supportsResolve: supportsResolve,
         ),
       ),
+      session: _rpc,
     );
   }
 
@@ -892,7 +901,12 @@ final class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesUnsuppo
     _registered(handle);
     final parsed = _parseLanguageConfiguration(languageId, configuration);
     if (parsed == null) return;
-    root.setLanguageConfiguration(languageId, parsed, handle);
+    root.setLanguageConfiguration(
+      languageId,
+      parsed,
+      handle,
+      session: _rpc,
+    );
   }
 
   LanguageConfiguration? _parseLanguageConfiguration(

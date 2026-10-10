@@ -19,7 +19,8 @@
 // - VS Code's registries are process-wide; here they live in a
 //   [LanguageFeatureRoot] the workbench owns, so a workspace's providers go
 //   when the session ends ([endSession]) and the extension host's handles
-//   start over.
+//   start over. A remote project's two hosts (its own and this machine's)
+//   have a session each, their handles apart.
 // - [gate] and [onBlocked] are BaoCode's: the installed extensions'
 //   capability scan (`lib/extensions/capabilities/`) decides whether an
 //   extension's language feature may run for a language. VS Code has nothing
@@ -68,6 +69,9 @@ typedef LanguageGate =
       required String feature,
     });
 
+/// A session's handle: the host's rpc and the handle it gave.
+typedef _SessionHandle = (Object?, num);
+
 /// One workspace's language features: the registries the editor reads, the
 /// markers, the open documents and the running session.
 final class LanguageFeatureRoot {
@@ -104,30 +108,36 @@ final class LanguageFeatureRoot {
   /// Every registration of a language's configuration, oldest first: the
   /// newest is in effect (upstream's registry ranks equal priorities by
   /// registration order).
-  final Map<String, List<(num, LanguageConfiguration)>>
+  final Map<String, List<(_SessionHandle, LanguageConfiguration)>>
   _languageConfigurationEntries = {};
 
-  /// Registers [configuration] for [languageId] under [handle]
-  /// (`$setLanguageConfiguration`); [untrack] of [handle] removes it.
+  /// Registers [configuration] for [languageId] under [session]'s
+  /// [handle] (`$setLanguageConfiguration`); [untrack] of [handle] removes
+  /// it.
   void setLanguageConfiguration(
     String languageId,
     LanguageConfiguration configuration,
-    num handle,
-  ) {
-    _removeLanguageConfiguration(handle, notify: false);
+    num handle, {
+    Object? session,
+  }) {
+    final key = (session, handle);
+    _removeLanguageConfiguration((e) => e == key, notify: false);
     (_languageConfigurationEntries[languageId] ??= []).add((
-      handle,
+      key,
       configuration,
     ));
     languageConfigurations[languageId] = configuration;
     languageConfigurationChanged?.call(languageId);
   }
 
-  void _removeLanguageConfiguration(num handle, {bool notify = true}) {
+  void _removeLanguageConfiguration(
+    bool Function(_SessionHandle key) which, {
+    bool notify = true,
+  }) {
     for (final MapEntry(key: languageId, value: entries)
         in _languageConfigurationEntries.entries.toList()) {
       final before = entries.length;
-      entries.removeWhere((entry) => entry.$1 == handle);
+      entries.removeWhere((entry) => which(entry.$1));
       if (entries.length == before) continue;
       if (entries.isEmpty) {
         _languageConfigurationEntries.remove(languageId);
@@ -168,9 +178,9 @@ final class LanguageFeatureRoot {
   /// Runs a command a provider attached to a result.
   Future<void> Function(Object command)? commandExecutor;
 
-  /// The running session's `rpc`; null when the host is not running.
-  RpcProtocol? get session => _session;
-  RpcProtocol? _session;
+  /// The latest session's `rpc`; null when no host runs.
+  RpcProtocol? get session => _sessions.lastOrNull;
+  final _sessions = <RpcProtocol>[];
 
   /// The running session's id (the handle space of its registrations).
   String? get sessionId => _sessionId;
@@ -180,6 +190,9 @@ final class LanguageFeatureRoot {
   ProviderActivation? activation;
 
   final _providerRegistrations = <FeatureRegistration>[];
+
+  /// Every session's registrations, by session and handle.
+  final Map<_SessionHandle, FeatureRegistration> _registrations = {};
   final _capabilityChanges = StreamController<void>.broadcast(sync: true);
   RegistryLanguageFeatures? _language;
   bool _disposed = false;
@@ -188,9 +201,12 @@ final class LanguageFeatureRoot {
   /// what `IdeWorkspace.languages` is.
   RegistryLanguageFeatures get language => _language ??= _createLanguage();
 
-  /// The registrations of the running session, by the handle the extension
+  /// The registrations of the latest session, by the handle the extension
   /// host gave them.
-  final Map<num, FeatureRegistration> registrations = {};
+  Map<num, FeatureRegistration> get registrations => {
+    for (final MapEntry(:key, :value) in _registrations.entries)
+      if (identical(key.$1, session)) key.$2: value,
+  };
 
   RegistryLanguageFeatures _createLanguage() {
     final documents = _documents;
@@ -221,50 +237,57 @@ final class LanguageFeatureRoot {
   /// A blocked extension's features are usable again, or the other way.
   Stream<void> get capabilityChanged => _capabilityChanges.stream;
 
-  /// The running host answered; its providers are asked over [rpc].
+  /// A host answered; its providers are asked over [rpc]. A session of
+  /// [rpc] already there ends first.
   void beginSession(
     RpcProtocol rpc, {
     String? sessionId,
     ProviderActivation? activation,
   }) {
-    endSession();
-    _session = rpc;
+    endSession(rpc);
+    _sessions.add(rpc);
     _sessionId = sessionId;
     this.activation = activation;
   }
 
-  /// The session ended: every registration of it is gone.
-  void endSession() {
-    _session = null;
-    _sessionId = null;
-    activation = null;
-    for (final registration in registrations.values) {
+  /// [rpc]'s session ended (every session's when null): its registrations
+  /// are gone.
+  void endSession([RpcProtocol? rpc]) {
+    bool ends(Object? session) => rpc == null || identical(session, rpc);
+    _sessions.removeWhere(ends);
+    if (_sessions.isEmpty) {
+      _sessionId = null;
+      activation = null;
+    }
+    for (final key in _registrations.keys.toList()) {
+      if (!ends(key.$1)) continue;
+      final registration = _registrations.remove(key)!;
+      _providerRegistrations.remove(registration);
       registration.dispose();
     }
-    registrations.clear();
-    _providerRegistrations.clear();
-    final languages = _languageConfigurationEntries.keys.toList();
-    _languageConfigurationEntries.clear();
-    for (final languageId in languages) {
-      languageConfigurations.remove(languageId);
-      languageConfigurationChanged?.call(languageId);
-    }
+    _removeLanguageConfiguration((key) => ends(key.$1));
   }
 
-  bool get hasSession => _session != null;
+  bool get hasSession => _sessions.isNotEmpty;
 
   /// Keeps [registration] until [endSession] or the extension host
-  /// unregisters it.
-  void track(num handle, FeatureRegistration registration) {
-    registrations.remove(handle)?.dispose();
-    registrations[handle] = registration;
+  /// unregisters it; [session] is the host's rpc (the latest's when null).
+  void track(
+    num handle,
+    FeatureRegistration registration, {
+    Object? session,
+  }) {
+    final key = (session ?? this.session, handle);
+    _registrations.remove(key)?.dispose();
+    _registrations[key] = registration;
     _providerRegistrations.add(registration);
   }
 
   /// The extension host unregistered [handle] (`$unregister`).
-  void untrack(num handle) {
-    _removeLanguageConfiguration(handle);
-    final registration = registrations.remove(handle);
+  void untrack(num handle, {Object? session}) {
+    final key = (session ?? this.session, handle);
+    _removeLanguageConfiguration((e) => e == key);
+    final registration = _registrations.remove(key);
     if (registration == null) return;
     _providerRegistrations.remove(registration);
     registration.dispose();
@@ -346,7 +369,7 @@ RpcActor languageFeaturesCustomer(
     proxy: context.rpc,
     activation: activation ?? root.activation,
   );
-  context.onDispose(root.endSession);
+  context.onDispose(() => root.endSession(context.rpc));
   return MainThreadLanguageFeaturesActor(actor);
 }
 
