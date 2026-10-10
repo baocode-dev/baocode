@@ -10,12 +10,14 @@ the test files named `exthost`.
 
 ## 1. First run on a fresh data folder (九.1)
 
-1. Move the data folder aside (`~/.baocode` on macOS) or set
-   `BAOCODE_DATA_DIR` to an empty folder, and make sure no runtime is
-   installed there.
+1. Move the data folder aside (`~/Library/Application Support/baocode` on
+   macOS, `~/.config/baocode` on Linux, `%APPDATA%\baocode` on Windows; or
+   the folder `~/.baocode/config-dir.json` names) or set `BAOCODE_DATA_DIR`
+   to an empty folder, and make sure no runtime is installed there.
 2. Open the app and a TypeScript project.
-3. Expect: the status bar shows "Downloading extension runtime" with a
-   percentage, then "Installing…", then it disappears. Opening a `.ts` file
+3. Expect: the status bar shows "Downloading extension runtime N%" (its
+   tooltip the bytes received of the total), then "Installing extension
+   runtime…", then it disappears. Opening a `.ts` file
    then gives completions, hover, go to definition, references, rename,
    diagnostics, formatting, quick fixes, CodeLens and inlay hints.
 4. Expect no other window, no file dialog and no console window.
@@ -91,18 +93,21 @@ authorisation prompt itself cannot be driven from a test.
 1. Start a project, confirm extensions are running (an extension's output
    channel, or a CodeLens).
 2. `pkill -f server-main.js` (or kill the extension host node process).
-3. Expect: a brief "Extension host terminated unexpectedly. Restarting…"
-   status, then completions and CodeLens work again; the third crash within
-   five minutes asks instead of restarting by itself, and "Restart Extension
-   Host" works.
+3. Expect: "The extension host terminated unexpectedly. Restarting..." in
+   the status bar for a few seconds, then completions and CodeLens work
+   again; on the third crash within five minutes a notification "Extension
+   host terminated unexpectedly 3 times within the last 5 minutes." offers
+   "Restart Extension Host" instead of restarting by itself, and that
+   button works.
 4. Kill it while offline and confirm already-downloaded extensions, themes and
    grammars still work.
 
 ## 8. Interrupted runtime download (九.7)
 
 1. Start a download and kill the network (turn Wi-Fi off) halfway.
-2. Expect: the status item turns into a failure with a retry action and
-   nothing half-installed is left in `<data>/exthost/`.
+2. Expect: the status item turns into "Extension runtime unavailable"
+   (click to try again) and nothing half-installed is left in
+   `<data>/exthost/`.
 3. Turn the network back on and retry (or restart the app): the download
    completes and the runtime works.
 4. Point the app at a mirror with `BAOCODE_EXTHOST_BASE_URL` and at an
@@ -128,16 +133,28 @@ Repeat on Windows, since everything above was checked on macOS:
 ## 11. SSH remote (九.6)
 
 1. Add an SSH host, open a remote project.
-2. Expect: the remote runtime is downloaded (from the CDN when the host has
-   network, otherwise downloaded here and uploaded), the extension host
-   starts on the remote, and TypeScript completions, Python and Node
-   debugging work there.
-3. Expect `ui`-only extensions (themes, keybinding extensions) to keep
-   running locally, and `workspace` ones remotely (see the "Extensions" view
-   per-kind badges).
+2. Expect: the status bar shows "Installing extension runtime on <host> N%"
+   (the host downloads it from the CDN) or, when the host has no network,
+   "Sending extension runtime to <host> N%" (downloaded here, sent over
+   SSH); the extension host starts on the remote, and TypeScript
+   completions, Python and Node debugging work there.
+3. Expect `ui` extensions (themes, VSCodeVim) to keep running on this
+   machine and `workspace` ones on the host: VSCodeVim keeps editing the
+   host's files, and the Python extension's interpreter picker lists the
+   host's interpreters, not this machine's.
 
 ## 12. Themes and icon themes (九.2)
 
 1. Install a colour theme and an icon theme from Open VSX, pick them.
 2. Expect: the whole workbench, editor token colours and the file icons
    change, and the choice survives a restart.
+
+## 13. Extensions' icon fonts in the app
+
+Checked offscreen with the test font loader only.
+
+1. Install GitLens, open a Git repository.
+2. Expect: its status bar items and its activity bar entry show its own
+   icons (from its `glicons.woff2`), not `$(gitlens-graph)` text or a
+   generic puzzle piece, in the debug and the release build (icon tree
+   shaking must not drop them).

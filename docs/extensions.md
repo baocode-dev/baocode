@@ -39,11 +39,32 @@ BaoCode (Dart, 主线程)                       插件进程 (Node)
   null：它会抛 `RpcUnsupported` 并记进 `docs/extensions/EXTHOST_PARITY.md`。
 - **进程管理**：`lib/platform/child_process_registry.dart` 记录子进程，崩溃或强退
   后下次启动会清理。扩展宿主崩溃按上游 `ExtensionHostCrashTracker` 处理：五分钟
-  内自动重启最多 3 次，之后提示用户手动重启。
+  内崩溃不到 3 次时自动重启（状态栏短暂显示 "The extension host terminated
+  unexpectedly. Restarting..."），第 3 次弹通知，由用户点 "Restart Extension
+  Host" 手动重启。
 - **远程（SSH）**：远端项目由 `bao_remote` 在远端启动同一个 reh，端口经 SSH
   转发；插件按 `extensionKind` 分流——`workspace` 类在远端跑，`ui` 类在本机跑
   （`lib/extensions/host/extension_kind.dart`，规则照抄
   `extensionManifestPropertiesService.ts`）。
+
+### 模块地图
+
+| 目录（`lib/extensions/`） | 内容 |
+| --- | --- |
+| `runtime/` | 固定的运行时版本、下载与安装进度（状态栏）、远程安装 |
+| `host/` | 扩展宿主的启动、崩溃重启、`extensionKind` 分流 |
+| `main_thread/` | 各 `MainThreadXxxActor`（上游 `mainThreadXxx.ts`） |
+| `workbench/` | `WorkspaceExtensions`：把一个工作区的宿主、命令、视图、主题、调试、任务接到工作台；`remote_extensions.dart` 是 SSH 项目 |
+| `gallery/`、`vsix/`、`import/`、`ui/` | Open VSX、.vsix 拖入与安装、从 VS Code/Cursor 导入、扩展视图与详情页 |
+| `commands/`、`menus/`、`keybindings/`、`contextkey/` | 贡献点：命令、菜单、快捷键、`when` 上下文 |
+| `language/`、`languages/`、`documents/`、`editors/`、`decorations/` | 语言功能、语言注册、文档与编辑器同步、装饰 |
+| `views/`、`scm/`、`testing/`、`terminal/`、`tasks/`、`search/`、`files/` | 树视图、源代码管理、测试、终端、任务、搜索、文件系统 |
+| `window/` | 输出、通知、快速输入、进度、认证、密钥、Webview 降级、Running Extensions |
+| `configuration/`、`trust/`、`capabilities/` | 设置、工作区信任、插件能力（Webview 等）判定 |
+
+调试在 `lib/debug/`（DAP 客户端与调试视图），主题在 `lib/theme/`：扩展贡献的
+颜色主题、文件图标主题、`contributes.colors`（`workbench_theme.dart`）和
+`contributes.icons` 图标字体（`icon_registry.dart`）。
 
 ### 协议要点（调试时最常看）
 
@@ -117,6 +138,40 @@ CI（`.github/workflows/exthost-runtime.yml`）在 `v*` 标签上重跑 `--check
 6. 上游改过行为的地方，看 `docs/extensions/EXTHOST_PARITY.md` 里新多出来的
    "unsupported" 调用。
 
+## 测试与验收
+
+日常只跑改动相关的测试。真实运行时的测试打了 `exthost` 标签，默认跳过：
+
+```sh
+# 用已解压的运行时（不下载）跑某个真实测试
+BAOCODE_EXTHOST_DIR=/tmp/exthost-dl/reh-darwin-arm64 \
+  flutter test --no-pub --run-skipped -t exthost test/extensions/acceptance/<文件>
+```
+
+Open VSX 的包缓存在 `/tmp/exthost-dl/openvsx-cache`，第一次会下载。固定的
+扩展与插件在 `test/fixtures/extensions/`。
+
+| 验收（目标第九节） | 自动化测试（`test/extensions/acceptance/`，另注明的除外） |
+| --- | --- |
+| 九.1 全新数据目录下载进度与 TS 功能 | `fresh_runtime_ts_exthost_test.dart`；`packages/bao_exthost/test/runtime/` |
+| 九.2 Open VSX 插件、主题与图标主题 | `language_extensions_…`（Python+basedpyright、rust-analyzer、Go、clangd）、`eslint_prettier_…`、`editor_extensions_…`（GitLens、Error Lens、Code Spell Checker、Todo Tree、VSCodeVim）、`docker_…`、`theme_extensions_…`、`all_extensions_…` |
+| 九.3 VSIX 拖入、导入、启停、更新、卸载、持久化 | `management_exthost_test.dart` |
+| 九.4 调试 | `debug_extensions_…`（Python、Go、CodeLLDB 的 C++/Rust）；`test/extensions/workbench/workspace_debug_exthost_test.dart`（Node launch/attach）；`test/extensions/tasks/tasks_exthost_test.dart`（preLaunchTask）；`test/extensions/workbench/ide_workbench_extensions_test.dart`（编辑器 glyph margin 点击设断点） |
+| 九.5 Webview 降级 | `webview_degradation_exthost_test.dart`；`test/extensions/window/webview_degradation_test.dart` |
+| 九.6 SSH 远程 | `ssh_remote_exthost_test.dart`（协议在内存里）、`ssh_docker_exthost_test.dart`（真实 ssh 到 Docker 里的 Linux） |
+| 九.7 崩溃恢复、离线、下载重试 | `fresh_runtime_ts_exthost_test.dart` |
+| 九.8 移除旧 LSP | `flutter analyze` 与全量测试 |
+| 九.9 文档与 parity | 本文；`dart run tool/generate_exthost_parity.dart` 生成 `docs/extensions/EXTHOST_PARITY.md` |
+
+### 离屏截图
+
+`screens_exthost_test.dart` 在 flutter_tester 里离屏渲染整个工作台（不开窗口，
+不碰桌面），运行真实扩展，把截图写到 `build/exthost-screens/`（可用
+`BAOCODE_EXTHOST_SCREENS` 改位置），每张都要逐张看：运行时下载中、TS 补全与
+hover、扩展视图、GitLens blame 加 Error Lens、Todo Tree、断点命中时的调试视图、
+Webview 降级提示。截图用测试字体加载器加载字体；真实应用里的显示见
+`docs/extensions/MANUAL_CHECKLIST.md`。
+
 ## 故障排查
 
 - **状态栏一直显示"Downloading extension runtime"**：看
@@ -127,8 +182,8 @@ CI（`.github/workflows/exthost-runtime.yml`）在 `v*` 标签上重跑 `--check
   `Extension Host` 通道；`MainThreadXxx` 没实现的方法会打印
   `Unsupported: MainThreadXxx.$method`，并在
   `docs/extensions/EXTHOST_PARITY.md` 里计数。
-- **扩展宿主反复崩溃**：五分钟内 3 次之后不再自动重启，状态栏会提示，
-  点它手动重启。崩溃日志在 `<data>/exthost-data/data/logs/<时间戳>/`。
+- **扩展宿主反复崩溃**：五分钟内 3 次之后不再自动重启，会弹出通知，
+  点 "Restart Extension Host" 手动重启。崩溃日志在 `<data>/exthost-data/data/logs/<时间戳>/`。
 - **服务器起不来**：手工跑
   `<data>/exthost/<id>/node <id>/out/server-main.js --help`，确认运行时完整；
   连接令牌在 `<data>/exthost-data/connection-token`。
