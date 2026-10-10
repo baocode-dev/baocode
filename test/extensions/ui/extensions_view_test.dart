@@ -7,6 +7,7 @@ import 'package:baocode/extensions/gallery/open_vsx_client.dart';
 import 'package:baocode/extensions/ui/extensions_model.dart';
 import 'package:baocode/extensions/ui/extensions_view.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 
 import '../gallery/fixture_http.dart';
@@ -77,6 +78,26 @@ void main() {
     expect(find.text('Installed'), findsOneWidget);
     expect(find.text('Recommended'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
+  });
+
+  testWidgets('a name and a publisher take their row\'s width, not half '
+      'of it', (tester) async {
+    final backend = FakeBackend(
+      installed: [
+        _installed(
+          'streetsidesoftware.code-spell-checker',
+          displayName: 'Code Spell Checker Plus',
+        ),
+      ],
+    );
+    final model = _model(backend);
+    await tester.pumpWidget(_app(ExtensionsView(model: model)));
+    await tester.pumpAndSettle();
+
+    for (final text in ['Code Spell Checker Plus', 'streetsidesoftware']) {
+      final paragraph = tester.renderObject<RenderParagraph>(find.text(text));
+      expect(paragraph.didExceedMaxLines, isFalse, reason: text);
+    }
   });
 
   testWidgets('built-in extensions are under @builtin, not Installed, as '

@@ -487,32 +487,39 @@ class ExtensionRow extends StatelessWidget {
                         padding: const EdgeInsets.only(right: 10),
                         child: Row(
                           children: [
-                            Flexible(
-                              child: Text(
-                                entry.label,
-                                maxLines: 1,
-                                softWrap: false,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: foreground,
-                                  decoration: gallery?.deprecated ?? false
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                  decorationColor: foreground,
-                                ),
+                            // The name and version take the row; the rest
+                            // stays at its end (a Spacer took half of it).
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      entry.label,
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: foreground,
+                                        decoration: gallery?.deprecated ?? false
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                        decorationColor: foreground,
+                                      ),
+                                    ),
+                                  ),
+                                  if (version.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 6),
+                                      child: Text(
+                                        version,
+                                        style: TextStyle(fontSize: 11, color: description),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            if (version.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 6),
-                                child: Text(
-                                  version,
-                                  style: TextStyle(fontSize: 11, color: description),
-                                ),
-                              ),
-                            const Spacer(),
                             if (gallery != null && gallery.downloadCount > 0)
                               Padding(
                                 padding: const EdgeInsets.only(left: 6),
@@ -554,40 +561,45 @@ class ExtensionRow extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 2, right: 2),
                       child: Row(
                         children: [
-                          Flexible(
-                            child: Text(
-                              entry.publisher,
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: selected ? foreground : description,
-                              ),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    entry.publisher,
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: selected ? foreground : description,
+                                    ),
+                                  ),
+                                ),
+                                if (gallery?.verified ?? false)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 3),
+                                    child: Icon(
+                                      Codicons.verifiedFilled,
+                                      size: 13,
+                                      color: colors.get('extensionIcon.verifiedForeground') ??
+                                          colors['textLink.foreground'],
+                                    ),
+                                  ),
+                                if (disabled)
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 6),
+                                    child: Text(
+                                      installed.enabledGlobally
+                                          ? l10n.extsDisabledWorkspace
+                                          : l10n.extsDisabled,
+                                      style: TextStyle(fontSize: 11, color: description),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
-                          if (gallery?.verified ?? false)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 3),
-                              child: Icon(
-                                Codicons.verifiedFilled,
-                                size: 13,
-                                color: colors.get('extensionIcon.verifiedForeground') ??
-                                    colors['textLink.foreground'],
-                              ),
-                            ),
-                          if (disabled)
-                            Padding(
-                              padding: const EdgeInsets.only(left: 6),
-                              child: Text(
-                                installed.enabledGlobally
-                                    ? l10n.extsDisabledWorkspace
-                                    : l10n.extsDisabled,
-                                style: TextStyle(fontSize: 11, color: description),
-                              ),
-                            ),
-                          const Spacer(),
                           if (capability != null &&
                               capability.level != ExtensionCapabilityLevel.full)
                             Padding(
