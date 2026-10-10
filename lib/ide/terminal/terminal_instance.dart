@@ -660,8 +660,11 @@ class TerminalInstance extends ChangeNotifier {
             : await this.shell;
         if (stale()) return;
         final mutator = environmentMutator;
+        // An empty cwd (a debug adapter's `runInTerminal` may send one) is
+        // none, as upstream's `getCwd` reads it.
+        final cwd = config?.cwd;
         final launch = await backend.launch(
-          config?.cwd ?? root,
+          cwd == null || cwd.isEmpty ? root : cwd,
           columns: _columns,
           rows: _rows,
           shell: shell,

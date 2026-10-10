@@ -57,9 +57,20 @@ final class _Debug {
     );
   }
 
-  /// The focused thread stopped at [line] (for [reason], in [function]).
+  /// What the terminals show (an adapter's `runInTerminal`).
+  String terminals() => [
+    for (final instance in w.extensions.terminals.service.instances)
+      [
+        '--- ${instance.title}',
+        for (var y = 0; y < instance.terminal.buffer.lines.length; y++)
+          instance.terminal.buffer.lines.get(y)!.translateToString(true),
+      ].join('\n').trimRight(),
+  ].join('\n');
+
+  /// The focused thread stopped at [line] (any line when null; for
+  /// [reason], in [function]).
   Future<StackFrame> stopped(
-    int line, {
+    int? line, {
     String? reason,
     String? function,
   }) async {
@@ -71,21 +82,19 @@ final class _Debug {
           '${frame?.range.startLineNumber}';
     }
 
-    return eventually(
-      'a stop at line $line',
-      () {
-        final thread = service.viewModel.focusedThread;
-        final frame = service.viewModel.focusedStackFrame;
-        if (thread == null || frame == null || !thread.stopped) return null;
-        if (frame.range.startLineNumber != line) return null;
-        if (reason != null && thread.stoppedDetails?.reason != reason) {
-          return null;
-        }
-        if (function != null && !frame.name.contains(function)) return null;
-        return frame;
-      },
-      timeout: const Duration(minutes: 1),
-    ).catchError((Object e) => fail('$e\n${state()}\n${console()}'));
+    return eventually('a stop at line $line', () {
+      final thread = service.viewModel.focusedThread;
+      final frame = service.viewModel.focusedStackFrame;
+      if (thread == null || frame == null || !thread.stopped) return null;
+      if (line != null && frame.range.startLineNumber != line) return null;
+      if (reason != null && thread.stoppedDetails?.reason != reason) {
+        return null;
+      }
+      if (function != null && !frame.name.contains(function)) return null;
+      return frame;
+    }, timeout: const Duration(minutes: 1)).catchError(
+      (Object e) => fail('$e\n${state()}\n${console()}\n${terminals()}'),
+    );
   }
 
   /// The names of the focused thread's top [count] frames, once fetched
@@ -99,13 +108,41 @@ final class _Debug {
   Future<Map<String, String>> variables(
     StackFrame frame, [
     Pattern scope = 'Locals',
-  ]) async {
+  ]) async => {
+    for (final v in await scopeVariables(frame, scope)) v.name: v.value,
+  };
+
+  /// The variables of [frame]'s first scope matching [scope].
+  Future<List<DebugExpression>> scopeVariables(
+    StackFrame frame,
+    Pattern scope,
+  ) async {
     final scopes = await frame.getScopes();
     final match = scopes.firstWhere(
       (s) => s.name.contains(scope),
       orElse: () => fail('No $scope in ${[for (final s in scopes) s.name]}'),
     );
-    return {for (final v in await match.getChildren()) v.name: v.value};
+    return match.getChildren();
+  }
+
+  /// Break on Value Change of [variable], as the Variables view's menu
+  /// does.
+  Future<void> breakOnValueChange(Variable variable) async {
+    final info = await session.dataBreakpointInfo(
+      variable.name,
+      variablesReference: variable.parent.reference,
+    );
+    final dataId = info?['dataId'];
+    expect(dataId, isA<String>(), reason: '$info');
+    await service.addDataBreakpoint(
+      DataBreakpoint(
+        description: '${info!['description'] ?? variable.name}',
+        src: DataBreakpointVariable(dataId! as String),
+        canPersist: info['canPersist'] == true,
+        accessTypes: (info['accessTypes'] as List?)?.cast<String>(),
+        accessType: 'write',
+      ),
+    );
   }
 
   /// A watch expression's value in [frame], as the Watch view shows it.
@@ -128,7 +165,7 @@ final class _Debug {
 
   /// What the debug console shows of the program's and log points' output.
   String console() => [
-    for (final s in service.model.getSessions())
+    for (final s in service.model.getSessions(includeInactive: true))
       for (final e in s.getReplElements().whereType<ReplOutputElement>())
         e.value,
   ].join();
@@ -296,10 +333,7 @@ void main() {
         'program': w.project,
       });
       // Delve stops on the function's declaration.
-      var frame = await d.stopped(
-        _line(_go, 'scale-entry'),
-        function: 'scale',
-      );
+      var frame = await d.stopped(_line(_go, 'scale-entry'), function: 'scale');
       expect(d.thread.stoppedDetails?.reason, 'function breakpoint');
       expect(
         d.session.capabilities.flag('supportsFunctionBreakpoints'),
@@ -355,7 +389,147 @@ void main() {
     timeout: const Timeout(Duration(minutes: 8)),
     skip: openVsxSkip() == false && !_onPath('dlv') ? 'No dlv' : openVsxSkip(),
   );
+
+  test(
+    '九.4: C++ (CodeLLDB): preLaunchTask, hit count, data, function and log '
+    'point breakpoints, stepping, variables, watch, console',
+    () async {
+      final w = await OpenVsxWorkspace.create(
+        extensionIds: const ['vadimcn.vscode-lldb'],
+        files: {'main.cpp': _cpp, '.vscode/tasks.json': _cppTasks},
+      );
+      final d = _Debug(w);
+      final source = VsUri.file(w.path('main.cpp'));
+      // Before the start: the third pass of the loop (a hit count).
+      await d.service.addBreakpoints(source, [
+        BreakpointData(lineNumber: _line(_cpp, 'loop'), hitCondition: '3'),
+      ]);
+      // CodeLLDB fetches its platform package (its debugger) on first use,
+      // then installs it with Install Extension VSIX.
+      await d.start({
+        'type': 'lldb',
+        'request': 'launch',
+        'name': 'C++: main',
+        'program': r'${workspaceFolder}/main',
+        'cwd': r'${workspaceFolder}',
+        'preLaunchTask': 'build',
+      });
+      expect(
+        File(w.path('main')).existsSync(),
+        isTrue,
+        reason: 'built by the preLaunchTask',
+      );
+      var frame = await d.stopped(_line(_cpp, 'loop'), function: 'main');
+      expect((await d.variables(frame, 'Local'))['i'], '2');
+
+      // Break on Value Change of c.count: the next bump writes it.
+      final c = (await d.scopeVariables(
+        frame,
+        'Local',
+      )).firstWhere((v) => v.name == 'c');
+      final count = (await c.getChildren()).firstWhere(
+        (v) => v.name == 'count',
+      );
+      await d.breakOnValueChange(count as Variable);
+      await d.service.removeBreakpoints();
+      await d.thread.continue_();
+      frame = await eventually('the data breakpoint', () {
+        final thread = d.service.viewModel.focusedThread;
+        final frame = d.service.viewModel.focusedStackFrame;
+        return thread != null &&
+                thread.stopped &&
+                frame != null &&
+                frame.name.contains('bump')
+            ? frame
+            : null;
+      });
+      expect(d.thread.stoppedDetails?.reason, isNot('breakpoint'));
+      expect(await d.callStack(2), [contains('bump'), contains('main')]);
+      await d.service.removeDataBreakpoints();
+
+      // A function breakpoint, a log point; stepping out and in.
+      await d.service.addFunctionBreakpoint(FunctionBreakpoint(name: 'bump'));
+      await d.service.addBreakpoints(source, [
+        BreakpointData(
+          lineNumber: _line(_cpp, 'print'),
+          logMessage: 'count={c.count}',
+        ),
+      ]);
+      // Back in the loop (past the call: on its line or the loop's end).
+      await d.thread.stepOut();
+      frame = await d.stopped(null, reason: 'step', function: 'main');
+      expect(
+        frame.range.startLineNumber,
+        greaterThanOrEqualTo(_line(_cpp, 'loop')),
+      );
+      expect(await d.watch(frame, 'c.count * 2'), '6');
+      // The console runs LLDB commands; `?` evaluates.
+      expect(await d.evaluate(frame, '?i * 10'), '20');
+      await d.thread.continue_();
+      // LLDB stops past the function's prologue.
+      frame = await d.stopped(_line(_cpp, 'bump'), function: 'bump');
+      expect(d.thread.stoppedDetails?.reason, contains('breakpoint'));
+      await d.service.removeFunctionBreakpoints();
+      await d.thread.next();
+      frame = await d.stopped(_line(_cpp, 'bump-return'), function: 'bump');
+      expect((await d.variables(frame, 'Local'))['by'], '3');
+
+      // The log point's message and the program's output, then its end.
+      await d.thread.continue_();
+      await eventually(
+        'the log point and the output',
+        () =>
+            d.console().contains('count=10') &&
+                d.terminals().contains('count 10')
+            ? true
+            : null,
+      ).catchError((Object e) => fail('$e\n${d.console()}\n${d.terminals()}'));
+      await d.ended();
+      expect(w.unsupported, isEmpty, reason: w.report());
+    },
+    timeout: const Timeout(Duration(minutes: 10)),
+    skip: openVsxSkip() == false && !_onPath('clang++')
+        ? 'No clang++'
+        : openVsxSkip(),
+  );
 }
+
+const _cpp = '''
+#include <cstdio>
+
+struct Counter {
+  int count;
+};
+
+int bump(Counter &c, int by) {
+  c.count += by; // BP:bump
+  return c.count; // BP:bump-return
+}
+
+int main() {
+  Counter c{0};
+  for (int i = 0; i < 5; i++) {
+    bump(c, i); // BP:loop
+  }
+  std::printf("count %d\\n", c.count); // BP:print
+  return 0;
+}
+''';
+
+const _cppTasks = '''
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "clang++",
+      "args": ["-g", "-O0", "-std=c++17", "main.cpp", "-o", "main"],
+      "problemMatcher": []
+    }
+  ]
+}
+''';
 
 const _go = '''
 package main

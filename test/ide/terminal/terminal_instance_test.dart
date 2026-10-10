@@ -14,6 +14,7 @@ import 'fake_terminal.dart';
 ({TerminalInstance terminal, List<FakePty> started, List<int?> exits}) _start({
   TerminalBackend? backend,
   List<FakePty>? started,
+  TerminalLaunchConfig? config,
 }) {
   final ptys = started ?? <FakePty>[];
   final exits = <int?>[];
@@ -24,6 +25,7 @@ import 'fake_terminal.dart';
     columns: 100,
     rows: 30,
     onExit: (terminal) => exits.add(terminal.exitCode),
+    config: config,
   );
   addTearDown(terminal.dispose);
   return (terminal: terminal, started: ptys, exits: exits);
@@ -46,6 +48,17 @@ void main() {
     expect(terminal.title, 'zsh');
     expect(terminal.exited, isFalse);
   });
+
+  test(
+    'an empty cwd (a debug adapter\'s runInTerminal) is the folder',
+    () async {
+      final (:terminal, :started, exits: _) = _start(
+        config: const TerminalLaunchConfig(cwd: ''),
+      );
+      await pumpEventQueue();
+      expect(started.single.launch!.workingDirectory, '/project');
+    },
+  );
 
   test('a Windows shell is named without its .exe', () async {
     final (:terminal, started: _, exits: _) = _start(
