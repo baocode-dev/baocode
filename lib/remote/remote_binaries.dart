@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:ffi' show Abi;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -9,6 +8,8 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../platform/data_dir.dart';
+import 'mac_host_platform.dart'
+    if (dart.library.ffi) 'mac_host_platform_ffi.dart';
 
 /// The server builds in [directory] (tool/build_remote_server.dart writes
 /// them): `baocode-server-<platform>` (`linux-x64`, `darwin-arm64`, …), and
@@ -353,11 +354,7 @@ class SourceServerBinaries implements RemoteServerBinaries {
   Future<List<int>?> _build(String platform) async {
     final [os, arch] = platform.split('-');
     final name = SshLauncher.describe(platform);
-    final host = switch (Abi.current()) {
-      Abi.macosArm64 => 'darwin-arm64',
-      Abi.macosX64 => 'darwin-x64',
-      _ => null,
-    };
+    final host = macHostPlatform();
     if (os == 'darwin' && platform != host) {
       throw SshConnectException(
         SshFailure.server,

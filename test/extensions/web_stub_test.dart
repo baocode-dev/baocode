@@ -19,9 +19,15 @@ void main() {
     const behindCondition = {
       'lib/extensions/vsix/target_platform_current_ffi.dart',
       'lib/extensions/window/secrets/credential_manager_backend.dart',
+      'lib/remote/mac_host_platform_ffi.dart',
     };
     final direct = [
-      for (final directory in ['lib/extensions', 'lib/ide', 'lib/theme'])
+      for (final directory in [
+        'lib/extensions',
+        'lib/ide',
+        'lib/theme',
+        'lib/remote',
+      ])
         for (final file in _dart(directory))
           if (file.readAsStringSync().contains("import 'dart:ffi'") &&
               !behindCondition.contains(file.path))
