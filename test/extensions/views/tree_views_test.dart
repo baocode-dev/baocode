@@ -12,6 +12,7 @@ import 'package:baocode/extensions/menus/menu_service.dart';
 import 'package:baocode/extensions/views/tree_view.dart';
 import 'package:baocode/extensions/views/tree_view_widget.dart';
 import 'package:baocode/extensions/views/views_service.dart';
+import 'package:baocode/theme/material_file_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
@@ -317,35 +318,65 @@ void main() {
       views.setVisibleViews({'acme.deps'});
       await pumpEventQueue();
     });
-    final registry = ExtensionCommandRegistry(appCommands: () => const {});
-    final menus = MenuService(registry);
-    final keys = ContextKeyService();
-    addTearDown(() {
-      menus.dispose();
-      keys.dispose();
-    });
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Align(
-          alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: 900,
-            height: 200,
-            child: ExtensionTreeViewBody(
-              treeView: tree,
-              menus: menus,
-              contextKeys: keys,
-              executeCommand: (_, _) async => null,
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
+    await _pumpBody(tester, tree);
     final text = find.textContaining('Scan mode', findRichText: true);
     expect(text, findsOneWidget);
     // It fits: nothing is cut off.
     final paragraph = tester.renderObject<RenderParagraph>(text);
     expect(paragraph.didExceedMaxLines, isFalse);
   });
+
+  testWidgets('an item that collapses with ThemeIcon.File shows its file '
+      'icon, not a folder (Todo Tree\'s files)', (tester) async {
+    children[''] = [
+      {
+        ..._item('greet', state: TreeItemCollapsibleState.expanded),
+        'resourceUri': {'scheme': 'file', 'path': '/p/greet.ts'},
+        'themeIcon': {'id': 'file'},
+      },
+      {
+        ..._item('src', state: TreeItemCollapsibleState.collapsed),
+        'resourceUri': {'scheme': 'file', 'path': '/p/src'},
+      },
+    ];
+    children['greet'] = [_item('greet/todo', parent: 'greet')];
+    final tree = views.treeView('acme.deps')!;
+    await tester.runAsync(() async {
+      await register();
+      views.setVisibleViews({'acme.deps'});
+      await pumpEventQueue();
+    });
+    await _pumpBody(tester, tree);
+    expect(find.byType(FileIcon), findsOneWidget);
+    expect(find.byType(FolderIcon), findsOneWidget);
+  });
+}
+
+/// The tree's body in a 900 by 200 box.
+Future<void> _pumpBody(WidgetTester tester, ExtensionTreeView tree) async {
+  final registry = ExtensionCommandRegistry(appCommands: () => const {});
+  final menus = MenuService(registry);
+  final keys = ContextKeyService();
+  addTearDown(() {
+    menus.dispose();
+    keys.dispose();
+  });
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 900,
+          height: 200,
+          child: ExtensionTreeViewBody(
+            treeView: tree,
+            menus: menus,
+            contextKeys: keys,
+            executeCommand: (_, _) async => null,
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
 }

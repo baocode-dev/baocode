@@ -232,6 +232,8 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - Found in the Webview screenshot: a Webview's notice named its source `null.null`, and every extension's panels,
   views and custom editors shared that one notice (their descriptions are `{id, location}`, which `extensionIdOf` did
   not read).
+- Found in the Todo Tree screenshot: a tree item that collapses showed a folder icon though it said `ThemeIcon.File`
+  (Todo Tree's files); the theme icon decides first, as upstream's `getFileKind`.
 
 ## In progress / next
 

@@ -820,7 +820,14 @@ class _TreeRow extends StatelessWidget {
       );
     } else if (item.resourceUri case final resource?) {
       final path = resource.scheme == 'file' ? resource.fsPath() : resource.path;
-      icon = item.hasChildren || item.themeIcon?.id == 'folder'
+      // Upstream's `getFileKind`: the theme icon says, else whether it
+      // collapses (Todo Tree's files collapse, with `ThemeIcon.File`).
+      final folder = switch (item.themeIcon?.id) {
+        'file' => false,
+        'folder' => true,
+        _ => item.hasChildren,
+      };
+      icon = folder
           ? FolderIcon(path, size: 16, expanded: row.expanded)
           : FileIcon(path, size: 16);
     }
