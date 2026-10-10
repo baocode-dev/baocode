@@ -187,13 +187,10 @@ class IdeEditorFeatures {
 }
 
 /// The workbench's theme as a decoration theme: `colors.get` resolves the
-/// theme's color registry, and the theme's id keys the resolution cache.
+/// theme's color registry, and [colors] keys the resolution cache (a theme,
+/// or the colors extensions contribute, changing makes new ones).
 EditorDecorationTheme ideDecorationTheme(WorkbenchColors colors) =>
-    EditorDecorationTheme(
-      isDark: colors.dark,
-      colors: colors.get,
-      key: colors.theme.id,
-    );
+    EditorDecorationTheme(isDark: colors.dark, colors: colors.get, key: colors);
 
 /// The image of a decoration's `gutterIconPath` (a file path or `file:` URI):
 /// an SVG through flutter_svg, anything else through the platform's codecs,

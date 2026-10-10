@@ -1476,6 +1476,16 @@ final class WorkspaceExtensions extends ChangeNotifier {
         _contributions(extensions, 'iconThemes'),
       ),
     );
+    WorkbenchThemeService.instance.setExtensionColors([
+      for (final extension in extensions)
+        if (extension['contributes'] case {
+          'colors': final List<Object?> colors,
+        })
+          [
+            for (final color in colors)
+              if (color is Map) color.cast<String, Object?>(),
+          ],
+    ]);
     notifyListeners();
   }
 

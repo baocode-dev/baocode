@@ -22,6 +22,7 @@
 // restyles the whole workbench upstream.
 
 import 'dart:async';
+import 'dart:convert' show jsonEncode;
 import 'dart:io' show File;
 import 'dart:ui' as ui;
 
@@ -29,6 +30,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:bao_editor/monaco/vs/base/common/color.dart' as vs;
+import 'package:bao_editor/monaco/vs/platform/theme/common/color_utils.dart';
 import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart';
 import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_data.dart';
 import 'package:bao_editor/monaco/vs/workbench/services/themes/common/workbench_theme_service.dart'
@@ -201,6 +203,71 @@ class WorkbenchThemeService extends ChangeNotifier
         description: theme.description,
       ),
   ];
+
+  // --- Extensions' colors (`contributes.colors`) ---------------------------
+
+  /// The color ids the running extensions registered.
+  final Set<String> _extensionColorIds = {};
+  String? _extensionColorsKey;
+
+  static final _colorIdPattern = RegExp(r'^\w+[.\w+]*$');
+
+  /// The running extensions' `contributes.colors` (colorExtensionPoint.ts
+  /// `ColorExtensionPoint`): each `{id, description, defaults}` registered
+  /// in the color registry with its defaults, a '#' string a color and
+  /// anything else the color it names; those no longer contributed are
+  /// deregistered. [colors] are each extension's entries, in order.
+  ///
+  /// Deviation: an invalid entry skips the rest of its extension's
+  /// (upstream it ends the whole delta's handling).
+  void setExtensionColors(Iterable<List<Map<String, Object?>>> colors) {
+    final key = jsonEncode(colors.toList());
+    if (key == _extensionColorsKey) return;
+    _extensionColorsKey = key;
+    final registry = getColorRegistry();
+    for (final id in _extensionColorIds) {
+      registry.deregisterColor(id);
+    }
+    _extensionColorIds.clear();
+    // `parseColorValue`: an empty value is an error, and red.
+    ColorValue? value(String s) => s.isEmpty
+        ? const ColorLiteral('#ff0000')
+        : s.startsWith('#')
+        ? (vs.ColorFormatCSS.parseHex(s) == null ? null : ColorLiteral(s))
+        : ColorReference(s);
+    for (final entries in colors) {
+      for (final entry in entries) {
+        final id = entry['id'];
+        final defaults = entry['defaults'];
+        if (id is! String || !_colorIdPattern.hasMatch(id)) break;
+        if (entry['description'] is! String) break;
+        if (defaults is! Map ||
+            defaults['light'] is! String ||
+            defaults['dark'] is! String) {
+          break;
+        }
+        final highContrast = defaults['highContrast'];
+        final highContrastLight = defaults['highContrastLight'];
+        if (highContrast is! String? || highContrastLight is! String?) break;
+        final light = defaults['light'] as String;
+        final dark = defaults['dark'] as String;
+        registry.registerColor(
+          id,
+          ColorDefaults(
+            light: value(light),
+            dark: value(dark),
+            hcDark: value(highContrast ?? dark),
+            hcLight: value(highContrastLight ?? light),
+          ),
+        );
+        _extensionColorIds.add(id);
+      }
+    }
+    // Colors are read again, through the registry's new defaults.
+    _current.clearCaches();
+    _colors = null;
+    notifyListeners();
+  }
 
   // --- Extensions' themes (`contributes.themes`) ---------------------------
 
