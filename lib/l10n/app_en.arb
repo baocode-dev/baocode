@@ -4919,6 +4919,66 @@
     }
   },
   "extRuntimeClickToRetry": "Click to try again",
+  "extRuntimeRemoteInstalling": "Installing extension runtime on {host} {percent}%",
+  "@extRuntimeRemoteInstalling": {
+    "description": "Status bar: the extension runtime is being downloaded and installed on the remote SSH host of the project, the first time it is needed there.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "extRuntimeRemoteInstallingStarting": "Installing extension runtime on {host}…",
+  "@extRuntimeRemoteInstallingStarting": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "extRuntimeRemoteUploading": "Sending extension runtime to {host} {percent}%",
+  "@extRuntimeRemoteUploading": {
+    "description": "Status bar: the remote host cannot download the extension runtime itself, so this machine downloads it and sends it over SSH.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "extRuntimeRemoteTooltip": "Installing the extension runtime on {host} (once; it is kept there): {received} of {total}",
+  "@extRuntimeRemoteTooltip": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "received": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
+  "extRuntimeRemoteUploadingTooltip": "{host} cannot reach the download server: the extension runtime is downloaded here and sent over SSH ({received} of {total})",
+  "@extRuntimeRemoteUploadingTooltip": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "received": {
+        "type": "String"
+      },
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "windowUrlConfirm": "Allow '{extension}' extension to open this URI?",
   "@windowUrlConfirm": {
     "placeholders": {

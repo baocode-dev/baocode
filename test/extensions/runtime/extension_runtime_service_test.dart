@@ -16,6 +16,7 @@ import 'package:baocode/extensions/runtime/runtime_status_item.dart';
 import 'package:baocode/extensions/runtime/runtime_version.dart';
 import 'package:baocode/ide/ide_status_bar.dart';
 import 'package:baocode/l10n/l10n.dart';
+import 'package:baocode/remote/remote_exthost.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 import 'package:crypto/crypto.dart';
@@ -246,6 +247,43 @@ void main() {
           l10n: zh,
         )!.text,
         '正在下载扩展运行时 25%',
+      );
+    });
+
+    test('a remote host\'s install: downloaded there, or sent from here', () {
+      expect(remoteRuntimeStatusItem(null, 'box'), isNull);
+      final there = remoteRuntimeStatusItem(
+        const RemoteRuntimeProgress('downloading', received: 1, total: 2),
+        'box',
+      )!;
+      expect(there.text, 'Installing extension runtime on box 50%');
+      expect(there.icon, Codicons.cloudDownload);
+      final sent = remoteRuntimeStatusItem(
+        const RemoteRuntimeProgress(
+          'downloading',
+          received: 3 * 1048576,
+          total: 4 * 1048576,
+          uploading: true,
+        ),
+        'box',
+      )!;
+      expect(sent.text, 'Sending extension runtime to box 75%');
+      expect(sent.icon, Codicons.cloudUpload);
+      expect(sent.tooltip, contains('3.0 MB of 4.0 MB'));
+      expect(
+        remoteRuntimeStatusItem(
+          const RemoteRuntimeProgress('extracting'),
+          'box',
+        )!.text,
+        'Installing extension runtime on box…',
+      );
+      expect(
+        remoteRuntimeStatusItem(
+          const RemoteRuntimeProgress('downloading', received: 1, total: 4),
+          'box',
+          l10n: lookupAppLocalizations(const Locale('zh')),
+        )!.text,
+        '正在 box 上安装扩展运行时 25%',
       );
     });
 

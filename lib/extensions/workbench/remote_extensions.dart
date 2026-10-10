@@ -25,6 +25,7 @@ import 'dart:io';
 
 import 'package:bao_exthost/bao_exthost.dart';
 import 'package:bao_remote/client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../../remote/remote_exthost.dart';
@@ -90,13 +91,15 @@ final class RemoteExtensions {
   /// The runtime being installed there.
   final void Function(RemoteRuntimeProgress progress)? onProgress;
 
+  /// Where installing the runtime there is at; null when it is not being
+  /// installed.
+  final runtimeProgress = ValueNotifier<RemoteRuntimeProgress?>(null);
+
   /// `ssh-remote+<host>`.
   String get authority => 'ssh-remote+$name';
 
   /// The VS Code server there, its extensions in step with this machine's.
-  late final ExtensionServerPool pool = ExtensionServerPool.connecting(
-    _start,
-  );
+  late final ExtensionServerPool pool = ExtensionServerPool.connecting(_start);
 
   ExtensionTargetPlatform? _platform;
 
@@ -111,12 +114,20 @@ final class RemoteExtensions {
     };
     _platform = ExtensionTargetPlatform.parse(platform);
     hello = client.hello;
-    final server = await startRemoteExtensionServer(
-      client,
-      manifest: await runtime.manifest(),
-      downloads: runtime.remoteDownloads,
-      onProgress: onProgress,
-    );
+    final ExtensionServer server;
+    try {
+      server = await startRemoteExtensionServer(
+        client,
+        manifest: await runtime.manifest(),
+        downloads: runtime.remoteDownloads,
+        onProgress: (progress) {
+          runtimeProgress.value = progress;
+          onProgress?.call(progress);
+        },
+      );
+    } finally {
+      runtimeProgress.value = null;
+    }
     _server = server;
     _product = server.product ?? const {};
     try {
@@ -293,8 +304,10 @@ final class RemoteExtensions {
       for (final e in scanned)
         if (pickRunningLocation(
               _kinds(e),
-              installedLocally: !remote || other.contains(_idOf(e).toLowerCase()),
-              installedRemotely: remote || other.contains(_idOf(e).toLowerCase()),
+              installedLocally:
+                  !remote || other.contains(_idOf(e).toLowerCase()),
+              installedRemotely:
+                  remote || other.contains(_idOf(e).toLowerCase()),
               hasRemoteHost: true,
             ) ==
             here)
@@ -310,6 +323,7 @@ final class RemoteExtensions {
 
   Future<void> dispose() async {
     await _messages.close();
+    runtimeProgress.dispose();
     _local.dispose();
     management.dispose();
     await pool.dispose();

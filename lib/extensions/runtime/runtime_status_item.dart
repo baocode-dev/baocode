@@ -19,6 +19,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../ide/ide_status_bar.dart';
 import '../../l10n/l10n.dart';
+import '../../remote/remote_exthost.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'extension_runtime_service.dart';
@@ -63,6 +64,41 @@ IdeStatusBarItem? extensionRuntimeStatusItem(
       onTap: onRetry,
     ),
   };
+}
+
+/// The entry for the runtime being installed on the remote host [host]
+/// (sent from here when [RemoteRuntimeProgress.uploading]); null when it
+/// is not.
+IdeStatusBarItem? remoteRuntimeStatusItem(
+  RemoteRuntimeProgress? progress,
+  String host, {
+  AppLocalizations? l10n,
+}) {
+  if (progress == null) return null;
+  final strings = l10n ?? englishLocalizations;
+  final RemoteRuntimeProgress(:received, :total, :uploading) = progress;
+  final percent = total > 0 ? (received * 100 ~/ total).clamp(0, 100) : null;
+  final sizes = (
+    formatRuntimeBytes(received),
+    total > 0 ? formatRuntimeBytes(total) : '?',
+  );
+  return IdeStatusBarItem(
+    switch ((uploading, percent)) {
+      (true, final percent?) => strings.extRuntimeRemoteUploading(
+        host,
+        percent,
+      ),
+      (false, final percent?) => strings.extRuntimeRemoteInstalling(
+        host,
+        percent,
+      ),
+      (_, null) => strings.extRuntimeRemoteInstallingStarting(host),
+    },
+    icon: uploading ? Codicons.cloudUpload : Codicons.cloudDownload,
+    tooltip: uploading
+        ? strings.extRuntimeRemoteUploadingTooltip(host, sizes.$1, sizes.$2)
+        : strings.extRuntimeRemoteTooltip(host, sizes.$1, sizes.$2),
+  );
 }
 
 /// `12.3 MB`.

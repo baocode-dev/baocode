@@ -11223,6 +11223,40 @@ abstract class AppLocalizations {
   /// **'Click to try again'**
   String get extRuntimeClickToRetry;
 
+  /// Status bar: the extension runtime is being downloaded and installed on the remote SSH host of the project, the first time it is needed there.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing extension runtime on {host} {percent}%'**
+  String extRuntimeRemoteInstalling(String host, int percent);
+
+  /// No description provided for @extRuntimeRemoteInstallingStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing extension runtime on {host}…'**
+  String extRuntimeRemoteInstallingStarting(String host);
+
+  /// Status bar: the remote host cannot download the extension runtime itself, so this machine downloads it and sends it over SSH.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending extension runtime to {host} {percent}%'**
+  String extRuntimeRemoteUploading(String host, int percent);
+
+  /// No description provided for @extRuntimeRemoteTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing the extension runtime on {host} (once; it is kept there): {received} of {total}'**
+  String extRuntimeRemoteTooltip(String host, String received, String total);
+
+  /// No description provided for @extRuntimeRemoteUploadingTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'{host} cannot reach the download server: the extension runtime is downloaded here and sent over SSH ({received} of {total})'**
+  String extRuntimeRemoteUploadingTooltip(
+    String host,
+    String received,
+    String total,
+  );
+
   /// No description provided for @windowUrlConfirm.
   ///
   /// In en, this message translates to:

@@ -6397,6 +6397,35 @@ class AppLocalizationsZh extends AppLocalizations {
   String get extRuntimeClickToRetry => '点击重试';
 
   @override
+  String extRuntimeRemoteInstalling(String host, int percent) {
+    return '正在 $host 上安装扩展运行时 $percent%';
+  }
+
+  @override
+  String extRuntimeRemoteInstallingStarting(String host) {
+    return '正在 $host 上安装扩展运行时…';
+  }
+
+  @override
+  String extRuntimeRemoteUploading(String host, int percent) {
+    return '正在向 $host 发送扩展运行时 $percent%';
+  }
+
+  @override
+  String extRuntimeRemoteTooltip(String host, String received, String total) {
+    return '正在 $host 上安装扩展运行时（只需一次，之后保留在该主机）：$received / $total';
+  }
+
+  @override
+  String extRuntimeRemoteUploadingTooltip(
+    String host,
+    String received,
+    String total,
+  ) {
+    return '$host 无法访问下载服务器：扩展运行时由本机下载后经 SSH 发送（$received / $total）';
+  }
+
+  @override
   String windowUrlConfirm(String extension) {
     return '允许扩展“$extension”打开此 URI？';
   }

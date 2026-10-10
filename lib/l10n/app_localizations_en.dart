@@ -6791,6 +6791,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get extRuntimeClickToRetry => 'Click to try again';
 
   @override
+  String extRuntimeRemoteInstalling(String host, int percent) {
+    return 'Installing extension runtime on $host $percent%';
+  }
+
+  @override
+  String extRuntimeRemoteInstallingStarting(String host) {
+    return 'Installing extension runtime on $host…';
+  }
+
+  @override
+  String extRuntimeRemoteUploading(String host, int percent) {
+    return 'Sending extension runtime to $host $percent%';
+  }
+
+  @override
+  String extRuntimeRemoteTooltip(String host, String received, String total) {
+    return 'Installing the extension runtime on $host (once; it is kept there): $received of $total';
+  }
+
+  @override
+  String extRuntimeRemoteUploadingTooltip(
+    String host,
+    String received,
+    String total,
+  ) {
+    return '$host cannot reach the download server: the extension runtime is downloaded here and sent over SSH ($received of $total)';
+  }
+
+  @override
   String windowUrlConfirm(String extension) {
     return 'Allow \'$extension\' extension to open this URI?';
   }

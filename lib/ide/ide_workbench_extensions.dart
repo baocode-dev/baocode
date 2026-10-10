@@ -168,6 +168,9 @@ extension _ExtensionsPart on IdeWorkbenchState {
       };
     extensions.addListener(_extensionsUiChanged);
     ExtensionRuntimeService.instance.addListener(_extensionsUiChanged);
+    extensions.remote?.extensions.runtimeProgress.addListener(
+      _extensionsUiChanged,
+    );
     _attachViews(extensions);
     _syncExtensionKeybindings();
     _scheduleTrustPrompt();
@@ -251,6 +254,9 @@ extension _ExtensionsPart on IdeWorkbenchState {
       ..panelVisible.value = false;
     extensions.removeListener(_extensionsUiChanged);
     ExtensionRuntimeService.instance.removeListener(_extensionsUiChanged);
+    extensions.remote?.extensions.runtimeProgress.removeListener(
+      _extensionsUiChanged,
+    );
     _extensionKeys?.dispose();
     _extensionKeys = null;
   }
@@ -482,8 +488,6 @@ extension _ExtensionsPart on IdeWorkbenchState {
     );
   }
 
-  /// The extensions' status bar entries of a side, and on the left the
-  /// runtime's download.
   /// The language status items of [path]'s document, as one entry.
   IdeStatusBarItem? _extensionLanguageStatus(String path) {
     final extensions = _workspaceExtensions;
@@ -509,6 +513,8 @@ extension _ExtensionsPart on IdeWorkbenchState {
     );
   }
 
+  /// The extensions' status bar entries of a side, and on the left the
+  /// runtime's download (and its install on a remote project's host).
   List<IdeStatusBarItem> _extensionStatusItems({required bool left}) {
     final extensions = _workspaceExtensions;
     if (extensions == null) return const [];
@@ -524,6 +530,12 @@ extension _ExtensionsPart on IdeWorkbenchState {
           ExtensionRuntimeService.instance.state,
           l10n: context.l10n,
           onRetry: () => unawaited(_retryRuntime(extensions)),
+        ),
+      if (extensions.remote?.extensions case final remote? when left)
+        ?remoteRuntimeStatusItem(
+          remote.runtimeProgress.value,
+          remote.name,
+          l10n: context.l10n,
         ),
       ...extensionStatusBarItems(
         extensions.statusBar,
