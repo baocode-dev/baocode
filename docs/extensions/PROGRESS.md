@@ -256,6 +256,11 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   `globalStorage/url-handler.json`. Tests: `url_protocol_test.dart` (channel → handler; Info.plist, Swift, C++
   and .iss agree), `open_requests_test.dart`, `code_args_test.dart`, `window_services_test.dart`. Linux has no
   package in the repository, so no scheme registration there.
+- Found rerunning the real REH tests: the macOS keychain could not keep a secret over about 2000 bytes (an OAuth
+  session list can be): `security -i` reads at most 4096 characters a line and a value goes in hex. Values are now
+  split into parts of 1024 bytes as the Credential Manager's (`BaoCode Extension Secrets (part <i>)`, `parts=<n>` in
+  the first item's comment; a value without one is a single part), shrinking deletes the old parts, a missing part
+  is an error. Tests: `secret_backends_test.dart`, `keychain_real_test.dart` (real keychain, 5000 bytes in 5 parts).
 
 ## In progress / next
 
