@@ -12,8 +12,9 @@
 // `stringifyJsonWithBufferRefs`, `parseJsonAndRestoreBufferRefs`).
 //
 // Deviations:
-// - No URI transformer: the main thread never has one (only a remote
-//   extension host does, and ours gets no authority).
+// - A URI transformer on the main thread's side too ([uriTransformer]): the
+//   app's side of a remote project's host speaks of the remote host's
+//   files as `file:` URIs (see uri_transformer.dart).
 // - Dart `null` replies as `undefined` (`ReplyOKEmpty`); [rpcNull] replies a
 //   JSON `null`. [rpcUndefined] passes `undefined` as an argument.
 
@@ -22,6 +23,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../base/cancellation.dart';
+import '../base/uri.dart';
+import '../base/uri_transformer.dart';
+import '../base/uri_transformer.dart' as uris show transformIncomingUris;
 import '../ipc/ipc.dart' show MessagePassingProtocol;
 import '../parity.dart';
 
@@ -133,9 +137,29 @@ const _refSymbol = r'$$ref$$';
 
 /// `RPCProtocol`.
 final class RpcProtocol {
-  RpcProtocol(this._protocol, {required this.actorNames, this.logger}) {
+  RpcProtocol(
+    this._protocol, {
+    required this.actorNames,
+    this.logger,
+    this.uriTransformer,
+  }) {
     _protocol.onMessage = _receiveOneMessage;
   }
+
+  /// Transforms the URIs of what is sent and received; none when null.
+  final UriTransformer? uriTransformer;
+
+  /// `transformIncomingURIs`.
+  Object? transformIncomingUris(Object? value) => switch (uriTransformer) {
+    final transformer? => uris.transformIncomingUris(value, transformer),
+    null => value,
+  };
+
+  /// What is sent of [value], its URIs transformed.
+  Object? _outgoing(Object? value) => switch (uriTransformer) {
+    final transformer? => _transformOutgoing(value, transformer, 0),
+    null => value,
+  };
 
   final MessagePassingProtocol _protocol;
 
@@ -191,7 +215,17 @@ final class RpcProtocol {
     }
     _onWillSendRequest();
     logger?.call(false, req, 'request: ${actorNames[rpcId]}.$method', args);
-    _send(_serializeRequest(req, rpcId, method, args, token != null));
+    _send(
+      _serializeRequest(
+        req,
+        rpcId,
+        method,
+        uriTransformer == null
+            ? args
+            : [for (final arg in args) _outgoing(arg)],
+        token != null,
+      ),
+    );
     return completer.future;
   }
 
@@ -243,7 +277,10 @@ final class RpcProtocol {
       case RpcMessageType.requestJsonArgsWithCancellation:
         final rpcId = r.u8();
         final method = r.shortString();
-        final args = (jsonDecode(r.longString()) as List).toList();
+        final args = [
+          for (final arg in jsonDecode(r.longString()) as List)
+            transformIncomingUris(arg),
+        ];
         _receiveRequest(
           req,
           rpcId,
@@ -255,7 +292,9 @@ final class RpcProtocol {
       case RpcMessageType.requestMixedArgsWithCancellation:
         final rpcId = r.u8();
         final method = r.shortString();
-        final args = r.mixedArray();
+        final args = [
+          for (final arg in r.mixedArray()) transformIncomingUris(arg),
+        ];
         _receiveRequest(
           req,
           rpcId,
@@ -271,16 +310,27 @@ final class RpcProtocol {
       case RpcMessageType.replyOkEmpty:
         _receiveReply(req, null);
       case RpcMessageType.replyOkJson:
-        _receiveReply(req, jsonDecode(r.longString()), jsonReply: true);
+        _receiveReply(
+          req,
+          transformIncomingUris(jsonDecode(r.longString())),
+          jsonReply: true,
+        );
       case RpcMessageType.replyOkJsonWithBuffers:
         final count = r.u32();
         final json = r.longString();
         final buffers = [for (var i = 0; i < count; i++) r.vsBuffer()];
-        _receiveReply(req, _restoreBufferRefs(json, buffers), jsonReply: true);
+        _receiveReply(
+          req,
+          transformIncomingUris(_restoreBufferRefs(json, buffers)),
+          jsonReply: true,
+        );
       case RpcMessageType.replyOkVSBuffer:
         _receiveReply(req, RpcBuffer(r.vsBuffer()));
       case RpcMessageType.replyErrError:
-        _receiveReplyErr(req, jsonDecode(r.longString()));
+        _receiveReplyErr(
+          req,
+          transformIncomingUris(jsonDecode(r.longString())),
+        );
       case RpcMessageType.replyErrEmpty:
         _receiveReplyErr(req, null);
     }
@@ -324,7 +374,7 @@ final class RpcProtocol {
       (value) {
         _cancelInvoked.remove(req);
         logger?.call(false, req, 'reply:', value);
-        _send(_serializeReplyOk(req, value));
+        _send(_serializeReplyOk(req, _outgoing(value)));
       },
       onError: (Object error, StackTrace stack) {
         _cancelInvoked.remove(req);
@@ -391,6 +441,34 @@ final class RpcProtocol {
 }
 
 // --- Serialization ----------------------------------------------------------
+
+/// The replacer upstream stringifies with when it has a transformer
+/// (`createURIReplacer`): [value] as JSON, its marshalled URIs transformed;
+/// buffers and `undefined` kept for the serializer.
+Object? _transformOutgoing(Object? value, UriTransformer t, int depth) {
+  if (depth > 200) return value;
+  switch (value) {
+    case null || String() || num() || bool():
+    case RpcBuffer() || RpcUndefined() || RpcNull():
+      return value;
+    case RpcObjectWithBuffers(:final value):
+      return RpcObjectWithBuffers(_transformOutgoing(value, t, depth + 1));
+    case VsUri():
+      return t.transformOutgoing(value.toJson());
+    case Map():
+      if (value[r'$mid'] == uriMarshalledId) {
+        return t.transformOutgoing(value.cast<String, Object?>());
+      }
+      return <String, Object?>{
+        for (final MapEntry(:key, value: entry) in value.entries)
+          '$key': _transformOutgoing(entry, t, depth + 1),
+      };
+    case List():
+      return [for (final e in value) _transformOutgoing(e, t, depth + 1)];
+    default:
+      return _transformOutgoing((value as dynamic).toJson(), t, depth + 1);
+  }
+}
 
 BytesBuilder _header(int type, int req, int _) {
   final b = BytesBuilder(copy: false);

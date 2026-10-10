@@ -4,6 +4,7 @@ library;
 
 export 'src/base/cancellation.dart';
 export 'src/base/uri.dart';
+export 'src/base/uri_transformer.dart';
 export 'src/generated/ext_host_proxies.g.dart';
 export 'src/generated/main_thread_shapes.g.dart';
 export 'src/generated/protocol_methods.g.dart';
