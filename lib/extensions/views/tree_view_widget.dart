@@ -738,38 +738,45 @@ class _TreeRow extends StatelessWidget {
                   const SizedBox(width: 4),
                 ],
                 ?_icon(item, foreground),
-                Flexible(
-                  child: Text.rich(
-                    _label(item, foreground),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: foreground,
-                      decoration: decoration?.strikethrough ?? false
-                          ? TextDecoration.lineThrough
-                          : null,
-                    ),
-                  ),
-                ),
-                if (description != null)
-                  Flexible(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 6),
-                      child: Text(
-                        description,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: selected
-                              ? foreground.withValues(alpha: .8)
-                              : IdeListColors.description,
+                // The label and its description take the row; the rest
+                // stays at its end (a Spacer took half the room).
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text.rich(
+                          _label(item, foreground),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: foreground,
+                            decoration: decoration?.strikethrough ?? false
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
                         ),
                       ),
-                    ),
+                      if (description != null)
+                        Flexible(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: Text(
+                              description,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: selected
+                                    ? foreground.withValues(alpha: .8)
+                                    : IdeListColors.description,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                const Spacer(),
+                ),
                 if (letter != null && actions.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(left: 5, right: 12),

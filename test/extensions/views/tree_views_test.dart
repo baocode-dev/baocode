@@ -4,10 +4,16 @@
 
 import 'package:bao_exthost/bao_exthost.dart';
 import 'package:baocode/extensions/commands/command_contributions.dart';
+import 'package:baocode/extensions/commands/extension_command_registry.dart';
+import 'package:baocode/extensions/contextkey/context_key_service.dart';
 import 'package:baocode/extensions/main_thread/main_thread_context.dart';
 import 'package:baocode/extensions/main_thread/main_thread_tree_views.dart';
+import 'package:baocode/extensions/menus/menu_service.dart';
 import 'package:baocode/extensions/views/tree_view.dart';
+import 'package:baocode/extensions/views/tree_view_widget.dart';
 import 'package:baocode/extensions/views/views_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/scripted_rpc.dart';
@@ -297,5 +303,46 @@ void main() {
     expect(c.tooltip, 'Resolved');
     expect(c.command?['id'], 'acme.open');
     expect(rpc.callsTo(r'ExtHostTreeViews.$resolve'), hasLength(1));
+  });
+
+  testWidgets('a label takes the row\'s width, not half of it', (tester) async {
+    const label = 'Scan mode: workspace, open files and more';
+    children[''] = [_item('scan', label: label)];
+    final tree = views.treeView('acme.deps')!;
+    await tester.runAsync(() async {
+      await register();
+      views.setVisibleViews({'acme.deps'});
+      await pumpEventQueue();
+    });
+    final registry = ExtensionCommandRegistry(appCommands: () => const {});
+    final menus = MenuService(registry);
+    final keys = ContextKeyService();
+    addTearDown(() {
+      menus.dispose();
+      keys.dispose();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 600,
+            height: 200,
+            child: ExtensionTreeViewBody(
+              treeView: tree,
+              menus: menus,
+              contextKeys: keys,
+              executeCommand: (_, _) async => null,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final text = find.textContaining('Scan mode');
+    expect(text, findsOneWidget);
+    // It fits: nothing is cut off.
+    final paragraph = tester.renderObject<RenderParagraph>(text);
+    expect(paragraph.didExceedMaxLines, isFalse);
   });
 }
