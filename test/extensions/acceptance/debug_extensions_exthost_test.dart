@@ -37,7 +37,8 @@ final class _Debug {
   final OpenVsxWorkspace w;
   final DebugService service;
 
-  DebugSession get session => service.model.getSessions().single;
+  /// The focused session (js-debug's program runs in a child session).
+  DebugSession get session => service.viewModel.focusedSession!;
 
   Thread get thread => service.viewModel.focusedThread!;
 
@@ -586,7 +587,121 @@ void main() {
         ? 'No cargo'
         : openVsxSkip(),
   );
+
+  test(
+    '九.4: Node (js-debug): preLaunchTask, hit count, conditional and log '
+    'point breakpoints, exceptions, stepping, variables, watch, console',
+    () async {
+      final w = await OpenVsxWorkspace.create(
+        extensionIds: const [],
+        files: {'main.js': _node, '.vscode/tasks.json': _nodeTasks},
+      );
+      final d = _Debug(w);
+      final source = VsUri.file(w.path('main.js'));
+      await d.service.addBreakpoints(source, [
+        BreakpointData(lineNumber: _line(_node, 'add'), hitCondition: '2'),
+      ]);
+      await d.start({
+        'type': 'node',
+        'request': 'launch',
+        'name': 'Node: main',
+        'program': r'${workspaceFolder}/main.js',
+        'cwd': r'${workspaceFolder}',
+        'preLaunchTask': 'prepare',
+      });
+      expect(
+        File(w.path('ready.txt')).existsSync(),
+        isTrue,
+        reason: 'written by the preLaunchTask',
+      );
+      var frame = await d.stopped(_line(_node, 'add'), function: 'add');
+      expect((await d.variables(frame, 'Local'))['a'], '1');
+      expect(await d.callStack(2), [endsWith('add'), endsWith('main')]);
+
+      // During the session: a conditional breakpoint and a log point in
+      // place of it, and the uncaught exceptions.
+      await d.service.removeBreakpoints();
+      await d.service.addBreakpoints(source, [
+        BreakpointData(lineNumber: _line(_node, 'loop'), condition: 'i === 3'),
+        BreakpointData(
+          lineNumber: _line(_node, 'log'),
+          logMessage: "values={values.join(',')}",
+        ),
+      ]);
+      await d.breakOnExceptions('uncaught');
+      await d.thread.continue_();
+      frame = await d.stopped(
+        _line(_node, 'loop'),
+        function: 'main',
+        past: frame,
+      );
+      expect((await d.variables(frame, 'Block'))['i'], '3');
+      expect(await d.watch(frame, 'i * 2'), '6');
+      expect(await d.evaluate(frame, 'values.length'), '3');
+
+      // In, over, out.
+      await d.thread.stepIn();
+      frame = await d.stopped(_line(_node, 'add'), function: 'add');
+      expect((await d.variables(frame, 'Local'))['a'], '3');
+      await d.thread.next();
+      frame = await d.stopped(_line(_node, 'add-return'), function: 'add');
+      expect((await d.variables(frame, 'Local'))['total'], '13');
+      await d.thread.stepOut();
+      frame = await d.stopped(null, function: 'main', past: frame);
+
+      // The log point's message and the program's output, then the
+      // uncaught exception.
+      await d.service.removeBreakpoints([
+        for (final b in d.service.model.getBreakpoints())
+          if (b.condition != null) b.getId(),
+      ]);
+      await d.thread.continue_();
+      frame = await d.stopped(_line(_node, 'raise'), reason: 'exception');
+      expect(d.console(), contains('values=10,11,12,13,14'));
+      expect(d.console(), contains('sum 60'));
+
+      await d.service.stopSession(null);
+      await d.ended();
+      expect(w.unsupported, isEmpty, reason: w.report());
+    },
+    timeout: const Timeout(Duration(minutes: 8)),
+    skip: openVsxSkip() == false && !_onPath('node')
+        ? 'No node'
+        : openVsxSkip(),
+  );
 }
+
+const _node = '''
+function add(a, b) {
+  const total = a + b; // BP:add
+  return total; // BP:add-return
+}
+
+function main() {
+  const values = [];
+  for (let i = 0; i < 5; i++) {
+    values.push(add(i, 10)); // BP:loop
+  }
+  console.log('sum', values.reduce((x, y) => x + y, 0)); // BP:log
+  throw new Error('boom'); // BP:raise
+}
+
+main();
+''';
+
+const _nodeTasks = '''
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "prepare",
+      "type": "shell",
+      "command": "echo ready > ready.txt",
+      "problemMatcher": []
+    }
+  ]
+}
+''';
 
 const _cargoToml = '''
 [package]
