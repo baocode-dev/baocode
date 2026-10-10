@@ -38,6 +38,7 @@ import '../vsix/vsix_reader.dart' show parseManifestJson;
 import '../vsix/zip_reader.dart' show decodeText;
 import 'extension_widgets.dart';
 import 'extensions_model.dart';
+import 'readme_html.dart';
 
 enum ExtensionDetailTab { details, features, changelog }
 
@@ -158,6 +159,11 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
                 ? null
                 : analyzeExtensionCapabilities(manifest),
           );
+    // A tab not shown has no listener yet: its failure is shown when it is,
+    // not reported as unhandled.
+    for (final future in [_readme, _changelog, _manifest, _galleryCapability]) {
+      future?.ignore();
+    }
   }
 
   Future<GalleryExtension?> _fetchGallery() {
@@ -165,6 +171,17 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
       final version =
           _version ??
           (_preRelease ? 'pre-release' : null);
+      if (version == null) {
+        // What installing picks: the newest compatible release (Open VSX's
+        // `latest` may be a pre-release, as GitLens' is).
+        try {
+          return (await _client.resolveCompatible(widget.id)).extension;
+        } on GalleryException catch (error) {
+          if (error.kind == GalleryErrorKind.notFound) return null;
+          // None compatible here: the newest, to read about.
+          return _client.findExtension(widget.id);
+        }
+      }
       try {
         return await _client.findExtension(
               widget.id,
@@ -552,7 +569,8 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
         );
       }
     }
-    final version = _version ?? gallery?.version ?? installed?.version;
+    // Upstream's VersionWidget: an installed one's own version.
+    final version = _version ?? installed?.version ?? gallery?.version;
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       runSpacing: 6,
@@ -719,7 +737,7 @@ class _ExtensionDetailPageState extends State<ExtensionDetailPage> {
           final readmeUrl = _galleryValue?.files.readme;
           return SelectionArea(
             child: MarkdownBlocks(
-              nodes: MarkdownView.document().parse(data),
+              nodes: readmeNodes(MarkdownView.document().parse(data)),
               style: MarkdownView.baseStyle,
               options: MarkdownOptions(
                 headingRules: true,

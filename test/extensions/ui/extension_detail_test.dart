@@ -195,6 +195,22 @@ void main() {
     expect(find.textContaining('12.5.0'), findsWidgets);
   });
 
+  testWidgets('a changelog that fails to load says so when its tab shows', (
+    tester,
+  ) async {
+    final http = _http()..add(_changelog, const [], status: 500);
+    final model = ExtensionsModel(backend: FakeBackend(), gallery: _client(http));
+    await tester.pumpWidget(
+      _app(ExtensionDetailPage(model: model, id: _prettier)),
+    );
+    // Not shown: its failure is not an unhandled error.
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Changelog'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('500'), findsOneWidget);
+  });
+
   testWidgets('says so when the README is empty', (tester) async {
     final http = _http(readme: utf8.encode('   '));
     final model = ExtensionsModel(backend: FakeBackend(), gallery: _client(http));
@@ -229,5 +245,21 @@ void main() {
     expect(find.text('Disable'), findsOneWidget);
     expect(find.text('Disable (Workspace)'), findsOneWidget);
     expect(find.text('Version'), findsOneWidget);
+    // Upstream's VersionWidget: the installed version, not the gallery's.
+    expect(find.text('v12.3.0'), findsOneWidget);
+  });
+
+  testWidgets("shows the newest release when Open VSX's latest is a "
+      'pre-release (GitLens)', (tester) async {
+    final http = _http()
+      ..addJson(_latest, {..._extension, 'version': '12.5.0', 'preRelease': true});
+    final model = ExtensionsModel(backend: FakeBackend(), gallery: _client(http));
+    await tester.pumpWidget(
+      _app(ExtensionDetailPage(model: model, id: _prettier)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('v12.4.0'), findsOneWidget);
+    expect(find.text('v12.5.0'), findsNothing);
   });
 }
