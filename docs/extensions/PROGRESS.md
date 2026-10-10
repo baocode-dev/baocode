@@ -167,13 +167,25 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   waiting (one may wait on its user, as vscode-icons' welcome does), and a restart resends the requested events
   without waiting for their activations. A workspace disposed while its host starts no longer builds actors on
   disposed services (the connection is closed instead).
+- 九.4 debugging (`debug_extensions_exthost_test.dart`, plus `workspace_debug_exthost_test.dart` for Node attach):
+  Python (debugpy), Go (Delve), C++ and Rust (CodeLLDB), Node (bundled js-debug), each through the workbench's debug
+  service: hit count, conditional, function, data (Break on Value Change), log point and exception breakpoints set
+  before and during the session; stepping in/over/out; call stack, scopes and variables; watch; the debug console;
+  preLaunchTask (C++ clang++ build, Node) and CodeLLDB's cargo build; the debuggee's `runInTerminal` terminal.
+  The task service sets `customExecutionSupported`/`shellExecutionSupported`/`processExecutionSupported` (debugpy's
+  debugger `when`). CodeLLDB downloads its platform package on first use and installs it with
+  `workbench.extensions.command.installFromVSIX`.
+- Install Extension VSIX (`workbench.extensions.command.installFromVSIX`): `installGivenVersion`, all installs
+  settled before the first failure is thrown, upstream's notifications. Extension deltas follow
+  `_deltaExtensions`: one whose activation started is neither removed nor replaced; it waits in `pendingRestart`
+  and the Extensions view and page offer Restart Extensions (no automatic host restart on update/uninstall).
 
 ## In progress / next
 
 1. Editor-feature rendering from the registry is complete (CodeLens, inlay hints, inline completions, highlights,
    folding, links, colors).
-2. 九.2 is covered. Next: debugging acceptance beyond Node (Python, Go, Rust/C++ via CodeLLDB, controls, breakpoint
-   variants, preLaunchTask in a real session).
+2. 九.2 and 九.4 are covered. Next: 九.3 management end to end (drop/import, enable/disable, update, uninstall,
+   persistence across restarts) and 九.7 (crash recovery, offline, download retry).
 3. Remove the remaining LSP implementation (lib/ide/lsp catalog/install/packs/client/manager/process, assets/lsp,
    bao_remote LSP, docs and l10n), after replacing its language capability coverage.
 4. SSH remote: REH on the remote through bao_remote port forwarding, with the extensionKind split.
@@ -245,3 +257,10 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
 - On shutdown upstream's host invalidates its proxies before `deactivate`: extensions that call the main thread from
   `deactivate` log `Channel has been closed`, as upstream (`ms-python.vscode-python-envs` also throws in its own
   `deactivate`).
+- Delve stops a function breakpoint on the function's declaration line; a step in also lands there first. vscode-go
+  waits 30 s for `dlv dap` to start; one run timed out once (not reproduced).
+- Xcode's lldb-dap (LLVM 21) answers REPL evaluations as `(int) $0 = 84` and reports function breakpoint stops as
+  `breakpoint`; the lldb-dap test accepts both forms.
+- CodeLLDB reports its `rust_panic` filter's stop as a breakpoint in `__rustc::rust_panic`; its console runs LLDB
+  commands (`?` evaluates an expression). An empty `cwd` in `runInTerminal` is the workspace folder (upstream's
+  `getCwd`); a terminal launched in `''` used to exit at once.
