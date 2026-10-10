@@ -956,7 +956,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   /// ([byKeyboard] for a shortcut), asking first as the settings say: the
   /// chat's hides; an agent's goes (the agent goes on, in the sidebar); an
   /// IDE's asks about its unsaved files and its running terminals, and
-  /// goes with its editors, terminals and extension host. Whether it
+  /// goes with its editors, terminals and language servers. Whether it
   /// closed.
   Future<bool> requestClose(AppWindow window, {bool byKeyboard = false}) async {
     if (!_started) return false;
@@ -1208,7 +1208,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
 
   /// The main window's IDE moves to a window of its own (if it showed), its
   /// unsaved files asked about first: the main window's editors,
-  /// terminals and extension host go.
+  /// terminals and language servers go.
   Future<void> _toSeparate() async {
     if (!await _confirmUnsaved([chat])) return _decline(true);
     _separate = true;

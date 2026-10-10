@@ -21,7 +21,7 @@ import '../../debug/session/debug_session.dart';
 import '../../ide/ide_editor_views.dart';
 import '../../ide/ide_notifications.dart';
 import '../../ide/ide_workspace.dart';
-import '../../ide/language/language_types.dart';
+import '../../ide/lsp/lsp_protocol.dart';
 import '../commands/extension_command_registry.dart';
 import '../configuration/configuration_service.dart';
 import '../contextkey/context_key_service.dart';

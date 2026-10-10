@@ -51,8 +51,8 @@ import 'ide_find_widget.dart';
 import 'ide_menu.dart';
 import 'ide_status_bar.dart' show ideEolEdits;
 import 'ide_workspace.dart';
-import 'language/language_features.dart';
-import 'language/language_types.dart';
+import 'lsp/language_features.dart';
+import 'lsp/lsp_protocol.dart';
 import 'lsp_ui/diagnostics.dart' show ideMarkerList;
 import 'lsp_ui/editor_language_session.dart';
 import 'lsp_ui/language_widgets.dart';
@@ -81,7 +81,7 @@ class IdeEditor extends StatefulWidget {
     required this.workspace,
     required this.active,
     required this.onError,
-    required this.onEditorStatus,
+    required this.onLspStatus,
     required this.onPositionChanged,
     this.nativeEditorEnabled = const bool.fromEnvironment(
       'BAOCODE_NATIVE_EDITOR',
@@ -100,7 +100,7 @@ class IdeEditor extends StatefulWidget {
   final IdeWorkspace workspace;
   final IdeDocument active;
   final ValueChanged<Object> onError;
-  final ValueChanged<String> onEditorStatus;
+  final ValueChanged<String> onLspStatus;
   final ValueChanged<IdeEditorPosition> onPositionChanged;
 
   /// Opt out with --dart-define=BAOCODE_NATIVE_EDITOR=false, or override in
@@ -172,7 +172,7 @@ class IdeEditorState extends State<IdeEditor> {
   final MonacoSyntaxService _syntax = MonacoSyntaxService();
   final Map<IdeDocument, TokenizedDocument> _tokenizedDocuments = {};
   // VS Code's grammars and theme where the platform has them; Monarch
-  // highlights the rest (the web, languages without one).
+  // highlights the rest (the web, language packs, languages without one).
   final TextMateSyntax _textMate = TextMateSyntax(
     themes: WorkbenchThemeService.instance,
   );
@@ -277,7 +277,7 @@ class IdeEditorState extends State<IdeEditor> {
     _updateBlame(navigated: false);
     _listenToDebug();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) widget.onEditorStatus(_editorStatus);
+      if (mounted) widget.onLspStatus(_editorStatus);
     });
   }
 
@@ -1298,7 +1298,7 @@ class IdeEditorState extends State<IdeEditor> {
     }
     if (oldWidget.nativeEditorEnabled != widget.nativeEditorEnabled) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.onEditorStatus(_editorStatus);
+        if (mounted) widget.onLspStatus(_editorStatus);
       });
     }
   }
@@ -1437,7 +1437,7 @@ class IdeEditorState extends State<IdeEditor> {
 
   /// The editor's context menu (`MenuId.EditorContext`): go-to commands,
   /// then modifications, then the clipboard, then the Command Palette; the
-  /// language items only while a provider has the feature, as
+  /// language items only while the language server has the feature, as
   /// VS Code hides them without a provider.
   void _showContextMenu(Offset position) {
     if (_nativeController == null) return;
@@ -2031,6 +2031,10 @@ class IdeEditorState extends State<IdeEditor> {
     );
     _selectOffsets(offset, offset);
     focus();
+  }
+
+  Future<void> retryLanguageServer() async {
+    widget.onLspStatus(_editorStatus);
   }
 
   Widget _buildFindWidget() => IdeFindWidget(

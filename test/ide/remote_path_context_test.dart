@@ -5,7 +5,7 @@ import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/ide_explorer.dart';
 import 'package:baocode/ide/ide_quick_open.dart';
 import 'package:baocode/ide/ide_workspace.dart';
-import 'package:baocode/ide/language/language_types.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 

@@ -485,6 +485,7 @@
   "cmdColorTheme": "Color Theme",
   "cmdTurnOnFormatOnSave": "Turn On Format on Save",
   "cmdTurnOffFormatOnSave": "Turn Off Format on Save",
+  "cmdRetryLanguageServices": "Retry Language Services",
   "cmdBackToChat": "Back to Chat",
   "cmdOpenSettings": "Open Settings",
   "cmdOpenKeyboardShortcuts": "Open Keyboard Shortcuts",
@@ -2750,10 +2751,12 @@
   "extTitle": "Extensions",
   "extTitleInstalled": "Extensions: Installed",
   "extTitleRecommended": "Extensions: Recommended",
+  "extTitleMarketplace": "Extensions: Marketplace",
   "extFilter": "Filter Extensions...",
   "extInstalled": "Installed",
   "extRecommended": "Recommended",
   "extClearSearch": "Clear Extensions Search Results",
+  "extSearchPlaceholder": "Search Extensions in Marketplace",
   "extNoneFound": "No extensions found.",
   "extInstall": "Install",
   "extUninstall": "Uninstall",
@@ -2768,6 +2771,138 @@
         "type": "String"
       },
       "error": {
+        "type": "String"
+      }
+    }
+  },
+  "extUninstallError": "Error while uninstalling '{id}' extension. {error}",
+  "@extUninstallError": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "extLanguageServer": "Language server",
+  "extLanguageServerFor": "Language server for {languages}",
+  "@extLanguageServerFor": {
+    "placeholders": {
+      "languages": {
+        "type": "String"
+      }
+    }
+  },
+  "extMissingRuntime": "Installing '{id}' needs {runtime}, which was not found. Install {runtime}, then try again.",
+  "@extMissingRuntime": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "runtime": {
+        "type": "String"
+      }
+    }
+  },
+  "extUnavailable": "'{id}' was not found on PATH and cannot be installed automatically.",
+  "@extUnavailable": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langStarting": "{id}: starting…",
+  "@langStarting": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langStartingTooltip": "Starting {id}",
+  "@langStartingTooltip": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langRunning": "{id} is running",
+  "@langRunning": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langRestarting": "{id}: restarting…",
+  "@langRestarting": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langClickToRestart": "Click to restart now",
+  "langFailed": "{id} failed",
+  "@langFailed": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langClickToRetry": "Click to retry",
+  "langNotInstalled": "{id} not installed",
+  "@langNotInstalled": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langNeedsRuntime": "Installing {id} needs {runtime}, which was not found",
+  "@langNeedsRuntime": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "runtime": {
+        "type": "String"
+      }
+    }
+  },
+  "langClickToInstall": "Click to install {id}",
+  "@langClickToInstall": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langNotOnPath": "{id} was not found on PATH",
+  "@langNotOnPath": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langInstallingItem": "Installing {id}…",
+  "@langInstallingItem": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langInstallingTooltip": "Installing {id}",
+  "@langInstallingTooltip": {
+    "placeholders": {
+      "id": {
         "type": "String"
       }
     }
@@ -2948,6 +3083,18 @@
       }
     }
   },
+  "wbRecommendServer": "Do you want to install the recommended '{id}' language server for the {language} language?",
+  "@wbRecommendServer": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      },
+      "language": {
+        "type": "String"
+      }
+    }
+  },
+  "wbDontShowAgainServer": "Don't Show Again for this Language Server",
   "wbQuickCommands": "Type the name of a command to run.",
   "wbQuickSymbols": "Type the name of a symbol to go to.",
   "wbQuickFiles": "Search files by name (append : to go to a line or > to run a command)",
@@ -2993,8 +3140,10 @@
   "wbTimeline": "Timeline",
   "wbPinTimeline": "Pin the Current Timeline",
   "wbUnpinTimeline": "Unpin the Current Timeline",
+  "wbLanguageServices": "Language services",
   "wbMonacoEditor": "Monaco editor",
   "wbTextEditor": "Text editor",
+  "wbRetryLanguageServices": "Retry language services",
   "wbNoProblems": "No Problems",
   "wbProblemCounts": "Errors: {errors}, Warnings: {warnings}",
   "@wbProblemCounts": {
@@ -3212,7 +3361,7 @@
   "dataDirMoveBack": "Move BaoCode's data back to the default folder?",
   "dataDirMoveHere": "Move BaoCode's data to this folder?",
   "dataDirUseAsIsDetail": "After a restart BaoCode uses the data there as it is; nothing is copied, and the current folder keeps yours.",
-  "dataDirCopyDetail": "BaoCode copies its settings, keybindings, extensions and state there, and uses that folder after a restart.",
+  "dataDirCopyDetail": "BaoCode copies its settings, keybindings, language servers and state there, and uses that folder after a restart.",
   "dataDirOtherFiles": "The folder holds other files: they stay, beside BaoCode's own.",
   "dataDirUseItsData": "Use Its Data",
   "dataDirCopyAndSwitch": "Copy and Switch",
@@ -3288,7 +3437,7 @@
     }
   },
   "dataDirTitle": "Data Folder",
-  "dataDirDescription": "Where BaoCode keeps your settings, keybindings, extensions and its own state. Other programs keep files there too (the web view's caches); BaoCode never moves or removes those.",
+  "dataDirDescription": "Where BaoCode keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view's caches); BaoCode never moves or removes those.",
   "dataDirCurrentFolder": "Current folder",
   "dataDirNewFolder": "New folder",
   "dataDirAfterRestart": "After a restart: {path}",

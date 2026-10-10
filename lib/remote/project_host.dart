@@ -4,6 +4,8 @@ import '../ide/file_service.dart';
 import '../ide/git/git_repository.dart';
 import '../ide/git/git_service.dart';
 import '../ide/git/repository_scan.dart';
+import '../ide/lsp/catalog/standard_lsp.dart';
+import '../ide/lsp/language_features.dart';
 import '../ide/terminal/terminal_instance.dart';
 import 'remote_location.dart';
 import 'ssh_host.dart';
@@ -38,6 +40,9 @@ abstract interface class ProjectHost {
   /// The repositories [scan] finds in [root]'s subfolders, by path there.
   Future<List<String>> repositoriesIn(String root, IdeRepositoryScan scan);
 
+  /// The language servers of the project at [root].
+  LanguageFeatures languages(String root);
+
   /// What the terminals of its projects run on; [local] is this machine's.
   TerminalBackend terminals(TerminalBackend local);
 }
@@ -69,6 +74,9 @@ class LocalHost implements ProjectHost {
         list: files(root).list,
         isRepositoryTop: (folder) => IdeGitService(folder).isRepositoryTop(),
       );
+
+  @override
+  LanguageFeatures languages(String root) => standardLspManager(root);
 
   @override
   TerminalBackend terminals(TerminalBackend local) => local;

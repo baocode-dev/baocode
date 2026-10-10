@@ -40,7 +40,7 @@ import '../ide_list.dart';
 import '../ide_menu.dart';
 import '../ide_panes.dart';
 import '../ide_workspace.dart';
-import '../language/language_types.dart';
+import '../lsp/lsp_protocol.dart';
 import 'text_search.dart';
 
 /// The inputs of the Search view, for [IdeSearchSession.requestFocus].

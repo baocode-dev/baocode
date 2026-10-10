@@ -122,10 +122,11 @@ import 'ide_status_bar.dart';
 import 'ide_tab_bar.dart';
 import 'ide_welcome.dart';
 import 'ide_workspace.dart';
-import 'language/language_features.dart';
-import 'language/language_types.dart';
+import 'lsp/language_features.dart';
+import 'lsp/lsp_protocol.dart';
 import 'lsp_ui/diagnostics.dart';
 import 'lsp_ui/document_symbols.dart';
+import 'lsp_ui/language_status.dart';
 import 'lsp_ui/lsp_convert.dart';
 import 'lsp_ui/problems_panel.dart';
 import 'lsp_ui/workspace_edit.dart';
@@ -227,8 +228,8 @@ class IdeWorkbench extends StatefulWidget {
   /// Extra commands for the palette, after the workbench's and the editor's.
   final List<IdeCommand> commands;
 
-  /// Extensions not to recommend installing again (Don't Show Again), kept
-  /// by [onIgnoreRecommendation].
+  /// Language servers not to recommend installing again (Don't Show Again
+  /// for this Language Server), kept by [onIgnoreRecommendation].
   final Set<String> ignoredRecommendations;
   final ValueChanged<String>? onIgnoreRecommendation;
 
@@ -464,9 +465,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The workspace's notifications (the extension host's go there too).
   IdeNotifications get _notifications => widget.workspace.notifications;
 
-  /// The editor the active document is in (`Monaco editor`, `Text
-  /// editor`), once it says.
-  String? _editorStatus;
+  /// Servers whose install was recommended in this session.
+  final Set<String> _recommended = {};
+  String _lspStatus = 'Language services';
   Position _caretPosition = const Position(1, 1);
   int _statusColumn = 1;
   int _selectionLength = 0;
@@ -1046,6 +1047,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     super.didChangeDependencies();
     if (_localized) return;
     _localized = true;
+    _recommendServers();
     _recommendExtensions();
   }
 
@@ -1162,6 +1164,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _languagesChanged() {
     if (!mounted) return;
+    _recommendServers();
     _markers = null;
     final symbols = _symbols;
     if (symbols != null && !symbols.loaded) symbols.refresh();
@@ -1356,6 +1359,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // the side bar.
     _layout.showEditor();
     _extensionPage = null;
+    _recommendServers();
     _recommendExtensions();
     _recentFiles.add(path);
     unawaited(_explorer.reveal(path));
@@ -2054,6 +2058,77 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final path = widget.workspace.active?.path;
     if (path == null) return;
     unawaited(_openLocation(IdeLocation(path, symbol.selectionRange)));
+  }
+
+  /// Recommends installing the active file's missing language servers,
+  /// once a session each, as VS Code recommends a language's extension
+  /// (`FileBasedRecommendations`): a notification with Install.
+  void _recommendServers() {
+    final languages = _languages;
+    final path = widget.workspace.active?.path;
+    if (!_localized || languages == null || path == null) return;
+    for (final status in languages.statusFor(path)) {
+      if (status.state == LanguageServerState.missing &&
+          status.installable &&
+          status.missingRuntime == null &&
+          !widget.ignoredRecommendations.contains(status.serverId) &&
+          _recommended.add(status.serverId)) {
+        // Only in the notification center: a toast for every file opened
+        // is too much.
+        _recommendServer(status, path, silent: true);
+      }
+    }
+  }
+
+  void _recommendServer(
+    LanguageServerStatus status,
+    String path, {
+    bool silent = false,
+  }) {
+    final id = status.serverId;
+    final language = IdeLanguageNames.forPath(path);
+    final l10n = context.l10n;
+    _notifications.notify(
+      IdeSeverity.info,
+      l10n.wbRecommendServer(id, language),
+      sticky: true,
+      silent: silent,
+      primary: [
+        IdeNotificationAction(l10n.extInstall, () => _install(id, path)),
+      ],
+      secondary: [
+        IdeNotificationAction(
+          l10n.wbDontShowAgainServer,
+          () => widget.onIgnoreRecommendation?.call(id),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _install(String id, String path) async {
+    try {
+      await _languages?.install(id, path: path);
+    } catch (error) {
+      _report(error);
+    }
+  }
+
+  /// The status bar's missing server: why it cannot be installed, or its
+  /// recommendation again.
+  void _installServer(LanguageServerStatus status) {
+    final path = widget.workspace.active?.path;
+    if (path == null) return;
+    if (status.installable && status.missingRuntime == null) {
+      _recommendServer(status, path);
+      return;
+    }
+    final runtime = status.missingRuntime;
+    _notifications.notify(
+      IdeSeverity.warning,
+      runtime != null
+          ? context.l10n.extMissingRuntime(status.serverId, runtime)
+          : (status.message ?? context.l10n.extUnavailable(status.serverId)),
+    );
   }
 
   // --- Layout ------------------------------------------------------------
@@ -3025,6 +3100,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         enabled: widget.workspace.git != null,
       ),
       IdeCommand(
+        id: 'baocode.ide.retryLanguageServices',
+        category: 'Developer',
+        label: 'Retry Language Services',
+        enabled: active != null,
+        run: () => unawaited(_editor?.retryLanguageServer()),
+      ),
+      IdeCommand(
         id: 'baocode.ide.backToChat',
         category: 'View',
         label: 'Back to Chat',
@@ -3653,9 +3735,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                 workspace: widget.workspace,
                                 active: active,
                                 onError: _report,
-                                onEditorStatus: (status) {
+                                onLspStatus: (status) {
                                   if (mounted) {
-                                    setState(() => _editorStatus = status);
+                                    setState(() => _lspStatus = status);
                                   }
                                 },
                                 onPositionChanged: _positionChanged,
@@ -4233,12 +4315,19 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             ),
             onTap: () => _showView(IdeSideView.sourceControl),
           ),
-      if (_editorStatus case final status?)
-        IdeStatusBarItem(switch (status) {
+      IdeStatusBarItem(
+        switch (_lspStatus) {
+          'Language services' => l10n.wbLanguageServices,
           'Monaco editor' => l10n.wbMonacoEditor,
           'Text editor' => l10n.wbTextEditor,
           final status => status,
-        }),
+        },
+        tooltip: keys.titleWithKeybinding(
+          l10n.wbRetryLanguageServices,
+          'baocode.ide.retryLanguageServices',
+        ),
+        onTap: () => unawaited(_editor?.retryLanguageServer()),
+      ),
       if (_languages case final languages?) ...[
         () {
           final counts = ideDiagnosticCounts(languages.allDiagnostics);
@@ -4260,6 +4349,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             onTap: () => _togglePanel(IdePanelTab.problems),
           );
         }(),
+        if (widget.workspace.active case final doc?)
+          ...ideLanguageStatusItems(
+            languages,
+            doc.path,
+            onInstall: _installServer,
+            l10n: l10n,
+          ),
       ],
       if (_statusMessage case final message?) IdeStatusBarItem(message),
       ..._extensionStatusItems(left: true),

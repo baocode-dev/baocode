@@ -66,8 +66,8 @@ import 'package:bao_editor/monaco/vs/base/common/platform.dart' as platform;
 import 'package:bao_exthost/bao_exthost.dart' show CancellationToken, VsUri;
 import 'package:flutter/foundation.dart';
 
-import '../../ide/language/language_features.dart';
-import '../../ide/language/language_types.dart';
+import '../../ide/lsp/language_features.dart';
+import '../../ide/lsp/lsp_protocol.dart';
 import 'language_feature_document.dart';
 import 'language_feature_registry.dart';
 import 'language_features_service.dart';
@@ -434,6 +434,7 @@ class RegistryLanguageFeatures extends ChangeNotifier
     this.commandExecutor,
     this.defaultFormatterId,
     this.onFormatterConflict,
+    this.statusProvider,
     this.onProviderError,
   }) {
     markers.addListener(notifyListeners);
@@ -458,6 +459,7 @@ class RegistryLanguageFeatures extends ChangeNotifier
 
   /// Asks the user to pick a formatter; formats nothing when absent.
   FormatterConflictResolver? onFormatterConflict;
+  final List<LanguageServerStatus> Function(String path)? statusProvider;
   final void Function(Object error, StackTrace stack)? onProviderError;
 
   final _subscriptions = <StreamSubscription<Object?>>[];
@@ -1749,6 +1751,16 @@ class RegistryLanguageFeatures extends ChangeNotifier
     _workspaceEdits.add(request);
     return completer.future;
   }
+
+  @override
+  List<LanguageServerStatus> statusFor(String path) =>
+      statusProvider?.call(path) ?? const [];
+
+  @override
+  void retry(String serverId, {String? path}) {}
+
+  @override
+  Future<void> install(String serverId, {String? path}) async {}
 
   // --- features beyond LanguageFeatures (editor coordinates)
 

@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
-import '../platform/http_downloader_io.dart';
+import '../ide/lsp/install/install_io.dart' show HttpDownloader;
 import '../platform/data_dir.dart';
 import 'emoji_sheet.dart';
 

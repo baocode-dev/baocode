@@ -31,7 +31,7 @@ import 'package:baocode/extensions/runtime/extension_runtime_service.dart';
 import 'package:baocode/extensions/workbench/workspace_extensions.dart';
 import 'package:baocode/ide/ide_notifications.dart';
 import 'package:baocode/ide/ide_workspace.dart';
-import 'package:baocode/ide/language/language_types.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Markdown as VS Code's editor hovers render it: the extensions' hovers,
+// Markdown as VS Code's editor hovers render it: language servers' hovers,
 // signature help and suggest documentation.
 //
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:

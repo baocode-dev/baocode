@@ -17,7 +17,7 @@ import 'package:bao_exthost/bao_exthost.dart';
 import 'package:baocode/debug/common/debug_types.dart';
 import 'package:baocode/extensions/extension_host_service_io.dart';
 import 'package:baocode/extensions/runtime/extension_runtime_service.dart';
-import 'package:baocode/ide/language/language_types.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/remote/ssh_host.dart';
 import 'package:flutter/services.dart' show TextSelection;
 import 'package:flutter_test/flutter_test.dart';

@@ -1,7 +1,7 @@
 name: bao_remote
 description: >-
   BaoCode's remote host: the files, Git, search, Claude Code, terminals and
-  extension runtime of a project on another machine, served by a headless
+  language servers of a project on another machine, served by a headless
   program over one SSH connection. No Flutter in the library, so that the
   server compiles with `dart compile exe`.
 version: 0.1.0

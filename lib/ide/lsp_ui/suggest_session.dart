@@ -11,8 +11,8 @@ import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:bao_editor/monaco/vs/editor/contrib/snippet/browser/snippet_parser.dart';
 import 'package:bao_editor/monaco/vs/editor/contrib/suggest/browser/completion_model.dart';
 
-import '../language/language_features.dart';
-import '../language/language_types.dart';
+import '../lsp/language_features.dart';
+import '../lsp/lsp_protocol.dart';
 import 'language_editor.dart';
 import 'lsp_convert.dart';
 

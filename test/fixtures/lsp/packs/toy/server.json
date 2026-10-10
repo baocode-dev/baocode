@@ -1,0 +1,11 @@
+{
+  "servers": [
+    {
+      "id": "toy-ls",
+      "command": "toy-ls",
+      "args": ["--stdio"],
+      "settings": {"toy": {"strict": true}},
+      "languages": ["toy"]
+    }
+  ]
+}

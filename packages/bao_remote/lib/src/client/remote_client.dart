@@ -8,6 +8,8 @@ import '../claude/claude_unavailable.dart';
 import '../files/ide_file.dart';
 import '../files/recursive_watch.dart';
 import '../git/git_types.dart';
+import '../lsp/install/mason_registry.dart';
+import '../lsp/lsp_server_definition.dart';
 import '../protocol.dart';
 import '../review/review_store.dart';
 import '../rpc/rpc_error.dart';
@@ -880,6 +882,50 @@ class RemoteClient {
       shells: (result['shells'] as List? ?? const []).cast<String>(),
     );
   }
+
+  // --- Language servers ------------------------------------------------------
+
+  /// Where [command] is there; [packages] the registry's packages that may
+  /// install it.
+  Future<LspServerLocation> locateLanguageServer(
+    String command, {
+    String? masonPackage,
+    List<MasonPackage> packages = const [],
+  }) async {
+    final result = _map(
+      await peer.request(RemoteProtocol.lspLocate, {
+        'command': command,
+        'masonPackage': ?masonPackage,
+        'packages': [for (final package in packages) package.toJson()],
+      }),
+    );
+    if (result['found'] case final String executable) {
+      return LspServerFound(executable);
+    }
+    return LspServerMissing(
+      package: result['package'] as String?,
+      missingRuntime: result['missingRuntime'] as String?,
+    );
+  }
+
+  /// Installs [package] there; its progress lines go to [onProgress].
+  Future<void> installLanguageServer(
+    MasonPackage package, {
+    void Function(String message)? onProgress,
+  }) async {
+    await for (final line in openStream(RemoteProtocol.lspInstall, {
+      'package': package.name,
+      'packages': [package.toJson()],
+    })) {
+      if (line is String) onProgress?.call(line);
+    }
+  }
+
+  Future<List<String>> installedLanguageServers() async =>
+      (await _call<List>(RemoteProtocol.lspInstalled)).cast();
+
+  Future<void> uninstallLanguageServer(String package) =>
+      _call(RemoteProtocol.lspUninstall, {'package': package});
 
   // --- Port forwarding -------------------------------------------------------
 

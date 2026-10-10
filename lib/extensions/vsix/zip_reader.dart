@@ -2,9 +2,10 @@
 // the central directory is read from the end of the file, then only the
 // entries asked for.
 //
-// The record layout follows the former language server installer's
-// `extractZip` (stored and deflated entries, Zip64), which extracted whole
-// archives from memory.
+// The record layout follows packages/bao_remote/lib/src/lsp/install/
+// archive.dart's `extractZip` (stored and deflated entries, Zip64), copied
+// here rather than imported: that one extracts whole archives from memory
+// and belongs to the language server installer, which is going away.
 
 import 'dart:convert';
 import 'dart:io';

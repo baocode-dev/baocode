@@ -85,6 +85,7 @@ flutter:
   generate: true
 
   assets:
+    - assets/lsp/
     - assets/material_icons/
     - assets/material_icons/icons/
     - assets/codicons/LICENSE

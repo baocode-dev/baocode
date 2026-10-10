@@ -38,7 +38,7 @@ import '../../ide/ide_commands.dart';
 import '../../ide/ide_editor_views.dart';
 import '../../ide/ide_notifications.dart';
 import '../../ide/ide_workspace.dart';
-import '../../ide/language/language_types.dart';
+import '../../ide/lsp/lsp_protocol.dart';
 import '../../l10n/l10n.dart';
 import '../commands/command_arguments.dart';
 import '../commands/extension_command_registry.dart';

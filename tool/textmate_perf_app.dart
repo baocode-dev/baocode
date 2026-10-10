@@ -29,7 +29,7 @@ import 'package:bao_editor/textmate/textmate_worker.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_workspace.dart';
-import 'package:baocode/ide/language/language_types.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 
 /// The app does not run in the repository: pass the absolute path with
@@ -361,7 +361,7 @@ Future<Map<String, Object>> _editor(
           active: workspace.active!,
           nativeEditorEnabled: true,
           onError: (error) => stderr.writeln('editor error: $error'),
-          onEditorStatus: (_) {},
+          onLspStatus: (_) {},
           onPositionChanged: (_) {},
         ),
       ),

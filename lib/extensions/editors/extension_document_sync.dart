@@ -26,8 +26,8 @@
 //   `lastChangeWasUndo`/`lastChangeWasRedo` (added to bao_editor for this)
 //   carry the undo/redo flag.
 // - Tabs share one model (`IdeDocument`), so a path is opened once and
-//   closed when its last tab goes, as the app's workspace does for its
-//   language features.
+//   closed when its last tab goes, as the app's workspace already does for
+//   language servers.
 // - The app has one encoding per file and no per-document encoding switch
 //   yet, so [encodingChanged] is called by the app when it learns one.
 

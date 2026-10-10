@@ -9,7 +9,7 @@ library;
 
 import 'dart:io';
 
-import 'package:baocode/ide/language/language_types.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'open_vsx_workspace.dart';

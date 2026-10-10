@@ -30,8 +30,8 @@ import '../../ide/ide_notifications.dart'
     show IdeNotificationAction, IdeSeverity;
 import '../../ide/file_service.dart' show IdeFileService;
 import '../../ide/ide_workspace.dart';
-import '../../ide/language/language_features.dart';
-import '../../ide/language/language_types.dart' show LspPosition, LspRange;
+import '../../ide/lsp/language_features.dart';
+import '../../ide/lsp/lsp_protocol.dart' show LspPosition, LspRange;
 import '../../ide/terminal/terminal_instance.dart' show TerminalBackend;
 import '../../l10n/l10n.dart';
 import '../../platform/data_dir.dart';

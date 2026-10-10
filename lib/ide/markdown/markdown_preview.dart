@@ -7,7 +7,7 @@
 // The preview shows the document's text as the editor holds it (unsaved
 // changes too). What it changes (a task box ticked, a file dropped), it
 // changes through the document's model, so the tab's dirty mark, undo,
-// saving, the extensions and the agent's change review see one text.
+// saving, language servers and the agent's change review see one text.
 
 import 'dart:async';
 import 'dart:math' as math;

@@ -2300,6 +2300,12 @@ abstract class AppLocalizations {
   /// **'Turn Off Format on Save'**
   String get cmdTurnOffFormatOnSave;
 
+  /// No description provided for @cmdRetryLanguageServices.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry Language Services'**
+  String get cmdRetryLanguageServices;
+
   /// No description provided for @cmdBackToChat.
   ///
   /// In en, this message translates to:
@@ -6765,6 +6771,12 @@ abstract class AppLocalizations {
   /// **'Extensions: Recommended'**
   String get extTitleRecommended;
 
+  /// No description provided for @extTitleMarketplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Extensions: Marketplace'**
+  String get extTitleMarketplace;
+
   /// No description provided for @extFilter.
   ///
   /// In en, this message translates to:
@@ -6788,6 +6800,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clear Extensions Search Results'**
   String get extClearSearch;
+
+  /// No description provided for @extSearchPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Extensions in Marketplace'**
+  String get extSearchPlaceholder;
 
   /// No description provided for @extNoneFound.
   ///
@@ -6836,6 +6854,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Error while installing \'{id}\' extension. {error}'**
   String extInstallError(String id, String error);
+
+  /// No description provided for @extUninstallError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error while uninstalling \'{id}\' extension. {error}'**
+  String extUninstallError(String id, String error);
+
+  /// No description provided for @extLanguageServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Language server'**
+  String get extLanguageServer;
+
+  /// No description provided for @extLanguageServerFor.
+  ///
+  /// In en, this message translates to:
+  /// **'Language server for {languages}'**
+  String extLanguageServerFor(String languages);
+
+  /// No description provided for @extMissingRuntime.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing \'{id}\' needs {runtime}, which was not found. Install {runtime}, then try again.'**
+  String extMissingRuntime(String id, String runtime);
+
+  /// No description provided for @extUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'\'{id}\' was not found on PATH and cannot be installed automatically.'**
+  String extUnavailable(String id);
+
+  /// No description provided for @langStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'{id}: starting…'**
+  String langStarting(String id);
+
+  /// No description provided for @langStartingTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting {id}'**
+  String langStartingTooltip(String id);
+
+  /// No description provided for @langRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} is running'**
+  String langRunning(String id);
+
+  /// No description provided for @langRestarting.
+  ///
+  /// In en, this message translates to:
+  /// **'{id}: restarting…'**
+  String langRestarting(String id);
+
+  /// No description provided for @langClickToRestart.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to restart now'**
+  String get langClickToRestart;
+
+  /// No description provided for @langFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} failed'**
+  String langFailed(String id);
+
+  /// No description provided for @langClickToRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to retry'**
+  String get langClickToRetry;
+
+  /// No description provided for @langNotInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} not installed'**
+  String langNotInstalled(String id);
+
+  /// No description provided for @langNeedsRuntime.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing {id} needs {runtime}, which was not found'**
+  String langNeedsRuntime(String id, String runtime);
+
+  /// No description provided for @langClickToInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to install {id}'**
+  String langClickToInstall(String id);
+
+  /// No description provided for @langNotOnPath.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} was not found on PATH'**
+  String langNotOnPath(String id);
+
+  /// No description provided for @langInstallingItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing {id}…'**
+  String langInstallingItem(String id);
+
+  /// No description provided for @langInstallingTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing {id}'**
+  String langInstallingTooltip(String id);
 
   /// kind is definition, typeDefinition, implementation or references.
   ///
@@ -7245,6 +7371,18 @@ abstract class AppLocalizations {
   /// **'HEAD version of \"{name}\" is not available.'**
   String wbHeadNotAvailable(String name);
 
+  /// No description provided for @wbRecommendServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Do you want to install the recommended \'{id}\' language server for the {language} language?'**
+  String wbRecommendServer(String id, String language);
+
+  /// No description provided for @wbDontShowAgainServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t Show Again for this Language Server'**
+  String get wbDontShowAgainServer;
+
   /// No description provided for @wbQuickCommands.
   ///
   /// In en, this message translates to:
@@ -7329,6 +7467,12 @@ abstract class AppLocalizations {
   /// **'Unpin the Current Timeline'**
   String get wbUnpinTimeline;
 
+  /// No description provided for @wbLanguageServices.
+  ///
+  /// In en, this message translates to:
+  /// **'Language services'**
+  String get wbLanguageServices;
+
   /// No description provided for @wbMonacoEditor.
   ///
   /// In en, this message translates to:
@@ -7340,6 +7484,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Text editor'**
   String get wbTextEditor;
+
+  /// No description provided for @wbRetryLanguageServices.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry language services'**
+  String get wbRetryLanguageServices;
 
   /// No description provided for @wbNoProblems.
   ///
@@ -7800,7 +7950,7 @@ abstract class AppLocalizations {
   /// No description provided for @dataDirCopyDetail.
   ///
   /// In en, this message translates to:
-  /// **'BaoCode copies its settings, keybindings, extensions and state there, and uses that folder after a restart.'**
+  /// **'BaoCode copies its settings, keybindings, language servers and state there, and uses that folder after a restart.'**
   String get dataDirCopyDetail;
 
   /// No description provided for @dataDirOtherFiles.
@@ -7926,7 +8076,7 @@ abstract class AppLocalizations {
   /// No description provided for @dataDirDescription.
   ///
   /// In en, this message translates to:
-  /// **'Where BaoCode keeps your settings, keybindings, extensions and its own state. Other programs keep files there too (the web view\'s caches); BaoCode never moves or removes those.'**
+  /// **'Where BaoCode keeps your settings, keybindings, language servers and its own state. Other programs keep files there too (the web view\'s caches); BaoCode never moves or removes those.'**
   String get dataDirDescription;
 
   /// No description provided for @dataDirCurrentFolder.

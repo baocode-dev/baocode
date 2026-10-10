@@ -10,7 +10,7 @@ import 'package:baocode/ide/ide_color_theme_picker.dart';
 import 'package:baocode/debug/service/debug_service.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/ide_workspace.dart';
-import 'package:baocode/ide/language/language_features.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
 import 'package:baocode/ide/search/text_search.dart';
 import 'package:baocode/ide/terminal/pty.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';

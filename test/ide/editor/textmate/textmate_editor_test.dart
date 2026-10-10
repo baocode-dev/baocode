@@ -53,7 +53,7 @@ Future<IdeWorkspace> _open(
           active: workspace.active!,
           nativeEditorEnabled: true,
           onError: (error) => fail('Unexpected editor error: $error'),
-          onEditorStatus: (_) {},
+          onLspStatus: (_) {},
           onPositionChanged: (_) {},
         ),
       ),

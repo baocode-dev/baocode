@@ -4,7 +4,7 @@ import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 
-import '../language/language_types.dart';
+import '../lsp/lsp_protocol.dart';
 
 /// The absolute path of a `file:` [uri] (other schemes: null), spelled as
 /// [paths] does: a remote project's host's (a Mac's `/Users/…` seen from

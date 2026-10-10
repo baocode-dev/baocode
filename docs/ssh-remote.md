@@ -1,6 +1,6 @@
 # SSH 远程项目
 
-用 SSH 打开另一台机器上的项目，体验和 VS Code 的 Remote-SSH 一样：界面留在本机；文件、Git、搜索、终端、VS Code 插件和 Claude Code 都在远端主机上运行。本文说明它怎么工作、怎么构建和发布、出了问题怎么查，以及以后改代码时要注意什么。
+用 SSH 打开另一台机器上的项目，体验和 VS Code 的 Remote-SSH 一样：界面留在本机；文件、Git、搜索、终端、语言服务器和 Claude Code 都在远端主机上运行。本文说明它怎么工作、怎么构建和发布、出了问题怎么查，以及以后改代码时要注意什么。
 
 - 远端要求：Linux x64 / arm64（glibc），或 macOS（Apple silicon / Intel，要在“系统设置 → 通用 → 共享”里打开“远程登录”）；能用密钥、ssh-agent 或密码登录
 - 本机要求：系统自带的 OpenSSH 客户端（`ssh`）
@@ -33,7 +33,7 @@
 | --- | --- |
 | 连接、引导安装服务端、断线重连 | 已完成，有内存服务端的集成测试 |
 | 文件、搜索、Git、终端 | 已完成 |
-| VS Code 插件 | 已完成：插件运行时（VSCodium REH）装在远端并在远端启动；`workspace` 类插件在远端运行，`ui` 类插件在本机运行，见 5.1 |
+| 语言服务器（LSP） | 已完成：服务器在远端运行，客户端在本机 |
 | Claude Code：对话、会话列表、标题、Keep/Undo、提交信息 | 已完成 |
 | 远端没有 Claude Code 时自动安装 | 已完成：远端自己下载；远端不能上网时由本机下载后传上去 |
 | 本机模型代理转发到远端 | 已完成 |
@@ -85,7 +85,7 @@
 
 - 断线后马上重连一次；之后等待时间按 1、2、4、8… 秒递增，最长 1 分钟。
 - **不会自动重试的失败**：认证失败、主机密钥未知或改变、远端系统不支持、本机没有 ssh。这些自动重试也没用，只能修好后点状态栏、侧栏的红色主机名或输入框上方的“重试”重连（或在打开流程里点“重试”）。
-- **重连后自动恢复的**：文件和 Git 的监听（恢复后会先通知一次“可能变了”，界面会刷新）；远端的 VS Code server 重新启动，插件宿主重启，打开的文件（包括未保存的修改）重新同步过去。
+- **重连后自动恢复的**：文件和 Git 的监听（恢复后会先通知一次“可能变了”，界面会刷新）；语言服务器重启，并把打开的文件（包括未保存的修改）重新同步过去。
 - **重连后不会恢复的**：断线那一刻在远端运行的进程都会结束，因为 sshd 断开会话时服务端会结束它启动的所有进程。
   - Claude Code 的对话会显示“The connection to the remote host was lost.”，下次发消息时会接着原会话继续（resume）。
   - 终端会退出。
@@ -108,11 +108,11 @@
 │   │  按项目路径找到所在主机                    │          │  ~/.baocode-server/      │
 │   ▼                                          │          │    <VERSION>/baocode-server
 │ ProjectHost.of(location)                     │   ssh    │        │                 │
-│   ├─ LocalHost  → 本机文件/Git/终端/插件       │  stdio   │        ▼                 │
+│   ├─ LocalHost  → 本机文件/Git/终端/LSP        │  stdio   │        ▼                 │
 │   └─ SshHost(dev) ── RemoteClient ───────────┼─────────┼──► RemoteServer          │
 │         连接状态、重连、Claude 安装进度         │ JSON-RPC │     文件、Git、搜索、PTY  │
 │                                              │          │     Claude Code 进程     │
-│ 插件主线程（本机）◄────── 端口转发 ─────────────┼─────────┼──── VS Code server(REH)  │
+│ LSP 客户端（本机）◄────── 语言服务器的字节 ─────┼─────────┼──── 语言服务器进程        │
 │ 本机模型代理 ◄─────────── 端口转发 ────────────┼─────────┼──── 127.0.0.1:<随机端口>  │
 └──────────────────────────────────────────────┘          └──────────────────────────┘
 ```
@@ -129,11 +129,10 @@
 | 文件 | 作用 |
 | --- | --- |
 | `lib/remote/remote_location.dart` | `ssh://` 地址的解析和拼装：`isRemote`、`hostOf`、`pathOf`、`of`、`nameOf`、`pathsOf` |
-| `lib/remote/project_host.dart` | `ProjectHost` 接口和 `LocalHost`：按 location 给出文件、Git、终端 |
+| `lib/remote/project_host.dart` | `ProjectHost` 接口和 `LocalHost`：按 location 给出文件、Git、语言服务、终端 |
 | `lib/remote/ssh_host.dart` | `SshHost`（一台主机的连接状态、重连、Claude 安装进度）和 `SshHosts`（全部主机） |
-| `lib/remote/remote_services.dart` | IDE 各服务的远端实现：文件、Git、终端，以及断线后自动重开的 `resilientStream` |
-| `lib/remote/remote_exthost.dart` | 在远端安装插件运行时（远端下载，或本机下载后上传）、启动它的 VS Code server 并经连接转发端口 |
-| `lib/extensions/workbench/remote_extensions.dart` | 一台主机的插件：远端的 VS Code server、把本机装的插件同步到远端、按 `extensionKind` 决定在哪边运行 |
+| `lib/remote/remote_services.dart` | IDE 各服务的远端实现：文件、Git、终端、LSP 进程，以及断线后自动重开的 `resilientStream` |
+| `lib/remote/remote_lsp.dart` | 远端的 LSP 管理和 mason 安装 |
 | `lib/remote/remote_claude.dart` | 远端的 Claude Code：启动、会话目录、历史、Haiku、模型代理转发 |
 | `lib/remote/remote_claude_install.dart` | 远端没有 Claude Code 时的自动安装 |
 | `lib/remote/remote_binaries.dart` | 找应用的服务端二进制：目录里的，或按 `servers.json` 下载的；开发时从源码编译 |
@@ -143,7 +142,7 @@
 | `packages/bao_remote/lib/src/client/ssh_config.dart` | 读 `~/.ssh/config` 里的主机 |
 | `packages/bao_remote/lib/src/client/remote_client.dart` | 应用侧的类型化 RPC 调用 |
 | `packages/bao_remote/lib/src/server/remote_server.dart` | 服务端的 RPC 处理 |
-| `packages/bao_remote/lib/src/server/server_*.dart` | 服务端的终端、插件运行时、Claude 安装、Keep/Undo 快照、端口转发、流 |
+| `packages/bao_remote/lib/src/server/server_*.dart` | 服务端的终端、LSP、Claude 安装、Keep/Undo 快照、端口转发、流 |
 | `packages/bao_remote/lib/src/claude/claude_release.dart` | 从官方地址下载 Claude Code 并校验；远端由 BaoCode 管理的那份 Claude |
 | `packages/bao_remote/lib/src/protocol.dart` | 协议方法名、版本号和数据结构 |
 | `packages/bao_remote/lib/src/rpc/` | JSON-RPC 收发（`rpc_peer.dart`），以及异常的跨端传递（`rpc_error.dart`） |
@@ -200,23 +199,21 @@ ssh 参数固定为：
 | 图片预览 | `fs/readBytes` | `IdeHostFiles.readBytes` |
 | Git | `git/run` 在远端执行 git 命令；`git/watch` 监听仓库 | `remoteGitService` |
 | 终端 | `pty/*`：远端开伪终端，shell 集成脚本也在远端注入（nonce 由应用生成，经环境变量 `VSCODE_NONCE` 传过去） | `remoteTerminalBackend` |
-| VS Code 插件 | 见下文 | `remote_extensions.dart` |
+| 语言服务器 | 见下文 | `remote_lsp.dart` |
 | Claude Code 对话 | `claude/start` 在远端启动 CLI | `RemoteClaudeTransport` |
 | 会话列表、历史、删除 | `claude/projects`、`claude/read`、`claude/delete`，读的是远端的 `~/.claude` | `ClaudeCatalog`、`readClaudeHistory` |
 | 自动起标题（Haiku）、提交信息 | 在远端运行 claude | `askRemoteHaiku` |
 | Keep/Undo（改动审查） | `review/*`：影子 git 仓库放在远端的数据目录，不碰项目自己的 `.git` | `openReviewStore` |
 | 用量提示 | `claude/usageOffBy` | `claudeUsageOffByAt` |
 
-### 5.1 VS Code 插件
+### 5.1 语言服务器
 
-和 VS Code 的 Remote - SSH 一样：远端跑 VS Code server（REH），本机跑插件的主线程（界面）。架构见 `docs/extensions.md`。
-
-- **运行时**：第一次打开这台主机上的项目时，服务端按应用带的清单安装插件运行时（`exthost/install`）：远端能上网就自己从 `dl.baocode.dev` 下载；下载失败（网络原因）时由本机下载到 `<data>/exthost/remote-downloads/` 再经连接上传（`exthost/upload`）。状态栏显示进度。装在远端数据目录的 `exthost/runtimes/<id>/`，校验 SHA-256 后原子改名就位。
-- **启动**：`exthost/start` 在远端启动 VS Code server（只监听 127.0.0.1），应用经 `tcp/connect` 端口转发连上它；连接断开时它也结束，重连后重新启动。
-- **插件在哪边运行**：按 `extensionKind`（插件清单、设置 `remote.extensionKind`、运行时 product.json 的 `extensionKind`/`extensionPointExtensionKind`）。`workspace` 类（TypeScript、Python、调试器等）在远端的插件宿主运行，`ui` 类（VSCodeVim、主题等）在本机的插件宿主运行。远端宿主 `isRemote`，authority 是 `ssh-remote+<主机>`，URI 按上游的 URI 转换器转换。
-- **插件同步**（与上游不同，上游要用户手动安装到远端）：本机装的、会在远端运行的插件自动装到远端（Open VSX 上远端平台的包；.vsix 装的则把文件夹打包上传，`exthost/stage`），本机卸载的远端也卸载。
-- **路径一律用 POSIX 格式**（`p.posix`），远端宿主里的 URI 是 `file:///home/...`；本机宿主看到的是 `vscode-remote://ssh-remote+<主机>/home/...`。
-- **任务、终端、调试**都在远端：任务和调试器的终端开在远端的 PTY 上，调试适配器由远端宿主里的插件启动。
+- **LSP 客户端留在本机**，服务端只负责启动语言服务器进程、转发它的 stdin/stdout 字节（`process/*`）。
+- **processId** 告诉语言服务器的是服务端的 pid（`hello.pid`），服务端退出时语言服务器也会退出。
+- **路径一律用 POSIX 格式**（`p.posix`），URI 是 `file:///home/...`。
+- **项目根目录查找是异步的**：要逐级到远端看标记文件存不存在。
+- **安装**：缺少的语言服务器用 mason 在远端安装，安装计划也由服务端计算（`lsp/install`，进度以流返回），装在远端数据目录的 `lsp/servers/` 下。同一台主机的同一个包同时只装一次。
+- **重连后**会调用 `restartServers()`：重启语言服务器，并把打开的文件（含未保存的内容）重新发过去。
 
 ### 5.2 模型代理（端口转发）
 
@@ -288,11 +285,7 @@ Haiku 起标题和提交信息**不会**触发自动安装，远端没有 claude
 │   └── baocode-server          服务端二进制
 └── data/                       服务端的数据目录（各版本共用）
     ├── checkpoints/            Keep/Undo 的影子 git 仓库
-    ├── exthost/                插件运行时
-    │   ├── runtimes/<id>/      VSCodium REH（按清单 id）
-    │   ├── data/               VS Code server 的数据：远端装的插件、存储、日志
-    │   ├── uploads/            本机上传中的运行时
-    │   └── staged/             上传待装的 .vsix
+    ├── lsp/servers/            mason 装的语言服务器
     ├── claude/                 BaoCode 装的 Claude Code（只在用户自己没有时）
     │   ├── CURRENT             在用的版本号
     │   ├── claude-<版本>
@@ -311,9 +304,9 @@ Haiku 起标题和提交信息**不会**触发自动安装，远端没有 claude
 
 - **传输**：服务端进程的 stdin/stdout，一行一条 JSON-RPC 2.0 消息（`RpcPeer`）。stderr 只用于日志。
 - **版本**：`RemoteProtocol.version`（目前是 1），握手时检查。因为每个应用构建在远端都有自己的服务端目录，正常情况下版本不会对不上。
-- **异常跨端传递**：服务端抛出的异常转成带 `data.type` 的错误（`RpcError.from`），应用侧再还原成同一种异常（`toException`）。例如 `IdeFileNotFoundException`、`IdeGitException`、`ClaudeUnavailable`、`ClaudeNotInstalled`、`ClaudeDownloadFailed`、`ExtHostRuntimeException`。其他异常变成 `RemoteException`，只保留消息文本。
+- **异常跨端传递**：服务端抛出的异常转成带 `data.type` 的错误（`RpcError.from`），应用侧再还原成同一种异常（`toException`）。例如 `IdeFileNotFoundException`、`IdeGitException`、`ClaudeUnavailable`、`ClaudeNotInstalled`、`ClaudeDownloadFailed`、`LspInstallException`。其他异常变成 `RemoteException`，只保留消息文本。
 - **流**（监听、搜索、安装进度）：请求返回流 id，数据用 `stream/data` 通知发送，结束是 `stream/done` 或 `stream/error`，应用可以用 `stream/cancel` 提前结束。
-- **进程**（Claude、命令）：`process/start` 返回 id 和 pid，输出用 `process/output`，退出用 `process/exit`。连接断开时，应用这边所有进程按退出码 `-1`（`RemoteProcess.lostExitCode`）处理。
+- **进程**（Claude、语言服务器、命令）：`process/start` 返回 id 和 pid，输出用 `process/output`，退出用 `process/exit`。连接断开时，应用这边所有进程按退出码 `-1`（`RemoteProcess.lostExitCode`）处理。
 - **字节**：用 base64 放在 JSON 里（`encodeBytes` / `decodeBytes`）。
 
 方法分组（完整列表见 `protocol.dart`）：
@@ -327,8 +320,8 @@ Haiku 起标题和提交信息**不会**触发自动安装，远端没有 claude
 | Claude Code | `claude/start`、`locate`、`projects`、`read`、`delete`、`usageOffBy`、`install`、`upload` |
 | 改动审查 | `review/open`、`review/call` |
 | 终端 | `pty/start`、`write`、`resize`、`kill`、`profiles`；通知 `output`、`exit` |
-| 插件运行时 | `exthost/install`、`upload`、`start`、`stage`、`unstage` |
-| 端口转发 | `tcp/listen`、`unlisten`、`open`、`data`、`close`；本机连远端端口 `tcp/connect` |
+| 语言服务器 | `lsp/locate`、`install`、`installed`、`uninstall` |
+| 端口转发 | `tcp/listen`、`unlisten`、`open`、`data`、`close` |
 
 ---
 
@@ -397,16 +390,15 @@ dart run tool/build_remote_server.dart --all        # 四份没编全就失败�
 
 ## 11. 测试
 
-**规则：日常不要运行真实的 ssh、Claude Code**，只用 mock 和 fixture；也不要跑 `e2e` 标签的测试。插件的真实运行时测试带 `exthost` 标签，单独运行（见 `docs/extensions.md`）。
+**规则：不要运行真实的 ssh、Claude Code、语言服务器**，只用 mock 和 fixture；也不要跑 `e2e`、`lsp-smoke` 标签的测试。
 
 | 文件 | 覆盖内容 |
 | --- | --- |
 | `test/remote/rpc_peer_test.dart` | JSON-RPC 收发、异常按类型还原、断线时未完成的请求失败、协议版本不一致 |
 | `test/remote/ssh_launcher_test.dart` | ssh 参数、探测、只上传一次、失败分类、Mac 主机拿到 macOS 版、不支持的系统、主机地址解析、`~/.ssh/config` 读取（用假的 ssh 进程） |
 | `test/remote/remote_server_test.dart` | 服务端各方法（内存中直连） |
-| `test/extensions/acceptance/ssh_remote_exthost_test.dart` | `exthost` 标签：内存服务端（本机扮演远端），远端装运行时、插件分边运行、TS、Vim、Python/Node 调试 |
-| `test/extensions/acceptance/ssh_docker_exthost_test.dart` | `exthost` 标签：真实 `ssh` 连到 Docker 里的 Debian（`test/fixtures/extensions/sshd`，临时密钥，不读 `~/.ssh`），运行时由本机上传，同上 |
-| `test/remote/remote_project_test.dart` | 应用侧端到端：location、连接状态和重连、文件监听跨重连、Git、终端、Claude 密钥处理、端口转发、会话、打开流程 |
+| `test/remote/remote_lsp_test.dart` | 远端 LSP 进程、mason 安装 |
+| `test/remote/remote_project_test.dart` | 应用侧端到端：location、连接状态和重连、文件监听跨重连、Git、终端、LSP 跨重连、Claude 密钥处理、端口转发、会话、打开流程 |
 | `test/remote/remote_claude_install_test.dart` | Claude 自动安装：远端下载、本机下载后上传、并发、校验失败、优先用用户自己的、进度界面；开发时编译服务端（macOS 版只在同架构的 Mac 上编） |
 | `test/remote/remote_binaries_test.dart` | 应用找服务端：目录里的二进制、按 `servers.json` 下载并校验和缓存、旧格式的 `servers.json`、macOS 版 |
 
@@ -447,7 +439,7 @@ flutter analyze
 | Claude Code is not at BAOCODE_CLAUDE_PATH | 远端设置了这个变量，但文件不存在 | 改对路径，或去掉这个变量 |
 | The connection to the remote host was lost | 对话进行中断线了 | 重连后再发一条消息，会接着原会话继续 |
 | 远端会话列表是空的 | 远端 `~/.claude/projects` 下没有这个路径的会话 | 确认远端的 claude 用的是同一个用户 |
-| 插件运行时装不上 | 远端和本机都下载不到，或校验不通过；远端是 musl 系统 | 检查 `dl.baocode.dev` 能不能访问；看 OUTPUT 的 Extension Host 频道 |
+| 语言服务器起不来 | 远端缺语言服务器的运行时（如 node），或 mason 安装失败 | 看语言状态里的提示；在远端装好对应的运行时 |
 
 调试时可以在远端手动执行服务端：`~/.baocode-server/<VERSION>/baocode-server`。它从 stdin 读 JSON-RPC，可以手动发 `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol":1}}` 看回复。
 
@@ -460,7 +452,7 @@ flutter analyze
 1. **准备**：一台 Linux x64 或 arm64 主机（或打开了“远程登录”的 Mac），`~/.ssh/config` 里配好别名，终端里 `ssh <别名>` 能免密登录。开发时直接 `flutter run`（会自动编译服务端），或先执行 `dart run tool/build_remote_server.dart`。
 2. **连接和引导安装**：通过“打开远程项目”连接，确认远端出现了 `~/.baocode-server/<VERSION>/baocode-server`，状态栏显示 `SSH: <别名>`；第二次连接不会再上传。
 3. **文件、Git、搜索、终端**：打开、编辑、保存文件；新建和删除文件；在远端另开 shell 改文件，界面会刷新；Git 面板的状态、暂存、提交；全文搜索；终端能输入，窗口大小和 shell 集成正常。
-4. **断线和重连**：断开网络或杀掉本机的 ssh 进程：状态栏变成“正在重连”，恢复后自动连上；文件监听恢复，插件宿主重启，未保存的修改还在。
+4. **断线和重连**：断开网络或杀掉本机的 ssh 进程：状态栏变成“正在重连”，恢复后自动连上；文件监听恢复，语言服务器重启，未保存的修改还在。
 5. **密码登录**：只开密码登录的主机会弹窗；输错会提示“不正确”再问；勾选记住后，退出应用再连不再弹窗，钥匙串里有 `BaoCode` 服务下 `ssh:<主机>:…` 的条目；在主机上改掉密码后再连，会重新弹窗，旧条目被删掉。可以用 Docker 起一个只允许密码登录的 sshd 来测。
 6. **失败场景**：取消密码弹窗、`known_hosts` 里没有的主机：应直接报错，不会一直重试，点状态栏可以重连。
 7. **Claude Code**：
@@ -470,7 +462,7 @@ flutter analyze
    - 用第三方模型服务对话时，在远端执行 `ps aux | grep claude`，参数里没有 key；对话结束后，`$XDG_RUNTIME_DIR/baocode-settings-*` 下没有残留文件；
    - 本机模型代理能通过端口转发使用；
    - 会话列表、删除会话、自动标题、Keep/Undo、提交信息都正常。
-8. **插件**：第一次打开时状态栏显示远端运行时的安装进度；打开 `.ts` 文件，诊断、补全、悬停、跳转都正常；本机装的 Python 插件会装到远端，断点调试正常；VSCodeVim 在本机运行，能编辑远端文件。
+8. **语言服务器**：在远程项目里打开 `.dart`、`.ts` 文件，缺的语言服务器会装到远端；诊断、悬停、跳转都正常。
 9. **退出**：远端有对话或终端在运行时退出应用，确认框里有远程的那一句；退出后远端没有残留的 `baocode-server` 和 claude 进程。
 10. **打包**：用 `tool/build_windows.dart` / `tool/build_macos.dart` 打包，确认包里有 `remote/VERSION`，安装后不需要源码目录也能连接。
 11. **Windows 客户端**：打开远程项目，重点检查文件树、标签页、搜索、Git 的路径（见第 15 节）。
@@ -483,7 +475,7 @@ flutter analyze
 ### 14.1 加一个新的远端功能
 
 1. 在 `packages/bao_remote/lib/src/protocol.dart` 里加方法名常量。方法或数据结构有**不兼容**的改动时，把 `RemoteProtocol.version` 加一。
-2. 在服务端注册处理函数：放在 `remote_server.dart` 的 `_register()` 里，功能大的话新建 `server_xxx.dart`（参考 `server_claude.dart`、`server_exthost.dart`）。需要持续返回数据的，用 `ServerStreams.open` 返回流 id。
+2. 在服务端注册处理函数：放在 `remote_server.dart` 的 `_register()` 里，功能大的话新建 `server_xxx.dart`（参考 `server_claude.dart`、`server_lsp.dart`）。需要持续返回数据的，用 `ServerStreams.open` 返回流 id。
 3. 在 `remote_client.dart` 里加对应的类型化方法。流用 `openStream`。
 4. 要让应用侧捕获某种特定异常时，在 `rpc_error.dart` 的 `from` 和 `toException` 里都加上。**子类要写在父类前面**（比如 `ClaudeNotInstalled` 要在 `ClaudeUnavailable` 前面）。
 5. 应用侧按 location 分流：本地走原来的实现，远程走 `SshHosts.instance[host]`。
@@ -494,7 +486,7 @@ flutter analyze
 - **`bao_remote` 不能依赖 Flutter**，否则服务端编不出来。改完后执行一下 `cd packages/bao_remote && dart analyze`。
 - **路径**：远端一律是 POSIX 路径。应用里要处理远端路径时，用 `RemoteLocation.pathsOf(location)` 或 `ProjectHost.paths`，**不要直接用 `package:path` 的顶层函数**（Windows 客户端上会按 Windows 路径处理，见第 15 节）。
 - **location 和主机上的路径**：存储和显示用 location（`ssh://...`）；传给远端服务和 IDE 内部用 `RemoteLocation.pathOf`。两者别混。
-- **断线**：长连接类的功能（监听）要用 `resilientStream` 包一层；有状态的功能（插件宿主）要监听 `SshHost.reconnected` 自己恢复。
+- **断线**：长连接类的功能（监听）要用 `resilientStream` 包一层；有状态的功能（语言服务器）要监听 `SshHost.reconnected` 自己恢复。
 - **密钥**：任何带凭据的东西都不能进命令行参数，也不能长期写在远端磁盘上。要传就走 `claude/start` 的 `settings` 那条路，或者放环境变量。
 - **改了服务端代码**，正式构建会生成新的 `VERSION`，开发构建会生成新的源码哈希，远端会自动换上新服务端，不需要手动清理。
 - **l10n**：新文案加到 `lib/l10n/app_en.arb` 和 `app_zh.arb`，然后执行 `flutter gen-l10n`。
@@ -503,7 +495,7 @@ flutter analyze
 
 ## 15. 已知限制与待办
 
-1. **Windows 客户端打开远程项目可能有路径问题**：IDE 里很多地方直接调用 `package:path` 的顶层函数，在 Windows 上会按反斜杠和盘符处理远端的 POSIX 路径。目前插件和 IDE 工作区处理了 POSIX 路径；文件树、标签页、搜索、Git 需要逐个改成用 `ProjectHost.paths`。
+1. **Windows 客户端打开远程项目可能有路径问题**：IDE 里很多地方直接调用 `package:path` 的顶层函数，在 Windows 上会按反斜杠和盘符处理远端的 POSIX 路径。目前只有 LSP 处理了 POSIX 路径；文件树、标签页、搜索、Git 需要逐个改成用 `ProjectHost.paths`。
 2. **服务端只支持 glibc**：`dart compile exe` 编出的 Linux 二进制在 Alpine 这类 musl 系统上跑不了。Claude Code 本身有 musl 版本，已经能正确选择。
 3. **旧版本服务端不会自动清理**：`~/.baocode-server/<旧VERSION>/` 会一直留着，每个约几十 MB。可以在连接成功后删掉其他版本的目录。
 4. **Haiku 不会触发 Claude 自动安装**：远端没有 claude 时，标题和提交信息会失败，等到第一次对话装好后才正常。

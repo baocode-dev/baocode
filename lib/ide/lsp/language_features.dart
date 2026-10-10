@@ -1,18 +1,18 @@
 import 'package:flutter/foundation.dart';
 
-import 'language_types.dart';
+import 'lsp_protocol.dart';
 
-/// What the editor asks of the language features, for one workspace: the
-/// extensions' providers (RegistryLanguageFeatures, merging their answers
-/// as upstream's registry orders them); tests use in-memory fakes.
+/// What the editor asks of language servers, for one workspace. The LSP
+/// manager implements it over every server attached to a document (merging
+/// answers in the language's server order); tests use in-memory fakes.
 ///
 /// Documents are addressed by absolute file path. Positions use the
-/// zero-based line and UTF-16 character, which the editor's
-/// [DocumentSnapshot] maps directly. Requests for a document no provider
+/// protocol's zero-based line and UTF-16 character, which the editor's
+/// [DocumentSnapshot] maps directly. Requests for a document no server
 /// serves complete with an empty answer. Every request reflects the
 /// document's latest synchronized text.
 ///
-/// Notifies when diagnostics or capabilities change.
+/// Notifies when diagnostics, server status, or capabilities change.
 abstract interface class LanguageFeatures implements Listenable {
   /// Diagnostics for [path] from every server, in server order.
   List<LspDiagnostic> diagnosticsFor(String path);
@@ -106,6 +106,15 @@ abstract interface class LanguageFeatures implements Listenable {
   /// `workspace/applyEdit` requests from servers: the editor applies each
   /// edit and completes with whether it did.
   Stream<LspApplyEditRequest> get workspaceEdits;
+
+  /// Servers for [path] and how they stand, for the status bar.
+  List<LanguageServerStatus> statusFor(String path);
+
+  /// Restarts a failed or stopped server now, resetting its backoff.
+  void retry(String serverId, {String? path});
+
+  /// Installs the package a missing server needs, then starts it.
+  Future<void> install(String serverId, {String? path});
 }
 
 enum LanguageRequest {
@@ -146,8 +155,56 @@ class LspApplyEditRequest {
   void onComplete(void Function(bool applied) callback) => _done.add(callback);
 }
 
-/// What the workspace tells the language features about its documents
-/// ([IdeWorkspace] calls it). Paths are
+enum LanguageServerState {
+  /// Not started yet (starts on the first document it serves).
+  idle,
+  starting,
+  running,
+
+  /// Stopped after being idle; starts again when needed.
+  stopped,
+
+  /// Crashed; restarting after a backoff (see [LanguageServerStatus.retryAt]).
+  restarting,
+
+  /// Gave up after repeated crashes, or could not start.
+  failed,
+
+  /// Its executable is not on PATH or installed.
+  missing,
+  installing,
+}
+
+class LanguageServerStatus {
+  const LanguageServerStatus({
+    required this.serverId,
+    required this.state,
+    this.message,
+    this.progress,
+    this.installable = false,
+    this.missingRuntime,
+    this.retryAt,
+  });
+
+  final String serverId;
+  final LanguageServerState state;
+
+  /// Why it failed, or what an install is doing.
+  final String? message;
+
+  /// A `$/progress` title and message from the server (e.g. indexing).
+  final String? progress;
+
+  /// Whether [LanguageFeatures.install] can install it.
+  final bool installable;
+
+  /// A runtime installing needs but is absent (`node`, `python3`, `go`).
+  final String? missingRuntime;
+  final DateTime? retryAt;
+}
+
+/// What the workspace tells the language servers about its documents
+/// (implemented by the LSP manager; [IdeWorkspace] calls it). Paths are
 /// absolute; versions increase with every change.
 abstract interface class LanguageDocumentSync {
   /// [path] was opened with [text].
@@ -168,7 +225,7 @@ abstract interface class LanguageDocumentSync {
 
   void closeDocument(String path);
 
-  /// Ends the sync; the workspace calls it when disposed. Later documents
-  /// are ignored.
+  /// Stops every server; the workspace calls it when disposed. Later
+  /// documents are ignored.
   Future<void> shutdown();
 }
