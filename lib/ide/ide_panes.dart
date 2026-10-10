@@ -13,18 +13,20 @@
 // Adapted from VS Code 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/base/browser/ui/splitview/paneview.ts and paneview.css, and
 // contrib/modernUI/browser/media (paneHeaders.css, padding.css and
-// fontRamp.css: inset rounded headers tinted on hover, an inset separator,
-// 12px semibold titles as cased), with the color theme's
+// fontRamp.css: inset rounded headers tinted on hover, a separator, 12px
+// semibold titles as cased), with the color theme's
 // `sideBarSectionHeader.*` colors.
 //
 // Deviations: panes cannot be dragged to reorder, nor hidden from the
-// container's menu.
+// container's menu. The separator runs edge to edge in `panel.border`, as
+// the side bars' other dividers, not inset in `sideBarSectionHeader.border`.
 
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart' show AppColors;
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_hover.dart';
@@ -66,11 +68,9 @@ abstract final class IdePaneColors {
   static Color get headerForeground =>
       themeColors['sideBarSectionHeader.foreground'];
 
-  /// The inset separator: `sideBarSectionHeader.border`, else
-  /// `surface.border`.
-  static Color get border =>
-      themeColors.get('sideBarSectionHeader.border') ??
-      themeColors['surface.border'];
+  /// The separator: `panel.border`, as the side bars' other dividers and
+  /// sashes ([AppColors.border]).
+  static Color get border => AppColors.border;
 
   /// Modern UI tints a header on hover.
   static Color get hoverBackground => themeColors['list.hoverBackground'];
@@ -391,10 +391,10 @@ class _PaneViewState extends State<_PaneView> {
             Stack(
               children: [
                 header,
-                // The separator: a line inset 4px within the header.
+                // The separator, edge to edge.
                 Positioned(
-                  left: 8,
-                  right: 8,
+                  left: 0,
+                  right: 0,
                   top: 0,
                   height: 1,
                   child: ColoredBox(color: IdePaneColors.border),
