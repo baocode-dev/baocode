@@ -334,10 +334,12 @@ void main() {
       'the key goes as x-api-key to Anthropic, a bearer token elsewhere',
       () {
         expect(upstreamHeaders(at('https://api.anthropic.com'), 'k'), {
+          'user-agent': claudeCodeUserAgent,
           'anthropic-version': '2023-06-01',
           'x-api-key': 'k',
         });
         expect(upstreamHeaders(at('https://gw.example'), 'k'), {
+          'user-agent': claudeCodeUserAgent,
           'anthropic-version': '2023-06-01',
           'authorization': 'Bearer k',
         });
@@ -353,9 +355,10 @@ void main() {
             at('https://api.openai.com', ProviderProtocol.openaiChat),
             'k',
           ),
-          {'authorization': 'Bearer k'},
+          {'user-agent': claudeCodeUserAgent, 'authorization': 'Bearer k'},
         );
         expect(upstreamHeaders(at('https://gw.example'), ''), {
+          'user-agent': claudeCodeUserAgent,
           'anthropic-version': '2023-06-01',
         });
       },

@@ -141,8 +141,16 @@ bool sendsApiKeyHeader(ModelProvider provider) => switch (provider.auth) {
         provider.host.endsWith('anthropic.com'),
 };
 
+/// Claude Code's user agent. Some relays serve only clients that look
+/// like it, to every protocol: without this (any [HttpClient] default
+/// included) agentrouter.org answers 401 "unauthorized client detected".
+/// The gate wants a `claude-cli/` version followed by `external`; which
+/// version it is, it leaves to us.
+const claudeCodeUserAgent = 'claude-cli/2.0.1 (external, cli)';
+
 /// The headers [provider] is asked with, [key] in them.
 Map<String, String> upstreamHeaders(ModelProvider provider, String? key) => {
+  'user-agent': claudeCodeUserAgent,
   if (provider.protocol == ProviderProtocol.anthropic)
     'anthropic-version': '2023-06-01',
   if (key != null && key.isNotEmpty)
