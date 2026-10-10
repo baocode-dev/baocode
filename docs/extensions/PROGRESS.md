@@ -206,6 +206,25 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   README, docs/ssh-remote.md, docs/auto-update.md and bao_editor's PARITY/PORTING/HANDOFF updated.
 - IoExtHostSocket holds writes while it flushes (Dart's IOSink throws on `add` during `flush`): a reply written
   while a terminate was drained used to escape as an error (`socket_test.dart`).
+- A crashed extension host is told as upstream does (a notification with Restart Extension Host; the automatic
+  restarts follow `ExtensionHostCrashTracker`). A later search provider for a scheme replaces the earlier one. A
+  workbench made after the extensions started attaches to them (it crashed before).
+- Built-in extensions stay out of the Installed list; `@builtin` lists them, as upstream.
+- Decorations: a whole-line decoration's `before`/`after` content goes at its lines' first and last columns (upstream's
+  inline decorations), and CSS declarations written into a content's `textDecoration` apply in the rule's order
+  (Error Lens' messages sat at the diagnostic and were unstyled).
+- `contributes.colors` register with their defaults (light, dark, high contrast falling back as upstream), so
+  extensions' `ThemeColor`s resolve (Error Lens' text was transparent).
+- `contributes.icons` register: another icon's id, or a font character loaded under its font id (extension id + font
+  path). Status bar, labels, tree items, SCM decorations, menu and quick input buttons and activity bar containers
+  show them (GitLens' `$(gitlens-graph)` showed as text).
+- Found in the offscreen screenshots: a tree item's label and description are one line cut off at its end (side by
+  side each had half the row, Todo Tree's "Scan mode: …"); an Extensions view row's name and publisher take their row
+  (a Spacer took half); installed extensions show their icons, read from their folder as upstream's `iconUrl` points
+  there (the server lists only the manifest; a remote host's folders are not read).
+- A remote window's search reached this machine's ripgrep (`spawn rg ENOENT` on the remote path): this machine's host
+  registered its provider for `file`, replacing the remote host's. Search provider and document selector schemes now
+  go through the connection's URI transformer, as its URIs do (this machine's `file` is `vscode-local` there).
 
 ## In progress / next
 
@@ -242,7 +261,7 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   Remote (SSH) terminals do not get an extension's `env` or the environment collections.
 - `TerminalShellExecution.read()` is cut from the process data at the OSC 633/133 `C`/`D` sequences rather than from
   xterm's post-parse data events, so a fast command's output is not lost when C, output and D arrive in one chunk.
-- `test/ide/terminal/terminal_color_theme_test.dart` fails on the branch base too (pixel sampling).
+- `test/ide/terminal/terminal_color_theme_test.dart` fails on the branch base and on main too (pixel sampling).
 - SCM: no quick diff, history or artifact providers from extensions (BaoCode's gutter and graph read Git); the input
   box is a plain text field (no `vscode-sourcecontrol:` model); resources are a list (no tree mode), single selection.
   Calls to actors BaoCode does not implement at all are counted in `ExtHostParity` as `Actor.$method`.
@@ -291,5 +310,12 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   machine's ui host gets no remote authority (`vscode.env.remoteName` is undefined there; upstream says the remote's).
   The host's VS Code server lives as long as the connection: a lost connection restarts both. Handle-keyed registries
   shared by both hosts (SCM, tree views) key by handle only; language features keep each host's handles apart.
+- Contributed colors and icons: an invalid entry skips the rest of its extension's (upstream ends the delta's
+  handling). A contributed font stays loaded once its extension goes (Flutter cannot unload one). Extension icons are
+  glyphs painted as text, not `IconData` (whose values must be constants for icon tree shaking); CodeLens titles keep
+  codicons only (bao_editor's API takes `IconData`).
+- Schemes an extension host names (search providers, document selectors, edit session identity and canonical URI
+  providers) are transformed on the app's side (`RpcProtocol.transformIncomingScheme`); upstream's extension host
+  transforms them before sending, but ours knows no remote authority.
 - A Linux host's extension host offers its port finder (`$setRemoteTunnelService`); with no Ports view upstream's
   ports features stay disabled, so it is never asked (`$registerCandidateFinder`). No port forwarding for extensions.

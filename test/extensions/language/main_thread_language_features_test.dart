@@ -187,6 +187,43 @@ void main() {
     });
   });
 
+  test("this machine's host's selector scheme in a remote window is "
+      'vscode-local', () async {
+    // There `file:` is the remote host's; upstream's extension host sends
+    // its selectors transformed.
+    final (a, b) = _Pipe.pair();
+    final remoteRpc = RpcProtocol(
+      a,
+      actorNames: proxyIdentifierNames,
+      uriTransformer: createUriTransformer('ssh-remote+box'),
+    );
+    final hostRpc = RpcProtocol(b, actorNames: proxyIdentifierNames);
+    remoteRpc.set(
+      MainContext.mainThreadLanguageFeatures.nid,
+      MainThreadLanguageFeaturesActor(
+        MainThreadLanguageFeatures(root: root, proxy: remoteRpc),
+      ),
+    );
+    await hostRpc.call(
+      MainContext.mainThreadLanguageFeatures.nid,
+      r'$registerHoverProvider',
+      [
+        1,
+        [
+          {'language': 'typescript', 'scheme': 'file'},
+        ],
+      ],
+    );
+    LanguageFeatureDocument at(VsUri uri) => ExtHostDocumentMirror(
+      uri: uri,
+      languageId: 'typescript',
+      text: '',
+    );
+    final hovers = root.service.hoverProvider;
+    expect(hovers.has(at(VsUri.file('/w/a.ts'))), isFalse);
+    expect(hovers.has(at(VsUri('vscode-local', path: '/w/a.ts'))), isTrue);
+  });
+
   group('completion', () {
     test('inflates the compact ISuggestDataDto and resolves by cache id',
         () async {

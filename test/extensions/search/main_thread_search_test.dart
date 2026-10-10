@@ -186,6 +186,23 @@ void main() {
     );
   });
 
+  test("this machine's host in a remote window searches vscode-local, "
+      "not the remote host's file", () async {
+    // Both hosts register their ripgrep provider for `file`; the remote
+    // one's must keep the window's `file`.
+    harness = MainThreadHarness(
+      folder: temp,
+      uriTransformer: createUriTransformer('ssh-remote+box'),
+    );
+    await harness.call(
+      MainContext.mainThreadSearch,
+      r'$registerFileSearchProvider',
+      [6, 'file'],
+    );
+    expect(harness.search.hasProvider('vscode-local', QueryType.file), isTrue);
+    expect(harness.search.hasProvider('file', QueryType.file), isFalse);
+  });
+
   test('an AI provider is registered for its scheme', () async {
     harness = MainThreadHarness(folder: temp);
     await harness.call(

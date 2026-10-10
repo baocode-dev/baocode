@@ -155,6 +155,14 @@ final class RpcProtocol {
     null => value,
   };
 
+  /// What a scheme the other side names (a provider's, a selector's) is
+  /// on this side: the scheme of its URIs, transformed as they are.
+  String transformIncomingScheme(String scheme) => switch (uriTransformer) {
+    final t? =>
+      t.transformIncoming({'scheme': scheme, 'path': '/'})['scheme']! as String,
+    null => scheme,
+  };
+
   /// What is sent of [value], its URIs transformed.
   Object? _outgoing(Object? value) => switch (uriTransformer) {
     final transformer? => _transformOutgoing(value, transformer, 0),

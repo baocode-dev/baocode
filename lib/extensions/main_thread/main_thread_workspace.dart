@@ -41,7 +41,8 @@ final class MainThreadWorkspace extends MainThreadWorkspaceUnsupported {
     this.trust,
     this.save,
     this.network,
-  }) : _proxy = ExtHostWorkspaceProxy(rpc) {
+  }) : _proxy = ExtHostWorkspaceProxy(rpc),
+       _rpc = rpc {
     workspace.addListener(_onDidChangeWorkspace);
     _trustChanges = trust?.onDidChangeTrust.listen((trusted) {
       if (trusted) _send(_proxy.$onDidGrantWorkspaceTrust());
@@ -249,12 +250,14 @@ final class MainThreadWorkspace extends MainThreadWorkspaceUnsupported {
   /// Edit session identity providers, by handle: their schemes.
   final editSessionProviders = <int, String>{};
 
+  final RpcProtocol _rpc;
+
   /// Canonical URI providers, by handle: their schemes.
   final canonicalUriProviders = <int, String>{};
 
   @override
   void $registerEditSessionIdentityProvider(num handle, String scheme) =>
-      editSessionProviders[handle.toInt()] = scheme;
+      editSessionProviders[handle.toInt()] = _rpc.transformIncomingScheme(scheme);
 
   @override
   void $unregisterEditSessionIdentityProvider(num handle) =>
@@ -262,7 +265,7 @@ final class MainThreadWorkspace extends MainThreadWorkspaceUnsupported {
 
   @override
   void $registerCanonicalUriProvider(num handle, String scheme) =>
-      canonicalUriProviders[handle.toInt()] = scheme;
+      canonicalUriProviders[handle.toInt()] = _rpc.transformIncomingScheme(scheme);
 
   @override
   void $unregisterCanonicalUriProvider(num handle) =>

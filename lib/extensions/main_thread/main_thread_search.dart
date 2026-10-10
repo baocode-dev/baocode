@@ -10,6 +10,10 @@
 // Deviations:
 // - No `searchContext.hasAIResultProvider` context key and no telemetry
 //   (`$handleTelemetry` is dropped: the app sends none).
+// - A provider's scheme goes through the connection's URI transformer, as
+//   its URIs do: this machine's host in a remote window registers `file`,
+//   which there is `vscode-local` (upstream's extension host transforms it
+//   itself; ours knows no authority), not the remote host's `file`.
 
 import 'dart:async';
 
@@ -21,7 +25,8 @@ import 'main_thread_context.dart';
 
 final class MainThreadSearch extends MainThreadSearchUnsupported {
   MainThreadSearch({required RpcProtocol rpc, required this.search})
-    : _proxy = ExtHostSearchProxy(rpc) {
+    : _proxy = ExtHostSearchProxy(rpc),
+      _rpc = rpc {
     // The extension host's own ripgrep providers for `file`.
     unawaited(_proxy.$enableExtensionHostSearch().catchError((Object _) {}));
   }
@@ -33,6 +38,7 @@ final class MainThreadSearch extends MainThreadSearchUnsupported {
   }
 
   final ExtHostSearchProxy _proxy;
+  final RpcProtocol _rpc;
   final SearchService search;
   final _providers = <int, RemoteSearchProvider>{};
   final _aiProviders = <int>{};
@@ -51,7 +57,13 @@ final class MainThreadSearch extends MainThreadSearchUnsupported {
   void _register(num handle, String scheme, int type) {
     final h = handle.toInt();
     _providers.remove(h)?.dispose();
-    _providers[h] = RemoteSearchProvider(search, type, scheme, h, _proxy);
+    _providers[h] = RemoteSearchProvider(
+      search,
+      type,
+      _rpc.transformIncomingScheme(scheme),
+      h,
+      _proxy,
+    );
   }
 
   @override

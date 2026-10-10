@@ -106,10 +106,15 @@ final class MainThreadHarness {
     WorkspaceFoldersPort? folders,
     bool withParticipants = true,
     this.activationTimeout = const Duration(milliseconds: 300),
+    UriTransformer? uriTransformer,
   }) {
     final (hostSide, appSide) = TestMessagePassing.pair();
     host = RpcProtocol(hostSide, actorNames: proxyIdentifierNames);
-    app = RpcProtocol(appSide, actorNames: proxyIdentifierNames);
+    app = RpcProtocol(
+      appSide,
+      actorNames: proxyIdentifierNames,
+      uriTransformer: uriTransformer,
+    );
     workspace = WorkspaceContextService(
       ExtHostWorkspace.folder(folder.path),
       isMultiRoot: isMultiRoot,

@@ -97,13 +97,17 @@ final class MainThreadLanguageFeatures extends MainThreadLanguageFeaturesUnsuppo
 
 
   /// The selector of [selector], with upstream's `DocumentSelector.from`
-  /// reading of the DTOs.
+  /// reading of the DTOs. Its scheme is transformed as the host's URIs are
+  /// (upstream's extension host sends it transformed).
   LanguageSelector? _selector(List<Map<String, Object?>> selector) =>
       LanguageSelector.parse([
         for (final filter in selector)
           {
             'language': filter['language'],
-            'scheme': filter['scheme'],
+            'scheme': switch (filter['scheme']) {
+              final String scheme => _rpc.transformIncomingScheme(scheme),
+              final other => other,
+            },
             'pattern': _pattern(filter['pattern']),
             'exclusive': filter['exclusive'] == true,
             'notebookType': filter['notebookType'],
