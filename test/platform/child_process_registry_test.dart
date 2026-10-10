@@ -64,14 +64,14 @@ void main() {
     // Another copy of the app, writing just now.
     aside('claude-processes.json.222.tmp');
     // Not the list's.
-    aside('lsp-processes.json.111.tmp', modified: old);
+    aside('pty-processes.json.111.tmp', modified: old);
     aside('claude-processes.json.bak', modified: old);
 
     await registry().reaped;
     expect(names(), [
       'claude-processes.json.222.tmp',
       'claude-processes.json.bak',
-      'lsp-processes.json.111.tmp',
+      'pty-processes.json.111.tmp',
     ]);
   });
 

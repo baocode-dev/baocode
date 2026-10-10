@@ -15,7 +15,7 @@ import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_them
 import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_theme_token_styles.dart';
 import 'package:bao_editor/textmate/textmate_manifest.dart';
 
-import '../lsp/lsp_protocol.dart';
+import '../language/language_types.dart';
 
 /// What a semantic token sets on the syntax style under it; a null field
 /// keeps the syntax span's value. Upstream these are the `SEMANTIC_USE_*`

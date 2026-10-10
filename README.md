@@ -17,11 +17,12 @@ BaoCode has no agent of its own, by design. Claude Code is the agent, and its ec
 - **An interface made for reading.** Reads, searches and commands fold into single lines. Keep or Undo each change Claude made, file by file; checkpoints live in BaoCode's own data folder, never in your repository's `.git`.
 - **Goals.** Type `/goal` and what you want done, and Claude keeps working until it is met, with the goal and its progress above the input.
 - **A rich-text input.** Code copied from the editor arrives as a reference to its file and lines; pasted images and dropped files sit where you put them in the sentence.
-- **Fast IDE.** An editor, a terminal and Source Control with a commit graph, built in. Claude Code drafts your commit messages. VS Code, IntelliJ, Sublime and Atom keymaps, and language servers.
+- **Fast IDE.** An editor, a terminal and Source Control with a commit graph, built in. Claude Code drafts your commit messages. VS Code, IntelliJ, Sublime and Atom keymaps.
+- **VS Code extensions.** Language support, debuggers, themes, icon themes, linters and formatters from Open VSX, run by VS Code's own extension host (downloaded the first time it is needed). Install a .vsix, or import your VS Code and Cursor extensions.
 - **Your VS Code themes.** The editor, the conversation and the sidebar all follow them.
 - **Skills, MCP servers and more.** Plugins, MCP servers, skills, subagents, rules, commands and hooks in one place, for you or for a single project.
 - **Any model.** Add an upstream that speaks Anthropic's API, OpenAI's Chat Completions or OpenAI's Responses; a local proxy translates between it and Claude Code. Keys stay in the system keychain.
-- **Remote projects over SSH.** The window stays on your machine; files, Git, search, terminals, language servers and Claude Code run on the remote host (Linux, x64 or arm64).
+- **Remote projects over SSH.** The window stays on your machine; files, Git, search, terminals, extensions and Claude Code run on the remote host (Linux, x64 or arm64).
 - **Notifications.** A system notification, a sound and a badge when an agent needs you or finishes. Close the window and the agents keep running in the menu bar or tray.
 - **Updates itself** in the background, or manually, or not at all.
 

@@ -9,12 +9,10 @@ import 'package:path/path.dart' as p;
 import '../ide/file_service.dart';
 import '../ide/git/git_repository.dart';
 import '../ide/git/repository_scan.dart';
-import '../ide/lsp/language_features.dart';
 import '../ide/terminal/terminal_instance.dart';
 import 'project_host.dart';
 import 'remote_binaries.dart';
 import 'remote_location.dart';
-import 'remote_lsp.dart';
 import 'remote_services.dart';
 import 'ssh_passwords.dart';
 
@@ -101,9 +99,6 @@ class SshHost extends ChangeNotifier implements ProjectHost {
       );
 
   @override
-  LanguageFeatures languages(String root) => RemoteLspManager(this, root);
-
-  @override
   TerminalBackend terminals(TerminalBackend local) =>
       _terminals ??= remoteTerminalBackend(this);
   TerminalBackend? _terminals;
@@ -150,7 +145,8 @@ class SshHost extends ChangeNotifier implements ProjectHost {
   }
 
   /// Each connection made after a lost one: what ran over the old one
-  /// (language servers, open files) is to be started or read again.
+  /// (the extension runtime's server, open files) is to be started or
+  /// read again.
   Stream<RemoteClient> get reconnected => _reconnected.stream;
 
   /// The client, connecting if need be; throws what connecting failed with.

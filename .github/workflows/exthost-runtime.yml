@@ -1,0 +1,129 @@
+# Publishes the extension runtime (VSCodium's REH, repacked by
+# tool/build_exthost_runtime.dart) to dl.baocode.dev, where the app
+# downloads it on demand: releases/exthost/<id>/, <id> being
+# assets/exthost/exthost_runtimes.json's (<version>-<hash of the builds>).
+#
+#   git push origin v1.2.0           with a release: uploads the runtime the
+#                                    tag's manifest names, unless it is there
+#   Actions → Extension runtime → Run workflow
+#                                    builds and checks only
+#
+# Only ever adds: a folder that has anything in it is left alone (a new
+# runtime is a new <id>), and nothing is deleted. The build is checked
+# against the committed manifest first, so what is uploaded is what the app
+# checks downloads against; a build that differs fails (commit the manifest
+# the tool wrote, or build where it was built: same Dart, a Mac on Apple
+# silicon as here).
+name: Extension runtime
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: exthost-runtime
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.47.5
+
+jobs:
+  plan:
+    name: Is the runtime published?
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.plan.outputs.id }}
+      served: ${{ steps.plan.outputs.served }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        name: Read the manifest, and ask the CDN for its files
+        run: |
+          id=$(jq -r .id assets/exthost/exthost_runtimes.json)
+          served=true
+          for url in $(jq -r '.platforms[].url' assets/exthost/exthost_runtimes.json); do
+            if ! curl -fsSI "$url" > /dev/null; then served=false; fi
+          done
+          echo "Runtime $id, served: $served"
+          { echo "id=$id"; echo "served=$served"; } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and check the runtime
+    needs: plan
+    if: needs.plan.outputs.served != 'true' || github.event_name == 'workflow_dispatch'
+    # Where the committed manifest was built (Apple silicon): the archives'
+    # bytes depend on the zlib the Dart SDK carries.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: Build the five platforms, the same as the manifest says
+        run: dart run tool/build_exthost_runtime.dart --out build/exthost-runtime --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exthost-runtime
+          if-no-files-found: error
+          path: |
+            build/exthost-runtime/exthost_runtimes.json
+            build/exthost-runtime/baocode-exthost-*
+
+  publish:
+    name: Upload to dl.baocode.dev
+    needs: [plan, build]
+    if: github.ref_type == 'tag' && needs.plan.outputs.served != 'true'
+    runs-on: ubuntu-latest
+    # The R2 token is this environment's secret (v* tags only).
+    environment: release
+    env:
+      ID: ${{ needs.plan.outputs.id }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: exthost-runtime
+          path: out
+      - name: Check the files against the committed manifest
+        run: |
+          cmp out/exthost_runtimes.json assets/exthost/exthost_runtimes.json
+          jq -r '.platforms[] | "\(.sha256)  out/\(.file)"' assets/exthost/exthost_runtimes.json | sha256sum -c -
+      - name: Upload, unless the folder has anything in it
+        run: |
+          prefix="releases/exthost/$ID/"
+          case "$ID" in ''|*/*|.*) echo "::error::Bad id '$ID'"; exit 1;; esac
+          count=$(aws s3api list-objects-v2 --bucket "$R2_BUCKET" --prefix "$prefix" --max-keys 1 --query 'KeyCount' --output text)
+          if [ "$count" != "0" ]; then
+            echo "::notice::$prefix already has files: nothing uploaded"
+            exit 0
+          fi
+          for file in $(jq -r '.platforms[].file' assets/exthost/exthost_runtimes.json); do
+            case "$file" in *.zip) type=application/zip;; *) type=application/gzip;; esac
+            # Never over an object (if one appeared meanwhile, this fails).
+            aws s3api put-object --bucket "$R2_BUCKET" --key "$prefix$file" \
+              --body "out/$file" --if-none-match '*' \
+              --cache-control 'public, max-age=31536000, immutable' \
+              --content-type "$type"
+          done
+      - name: Check the downloads are served
+        run: |
+          jq -r '.platforms[] | "\(.url) \(.size)"' assets/exthost/exthost_runtimes.json |
+          while read -r url expected; do
+            served=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')
+            echo "$url: $served bytes (expected $expected)"
+            [ "$served" = "$expected" ] || { echo "::error::$url is not served as uploaded"; exit 1; }
+          done

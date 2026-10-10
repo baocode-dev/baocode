@@ -219,6 +219,46 @@ final Map<String, CommandInfo> commandCatalog = {
       category: 'Terminal',
     ),
     const CommandInfo(
+      'workbench.action.tasks.runTask',
+      'Run Task',
+      category: 'Tasks',
+    ),
+    const CommandInfo(
+      'workbench.action.tasks.build',
+      'Run Build Task',
+      category: 'Tasks',
+    ),
+    const CommandInfo(
+      'workbench.action.tasks.test',
+      'Run Test Task',
+      category: 'Tasks',
+    ),
+    const CommandInfo(
+      'workbench.action.tasks.reRunTask',
+      'Rerun Last Task',
+      category: 'Tasks',
+    ),
+    const CommandInfo(
+      'workbench.action.tasks.restartTask',
+      'Restart Running Task',
+      category: 'Tasks',
+    ),
+    const CommandInfo(
+      'workbench.action.tasks.terminate',
+      'Terminate Task',
+      category: 'Tasks',
+    ),
+    const CommandInfo(
+      'workbench.action.tasks.showLog',
+      'Show Task Log',
+      category: 'Tasks',
+    ),
+    const CommandInfo(
+      'workbench.action.tasks.configureTaskRunner',
+      'Configure Task',
+      category: 'Tasks',
+    ),
+    const CommandInfo(
       'workbench.action.terminal.kill',
       'Kill the Active Terminal Instance',
       category: 'Terminal',
@@ -331,11 +371,6 @@ final Map<String, CommandInfo> commandCatalog = {
       'baocode.ide.toggleFormatOnSave',
       'Toggle Format on Save',
       category: 'Preferences',
-    ),
-    const CommandInfo(
-      'baocode.ide.retryLanguageServices',
-      'Retry Language Services',
-      category: 'Developer',
     ),
     const CommandInfo(
       'baocode.ide.backToChat',
@@ -540,6 +575,12 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
   const KeybindingEntry(
     key: 'ctrl+shift+`',
     command: 'workbench.action.terminal.new',
+  ),
+  const KeybindingEntry(
+    mac: 'shift+cmd+b',
+    win: 'ctrl+shift+b',
+    linux: 'ctrl+shift+b',
+    command: 'workbench.action.tasks.build',
   ),
   const KeybindingEntry(
     mac: 'shift+cmd+]',

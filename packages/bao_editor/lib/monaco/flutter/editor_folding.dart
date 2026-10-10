@@ -100,6 +100,13 @@ class EditorFoldingModel {
 
   bool get hasCollapsed => !_hidden.isEmpty;
 
+  /// Drops regions when a syntax provider is removed, before indentation
+  /// ranges are recomputed; recovered provider folds must not linger.
+  void clearRegions() {
+    _setRanges(const []);
+    _stale = true;
+  }
+
   /// Tracks [snapshot]; returns true when hidden lines changed. With
   /// [shiftRegions] false (for a caller that recomputes right away and has
   /// nothing collapsed), the O(document) edit diff is skipped.
@@ -145,17 +152,27 @@ class EditorFoldingModel {
   bool recompute({
     required int tabSize,
     FoldingRules? rules,
+    List<FoldRange>? providedRanges,
     List<TextSelection> selections = const [],
   }) {
     final snapshot = _snapshot;
     if (snapshot == null) return false;
     _stale = false;
-    final computed = computeRanges(
-      _SnapshotLines(snapshot),
-      rules?.offSide ?? false,
-      markers: rules?.markers,
-      tabSize: tabSize < 1 ? 1 : tabSize,
-    );
+    final computed = providedRanges == null
+        ? computeRanges(
+            _SnapshotLines(snapshot),
+            rules?.offSide ?? false,
+            markers: rules?.markers,
+            tabSize: tabSize < 1 ? 1 : tabSize,
+          )
+        : [
+            for (final range in providedRanges)
+              FoldRange(
+                startLineNumber: range.startLineNumber,
+                endLineNumber: range.endLineNumber,
+                type: range.type,
+              ),
+          ];
     final collapsed = <FoldRange>[
       for (var i = 0; i < _regions.length; i++)
         if (_regions.isCollapsed(i)) _regions.toFoldRange(i),

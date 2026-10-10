@@ -883,7 +883,6 @@ void main() {
       );
 
       test('an account out of quota gives way to the next', () async {
-        final resets = now.add(const Duration(hours: 2));
         openai.reply = (path, headers, body) {
           if (path == '/oauth/token') {
             return tokens('access-${form(body)['refresh_token']}');
@@ -905,6 +904,8 @@ void main() {
               : (200, const {}, _stream);
         };
         final answer = await ask();
+        // The accounts here keep the real time: two hours from the reply.
+        final resets = DateTime.now().add(const Duration(hours: 2));
         expect(answer.status, 200);
         expect(
           openai

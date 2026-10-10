@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart';
-import '../lsp/lsp_protocol.dart';
+import '../language/language_types.dart';
 
 // Completion and symbol kinds as VS Code draws them: `CompletionItemKinds`
 // and `SymbolKinds.toIcon` of src/vs/editor/common/languages.ts, colored by

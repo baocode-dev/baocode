@@ -17,6 +17,7 @@ abstract final class PtyProcesses {
     required int rows,
     required bool shellIntegration,
     TerminalShell? shell,
+    TerminalEnvironmentRequest? environment,
   }) async => throw _unsupported;
 
   static Future<TerminalProfiles> terminalProfiles({

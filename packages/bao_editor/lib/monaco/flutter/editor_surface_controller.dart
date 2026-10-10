@@ -25,6 +25,7 @@ import '../vs/editor/contrib/smartSelect/browser/smart_select.dart';
 import '../vs/editor/contrib/snippet/browser/snippet_session.dart';
 import 'bracket_matching.dart' show defaultBracketPairs;
 import 'document_snapshot.dart';
+import 'editor_view_styles.dart';
 import 'editor_document_model.dart';
 
 /// Returns the offset [rows] visual rows from [offset], keeping [preferredX]
@@ -129,6 +130,25 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
     if (value < 1 || value == _tabSize) return;
     _tabSize = value;
     _config = null;
+  }
+
+  /// How line numbers show (Monaco `editor.lineNumbers`), over the
+  /// surface's `lineNumbers`; null leaves them to it.
+  EditorLineNumbersStyle? get lineNumbersStyle => _lineNumbersStyle;
+  EditorLineNumbersStyle? _lineNumbersStyle;
+  set lineNumbersStyle(EditorLineNumbersStyle? value) {
+    if (value == _lineNumbersStyle || _disposed) return;
+    _lineNumbersStyle = value;
+    notifyListeners();
+  }
+
+  /// How the caret is drawn (Monaco `editor.cursorStyle`).
+  EditorCaretStyle get caretStyle => _caretStyle;
+  EditorCaretStyle _caretStyle = EditorCaretStyle.line;
+  set caretStyle(EditorCaretStyle value) {
+    if (value == _caretStyle || _disposed) return;
+    _caretStyle = value;
+    notifyListeners();
   }
 
   bool get insertSpaces => _insertSpaces;
@@ -541,7 +561,7 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
       if (inserted != null &&
           (inserted == '\n' ||
               (!inserted.contains('\n') && !inserted.contains('\r')))) {
-        _typeInternal(inserted, fromKeyboard: true);
+        type(inserted);
         return;
       }
     }
@@ -703,7 +723,46 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
   /// goes through Monaco's typing interceptors (enter rules, auto-closing,
   /// overtyping, surrounding, electric characters); longer text is inserted
   /// as is.
-  void type(String text) => _typeInternal(text, fromKeyboard: true);
+  ///
+  /// [typeOverride] sees it first, as upstream's editor runs the `type`
+  /// command an extension may override.
+  void type(String text) {
+    if (_disposed || text.isEmpty) return;
+    if (typeOverride?.call(text) ?? false) return;
+    _typeInternal(text, fromKeyboard: true);
+  }
+
+  /// Takes the keyboard's typed text before the editor does (the `type`
+  /// command when an extension registered it): true when it took it.
+  bool Function(String text)? typeOverride;
+
+  /// `default:type`: types [text] as the keyboard does, past
+  /// [typeOverride].
+  void typeDefault(String text) => _typeInternal(text, fromKeyboard: true);
+
+  /// `compositionType` (`replacePreviousChar` is its [replaceNextCharCnt]
+  /// and [positionDelta] 0): at each caret, [text] replaces the characters
+  /// around it; the caret ends [positionDelta] columns from its end.
+  void compositionType(
+    String text, {
+    int replacePrevCharCnt = 0,
+    int replaceNextCharCnt = 0,
+    int positionDelta = 0,
+  }) {
+    if (_disposed) return;
+    final snapshot = document.snapshot;
+    _runResult(
+      TypeOperations.compositionType(
+        _prevEditType,
+        DocumentCursorModel(snapshot),
+        _cursorSelections(snapshot),
+        text,
+        replacePrevCharCnt,
+        replaceNextCharCnt,
+        positionDelta,
+      ),
+    );
+  }
 
   void _typeInternal(String text, {required bool fromKeyboard}) {
     if (_disposed || text.isEmpty) return;

@@ -4,14 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:baocode/ide/ide_breadcrumbs.dart';
 import 'package:baocode/ide/ide_quick_input.dart';
-import 'package:baocode/ide/lsp/language_features.dart';
-import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/ide/language/language_features.dart';
+import 'package:baocode/ide/language/language_types.dart';
 import 'package:baocode/ide/lsp_ui/document_symbols.dart';
 import 'package:baocode/ide/lsp_ui/semantic_tokens.dart';
-import 'package:baocode/theme/codicons.dart';
 
 import '../../flutter_test_config.dart' show testColorTheme;
-import '../workbench/fake_files.dart';
 import 'fake_language_features.dart';
 import 'lsp_test_helpers.dart';
 import 'semantic_token_fixture.dart';
@@ -276,140 +274,6 @@ void main() {
     expect(greeterColor(), isNot(typescript.foreground));
   });
 
-  testWidgets('status bar: a missing server offers to install it, a failed '
-      'one retries', (tester) async {
-    final languages = FakeLanguageFeatures();
-    languages.statuses[inRoot(_a)] = const [
-      LanguageServerStatus(
-        serverId: 'dart-analyzer',
-        state: LanguageServerState.missing,
-        installable: true,
-      ),
-      LanguageServerStatus(
-        serverId: 'lint',
-        state: LanguageServerState.failed,
-        message: 'crashed',
-      ),
-    ];
-    await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
-
-    expect(find.text('dart-analyzer not installed'), findsOneWidget);
-    // Opening the file recommends the server only in the notification
-    // center, without a toast.
-    const recommendation =
-        "Do you want to install the recommended 'dart-analyzer' language "
-        'server for the Dart language?';
-    await _toastIn(tester);
-    expect(find.text(recommendation), findsNothing);
-    expect(find.byIcon(Codicons.bellDot), findsOneWidget);
-    // The status bar entry recommends it in a toast.
-    await tester.tap(find.text('dart-analyzer not installed'));
-    await _toastIn(tester);
-    expect(find.text(recommendation), findsOneWidget);
-    await tester.tap(find.text('Install'));
-    await settle(tester);
-    expect(languages.installed, ['dart-analyzer']);
-    expect(find.text(recommendation), findsNothing);
-
-    languages.setStatus(inRoot(_a), const [
-      LanguageServerStatus(
-        serverId: 'dart-analyzer',
-        state: LanguageServerState.running,
-        progress: 'Indexing 3/10',
-      ),
-      LanguageServerStatus(
-        serverId: 'lint',
-        state: LanguageServerState.failed,
-        message: 'crashed',
-      ),
-    ]);
-    await settle(tester);
-    expect(find.text('dart-analyzer: Indexing 3/10'), findsOneWidget);
-    await tester.tap(find.text('lint failed'));
-    await settle(tester);
-    expect(languages.retried, ['lint']);
-  });
-
-  testWidgets('a missing runtime explains instead of installing', (
-    tester,
-  ) async {
-    final languages = FakeLanguageFeatures();
-    languages.statuses[inRoot(_a)] = const [
-      LanguageServerStatus(
-        serverId: 'pyright',
-        state: LanguageServerState.missing,
-        installable: true,
-        missingRuntime: 'node',
-      ),
-    ];
-    await pumpLanguageWorkbench(tester, {_a: _source}, languages, open: [_a]);
-    // Not recommended: it cannot be installed.
-    expect(find.text('Install'), findsNothing);
-    await tester.tap(find.text('pyright not installed'));
-    await _toastIn(tester);
-    expect(find.textContaining('needs node'), findsOneWidget);
-    expect(find.text('Install'), findsNothing);
-    await tester.tap(find.byTooltip('Clear Notification'));
-    await settle(tester);
-    expect(find.textContaining('needs node'), findsNothing);
-    expect(languages.installed, isEmpty);
-  });
-
-  testWidgets('a recommendation can be ignored for good', (tester) async {
-    final languages = FakeLanguageFeatures();
-    languages.statuses[inRoot(_a)] = const [
-      LanguageServerStatus(
-        serverId: 'dart-analyzer',
-        state: LanguageServerState.missing,
-        installable: true,
-      ),
-    ];
-    final ignored = <String>[];
-    await pumpLanguageWorkbench(
-      tester,
-      {_a: _source},
-      languages,
-      open: [_a],
-      onIgnoreRecommendation: ignored.add,
-    );
-    await _toastIn(tester);
-    // In the notification center, under its gear, as VS Code's "Don't Show
-    // Again for this Extension".
-    await tester.tap(find.byIcon(Codicons.bellDot));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('More Actions...'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text("Don't Show Again for this Language Server"));
-    await tester.pumpAndSettle();
-    expect(ignored, ['dart-analyzer']);
-    expect(find.textContaining('recommended'), findsNothing);
-    expect(languages.installed, isEmpty);
-  });
-
-  testWidgets('an ignored server is not recommended', (tester) async {
-    final languages = FakeLanguageFeatures();
-    languages.statuses[inRoot(_a)] = const [
-      LanguageServerStatus(
-        serverId: 'dart-analyzer',
-        state: LanguageServerState.missing,
-        installable: true,
-      ),
-    ];
-    await pumpLanguageWorkbench(
-      tester,
-      {_a: _source},
-      languages,
-      open: [_a],
-      ignoredRecommendations: const {'dart-analyzer'},
-    );
-    await _toastIn(tester);
-    expect(find.textContaining('recommended'), findsNothing);
-    // The status bar still offers it.
-    await tester.tap(find.text('dart-analyzer not installed'));
-    await _toastIn(tester);
-    expect(find.textContaining('recommended'), findsOneWidget);
-  });
-
   testWidgets('language commands are in the palette with their keybindings', (
     tester,
   ) async {
@@ -438,10 +302,4 @@ void main() {
       'Ctrl+Shift+M',
     );
   });
-}
-
-/// Lets a toast shown by the last action slide in.
-Future<void> _toastIn(WidgetTester tester) async {
-  await settle(tester);
-  await tester.pump(const Duration(milliseconds: 300));
 }

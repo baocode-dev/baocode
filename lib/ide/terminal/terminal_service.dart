@@ -12,6 +12,7 @@
 // terminalGroupService,terminalEditingService}.ts; its profiles are
 // terminal_profile_service.dart's.
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -31,11 +32,60 @@ class TerminalService extends ChangeNotifier {
   late final TerminalProfileService profiles = TerminalProfileService(backend);
 
   final List<TerminalInstance> _instances = [];
+
+  /// Those made `hideFromUser`, until shown.
+  final Set<TerminalInstance> _hidden = {};
   TerminalInstance? _active;
   TerminalInstance? _editing;
   int _nextId = 1;
 
-  List<TerminalInstance> get instances => List.unmodifiable(_instances);
+  /// The terminals in the panel's tabs.
+  List<TerminalInstance> get instances => List.unmodifiable([
+    for (final instance in _instances)
+      if (!_hidden.contains(instance)) instance,
+  ]);
+
+  /// Every terminal, those hidden from the user too (VS Code's
+  /// `ITerminalService.instances`, which extensions see).
+  List<TerminalInstance> get allInstances => List.unmodifiable(_instances);
+
+  /// The terminal numbered [id].
+  TerminalInstance? instanceFromId(int id) {
+    for (final instance in _instances) {
+      if (instance.id == id) return instance;
+    }
+    return null;
+  }
+
+  /// The extensions' environment variable collections, applied to each new
+  /// terminal's environment unless strict.
+  void Function(Map<String, String> environment)? environmentMutator;
+
+  final _onDidCreate = StreamController<TerminalInstance>.broadcast(sync: true);
+  final _onDidDispose = StreamController<TerminalInstance>.broadcast(
+    sync: true,
+  );
+  final _onDidChangeActive = StreamController<TerminalInstance?>.broadcast(
+    sync: true,
+  );
+  final _onDidRequestShow = StreamController<bool>.broadcast(sync: true);
+  final _onDidRequestHide = StreamController<void>.broadcast(sync: true);
+
+  /// Each new terminal, once it is listed (before its process starts).
+  Stream<TerminalInstance> get onDidCreate => _onDidCreate.stream;
+
+  /// Each terminal dropped, with its [TerminalInstance.exitReason] set.
+  Stream<TerminalInstance> get onDidDispose => _onDidDispose.stream;
+
+  /// The new [active] one.
+  Stream<TerminalInstance?> get onDidChangeActive => _onDidChangeActive.stream;
+
+  /// The panel asked to show, focused unless the value says to preserve
+  /// focus (`Terminal.show(preserveFocus)`).
+  Stream<bool> get onDidRequestShow => _onDidRequestShow.stream;
+
+  /// The panel asked to hide (`Terminal.hide()` of the active one).
+  Stream<void> get onDidRequestHide => _onDidRequestHide.stream;
 
   /// The one the panel shows; null only when there is none.
   TerminalInstance? get active => _active;
@@ -47,7 +97,14 @@ class TerminalService extends ChangeNotifier {
   /// A new terminal, made the active one, as big as the others are: on
   /// [profile]'s shell, else the default profile's (see
   /// [TerminalProfileService.defaultShell]).
-  TerminalInstance create({TerminalProfile? profile}) {
+  ///
+  /// An extension's terminal starts as its [config] says; one
+  /// `hideFromUser` is not listed in [instances], nor made active, until
+  /// [show]n.
+  TerminalInstance create({
+    TerminalProfile? profile,
+    TerminalLaunchConfig? config,
+  }) {
     final instance = TerminalInstance(
       id: _nextId++,
       root: root,
@@ -57,12 +114,43 @@ class TerminalService extends ChangeNotifier {
       onExit: _exited,
       shell: profile != null
           ? SynchronousFuture(profile.shell)
+          : config?.executable != null || config?.customPty != null
+          ? null
           : profiles.defaultShell(),
-    );
+      config: config,
+      environmentMutator: environmentMutator,
+    )..onRequestClose = _closeRequested;
     _instances.add(instance);
-    _active = instance;
+    _onDidCreate.add(instance);
+    if (config?.hideFromUser ?? false) {
+      _hidden.add(instance);
+    } else {
+      _setActive(instance);
+    }
     notifyListeners();
     return instance;
+  }
+
+  void _setActive(TerminalInstance? instance) {
+    if (_active == instance) return;
+    _active = instance;
+    _onDidChangeActive.add(instance);
+  }
+
+  /// `Terminal.show`: [instance] in the panel (listed if it was hidden from
+  /// the user) and active, and the panel shown.
+  void show(TerminalInstance instance, {bool preserveFocus = false}) {
+    if (!_instances.contains(instance)) return;
+    _hidden.remove(instance);
+    _setActive(instance);
+    notifyListeners();
+    _onDidRequestShow.add(preserveFocus);
+  }
+
+  /// `Terminal.hide`: the panel hidden, when [instance] is the one it
+  /// shows.
+  void hide(TerminalInstance instance) {
+    if (_active == instance) _onDidRequestHide.add(null);
   }
 
   /// The active terminal; a new one if there is none, as VS Code makes one
@@ -71,7 +159,8 @@ class TerminalService extends ChangeNotifier {
 
   void setActive(TerminalInstance instance) {
     if (_active == instance || !_instances.contains(instance)) return;
-    _active = instance;
+    _hidden.remove(instance);
+    _setActive(instance);
     notifyListeners();
   }
 
@@ -82,16 +171,22 @@ class TerminalService extends ChangeNotifier {
 
   void _step(int by) {
     final active = _active;
-    if (active == null || _instances.length < 2) return;
-    final index = _instances.indexOf(active);
-    setActive(_instances[(index + by) % _instances.length]);
+    final instances = this.instances;
+    if (active == null || instances.length < 2) return;
+    final index = instances.indexOf(active);
+    setActive(instances[(index + by) % instances.length]);
   }
 
   /// Kill Terminal: hangs up [instance]'s process (the active one's by
-  /// default) and drops it at once.
-  void kill([TerminalInstance? instance]) {
+  /// default) and drops it at once; [reason] says who asked.
+  void kill([
+    TerminalInstance? instance,
+    TerminalExitReason reason = TerminalExitReason.user,
+  ]) {
     instance ??= _active;
-    if (instance != null) _remove(instance);
+    if (instance == null) return;
+    instance.exitReason ??= reason;
+    _remove(instance);
   }
 
   /// Edits [instance]'s name (the active one's by default) in place.
@@ -112,13 +207,20 @@ class TerminalService extends ChangeNotifier {
 
   /// A terminal is closed once its process exited cleanly; it stays to say
   /// why otherwise.
+  ///
+  /// An extension's terminal closes as VS Code's do, whatever the exit,
+  /// unless it waits for a key.
   void _exited(TerminalInstance instance) {
-    if (instance.exitMessage == null) {
+    if (instance.waitingForKey) {
+      notifyListeners();
+    } else if (instance.exitMessage == null || instance.config != null) {
       _remove(instance);
     } else {
       notifyListeners();
     }
   }
+
+  void _closeRequested(TerminalInstance instance) => _remove(instance);
 
   /// Drops [instance]: the next one (else the one before) becomes active,
   /// focused if the dropped one was, as VS Code's group service does.
@@ -126,14 +228,21 @@ class TerminalService extends ChangeNotifier {
     final index = _instances.indexOf(instance);
     if (index < 0) return;
     final hadFocus = instance.focusNode.hasFocus;
+    final shownIndex = instances.indexOf(instance);
     _instances.removeAt(index);
+    _hidden.remove(instance);
     if (_editing == instance) _editing = null;
     if (_active == instance) {
-      _active = _instances.isEmpty
-          ? null
-          : _instances[math.min(index, _instances.length - 1)];
+      final shown = instances;
+      _setActive(
+        shown.isEmpty
+            ? null
+            : shown[math.min(math.max(shownIndex, 0), shown.length - 1)],
+      );
       if (hadFocus) _active?.focus();
     }
+    instance.exitReason ??= TerminalExitReason.unknown;
+    _onDidDispose.add(instance);
     instance.dispose();
     notifyListeners();
   }
@@ -143,11 +252,19 @@ class TerminalService extends ChangeNotifier {
   void dispose() {
     profiles.dispose();
     for (final instance in _instances) {
+      instance.exitReason ??= TerminalExitReason.shutdown;
+      _onDidDispose.add(instance);
       instance.dispose();
     }
     _instances.clear();
+    _hidden.clear();
     _active = null;
     _editing = null;
+    unawaited(_onDidCreate.close());
+    unawaited(_onDidDispose.close());
+    unawaited(_onDidChangeActive.close());
+    unawaited(_onDidRequestShow.close());
+    unawaited(_onDidRequestHide.close());
     super.dispose();
   }
 }

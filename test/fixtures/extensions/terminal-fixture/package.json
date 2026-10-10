@@ -1,0 +1,18 @@
+{
+  "name": "terminal-fixture",
+  "displayName": "Terminal Fixture",
+  "publisher": "baocode-test",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "terminalFixture.events", "title": "Events" },
+      { "command": "terminalFixture.shell", "title": "Shell" },
+      { "command": "terminalFixture.run", "title": "Run" },
+      { "command": "terminalFixture.pty", "title": "Pseudoterminal" },
+      { "command": "terminalFixture.sendText", "title": "Send Text" }
+    ]
+  }
+}

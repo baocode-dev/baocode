@@ -15,7 +15,7 @@ import 'package:bao_editor/monaco/vs/base/common/filters.dart';
 
 import '../ide_hover.dart';
 import '../ide_input.dart';
-import '../lsp/lsp_protocol.dart';
+import '../language/language_types.dart';
 import 'editor_language_session.dart';
 import 'hover_markdown.dart';
 import 'language_icons.dart';

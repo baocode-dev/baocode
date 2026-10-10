@@ -8,7 +8,7 @@ import 'package:bao_editor/monaco/flutter/editor_decorations.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
 import 'package:bao_editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart';
 
-import '../lsp/lsp_protocol.dart';
+import '../language/language_types.dart';
 import 'lsp_convert.dart';
 
 /// The severity icons' colors (severityIcon.css), from the color theme.

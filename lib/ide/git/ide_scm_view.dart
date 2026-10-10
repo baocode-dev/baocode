@@ -35,6 +35,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../../extensions/scm/scm_view.dart';
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../settings/user_settings.dart';
@@ -99,6 +100,10 @@ class IdeScmSession {
   final Set<String> expandedPanes = {'changes', 'graph'};
   final Set<IdeGitGroup> collapsedGroups = {};
   final Set<String> expandedCommits = {};
+
+  /// The extensions' source controls' panes seen: each expands as it
+  /// first appears.
+  final Set<String> seenExtensionPanes = {};
 
   /// View as Tree (the default here) or View as List, and the list's order.
   bool treeView = true;
@@ -217,6 +222,7 @@ class IdeScmView extends StatefulWidget {
     required this.onRevealInExplorer,
     this.trash,
     this.commitMessage,
+    this.extensionScm,
   });
 
   final IdeWorkspace workspace;
@@ -244,6 +250,9 @@ class IdeScmView extends StatefulWidget {
   /// Writes commit messages (Generate Commit Message); none offered when
   /// null.
   final IdeCommitMessageModel? commitMessage;
+
+  /// Extensions' source controls, as panes after the Git repository's.
+  final ExtensionScmUi? extensionScm;
 
   @override
   State<IdeScmView> createState() => IdeScmViewState();
@@ -423,6 +432,7 @@ class IdeScmViewState extends State<IdeScmView>
   @override
   Widget build(BuildContext context) {
     final git = _git;
+    final extensions = widget.extensionScm?.service;
     return ColoredBox(
       color: AppColors.sidebarSurface,
       child: Column(
@@ -433,15 +443,42 @@ class IdeScmViewState extends State<IdeScmView>
           if (widget.workspace.repositories.length > 1)
             _Repositories(workspace: widget.workspace),
           Expanded(
-            child: git == null
-                ? _Welcome([context.l10n.scmNoProviders])
-                : ListenableBuilder(
-                    listenable: git,
-                    builder: (context, _) => _body(git),
-                  ),
+            child: ListenableBuilder(
+              listenable: Listenable.merge([?git, ?extensions]),
+              builder: (context, _) => git == null
+                  ? _extensionsOnly() ?? _Welcome([context.l10n.scmNoProviders])
+                  : _body(git),
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  /// The extensions' source controls' panes, each expanded when first
+  /// seen.
+  List<IdePane> _extensionPanes() {
+    final panes = widget.extensionScm?.panes() ?? const <IdePane>[];
+    for (final pane in panes) {
+      if (_session.seenExtensionPanes.add(pane.id)) {
+        _session.expandedPanes.add(pane.id);
+      }
+    }
+    return panes;
+  }
+
+  void _togglePane(String id) => setState(() {
+    if (!_session.expandedPanes.remove(id)) _session.expandedPanes.add(id);
+  });
+
+  /// Without a Git repository: the extensions' panes alone, if any.
+  Widget? _extensionsOnly() {
+    final panes = _extensionPanes();
+    if (panes.isEmpty) return null;
+    return IdePaneContainer(
+      expanded: _session.expandedPanes,
+      onToggle: _togglePane,
+      panes: panes,
     );
   }
 
@@ -450,16 +487,18 @@ class IdeScmViewState extends State<IdeScmView>
     final state = git.state;
     final Widget content;
     if (!git.loaded) {
-      content = const SizedBox.shrink();
+      content = _extensionsOnly() ?? const SizedBox.shrink();
     } else if (state == null) {
       final error = git.error;
-      content = error is IdeGitException && error.message.startsWith('Git is')
-          ? _Welcome([l10n.scmInstallGit, error.message])
-          : _Welcome(
-              [l10n.scmNoRepository],
-              button: l10n.scmInitializeRepository,
-              onPressed: () => unawaited(_run(git.initialize)),
-            );
+      content =
+          _extensionsOnly() ??
+          (error is IdeGitException && error.message.startsWith('Git is')
+              ? _Welcome([l10n.scmInstallGit, error.message])
+              : _Welcome(
+                  [l10n.scmNoRepository],
+                  button: l10n.scmInitializeRepository,
+                  onPressed: () => unawaited(_run(git.initialize)),
+                ));
     } else {
       content = IdePaneContainer(
         expanded: _session.expandedPanes,
@@ -510,6 +549,7 @@ class IdeScmViewState extends State<IdeScmView>
             ],
             body: _graphList(git),
           ),
+          ..._extensionPanes(),
         ],
       );
     }

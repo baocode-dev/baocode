@@ -98,6 +98,9 @@ void main() {
         ),
       ),
     );
+    // The view takes the interface's terminal font size; the cells here are
+    // 10px.
+    terminal.xterm.options.fontSize = 10;
     await tester.pump();
     addTearDown(() async {
       await tester.pumpWidget(const SizedBox());

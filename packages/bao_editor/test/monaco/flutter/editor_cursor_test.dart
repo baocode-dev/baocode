@@ -1171,4 +1171,42 @@ void main() {
       expect(model.isCollapsedAt(1), isTrue);
     });
   });
+
+  group('typing commands', () {
+    test('typeOverride takes the keyboard\'s text; typeDefault does not', () {
+      final c = _controller('ab', selections: [_at(1)]);
+      final taken = <String>[];
+      c.typeOverride = (text) {
+        taken.add(text);
+        return text != 'y';
+      };
+      c.type('x');
+      expect(_show(c), 'a|b');
+      c.type('y');
+      expect(_show(c), 'ay|b');
+      // From the platform, as the keyboard types.
+      c.value = c.value.copyWith(
+        text: 'ayzb',
+        selection: _at(3),
+        composing: TextRange.empty,
+      );
+      expect(taken, ['x', 'y', 'z']);
+      expect(_show(c), 'ay|b');
+      c.typeDefault('q');
+      expect(_show(c), 'ayq|b');
+    });
+
+    test('compositionType replaces around each caret', () {
+      final c = _controller('abc\ndef', selections: [_at(2), _at(6)]);
+      // replacePreviousChar: one before each caret.
+      c.compositionType('X', replacePrevCharCnt: 1);
+      expect(_show(c), 'aX|c\ndX|f');
+      c.compositionType('YZ', replaceNextCharCnt: 1, positionDelta: -1);
+      expect(_show(c), 'aXY|Z\ndXY|Z');
+      // A selection is left alone (a canceled composition).
+      c.setSelections([_range(0, 1)]);
+      c.compositionType('Q', replacePrevCharCnt: 1);
+      expect(_show(c), '[a]XYZ\ndXYZ');
+    });
+  });
 }

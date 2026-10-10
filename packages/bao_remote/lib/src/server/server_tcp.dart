@@ -8,7 +8,8 @@ import 'remote_server.dart';
 /// Ports of this machine forwarded to the app's: what connects to one is
 /// told to the app ([RemoteProtocol.tcpOpen]), which connects on its side;
 /// the bytes go both ways as [RemoteProtocol.tcpData] until either side
-/// closes ([RemoteProtocol.tcpClose]).
+/// closes ([RemoteProtocol.tcpClose]). The other way, the app connects to a
+/// port here ([RemoteProtocol.tcpConnect]: the server connects for it).
 class ServerTcp {
   ServerTcp(this._peer) {
     final handlers = _peer.handlers;
@@ -18,6 +19,18 @@ class ServerTcp {
       _listeners[id] = server;
       server.listen((socket) => _accepted(id, socket), onError: (Object _) {});
       return {'id': id, 'port': server.port};
+    };
+    handlers[RemoteProtocol.tcpConnect] = (params, _) async {
+      final args = paramsOf(params);
+      final socket = await Socket.connect(
+        args['host'] as String? ?? '127.0.0.1',
+        args['port'] as int,
+        timeout: const Duration(seconds: 10),
+      );
+      final conn = ++_nextConnection;
+      _connections[conn] = socket;
+      _relay(conn, socket);
+      return {'conn': conn};
     };
     handlers[RemoteProtocol.tcpUnlisten] = (params, _) async {
       await _listeners.remove(paramsOf(params)['id'])?.close();
@@ -47,6 +60,11 @@ class ServerTcp {
     final conn = ++_nextConnection;
     _connections[conn] = socket;
     _peer.notify(RemoteProtocol.tcpOpen, {'listener': listener, 'conn': conn});
+    _relay(conn, socket);
+  }
+
+  /// [socket]'s bytes to the app as [conn]'s, until it closes.
+  void _relay(int conn, Socket socket) {
     socket.listen(
       (data) => _peer.notify(RemoteProtocol.tcpData, {
         'conn': conn,

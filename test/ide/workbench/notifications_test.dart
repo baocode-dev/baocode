@@ -14,9 +14,12 @@ void main() {
 
     setUp(() => notifications = IdeNotifications());
 
+    void shown() {}
+
     testWidgets('a toast goes after its timeout, and stays in the center', (
       tester,
     ) async {
+      notifications.addListener(shown);
       final info = notifications.notify(IdeSeverity.info, 'Indexed');
       final error = notifications.notify(IdeSeverity.error, 'Failed');
       expect(notifications.toasts, [info, error]);
@@ -43,9 +46,30 @@ void main() {
       notifications.dispose();
     });
 
+    testWidgets('toasts time out only while a workbench shows them', (
+      tester,
+    ) async {
+      final early = notifications.notify(IdeSeverity.info, 'Before');
+      await tester.pump(const Duration(seconds: 30));
+      expect(notifications.toasts, [early]);
+
+      notifications.addListener(shown);
+      await tester.pump(const Duration(seconds: 5));
+      notifications.removeListener(shown);
+      await tester.pump(const Duration(seconds: 30));
+      expect(notifications.toasts, [early]);
+
+      notifications.addListener(shown);
+      await tester.pump(const Duration(seconds: 10));
+      expect(notifications.toasts, isEmpty);
+      expect(notifications.notifications, [early]);
+      notifications.dispose();
+    });
+
     testWidgets('sticky toasts, and ones under the mouse, stay', (
       tester,
     ) async {
+      notifications.addListener(shown);
       final asked = notifications.notify(
         IdeSeverity.info,
         'Asked',

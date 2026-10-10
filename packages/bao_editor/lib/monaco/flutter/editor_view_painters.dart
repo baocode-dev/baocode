@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart'
-    show ValueListenable, immutable, listEquals, setEquals;
+    show ValueListenable, immutable, listEquals, setEquals, visibleForTesting;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart' show IconData;
 
@@ -9,6 +9,7 @@ import '../vs/editor/contrib/folding/browser/indent_range_provider.dart'
     show computeIndentLevel;
 import 'bracket_matching.dart';
 import 'document_snapshot.dart';
+import 'editor_view_styles.dart';
 import 'editor_decorations.dart';
 import 'editor_folding.dart';
 import 'editor_view_theme.dart';
@@ -344,7 +345,7 @@ class EditorOverlayPainter extends CustomPainter {
   final List<TextSelection> selections;
   final bool focused;
   final Color selectionColor;
-  final SortedDecorations decorations;
+  final EditorDecorationSet decorations;
   final BracketMatch? bracketMatch;
   final EditorFoldingModel folding;
   final int foldingVersion;
@@ -411,25 +412,52 @@ class EditorOverlayPainter extends CustomPainter {
     for (final decoration in decorations.intersecting(windowStart, windowEnd)) {
       final background = decoration.resolvedBackground(theme);
       final border = decoration.borderColor;
-      if (background == null && border == null) continue;
+      final outline = decoration.outlineColor;
+      if (background == null && border == null && outline == null) continue;
+      void box(Rect rect) {
+        final radius = Radius.circular(decoration.borderRadius);
+        if (background != null) {
+          if (decoration.borderRadius > 0) {
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(rect, radius),
+              paint..color = background,
+            );
+          } else {
+            canvas.drawRect(rect, paint..color = background);
+          }
+        }
+        if (border != null) {
+          strokeBox(
+            canvas,
+            rect,
+            border,
+            width: decoration.borderWidth,
+            style: decoration.borderStyle,
+            radius: decoration.borderRadius,
+          );
+        }
+        if (outline != null) {
+          strokeBox(
+            canvas,
+            rect.inflate(decoration.outlineWidth),
+            outline,
+            width: decoration.outlineWidth,
+            style: decoration.outlineStyle,
+          );
+        }
+      }
+
       if (decoration.isWholeLine) {
         final first = snapshot.positionAtOffset(decoration.start).lineNumber;
         final last = snapshot.positionAtOffset(decoration.end).lineNumber;
         for (final line in visible) {
           if (line < first || line > last) continue;
-          final band = lineBand(line);
-          if (background != null) {
-            canvas.drawRect(band, paint..color = background);
-          }
-          if (border != null) _strokeRect(canvas, band, border);
+          box(lineBand(line));
         }
         continue;
       }
       for (final rect in _rects(decoration.start, decoration.end)) {
-        if (background != null) {
-          canvas.drawRect(rect, paint..color = background);
-        }
-        if (border != null) _strokeRect(canvas, rect, border);
+        box(rect);
       }
       if (background == null) continue;
       if (decoration.fillsLineOnLineBreak) {
@@ -497,14 +525,69 @@ class EditorOverlayPainter extends CustomPainter {
   List<Rect> _rects(int start, int end, {bool newline = false}) =>
       layout.offsetRangeRects(start, end, markNewlines: newline);
 
-  static void _strokeRect(Canvas canvas, Rect rect, Color color) {
-    canvas.drawRect(
-      rect.deflate(0.5),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = color,
+  static void _strokeRect(Canvas canvas, Rect rect, Color color) =>
+      strokeBox(canvas, rect, color);
+
+  /// A CSS border [width] wide inside [rect] in [style], its corners
+  /// rounded by [radius].
+  static void strokeBox(
+    Canvas canvas,
+    Rect rect,
+    Color color, {
+    double width = 1,
+    EditorBorderStyle style = EditorBorderStyle.solid,
+    double radius = 0,
+  }) {
+    if (width <= 0 || style == EditorBorderStyle.none) return;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = color;
+    if (style == EditorBorderStyle.double && width >= 3) {
+      final line = width / 3;
+      paint.strokeWidth = line;
+      for (final inset in [line / 2, width - line / 2]) {
+        final box = rect.deflate(inset);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            box,
+            Radius.circular(math.max(0, radius - inset)),
+          ),
+          paint,
+        );
+      }
+      return;
+    }
+    paint.strokeWidth = width;
+    final box = rect.deflate(width / 2);
+    final rrect = RRect.fromRectAndRadius(
+      box,
+      Radius.circular(math.max(0, radius - width / 2)),
     );
+    if (style != EditorBorderStyle.dashed &&
+        style != EditorBorderStyle.dotted) {
+      if (radius > 0) {
+        canvas.drawRRect(rrect, paint);
+      } else {
+        canvas.drawRect(box, paint);
+      }
+      return;
+    }
+    final dash = style == EditorBorderStyle.dotted
+        ? width
+        : math.max(3.0, 3 * width);
+    final gap = style == EditorBorderStyle.dotted ? width : dash;
+    if (style == EditorBorderStyle.dotted) paint.strokeCap = StrokeCap.butt;
+    final path = Path()..addRRect(rrect);
+    final dashed = Path();
+    for (final metric in path.computeMetrics()) {
+      for (var at = 0.0; at < metric.length; at += dash + gap) {
+        dashed.addPath(
+          metric.extractPath(at, math.min(at + dash, metric.length)),
+          Offset.zero,
+        );
+      }
+    }
+    canvas.drawPath(dashed, paint);
   }
 
   void _paintOccurrences(Canvas canvas, int windowStart, int windowEnd) {
@@ -640,7 +723,7 @@ class EditorTextPainter extends CustomPainter {
   final int foldingVersion;
   final EditorGutterGlyphs glyphs;
   final EditorRenderWhitespace renderWhitespace;
-  final SortedDecorations decorations;
+  final EditorDecorationSet decorations;
 
   /// Rect of the fold placeholder after collapsed header [lineNumber], in
   /// content coordinates.
@@ -649,11 +732,8 @@ class EditorTextPainter extends CustomPainter {
     EditorGutterGlyphs glyphs,
     int lineNumber,
   ) {
-    final snapshot = layout.snapshot;
-    final end = layout.caretRect(
-      snapshot.contentEnds[lineNumber - 1],
-      affinity: TextAffinity.upstream,
-    );
+    // After the text injected at the end of the line, if any.
+    final end = layout.lineEndRect(lineNumber);
     final height = layout.lineHeight;
     return Rect.fromLTWH(
       end.left + 4,
@@ -767,10 +847,7 @@ class EditorTextPainter extends CustomPainter {
     final snapshot = layout.snapshot;
     final lineNumber = snapshot.positionAtOffset(decoration.end).lineNumber;
     if (layout.hiddenLines.isHidden(lineNumber)) return;
-    final row = layout.caretRect(
-      snapshot.contentEnds[lineNumber - 1],
-      affinity: TextAffinity.upstream,
-    );
+    final row = layout.lineEndRect(lineNumber);
     final left = folding.isCollapsedAt(lineNumber)
         ? placeholderRect(layout, glyphs, lineNumber).right
         : row.left;
@@ -862,6 +939,7 @@ class EditorCaretPainter extends CustomPainter {
     required this.focused,
     required this.caretColor,
     required this.visible,
+    this.style = EditorCaretStyle.line,
   }) : super(repaint: visible);
 
   final ViewportLayout layout;
@@ -874,6 +952,7 @@ class EditorCaretPainter extends CustomPainter {
   final bool focused;
   final Color caretColor;
   final ValueListenable<bool> visible;
+  final EditorCaretStyle style;
 
   /// Monaco's default `cursorWidth` for the line cursor style.
   static const double caretWidth = 2;
@@ -914,14 +993,96 @@ class EditorCaretPainter extends CustomPainter {
         if (caret.bottom < 0 || caret.top > layout.viewportSize.height) {
           continue;
         }
-        canvas.drawRect(
-          Rect.fromLTWH(caret.left, caret.top, caretWidth, caret.height),
-          paint,
-        );
+        if (style.coversCharacter) {
+          _paintCovering(canvas, paint, offset, caret);
+        } else {
+          canvas.drawRect(
+            Rect.fromLTWH(
+              caret.left,
+              caret.top,
+              style == EditorCaretStyle.lineThin ? 1 : caretWidth,
+              caret.height,
+            ),
+            paint,
+          );
+        }
         if (!selection.isValid) break;
       }
     }
     canvas.restore();
+  }
+
+  /// A block, outline or underline caret over the character after [offset]
+  /// (upstream `ViewCursor._prepareRender`): as wide as that character, or
+  /// a typical character at a line's end or on a tab. A block shows the
+  /// character in the caret's opposite color.
+  void _paintCovering(Canvas canvas, Paint paint, int offset, Rect caret) {
+    final text = layout.snapshot.text;
+    final line = layout.snapshot.positionAtOffset(offset).lineNumber - 1;
+    final contentEnd = layout.snapshot.contentEnds[line];
+    var next = '';
+    if (offset < contentEnd) {
+      final unit = text.codeUnitAt(offset);
+      final pair = unit >= 0xD800 && unit <= 0xDBFF && offset + 1 < contentEnd;
+      next = text.substring(offset, offset + (pair ? 2 : 1));
+    }
+    var left = caret.left;
+    var width = layout.spaceWidth;
+    if (next.isNotEmpty && next != '\t') {
+      final rects = layout.offsetRangeRects(
+        offset,
+        offset + next.length,
+        markNewlines: false,
+      );
+      if (rects.isNotEmpty && rects.first.width >= 1) {
+        left = rects.first.left;
+        width = rects.first.width;
+      }
+    }
+    final box = Rect.fromLTWH(left, caret.top, width, caret.height);
+    switch (style) {
+      case EditorCaretStyle.block:
+        canvas.drawRect(box, paint);
+        if (next.trim().isEmpty) return;
+        final painter = TextPainter(
+          text: TextSpan(
+            text: next,
+            style: layout.style.copyWith(
+              color: Color.from(
+                alpha: caretColor.a,
+                red: 1 - caretColor.r,
+                green: 1 - caretColor.g,
+                blue: 1 - caretColor.b,
+              ),
+              background: null,
+              backgroundColor: null,
+            ),
+          ),
+          textDirection: layout.textDirection,
+          textScaler: layout.textScaler,
+        )..layout();
+        painter.paint(
+          canvas,
+          Offset(left, caret.top + (caret.height - painter.height) / 2),
+        );
+        painter.dispose();
+      case EditorCaretStyle.blockOutline:
+        canvas.drawRect(
+          box.deflate(0.5),
+          Paint()
+            ..color = caretColor
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1,
+        );
+      case EditorCaretStyle.underline || EditorCaretStyle.underlineThin:
+        final thickness = style == EditorCaretStyle.underline ? 2.0 : 1.0;
+        canvas.drawRect(
+          Rect.fromLTWH(left, box.bottom - thickness, width, thickness),
+          paint,
+        );
+      case EditorCaretStyle.line || EditorCaretStyle.lineThin:
+        break;
+    }
   }
 
   @override
@@ -935,7 +1096,8 @@ class EditorCaretPainter extends CustomPainter {
       old.composing != composing ||
       old.focused != focused ||
       old.caretColor != caretColor ||
-      old.visible != visible;
+      old.visible != visible ||
+      old.style != style;
 }
 
 /// Paints the gutter: background, line numbers (active ones brighter) and
@@ -950,6 +1112,7 @@ class EditorGutterPainter extends CustomPainter {
     required this.glyphs,
     required this.lineNumbers,
     required this.activeLines,
+    this.cursorLine = 0,
     required this.folding,
     required this.foldingVersion,
     required this.showFoldingControls,
@@ -963,15 +1126,19 @@ class EditorGutterPainter extends CustomPainter {
   final Color background;
   final EditorViewTheme theme;
   final EditorGutterGlyphs glyphs;
-  final bool lineNumbers;
+  final EditorLineNumbersStyle lineNumbers;
   final Set<int> activeLines;
+
+  /// The primary caret's line, which relative and interval numbers count
+  /// from.
+  final int cursorLine;
   final EditorFoldingModel folding;
   final int foldingVersion;
   final bool showFoldingControls;
   final bool foldingEnabled;
 
   /// Their [EditorDecoration.marginColor]s and line decoration icons.
-  final SortedDecorations decorations;
+  final EditorDecorationSet decorations;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -993,11 +1160,17 @@ class EditorGutterPainter extends CustomPainter {
     final lineHeight = layout.lineHeight;
     for (final line in layout.visibleLineNumbers) {
       final top = layout.lineTop(line) - scrollTop;
-      if (lineNumbers) {
+      if (numberOf(line) case final number?) {
+        // Upstream's relative current line number is left aligned.
+        final relativeCurrent =
+            lineNumbers == EditorLineNumbersStyle.relative &&
+            line == cursorLine;
         glyphs.paintNumber(
           canvas,
-          line,
-          geometry.decorationsLeft,
+          number,
+          relativeCurrent
+              ? geometry.lineNumbersLeft + '$number'.length * glyphs.digitWidth
+              : geometry.decorationsLeft,
           top + (lineHeight - glyphs.lineHeight) / 2,
           active: activeLines.contains(line),
         );
@@ -1028,6 +1201,20 @@ class EditorGutterPainter extends CustomPainter {
     }
     canvas.restore();
   }
+
+  /// The number shown for [line] (upstream
+  /// `LineNumbersOverlay._getLineRenderLineNumber`), or none.
+  @visibleForTesting
+  int? numberOf(int line) => switch (lineNumbers) {
+    EditorLineNumbersStyle.off => null,
+    EditorLineNumbersStyle.on => line,
+    EditorLineNumbersStyle.relative =>
+      line == cursorLine ? line : (line - cursorLine).abs(),
+    EditorLineNumbersStyle.interval =>
+      line == cursorLine || line % 10 == 0 || line == layout.snapshot.lineCount
+          ? line
+          : null,
+  };
 
   void _paintMarginDecorations(Canvas canvas, Rect rect) {
     if (decorations.isEmpty) return;
@@ -1099,6 +1286,7 @@ class EditorGutterPainter extends CustomPainter {
       old.theme != theme ||
       old.glyphs != glyphs ||
       old.lineNumbers != lineNumbers ||
+      old.cursorLine != cursorLine ||
       !setEquals(old.activeLines, activeLines) ||
       old.foldingVersion != foldingVersion ||
       old.showFoldingControls != showFoldingControls ||

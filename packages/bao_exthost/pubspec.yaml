@@ -1,0 +1,20 @@
+name: bao_exthost
+description: >-
+  The VS Code extension host's other side: the protocols that connect to a
+  VS Code server (reh) and its extension host, ported from VS Code. No
+  Flutter in the library, so that it runs in tests, tools and the remote
+  server alike.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  crypto: ^3.0.6
+  meta: ^1.15.0
+  path: ^1.9.1
+
+dev_dependencies:
+  test: any

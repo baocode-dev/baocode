@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:bao_remote/client.dart';
 import 'package:bao_remote/server.dart';
+import 'package:path/path.dart' as p;
 
 /// The two ends of a connection, and the server's folder.
 class RemoteHarness {
@@ -119,3 +120,14 @@ class MemoryConnector {
     );
   }
 }
+
+/// An absolute `dart`, so starting does not depend on the child's PATH.
+final String dartExecutable = () {
+  if (Platform.environment['FLUTTER_ROOT'] case final root?) {
+    final dart = p.join(root, 'bin', 'cache', 'dart-sdk', 'bin', 'dart');
+    if (File(dart).existsSync()) return dart;
+  }
+  final which = Process.runSync('which', ['dart']);
+  final found = '${which.stdout}'.trim();
+  return found.isEmpty ? 'dart' : found;
+}();

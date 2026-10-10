@@ -283,8 +283,12 @@ class IdeGitDecoration {
     this.strikeThrough = false,
   });
 
-  /// Its `gitDecoration.*` color's id (a `ThemeColor`).
-  final String colorId;
+  /// "Contains emphasized items": a folder's dot.
+  static const folderTooltip = IdeGitDecorations._folderTooltip;
+
+  /// Its `gitDecoration.*` color's id (a `ThemeColor`); none for an
+  /// extension's decoration without one.
+  final String? colorId;
   final String tooltip;
 
   /// The badge: a status letter, `•` for a folder with changes, or none.
@@ -292,7 +296,32 @@ class IdeGitDecoration {
   final bool strikeThrough;
 
   /// [colorId] in the current color theme.
-  Color get color => themeColors[colorId];
+  Color? get color => switch (colorId) {
+    final id? => themeColors.get(id),
+    null => null,
+  };
+
+  /// [other]'s over this one where it has them, as `asDecoration` merges
+  /// providers': the first color, the letters and tooltips joined.
+  IdeGitDecoration merge(IdeGitDecoration? other) {
+    if (other == null) return this;
+    final letters = [?letter, ?other.letter];
+    final dots = letters.where((l) => l == '•').length;
+    return IdeGitDecoration(
+      colorId: colorId ?? other.colorId,
+      tooltip: {
+        for (final t in [tooltip, other.tooltip])
+          if (t.trim().isNotEmpty) t,
+      }.join(' • '),
+      // Two dots are one.
+      letter: letters.isEmpty
+          ? null
+          : dots == letters.length
+          ? '•'
+          : letters.where((l) => l != '•').join(', '),
+      strikeThrough: strikeThrough || other.strikeThrough,
+    );
+  }
 
   /// [tooltip] in [l10n]'s language.
   String localizedTooltip(AppLocalizations l10n) {

@@ -1,0 +1,17 @@
+{
+  "name": "save-fixture",
+  "displayName": "Save Fixture",
+  "publisher": "baocode-test",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:fixturelang"],
+  "contributes": {
+    "languages": [
+      { "id": "fixturelang", "extensions": [".fix"], "aliases": ["Fixture"] }
+    ],
+    "commands": [
+      { "command": "saveFixture.reasons", "title": "Save Reasons" }
+    ]
+  }
+}

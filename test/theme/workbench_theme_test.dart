@@ -33,6 +33,54 @@ void main() {
     );
   });
 
+  test('extensions\' contributed colors resolve with their defaults, and go '
+      'with them', () async {
+    final themes = WorkbenchThemeService()..restore(setting: 'Dark 2026');
+    await themes.initialize();
+    var notified = 0;
+    themes.addListener(() => notified++);
+    final before = themes.colors;
+    themes.setExtensionColors([
+      [
+        {
+          'id': 'acme.errorForeground',
+          'description': 'Error text.',
+          'defaults': {'dark': '#ff6464', 'light': '#e45454'},
+        },
+        {
+          'id': 'acme.linkForeground',
+          'description': 'A link.',
+          'defaults': {'dark': 'editorError.foreground', 'light': '#000000'},
+        },
+      ],
+    ]);
+    expect(notified, 1);
+    expect(identical(themes.colors, before), isFalse);
+    expect(themes.colors.get('acme.errorForeground'), const Color(0xffff6464));
+    expect(
+      themes.colors.get('acme.linkForeground'),
+      themes.colors.get('editorError.foreground'),
+    );
+    // The same contributions again change nothing.
+    themes.setExtensionColors([
+      [
+        {
+          'id': 'acme.errorForeground',
+          'description': 'Error text.',
+          'defaults': {'dark': '#ff6464', 'light': '#e45454'},
+        },
+        {
+          'id': 'acme.linkForeground',
+          'description': 'A link.',
+          'defaults': {'dark': 'editorError.foreground', 'light': '#000000'},
+        },
+      ],
+    ]);
+    expect(notified, 1);
+    themes.setExtensionColors(const []);
+    expect(themes.colors.get('acme.errorForeground'), isNull);
+  });
+
   test('the initial colors paint until the theme loads', () async {
     final themes = WorkbenchThemeService()..restore(setting: 'Light 2026');
     expect(themes.colorThemeId, 'Light 2026');

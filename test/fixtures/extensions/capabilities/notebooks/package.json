@@ -1,0 +1,9 @@
+{
+  "name": "notebooks", "publisher": "fixture", "version": "1.0.0",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./out/extension.js",
+  "contributes": {
+    "notebooks": [{ "type": "fixture-nb", "displayName": "Fixture Notebook", "selector": [{ "filenamePattern": "*.fnb" }] }],
+    "notebookRenderer": [{ "id": "fixture-renderer", "displayName": "Fixture Renderer", "entrypoint": "./out/renderer.js", "mimeTypes": ["x-fixture"] }]
+  }
+}

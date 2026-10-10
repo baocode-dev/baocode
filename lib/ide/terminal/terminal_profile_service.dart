@@ -90,6 +90,9 @@ class TerminalProfileService extends ChangeNotifier {
     systemShell: _systemShell,
   );
 
+  /// The shell a terminal starts with no profile set, once found.
+  TerminalShell? get systemShell => _systemShell;
+
   TerminalProfile? profileNamed(String name) {
     for (final profile in _profiles) {
       if (profile.name == name) return profile;

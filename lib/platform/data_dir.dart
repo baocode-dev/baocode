@@ -25,15 +25,17 @@ enum DataDirectorySource {
 /// out as VS Code's user data folder is:
 ///
 /// ```text
-/// <path>/User/{settings.json,keybindings.json,lsp.json}
+/// <path>/User/{settings.json,keybindings.json}
 /// <path>/argv.json                  the display language
 /// <path>/keymaps/
 /// <path>/state/{state.json,storage.json,*-processes.json}
-/// <path>/servers/  <path>/language-packs/
 /// <path>/checkpoints/             snapshots of the projects agents change
 /// <path>/workspaces/              the folders of multi-folder workspaces
 /// <path>/cache/                   what can be made again, to start faster
 /// <path>/logs/errors.log          the errors the app did not handle
+/// <path>/exthost/<version>/       the VS Code extension runtime
+/// <path>/extensions/              installed VS Code extensions
+/// <path>/exthost-data/            the extension server's data and storage
 /// ```
 ///
 /// Other programs keep files there too (the web views' `Cookies`,
@@ -59,11 +61,10 @@ class DataDirectory {
   final String path;
   final DataDirectorySource source;
 
-  /// What the user edits: settings, keybindings, language servers.
+  /// What the user edits: settings, keybindings.
   String get userDir => p.join(path, 'User');
   String get settingsFile => p.join(userDir, 'settings.json');
   String get keybindingsFile => p.join(userDir, 'keybindings.json');
-  String get lspSettingsFile => p.join(userDir, 'lsp.json');
 
   /// The display language (`locale`), as VS Code's `argv.json`.
   String get argvFile => p.join(path, 'argv.json');
@@ -79,11 +80,9 @@ class DataDirectory {
   String get storageFile => p.join(stateDir, 'storage.json');
 
   /// Where the child processes of one kind are listed
-  /// (`ChildProcessRegistry`): `claude`, `lsp`, `pty`.
+  /// (`ChildProcessRegistry`): `claude`, `pty`.
   String processRegistryFile(String name) =>
       p.join(stateDir, '$name-processes.json');
-  String get serversDir => p.join(path, 'servers');
-  String get languagePacksDir => p.join(path, 'language-packs');
 
   /// A Git repository per project, of snapshots of its files, which the
   /// agents' changes are kept or undone against (see change_review.dart).
@@ -109,8 +108,21 @@ class DataDirectory {
   /// error_log.dart).
   String get logsDir => p.join(path, 'logs');
 
+  /// The VS Code extension runtime, a folder per version, downloaded when
+  /// first needed (see lib/extensions/runtime/).
+  String get exthostDir => p.join(path, 'exthost');
+
+  /// Installed VS Code extensions, as VS Code lays them out
+  /// (`publisher.name-version/`, `extensions.json`).
+  String get extensionsDir => p.join(path, 'extensions');
+
+  /// The extension server's own data: its logs, and the extensions' global
+  /// and workspace storage.
+  String get exthostDataDir => p.join(path, 'exthost-data');
+
   /// The app's own entries, all others' left alone: what moving the folder
-  /// copies and removing old data deletes.
+  /// copies and removing old data deletes. `servers` and `language-packs`
+  /// are earlier versions' (their language servers), removed with the rest.
   static const items = [
     'User',
     'argv.json',
@@ -123,6 +135,9 @@ class DataDirectory {
     'icons',
     'workspaces',
     'logs',
+    'exthost',
+    'extensions',
+    'exthost-data',
   ];
 
   /// Entries that show a folder holds the app's data.

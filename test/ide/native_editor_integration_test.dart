@@ -1,12 +1,17 @@
-import 'package:flutter/gestures.dart' show PointerScrollEvent;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/editor_view_painters.dart';
+import 'package:baocode/ide/ide_commands.dart' show ideUsesMacKeys;
+import 'package:baocode/ide/ide_editor_links.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/range.dart';
+import 'package:bao_editor/monaco/vs/editor/contrib/folding/browser/folding_ranges.dart'
+    show FoldRange;
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_workspace.dart';
@@ -58,7 +63,7 @@ Widget _host(
         active: active,
         nativeEditorEnabled: true,
         onError: onError ?? (error) => fail('Unexpected editor error: $error'),
-        onLspStatus: onStatus ?? (_) {},
+        onEditorStatus: onStatus ?? (_) {},
         onPositionChanged: onPosition ?? (_) {},
       );
     },
@@ -85,6 +90,12 @@ Widget _host(
 EditorSurfaceController _controller(WidgetTester tester) =>
     tester.widget<EditorSurface>(find.byType(EditorSurface)).controller;
 
+EditorGutterPainter _foldingGutter(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(find.byType(CustomPaint))
+    .map((paint) => paint.painter)
+    .whereType<EditorGutterPainter>()
+    .single;
+
 TextInputClient _client(WidgetTester tester) =>
     tester.state(find.byType(EditorSurface)) as TextInputClient;
 
@@ -110,7 +121,7 @@ void main() {
       workspace: workspace,
       active: workspace.active!,
       onError: (error) => fail('$error'),
-      onLspStatus: (_) {},
+      onEditorStatus: (_) {},
       onPositionChanged: (_) {},
       nativeEditorEnabled: false,
     );
@@ -119,7 +130,7 @@ void main() {
         workspace: workspace,
         active: workspace.active!,
         onError: (_) {},
-        onLspStatus: (_) {},
+        onEditorStatus: (_) {},
         onPositionChanged: (_) {},
       ).nativeEditorEnabled,
       isTrue,
@@ -265,8 +276,8 @@ void main() {
       files.writeError = StateError('write failed');
       await key.currentState!.save();
       expect(errors.single, same(files.writeError));
-      await key.currentState!.retryLanguageServer();
-      expect(statuses, ['Monaco editor', 'Monaco editor']);
+      expect(statuses, isNotEmpty);
+      expect(statuses, everyElement('Monaco editor'));
       await tester.pumpWidget(const SizedBox());
       // Disposing the editor releases controllers, not the workspace-owned model.
       expect(doc.model.undo(), isTrue);
@@ -334,6 +345,126 @@ void main() {
       expect(first.text, 'alpha!');
     },
   );
+
+  testWidgets('document link hover and modifier-click reach the surface', (
+    tester,
+  ) async {
+    final workspace = IdeWorkspace(
+      _root,
+      files: _MemoryFiles({_first: 'link target\nnext line'}),
+    );
+    addTearDown(workspace.dispose);
+    await workspace.open(_first);
+    await tester.pumpWidget(_host(workspace, GlobalKey<IdeEditorState>()));
+    final view = workspace.editorViews.active!;
+    final links = view.features.links;
+    final snapshot = view.controller.document.snapshot;
+    final opened = <EditorDocumentLink>[];
+    links
+      ..setLinks(snapshot, [const EditorDocumentLink(0, 4)])
+      ..onOpen = (link, _) => opened.add(link);
+    await tester.pump();
+
+    final gutter = _foldingGutter(tester);
+    final caret = gutter.layout.caretRect(1);
+    final point =
+        tester.getTopLeft(find.byType(EditorSurface)) +
+        Offset(gutter.geometry.contentLeft + caret.left + 2, caret.center.dy);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: point);
+    await mouse.moveTo(point);
+    await tester.pump();
+    expect(links.hovered, isNull);
+    await mouse.down(point);
+    await mouse.up();
+    await tester.pump();
+    expect(opened, isEmpty);
+
+    final modifier = ideUsesMacKeys
+        ? LogicalKeyboardKey.metaLeft
+        : LogicalKeyboardKey.controlLeft;
+    await tester.sendKeyDownEvent(modifier);
+    await mouse.moveTo(point + const Offset(1, 0));
+    await tester.pump();
+    expect(links.hovered?.start, 0);
+    expect(
+      links.decorations.items.single.underlineStyle,
+      EditorUnderlineStyle.solid,
+    );
+    expect(
+      tester.widget<EditorSurface>(find.byType(EditorSurface)).contentCursor,
+      SystemMouseCursors.click,
+    );
+    await mouse.down(point);
+    await mouse.up();
+    await tester.pump();
+    expect(opened, hasLength(1));
+    await tester.sendKeyUpEvent(modifier);
+    await mouse.removePointer();
+  });
+
+  testWidgets('folding callbacks ignore old frames and document snapshots', (
+    tester,
+  ) async {
+    final workspace = IdeWorkspace(
+      _root,
+      files: _MemoryFiles({_first: 'one\ntwo\nthree\nfour'}),
+    );
+    addTearDown(workspace.dispose);
+    await workspace.open(_first);
+    await tester.pumpWidget(_host(workspace, GlobalKey<IdeEditorState>()));
+    final view = workspace.editorViews.active!;
+    view.setFoldingRanges!([
+      FoldRange(startLineNumber: 1, endLineNumber: 3, type: 'old'),
+    ]);
+    view.setFoldingRanges!([
+      FoldRange(startLineNumber: 2, endLineNumber: 4, type: 'latest'),
+    ]);
+    await tester.pump();
+    var regions = _foldingGutter(tester).folding.regions;
+    expect(regions.length, 1);
+    expect(regions.getStartLineNumber(0), 2);
+    expect(regions.getType(0), 'latest');
+
+    view.setFoldingRanges!([
+      FoldRange(startLineNumber: 1, endLineNumber: 4, type: 'stale'),
+    ]);
+    _controller(tester).applyEdits([const EditorOffsetEdit(0, 0, 'new\n')]);
+    await tester.pump();
+    regions = _foldingGutter(tester).folding.regions;
+    expect(regions.length, 0);
+  });
+
+  testWidgets('switching documents clears provider folding from the surface', (
+    tester,
+  ) async {
+    const text = 'one\ntwo\nthree\nfour';
+    final workspace = IdeWorkspace(
+      _root,
+      files: _MemoryFiles({_first: text, _second: text}),
+    );
+    addTearDown(workspace.dispose);
+    await workspace.open(_first);
+    await workspace.open(_second);
+    workspace.select(_first);
+    await tester.pumpWidget(_host(workspace, GlobalKey<IdeEditorState>()));
+    final first = workspace.editorViews.active!;
+    first.setFoldingRanges!([
+      FoldRange(startLineNumber: 1, endLineNumber: 3, type: 'first'),
+    ]);
+    await tester.pump();
+    expect(_foldingGutter(tester).folding.regions.getType(0), 'first');
+
+    first.setFoldingRanges!([
+      FoldRange(startLineNumber: 1, endLineNumber: 4, type: 'queued'),
+    ]);
+    workspace.select(_second);
+    await tester.pump();
+    expect(_foldingGutter(tester).folding.regions.length, 0);
+    workspace.select(_first);
+    await tester.pump();
+    expect(_foldingGutter(tester).folding.regions.length, 0);
+  });
 
   testWidgets(
     'find, revealLine, status and external model edits stay connected',

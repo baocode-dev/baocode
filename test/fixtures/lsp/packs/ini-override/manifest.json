@@ -1,5 +1,0 @@
-{
-  "languages": [
-    {"id": "better-ini", "extensions": [".ini"], "grammar": "../toy/grammar.json"}
-  ]
-}

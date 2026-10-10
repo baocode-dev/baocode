@@ -1,0 +1,15 @@
+{
+  "name": "testing-fixture",
+  "displayName": "Testing Fixture",
+  "publisher": "baocode-test",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "testingFixture.log", "title": "Log" },
+      { "command": "testingFixture.selfRun", "title": "Self Run" }
+    ]
+  }
+}
