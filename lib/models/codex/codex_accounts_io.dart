@@ -415,10 +415,11 @@ class CodexAccounts extends CodexService {
       );
     }
     try {
-      final (status, text) = await _get(provider, account, endpoints.models);
+      final url = endpoints.models(codexVersionOf(provider));
+      final (status, text) = await _get(provider, account, url);
       if (status >= 400) {
         throw UpstreamException(
-          '${upstreamErrorMessage(status, text)} (GET ${endpoints.models})',
+          '${upstreamErrorMessage(status, text)} (GET $url)',
         );
       }
       return parseCodexModels(_decode(text));
@@ -444,6 +445,7 @@ class CodexAccounts extends CodexService {
       codexHeaders(
         token,
         accountId: account.accountId,
+        version: codexVersionOf(provider),
       ).forEach(request.headers.set);
       final response = await request.close().timeout(
         const Duration(seconds: 30),

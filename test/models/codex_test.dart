@@ -60,7 +60,14 @@ class FakeOpenAI {
   }
 
   final HttpServer _server;
-  final List<({String path, Map<String, String> headers, String body})>
+  final List<
+    ({
+      String path,
+      Map<String, String> query,
+      Map<String, String> headers,
+      String body,
+    })
+  >
   requests = [];
 
   Answer Function(String path, Map<String, String> headers, String body) reply =
@@ -74,15 +81,26 @@ class FakeOpenAI {
     callbackPort: callbackPort,
   );
 
-  Iterable<({String path, Map<String, String> headers, String body})> to(
-    String path,
-  ) => requests.where((r) => r.path == path);
+  Iterable<
+    ({
+      String path,
+      Map<String, String> query,
+      Map<String, String> headers,
+      String body,
+    })
+  >
+  to(String path) => requests.where((r) => r.path == path);
 
   Future<void> _handle(HttpRequest request) async {
     final body = await utf8.decodeStream(request);
     final headers = <String, String>{};
     request.headers.forEach((name, values) => headers[name] = values.join(','));
-    requests.add((path: request.uri.path, headers: headers, body: body));
+    requests.add((
+      path: request.uri.path,
+      query: request.uri.queryParameters,
+      headers: headers,
+      body: body,
+    ));
     final (status, answerHeaders, lines) = reply(
       request.uri.path,
       headers,
@@ -587,13 +605,22 @@ void main() {
       final usage = openai.to('/backend-api/wham/usage').first.headers;
       expect(usage['authorization'], 'Bearer access');
       expect(usage['originator'], codexOriginator);
-      expect(usage['user-agent'], codexUserAgent);
+      expect(usage['user-agent'], codexUserAgent());
+      expect(usage['user-agent'], contains(codexClientVersion));
       expect(['ws-a', 'ws-b'], contains(usage['chatgpt-account-id']));
 
       final models = await accounts.listModels(provider());
       expect(models.map((m) => m.id), ['gpt-5']);
       final asked = openai.to('/backend-api/codex/models').single;
       expect(asked.headers['chatgpt-account-id'], 'ws-a');
+      expect(asked.query['client_version'], codexClientVersion);
+
+      // A version of the provider's own: asked as that Codex CLI.
+      await providers.save(provider().copyWith(clientVersion: () => '0.170.0'));
+      await accounts.listModels(provider());
+      final newer = openai.to('/backend-api/codex/models').last;
+      expect(newer.query['client_version'], '0.170.0');
+      expect(newer.headers['user-agent'], codexUserAgent('0.170.0'));
     });
 
     test('signing in: the browser comes back, the account is added', () async {
@@ -1006,6 +1033,6 @@ void main() {
       UpstreamUrls.conversation(provider),
       const CodexEndpoints().responses,
     );
-    expect(UpstreamUrls.models(provider), [const CodexEndpoints().models]);
+    expect(UpstreamUrls.models(provider), [const CodexEndpoints().models()]);
   });
 }

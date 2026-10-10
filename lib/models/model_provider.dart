@@ -467,6 +467,7 @@ class ModelProvider {
     this.env = const {},
     this.accounts = const [],
     this.balance = AccountBalance.roundRobin,
+    this.clientVersion,
   });
 
   /// Its own, made once; models are picked as `@<id>/<model>`.
@@ -503,6 +504,14 @@ class ModelProvider {
 
   /// Which of [accounts] a request goes to.
   final AccountBalance balance;
+
+  /// Codex: the Codex CLI's version it speaks as (`0.159.0`), for models
+  /// the backend offers only to a newer one; the app's when null.
+  final String? clientVersion;
+
+  /// Whether [text] can be a [clientVersion]: digits, letters, `.+-`.
+  static bool isClientVersion(String text) =>
+      RegExp(r'^[0-9A-Za-z][0-9A-Za-z.+-]*$').hasMatch(text);
 
   /// Where its key is kept in the keychain.
   String get keyRef => keyRefFor(id);
@@ -547,6 +556,7 @@ class ModelProvider {
     Map<String, String>? env,
     List<ProviderAccount>? accounts,
     AccountBalance? balance,
+    String? Function()? clientVersion,
   }) => ModelProvider(
     id: id,
     name: name ?? this.name,
@@ -563,6 +573,7 @@ class ModelProvider {
     env: env ?? this.env,
     accounts: accounts ?? this.accounts,
     balance: balance ?? this.balance,
+    clientVersion: clientVersion == null ? this.clientVersion : clientVersion(),
   );
 
   /// With [account] in place of the one of its id, or added.
@@ -601,6 +612,7 @@ class ModelProvider {
     if (accounts.isNotEmpty)
       'accounts': [for (final account in accounts) account.toJson()],
     if (balance != AccountBalance.roundRobin) 'balance': balance.id,
+    'clientVersion': ?clientVersion,
   };
 
   static ModelProvider? fromJson(Object? json) {
@@ -635,6 +647,11 @@ class ModelProvider {
           ?ProviderAccount.fromJson(account),
       ],
       balance: AccountBalance.parse(json['balance']),
+      clientVersion: switch (json['clientVersion']) {
+        final String version when isClientVersion(version.trim()) =>
+          version.trim(),
+        _ => null,
+      },
     );
   }
 

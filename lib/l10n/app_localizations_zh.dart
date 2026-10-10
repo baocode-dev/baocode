@@ -5617,6 +5617,13 @@ class AppLocalizationsZh extends AppLocalizations {
       '为每个对话发送独立的 prompt_cache_key，让上游（或背后有多个后端的中转站）把同一对话的请求路由到已缓存的位置。上游不接受该字段时请关闭。';
 
   @override
+  String get modelsCodexVersion => 'Codex 版本';
+
+  @override
+  String get modelsCodexVersionDescription =>
+      '以哪个版本的 Codex CLI 身份发起请求。后端只列出该版本支持的模型，缺少新模型时可填更新的版本号，再刷新模型列表。留空使用应用默认值。';
+
+  @override
   String get modelsEnv => '额外环境变量';
 
   @override

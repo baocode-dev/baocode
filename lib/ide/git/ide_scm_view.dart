@@ -125,9 +125,84 @@ class IdeScmSession {
   /// has closed meanwhile.
   Completer<void>? generating;
 
+  /// The Graph pane's selection, scroll and focus.
+  late final IdeGitGraphController graph = IdeGitGraphController(
+    expandedCommits,
+  );
+
   void dispose() {
     generating?.complete();
     message.dispose();
+    graph.dispose();
+  }
+}
+
+/// What the Graph pane keeps: the commit selected, which are open (the
+/// session's), their changes once asked for, the list's scroll and focus.
+class IdeGitGraphController extends ChangeNotifier {
+  IdeGitGraphController(this.expanded);
+
+  final Set<String> expanded;
+  final FocusNode focusNode = FocusNode(debugLabel: 'scm graph');
+  final ScrollController scroll = ScrollController();
+  final Map<String, Future<List<IdeGitCommitChange>>> _changes = {};
+
+  String? _selected;
+  String? get selected => _selected;
+  set selected(String? id) {
+    if (id == _selected) return;
+    _selected = id;
+    notifyListeners();
+  }
+
+  bool get hasFocus => focusNode.hasPrimaryFocus;
+
+  Future<List<IdeGitCommitChange>> _changesOf(
+    IdeGitRepository git,
+    String id,
+  ) => _changes.putIfAbsent(id, () => git.commitChanges(id));
+
+  /// Opens [row]'s commit, or closes it; the incoming and outgoing changes
+  /// do not open.
+  void toggle(IdeGraphRow row) {
+    final id = row.commit.id;
+    if (id == ideIncomingChangesId || id == ideOutgoingChangesId) return;
+    if (!expanded.remove(id)) expanded.add(id);
+    notifyListeners();
+  }
+
+  void collapseAll() {
+    expanded.clear();
+    notifyListeners();
+  }
+
+  /// Go to Current History Item: selects the commit HEAD is on, scrolled
+  /// to.
+  void goToCurrent(IdeGitRepository git) {
+    final rows = git.graph;
+    if (rows == null) return;
+    final index = rows.indexWhere((row) => row.kind == IdeGraphRowKind.head);
+    if (index < 0) return;
+    selected = rows[index].commit.id;
+    if (scroll.hasClients) {
+      unawaited(
+        scroll.animateTo(
+          (index * IdeListColors.rowHeight).clamp(
+            0,
+            scroll.position.maxScrollExtent,
+          ),
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    focusNode.dispose();
+    scroll.dispose();
+    super.dispose();
   }
 }
 
@@ -263,9 +338,7 @@ class IdeScmViewState extends State<IdeScmView>
     with IdeKeyboardList<IdeScmView> {
   final FocusNode _inputFocus = FocusNode(debugLabel: 'scm input');
   final FocusNode _listFocus = FocusNode(debugLabel: 'scm list');
-  final FocusNode _graphFocus = FocusNode(debugLabel: 'scm graph');
   final ScrollController _changesScroll = ScrollController();
-  final ScrollController _graphScroll = ScrollController();
 
   /// Publish Branch, where the menu of remotes opens.
   final GlobalKey _publishKey = GlobalKey();
@@ -284,11 +357,9 @@ class IdeScmViewState extends State<IdeScmView>
   /// the row a Shift click selects from (upstream's anchor).
   final Set<String> _selection = {};
   String? _anchor;
-  String? _selectedCommit;
-  final Map<String, Future<List<IdeGitCommitChange>>> _changes = {};
-
   IdeGitRepository? get _git => widget.workspace.git;
   IdeScmSession get _session => widget.session;
+  IdeGitGraphController get _graph => _session.graph;
 
   @override
   void initState() {
@@ -296,7 +367,6 @@ class IdeScmViewState extends State<IdeScmView>
     _message = _session.message.text;
     _session.message.addListener(_messageChanged);
     _listFocus.addListener(_rebuild);
-    _graphFocus.addListener(_rebuild);
   }
 
   @override
@@ -311,8 +381,6 @@ class IdeScmViewState extends State<IdeScmView>
       _selected = null;
       _selection.clear();
       _anchor = null;
-      _selectedCommit = null;
-      _changes.clear();
     }
   }
 
@@ -321,9 +389,7 @@ class IdeScmViewState extends State<IdeScmView>
     _session.message.removeListener(_messageChanged);
     _inputFocus.dispose();
     _listFocus.dispose();
-    _graphFocus.dispose();
     _changesScroll.dispose();
-    _graphScroll.dispose();
     super.dispose();
   }
 
@@ -434,7 +500,7 @@ class IdeScmViewState extends State<IdeScmView>
               IdePaneAction(
                 icon: Codicons.target,
                 tooltip: l10n.scmGoToCurrent,
-                onPressed: () => _goToCurrent(git),
+                onPressed: () => _graph.goToCurrent(git),
               ),
               IdePaneAction(
                 icon: Codicons.refresh,
@@ -497,7 +563,7 @@ class IdeScmViewState extends State<IdeScmView>
   /// the list where a row is selected.
   void focus() => (_selected == null ? _inputFocus : _listFocus).requestFocus();
 
-  bool get _graphHasFocus => _graphFocus.hasPrimaryFocus;
+  bool get _graphHasFocus => _graph.hasFocus;
 
   List<_ScmRow> get _rows => switch (_git?.state) {
     final state? => _rowsOf(state).rows,
@@ -631,16 +697,6 @@ class IdeScmViewState extends State<IdeScmView>
     }
   });
 
-  void _toggleCommit(IdeGraphRow row) {
-    final id = row.commit.id;
-    if (id == ideIncomingChangesId || id == ideOutgoingChangesId) return;
-    setState(() {
-      if (!_session.expandedCommits.remove(id)) {
-        _session.expandedCommits.add(id);
-      }
-    });
-  }
-
   @override
   bool get listHasFocus => _listFocus.hasPrimaryFocus || _graphHasFocus;
 
@@ -649,18 +705,18 @@ class IdeScmViewState extends State<IdeScmView>
 
   @override
   int get listFocusedIndex => _graphHasFocus
-      ? _commits.indexWhere((row) => row.commit.id == _selectedCommit)
+      ? _commits.indexWhere((row) => row.commit.id == _graph.selected)
       : _indexOf(_selected);
 
   @override
   int get listPageSize =>
-      ideRowsPerPage(_graphHasFocus ? _graphScroll : _changesScroll);
+      ideRowsPerPage(_graphHasFocus ? _graph.scroll : _changesScroll);
 
   @override
   void listFocusAt(int index) {
     if (_graphHasFocus) {
-      setState(() => _selectedCommit = _commits[index].commit.id);
-      ideRevealRow(_graphScroll, index);
+      _graph.selected = _commits[index].commit.id;
+      ideRevealRow(_graph.scroll, index);
       return;
     }
     setState(() => _selectOnly(_rows[index].key));
@@ -706,7 +762,7 @@ class IdeScmViewState extends State<IdeScmView>
   void listSelect() {
     if (_graphHasFocus) {
       final at = listFocusedIndex;
-      if (at >= 0) _toggleCommit(_commits[at]);
+      if (at >= 0) _graph.toggle(_commits[at]);
       return;
     }
     switch (_focusedRow) {
@@ -732,7 +788,7 @@ class IdeScmViewState extends State<IdeScmView>
       final at = listFocusedIndex;
       if (at >= 0 &&
           !_session.expandedCommits.contains(_commits[at].commit.id)) {
-        _toggleCommit(_commits[at]);
+        _graph.toggle(_commits[at]);
       }
       return;
     }
@@ -751,7 +807,7 @@ class IdeScmViewState extends State<IdeScmView>
       final at = listFocusedIndex;
       if (at >= 0 &&
           _session.expandedCommits.contains(_commits[at].commit.id)) {
-        _toggleCommit(_commits[at]);
+        _graph.toggle(_commits[at]);
       }
       return;
     }
@@ -768,7 +824,7 @@ class IdeScmViewState extends State<IdeScmView>
   @override
   void listCollapseAll() {
     if (_graphHasFocus) {
-      setState(_session.expandedCommits.clear);
+      _graph.collapseAll();
       return;
     }
     final state = _git?.state;
@@ -2080,57 +2136,69 @@ class IdeScmViewState extends State<IdeScmView>
 
   // --- Graph ---------------------------------------------------------------
 
-  void _goToCurrent(IdeGitRepository git) {
-    final rows = git.graph;
-    if (rows == null) return;
-    final index = rows.indexWhere((row) => row.kind == IdeGraphRowKind.head);
-    if (index < 0) return;
-    setState(() => _selectedCommit = rows[index].commit.id);
-    if (_graphScroll.hasClients) {
-      unawaited(
-        _graphScroll.animateTo(
-          (index * IdeListColors.rowHeight).clamp(
-            0,
-            _graphScroll.position.maxScrollExtent,
+  Widget _graphList(IdeGitRepository git) => IdeGitGraph(
+    git: git,
+    controller: _graph,
+    root: git.state?.root ?? widget.workspace.root,
+    onOpen: (path) => unawaited(widget.onOpen(path, focusEditor: false)),
+  );
+}
+
+/// The Graph pane's list: the history with its lanes and references, a
+/// commit's changes under it once opened, and older commits as it scrolls
+/// to them.
+class IdeGitGraph extends StatelessWidget {
+  const IdeGitGraph({
+    super.key,
+    required this.git,
+    required this.controller,
+    required this.root,
+    required this.onOpen,
+  });
+
+  final IdeGitRepository git;
+  final IdeGitGraphController controller;
+
+  /// The repository's folder, the changed files' paths shown from.
+  final String root;
+
+  /// Opens a file a commit changed.
+  final ValueChanged<String> onOpen;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([git, controller, controller.focusNode]),
+    builder: (context, _) {
+      final rows = git.graph;
+      if (rows == null) return const SizedBox.shrink();
+      final items = <Widget>[];
+      for (final row in rows) {
+        final expanded = controller.expanded.contains(row.commit.id);
+        items.add(_graphRow(context, row, expanded));
+        if (expanded) items.addAll(_commitChangeRows(row));
+      }
+      if (git.graphHasMore) {
+        final lanes = rows.isEmpty
+            ? const <IdeGraphLane>[]
+            : rows.last.outputLanes;
+        items.add(
+          _LoadMoreRow(
+            key: const ValueKey('more'),
+            lanes: lanes,
+            onShown: () => unawaited(git.loadMoreGraph()),
           ),
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
-        ),
+        );
+      }
+      return Focus(
+        focusNode: controller.focusNode,
+        child: IdeAnimatedList(controller: controller.scroll, children: items),
       );
-    }
-  }
+    },
+  );
 
-  Widget _graphList(IdeGitRepository git) {
-    final rows = git.graph;
-    if (rows == null) return const SizedBox.shrink();
-    final items = <Widget>[];
-    for (final row in rows) {
-      final id = row.commit.id;
-      final expanded = _session.expandedCommits.contains(id);
-      items.add(_graphRow(git, row, expanded));
-      if (expanded) items.addAll(_commitChangeRows(git, row));
-    }
-    if (git.graphHasMore) {
-      final lanes = rows.isEmpty
-          ? const <IdeGraphLane>[]
-          : rows.last.outputLanes;
-      items.add(
-        _LoadMoreRow(
-          key: const ValueKey('more'),
-          lanes: lanes,
-          onShown: () => unawaited(git.loadMoreGraph()),
-        ),
-      );
-    }
-    return Focus(
-      focusNode: _graphFocus,
-      child: IdeAnimatedList(controller: _graphScroll, children: items),
-    );
-  }
-
-  Widget _graphRow(IdeGitRepository git, IdeGraphRow row, bool expanded) {
+  Widget _graphRow(BuildContext context, IdeGraphRow row, bool expanded) {
     final commit = row.commit;
-    final selected = _selectedCommit == commit.id;
+    final selected = controller.selected == commit.id;
     final synthetic =
         commit.id == ideIncomingChangesId || commit.id == ideOutgoingChangesId;
     final current = row.kind == IdeGraphRowKind.head;
@@ -2141,21 +2209,17 @@ class IdeScmViewState extends State<IdeScmView>
       compact: false,
       child: IdeListRow(
         selected: selected,
-        focused: _graphFocus.hasFocus,
+        focused: controller.focusNode.hasFocus,
         onTap: () {
-          _graphFocus.requestFocus();
-          setState(() {
-            _selectedCommit = commit.id;
-            if (synthetic) return;
-            if (!_session.expandedCommits.remove(commit.id)) {
-              _session.expandedCommits.add(commit.id);
-            }
-          });
+          controller.focusNode.requestFocus();
+          controller
+            ..selected = commit.id
+            ..toggle(row);
         },
         onContextMenu: synthetic
             ? null
             : (position) {
-                setState(() => _selectedCommit = commit.id);
+                controller.selected = commit.id;
                 unawaited(
                   showIdeMenu(
                     context,
@@ -2185,7 +2249,7 @@ class IdeScmViewState extends State<IdeScmView>
           final colors = themeColors;
           final background = Color.alphaBlend(
             selected
-                ? colors[_graphFocus.hasFocus
+                ? colors[controller.focusNode.hasFocus
                       ? 'list.activeSelectionBackground'
                       : 'list.inactiveSelectionBackground']
                 : hovered
@@ -2277,9 +2341,9 @@ class IdeScmViewState extends State<IdeScmView>
     ];
   }
 
-  List<Widget> _commitChangeRows(IdeGitRepository git, IdeGraphRow row) {
+  List<Widget> _commitChangeRows(IdeGraphRow row) {
     final id = row.commit.id;
-    final future = _changes.putIfAbsent(id, () => git.commitChanges(id));
+    final future = controller._changesOf(git, id);
     final lanes = row.outputLanes;
     return [
       // Grows from the loading row to the files as they arrive.
@@ -2317,14 +2381,12 @@ class IdeScmViewState extends State<IdeScmView>
                 for (final change in changes)
                   _CommitChangeRow(
                     change: change,
-                    root: git.state?.root ?? widget.workspace.root,
+                    root: root,
                     lanes: lanes,
                     highlight: row.circleIndex,
                     onOpen: change.status == 'D'
                         ? null
-                        : () => unawaited(
-                            widget.onOpen(change.path, focusEditor: false),
-                          ),
+                        : () => onOpen(change.path),
                   ),
               ],
             );

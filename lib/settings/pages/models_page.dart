@@ -9,6 +9,7 @@ import '../../ide/ide_hover.dart';
 import '../../ide/ide_input.dart';
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
+import '../../models/codex/codex_api.dart' show codexClientVersion;
 import '../../models/codex/codex_service.dart';
 import '../../models/codex/codex_usage.dart';
 import '../../models/model_provider.dart';
@@ -1125,6 +1126,31 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           value: provider.promptCacheKey,
           onChanged: (value) =>
               unawaited(_save(_providerNow.copyWith(promptCacheKey: value))),
+        ),
+      if (provider.protocol == ProviderProtocol.codex)
+        SettingsRow(
+          label: l10n.modelsCodexVersion,
+          description: l10n.modelsCodexVersionDescription,
+          trailing: _Field(
+            value: provider.clientVersion ?? '',
+            label: l10n.modelsCodexVersion,
+            placeholder: codexClientVersion,
+            onCommit: (text) {
+              final version = text.trim();
+              // Not one: left as it was.
+              if (version.isNotEmpty &&
+                  !ModelProvider.isClientVersion(version)) {
+                return;
+              }
+              unawaited(
+                _save(
+                  _providerNow.copyWith(
+                    clientVersion: () => version.isEmpty ? null : version,
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       SettingsRow(
         label: l10n.modelsEnv,
