@@ -88,6 +88,7 @@ final class OpenVsxWorkspace {
     this.app,
     this.extensions,
     this.workspace,
+    this.close,
   );
 
   final String root;
@@ -95,6 +96,10 @@ final class OpenVsxWorkspace {
   final ExtensionsApp app;
   final WorkspaceExtensions extensions;
   final IdeWorkspace workspace;
+
+  /// Quits: the workspace, then the app (as the app quitting does); its
+  /// data folder stays until the test ends.
+  final Future<void> Function() close;
 
   /// `Actor.$method`s the extensions called that are not supported.
   final Set<String> unsupported = {};
@@ -104,19 +109,25 @@ final class OpenVsxWorkspace {
   /// A temporary data folder and project with [files], [extensionIds]
   /// installed from Open VSX (plus [development] folders), the folder
   /// trusted and the host started. Torn down with the test.
+  ///
+  /// [reopen] is another's [root]: the app starting again on its data
+  /// folder and project (left for that one to delete).
   static Future<OpenVsxWorkspace> create({
     required List<String> extensionIds,
     Map<String, String> files = const {},
     Map<String, Object?> settings = const {},
     List<String> development = const [],
     void Function(String project)? prepare,
+    String? reopen,
   }) async {
     // The binding answers every HttpClient request with a 400: these
     // download for real.
     HttpOverrides.global = null;
     final runtime = exthostRuntimeDir()!;
-    final temp = await Directory.systemTemp.createTemp('exthost-openvsx');
-    final root = temp.resolveSymbolicLinksSync();
+    final root =
+        reopen ??
+        (await Directory.systemTemp.createTemp('exthost-openvsx'))
+            .resolveSymbolicLinksSync();
     final project = p.join(root, 'proj');
     for (final MapEntry(:key, :value) in files.entries) {
       File(p.join(project, key))
@@ -145,7 +156,8 @@ final class OpenVsxWorkspace {
       extensionLanguageId: extensions.languageIdFor,
     );
     // In order: the workspace, its last writes, the app, then the folder.
-    addTearDown(() async {
+    Future<void>? closing;
+    Future<void> close() => closing ??= () async {
       extensions.dispose();
       workspace.dispose();
       await extensions.debugShutdown;
@@ -154,6 +166,10 @@ final class OpenVsxWorkspace {
       // The stores' last writes (the terminal environment's is not
       // awaited by dispose).
       await Future<void>.delayed(const Duration(milliseconds: 500));
+    }();
+    addTearDown(() async {
+      await close();
+      if (reopen != null) return;
       if (Platform.environment['BAOCODE_KEEP_ACCEPTANCE'] != null) {
         debugPrint('Kept $root');
         return;
@@ -170,6 +186,7 @@ final class OpenVsxWorkspace {
       app,
       extensions,
       workspace,
+      close,
     );
     final parity = ExtHostParity.instance.onUnsupportedCall.listen(
       (call) => result.unsupported.add(call.name),
