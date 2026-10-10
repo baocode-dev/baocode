@@ -100,5 +100,14 @@ void main() {
       LaunchRequest.ide,
     );
     expect(LaunchRequest.of(const [r'C:\w']), LaunchRequest.ide);
+    // An extension's URI (the baocode:// protocol): the last run's windows.
+    expect(
+      LaunchRequest.of(const [
+        CodeArgs.windowsUrlFlag,
+        '--',
+        'baocode://vscode.github-authentication/did-authenticate',
+      ]),
+      LaunchRequest.none,
+    );
   });
 }

@@ -68,27 +68,39 @@ void main() {
 
   group('KeychainBackend', () {
     test('adds through `security -i`, the value in hex on stdin', () async {
-      final commands = _Commands((_) => _result(0));
+      final commands = _Commands(
+        (call) => _result(call.arguments.first == '-i' ? 0 : 44),
+      );
       final backend = KeychainBackend(run: commands.run);
       await backend.write('pub.ext/a "b"', 'pä\nss');
-      final call = commands.calls.single;
+      // Whether there was a value in parts, then the value.
+      expect(commands.calls.first.arguments, [
+        'find-generic-password',
+        '-s',
+        'BaoCode Extension Secrets',
+        '-a',
+        'pub.ext/a "b"',
+      ]);
+      final call = commands.calls.last;
       expect(call.executable, '/usr/bin/security');
       expect(call.arguments, ['-i']);
       expect(
         call.input,
         'add-generic-password -U -s "BaoCode Extension Secrets" '
-        r'-a "pub.ext/a \"b\"" -X 70c3a40a7373'
+        r'-a "pub.ext/a \"b\"" -j "parts=1" -X 70c3a40a7373'
         '\n',
       );
       expect(call.input, isNot(contains('pä')));
-      expect(KeychainBackend.addCommand('x', ''), contains('-w ""'));
+      expect(KeychainBackend.addCommand('x', const []), contains('-w ""'));
       expect(KeychainBackend.quote(r'a\b'), r'"a\\b"');
     });
 
     test('a failing add throws', () async {
       final backend = KeychainBackend(
         run: _Commands(
-          (_) => _result(0, stderr: 'add-generic-password: returned 2'),
+          (call) => call.arguments.first == '-i'
+              ? _result(0, stderr: 'add-generic-password: returned 2')
+              : _result(44),
         ).run,
       );
       await expectLater(
@@ -129,6 +141,103 @@ void main() {
       stderr = 'User interaction is not allowed.';
       await expectLater(
         backend.read('pub.ext/k'),
+        throwsA(isA<SecretBackendException>()),
+      );
+    });
+
+    test('a value longer than `security -i` reads in a line is kept in '
+        'parts, read back whole, and its old parts go', () async {
+      // The keychain: (service, account) to the password's hex and comment.
+      final items = <(String, String), ({String hex, String? comment})>{};
+      String? arg(List<String> words, String flag) {
+        final at = words.indexOf(flag);
+        return at < 0 ? null : words[at + 1];
+      }
+
+      ProcessResult run(List<String> words) {
+        final key = (arg(words, '-s')!, arg(words, '-a')!);
+        switch (words.first) {
+          case 'add-generic-password':
+            items[key] = (
+              hex: arg(words, '-X') ?? '',
+              comment: arg(words, '-j') ?? items[key]?.comment,
+            );
+            return _result(0);
+          case 'find-generic-password':
+            final item = items[key];
+            if (item == null) return _result(44);
+            final comment = item.comment == null
+                ? '<NULL>'
+                : '"${item.comment}"';
+            return _result(
+              0,
+              stdout: 'attributes:\n    "icmt"<blob>=$comment\n',
+              stderr: words.contains('-g')
+                  ? 'password: 0x${item.hex.toUpperCase()}  "…"\n'
+                  : '',
+            );
+          case 'delete-generic-password':
+            return _result(items.remove(key) == null ? 44 : 0);
+        }
+        throw StateError('$words');
+      }
+
+      final commands = _Commands((call) {
+        if (call.arguments.first != '-i') return run(call.arguments);
+        for (final line in const LineSplitter().convert(call.input!)) {
+          // The longest line `security -i` reads.
+          expect(line.length, lessThan(4096));
+          final words = [
+            for (final m in RegExp(
+              r'"((?:[^"\\]|\\.)*)"|(\S+)',
+            ).allMatches(line))
+              m[1]?.replaceAllMapped(RegExp(r'\\(.)'), (e) => e[1]!) ?? m[2]!,
+          ];
+          if (run(words).exitCode != 0) {
+            return _result(0, stderr: '${words.first}: returned 1');
+          }
+        }
+        return _result(0);
+      });
+      final backend = KeychainBackend(run: commands.run);
+      // Characters of three bytes across the parts' edges.
+      final long = '密' * 1000;
+      await backend.write('pub.ext/k', long);
+      expect(items.keys, [
+        ('BaoCode Extension Secrets (part 2)', 'pub.ext/k'),
+        ('BaoCode Extension Secrets (part 3)', 'pub.ext/k'),
+        ('BaoCode Extension Secrets', 'pub.ext/k'),
+      ]);
+      expect(items.values.last.comment, 'parts=3');
+      expect(await backend.read('pub.ext/k'), long);
+
+      await backend.write('pub.ext/k', 'short');
+      expect(items.keys, [('BaoCode Extension Secrets', 'pub.ext/k')]);
+      expect(items.values.single.comment, 'parts=1');
+      expect(await backend.read('pub.ext/k'), 'short');
+
+      await backend.write('pub.ext/k', long);
+      await backend.delete('pub.ext/k');
+      expect(items, isEmpty);
+      expect(await backend.read('pub.ext/k'), isNull);
+
+      // A missing part is an error, not a shorter value.
+      await backend.write('pub.ext/k', long);
+      items.remove(('BaoCode Extension Secrets (part 3)', 'pub.ext/k'));
+      await expectLater(
+        backend.read('pub.ext/k'),
+        throwsA(isA<SecretBackendException>()),
+      );
+      // A value kept before values were split has no comment: one part.
+      items
+        ..clear()
+        ..[('BaoCode Extension Secrets', 'pub.ext/old')] = (
+          hex: '6f6c64',
+          comment: null,
+        );
+      expect(await backend.read('pub.ext/old'), 'old');
+      expect(
+        () => KeychainBackend.addCommand('x' * 4000, const [1]),
         throwsA(isA<SecretBackendException>()),
       );
     });

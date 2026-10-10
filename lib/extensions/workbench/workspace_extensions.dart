@@ -252,7 +252,15 @@ final class ExtensionsApp {
     keyIndexPath: p.join(userDirectory, 'globalStorage', 'secret-keys.json'),
   );
 
-  late final ExtensionUrlService urls = ExtensionUrlService();
+  /// `baocode://` URIs for the extensions (OAuth callbacks): the trust
+  /// prompt in the window of the host a URI goes to, the extensions trusted
+  /// for good kept here.
+  late final ExtensionUrlService urls = ExtensionUrlService(
+    trustStore: JsonStateStore(
+      p.join(userDirectory, 'globalStorage', 'url-handler.json'),
+    ),
+    l10n: l10n,
+  );
 
   late final WorkbenchWindowFocus focus = WorkbenchWindowFocus();
 
@@ -401,6 +409,7 @@ final class ExtensionsApp {
     _remotes.clear();
     await pool.dispose();
     trustStore.dispose();
+    await urls.trustStore?.dispose();
   }
 }
 
@@ -1049,6 +1058,8 @@ final class WorkspaceExtensions extends ChangeNotifier {
         ExtensionStorageService: app.storage,
         ExtensionSecretService: app.secrets,
         ExtensionUrlService: app.urls,
+        // The URL service's trust prompt, in this workspace's window.
+        ExtensionDialogs: dialogs,
         ExtensionWindowFocus: app.focus,
         ExtensionExternalOpener: WorkbenchExternalOpener(
           app.openExternal ?? (_) async => false,

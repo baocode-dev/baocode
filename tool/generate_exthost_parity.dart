@@ -14,6 +14,8 @@ import 'dart:io';
 
 import 'package:bao_exthost/bao_exthost.dart' show exthostProtocolMethods;
 
+import 'exthost_parity_notes.dart';
+
 const _sources = 'lib/extensions';
 const exthostParityOutput = 'docs/extensions/EXTHOST_PARITY.md';
 
@@ -127,8 +129,39 @@ void main(List<String> arguments) {
     byShape.putIfAbsent(shape, () => []).add(impl);
   }
 
+  // Every shape not done says why; no reason outlives its shape's gaps.
+  for (final MapEntry(key: shape, value: methods)
+      in exthostProtocolMethods.entries) {
+    final missing = methods.length - _done(byShape[shape], methods).length;
+    final reason = exthostUnsupportedReasons[shape];
+    if (missing > 0 && reason == null) {
+      warnings.add(
+        '$shape has $missing unsupported methods and no reason in '
+        'tool/exthost_parity_notes.dart',
+      );
+    } else if (missing == 0 && reason != null) {
+      warnings.add(
+        '$shape is done: drop its reason from tool/exthost_parity_notes.dart',
+      );
+    }
+  }
+  for (final shape in {
+    ...exthostUnsupportedReasons.keys,
+    ...exthostDegradedShapes.keys,
+  }) {
+    if (!exthostProtocolMethods.containsKey(shape)) {
+      warnings.add('tool/exthost_parity_notes.dart: no shape $shape');
+    }
+  }
+
   return (report: _render(byShape), warnings: warnings);
 }
+
+/// The methods of [methods] any of [impls] overrides.
+Set<String> _done(List<_Impl>? impls, List<String> methods) => {
+  for (final impl in impls ?? const <_Impl>[])
+    ...impl.methods.where(methods.contains),
+};
 
 String _render(Map<String, List<_Impl>> byShape) {
   var total = 0;
@@ -136,13 +169,13 @@ String _render(Map<String, List<_Impl>> byShape) {
   var shapesStarted = 0;
   final rows = <String>[];
   final details = <String>[];
+  final unsupported = <String>[];
+  final degradedRows = <String>[];
   for (final MapEntry(key: shape, value: methods)
       in exthostProtocolMethods.entries) {
     final impls = byShape[shape] ?? const [];
     // A method counts when any implementation of the shape overrides it.
-    final done = {
-      for (final impl in impls) ...impl.methods.where(methods.contains),
-    };
+    final done = _done(impls, methods);
     total += methods.length;
     implemented += done.length;
     if (done.isNotEmpty) shapesStarted++;
@@ -151,6 +184,15 @@ String _render(Map<String, List<_Impl>> byShape) {
         : impls.map((i) => '`${i.name}` (${i.file})').join(', ');
     rows.add('| $shape | ${done.length}/${methods.length} | $where |');
     final missing = methods.where((m) => !done.contains(m)).toList();
+    if (missing.isNotEmpty) {
+      unsupported.add(
+        '| $shape | ${missing.length}/${methods.length} | '
+        '${exthostUnsupportedReasons[shape] ?? '?'} |',
+      );
+    }
+    if (exthostDegradedShapes[shape] case final degraded?) {
+      degradedRows.add('| $shape | $degraded |');
+    }
     details
       ..add('### $shape')
       ..add('')
@@ -183,13 +225,33 @@ String _render(Map<String, List<_Impl>> byShape) {
     '| --- | --- | --- |',
     ...rows,
     '',
+    '## Not supported, and why',
+    '',
+    'The capabilities BaoCode does not have, by shape (their methods are below).',
+    '"Proposed" APIs are only open to extensions that enable the proposal.',
+    '',
+    '| Shape | Unsupported | Why |',
+    '| --- | --- | --- |',
+    ...unsupported,
+    '',
+    '## Accepted but degraded',
+    '',
+    'Implemented so that the extensions using them activate and the rest of',
+    'what they do works, but what they would show has no place in BaoCode.',
+    '',
+    '| Shape | What happens |',
+    '| --- | --- |',
+    ...degradedRows,
+    '',
     '## Methods by shape',
     '',
     ...details,
   ].join('\n');
 }
 
-/// [text] without comments, and with every string literal emptied.
+/// [text] without comments, and with every string literal emptied (and a
+/// space after it: two emptied next to each other, as in `'${m['k']}'`,
+/// would read as a triple quote).
 String _stripComments(String text) {
   final out = StringBuffer();
   var i = 0;
@@ -202,7 +264,7 @@ String _stripComments(String text) {
       i = end == -1 ? text.length : end + 2;
     } else if (text[i] == "'" || text[i] == '"') {
       i = _stringEnd(text, i);
-      out.write("''");
+      out.write("'' ");
     } else {
       out.write(text[i]);
       i++;

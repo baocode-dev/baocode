@@ -70,6 +70,23 @@ BaoCode (Dart, 主线程)                       插件进程 (Node)
 颜色主题、文件图标主题、`contributes.colors`（`workbench_theme.dart`）和
 `contributes.icons` 图标字体（`icon_registry.dart`）。
 
+### `baocode://` 回调（插件的 UriHandler，OAuth 用）
+
+`baocode://<publisher.name>/<path>` 交给该插件的 `vscode.window.registerUriHandler`：
+
+- macOS：`Info.plist` 注册 scheme；`AppDelegate.swift` 把非 `agent`/`ide` 的 URL
+  以 `["\0uri", url]` 经 `baocode/open` 发给 Flutter（启动时的先存着，等 `takePending`）。
+- Windows：安装程序（`tool/baocode.iss`）注册 `"baocode.exe" --open-url -- "%1"`；
+  `windows/runner/open_requests.cpp` 读这个参数，已有窗口时经 WM_COPYDATA 转给它。
+- Flutter：`OpenRequests.onUri` → 全应用一个的 `ExtensionUrlService.handleOpenRequest`
+  （上游 `extensionUrlHandler.ts`）。各工作区的宿主在 `MainThreadUrls` 里登记；确认框和
+  "安装该插件"命令用拥有该插件的那个窗口的。信任过的插件记在
+  `<data>/User/globalStorage/url-handler.json`；`vscode.git`、`vscode.github-authentication`、
+  `vscode.microsoft-authentication` 默认信任。
+- Linux 仓库里还没有打包（无 `linux/`、无 `.desktop`），没有注册。
+- 测试：`test/extensions/url_protocol_test.dart`（从 channel 到 handler，并核对
+  Info.plist、Swift、C++、.iss 与 Dart 的标记和参数一致）。
+
 ### 协议要点（调试时最常看）
 
 | 层 | 文件（Dart） | 上游 |

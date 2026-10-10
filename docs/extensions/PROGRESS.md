@@ -246,15 +246,38 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   also failed it are fixed (3efbf04): lib/remote/remote_binaries.dart's `Abi` is behind the same kind of import, and
   bao_remote's git_review_store.dart builds its 64-bit FNV offset from two halves. `flutter build web --no-pub`
   succeeds.
+- 五.8 (`baocode://` to the extensions' URI handlers) was only half there: the scheme was registered on macOS, but
+  nothing called `ExtensionUrlService.handleOpenRequest`, so an OAuth callback never reached GitHub
+  Authentication. Now (84e60f7): macOS's AppDelegate sends a URI that is not `agent`/`ide` over `baocode/open` as
+  `["\0uri", uri]` (at launch kept for `takePending`); the Windows runner takes `--open-url -- <uri>` (forwarded
+  to the running copy over WM_COPYDATA) and the installer registers `Software\Classes\baocode` with that command;
+  `OpenRequests.onUri` hands it to the app-wide `ExtensionUrlService`, which asks and runs commands through the
+  window's dialogs and commands of the host that has the extension, and keeps the trusted extensions in
+  `globalStorage/url-handler.json`. Tests: `url_protocol_test.dart` (channel → handler; Info.plist, Swift, C++
+  and .iss agree), `open_requests_test.dart`, `code_args_test.dart`, `window_services_test.dart`. Linux has no
+  package in the repository, so no scheme registration there.
+- Found rerunning the real REH tests: the macOS keychain could not keep a secret over about 2000 bytes (an OAuth
+  session list can be): `security -i` reads at most 4096 characters a line and a value goes in hex. Values are now
+  split into parts of 1024 bytes as the Credential Manager's (`BaoCode Extension Secrets (part <i>)`, `parts=<n>` in
+  the first item's comment; a value without one is a single part), shrinking deletes the old parts, a missing part
+  is an error. Tests: `secret_backends_test.dart`, `keychain_real_test.dart` (real keychain, 5000 bytes in 5 parts).
+- EXTHOST_PARITY.md undercounted: the generator empties string literals to `''`, and two side by side (`'${m['kind']
+  ?? ''}'`) read as a triple quote, hiding the rest of the class. MainThreadLanguageFeatures showed formatting,
+  inlay hints, signature help, folding, colors, links and inline completions as unsupported although implemented
+  and tested. Fixed (a space after each emptied string); `exthost_parity_test.dart` now also checks, line by
+  line apart from the generator, that every `@override` of a shape's `$` method counts. 370/523 (71%).
 
 ## In progress / next
 
 1. 九.1–九.9 are done (see Done). The 9 tests that failed on main 9f84ede too are brought up to main's changes
    (ab07142: the terminal view's font size sync, the palette's new first actions, the window canvas as a Material,
-   a quit with nothing at work not asked about, the codex accounts' real clock). Final checks before the merge,
-   all passed: `flutter analyze --no-pub` clean; the full suite 6111 passed, 33 skipped, none failed;
-   `flutter build macos --debug` and `flutter build web --no-pub` build.
-2. Merge into main (`git merge --no-ff`, no push).
+   a quit with nothing at work not asked about, the codex accounts' real clock). The first merge (e4addcf) followed
+   `flutter analyze --no-pub` clean, the full suite 6111 passed / 33 skipped, `flutter build macos --debug` and
+   `flutter build web --no-pub`.
+2. After the `baocode://`, keychain and parity fixes: the real REH tests (`flutter test --run-skipped -t exthost`)
+   50 passed; the full suite 6118 passed / 33 skipped; `flutter build macos --debug` and `flutter build web --no-pub`
+   built; the parity, secrets and URL tests rerun on 8e3cb4b and `flutter analyze --no-pub` clean; pubspec.lock
+   unchanged. Next: merge again (`git merge --no-ff`, no push).
 
 ## Decisions and deviations
 

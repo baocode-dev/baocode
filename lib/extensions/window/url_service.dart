@@ -25,6 +25,7 @@ import 'dart:async';
 import 'package:bao_exthost/bao_exthost.dart';
 
 import '../../l10n/l10n.dart';
+import '../../window/code_args.dart';
 import 'extension_descriptions.dart';
 import 'json_state_store.dart';
 import 'window_ports.dart';
@@ -68,11 +69,14 @@ final class ExtensionUrlService {
   /// The app's URL scheme (product.json's `urlProtocol`).
   final String scheme;
 
-  /// Asks before an extension opens a URI it did not make; null trusts all.
+  /// Asks before an extension opens a URI it did not make; null asks in the
+  /// window of the host the URI goes to (see [addHost]), and trusts all
+  /// when that has none either.
   final ExtensionDialogs? dialogs;
 
   /// Runs `workbench.extensions.installExtension` for a URI of an extension
-  /// that is not installed.
+  /// that is not installed; null runs it in the host's window (see
+  /// [addHost]).
   final ExtensionCommandExecutor? commands;
 
   /// Remembers the extensions the user trusts (`extensionUrlHandler.
@@ -92,27 +96,41 @@ final class ExtensionUrlService {
 
   /// The marker of a request carrying a URI the system asked the app to
   /// open (see [handleOpenRequest]).
-  static const requestMarker = '\u0000uri';
+  static const requestMarker = CodeArgs.uriRequestMarker;
 
   static const _trustKey = 'extensionUrlHandler.confirmedExtensions';
   static const _bufferLife = Duration(minutes: 5);
 
   final List<ExtensionUrlHost> _hosts = [];
+  final Map<
+    ExtensionUrlHost,
+    ({ExtensionDialogs? dialogs, ExtensionCommandExecutor? commands})
+  >
+  _hostUi = {};
   final List<ExtensionUriHandler> _handlers = [];
   final Map<String, _ExtensionHandler> _extensionHandlers = {};
   final Map<String, List<({DateTime at, VsUri uri, ExtensionUrlHost host})>>
   _buffer = {};
 
   /// Adds a workspace's host; the last added or [activate]d is the one a
-  /// URI goes to when nothing else decides.
-  void addHost(ExtensionUrlHost host) {
+  /// URI goes to when nothing else decides. [dialogs] and [commands] are its
+  /// window's: the trust prompt and the install of a URI going to it.
+  void addHost(
+    ExtensionUrlHost host, {
+    ExtensionDialogs? dialogs,
+    ExtensionCommandExecutor? commands,
+  }) {
     _hosts
       ..remove(host)
       ..add(host);
+    if (dialogs != null || commands != null) {
+      _hostUi[host] = (dialogs: dialogs, commands: commands);
+    }
   }
 
   void removeHost(ExtensionUrlHost host) {
     _hosts.remove(host);
+    _hostUi.remove(host);
     _extensionHandlers.removeWhere((_, handler) => handler.host == host);
     for (final uris in _buffer.values) {
       uris.removeWhere((entry) => entry.host == host);
@@ -187,7 +205,10 @@ final class ExtensionUrlService {
     if (request.length < 2 || request.first != requestMarker) return false;
     for (final value in request.skip(1)) {
       final uri = VsUri.parse(value);
-      if (uri.scheme == scheme) unawaited(open(uri));
+      // One that fails (no window to ask in) is dropped, as upstream's.
+      if (uri.scheme == scheme) {
+        unawaited(open(uri).catchError((Object _) => false));
+      }
     }
     return true;
   }
@@ -211,12 +232,12 @@ final class ExtensionUrlService {
     final host = _hostFor(uri, extensionId, handler);
     final description = host?.extension(extensionId);
     if (handler == null && (host == null || description == null)) {
-      await _handleUnhandled(uri, extensionId);
+      await _handleUnhandled(uri, extensionId, host);
       return true;
     }
     final displayName =
         handler?.displayName ?? extensionDisplayName(description!);
-    if (!await _trusted(uri, key, displayName)) return true;
+    if (!await _trusted(uri, key, displayName, host)) return true;
     // The handler may have come while the user was asked.
     final now = _extensionHandlers[key];
     if (now != null) {
@@ -248,7 +269,12 @@ final class ExtensionUrlService {
     return _hosts.lastOrNull;
   }
 
-  Future<bool> _trusted(VsUri uri, String key, String displayName) async {
+  Future<bool> _trusted(
+    VsUri uri,
+    String key,
+    String displayName,
+    ExtensionUrlHost? host,
+  ) async {
     if (trustedExtensions.contains(key)) return true;
     final store = trustStore;
     await store?.load();
@@ -257,7 +283,7 @@ final class ExtensionUrlService {
       _ => false,
     };
     if (trusted) return true;
-    final dialogs = this.dialogs;
+    final dialogs = this.dialogs ?? _hostUi[host]?.dialogs;
     if (dialogs == null) return true;
     final l10n = _l10n();
     var label = uri.toString();
@@ -284,8 +310,12 @@ final class ExtensionUrlService {
     return true;
   }
 
-  Future<void> _handleUnhandled(VsUri uri, String extensionId) async {
-    final commands = this.commands;
+  Future<void> _handleUnhandled(
+    VsUri uri,
+    String extensionId,
+    ExtensionUrlHost? host,
+  ) async {
+    final commands = this.commands ?? _hostUi[host]?.commands;
     if (commands == null) return;
     try {
       await commands.executeCommand('workbench.extensions.installExtension', [
