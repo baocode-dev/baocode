@@ -4,9 +4,10 @@
 // Ported from VS Code 08d4889f9ec4a1685d257b9b95de036c8e1ce1e5 (1.135.0):
 // src/vs/workbench/contrib/debug/browser/repl.ts and replViewer.ts.
 //
-// Deviations: no ANSI colors (text is shown as it comes), no filter or
-// severity folding; the input completes on ⌥Space rather than on typing;
-// with the default keybindings or a terminal output (`.clear`, `.help`).
+// Deviations: no link detection in output, no filter or severity folding;
+// the input completes on ⌥Space rather than on typing; with the default
+// keybindings or a terminal output (`.clear`, `.help`). ANSI styles are
+// debug_ansi.dart's.
 
 import 'dart:async';
 
@@ -19,12 +20,15 @@ import '../../ide/ide_list.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_panes.dart';
 import '../../theme/codicons.dart';
+import '../../theme/workbench_theme.dart' show themeColors;
 import '../base/event.dart';
 import '../common/debug_model.dart';
+import '../common/debug_source.dart';
 import '../common/debug_types.dart';
 import '../common/repl_model.dart';
 import '../service/debug_service.dart';
 import '../session/debug_session.dart';
+import 'debug_ansi.dart';
 import 'debug_icons.dart';
 import 'debug_strings.dart';
 import 'debug_toolbar.dart';
@@ -274,55 +278,89 @@ class _ConsoleInput extends StatelessWidget {
   }
 }
 
+/// The tree's twistie: every row has its place, so the text of rows with
+/// and without children lines up.
+const _twistieWidth = 16.0;
+
+TextStyle _rowStyle(Color color, {bool italic = false}) =>
+    TextStyle(fontSize: 13, height: 1.25, color: color, fontStyle: italic ? FontStyle.italic : null);
+
+/// [text] as upstream's `white-space: pre` shows it: a last line break
+/// draws no empty line.
+String _shown(String text) {
+  var shown = text;
+  if (shown.endsWith('\n')) shown = shown.substring(0, shown.length - 1);
+  if (shown.endsWith('\r')) shown = shown.substring(0, shown.length - 1);
+  return shown;
+}
+
+/// `debugConsoleInputIcon.foreground`, faded when the theme leaves it to the
+/// default (debugColors.ts).
+Color _inputIconColor() {
+  final defined = themeColors.get('debugConsoleInputIcon.foreground');
+  if (defined != null) return defined;
+  final color = debugColor('debugConsoleInputIcon.foreground');
+  return color.withValues(alpha: color.a * (themeColors.dark ? 0.4 : 0.25));
+}
+
 class _ReplRow extends StatelessWidget {
   const _ReplRow({required this.service, required this.element, required this.depth});
 
   final DebugService service;
-  final ReplElement element;
+  final Object element;
   final int depth;
 
   @override
   Widget build(BuildContext context) {
     final element = this.element;
-    if (element is NestingReplElement) {
-      return element is RawObjectReplElement
-          ? _PlainRow(text: '${element.name}: ${element.value}', color: debugColor('debugTokenExpression.value'), depth: depth)
-          : _NestingRow(service: service, element: element, depth: depth);
+    if (element is NestingReplElement || element is DebugExpression) {
+      return _NestingRow(service: service, element: element, depth: depth);
     }
-    final (text, color, italic) = switch (element) {
-      ReplEvaluationInput() => ('${element.value}\n', debugColor('debugTokenExpression.name'), false),
-      ReplOutputElement() => (element.toString(includeSource: true), _severityColor(element.severity), false),
-      ReplVariableElement() => (element.toString(), debugColor('debugTokenExpression.value'), false),
-      ReplGroup() => (element.toString(), debugColor('debugConsole.infoForeground'), false),
-      _ => (element.toString(), debugColor('debugConsole.infoForeground'), true),
+    return switch (element) {
+      // The input with its marker in the twistie's place.
+      ReplEvaluationInput() => _Row(
+        depth: depth,
+        leading: Icon(Codicons.arrowSmallRight, size: 14, color: _inputIconColor()),
+        child: SelectableText(element.value, style: _rowStyle(debugColor('foreground'))),
+      ),
+      _ => _Row(
+        depth: depth,
+        child: SelectableText(_shown('$element'), style: _rowStyle(debugColor('foreground'))),
+      ),
     };
-    return _PlainRow(text: text, color: color, depth: depth, italic: italic);
   }
 }
 
-class _PlainRow extends StatelessWidget {
-  const _PlainRow({required this.text, required this.color, required this.depth, this.italic = false});
+/// A row of the tree: indented by depth, the twistie's place, the content.
+class _Row extends StatelessWidget {
+  const _Row({required this.depth, required this.child, this.leading});
 
-  final String text;
-  final Color color;
   final int depth;
-  final bool italic;
+  final Widget? leading;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: EdgeInsets.only(left: 8 + depth * IdeListColors.indent, right: 8, top: 1, bottom: 1),
-    child: SelectableText(
-      text,
-      style: TextStyle(fontSize: 13, height: 1.25, color: color, fontStyle: italic ? FontStyle.italic : null),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(width: _twistieWidth, child: leading),
+        Expanded(child: child),
+      ],
     ),
   );
 }
 
+/// An element that may have children: output (of a variable), a group, an
+/// evaluation's result and the variables under it, a raw object.
 class _NestingRow extends StatefulWidget {
   const _NestingRow({required this.service, required this.element, required this.depth});
 
   final DebugService service;
-  final NestingReplElement element;
+
+  /// A [NestingReplElement] or a [DebugExpression].
+  final Object element;
   final int depth;
 
   @override
@@ -334,9 +372,21 @@ class _NestingRowState extends State<_NestingRow> {
   List<Object> _children = const [];
   bool _loaded = false;
 
+  bool get _hasChildren => switch (widget.element) {
+    final NestingReplElement e => e.hasChildren,
+    final DebugExpression e => e.hasChildren,
+    _ => false,
+  };
+
+  Future<List<Object>> _getChildren() async => switch (widget.element) {
+    final NestingReplElement e => await e.getChildren(),
+    final DebugExpression e => await e.getChildren(),
+    _ => const [],
+  };
+
   Future<void> _toggle() async {
-    if (!_expanded && !_loaded && widget.element.hasChildren) {
-      _children = await widget.element.getChildren();
+    if (!_expanded && !_loaded && _hasChildren) {
+      _children = await _getChildren();
       _loaded = true;
     }
     if (mounted) setState(() => _expanded = !_expanded);
@@ -345,50 +395,118 @@ class _NestingRowState extends State<_NestingRow> {
   @override
   Widget build(BuildContext context) {
     final element = widget.element;
-    final label = switch (element) {
-      final ReplEvaluationResult result => result.value,
-      _ => element.toString(),
-    };
-    final color = element is ReplOutputElement ? _severityColor(element.severity) : debugColor('debugConsole.infoForeground');
+    final hasChildren = _hasChildren;
+    // A group's children are live (output keeps arriving into it).
+    final children = element is ReplGroup ? element.children : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         GestureDetector(
-          onTap: _toggle,
-          child: Padding(
-            padding: EdgeInsets.only(left: 8 + widget.depth * IdeListColors.indent, right: 8, top: 1, bottom: 1),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 16,
-                  child: element.hasChildren
-                      ? Icon(_expanded ? Codicons.chevronDown : Codicons.chevronRight, size: 14, color: IdeListColors.foreground)
-                      : null,
-                ),
-                Expanded(child: SelectableText(label, style: TextStyle(fontSize: 13, height: 1.25, color: color))),
-              ],
-            ),
+          onTap: hasChildren ? _toggle : null,
+          child: _Row(
+            depth: widget.depth,
+            leading: hasChildren
+                ? Icon(
+                    _expanded ? Codicons.chevronDown : Codicons.chevronRight,
+                    size: 14,
+                    color: IdeListColors.foreground,
+                  )
+                : null,
+            child: _content(element),
           ),
         ),
         if (_expanded)
-          for (final child in _children)
-            if (child is ReplElement)
-              _ReplRow(service: widget.service, element: child, depth: widget.depth + 1)
-            else if (child is DebugExpression)
-              Padding(
-                padding: EdgeInsets.only(left: 8 + (widget.depth + 1) * IdeListColors.indent, right: 8),
-                child: DebugExpressionLabel.of(child),
-              )
-            else
-              Padding(
-                padding: EdgeInsets.only(left: 8 + (widget.depth + 1) * IdeListColors.indent, right: 8),
-                child: SelectableText(
-                  '$child',
-                  style: TextStyle(fontSize: 13, color: debugColor('debugConsole.infoForeground')),
+          for (final child in children ?? _children)
+            _ReplRow(service: widget.service, element: child, depth: widget.depth + 1),
+      ],
+    );
+  }
+
+  Widget _content(Object element) => switch (element) {
+    // Colored by kind, a failure an italic error (debugExpressionRenderer's
+    // `colorize` and `unavailable error`).
+    final ReplEvaluationResult r => SelectableText(
+      r.value,
+      style: _rowStyle(
+        debugValueColor(r.value, error: !r.available, type: r.type),
+        italic: !r.available,
+      ),
+    ),
+    // The count of identical lines, the text with its ANSI styles in the
+    // severity's color, where it was logged.
+    final ReplOutputElement o => _withSource(
+      o.session,
+      o.sourceData,
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (o.count >= 2) ...[IdeCountBadge(o.count), const SizedBox(width: 4)],
+          Expanded(
+            child: SelectableText.rich(
+              ansiTextSpan(
+                _shown(o.value),
+                _rowStyle(_outputColor(o.severity), italic: o.severity == ReplSeverity.ignore),
+                background: debugColor('panel.background'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+    final ReplGroup g => _withSource(
+      g.session,
+      g.sourceData,
+      SelectableText.rich(
+        ansiTextSpan(_shown(g.name), _rowStyle(debugColor('foreground')), background: debugColor('panel.background')),
+      ),
+    ),
+    final ReplVariableElement v => _withSource(v.getSession(), v.sourceData, DebugExpressionLabel.of(v.expression)),
+    final DebugExpression e => DebugExpressionLabel.of(e),
+    _ => SelectableText(_shown('$element'), style: _rowStyle(debugColor('foreground'))),
+  };
+
+  /// [child] with its source on the right, a link to it (`SourceWidget`).
+  Widget _withSource(DebugSession session, ReplElementSource? data, Widget child) {
+    final source = data?.source;
+    if (data == null || source is! Source) return child;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: child),
+        const SizedBox(width: 8),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Tooltip(
+            message: '${source.uri.path}:${data.lineNumber}',
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => unawaited(
+                  widget.service.openSource(
+                    session,
+                    source,
+                    DebugRange(data.lineNumber, data.column, data.lineNumber, data.column),
+                  ),
+                ),
+                child: Text(
+                  '${source.name.split(RegExp(r'[/\\]')).last}:${data.lineNumber}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: _rowStyle(debugColor('debugConsole.sourceForeground'))
+                      .copyWith(decoration: TextDecoration.underline),
                 ),
               ),
+            ),
+          ),
+        ),
       ],
     );
   }
 }
+
+/// The output's color by severity; `ignore` keeps the foreground (and is
+/// italic).
+Color _outputColor(ReplSeverity severity) => switch (severity) {
+  ReplSeverity.ignore => debugColor('foreground'),
+  _ => _severityColor(severity),
+};
