@@ -37,6 +37,7 @@ import '../../l10n/l10n.dart';
 import '../../platform/data_dir.dart';
 import '../../settings/jsonc.dart';
 import '../../theme/file_icon_theme.dart';
+import '../../theme/icon_registry.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchThemeService;
 import '../../settings/jsonc_file.dart';
 import '../commands/builtin_commands.dart';
@@ -1485,6 +1486,18 @@ final class WorkspaceExtensions extends ChangeNotifier {
             for (final color in colors)
               if (color is Map) color.cast<String, Object?>(),
           ],
+    ]);
+    IconRegistry.instance.setExtensionIcons([
+      for (final extension in extensions)
+        if (extension case {
+          'contributes': {'icons': final Map<Object?, Object?> icons},
+          'extensionLocation': final Map<Object?, Object?> location,
+        })
+          (
+            extensionId: _idOf(extension),
+            location: VsUri.revive(location.cast()).fsPath(),
+            icons: icons.cast<String, Object?>(),
+          ),
     ]);
     notifyListeners();
   }

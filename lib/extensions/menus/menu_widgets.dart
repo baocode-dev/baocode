@@ -28,6 +28,7 @@ import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
 import '../../keybindings/keybinding_service.dart';
 import '../../theme/codicons.dart';
+import '../../theme/icon_registry.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../commands/command_contributions.dart';
 import 'menu_service.dart';
@@ -126,14 +127,18 @@ IconData ideMenuActionIcon(MenuAction action) => switch (action.icon) {
   _ => Codicons.symbolMethod,
 };
 
-
-/// An action's image icon (light or dark for the theme), if it has one.
+/// An action's image icon (light or dark for the theme), or its
+/// extension's font icon, if it has one.
 Widget? ideMenuActionImage(MenuAction action, double size) =>
     switch (action.icon) {
       final ImageIcon image => _image(
         themeColors.dark ? image.dark : image.light ?? image.dark,
         size,
       ),
+      ThemeIconRef(:final id)
+          when !Codicons.byName.containsKey(id) &&
+              IconRegistry.instance.contains(id) =>
+        ThemeIcon(id, size: size, color: IdeActionButton.foreground),
       _ => null,
     };
 

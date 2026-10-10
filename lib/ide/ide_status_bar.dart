@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 
-import '../theme/codicons.dart';
+import '../theme/icon_registry.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
@@ -220,12 +220,11 @@ TextSpan _label(String text, Color color) {
   final spans = <InlineSpan>[];
   var start = 0;
   for (final match in _labelIcon.allMatches(text)) {
-    final icon = Codicons.byName[match[1]];
-    if (icon == null) continue;
+    if (!IconRegistry.instance.contains(match[1]!)) continue;
     if (match.start > start) {
       spans.add(TextSpan(text: text.substring(start, match.start)));
     }
-    final glyph = Icon(icon, size: 14, color: color);
+    final glyph = ThemeIcon(match[1]!, size: 14, color: color);
     spans.add(
       WidgetSpan(
         alignment: PlaceholderAlignment.middle,

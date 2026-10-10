@@ -24,6 +24,7 @@ import '../../../ide/ide_fuzzy.dart';
 import '../../../ide/ide_quick_input.dart';
 import '../../../l10n/l10n.dart';
 import '../../../theme/codicons.dart';
+import '../../../theme/icon_registry.dart';
 import '../../../theme/workbench_theme.dart' show themeColors;
 import '../window_ports.dart' show ExtensionSeverity;
 import 'quick_input_model.dart';
@@ -407,6 +408,7 @@ class _Button extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IdeActionButton(
     icon: quickInputIconData(button.icon),
+    iconWidget: quickInputButtonGlyph(button.icon),
     tooltip: _tooltip(context),
     checked: button.checked == true,
     onPressed: () => input.triggerButton(button),
@@ -641,6 +643,7 @@ class _ItemButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IdeActionButton(
     icon: quickInputIconData(button.icon),
+    iconWidget: quickInputButtonGlyph(button.icon),
     tooltip: button.tooltip ?? '',
     onPressed: onPressed,
   );
@@ -741,13 +744,24 @@ IconData quickInputIconData(ExtensionQuickInputIcon? icon) => switch (icon) {
   null => Codicons.info,
 };
 
+/// A button's icon when it is an extension's font icon, which no
+/// [IconData] is.
+Widget? quickInputButtonGlyph(ExtensionQuickInputIcon? icon) => switch (icon) {
+  ExtensionThemeIcon(:final id)
+      when !Codicons.byName.containsKey(id) &&
+          IconRegistry.instance.contains(id) =>
+    ThemeIcon(id, size: 16, color: IdeActionButton.foreground),
+  _ => null,
+};
+
 /// An image icon as a widget (a file from disk); the codicon for the rest.
 Widget? quickInputIconWidget(ExtensionQuickInputIcon? icon) => switch (icon) {
   ExtensionImageIcon(:final light) => _ImageIcon(light),
   ExtensionResourceIcon(:final path) => _ImageIcon(path),
-  ExtensionThemeIcon(:final id) => Icon(
-    Codicons.byName[id] ?? Codicons.symbolEvent,
+  ExtensionThemeIcon(:final id) => ThemeIcon(
+    id,
     size: 16,
+    fallback: Codicons.symbolEvent,
   ),
   null => null,
 };

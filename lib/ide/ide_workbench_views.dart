@@ -189,11 +189,13 @@ extension _ViewsPart on IdeWorkbenchState {
                 size: IdeModernUI.activityIconSize,
               ),
             ),
+            // An extension's font icon, else a generic one.
             final ThemeIconRef ref when !Codicons.byName.containsKey(ref.id) =>
-              (color) => Icon(
-                Codicons.extensions,
+              (color) => ThemeIcon(
+                ref.id,
                 size: IdeModernUI.activityIconSize,
                 color: color,
+                fallback: Codicons.extensions,
               ),
             _ => null,
           },

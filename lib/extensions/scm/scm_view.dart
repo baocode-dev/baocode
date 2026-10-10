@@ -37,6 +37,7 @@ import '../../ide/ide_list.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_panes.dart';
 import '../../theme/codicons.dart';
+import '../../theme/icon_registry.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
 import '../commands/command_contributions.dart';
@@ -569,8 +570,9 @@ Widget _inlineButton(MenuAction action) => IdeActionButton(
 );
 
 Widget _decorationIcon(ExtensionIcon icon) => switch (icon) {
-  ThemeIconRef(:final id) => Icon(
-    Codicons.byName[id] ?? Codicons.circleOutline,
+  ThemeIconRef(:final id) => ThemeIcon(
+    id,
+    fallback: Codicons.circleOutline,
     size: 16,
     color: themeColors['icon.foreground'],
   ),

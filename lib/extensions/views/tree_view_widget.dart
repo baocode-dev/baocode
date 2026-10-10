@@ -34,6 +34,7 @@ import '../../ide/ide_list.dart';
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
+import '../../theme/icon_registry.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../commands/command_contributions.dart';
@@ -54,10 +55,11 @@ Widget extensionIconWidget(
   double size = 16,
   Color? color,
 }) => switch (icon) {
-  final ThemeIconRef ref => Icon(
-    Codicons.byName[ref.id] ?? Codicons.symbolMethod,
+  final ThemeIconRef ref => ThemeIcon(
+    ref.id,
     size: size,
     color: color,
+    fallback: Codicons.symbolMethod,
   ),
   final ImageIcon image => _imageIcon(
     themeColors.dark ? image.dark : image.light ?? image.dark,
@@ -807,8 +809,9 @@ class _TreeRow extends StatelessWidget {
     } else if (item.themeIcon case final theme?
         when !(item.resourceUri != null &&
             (theme.id == 'file' || theme.id == 'folder'))) {
-      icon = Icon(
-        Codicons.byName[theme.id] ?? Codicons.circleOutline,
+      icon = ThemeIcon(
+        theme.id,
+        fallback: Codicons.circleOutline,
         size: 16,
         color: switch (item.themeIconColor) {
           final id? => themeColors.get(id) ?? foreground,

@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/codicons.dart';
+import '../../theme/icon_registry.dart';
 
 /// A label with `$(codicon)`s in it, as a button's title has.
 final class ExtensionLabel {
@@ -18,24 +19,29 @@ final class ExtensionLabel {
     var index = 0;
     for (final match in _icon.allMatches(text)) {
       if (match.start > index) parts.add(text.substring(index, match.start));
-      parts.add(Codicons.byName[match[1]!] ?? Codicons.circleOutline);
+      parts.add(ExtensionLabelIcon(match[1]!));
       index = match.end;
     }
     if (index < text.length) parts.add(text.substring(index));
     return ExtensionLabel._(parts);
   }
 
-  /// Text and [IconData]s.
+  /// Text and [ExtensionLabelIcon]s.
   final List<Object> parts;
 
   Widget build({required double fontSize, required Color color}) => Text.rich(
     TextSpan(
       children: [
         for (final part in parts)
-          if (part is IconData)
+          if (part case ExtensionLabelIcon(:final id))
             WidgetSpan(
               alignment: PlaceholderAlignment.middle,
-              child: Icon(part, size: fontSize + 2, color: color),
+              child: ThemeIcon(
+                id,
+                size: fontSize + 2,
+                color: color,
+                fallback: Codicons.circleOutline,
+              ),
             )
           else
             TextSpan(text: '$part'),
@@ -45,4 +51,18 @@ final class ExtensionLabel {
     overflow: TextOverflow.ellipsis,
     style: TextStyle(fontSize: fontSize, color: color),
   );
+}
+
+/// An icon in an [ExtensionLabel], by id: a codicon or an extension's.
+final class ExtensionLabelIcon {
+  const ExtensionLabelIcon(this.id);
+
+  final String id;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ExtensionLabelIcon && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
