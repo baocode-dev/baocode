@@ -86,6 +86,11 @@ abstract final class RemoteProtocol {
   static const lspInstalled = 'lsp/installed';
   static const lspUninstall = 'lsp/uninstall';
 
+  // The extension runtime and its VS Code server.
+  static const exthostInstall = 'exthost/install';
+  static const exthostUpload = 'exthost/upload';
+  static const exthostStart = 'exthost/start';
+
   // Port forwarding (the remote host's port to one of the app's), and
   // the app's connections to a port there ([tcpConnect]).
   static const tcpListen = 'tcp/listen';

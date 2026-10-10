@@ -1,11 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:bao_exthost/bao_exthost.dart';
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
 
 import '../../platform/child_process_registry.dart';
 import '../../platform/data_dir.dart';
@@ -40,20 +37,11 @@ final class ExtensionServerLaunch {
 }
 
 /// The environment the server runs in: the app's, without what would
-/// point it elsewhere (`npm_config_arch` picks a ripgrep the runtime does
-/// not ship; the `VSCODE_*`/`ELECTRON_*` of a VS Code terminal the app
-/// may have been started from), plus [extra].
+/// point it elsewhere, plus [extra] ([extensionServerEnvironment]).
 Map<String, String> serverEnvironment(
   Map<String, String> parent,
   Map<String, String> extra,
-) => {
-  for (final MapEntry(:key, :value) in parent.entries)
-    if (key.toLowerCase() != 'npm_config_arch' &&
-        !key.startsWith('VSCODE_') &&
-        !key.startsWith('ELECTRON_'))
-      key: value,
-  ...extra,
-};
+) => extensionServerEnvironment(parent, extra);
 
 /// The server's `IRemoteAgentEnvironment`, with `file:` URIs.
 typedef ServerEnvironment = Map<String, Object?>;
@@ -66,11 +54,21 @@ final class ExtensionServer {
     this.address,
     this.management,
     this._connection,
-    this._process,
-  );
+    this._process, {
+    this.connector,
+    this.product,
+  });
 
   /// The connection details extension hosts are started with.
   final ServerAddress address;
+
+  /// How its connections are made (a remote one's, through the SSH
+  /// connection); local TCP when null.
+  final SocketConnector? connector;
+
+  /// The runtime's `product.json`, when the server said it (a remote one);
+  /// else the app reads its own runtime's.
+  final Map<String, Object?>? product;
 
   /// The management connection's channels (`remoteextensionsenvironment`,
   /// `remoteExtensionsScanner`, `extensions`, …).
@@ -95,77 +93,28 @@ final class ExtensionServer {
   /// Starts a server for [launch] and connects to it.
   static Future<ExtensionServer> start(ExtensionServerLaunch launch) async {
     await registry.reaped;
-    await Directory(launch.serverDataDir).create(recursive: true);
-    await Directory(launch.extensionsDir).create(recursive: true);
-    final token = _token();
-    final tokenFile = File(p.join(launch.serverDataDir, 'connection-token'));
-    await tokenFile.writeAsString(token, flush: true);
-    if (!Platform.isWindows) {
-      await Process.run('chmod', ['600', tokenFile.path]);
-    }
-    final process = await Process.start(
-      launch.node,
-      [
-        launch.serverMain,
-        '--host',
-        '127.0.0.1',
-        '--port',
-        '0',
-        '--connection-token-file',
-        tokenFile.path,
-        '--server-data-dir',
-        launch.serverDataDir,
-        '--extensions-dir',
-        launch.extensionsDir,
-        '--accept-server-license-terms',
-        '--telemetry-level',
-        'off',
-      ],
-      environment: serverEnvironment(Platform.environment, launch.environment),
-      includeParentEnvironment: false,
-    );
-    unawaited(registry.add(process.pid));
-    final port = Completer<int>();
-    final output = StringBuffer();
-    void onLine(String line) {
-      if (output.length < 16 * 1024) output.writeln(line);
-      final m = _listening.firstMatch(line);
-      if (m != null && !port.isCompleted) port.complete(int.parse(m[1]!));
-    }
-
-    process.stdout
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen(onLine);
-    process.stderr
-        .transform(utf8.decoder)
-        .transform(const LineSplitter())
-        .listen(onLine);
-    unawaited(
-      process.exitCode.then((code) {
-        unawaited(registry.remove(process.pid));
-        if (!port.isCompleted) {
-          port.completeError(
-            ExtensionServerException('exited with $code', '$output'),
-          );
-        }
-      }),
-    );
-    final int listening;
+    final StartedExtensionServer started;
     try {
-      listening = await port.future.timeout(const Duration(seconds: 60));
-    } on TimeoutException {
-      process.kill();
-      throw ExtensionServerException('did not start listening', '$output');
+      started = await StartedExtensionServer.start(
+        node: launch.node,
+        serverMain: launch.serverMain,
+        serverDataDir: launch.serverDataDir,
+        extensionsDir: launch.extensionsDir,
+        environment: launch.environment,
+        onStarted: (pid) => unawaited(registry.add(pid)),
+      );
+    } on ExtensionServerStartException catch (e) {
+      throw ExtensionServerException(e.message, e.output);
     }
+    final process = started.process;
+    unawaited(process.exitCode.then((_) => registry.remove(process.pid)));
     final address = ServerAddress(
       host: '127.0.0.1',
-      port: listening,
-      connectionToken: token,
+      port: started.port,
+      connectionToken: started.connectionToken,
       commit: launch.commit,
     );
-    final server = await connect(address, process: process);
-    return server;
+    return connect(address, process: process);
   }
 
   /// Connects to a server already listening at [address] (a remote one,
@@ -174,6 +123,7 @@ final class ExtensionServer {
     ServerAddress address, {
     Process? process,
     SocketConnector? connector,
+    Map<String, Object?>? product,
   }) async {
     final connection = connector == null
         ? await connectToServer(address, ConnectionType.management)
@@ -186,7 +136,14 @@ final class ExtensionServer {
       'remoteAuthority': serverAuthority,
       'clientId': 'baocode-$pid',
     });
-    final server = ExtensionServer._(address, ipc, connection, process);
+    final server = ExtensionServer._(
+      address,
+      ipc,
+      connection,
+      process,
+      connector: connector,
+      product: product,
+    );
     connection.protocol.onDidDispose.listener = (_) => server._end(-1);
     unawaited(process?.exitCode.then(server._end));
     return server;
@@ -253,16 +210,6 @@ final class ExtensionServer {
         },
       );
     }
-  }
-
-  static final _listening = RegExp(r'Extension host agent listening on (\d+)');
-
-  static String _token() {
-    final random = Random.secure();
-    return [
-      for (var i = 0; i < 24; i++)
-        random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-    ].join();
   }
 }
 

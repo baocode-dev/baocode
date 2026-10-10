@@ -137,7 +137,10 @@ final class ExtensionHostService extends ChangeNotifier {
 
   Future<ExtHostSession> _startSession() async {
     final server = await pool.server;
-    final product = this.product ?? await loadProduct!();
+    final product = switch (server.product) {
+      final Map<String, Object?> json => ExtHostProduct.fromJson(json),
+      null => this.product ?? await loadProduct!(),
+    };
     final environment = await server.environment();
     final scanned = _included(
       await server.scanExtensions(
@@ -156,6 +159,7 @@ final class ExtensionHostService extends ChangeNotifier {
     late MainThreadContext context;
     final connection = await ExtHostConnection.start(
       server.address,
+      connector: server.connector,
       language: language,
       actorNames: proxyIdentifierNames,
       logger: logger,

@@ -174,6 +174,46 @@ final class ExtHostRuntimeInstaller {
     }
   }
 
+  /// Downloads [platform]'s archive to [file], checked against the
+  /// manifest, without installing it (for another machine: a remote host
+  /// that cannot reach the downloads). Kept when it is there already.
+  Future<void> downloadArchive({
+    required String platform,
+    required String file,
+    void Function(RuntimeProgress progress)? onProgress,
+  }) async {
+    final asset = manifest[platform];
+    if (asset == null) {
+      throw ExtHostRuntimeException(
+        ExtHostRuntimeErrorKind.unsupportedPlatform,
+        'The extension runtime ${manifest.version} has no build for $platform',
+      );
+    }
+    if (await _holds(file, asset)) return;
+    await Directory(p.dirname(file)).create(recursive: true);
+    final part = '$file.download-$pid';
+    final install = _Install();
+    if (onProgress != null) install.listeners.add(onProgress);
+    try {
+      await _download(asset, part, install);
+      await File(part).rename(file);
+    } finally {
+      await _delete(part);
+    }
+  }
+
+  /// Whether [file] is [asset]'s archive.
+  static Future<bool> _holds(String file, ExtHostRuntimeAsset asset) async {
+    final f = File(file);
+    try {
+      if (!await f.exists() || await f.length() != asset.size) return false;
+      final digest = await crypto.sha256.bind(f.openRead()).first;
+      return digest.toString() == asset.sha256;
+    } on FileSystemException {
+      return false;
+    }
+  }
+
   _Install _start(String platform) {
     final install = _Install();
     install.future = _install(

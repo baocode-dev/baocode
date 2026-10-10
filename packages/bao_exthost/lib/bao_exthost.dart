@@ -23,3 +23,4 @@ export 'src/runtime/runtime_errors.dart';
 export 'src/runtime/runtime_installer.dart';
 export 'src/runtime/runtime_manifest.dart';
 export 'src/runtime/runtime_platform.dart';
+export 'src/runtime/server_command.dart';
