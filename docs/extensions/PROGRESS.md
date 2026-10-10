@@ -274,8 +274,10 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
    a quit with nothing at work not asked about, the codex accounts' real clock). The first merge (e4addcf) followed
    `flutter analyze --no-pub` clean, the full suite 6111 passed / 33 skipped, `flutter build macos --debug` and
    `flutter build web --no-pub`.
-2. After the `baocode://` fix: rerun the real REH tests (`flutter test --run-skipped -t exthost`), the final
-   checks again, and merge again (`git merge --no-ff`, no push).
+2. After the `baocode://`, keychain and parity fixes: the real REH tests (`flutter test --run-skipped -t exthost`)
+   50 passed; the full suite 6118 passed / 33 skipped; `flutter build macos --debug` and `flutter build web --no-pub`
+   built; the parity, secrets and URL tests rerun on 8e3cb4b and `flutter analyze --no-pub` clean; pubspec.lock
+   unchanged. Next: merge again (`git merge --no-ff`, no push).
 
 ## Decisions and deviations
 
