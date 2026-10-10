@@ -180,12 +180,13 @@ class _ExtensionThemeIcon extends StatelessWidget {
     builder: (context, _) {
       final theme = FileIconThemeService.instance.active;
       if (theme == null) return bundled;
-      final definition = icon(theme, !themeColors.dark);
+      final dark = themeColors.dark;
+      final definition = icon(theme, !dark);
       return SizedBox.square(
         dimension: size,
         child: definition == null
             ? null
-            : FileIconThemeIcon(definition, size: size),
+            : FileIconThemeIcon(definition, size: size, dark: dark),
       );
     },
   );

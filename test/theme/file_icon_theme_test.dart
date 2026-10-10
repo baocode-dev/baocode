@@ -93,6 +93,31 @@ void main() {
     expect(icon(theme.folderIcon('/w', root: true)), 'root');
   });
 
+  test('an expanded folder without an icon of its own has the collapsed '
+      'one, as upstream (the JetBrains theme)', () async {
+    final path = p.join(extension.path, 'folders.json');
+    File(path).writeAsStringSync(
+      jsonEncode({
+        'iconDefinitions': {
+          '_folder': {'iconPath': './icons/folder.svg'},
+          '_root': {'iconPath': './icons/root.svg'},
+          '_open': {'iconPath': './icons/open.svg'},
+        },
+        'folder': '_folder',
+        'light': {'rootFolder': '_root'},
+      }),
+    );
+    final theme = await FileIconThemeData.load('folders', path);
+    expect(icon(theme.folderIcon('/w/lib', expanded: true)), 'folder');
+    expect(icon(theme.folderIcon('/w', root: true, expanded: true)), 'folder');
+    // `rootFolder || folder` in each section, the light one's first.
+    expect(
+      icon(theme.folderIcon('/w', root: true, expanded: true, light: true)),
+      'root',
+    );
+    expect(icon(theme.folderIcon('/w/lib', light: true)), 'folder');
+  });
+
   testWidgets('the theme in use draws the explorer\'s icons; the bundled '
       'one again without', (tester) async {
     final service = FileIconThemeService.instance = FileIconThemeService();
