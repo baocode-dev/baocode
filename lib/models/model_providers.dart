@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 
 import '../settings/user_settings.dart';
 import 'model_provider.dart';
-import 'model_test_preset.dart';
 import 'secret_store.dart';
 
 /// The upstreams Settings → Models keeps, read from settings.json and
@@ -64,68 +63,6 @@ class ModelProviders extends ChangeNotifier {
   static const builtinHiddenKey = 'models.builtin.hidden';
   static const defaultKey = 'models.default';
   static const auxiliaryKey = 'models.auxiliary';
-  static const pageSizeKey = 'models.table.pageSize';
-
-  /// Shared model-table preference in User/settings.json; zero means unlimited.
-  int get modelPageSize => switch (_read(pageSizeKey)) {
-    final int size when const [100, 1000, 10000, 0].contains(size) => size,
-    _ => 100,
-  };
-
-  Future<void> setModelPageSize(int size) => _write(pageSizeKey, size);
-
-  static const testPresetsKey = 'models.test.presets';
-  static const testPresetKey = 'models.test.selectedPreset';
-
-  List<ModelTestPreset> get testPresets {
-    final presets = <String, ModelTestPreset>{
-      for (final preset in ModelTestPreset.builtins) preset.id: preset,
-    };
-    final saved = _read(testPresetsKey);
-    if (saved is List) {
-      for (final json in saved) {
-        final preset = ModelTestPreset.fromJson(json);
-        if (preset != null) presets[preset.id] = preset;
-      }
-    }
-    return presets.values.toList();
-  }
-
-  ModelTestPreset get selectedTestPreset =>
-      testPresets
-          .where((preset) => preset.id == _read(testPresetKey))
-          .firstOrNull ??
-      ModelTestPreset.builtins.first;
-
-  Future<void> selectTestPreset(String id) async {
-    if (testPresets.any((preset) => preset.id == id)) {
-      await _write(testPresetKey, id);
-    }
-  }
-
-  Future<void> saveTestPreset(ModelTestPreset preset) async {
-    if (preset.builtin ||
-        preset.name.trim().isEmpty ||
-        preset.prompt.trim().isEmpty) {
-      return;
-    }
-    await _write(testPresetsKey, [
-      for (final current in testPresets)
-        if (!current.builtin && current.id != preset.id) current.toJson(),
-      preset.toJson(),
-    ]);
-    await selectTestPreset(preset.id);
-  }
-
-  Future<void> deleteTestPreset(String id) async {
-    if (ModelTestPreset.builtins.any((preset) => preset.id == id)) return;
-    final selected = selectedTestPreset.id == id;
-    await _write(testPresetsKey, [
-      for (final preset in testPresets)
-        if (!preset.builtin && preset.id != id) preset.toJson(),
-    ]);
-    if (selected) await selectTestPreset(ModelTestPreset.numbersId);
-  }
 
   final Object? Function(String key) _read;
   final Future<void> Function(String key, Object? value) _write;

@@ -39,8 +39,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'test_models.dart' show runModelTests;
-
 /// Where the .app flutter leaves behind goes, and where the disk image is
 /// written. Under build/, which the repository already ignores and flutter
 /// clean already removes.
@@ -97,10 +95,6 @@ Future<void> main(List<String> arguments) async {
   final installers = Directory('${root.path}/$_installersRelative');
   final remote = Directory('${root.path}/$_remoteRelative');
   final version = _readVersion(File('${root.path}/pubspec.yaml'));
-
-  // Even --skip-build packages a distribution: it must pass the same gate.
-  final testCode = await runModelTests(root.path);
-  if (testCode != 0) _fail('Model regression tests failed ($testCode).');
 
   if (!skipBuild) {
     _step('Building the Release app');

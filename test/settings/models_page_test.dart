@@ -8,7 +8,6 @@ import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/models/secret_store.dart';
 import 'package:baocode/models/upstream.dart';
 import 'package:baocode/settings/pages/model_dialogs.dart';
-import 'package:baocode/settings/pages/model_test_dialog.dart';
 import 'package:baocode/settings/pages/models_page.dart';
 import 'package:baocode/settings/pages/settings_widgets.dart';
 import 'package:flutter/material.dart';
@@ -115,7 +114,11 @@ void main() {
     ];
   }
 
-  Future<void> pump(WidgetTester tester, {CodexService? codex}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    CodexService? codex,
+    ModelTester testModel = testModelThroughClaudeCode,
+  }) async {
     tester.view.physicalSize = const Size(1000, 1600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -125,6 +128,7 @@ void main() {
           body: ModelsSettingsPage(
             providers: providers,
             listModels: list,
+            testModel: testModel,
             codex: codex,
           ),
         ),
@@ -151,8 +155,6 @@ void main() {
     expect(find.text('Models'), findsWidgets);
     expect(find.text("Claude Code (this machine's setup)"), findsOneWidget);
     expect(find.text('Built-in'), findsOneWidget);
-    expect(find.text('Batch Test…'), findsNothing);
-    expect(find.byType(ModelTestButton), findsNothing);
     await tester.tap(find.byType(SettingsSwitch));
     await tester.pump();
     expect(providers.builtinHidden, isTrue);
@@ -160,8 +162,6 @@ void main() {
     await tester.pump();
     // No page of its own to open, nor delete.
     expect(find.text('Connection'), findsNothing);
-    expect(find.text('Batch Test…'), findsNothing);
-    expect(find.byType(ModelTestButton), findsNothing);
   });
 
   testWidgets('an upstream is added, set up, its models fetched and its '
@@ -200,8 +200,7 @@ void main() {
     expect(listed.last, (id, 'sk-secret'));
     expect(find.text('Connected: the upstream lists 3 models.'), findsOne);
 
-    // Explicit page selection respects the filtered page; top-level select-all
-    // is covered separately and selects even models hidden by the search.
+    // Fetched, two of them checked.
     await tester.tap(find.text('Fetch from Upstream…'));
     await tester.pumpAndSettle();
     expect(find.byType(FetchModelsDialog), findsOneWidget);
@@ -209,13 +208,7 @@ void main() {
     await tester.enterText(find.byType(EditableText).last, 'gpt');
     await tester.pumpAndSettle();
     expect(find.text('o3'), findsNothing);
-    await tester.tap(
-      find.byWidgetPredicate(
-        (w) => w is IdeActionButton && w.tooltip == 'Selection scope',
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Select this page'));
+    await tester.tap(find.text('Select All'));
     await tester.pumpAndSettle();
     expect(find.text('2 of 3 checked'), findsOneWidget);
     await tester.tap(find.text('Apply'));
@@ -229,13 +222,12 @@ void main() {
     expect(provider.models.first.contextWindow, 400000);
     expect(find.text('400K'), findsOneWidget);
 
-    // Manage additional models in a modal instead of expanding this page.
+    // Only those checked are listed, unless all are shown.
     expect(find.text('o3'), findsNothing);
-    await tester.tap(find.text('Select Models (3)…'));
+    await tester.tap(find.text('Show All (3)'));
     await tester.pumpAndSettle();
-    expect(find.byType(FetchModelsDialog), findsOneWidget);
     expect(find.text('o3'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('Show Checked Only'));
     await tester.pumpAndSettle();
     expect(find.text('o3'), findsNothing);
 
@@ -260,100 +252,6 @@ void main() {
       findsNothing,
     );
   });
-
-  testWidgets(
-    'fetch models paints boxes and select-all toggles filtered rows',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: FetchModelsDialog(
-            provider: const ModelProvider(id: 'p', name: 'Provider'),
-            keyOf: () async => null,
-            list: list,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      Finder box(String label) => find.byWidgetPredicate(
-        (widget) => widget is ModelCheckbox && widget.semanticLabel == label,
-      );
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.text('gpt-5')),
-      );
-      await gesture.moveTo(tester.getCenter(find.text('o3')));
-      await gesture.up();
-      await tester.pump();
-      expect(find.text('3 of 3 checked'), findsOneWidget);
-      await tester.tapAt(
-        tester.getTopLeft(box('Select None')) + const Offset(3, 3),
-      );
-      await tester.pump();
-      expect(find.text('0 of 3 checked'), findsOneWidget);
-      await tester.enterText(find.byType(EditableText), 'gpt');
-      await tester.pump();
-      await tester.tap(
-        find.byWidgetPredicate(
-          (w) => w is ModelCheckbox && w.semanticLabel == 'Select All',
-        ),
-      );
-      await tester.pump();
-      expect(find.text('3 of 3 checked'), findsOneWidget);
-      await tester.tapAt(
-        tester.getTopLeft(box('Select None')) + const Offset(3, 3),
-      );
-      await tester.pump();
-      expect(find.text('0 of 3 checked'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
-
-  testWidgets(
-    'provider deselection keeps rows stable until release and can select all again',
-    (tester) async {
-      await providers.save(
-        const ModelProvider(
-          id: 'p',
-          name: 'Paint',
-          models: [
-            ProviderModel(id: 'a'),
-            ProviderModel(id: 'hidden', enabled: false),
-            ProviderModel(id: 'b'),
-          ],
-        ),
-      );
-      await pump(tester);
-      await tester.tap(find.text('Paint'));
-      await tester.pumpAndSettle();
-      Finder box(String name) => find.byWidgetPredicate(
-        (widget) =>
-            widget is ModelCheckbox && widget.semanticLabel == 'Offer $name',
-      );
-      expect(find.text('hidden'), findsNothing);
-      final end = tester.getCenter(box('b'));
-      final gesture = await tester.startGesture(tester.getCenter(box('a')));
-      await tester.pump();
-      expect(find.text('hidden'), findsNothing);
-      expect(find.text('a'), findsOneWidget);
-      await gesture.moveTo(end);
-      await tester.pump();
-      expect(providers.provider('p')!.models.where((m) => m.enabled), isEmpty);
-      expect(find.text('b'), findsOneWidget);
-      await gesture.up();
-      await tester.pump();
-      expect(find.text('b'), findsNothing);
-      await tester.tap(find.text('Select Models (3)…'));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byWidgetPredicate(
-          (w) => w is ModelCheckbox && w.semanticLabel == 'Select All',
-        ),
-      );
-      await tester.pump();
-      await tester.tap(find.text('Apply'));
-      await tester.pumpAndSettle();
-      expect(providers.provider('p')!.models.every((m) => m.enabled), isTrue);
-    },
-  );
 
   testWidgets('an auxiliary model is picked', (tester) async {
     await providers.save(
@@ -444,6 +342,92 @@ void main() {
     expect(find.text('Manual'), findsOneWidget);
     expect(find.text('Does not take images'), findsOneWidget);
     expect(find.text('128K'), findsOneWidget);
+  });
+
+  testWidgets('a model is tested from its menu, those listed all at once', (
+    tester,
+  ) async {
+    await providers.save(
+      const ModelProvider(
+        id: 'gw',
+        name: 'Gateway',
+        baseUrl: 'https://gw.example.com',
+        models: [
+          ProviderModel(id: 'up'),
+          ProviderModel(id: 'down'),
+        ],
+      ),
+    );
+    final asked = <String>[];
+    final replies = <String, Completer<String>>{};
+    var cancelled = false;
+    Future<String> testModel(
+      ModelProvider provider,
+      ProviderModel model, {
+      Future<void>? cancel,
+    }) {
+      asked.add('${provider.id}/${model.id}');
+      unawaited(cancel?.then((_) => cancelled = true));
+      return (replies[model.id] = Completer()).future;
+    }
+
+    final seconds = find.byWidgetPredicate(
+      (widget) =>
+          widget is Text && RegExp(r'^\d+\.\ds$').hasMatch(widget.data ?? ''),
+    );
+    await pump(tester, testModel: testModel);
+    await tester.tap(find.text('Gateway'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is IdeActionButton && widget.tooltip == 'More Actions',
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Test'));
+    // Run as the menu has closed.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    expect(asked, ['gw/up']);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    replies['up']!.complete('1 2 3');
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(seconds, findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is IdeHover && w.message == '1 2 3'),
+      findsOneWidget,
+    );
+
+    // All of them; one fails, and says why.
+    await tester.tap(find.text('Test All'));
+    await tester.pump();
+    expect(asked, ['gw/up', 'gw/up', 'gw/down']);
+    expect(find.byType(CircularProgressIndicator), findsNWidgets(2));
+    replies['up']!.complete('1 2 3');
+    replies['down']!.completeError(Exception('401 Unauthorized'));
+    await tester.pump();
+    expect(seconds, findsOneWidget);
+    expect(find.text('Failed'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is IdeHover && '${w.message}'.contains('401 Unauthorized'),
+      ),
+      findsOneWidget,
+    );
+
+    // A test under way stops as the page closes.
+    await tester.tap(find.text('Test All'));
+    await tester.pump();
+    expect(cancelled, isFalse);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump();
+    expect(cancelled, isTrue);
   });
 
   testWidgets('deleting an upstream asks first, and takes its key', (
