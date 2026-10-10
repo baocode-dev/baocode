@@ -336,6 +336,59 @@ void main() {
       expect(commands.runs.single.$2.first, 'other.extension');
     });
 
+    test("without its own dialogs and commands, it uses the host's window's",
+        () async {
+      final urls = ExtensionUrlService();
+      final dialogs = FakeDialogs()..answers.add((button: null, checked: false));
+      final commands = FakeCommands();
+      final host = FakeUrlHost('ws-1');
+      urls.addHost(host, dialogs: dialogs, commands: commands);
+      // Made active again, it keeps them.
+      urls.activate(host);
+      final handled = <String>[];
+      urls.registerExtensionHandler(
+        host,
+        'baocode-test.oauth',
+        'OAuth',
+        (uri) async => handled.add(uri.path),
+      );
+      expect(
+        await urls.open(VsUri.parse('baocode://baocode-test.oauth/a')),
+        isTrue,
+      );
+      expect(dialogs.prompts, hasLength(1));
+      expect(handled, isEmpty);
+      // Trusted upstream: not asked.
+      urls.registerExtensionHandler(
+        host,
+        'vscode.github-authentication',
+        'GitHub Authentication',
+        (uri) async => handled.add(uri.path),
+      );
+      expect(
+        await urls.open(
+          VsUri.parse('baocode://vscode.github-authentication/did-authenticate'),
+        ),
+        isTrue,
+      );
+      expect(handled, ['/did-authenticate']);
+      expect(dialogs.prompts, hasLength(1));
+
+      expect(
+        await urls.open(VsUri.parse('baocode://other.extension/x')),
+        isTrue,
+      );
+      expect(commands.runs.single.$1, 'workbench.extensions.installExtension');
+
+      urls.removeHost(host);
+      urls.addHost(host);
+      expect(
+        await urls.open(VsUri.parse('baocode://another.extension/x')),
+        isTrue,
+      );
+      expect(commands.runs, hasLength(1));
+    });
+
     test('create adds the window id and the app scheme', () {
       final urls = ExtensionUrlService();
       final created = urls.create(

@@ -15,6 +15,7 @@ import 'package:bao_exthost/bao_exthost.dart';
 import '../extension_host_service_io.dart';
 import '../window/extension_descriptions.dart';
 import '../window/url_service.dart';
+import '../window/window_ports.dart';
 import 'main_thread_context.dart';
 
 /// A workspace's [ExtensionHostService] as the URL service sees it.
@@ -51,7 +52,11 @@ final class MainThreadUrls extends MainThreadUrlsUnsupported {
   static RpcActor customer(MainThreadContext context) {
     final urls = context.service<ExtensionUrlService>();
     final host = ExtensionHostUrlHost.of(context.service<ExtensionHostService>());
-    urls.addHost(host);
+    urls.addHost(
+      host,
+      dialogs: context.maybeService<ExtensionDialogs>(),
+      commands: context.maybeService<ExtensionCommandExecutor>(),
+    );
     final actor = MainThreadUrls(urls, host, ExtHostUrlsProxy(context.rpc));
     context.onDispose(actor.dispose);
     return MainThreadUrlsActor(actor);

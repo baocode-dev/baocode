@@ -237,6 +237,9 @@ Future<void> main(List<String> arguments) async {
   if (extensions != null) {
     unawaited(extensions.applyInstalledThemes());
     extensions.followIconThemeSetting();
+    // `baocode://` URIs the system opens (an extension's OAuth callback):
+    // to the extension's URI handler.
+    OpenRequests.onUri = extensions.urls.handleOpenRequest;
   }
   final app = BaoCodeApp(
     windows: windows,

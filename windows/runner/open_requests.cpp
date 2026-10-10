@@ -60,7 +60,8 @@ std::wstring FullPath(const wchar_t* path) {
 }
 
 // The markers Flutter knows a request by (lib/window/code_args.dart's
-// requestMarker, agentRequestMarker): a null, then "code" or "agent".
+// requestMarker, agentRequestMarker, uriRequestMarker): a null, then
+// "code", "agent" or "uri".
 const std::string& CodeRequestMarker() {
   static const std::string marker("\0code", 5);
   return marker;
@@ -71,12 +72,19 @@ const std::string& AgentRequestMarker() {
   return marker;
 }
 
+const std::string& UriRequestMarker() {
+  static const std::string marker("\0uri", 4);
+  return marker;
+}
+
 // |request| (see IsRequest) as Flutter takes it: its flag the marker.
 void AddRequest(flutter::EncodableList& list,
                 std::vector<std::string> request) {
-  list.push_back(flutter::EncodableValue(request.front() == kAgentRequestFlag
-                                             ? AgentRequestMarker()
-                                             : CodeRequestMarker()));
+  const std::string& flag = request.front();
+  list.push_back(flutter::EncodableValue(
+      flag == kAgentRequestFlag ? AgentRequestMarker()
+      : flag == kUrlRequestFlag ? UriRequestMarker()
+                                : CodeRequestMarker()));
   for (size_t index = 1; index < request.size(); index++) {
     list.push_back(flutter::EncodableValue(std::move(request[index])));
   }
@@ -86,7 +94,8 @@ void AddRequest(flutter::EncodableList& list,
 
 bool IsRequest(const std::vector<std::string>& paths) {
   return !paths.empty() && (paths.front() == kCodeRequestFlag ||
-                            paths.front() == kAgentRequestFlag);
+                            paths.front() == kAgentRequestFlag ||
+                            paths.front() == kUrlRequestFlag);
 }
 
 OpenRequests::OpenRequests(flutter::BinaryMessenger* messenger,
@@ -166,6 +175,19 @@ std::vector<std::string> OpenPathsFromCommandLine() {
     for (int index = 1; index < count; index++) {
       std::string argument = Utf8FromUtf16(arguments[index]);
       if (!argument.empty()) {
+        paths.push_back(std::move(argument));
+      }
+    }
+    ::LocalFree(arguments);
+    return paths;
+  }
+  // From the `baocode` URL protocol (`--open-url -- <uri>`): the flag, then
+  // the URI, not a path.
+  if (count > 1 && Utf8FromUtf16(arguments[1]) == kUrlRequestFlag) {
+    paths.push_back(kUrlRequestFlag);
+    for (int index = 2; index < count; index++) {
+      std::string argument = Utf8FromUtf16(arguments[index]);
+      if (!argument.empty() && argument != "--") {
         paths.push_back(std::move(argument));
       }
     }

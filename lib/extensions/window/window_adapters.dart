@@ -240,15 +240,3 @@ ExtensionFilePickers systemFilePickers({
   savePanel: ({String? directory, String? name}) =>
       pickSaveFile(directory: directory, name: name),
 );
-
-/// The URI request marker the app's own `baocode://` handling uses (see
-/// open_requests.dart and url_service.dart's `handleOpenRequest`): the
-/// language code has no marker of its own for it.
-abstract final class UriArgs {
-  /// The marker of a request carrying a URI (`baocode://` opened by the
-  /// system), before the URI itself.
-  static const requestMarker = '\u0000uri';
-
-  /// Whether [argument] starts a URI request.
-  static bool isMarker(String argument) => argument == requestMarker;
-}
