@@ -177,6 +177,37 @@ void main() {
     expect(IdePanelTab.values, contains(IdePanelTab.output));
   });
 
+  testWidgets('a workbench built over extensions already running, with '
+      'keybindings, attaches to them', (tester) async {
+    final extensions = _extensions();
+    extensions.commands.setExtensions([
+      {
+        'identifier': {'value': 'acme.tools'},
+        'name': 'tools',
+        'publisher': 'acme',
+        'contributes': {
+          'keybindings': [
+            {'command': 'workbench.view.explorer', 'key': 'ctrl+alt+e'},
+          ],
+        },
+      },
+    ]);
+    // The debug commands' names are localized.
+    final fixture = await createFakeDebugService();
+    addTearDown(fixture.service.dispose);
+    await pumpWorkbench(
+      tester,
+      {'a.txt': 'text'},
+      extensions: extensions,
+      debugService: fixture.service,
+    );
+    expect(tester.takeException(), isNull);
+    expect(
+      _workbench(tester).commandsById['workbench.view.explorer'],
+      isNotNull,
+    );
+  });
+
   testWidgets('an extension\'s commands are in the Command Palette', (
     tester,
   ) async {

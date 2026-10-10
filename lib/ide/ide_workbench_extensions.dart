@@ -176,7 +176,11 @@ extension _ExtensionsPart on IdeWorkbenchState {
           _setStatusMessage(message, hideAfter: const Duration(seconds: 5)),
     );
     _attachViews(extensions);
-    _syncExtensionKeybindings();
+    // After the build: the workbench's commands the keybindings ask for
+    // need its context (extensions already running have some).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncExtensionKeybindings();
+    });
     _scheduleTrustPrompt();
   }
 

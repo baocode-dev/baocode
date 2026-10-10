@@ -1050,7 +1050,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _attach() {
     final workspace = widget.workspace;
     workspace.notifications.addListener(_notificationsChanged);
-    _attachExtensions(widget.extensions);
     workspace.layout.terminals = _terminals != null;
     _explorer = IdeExplorerController(
       files: workspace.files,
@@ -1100,6 +1099,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // New terminals start in the project (a workspace's first folder);
     // those running stay where they are.
     _terminals?.root = workspace.roots.firstOrNull ?? workspace.root;
+    // Last: extensions already running (the workbench built again for
+    // them) ask for its commands at once.
+    _attachExtensions(widget.extensions);
   }
 
   /// A multi-folder workspace's folders, or the repository shown (of a
