@@ -8,7 +8,7 @@ under `lib/extensions/` that extends a generated `MainThread*Unsupported` and
 overrides the method. Every other method replies `RpcUnsupported` and is counted
 at run time by `ExtHostParity`.
 
-**Total: 354/523 methods (68%), 57/87 shapes started.**
+**Total: 370/523 methods (71%), 57/87 shapes started.**
 
 | Shape | Implemented | Implementations |
 | --- | --- | --- |
@@ -35,9 +35,9 @@ at run time by `ExtHostParity`.
 | MainThreadEditorInsets | 0/5 | — |
 | MainThreadEditorTabs | 3/3 | `MainThreadEditorTabs` (lib/extensions/main_thread/main_thread_editor_tabs.dart) |
 | MainThreadErrors | 1/1 | `MainThreadErrors` (lib/extensions/main_thread/main_thread_errors.dart) |
-| MainThreadTreeViews | 6/9 | `MainThreadTreeViews` (lib/extensions/main_thread/main_thread_tree_views.dart) |
+| MainThreadTreeViews | 8/9 | `MainThreadTreeViews` (lib/extensions/main_thread/main_thread_tree_views.dart) |
 | MainThreadDownloadService | 1/1 | `MainThreadDownloadService` (lib/extensions/main_thread/main_thread_download_service.dart) |
-| MainThreadLanguageFeatures | 35/47 | `MainThreadLanguageFeatures` (lib/extensions/main_thread/main_thread_language_features.dart) |
+| MainThreadLanguageFeatures | 47/47 | `MainThreadLanguageFeatures` (lib/extensions/main_thread/main_thread_language_features.dart) |
 | MainThreadLanguages | 4/5 | `MainThreadLanguages` (lib/extensions/main_thread/main_thread_languages.dart) |
 | MainThreadLogger | 6/6 | `MainThreadLogger` (lib/extensions/main_thread/main_thread_logger.dart) |
 | MainThreadMessageService | 1/1 | `MainThreadMessageService` (lib/extensions/main_thread/main_thread_message_service.dart) |
@@ -46,7 +46,7 @@ at run time by `ExtHostParity`.
 | MainThreadQuickDiff | 0/4 | — |
 | MainThreadAgentEditorComments | 0/4 | — |
 | MainThreadDocumentDiff | 0/1 | — |
-| MainThreadQuickOpen | 4/6 | `MainThreadQuickOpen` (lib/extensions/main_thread/main_thread_quick_open.dart) |
+| MainThreadQuickOpen | 6/6 | `MainThreadQuickOpen` (lib/extensions/main_thread/main_thread_quick_open.dart) |
 | MainThreadStatusBar | 2/2 | `MainThreadStatusBar` (lib/extensions/main_thread/main_thread_status_bar.dart) |
 | MainThreadSecretState | 4/4 | `MainThreadSecretState` (lib/extensions/main_thread/main_thread_secret_state.dart) |
 | MainThreadStorage | 3/3 | `MainThreadStorage` (lib/extensions/main_thread/main_thread_storage.dart) |
@@ -219,8 +219,8 @@ at run time by `ExtHostParity`.
 
 ### MainThreadTreeViews
 
-- Implemented (6): `$registerTreeViewDataProvider`, `$refresh`, `$reveal`, `$setMessage`, `$setTitle`, `$setBadge`
-- Unsupported (3): `$resolveDropFileData`, `$disposeTree`, `$logResolveTreeNodeFailure`
+- Implemented (8): `$registerTreeViewDataProvider`, `$refresh`, `$reveal`, `$setMessage`, `$setTitle`, `$setBadge`, `$disposeTree`, `$logResolveTreeNodeFailure`
+- Unsupported (1): `$resolveDropFileData`
 
 ### MainThreadDownloadService
 
@@ -229,8 +229,8 @@ at run time by `ExtHostParity`.
 
 ### MainThreadLanguageFeatures
 
-- Implemented (35): `$unregister`, `$registerDocumentSymbolProvider`, `$registerCodeLensSupport`, `$emitCodeLensEvent`, `$registerDefinitionSupport`, `$registerDeclarationSupport`, `$registerImplementationSupport`, `$registerTypeDefinitionSupport`, `$registerHoverProvider`, `$registerEvaluatableExpressionProvider`, `$registerInlineValuesProvider`, `$emitInlineValuesEvent`, `$registerDocumentHighlightProvider`, `$registerMultiDocumentHighlightProvider`, `$registerLinkedEditingRangeProvider`, `$registerReferenceSupport`, `$registerCodeActionSupport`, `$registerPasteEditProvider`, `$registerRangeFormattingSupport`, `$registerNavigateTypeSupport`, `$registerRenameSupport`, `$registerNewSymbolNamesProvider`, `$registerDocumentSemanticTokensProvider`, `$emitDocumentSemanticTokensEvent`, `$registerDocumentRangeSemanticTokensProvider`, `$emitDocumentRangeSemanticTokensEvent`, `$registerCompletionsProvider`, `$emitFoldingRangeEvent`, `$registerSelectionRangeProvider`, `$registerCallHierarchyProvider`, `$registerTypeHierarchyProvider`, `$registerDocumentOnDropEditProvider`, `$resolvePasteFileData`, `$resolveDocumentOnDropFileData`, `$setLanguageConfiguration`
-- Unsupported (12): `$registerDocumentFormattingSupport`, `$registerOnTypeFormattingSupport`, `$registerInlineCompletionsSupport`, `$emitInlineCompletionsChange`, `$emitInlineCompletionModelInfoChange`, `$emitInlineCompletionProviderOptionsChange`, `$registerSignatureHelpProvider`, `$registerInlayHintsProvider`, `$emitInlayHintsEvent`, `$registerDocumentLinkProvider`, `$registerDocumentColorProvider`, `$registerFoldingRangeProvider`
+- Implemented (47): `$unregister`, `$registerDocumentSymbolProvider`, `$registerCodeLensSupport`, `$emitCodeLensEvent`, `$registerDefinitionSupport`, `$registerDeclarationSupport`, `$registerImplementationSupport`, `$registerTypeDefinitionSupport`, `$registerHoverProvider`, `$registerEvaluatableExpressionProvider`, `$registerInlineValuesProvider`, `$emitInlineValuesEvent`, `$registerDocumentHighlightProvider`, `$registerMultiDocumentHighlightProvider`, `$registerLinkedEditingRangeProvider`, `$registerReferenceSupport`, `$registerCodeActionSupport`, `$registerPasteEditProvider`, `$registerDocumentFormattingSupport`, `$registerRangeFormattingSupport`, `$registerOnTypeFormattingSupport`, `$registerNavigateTypeSupport`, `$registerRenameSupport`, `$registerNewSymbolNamesProvider`, `$registerDocumentSemanticTokensProvider`, `$emitDocumentSemanticTokensEvent`, `$registerDocumentRangeSemanticTokensProvider`, `$emitDocumentRangeSemanticTokensEvent`, `$registerCompletionsProvider`, `$registerInlineCompletionsSupport`, `$emitInlineCompletionsChange`, `$emitInlineCompletionModelInfoChange`, `$emitInlineCompletionProviderOptionsChange`, `$registerSignatureHelpProvider`, `$registerInlayHintsProvider`, `$emitInlayHintsEvent`, `$registerDocumentLinkProvider`, `$registerDocumentColorProvider`, `$registerFoldingRangeProvider`, `$emitFoldingRangeEvent`, `$registerSelectionRangeProvider`, `$registerCallHierarchyProvider`, `$registerTypeHierarchyProvider`, `$registerDocumentOnDropEditProvider`, `$resolvePasteFileData`, `$resolveDocumentOnDropFileData`, `$setLanguageConfiguration`
+- Unsupported (0): —
 
 ### MainThreadLanguages
 
@@ -274,8 +274,8 @@ at run time by `ExtHostParity`.
 
 ### MainThreadQuickOpen
 
-- Implemented (4): `$show`, `$setItems`, `$setError`, `$input`
-- Unsupported (2): `$createOrUpdate`, `$dispose`
+- Implemented (6): `$show`, `$setItems`, `$setError`, `$input`, `$createOrUpdate`, `$dispose`
+- Unsupported (0): —
 
 ### MainThreadStatusBar
 

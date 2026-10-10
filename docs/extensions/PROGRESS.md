@@ -261,6 +261,11 @@ Downloaded REH for experiments: `/tmp/exthost-dl/reh-darwin-arm64`.
   split into parts of 1024 bytes as the Credential Manager's (`BaoCode Extension Secrets (part <i>)`, `parts=<n>` in
   the first item's comment; a value without one is a single part), shrinking deletes the old parts, a missing part
   is an error. Tests: `secret_backends_test.dart`, `keychain_real_test.dart` (real keychain, 5000 bytes in 5 parts).
+- EXTHOST_PARITY.md undercounted: the generator empties string literals to `''`, and two side by side (`'${m['kind']
+  ?? ''}'`) read as a triple quote, hiding the rest of the class. MainThreadLanguageFeatures showed formatting,
+  inlay hints, signature help, folding, colors, links and inline completions as unsupported although implemented
+  and tested. Fixed (a space after each emptied string); `exthost_parity_test.dart` now also checks, line by
+  line apart from the generator, that every `@override` of a shape's `$` method counts. 370/523 (71%).
 
 ## In progress / next
 

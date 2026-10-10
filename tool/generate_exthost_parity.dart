@@ -189,7 +189,9 @@ String _render(Map<String, List<_Impl>> byShape) {
   ].join('\n');
 }
 
-/// [text] without comments, and with every string literal emptied.
+/// [text] without comments, and with every string literal emptied (and a
+/// space after it: two emptied next to each other, as in `'${m['k']}'`,
+/// would read as a triple quote).
 String _stripComments(String text) {
   final out = StringBuffer();
   var i = 0;
@@ -202,7 +204,7 @@ String _stripComments(String text) {
       i = end == -1 ? text.length : end + 2;
     } else if (text[i] == "'" || text[i] == '"') {
       i = _stringEnd(text, i);
-      out.write("''");
+      out.write("'' ");
     } else {
       out.write(text[i]);
       i++;
