@@ -440,8 +440,6 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   final TextEditingController _search = TextEditingController();
   bool _showKey = false;
 
-  /// All the upstream's models listed, not only those checked.
-  bool _showAll = false;
   bool _rolesOpen = true;
   bool _advancedOpen = false;
 
@@ -982,8 +980,9 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     final l10n = context.l10n;
     final provider = _provider;
     final query = _search.text.trim().toLowerCase();
-    // Those checked, unless all are shown, or searched.
-    final all = _showAll || query.isNotEmpty;
+    // Keep the page focused on enabled models; search can recover disabled
+    // or missing upstream models without requiring another expanded view.
+    final all = query.isNotEmpty;
     final shown = [
       for (final model in provider.models)
         if ((all || model.enabled) &&
@@ -1002,7 +1001,8 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (provider.models.length > 8) ...[
+              if (provider.models.length > 8 ||
+                  provider.models.any((model) => !model.enabled)) ...[
                 IdeInputBox(
                   controller: _search,
                   placeholder: l10n.modelsSearch,
@@ -1020,14 +1020,6 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                       label: l10n.modelsTestModels,
                       secondary: true,
                       onPressed: () => unawaited(_testModels(shown)),
-                    ),
-                  if (provider.models.isNotEmpty)
-                    IdeButton(
-                      label: _showAll
-                          ? l10n.modelsShowChecked
-                          : l10n.modelsShowAll(provider.models.length),
-                      secondary: true,
-                      onPressed: () => setState(() => _showAll = !_showAll),
                     ),
                   IdeButton(
                     label: l10n.modelsFetch,
@@ -1376,10 +1368,7 @@ class _ModelRow extends StatelessWidget {
           SizedBox(
             width: 48,
             child: Text(
-              switch (model.contextWindow) {
-                final tokens? => formatTokens(tokens),
-                null => '—',
-              },
+              formatTokens(model.initialContext),
               textAlign: TextAlign.end,
               style: SettingsText.description,
             ),
