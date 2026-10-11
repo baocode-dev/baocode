@@ -1,5 +1,7 @@
 # BaoCode
 
+**English** · [简体中文](README_CN.md) · [日本語](README_JA.md) · [Français](README_FR.md) · [Español](README_ES.md)
+
 An awesome, easy-to-use desktop UI for [Claude Code](https://github.com/anthropics/claude-code), with a millisecond-fast IDE built in.
 
 [Website](https://baocode.dev) · [Download](https://baocode.dev/download) · [Changelog](https://baocode.dev/changelog)
