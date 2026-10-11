@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../ide/ide_button.dart';
+import '../../ide/ide_drag_selection.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_input.dart';
 import '../../l10n/l10n.dart';
@@ -225,6 +226,7 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
   List<RemoteModel>? _listed;
   Object? _error;
   final Set<String> _checked = {};
+  final _scroll = ScrollController();
 
   @override
   void initState() {
@@ -241,6 +243,7 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
   @override
   void dispose() {
     _search.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -354,75 +357,96 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
           ),
           const SizedBox(height: 4),
           Flexible(
-            child: shown.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(l10n.modelsNoMatch, style: _muted(context)),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: shown.length,
-                    itemExtent: 30,
-                    itemBuilder: (context, index) {
-                      final model = shown[index];
-                      final checked = _checked.contains(model.id);
-                      void toggle(bool value) => setState(
-                        () => value
-                            ? _checked.add(model.id)
-                            : _checked.remove(model.id),
-                      );
-                      final detail = [
-                        if (model.label case final label?
-                            when label != model.id)
-                          label,
-                        if (model.contextWindow case final tokens?)
-                          formatTokens(tokens),
-                      ].join(' · ');
-                      return MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => toggle(!checked),
-                          child: Row(
-                            children: [
-                              ModelCheckbox(
-                                checked: checked,
-                                semanticLabel: model.id,
-                                onChanged: toggle,
-                              ),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  model.id,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: _text(context).copyWith(
-                                    fontFamily: AppFonts.mono,
-                                    fontFamilyFallback: AppFonts.monoFallbacks,
+            child: IdeDragSelection(
+              controller: _scroll,
+              child: shown.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Text(l10n.modelsNoMatch, style: _muted(context)),
+                    )
+                  : ListView.builder(
+                      controller: _scroll,
+                      shrinkWrap: true,
+                      itemCount: shown.length,
+                      itemExtent: 30,
+                      itemBuilder: (context, index) {
+                        final model = shown[index];
+                        final checked = _checked.contains(model.id);
+                        void toggle(bool value) => setState(
+                          () => value
+                              ? _checked.add(model.id)
+                              : _checked.remove(model.id),
+                        );
+                        final detail = [
+                          if (model.label case final label?
+                              when label != model.id)
+                            label,
+                          if (model.contextWindow case final tokens?)
+                            formatTokens(tokens),
+                        ].join(' · ');
+                        return MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: Semantics(
+                            checked: checked,
+                            label: model.id,
+                            excludeSemantics: true,
+                            onTap: () => toggle(!checked),
+                            child: IdeDragSelectTarget(
+                              key: ValueKey(model.id),
+                              id: model.id,
+                              checked: checked,
+                              onChanged: toggle,
+                              child: Row(
+                                children: [
+                                  IgnorePointer(
+                                    child: SizedBox(
+                                      width: 24,
+                                      height: 30,
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: ModelCheckbox(
+                                          checked: checked,
+                                          semanticLabel: model.id,
+                                          onChanged: toggle,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ),
-                              if (detail.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    detail,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: _muted(context),
+                                  Expanded(
+                                    child: Text(
+                                      model.id,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: _text(context).copyWith(
+                                        fontFamily: AppFonts.mono,
+                                        fontFamilyFallback:
+                                            AppFonts.monoFallbacks,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
-                              if (!known.contains(model.id)) ...[
-                                const SizedBox(width: 6),
-                                ModelBadge(l10n.modelsFetchNew),
-                              ],
-                            ],
+                                  if (detail.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        detail,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: _muted(context),
+                                      ),
+                                    ),
+                                  ],
+                                  if (!known.contains(model.id)) ...[
+                                    const SizedBox(width: 6),
+                                    ModelBadge(l10n.modelsFetchNew),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
+            ),
           ),
         ],
       );
@@ -539,10 +563,9 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
     text: widget.model?.label,
   );
   late final TextEditingController _context = TextEditingController(
-    text: switch (widget.model?.contextWindow) {
-      final tokens? => formatTokens(tokens),
-      null => '',
-    },
+    text: formatTokens(
+      widget.model?.initialContext ?? ProviderModel.defaultContext,
+    ),
   );
   late bool _images = widget.model?.images ?? true;
 
@@ -605,6 +628,14 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
   void _save() {
     final l10n = context.l10n;
     final tokens = parseTokens(_context.text);
+    // An untouched inherited default stays absent, so a later upstream model
+    // discovery can still supply its real context window.
+    final initial =
+        widget.model?.initialContext ?? ProviderModel.defaultContext;
+    final contextWindow =
+        widget.model?.contextWindow == null && tokens == initial
+        ? null
+        : tokens;
     if (_idError(l10n) != null || tokens == -1) {
       setState(() => _tried = true);
       return;
@@ -617,7 +648,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
           ? ProviderModel(
               id: _id.text.trim(),
               label: label.isEmpty ? null : label,
-              contextWindow: tokens,
+              contextWindow: contextWindow,
               efforts: _efforts,
               contexts: _contexts,
               images: _images,
@@ -625,7 +656,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
             )
           : model.copyWith(
               label: () => label.isEmpty ? null : label,
-              contextWindow: () => tokens,
+              contextWindow: () => contextWindow,
               efforts: () => _efforts,
               contexts: () => _contexts,
               images: _images,

@@ -223,14 +223,19 @@ void main() {
     expect(provider.models.first.contextWindow, 400000);
     expect(find.text('400K'), findsOneWidget);
 
-    // Only those checked are listed, unless all are shown.
+    // No separate expanded view: enable a known model from the picker.
     expect(find.text('o3'), findsNothing);
-    await tester.tap(find.text('Show All (3)'));
+    expect(find.text('Show All (3)'), findsNothing);
+    expect(find.text('Show Checked Only'), findsNothing);
+    await tester.tap(find.text('Fetch from Upstream…'));
     await tester.pumpAndSettle();
     expect(find.text('o3'), findsOneWidget);
-    await tester.tap(find.text('Show Checked Only'));
+    await tester.tap(find.text('o3'));
+    await tester.pump();
+    await tester.tap(find.text('Apply'));
     await tester.pumpAndSettle();
-    expect(find.text('o3'), findsNothing);
+    expect(providers.provider(id)!.model('o3')!.enabled, isTrue);
+    expect(find.text('o3'), findsOneWidget);
 
     // Haiku unset: warned.
     expect(
@@ -253,6 +258,84 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets(
+    'search still exposes known disabled and missing models without show-all',
+    (tester) async {
+      await providers.save(
+        ModelProvider(
+          id: 'searchable',
+          name: 'Searchable',
+          models: [
+            for (var i = 0; i < 8; i++) ProviderModel(id: 'enabled-$i'),
+            const ProviderModel(
+              id: 'disabled-local',
+              enabled: false,
+              custom: true,
+              label: 'Local custom',
+            ),
+            const ProviderModel(
+              id: 'missing-model',
+              enabled: false,
+              missing: true,
+            ),
+          ],
+        ),
+      );
+      await pump(tester);
+      await tester.tap(find.text('Searchable'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byWidgetPredicate((w) => w is Text && w.data == 'Local custom'),
+        findsNothing,
+      );
+      expect(
+        find.byWidgetPredicate((w) => w is Text && w.data == 'missing-model'),
+        findsNothing,
+      );
+      expect(find.textContaining('Show All'), findsNothing);
+      final search = find.descendant(
+        of: find.bySemanticsLabel('Search models'),
+        matching: find.byType(EditableText),
+      );
+      await tester.enterText(search, 'Local custom');
+      await tester.pump();
+      expect(
+        find.byWidgetPredicate((w) => w is Text && w.data == 'Local custom'),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is ModelCheckbox && w.semanticLabel == 'Offer Local custom',
+        ),
+      );
+      await tester.pump();
+      expect(
+        providers.provider('searchable')!.model('disabled-local')!.enabled,
+        isTrue,
+      );
+      expect(
+        providers.provider('searchable')!.model('disabled-local')!.custom,
+        isTrue,
+      );
+      await tester.enterText(search, 'missing-model');
+      await tester.pump();
+      expect(
+        find.byWidgetPredicate((w) => w is Text && w.data == 'missing-model'),
+        findsOneWidget,
+      );
+      await tester.enterText(search, '');
+      await tester.pump();
+      expect(
+        find.byWidgetPredicate((w) => w is Text && w.data == 'Local custom'),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate((w) => w is Text && w.data == 'missing-model'),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('an auxiliary model is picked', (tester) async {
     await providers.save(
