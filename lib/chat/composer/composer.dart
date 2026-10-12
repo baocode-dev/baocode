@@ -16,6 +16,7 @@ import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
 import '../../settings/settings_dialog.dart'
     show SettingsOpener, SettingsSection;
+import '../../theme/ui_tokens.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 import '../chat_keys.dart';
@@ -118,7 +119,8 @@ class ChatComposer extends StatefulWidget {
 class ChatComposerState extends State<ChatComposer>
     with ChatKeyTarget
     implements FileDropDelegate {
-  static const _fontSize = 13.5;
+  // As the message it sends reads in the history.
+  static const _fontSize = UiText.reading;
   static TextStyle get _textStyle => TextStyle(
     color: AppColors.textPrimary,
     fontSize: _fontSize,

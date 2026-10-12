@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import 'markdown_view.dart';
@@ -32,7 +33,10 @@ class NoticeRow extends StatelessWidget {
               Flexible(
                 child: Text(
                   text,
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+                  style: TextStyle(
+                    color: AppColors.textFaint,
+                    fontSize: UiText.secondary,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -45,12 +49,12 @@ class NoticeRow extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(UiRadius.large),
             border: Border.all(color: AppColors.partBorder),
           ),
           child: MarkdownView(
             text,
-            style: MarkdownView.baseStyle.copyWith(fontSize: 13),
+            style: MarkdownView.baseStyle.copyWith(fontSize: UiText.body),
           ),
         );
       case NoticeKind.retry ||
@@ -83,7 +87,7 @@ class NoticeRow extends StatelessWidget {
                     color: item.kind == NoticeKind.error
                         ? error
                         : AppColors.textMuted,
-                    fontSize: 12.5,
+                    fontSize: UiText.secondary,
                     height: 1.45,
                   ),
                 ),

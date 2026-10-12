@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import 'edge_fade_mask.dart';
 import 'live_selectable_text.dart';
 import 'step_header.dart';
@@ -90,7 +91,7 @@ class ThinkingSection extends StatefulWidget {
 
 class _ThinkingSectionState extends State<ThinkingSection> {
   static TextStyle get _textStyle =>
-      TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.6);
+      TextStyle(color: AppColors.textMuted, fontSize: UiText.body, height: 1.6);
 
   /// Seven lines of text.
   static const _liveMaxHeight = 13 * 1.6 * 7;

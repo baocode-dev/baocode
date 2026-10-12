@@ -2,6 +2,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 
 /// Inline code: its text, on `textPreformat.background` painted by the
 /// [InlineCodeText] it is in.
@@ -55,7 +56,7 @@ class _InlineCodeBackdrop extends SingleChildRenderObjectWidget {
 class RenderInlineCodeBackdrop extends RenderProxyBox {
   RenderInlineCodeBackdrop(this._color);
 
-  static const radius = Radius.circular(3);
+  static const radius = Radius.circular(UiRadius.small);
 
   Color get color => _color;
   Color _color;

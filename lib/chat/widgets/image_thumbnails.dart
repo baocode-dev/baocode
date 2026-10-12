@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../../workspace/window_controls.dart';
 import '../chat_models.dart';
 import 'hover_builder.dart';
@@ -75,12 +76,12 @@ class _Thumbnail extends StatelessWidget {
                   clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(UiRadius.medium),
                   ),
                   // Over the picture, which is clipped to the same corners:
                   // under it, the picture's corners would cover its curve.
                   foregroundDecoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(UiRadius.medium),
                     border: Border.all(
                       color: hovered
                           ? AppColors.textFaint
