@@ -9,6 +9,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/theme/ui_tokens.dart';
 import 'package:baocode/chat/widgets/activity_row.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/workspace/workspace.dart';
@@ -956,7 +957,7 @@ void main() {
     // Quill animates the scroll to the caret (100ms).
     await settleAnimations(tester);
     expect(height(), capped);
-    expect(capped, lessThan(resting + 13.5 * 1.5 * 10));
+    expect(capped, lessThan(resting + 14 * 1.5 * 10));
 
     final scroll = tester
         .widget<QuillEditor>(find.byType(QuillEditor))
@@ -1528,6 +1529,12 @@ void main() {
       await tester.pump();
       expect(stuck.hitTestable(), findsOneWidget);
       expect(tester.getTopLeft(stuck).dy, list.top + 8);
+      // One line of it: a reminder of what was asked, not the message again.
+      expect(
+        tester.getSize(stuck).height,
+        lessThan(tester.getSize(bubble('第 2 轮')).height),
+      );
+      expect(tester.getSize(stuck).height, UiText.reading * 1.5 + 10 + 11 + 2);
       final stuckAt = position.pixels;
 
       // The next message, arriving, pushes it up: the copy's fade ends at it.
@@ -1677,7 +1684,7 @@ void main() {
       await reveal(tester, '第 3 轮');
       final longBubble = bubble('第 3 轮');
       // Three lines of text, plus the bubble's padding and border.
-      expect(tester.getSize(longBubble).height, 13.5 * 1.5 * 3 + 10 + 11 + 2);
+      expect(tester.getSize(longBubble).height, 14 * 1.5 * 3 + 10 + 11 + 2);
       expect(expandIcon(longBubble), findsOneWidget);
 
       // A short one is not cut: as tall as its text. (Its overlay is built

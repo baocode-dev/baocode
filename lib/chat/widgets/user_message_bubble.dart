@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../chat_models.dart';
 import '../composer/composer_embeds.dart';
 import '../user_message_style.dart';
@@ -35,11 +36,17 @@ class UserMessageBubble extends StatefulWidget {
     required this.text,
     this.images = const [],
     this.onEdit,
+    this.singleLine = false,
   });
 
   final String text;
   final List<ImageAttachment> images;
   final VoidCallback? onEdit;
+
+  /// Its first line only, cut short with an ellipsis: as it stays at the
+  /// top of the chat, a reminder of what was asked rather than the message
+  /// again.
+  final bool singleLine;
 
   /// Its corners; what answers it is inset this much at either side.
   static const radius = 8.0;
@@ -79,11 +86,11 @@ typedef UserMessageFrame = ({Rect rect, double radius, double tail});
 /// Lines shown of a collapsed message. Messages up to one line longer show
 /// in full: hiding a single line is not worth it.
 const _collapsedLines = 3;
-const _lineHeight = 13.5 * 1.5;
+const _lineHeight = UiText.reading * 1.5;
 
 TextStyle get _messageStyle => TextStyle(
   color: AppColors.textPrimary,
-  fontSize: 13.5,
+  fontSize: UiText.reading,
   height: 1.5,
   // Centers glyphs in the line box, which the inline tags center on.
   leadingDistribution: TextLeadingDistribution.even,
@@ -241,18 +248,28 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                   borderRadius: BorderRadius.circular(UserMessageBubble.radius),
                   border: Border.all(color: AppColors.bubbleBorder()),
                 ),
-          child: SelectionContainer(
-            delegate: _selection,
-            child: _Collapsed(
-              shrinkWrap: fitted,
-              collapsedHeight: _lineHeight * _collapsedLines,
-              collapseAbove: _lineHeight * (_collapsedLines + 1),
-              content: InlineCodeText(
-                _messageSpan(widget.text, vocabulary, widget.images),
-              ),
-              overlay: const _CollapsedOverlay(),
-            ),
-          ),
+          child: widget.singleLine
+              ? Text.rich(
+                  _messageSpan(
+                    widget.text.replaceAll(RegExp(r'\s*\n\s*'), ' '),
+                    vocabulary,
+                    widget.images,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                )
+              : SelectionContainer(
+                  delegate: _selection,
+                  child: _Collapsed(
+                    shrinkWrap: fitted,
+                    collapsedHeight: _lineHeight * _collapsedLines,
+                    collapseAbove: _lineHeight * (_collapsedLines + 1),
+                    content: InlineCodeText(
+                      _messageSpan(widget.text, vocabulary, widget.images),
+                    ),
+                    overlay: const _CollapsedOverlay(),
+                  ),
+                ),
         ),
       ),
     );
@@ -324,7 +341,7 @@ class _UserMessageViewerState extends State<UserMessageViewer> {
         decoration: BoxDecoration(
           // The editor's (see ChatComposer).
           color: AppColors.bubbleFill,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(UiRadius.large),
           border: Border.all(color: AppColors.bubbleBorder()),
         ),
         child: ConstrainedBox(
