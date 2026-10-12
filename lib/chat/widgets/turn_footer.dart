@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../ide/ide_hover.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../chat_models.dart';
 import 'agent_step.dart';
 import 'hover_builder.dart';
@@ -67,8 +68,7 @@ class TurnFooter extends StatelessWidget {
           text: AgentStep.formatDuration(worked, l10n: l10n),
           hint: l10n.turnDurationHint,
         ),
-      if (cost != null)
-        _Stat(text: formatCost(cost), hint: l10n.turnCostHint),
+      if (cost != null) _Stat(text: formatCost(cost), hint: l10n.turnCostHint),
     ];
     return SelectionContainer.disabled(
       child: Padding(
@@ -77,10 +77,7 @@ class TurnFooter extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (answer case final answer?) _CopyButton(text: answer),
-            for (final stat in stats) ...[
-              const SizedBox(width: 12),
-              stat,
-            ],
+            for (final stat in stats) ...[const SizedBox(width: 12), stat],
           ],
         ),
       ),
@@ -115,7 +112,7 @@ class _Stat extends StatelessWidget {
           Text(
             text,
             // Not monospaced: its 1 would stand apart from the icon.
-            style: TextStyle(color: color, fontSize: 12),
+            style: TextStyle(color: color, fontSize: UiText.secondary),
           ),
         ],
       ),
@@ -165,7 +162,7 @@ class _CopyButtonState extends State<_CopyButton> {
             padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
               color: hovered ? AppColors.hover : null,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(UiRadius.small),
             ),
             child: SvgPicture.asset(
               _copied ? _checkIcon : _copyIcon,
