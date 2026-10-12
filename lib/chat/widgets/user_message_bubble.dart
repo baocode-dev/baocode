@@ -211,8 +211,9 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
     );
   }
 
-  /// The most of the column a [UserMessageStyle.bubble] bubble takes.
-  static const _fittedWidth = 0.85;
+  /// The most of the column a [UserMessageStyle.bubble] bubble takes:
+  /// three quarters, so what was said and what answers it read apart.
+  static const _fittedWidth = 0.75;
 
   Widget _buildBubble(BuildContext context, {required bool fitted}) {
     final vocabulary = ComposerVocabulary.of(context);
@@ -231,11 +232,10 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
           // As its editor and viewer: the chat input's.
           decoration: fitted
+              // Its fill alone, as Codex's: no line around it.
               ? ShapeDecoration(
                   color: AppColors.bubbleFill,
-                  shape: _MessageShape(
-                    side: BorderSide(color: AppColors.bubbleBorder()),
-                  ),
+                  shape: const _MessageShape(),
                 )
               : BoxDecoration(
                   color: AppColors.bubbleFill,
