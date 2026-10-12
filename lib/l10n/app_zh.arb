@@ -2184,5 +2184,18 @@
   "sidebarProjects": "项目",
   "sidebarGroupBy": "分组方式",
   "sidebarCreateProject": "创建项目",
-  "sidebarNoChats": "暂无聊天"
+  "sidebarNoChats": "暂无聊天",
+  "projectCreateTitle": "创建项目",
+  "projectNameHint": "项目名称",
+  "projectSourceFolder": "源文件夹",
+  "projectAddFolderOn": "在",
+  "projectAddFolderSuffix": "上添加文件夹",
+  "projectThisComputer": "此电脑",
+  "projectRemoteDevices": "远程设备",
+  "projectAddRemoteHost": "添加远程主机",
+  "projectChangeFolder": "更换",
+  "projectNoFolder": "请选择项目的文件夹。",
+  "projectCreate": "创建项目",
+  "projectAddAnotherFolder": "再添加一个文件夹",
+  "projectWorkspaceNote": "多个文件夹组成一个项目，智能体可以同时在这些文件夹里工作。"
 }

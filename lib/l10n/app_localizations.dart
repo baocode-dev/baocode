@@ -13214,6 +13214,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No chats yet'**
   String get sidebarNoChats;
+
+  /// No description provided for @projectCreateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Project'**
+  String get projectCreateTitle;
+
+  /// No description provided for @projectNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Project name'**
+  String get projectNameHint;
+
+  /// No description provided for @projectSourceFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Source folder'**
+  String get projectSourceFolder;
+
+  /// No description provided for @projectAddFolderOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a folder on '**
+  String get projectAddFolderOn;
+
+  /// No description provided for @projectAddFolderSuffix.
+  ///
+  /// In en, this message translates to:
+  /// **''**
+  String get projectAddFolderSuffix;
+
+  /// No description provided for @projectThisComputer.
+  ///
+  /// In en, this message translates to:
+  /// **'This computer'**
+  String get projectThisComputer;
+
+  /// No description provided for @projectRemoteDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote devices'**
+  String get projectRemoteDevices;
+
+  /// No description provided for @projectAddRemoteHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Add remote host'**
+  String get projectAddRemoteHost;
+
+  /// No description provided for @projectChangeFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get projectChangeFolder;
+
+  /// No description provided for @projectNoFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick the project\'s folder.'**
+  String get projectNoFolder;
+
+  /// No description provided for @projectCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Project'**
+  String get projectCreate;
+
+  /// No description provided for @projectAddAnotherFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Add another folder'**
+  String get projectAddAnotherFolder;
+
+  /// No description provided for @projectWorkspaceNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Several folders make one project: its agents work across them.'**
+  String get projectWorkspaceNote;
 }
 
 class _AppLocalizationsDelegate

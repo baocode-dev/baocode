@@ -5831,5 +5831,18 @@
   "sidebarProjects": "Projects",
   "sidebarGroupBy": "Group by",
   "sidebarCreateProject": "Create Project",
-  "sidebarNoChats": "No chats yet"
+  "sidebarNoChats": "No chats yet",
+  "projectCreateTitle": "Create Project",
+  "projectNameHint": "Project name",
+  "projectSourceFolder": "Source folder",
+  "projectAddFolderOn": "Add a folder on ",
+  "projectAddFolderSuffix": "",
+  "projectThisComputer": "This computer",
+  "projectRemoteDevices": "Remote devices",
+  "projectAddRemoteHost": "Add remote host",
+  "projectChangeFolder": "Change",
+  "projectNoFolder": "Pick the project's folder.",
+  "projectCreate": "Create Project",
+  "projectAddAnotherFolder": "Add another folder",
+  "projectWorkspaceNote": "Several folders make one project: its agents work across them."
 }
