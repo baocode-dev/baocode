@@ -2180,5 +2180,9 @@
   "mobilePairNearbyHint": "同一网络里的手机也可以在「附近的电脑」中选择这台电脑。",
   "mobilePairRequestTitle": "{name} 请求配对",
   "mobilePairRequestBody": "它是在「附近的电脑」里找到这台电脑的。手机上显示的安全码一致才允许。",
-  "mobilePairAllow": "允许"
+  "mobilePairAllow": "允许",
+  "sidebarProjects": "项目",
+  "sidebarGroupBy": "分组方式",
+  "sidebarCreateProject": "创建项目",
+  "sidebarNoChats": "暂无聊天"
 }

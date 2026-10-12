@@ -5827,5 +5827,9 @@
     }
   },
   "mobilePairRequestBody": "It found this computer nearby. Allow it only if the phone shows the same code.",
-  "mobilePairAllow": "Allow"
+  "mobilePairAllow": "Allow",
+  "sidebarProjects": "Projects",
+  "sidebarGroupBy": "Group by",
+  "sidebarCreateProject": "Create Project",
+  "sidebarNoChats": "No chats yet"
 }
