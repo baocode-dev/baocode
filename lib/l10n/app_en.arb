@@ -5831,5 +5831,13 @@
   "sidebarProjects": "Projects",
   "sidebarGroupBy": "Group by",
   "sidebarCreateProject": "Create Project",
-  "sidebarNoChats": "No chats yet"
+  "sidebarNoChats": "No chats yet",
+  "customizeRefresh": "Refresh",
+  "customizeAboutPlugins": "Bundles of skills, commands, agents and servers installed in Claude Code.",
+  "customizeAboutMcps": "Connect Claude Code to your tools and data through MCP servers.",
+  "customizeAboutSkills": "Teach Claude Code how to do a task, used when it fits.",
+  "customizeAboutSubagents": "Specialists Claude Code hands tasks to, each with its own context.",
+  "customizeAboutRules": "What Claude Code keeps to in every chat: CLAUDE.md and rules.",
+  "customizeAboutCommands": "Prompts you run with a slash, such as /review.",
+  "customizeAboutHooks": "Commands run at points of Claude Code's work, such as before a tool."
 }

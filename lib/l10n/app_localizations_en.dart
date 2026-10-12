@@ -8039,4 +8039,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sidebarNoChats => 'No chats yet';
+
+  @override
+  String get customizeRefresh => 'Refresh';
+
+  @override
+  String get customizeAboutPlugins =>
+      'Bundles of skills, commands, agents and servers installed in Claude Code.';
+
+  @override
+  String get customizeAboutMcps =>
+      'Connect Claude Code to your tools and data through MCP servers.';
+
+  @override
+  String get customizeAboutSkills =>
+      'Teach Claude Code how to do a task, used when it fits.';
+
+  @override
+  String get customizeAboutSubagents =>
+      'Specialists Claude Code hands tasks to, each with its own context.';
+
+  @override
+  String get customizeAboutRules =>
+      'What Claude Code keeps to in every chat: CLAUDE.md and rules.';
+
+  @override
+  String get customizeAboutCommands =>
+      'Prompts you run with a slash, such as /review.';
+
+  @override
+  String get customizeAboutHooks =>
+      'Commands run at points of Claude Code\'s work, such as before a tool.';
 }
