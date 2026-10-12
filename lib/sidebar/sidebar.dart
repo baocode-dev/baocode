@@ -137,6 +137,7 @@ class Sidebar extends StatefulWidget {
     this.onOpenFolder,
     this.onAddSshHost,
     this.onOpenFolderOn,
+    this.onCreateProject,
     this.onOpenSettings,
     this.onSearch,
     this.onCustomize,
@@ -195,6 +196,10 @@ class Sidebar extends StatefulWidget {
 
   /// Asks for a folder of an SSH host to open as a project.
   final ValueChanged<String>? onOpenFolderOn;
+
+  /// Create Project: the + beside the Projects heading, which asks for a
+  /// project's name and folder; [onOpenFolder] in its place when null.
+  final VoidCallback? onCreateProject;
 
   /// Opens the settings: the gear at the bottom; none without it.
   final VoidCallback? onOpenSettings;
@@ -316,7 +321,15 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
   bool _collapsible(_Group group) => group.project == null || _projectsShown;
 
   bool _collapsed(_Group group) =>
-      _collapsible(group) && _workspace.isCollapsed(group.id);
+      (group.project != null && _sectionCollapsed) ||
+      (_collapsible(group) && _workspace.isCollapsed(group.id));
+
+  /// The Projects heading's key, folded: the projects' groups hide.
+  static const _projectsSection = 'section:projects';
+  bool get _sectionCollapsed => _workspace.isCollapsed(_projectsSection);
+
+  /// The project whose name is being edited in its header.
+  Project? _renamingProject;
 
   /// A project's most recent agents, unless asked for all (the open one
   /// too, wherever it is).
@@ -578,72 +591,102 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     );
   }
 
+  /// "Projects ˅", as Codex heads its list: a click folds the projects;
+  /// on the right how the list is grouped and Create Project.
   Widget _buildGroupingBar() {
+    final l10n = context.l10n;
+    final byProject = _grouping == SidebarGrouping.project;
+    final collapsed = byProject && _sectionCollapsed;
+    final create = widget.onCreateProject ?? widget.onOpenFolder;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 6, 6, 2),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
       child: Row(
         children: [
-          Expanded(
-            child: _workspace.sshHosts.isEmpty
-                ? Text(
-                    context.l10n.sidebarAgents,
-                    style: TextStyle(
-                      color: AppColors.textFaint,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  )
-                : Align(
-                    alignment: Alignment.centerLeft,
-                    child: _buildHostSwitcher(),
-                  ),
-          ),
-          SidebarMenu(
-            width: 150,
-            placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
-            items: () => [
-              for (final grouping in SidebarGrouping.values)
-                SidebarMenuItem(
-                  grouping.localizedLabel(context.l10n),
-                  icon: grouping.icon,
-                  checked: grouping == _grouping,
-                  onSelected: () => _workspace.sidebarGrouping = grouping.name,
-                ),
-            ],
-            builder: (context, menu) => HoverBuilder(
-              cursor: SystemMouseCursors.click,
+          if (_workspace.sshHosts.isNotEmpty)
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildHostSwitcher(),
+              ),
+            )
+          else ...[
+            HoverBuilder(
+              cursor: byProject ? SystemMouseCursors.click : MouseCursor.defer,
               builder: (context, hovered) => GestureDetector(
-                onTap: menu.open,
+                behavior: HitTestBehavior.opaque,
+                onTap: byProject
+                    ? () => _workspace.toggleCollapsed(_projectsSection)
+                    : null,
                 child: Container(
-                  height: 20,
-                  padding: const EdgeInsets.only(left: 6, right: 2),
+                  height: 22,
+                  padding: const EdgeInsets.only(left: 6, right: 4),
                   decoration: BoxDecoration(
-                    color: hovered || menu.isOpen
+                    color: hovered && byProject
                         ? AppColors.hover
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(5),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _grouping.localizedBy(context.l10n),
+                        byProject
+                            ? l10n.sidebarProjects
+                            : _grouping.localizedBy(l10n),
                         style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 11.5,
+                          color: AppColors.textFaint,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 14,
-                        color: AppColors.textFaint,
-                      ),
+                      if (byProject) ...[
+                        const SizedBox(width: 2),
+                        AnimatedRotation(
+                          turns: collapsed ? -0.25 : 0,
+                          duration: const Duration(milliseconds: 150),
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 15,
+                            color: AppColors.textFaint,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
             ),
+            const Spacer(),
+          ],
+          SidebarMenu(
+            width: 150,
+            placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
+            items: () => [
+              SidebarMenuItem.heading(l10n.sidebarGroupBy),
+              for (final grouping in SidebarGrouping.values)
+                SidebarMenuItem(
+                  grouping.localizedLabel(l10n),
+                  icon: grouping.icon,
+                  checked: grouping == _grouping,
+                  onSelected: () => _workspace.sidebarGrouping = grouping.name,
+                ),
+            ],
+            builder: (context, menu) => SidebarIconButton(
+              icon: Icons.filter_list_rounded,
+              tooltip: l10n.sidebarGroupBy,
+              size: 22,
+              onTap: menu.open,
+            ),
           ),
+          if (create != null) ...[
+            const SizedBox(width: 2),
+            SidebarIconButton(
+              icon: Icons.add_rounded,
+              tooltip: l10n.sidebarCreateProject,
+              size: 22,
+              onTap: create,
+            ),
+          ],
         ],
       ),
     );
@@ -1035,6 +1078,20 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
           children.add(const _DropLine());
         }
       }
+      if (project != null && group.threads.isEmpty && !_collapsed(group)) {
+        children.add(
+          Container(
+            key: ValueKey('${group.id}.empty'),
+            height: 24,
+            padding: const EdgeInsets.only(left: 30),
+            alignment: Alignment.centerLeft,
+            child: Text(
+              context.l10n.sidebarNoChats,
+              style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+            ),
+          ),
+        );
+      }
       if (rows.more > 0 || rows.less) {
         children.add(
           _MoreRow(
@@ -1086,6 +1143,13 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
           ? null
           : _workspace.workspaceOf(project)?.folders,
       dragged: project != null && identical(project, _draggedProject),
+      renaming: project != null && project == _renamingProject,
+      onRenamed: project == null
+          ? null
+          : (name) {
+              if (name != null) _workspace.renameProject(project, name);
+              setState(() => _renamingProject = null);
+            },
       icon: project == null
           ? null
           : _Slot(
@@ -1094,6 +1158,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
               child: _HeaderIcon(
                 project: project,
                 workspace: _workspace,
+                open: !_collapsed(group),
                 onTap: () => _openIconPicker(project),
               ),
             ),
@@ -1155,11 +1220,12 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
     final l10n = context.l10n;
     final editor = _workspace.preferredEditor;
     final multi = _workspace.workspaceOf(project);
+    final pinned = _workspace.isProjectPinned(project);
     return [
       SidebarMenuItem(
-        l10n.sidebarNewAgentHere,
-        icon: Icons.add_rounded,
-        onSelected: () => _create(project),
+        pinned ? l10n.sidebarUnpin : l10n.sidebarPin,
+        icon: pinned ? Icons.push_pin : Icons.push_pin_outlined,
+        onSelected: () => _workspace.setProjectPinned(project, !pinned),
       ),
       if (multi != null)
         SidebarMenuItem(
@@ -1168,10 +1234,22 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
           onSelected: () => unawaited(
             showWorkspaceDialog(context, workspace: _workspace, editing: multi),
           ),
+        )
+      else
+        SidebarMenuItem(
+          l10n.commonRename,
+          icon: Icons.edit_outlined,
+          onSelected: () => setState(() => _renamingProject = project),
         ),
       SidebarMenuItem(
+        l10n.sidebarNewAgentHere,
+        icon: Icons.add_rounded,
+        onSelected: () => _create(project),
+      ),
+      const SidebarMenuItem.divider(),
+      SidebarMenuItem(
         l10n.sidebarRevealIn(Editor.folder.localizedPlatformLabel(l10n)),
-        icon: Editor.folder.icon,
+        icon: Icons.folder_open_outlined,
         onSelected: () =>
             unawaited(Sidebar.launch(Editor.folder, project.path)),
       ),
@@ -1198,6 +1276,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
           icon: Icons.schedule_rounded,
           onSelected: () => _workspace.sortByTime(project),
         ),
+      const SidebarMenuItem.divider(),
       SidebarMenuItem(
         l10n.sidebarArchiveAll,
         icon: Icons.inventory_2_outlined,
@@ -1205,13 +1284,14 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       ),
       SidebarMenuItem(
         l10n.sidebarRemoveFromList,
-        icon: Icons.visibility_off_outlined,
+        icon: Icons.close_rounded,
         onSelected: () => _workspace.hideProject(project),
       ),
       if (multi != null)
         SidebarMenuItem(
           l10n.sidebarDeleteWorkspace,
           icon: Icons.delete_outline_rounded,
+          destructive: true,
           onSelected: () => _workspace.deleteWorkspace(multi),
         ),
     ];
@@ -1723,7 +1803,14 @@ class _GroupHeader extends StatelessWidget {
     this.dragged = false,
     this.icon,
     this.folders,
+    this.renaming = false,
+    this.onRenamed,
   });
+
+  /// Its name is being edited in place; [onRenamed] gets the new one, or
+  /// null when cancelled.
+  final bool renaming;
+  final ValueChanged<String?>? onRenamed;
 
   final _Group group;
   final bool collapsed;
@@ -1772,9 +1859,9 @@ class _GroupHeader extends StatelessWidget {
               ? null
               : (details) => menu.open(details.globalPosition),
           child: Container(
-            height: 26,
+            height: 28,
             margin: const EdgeInsets.only(top: 6),
-            padding: EdgeInsets.only(left: light ? 6 : 4, right: 2),
+            padding: const EdgeInsets.only(left: 4, right: 2),
             decoration: BoxDecoration(
               color: (active || dragged) && project != null
                   ? AppColors.hover
@@ -1783,7 +1870,7 @@ class _GroupHeader extends StatelessWidget {
             ),
             child: Row(
               children: [
-                if (!light) ...[
+                if (!light && project == null) ...[
                   AnimatedRotation(
                     turns: collapsed ? 0 : 0.25,
                     duration: const Duration(milliseconds: 150),
@@ -1799,18 +1886,26 @@ class _GroupHeader extends StatelessWidget {
                 ],
                 if (icon case final icon?) ...[icon, const SizedBox(width: 4)],
                 // The dot right after the name, the rest of the row after.
-                Expanded(
-                  child: Row(
-                    children: [
-                      Flexible(child: _label(project)),
-                      if (_hiddenStatus(context) case final status?) ...[
-                        const SizedBox(width: 6),
-                        status,
+                if (renaming)
+                  Expanded(
+                    child: InlineRenameField(
+                      initial: group.label,
+                      onDone: (name) => onRenamed?.call(name),
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(child: _label(project)),
+                        if (_hiddenStatus(context) case final status?) ...[
+                          const SizedBox(width: 6),
+                          status,
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-                if (collapsed && !light && group.threads.isNotEmpty)
+                if (collapsed && !light && !active && group.threads.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
                     child: Text(
@@ -1830,7 +1925,7 @@ class _GroupHeader extends StatelessWidget {
                   ),
                 if (onCreate case final onCreate? when active)
                   SidebarIconButton(
-                    icon: Icons.add_rounded,
+                    icon: Icons.edit_square,
                     tooltip: context.l10n.sidebarNewAgentIn(group.label),
                     size: 20,
                     onTap: onCreate,
@@ -2248,7 +2343,7 @@ class _MoreRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         height: 24,
-        padding: const EdgeInsets.only(left: 28),
+        padding: const EdgeInsets.only(left: 30),
         alignment: Alignment.centerLeft,
         child: Text(
           label,
@@ -2360,7 +2455,7 @@ class _ThreadRow extends StatelessWidget {
             onSecondaryTapUp: (details) => menu.open(details.globalPosition),
             child: Container(
               height: height,
-              padding: const EdgeInsets.only(left: 8, right: 4),
+              padding: EdgeInsets.only(left: showProject ? 8 : 10, right: 4),
               decoration: BoxDecoration(
                 color: selected
                     ? themeColors['list.activeSelectionBackground']
@@ -2862,11 +2957,16 @@ class _HeaderIcon extends StatelessWidget {
     required this.project,
     required this.workspace,
     required this.onTap,
+    this.open = false,
   });
 
   final Project project;
   final Workspace workspace;
   final VoidCallback onTap;
+
+  /// Its agents show: an open folder, as Codex's (without an icon of its
+  /// own).
+  final bool open;
 
   @override
   Widget build(BuildContext context) => TapRegion(
@@ -2879,8 +2979,8 @@ class _HeaderIcon extends StatelessWidget {
         builder: (context, hovered) => GestureDetector(
           onTap: onTap,
           child: Container(
-            width: 24,
-            height: 24,
+            width: 22,
+            height: 22,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: hovered
@@ -2892,10 +2992,12 @@ class _HeaderIcon extends StatelessWidget {
               child: ProjectIconView(
                 icon: workspace.iconOf(project),
                 library: workspace.icons,
-                size: 22,
+                size: 17,
                 color: AppColors.textMuted,
                 fallback: workspace.workspaceOf(project) != null
                     ? Codicons.folderLibrary
+                    : open
+                    ? Icons.folder_open_outlined
                     : Icons.folder_outlined,
               ),
             ),

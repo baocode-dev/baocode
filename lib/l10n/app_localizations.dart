@@ -13190,6 +13190,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Allow'**
   String get mobilePairAllow;
+
+  /// No description provided for @sidebarProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects'**
+  String get sidebarProjects;
+
+  /// No description provided for @sidebarGroupBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Group by'**
+  String get sidebarGroupBy;
+
+  /// No description provided for @sidebarCreateProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Project'**
+  String get sidebarCreateProject;
+
+  /// No description provided for @sidebarNoChats.
+  ///
+  /// In en, this message translates to:
+  /// **'No chats yet'**
+  String get sidebarNoChats;
+
+  /// No description provided for @customizeRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get customizeRefresh;
+
+  /// No description provided for @customizeAboutPlugins.
+  ///
+  /// In en, this message translates to:
+  /// **'Bundles of skills, commands, agents and servers installed in Claude Code.'**
+  String get customizeAboutPlugins;
+
+  /// No description provided for @customizeAboutMcps.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Claude Code to your tools and data through MCP servers.'**
+  String get customizeAboutMcps;
+
+  /// No description provided for @customizeAboutSkills.
+  ///
+  /// In en, this message translates to:
+  /// **'Teach Claude Code how to do a task, used when it fits.'**
+  String get customizeAboutSkills;
+
+  /// No description provided for @customizeAboutSubagents.
+  ///
+  /// In en, this message translates to:
+  /// **'Specialists Claude Code hands tasks to, each with its own context.'**
+  String get customizeAboutSubagents;
+
+  /// No description provided for @customizeAboutRules.
+  ///
+  /// In en, this message translates to:
+  /// **'What Claude Code keeps to in every chat: CLAUDE.md and rules.'**
+  String get customizeAboutRules;
+
+  /// No description provided for @customizeAboutCommands.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompts you run with a slash, such as /review.'**
+  String get customizeAboutCommands;
+
+  /// No description provided for @customizeAboutHooks.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands run at points of Claude Code\'s work, such as before a tool.'**
+  String get customizeAboutHooks;
 }
 
 class _AppLocalizationsDelegate
