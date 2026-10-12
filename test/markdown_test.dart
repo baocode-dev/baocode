@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/theme/ui_tokens.dart';
 import 'package:baocode/chat/side_panel/file_open.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/theme/material_file_icons.dart';
@@ -155,7 +156,7 @@ void main() {
       );
       expect(
         (card.foregroundDecoration! as BoxDecoration).borderRadius,
-        BorderRadius.circular(8),
+        BorderRadius.circular(UiRadius.large),
       );
       expect(card.clipBehavior, Clip.antiAlias);
       expect(find.byType(Scrollbar), findsOneWidget);

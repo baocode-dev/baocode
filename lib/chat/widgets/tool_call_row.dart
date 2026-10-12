@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../floating/hover_tooltip.dart';
@@ -141,13 +142,16 @@ class ToolCallRow extends StatelessWidget {
           style: TextStyle(
             fontFamily: AppFonts.mono,
             fontFamilyFallback: AppFonts.monoFallbacks,
-            fontSize: 12,
+            fontSize: UiText.secondary,
           ),
         ),
         if (lines != null)
           Text(
             lines,
-            style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: UiText.caption,
+            ),
           ),
       ],
     );
@@ -244,7 +248,10 @@ class _SetGoalButtonState extends State<_SetGoalButton> {
     if (_set) {
       return Text(
         l10n.goalAdopted,
-        style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+        style: TextStyle(
+          color: AppColors.textFaint,
+          fontSize: UiText.secondary,
+        ),
       );
     }
     return Semantics(
@@ -260,12 +267,15 @@ class _SetGoalButtonState extends State<_SetGoalButton> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
               color: hovered ? AppColors.hover : null,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(UiRadius.medium),
               border: Border.all(color: AppColors.borderStrong),
             ),
             child: Text(
               l10n.goalAdopt,
-              style: TextStyle(color: AppColors.text, fontSize: 12),
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: UiText.secondary,
+              ),
             ),
           ),
         ),

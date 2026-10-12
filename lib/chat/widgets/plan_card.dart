@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../chat_models.dart';
 import '../side_panel/file_open.dart';
 import 'hover_builder.dart';
@@ -54,7 +55,10 @@ class PlanCard extends StatelessWidget {
   /// Sent back: one line.
   Widget _folded(BuildContext context, VoidCallback? open) {
     final l10n = context.l10n;
-    final faint = TextStyle(color: AppColors.textFaint, fontSize: 12.5);
+    final faint = TextStyle(
+      color: AppColors.textFaint,
+      fontSize: UiText.secondary,
+    );
     return HoverBuilder(
       cursor: open == null ? MouseCursor.defer : SystemMouseCursors.click,
       builder: (context, hovered) => GestureDetector(
@@ -126,7 +130,7 @@ class PlanCard extends StatelessWidget {
                     AppColors.surface,
                   )
                 : AppColors.surface,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(UiRadius.large),
             border: Border.all(color: AppColors.partBorder),
           ),
           child: Column(
@@ -148,7 +152,7 @@ class PlanCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: AppColors.textPrimary,
-                        fontSize: 14,
+                        fontSize: UiText.reading,
                         fontWeight: FontWeight.w600,
                         height: 1.35,
                       ),
@@ -160,7 +164,7 @@ class PlanCard extends StatelessWidget {
                       l10n.planCardRound(item.round),
                       style: TextStyle(
                         color: AppColors.textFaint,
-                        fontSize: 11.5,
+                        fontSize: UiText.caption,
                       ),
                     ),
                   ],
@@ -217,7 +221,7 @@ class _PlanPreviewState extends State<_PlanPreview> {
       maxHeight: PlanCard.maxBodyHeight,
       child: MarkdownView(
         widget.text,
-        style: MarkdownView.baseStyle.copyWith(fontSize: 13),
+        style: MarkdownView.baseStyle.copyWith(fontSize: UiText.body),
       ),
     ),
   );

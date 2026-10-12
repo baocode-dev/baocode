@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import 'chat_item_view.dart' show chatItemPlainText;
@@ -132,12 +133,15 @@ class AgentStep extends StatefulWidget {
   State<AgentStep> createState() => _AgentStepState();
 }
 
-const _titleStyle = TextStyle(fontSize: 13, fontWeight: FontWeight.w500);
+const _titleStyle = TextStyle(
+  fontSize: UiText.body,
+  fontWeight: FontWeight.w500,
+);
 
 /// Its line's height, whatever fonts its text falls back on (CJK's run
 /// taller than Latin's): it keeps its height as what follows changes.
 const _lineStrut = StrutStyle(
-  fontSize: 13,
+  fontSize: UiText.body,
   height: 1.4,
   forceStrutHeight: true,
 );
@@ -209,7 +213,7 @@ class _AgentStepState extends State<AgentStep> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: AppColors.textFaint,
-                              fontSize: 12,
+                              fontSize: UiText.secondary,
                             ),
                           ),
                         ),
@@ -298,7 +302,7 @@ class _AgentStepState extends State<AgentStep> {
                   color: hovered && open != null
                       ? AppColors.surfaceRaised
                       : AppColors.surface,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(UiRadius.large),
                   border: Border.all(
                     color: _focused
                         ? themeColors['focusBorder']
@@ -442,7 +446,7 @@ class BackgroundButton extends StatelessWidget {
                 context.l10n.chatBackground,
                 style: TextStyle(
                   color: hovered ? AppColors.text : AppColors.textMuted,
-                  fontSize: 11.5,
+                  fontSize: UiText.caption,
                 ),
               ),
             ],

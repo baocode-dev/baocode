@@ -9,6 +9,7 @@ import 'package:mermaid_flutter/mermaid_flutter.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'code_citation.dart';
 
@@ -119,7 +120,7 @@ class _MermaidCodeBlockState extends State<MermaidCodeBlock> {
               clusterBorder: color(AppColors.partBorder),
               edgeLabelBackground: color(background),
               fontFamily: DefaultTextStyle.of(context).style.fontFamily,
-              fontSize: 13,
+              fontSize: UiText.body,
             );
     if (_theme != theme) _render(theme);
     final scene = _scene;
@@ -162,7 +163,7 @@ class _MermaidCodeBlockState extends State<MermaidCodeBlock> {
                   padding: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceRaised,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(UiRadius.medium),
                     border: Border.all(color: colors['chat.requestBorder']),
                   ),
                   child: Row(
@@ -239,7 +240,7 @@ class _DiagramDialog extends StatelessWidget {
       backgroundColor: colors['editor.background'],
       insetPadding: const EdgeInsets.all(40),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(UiRadius.large),
         side: BorderSide(color: colors['chat.requestBorder']),
       ),
       clipBehavior: Clip.antiAlias,
@@ -272,7 +273,7 @@ class _DiagramDialog extends StatelessWidget {
                           'mermaid',
                           style: TextStyle(
                             color: AppColors.textMuted,
-                            fontSize: 12,
+                            fontSize: UiText.secondary,
                           ),
                         ),
                         const Spacer(),
