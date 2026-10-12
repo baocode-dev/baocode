@@ -6,6 +6,7 @@ import '../../l10n/l10n.dart';
 import '../../network/network_proxy.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'settings_widgets.dart';
+import '../../theme/ui_tokens.dart';
 
 /// Where a site's test is.
 sealed class SiteResult {
@@ -61,7 +62,7 @@ class NetworkTestRow extends StatelessWidget {
     // Figures of one width: the times line up row under row.
     final style = TextStyle(
       color: SettingsColors.textPrimary,
-      fontSize: 12.5,
+      fontSize: UiText.secondary,
       fontFeatures: const [FontFeature.tabularFigures()],
     );
     final String said;

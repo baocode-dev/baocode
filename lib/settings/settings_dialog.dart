@@ -14,6 +14,7 @@ import '../workspace/window_controls.dart';
 import '../workspace/window_header/window_header.dart' show WindowHeader;
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
+import '../theme/ui_tokens.dart';
 import '../ide/ide_back_button.dart';
 import '../ide/ide_modern_ui.dart' show IdeModernUI;
 import '../sidebar/sidebar.dart' show SidebarIconButton;
@@ -657,7 +658,7 @@ class SettingsDialogState extends State<SettingsDialog> {
               controller: _search,
               style: TextStyle(
                 color: SettingsColors.textPrimary,
-                fontSize: 12.5,
+                fontSize: UiText.secondary,
               ),
               cursorColor: SettingsColors.textPrimary,
               cursorHeight: 14,
@@ -666,7 +667,7 @@ class SettingsDialogState extends State<SettingsDialog> {
                 hintText: l10n.settingsSearch,
                 hintStyle: TextStyle(
                   color: colors['input.placeholderForeground'],
-                  fontSize: 12.5,
+                  fontSize: UiText.secondary,
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
@@ -678,11 +679,11 @@ class SettingsDialogState extends State<SettingsDialog> {
                 filled: true,
                 fillColor: SettingsColors.hover,
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(UiRadius.medium),
                   borderSide: BorderSide(color: SettingsColors.stroke),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(UiRadius.medium),
                   borderSide: BorderSide(color: colors['focusBorder']),
                 ),
               ),
@@ -754,7 +755,7 @@ class _NavItemState extends State<_NavItem> {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               color: selected || _hover ? SettingsColors.hover : null,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(UiRadius.medium),
             ),
             child: Row(
               children: [
@@ -775,7 +776,7 @@ class _NavItemState extends State<_NavItem> {
                       color: selected
                           ? SettingsColors.textPrimary
                           : SettingsColors.textSecondary,
-                      fontSize: 13,
+                      fontSize: UiText.body,
                     ),
                   ),
                 ),

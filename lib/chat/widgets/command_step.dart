@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../l10n/l10n.dart';
 import '../../sidebar/sidebar_menu.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../chat_models.dart';
 import '../floating/floating_placement.dart';
 import 'hover_builder.dart';
@@ -174,7 +175,7 @@ class _CommandMenu extends StatelessWidget {
                 color: hovered || menu.isOpen
                     ? AppColors.hover
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(UiRadius.medium),
               ),
               child: Icon(
                 Icons.more_horiz_rounded,

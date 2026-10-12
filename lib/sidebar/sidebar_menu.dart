@@ -4,6 +4,7 @@ import '../chat/floating/floating_layer.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/floating/floating_registry.dart';
 import '../theme/app_theme.dart';
+import '../theme/ui_tokens.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 class SidebarMenuItem {
@@ -15,7 +16,8 @@ class SidebarMenuItem {
     this.destructive = false,
     this.detail,
     this.leading,
-  }) : divider = false;
+  }) : divider = false,
+       heading = false;
 
   /// A line between items.
   const SidebarMenuItem.divider()
@@ -26,10 +28,24 @@ class SidebarMenuItem {
       destructive = false,
       detail = null,
       leading = null,
-      divider = true;
+      divider = true,
+      heading = false;
+
+  /// A faint title over the items after it; not an item itself.
+  const SidebarMenuItem.heading(this.label)
+    : onSelected = _none,
+      icon = null,
+      checked = false,
+      destructive = false,
+      detail = null,
+      leading = null,
+      divider = false,
+      heading = true;
 
   static void _none() {}
 
+  final bool divider;
+  final bool heading;
   final String label;
   final VoidCallback onSelected;
   final IconData? icon;
@@ -41,7 +57,6 @@ class SidebarMenuItem {
 
   /// In place of [icon].
   final Widget? leading;
-  final bool divider;
 }
 
 /// Opens a menu of [items] from [child]: [builder] gets the state, whose
@@ -135,12 +150,16 @@ class SidebarMenuState extends State<SidebarMenu> {
   Widget _buildMenu(BuildContext context) {
     final items = widget.items();
     final colors = themeColors;
+    // At most most of the window tall: a long list scrolls, its last items
+    // still reachable.
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.6;
     return Container(
       width: widget.width,
+      constraints: BoxConstraints(maxHeight: maxHeight),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: colors['menu.background'],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(UiRadius.large),
         border: Border.all(color: colors['menu.border']),
         boxShadow: [
           BoxShadow(
@@ -150,20 +169,36 @@ class SidebarMenuState extends State<SidebarMenu> {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final item in items)
-            if (item.divider)
-              Container(
-                height: 1,
-                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                color: colors['menu.separatorBackground'],
-              )
-            else
-              _MenuRow(item: item, onTap: () => _select(item)),
-        ],
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final item in items)
+              if (item.divider)
+                Container(
+                  height: 1,
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 4,
+                  ),
+                  color: colors['menu.separatorBackground'],
+                )
+              else if (item.heading)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
+                  child: Text(
+                    item.label,
+                    style: TextStyle(
+                      color: AppColors.textFaint,
+                      fontSize: UiText.caption,
+                    ),
+                  ),
+                )
+              else
+                _MenuRow(item: item, onTap: () => _select(item)),
+          ],
+        ),
       ),
     );
   }
@@ -205,13 +240,13 @@ class _MenuRowState extends State<_MenuRow> {
             color: _hovered
                 ? colors['menu.selectionBackground']
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(5),
+            borderRadius: BorderRadius.circular(UiRadius.medium),
           ),
           foregroundDecoration: outline == null
               ? null
               : BoxDecoration(
                   border: Border.all(color: outline),
-                  borderRadius: BorderRadius.circular(5),
+                  borderRadius: BorderRadius.circular(UiRadius.medium),
                 ),
           child: Row(
             children: [
@@ -231,14 +266,17 @@ class _MenuRowState extends State<_MenuRow> {
                   item.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: color, fontSize: 12.5),
+                  style: TextStyle(color: color, fontSize: UiText.secondary),
                 ),
               ),
               if (item.detail case final detail?) ...[
                 const SizedBox(width: 8),
                 Text(
                   detail,
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
+                  style: TextStyle(
+                    color: AppColors.textFaint,
+                    fontSize: UiText.caption,
+                  ),
                 ),
               ],
               if (item.checked) ...[

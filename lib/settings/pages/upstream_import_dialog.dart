@@ -16,6 +16,7 @@ import '../../models/model_runtime.dart';
 import '../../models/upstream.dart';
 import '../../models/upstream_import.dart';
 import '../../theme/codicons.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'model_dialogs.dart';
 import 'models_page.dart';
@@ -101,7 +102,7 @@ Future<String?> showUpstreamImportDialog(
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: UiText.reading,
               fontWeight: FontWeight.w600,
               color: themeColors['editorWidget.foreground'],
             ),
@@ -181,7 +182,10 @@ class _ImportDialogState extends State<_ImportDialog> {
         children: [
           SizedBox(
             width: 56,
-            child: Text(label, style: TextStyle(fontSize: 12, color: dim)),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: UiText.secondary, color: dim),
+            ),
           ),
           Expanded(child: value),
         ],
@@ -190,7 +194,7 @@ class _ImportDialogState extends State<_ImportDialog> {
     Widget text(String value, {Color? color}) => SelectableText(
       value,
       maxLines: 1,
-      style: TextStyle(fontSize: 13, color: color ?? foreground),
+      style: TextStyle(fontSize: UiText.body, color: color ?? foreground),
     );
     Widget note(IconData icon, String value) => Padding(
       padding: const EdgeInsets.only(top: 6),
@@ -205,7 +209,11 @@ class _ImportDialogState extends State<_ImportDialog> {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(fontSize: 12, height: 18 / 12, color: dim),
+              style: TextStyle(
+                fontSize: UiText.secondary,
+                height: 18 / 12,
+                color: dim,
+              ),
             ),
           ),
         ],
@@ -275,7 +283,7 @@ class _ImportDialogState extends State<_ImportDialog> {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            fontSize: 15,
+                                            fontSize: UiText.title,
                                             fontWeight: FontWeight.w600,
                                             color: foreground,
                                           ),
@@ -294,7 +302,7 @@ class _ImportDialogState extends State<_ImportDialog> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: UiText.secondary,
                                         color: dim,
                                       ),
                                     ),
@@ -445,7 +453,7 @@ class _Badge extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: UiText.secondary,
             fontWeight: FontWeight.w600,
             color: color,
           ),

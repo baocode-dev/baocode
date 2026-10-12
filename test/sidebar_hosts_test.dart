@@ -28,10 +28,10 @@ Finder inSidebar(Finder finder) =>
 /// The sidebar lists this machine's projects, or an SSH host's: switched
 /// between under its heading once there is a host.
 void main() {
-  testWidgets('no host: the heading is as it was', (tester) async {
+  testWidgets('no host: the heading is Projects, as Codex\'s', (tester) async {
     final workspace = await pumpLoaded(tester);
     expect(workspace.sshHosts, isEmpty);
-    expect(inSidebar(find.text('Agents')), findsOneWidget);
+    expect(inSidebar(find.text('Projects')), findsOneWidget);
     expect(inSidebar(find.text('This Computer')), findsNothing);
   });
 
@@ -57,7 +57,7 @@ void main() {
     expect(workspace.sshHosts, ['dev']);
     // Where the agent picked is.
     expect(workspace.sidebarHost, 'dev');
-    expect(inSidebar(find.text('Agents')), findsNothing);
+    expect(inSidebar(find.text('Projects')), findsNothing);
     expect(inSidebar(find.text('dev')), findsOneWidget);
     expect(inSidebar(find.text('app')), findsOneWidget);
     expect(inSidebar(find.text('project')), findsNothing);

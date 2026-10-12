@@ -13190,6 +13190,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Allow'**
   String get mobilePairAllow;
+
+  /// No description provided for @sidebarProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects'**
+  String get sidebarProjects;
+
+  /// No description provided for @sidebarGroupBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Group by'**
+  String get sidebarGroupBy;
+
+  /// No description provided for @sidebarCreateProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Project'**
+  String get sidebarCreateProject;
+
+  /// No description provided for @sidebarNoChats.
+  ///
+  /// In en, this message translates to:
+  /// **'No chats yet'**
+  String get sidebarNoChats;
 }
 
 class _AppLocalizationsDelegate

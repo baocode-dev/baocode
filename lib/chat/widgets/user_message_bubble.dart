@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../chat_models.dart';
 import '../composer/composer_embeds.dart';
 import '../user_message_style.dart';
@@ -79,11 +80,11 @@ typedef UserMessageFrame = ({Rect rect, double radius, double tail});
 /// Lines shown of a collapsed message. Messages up to one line longer show
 /// in full: hiding a single line is not worth it.
 const _collapsedLines = 3;
-const _lineHeight = 13.5 * 1.5;
+const _lineHeight = UiText.reading * 1.5;
 
 TextStyle get _messageStyle => TextStyle(
   color: AppColors.textPrimary,
-  fontSize: 13.5,
+  fontSize: UiText.reading,
   height: 1.5,
   // Centers glyphs in the line box, which the inline tags center on.
   leadingDistribution: TextLeadingDistribution.even,
@@ -324,7 +325,7 @@ class _UserMessageViewerState extends State<UserMessageViewer> {
         decoration: BoxDecoration(
           // The editor's (see ChatComposer).
           color: AppColors.bubbleFill,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(UiRadius.large),
           border: Border.all(color: AppColors.bubbleBorder()),
         ),
         child: ConstrainedBox(

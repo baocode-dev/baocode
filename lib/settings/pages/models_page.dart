@@ -23,6 +23,7 @@ import '../../models/model_runtime.dart';
 import '../../models/upstream.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../chat/widgets/hover_builder.dart';
 import '../../chat/widgets/pixel_loader.dart';
@@ -1511,7 +1512,7 @@ class _ModelRow extends StatelessWidget {
                     style: SettingsText.description.copyWith(
                       fontFamily: AppFonts.mono,
                       fontFamilyFallback: AppFonts.monoFallbacks,
-                      fontSize: 11.5,
+                      fontSize: UiText.caption,
                     ),
                   ),
               ],
@@ -1871,7 +1872,7 @@ class _IconButton extends StatelessWidget {
                       ? colors['toolbar.hoverBackground']
                       : colors['input.background'],
                   border: Border.all(color: colors['input.border']),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(UiRadius.small),
                 ),
                 child: ProviderIconView(
                   icon: icon,
