@@ -8027,4 +8027,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mobilePairAllow => 'Allow';
+
+  @override
+  String get sidebarProjects => 'Projects';
+
+  @override
+  String get sidebarGroupBy => 'Group by';
+
+  @override
+  String get sidebarCreateProject => 'Create Project';
+
+  @override
+  String get sidebarNoChats => 'No chats yet';
 }

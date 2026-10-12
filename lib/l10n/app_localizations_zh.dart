@@ -7554,4 +7554,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobilePairAllow => '允许';
+
+  @override
+  String get sidebarProjects => '项目';
+
+  @override
+  String get sidebarGroupBy => '分组方式';
+
+  @override
+  String get sidebarCreateProject => '创建项目';
+
+  @override
+  String get sidebarNoChats => '暂无聊天';
 }
