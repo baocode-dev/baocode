@@ -36,11 +36,17 @@ class UserMessageBubble extends StatefulWidget {
     required this.text,
     this.images = const [],
     this.onEdit,
+    this.singleLine = false,
   });
 
   final String text;
   final List<ImageAttachment> images;
   final VoidCallback? onEdit;
+
+  /// Its first line only, cut short with an ellipsis: as it stays at the
+  /// top of the chat, a reminder of what was asked rather than the message
+  /// again.
+  final bool singleLine;
 
   /// Its corners; what answers it is inset this much at either side.
   static const radius = 8.0;
@@ -242,18 +248,28 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
                   borderRadius: BorderRadius.circular(UserMessageBubble.radius),
                   border: Border.all(color: AppColors.bubbleBorder()),
                 ),
-          child: SelectionContainer(
-            delegate: _selection,
-            child: _Collapsed(
-              shrinkWrap: fitted,
-              collapsedHeight: _lineHeight * _collapsedLines,
-              collapseAbove: _lineHeight * (_collapsedLines + 1),
-              content: InlineCodeText(
-                _messageSpan(widget.text, vocabulary, widget.images),
-              ),
-              overlay: const _CollapsedOverlay(),
-            ),
-          ),
+          child: widget.singleLine
+              ? Text.rich(
+                  _messageSpan(
+                    widget.text.replaceAll(RegExp(r'\s*\n\s*'), ' '),
+                    vocabulary,
+                    widget.images,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                )
+              : SelectionContainer(
+                  delegate: _selection,
+                  child: _Collapsed(
+                    shrinkWrap: fitted,
+                    collapsedHeight: _lineHeight * _collapsedLines,
+                    collapseAbove: _lineHeight * (_collapsedLines + 1),
+                    content: InlineCodeText(
+                      _messageSpan(widget.text, vocabulary, widget.images),
+                    ),
+                    overlay: const _CollapsedOverlay(),
+                  ),
+                ),
         ),
       ),
     );

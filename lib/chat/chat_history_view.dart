@@ -1099,6 +1099,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                           key: ValueKey(('sticky', index)),
                           text: item.text,
                           images: item.images,
+                          singleLine: true,
                           onEdit: () => _startEditing(index),
                         ),
                       ),
