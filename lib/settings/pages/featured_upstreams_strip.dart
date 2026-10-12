@@ -13,6 +13,7 @@ import '../../ide/ide_hover.dart';
 import '../../l10n/l10n.dart';
 import '../../models/featured_upstreams.dart';
 import '../../theme/codicons.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/editor_launcher.dart' show openExternal;
 import 'settings_widgets.dart';
@@ -333,7 +334,7 @@ class _WhyState extends State<_Why> {
                     ),
                     decoration: BoxDecoration(
                       color: hovered ? SettingsColors.hover : null,
-                      borderRadius: BorderRadius.circular(5),
+                      borderRadius: BorderRadius.circular(UiRadius.medium),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -343,7 +344,7 @@ class _WhyState extends State<_Why> {
                         Text(
                           l10n.modelsFeaturedWhy,
                           style: SettingsText.description.copyWith(
-                            fontSize: 11,
+                            fontSize: UiText.caption,
                             color: color,
                           ),
                         ),
@@ -403,7 +404,7 @@ class _Card extends StatelessWidget {
               color: hovered
                   ? Color.alphaBlend(SettingsColors.hover, SettingsColors.card)
                   : SettingsColors.card,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(UiRadius.large),
             ),
             child: Row(
               children: [
@@ -419,7 +420,7 @@ class _Card extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: SettingsText.label.copyWith(
-                          fontSize: 12.5,
+                          fontSize: UiText.secondary,
                           height: 1.3,
                           fontWeight: FontWeight.w500,
                         ),
@@ -429,7 +430,7 @@ class _Card extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: SettingsText.description.copyWith(
-                          fontSize: 11.5,
+                          fontSize: UiText.caption,
                           height: 1.35,
                           color: SettingsColors.textTertiary,
                         ),
@@ -470,12 +471,12 @@ class _Logo extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: SettingsColors.hover,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(UiRadius.medium),
       ),
       child: Text(
         upstream.name.characters.first.toUpperCase(),
         style: SettingsText.label.copyWith(
-          fontSize: 12,
+          fontSize: UiText.secondary,
           fontWeight: FontWeight.w600,
           color: SettingsColors.textSecondary,
         ),
@@ -485,7 +486,7 @@ class _Logo extends StatelessWidget {
     if (logo == null) return letter;
     final file = File(logo);
     return ClipRRect(
-      borderRadius: BorderRadius.circular(5),
+      borderRadius: BorderRadius.circular(UiRadius.medium),
       child: logo.toLowerCase().endsWith('.svg')
           ? SvgPicture.file(
               file,

@@ -4,6 +4,7 @@ import '../chat/floating/floating_layer.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/floating/floating_registry.dart';
 import '../theme/app_theme.dart';
+import '../theme/ui_tokens.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
 class SidebarMenuItem {
@@ -158,7 +159,7 @@ class SidebarMenuState extends State<SidebarMenu> {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: colors['menu.background'],
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(UiRadius.large),
         border: Border.all(color: colors['menu.border']),
         boxShadow: [
           BoxShadow(
@@ -190,7 +191,7 @@ class SidebarMenuState extends State<SidebarMenu> {
                     item.label,
                     style: TextStyle(
                       color: AppColors.textFaint,
-                      fontSize: 11.5,
+                      fontSize: UiText.caption,
                     ),
                   ),
                 )
@@ -239,13 +240,13 @@ class _MenuRowState extends State<_MenuRow> {
             color: _hovered
                 ? colors['menu.selectionBackground']
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(5),
+            borderRadius: BorderRadius.circular(UiRadius.medium),
           ),
           foregroundDecoration: outline == null
               ? null
               : BoxDecoration(
                   border: Border.all(color: outline),
-                  borderRadius: BorderRadius.circular(5),
+                  borderRadius: BorderRadius.circular(UiRadius.medium),
                 ),
           child: Row(
             children: [
@@ -265,14 +266,17 @@ class _MenuRowState extends State<_MenuRow> {
                   item.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: color, fontSize: 12.5),
+                  style: TextStyle(color: color, fontSize: UiText.secondary),
                 ),
               ),
               if (item.detail case final detail?) ...[
                 const SizedBox(width: 8),
                 Text(
                   detail,
-                  style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
+                  style: TextStyle(
+                    color: AppColors.textFaint,
+                    fontSize: UiText.caption,
+                  ),
                 ),
               ],
               if (item.checked) ...[

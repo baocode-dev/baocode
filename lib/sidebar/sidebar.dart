@@ -23,6 +23,7 @@ import '../remote/remote_status.dart' show sshErrorText;
 import '../remote/ssh_host.dart' show SshHost, SshHostState, SshHosts;
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
+import '../theme/ui_tokens.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../update/update_service.dart';
 import '../workspace/chat_drag.dart';
@@ -624,7 +625,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
                     color: hovered && byProject
                         ? AppColors.hover
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(UiRadius.medium),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -635,7 +636,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
                             : _grouping.localizedBy(l10n),
                         style: TextStyle(
                           color: AppColors.textFaint,
-                          fontSize: 12,
+                          fontSize: UiText.secondary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -718,7 +719,10 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
               Expanded(
                 child: InlineRenameField(
                   initial: _workspace.hostLabel(current),
-                  style: TextStyle(color: AppColors.text, fontSize: 11.5),
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: UiText.caption,
+                  ),
                   onDone: (name) {
                     setState(() => _renamingHost = false);
                     if (name != null) _workspace.renameHost(current, name);
@@ -755,7 +759,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
                     color: hovered || menu.isOpen
                         ? AppColors.hover
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(UiRadius.small),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -769,7 +773,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: AppColors.textMuted,
-                            fontSize: 11.5,
+                            fontSize: UiText.caption,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -942,7 +946,10 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
           Text(
             context.l10n.sidebarNoProjectsOn(host),
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+            style: TextStyle(
+              color: AppColors.textFaint,
+              fontSize: UiText.secondary,
+            ),
           ),
           if (open != null) ...[
             const SizedBox(height: 10),
@@ -958,7 +965,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
                   decoration: BoxDecoration(
                     color: hovered ? AppColors.hover : Colors.transparent,
                     border: Border.all(color: AppColors.border),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(UiRadius.medium),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -976,7 +983,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: AppColors.textMuted,
-                            fontSize: 12,
+                            fontSize: UiText.secondary,
                           ),
                         ),
                       ),
@@ -1018,7 +1025,10 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
         child: Text(
           context.l10n.sidebarNoAgentsYet,
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+          style: TextStyle(
+            color: AppColors.textFaint,
+            fontSize: UiText.secondary,
+          ),
         ),
       );
     }
@@ -1087,7 +1097,10 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
             alignment: Alignment.centerLeft,
             child: Text(
               context.l10n.sidebarNoChats,
-              style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+              style: TextStyle(
+                color: AppColors.textFaint,
+                fontSize: UiText.secondary,
+              ),
             ),
           ),
         );
@@ -1604,7 +1617,7 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: active ? AppColors.hover : Colors.transparent,
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(UiRadius.medium),
       ),
       child: Row(
         children: [
@@ -1619,7 +1632,10 @@ class _SidebarState extends State<Sidebar> implements ChatDragList {
               _showArchived
                   ? context.l10n.sidebarHideArchived
                   : context.l10n.sidebarArchivedCount(count),
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontSize: UiText.secondary,
+              ),
             ),
           ),
         ],
@@ -1682,7 +1698,7 @@ class _NewAgentButton extends StatelessWidget {
                   colors[hovered
                       ? 'agentsNewSessionButton.hoverBackground'
                       : 'agentsNewSessionButton.background'],
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(UiRadius.medium),
               border: Border.all(
                 color: colors['agentsNewSessionButton.border'],
               ),
@@ -1694,7 +1710,10 @@ class _NewAgentButton extends StatelessWidget {
                 Expanded(
                   child: Text(
                     context.l10n.sidebarNewAgent,
-                    style: TextStyle(color: foreground, fontSize: 12.5),
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: UiText.secondary,
+                    ),
                   ),
                 ),
               ],
@@ -1748,7 +1767,7 @@ class _NavRow extends StatelessWidget {
                   : hovered
                   ? AppColors.hover
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(UiRadius.medium),
             ),
             child: ExcludeSemantics(
               child: Row(
@@ -1770,7 +1789,7 @@ class _NavRow extends StatelessWidget {
                         color: selected
                             ? themeColors['list.activeSelectionForeground']
                             : AppColors.text,
-                        fontSize: 12.5,
+                        fontSize: UiText.secondary,
                       ),
                     ),
                   ),
@@ -1866,7 +1885,7 @@ class _GroupHeader extends StatelessWidget {
               color: (active || dragged) && project != null
                   ? AppColors.hover
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(UiRadius.medium),
             ),
             child: Row(
               children: [
@@ -1912,7 +1931,7 @@ class _GroupHeader extends StatelessWidget {
                       '${group.threads.length}',
                       style: TextStyle(
                         color: AppColors.textFaint,
-                        fontSize: 11,
+                        fontSize: UiText.caption,
                       ),
                     ),
                   ),
@@ -1996,7 +2015,7 @@ class _GroupHeader extends StatelessWidget {
               const SizedBox(width: 2),
               Text(
                 '${folders.length}',
-                style: TextStyle(color: color, fontSize: 11),
+                style: TextStyle(color: color, fontSize: UiText.caption),
               ),
             ],
           ),
@@ -2273,11 +2292,11 @@ class _PinZone extends StatelessWidget {
       border: Border.all(
         color: active ? themeColors['focusBorder'] : AppColors.partBorder,
       ),
-      borderRadius: BorderRadius.circular(5),
+      borderRadius: BorderRadius.circular(UiRadius.medium),
     ),
     child: Text(
       context.l10n.sidebarDropToPin,
-      style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
+      style: TextStyle(color: AppColors.textFaint, fontSize: UiText.caption),
     ),
   );
 }
@@ -2349,7 +2368,7 @@ class _MoreRow extends StatelessWidget {
           label,
           style: TextStyle(
             color: hovered ? AppColors.textMuted : AppColors.textFaint,
-            fontSize: 11.5,
+            fontSize: UiText.caption,
           ),
         ),
       ),
@@ -2464,7 +2483,7 @@ class _ThreadRow extends StatelessWidget {
                     : shown
                     ? themeColors['list.inactiveSelectionBackground']
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(UiRadius.medium),
               ),
               // High contrast themes outline the selection and the hovered
               // row, as the IDE's lists do (IdeListRow: dotted and dashed
@@ -2474,7 +2493,7 @@ class _ThreadRow extends StatelessWidget {
                   : null) {
                 final outline? => BoxDecoration(
                   border: Border.all(color: outline),
-                  borderRadius: BorderRadius.circular(5),
+                  borderRadius: BorderRadius.circular(UiRadius.medium),
                 ),
                 null => null,
               },
@@ -2527,7 +2546,10 @@ class _ThreadRow extends StatelessWidget {
       ThreadStatus.unread => l10n.sidebarUnread,
       ThreadStatus.idle => null,
     };
-    final faint = TextStyle(color: AppColors.textMuted, fontSize: 12);
+    final faint = TextStyle(
+      color: AppColors.textMuted,
+      fontSize: UiText.secondary,
+    );
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 360),
       child: Column(
@@ -2570,7 +2592,7 @@ class _ThreadRow extends StatelessWidget {
               text: thread.project.name,
               style: TextStyle(
                 color: AppColors.textFaint,
-                fontSize: 11.5,
+                fontSize: UiText.caption,
                 fontWeight: FontWeight.normal,
               ),
             ),
@@ -2585,7 +2607,7 @@ class _ThreadRow extends StatelessWidget {
             : emphasized
             ? AppColors.textPrimary
             : AppColors.text,
-        fontSize: 12.5,
+        fontSize: UiText.secondary,
         fontWeight: status == ThreadStatus.unread
             ? FontWeight.w600
             : FontWeight.normal,
@@ -2616,7 +2638,7 @@ class _ThreadRow extends StatelessWidget {
             ],
           ),
           style: const TextStyle(
-            fontSize: 11,
+            fontSize: UiText.caption,
             fontFeatures: [FontFeature.tabularFigures()],
           ),
         ),
@@ -2653,7 +2675,10 @@ class _ThreadRow extends StatelessWidget {
             textAlign: TextAlign.right,
             maxLines: 1,
             // The color of the buttons it gives way to on hover.
-            style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: UiText.caption,
+            ),
           ),
         ),
       const SizedBox(width: 2),
@@ -2750,7 +2775,7 @@ class SidebarIconButton extends StatelessWidget {
                 color: hovered
                     ? themeColors['toolbar.hoverBackground']
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(UiRadius.medium),
               ),
               child: Icon(
                 icon,
@@ -2810,7 +2835,7 @@ class _UpdateButton extends StatelessWidget {
                 l10n.updateButton,
                 style: TextStyle(
                   color: IdeButtonColors.foreground,
-                  fontSize: 12,
+                  fontSize: UiText.secondary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -2841,7 +2866,7 @@ class _ConfirmDialog extends StatelessWidget {
       backgroundColor: AppColors.surface,
       shadowColor: colors['widget.shadow'],
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(UiRadius.large),
         side: switch (colors.get('contrastBorder')) {
           final border? => BorderSide(color: border),
           null => BorderSide.none,
@@ -2859,7 +2884,7 @@ class _ConfirmDialog extends StatelessWidget {
                 title,
                 style: TextStyle(
                   color: AppColors.textPrimary,
-                  fontSize: 14,
+                  fontSize: UiText.reading,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -2868,7 +2893,7 @@ class _ConfirmDialog extends StatelessWidget {
                 message,
                 style: TextStyle(
                   color: colors['editorWidget.foreground'],
-                  fontSize: 13,
+                  fontSize: UiText.body,
                 ),
               ),
               const SizedBox(height: 16),
@@ -2926,7 +2951,7 @@ class _DialogButton extends StatelessWidget {
                   (false, true) => 'button.secondaryHoverBackground',
                   (false, false) => 'button.secondaryBackground',
                 }],
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(UiRadius.medium),
             border: switch (colors.get(
               destructive ? 'button.border' : 'button.secondaryBorder',
             )) {
@@ -2941,7 +2966,7 @@ class _DialogButton extends StatelessWidget {
                   colors[destructive
                       ? 'button.foreground'
                       : 'button.secondaryForeground'],
-              fontSize: 12.5,
+              fontSize: UiText.secondary,
             ),
           ),
         ),
@@ -2986,7 +3011,7 @@ class _HeaderIcon extends StatelessWidget {
               color: hovered
                   ? themeColors['toolbar.hoverBackground']
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(UiRadius.small),
             ),
             child: ExcludeSemantics(
               child: ProjectIconView(

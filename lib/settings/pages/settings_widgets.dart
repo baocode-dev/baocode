@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../chat/chat_width.dart';
 import '../../chat/widgets/scroll_edge_fade.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
 /// The settings pages' colors, as Cursor's settings have them: the editor's
@@ -60,7 +61,7 @@ abstract final class SettingsText {
   /// A group's heading, over its card.
   static TextStyle get heading => TextStyle(
     color: SettingsColors.textSecondary,
-    fontSize: 12.5,
+    fontSize: UiText.secondary,
     fontWeight: FontWeight.w500,
   );
 
@@ -68,15 +69,21 @@ abstract final class SettingsText {
   static TextStyle get headingDescription =>
       description.copyWith(color: SettingsColors.textTertiary);
 
-  static TextStyle get label =>
-      TextStyle(color: SettingsColors.textPrimary, fontSize: 13, height: 1.4);
+  static TextStyle get label => TextStyle(
+    color: SettingsColors.textPrimary,
+    fontSize: UiText.body,
+    height: 1.4,
+  );
 
-  static TextStyle get description =>
-      TextStyle(color: SettingsColors.textSecondary, fontSize: 12, height: 1.5);
+  static TextStyle get description => TextStyle(
+    color: SettingsColors.textSecondary,
+    fontSize: UiText.secondary,
+    height: 1.5,
+  );
 
   static TextStyle get path => TextStyle(
     color: SettingsColors.textPrimary,
-    fontSize: 12,
+    fontSize: UiText.secondary,
     height: 1.5,
     fontFamily: AppFonts.mono,
     fontFamilyFallback: AppFonts.monoFallbacks,
@@ -572,13 +579,13 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
   @override
   Widget build(BuildContext context) {
     final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(5),
+      borderRadius: BorderRadius.circular(UiRadius.medium),
       borderSide: BorderSide(color: AppColors.borderStrong),
     );
     final mono = TextStyle(
       fontFamily: AppFonts.mono,
       fontFamilyFallback: AppFonts.monoFallbacks,
-      fontSize: 12,
+      fontSize: UiText.secondary,
     );
     return Semantics(
       textField: true,

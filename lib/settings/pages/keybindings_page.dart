@@ -61,6 +61,7 @@ import '../../l10n/command_titles.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../jsonc_file.dart' show JsoncFileException;
 import 'settings_dropdown.dart';
@@ -802,7 +803,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
               context.l10n.settingsSectionKeyboard,
               style: TextStyle(
                 color: SettingsColors.textPrimary,
-                fontSize: 15,
+                fontSize: UiText.title,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -856,7 +857,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
               l10n.kbKeymap,
               style: TextStyle(
                 color: SettingsColors.textSecondary,
-                fontSize: 12,
+                fontSize: UiText.secondary,
               ),
             ),
             const SizedBox(width: 8),
@@ -929,7 +930,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: SettingsColors.textSecondary,
-          fontSize: 12,
+          fontSize: UiText.secondary,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -970,7 +971,10 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
         padding: const EdgeInsets.all(_inset),
         child: Text(
           context.l10n.kbNoneFound,
-          style: TextStyle(color: SettingsColors.textSecondary, fontSize: 12),
+          style: TextStyle(
+            color: SettingsColors.textSecondary,
+            fontSize: UiText.secondary,
+          ),
         ),
       );
     }
@@ -1047,7 +1051,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: IdeListColors.description,
-                      fontSize: 12,
+                      fontSize: UiText.secondary,
                     ),
                   ),
                 ),
@@ -1080,7 +1084,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: faint ? AppColors.textFaint : foreground,
-                    fontSize: 13,
+                    fontSize: UiText.body,
                     height: 17 / 13,
                   ),
                 ),
@@ -1098,7 +1102,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: faint ? AppColors.textFaint : IdeListColors.description,
-                fontSize: 11,
+                fontSize: UiText.caption,
                 height: 14 / 11,
               ),
             ),
@@ -1140,7 +1144,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: themeColors['errorForeground'],
-                  fontSize: 12,
+                  fontSize: UiText.secondary,
                 ),
               ),
             ),
@@ -1160,7 +1164,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
             controller: _when,
             focusNode: _whenFocus,
             autofocus: true,
-            fontSize: 12,
+            fontSize: UiText.secondary,
             lineHeight: 16,
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
             placeholder: context.l10n.kbColumnWhen,
@@ -1189,7 +1193,7 @@ class _KeybindingsSettingsPageState extends State<KeybindingsSettingsPage> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: row.supported ? foreground : AppColors.textFaint,
-                fontSize: 12,
+                fontSize: UiText.secondary,
               ),
             ),
           ),
@@ -1228,7 +1232,7 @@ class _RecordingBadge extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
     decoration: BoxDecoration(
       color: IdeListColors.badgeBackground,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(UiRadius.large),
     ),
     child: Text(
       context.l10n.kbRecordingKeys,
@@ -1297,7 +1301,7 @@ class _ErrorBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors['inputValidation.errorBackground'],
         border: Border.all(color: colors['inputValidation.errorBorder']),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(UiRadius.small),
       ),
       child: Row(
         children: [
@@ -1308,7 +1312,7 @@ class _ErrorBanner extends StatelessWidget {
               message,
               style: TextStyle(
                 color: colors['inputValidation.errorForeground'],
-                fontSize: 12,
+                fontSize: UiText.secondary,
               ),
             ),
           ),
@@ -1417,7 +1421,7 @@ class _DefineKeybindingDialogState extends State<DefineKeybindingDialog> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: colors['editorWidget.background'],
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(UiRadius.medium),
               border: Border.all(
                 color:
                     colors.get('editorWidget.border') ?? AppColors.partBorder,
@@ -1436,7 +1440,7 @@ class _DefineKeybindingDialogState extends State<DefineKeybindingDialog> {
               children: [
                 Text(
                   context.l10n.kbPressKeys,
-                  style: TextStyle(color: foreground, fontSize: 13),
+                  style: TextStyle(color: foreground, fontSize: UiText.body),
                 ),
                 const SizedBox(height: 8),
                 // The input upstream records into.
@@ -1446,7 +1450,7 @@ class _DefineKeybindingDialogState extends State<DefineKeybindingDialog> {
                   alignment: Alignment.centerLeft,
                   decoration: BoxDecoration(
                     color: IdeInputColors.background,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(UiRadius.small),
                     border: Border.all(color: IdeInputColors.focusBorder),
                   ),
                   child: Text(
@@ -1455,7 +1459,7 @@ class _DefineKeybindingDialogState extends State<DefineKeybindingDialog> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: IdeInputColors.foreground,
-                      fontSize: 13,
+                      fontSize: UiText.body,
                     ),
                   ),
                 ),
@@ -1470,7 +1474,10 @@ class _DefineKeybindingDialogState extends State<DefineKeybindingDialog> {
                             padding: const EdgeInsets.symmetric(horizontal: 6),
                             child: Text(
                               context.l10n.kbChordTo,
-                              style: TextStyle(color: foreground, fontSize: 12),
+                              style: TextStyle(
+                                color: foreground,
+                                fontSize: UiText.secondary,
+                              ),
                             ),
                           ),
                         IdeKeycap(chord.label(_platform)),
@@ -1489,7 +1496,7 @@ class _DefineKeybindingDialogState extends State<DefineKeybindingDialog> {
                           context.l10n.kbExistingCommands(existing),
                           style: TextStyle(
                             color: AppColors.accent,
-                            fontSize: 12,
+                            fontSize: UiText.secondary,
                           ),
                         ),
                       ),

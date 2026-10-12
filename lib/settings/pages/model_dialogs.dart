@@ -13,6 +13,7 @@ import '../../models/model_provider.dart';
 import '../../models/upstream.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
 /// Asks [provider]'s upstream for its models, with [key].
@@ -134,7 +135,7 @@ class ModelDialogFrame extends StatelessWidget {
                           child: Text(
                             title,
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: UiText.reading,
                               fontWeight: FontWeight.w600,
                               color: colors['editorWidget.foreground'],
                             ),
@@ -540,7 +541,7 @@ class ModelBadge extends StatelessWidget {
     final badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(UiRadius.small),
         border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
@@ -571,7 +572,7 @@ class _LinkButton extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: UiText.secondary,
             color: themeColors['textLink.foreground'],
           ),
         ),
@@ -944,7 +945,7 @@ class _OptionListState<T> extends State<_OptionList<T>> {
                 Container(
                   padding: const EdgeInsets.only(left: 7, right: 1),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(UiRadius.small),
                     border: Border.all(color: border),
                   ),
                   child: Row(

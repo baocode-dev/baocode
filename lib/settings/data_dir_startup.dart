@@ -10,6 +10,7 @@ import '../l10n/l10n.dart';
 import '../platform/data_dir.dart';
 import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
+import '../theme/ui_tokens.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/window_controls.dart';
 import 'app_locale.dart';
@@ -221,7 +222,7 @@ class _DataDirectoryRecoveryState extends State<DataDirectoryRecovery> {
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(UiRadius.large),
               border: Border.all(color: AppColors.partBorder),
               boxShadow: [
                 BoxShadow(

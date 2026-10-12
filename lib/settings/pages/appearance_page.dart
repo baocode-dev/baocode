@@ -21,6 +21,7 @@ import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/code_font.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show ThemeSettingDefaults;
 import '../user_settings.dart';
 import 'settings_dropdown.dart';
@@ -672,7 +673,7 @@ class _TerminalFontPreview extends StatelessWidget {
         return DecoratedBox(
           decoration: BoxDecoration(
             color: colors.background,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(UiRadius.large),
             border: Border.all(color: AppColors.partBorder),
           ),
           child: Padding(
@@ -752,11 +753,11 @@ if (add(p, q).x >= 0 && p !== q) {
       height: lines * CodeFont.sized(13) * 1.45 + 16,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(UiRadius.large),
           border: Border.all(color: AppColors.partBorder),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(UiRadius.large),
           child: IdeCodeEditor(
             controller: _text,
             path: 'preview.ts',

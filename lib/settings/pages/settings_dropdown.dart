@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../ide/ide_menu.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
 /// A setting's choice, a dropdown of the others: as wide as the choice
@@ -66,7 +67,7 @@ class _SettingsDropdownState extends State<SettingsDropdown> {
             padding: const EdgeInsets.only(left: 9, right: 6),
             decoration: BoxDecoration(
               color: _hover ? AppColors.hover : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(UiRadius.medium),
               border: Border.all(color: AppColors.borderStrong),
             ),
             child: Row(
@@ -80,7 +81,7 @@ class _SettingsDropdownState extends State<SettingsDropdown> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: colors['dropdown.foreground'],
-                      fontSize: 12.5,
+                      fontSize: UiText.secondary,
                     ),
                   ),
                 ),
