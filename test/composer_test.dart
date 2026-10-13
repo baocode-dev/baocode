@@ -956,7 +956,7 @@ void main() {
     // Quill animates the scroll to the caret (100ms).
     await settleAnimations(tester);
     expect(height(), capped);
-    expect(capped, lessThan(resting + 13.5 * 1.5 * 10));
+    expect(capped, lessThan(resting + 14 * 1.5 * 10));
 
     final scroll = tester
         .widget<QuillEditor>(find.byType(QuillEditor))
@@ -1677,7 +1677,7 @@ void main() {
       await reveal(tester, '第 3 轮');
       final longBubble = bubble('第 3 轮');
       // Three lines of text, plus the bubble's padding and border.
-      expect(tester.getSize(longBubble).height, 13.5 * 1.5 * 3 + 10 + 11 + 2);
+      expect(tester.getSize(longBubble).height, 14 * 1.5 * 3 + 10 + 11 + 2);
       expect(expandIcon(longBubble), findsOneWidget);
 
       // A short one is not cut: as tall as its text. (Its overlay is built

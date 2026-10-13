@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
 /// Inline editor for a title, with it all selected: Enter or leaving it
@@ -77,7 +78,7 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
         onSubmitted: _finish,
         style:
             widget.style ??
-            TextStyle(color: AppColors.textPrimary, fontSize: 12.5),
+            TextStyle(color: AppColors.textPrimary, fontSize: UiText.secondary),
         cursorColor: AppColors.text,
         cursorHeight: 14,
         decoration: InputDecoration(

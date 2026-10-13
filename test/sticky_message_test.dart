@@ -236,6 +236,61 @@ void main() {
       findsNothing,
     );
   });
+  testWidgets('a long message\'s bubble takes three quarters of the column, '
+      'filled, with no line around it', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(800, 600);
+    addTearDown(tester.view.reset);
+    UserMessageStyle.current.value = UserMessageStyle.bubble;
+    addTearDown(() => UserMessageStyle.current.value = UserMessageStyle.sticky);
+    final feed = _LongMessageFeed();
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pump();
+    tester
+        .state<ScrollableState>(
+          find
+              .descendant(
+                of: find.byType(SuperListView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        )
+        .position
+        .jumpTo(0);
+    await tester.pump();
+    await tester.pump();
+    final message = find
+        .byWidgetPredicate(
+          (widget) =>
+              widget is UserMessageBubble && widget.text.startsWith('word'),
+        )
+        .first;
+    final row = tester.getRect(message);
+    final bubble = tester.widget<Container>(
+      find.descendant(of: message, matching: find.byType(Container)).first,
+    );
+    expect(
+      tester
+          .getRect(
+            find
+                .descendant(of: message, matching: find.byType(Container))
+                .first,
+          )
+          .width,
+      closeTo(row.width * 0.75, 0.5),
+    );
+    final shape =
+        (bubble.decoration! as ShapeDecoration).shape as OutlinedBorder;
+    expect(shape.side, BorderSide.none);
+  });
+
   testWidgets('the style is switched as the chat shows, its messages stuck '
       'or not', (tester) async {
     tester.view
@@ -282,4 +337,12 @@ void main() {
       }
     }
   });
+}
+
+/// One turn whose message wraps over many lines.
+class _LongMessageFeed extends _TwoTurnFeed {
+  @override
+  ChatItem itemAt(int index) => index == 0
+      ? UserMessageItem(text: List.filled(40, 'word').join(' '))
+      : super.itemAt(index);
 }

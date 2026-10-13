@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:baocode/theme/ui_tokens.dart';
 import 'package:baocode/chat/widgets/code_citation.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/chat/widgets/mermaid_code_block.dart';
@@ -290,7 +291,7 @@ void main() {
     final shape =
         tester.widget<Dialog>(find.byType(Dialog)).shape!
             as RoundedRectangleBorder;
-    expect(shape.borderRadius, BorderRadius.circular(8));
+    expect(shape.borderRadius, BorderRadius.circular(UiRadius.large));
     await tester.tap(find.byIcon(Codicons.close));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);

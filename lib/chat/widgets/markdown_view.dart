@@ -4,6 +4,7 @@ import 'package:markdown/markdown.dart' as md;
 
 import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/editor_launcher.dart';
 import '../side_panel/file_link.dart';
@@ -26,8 +27,11 @@ class MarkdownView extends StatelessWidget {
   /// [baseStyle] when null.
   final TextStyle? style;
 
-  static TextStyle get baseStyle =>
-      TextStyle(color: AppColors.text, fontSize: 13.5, height: 1.6);
+  static TextStyle get baseStyle => TextStyle(
+    color: AppColors.text,
+    fontSize: UiText.reading,
+    height: UiText.readingHeight,
+  );
 
   /// Inline code's, its background painted by [InlineCodeText].
   static TextStyle get codeStyle =>
@@ -93,10 +97,17 @@ class MarkdownView extends StatelessWidget {
 @immutable
 class MarkdownOptions {
   const MarkdownOptions({
-    this.headingSizes = const [19, 17, 15, 13.5, 13.5, 13.5],
+    this.headingSizes = const [
+      19,
+      17,
+      UiText.title,
+      UiText.reading,
+      UiText.reading,
+      UiText.reading,
+    ],
     this.headingRules = false,
-    this.gap = 8,
-    this.headingGap = 12,
+    this.gap = UiSpace.paragraph,
+    this.headingGap = UiSpace.lg,
     this.link,
     this.code,
     this.linkIcon,
@@ -501,10 +512,12 @@ class _TableState extends State<_Table> {
       child: Container(
         // The edge over the cells, the header's color clipped to the corners.
         foregroundDecoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(UiRadius.large),
           border: Border.fromBorderSide(line),
         ),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(UiRadius.large),
+        ),
         clipBehavior: Clip.antiAlias,
         child: HoverScrollbar(
           controller: _scroll,
