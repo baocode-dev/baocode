@@ -7554,4 +7554,55 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobilePairAllow => '允许';
+
+  @override
+  String get sidebarProjects => '项目';
+
+  @override
+  String get sidebarGroupBy => '分组方式';
+
+  @override
+  String get sidebarCreateProject => '创建项目';
+
+  @override
+  String get sidebarNoChats => '暂无聊天';
+
+  @override
+  String get projectCreateTitle => '创建项目';
+
+  @override
+  String get projectNameHint => '项目名称';
+
+  @override
+  String get projectSourceFolder => '源文件夹';
+
+  @override
+  String get projectAddFolderOn => '在';
+
+  @override
+  String get projectAddFolderSuffix => '上添加文件夹';
+
+  @override
+  String get projectThisComputer => '此电脑';
+
+  @override
+  String get projectRemoteDevices => '远程设备';
+
+  @override
+  String get projectAddRemoteHost => '添加远程主机';
+
+  @override
+  String get projectChangeFolder => '更换';
+
+  @override
+  String get projectNoFolder => '请选择项目的文件夹。';
+
+  @override
+  String get projectCreate => '创建项目';
+
+  @override
+  String get projectAddAnotherFolder => '再添加一个文件夹';
+
+  @override
+  String get projectWorkspaceNote => '多个文件夹组成一个项目，智能体可以同时在这些文件夹里工作。';
 }

@@ -8027,4 +8027,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mobilePairAllow => 'Allow';
+
+  @override
+  String get sidebarProjects => 'Projects';
+
+  @override
+  String get sidebarGroupBy => 'Group by';
+
+  @override
+  String get sidebarCreateProject => 'Create Project';
+
+  @override
+  String get sidebarNoChats => 'No chats yet';
+
+  @override
+  String get projectCreateTitle => 'Create Project';
+
+  @override
+  String get projectNameHint => 'Project name';
+
+  @override
+  String get projectSourceFolder => 'Source folder';
+
+  @override
+  String get projectAddFolderOn => 'Add a folder on ';
+
+  @override
+  String get projectAddFolderSuffix => '';
+
+  @override
+  String get projectThisComputer => 'This computer';
+
+  @override
+  String get projectRemoteDevices => 'Remote devices';
+
+  @override
+  String get projectAddRemoteHost => 'Add remote host';
+
+  @override
+  String get projectChangeFolder => 'Change';
+
+  @override
+  String get projectNoFolder => 'Pick the project\'s folder.';
+
+  @override
+  String get projectCreate => 'Create Project';
+
+  @override
+  String get projectAddAnotherFolder => 'Add another folder';
+
+  @override
+  String get projectWorkspaceNote =>
+      'Several folders make one project: its agents work across them.';
 }
