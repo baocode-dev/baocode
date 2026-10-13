@@ -918,6 +918,30 @@ void main() {
     expect(controller.selection.extentOffset, extent);
   });
 
+  testWidgets('a / starting a word mid-message opens the command menu', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await typeText(tester, 'please run /rev');
+    expect(find.byType(SuggestionMenu), findsOneWidget);
+    await pressKey(tester, LogicalKeyboardKey.enter);
+    await tester.pump();
+    final plain = composerController(tester).document.toPlainText();
+    expect(plain, 'please run \uFFFC \n');
+  });
+
+  testWidgets('a / inside a word or matching nothing stays text', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await typeText(tester, 'see lib/rev');
+    expect(find.byType(SuggestionMenu), findsNothing);
+    composerController(tester).clear();
+    await typeText(tester, 'open /usr/zzzq');
+    await settleAnimations(tester);
+    expect(find.byType(SuggestionMenu), findsNothing);
+  });
+
   testWidgets('the command menu opens only at the end of a query', (
     tester,
   ) async {
