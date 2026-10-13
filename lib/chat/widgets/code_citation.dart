@@ -10,6 +10,7 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../side_panel/file_link.dart' show FileLineRange, FileLink;
 import '../side_panel/file_open.dart' show FileOpenScope;
@@ -346,7 +347,7 @@ class _CodeCardState extends State<_CodeCard> {
       child: Container(
         decoration: BoxDecoration(
           color: background,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(UiRadius.large),
           border: Border.all(color: line),
         ),
         clipBehavior: Clip.antiAlias,
@@ -367,7 +368,7 @@ class _CodeCardState extends State<_CodeCard> {
                           background,
                           colors['editor.background'],
                         ),
-                        borderRadius: BorderRadius.circular(5),
+                        borderRadius: BorderRadius.circular(UiRadius.medium),
                       ),
                       child: _copyButton(context),
                     ),
@@ -439,7 +440,7 @@ class _CodeCardState extends State<_CodeCard> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppColors.textMuted,
-                          fontSize: 12,
+                          fontSize: UiText.secondary,
                         ),
                       ),
                     },
@@ -483,13 +484,16 @@ class _CodeCardState extends State<_CodeCard> {
             citation.fileName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: AppColors.text, fontSize: 12.5),
+            style: TextStyle(color: AppColors.text, fontSize: UiText.secondary),
           ),
         ),
         const SizedBox(width: 6),
         Text(
           citation.lines,
-          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          style: TextStyle(
+            color: AppColors.textMuted,
+            fontSize: UiText.secondary,
+          ),
         ),
       ],
     );
@@ -635,7 +639,7 @@ class CodeBlockIconButton extends StatelessWidget {
               color: hovered
                   ? themeColors['toolbar.hoverBackground']
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(UiRadius.medium),
             ),
             child: Icon(
               icon,

@@ -38,6 +38,7 @@ import 'package:baocode/chat/panels/activity_strip.dart';
 import 'package:baocode/chat/panels/interaction_panel.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/workbench_theme.dart' show themeColors;
 
 Future<ChatSession> pumpScreen(
   WidgetTester tester, {
@@ -104,6 +105,48 @@ void main() {
         )
         .width;
     expect(width(false), width(true) - 2 * UserMessageBubble.radius);
+  });
+
+  testWidgets('focused, the input only darkens its border, over a soft '
+      'shadow; send is in the text\'s color', (tester) async {
+    await pumpScreen(tester);
+    final composer = find.byType(ChatComposer).last;
+    BoxDecoration box() =>
+        tester
+                .widget<AnimatedContainer>(
+                  find
+                      .descendant(
+                        of: composer,
+                        matching: find.byType(AnimatedContainer),
+                      )
+                      .first,
+                )
+                .decoration!
+            as BoxDecoration;
+    // It opens focused: away from it first.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump(const Duration(milliseconds: 300));
+    final resting = (box().border! as Border).top.color;
+    expect(box().boxShadow, isNotEmpty);
+
+    await tester.tap(find.byType(QuillEditor).last);
+    await tester.pump(const Duration(milliseconds: 300));
+    final focused = (box().border! as Border).top.color;
+    expect(focused, isNot(resting));
+    // Not the accent's line.
+    expect(focused, isNot(AppColors.bubbleBorder(focused: true)));
+
+    await typeText(tester, 'hi');
+    await tester.pump(const Duration(milliseconds: 300));
+    final send = tester.widget<AnimatedContainer>(
+      find
+          .ancestor(
+            of: find.byIcon(Icons.arrow_upward_rounded),
+            matching: find.byType(AnimatedContainer),
+          )
+          .first,
+    );
+    expect((send.decoration! as BoxDecoration).color, AppColors.textPrimary);
   });
 
   testWidgets('@ opens the files of the project, narrowed by what follows', (
@@ -956,7 +999,7 @@ void main() {
     // Quill animates the scroll to the caret (100ms).
     await settleAnimations(tester);
     expect(height(), capped);
-    expect(capped, lessThan(resting + 13.5 * 1.5 * 10));
+    expect(capped, lessThan(resting + 14 * 1.5 * 10));
 
     final scroll = tester
         .widget<QuillEditor>(find.byType(QuillEditor))
@@ -1677,7 +1720,7 @@ void main() {
       await reveal(tester, '第 3 轮');
       final longBubble = bubble('第 3 轮');
       // Three lines of text, plus the bubble's padding and border.
-      expect(tester.getSize(longBubble).height, 13.5 * 1.5 * 3 + 10 + 11 + 2);
+      expect(tester.getSize(longBubble).height, 14 * 1.5 * 3 + 10 + 11 + 2);
       expect(expandIcon(longBubble), findsOneWidget);
 
       // A short one is not cut: as tall as its text. (Its overlay is built

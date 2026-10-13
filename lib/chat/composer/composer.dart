@@ -16,6 +16,7 @@ import '../../keybindings/chat_keybindings.dart';
 import '../../l10n/l10n.dart';
 import '../../settings/settings_dialog.dart'
     show SettingsOpener, SettingsSection;
+import '../../theme/ui_tokens.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchColors, themeColors;
 import '../chat_keys.dart';
@@ -118,7 +119,8 @@ class ChatComposer extends StatefulWidget {
 class ChatComposerState extends State<ChatComposer>
     with ChatKeyTarget
     implements FileDropDelegate {
-  static const _fontSize = 13.5;
+  // As the message it sends reads in the history.
+  static const _fontSize = UiText.reading;
   static TextStyle get _textStyle => TextStyle(
     color: AppColors.textPrimary,
     fontSize: _fontSize,
@@ -1277,7 +1279,12 @@ class ChatComposerState extends State<ChatComposer>
     );
   }
 
+  /// The border focused: the resting one a step towards the text.
+  static Color _softFocusBorder() =>
+      Color.lerp(AppColors.bubbleBorder(), AppColors.text, 0.25)!;
+
   Widget _buildBox({required bool focused}) {
+    final shadow = themeColors['widget.shadow'];
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: _focusNode.requestFocus,
@@ -1285,12 +1292,26 @@ class ChatComposerState extends State<ChatComposer>
         key: _boxKey,
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
-          // The agents window's chat input, editing a sent message too:
-          // the color of every bubble, and their line; typed into, the line
-          // turns a little towards the accent.
+          // The agents window's chat input, editing a sent message too: the
+          // color of every bubble. Quiet, as Codex's: a thin line that only
+          // darkens a step when typed into, over a soft shadow, rather than
+          // turning towards the accent.
           color: AppColors.bubbleFill,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.bubbleBorder(focused: focused)),
+          borderRadius: BorderRadius.circular(UiRadius.large),
+          border: Border.all(
+            color: focused ? _softFocusBorder() : AppColors.bubbleBorder(),
+          ),
+          boxShadow: widget.onSubmit == null
+              ? [
+                  BoxShadow(
+                    color: shadow.withValues(
+                      alpha: shadow.a * (focused ? 0.5 : 0.3),
+                    ),
+                    blurRadius: 12,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1908,9 +1929,9 @@ class _SendButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final active = streaming || enabled;
     final colors = themeColors;
-    // As upstream's submit button: the primary button's colors; disabled,
-    // none but the disabled icon.
-    final foreground = colors['button.foreground'];
+    // Disabled, none but the disabled icon.
+    // Dark on light (light on dark): the text's color, as Codex's.
+    final foreground = colors['editor.background'];
     // With the keys that do the same, as the keybindings have them.
     const input = {ChatContextKeys.inChatInput: true};
     return IdeHover(
@@ -1937,8 +1958,8 @@ class _SendButton extends StatelessWidget {
               color: !active
                   ? Colors.transparent
                   : hovered
-                  ? colors['button.hoverBackground']
-                  : colors['button.background'],
+                  ? AppColors.textPrimary.withValues(alpha: 0.8)
+                  : AppColors.textPrimary,
               shape: BoxShape.circle,
             ),
             child: AnimatedSwitcher(
