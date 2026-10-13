@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
+import '../../theme/ui_tokens.dart';
 import 'hover_builder.dart';
 import 'shimmer_text.dart';
 import 'wheel_latch.dart';
@@ -299,7 +300,7 @@ class StepBody extends StatelessWidget {
       margin: const EdgeInsets.only(top: 2, bottom: 6),
       decoration: BoxDecoration(
         color: AppColors.code,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(UiRadius.large),
         border: Border.all(color: AppColors.partBorder),
       ),
       clipBehavior: Clip.antiAlias,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
+import '../../theme/ui_tokens.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
 import '../side_panel/file_link.dart';
@@ -31,7 +32,7 @@ class EditStep extends StatelessWidget {
     final count = TextStyle(
       fontFamily: AppFonts.mono,
       fontFamilyFallback: AppFonts.monoFallbacks,
-      fontSize: 11.5,
+      fontSize: UiText.caption,
     );
     final files = FileOpenScope.maybeOf(context);
     final path = files?.resolve(item.path);
@@ -118,7 +119,10 @@ class _FileHeader extends StatelessWidget {
                 item.fileName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppColors.text, fontSize: 12.5),
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: UiText.secondary,
+                ),
               ),
             ),
           ],
