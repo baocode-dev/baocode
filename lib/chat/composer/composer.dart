@@ -40,7 +40,7 @@ import 'file_drop.dart';
 import 'suggestion_menu.dart';
 import '../../ide/ide_hover.dart';
 
-/// An open query: a /command's, the slash starting the message, or a
+/// An open query: a /command's (a slash starting a word), or a
 /// mention's (an @ starting a word: a file, a folder or a conversation);
 /// [query] is the text between it and the caret.
 class _Trigger {
@@ -748,7 +748,16 @@ class ChatComposerState extends State<ChatComposer>
         }
         _highlighted = 0;
       }
-      _menuKind = trigger.kind;
+      // Mid-message a / matching no command (e.g. a path being typed)
+      // stays text.
+      if (trigger.kind == SuggestionKind.command &&
+          trigger.start > 0 &&
+          _matches.isEmpty) {
+        visible = false;
+      }
+    }
+    if (visible) {
+      _menuKind = trigger!.kind;
       _highlighted = _highlighted.clamp(0, math.max(0, _matches.length - 1));
       _menuX = _caretX(trigger.start);
     }
@@ -821,10 +830,17 @@ class ChatComposerState extends State<ChatComposer>
     // Only at the end of a query: a caret moved into existing text (e.g.
     // `/re|view`) is not typing one.
     if (caret < plain.length && !isBoundary(plain[caret])) return null;
-    if (plain.startsWith('/')) {
-      final query = plain.substring(1, caret);
-      if (!query.split('').any(isBoundary)) {
-        return _Trigger(SuggestionKind.command, 0, query);
+    // A / starting the word the caret ends: a command (a skill too). At the
+    // message's start, or after a space mid-message (not inside `a/b`).
+    for (var i = caret - 1; i >= 0; i--) {
+      final char = plain[i];
+      if (isBoundary(char)) break;
+      if (char == '/' && (i == 0 || isBoundary(plain[i - 1]))) {
+        return _Trigger(
+          SuggestionKind.command,
+          i,
+          plain.substring(i + 1, caret),
+        );
       }
     }
     // An @ starting the word the caret ends: a file or a conversation to
