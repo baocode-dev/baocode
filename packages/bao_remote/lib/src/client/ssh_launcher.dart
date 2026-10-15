@@ -42,6 +42,44 @@ class SshTarget {
         !text.contains(RegExp(r'\s'));
   }
 
+  /// [text] as a host the app can name: as it is when [isValid], or what
+  /// an `ssh` command line pasted from a terminal or a cloud console says
+  /// (`ssh -p 2222 me@box` is `me@box:2222`; `-l me` gives the user).
+  /// Null when it is neither, or the command has options other than `-p`
+  /// and `-l`: those would be lost (`~/.ssh/config` is the place for them).
+  static String? normalize(String text) {
+    text = text.trim();
+    if (isValid(text)) return text;
+    final words = text.split(RegExp(r'\s+'));
+    if (words.first == 'ssh') words.removeAt(0);
+    String? port;
+    String? user;
+    String? destination;
+    for (var i = 0; i < words.length; i++) {
+      final word = words[i];
+      String? value() => word.length > 2
+          ? word.substring(2)
+          : (++i < words.length ? words[i] : null);
+      if (word.startsWith('-p')) {
+        port = value();
+        if (port == null || int.tryParse(port) == null) return null;
+      } else if (word.startsWith('-l')) {
+        user = value();
+        if (user == null || user.isEmpty) return null;
+      } else if (word.startsWith('-') || destination != null) {
+        return null;
+      } else {
+        destination = word;
+      }
+    }
+    if (destination == null) return null;
+    if (user != null && !destination.contains('@')) {
+      destination = '$user@$destination';
+    }
+    if (port != null) destination = '$destination:$port';
+    return isValid(destination) ? destination : null;
+  }
+
   List<String> get arguments => [
     if (port case final port?) ...['-p', '$port'],
     destination,

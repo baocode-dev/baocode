@@ -95,7 +95,8 @@ class RemoteHostPicker {
         sortByLabel: false,
         matchOnDescription: true,
         itemsFor: (value) {
-          final typed = value.trim();
+          // A pasted `ssh -p 2222 me@box` is the host `me@box:2222`.
+          final typed = SshTarget.normalize(value) ?? value.trim();
           return [
             if (typed.isNotEmpty &&
                 !known.contains(typed) &&

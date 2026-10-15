@@ -2564,6 +2564,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       onOpenFolderOn: WindowControls.canPickDirectory
           ? (host) => _openRemoteProject(host: host)
           : null,
+      onOpenProject: WindowControls.canPickDirectory ? _pickProjectKind : null,
       onOpenSettings: () => unawaited(openSettings()),
       updates: widget.settings?.updates?.service,
       onUpdate: _restartToUpdate,
@@ -2867,6 +2868,35 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     } else {
       unawaited(flow.start());
     }
+  }
+
+  /// The sidebar's Open Project: a folder of this computer, as before, or
+  /// a remote project (the host picked or typed, an `ssh` command line
+  /// accepted, then a folder there).
+  void _pickProjectKind() {
+    final l10n = context.l10n;
+    showQuickPick(
+      IdeQuickPick(
+        placeholder: l10n.openProjectWhere,
+        sortByLabel: false,
+        matchOnDescription: true,
+        items: [
+          IdeQuickPickItem(
+            label: l10n.openProjectLocal,
+            icon: const Icon(Codicons.folderOpened),
+            description: l10n.openProjectLocalDetail,
+            onAccept: () => unawaited(_openFolder()),
+          ),
+          IdeQuickPickItem(
+            label: l10n.openProjectRemote,
+            icon: const Icon(Codicons.remote),
+            description: l10n.openProjectRemoteDetail,
+            onAccept: () => _openRemoteProject(switchTo: true),
+          ),
+        ],
+        onDidAccept: (item) => item?.onAccept?.call(),
+      ),
+    );
   }
 
   /// A host's icon, as the workspace kept it (the host switcher's).

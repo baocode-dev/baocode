@@ -386,6 +386,32 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     expect(SshTarget.isValid('me@dev'), isTrue);
   });
 
+  test('targets: an ssh command line pasted is its host', () {
+    String? host(String text) => SshTarget.normalize(text);
+    expect(host('dev'), 'dev');
+    expect(host(' me@box:2222 '), 'me@box:2222');
+    expect(
+      host('ssh -p 13162 root@connect.westd.seetacloud.com'),
+      'root@connect.westd.seetacloud.com:13162',
+    );
+    expect(host('ssh root@box -p 22'), 'root@box:22');
+    expect(host('ssh -p2222 me@box'), 'me@box:2222');
+    expect(host('ssh -l me -p 2222 box'), 'me@box:2222');
+    expect(host('ssh dev'), 'dev');
+    expect(SshTarget.parse(host('ssh -p 13162 root@h')!).arguments, [
+      '-p',
+      '13162',
+      'root@h',
+    ]);
+    // What would be lost, or is no host: refused.
+    expect(host('ssh -i key me@box'), isNull);
+    expect(host('ssh -oProxyCommand=x box'), isNull);
+    expect(host('ssh -p nope me@box'), isNull);
+    expect(host('ssh -p 22'), isNull);
+    expect(host('ssh me@box uptime'), isNull);
+    expect(host('dev box'), isNull);
+  });
+
   test('on Windows, passwords are asked of OpenSSH 8.4 and later', () {
     bool takes(String version) => SshLauncher.takesForcedAskpass(version);
     expect(takes('OpenSSH_for_Windows_8.1p1, LibreSSL 3.0.2'), isFalse);

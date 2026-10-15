@@ -159,6 +159,7 @@ class Sidebar extends StatefulWidget {
     this.onOpenFolder,
     this.onAddSshHost,
     this.onOpenFolderOn,
+    this.onOpenProject,
     this.onOpenSettings,
     this.onSearch,
     this.onCustomize,
@@ -219,6 +220,10 @@ class Sidebar extends StatefulWidget {
 
   /// Asks for a folder of an SSH host to open as a project.
   final ValueChanged<String>? onOpenFolderOn;
+
+  /// The Open Project row on this computer: asks where first (a local
+  /// folder or a remote project); [onOpenFolder] when null.
+  final VoidCallback? onOpenProject;
 
   /// Opens the settings: the gear at the bottom; none without it.
   final VoidCallback? onOpenSettings;
@@ -713,7 +718,7 @@ class _SidebarState extends State<Sidebar>
             if (switch (_workspace.sidebarHost) {
                   final host? when widget.onOpenFolderOn != null =>
                     () => widget.onOpenFolderOn!(host),
-                  null => widget.onOpenFolder,
+                  null => widget.onOpenProject ?? widget.onOpenFolder,
                   _ => null,
                 }
                 case final open?)
