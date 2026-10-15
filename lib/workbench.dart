@@ -1469,8 +1469,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         !_hasKeyboard) {
       return false;
     }
-    // The quick pick over the window has its own.
-    if (_quickInputKey?.currentState case final quick?) {
+    // The quick pick over the window has its own; not while a dialog is
+    // over it (signing in to a host asks over its Connecting pick): Enter
+    // there is the dialog's, not the pick's to accept and hide.
+    if (_quickInputKey?.currentState case final quick?
+        when ModalRoute.isCurrentOf(quick.context) ?? true) {
       _leaveChord();
       return !ChatKeys.isComposing && _handleQuickInputKey(quick, event);
     }
@@ -3794,8 +3797,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     void hide() {
       if (closed || !mounted) return;
       closed = true;
-      // The dialog's navigator (see showGeneralDialog).
-      Navigator.of(context, rootNavigator: true).pop();
+      // Its own route, which a dialog may be over (signing in to a host
+      // asks over the Connecting pick): not whichever is on top.
+      final route = switch (key.currentContext) {
+        final context? => ModalRoute.of(context),
+        null => null,
+      };
+      final navigator = Navigator.of(context, rootNavigator: true);
+      if (route == null || route.isCurrent) {
+        navigator.pop();
+      } else if (route.isActive) {
+        navigator.removeRoute(route);
+      }
     }
 
     _hideQuickInput = hide;
