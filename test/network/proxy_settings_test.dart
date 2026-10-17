@@ -132,8 +132,14 @@ void main() {
       final route = ProxyRoute.fromEnvironment(const {
         'https_proxy': 'http://127.0.0.1:7890',
         'http_proxy': 'http://127.0.0.1:7890',
-        'no_proxy': 'localhost,100.64.0.0/10,fd7a:115c:a1e0::/48',
+        'no_proxy':
+            'localhost,100.64.0.0/10,fd7a:115c:a1e0::/48,10.0.0.0/33,a/8',
       });
+      // Claude Code reads a network too: it is passed on, a bad one not.
+      expect(
+        route.environment['NO_PROXY'],
+        'localhost,127.0.0.1,::1,100.64.0.0/10,fd7a:115c:a1e0::/48',
+      );
       for (final url in [
         'http://100.64.0.1:3425/v1/models',
         'http://100.127.255.254/',
@@ -201,8 +207,10 @@ void main() {
       expect(route.bypasses('printer.local'), isTrue);
       expect(route.bypasses('timestamp.apple.com'), isTrue);
       expect(route.bypasses('api.anthropic.com'), isFalse);
-      // A range only macOS reads stays out of NO_PROXY.
-      expect(route.noProxy, isNot(contains('192.168')));
+      // A network goes around it, here and in Claude Code (which reads it
+      // in NO_PROXY, as curl does); a glob only macOS reads stays out.
+      expect(route.bypasses('192.168.1.2'), isTrue);
+      expect(route.noProxy, contains('192.168.0.0/16'));
     });
 
     test('is direct when no HTTP proxy is enabled', () {

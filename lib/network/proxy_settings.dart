@@ -237,18 +237,28 @@ class ProxyRoute {
   /// Whether [host] is an address in [network], as curl reads a CIDR in
   /// `NO_PROXY` (`100.64.0.0/10`, Tailscale's; `fd7a:115c:a1e0::/48`).
   static bool _inNetwork(String host, String network) {
-    final slash = network.indexOf('/');
-    final prefix = _address(network.substring(0, slash));
     final address = _address(host);
-    final bits = int.tryParse(network.substring(slash + 1));
-    if (prefix == null || address == null || bits == null) return false;
-    if (prefix.length != address.length) return false;
-    if (bits < 0 || bits > prefix.length * 8) return false;
-    for (var bit = 0; bit < bits; bit++) {
-      final mask = 0x80 >> (bit % 8);
-      if (prefix[bit ~/ 8] & mask != address[bit ~/ 8] & mask) return false;
+    if (_network(network) case (final prefix, final bits)?) {
+      if (address == null || prefix.length != address.length) return false;
+      for (var bit = 0; bit < bits; bit++) {
+        final mask = 0x80 >> (bit % 8);
+        if (prefix[bit ~/ 8] & mask != address[bit ~/ 8] & mask) return false;
+      }
+      return true;
     }
-    return true;
+    return false;
+  }
+
+  /// [text] (`100.64.0.0/10`) as its address's bytes and the bits of them
+  /// that count; null when it is not a network.
+  static (List<int>, int)? _network(String text) {
+    final slash = text.indexOf('/');
+    if (slash < 0) return null;
+    final prefix = _address(text.substring(0, slash));
+    final bits = int.tryParse(text.substring(slash + 1));
+    if (prefix == null || bits == null) return null;
+    if (bits < 0 || bits > prefix.length * 8) return null;
+    return (prefix, bits);
   }
 
   /// [text]'s bytes as an IPv4 or IPv6 address; null for a name.
@@ -273,7 +283,10 @@ class ProxyRoute {
 
   static bool _portable(String entry) {
     final trimmed = entry.trim();
-    if (trimmed.isEmpty || trimmed.contains('/')) return false;
+    if (trimmed.isEmpty) return false;
+    // A network: curl reads it, and Claude Code, which talks to a provider
+    // on a Tailscale address itself.
+    if (trimmed.contains('/')) return _network(trimmed) != null;
     final rest = trimmed.startsWith('*.') ? trimmed.substring(2) : trimmed;
     return trimmed == '*' || !rest.contains('*');
   }
