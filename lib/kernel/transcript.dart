@@ -50,6 +50,9 @@ class Transcript {
 
   /// What the agent is busy with out of sight, while a turn runs.
   KernelActivity? activity;
+
+  /// What the model has written in the turn under way, and how fast.
+  TurnOutput? output;
   final Set<String> _endedTurns = {};
 
   /// Sequence of the last turn end; 0 before any.
@@ -122,6 +125,7 @@ class Transcript {
         if (_endedTurns.contains(turnId)) return false;
         activeTurn = turnId;
         _activeUnprompted = unprompted;
+        output = null;
       case TurnEnded(
         :final turnId,
         :final interrupted,
@@ -132,6 +136,7 @@ class Transcript {
         lastTurnUnprompted = activeTurn == turnId && _activeUnprompted;
         if (activeTurn == turnId) activeTurn = null;
         activity = null;
+        output = null;
         lastTurnEndSeq = event.seq;
         lastTurnInterrupted = interrupted;
         _pending.clear();
@@ -168,6 +173,8 @@ class Transcript {
         _truncate(at);
       case ActivityReported(activity: final reported):
         activity = reported;
+      case OutputReported(output: final reported):
+        output = reported;
       case UsageReported(usage: final reported):
         usage = reported;
       case TasksReported(tasks: final reported):

@@ -964,71 +964,81 @@ void main() {
       kernel.dispose();
     });
 
-    test("a turn keeps its own tokens, speed and cost", () async {
-      final cli = FakeCli();
-      final (:kernel, :transcript, events: _) = claude(cli);
-      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
-      await pumpEventQueue();
-      Future<void> stream(Map<String, Object?> event) async {
-        cli.push({'type': 'stream_event', 'event': event});
+    test(
+      "a turn keeps its own tokens and cost, what it wrote shown live",
+      () async {
+        final cli = FakeCli();
+        final (:kernel, :transcript, events: _) = claude(cli);
+        kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
         await pumpEventQueue();
-      }
+        Future<void> stream(Map<String, Object?> event) async {
+          cli.push({'type': 'stream_event', 'event': event});
+          await pumpEventQueue();
+        }
 
-      Future<void> request(int output) async {
-        await stream({
-          'type': 'message_start',
-          'message': {
-            'id': 'm$output',
-            'usage': {
-              'input_tokens': 10,
-              'cache_read_input_tokens': 1000,
-              'output_tokens': 1,
+        Future<void> request(int output) async {
+          await stream({
+            'type': 'message_start',
+            'message': {
+              'id': 'm$output',
+              'usage': {
+                'input_tokens': 10,
+                'cache_read_input_tokens': 1000,
+                'output_tokens': 1,
+              },
             },
-          },
-        });
-        await stream({
-          'type': 'content_block_start',
-          'index': 0,
-          'content_block': {'type': 'text', 'text': ''},
-        });
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-        await stream({
-          'type': 'content_block_delta',
-          'index': 0,
-          'delta': {'type': 'text_delta', 'text': 'Hi.'},
-        });
-        await stream({'type': 'content_block_stop', 'index': 0});
-        await stream({
-          'type': 'message_delta',
-          'usage': {'output_tokens': output},
-        });
-        await stream({'type': 'message_stop'});
-      }
+          });
+          await stream({
+            'type': 'content_block_start',
+            'index': 0,
+            'content_block': {'type': 'text', 'text': ''},
+          });
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          await stream({
+            'type': 'content_block_delta',
+            'index': 0,
+            'delta': {'type': 'text_delta', 'text': 'Hi.'},
+          });
+          await stream({'type': 'content_block_stop', 'index': 0});
+          await stream({
+            'type': 'message_delta',
+            'usage': {'output_tokens': output},
+          });
+          await stream({'type': 'message_stop'});
+        }
 
-      // The session's cost so far, before and after.
-      cli.push({'type': 'result', 'subtype': 'success', 'total_cost_usd': 1.0});
-      await pumpEventQueue();
-      kernel.send(const KernelTurn(id: 'u2', text: 'again'));
-      await pumpEventQueue();
-      await request(40);
-      await request(60);
-      cli.push({
-        'type': 'result',
-        'subtype': 'success',
-        'total_cost_usd': 1.25,
-        'duration_api_ms': 999999,
-      });
-      await pumpEventQueue();
-      final usage = (transcript.itemAt(
-        transcript.indexOf('u2')!,
-      ) as UserMessageItem).usage!;
-      expect(usage.inputTokens, 2020);
-      expect(usage.outputTokens, 100);
-      expect(usage.costUsd, closeTo(0.25, 1e-9));
-      // 100 tokens over at most twice 20ms and a little.
-      expect(usage.tokensPerSecond, greaterThan(500));
-      kernel.dispose();
-    });
+        // The session's cost so far, before and after.
+        cli.push({
+          'type': 'result',
+          'subtype': 'success',
+          'total_cost_usd': 1.0,
+        });
+        await pumpEventQueue();
+        kernel.send(const KernelTurn(id: 'u2', text: 'again'));
+        await pumpEventQueue();
+        await request(40);
+        expect(transcript.output?.tokens, 40);
+        await request(60);
+        expect(transcript.output?.tokens, 100);
+        cli.push({
+          'type': 'result',
+          'subtype': 'success',
+          'total_cost_usd': 1.25,
+          'duration_api_ms': 999999,
+        });
+        await pumpEventQueue();
+        final usage = (transcript.itemAt(
+          transcript.indexOf('u2')!,
+        ) as UserMessageItem).usage!;
+        expect(usage.inputTokens, 2020);
+        expect(usage.outputTokens, 100);
+        expect(usage.costUsd, closeTo(0.25, 1e-9));
+        // Its messages too short to time.
+        expect(usage.tokensPerSecond, isNull);
+        expect(transcript.output, isNull);
+        kernel.dispose();
+      },
+    );
 
     test('starts on first send, then writes the message', () async {
       final cli = FakeCli();

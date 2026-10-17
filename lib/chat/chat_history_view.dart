@@ -1811,7 +1811,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         onSetGoal: widget.onSetGoal,
       );
       shown = switch (item) {
-        // Meanwhile over the item it gave way to.
+        // Meanwhile over the item it gave way to; what is written stays.
+        LiveStatusItem(:final output?)
+            when _handoffIndex != null && output.tokens > 0 =>
+          LiveTurnStats(output: output),
         LiveStatusItem() when _handoffIndex != null => const SizedBox(
           width: double.infinity,
         ),
@@ -1871,7 +1874,16 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (status is! LiveStatusItem) return null;
     final previous = index == 0 ? null : _feed.itemAt(index - 1);
     return (
-      row: ChatItemView(key: _statusKey, item: status),
+      // Not what is written, which stays where it is.
+      row: ChatItemView(
+        key: _statusKey,
+        item: LiveStatusItem(
+          status.label,
+          whimsical: status.whimsical,
+          visible: status.visible,
+          cue: status.cue,
+        ),
+      ),
       top: _gapBetween(previous, status) - _gapBefore(index),
     );
   }

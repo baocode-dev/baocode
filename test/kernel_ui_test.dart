@@ -29,6 +29,7 @@ import 'package:baocode/chat/composer/composer_images.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
+import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/app_theme.dart';
@@ -907,6 +908,59 @@ void main() {
     final second = shownStatus(tester).replaceAll('.', '');
     expect(ActivityRow.musings, contains(second));
     expect(second, isNot(first));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a status row with a cue muses mostly on the step just done', (
+    tester,
+  ) async {
+    Future<void> show(MusingCue? cue, {bool visible = true}) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ActivityRow(
+                label: 'Planning next move',
+                whimsical: true,
+                visible: visible,
+                cue: cue,
+                random: Random(3),
+              ),
+            ),
+          ),
+        );
+    // Without the dots counting up behind it.
+    String said(WidgetTester tester) =>
+        shownStatus(tester).replaceFirst(RegExp(r'\.+$'), '');
+    const cue = MusingCue(MusingTopic.read, 'main.dart');
+    final cued = ActivityRow.cuedMusingsFor(cue, englishLocalizations);
+    await show(cue);
+    final phrases = <String>[];
+    for (var i = 0; i < 8; i++) {
+      await pumpUntil(tester, () => caret.evaluate().isNotEmpty);
+      await pumpUntil(tester, () => caret.evaluate().isEmpty);
+      phrases.add(said(tester));
+    }
+    expect(
+      phrases.every((m) => cued.contains(m) || ActivityRow.musings.contains(m)),
+      isTrue,
+    );
+    expect(phrases.where(cued.contains).length, greaterThanOrEqualTo(4));
+    expect(phrases.where(ActivityRow.musings.contains), isNotEmpty);
+
+    // The step gone by, a phrase on it gives way at once.
+    while (!cued.contains(said(tester))) {
+      await pumpUntil(tester, () => caret.evaluate().isNotEmpty);
+      await pumpUntil(tester, () => caret.evaluate().isEmpty);
+    }
+    final onIt = said(tester);
+    // Folding away, it does not.
+    await show(null, visible: false);
+    await tester.pump();
+    expect(said(tester), onIt);
+    await show(null);
+    await tester.pump(const Duration(milliseconds: 400));
+    await pumpUntil(tester, () => caret.evaluate().isEmpty);
+    expect(ActivityRow.musings, contains(said(tester)));
     await tester.pumpWidget(const SizedBox());
   });
 

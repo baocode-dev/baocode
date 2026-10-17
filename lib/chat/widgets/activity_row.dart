@@ -5,20 +5,25 @@ import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../chat_models.dart';
 import 'markdown_view.dart';
 import 'step_header.dart';
 import 'thinking_spark.dart';
+import 'turn_footer.dart';
 
 /// What the agent is busy with out of sight, after Claude's spark: typed
 /// out, then dots counting up behind it ("Compacting conversation..").
 /// [whimsical] (a wait with nothing to name, the model yet to answer), it
-/// muses instead, a passing phrase at a time.
+/// muses instead, a passing phrase at a time: mostly on the step just done,
+/// if [cue] says what that was, else on anything.
 class ActivityRow extends StatelessWidget {
   const ActivityRow({
     super.key,
     required this.label,
     this.whimsical = false,
     this.visible = true,
+    this.output,
+    this.cue,
     this.random,
   });
 
@@ -27,6 +32,12 @@ class ActivityRow extends StatelessWidget {
 
   /// Whether it shows: it opens and fades in, or folds and fades out.
   final bool visible;
+
+  /// What the model has written so far: under it, shown or not.
+  final TurnOutput? output;
+
+  /// The step just done, to muse on.
+  final MusingCue? cue;
 
   /// Picks the phrases; tests seed it.
   final math.Random? random;
@@ -50,7 +61,6 @@ class ActivityRow extends StatelessWidget {
     'Untangling threads',
     'Herding tokens',
     'Summoning context',
-    'Reticulating splines',
     'Asking the rubber duck',
     'Reading the tea leaves',
     'Sketching on a napkin',
@@ -67,9 +77,7 @@ class ActivityRow extends StatelessWidget {
     'Shaking the magic 8-ball',
     'Warming up the neurons',
     'Folding thoughts',
-    'Tuning the vibes',
     'Binding the monad',
-    'Lifting into the monad',
     'Asking the oracle',
     'Stirring the pot',
     'Polishing the plan',
@@ -79,9 +87,36 @@ class ActivityRow extends StatelessWidget {
   static List<String> musingsFor(AppLocalizations l10n) =>
       l10n.activityMusings.split('\n');
 
+  /// What it muses on [cue], in [l10n]'s language.
+  static List<String> cuedMusingsFor(MusingCue cue, AppLocalizations l10n) {
+    final name = cue.name;
+    return switch (cue.topic) {
+      MusingTopic.command => l10n.activityMusingsCommand(name),
+      MusingTopic.commandFailed => l10n.activityMusingsCommandFailed(name),
+      MusingTopic.read => l10n.activityMusingsRead(name),
+      MusingTopic.edit => l10n.activityMusingsEdit(name),
+      MusingTopic.search => l10n.activityMusingsSearch(name),
+      MusingTopic.folder => l10n.activityMusingsFolder(name),
+      MusingTopic.web => l10n.activityMusingsWeb(name),
+      MusingTopic.agent => l10n.activityMusingsAgent(name),
+      MusingTopic.mcp => l10n.activityMusingsMcp(name),
+      MusingTopic.browser => l10n.activityMusingsBrowser,
+      MusingTopic.image => l10n.activityMusingsImage,
+      MusingTopic.denied => l10n.activityMusingsDenied,
+    }.split('\n');
+  }
+
   @override
   Widget build(BuildContext context) {
-    return _Reveal(visible: visible, child: _row(context.l10n));
+    final output = this.output;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Reveal(visible: visible, child: _row(context.l10n)),
+        if (output != null && output.tokens > 0) LiveTurnStats(output: output),
+      ],
+    );
   }
 
   Widget _row(AppLocalizations l10n) {
@@ -100,6 +135,12 @@ class ActivityRow extends StatelessWidget {
                 whimsical
                     ? musingsFor(l10n)
                     : [localizedActivityLabel(label, l10n)],
+                cued: switch (cue) {
+                  final cue? when whimsical => cuedMusingsFor(cue, l10n),
+                  _ => const [],
+                },
+                // Folding away, it goes on as it was.
+                frozen: !visible,
                 random: random,
               ),
             ),
@@ -178,7 +219,8 @@ class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
   }
 }
 
-/// [phrases], one at a time from any: a caret types each out from the
+/// [phrases], one at a time from any (or from [cued], [cuedShare] of the
+/// time, when there are any): a caret types each out from the
 /// start, a letter fading in at a time, unevenly, as a hand would; then dots
 /// fade in behind it, up to three, twice; then it fades for the next. One
 /// phrase is typed once, then only counts its dots. Still, and whole, where
@@ -187,10 +229,25 @@ class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
 /// The phrase and its dots are laid out whole from the start, what is yet to
 /// show see-through: the line keeps its width, and the caret its places.
 class _Musing extends StatefulWidget {
-  const _Musing(this.phrases, {this.random});
+  const _Musing(
+    this.phrases, {
+    this.cued = const [],
+    this.frozen = false,
+    this.random,
+  });
 
   final List<String> phrases;
+
+  /// Phrases on the step just done.
+  final List<String> cued;
+
+  /// Whether it keeps to the phrases it has, whatever it is given.
+  final bool frozen;
+
   final math.Random? random;
+
+  /// How often it picks from [cued].
+  static const cuedShare = 0.7;
 
   @override
   State<_Musing> createState() => _MusingState();
@@ -228,7 +285,9 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   );
 
   late final math.Random _random = widget.random ?? math.Random();
-  late int _shown;
+  late List<String> _phrases = widget.phrases;
+  late List<String> _cued = widget.cued;
+  late String _phrase;
 
   /// When each letter of the phrase is typed; empty once it has been, for a
   /// phrase that stays.
@@ -237,9 +296,7 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(vsync: this)
     ..addStatusListener(_advance);
 
-  List<String> get _phrases => widget.phrases;
-  String get _phrase => _phrases[_shown];
-  bool get _rolls => _phrases.length > 1;
+  bool get _rolls => _phrases.length + _cued.length > 1;
   bool get _typing => _typed.isNotEmpty;
 
   /// When the caret is gone and the dots begin.
@@ -250,21 +307,41 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _pick(_random.nextInt(_phrases.length));
+    _pick(_draw());
   }
 
   @override
   void didUpdateWidget(_Musing old) {
     super.didUpdateWidget(old);
-    if (listEquals(old.phrases, _phrases)) return;
-    _pick(_random.nextInt(_phrases.length));
+    if (widget.frozen ||
+        (listEquals(widget.phrases, _phrases) &&
+            listEquals(widget.cued, _cued))) {
+      return;
+    }
+    _phrases = widget.phrases;
+    _cued = widget.cued;
+    // Said on to its end while it still holds.
+    if (_phrases.contains(_phrase) || _cued.contains(_phrase)) return;
+    _pick(_draw());
     if (_controller.isAnimating) _start();
   }
 
-  /// Shows [index] next, typed out: a letter every 12 to 28ms, a beat longer
-  /// after a space.
-  void _pick(int index) {
-    _shown = index;
+  /// A phrase to say: from [_Musing.cued] as often as it says, if any; not
+  /// [not] where there are others.
+  String _draw({String? not}) {
+    final from = _cued.isNotEmpty && _random.nextDouble() < _Musing.cuedShare
+        ? _cued
+        : _phrases;
+    final avoid = not == null ? -1 : from.indexOf(not);
+    if (avoid < 0 || from.length < 2) return from[_random.nextInt(from.length)];
+    final pick = _random.nextInt(from.length - 1);
+    return from[pick < avoid ? pick : pick + 1];
+  }
+
+  /// Shows [phrase] next, typed out: a letter every 12 to 28ms, a beat
+  /// longer after a space.
+  void _pick(String phrase) {
+    _phrase = phrase;
     final typed = <int>[];
     var at = _lead;
     for (var i = 0; i < _phrase.length; i++) {
@@ -284,8 +361,7 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
     if (status != AnimationStatus.completed) return;
     setState(() {
       if (_rolls) {
-        final pick = _random.nextInt(_phrases.length - 1);
-        _pick(pick < _shown ? pick : pick + 1);
+        _pick(_draw(not: _phrase));
       } else {
         _typed = const [];
       }

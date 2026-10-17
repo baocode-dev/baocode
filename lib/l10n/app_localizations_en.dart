@@ -2533,7 +2533,18 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get turnSpeedHint => 'Output speed';
+  String get turnSpeedHint => 'Average output speed';
+
+  @override
+  String turnOutputTokens(String tokens) {
+    return '↓ $tokens tokens';
+  }
+
+  @override
+  String get turnOutputTokensHint => 'Written so far this turn';
+
+  @override
+  String get turnSpeedLiveHint => 'Output speed now';
 
   @override
   String get turnDurationHint => 'Time this turn took';
@@ -2623,7 +2634,64 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get activityMusings =>
-      'Pondering\nNoodling\nPercolating\nCogitating\nSimmering\nMarinating\nTinkering\nGrokking\nMulling it over\nConnecting the dots\nChasing a hunch\nBrewing a plan\nHatching a plan\nWeighing the options\nUntangling threads\nHerding tokens\nSummoning context\nReticulating splines\nAsking the rubber duck\nReading the tea leaves\nSketching on a napkin\nDoodling in the margins\nSquinting at the diff\nCounting parentheses\nBefriending the compiler\nNegotiating with types\nWrangling edge cases\nTracing the stack\nFlipping through the docs\nSpelunking the codebase\nLining up the ducks\nShaking the magic 8-ball\nWarming up the neurons\nFolding thoughts\nTuning the vibes\nBinding the monad\nLifting into the monad\nAsking the oracle\nStirring the pot\nPolishing the plan';
+      'Pondering\nNoodling\nPercolating\nCogitating\nSimmering\nMarinating\nTinkering\nGrokking\nMulling it over\nConnecting the dots\nChasing a hunch\nBrewing a plan\nHatching a plan\nWeighing the options\nUntangling threads\nHerding tokens\nSummoning context\nAsking the rubber duck\nReading the tea leaves\nSketching on a napkin\nDoodling in the margins\nSquinting at the diff\nCounting parentheses\nBefriending the compiler\nNegotiating with types\nWrangling edge cases\nTracing the stack\nFlipping through the docs\nSpelunking the codebase\nLining up the ducks\nShaking the magic 8-ball\nWarming up the neurons\nFolding thoughts\nBinding the monad\nAsking the oracle\nStirring the pot\nPolishing the plan';
+
+  @override
+  String activityMusingsCommand(String name) {
+    return 'Squinting at $name\'s output\nDigesting what $name said\nPicking through $name\'s output\nNodding along to $name';
+  }
+
+  @override
+  String activityMusingsCommandFailed(String name) {
+    return 'Staring down $name\'s error\nAsking $name what went wrong\nUntangling $name\'s complaint\nConsoling $name';
+  }
+
+  @override
+  String activityMusingsRead(String name) {
+    return 'Leafing through $name\nGetting to know $name\nPulling threads in $name\nReading between the lines of $name';
+  }
+
+  @override
+  String activityMusingsEdit(String name) {
+    return 'Admiring the new $name\nDouble-checking $name\nHoping $name still compiles\nGiving $name a once-over';
+  }
+
+  @override
+  String activityMusingsSearch(String name) {
+    return 'Panning $name results for gold\nSifting through $name matches\nFollowing $name leads';
+  }
+
+  @override
+  String activityMusingsFolder(String name) {
+    return 'Poking around $name\nTaking roll call in $name\nSizing up $name';
+  }
+
+  @override
+  String activityMusingsWeb(String name) {
+    return 'Taking notes from $name\nDigesting $name';
+  }
+
+  @override
+  String activityMusingsAgent(String name) {
+    return 'Debriefing $name\nGrading $name\'s homework\nGoing over $name\'s findings';
+  }
+
+  @override
+  String activityMusingsMcp(String name) {
+    return 'Unwrapping $name\'s reply\nSeeing what $name sent back';
+  }
+
+  @override
+  String get activityMusingsBrowser =>
+      'Peering at the page\nSquinting at the screenshot';
+
+  @override
+  String get activityMusingsImage =>
+      'Admiring the fresh picture\nNitpicking the new image';
+
+  @override
+  String get activityMusingsDenied =>
+      'Finding another way\nTaking the scenic route';
 
   @override
   String get composerCommands => 'Commands';

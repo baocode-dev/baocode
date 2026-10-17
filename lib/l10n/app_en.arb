@@ -1490,7 +1490,18 @@
       }
     }
   },
-  "turnSpeedHint": "Output speed",
+  "turnSpeedHint": "Average output speed",
+  "turnOutputTokens": "↓ {tokens} tokens",
+  "@turnOutputTokens": {
+    "description": "The tokens the model has written so far in the turn under way, e.g. \"↓ 1.2k tokens\".",
+    "placeholders": {
+      "tokens": {
+        "type": "String"
+      }
+    }
+  },
+  "turnOutputTokensHint": "Written so far this turn",
+  "turnSpeedLiveHint": "Output speed now",
   "turnDurationHint": "Time this turn took",
   "turnCostHint": "Cost of this turn",
   "turnWorked": "Worked for {duration}",
@@ -1565,9 +1576,102 @@
   },
   "activityCompacting": "Compacting conversation",
   "activityPlanning": "Planning next move",
-  "activityMusings": "Pondering\nNoodling\nPercolating\nCogitating\nSimmering\nMarinating\nTinkering\nGrokking\nMulling it over\nConnecting the dots\nChasing a hunch\nBrewing a plan\nHatching a plan\nWeighing the options\nUntangling threads\nHerding tokens\nSummoning context\nReticulating splines\nAsking the rubber duck\nReading the tea leaves\nSketching on a napkin\nDoodling in the margins\nSquinting at the diff\nCounting parentheses\nBefriending the compiler\nNegotiating with types\nWrangling edge cases\nTracing the stack\nFlipping through the docs\nSpelunking the codebase\nLining up the ducks\nShaking the magic 8-ball\nWarming up the neurons\nFolding thoughts\nTuning the vibes\nBinding the monad\nLifting into the monad\nAsking the oracle\nStirring the pot\nPolishing the plan",
+  "activityMusings": "Pondering\nNoodling\nPercolating\nCogitating\nSimmering\nMarinating\nTinkering\nGrokking\nMulling it over\nConnecting the dots\nChasing a hunch\nBrewing a plan\nHatching a plan\nWeighing the options\nUntangling threads\nHerding tokens\nSummoning context\nAsking the rubber duck\nReading the tea leaves\nSketching on a napkin\nDoodling in the margins\nSquinting at the diff\nCounting parentheses\nBefriending the compiler\nNegotiating with types\nWrangling edge cases\nTracing the stack\nFlipping through the docs\nSpelunking the codebase\nLining up the ducks\nShaking the magic 8-ball\nWarming up the neurons\nFolding thoughts\nBinding the monad\nAsking the oracle\nStirring the pot\nPolishing the plan",
   "@activityMusings": {
     "description": "What the agent 'does' while the model has yet to answer: whimsical phrases, one per line, shown one at a time with dots after them. Any number of lines."
+  },
+  "activityMusingsCommand": "Squinting at {name}'s output\nDigesting what {name} said\nPicking through {name}'s output\nNodding along to {name}",
+  "@activityMusingsCommand": {
+    "description": "Musings, as activityMusings, after a command it ran: {name} is the command, e.g. \"flutter test\". One per line, any number of lines.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMusingsCommandFailed": "Staring down {name}'s error\nAsking {name} what went wrong\nUntangling {name}'s complaint\nConsoling {name}",
+  "@activityMusingsCommandFailed": {
+    "description": "Musings, as activityMusings, after a command it ran that failed: {name} is the command, e.g. \"flutter test\". One per line, any number of lines.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMusingsRead": "Leafing through {name}\nGetting to know {name}\nPulling threads in {name}\nReading between the lines of {name}",
+  "@activityMusingsRead": {
+    "description": "Musings, as activityMusings, after a file it read: {name} is the file name. One per line, any number of lines.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMusingsEdit": "Admiring the new {name}\nDouble-checking {name}\nHoping {name} still compiles\nGiving {name} a once-over",
+  "@activityMusingsEdit": {
+    "description": "Musings, as activityMusings, after a file it changed: {name} is the file name. One per line, any number of lines.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMusingsSearch": "Panning {name} results for gold\nSifting through {name} matches\nFollowing {name} leads",
+  "@activityMusingsSearch": {
+    "description": "Musings, as activityMusings, after a search it made: {name} is how many matches, e.g. \"12\". One per line, any number of lines.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMusingsFolder": "Poking around {name}\nTaking roll call in {name}\nSizing up {name}",
+  "@activityMusingsFolder": {
+    "description": "Musings, as activityMusings, after a folder it listed: {name} is the folder name. One per line, any number of lines.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMusingsWeb": "Taking notes from {name}\nDigesting {name}",
+  "@activityMusingsWeb": {
+    "description": "Musings, as activityMusings, after a page it fetched: {name} is the site, e.g. \"dart.dev\". One per line, any number of lines.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMusingsAgent": "Debriefing {name}\nGrading {name}'s homework\nGoing over {name}'s findings",
+  "@activityMusingsAgent": {
+    "description": "Musings, as activityMusings, after a subagent that reported back: {name} is the subagent's type, e.g. \"Explore\". One per line, any number of lines.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMusingsMcp": "Unwrapping {name}'s reply\nSeeing what {name} sent back",
+  "@activityMusingsMcp": {
+    "description": "Musings, as activityMusings, after an MCP tool it called: {name} is the MCP tool's name. One per line, any number of lines.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMusingsBrowser": "Peering at the page\nSquinting at the screenshot",
+  "@activityMusingsBrowser": {
+    "description": "Musings, as activityMusings, after something it did in the browser. One per line, any number of lines."
+  },
+  "activityMusingsImage": "Admiring the fresh picture\nNitpicking the new image",
+  "@activityMusingsImage": {
+    "description": "Musings, as activityMusings, after a picture it generated. One per line, any number of lines."
+  },
+  "activityMusingsDenied": "Finding another way\nTaking the scenic route",
+  "@activityMusingsDenied": {
+    "description": "Musings, as activityMusings, after a tool call the user denied. One per line, any number of lines."
   },
   "composerCommands": "Commands",
   "@composerCommands": {

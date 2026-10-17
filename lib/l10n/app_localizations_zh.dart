@@ -2449,7 +2449,18 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get turnSpeedHint => '输出速度';
+  String get turnSpeedHint => '平均输出速度';
+
+  @override
+  String turnOutputTokens(String tokens) {
+    return '↓ $tokens tokens';
+  }
+
+  @override
+  String get turnOutputTokensHint => '本轮已输出';
+
+  @override
+  String get turnSpeedLiveHint => '当前输出速度';
 
   @override
   String get turnDurationHint => '本轮耗时';
@@ -2538,7 +2549,61 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get activityMusings =>
-      '冥思苦想\n琢磨一下\n慢慢酝酿\n深思熟虑\n文火慢炖\n入味中\n修修补补\n融会贯通\n反复掂量\n连点成线\n追一个直觉\n酝酿计划\n孵化方案\n权衡利弊\n理清头绪\n赶着一群 token\n召唤上下文\n网格化样条曲线\n请教小黄鸭\n看茶叶占卜\n在餐巾纸上打草稿\n在页边涂鸦\n眯眼看 diff\n数括号\n和编译器交朋友\n与类型系统谈判\n驯服边界情况\n追踪调用栈\n翻阅文档\n探索代码库\n把鸭子排成一排\n摇一摇魔法 8 号球\n预热神经元\n折叠思绪\n调整状态\n绑定 Monad\n提升进 Monad\n求问神谕\n搅一搅锅\n打磨计划';
+      '冥思苦想\n琢磨一下\n慢慢酝酿\n深思熟虑\n文火慢炖\n修修补补\n融会贯通\n反复掂量\n连点成线\n追一个直觉\n酝酿计划\n孵化方案\n权衡利弊\n理清头绪\n赶着一群 token\n召唤上下文\n请教小黄鸭\n在餐巾纸上打草稿\n眯眼看 diff\n数括号\n和编译器交朋友\n与类型系统谈判\n驯服边界情况\n追踪调用栈\n翻阅文档\n探索代码库\n摇一摇魔法 8 号球\n绑定 Monad\n求问神谕\n打磨计划\n打个腹稿\n掐指一算\n抽丝剥茧\n顺藤摸瓜\n在脑子里跑一遍\n把思路捋直\n拆解问题';
+
+  @override
+  String activityMusingsCommand(String name) {
+    return '对着 $name 的输出点点头\n品一品 $name 的输出\n给 $name 的输出划重点\n看 $name 跑出了什么名堂\n把 $name 的结果过一遍';
+  }
+
+  @override
+  String activityMusingsCommandFailed(String name) {
+    return '和 $name 的报错大眼瞪小眼\n盯着 $name 的报错挠头\n给 $name 的报错号号脉\n琢磨 $name 为什么不高兴\n顺着 $name 的报错往回找';
+  }
+
+  @override
+  String activityMusingsRead(String name) {
+    return '把 $name 翻来覆去地看\n在 $name 里找线头\n跟 $name 混个脸熟\n在 $name 的字里行间找答案\n把 $name 记在心里';
+  }
+
+  @override
+  String activityMusingsEdit(String name) {
+    return '欣赏刚改好的 $name\n替 $name 捏把汗\n回头再瞄一眼 $name\n想想 $name 还缺点啥\n给 $name 收个尾';
+  }
+
+  @override
+  String activityMusingsSearch(String name) {
+    return '在 $name 处结果里淘金\n从 $name 处结果里挑出真身\n顺着 $name 条线索摸过去';
+  }
+
+  @override
+  String activityMusingsFolder(String name) {
+    return '在 $name 里东张西望\n给 $name 点个名\n摸清 $name 的家底';
+  }
+
+  @override
+  String activityMusingsWeb(String name) {
+    return '从 $name 抄点笔记\n消化 $name 上看来的东西';
+  }
+
+  @override
+  String activityMusingsAgent(String name) {
+    return '听 $name 汇报\n批改 $name 交上来的作业\n消化 $name 带回来的情报';
+  }
+
+  @override
+  String activityMusingsMcp(String name) {
+    return '拆 $name 寄回来的包裹\n看 $name 回了些什么';
+  }
+
+  @override
+  String get activityMusingsBrowser => '端详页面截图\n看看浏览器里发生了什么';
+
+  @override
+  String get activityMusingsImage => '端详刚画好的图\n给新图挑挑刺';
+
+  @override
+  String get activityMusingsDenied => '收到，换条路走\n另想办法';
 
   @override
   String get composerCommands => '命令';

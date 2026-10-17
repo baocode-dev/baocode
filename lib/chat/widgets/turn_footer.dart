@@ -84,6 +84,48 @@ class TurnFooter extends StatelessWidget {
   }
 }
 
+/// At the end of a turn under way, faint, where its [TurnFooter] will be:
+/// the tokens the model has written so far, then how fast it writes now,
+/// while it does.
+class LiveTurnStats extends StatelessWidget {
+  const LiveTurnStats({super.key, required this.output});
+
+  final TurnOutput output;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final speed = output.tokensPerSecond;
+    return SelectionContainer.disabled(
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _Stat(
+                text: l10n.turnOutputTokens(
+                  AgentStep.formatTokens(output.tokens),
+                ),
+                hint: l10n.turnOutputTokensHint,
+              ),
+              if (speed != null) ...[
+                const SizedBox(width: 12),
+                _Stat(
+                  icon: _zapIcon,
+                  text: l10n.turnSpeed(speed.round().toString()),
+                  hint: l10n.turnSpeedLiveHint,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Stat extends StatelessWidget {
   const _Stat({this.icon, required this.text, required this.hint});
 

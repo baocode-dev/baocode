@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import '../../chat/chat_models.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
+import '../output_meter.dart';
 import 'claude_goal.dart';
 import 'claude_sdk_tools.dart';
 
@@ -64,20 +65,26 @@ class ClaudeTranslator {
   /// else the last block's end.
   DateTime? _blockSince;
 
-  /// The current message's usage, as its start and its last delta said.
+  /// The current message's usage, as its start and its last delta said;
+  /// whether its delta counted what it wrote, and its thought's tokens;
+  /// whether it thought.
   Map<String, Object?> _messageUsage = {};
-
-  /// When it streamed its first block, and its last delta.
-  DateTime? _firstOut;
-  DateTime? _lastOut;
+  bool _messageCounted = false;
+  int? _messageThinking;
+  bool _messageThought = false;
 
   /// The turn's requests so far (the agent's own, not its subagents'):
-  /// tokens read and written, and, for how fast it wrote, the tokens of
-  /// those that streamed and how long they took.
+  /// tokens read and written.
   int _turnInput = 0;
   int _turnOutput = 0;
-  int _streamedTokens = 0;
-  Duration _streaming = Duration.zero;
+
+  /// What the agent's own requests write as they stream, and when that was
+  /// last reported.
+  final OutputMeter _meter = OutputMeter();
+  DateTime? _outputReported;
+
+  /// How often what is written is reported, at most, while it streams.
+  static const _outputEvery = Duration(milliseconds: 250);
 
   /// Streamed text and thought blocks, per message and kind, in order,
   /// until the whole message claims them.
@@ -437,20 +444,29 @@ class ClaudeTranslator {
         _streamed.clear();
         _blockSince = DateTime.now();
         _messageUsage = {..._map(message['usage'])};
-        _firstOut = _lastOut = null;
+        _messageCounted = false;
+        _messageThinking = null;
+        _messageThought = false;
+        _meter.startMessage();
       case 'message_delta':
-        for (final MapEntry(:key, :value) in _map(event['usage']).entries) {
+        final usage = _map(event['usage']);
+        for (final MapEntry(:key, :value) in usage.entries) {
           if (value is num) _messageUsage[key] = value;
+        }
+        if (usage['output_tokens'] is num) _messageCounted = true;
+        if (_map(usage['output_tokens_details'])['thinking_tokens']
+            case final num tokens) {
+          _messageThinking = tokens.toInt();
         }
       case 'message_stop':
         _endMessage();
       case 'content_block_start':
-        _firstOut ??= DateTime.now();
         final index = event['index'] as int;
         final block = _map(event['content_block']);
         final id = '$_messageId:$index';
         switch (block['type']) {
           case 'thinking' || 'redacted_thinking':
+            _messageThought = true;
             _streamed[index] = id;
             (_unclaimed['$_messageId:thinking'] ??= []).add(id);
             _thoughts[id] = StringBuffer();
@@ -484,10 +500,10 @@ class ClaudeTranslator {
         // block (holding back a thought until it is done).
         _report(null);
       case 'content_block_delta':
-        _lastOut = DateTime.now();
+        final delta = _map(event['delta']);
+        _meterDelta(delta);
         final id = _streamed[event['index']];
         if (id == null) return;
-        final delta = _map(event['delta']);
         switch (delta['type']) {
           case 'thinking_delta':
             final thought = _thoughts[id];
@@ -523,6 +539,32 @@ class ClaudeTranslator {
     }
   }
 
+  /// Meters [delta]'s text, and reports what is written now and then.
+  void _meterDelta(Map<String, Object?> delta) {
+    if (replaying) return;
+    switch (delta) {
+      case {'type': 'text_delta', 'text': final String text}:
+        _meter.streamed(text);
+      case {'type': 'input_json_delta', 'partial_json': final String json}:
+        _meter.streamed(json);
+      case {'type': 'thinking_delta', 'thinking': final String thought}:
+        _meter.streamed(thought, timed: false);
+      default:
+        return;
+    }
+    final now = DateTime.now();
+    if (_outputReported case final at? when now.difference(at) < _outputEvery) {
+      return;
+    }
+    _reportOutput(now);
+  }
+
+  void _reportOutput([DateTime? now]) {
+    if (replaying) return;
+    _outputReported = now ?? DateTime.now();
+    emit(OutputReported(nextSeq(), _meter.output));
+  }
+
   /// Adds the message ended to the turn's usage.
   void _endMessage() {
     int count(String key) => (_messageUsage[key] as num?)?.toInt() ?? 0;
@@ -532,32 +574,41 @@ class ClaudeTranslator {
         count('cache_creation_input_tokens') +
         count('cache_read_input_tokens');
     _turnOutput += output;
-    // One that came all at once says nothing of the speed.
-    if ((_firstOut, _lastOut) case (final first?, final last?)
-        when last.isAfter(first)) {
-      _streamedTokens += output;
-      _streaming += last.difference(first);
-    }
+    _meter.endMessage(
+      // Cut off before its count: as guessed.
+      tokens: _messageCounted ? output : null,
+      // Its text's and calls', told apart from its thoughts'.
+      written: switch (_messageThinking) {
+        final thinking? => output - thinking,
+        null when !_messageThought => output,
+        null => null,
+      },
+    );
     _messageUsage = {};
-    _firstOut = _lastOut = null;
+    _messageCounted = false;
+    _messageThinking = null;
+    _messageThought = false;
+    _reportOutput();
   }
 
   void _resetUsage() {
     _messageUsage = {};
-    _firstOut = _lastOut = null;
-    _turnInput = _turnOutput = _streamedTokens = 0;
-    _streaming = Duration.zero;
+    _messageCounted = false;
+    _messageThinking = null;
+    _messageThought = false;
+    _turnInput = _turnOutput = 0;
+    _meter.begin();
+    _outputReported = null;
   }
 
   /// What the turn's requests spent, as streamed; null when none streamed.
+  /// Its speed the average of that shown while it wrote.
   TurnUsage? get turnUsage => _turnInput == 0 && _turnOutput == 0
       ? null
       : TurnUsage(
           inputTokens: _turnInput,
           outputTokens: _turnOutput,
-          tokensPerSecond: _streaming > Duration.zero && _streamedTokens > 0
-              ? _streamedTokens / (_streaming.inMicroseconds / 1000000)
-              : null,
+          tokensPerSecond: _meter.averageSpeed,
         );
 
   void _completeThought(String id, String? whole) {

@@ -145,6 +145,14 @@ final class Rewound extends KernelEvent {
   final String? itemId;
 }
 
+/// What the model has written so far in the turn under way, and how fast
+/// (see [TurnOutput]).
+final class OutputReported extends KernelEvent {
+  const OutputReported(super.seq, this.output);
+
+  final TurnOutput output;
+}
+
 final class UsageReported extends KernelEvent {
   const UsageReported(super.seq, this.usage);
 
