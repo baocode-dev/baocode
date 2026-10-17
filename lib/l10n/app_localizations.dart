@@ -11862,7 +11862,7 @@ abstract class AppLocalizations {
   /// No description provided for @remoteHostPlaceholder.
   ///
   /// In en, this message translates to:
-  /// **'Select a host of ~/.ssh/config, or type user@host[:port]'**
+  /// **'Select a host of ~/.ssh/config, or type user@host[:port] or ssh -p <port> user@host'**
   String get remoteHostPlaceholder;
 
   /// No description provided for @remoteConnectTo.
@@ -13112,6 +13112,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add SSH Host...'**
   String get sidebarAddSshHost;
+
+  /// No description provided for @openProjectWhere.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a project on this computer or on an SSH host'**
+  String get openProjectWhere;
+
+  /// No description provided for @openProjectLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Local Folder...'**
+  String get openProjectLocal;
+
+  /// No description provided for @openProjectLocalDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'A folder on this computer'**
+  String get openProjectLocalDetail;
+
+  /// No description provided for @openProjectRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote Project...'**
+  String get openProjectRemote;
+
+  /// No description provided for @openProjectRemoteDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'A folder on a host over SSH: an alias, user@host:port, or ssh -p <port> user@host'**
+  String get openProjectRemoteDetail;
 
   /// No description provided for @sidebarOpenFolderOn.
   ///

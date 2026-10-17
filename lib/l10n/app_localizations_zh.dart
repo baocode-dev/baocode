@@ -6762,7 +6762,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get remoteHostPlaceholder =>
-      '选择 ~/.ssh/config 中的主机，或输入 user@host[:port]';
+      '选择 ~/.ssh/config 中的主机，或输入 user@host[:port]、ssh -p 端口 user@host';
 
   @override
   String remoteConnectTo(String host) {
@@ -7518,6 +7518,22 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sidebarAddSshHost => '添加 SSH 主机...';
+
+  @override
+  String get openProjectWhere => '在本机或 SSH 主机上打开项目';
+
+  @override
+  String get openProjectLocal => '本地文件夹...';
+
+  @override
+  String get openProjectLocalDetail => '本机上的文件夹';
+
+  @override
+  String get openProjectRemote => '远程项目...';
+
+  @override
+  String get openProjectRemoteDetail =>
+      '通过 SSH 打开主机上的文件夹：别名、user@host:port，或 ssh -p 端口 user@host';
 
   @override
   String sidebarOpenFolderOn(String host) {

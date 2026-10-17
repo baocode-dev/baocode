@@ -1484,8 +1484,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         !_hasKeyboard) {
       return false;
     }
-    // The quick pick over the window has its own.
-    if (_quickInputKey?.currentState case final quick?) {
+    // The quick pick over the window has its own; not while a dialog is
+    // over it (signing in to a host asks over its Connecting pick): Enter
+    // there is the dialog's, not the pick's to accept and hide.
+    if (_quickInputKey?.currentState case final quick?
+        when ModalRoute.isCurrentOf(quick.context) ?? true) {
       _leaveChord();
       return !ChatKeys.isComposing && _handleQuickInputKey(quick, event);
     }
@@ -2650,6 +2653,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       onOpenFolderOn: WindowControls.canPickDirectory
           ? (host) => _openRemoteProject(host: host)
           : null,
+      onOpenProject: WindowControls.canPickDirectory ? _pickProjectKind : null,
       onOpenSettings: () => unawaited(openSettings()),
       updates: widget.settings?.updates?.service,
       onUpdate: _restartToUpdate,
@@ -2958,6 +2962,35 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     } else {
       unawaited(flow.start());
     }
+  }
+
+  /// The sidebar's Open Project: a folder of this computer, as before, or
+  /// a remote project (the host picked or typed, an `ssh` command line
+  /// accepted, then a folder there).
+  void _pickProjectKind() {
+    final l10n = context.l10n;
+    showQuickPick(
+      IdeQuickPick(
+        placeholder: l10n.openProjectWhere,
+        sortByLabel: false,
+        matchOnDescription: true,
+        items: [
+          IdeQuickPickItem(
+            label: l10n.openProjectLocal,
+            icon: const Icon(Codicons.folderOpened),
+            description: l10n.openProjectLocalDetail,
+            onAccept: () => unawaited(_openFolder()),
+          ),
+          IdeQuickPickItem(
+            label: l10n.openProjectRemote,
+            icon: const Icon(Codicons.remote),
+            description: l10n.openProjectRemoteDetail,
+            onAccept: () => _openRemoteProject(switchTo: true),
+          ),
+        ],
+        onDidAccept: (item) => item?.onAccept?.call(),
+      ),
+    );
   }
 
   /// A host's icon, as the workspace kept it (the host switcher's).
@@ -3888,8 +3921,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     void hide() {
       if (closed || !mounted) return;
       closed = true;
-      // The dialog's navigator (see showGeneralDialog).
-      Navigator.of(context, rootNavigator: true).pop();
+      // Its own route, which a dialog may be over (signing in to a host
+      // asks over the Connecting pick): not whichever is on top.
+      final route = switch (key.currentContext) {
+        final context? => ModalRoute.of(context),
+        null => null,
+      };
+      final navigator = Navigator.of(context, rootNavigator: true);
+      if (route == null || route.isCurrent) {
+        navigator.pop();
+      } else if (route.isActive) {
+        navigator.removeRoute(route);
+      }
     }
 
     _hideQuickInput = hide;

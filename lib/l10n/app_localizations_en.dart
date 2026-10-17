@@ -7205,7 +7205,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get remoteHostPlaceholder =>
-      'Select a host of ~/.ssh/config, or type user@host[:port]';
+      'Select a host of ~/.ssh/config, or type user@host[:port] or ssh -p <port> user@host';
 
   @override
   String remoteConnectTo(String host) {
@@ -7986,6 +7986,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sidebarAddSshHost => 'Add SSH Host...';
+
+  @override
+  String get openProjectWhere =>
+      'Open a project on this computer or on an SSH host';
+
+  @override
+  String get openProjectLocal => 'Local Folder...';
+
+  @override
+  String get openProjectLocalDetail => 'A folder on this computer';
+
+  @override
+  String get openProjectRemote => 'Remote Project...';
+
+  @override
+  String get openProjectRemoteDetail =>
+      'A folder on a host over SSH: an alias, user@host:port, or ssh -p <port> user@host';
 
   @override
   String sidebarOpenFolderOn(String host) {
