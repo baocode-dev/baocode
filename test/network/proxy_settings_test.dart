@@ -128,6 +128,33 @@ void main() {
       });
     });
 
+    test('keeps an address in a NO_PROXY network out of the proxy', () {
+      final route = ProxyRoute.fromEnvironment(const {
+        'https_proxy': 'http://127.0.0.1:7890',
+        'http_proxy': 'http://127.0.0.1:7890',
+        'no_proxy': 'localhost,100.64.0.0/10,fd7a:115c:a1e0::/48',
+      });
+      for (final url in [
+        'http://100.64.0.1:3425/v1/models',
+        'http://100.127.255.254/',
+        'http://[fd7a:115c:a1e0::1]:3425/',
+      ]) {
+        expect(route.findProxy(Uri.parse(url)), 'DIRECT', reason: url);
+      }
+      for (final url in [
+        'http://100.128.0.1/',
+        'http://100.63.255.255/',
+        'http://[fd7a:115c:a1e1::1]/',
+        'https://100.64.0.0.example/',
+      ]) {
+        expect(
+          route.findProxy(Uri.parse(url)),
+          'PROXY 127.0.0.1:7890',
+          reason: url,
+        );
+      }
+    });
+
     test('off clears what the child would inherit; none leaves it', () {
       final off = const ProxyRoute.direct(ProxySource.off).environment;
       expect(

@@ -165,7 +165,8 @@ class ProxyRoute {
   final ProxyServer? https;
 
   /// Hosts that do not go through it, as `NO_PROXY` lists them
-  /// (`example.com`, `.example.com`, `*.example.com`, `10.*`).
+  /// (`example.com`, `.example.com`, `*.example.com`, `10.*`,
+  /// `100.64.0.0/10`).
   final List<String> bypass;
 
   /// Whether a name without a dot (`intranet`) goes around it, as
@@ -213,6 +214,7 @@ class ProxyRoute {
     var pattern = entry.trim().toLowerCase();
     if (pattern.isEmpty) return false;
     if (pattern == '*') return true;
+    if (pattern.contains('/')) return _inNetwork(host, pattern);
     if (pattern.startsWith('[') && pattern.contains(']')) {
       pattern = pattern.substring(1, pattern.indexOf(']'));
     } else if (':'.allMatches(pattern).length == 1) {
@@ -230,6 +232,34 @@ class ProxyRoute {
       return host.endsWith(pattern) || host == pattern.substring(1);
     }
     return host == pattern || host.endsWith('.$pattern');
+  }
+
+  /// Whether [host] is an address in [network], as curl reads a CIDR in
+  /// `NO_PROXY` (`100.64.0.0/10`, Tailscale's; `fd7a:115c:a1e0::/48`).
+  static bool _inNetwork(String host, String network) {
+    final slash = network.indexOf('/');
+    final prefix = _address(network.substring(0, slash));
+    final address = _address(host);
+    final bits = int.tryParse(network.substring(slash + 1));
+    if (prefix == null || address == null || bits == null) return false;
+    if (prefix.length != address.length) return false;
+    if (bits < 0 || bits > prefix.length * 8) return false;
+    for (var bit = 0; bit < bits; bit++) {
+      final mask = 0x80 >> (bit % 8);
+      if (prefix[bit ~/ 8] & mask != address[bit ~/ 8] & mask) return false;
+    }
+    return true;
+  }
+
+  /// [text]'s bytes as an IPv4 or IPv6 address; null for a name.
+  static List<int>? _address(String text) {
+    try {
+      return text.contains(':')
+          ? Uri.parseIPv6Address(text)
+          : Uri.parseIPv4Address(text);
+    } on FormatException {
+      return null;
+    }
   }
 
   /// `NO_PROXY` for it: the entries other programs read, this machine's
