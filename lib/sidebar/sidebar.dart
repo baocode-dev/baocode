@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../base/give_way_row.dart';
 import '../base/smooth_scroll.dart';
 import '../chat/chat_keys.dart';
 import '../chat/floating/floating_placement.dart';
@@ -2903,15 +2904,24 @@ class _ThreadRow extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.only(left: 8, right: 4),
-                child: Row(
+                // Too narrow, what is beside the title gives way (its hover
+                // tells it), before the title is cut to nothing.
+                child: GiveWayRow(
                   children: [
-                    SizedBox(
-                      width: 14,
-                      child: Center(child: StatusIndicator(thread.shownStatus)),
+                    GiveWay(
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: SizedBox(
+                          width: 14,
+                          child: Center(
+                            child: StatusIndicator(thread.shownStatus),
+                          ),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: renaming
+                    GiveWay.fill(
+                      minWidth: renaming ? 0 : _titleMinWidth,
+                      renaming
                           ? InlineRenameField(
                               initial: thread.localizedTitle(context.l10n),
                               onDone: onRenamed,
@@ -3038,93 +3048,127 @@ class _ThreadRow extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildTrailing(
+  /// The least the title is cut to before what is beside it gives way.
+  static const _titleMinWidth = 80.0;
+
+  /// What is beside the title, each a gap before it; giving way the diff
+  /// first, then the time, the pull request's tag, the stash's.
+  List<GiveWay> _buildTrailing(
     bool active,
     AppLocalizations l10n,
     Color foreground,
   ) {
     final diff = thread.diff;
+    Widget gap(Widget child) =>
+        Padding(padding: const EdgeInsets.only(left: 6), child: child);
     return [
-      if (stashes.isNotEmpty) ...[
-        const SizedBox(width: 6),
-        _StashTag(
-          stashes: stashes,
-          color: selected ? foreground : AppColors.textMuted,
-          onOpen: onOpenStash,
-        ),
-      ],
-      if (pulls.isNotEmpty) ...[
-        const SizedBox(width: 6),
-        _PullTag(
-          pulls: pulls,
-          color: selected ? foreground : AppColors.textMuted,
-          onOpen: onOpenPull,
-        ),
-      ],
-      if (diff != null && !active) ...[
-        const SizedBox(width: 6),
-        Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(
-                text: '+${diff.added}',
-                style: TextStyle(
-                  color: themeColors['chat.linesAddedForeground'],
-                ),
-              ),
-              TextSpan(
-                text: ' −${diff.removed}',
-                style: TextStyle(
-                  color: themeColors['chat.linesRemovedForeground'],
-                ),
-              ),
-            ],
-          ),
-          style: const TextStyle(
-            fontSize: 11,
-            fontFeatures: [FontFeature.tabularFigures()],
-          ),
-        ),
-      ],
-      if (active || showTime) const SizedBox(width: 6),
-      // The time; while hovered, pin and archive in its place (the rest is
-      // in the context menu).
-      if (active) ...[
-        if (!thread.archived)
-          SidebarIconButton(
-            icon: thread.pinned ? Icons.push_pin : Icons.push_pin_outlined,
-            tooltip: thread.pinned ? l10n.sidebarUnpin : l10n.sidebarPin,
-            size: 20,
-            onTap: onPin,
-          ),
-        SidebarIconButton(
-          icon: thread.archived
-              ? Icons.unarchive_outlined
-              : Icons.inventory_2_outlined,
-          tooltip: thread.archived
-              ? l10n.sidebarUnarchive
-              : l10n.sidebarArchive,
-          size: 20,
-          onTap: onArchive,
-        ),
-      ] else if (showTime)
-        // Wider where the language's times are.
-        ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 26),
-          child: Text(
-            thread.status == ThreadStatus.needsInput
-                ? ''
-                : relativeTime(thread.updatedAt, DateTime.now(), l10n),
-            textAlign: TextAlign.right,
-            maxLines: 1,
-            // The color of the buttons it gives way to on hover.
-            style: TextStyle(
+      if (stashes.isNotEmpty)
+        GiveWay(
+          priority: 3,
+          gap(
+            _StashTag(
+              stashes: stashes,
               color: selected ? foreground : AppColors.textMuted,
-              fontSize: 11,
+              onOpen: onOpenStash,
             ),
           ),
         ),
-      const SizedBox(width: 2),
+      if (pulls.isNotEmpty)
+        GiveWay(
+          priority: 2,
+          gap(
+            _PullTag(
+              pulls: pulls,
+              color: selected ? foreground : AppColors.textMuted,
+              onOpen: onOpenPull,
+            ),
+          ),
+        ),
+      if (diff != null && !active)
+        GiveWay(
+          priority: 0,
+          gap(
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '+${diff.added}',
+                    style: TextStyle(
+                      color: themeColors['chat.linesAddedForeground'],
+                    ),
+                  ),
+                  TextSpan(
+                    text: ' −${diff.removed}',
+                    style: TextStyle(
+                      color: themeColors['chat.linesRemovedForeground'],
+                    ),
+                  ),
+                ],
+              ),
+              maxLines: 1,
+              style: const TextStyle(
+                fontSize: 11,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ),
+      // The time; while hovered, pin and archive in its place (the rest is
+      // in the context menu), which never give way.
+      if (active)
+        GiveWay(
+          gap(
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (!thread.archived)
+                  SidebarIconButton(
+                    icon: thread.pinned
+                        ? Icons.push_pin
+                        : Icons.push_pin_outlined,
+                    tooltip: thread.pinned
+                        ? l10n.sidebarUnpin
+                        : l10n.sidebarPin,
+                    size: 20,
+                    onTap: onPin,
+                  ),
+                SidebarIconButton(
+                  icon: thread.archived
+                      ? Icons.unarchive_outlined
+                      : Icons.inventory_2_outlined,
+                  tooltip: thread.archived
+                      ? l10n.sidebarUnarchive
+                      : l10n.sidebarArchive,
+                  size: 20,
+                  onTap: onArchive,
+                ),
+              ],
+            ),
+          ),
+        )
+      else if (showTime)
+        GiveWay(
+          priority: 1,
+          gap(
+            // Wider where the language's times are.
+            ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 26),
+              child: Text(
+                thread.status == ThreadStatus.needsInput
+                    ? ''
+                    : relativeTime(thread.updatedAt, DateTime.now(), l10n),
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                // The color of the buttons it gives way to on hover.
+                style: TextStyle(
+                  color: selected ? foreground : AppColors.textMuted,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ),
+        ),
+      const GiveWay(SizedBox(width: 2)),
     ];
   }
 }

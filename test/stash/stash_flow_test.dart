@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:baocode/base/give_way_row.dart';
 import 'package:baocode/stash/stash_note_editor.dart';
 import 'package:baocode/stash/stash_ai.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/chat/composer/composer_files.dart';
 import 'package:baocode/chat/chat_models.dart' show oneLineExcerpt;
@@ -241,6 +243,62 @@ void main() {
     await tester.tap(find.text(l10n.stashClarifyFailedShort));
     await tester.pumpAndSettle();
     expect(asked, 2);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+    controller.dispose();
+  });
+
+  testWidgets('in a narrow panel the bar\'s pills give way to their icons, '
+      'the pin and close button kept in it (#146)', (tester) async {
+    await setUpFlow(tester);
+    tester.view.physicalSize = const Size(560, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final note = await store.create(body: 'the bar runs out of the panel');
+    await controller.edit(note.id);
+    controller.showAll = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          FlutterQuillLocalizations.delegate,
+        ],
+        home: Material(
+          child: StashPanelView(controller: controller, viewId: 0),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final l10n = englishLocalizations;
+    // The top bar's, not the footer's.
+    final bar = find.byType(GiveWayRow).first;
+    Finder inBar(Finder finder) => find.descendant(of: bar, matching: finder);
+    final close = find
+        .ancestor(
+          of: inBar(find.byIcon(Codicons.close)),
+          matching: find.byType(GestureDetector),
+        )
+        .first;
+
+    // The list of all beside it: the stash 340 wide.
+    expect(tester.getRect(close).right, lessThanOrEqualTo(560 - 8));
+    expect(
+      tester.getRect(find.byType(PinWindowButton)).right,
+      lessThan(tester.getRect(close).left),
+    );
+    expect(inBar(find.text(l10n.stashAll)), findsNothing);
+    expect(inBar(find.text(l10n.stashExpand)), findsNothing);
+    expect(inBar(find.byIcon(Codicons.sparkle)), findsOneWidget);
+    expect(inBar(find.text('#${note.id}')), findsOneWidget);
+
+    // Wide, their words again.
+    tester.view.physicalSize = const Size(1200, 600);
+    await tester.pumpAndSettle();
+    expect(inBar(find.text(l10n.stashAll)), findsOneWidget);
+    expect(inBar(find.text(l10n.stashNewButton)), findsOneWidget);
+    expect(inBar(find.text(l10n.stashExpand)), findsOneWidget);
+    expect(inBar(find.text(l10n.stashNoProject)), findsOneWidget);
+    expect(tester.getRect(close).right, 1200 - 8);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 3));
     controller.dispose();

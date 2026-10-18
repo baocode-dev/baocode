@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:baocode/base/give_way_row.dart';
 import 'package:baocode/chat/chat_session.dart' show ComposerMessage;
 import 'package:baocode/forge/forge_accounts.dart';
 import 'package:baocode/models/secret_store.dart';
@@ -172,6 +173,125 @@ void main() {
     expect(icon.icon, Codicons.gitMerge);
     await tester.tap(tag);
     expect(opened, [pull]);
+  });
+
+  testWidgets('in a narrow sidebar, what is beside a row\'s title gives way '
+      'before it is cut, nothing pushed out of the row (#146)', (tester) async {
+    tester.view.physicalSize = const Size(600, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = StashStore(MemoryStashDisk());
+    final workspace = Workspace.mock();
+    final controller = StashController(
+      store: store,
+      workspace: workspace,
+      host: StashHost(channel: const MethodChannel('test/stash-sidebar')),
+      accounts: ForgeAccounts(
+        http: FakeForgeHttp(),
+        secrets: MemorySecretStore(),
+      ),
+    );
+    addTearDown(controller.dispose);
+    final thread = workspace.threads.first;
+    thread.session.send(const ComposerMessage(text: 'Retry the uploads'));
+    for (var i = 0; i < 50 && thread.id == null; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final session = thread.id!;
+    thread.session.stop();
+    await tester.pump(const Duration(seconds: 1));
+
+    final first = await store.create(body: 'Uploads fail on 503');
+    final second = await store.create(body: 'Retry them');
+    for (final note in [first, second]) {
+      await store.update(note.id, (note) {
+        note.threads.add(
+          StashThreadLink(session: session, project: thread.project.path),
+        );
+        note.issues.add(
+          StashIssueLink(
+            url: 'https://github.com/o/r/pull/1${note.id}',
+            title: 'Retry uploads',
+            state: 'open',
+            session: session,
+          ),
+        );
+      }, touch: false);
+    }
+    final shown = sidebarStashes(controller, (_) {});
+    var width = 400.0;
+    late StateSetter resize;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: const [AppLocalizations.delegate],
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              resize = setState;
+              return Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: width,
+                  child: Sidebar(
+                    workspace: workspace,
+                    onCollapse: () {},
+                    stashes: shown,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final row = find.ancestor(
+      of: find.text(thread.title),
+      matching: find.byType(GiveWayRow),
+    );
+    // Two of each: `#1 +1`, `#12 +1`.
+    final stashTag = find.textContaining(RegExp(r'^#\d \+1$'));
+    final pullTag = find.textContaining(RegExp(r'^#1\d \+1$'));
+    final time = find.descendant(
+      of: row,
+      matching: find.text(
+        relativeTime(thread.updatedAt, DateTime.now(), englishLocalizations),
+      ),
+    );
+    expect(stashTag, findsOneWidget);
+    expect(pullTag, findsOneWidget);
+    expect(time, findsOneWidget);
+
+    void fits() {
+      final bounds = tester.getRect(row);
+      for (final element
+          in find
+              .descendant(of: row, matching: find.byType(RichText))
+              .evaluate()) {
+        final rect = tester.getRect(
+          find.byElementPredicate((e) => e == element),
+        );
+        expect(rect.right, lessThanOrEqualTo(bounds.right + .01));
+      }
+      expect(
+        tester.getSize(find.text(thread.title)).width,
+        greaterThanOrEqualTo(80),
+      );
+    }
+
+    fits();
+    // Narrower: the time first, then the pull request's tag; the stash's
+    // stays longest.
+    resize(() => width = 300);
+    await tester.pump();
+    fits();
+    expect(time, findsNothing);
+    expect(pullTag, findsOneWidget);
+    resize(() => width = 220);
+    await tester.pump();
+    fits();
+    expect(pullTag, findsNothing);
+    expect(stashTag, findsOneWidget);
   });
 
   testWidgets('with the Stash shown, the conversation picked before it is '

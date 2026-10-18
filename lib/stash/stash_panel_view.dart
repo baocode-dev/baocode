@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../base/give_way_row.dart';
 import '../base/smooth_scroll.dart';
 import '../chat/composer/file_drop.dart';
 import '../chat/widgets/hover_builder.dart';
@@ -261,12 +262,14 @@ class _StashPanelViewState extends State<StashPanelView> {
                     pinned: _controller.pinned,
                     onPinned: (pinned) => _controller.pinned = pinned,
                     clarify: switch (note) {
-                      final note? when !note.isBlank => _ClarifyPill(
-                        clarifying: _controller.clarifying(note.id),
-                        failure: _controller.clarifyFailure(note.id),
-                        onClarify: () => _clarify(note.id),
-                        onCancel: () => _controller.cancelClarify(note.id),
-                      ),
+                      final note? when !note.isBlank =>
+                        (compact) => _ClarifyPill(
+                          clarifying: _controller.clarifying(note.id),
+                          failure: _controller.clarifyFailure(note.id),
+                          onClarify: () => _clarify(note.id),
+                          onCancel: () => _controller.cancelClarify(note.id),
+                          compact: compact,
+                        ),
                       _ => null,
                     },
                   ),
@@ -359,8 +362,9 @@ class _TopBar extends StatelessWidget {
     this.clarify,
   });
 
-  /// Says the stash clearly; none while there is nothing written.
-  final Widget? clarify;
+  /// Says the stash clearly, [compact] its icon alone; none while there is
+  /// nothing written.
+  final Widget Function(bool compact)? clarify;
 
   /// Whether the panel stays over other apps' windows; the pin changes it.
   final bool pinned;
@@ -385,6 +389,24 @@ class _TopBar extends StatelessWidget {
     final l10n = context.l10n;
     final note = this.note;
     final mac = AppPlatform.isMacOS;
+    final projectLabel = this.projectLabel;
+    // Its icon alone, its tooltip names the project.
+    Widget project({required bool compact}) => Builder(
+      builder: (context) => _PillButton(
+        icon: Codicons.folder,
+        label: compact ? null : projectLabel ?? l10n.stashNoProject,
+        faint: projectLabel == null,
+        tooltip: compact
+            ? '${l10n.stashProjectTooltip} · '
+                  '${projectLabel ?? l10n.stashNoProject}'
+            : l10n.stashProjectTooltip,
+        onTap: () {
+          final box = context.findRenderObject() as RenderBox?;
+          if (box == null) return;
+          onProject(box.localToGlobal(Offset.zero) & box.size);
+        },
+      ),
+    );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       // Moves the panel, as a title bar does.
@@ -396,69 +418,113 @@ class _TopBar extends StatelessWidget {
       child: Container(
         height: _barHeight,
         padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
-        child: Row(
+        // Too narrow, the pills give way to their icons, All's first, then
+        // New's, Say Clearly's, the project's; then the stash's number. The
+        // pin and the close button never do.
+        child: GiveWayRow(
           children: [
-            if (onAll case final onAll?) ...[
+            if (onAll case final onAll?)
+              GiveWay(
+                priority: 0,
+                compact: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _PillButton(
+                    icon: Codicons.layoutSidebarLeft,
+                    tooltip: l10n.stashAllTooltip,
+                    active: showAll,
+                    onTap: onAll,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: _PillButton(
+                    icon: Codicons.layoutSidebarLeft,
+                    label: l10n.stashAll,
+                    tooltip: l10n.stashAllTooltip,
+                    active: showAll,
+                    onTap: onAll,
+                  ),
+                ),
+              )
+            else
+              const GiveWay(SizedBox(width: 6)),
+            GiveWay(
+              priority: 1,
+              compact: _PillButton(
+                icon: Codicons.add,
+                tooltip: l10n.stashNewTooltip,
+                onTap: onNew,
+              ),
               _PillButton(
-                icon: Codicons.layoutSidebarLeft,
-                label: l10n.stashAll,
-                tooltip: l10n.stashAllTooltip,
-                active: showAll,
-                onTap: onAll,
-              ),
-              const SizedBox(width: 8),
-            ] else
-              const SizedBox(width: 6),
-            _PillButton(
-              icon: Codicons.add,
-              label: l10n.stashNewButton,
-              tooltip: l10n.stashNewTooltip,
-              onTap: onNew,
-            ),
-            const SizedBox(width: 10),
-            Text(
-              note == null ? l10n.stashNew : note.tag,
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+                icon: Codicons.add,
+                label: l10n.stashNewButton,
+                tooltip: l10n.stashNewTooltip,
+                onTap: onNew,
               ),
             ),
-            const SizedBox(width: 8),
+            GiveWay(
+              priority: 4,
+              Padding(
+                padding: const EdgeInsets.only(left: 10),
+                child: Text(
+                  note == null ? l10n.stashNew : note.tag,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
             // Its title, else its first line, else the text in its pictures.
-            Expanded(
-              child: Text(
-                headline,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+            GiveWay.fill(
+              minWidth: 16,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  headline,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            if (clarify case final clarify?) ...[
-              clarify,
-              const SizedBox(width: 6),
-            ],
-            Builder(
-              builder: (context) => _PillButton(
-                icon: Codicons.folder,
-                label: projectLabel ?? l10n.stashNoProject,
-                faint: projectLabel == null,
-                tooltip: l10n.stashProjectTooltip,
-                onTap: () {
-                  final box = context.findRenderObject() as RenderBox?;
-                  if (box == null) return;
-                  onProject(box.localToGlobal(Offset.zero) & box.size);
-                },
+            if (clarify case final clarify?)
+              GiveWay(
+                priority: 2,
+                compact: Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: clarify(true),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: clarify(false),
+                ),
+              ),
+            GiveWay(
+              priority: 3,
+              compact: Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: project(compact: true),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: project(compact: false),
               ),
             ),
-            const SizedBox(width: 4),
-            PinWindowButton(pinned: pinned, onChanged: onPinned),
-            const SizedBox(width: 4),
-            _PillButton(
-              icon: Codicons.close,
-              tooltip: '${l10n.stashHintClose}  ${mac ? '⌘W' : 'Ctrl+W'}',
-              onTap: onClose,
+            GiveWay(
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: PinWindowButton(pinned: pinned, onChanged: onPinned),
+              ),
+            ),
+            GiveWay(
+              _PillButton(
+                icon: Codicons.close,
+                tooltip: '${l10n.stashHintClose}  ${mac ? '⌘W' : 'Ctrl+W'}',
+                onTap: onClose,
+              ),
             ),
           ],
         ),
@@ -1566,12 +1632,16 @@ class _ClarifyPill extends StatelessWidget {
     required this.failure,
     required this.onClarify,
     required this.onCancel,
+    this.compact = false,
   });
 
   final bool clarifying;
   final StashClarifyFailure? failure;
   final Future<void> Function() onClarify;
   final VoidCallback onCancel;
+
+  /// Its icon without its words, in a bar with no room for them.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1635,16 +1705,18 @@ class _ClarifyPill extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           icon,
-                          const SizedBox(width: 5),
-                          Text(
-                            clarifying
-                                ? l10n.stashCancelClarify
-                                : failure != null
-                                ? l10n.stashClarifyFailedShort
-                                : l10n.stashExpand,
-                            maxLines: 1,
-                            style: TextStyle(color: color, fontSize: 12),
-                          ),
+                          if (!compact) ...[
+                            const SizedBox(width: 5),
+                            Text(
+                              clarifying
+                                  ? l10n.stashCancelClarify
+                                  : failure != null
+                                  ? l10n.stashClarifyFailedShort
+                                  : l10n.stashExpand,
+                              maxLines: 1,
+                              style: TextStyle(color: color, fontSize: 12),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1697,22 +1769,36 @@ class _Footer extends StatelessWidget {
     return Container(
       height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
+      // Too narrow, the hints give way, the last first.
+      child: GiveWayRow(
         children: [
-          Expanded(
-            child: Text(
+          GiveWay.fill(
+            Text(
               status ?? '',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: faint,
             ),
           ),
-          for (final (key, label) in hints) ...[
-            const SizedBox(width: 12),
-            Text(key, style: faint.copyWith(color: AppColors.textMuted)),
-            const SizedBox(width: 4),
-            Text(label, style: faint),
-          ],
+          for (final (key, label) in hints)
+            GiveWay(
+              priority: 0,
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      key,
+                      maxLines: 1,
+                      style: faint.copyWith(color: AppColors.textMuted),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(label, maxLines: 1, style: faint),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
