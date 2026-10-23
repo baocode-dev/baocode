@@ -13,6 +13,19 @@
       "hosts": [
         "api.ymeng.cc"
       ]
+    },
+    {
+      "id": "ifruit",
+      "name": "iFruit",
+      "url": "https://ifruit.icu",
+      "logo": "ifruit.png",
+      "description": {
+        "en": "Leading AI models, one API",
+        "zh": "Claude、GPT、Grok、国产模型，一站式 API 接入"
+      },
+      "hosts": [
+        "ifruit.icu"
+      ]
     }
   ]
 }
