@@ -368,6 +368,45 @@ void main() {
     expect(menu, findsOneWidget);
   }, variant: _windows);
 
+  testWidgets('under the settings, the header\'s right has the window\'s '
+      'buttons alone: the IDE\'s tools under their barrier are not shown', (
+    tester,
+  ) async {
+    // #312: the IDE's layout toggles, the pin and Back to Chat showed over
+    // the settings, and a click on them did nothing.
+    final (workspace, calls) = await pumpWindowsApp(tester);
+    workspace.layout = WorkspaceLayout.ide;
+    await tester.pump();
+    await tester.pump();
+    final header = find.byType(WindowHeader);
+    Finder inHeader(Type type) =>
+        find.descendant(of: header, matching: find.byType(type));
+    final tools = [IdeLayoutToggle, PinWindowButton, BackToChatButton];
+    for (final type in tools) {
+      expect(inHeader(type), findsWidgets);
+    }
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsDialog), findsOneWidget);
+    for (final type in tools) {
+      expect(inHeader(type), findsNothing);
+    }
+    // The window drags by where they were: only the settings' list toggle
+    // is left to Flutter.
+    final report = calls.lastWhere((call) => call.method == 'setHitTestAreas');
+    expect((report.arguments as Map)['controls'], hasLength(1));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsDialog), findsNothing);
+    for (final type in tools) {
+      expect(inHeader(type), findsWidgets);
+    }
+  }, variant: _windows);
+
   testWidgets('the sidebar toggle comes after the menus, in the IDE\'s '
       'layout icons', (tester) async {
     await pumpWindowsApp(tester);

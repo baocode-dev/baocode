@@ -187,12 +187,14 @@ class ClaudeLaunch {
     'attribution': ?_attribution,
     'useAutoModeDuringPlan': ?autoModeDuringPlan,
     'alwaysThinkingEnabled': ?thinking,
-    if (models.isNotEmpty)
+    if (models.isNotEmpty) ...{
       'modelPicker': {
         'options': [
           for (final model in models) {'model': model},
         ],
       },
+      'availableModels': allowlist,
+    },
     if (readable.isNotEmpty)
       'permissions': {
         'allow': [for (final folder in readable) readRule(folder)],
@@ -203,6 +205,11 @@ class ClaudeLaunch {
       if (directories.isNotEmpty) ...additionalDirectoriesEnvironment,
     },
   };
+
+  /// A provider's session's models, let through the user's own
+  /// `availableModels`: those it is switched to and starts on, and its
+  /// roles' (see [allowedModels]).
+  List<String> get allowlist => allowedModels(env, [...models, ?model]);
 
   /// The user's own setup set empty, in the shell's environment or their
   /// settings' `env`: `CLAUDE_CODE_EFFORT_LEVEL` would hold every request

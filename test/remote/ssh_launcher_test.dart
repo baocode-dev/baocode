@@ -517,6 +517,82 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     expect(SshTarget.isValid('me@dev'), isTrue);
   });
 
+  test('a WSL distribution: wsl.exe runs each command from its home, '
+      'no ssh', () async {
+    final fakeWsl = p.join(sandbox.path, 'wsl.exe');
+    // As wsl.exe does: in the folder it was started from, unless told.
+    File(fakeWsl).writeAsStringSync(r'''#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_LOG.wsl"
+[ "$WSL_UTF8" = 1 ] || exit 3
+[ "$1 $2 $3 $4 $5" = "--distribution Ubuntu --exec sh -c" ] || exit 4
+cd /
+exec /bin/sh -c "$6"
+''');
+    Process.runSync('chmod', ['+x', fakeWsl]);
+    final binaries = FakeBinaries('1-abc', {'linux-x64': serverScript()});
+    final launcher = SshLauncher(
+      ssh: p.join(sandbox.path, 'no-ssh'),
+      wsl: fakeWsl,
+      binaries: binaries,
+      start: starter(),
+    );
+    final target = SshTarget.parse(SshTarget.wslHost('Ubuntu'));
+    expect(target.wslDistro, 'Ubuntu');
+    expect(SshTarget.parse('dev').wslDistro, isNull);
+    expect(await launcher.hostKeyOptions(target), isEmpty);
+    final connection = await launcher.connect(target);
+    expect(connection.hello.home, home.path);
+    File(p.join(home.path, 'note.txt')).writeAsStringSync('hi');
+    expect(
+      await connection.client.read(home.path, p.join(home.path, 'note.txt')),
+      'hi',
+    );
+    await connection.close();
+    expect(log.existsSync(), isFalse, reason: 'ssh never ran');
+    expect(File('${log.path}.wsl').readAsLinesSync(), [
+      '--distribution Ubuntu --exec sh -c cd && sh -s',
+      startsWith('--distribution Ubuntu --exec sh -c cd && sh -c '),
+      startsWith('--distribution Ubuntu --exec sh -c cd && .baocode-server/'),
+    ]);
+
+    // No WSL here.
+    final missing = SshLauncher(
+      ssh: 'ssh',
+      wsl: p.join(sandbox.path, 'missing.exe'),
+      binaries: binaries,
+      start: starter(),
+    );
+    await expectLater(
+      missing.connect(target),
+      throwsA(
+        isA<SshConnectException>().having(
+          (error) => error.failure,
+          'failure',
+          SshFailure.wsl,
+        ),
+      ),
+    );
+  }, timeout: const Timeout(Duration(minutes: 2)));
+
+  test("WSL's distributions as wsl.exe --list --quiet prints them", () {
+    List<int> utf16(String text) => [
+      0xFF, 0xFE, // A byte order mark, as some versions print.
+      for (final unit in text.codeUnits) ...[unit & 0xFF, unit >> 8],
+    ];
+    const listed = 'Ubuntu-24.04\r\ndocker-desktop\r\nDebian\r\n';
+    expect(wslDistributions(utf16(listed)), ['Ubuntu-24.04', 'Debian']);
+    expect(wslDistributions(utf8.encode(listed)), ['Ubuntu-24.04', 'Debian']);
+    expect(wslDistributions(const []), isEmpty);
+    expect(SshLauncher.wslArguments('Debian', 'sh -s'), [
+      '--distribution',
+      'Debian',
+      '--exec',
+      'sh',
+      '-c',
+      'cd && sh -s',
+    ]);
+  });
+
   test('on Windows, passwords are asked of OpenSSH 8.4 and later', () {
     bool takes(String version) => SshLauncher.takesForcedAskpass(version);
     expect(takes('OpenSSH_for_Windows_8.1p1, LibreSSL 3.0.2'), isFalse);

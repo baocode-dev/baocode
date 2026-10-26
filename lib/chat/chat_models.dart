@@ -368,7 +368,7 @@ class PlanItem extends ChatItem {
     this.feedback,
   });
 
-  /// The plan's file.
+  /// The plan's file; empty when the plan was sent rather than written.
   final String path;
 
   /// Which round of the conversation's planning it is, from 1.
@@ -677,6 +677,28 @@ final class OriginalByPatch extends FileOriginal {
   final String diff;
 }
 
+/// The edits made, in order, each a text put in place of another once (an
+/// Edit's, a MultiEdit's, as their input tells them): taken back out of the
+/// file as they left it, the last first, where each text put in is there
+/// once (else what it was is not known).
+final class OriginalByEdits extends FileOriginal {
+  const OriginalByEdits(this.edits);
+
+  final List<({String before, String after})> edits;
+
+  /// The text before them, from [text] as they left it; null where it
+  /// cannot be told.
+  String? undo(String text) {
+    for (final edit in edits.reversed) {
+      if (edit.after.isEmpty) return null;
+      final at = text.indexOf(edit.after);
+      if (at < 0 || text.indexOf(edit.after, at + 1) >= 0) return null;
+      text = text.replaceRange(at, at + edit.after.length, edit.before);
+    }
+    return text;
+  }
+}
+
 /// A file an agent changed, with its line counts.
 class FileChange {
   const FileChange({
@@ -699,8 +721,8 @@ class FileChange {
   final bool binary;
 
   /// Whether what it was before is known, to be undone; not when it is
-  /// in no snapshot (ignored, too large) and the agent did not tell, or it
-  /// is outside the project.
+  /// in no snapshot (ignored, too large, outside the project) and the
+  /// agent did not tell.
   final bool tracked;
 
   /// Another agent was at work in the project at the same time: some of

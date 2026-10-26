@@ -117,6 +117,7 @@ class RemoteLspManager extends LspManager {
       loading.then((lsp) {
         catalog.loaded = lsp.catalog;
         manager.reloadCatalog();
+        lsp.follow(manager);
       }, onError: (Object _) {}),
     );
     return manager;

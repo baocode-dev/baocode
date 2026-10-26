@@ -19,6 +19,7 @@ void main() {
     List<String> b, {
     bool moves = false,
     bool ignoreWhitespace = false,
+    bool ignoreAll = false,
     int timeout = 0,
   }) => computer.computeDiff(
     a,
@@ -26,6 +27,7 @@ void main() {
     LinesDiffComputerOptions(
       computeMoves: moves,
       ignoreTrimWhitespace: ignoreWhitespace,
+      ignoreAllWhitespace: ignoreAll,
       maxComputationTimeMs: timeout,
     ),
   );
@@ -162,6 +164,30 @@ void main() {
         diff(['a b'], ['a  b'], ignoreWhitespace: true).changes,
         isNotEmpty,
       );
+    });
+
+    test('ignore all whitespace: inside lines and across them', () {
+      expect(
+        diff(['a b', 'c'], ['a  b', 'c'], ignoreAll: true).changes,
+        isEmpty,
+      );
+      expect(diff(['f(a,b)'], ['f(a, b)'], ignoreAll: true).changes, isEmpty);
+      expect(
+        diff(
+          ['x', 'f(a,', '  b)', 'y'],
+          ['x', 'f(a, b)', 'y'],
+          ignoreAll: true,
+        ).changes,
+        isEmpty,
+      );
+      // A real change still counts.
+      final changes = diff(
+        ['one', 'f(a,b)', 'two'],
+        ['one', 'f( a , c )', 'two'],
+        ignoreAll: true,
+      ).changes;
+      expect(changes, hasLength(1));
+      expect(changes.single.modified.startLineNumber, 2);
     });
 
     test('simple three-line move is detected, not removed from changes', () {

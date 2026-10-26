@@ -7,6 +7,8 @@ import 'package:bao_editor/monaco/flutter/diff_editor.dart';
 import 'package:bao_editor/monaco/flutter/diff_editor_model.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:bao_editor/monaco/flutter/viewport_layout.dart'
+    show HiddenLineRanges;
 import 'package:baocode/ide/ide_code_diff.dart';
 import 'package:baocode/ide/ide_diff_options.dart';
 import 'package:baocode/ide/ide_list.dart';
@@ -136,8 +138,8 @@ void main() {
     expect(aDart(), 'changed elsewhere\n');
   });
 
-  testWidgets('the gear menu: unified, and how changes are highlighted, '
-      'kept', (tester) async {
+  testWidgets('the gear menu: unified, how changes are highlighted and '
+      'what whitespace is ignored, kept', (tester) async {
     await showDiff(tester);
     DiffEditor editor() => tester.widget<DiffEditor>(find.byType(DiffEditor));
     expect(editor().sideBySide, isNull);
@@ -155,6 +157,49 @@ void main() {
     await tester.tap(find.text('Highlight Words'));
     await tester.pumpAndSettle();
     expect(editor().highlight, DiffHighlight.words);
+
+    // Whitespace: at the line ends by default, anywhere, or none (counted
+    // here all the same, where changes are checked for the commit).
+    expect(IdeDiffOptions.instance.whitespace, IdeDiffWhitespace.trim);
+    await tester.tap(find.byTooltip('Viewer Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ignore All Whitespace'));
+    await tester.pumpAndSettle();
+    expect(IdeDiffOptions.instance.whitespace, IdeDiffWhitespace.all);
+    await tester.tap(find.byTooltip('Viewer Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Do Not Ignore Whitespace'));
+    await tester.pumpAndSettle();
+    expect(IdeDiffOptions.instance.whitespace, IdeDiffWhitespace.none);
+  });
+
+  testWidgets('a diff tab ignores whitespace anywhere once asked', (
+    tester,
+  ) async {
+    final workspace = await pumpWorkbench(
+      tester,
+      const {'lib/a.dart': 'f(a, b);\nreal();\n'},
+      git: git.repository(),
+      nativeEditor: true,
+    );
+    await tester.pumpAndSettle();
+    await workspace.openDiff(
+      inRoot('lib/a.dart'),
+      label: 'a.dart (HEAD)',
+      original: () async => 'f(a,b);\nreal();\n',
+    );
+    await tester.pumpAndSettle();
+    DiffEditorModel model() =>
+        tester.widget<DiffEditor>(find.byType(DiffEditor)).model;
+    expect(model().mappings, hasLength(1));
+    IdeDiffOptions.instance.whitespace = IdeDiffWhitespace.all;
+    await tester.pumpAndSettle();
+    expect(model().ignoreAllWhitespace, isTrue);
+    expect(model().mappings, isEmpty);
+    IdeDiffOptions.instance.whitespace = IdeDiffWhitespace.none;
+    await tester.pumpAndSettle();
+    expect(model().ignoreTrimWhitespace, isFalse);
+    expect(model().mappings, hasLength(1));
   });
 
   testWidgets("the title's menu goes to another changed file", (tester) async {
@@ -164,5 +209,71 @@ void main() {
     await tester.tap(find.text('notes.md').last);
     await tester.pumpAndSettle();
     expect(find.text('3 / 3'), findsOneWidget);
+  });
+
+  testWidgets("a diff tab's arrows revert a change in the file, unsaved", (
+    tester,
+  ) async {
+    final workspace = await pumpWorkbench(
+      tester,
+      const {'lib/a.dart': _disk},
+      git: git.repository(),
+      nativeEditor: true,
+    );
+    await tester.pumpAndSettle();
+    await workspace.openDiff(
+      inRoot('lib/a.dart'),
+      label: 'a.dart (HEAD)',
+      original: () async => _head,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Revert'), findsNWidgets(2));
+    await tester.tap(find.byTooltip('Revert').first);
+    await tester.pumpAndSettle();
+    final doc = workspace.documents.singleWhere(
+      (doc) => doc.path == inRoot('lib/a.dart'),
+    );
+    expect(doc.model.text, 'one\ntwo\nthree\nfour\nfive\nSIX\n');
+    expect(doc.dirty, isTrue);
+    expect(find.byTooltip('Revert'), findsOneWidget);
+  });
+
+  testWidgets('unchanged lines collapse behind a bar that shows them', (
+    tester,
+  ) async {
+    final lines = [for (var i = 1; i <= 30; i++) 'line $i'];
+    final changed = [...lines]..[14] = 'LINE 15';
+    final workspace = await pumpWorkbench(
+      tester,
+      {'lib/a.dart': '${changed.join('\n')}\n'},
+      git: git.repository(),
+      nativeEditor: true,
+    );
+    await tester.pumpAndSettle();
+    await workspace.openDiff(
+      inRoot('lib/a.dart'),
+      label: 'a.dart (HEAD)',
+      original: () async => '${lines.join('\n')}\n',
+    );
+    await tester.pumpAndSettle();
+    HiddenLineRanges? hidden() => tester
+        .widget<EditorSurface>(
+          find.byWidgetPredicate(
+            (widget) => widget is EditorSurface && !widget.readOnly,
+          ),
+        )
+        .hiddenLines;
+    // Line 1 and three lines round the change show; the trailing newline
+    // makes a last, empty line 31.
+    expect(hidden()?.ranges.toList(), [(2, 11), (19, 31)]);
+    expect(find.textContaining('10 unchanged lines'), findsWidgets);
+    await tester.tap(find.textContaining('10 unchanged lines').last);
+    await tester.pumpAndSettle();
+    expect(hidden()?.ranges.toList(), [(19, 31)]);
+
+    // Off in the viewer settings: all shows.
+    IdeDiffOptions.instance.collapseUnchanged = false;
+    await tester.pumpAndSettle();
+    expect(hidden(), isNull);
   });
 }

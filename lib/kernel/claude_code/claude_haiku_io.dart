@@ -114,7 +114,13 @@ Future<(String, int)> _run(
   final cli = await LocalClaude.locate(install: false);
   // In a file: it may hold a provider's key, and a shell (Windows') would
   // mangle it on the command line.
-  final settings = {'env': ?env, ...?tools?.settings};
+  final settings = {
+    'env': ?env,
+    // A provider's model, not swapped for one of Claude's (#219).
+    if (env != null && model != null)
+      'availableModels': allowedModels(env, [model]),
+    ...?tools?.settings,
+  };
   final settingsFile = settings.isEmpty
       ? null
       : await ClaudeSettingsFile.write(settings);
@@ -221,7 +227,12 @@ Future<(String, int)> _runBuiltin(
     // Nothing asked: what is not allowed is refused.
     permissionMode: 'dontAsk',
     persist: false,
-    flagSettings: {'env': ?env, ...?tools?.settings},
+    flagSettings: {
+      'env': ?env,
+      if (env != null && model != null)
+        'availableModels': allowedModels(env, [model]),
+      ...?tools?.settings,
+    },
     environment: environment,
     systemPrompt: system,
     tools: tools?.tools ?? const [],

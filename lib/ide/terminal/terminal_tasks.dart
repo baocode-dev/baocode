@@ -14,6 +14,9 @@ abstract interface class TerminalTasks implements Listenable {
 
   void stop(KernelTask task);
 
+  /// Takes those of [tasks] that have ended off [tasks].
+  void clear(Iterable<KernelTask> tasks);
+
   /// The folder relative paths in the output are links into.
   String get root;
 }

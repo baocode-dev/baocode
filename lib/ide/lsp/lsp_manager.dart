@@ -154,6 +154,9 @@ class LspManager extends ChangeNotifier
   bool _shutDown = false;
   bool _disposed = false;
 
+  /// Whether it was shut down: it runs no servers again.
+  bool get isShutDown => _shutDown;
+
   String _normalize(String path) => _paths.normalize(_paths.absolute(path));
 
   String _uriOf(String path) =>

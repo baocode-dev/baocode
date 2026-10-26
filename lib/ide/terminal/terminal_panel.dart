@@ -268,6 +268,7 @@ class TerminalPanel extends StatelessWidget {
                 shownTask: task?.id,
                 onShowTask: onShowTask,
                 onStopTask: tasks?.stop,
+                onClearTasks: tasks?.clear,
               ),
             ),
         ],

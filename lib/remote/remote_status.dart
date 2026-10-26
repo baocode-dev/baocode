@@ -13,7 +13,7 @@ import '../theme/workbench_theme.dart' show themeColors;
 import 'remote_location.dart';
 import 'ssh_host.dart';
 
-/// `SSH: <host>` at the status bar's left edge, as VS Code's remote
+/// `SSH: <host>` (`WSL: <distribution>`) at the status bar's left edge, as VS Code's remote
 /// indicator: the connection's state, and a click for the remote menu
 /// (the hosts to switch to, and the current host's actions).
 class SshStatusIndicator implements IdeRemoteIndicator {
@@ -36,7 +36,8 @@ class SshStatusIndicator implements IdeRemoteIndicator {
   @override
   IdeStatusBarItem item(BuildContext context) {
     final l10n = context.l10n;
-    final name = host.host;
+    final name = RemoteLocation.hostName(host.host);
+    final kind = RemoteLocation.reachedBy(host.host);
     final onChoose = this.onChoose;
     String tooltip(String base) => onChoose == null
         ? base
@@ -45,6 +46,7 @@ class SshStatusIndicator implements IdeRemoteIndicator {
         when host.state == SshHostState.connected) {
       return IdeStatusBarItem(
         l10n.remoteStatusInstalling(
+          kind,
           name,
           ((installing.fraction ?? 0) * 100).round(),
         ),
@@ -55,19 +57,21 @@ class SshStatusIndicator implements IdeRemoteIndicator {
     }
     return switch (host.state) {
       SshHostState.connected => IdeStatusBarItem(
-        l10n.remoteStatus(name),
+        l10n.remoteStatus(kind, name),
         icon: Codicons.remote,
-        tooltip: tooltip(l10n.remoteStatusTooltip(name)),
+        tooltip: tooltip(l10n.remoteStatusTooltip(kind, name)),
         onTapRect: onChoose,
       ),
       SshHostState.connecting => IdeStatusBarItem(
-        l10n.remoteStatusConnecting(name),
+        l10n.remoteStatusConnecting(kind, name),
         icon: Codicons.sync,
-        tooltip: tooltip(host.progress ?? l10n.remoteStatusConnecting(name)),
+        tooltip: tooltip(
+          host.progress ?? l10n.remoteStatusConnecting(kind, name),
+        ),
         onTapRect: onChoose,
       ),
       SshHostState.reconnecting => IdeStatusBarItem(
-        l10n.remoteStatusReconnecting(name),
+        l10n.remoteStatusReconnecting(kind, name),
         icon: Codicons.sync,
         // The session there kept, or gone too.
         tooltip: tooltip(
@@ -78,7 +82,7 @@ class SshStatusIndicator implements IdeRemoteIndicator {
         onTapRect: onChoose,
       ),
       SshHostState.failed || SshHostState.idle => IdeStatusBarItem(
-        l10n.remoteStatusFailed(name),
+        l10n.remoteStatusFailed(kind, name),
         icon: Codicons.debugDisconnect,
         tooltip: tooltip(
           [
@@ -274,6 +278,7 @@ class SshHostBanner extends StatelessWidget {
           SshFailure.hostKey => l10n.remoteFailHostKey,
           SshFailure.hostKeyChanged => l10n.remoteFailHostKeyChanged,
           SshFailure.unreachable => l10n.remoteFailUnreachable,
+          SshFailure.wsl => l10n.remoteFailWsl,
           _ => message,
         },
         detail,

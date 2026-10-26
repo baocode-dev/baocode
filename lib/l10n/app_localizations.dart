@@ -2102,6 +2102,24 @@ abstract class AppLocalizations {
   /// **'Toggle Chat'**
   String get cmdToggleChat;
 
+  /// No description provided for @cmdToggleFullScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Full Screen'**
+  String get cmdToggleFullScreen;
+
+  /// No description provided for @cmdToggleWordWrap.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Word Wrap'**
+  String get cmdToggleWordWrap;
+
+  /// No description provided for @menuWordWrap.
+  ///
+  /// In en, this message translates to:
+  /// **'Word Wrap'**
+  String get menuWordWrap;
+
   /// No description provided for @cmdTogglePanel.
   ///
   /// In en, this message translates to:
@@ -2335,6 +2353,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open Keyboard Shortcuts'**
   String get cmdOpenKeyboardShortcuts;
+
+  /// No description provided for @cmdOpenLspSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Language Server Settings (JSON)'**
+  String get cmdOpenLspSettings;
 
   /// No description provided for @cmdJumpToBracket.
   ///
@@ -3098,6 +3122,18 @@ abstract class AppLocalizations {
   /// **'Add to Chat'**
   String get sidePanelAddToChat;
 
+  /// No description provided for @termClearTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get termClearTask;
+
+  /// No description provided for @termClearEndedTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear All Ended Tasks'**
+  String get termClearEndedTasks;
+
   /// The side panel's terminal page: the group of the agent's background commands in its list.
   ///
   /// In en, this message translates to:
@@ -3320,6 +3356,12 @@ abstract class AppLocalizations {
   /// **'Unread'**
   String get sidebarUnread;
 
+  /// A conversation's hover in the sidebar: the model it runs on.
+  ///
+  /// In en, this message translates to:
+  /// **'Model: {model}'**
+  String sidebarHoverModel(String model);
+
   /// No description provided for @sidebarDone.
   ///
   /// In en, this message translates to:
@@ -3343,6 +3385,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Agents'**
   String get sidebarAgents;
+
+  /// No description provided for @sidebarCollapseAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse All'**
+  String get sidebarCollapseAll;
+
+  /// No description provided for @sidebarExpandAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand All'**
+  String get sidebarExpandAll;
 
   /// No description provided for @sidebarNoMatchingAgents.
   ///
@@ -12243,6 +12297,18 @@ abstract class AppLocalizations {
   /// **'Draws sequences such as => and != as one glyph where the font has one. The terminal does not.'**
   String get appearanceSettingsLigaturesDescription;
 
+  /// No description provided for @appearanceSettingsWordWrap.
+  ///
+  /// In en, this message translates to:
+  /// **'Word Wrap'**
+  String get appearanceSettingsWordWrap;
+
+  /// No description provided for @appearanceSettingsWordWrapDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Wraps long lines at the editor\'s width, in every editor. An editor\'s context menu and the Command Palette (Toggle Word Wrap) switch it too. Files of more than 5,000 lines are not wrapped.'**
+  String get appearanceSettingsWordWrapDescription;
+
   /// No description provided for @appearanceSettingsUiScale.
   ///
   /// In en, this message translates to:
@@ -12522,32 +12588,32 @@ abstract class AppLocalizations {
   /// No description provided for @remoteStatus.
   ///
   /// In en, this message translates to:
-  /// **'SSH: {host}'**
-  String remoteStatus(String host);
+  /// **'{kind}: {host}'**
+  String remoteStatus(String kind, String host);
 
   /// No description provided for @remoteStatusConnecting.
   ///
   /// In en, this message translates to:
-  /// **'SSH: {host} (connecting...)'**
-  String remoteStatusConnecting(String host);
+  /// **'{kind}: {host} (connecting...)'**
+  String remoteStatusConnecting(String kind, String host);
 
   /// No description provided for @remoteStatusReconnecting.
   ///
   /// In en, this message translates to:
-  /// **'SSH: {host} (reconnecting...)'**
-  String remoteStatusReconnecting(String host);
+  /// **'{kind}: {host} (reconnecting...)'**
+  String remoteStatusReconnecting(String kind, String host);
 
   /// No description provided for @remoteStatusFailed.
   ///
   /// In en, this message translates to:
-  /// **'SSH: {host} (disconnected)'**
-  String remoteStatusFailed(String host);
+  /// **'{kind}: {host} (disconnected)'**
+  String remoteStatusFailed(String kind, String host);
 
   /// No description provided for @remoteStatusInstalling.
   ///
   /// In en, this message translates to:
-  /// **'SSH: {host} (installing Claude Code {percent}%)'**
-  String remoteStatusInstalling(String host, int percent);
+  /// **'{kind}: {host} (installing Claude Code {percent}%)'**
+  String remoteStatusInstalling(String kind, String host, int percent);
 
   /// Shown while Claude Code is put on a remote host where it was not installed, before the agent starts.
   ///
@@ -12576,8 +12642,8 @@ abstract class AppLocalizations {
   /// No description provided for @remoteStatusTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Connected to {host} over SSH'**
-  String remoteStatusTooltip(String host);
+  /// **'Connected to {host} over {kind}'**
+  String remoteStatusTooltip(String kind, String host);
 
   /// No description provided for @remoteStatusTooltipLost.
   ///
@@ -12600,8 +12666,8 @@ abstract class AppLocalizations {
   /// No description provided for @remoteProjectTooltip.
   ///
   /// In en, this message translates to:
-  /// **'On {host}, over SSH'**
-  String remoteProjectTooltip(String host);
+  /// **'On {host}, over {kind}'**
+  String remoteProjectTooltip(String kind, String host);
 
   /// No description provided for @quitConfirmRemote.
   ///
@@ -16695,6 +16761,12 @@ abstract class AppLocalizations {
   /// **'The server could not be reached: check the address, port and network.'**
   String get remoteFailUnreachable;
 
+  /// No description provided for @remoteFailWsl.
+  ///
+  /// In en, this message translates to:
+  /// **'WSL could not start this distribution: check that WSL is installed and that the distribution is listed by wsl --list.'**
+  String get remoteFailWsl;
+
   /// No description provided for @channelSetupTitle.
   ///
   /// In en, this message translates to:
@@ -18267,6 +18339,30 @@ abstract class AppLocalizations {
   /// **'Ignore Whitespace at Line Ends'**
   String get diffIgnoreWhitespace;
 
+  /// No description provided for @diffWhitespaceNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Do Not Ignore Whitespace'**
+  String get diffWhitespaceNone;
+
+  /// No description provided for @diffIgnoreAllWhitespace.
+  ///
+  /// In en, this message translates to:
+  /// **'Ignore All Whitespace'**
+  String get diffIgnoreAllWhitespace;
+
+  /// No description provided for @diffCollapseUnchanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse Unchanged Fragments'**
+  String get diffCollapseUnchanged;
+
+  /// No description provided for @diffUnchangedLines.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 unchanged line} other{{count} unchanged lines}}'**
+  String diffUnchangedLines(int count);
+
   /// No description provided for @diffHighlightCharacters.
   ///
   /// In en, this message translates to:
@@ -18795,6 +18891,18 @@ abstract class AppLocalizations {
   /// **'“{name}” has {ahead} commits “{current}” has not; “{current}” has {behind} it has not.'**
   String gitBranchCompared(String name, String current, int ahead, int behind);
 
+  /// No description provided for @gitBranchCompareFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Changed Files'**
+  String get gitBranchCompareFiles;
+
+  /// No description provided for @scmGraphRangeIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Commits in “{to}” Not in “{from}”'**
+  String scmGraphRangeIn(String to, String from);
+
   /// No description provided for @gitBranchesRecent.
   ///
   /// In en, this message translates to:
@@ -19142,6 +19250,786 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Discard'**
   String get gitMergeDiscardButton;
+
+  /// No description provided for @gitDiffExcludeChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave This Change Out of the Commit'**
+  String get gitDiffExcludeChange;
+
+  /// No description provided for @gitDiffIncludeChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Include This Change in the Commit'**
+  String get gitDiffIncludeChange;
+
+  /// No description provided for @gitDiffExcludeLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave This Line Out of the Commit'**
+  String get gitDiffExcludeLine;
+
+  /// No description provided for @gitDiffIncludeLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Include This Line in the Commit'**
+  String get gitDiffIncludeLine;
+
+  /// No description provided for @gitChangelistActive.
+  ///
+  /// In en, this message translates to:
+  /// **'active'**
+  String get gitChangelistActive;
+
+  /// No description provided for @gitChangelistMoveTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Another Changelist'**
+  String get gitChangelistMoveTo;
+
+  /// No description provided for @gitChangelistNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New Changelist…'**
+  String get gitChangelistNew;
+
+  /// No description provided for @gitChangelistCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get gitChangelistCreate;
+
+  /// No description provided for @gitChangelistName.
+  ///
+  /// In en, this message translates to:
+  /// **'Changelist name'**
+  String get gitChangelistName;
+
+  /// No description provided for @gitChangelistCommitOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit Only This Changelist'**
+  String get gitChangelistCommitOnly;
+
+  /// No description provided for @gitChangelistSetActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Set Active Changelist'**
+  String get gitChangelistSetActive;
+
+  /// No description provided for @gitChangelistRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename Changelist…'**
+  String get gitChangelistRename;
+
+  /// No description provided for @gitChangelistRenameButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get gitChangelistRenameButton;
+
+  /// No description provided for @gitChangelistDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Changelist'**
+  String get gitChangelistDelete;
+
+  /// No description provided for @gitChangelistTurn.
+  ///
+  /// In en, this message translates to:
+  /// **'AI: {request}'**
+  String gitChangelistTurn(String request);
+
+  /// No description provided for @gitStashChangesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stash Changes'**
+  String get gitStashChangesTitle;
+
+  /// No description provided for @gitStashFilesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Stash 1 File} other{Stash {count} Files}}'**
+  String gitStashFilesTitle(int count);
+
+  /// No description provided for @gitStashButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Stash'**
+  String get gitStashButton;
+
+  /// No description provided for @gitStashMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Message (optional)'**
+  String get gitStashMessage;
+
+  /// No description provided for @gitStashUntracked.
+  ///
+  /// In en, this message translates to:
+  /// **'Include untracked files'**
+  String get gitStashUntracked;
+
+  /// No description provided for @gitStashBase.
+  ///
+  /// In en, this message translates to:
+  /// **'Base'**
+  String get gitStashBase;
+
+  /// No description provided for @gitStashApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get gitStashApply;
+
+  /// No description provided for @gitStashPop.
+  ///
+  /// In en, this message translates to:
+  /// **'Pop'**
+  String get gitStashPop;
+
+  /// No description provided for @gitStashAsBranch.
+  ///
+  /// In en, this message translates to:
+  /// **'Unstash as Branch…'**
+  String get gitStashAsBranch;
+
+  /// No description provided for @gitStashCopyMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Message'**
+  String get gitStashCopyMessage;
+
+  /// No description provided for @gitStashDrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop…'**
+  String get gitStashDrop;
+
+  /// No description provided for @gitStashDropConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop {ref}?'**
+  String gitStashDropConfirm(String ref);
+
+  /// No description provided for @gitStashDropButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop'**
+  String get gitStashDropButton;
+
+  /// No description provided for @gitStashClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Stashes…'**
+  String get gitStashClear;
+
+  /// No description provided for @gitStashClearConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop every stash?'**
+  String get gitStashClearConfirm;
+
+  /// No description provided for @gitStashClearButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get gitStashClearButton;
+
+  /// No description provided for @gitStashNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No stashes'**
+  String get gitStashNone;
+
+  /// No description provided for @gitStashTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Stash'**
+  String get gitStashTab;
+
+  /// No description provided for @gitCommitTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit'**
+  String get gitCommitTab;
+
+  /// No description provided for @gitStashSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Stash Selected Files…'**
+  String get gitStashSelected;
+
+  /// No description provided for @gitCommitIgnored.
+  ///
+  /// In en, this message translates to:
+  /// **'Ignored Files'**
+  String get gitCommitIgnored;
+
+  /// No description provided for @gitCommitShowIgnored.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Ignored Files'**
+  String get gitCommitShowIgnored;
+
+  /// No description provided for @gitCommitLongSubject.
+  ///
+  /// In en, this message translates to:
+  /// **'The subject is longer than {limit} characters'**
+  String gitCommitLongSubject(int limit);
+
+  /// No description provided for @gitCommitNoBlankLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Separate the subject from the body with a blank line'**
+  String get gitCommitNoBlankLine;
+
+  /// No description provided for @gitCommitMessageHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit Message History (Ctrl+M)'**
+  String get gitCommitMessageHistory;
+
+  /// No description provided for @gitCommitNoMessageHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet'**
+  String get gitCommitNoMessageHistory;
+
+  /// No description provided for @gitCommitOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit Options'**
+  String get gitCommitOptions;
+
+  /// No description provided for @gitCommitAuthor.
+  ///
+  /// In en, this message translates to:
+  /// **'Author…'**
+  String get gitCommitAuthor;
+
+  /// No description provided for @gitCommitAuthorIs.
+  ///
+  /// In en, this message translates to:
+  /// **'Author: {author}'**
+  String gitCommitAuthorIs(String author);
+
+  /// No description provided for @gitCommitAuthorReset.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the Configured Author'**
+  String get gitCommitAuthorReset;
+
+  /// No description provided for @gitCommitAuthorPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Name <email>'**
+  String get gitCommitAuthorPlaceholder;
+
+  /// No description provided for @gitCommitSignOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-off Commit'**
+  String get gitCommitSignOff;
+
+  /// No description provided for @gitCommitRunHooks.
+  ///
+  /// In en, this message translates to:
+  /// **'Run Git Hooks'**
+  String get gitCommitRunHooks;
+
+  /// No description provided for @gitCommitSignedOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed off'**
+  String get gitCommitSignedOff;
+
+  /// No description provided for @gitCommitNoHooks.
+  ///
+  /// In en, this message translates to:
+  /// **'Hooks skipped'**
+  String get gitCommitNoHooks;
+
+  /// No description provided for @gitLogInteractiveRebase.
+  ///
+  /// In en, this message translates to:
+  /// **'Interactively Rebase from Here…'**
+  String get gitLogInteractiveRebase;
+
+  /// No description provided for @gitRebaseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rebasing {count, plural, =1{1 Commit} other{{count} Commits}} from {base}'**
+  String gitRebaseTitle(int count, String base);
+
+  /// No description provided for @gitRebasePick.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick'**
+  String get gitRebasePick;
+
+  /// No description provided for @gitRebaseReword.
+  ///
+  /// In en, this message translates to:
+  /// **'Reword'**
+  String get gitRebaseReword;
+
+  /// No description provided for @gitRebaseEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get gitRebaseEdit;
+
+  /// No description provided for @gitRebaseSquash.
+  ///
+  /// In en, this message translates to:
+  /// **'Squash'**
+  String get gitRebaseSquash;
+
+  /// No description provided for @gitRebaseFixup.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixup'**
+  String get gitRebaseFixup;
+
+  /// No description provided for @gitRebaseDrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Drop'**
+  String get gitRebaseDrop;
+
+  /// No description provided for @gitRebaseMoveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Up (Alt+Up)'**
+  String get gitRebaseMoveUp;
+
+  /// No description provided for @gitRebaseMoveDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Down (Alt+Down)'**
+  String get gitRebaseMoveDown;
+
+  /// No description provided for @gitRebaseMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit message'**
+  String get gitRebaseMessage;
+
+  /// No description provided for @gitRebaseStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Rebasing'**
+  String get gitRebaseStart;
+
+  /// No description provided for @gitRebaseNothingBelow.
+  ///
+  /// In en, this message translates to:
+  /// **'The oldest commit kept cannot be squashed or fixed up: there is nothing below it.'**
+  String get gitRebaseNothingBelow;
+
+  /// No description provided for @gitRebaseStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'The rebase stopped: amend the commit or resolve the conflicts, then Continue.'**
+  String get gitRebaseStopped;
+
+  /// No description provided for @gitRebaseCleanUpWithAi.
+  ///
+  /// In en, this message translates to:
+  /// **'Clean Up with AI'**
+  String get gitRebaseCleanUpWithAi;
+
+  /// No description provided for @gitRebaseCleanUpWithAiDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Let the model suggest what to fix up, squash and reword; you look it over before the rebase starts'**
+  String get gitRebaseCleanUpWithAiDetail;
+
+  /// No description provided for @gitRebaseAiPlanning.
+  ///
+  /// In en, this message translates to:
+  /// **'Planning… (click to stop)'**
+  String get gitRebaseAiPlanning;
+
+  /// No description provided for @gitRebaseAiNoPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'The model\'s answer was not a rebase list of these commits.'**
+  String get gitRebaseAiNoPlan;
+
+  /// No description provided for @gitRebaseAiFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not clean up with AI: {error}'**
+  String gitRebaseAiFailed(String error);
+
+  /// No description provided for @gitTagPushTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Push Tag to {remote}'**
+  String gitTagPushTo(String remote);
+
+  /// No description provided for @gitTagDeleteOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Tag on {remote}'**
+  String gitTagDeleteOn(String remote);
+
+  /// No description provided for @gitTagDeleteOnConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the tag {name} on {remote}?'**
+  String gitTagDeleteOnConfirm(String name, String remote);
+
+  /// No description provided for @gitRemotesManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Remotes…'**
+  String get gitRemotesManage;
+
+  /// No description provided for @gitRemotesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Git Remotes'**
+  String get gitRemotesTitle;
+
+  /// No description provided for @gitRemotesNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No remotes'**
+  String get gitRemotesNone;
+
+  /// No description provided for @gitRemoteAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Remote'**
+  String get gitRemoteAdd;
+
+  /// No description provided for @gitRemoteEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Remote'**
+  String get gitRemoteEdit;
+
+  /// No description provided for @gitRemoteRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get gitRemoteRemove;
+
+  /// No description provided for @gitRemoteName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get gitRemoteName;
+
+  /// No description provided for @gitRemoteUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'URL'**
+  String get gitRemoteUrl;
+
+  /// No description provided for @gitRemoteRemoveConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove the remote {name}?'**
+  String gitRemoteRemoveConfirm(String name);
+
+  /// No description provided for @gitRemoteRemoveDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Its remote branches go with it; nothing on the server changes.'**
+  String get gitRemoteRemoveDetail;
+
+  /// No description provided for @gitCloneTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Get from Version Control'**
+  String get gitCloneTitle;
+
+  /// No description provided for @gitCloneUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'URL'**
+  String get gitCloneUrl;
+
+  /// No description provided for @gitCloneDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Directory'**
+  String get gitCloneDirectory;
+
+  /// No description provided for @gitCloneBrowse.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse…'**
+  String get gitCloneBrowse;
+
+  /// No description provided for @gitCloneButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Clone'**
+  String get gitCloneButton;
+
+  /// No description provided for @gitCloning.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloning…'**
+  String get gitCloning;
+
+  /// No description provided for @gitCloneCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Clone Repository…'**
+  String get gitCloneCommand;
+
+  /// No description provided for @gitReviewWithAi.
+  ///
+  /// In en, this message translates to:
+  /// **'Review Changes with AI'**
+  String get gitReviewWithAi;
+
+  /// No description provided for @gitReviewStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop the Review'**
+  String get gitReviewStop;
+
+  /// No description provided for @gitReviewBeforeCommit.
+  ///
+  /// In en, this message translates to:
+  /// **'Review with AI Before Committing'**
+  String get gitReviewBeforeCommit;
+
+  /// No description provided for @gitReviewRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Reviewing the changes…'**
+  String get gitReviewRunning;
+
+  /// No description provided for @gitReviewClean.
+  ///
+  /// In en, this message translates to:
+  /// **'No problems found'**
+  String get gitReviewClean;
+
+  /// No description provided for @gitReviewFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 problem found} other{{count} problems found}}'**
+  String gitReviewFound(int count);
+
+  /// No description provided for @gitReviewCommitAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit Anyway'**
+  String get gitReviewCommitAnyway;
+
+  /// No description provided for @gitReviewCommitAndPushAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit and Push Anyway'**
+  String get gitReviewCommitAndPushAnyway;
+
+  /// No description provided for @gitReviewFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not review the changes: {error}'**
+  String gitReviewFailed(String error);
+
+  /// No description provided for @gitAskAiCommit.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask AI About This Commit'**
+  String get gitAskAiCommit;
+
+  /// No description provided for @gitAskAiCommitPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Explain commit {id} (“{subject}”): what it changes and why, and anything in it that looks risky. Read it with `git show {id}`.'**
+  String gitAskAiCommitPrompt(String id, String subject);
+
+  /// No description provided for @gitAskAiCommits.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Ask AI About This Commit} other{Ask AI About These {count} Commits}}'**
+  String gitAskAiCommits(int count);
+
+  /// No description provided for @gitAskAiCommitsPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Explain commits {ids}: what they change together, and anything in them that looks risky. Read them with `git show`.'**
+  String gitAskAiCommitsPrompt(String ids);
+
+  /// No description provided for @gitAskAiHunk.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask AI About This Change'**
+  String get gitAskAiHunk;
+
+  /// No description provided for @gitAskAiHunkPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'About this change in {path} at line {line}: explain what it does and whether anything in it is wrong.\n\n```diff\n{change}\n```'**
+  String gitAskAiHunkPrompt(String path, int line, String change);
+
+  /// No description provided for @gitAskAiChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask AI About These Changes'**
+  String get gitAskAiChanges;
+
+  /// No description provided for @gitAskAiChangesPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Review my uncommitted changes in {paths} (`git diff HEAD -- {paths}`): explain what they do and point out anything wrong.'**
+  String gitAskAiChangesPrompt(String paths);
+
+  /// No description provided for @gitAskAiConflicts.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask AI to Resolve the Conflicts'**
+  String get gitAskAiConflicts;
+
+  /// No description provided for @gitAskAiConflictsPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolve the merge conflicts in {paths}: keep what both sides meant, then tell me what you chose. Don\'t stage or commit.'**
+  String gitAskAiConflictsPrompt(String paths);
+
+  /// No description provided for @gitLogFixup.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixup with Checked Changes'**
+  String get gitLogFixup;
+
+  /// No description provided for @compareWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare With'**
+  String get compareWith;
+
+  /// No description provided for @compareWithClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Clipboard'**
+  String get compareWithClipboard;
+
+  /// No description provided for @compareWithClipboardLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} (Clipboard ↔ File)'**
+  String compareWithClipboardLabel(String name);
+
+  /// No description provided for @gitCompareWithBranch.
+  ///
+  /// In en, this message translates to:
+  /// **'Branch or Tag…'**
+  String get gitCompareWithBranch;
+
+  /// No description provided for @gitCompareWithRevision.
+  ///
+  /// In en, this message translates to:
+  /// **'Revision…'**
+  String get gitCompareWithRevision;
+
+  /// No description provided for @gitCompareWithBranchPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a branch or tag to compare the file with'**
+  String get gitCompareWithBranchPlaceholder;
+
+  /// No description provided for @gitCompareWithRevisionPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a revision of the file to compare it with'**
+  String get gitCompareWithRevisionPlaceholder;
+
+  /// No description provided for @gitCompareLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} ({other} ↔ Working Tree)'**
+  String gitCompareLabel(String name, String other);
+
+  /// No description provided for @explorerSelectForCompare.
+  ///
+  /// In en, this message translates to:
+  /// **'Select for Compare'**
+  String get explorerSelectForCompare;
+
+  /// No description provided for @explorerCompareWithSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare with \'{name}\''**
+  String explorerCompareWithSelected(String name);
+
+  /// No description provided for @compareFoldersSame.
+  ///
+  /// In en, this message translates to:
+  /// **'“{original}” and “{modified}” have the same files.'**
+  String compareFoldersSame(String original, String modified);
+
+  /// No description provided for @compareFoldersPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Files “{original}” and “{modified}” differ in'**
+  String compareFoldersPick(String original, String modified);
+
+  /// No description provided for @compareFoldersOnlyIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Only in “{name}”'**
+  String compareFoldersOnlyIn(String name);
+
+  /// No description provided for @compareFoldersModified.
+  ///
+  /// In en, this message translates to:
+  /// **'Changed'**
+  String get compareFoldersModified;
+
+  /// No description provided for @compareWithLocalHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Local History…'**
+  String get compareWithLocalHistory;
+
+  /// No description provided for @localHistoryShow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Local History'**
+  String get localHistoryShow;
+
+  /// No description provided for @localHistoryNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No local history of “{name}” yet: it is kept as the file is saved.'**
+  String localHistoryNone(String name);
+
+  /// No description provided for @localHistoryPick.
+  ///
+  /// In en, this message translates to:
+  /// **'A version of “{name}” to compare with'**
+  String localHistoryPick(String name);
+
+  /// No description provided for @localHistoryLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} (Local History, {time})'**
+  String localHistoryLabel(String name, String time);
+
+  /// No description provided for @explorerCompareSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare Selected'**
+  String get explorerCompareSelected;
+
+  /// No description provided for @compareFilesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{original} ↔ {modified}'**
+  String compareFilesLabel(String original, String modified);
 }
 
 class _AppLocalizationsDelegate

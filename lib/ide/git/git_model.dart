@@ -235,6 +235,123 @@ class IdeGitHead {
   final bool unborn;
 }
 
+/// How a commit is made, as JetBrains IDEs' commit options set it: by
+/// [author] (`Name <email>`) rather than the one configured, signed off
+/// (a `Signed-off-by` line), without running the repository's hooks.
+class IdeGitCommitOptions {
+  const IdeGitCommitOptions({
+    this.author,
+    this.signOff = false,
+    this.runHooks = true,
+  });
+
+  final String? author;
+  final bool signOff;
+  final bool runHooks;
+
+  List<String> get arguments => [
+    if (author case final author? when author.trim().isNotEmpty)
+      '--author=${author.trim()}',
+    if (signOff) '--signoff',
+    if (!runHooks) '--no-verify',
+  ];
+}
+
+/// The folder a clone of [url] goes in, as Git names it: the URL's last
+/// part, without `.git`.
+String ideGitCloneFolder(String url) {
+  final trimmed = url.trim().replaceAll(RegExp(r'[/\\]+$'), '');
+  final last = trimmed.split(RegExp(r'[/\\:]')).last;
+  return last.endsWith('.git') ? last.substring(0, last.length - 4) : last;
+}
+
+/// What an interactive rebase does with a commit.
+enum IdeGitRebaseAction {
+  pick,
+  reword,
+  edit,
+  squash,
+  fixup,
+  drop;
+
+  /// Whether the commit goes into the one before it.
+  bool get unites => this == squash || this == fixup;
+}
+
+/// A commit ([commit], its id) in an interactive rebase's list, what is
+/// done with it, and a reworded one's new [message].
+class IdeGitRebaseStep {
+  const IdeGitRebaseStep(this.commit, this.action, {this.message});
+
+  final String commit;
+  final IdeGitRebaseAction action;
+  final String? message;
+}
+
+/// What may be wrong with a commit message, as JetBrains IDEs' commit
+/// message inspections find it: a subject longer than [subjectLimit], a
+/// body not set apart from it by a blank line.
+enum IdeGitMessageProblem { longSubject, noBlankLine }
+
+const ideGitSubjectLimit = 72;
+
+List<IdeGitMessageProblem> ideGitMessageProblems(String message) {
+  final lines = message.trimRight().split('\n');
+  return [
+    if (lines.first.trimRight().length > ideGitSubjectLimit)
+      IdeGitMessageProblem.longSubject,
+    if (lines.length > 1 && lines[1].trim().isNotEmpty)
+      IdeGitMessageProblem.noBlankLine,
+  ];
+}
+
+/// A stash (`git stash list`): [ref] (`stash@{0}`), its commit [id], when
+/// it was made, the branch it was made on and what it says.
+class IdeGitStash {
+  const IdeGitStash({
+    required this.ref,
+    required this.id,
+    required this.date,
+    required this.message,
+    this.branch,
+  });
+
+  final String ref;
+  final String id;
+  final DateTime date;
+  final String message;
+  final String? branch;
+}
+
+/// `git stash list --format=%gd%x00%H%x00%ct%x00%gs` as stashes: what
+/// each says without Git's `WIP on <branch>:` or `On <branch>:`.
+List<IdeGitStash> parseGitStashes(String output) {
+  final subject = RegExp(r'^(?:WIP on|On) ([^:]+): (.*)$');
+  final stashes = <IdeGitStash>[];
+  for (final line in output.split('\n')) {
+    if (line.split('\x00') case [
+      final ref,
+      final id,
+      final time,
+      final summary,
+    ]) {
+      final match = subject.firstMatch(summary);
+      stashes.add(
+        IdeGitStash(
+          ref: ref,
+          id: id,
+          date: DateTime.fromMillisecondsSinceEpoch(
+            (int.tryParse(time) ?? 0) * 1000,
+          ),
+          message: match == null ? summary : match[2]!,
+          branch: match?[1],
+        ),
+      );
+    }
+  }
+  return stashes;
+}
+
 /// How Reset Current Branch to Here leaves the changes (`git reset`):
 /// staged, in the working tree, gone, or kept where the commits do not
 /// touch them.

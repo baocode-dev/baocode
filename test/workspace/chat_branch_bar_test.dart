@@ -260,6 +260,42 @@ void main() {
     expect(find.text('Switch Branch'), findsNothing);
   });
 
+  testWidgets("a workspace's folder worked on in another worktree: its "
+      "branch and worktree after the workspace's name, while the agent "
+      'works too', (tester) async {
+    final monad =
+        (_git('/work/monad-wt', branch: 'feature')
+              ..worktrees =
+                  'worktree /work/monad\nHEAD ${'a' * 40}\n'
+                  'branch refs/heads/main\n\n'
+                  'worktree /work/monad-wt\nHEAD ${'b' * 40}\n'
+                  'branch refs/heads/feature\n')
+            .repository();
+    final relay = _git('/work/relay').repository();
+    for (final git in [monad, relay]) {
+      addTearDown(git.dispose);
+    }
+    await _pump(
+      tester,
+      name: 'BaoCode',
+      workspace: true,
+      repositories: [('/work/monad', monad), ('/work/relay', relay)],
+    );
+    expect(find.text('BaoCode · feature · monad-wt'), findsOneWidget);
+    expect(
+      find.byTooltip('In worktree monad-wt\n/work/monad-wt'),
+      findsOneWidget,
+    );
+    await _pump(
+      tester,
+      session: _Working(),
+      name: 'BaoCode',
+      workspace: true,
+      repositories: [('/work/monad', monad), ('/work/relay', relay)],
+    );
+    expect(find.text('BaoCode · feature · monad-wt'), findsOneWidget);
+  });
+
   testWidgets("a workspace's folders, each with its branch", (tester) async {
     final monad = _git('/work/monad').repository();
     final relay = _git('/work/relay', branch: 'feature').repository();

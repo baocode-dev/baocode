@@ -1096,6 +1096,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Each agent's choices, by session: those it opens with again.
   final Map<String, Map<String, String>> _agentSettings = {};
 
+  /// [thread]'s choice of [kind] as kept for when it opens again (the
+  /// model it runs on, say); null when none is.
+  String? keptChoice(AgentThread thread, KernelChoiceKind kind) =>
+      _agentSettings[thread.id]?[kind.name];
+
   /// Agents' choices kept, the most recent ones.
   static const _keptAgents = 500;
 
@@ -1117,6 +1122,18 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   void toggleCollapsed(String group) {
     if (!_collapsedGroups.remove(group)) _collapsedGroups.add(group);
+    _save();
+    notifyListeners();
+  }
+
+  /// [groups] (by key) folded, or unfolded, all at once (the sidebar's
+  /// Collapse All and Expand All).
+  void setCollapsed(Iterable<String> groups, bool collapsed) {
+    final before = _collapsedGroups.length;
+    collapsed
+        ? _collapsedGroups.addAll(groups)
+        : _collapsedGroups.removeAll(groups);
+    if (_collapsedGroups.length == before) return;
     _save();
     notifyListeners();
   }
@@ -1443,8 +1460,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Names the user gave SSH hosts, by host.
   final Map<String, String> _hostNames = {};
 
-  /// What the app calls [host]: the name the user gave it, else itself.
-  String hostLabel(String host) => _hostNames[host] ?? host;
+  /// What the app calls [host]: the name the user gave it, else itself (a
+  /// WSL distribution by its name).
+  String hostLabel(String host) =>
+      _hostNames[host] ?? RemoteLocation.hostName(host);
 
   /// Calls [host] [name]; by itself again when null or empty.
   void renameHost(String host, String? name) {

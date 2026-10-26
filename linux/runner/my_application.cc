@@ -310,6 +310,19 @@ static void window_method_call_cb(FlMethodChannel* channel, FlMethodCall* call,
     }
     g_autoptr(FlValue) result = clipboard_image_file_value(path);
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+  } else if (strcmp(name, "toggleFullScreen") == 0) {
+    // Answered with whether it is going to be (the window manager's to do).
+    GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(self->window));
+    const gboolean full_screen =
+        gdk_window != nullptr &&
+        (gdk_window_get_state(gdk_window) & GDK_WINDOW_STATE_FULLSCREEN) != 0;
+    if (full_screen) {
+      gtk_window_unfullscreen(self->window);
+    } else {
+      gtk_window_fullscreen(self->window);
+    }
+    g_autoptr(FlValue) result = fl_value_new_bool(!full_screen);
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(result));
   } else if (strcmp(name, "showContextMenu") == 0) {
     FlValue* items = nullptr;
     if (args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {

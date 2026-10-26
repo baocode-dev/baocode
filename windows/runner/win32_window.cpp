@@ -240,7 +240,11 @@ void AskForSystemFrame(HWND window) {
   // Windows rounds the corners of a window whose frame it draws, of its own
   // accord only while the frame is the whole of the window's edge (see
   // above), so it is asked for them.
-  const int corners = DWMWCP_ROUND;
+  // Full screen, the window's corners are the screen's.
+  const Win32Window* that = Win32Window::GetThisFromHandle(window);
+  const int corners = that != nullptr && that->IsFullScreen()
+                          ? DWMWCP_DONOTROUND
+                          : DWMWCP_ROUND;
   ::DwmSetWindowAttribute(window, DWMWA_WINDOW_CORNER_PREFERENCE, &corners,
                           sizeof(corners));
   if (!acrylic) {
@@ -520,6 +524,45 @@ void Win32Window::SetChildContent(HWND content) {
   SetFocus(child_content_);
 }
 
+void Win32Window::SetFullScreen(bool full_screen) {
+  const HWND window = window_handle_;
+  if (window == nullptr || full_screen == full_screen_) {
+    return;
+  }
+  // The window's own frame goes (the resize border, the caption buttons'
+  // styles) and comes back, as in "How do I switch a window between normal
+  // and fullscreen?" (The Old New Thing); the placement keeps whether it
+  // was maximized, and where it was restored to.
+  constexpr LONG_PTR kFrame = WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
+  const LONG_PTR style = ::GetWindowLongPtrW(window, GWL_STYLE);
+  if (full_screen) {
+    MONITORINFO monitor = {};
+    monitor.cbSize = sizeof(monitor);
+    restore_ = {};
+    restore_.length = sizeof(restore_);
+    if (!::GetWindowPlacement(window, &restore_) ||
+        !::GetMonitorInfoW(::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST),
+                           &monitor)) {
+      return;
+    }
+    full_screen_ = true;
+    frame_styles_ = style & kFrame;
+    ::SetWindowLongPtrW(window, GWL_STYLE, style & ~kFrame);
+    const RECT& screen = monitor.rcMonitor;
+    ::SetWindowPos(window, HWND_TOP, screen.left, screen.top,
+                   screen.right - screen.left, screen.bottom - screen.top,
+                   SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  } else {
+    full_screen_ = false;
+    ::SetWindowLongPtrW(window, GWL_STYLE, style | frame_styles_);
+    ::SetWindowPlacement(window, &restore_);
+    ::SetWindowPos(window, nullptr, 0, 0, 0, 0,
+                   SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER |
+                       SWP_FRAMECHANGED);
+  }
+  AskForSystemFrame(window);
+}
+
 RECT Win32Window::GetClientArea() {
   RECT frame;
   GetClientRect(window_handle_, &frame);
@@ -664,6 +707,12 @@ std::optional<LRESULT> Win32Window::NonClientSize(WPARAM wparam,
     client->bottom = client->top;
     return 0;
   }
+  if (full_screen_) {
+    // All of it, the monitor's whole rectangle (see SetFullScreen): a
+    // window maximized before stays so underneath, and would otherwise be
+    // kept to the work area.
+    return 0;
+  }
   if (::IsZoomed(window_handle_)) {
     // The monitor of the rectangle proposed, not of the window: the window
     // is still where it was. Restored from minimized, that is off every
@@ -692,8 +741,9 @@ std::optional<LRESULT> Win32Window::ResizeHitTest(const POINT& point) const {
     return std::nullopt;
   }
   // Maximized, the header drags the window back down instead (the system
-  // does that itself for HTCAPTION), and there is no border to grab.
-  if (::IsZoomed(window_handle_)) {
+  // does that itself for HTCAPTION), and there is no border to grab; nor
+  // is there full screen.
+  if (::IsZoomed(window_handle_) || full_screen_) {
     return std::nullopt;
   }
   RECT client = {};

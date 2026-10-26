@@ -1289,6 +1289,19 @@ extension _ScmKeys on IdeWorkbenchState {
     );
   }
 
+  /// Manage Remotes…, of the window's repository.
+  void _manageRemotes() {
+    final git = widget.workspace.git;
+    if (git == null) return;
+    unawaited(
+      IdeGitBranchActions(
+        context,
+        git,
+        _WorkbenchBranchHost(this),
+      ).manageRemotes(),
+    );
+  }
+
   /// Update Project, on the window's repositories.
   void _updateProject() {
     final git = widget.workspace.git;
@@ -1465,8 +1478,8 @@ class _WorkbenchBranchHost implements IdeGitBranchHost {
   }
 
   @override
-  void showOnly(IdeGitRepository git, IdeGitRef ref) {
+  void showOnly(IdeGitRepository git, String graphBranch) {
     workbench._showView(IdeSideView.sourceControl);
-    git.graphBranch = ref.id;
+    git.graphBranch = graphBranch;
   }
 }

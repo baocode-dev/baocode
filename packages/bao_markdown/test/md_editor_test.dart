@@ -438,6 +438,63 @@ void main() {
     );
   });
 
+  testWidgets('what Windows composes over a selection replaces it', (
+    tester,
+  ) async {
+    final controller = MarkdownController(text: 'abcd');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    controller.selection = const TextSelection(baseOffset: 1, extentOffset: 3);
+    await tester.pump();
+    tester.testTextInput.log.clear();
+    // #325: as Windows' engine sends it, the first of what is composed put
+    // in where the selection starts, though it deleted the selection.
+    state.updateEditingValueWithDeltas([
+      const TextEditingDeltaNonTextUpdate(
+        oldText: 'abcd',
+        selection: TextSelection(baseOffset: 1, extentOffset: 3),
+        composing: TextRange.collapsed(1),
+      ),
+    ]);
+    state.updateEditingValueWithDeltas([
+      const TextEditingDeltaInsertion(
+        oldText: 'abcd',
+        textInserted: 'n',
+        insertionOffset: 1,
+        selection: TextSelection.collapsed(offset: 2),
+        composing: TextRange(start: 1, end: 2),
+      ),
+    ]);
+    expect(controller.text, 'and');
+    for (final (old, step) in [('and', 'ni'), ('anid', '你')]) {
+      state.updateEditingValueWithDeltas([
+        TextEditingDeltaReplacement(
+          oldText: old,
+          replacementText: step,
+          replacedRange: TextRange(start: 1, end: old.length - 1),
+          selection: TextSelection.collapsed(offset: 1 + step.length),
+          composing: TextRange(start: 1, end: 1 + step.length),
+        ),
+      ]);
+    }
+    state.updateEditingValueWithDeltas([
+      const TextEditingDeltaNonTextUpdate(
+        oldText: 'a你d',
+        selection: TextSelection.collapsed(offset: 2),
+        composing: TextRange.empty,
+      ),
+    ]);
+    await tester.pump();
+    expect(controller.text, 'a你d');
+    expect(controller.selection, const TextSelection.collapsed(offset: 2));
+    expect(
+      tester.testTextInput.log.where(
+        (call) => call.method == 'TextInput.setEditingState',
+      ),
+      isEmpty,
+    );
+  });
+
   testWidgets('copied as it shows, pasted back as its markdown', (
     tester,
   ) async {

@@ -342,3 +342,62 @@ class _GitCheckout {
     return ideSanitizeBranchName(name ?? '');
   }
 }
+
+/// A branch, remote branch or tag picked in the quick input (JetBrains'
+/// Compare with Branch…); null where none was.
+Future<IdeGitRef?> ideGitPickRef(
+  IdeGitRepository git, {
+  required ValueChanged<IdeQuickInputModel> show,
+  required AppLocalizations l10n,
+  required String placeholder,
+}) async {
+  final checkout = _GitCheckout(git, show, l10n);
+  final items = checkout._checkoutItems(await git.refs(), detached: false);
+  final choice = await checkout._pick(
+    (onDidAccept, onDidHide) => IdeQuickPick(
+      placeholder: placeholder,
+      sortByLabel: false,
+      items: items,
+      onDidAccept: onDidAccept,
+      onDidHide: onDidHide,
+    ),
+  );
+  return choice is _RefItem ? choice.ref : null;
+}
+
+/// A commit that changed [path] picked in the quick input, the newest
+/// first (JetBrains' Compare with Revision…); null where none was.
+Future<IdeGitCommit?> ideGitPickRevision(
+  IdeGitRepository git,
+  String path, {
+  required ValueChanged<IdeQuickInputModel> show,
+  required AppLocalizations l10n,
+  required String placeholder,
+}) async {
+  final checkout = _GitCheckout(git, show, l10n);
+  final commits = await git.service.fileLog(path, limit: 200);
+  final choice = await checkout._pick(
+    (onDidAccept, onDidHide) => IdeQuickPick(
+      placeholder: placeholder,
+      sortByLabel: false,
+      items: [for (final commit in commits) _CommitItem(commit, l10n)],
+      onDidAccept: onDidAccept,
+      onDidHide: onDidHide,
+    ),
+  );
+  return choice is _CommitItem ? choice.commit : null;
+}
+
+class _CommitItem extends IdeQuickPickItem {
+  _CommitItem(this.commit, AppLocalizations l10n)
+    : super(
+        label: commit.subject,
+        icon: const Icon(Codicons.gitCommit),
+        description:
+            '${commit.shortId}\$(circle-small-filled)'
+            '${ideFromNow(commit.date, ago: true, fullWords: true, l10n: l10n)}',
+        detail: commit.author,
+      );
+
+  final IdeGitCommit commit;
+}

@@ -74,6 +74,7 @@ void main() {
       'Push…',
       'New Branch…',
       'Checkout Tag or Revision…',
+      'Manage Remotes…',
       'Recent',
       'feature',
       'Local Branches',
@@ -103,6 +104,28 @@ void main() {
       '--track',
       'origin/topic',
     ]);
+  });
+
+  testWidgets("Compare with Current lists the branch's commits the current "
+      'one has not, and tells how many each has', (tester) async {
+    git.answers['rev-list'] = const IdeGitOutput(0, '2\t1\n');
+    await open(tester);
+    await tester.enterText(inPopup(find.byType(EditableText)), 'old');
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Compare with “main”'));
+    await tester.pumpAndSettle();
+    expect(
+      git.callsTo('log').last,
+      contains('refs/heads/main..refs/heads/old'),
+    );
+    expect(
+      find.textContaining('“old” has 2 commits “main” has not'),
+      findsOneWidget,
+    );
+    expect(find.text('Show Changed Files'), findsOneWidget);
+    expect(find.text('main..old'), findsOneWidget);
   });
 
   testWidgets('Down and Enter run an action; Escape closes', (tester) async {

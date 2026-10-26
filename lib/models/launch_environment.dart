@@ -120,6 +120,28 @@ String requestedModel(
   return '${model.id}(${effort ?? ''}${useFast ? fastModelSuffix : ''})';
 }
 
+/// What a provider's session lets through an `availableModels` of the
+/// user's own settings, which Claude Code would otherwise swap for one of
+/// Claude's, sent to the provider all the same (#219): [models], those
+/// [env] (its [launchEnvironment]) names for each role, and the names
+/// those stand for (a subagent may ask for `haiku`). An organization's
+/// policy is over it: its list stands.
+List<String> allowedModels(Map<String, String>? env, Iterable<String> models) =>
+    {
+      ...models,
+      for (final name in const [
+        ClaudeModelVariables.model,
+        ClaudeModelVariables.opus,
+        ClaudeModelVariables.sonnet,
+        ClaudeModelVariables.haiku,
+        ClaudeModelVariables.subagent,
+      ])
+        if (env?[name] case final value? when value.isNotEmpty) value,
+      'opus',
+      'sonnet',
+      'haiku',
+    }.toList();
+
 /// The environment variables Claude Code takes its model setup from.
 abstract final class ClaudeModelVariables {
   static const baseUrl = 'ANTHROPIC_BASE_URL';

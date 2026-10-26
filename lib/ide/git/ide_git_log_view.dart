@@ -18,6 +18,7 @@ import 'package:path/path.dart' as p;
 import 'package:bao_editor/monaco/flutter/diff_editor_model.dart'
     show DiffHighlight;
 
+import '../../base/give_way_row.dart';
 import '../../base/smooth_scroll.dart';
 import '../../chat/composer/composer_files.dart';
 import '../../l10n/l10n.dart';
@@ -38,14 +39,18 @@ import '../ide_modern_ui.dart';
 import '../ide_notifications.dart';
 import '../ide_spinning.dart';
 import 'git_branch_actions.dart';
+import 'commit_message.dart';
 import 'git_branch_tree.dart';
 import 'ide_git_branch_popup.dart';
 import 'git_change_editor.dart';
 import 'git_checkout.dart' show ideSanitizeBranchName;
 import 'git_graph_painter.dart';
 import 'git_model.dart';
+import 'git_partial.dart';
 import 'git_repository.dart';
 import 'git_service.dart';
+import 'ide_git_rebase_dialog.dart';
+import 'ide_git_ref_labels.dart';
 import 'ide_scm_view.dart';
 import 'scm_host.dart';
 import 'scm_tree.dart';
@@ -72,6 +77,8 @@ class IdeGitDiffFile {
     this.commitId,
     this.onOpenInEditor,
     this.write,
+    this.checks,
+    this.agent,
   });
 
   final String path;
@@ -90,6 +97,13 @@ class IdeGitDiffFile {
   /// Writes its modified side, the file, once edited in the diff; read
   /// only when null.
   final Future<void> Function(String text)? write;
+
+  /// A check box by each change, to leave it out of a commit; none when
+  /// null.
+  final IdeDiffChecks? checks;
+
+  /// The agent's change in the file, its parts marked.
+  final IdeDiffAgentMarks? agent;
 }
 
 /// The files a diff steps through, [index] the one shown; [focus]: it
@@ -504,12 +518,23 @@ IdeGitDiffFile ideLocalDiffFile(
   VoidCallback? onOpenInEditor,
   Future<void> Function(String path, String text, {String? expectedText})?
   write,
+  IdeGitHunkSelection? hunks,
+  IdeDiffAgentMarks? agent,
 }) {
-  final editor = IdeGitChangeEditor.of(
+  // With check boxes, as a commit of it takes it: HEAD against the file.
+  final partial = hunks != null && ideGitPartialCommittable(resource);
+  final changeEditor = IdeGitChangeEditor.of(
     resource,
     staged: state.group(IdeGitGroup.staged),
     l10n: l10n,
   );
+  final editor = partial
+      ? IdeGitChangeEditor(
+          label: changeEditor.label,
+          left: IdeGitSide(resource.path, 'HEAD'),
+          right: IdeGitSide(resource.path),
+        )
+      : changeEditor;
   Future<String> Function() side(IdeGitSide? side) => switch (side) {
     null => () => Future.value(''),
     IdeGitSide(isFile: true, :final path) => () => read(
@@ -553,6 +578,9 @@ IdeGitDiffFile ideLocalDiffFile(
         }),
       _ => null,
     },
+    checks: partial ? hunks.checksOf(resource.path) : null,
+    // Its parts the agent made, where the file is on the right.
+    agent: right != null && right.isFile ? agent : null,
   );
 }
 
@@ -574,7 +602,23 @@ class IdeGitLogView extends StatefulWidget {
     this.worktrees = const IdeGitWorktreeChoice(),
     this.background,
     this.border,
+    this.ai,
+    this.onAsk,
+    this.onFixup,
   });
+
+  /// Commits the local changes checked into a commit (Fixup); not offered
+  /// when null.
+  final Future<void> Function(IdeGitRepository git, IdeGitCommit commit)?
+  onFixup;
+
+  /// The model that cleans up a branch in an interactive rebase; not
+  /// offered when null.
+  final IdeCommitMessageModel? ai;
+
+  /// Puts a request about commits in the chat's composer (Ask AI); not
+  /// offered when null.
+  final ValueChanged<String>? onAsk;
 
   /// The IDE's workspace, or the chat window's side panel's project.
   final IdeScmHost host;
@@ -808,14 +852,17 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
                     _Sash(
                       vertical: false,
                       color: _border,
-                      onDrag: (delta) => _log.resizeBranchTree(tree + delta),
+                      size: tree,
+                      onResize: _log.resizeBranchTree,
                     ),
                   ],
                   Expanded(child: main),
                   _Sash(
                     vertical: false,
                     color: _border,
-                    onDrag: (delta) => _log.resizeDetails(width: width - delta),
+                    size: width,
+                    after: true,
+                    onResize: (width) => _log.resizeDetails(width: width),
                   ),
                   SizedBox(width: width, child: details),
                 ],
@@ -832,7 +879,9 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
                 _Sash(
                   vertical: true,
                   color: _border,
-                  onDrag: (delta) => _log.resizeDetails(height: height - delta),
+                  size: height,
+                  after: true,
+                  onResize: (height) => _log.resizeDetails(height: height),
                 ),
                 SizedBox(height: height, child: details),
               ],
@@ -1065,7 +1114,11 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
           label: switch (git.graphBranch) {
             null => l10n.scmGraphAllBranches,
             ideGraphCurrentBranch => l10n.scmGraphCurrentBranch,
-            final ref => _refLabel(ref),
+            final graph => switch (ideGraphRangeOf(graph)) {
+              (:final from, :final to) =>
+                '${_refLabel(from)}..${_refLabel(to)}',
+              null => _refLabel(graph),
+            },
           },
           tooltip: l10n.scmGraphBranches,
           active: git.graphBranch != null,
@@ -1156,7 +1209,8 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
       tooltip: l10n.gitLogWorktreeOf(shown?.path ?? git.service.root),
       active: shown != null && !shown.main,
       entries: () => ideMenuGroups([
-        if (select != null)
+        // Where there is no agent to follow (the IDE's), not offered.
+        if (select != null && (choice.agentPath != null || choice.following))
           [
             IdeMenuAction(
               l10n.gitLogFollowAgent,
@@ -1347,11 +1401,24 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
     final local = of(IdeGitRefKind.branch);
     final remote = of(IdeGitRefKind.remote);
     final tags = of(IdeGitRefKind.tag);
+    final range = ideGraphRangeOf(git.graphBranch);
     return ideMenuGroups([
       [
         pick(l10n.scmGraphAllBranches, null),
         pick(l10n.scmGraphCurrentBranch, ideGraphCurrentBranch),
       ],
+      // A comparison's two ways.
+      if (range case (:final from, :final to))
+        [
+          pick(
+            l10n.scmGraphRangeIn(_refLabel(to), _refLabel(from)),
+            ideGraphRange(from, to),
+          ),
+          pick(
+            l10n.scmGraphRangeIn(_refLabel(from), _refLabel(to)),
+            ideGraphRange(to, from),
+          ),
+        ],
       [
         if (local.isNotEmpty)
           IdeMenuAction(l10n.gitLogLocalBranches, submenu: local),
@@ -1696,6 +1763,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
         border: _border,
         onStep: _log.stepDiff,
         onShow: _log.showDiffAt,
+        onAsk: widget.onAsk,
         onClose: () {
           final focused = diff.focus;
           _log.closeDiff();
@@ -1960,40 +2028,34 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
               ),
             ),
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) => Row(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GiveWayRow(
                   children: [
-                    Flexible(
-                      child: Text.rich(
-                        TextSpan(
-                          children: _highlighted(
-                            _subjectOf(commit),
-                            synthetic ? const [] : git.graphFilter.terms,
+                    GiveWay.fill(
+                      _commitHover(
+                        row,
+                        synthetic: synthetic,
+                        child: Text.rich(
+                          TextSpan(
+                            children: _highlighted(
+                              _subjectOf(commit),
+                              synthetic ? const [] : git.graphFilter.terms,
+                            ),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: foreground,
+                            fontWeight: weight,
+                            fontStyle: synthetic ? FontStyle.italic : null,
                           ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: foreground,
-                          fontWeight: weight,
-                          fontStyle: synthetic ? FontStyle.italic : null,
-                        ),
                       ),
+                      minWidth: 60,
                     ),
-                    if (commit.references.isNotEmpty) ...[
-                      const SizedBox(width: 6),
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: constraints.maxWidth * .5,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: _badges(row),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(width: 8),
+                    ..._labels(row, foreground),
                   ],
                 ),
               ),
@@ -2100,19 +2162,57 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
     return _formatDate(date);
   }
 
-  /// The references' badges: the colored ones first.
-  List<Widget> _badges(IdeGraphRow row) {
-    String? color(IdeGitRef ref) => row.referenceColors[ref.id];
-    final refs = [
-      ...row.commit.references.where((ref) => color(ref) != null),
-      ...row.commit.references.where((ref) => color(ref) == null),
-    ];
+  /// Over a commit's subject, the whole of it: its author and date, its
+  /// message and references, its hash.
+  Widget _commitHover(
+    IdeGraphRow row, {
+    required bool synthetic,
+    required Widget child,
+  }) => synthetic
+      ? child
+      : IdeHover(
+          content: IdeCommitHover(
+            row.commit,
+            referenceColors: row.referenceColors,
+            labels: true,
+          ),
+          compact: false,
+          child: child,
+        );
+
+  /// The references' labels at the row's end, as JetBrains IDEs align
+  /// them, the subject cut short before them: short of room the tags give
+  /// way first, to their icons alone, then gone; then the remote branches;
+  /// the branches last.
+  List<GiveWay> _labels(IdeGraphRow row, Color foreground) {
+    final labels = ideGitRefLabels(row.commit.references);
     return [
-      for (final (index, ref) in refs.indexed) ...[
-        if (index > 0) const SizedBox(width: 4),
-        Flexible(child: IdeGitRefBadge(ref, color(ref))),
-        ..._worktreeMarks(ref),
-      ],
+      for (final (index, label) in labels.indexed)
+        GiveWay(
+          Padding(
+            padding: EdgeInsets.only(left: index == 0 ? 12 : 10),
+            child: IdeGitRefLabelView(
+              label,
+              foreground: foreground,
+              trailing: [
+                for (final ref in [label.ref, ...label.remotes])
+                  ..._worktreeMarks(ref),
+              ],
+            ),
+          ),
+          compact: Padding(
+            padding: EdgeInsets.only(left: index == 0 ? 12 : 4),
+            child: IdeGitRefLabelView(label, compact: true),
+          ),
+          priority:
+              switch (label.ref.kind) {
+                IdeGitRefKind.head => 3000,
+                IdeGitRefKind.branch => 2000,
+                IdeGitRefKind.remote => 1000,
+                IdeGitRefKind.tag => 0,
+              } -
+              index,
+        ),
     ];
   }
 
@@ -2208,6 +2308,15 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
           ),
         ],
         [
+          if (widget.onAsk case final ask?)
+            IdeMenuAction(
+              l10n.gitAskAiCommit,
+              onSelected: () => ask(
+                l10n.gitAskAiCommitPrompt(commit.shortId, commit.subject),
+              ),
+            ),
+        ],
+        [
           if (!isHead && !inBranch)
             IdeMenuAction(
               l10n.gitLogCherryPick,
@@ -2257,10 +2366,30 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
               l10n.gitLogEditMessage,
               onSelected: () => _log.editingMessage = commit.id,
             ),
+          if ((isHead || inBranch) &&
+              commit.parentIds.length == 1 &&
+              widget.onFixup != null)
+            IdeMenuAction(
+              l10n.gitLogFixup,
+              onSelected: () => unawaited(widget.onFixup!(git, commit)),
+            ),
           if (inBranch && commit.parentIds.length == 1)
             IdeMenuAction(
               l10n.gitLogDropCommit,
               onSelected: () => unawaited(_drop(git, commit)),
+            ),
+          if ((isHead || inBranch) && commit.parentIds.length <= 1)
+            IdeMenuAction(
+              l10n.gitLogInteractiveRebase,
+              onSelected: () => unawaited(
+                showIdeGitRebaseDialog(
+                  context,
+                  git: git,
+                  from: commit,
+                  notifications: widget.notifications,
+                  ai: widget.ai,
+                ),
+              ),
             ),
         ],
         [
@@ -2323,6 +2452,15 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
               ),
             ),
           ),
+          if (widget.onAsk case final ask?)
+            IdeMenuAction(
+              l10n.gitAskAiCommits(commits.length),
+              onSelected: () => ask(
+                l10n.gitAskAiCommitsPrompt(
+                  oldestFirst.map((c) => c.shortId).join(', '),
+                ),
+              ),
+            ),
         ],
         [
           if (elsewhere == commits.length)
@@ -2879,11 +3017,13 @@ class _CommitDetails extends StatelessWidget {
                     if (commit.references.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Wrap(
-                        spacing: 4,
+                        spacing: 12,
                         runSpacing: 4,
                         children: [
-                          for (final ref in commit.references)
-                            IdeGitRefBadge(ref, row.referenceColors[ref.id]),
+                          for (final label in ideGitRefLabels(
+                            commit.references,
+                          ))
+                            IdeGitRefLabelView(label),
                         ],
                       ),
                     ],
@@ -3005,11 +3145,11 @@ class _CommitDetails extends StatelessWidget {
         );
       }
       return Wrap(
-        spacing: 4,
+        spacing: 12,
         runSpacing: 4,
         children: [
-          for (final branch in data)
-            IdeGitRefBadge(
+          for (final label in ideGitRefLabels([
+            for (final branch in data)
               IdeGitRef(
                 branch,
                 branch,
@@ -3017,8 +3157,8 @@ class _CommitDetails extends StatelessWidget {
                     ? IdeGitRefKind.remote
                     : IdeGitRefKind.branch,
               ),
-              null,
-            ),
+          ]))
+            IdeGitRefLabelView(label),
         ],
       );
     },
@@ -3285,11 +3425,16 @@ class _DiffArea extends StatefulWidget {
     required this.onStep,
     required this.onShow,
     required this.onClose,
+    this.onAsk,
   });
 
   final IdeGitLogDiff diff;
   final String root;
   final p.Context paths;
+
+  /// Asks the AI in the chat, a change of the file shown (see
+  /// [IdeGitLogView.onAsk]).
+  final ValueChanged<String>? onAsk;
   final Color border;
   final void Function(int delta, {IdeDiffStart start}) onStep;
   final ValueChanged<int> onShow;
@@ -3383,6 +3528,12 @@ class _DiffAreaState extends State<_DiffArea> {
       checked: options.layout == value,
       onSelected: () => options.layout = value,
     );
+    IdeMenuAction whitespace(String label, IdeDiffWhitespace value) =>
+        IdeMenuAction(
+          label,
+          checked: options.whitespace == value,
+          onSelected: () => options.whitespace = value,
+        );
     IdeMenuAction highlight(String label, DiffHighlight value) => IdeMenuAction(
       label,
       checked: options.highlight == value,
@@ -3395,11 +3546,16 @@ class _DiffAreaState extends State<_DiffArea> {
         layout(l10n.diffUnified, IdeDiffLayout.unified),
       ],
       [
+        whitespace(l10n.diffWhitespaceNone, IdeDiffWhitespace.none),
+        whitespace(l10n.diffIgnoreWhitespace, IdeDiffWhitespace.trim),
+        whitespace(l10n.diffIgnoreAllWhitespace, IdeDiffWhitespace.all),
+      ],
+      [
         IdeMenuAction(
-          l10n.diffIgnoreWhitespace,
-          checked: options.ignoreTrimWhitespace,
+          l10n.diffCollapseUnchanged,
+          checked: options.collapseUnchanged,
           onSelected: () =>
-              options.ignoreTrimWhitespace = !options.ignoreTrimWhitespace,
+              options.collapseUnchanged = !options.collapseUnchanged,
         ),
       ],
       [
@@ -3609,6 +3765,16 @@ class _DiffAreaState extends State<_DiffArea> {
               start: diff.start,
               code: _code,
               position: _position,
+              onAsk: switch (widget.onAsk) {
+                final ask? => (change, line) => ask(
+                  context.l10n.gitAskAiHunkPrompt(
+                    widget.paths.relative(file.path, from: widget.root),
+                    line,
+                    change,
+                  ),
+                ),
+                null => null,
+              },
             ),
           ),
         ],
@@ -3625,9 +3791,11 @@ class _DiffBody extends StatefulWidget {
     required this.start,
     required this.code,
     required this.position,
+    this.onAsk,
   });
 
   final IdeGitDiffFile file;
+  final void Function(String change, int line)? onAsk;
   final IdeDiffStart start;
   final GlobalKey<IdeCodeDiffState> code;
   final ValueNotifier<({int current, int count})> position;
@@ -3662,6 +3830,9 @@ class _DiffBodyState extends State<_DiffBody> {
         start: widget.start,
         onEdit: widget.file.write,
         position: widget.position,
+        checks: widget.file.checks,
+        agent: widget.file.agent,
+        onAsk: widget.onAsk,
       );
     },
   );
@@ -4166,53 +4337,113 @@ class _LoadMoreState extends State<_LoadMore> {
 }
 
 /// The line between the table and the details, dragged to size them:
-/// across ([vertical]) where they are one under the other.
+/// across ([vertical]) where they are one under the other. What it sizes
+/// goes by how far the pointer is from where the drag began, so that the
+/// line stays under it, back from past where the size stops too; while
+/// dragged, the cursor is its own over the whole window (VS Code's drag
+/// shield).
 class _Sash extends StatefulWidget {
   const _Sash({
     required this.vertical,
     required this.color,
-    required this.onDrag,
+    required this.size,
+    required this.onResize,
+    this.after = false,
   });
 
   final bool vertical;
   final Color color;
 
-  /// How far it moved, to the right or down, since it was last told.
-  final ValueChanged<double> onDrag;
+  /// The size of what it sizes, now: the part before it, or ([after]) the
+  /// one after it.
+  final double size;
+  final bool after;
+
+  /// What it sizes, sized anew.
+  final ValueChanged<double> onResize;
 
   @override
   State<_Sash> createState() => _SashState();
 }
 
 class _SashState extends State<_Sash> {
-  bool _active = false;
+  bool _hover = false;
+  bool _dragging = false;
+
+  /// Where the drag began, and the size then.
+  double _start = 0;
+  double _startSize = 0;
+
+  OverlayEntry? _shield;
+
+  MouseCursor get _cursor => widget.vertical
+      ? SystemMouseCursors.resizeRow
+      : SystemMouseCursors.resizeColumn;
+
+  double _along(Offset position) => widget.vertical ? position.dy : position.dx;
+
+  void _begin(DragStartDetails details) {
+    _start = _along(details.globalPosition);
+    _startSize = widget.size;
+    setState(() => _dragging = true);
+    if (Overlay.maybeOf(context) case final overlay?) {
+      _shield = OverlayEntry(
+        builder: (context) => MouseRegion(cursor: _cursor, opaque: true),
+      );
+      overlay.insert(_shield!);
+    }
+  }
+
+  void _update(DragUpdateDetails details) {
+    final moved = _along(details.globalPosition) - _start;
+    widget.onResize(_startSize + (widget.after ? -moved : moved));
+  }
+
+  void _end() {
+    _removeShield();
+    if (mounted) setState(() => _dragging = false);
+  }
+
+  void _removeShield() {
+    _shield
+      ?..remove()
+      ..dispose();
+    _shield = null;
+  }
+
+  @override
+  void dispose() {
+    _removeShield();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final vertical = widget.vertical;
+    final active = _hover || _dragging;
     return MouseRegion(
-      cursor: vertical
-          ? SystemMouseCursors.resizeRow
-          : SystemMouseCursors.resizeColumn,
-      onEnter: (_) => setState(() => _active = true),
-      onExit: (_) => setState(() => _active = false),
+      cursor: _cursor,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         dragStartBehavior: DragStartBehavior.down,
-        onVerticalDragUpdate: vertical
-            ? (details) => widget.onDrag(details.delta.dy)
-            : null,
-        onHorizontalDragUpdate: vertical
-            ? null
-            : (details) => widget.onDrag(details.delta.dx),
+        onVerticalDragStart: vertical ? _begin : null,
+        onVerticalDragUpdate: vertical ? _update : null,
+        onVerticalDragEnd: vertical ? (_) => _end() : null,
+        onVerticalDragCancel: vertical ? _end : null,
+        onHorizontalDragStart: vertical ? null : _begin,
+        onHorizontalDragUpdate: vertical ? null : _update,
+        onHorizontalDragEnd: vertical ? null : (_) => _end(),
+        onHorizontalDragCancel: vertical ? null : _end,
         child: SizedBox(
           width: vertical ? null : 5,
           height: vertical ? 5 : null,
           child: Center(
             child: Container(
-              width: vertical ? null : (_active ? 3 : 1),
-              height: vertical ? (_active ? 3 : 1) : null,
-              color: _active ? IdeModernUI.sashHover : widget.color,
+              width: vertical ? null : (active ? 3 : 1),
+              height: vertical ? (active ? 3 : 1) : null,
+              color: active ? IdeModernUI.sashHover : widget.color,
             ),
           ),
         ),

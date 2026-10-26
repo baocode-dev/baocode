@@ -126,6 +126,12 @@ void main() {
     expect(options, containsAll(['gpt-5', 'gpt-5(high)', 'plain(low)']));
     expect(options, isNot(contains('plain(medium)')));
     expect(options.where((model) => '$model'.startsWith('off')), isEmpty);
+    // Let through an allowlist of the user's own settings, which would
+    // swap them for one of Claude's (#219).
+    expect(
+      launch.settings['availableModels'],
+      containsAll([...options, 'haiku']),
+    );
     kernel.dispose();
   });
 

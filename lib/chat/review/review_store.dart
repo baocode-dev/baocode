@@ -20,6 +20,11 @@ Future<ReviewStore?> openReviewStore(String root) async {
   return platform.openReviewStore(root);
 }
 
+/// [root] with its links resolved, where that is another path; null where
+/// it is not (or is a remote project's).
+Future<String?> realRootOf(String root) async =>
+    RemoteLocation.isRemote(root) ? null : platform.realPathOf(root);
+
 /// Whether [openReviewStore] may give one: not on the web, nor under test.
 bool get reviewSupported => platform.reviewSupported;
 

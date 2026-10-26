@@ -9,6 +9,7 @@ import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
 import '../../l10n/l10n.dart';
 import '../../remote/remote_files.dart' show defaultRemoteConfigHosts;
+import '../../remote/remote_location.dart';
 import '../../remote/remote_status.dart' show sshErrorText;
 import '../../remote/ssh_host.dart';
 import '../../remote/ssh_passwords.dart';
@@ -111,14 +112,14 @@ class _SshSettingsPageState extends State<SshSettingsPage> {
     return ListenableBuilder(
       listenable: Listenable.merge([workspace, SshHosts.instance]),
       builder: (context, _) {
-        // Those the app's form edits: not ~/.ssh/config's.
+        // Those the app's form edits: not ~/.ssh/config's, nor WSL's.
         final servers = [
           for (final host in {
             ...workspace.sshServers.keys,
             ...workspace.sshHosts,
           })
             if (workspace.sshServers.containsKey(host) ||
-                !_config.contains(host))
+                !_config.contains(host) && !RemoteLocation.isWsl(host))
               host,
         ];
         final configFile = _configFile;

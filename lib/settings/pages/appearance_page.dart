@@ -12,6 +12,7 @@ import '../../chat/reply_scroll.dart';
 import '../../chat/user_message_style.dart';
 import '../../chat/widgets/chat_minimap.dart';
 import '../../chat/widgets/pixel_loader.dart';
+import '../../ide/editor_word_wrap.dart';
 import '../../ide/ide_code_editor.dart';
 import '../../ide/ide_color_theme_picker.dart';
 import '../../ide/ide_quick_input.dart' show ideLocaleCompare;
@@ -34,7 +35,8 @@ import 'settings_widgets.dart';
 /// (`chat.maxWidth`, see [ChatWidth]); what an agent and a subagent show
 /// running (see [PixelLoaderRole]); whether the sidebar's agents show
 /// their times ([SidebarTimes]); then the code's font, size and
-/// ligatures, the window's text size and the terminal's (see [CodeFont]). A
+/// ligatures, whether the editors wrap long lines ([EditorWordWrap]), the
+/// window's text size and the terminal's (see [CodeFont]). A
 /// choice is applied and kept at once.
 class AppearanceSettingsPage extends StatelessWidget {
   const AppearanceSettingsPage({
@@ -368,6 +370,7 @@ class AppearanceSettingsPage extends StatelessWidget {
         CodeFont.ligatures,
         CodeFont.uiScale,
         CodeFont.terminalSize,
+        EditorWordWrap.on,
       ]),
       builder: (context, _) {
         final widthStep = ChatWidth.stepOf(ChatWidth.current.value);
@@ -623,6 +626,12 @@ class AppearanceSettingsPage extends StatelessWidget {
                   description: l10n.appearanceSettingsLigaturesDescription,
                   value: CodeFont.ligatures.value,
                   onChanged: _selectLigatures,
+                ),
+                SettingsSwitchRow(
+                  label: l10n.appearanceSettingsWordWrap,
+                  description: l10n.appearanceSettingsWordWrapDescription,
+                  value: EditorWordWrap.on.value,
+                  onChanged: EditorWordWrap.set,
                 ),
                 SettingsRow(
                   label: l10n.appearanceSettingsUiScale,

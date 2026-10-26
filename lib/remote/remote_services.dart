@@ -169,8 +169,20 @@ class RemoteIdeFileService implements IdeHostFiles, IdeRangeFiles {
 IdeGitService remoteGitService(SshHost host, String root) => IdeGitService(
   root,
   pathContext: host.paths,
-  runner: (arguments, {required workingDirectory, limit}) async =>
-      (await host.ready).git(arguments, cwd: workingDirectory, limit: limit),
+  runner:
+      (
+        arguments, {
+        required workingDirectory,
+        limit,
+        stdin,
+        environment,
+      }) async => (await host.ready).git(
+        arguments,
+        cwd: workingDirectory,
+        limit: limit,
+        stdin: stdin,
+        environment: environment,
+      ),
   watcher: (repository) => resilientStream(
     host,
     (client) => client.watchRepository(repository),

@@ -176,6 +176,26 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
     return worktree == null || worktree.main ? null : worktree;
   }
 
+  /// The workspace's folders worked on in another worktree of theirs.
+  Iterable<IdeGitRepository> get _inWorktrees =>
+      _gits.where((git) => git.state != null && _worktreeOf(git) != null);
+
+  /// The workspace's name, and the branch and worktree of each folder
+  /// worked on in another worktree: where the agent works.
+  String get _workspaceLabel => [
+    widget.name,
+    for (final git in _inWorktrees) _branchLabel(git, git.state!),
+  ].join(' · ');
+
+  IconData get _workspaceIcon =>
+      _inWorktrees.isEmpty ? Codicons.folderLibrary : Codicons.worktree;
+
+  String? get _workspaceTooltip =>
+      switch ([for (final git in _inWorktrees) ?_worktreeTooltip(git)]) {
+        [] => null,
+        final lines => lines.join('\n'),
+      };
+
   /// Which worktree [git] is, where it is not its repository's own.
   String? _worktreeTooltip(IdeGitRepository git) => switch (_worktreeOf(git)) {
     final worktree? => context.l10n.branchBarWorktree(
@@ -345,9 +365,11 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
     if (widget.workspace) {
       if (running || widget.repositories.isEmpty) {
         return _Label(
-          icon: Codicons.folderLibrary,
-          label: widget.name,
-          tooltip: running ? l10n.branchBarRunning : null,
+          icon: _workspaceIcon,
+          label: _workspaceLabel,
+          tooltip: running
+              ? [l10n.branchBarRunning, ?_workspaceTooltip].join('\n\n')
+              : _workspaceTooltip,
         );
       }
       return _buildWorkspacePicker(context);
@@ -426,11 +448,12 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
             },
           ),
       ],
-      selected: KernelOption('', widget.name, Codicons.folderLibrary, ''),
+      selected: KernelOption('', widget.name, _workspaceIcon, ''),
+      label: _workspaceLabel,
       // A line each, its branch at its end.
       descriptionAside: true,
       title: l10n.branchBarWorkspace,
-      tooltip: l10n.branchBarWorkspace,
+      tooltip: _workspaceTooltip ?? l10n.branchBarWorkspace,
       menuWidth: 290,
       submenuOf: (option) => switch (gits[option.id]) {
         final git? when git.isRepository => [

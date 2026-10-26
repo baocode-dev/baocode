@@ -190,6 +190,12 @@ class BaoWindow: NSWindow {
       // Floating: above other apps' windows, as a pinned window should be.
       level = (call.arguments as? Bool ?? false) ? .floating : .normal
       result(nil)
+    case "toggleFullScreen":
+      // As the View menu's Enter Full Screen (⌃⌘F): answered with whether
+      // it is going to be, the system animating the change after.
+      let entering = !styleMask.contains(.fullScreen)
+      toggleFullScreen(nil)
+      result(entering)
     case "windowRoom":
       // How much wider and taller the window can get on its screen (see
       // growWindow): none in full screen.

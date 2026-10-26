@@ -13,11 +13,17 @@ import 'heuristics.dart';
 class LinesDiffComputerOptions {
   const LinesDiffComputerOptions({
     this.ignoreTrimWhitespace = false,
+    this.ignoreAllWhitespace = false,
     this.maxComputationTimeMs = 0,
     this.computeMoves = false,
     this.extendToSubwords = false,
   });
   final bool ignoreTrimWhitespace;
+
+  /// Not upstream's: whitespace anywhere ignored, as JetBrains IDEs' Ignore
+  /// Whitespaces does; lines equal but for it are not changed, and a change
+  /// that is only that is no change.
+  final bool ignoreAllWhitespace;
 
   /// Zero disables the timeout, as in VS Code.
   final int maxComputationTimeMs;
@@ -85,10 +91,13 @@ class DefaultLinesDiffComputer {
       );
     }
     final timeout = DiffTimeout(options.maxComputationTimeMs);
-    final considerWhitespace = !options.ignoreTrimWhitespace;
+    final ignoreAll = options.ignoreAllWhitespace;
+    final considerWhitespace = !options.ignoreTrimWhitespace && !ignoreAll;
     final hashes = <String, int>{};
-    int hash(String line) =>
-        hashes.putIfAbsent(line.trim(), () => hashes.length);
+    int hash(String line) => hashes.putIfAbsent(
+      ignoreAll ? _withoutWhitespace(line) : line.trim(),
+      () => hashes.length,
+    );
     final originalHashes = originalLines.map(hash).toList();
     final modifiedHashes = modifiedLines.map(hash).toList();
     final first = LineSequence(originalHashes, originalLines);
@@ -152,6 +161,13 @@ class DefaultLinesDiffComputer {
       hitTimeout |= refined.hitTimeout;
     }
     scanEqualLines(originalLines.length - previousOriginal);
+    if (ignoreAll) {
+      alignments.removeWhere(
+        (alignment) =>
+            _withoutWhitespace(_text(originalLines, alignment.originalRange)) ==
+            _withoutWhitespace(_text(modifiedLines, alignment.modifiedRange)),
+      );
+    }
     final changes = lineRangeMappingFromRangeMappings(
       alignments,
       originalLines,
@@ -318,6 +334,30 @@ class DefaultLinesDiffComputer {
     }
     return moves;
   }
+}
+
+final RegExp _whitespace = RegExp(r'\s+');
+
+String _withoutWhitespace(String text) => text.replaceAll(_whitespace, '');
+
+/// The text of [lines] in [range].
+String _text(List<String> lines, Range range) {
+  if (range.startLineNumber == range.endLineNumber) {
+    return lines[range.startLineNumber - 1].substring(
+      range.startColumn - 1,
+      range.endColumn - 1,
+    );
+  }
+  return [
+    lines[range.startLineNumber - 1].substring(range.startColumn - 1),
+    for (
+      var line = range.startLineNumber + 1;
+      line < range.endLineNumber;
+      line++
+    )
+      lines[line - 1],
+    lines[range.endLineNumber - 1].substring(0, range.endColumn - 1),
+  ].join('\n');
 }
 
 bool _equalLines(List<String> first, List<String> second) {

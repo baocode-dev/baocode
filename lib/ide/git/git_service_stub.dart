@@ -4,6 +4,8 @@ Future<IdeGitOutput> runGit(
   List<String> arguments, {
   required String workingDirectory,
   int? limit,
+  String? stdin,
+  Map<String, String>? environment,
 }) async => throw const IdeGitException(
   'Git is unavailable in the browser. Open this project in the desktop app.',
 );

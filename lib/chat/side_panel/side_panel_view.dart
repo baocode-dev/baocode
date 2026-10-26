@@ -899,6 +899,7 @@ class AgentSidePanelView extends StatelessWidget {
           onOpen: (id) => panel.openTerminal(session, id),
           onKill: kill,
           onStopTask: stop,
+          onClearTasks: session.clearTasks,
           border: false,
         ),
       ),

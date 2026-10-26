@@ -344,6 +344,10 @@ ViewWindow::MessageHandler(HWND hwnd, UINT const message,
       pressed_button_ = part;
       return 0;
     }
+    if (part == HTCAPTION && IsFullScreen()) {
+      // Full screen, the window stays where it is.
+      return 0;
+    }
     if (part == HTCAPTION) {
       // A double click on the strip is the system's own shortcut for
       // maximizing, and its other way round again.
@@ -360,7 +364,10 @@ ViewWindow::MessageHandler(HWND hwnd, UINT const message,
     const std::optional<LRESULT> pressed = pressed_button_;
     pressed_button_ = std::nullopt;
     if (IsButton(part)) {
-      if (pressed == part) {
+      if (pressed == part && part == HTMAXBUTTON && IsFullScreen()) {
+        // Out of full screen, as the window was before.
+        SetFullScreen(false);
+      } else if (pressed == part) {
         if (const std::optional<WPARAM> command =
                 CommandForButton(hwnd, part)) {
           ::SendMessageW(hwnd, WM_SYSCOMMAND, *command, lparam);

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:bao_remote/local.dart';
+import 'package:path/path.dart' as p;
 
 import '../../platform/data_dir.dart';
 
@@ -28,4 +29,15 @@ Future<int> checkpointsSize() async {
 Future<void> clearCheckpoints() async {
   if (!reviewSupported) return;
   await GitReviewStore.clear(DataDirectory.current.checkpointsDir);
+}
+
+/// [path] with its links resolved, where that is another path (macOS's
+/// `/tmp`, a folder opened through a link); null where it is not.
+Future<String?> realPathOf(String path) async {
+  try {
+    final real = await Directory(path).resolveSymbolicLinks();
+    return p.equals(real, path) ? null : real;
+  } on FileSystemException {
+    return null;
+  }
 }

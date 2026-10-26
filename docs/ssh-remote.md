@@ -4,6 +4,7 @@
 
 - 远端要求：Linux x64 / arm64（glibc），或 macOS（Apple silicon / Intel，要在“系统设置 → 通用 → 共享”里打开“远程登录”）；能用密钥、ssh-agent 或密码登录
 - 本机要求：系统自带的 OpenSSH 客户端（`ssh`）
+- Windows 上也能打开 WSL 发行版里的项目（`wsl.exe`，不用 ssh），见 4 节“WSL 发行版”
 - 代码：应用侧 `lib/remote/`，服务端和协议 `packages/bao_remote/`，构建工具 `tool/build_remote_server.dart`
 - 测试：`test/remote/`
 
@@ -199,7 +200,7 @@ ssh 参数固定为：
 - `-e none`：二进制数据里不处理转义字符。
 - 其他配置（用户名、端口、跳板机 `ProxyJump`、身份文件……）都来自用户自己的 `~/.ssh/config`。
 
-失败分类见 `SshFailure`：`noSsh`、`authentication`、`hostKey`、`hostKeyChanged`、`unreachable`、`unsupported`、`server`。应用里显示的是 `sshErrorText` 按分类给的本地化说明，ssh 的原话放在详情里。
+失败分类见 `SshFailure`：`noSsh`、`authentication`、`hostKey`、`hostKeyChanged`、`unreachable`、`unsupported`、`server`、`wsl`。应用里显示的是 `sshErrorText` 按分类给的本地化说明，ssh 的原话放在详情里。
 
 ### 在应用里保存的服务器
 
@@ -208,6 +209,16 @@ ssh 参数固定为：
 - 保存的设置（`SshServer`）按主机名存在 `Workspace.sshServers`（状态文件 `sidebar.sshServers`）。新增时主机名就是 `user@host[:port]`；编辑后主机名不变（远程项目的位置 `ssh://<主机名>/…` 不受影响），连接用表单里的新地址。
 - 连接已保存的服务器时，`SshHosts` 把所有已保存的服务器写成一份 ssh 配置（数据目录 `state/ssh_config`，`sshServersConfig`），每台一个 `Host baocode-…`，末尾 `Include` 用户的 `~/.ssh/config` 和系统的配置，然后用 `-F` 连这个别名。跳板机写成 `ProxyCommand`，用同一个 ssh 和同一份配置连跳板机的别名（`ProxyJump` 会去 PATH 里找 ssh，而且 `-F` 的路径不加引号，带空格就坏）；跳板机绕回自己的不写。
 - 表单里的密码存在钥匙串 `ssh-server:<主机名>:password`。ssh 问密码时，按提示里的 `user@host` 认出是目标还是跳板机，取对应的密码（`SshHosts._savedPasswordId`）；被拒就删掉，弹窗重问。
+
+### WSL 发行版
+
+Windows 上，WSL 发行版也当成一台主机，主机名 `wsl+<发行版>`（和 VS Code 的写法一样，如 `wsl+Ubuntu-24.04`），项目位置是 `ssh://wsl+Ubuntu-24.04/home/me/app`。远程那一整套（服务端、文件、Git、终端、LSP、Claude Code、断线重连）原样复用，只是把 ssh 换成 wsl.exe：
+
+- 主机选择框最后一组“WSL”列出 `wsl --list --quiet` 的发行版（`wslHosts`，5 秒没回就当没有；输出是 UTF-16 还是 UTF-8 都认；Docker Desktop 自己的不列）。显示发行版名、Linux 图标；连上后和别的主机一样记进侧栏。状态栏、窗口标题、提示里写 `WSL: <发行版>`。设置里的 SSH 服务器列表不列它们，也没有编辑按钮。
+- 每条命令是 `wsl.exe --distribution <发行版> --exec sh -c 'cd && <命令>'`（`SshLauncher.wslArguments`）：`cd` 回家目录，因为 wsl.exe 默认停在应用当前所在的 Windows 目录；环境变量 `WSL_UTF8=1` 让 wsl.exe 自己的报错是 UTF-8。没有密码、主机密钥、`ssh -G`、ssh 配置这些步骤（`SshHosts` 给 WSL 单独一个不找 ssh 的 launcher）。
+- wsl.exe 自己失败（没装 WSL、没有这个发行版、起不来）退出码是 -1，归为 `SshFailure.wsl`，提示“WSL 无法启动这个发行版…”；起不来 wsl.exe 本身也是这个分类。
+- 杀掉 wsl.exe（相当于断线）后，服务端的会话还在，按普通主机的方式重连回同一个会话。
+- 真机验证：`packages/bao_remote/tool/wsl_e2e.dart <发行版> <baocode-server-linux-x64>`，在装了 WSL 的 Windows 上跑：列出发行版、不存在的发行版报 `wsl`、装服务端、文件、Git、终端、杀掉 wsl.exe 后重连、关闭。
 
 ---
 
@@ -434,7 +445,7 @@ dart run tool/build_remote_server.dart --all        # 四份没编全就失败�
 | 文件 | 覆盖内容 |
 | --- | --- |
 | `test/remote/rpc_peer_test.dart` | JSON-RPC 收发、异常按类型还原、断线时未完成的请求失败、协议版本不一致 |
-| `test/remote/ssh_launcher_test.dart` | ssh 参数、探测、只上传一次、失败分类、Mac 主机拿到 macOS 版、不支持的系统、主机地址解析、`~/.ssh/config` 读取（用假的 ssh 进程） |
+| `test/remote/ssh_launcher_test.dart` | ssh 参数、探测、只上传一次、失败分类、Mac 主机拿到 macOS 版、不支持的系统、主机地址解析、`~/.ssh/config` 读取（用假的 ssh 进程）；WSL：用假的 wsl.exe 走完整连接、没有 WSL 时的失败、`wsl --list` 输出解析 |
 | `test/remote/remote_server_test.dart` | 服务端各方法（内存中直连） |
 | `test/remote/remote_lsp_test.dart` | 远端 LSP 进程、mason 安装 |
 | `test/remote/remote_project_test.dart` | 应用侧端到端：location、连接状态和重连、文件监听跨重连、Git、终端、LSP 跨重连、Claude 密钥处理、端口转发、会话、打开流程 |
@@ -468,6 +479,7 @@ flutter analyze
 | 主机密钥未知（hostKey） | 用户的 ssh 配置写了 `StrictHostKeyChecking yes` | 先在终端里 `ssh <主机>` 一次，接受密钥 |
 | 主机密钥变了（hostKeyChanged） | 服务器重装过，或有人在中间 | 确认是重装过的话，失败页点“移除旧指纹并重新连接” |
 | 不支持的系统（unsupported） | 远端不是 Linux 或 macOS 的 x64/arm64 | 不支持 |
+| WSL 无法启动这个发行版（wsl） | 没装 WSL、发行版被删或改名、WSL 自己起不来 | 在终端里 `wsl --list` 看发行版名，`wsl -d <发行版>` 看它自己的报错 |
 | This build of the app has no server for macOS x64 | 应用是在 Linux / Windows 上、或没给 `--macos-x64-dart` 时打包的，没有这个平台的服务端 | 用 CI 发布的版本，或按 9.1 在 Mac 上补编 |
 | Mac 主机：Connection refused / 连不上 | 没打开“远程登录” | 系统设置 → 通用 → 共享 → 远程登录 |
 | This build of the app has no remote server | 应用里没带服务端，也不是从源码目录运行 | 执行 `dart run tool/build_remote_server.dart`，或设置 `BAOCODE_REMOTE_SERVER_DIR` |

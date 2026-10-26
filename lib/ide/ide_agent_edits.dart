@@ -151,6 +151,11 @@ class IdeAgentEdits extends ChangeNotifier {
     return null;
   }
 
+  /// The agents' changes still pending, each with its turn and what that
+  /// turn was asked (see [ChatSession.turnEdits]).
+  Iterable<({String turn, String request, String path})> get turnEdits =>
+      _sessions.expand((session) => session.turnEdits);
+
   final Map<String, IdeAgentHunks> _hunks = {};
 
   /// Where the editor of the file at [path] is among its change's parts:

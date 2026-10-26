@@ -141,11 +141,7 @@ class ChangeReviews extends ChangeNotifier {
   ChangeReview _partOf(String path) {
     final absolute = _absolute(path);
     for (final part in _parts) {
-      final paths = part.paths;
-      if (paths.equals(part.root, absolute) ||
-          paths.isWithin(part.root, absolute)) {
-        return part;
-      }
+      if (part.holds(absolute)) return part;
     }
     return _parts.first;
   }

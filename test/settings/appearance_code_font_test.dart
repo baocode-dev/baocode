@@ -31,7 +31,7 @@ void main() {
   });
 
   Future<_RecordingSettings> pumpPage(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(900, 2000);
+    tester.view.physicalSize = const Size(900, 2200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final settings = _RecordingSettings();

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
@@ -143,6 +144,11 @@ class AgentSidePanel extends ChangeNotifier {
     if (state?['listShown'] case final bool shown) _listShown = shown;
     if (state?['changesAsTree'] case final bool tree) _changesAsTree = tree;
     if (state?['atLeft'] case final bool left) _atLeft = left;
+    if (state?['searches'] case final Map<Object?, Object?> searches) {
+      for (final MapEntry(:key, :value) in searches.entries) {
+        if (value is Map) _keptSearches['$key'] = value.cast<String, Object?>();
+      }
+    }
   }
 
   /// Told when what [toJson] gives changed, to keep it.
@@ -265,7 +271,28 @@ class AgentSidePanel extends ChangeNotifier {
   /// The search of the project in [root], run by [engine]; made once per
   /// project (its results then still there on coming back).
   IdeSearchSession searchOf(String root, IdeTextSearch engine) =>
-      _searches[root] ??= IdeSearchSession(engine: engine);
+      _searches[root] ??= _keptSearch(root, IdeSearchSession(engine: engine));
+
+  /// Each project's search as it was left ([IdeSearchSession.kept]), its
+  /// files to include and exclude and its options, kept between runs.
+  final Map<String, Map<String, Object?>> _keptSearches = {};
+
+  /// [search] as [root]'s was left, kept as it changes.
+  IdeSearchSession _keptSearch(String root, IdeSearchSession search) {
+    search
+      ..restore(_keptSearches[root])
+      ..keptChanges.addListener(() {
+        final kept = search.kept;
+        if (mapEquals(kept, _keptSearches[root] ?? const {})) return;
+        if (kept.isEmpty) {
+          _keptSearches.remove(root);
+        } else {
+          _keptSearches[root] = kept;
+        }
+        onSave?.call();
+      });
+    return search;
+  }
 
   /// The projects whose files page shows the search rather than the tree.
   final Set<String> _searching = {};
@@ -622,6 +649,7 @@ class AgentSidePanel extends ChangeNotifier {
     'listShown': _listShown,
     'changesAsTree': _changesAsTree,
     if (_atLeft) 'atLeft': true,
+    if (_keptSearches.isNotEmpty) 'searches': {..._keptSearches},
   };
 
   bool _disposed = false;

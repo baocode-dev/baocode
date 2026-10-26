@@ -238,6 +238,88 @@ void main() {
     expect(review.changes, isEmpty);
   }, skip: !hasGit);
 
+  test('undoes reported edits outside the project (a worktree beside it), '
+      'as the agent told what they were', () async {
+    String beside(String name) => p.join(p.dirname(root), 'project-wt', name);
+    File(beside('a.txt'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('1\n2\n3\n');
+    final review = await open(session: 's');
+    await review.begin();
+    File(beside('a.txt')).writeAsStringSync('1\nTWO\n3\nfour\n');
+    review.report(
+      FileChange(path: beside('a.txt'), added: 2, removed: 1),
+      original: const OriginalText('1\n2\n3\n'),
+    );
+    File(beside('new.txt')).writeAsStringSync('n\n');
+    review.report(
+      FileChange(path: beside('new.txt'), added: 1, removed: 0),
+      original: const OriginalText(null),
+    );
+    await review.observe(full: false);
+
+    final changes = {for (final c in review.changes) c.path: c};
+    expect(changes.keys, unorderedEquals([beside('a.txt'), beside('new.txt')]));
+    expect(changes.values.every((change) => change.tracked), isTrue);
+    expect(
+      (changes[beside('a.txt')]!.added, changes[beside('a.txt')]!.removed),
+      (2, 1),
+    );
+    expect(changes[beside('new.txt')]!.kind, FileChangeKind.added);
+    expect(await review.original(beside('a.txt'))!(), '1\n2\n3\n');
+
+    // A full look (a command ran) leaves them as they are.
+    await review.observe();
+    expect(review.changes, hasLength(2));
+
+    await review.undo([beside('a.txt')]);
+    expect(File(beside('a.txt')).readAsStringSync(), '1\n2\n3\n');
+    await review.undoAll();
+    expect(review.changes, isEmpty);
+    expect(File(beside('new.txt')).existsSync(), isFalse);
+  }, skip: !hasGit);
+
+  test("a subagent's edit outside the project, told only by its input, is "
+      'undone by putting its texts back (#162)', () async {
+    String beside(String name) => p.join(p.dirname(root), 'elsewhere', name);
+    File(beside('o.txt'))
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('keep\nold line\nkeep\n');
+    final review = await open(session: 's');
+    await review.begin();
+    File(beside('o.txt')).writeAsStringSync('keep\nnew line\nkeep\n');
+    review.report(
+      FileChange(path: beside('o.txt'), added: 1, removed: 1),
+      original: const OriginalByEdits([(before: 'old', after: 'new')]),
+    );
+    await review.observe(full: false);
+    final change = review.changes.single;
+    expect(change.tracked, isTrue);
+    expect(await review.original(beside('o.txt'))!(), 'keep\nold line\nkeep\n');
+    await review.undo([beside('o.txt')]);
+    expect(File(beside('o.txt')).readAsStringSync(), 'keep\nold line\nkeep\n');
+  }, skip: !hasGit);
+
+  test('a project opened through a link: its files told by their real '
+      'path are its own, in its snapshots', () async {
+    final link = p.join(temp.path, 'linked');
+    Link(link).createSync(root);
+    final store = await GitReviewStore.open(link, checkpoints: checkpoints);
+    final review = ChangeReview(store!, realRoot: root);
+    addTearDown(review.dispose);
+    await review.begin();
+    write('a.txt', 'changed\n');
+    // As the agent tells it: by the real path.
+    review.report(
+      FileChange(path: path('a.txt'), added: 1, removed: 5),
+      original: const OriginalText('1\n2\n3\n4\n5\n'),
+    );
+    await review.observe(full: false);
+    expect([for (final c in review.changes) c.path], [p.join(link, 'a.txt')]);
+    expect(review.changes.single.tracked, isTrue);
+    expect(review.holds(path('lib/b.txt')), isTrue);
+  }, skip: !hasGit);
+
   test('undoes reported edits to files the snapshots leave out, as the agent '
       'told what they were', () async {
     write('.gitignore', '.env\nout/\n');

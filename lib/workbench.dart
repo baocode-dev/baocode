@@ -3,7 +3,8 @@ import 'dart:math' as math;
 
 import 'package:bao_editor/textmate/textmate_syntax.dart';
 import 'package:bao_remote/client.dart' show SshPrompt;
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, listEquals;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -36,8 +37,10 @@ import 'customize/customization_store.dart';
 import 'customize/customizations.dart';
 import 'customize/customize_view.dart';
 import 'extensions/theme_extensions.dart';
+import 'ide/editor_word_wrap.dart';
 import 'ide/git/git_model.dart' show ideWorktreeOf;
 import 'ide/git/git_repository.dart';
+import 'ide/git/ide_git_clone_dialog.dart';
 import 'ide/git/ide_git_log_view.dart' show IdeGitWorktreeChoice;
 import 'ide/git/repository_scan.dart';
 import 'ide/file_views.dart';
@@ -69,6 +72,7 @@ import 'ide/search/text_search.dart' show ideSearchText;
 import 'ide/ide_workspace.dart';
 import 'ide/lsp/language_features.dart';
 import 'ide/lsp/lsp_protocol.dart';
+import 'ide/lsp/packs/lsp_settings_template.dart';
 import 'ide/terminal/links/terminal_links.dart';
 import 'ide/terminal/terminal_instance.dart';
 import 'ide/terminal/terminal_panel.dart' show terminalCommandsToSkipShell;
@@ -84,6 +88,7 @@ import 'l10n/l10n.dart';
 import 'notifications/attention_host.dart';
 import 'notifications/attention_service.dart';
 import 'notifications/attention_settings.dart';
+import 'platform/data_dir.dart' show DataDirectory;
 import 'platform/local_paths.dart'
     if (dart.library.io) 'platform/local_paths_io.dart';
 import 'platform/open_requests.dart';
@@ -1024,10 +1029,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   Map<String, VoidCallback> _windowCommands() {
     final windows = _windows;
     final window = widget.window;
+    final fullScreen = {
+      if (WindowControls.canFullScreen)
+        WindowCommandIds.toggleFullScreen: () =>
+            unawaited(WindowControls.toggleFullScreen(viewId: _viewId)),
+    };
     if (windows == null || window == null || !windows.started) {
-      return const {};
+      return fullScreen;
     }
     return {
+      ...fullScreen,
       WindowCommandIds.newWindow: () => unawaited(windows.newWindow()),
       WindowCommandIds.closeWindow: () => unawaited(
         windows.requestClose(
@@ -1377,6 +1388,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       category: 'Preferences',
       label: 'Open Keyboard Shortcuts',
       run: () => unawaited(openSettings(SettingsSection.keyboard)),
+    ),
+    IdeCommand(
+      id: openLspSettingsCommandId,
+      category: 'Preferences',
+      label: commandCatalog[openLspSettingsCommandId]!.title,
+      run: () => unawaited(_openLspSettings()),
     ),
     IdeCommand(
       id: checkForUpdatesCommandId,
@@ -1884,6 +1901,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             enabled: WindowControls.canPickDirectory,
           ),
           IdeCommand(
+            id: 'git.clone',
+            category: 'Git',
+            label: 'Clone',
+            enabled: !kIsWeb,
+            run: () => unawaited(_cloneRepository()),
+          ),
+          IdeCommand(
             id: openRemoteFolderCommandId,
             category: 'Remote-SSH',
             label: 'Open Remote Project...',
@@ -1908,6 +1932,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             () => unawaited(_clearRecent()),
           ),
           command(toggleAutoSaveCommandId, _toggleAutoSave),
+          command(EditorWordWrap.commandId, EditorWordWrap.toggle),
           for (final MapEntry(key: id, value: run) in _windowCommands().entries)
             command(id, run),
           if (folder != _noFolder) ...[
@@ -1972,6 +1997,25 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _openIdeFolder(path, held: held);
   }
 
+  /// Where the last clone went: the next one's folder at first.
+  String? _cloneParent;
+
+  /// Git: Clone (JetBrains' Get from Version Control): a repository
+  /// cloned, then opened as a folder is.
+  Future<void> _cloneRepository() async {
+    final held = _newWindowHeld;
+    final folder = await showIdeGitCloneDialog(
+      context,
+      parent: _cloneParent ?? homeDirectory ?? p.current,
+      pickDirectory: WindowControls.canPickDirectory
+          ? WindowControls.pickDirectory
+          : null,
+    );
+    if (folder == null || !mounted) return;
+    _cloneParent = p.dirname(folder);
+    _openIdeFolder(folder, held: held);
+  }
+
   /// Opens [paths] in editors of the IDE's folder (or its empty window).
   /// With windows of its own: in this one, unless ⌘ (Ctrl) was [held] or
   /// `window.openFilesInNewWindow` says a new one; from the chat's window,
@@ -1996,6 +2040,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         await _ide?.openFile(path);
       }
     });
+  }
+
+  /// The user's `lsp.json`, in an editor: made first, with its examples,
+  /// where there is none (#304).
+  Future<void> _openLspSettings() async {
+    final path = DataDirectory.current.lspSettingsFile;
+    await ensureLspSettingsFile(path);
+    if (mounted) _openIdeFiles([path]);
   }
 
   Future<void> _pickIdeFiles() async {
@@ -2679,6 +2731,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
                       ?.session
                       .draft
                       .insertFiles(files),
+            onAskInChat: _workspace.ideChat(path) == null
+                ? null
+                : (text) => _workspace
+                      .ideChat(path)
+                      ?.session
+                      .draft
+                      .restore(text, const []),
           ),
         ),
       ),
@@ -2940,6 +2999,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             roots: multi.folders,
             gitOf: (folder) => widget.gitFor?.call(folder),
             repositoryDetection: _repositoryDetection(host),
+            openWorktree: (path) =>
+                widget.gitFor?.call(RemoteLocation.of(host.name, path)),
             paths: host.name == null ? null : host.paths,
           )
         : IdeWorkspace(
@@ -2948,6 +3009,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             languages: widget.languagesFor?.call(folder),
             git: widget.gitFor?.call(folder),
             repositoryDetection: _repositoryDetection(host),
+            openWorktree: (path) =>
+                widget.gitFor?.call(RemoteLocation.of(host.name, path)),
             paths: host.name == null ? null : host.paths,
           );
     // The parts as the last run left them, before anything shows them.
@@ -3172,7 +3235,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       l10n: context.l10n,
       added: _workspace.sshHosts,
       labelOf: _workspace.hostLabel,
-      addressOf: (host) => _workspace.sshServers[host]?.address ?? host,
+      addressOf: (host) =>
+          _workspace.sshServers[host]?.address ?? RemoteLocation.hostName(host),
       iconOf: _hostIcon,
       onAdd: (address) =>
           unawaited(_editSshServer(flow: flow, address: address)),
@@ -4752,6 +4816,9 @@ class _SessionTerminalTasks implements TerminalTasks {
 
   @override
   void stop(KernelTask task) => session.stopTask(task);
+
+  @override
+  void clear(Iterable<KernelTask> tasks) => session.clearTasks(tasks);
 
   @override
   String get root => session.root ?? '';

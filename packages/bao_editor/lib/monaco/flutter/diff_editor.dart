@@ -11,8 +11,10 @@
 // deleted code), features/overviewRulerFeature.ts and style.css.
 //
 // Deviations: no gutter menu (stage, revert), lightbulb on deleted code,
-// accessible diff viewer, moved code or hidden unchanged regions; deleted
-// code is not selectable, and draws tabs as the text engine shapes them.
+// accessible diff viewer or moved code; deleted code is not selectable, and
+// draws tabs as the text engine shapes them. Unchanged lines are hidden
+// (VS Code's hideUnchangedRegions, [DiffEditor.hideUnchanged]) behind a bar
+// that shows them all, not by steps or by the code's outline.
 // Revert arrows and the like are the embedder's, laid over the editors
 // ([DiffEditor.overlay]); side by side or inline can be forced
 // ([DiffEditor.sideBySide]), and the inner changes highlighted by word,
@@ -28,6 +30,7 @@ import 'diff_editor_model.dart';
 import 'document_snapshot.dart';
 import 'editor_scrollbar.dart';
 import 'editor_surface.dart';
+import 'viewport_layout.dart' show HiddenLineRanges;
 import 'wheel_glide.dart';
 
 /// What the diff gives one of a diff editor's editors.
@@ -37,10 +40,15 @@ class DiffEditorSide {
     required this.decorations,
     required this.scrollPosition,
     required this.sideBySide,
+    this.hiddenLines,
   });
 
   final List<EditorViewZone> zones;
   final List<EditorDecoration> decorations;
+
+  /// Unchanged lines hidden ([DiffEditor.hideUnchanged]), for
+  /// [EditorSurface.hiddenLines]; a bar in [zones] stands for each run.
+  final HiddenLineRanges? hiddenLines;
 
   /// Shared by the two editors, so that they scroll together.
   final ValueNotifier<Offset> scrollPosition;
@@ -81,7 +89,25 @@ class DiffEditor extends StatefulWidget {
     this.sideBySide,
     this.highlight = DiffHighlight.characters,
     this.overlay,
+    this.hideUnchanged = false,
+    this.unchangedLabel,
+    this.keepVisible,
   });
+
+  /// A modified line to show, its unchanged run not hidden.
+  final int? keepVisible;
+
+  /// Unchanged runs of lines hidden, but for [unchangedContext] lines next
+  /// to the changes, behind a bar that shows them again (JetBrains'
+  /// Collapse Unchanged Fragments).
+  final bool hideUnchanged;
+
+  /// The bar's text for [count] hidden lines.
+  final String Function(int count)? unchangedLabel;
+
+  /// Lines kept on each side of a change; and the fewest hidden.
+  static const unchangedContext = 3;
+  static const unchangedMinimum = 3;
 
   /// Side by side (true) or inline (false); by the width when null
   /// ([inlineBreakpoint]).
@@ -149,8 +175,70 @@ class _DiffEditorState extends State<DiffEditor> {
     if (!identical(oldWidget.model, widget.model)) {
       oldWidget.model.removeListener(_diffChanged);
       widget.model.addListener(_diffChanged);
+      _shown.clear();
+      _shownVersion++;
     }
   }
+
+  /// The unchanged runs shown again, by their first hidden original line.
+  final Set<int> _shown = {};
+  int _shownVersion = 0;
+
+  /// The runs of unchanged lines to hide, one-based and inclusive, in the
+  /// original and the modified.
+  List<({int original, int modified, int count})> _unchanged(
+    List<DetailedLineRangeMapping> mappings,
+    int originalCount,
+    int modifiedCount,
+  ) {
+    const context = DiffEditor.unchangedContext;
+    final runs = <({int original, int modified, int count})>[];
+    var original = 1;
+    var modified = 1;
+    for (var i = 0; i <= mappings.length; i++) {
+      final mapping = i < mappings.length ? mappings[i] : null;
+      final end = mapping?.original.startLineNumber ?? originalCount + 1;
+      final modifiedEnd =
+          mapping?.modified.startLineNumber ?? modifiedCount + 1;
+      final length = math.min(end - original, modifiedEnd - modified);
+      // From the top or to the bottom, no context there; the first line
+      // shows all the same (a bar goes under a line).
+      final from = original == 1 && modified == 1 ? 1 : context;
+      final to = mapping == null ? 0 : context;
+      final count = length - from - to;
+      final keep = widget.keepVisible;
+      if (count >= DiffEditor.unchangedMinimum &&
+          !_shown.contains(original + from) &&
+          (keep == null ||
+              keep < modified + from ||
+              keep >= modified + from + count)) {
+        runs.add((
+          original: original + from,
+          modified: modified + from,
+          count: count,
+        ));
+      }
+      if (mapping == null) break;
+      original = mapping.original.endLineNumberExclusive;
+      modified = mapping.modified.endLineNumberExclusive;
+    }
+    return runs;
+  }
+
+  EditorViewZone _unchangedBar(int count, int after, int key) => EditorViewZone(
+    afterLineNumber: after,
+    heightInLines: 1,
+    interactive: true,
+    content: _UnchangedBar(
+      label: widget.unchangedLabel?.call(count) ?? '$count unchanged lines',
+      colors: widget.colors,
+      style: widget.style,
+      onTap: () => setState(() {
+        _shown.add(key);
+        _shownVersion++;
+      }),
+    ),
+  );
 
   void _diffChanged() {
     if (mounted) setState(() {});
@@ -177,6 +265,11 @@ class _DiffEditorState extends State<DiffEditor> {
   // in as they are tokenized, and only the deleted code paints them.
   Object? _key;
   ({DiffEditorSide original, DiffEditorSide modified})? _sides;
+
+  // Where the lines are on each side for the overview, past the zones and
+  // the hidden lines.
+  _ZoneTops _originalTops = _ZoneTops(const []);
+  _ZoneTops _modifiedTops = _ZoneTops(const []);
 
   ({DiffEditorSide original, DiffEditorSide modified}) _sidesFor(
     bool sideBySide,
@@ -235,11 +328,17 @@ class _DiffEditorState extends State<DiffEditor> {
       scaler,
       widget.originalStyledLines,
       widget.style,
+      widget.hideUnchanged,
+      widget.unchangedLabel != null,
+      widget.keepVisible,
+      _shownVersion,
     );
     if (_sides case final sides? when key == _key) return sides;
     _key = key;
     var originalZones = const <EditorViewZone>[];
     var modifiedZones = const <EditorViewZone>[];
+    HiddenLineRanges? originalHidden;
+    HiddenLineRanges? modifiedHidden;
     if (original != null) {
       originalZones = [
         for (final zone in diff.originalZones) _viewZone(zone, original),
@@ -247,7 +346,36 @@ class _DiffEditorState extends State<DiffEditor> {
       modifiedZones = [
         for (final zone in diff.modifiedZones) _viewZone(zone, original),
       ];
+      if (widget.hideUnchanged && mappings != null) {
+        final runs = _unchanged(
+          mappings,
+          original.lineCount,
+          (model.mappedSnapshot ?? modified).lineCount,
+        );
+        if (runs.isNotEmpty) {
+          originalHidden = HiddenLineRanges([
+            for (final run in runs)
+              (run.original, run.original + run.count - 1),
+          ]);
+          modifiedHidden = HiddenLineRanges([
+            for (final run in runs)
+              (run.modified, run.modified + run.count - 1),
+          ]);
+          originalZones = [
+            ...originalZones,
+            for (final run in runs)
+              _unchangedBar(run.count, run.original - 1, run.original),
+          ];
+          modifiedZones = [
+            ...modifiedZones,
+            for (final run in runs)
+              _unchangedBar(run.count, run.modified - 1, run.original),
+          ];
+        }
+      }
     }
+    _originalTops = _ZoneTops(diff.originalZones, originalHidden);
+    _modifiedTops = _ZoneTops(diff.modifiedZones, modifiedHidden);
     final originalDecorations = diff.originalDecorations;
     final modifiedDecorations = diff.modifiedDecorations;
     return _sides = (
@@ -256,12 +384,14 @@ class _DiffEditorState extends State<DiffEditor> {
         decorations: originalDecorations,
         scrollPosition: _scroll,
         sideBySide: sideBySide,
+        hiddenLines: originalHidden,
       ),
       modified: DiffEditorSide(
         zones: modifiedZones,
         decorations: modifiedDecorations,
         scrollPosition: _scroll,
         sideBySide: sideBySide,
+        hiddenLines: modifiedHidden,
       ),
     );
   }
@@ -448,8 +578,9 @@ class _DiffEditorState extends State<DiffEditor> {
     final originalLines = original?.lineCount ?? 1;
     double linesOf(List<EditorViewZone> zones, int lines) =>
         lines + zones.fold(0.0, (sum, zone) => sum + zone.heightInLines);
+    final hidden = sides.modified.hiddenLines?.hiddenLineCount ?? 0;
     final contentHeight =
-        linesOf(sides.modified.zones, modifiedLines) * lineHeight;
+        linesOf(sides.modified.zones, modifiedLines - hidden) * lineHeight;
     // `scrollBeyondLastLine`.
     final scrollHeight = math.max(
       contentHeight + math.max(0.0, height - lineHeight),
@@ -458,8 +589,8 @@ class _DiffEditorState extends State<DiffEditor> {
     return _DiffOverview(
       scroll: _scroll,
       mappings: model.mappings ?? const [],
-      originalZones: _diff!.originalZones,
-      modifiedZones: _diff!.modifiedZones,
+      originalTops: _originalTops,
+      modifiedTops: _modifiedTops,
       originalLineCount: originalLines,
       lineHeight: lineHeight,
       scrollHeight: scrollHeight,
@@ -521,8 +652,8 @@ class _DiffOverview extends StatefulWidget {
   const _DiffOverview({
     required this.scroll,
     required this.mappings,
-    required this.originalZones,
-    required this.modifiedZones,
+    required this.originalTops,
+    required this.modifiedTops,
     required this.originalLineCount,
     required this.lineHeight,
     required this.scrollHeight,
@@ -534,8 +665,8 @@ class _DiffOverview extends StatefulWidget {
 
   final ValueNotifier<Offset> scroll;
   final List<DetailedLineRangeMapping> mappings;
-  final List<DiffZone> originalZones;
-  final List<DiffZone> modifiedZones;
+  final _ZoneTops originalTops;
+  final _ZoneTops modifiedTops;
   final int originalLineCount;
   final double lineHeight;
   final double scrollHeight;
@@ -673,8 +804,8 @@ class _DiffOverviewState extends State<_DiffOverview>
               isComplex: true,
               painter: _DiffOverviewPainter(
                 mappings: widget.mappings,
-                originalZones: widget.originalZones,
-                modifiedZones: widget.modifiedZones,
+                originalTops: widget.originalTops,
+                modifiedTops: widget.modifiedTops,
                 lineHeight: widget.lineHeight,
                 scrollHeight: widget.scrollHeight,
                 colors: widget.colors,
@@ -700,15 +831,21 @@ class _DiffOverviewState extends State<_DiffOverview>
   );
 }
 
-/// The unscrolled tops of lines in lines, past the zones above them.
+/// The unscrolled tops of lines in lines, past the zones above them, less
+/// the [hidden] lines above them (each run with its one-line bar).
 class _ZoneTops {
-  _ZoneTops(List<DiffZone> zones) {
-    final sorted = [...zones]
-      ..sort((a, b) => a.afterLineNumber.compareTo(b.afterLineNumber));
-    _after = [for (final zone in sorted) zone.afterLineNumber];
+  _ZoneTops(List<DiffZone> zones, [HiddenLineRanges? hidden]) {
+    final sorted = [
+      for (final zone in zones) (zone.afterLineNumber, zone.heightInLines),
+      if (hidden != null)
+        for (final (start, end) in hidden.ranges)
+          // The bar, less the lines it stands for.
+          (start - 1, 1.0 - (end - start + 1)),
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
+    _after = [for (final zone in sorted) zone.$1];
     _sums = List.filled(sorted.length + 1, 0.0);
     for (var i = 0; i < sorted.length; i++) {
-      _sums[i + 1] = _sums[i] + sorted[i].heightInLines;
+      _sums[i + 1] = _sums[i] + sorted[i].$2;
     }
   }
 
@@ -735,8 +872,8 @@ class _ZoneTops {
 class _DiffOverviewPainter extends CustomPainter {
   _DiffOverviewPainter({
     required this.mappings,
-    required this.originalZones,
-    required this.modifiedZones,
+    required this.originalTops,
+    required this.modifiedTops,
     required this.lineHeight,
     required this.scrollHeight,
     required this.colors,
@@ -744,8 +881,8 @@ class _DiffOverviewPainter extends CustomPainter {
   });
 
   final List<DetailedLineRangeMapping> mappings;
-  final List<DiffZone> originalZones;
-  final List<DiffZone> modifiedZones;
+  final _ZoneTops originalTops;
+  final _ZoneTops modifiedTops;
   final double lineHeight;
   final double scrollHeight;
   final DiffEditorColors colors;
@@ -773,8 +910,6 @@ class _DiffOverviewPainter extends CustomPainter {
       );
     }
 
-    final originalTops = _ZoneTops(originalZones);
-    final modifiedTops = _ZoneTops(modifiedZones);
     for (final mapping in mappings) {
       zone(mapping.original, originalTops, 0, colors.overviewRemoved);
       zone(mapping.modified, modifiedTops, _lane, colors.overviewInserted);
@@ -784,8 +919,8 @@ class _DiffOverviewPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DiffOverviewPainter old) =>
       !identical(old.mappings, mappings) ||
-      !identical(old.originalZones, originalZones) ||
-      !identical(old.modifiedZones, modifiedZones) ||
+      !identical(old.originalTops, originalTops) ||
+      !identical(old.modifiedTops, modifiedTops) ||
       old.lineHeight != lineHeight ||
       old.scrollHeight != scrollHeight ||
       old.colors != colors ||
@@ -1109,4 +1244,62 @@ class _SplitShadowPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _SplitShadowPainter old) =>
       old.shadow != shadow || old.border != border;
+}
+
+/// What stands for a run of hidden unchanged lines: a bar across the
+/// editor that shows them again.
+class _UnchangedBar extends StatefulWidget {
+  const _UnchangedBar({
+    required this.label,
+    required this.colors,
+    required this.style,
+    required this.onTap,
+  });
+
+  final String label;
+  final DiffEditorColors colors;
+  final TextStyle style;
+  final VoidCallback onTap;
+
+  @override
+  State<_UnchangedBar> createState() => _UnchangedBarState();
+}
+
+class _UnchangedBarState extends State<_UnchangedBar> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = widget.colors.unchangedForeground;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: ColoredBox(
+          color: widget.colors.unchangedBackground ?? Colors.transparent,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: Text(
+                '⋯  ${widget.label}',
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: widget.style.copyWith(
+                  color: foreground,
+                  fontSize: (widget.style.fontSize ?? 13) - 1,
+                  height: 1,
+                  decoration: _hover ? TextDecoration.underline : null,
+                  decorationColor: foreground,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

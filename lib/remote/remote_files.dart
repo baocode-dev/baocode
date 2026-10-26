@@ -27,10 +27,14 @@ const openRemoteFileCommandId = 'baocode.remote.openFile';
 /// replaceable under test.
 Future<List<String>> Function() defaultRemoteConfigHosts = sshConfigHosts;
 
+/// This machine's WSL distributions to pick from (none off Windows);
+/// replaceable under test.
+Future<List<String>> Function() defaultWslHosts = wslHosts;
+
 /// The SSH hosts to pick one from, in the quick input: the user's added
 /// hosts first (by the names [labelOf] and icons [iconOf] given them, at
 /// the addresses [addressOf] says), then `~/.ssh/config`'s, with a typed
-/// `user@host[:port]` accepted. Each host picked is given to [onPick]; a
+/// `user@host[:port]` accepted, and this machine's WSL distributions last. Each host picked is given to [onPick]; a
 /// server is added with [onAdd] (what was typed, if anything), and an added
 /// host not of `~/.ssh/config` edited with [onEdit] (its row's button).
 class RemoteHostPicker {
@@ -47,8 +51,10 @@ class RemoteHostPicker {
     this.onEdit,
     SshHosts? hosts,
     Future<List<String>> Function()? configHosts,
+    Future<List<String>> Function()? wslHosts,
   }) : hosts = hosts ?? SshHosts.instance,
-       _configHosts = configHosts ?? defaultRemoteConfigHosts;
+       _configHosts = configHosts ?? defaultRemoteConfigHosts,
+       _wslHosts = wslHosts ?? defaultWslHosts;
 
   final void Function(IdeQuickPick pick) show;
   final AppLocalizations l10n;
@@ -68,37 +74,57 @@ class RemoteHostPicker {
   final ValueChanged<String>? onEdit;
   final SshHosts hosts;
   final Future<List<String>> Function() _configHosts;
+  final Future<List<String>> Function() _wslHosts;
 
   /// Shows the pick.
   Future<void> start() async {
-    List<String> known;
-    try {
-      known = await _configHosts();
-    } on Object {
-      known = const [];
+    Future<List<String>> orNone(Future<List<String>> Function() list) async {
+      try {
+        return await list();
+      } on Object {
+        return const [];
+      }
     }
+
+    final [known, wsl] = await Future.wait([
+      orNone(_configHosts),
+      orNone(_wslHosts),
+    ]);
     final connected = {for (final host in hosts.connected) host.host};
     final added = [...this.added];
     final config = [
       for (final host in known)
         if (!added.contains(host)) host,
     ];
+    final distributions = [
+      for (final host in wsl)
+        if (!added.contains(host)) host,
+    ];
     final onEdit = this.onEdit;
     IdeQuickPickItem hostItem(String host) {
-      final label = labelOf?.call(host) ?? host;
-      final address = addressOf?.call(host) ?? host;
+      final label = labelOf?.call(host) ?? RemoteLocation.hostName(host);
+      final address = addressOf?.call(host) ?? RemoteLocation.hostName(host);
       final description = [
         if (label != address) address,
         if (connected.contains(host)) l10n.sidebarHostConnected,
       ].join(' · ');
       return IdeQuickPickItem(
         label: label,
-        icon: iconOf?.call(host) ?? const Icon(Codicons.remote),
+        icon:
+            iconOf?.call(host) ??
+            Icon(
+              RemoteLocation.isWsl(host)
+                  ? Codicons.terminalLinux
+                  : Codicons.remote,
+            ),
         description: description.isEmpty ? null : description,
         onAccept: () => onPick(host),
         buttons: [
-          // Those of ~/.ssh/config are edited there.
-          if (onEdit != null && !known.contains(host))
+          // Those of ~/.ssh/config are edited there; WSL's are not
+          // servers.
+          if (onEdit != null &&
+              !known.contains(host) &&
+              !RemoteLocation.isWsl(host))
             IdeQuickPickItemButton(
               icon: Codicons.edit,
               tooltip: l10n.remoteEditServer,
@@ -118,7 +144,8 @@ class RemoteHostPicker {
           return [
             if (typed.isNotEmpty &&
                 !known.contains(typed) &&
-                !added.contains(typed))
+                !added.contains(typed) &&
+                !distributions.contains(typed))
               SshTarget.isValid(typed)
                   ? IdeQuickPickItem(
                       label: l10n.remoteConnectTo(typed),
@@ -137,7 +164,10 @@ class RemoteHostPicker {
                 alwaysShow: true,
                 onAccept: () => onAdd(typed.isEmpty ? null : typed),
               ),
-            if (known.isEmpty && added.isEmpty && typed.isEmpty)
+            if (known.isEmpty &&
+                added.isEmpty &&
+                distributions.isEmpty &&
+                typed.isEmpty)
               IdeQuickPickItem(label: l10n.remoteNoHosts),
             if (added.isNotEmpty) ...[
               IdeQuickPickSeparator(l10n.remoteAddedHosts),
@@ -146,6 +176,10 @@ class RemoteHostPicker {
             if (config.isNotEmpty) ...[
               const IdeQuickPickSeparator('~/.ssh/config'),
               for (final host in config) hostItem(host),
+            ],
+            if (distributions.isNotEmpty) ...[
+              const IdeQuickPickSeparator('WSL'),
+              for (final host in distributions) hostItem(host),
             ],
           ];
         },

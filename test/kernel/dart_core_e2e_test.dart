@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bao_agent/testing.dart';
+import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
@@ -337,6 +338,42 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
+
+  for (final approval in ['bypassPermissions', 'acceptEdits', 'default']) {
+    test('in Agent ($approval), a plan the model enters plan mode for '
+        'awaits the user, to start', () async {
+      // Sent to the user rather than written, as some models do.
+      api.model.script.addAll([
+        Reply.tool('EnterPlanMode', {}),
+        Reply.tool('ExitPlanMode', {'plan': '# Plan\n\nStep one.\n'}),
+        Reply.text('Waiting on you'),
+      ]);
+      final (:kernel, :transcript, :asked) = open(
+        KernelContext(
+          cwd: cwd,
+          settings: {'mode': 'agent', 'permission': approval},
+        ),
+      );
+      kernel.send(
+        const KernelTurn(
+          id: '33333333-3333-4333-8333-333333333333',
+          text: 'Plan it first',
+        ),
+      );
+      await until(() => transcript.lastTurnEndSeq > 0, what: 'the turn');
+      final plans = [
+        for (var i = 0; i < transcript.length; i++)
+          if (transcript.itemAt(i) case final PlanItem item) item,
+      ];
+      expect(plans.single.status, PlanStatus.awaiting, reason: '$asked');
+      expect(
+        File(plans.single.path).readAsStringSync(),
+        '# Plan\n\nStep one.\n',
+      );
+      kernel.dispose();
+      await kernel.stopped.timeout(const Duration(seconds: 20));
+    });
+  }
 
   test('a subagent: on the upstream, not the one the user\'s settings '
       'name', () async {

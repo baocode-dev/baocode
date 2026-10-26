@@ -615,6 +615,107 @@ void main() {
       expect(edits['/p/untold.txt'], isNull);
     });
 
+    test("a subagent's edits, sent without their patches, are told from "
+        'their input; its commands and its end, as files that may have '
+        'changed', () {
+      final events = <KernelEvent>[];
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: events.add,
+        nextSeq: () => ++seq,
+      );
+      void call(
+        String id,
+        String name,
+        Map<String, Object?> input, {
+        String? parent,
+        Object? result,
+      }) {
+        translator
+          ..translate({
+            'type': 'assistant',
+            'parent_tool_use_id': parent,
+            'message': {
+              'id': 'msg-$id',
+              'role': 'assistant',
+              'content': [
+                {'type': 'tool_use', 'id': id, 'name': name, 'input': input},
+              ],
+            },
+          })
+          ..translate({
+            'type': 'user',
+            'parent_tool_use_id': parent,
+            'message': {
+              'role': 'user',
+              'content': [
+                {'type': 'tool_result', 'tool_use_id': id, 'content': 'ok'},
+              ],
+            },
+            'tool_use_result': ?result,
+          });
+      }
+
+      translator.translate({
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'msg-agent',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 'agent-1',
+              'name': 'Agent',
+              'input': {'description': 'Make files', 'prompt': 'make them'},
+            },
+          ],
+        },
+      });
+      call('w1', 'Write', {
+        'file_path': '/p/a.txt',
+        'content': 'one\ntwo\n',
+      }, parent: 'agent-1');
+      call('e1', 'Edit', {
+        'file_path': '/p/b.txt',
+        'old_string': 'x',
+        'new_string': 'y\nz',
+      }, parent: 'agent-1');
+      expect(
+        [
+          for (final event in events.whereType<FileEdited>())
+            (event.change.path, event.change.added, event.change.removed),
+        ],
+        [('/p/a.txt', 2, 0), ('/p/b.txt', 2, 1)],
+      );
+      // A Write's file before is not known; an Edit's, by its texts.
+      final originals = [
+        for (final event in events.whereType<FileEdited>()) event.original,
+      ];
+      expect(originals.first, isNull);
+      expect(
+        (originals.last! as OriginalByEdits).edits,
+        [(before: 'x', after: 'y\nz')],
+      );
+      expect(events.whereType<FilesMayHaveChanged>(), isEmpty);
+
+      call('b1', 'Bash', {'command': 'echo c > c.txt'}, parent: 'agent-1');
+      expect(events.whereType<FilesMayHaveChanged>(), hasLength(1));
+      call('agent-1', 'Agent', {
+        'description': 'Make files',
+        'prompt': 'make them',
+      }, result: {'status': 'completed', 'content': []});
+      expect(events.whereType<FilesMayHaveChanged>(), hasLength(2));
+
+      // A kept session's, replayed: nothing to look at.
+      events.clear();
+      translator.replaying = true;
+      call('w2', 'Write', {'file_path': '/p/d.txt', 'content': 'd'});
+      call('b2', 'Bash', {'command': 'true'});
+      expect(events.whereType<FileEdited>(), isEmpty);
+      expect(events.whereType<FilesMayHaveChanged>(), isEmpty);
+    });
+
     test('each round of planning is one card; a plan sent back gives way '
         'to the next', () {
       final transcript = Transcript();
@@ -827,7 +928,7 @@ void main() {
       expect(translator.awaitingPlan, isNull);
     });
 
-    test('a plan said, not written, is said in the conversation', () {
+    test('a plan said, not written, is its card all the same (no file)', () {
       final transcript = Transcript();
       var seq = 0;
       ClaudeTranslator(emit: transcript.apply, nextSeq: () => ++seq).translate({
@@ -846,7 +947,11 @@ void main() {
           ],
         },
       });
-      expect((transcript.itemAt(0) as AssistantTextItem).text, '1. Do it');
+      // Its card is all of it: put to the user, it awaits them (see the
+      // kernel), with nothing else to start it by.
+      final plan = transcript.itemAt(0) as PlanItem;
+      expect(plan.text, '1. Do it');
+      expect(plan.path, isEmpty);
       expect(transcript.plan, isNull);
     });
 
@@ -1301,6 +1406,72 @@ void main() {
         kernel.dispose();
       },
     );
+
+    test('a plan sent rather than written, in plan mode the model entered '
+        'from Agent, is put to the user all the same', () async {
+      // As the CLI tells it: the plan in the call alone, no file named,
+      // and asked about with no input.
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.permission.select('bypassPermissions');
+      kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+      await pumpEventQueue();
+      void said(String id, String name, Map<String, Object?> input) =>
+          cli.push({
+            'type': 'assistant',
+            'parent_tool_use_id': null,
+            'message': {
+              'id': 'msg-$id',
+              'role': 'assistant',
+              'content': [
+                {'type': 'tool_use', 'id': id, 'name': name, 'input': input},
+              ],
+            },
+          });
+      said('e1', 'EnterPlanMode', {});
+      cli.push({
+        'type': 'system',
+        'subtype': 'status',
+        'status': null,
+        'permissionMode': 'plan',
+      });
+      said('x1', 'ExitPlanMode', {'plan': '# Hello\n\n1. Add hello.txt'});
+      cli.push({
+        'type': 'control_request',
+        'request_id': 'r1',
+        'request': {
+          'subtype': 'can_use_tool',
+          'tool_name': 'ExitPlanMode',
+          'input': <String, Object?>{},
+          'requires_user_interaction': true,
+        },
+      });
+      await pumpEventQueue();
+      expect(cli.responses.last['message'], ClaudeTranslator.planPresented);
+      final plan = transcript.liveItems
+          .map((entry) => entry.$2)
+          .whereType<PlanItem>()
+          .single;
+      expect(plan.status, PlanStatus.awaiting);
+      expect(plan.title, 'Hello');
+      expect(plan.path, isEmpty);
+      expect(kernel.mode.selected, 'plan');
+
+      kernel.startBuilding();
+      expect(kernel.mode.selected, 'agent');
+      kernel.send(const KernelTurn(id: 'u2', text: 'Carry out the plan'));
+      await pumpEventQueue();
+      final content = (cli.users.last['message'] as Map)['content'] as List;
+      expect(
+        (content.last as Map)['text'],
+        ClaudeTranslator.planStartedNote(''),
+      );
+      expect(
+        ClaudeTranslator.planStartedNote(''),
+        contains('Carry out the plan you put to them now.'),
+      );
+      kernel.dispose();
+    });
 
     test('full access answers questions itself; Don\'t ask refuses what '
         'it would ask', () async {

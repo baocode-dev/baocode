@@ -227,6 +227,8 @@ class RemoteServer {
         (args['arguments'] as List).cast<String>(),
         workingDirectory: args['cwd'] as String,
         limit: args['limit'] as int?,
+        stdin: args['stdin'] as String?,
+        environment: (args['environment'] as Map?)?.cast<String, String>(),
       );
       return {
         'exitCode': output.exitCode,

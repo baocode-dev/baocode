@@ -72,8 +72,8 @@ class _LogBranchHost implements IdeGitBranchHost {
   void showDiff(List<IdeGitDiffFile> files) => view._log.showDiff(files, 0);
 
   @override
-  void showOnly(IdeGitRepository git, IdeGitRef ref) =>
-      git.graphBranch = ref.id;
+  void showOnly(IdeGitRepository git, String graphBranch) =>
+      git.graphBranch = graphBranch;
 }
 
 /// The branch tree: a filter over HEAD's branch, the local branches, the

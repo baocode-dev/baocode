@@ -67,10 +67,12 @@ import '../save_copy.dart';
 import 'commit_message.dart';
 import 'git_graph_painter.dart';
 import 'git_model.dart';
+import 'git_review.dart';
 import 'git_repository.dart';
 import 'git_service.dart';
 import 'git_branch_tree.dart' show IdeGitFavoriteBranches;
 import 'ide_git_log_view.dart';
+import 'ide_git_ref_labels.dart';
 import 'scm_host.dart';
 import 'scm_tree.dart';
 
@@ -128,6 +130,49 @@ class IdeScmSession {
   /// The commit panel's Amend.
   bool amend = false;
 
+  /// The commit options' author (`Name <email>`), for the next commit
+  /// only; null for the one configured.
+  String? author;
+
+  /// `git.alwaysSignOff`: a Signed-off-by line in each commit.
+  bool get signOff => _choice('git.alwaysSignOff', false);
+  set signOff(bool value) => _choose('git.alwaysSignOff', value);
+
+  /// Whether a commit runs the repository's hooks (else `--no-verify`).
+  bool get runHooks => _choice('baocode.git.runHooks', true);
+  set runHooks(bool value) => _choose('baocode.git.runHooks', value);
+
+  IdeGitCommitOptions get commitOptions =>
+      IdeGitCommitOptions(author: author, signOff: signOff, runHooks: runHooks);
+
+  /// The messages committed with, or tried, the newest first: what the
+  /// commit message history has before those of the log.
+  final List<String> recentMessages = [];
+
+  void rememberMessage(String message) {
+    recentMessages
+      ..remove(message)
+      ..insert(0, message);
+    if (recentMessages.length > 20) recentMessages.removeLast();
+  }
+
+  /// Whether the commit panel lists the ignored files.
+  bool showIgnored = false;
+
+  /// `baocode.git.aiReview`: the model reviews a commit before it is made.
+  bool get aiReview => _choice('baocode.git.aiReview', false);
+  set aiReview(bool value) => _choose('baocode.git.aiReview', value);
+
+  /// What the last review found; null when there is none to show.
+  List<IdeGitReviewProblem>? review;
+
+  /// Completes to stop the review under way; null when none is.
+  Completer<void>? reviewing;
+
+  /// The commit the review holds back (with Push, or not), done when
+  /// committed anyway; null when none waits.
+  bool? reviewHeldPush;
+
   /// The list's focused row, selection and anchor, kept while the view is
   /// away (the Git log left for the editor) to be where they were.
   String? listSelected;
@@ -174,6 +219,7 @@ class IdeScmSession {
 
   void dispose() {
     generating?.complete();
+    reviewing?.complete();
     message.dispose();
     graph.dispose();
     log.dispose();
@@ -3762,9 +3808,18 @@ class IdeGitRefBadge extends StatelessWidget {
 /// A commit's hover, as the graph and the timeline show it: the author,
 /// when, the message, its references and its id.
 class IdeCommitHover extends StatelessWidget {
-  const IdeCommitHover(this.commit, {super.key, this.referenceColors});
+  const IdeCommitHover(
+    this.commit, {
+    super.key,
+    this.referenceColors,
+    this.labels = false,
+  });
 
   final IdeGitCommit commit;
+
+  /// The references as the Git log draws them ([IdeGitRefLabelView]), not
+  /// as badges.
+  final bool labels;
 
   /// The graph's color ids of [commit]'s references, by id (the others in
   /// the default label's); without them (the timeline's), the references
@@ -3821,11 +3876,15 @@ class IdeCommitHover extends StatelessWidget {
               when commit.references.isNotEmpty) ...[
             const SizedBox(height: 8),
             Wrap(
-              spacing: 4,
+              spacing: labels ? 12 : 4,
               runSpacing: 4,
               children: [
-                for (final ref in commit.references)
-                  IdeGitRefBadge(ref, referenceColors[ref.id]),
+                if (labels)
+                  for (final label in ideGitRefLabels(commit.references))
+                    IdeGitRefLabelView(label, foreground: foreground)
+                else
+                  for (final ref in commit.references)
+                    IdeGitRefBadge(ref, referenceColors[ref.id]),
               ],
             ),
           ],

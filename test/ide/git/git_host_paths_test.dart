@@ -11,13 +11,20 @@ void main() {
     final service = IdeGitService(
       r'C:/work/app/',
       pathContext: p.windows,
-      runner: (arguments, {required workingDirectory, limit}) async {
-        ran.add(workingDirectory);
-        if (arguments.first == 'rev-parse') {
-          return const IdeGitOutput(0, 'C:/work/app\n', '');
-        }
-        return const IdeGitOutput(0, '## main\x00 M lib/a.dart\x00', '');
-      },
+      runner:
+          (
+            arguments, {
+            required workingDirectory,
+            limit,
+            stdin,
+            environment,
+          }) async {
+            ran.add(workingDirectory);
+            if (arguments.first == 'rev-parse') {
+              return const IdeGitOutput(0, 'C:/work/app\n', '');
+            }
+            return const IdeGitOutput(0, '## main\x00 M lib/a.dart\x00', '');
+          },
     );
     expect(service.root, r'C:\work\app');
     final state = (await service.status())!;

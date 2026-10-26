@@ -2,7 +2,8 @@
 // (src/vs/workbench/electron-browser/actions/windowActions.ts and
 // src/vs/workbench/electron-browser/desktop.contribution.ts at
 // 6a598d4a13031703d483d103c1d934a36ad27971): New Window, Close Window (⌘W
-// too, where no editor is open), Switch Window… (⌃W on macOS).
+// too, where no editor is open), Switch Window… (⌃W on macOS), Toggle Full
+// Screen (F11; ⌃⌘F on macOS, as its View menu has it).
 //
 // Show Chat Window is BaoCode's: the chat's window back from an IDE's. It
 // has no keys of its own: ⌘0 / Ctrl+0 are Focus Side Bar's.
@@ -16,6 +17,7 @@ abstract final class WindowCommandIds {
   static const closeWindow = 'workbench.action.closeWindow';
   static const switchWindow = 'workbench.action.switchWindow';
   static const showChat = 'baocode.window.showChat';
+  static const toggleFullScreen = 'workbench.action.toggleFullScreen';
 }
 
 final List<CommandInfo> windowCommands = [
@@ -25,6 +27,11 @@ final List<CommandInfo> windowCommands = [
   const CommandInfo(
     WindowCommandIds.showChat,
     'Show Chat Window',
+    category: 'View',
+  ),
+  const CommandInfo(
+    WindowCommandIds.toggleFullScreen,
+    'Toggle Full Screen',
     category: 'View',
   ),
 ];
@@ -55,4 +62,9 @@ final List<KeybindingEntry> windowKeybindings = [
     when: '!chatMode && !editorIsOpen && !auxiliaryBarFocus',
   ),
   const KeybindingEntry(mac: 'ctrl+w', command: WindowCommandIds.switchWindow),
+  const KeybindingEntry(
+    key: 'f11',
+    mac: 'ctrl+cmd+f',
+    command: WindowCommandIds.toggleFullScreen,
+  ),
 ];

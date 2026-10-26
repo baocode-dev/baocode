@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:bao_editor/monaco/flutter/editor_keybindings.dart';
 
+import '../ide/editor_word_wrap.dart';
 import '../ide/explorer_history.dart'
     show explorerRedoCommandId, explorerUndoCommandId;
 import 'chat_keybindings.dart';
@@ -25,6 +26,10 @@ const openSettingsCommandId = 'workbench.action.openSettings';
 
 /// Open Keyboard Shortcuts: the settings dialog on its keyboard page.
 const openKeybindingsCommandId = 'workbench.action.openGlobalKeybindings';
+
+/// Open Language Server Settings (JSON): the user's `lsp.json` in the IDE,
+/// made with its examples where there is none.
+const openLspSettingsCommandId = 'baocode.openLspSettings';
 
 /// Shell Command: Install / Uninstall the `code` command in PATH.
 const installShellCommandId = 'workbench.action.installCommandLine';
@@ -108,6 +113,11 @@ final Map<String, CommandInfo> commandCatalog = {
       toggleAutoSaveCommandId,
       'Toggle Auto Save',
       category: 'File',
+    ),
+    const CommandInfo(
+      EditorWordWrap.commandId,
+      'Toggle Word Wrap',
+      category: 'View',
     ),
     const CommandInfo(
       'workbench.action.files.newUntitledFile',
@@ -402,6 +412,11 @@ final Map<String, CommandInfo> commandCatalog = {
       category: 'Preferences',
     ),
     const CommandInfo(
+      openLspSettingsCommandId,
+      'Open Language Server Settings (JSON)',
+      category: 'Preferences',
+    ),
+    const CommandInfo(
       'baocode.ide.toggleFormatOnSave',
       'Toggle Format on Save',
       category: 'Preferences',
@@ -506,6 +521,13 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
     key: 'ctrl+alt+s',
     mac: 'alt+cmd+s',
     command: 'workbench.action.files.saveAll',
+  ),
+  // VS Code's Alt+Z, in an editor only: elsewhere (the chat's input) it
+  // types what the keyboard has there.
+  const KeybindingEntry(
+    key: 'alt+z',
+    command: EditorWordWrap.commandId,
+    when: 'editorTextFocus',
   ),
   // A markdown tab's preview and source, one key toggling them: each
   // command runs only where the other shows. The terminal keeps its

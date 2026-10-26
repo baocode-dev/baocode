@@ -668,6 +668,52 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('news of a stash the filters hide shows when its count is '
+      'tapped, and is seen there', (tester) async {
+    controller.dispose();
+    controller = StashController(
+      store: store,
+      workspace: Workspace.mock(),
+      host: StashHost(channel: const MethodChannel('test/stash-view')),
+      accounts: ForgeAccounts(
+        http: FakeForgeHttp(),
+        secrets: MemorySecretStore(),
+      ),
+    );
+    final id = (await tester.runAsync(() async {
+      await store.create(body: 'Open one');
+      // Its issue closed: done, and not among those not done, which the
+      // list shows at first.
+      final closed = await store.create(body: 'Closed one');
+      await store.update(closed.id, (note) {
+        note.status = StashStatus.done;
+        note.issues.add(
+          const StashIssueLink(
+            url: 'https://github.com/o/r/issues/5',
+            state: 'closed',
+          ),
+        );
+        note.issue = 'https://github.com/o/r/issues/5';
+        note.tell(StashNews.closed, mine: true);
+      });
+      return closed.id;
+    }))!;
+    await pumpView(tester);
+    expect(find.text('1 update'), findsOneWidget);
+    expect(find.text('Closed one'), findsNothing);
+
+    await tester.tap(find.text('1 update'));
+    await tester.pump();
+    expect(find.text('Open one'), findsNothing);
+    await tester.tap(find.text('Closed one'));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    expect(store.byId(id)!.news, isNull);
+    expect(find.text('1 update'), findsNothing);
+    await unmount(tester);
+  });
+
   testWidgets('a stash\'s file shows as the Stash page shows it', (
     tester,
   ) async {

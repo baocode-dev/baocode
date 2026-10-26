@@ -16,7 +16,19 @@ may move it. Installed servers go to `<data>/servers/`.
 
 Entries that do not validate are skipped and reported
 (`BundledLspCatalog.problems`, `LanguagePackRegistry.problems`); the rest
-still applies. Settings and packs are read when the catalog loads.
+still applies. Packs are read when the catalog loads; `lsp.json` again each
+time it is saved, the open files matched to servers anew.
+
+Preferences: Open Language Server Settings (JSON) opens `lsp.json`, made
+with commented-out examples where there is none. A server of your own for a
+language, e.g. rust-glancer in place of rust-analyzer:
+
+```json
+{
+  "servers": { "rust-glancer": { "command": "rust-glancer", "args": ["lsp"] } },
+  "languages": { "rust": { "servers": ["rust-glancer"] } }
+}
+```
 
 ## `lsp.json`
 

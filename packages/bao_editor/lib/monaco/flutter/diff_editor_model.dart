@@ -38,6 +38,7 @@ class DiffEditorModel extends ChangeNotifier {
     required this.original,
     required this.modified,
     this.ignoreTrimWhitespace = true,
+    this.ignoreAllWhitespace = false,
     this.maxComputationTimeMs = 5000,
   }) {
     original.addListener(_originalChanged);
@@ -51,6 +52,9 @@ class DiffEditorModel extends ChangeNotifier {
   /// `diffEditor.ignoreTrimWhitespace` and `diffEditor.maxComputationTime`.
   final bool ignoreTrimWhitespace;
   final int maxComputationTimeMs;
+
+  /// Whitespace anywhere ignored ([LinesDiffComputerOptions.ignoreAllWhitespace]).
+  final bool ignoreAllWhitespace;
 
   /// How long after an edit the diff is computed again.
   static const debounce = Duration(milliseconds: 200);
@@ -73,6 +77,11 @@ class DiffEditorModel extends ChangeNotifier {
   /// The changes, in order; null until first computed.
   List<DetailedLineRangeMapping>? get mappings => _mappings;
   List<DetailedLineRangeMapping>? _mappings;
+
+  /// The modified side's text [mappings] were computed for (it may have
+  /// been edited since); null until first computed.
+  DocumentSnapshot? get mappedSnapshot => _mappedSnapshot;
+  DocumentSnapshot? _mappedSnapshot;
 
   /// Whether the last computation ran out of time.
   bool get hitTimeout => _hitTimeout;
@@ -106,9 +115,11 @@ class DiffEditorModel extends ChangeNotifier {
     }
     final request = ++_request;
     final originalLines = _lines(originalSnapshot);
-    final modifiedLines = _lines(modified.snapshot);
+    final modifiedSnapshot = modified.snapshot;
+    final modifiedLines = _lines(modifiedSnapshot);
     final options = LinesDiffComputerOptions(
       ignoreTrimWhitespace: ignoreTrimWhitespace,
+      ignoreAllWhitespace: ignoreAllWhitespace,
       maxComputationTimeMs: maxComputationTimeMs,
     );
     LinesDiff diff;
@@ -135,6 +146,7 @@ class DiffEditorModel extends ChangeNotifier {
     // theirs.
     if (request == _request) {
       _mappings = diff.changes;
+      _mappedSnapshot = modifiedSnapshot;
       _hitTimeout = diff.hitTimeout;
       notifyListeners();
     }
@@ -357,6 +369,8 @@ class DiffEditorColors {
     required this.signForeground,
     this.insertedTextBorder,
     this.removedTextBorder,
+    this.unchangedBackground,
+    this.unchangedForeground,
   });
 
   /// From a color registry lookup, with `style.css`' fallbacks.
@@ -387,6 +401,13 @@ class DiffEditorColors {
       signForeground: color('editor.foreground'),
       insertedTextBorder: color('diffEditor.insertedTextBorder'),
       removedTextBorder: color('diffEditor.removedTextBorder'),
+      unchangedBackground:
+          color('diffEditor.unchangedRegionBackground') ??
+          color('sideBar.background'),
+      unchangedForeground:
+          color('diffEditor.unchangedRegionForeground') ??
+          color('descriptionForeground') ??
+          color('editor.foreground'),
     );
   }
 
@@ -408,6 +429,11 @@ class DiffEditorColors {
   final Color? insertedTextBorder;
   final Color? removedTextBorder;
 
+  /// `diffEditor.unchangedRegionBackground` and `…Foreground`: the bar
+  /// standing for hidden unchanged lines.
+  final Color? unchangedBackground;
+  final Color? unchangedForeground;
+
   @override
   bool operator ==(Object other) =>
       other is DiffEditorColors &&
@@ -422,7 +448,9 @@ class DiffEditorColors {
       other.overviewRemoved == overviewRemoved &&
       other.signForeground == signForeground &&
       other.insertedTextBorder == insertedTextBorder &&
-      other.removedTextBorder == removedTextBorder;
+      other.removedTextBorder == removedTextBorder &&
+      other.unchangedBackground == unchangedBackground &&
+      other.unchangedForeground == unchangedForeground;
 
   @override
   int get hashCode => Object.hash(
@@ -438,6 +466,8 @@ class DiffEditorColors {
     signForeground,
     insertedTextBorder,
     removedTextBorder,
+    unchangedBackground,
+    unchangedForeground,
   );
 }
 

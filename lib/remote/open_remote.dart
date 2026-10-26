@@ -38,9 +38,7 @@ class OpenRemoteFlow {
     SshHosts? hosts,
     this.configHosts,
   }) : hosts = hosts ?? SshHosts.instance,
-       labelOf = labelOf ?? _itself;
-
-  static String _itself(String host) => host;
+       labelOf = labelOf ?? RemoteLocation.hostName;
 
   /// Where the hosts to pick from come from when not given: `~/.ssh/config`;
   /// replaceable under test (see [defaultRemoteConfigHosts]).
@@ -105,10 +103,10 @@ class OpenRemoteFlow {
     final ssh = hosts[host];
     (now ? show : _next)(
       IdeQuickPick(
-        placeholder: l10n.remoteConnecting(host),
+        placeholder: l10n.remoteConnecting(RemoteLocation.hostName(host)),
         items: [
           IdeQuickPickItem(
-            label: l10n.remoteConnecting(host),
+            label: l10n.remoteConnecting(RemoteLocation.hostName(host)),
             icon: const IdeSpinning(Icon(Codicons.loading)),
           ),
         ],
@@ -135,11 +133,15 @@ class OpenRemoteFlow {
             )).contains(host);
         _next(
           IdeQuickPick(
-            placeholder: l10n.remoteConnectFailed(host),
+            placeholder: l10n.remoteConnectFailed(
+              RemoteLocation.hostName(host),
+            ),
             sortByLabel: false,
             items: [
               IdeQuickPickItem(
-                label: message ?? l10n.remoteConnectFailed(host),
+                label:
+                    message ??
+                    l10n.remoteConnectFailed(RemoteLocation.hostName(host)),
                 detail: detail?.split('\n').last,
                 icon: const Icon(Codicons.error),
               ),
@@ -217,7 +219,9 @@ class OpenRemoteFlow {
 
     _next(
       IdeQuickPick(
-        placeholder: l10n.remoteFolderPlaceholder(host),
+        placeholder: l10n.remoteFolderPlaceholder(
+          RemoteLocation.hostName(host),
+        ),
         sortByLabel: false,
         itemsFor: (value) {
           final typed = value.trim();

@@ -332,7 +332,9 @@ List<String> _cut(String data, int from) {
       if (line.trimRight().endsWith(mathClose)) mathClose = null;
     } else if (comment) {
       if (line.contains('-->')) comment = false;
-    } else if (_fenceLine.firstMatch(line) case final opening?) {
+    } else if (_fenceLine.firstMatch(line) case final opening?
+        // A backtick fence's info has no backtick: else inline code.
+        when opening[1]![0] == '~' || !(opening[2] ?? '').contains('`')) {
       fence = opening[1];
     } else if (_mathOpening.firstMatch(line) case final opening?) {
       final close = opening[1] == r'$$' ? r'$$' : r'\]';

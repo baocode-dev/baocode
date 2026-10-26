@@ -7,6 +7,7 @@ import 'package:baocode/chat/review/change_review.dart';
 import 'package:baocode/chat/review/change_reviews.dart';
 import 'package:baocode/chat/review/review_store.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/kernel_event.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/theme/app_theme.dart';
@@ -68,6 +69,20 @@ class _Review extends ChangeReview {
 
   @override
   Future<void> undoAll() async => calls.add('undoAll');
+}
+
+/// A kernel whose events the test sends.
+class _Kernel implements AgentKernel {
+  _Kernel(this.descriptor, this.events);
+
+  @override
+  final KernelDescriptor descriptor;
+
+  @override
+  final Stream<KernelEvent> events;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 void main() {
@@ -215,5 +230,63 @@ void main() {
       ..report(const FileChange(path: '/elsewhere.txt', added: 1, removed: 0));
     expect(parts['/w']!.reported, ['notes.md', '/elsewhere.txt']);
     expect(parts['/a']!.reported, ['/a/z.dart']);
+  });
+
+  testWidgets('what a command or a subagent may have written is looked for '
+      'as the agent works, a little later and not too often', (tester) async {
+    final live = StreamController<KernelEvent>.broadcast(sync: true);
+    addTearDown(live.close);
+    late final KernelDescriptor descriptor;
+    descriptor = KernelDescriptor(
+      id: 'test',
+      label: 'Test',
+      icon: Icons.abc,
+      description: '',
+      create: (context) => _Kernel(descriptor, live.stream),
+    );
+    review = _Review();
+    final session = ChatSession(
+      kernel: descriptor,
+      kernels: [descriptor],
+      kernelContext: const KernelContext(cwd: '/p'),
+      historyCount: 0,
+      openReview: (root, {session}) async => review,
+    );
+    addTearDown(session.dispose);
+    session.attach();
+    await tester.pump();
+    expect(review.calls, ['begin']);
+    var seq = 0;
+    int looks() => review.calls.where((call) => call == 'observe').length;
+
+    // Between turns, what changes is not the agent's.
+    live.add(FilesMayHaveChanged(++seq));
+    await tester.pump(const Duration(seconds: 2));
+    expect(looks(), 0);
+
+    live.add(TurnStarted(++seq, 't1'));
+    live.add(FilesMayHaveChanged(++seq));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(looks(), 0);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(looks(), 1);
+
+    // Many commands right after: one look, once the last has rested.
+    for (var i = 0; i < 5; i++) {
+      live.add(FilesMayHaveChanged(++seq));
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+    expect(looks(), 1);
+    await tester.pump(const Duration(seconds: 5));
+    expect(looks(), 2);
+    await tester.pump(const Duration(seconds: 10));
+    expect(looks(), 2);
+
+    // The turn's end looks at everything; none waits on after it.
+    live.add(FilesMayHaveChanged(++seq));
+    live.add(TurnEnded(++seq, 't1'));
+    expect(looks(), 3);
+    await tester.pump(const Duration(seconds: 10));
+    expect(looks(), 3);
   });
 }

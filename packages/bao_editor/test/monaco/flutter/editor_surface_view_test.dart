@@ -1073,6 +1073,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('wrapped: a long line takes rows, the caret moves down them; '
+      'a document too long is not wrapped (#203)', (tester) async {
+    final long = List.filled(60, 'word').join(' ');
+    final controller = _controller('$long\nshort');
+    final focus = await _mount(tester, controller, wrap: true);
+    var layout = _gutter(tester).layout;
+    expect(layout.wrap, isTrue);
+    expect(
+      layout.rows.where((row) => row.lineNumber == 1).length,
+      greaterThan(1),
+    );
+    controller.value = controller.value.copyWith(
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    focus.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    final offset = controller.value.selection.extentOffset;
+    expect(offset, inExclusiveRange(0, long.length));
+
+    final big = _controller(
+      [long, for (var i = 0; i < EditorSurface.maxWrappedLines; i++) 'x']
+          .join('\n'),
+    );
+    await _mount(tester, big, wrap: true);
+    layout = _gutter(tester).layout;
+    expect(layout.wrap, isFalse);
+  });
+
   testWidgets('50k-line typing reshapes only visible lines', (tester) async {
     final controller = _controller(
       List.generate(50000, (i) => '  value_$i = $i;').join('\n'),

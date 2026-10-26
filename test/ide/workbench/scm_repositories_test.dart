@@ -110,7 +110,7 @@ void main() {
     app.status = '## dev\x00M  main.dart\x00';
     await pumpScm(tester);
     await tester.enterText(scmInputs(), 'Update both');
-    await tester.tap(find.text('Commit').first);
+    await tester.tap(find.text('Commit').last);
     await tester.pumpAndSettle();
     expect(app.callsTo('commit').single, [
       'commit',

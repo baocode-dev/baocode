@@ -70,4 +70,27 @@ void main() {
     );
     expect(session.filesSeen, ['/p/a.dart', '/p/b.dart']);
   });
+
+  test("each change pending with its turn and what the turn was asked", () {
+    final live = StreamController<KernelEvent>.broadcast(sync: true);
+    addTearDown(live.close);
+    final session = _session(live.stream);
+    live.add(
+      const ItemUpserted(
+        1,
+        't1',
+        UserMessageItem(text: 'Fix the login\nplease'),
+      ),
+    );
+    live.add(
+      const FileEdited(
+        2,
+        FileChange(path: 'a.dart', added: 1, removed: 0),
+        turnId: 't1',
+      ),
+    );
+    expect(session.turnEdits, [
+      (turn: 't1', request: 'Fix the login\nplease', path: '/p/a.dart'),
+    ]);
+  });
 }

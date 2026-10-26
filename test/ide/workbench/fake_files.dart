@@ -189,12 +189,14 @@ Future<IdeWorkspace> pumpWorkbench(
   List<String>? roots,
   IdeGitRepository? Function(String root)? gitOf,
   IdeRepositoryDetection? repositoryDetection,
+  IdeGitRepository? Function(String path)? openWorktree,
   VoidCallback? onAddFolder,
   ValueChanged<String>? onRemoveFolder,
   Project? project,
   IdeExtensions? extensions,
   DebugService? debugService,
   TerminalTasks? terminalTasks,
+  ValueChanged<String>? onAskInChat,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -209,6 +211,7 @@ Future<IdeWorkspace> pumpWorkbench(
     roots: [for (final root in roots ?? const <String>[]) inRoot(root)],
     gitOf: roots == null ? null : (root) => gitOf?.call(root),
     repositoryDetection: repositoryDetection,
+    openWorktree: openWorktree,
   );
   addTearDown(() {
     workspace.dispose();
@@ -226,6 +229,7 @@ Future<IdeWorkspace> pumpWorkbench(
         project: project ?? Project.at(testRoot),
         onAddFolder: onAddFolder,
         onRemoveFolder: onRemoveFolder,
+        onAskInChat: onAskInChat,
         visible: true,
         chat: chat,
         onBack: onBack ?? () {},

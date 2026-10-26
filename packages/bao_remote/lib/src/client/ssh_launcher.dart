@@ -12,7 +12,9 @@ import 'ssh_askpass.dart';
 export 'ssh_askpass.dart' show SshPrompt, SshPrompter;
 
 /// A host to reach: an alias of `~/.ssh/config`, or `user@host`, with a
-/// port after a colon (`dev:2222`, `me@10.0.0.2:2222`).
+/// port after a colon (`dev:2222`, `me@10.0.0.2:2222`); or, on Windows, a
+/// WSL distribution, `wsl+<its name>` (`wsl+Ubuntu`, as VS Code names
+/// them), reached with `wsl.exe` rather than `ssh`.
 class SshTarget {
   SshTarget._(
     this.text,
@@ -50,6 +52,19 @@ class SshTarget {
 
   /// `ssh`'s options for it (`-F` and its config).
   final List<String> options;
+
+  /// What names a WSL distribution's host: `wsl+` and the distribution.
+  static const wslPrefix = 'wsl+';
+
+  /// The host of WSL distribution [distro].
+  static String wslHost(String distro) => '$wslPrefix$distro';
+
+  /// The WSL distribution [text] names; null for a host reached by `ssh`.
+  String? get wslDistro {
+    if (!text.startsWith(wslPrefix)) return null;
+    final distro = text.substring(wslPrefix.length);
+    return distro.isEmpty ? null : distro;
+  }
 
   /// Whether [text] could name a host: no spaces, no option.
   static bool isValid(String text) {
@@ -101,6 +116,9 @@ enum SshFailure {
 
   /// The server could not be put there, or did not start.
   server,
+
+  /// WSL is not installed here, or could not start the distribution.
+  wsl,
 }
 
 class SshConnectException implements Exception {
@@ -326,6 +344,7 @@ class _SessionKeeper {
         said.join('\n'),
         cancelled: askpass?.cancelled ?? false,
         fallback: 'The connection could not be made again (exit $code).',
+        wsl: target.wslDistro != null,
       ),
     );
   }
@@ -401,6 +420,7 @@ class SshLauncher {
   SshLauncher({
     required this.ssh,
     required this.binaries,
+    this.wsl = 'wsl.exe',
     SshProcessStarter? start,
     this.options = defaultOptions,
     this.prompter,
@@ -414,6 +434,9 @@ class SshLauncher {
 
   /// The `ssh` executable.
   final String ssh;
+
+  /// The `wsl.exe` executable, for WSL distributions' hosts.
+  final String wsl;
   final RemoteServerBinaries binaries;
   final SshProcessStarter _start;
   final List<String> options;
@@ -515,6 +538,7 @@ class SshLauncher {
   /// What `ssh -G` makes of [target]'s configuration: each keyword, in
   /// lowercase, and its value; empty when it would not say.
   Future<Map<String, String>> configOf(SshTarget target) async {
+    if (target.wslDistro != null) return const {};
     final Process process;
     try {
       process = await _start(ssh, ['-G', ...target.arguments]);
@@ -552,6 +576,8 @@ class SshLauncher {
   /// all the same. `ask`, ssh's default, would ask in a terminal there is
   /// none of here.
   Future<List<String>> hostKeyOptions(SshTarget target) async {
+    // No key: WSL is this machine's.
+    if (target.wslDistro != null) return const [];
     final strict = (await configOf(target))['stricthostkeychecking'];
     return strict == null || strict == 'ask'
         ? const ['-o', 'StrictHostKeyChecking=accept-new']
@@ -642,6 +668,9 @@ class SshLauncher {
     String command,
     List<String> extra,
   ) async {
+    if (target.wslDistro case final distro?) {
+      return (await _startWsl(distro, command), null);
+    }
     final prompter = this.prompter;
     if (prompter != null && _askpass.windows) await _checkForced();
     final askpass = prompter != null && _prompts
@@ -662,6 +691,42 @@ class SshLauncher {
       throw SshConnectException(
         SshFailure.noSsh,
         'ssh could not be started',
+        detail: error.message,
+      );
+    }
+  }
+
+  /// `wsl.exe`'s arguments to run [command] in WSL distribution [distro]:
+  /// by its user's shell-less `sh`, from their home folder (where `ssh`
+  /// runs one), whatever folder the app is in.
+  static List<String> wslArguments(String distro, String command) => [
+    '--distribution',
+    distro,
+    '--exec',
+    'sh',
+    '-c',
+    'cd && $command',
+  ];
+
+  /// Starts `wsl.exe` running [command] in [distro]: nothing to sign in to.
+  /// Its own messages in UTF-8 (`WSL_UTF8`), not UTF-16.
+  Future<Process> _startWsl(String distro, String command) async {
+    if (!Platform.isWindows && _start == Process.start) {
+      throw const SshConnectException(
+        SshFailure.unsupported,
+        'WSL is only on Windows',
+      );
+    }
+    try {
+      return await _start(
+        wsl,
+        wslArguments(distro, command),
+        environment: const {'WSL_UTF8': '1'},
+      );
+    } on ProcessException catch (error) {
+      throw SshConnectException(
+        SshFailure.wsl,
+        'wsl.exe could not be started: WSL is not installed',
         detail: error.message,
       );
     }
@@ -820,6 +885,7 @@ exit 0
         said.join('\n'),
         fallback: 'The server on ${target.text} did not start: $error',
         cancelled: askpass?.cancelled ?? false,
+        wsl: target.wslDistro != null,
       );
     } finally {
       // Signed in, or not to be.
@@ -859,9 +925,11 @@ exit 0
     final result = (exitCode: code, stdout: await stdout, stderr: await stderr);
     final cancelled = askpass?.cancelled ?? false;
     // ssh's own failure: the connection, not the command; or ended, the
-    // signing in cancelled.
-    if (code == 255 || cancelled) {
-      throw _failure(code, result.stderr, cancelled: cancelled);
+    // signing in cancelled. wsl.exe's own ends in -1 (no such
+    // distribution, WSL not set up).
+    final wsl = target.wslDistro != null;
+    if ((wsl ? code < 0 : code == 255) || cancelled) {
+      throw _failure(code, result.stderr, cancelled: cancelled, wsl: wsl);
     }
     return result;
   }
@@ -888,8 +956,18 @@ exit 0
     String stderr, {
     String? fallback,
     bool cancelled = false,
+    bool wsl = false,
   }) {
-    final detail = _tail(stderr);
+    final detail = _tail(stderr.replaceAll('\u0000', ''));
+    if (wsl) {
+      return SshConnectException(
+        code < 0 ? SshFailure.wsl : SshFailure.server,
+        code < 0
+            ? 'WSL could not start the distribution.'
+            : fallback ?? 'wsl.exe failed (exit $code).',
+        detail: detail.isEmpty ? null : detail,
+      );
+    }
     final failure = switch (stderr) {
       // Ended when cancelled, before ssh could say it was refused.
       _ when cancelled => SshFailure.authentication,

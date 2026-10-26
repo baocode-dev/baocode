@@ -33,6 +33,7 @@ import 'package:baocode/remote/remote_location.dart';
 import 'package:baocode/remote/remote_services.dart';
 import 'package:baocode/remote/remote_status.dart';
 import 'package:baocode/remote/ssh_host.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -833,6 +834,52 @@ printf '%s\n' "$line"
       expect(connected, 'dev');
     });
 
+    test("this machine's WSL distributions last, by their names; not "
+        'edited', () async {
+      final before = defaultWslHosts;
+      defaultWslHosts = () async => ['wsl+Ubuntu-24.04', 'wsl+Debian'];
+      addTearDown(() => defaultWslHosts = before);
+      final shown = <IdeQuickPick>[];
+      String? connected;
+      final flow = OpenRemoteFlow(
+        show: shown.add,
+        l10n: englishLocalizations,
+        onOpen: (_) {},
+        onConnected: (host) => connected = host,
+        onEdit: (_) {},
+        added: ['wsl+Debian'],
+        hosts: hosts,
+        configHosts: () async => ['dev'],
+      );
+      await flow.start();
+      final pick = shown.single;
+      final items = pick.itemsFor!('');
+      expect(
+        [
+          for (final item in items)
+            switch (item) {
+              IdeQuickPickSeparator(:final label) => '-- $label',
+              IdeQuickPickItem(:final label) => label,
+            },
+        ],
+        [
+          '-- Added',
+          'Debian',
+          '-- ~/.ssh/config',
+          'dev',
+          '-- WSL',
+          'Ubuntu-24.04',
+        ],
+      );
+      final ubuntu = items.whereType<IdeQuickPickItem>().last;
+      expect(ubuntu.description, isNull);
+      expect(ubuntu.buttons, isEmpty);
+      expect((ubuntu.icon! as Icon).icon, Codicons.terminalLinux);
+      pick.onDidAccept!(ubuntu);
+      await until(() => connected != null);
+      expect(connected, 'wsl+Ubuntu-24.04');
+    });
+
     test('a server added, what was typed given; those added edited, '
         "not ~/.ssh/config's", () async {
       final shown = <IdeQuickPick>[];
@@ -1061,6 +1108,11 @@ printf '%s\n' "$line"
       expect(plain.text, 'SSH: dev (disconnected)');
       expect(plain.onTapRect, isNull);
       expect(plain.tooltip, isNot(contains('Click for')));
+      // A WSL distribution: by its name.
+      expect(
+        SshStatusIndicator(hosts['wsl+Ubuntu']).item(context).text,
+        'WSL: Ubuntu (disconnected)',
+      );
 
       // With the menu: the same state, clickable, its tooltip saying so.
       Rect? chosen;

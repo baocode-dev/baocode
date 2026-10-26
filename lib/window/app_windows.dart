@@ -155,10 +155,11 @@ class AppWindow {
   String title(AppLocalizations l10n) => '${label(l10n)} — BaoCode';
 
   /// The folder's name; a remote one's with its host, as VS Code shows
-  /// one (`app [SSH: dev]`).
+  /// one (`app [SSH: dev]`, `app [WSL: Ubuntu]`).
   static String _folderName(String folder) {
     if (RemoteLocation.hostOf(folder) case final host?) {
-      return '${RemoteLocation.nameOf(folder)} [SSH: $host]';
+      return '${RemoteLocation.nameOf(folder)} '
+          '[${RemoteLocation.reachedBy(host)}: ${RemoteLocation.hostName(host)}]';
     }
     final name = p.basename(folder);
     return name.isEmpty ? folder : name;

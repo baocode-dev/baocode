@@ -88,6 +88,16 @@ class _Tasks extends ChangeNotifier implements TerminalTasks {
   void stop(KernelTask task) => stopped.add(task.id);
 
   @override
+  void clear(Iterable<KernelTask> tasks) {
+    final ids = {for (final task in tasks) task.id};
+    this.tasks = [
+      for (final task in this.tasks)
+        if (!ids.contains(task.id)) task,
+    ];
+    notifyListeners();
+  }
+
+  @override
   String get root => testRoot;
 }
 
@@ -137,6 +147,50 @@ void main() {
     expect(find.byType(TerminalTabs), findsNothing);
     expect(find.byType(TerminalPreview), findsNothing);
     await tester.pump(kDoubleTapTimeout);
+  });
+
+  testWidgets('ended background commands are cleared one by one, or all '
+      'at once; those running stay', (tester) async {
+    KernelTask task(String id, CommandStatus status) => KernelTask(
+      id: id,
+      description: 'Task $id',
+      kind: KernelTaskKind.command,
+      status: status,
+      startedAt: DateTime(2026),
+    );
+    final tasks = _Tasks([
+      task('run', CommandStatus.running),
+      task('done', CommandStatus.succeeded),
+      task('failed', CommandStatus.failed),
+      task('other', CommandStatus.failed),
+    ]);
+    await pumpWorkbench(tester, {'a.txt': 'a'}, terminalTasks: tasks);
+    _workbench(tester).showTerminalTask('run');
+    await tester.pump();
+    await tester.pump();
+
+    // One from its menu.
+    await tester.tapAt(
+      tester.getCenter(_inTabs(find.text('Task done'))),
+      buttons: kSecondaryMouseButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Clear'));
+    await tester.pumpAndSettle();
+    expect(_inTabs(find.text('Task done')), findsNothing);
+    expect(_inTabs(find.text('Task failed')), findsOneWidget);
+
+    // The rest that ended, from the group's button.
+    await tester.tap(find.byKey(const ValueKey('terminal-tabs-clear-ended')));
+    await tester.pumpAndSettle();
+    expect([for (final t in tasks.tasks) t.id], ['run']);
+    expect(_inTabs(find.text('Task run')), findsOneWidget);
+    // Nothing ended left: no button.
+    expect(
+      find.byKey(const ValueKey('terminal-tabs-clear-ended')),
+      findsNothing,
+    );
   });
 
   testWidgets('⌃` opens the panel on TERMINAL with a terminal of its own, '

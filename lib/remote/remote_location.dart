@@ -1,10 +1,12 @@
+import 'package:bao_remote/client.dart' show SshTarget;
 import 'package:path/path.dart' as p;
 
 /// Where a project is: a folder of this machine (its path), or of a host
 /// reached over SSH, `ssh://<host>/<absolute path>` (the host as the user
 /// gave it: an alias of `~/.ssh/config`, or `user@host`, with a port after
 /// a colon). The location names the project in the app (the sidebar, what
-/// is kept between runs); the services of its host take the path.
+/// is kept between runs); the services of its host take the path. A WSL
+/// distribution is a host too, `wsl+<distribution>` (see [SshTarget]).
 abstract final class RemoteLocation {
   static const scheme = 'ssh://';
 
@@ -42,4 +44,16 @@ abstract final class RemoteLocation {
     final name = pathsOf(location).basename(pathOf(location));
     return name.isEmpty ? location : name;
   }
+
+  /// Whether [host] is a WSL distribution of this machine.
+  static bool isWsl(String host) => host.startsWith(SshTarget.wslPrefix);
+
+  /// How [host] is reached, as titles and the status bar say it: `WSL` or
+  /// `SSH`.
+  static String reachedBy(String host) => isWsl(host) ? 'WSL' : 'SSH';
+
+  /// What [host] is called when the user has not named it: a WSL
+  /// distribution by its name, any other as given.
+  static String hostName(String host) =>
+      isWsl(host) ? host.substring(SshTarget.wslPrefix.length) : host;
 }

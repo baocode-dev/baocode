@@ -333,8 +333,23 @@ Call it only when the plan is finished, and only for work that will change code,
       } on FileSystemException {
         plan = null;
       }
+    } else {
+      _keep(path, plan);
     }
     return {...input, 'plan': ?plan, 'planFilePath': path};
+  }
+
+  /// [plan], sent rather than written, kept in its file: the file is what
+  /// the user is shown, and what starting the plan names (#298).
+  static void _keep(String path, String plan) {
+    final file = File(path);
+    try {
+      if (file.existsSync() && file.readAsStringSync() == plan) return;
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync(plan);
+    } on FileSystemException {
+      // Shown from the call's input all the same.
+    }
   }
 
   @override

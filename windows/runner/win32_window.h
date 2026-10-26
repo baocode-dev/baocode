@@ -72,6 +72,20 @@ class Win32Window {
 
   static void SetDarkAppearance(bool dark);
 
+  // Full screen: the window over the whole of its monitor, the taskbar too,
+  // with no border to resize it by; and, out of it, back as it was (where it
+  // was, maximized or not). The header stays, the app's own.
+  void SetFullScreen(bool full_screen);
+  bool IsFullScreen() const { return full_screen_; }
+
+  // Where the window goes back to out of full screen (only then).
+  const WINDOWPLACEMENT& FullScreenRestore() const { return restore_; }
+
+  // Retrieves a class instance pointer for |window|, of a window it made (a
+  // subclass handling a child window's messages this way finds the window
+  // those messages are about).
+  static Win32Window* GetThisFromHandle(HWND const window) noexcept;
+
  protected:
   // Processes and route salient window messages for mouse handling,
   // size change and DPI. Delegates handling of these to member overloads that
@@ -108,11 +122,6 @@ class Win32Window {
   // frame — and draw a caption over the top of the client, whatever the
   // client rectangle says.
   std::optional<LRESULT> NonClientSize(WPARAM wparam, LPARAM lparam) const;
-
-  // Retrieves a class instance pointer for |window|, of a window it made (a
-  // subclass handling a child window's messages this way finds the window
-  // those messages are about).
-  static Win32Window* GetThisFromHandle(HWND const window) noexcept;
 
  private:
   friend class WindowClassRegistrar;
@@ -187,6 +196,11 @@ class Win32Window {
   // Whether the user is moving or sizing the window: a resync waits for the
   // end.
   bool sizing_ = false;
+
+  // See SetFullScreen: whether it is, and how it was before.
+  bool full_screen_ = false;
+  WINDOWPLACEMENT restore_ = {};
+  LONG_PTR frame_styles_ = 0;
 };
 
 #endif  // RUNNER_WIN32_WINDOW_H_

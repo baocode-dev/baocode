@@ -86,6 +86,30 @@ void main() {
     expect(kept.last['active'], inRoot('a.txt'));
   });
 
+  testWidgets('the search\'s files to include and exclude and its options '
+      'come back, and are kept as they change (#268)', (tester) async {
+    final kept = <Map<String, Object?>>[];
+    await pumpWorkbench(
+      tester,
+      {'a.txt': 'a'},
+      viewState: {
+        'view': 'search',
+        'search': {'excludes': '**/gen', 'matchCase': true},
+      },
+      onViewState: kept.add,
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('**/gen'), findsOneWidget);
+    expect(kept.last['search'], {'excludes': '**/gen', 'matchCase': true});
+
+    await tester.enterText(find.text('**/gen'), '**/gen, build');
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(kept.last['search'], {
+      'excludes': '**/gen, build',
+      'matchCase': true,
+    });
+  });
+
   testWidgets('Format on Save and Git Blame are kept in settings.json', (
     tester,
   ) async {

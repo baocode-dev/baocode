@@ -113,6 +113,42 @@ class IdeSearchSession extends ChangeNotifier {
   int get matchCount =>
       results.fold(0, (count, file) => count + file.matches.length);
 
+  /// What is kept of it for the next run, as VS Code keeps it with the
+  /// workspace: the files to include and exclude, and the options (#268).
+  Map<String, Object?> get kept => {
+    if (includes.text.isNotEmpty) 'includes': includes.text,
+    if (excludes.text.isNotEmpty) 'excludes': excludes.text,
+    if (matchCase) 'matchCase': true,
+    if (wholeWord) 'wholeWord': true,
+    if (useRegExp) 'useRegExp': true,
+    if (preserveCase) 'preserveCase': true,
+    if (!useExcludesAndIgnoreFiles) 'useExcludesAndIgnoreFiles': false,
+  };
+
+  /// As [kept] gave it, before it searches.
+  void restore(Object? kept) {
+    if (kept is! Map) return;
+    String text(String key) => switch (kept[key]) {
+      final String text => text,
+      _ => '',
+    };
+    includes.text = text('includes');
+    excludes.text = text('excludes');
+    matchCase = kept['matchCase'] == true;
+    wholeWord = kept['wholeWord'] == true;
+    useRegExp = kept['useRegExp'] == true;
+    preserveCase = kept['preserveCase'] == true;
+    useExcludesAndIgnoreFiles = kept['useExcludesAndIgnoreFiles'] != false;
+  }
+
+  /// Told when [kept] may have changed: as the inputs are typed in, and
+  /// as anything else of it does.
+  late final Listenable keptChanges = Listenable.merge([
+    includes,
+    excludes,
+    this,
+  ]);
+
   IdeTextQuery get currentQuery => IdeTextQuery(
     query.text,
     isRegExp: useRegExp,

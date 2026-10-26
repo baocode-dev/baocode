@@ -2,6 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../platform/app_platform.dart';
+import '../workspace/window_controls.dart';
+import 'system_sounds_stub.dart'
+    if (dart.library.io) 'system_sounds_io.dart'
+    as platform;
 
 /// The menu bar / system tray icon as it should be.
 @immutable
@@ -85,8 +89,9 @@ abstract interface class AttentionHost {
   set onOpen(void Function(String? id)? handler);
 }
 
-/// [AttentionHost] over the desktop app's channel; nothing elsewhere (the
-/// web, tests).
+/// [AttentionHost] over the desktop app's channel; on Linux, the system's
+/// sound players and `notify-send` (see system_sounds_io.dart); nothing
+/// elsewhere (the web, tests).
 class ChannelAttentionHost implements AttentionHost {
   ChannelAttentionHost._() {
     if (_available) _channel.setMethodCallHandler(_handle);
@@ -127,11 +132,15 @@ class ChannelAttentionHost implements AttentionHost {
     required String id,
     required String title,
     required String body,
-  }) => _invoke('notify', {'id': id, 'title': title, 'body': body});
+  }) => AppPlatform.isLinux
+      ? platform.notifyLinux(title, body)
+      : _invoke('notify', {'id': id, 'title': title, 'body': body});
 
   @override
   Future<void> playSound({String? path, Uint8List? bytes}) =>
-      _invoke('playSound', {'path': ?path, 'bytes': ?bytes});
+      AppPlatform.isLinux
+      ? platform.playLinuxSound(path: path, bytes: bytes)
+      : _invoke('playSound', {'path': ?path, 'bytes': ?bytes});
 
   @override
   Future<void> requestAttention() => _invoke('requestAttention');
@@ -143,7 +152,10 @@ class ChannelAttentionHost implements AttentionHost {
   Future<void> setTray(TrayState? state) => _invoke('setTray', state?.encoded);
 
   @override
-  Future<String?> pickSound() => _invoke<String>('pickSound');
+  Future<String?> pickSound() async => AppPlatform.isLinux
+      // The GTK file chooser the window has.
+      ? (await WindowControls.pickOpenFiles(multiple: false)).firstOrNull
+      : _invoke<String>('pickSound');
 
   @override
   Future<void> quit() => _invoke('quit');

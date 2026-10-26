@@ -67,15 +67,21 @@ class _Entry {
 ///
 /// A file the snapshots leave out (ignored, too large; any, in a project
 /// too large to snapshot) that the agent reports it edited is held
-/// against what it was as the agent tells ([FileOriginal]); without that,
-/// it is listed, to be kept and not undone.
+/// against what it was as the agent tells ([FileOriginal]), as is one
+/// outside the project (in a worktree beside it, say); without that, it is
+/// listed, to be kept and not undone.
 ///
 /// Kept, a change is only no longer listed: nothing is written, staged or
 /// committed. Undone, the file is put back.
 class ChangeReview extends ChangeNotifier {
   /// Its files' paths spelled as [paths] has them: this machine's way
   /// when null.
-  ChangeReview(this._store, {p.Context? paths}) : _paths = paths ?? p.context;
+  ///
+  /// [realRoot] is [root] with its links resolved, where that is another
+  /// path: the agent may tell the project's files by it (Claude Code does:
+  /// macOS's `/tmp` is `/private/tmp`), and they are the project's.
+  ChangeReview(this._store, {p.Context? paths, this.realRoot})
+    : _paths = paths ?? p.context;
 
   /// The review of the project at [root], continuing what [session] left;
   /// null where there can be none (see [openReviewStore]).
@@ -85,8 +91,11 @@ class ChangeReview extends ChangeNotifier {
     // A remote project's paths are its host's (POSIX), whatever this
     // machine spells its own with.
     final paths = RemoteLocation.pathsOf(root);
-    if (session == null) return ChangeReview(store, paths: paths);
-    return resume(store, session, paths: paths);
+    final realRoot = await realRootOf(root);
+    if (session == null) {
+      return ChangeReview(store, paths: paths, realRoot: realRoot);
+    }
+    return resume(store, session, paths: paths, realRoot: realRoot);
   }
 
   /// The review over [store], with the changes [session] left pending.
@@ -94,14 +103,18 @@ class ChangeReview extends ChangeNotifier {
     ReviewStore store,
     String session, {
     p.Context? paths,
+    String? realRoot,
   }) async {
-    final review = ChangeReview(store, paths: paths);
+    final review = ChangeReview(store, paths: paths, realRoot: realRoot);
     await review._load(session);
     return review;
   }
 
   final ReviewStore _store;
   final p.Context _paths;
+
+  /// [root] with its links resolved, where that is another path.
+  final String? realRoot;
 
   /// How its files' paths are spelled.
   p.Context get paths => _paths;
@@ -115,19 +128,19 @@ class ChangeReview extends ChangeNotifier {
   /// seen.
   bool _wide = false;
 
-  /// By path relative to [root].
+  /// By key ([_key]): path relative to [root], absolute outside it.
   final Map<String, _Entry> _entries = {};
 
-  /// Edits reported since the last look, by relative path.
+  /// Edits reported since the last look, by key.
   final Map<String, FileChange> _reported = {};
 
   /// What files the agent reported it edited were before, as it told, for
-  /// those the snapshots may not see; by relative path, null where there
-  /// was no file.
+  /// those the snapshots may not see; by key, null where there was no
+  /// file.
   final Map<String, ReviewBlob?> _originals = {};
 
-  /// Edits reported that cannot be undone (what the file was is not known,
-  /// or it is outside the project), by absolute path: listed, to be kept.
+  /// Edits reported that cannot be undone (what the file was is not
+  /// known), by absolute path: listed, to be kept.
   final Map<String, FileChange> _unseen = {};
 
   List<FileChange> _changes = const [];
@@ -224,11 +237,11 @@ class ChangeReview extends ChangeNotifier {
   /// The agent reported an edit to [change]'s file, which was [original]
   /// before; seen at the next [observe].
   void report(FileChange change, {FileOriginal? original}) {
-    final path = _relative(change.path);
-    if (path == null) {
-      // Outside the project: never in a snapshot.
-      final absolute = _absolute(change.path);
-      _unseen[absolute] = _merged(_unseen[absolute], change, absolute);
+    final path = _key(change.path);
+    if (_outside(path) && original == null) {
+      // Outside the project, never in a snapshot, and not told what it
+      // was.
+      _unseen[path] = _merged(_unseen[path], change, path);
       unawaited(_enqueue(_refresh));
       return;
     }
@@ -256,7 +269,11 @@ class ChangeReview extends ChangeNotifier {
   Future<void> _keepOriginal(String path, FileOriginal original) async {
     if (_entries.containsKey(path) || _originals.containsKey(path)) return;
     final snapshot = _snapshot;
-    if (snapshot != null && await _store.contains(snapshot, path)) return;
+    if (snapshot != null &&
+        !_outside(path) &&
+        await _store.contains(snapshot, path)) {
+      return;
+    }
     final (known, base) = await _baseOf(path, original);
     if (known) _originals[path] = base;
   }
@@ -277,13 +294,15 @@ class ChangeReview extends ChangeNotifier {
           _ => '100644',
         };
         return (true, await _store.store(utf8.encode(text), mode: mode));
-      case OriginalByPatch(:final diff):
+      case OriginalByPatch() || OriginalByEdits():
         final after = await _store.take(path);
         if (after == null || after.isLink) return (false, null);
-        final text = unpatch(
-          utf8.decode(await _store.read(after), allowMalformed: true),
-          diff,
-        );
+        final now = utf8.decode(await _store.read(after), allowMalformed: true);
+        final text = switch (original) {
+          OriginalByPatch(:final diff) => unpatch(now, diff),
+          OriginalByEdits() => original.undo(now),
+          OriginalText() => null,
+        };
         if (text == null) return (false, null);
         return (true, await _store.store(utf8.encode(text), mode: after.mode));
     }
@@ -292,9 +311,16 @@ class ChangeReview extends ChangeNotifier {
   Future<void> _look({required bool agent, List<String>? paths}) async {
     if (paths != null && paths.isEmpty) return;
     final previous = _snapshot;
-    final next = _wide ? null : await _store.snapshot(paths: paths);
+    // Files outside the project alone: no snapshot to take.
+    final inside = paths?.where((path) => !_outside(path)).toList();
+    final outsideOnly = inside != null && inside.isEmpty;
+    final next = outsideOnly
+        ? previous
+        : _wide
+        ? null
+        : await _store.snapshot(paths: inside);
     _snapshot = next;
-    if (next == null) {
+    if (next == null && !outsideOnly) {
       _wide = true;
       // None of them in a snapshot.
       for (final entry in _entries.values) {
@@ -349,7 +375,9 @@ class ChangeReview extends ChangeNotifier {
             ..reported = true
             ..shared = false;
         } else if (await _store.exists(path) &&
-            (next == null || !await _store.contains(next, path))) {
+            (next == null ||
+                _outside(path) ||
+                !await _store.contains(next, path))) {
           if (known) {
             final now = await _store.take(path);
             _entries[path] = _Entry(original)
@@ -406,20 +434,36 @@ class ChangeReview extends ChangeNotifier {
   /// [changes] anew, with their line counts.
   Future<void> _refresh() async {
     final snapshot = _snapshot ?? (_wide ? '' : null);
-    Map<String, ({int added, int removed})?> counts = const {};
-    if (snapshot != null && _entries.isNotEmpty) {
+    final counts = <String, ({int added, int removed})?>{};
+    final inside = {
+      for (final MapEntry(key: path, value: entry) in _entries.entries)
+        if (!_outside(path)) path: entry,
+    };
+    if (snapshot != null && inside.isNotEmpty) {
       try {
         final now = await _store.overlay(snapshot, {
-          for (final MapEntry(key: path, value: entry) in _entries.entries)
+          for (final MapEntry(key: path, value: entry) in inside.entries)
             if (entry.loose) path: entry.current,
         });
         final base = await _store.overlay(snapshot, {
-          for (final MapEntry(key: path, value: entry) in _entries.entries)
+          for (final MapEntry(key: path, value: entry) in inside.entries)
             path: entry.base,
         });
-        counts = await _store.lineCounts(base, now);
+        counts.addAll(await _store.lineCounts(base, now));
       } on Object {
         // Listed without their counts.
+      }
+    }
+    // Those outside the project, each in a tree of its own.
+    for (final MapEntry(key: path, value: entry) in _entries.entries) {
+      if (!_outside(path)) continue;
+      try {
+        final base = await _store.overlay('', {'file': entry.base});
+        final now = await _store.overlay('', {'file': entry.current});
+        final counted = await _store.lineCounts(base, now);
+        if (counted.containsKey('file')) counts[path] = counted['file'];
+      } on Object {
+        // Listed without its counts.
       }
     }
     final paths = _entries.keys.toList()..sort();
@@ -452,7 +496,7 @@ class ChangeReview extends ChangeNotifier {
     return _enqueue(() async {
       for (final path in kept) {
         _unseen.remove(path);
-        _entries.remove(_relative(path));
+        _entries.remove(_key(path));
       }
       await _refresh();
       await _persist();
@@ -474,9 +518,9 @@ class ChangeReview extends ChangeNotifier {
     return _enqueue(() async {
       final undone = <String>[];
       for (final absolute in wanted) {
-        final path = _relative(absolute);
-        final entry = path == null ? null : _entries[path];
-        if (path == null || entry == null) continue;
+        final path = _key(absolute);
+        final entry = _entries[path];
+        if (entry == null) continue;
         try {
           if (await _undo(path, entry)) {
             undone.add(path);
@@ -529,8 +573,7 @@ class ChangeReview extends ChangeNotifier {
   /// part of the change is kept; null when it has no change pending that
   /// can be undone.
   String? baseOf(String path) {
-    final relative = _relative(path);
-    final entry = relative == null ? null : _entries[relative];
+    final entry = _entries[_key(path)];
     if (entry == null) return null;
     return entry.base?.oid ?? '';
   }
@@ -540,11 +583,11 @@ class ChangeReview extends ChangeNotifier {
   /// against. Nothing is written. Fails (the review goes on) where the
   /// store cannot keep it.
   Future<void> keepPart(String path, String base) {
-    final relative = _relative(path);
+    final key = _key(path);
     final completer = Completer<void>();
     unawaited(
       _enqueue(() async {
-        final entry = relative == null ? null : _entries[relative];
+        final entry = _entries[key];
         if (entry == null) return completer.complete();
         try {
           final mode = entry.base?.mode ?? entry.current?.mode ?? '100644';
@@ -555,7 +598,7 @@ class ChangeReview extends ChangeNotifier {
         entry.conflict = false;
         // The file as it is now (saved since the last look, it may be what
         // is kept): the change goes when nothing of it is left.
-        await _look(agent: false, paths: [relative!]);
+        await _look(agent: false, paths: [key]);
         completer.complete();
       }).whenComplete(() {
         if (!completer.isCompleted) completer.complete();
@@ -567,17 +610,17 @@ class ChangeReview extends ChangeNotifier {
   /// Looks at [paths] (absolute) again after they were written outside the
   /// agent's turn (part of a change undone in the editor): not the agent's.
   Future<void> settle(Iterable<String> paths) {
-    final relative = [for (final path in paths) ?_relative(path)];
-    return _enqueue(() => _look(agent: false, paths: relative));
+    final keys = [for (final path in paths) _key(path)];
+    return _enqueue(() => _look(agent: false, paths: keys));
   }
 
   /// The text of [path] (absolute) before the agent changed it: empty for
   /// a file it created; null when it is not known.
   Future<String> Function()? original(String path) {
-    final relative = _relative(path);
-    if (relative == null || !_entries.containsKey(relative)) return null;
+    final key = _key(path);
+    if (!_entries.containsKey(key)) return null;
     return () async {
-      final base = _entries[relative]?.base;
+      final base = _entries[key]?.base;
       if (base == null) return '';
       return utf8.decode(await _store.read(base), allowMalformed: true);
     };
@@ -665,9 +708,37 @@ class ChangeReview extends ChangeNotifier {
     return _paths.split(_paths.relative(absolute, from: root)).join('/');
   }
 
-  String _absolute(String path) => _paths.normalize(
-    _paths.isAbsolute(path) ? path : _paths.joinAll([root, ...path.split('/')]),
-  );
+  /// [path]'s key in the review: relative to [root] ([_relative]), else
+  /// absolute (a file outside the project, say in a worktree of its
+  /// repository beside it: held file by file, as the agent told what it
+  /// was).
+  String _key(String path) => _relative(path) ?? _absolute(path);
+
+  /// Whether [key] is of a file outside the project.
+  bool _outside(String key) => _paths.isAbsolute(key);
+
+  /// Whether [path] is in the project, spelled either way (see
+  /// [ChangeReview.new]'s realRoot).
+  bool holds(String path) {
+    final absolute = _absolute(path);
+    return _paths.equals(root, absolute) || _paths.isWithin(root, absolute);
+  }
+
+  String _absolute(String path) {
+    final absolute = _paths.normalize(
+      _paths.isAbsolute(path)
+          ? path
+          : _paths.joinAll([root, ...path.split('/')]),
+    );
+    final real = realRoot;
+    if (real == null ||
+        !(_paths.equals(real, absolute) || _paths.isWithin(real, absolute))) {
+      return absolute;
+    }
+    return _paths.normalize(
+      _paths.join(root, _paths.relative(absolute, from: real)),
+    );
+  }
 
   /// Drops what it kept between runs, once what is under way is done: the
   /// conversation is gone.

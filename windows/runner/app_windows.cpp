@@ -163,12 +163,18 @@ RECT Within(RECT bounds, const RECT& work) {
 bool NormalBounds(HWND window, RECT* bounds, bool* maximized) {
   WINDOWPLACEMENT placement = {};
   placement.length = sizeof(placement);
-  if (!::GetWindowPlacement(window, &placement)) {
+  // Full screen, it is as it goes back to (see Win32Window::SetFullScreen).
+  const Win32Window* that = Win32Window::GetThisFromHandle(window);
+  const bool full_screen = that != nullptr && that->IsFullScreen();
+  if (full_screen) {
+    placement = that->FullScreenRestore();
+  } else if (!::GetWindowPlacement(window, &placement)) {
     return false;
   }
-  const bool zoomed = ::IsZoomed(window) != 0;
-  const bool iconic = ::IsIconic(window) != 0;
-  if (zoomed || iconic) {
+  const bool zoomed = full_screen ? placement.showCmd == SW_SHOWMAXIMIZED
+                                  : ::IsZoomed(window) != 0;
+  const bool iconic = !full_screen && ::IsIconic(window) != 0;
+  if (zoomed || iconic || full_screen) {
     // The placement keeps it in the work area's coordinates: to the
     // screen's.
     *bounds = placement.rcNormalPosition;
@@ -185,6 +191,12 @@ bool NormalBounds(HWND window, RECT* bounds, bool* maximized) {
   *maximized =
       zoomed || (iconic && (placement.flags & WPF_RESTORETOMAXIMIZED) != 0);
   return true;
+}
+
+// Whether |window|, one of the app's, is full screen.
+bool IsFullScreen(HWND window) {
+  const Win32Window* that = Win32Window::GetThisFromHandle(window);
+  return that != nullptr && that->IsFullScreen();
 }
 
 }  // namespace
@@ -247,9 +259,13 @@ void IdeWindow::ShowInFront() {
   if (maximize_on_show_) {
     maximize_on_show_ = false;
     BringToFront(window, SW_SHOWMAXIMIZED);
-    return;
+  } else {
+    BringToFront(window);
   }
-  BringToFront(window);
+  if (full_screen_on_show_) {
+    full_screen_on_show_ = false;
+    SetFullScreen(true);
+  }
 }
 
 std::optional<LRESULT> IdeWindow::EngineMessage(HWND hwnd, UINT message,
@@ -671,10 +687,11 @@ std::optional<int64_t> AppWindows::Create(
                 static_cast<LONG>(*x + *width),
                 static_cast<LONG>(*y + *height)};
       placed = true;
-      // Windows has no full screen of the app's: maximized stands in.
-      if (BoolOf(Find(*frame, "maximized")) ||
-          BoolOf(Find(*frame, "fullscreen"))) {
+      if (BoolOf(Find(*frame, "maximized"))) {
         window->ShowMaximizedFirst();
+      }
+      if (BoolOf(Find(*frame, "fullscreen"))) {
+        window->ShowFullScreenFirst();
       }
     }
   }
@@ -886,7 +903,8 @@ flutter::EncodableValue AppWindows::FrameOf(HWND window) const {
       {flutter::EncodableValue("height"),
        flutter::EncodableValue(static_cast<double>(bounds.bottom - bounds.top))},
       {flutter::EncodableValue("maximized"), flutter::EncodableValue(maximized)},
-      {flutter::EncodableValue("fullscreen"), flutter::EncodableValue(false)},
+      {flutter::EncodableValue("fullscreen"),
+       flutter::EncodableValue(IsFullScreen(window))},
       {flutter::EncodableValue("screen"),
        flutter::EncodableValue(MonitorName(monitor))},
   });

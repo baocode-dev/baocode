@@ -3,6 +3,29 @@ import FlutterMacOS
 
 @main
 class AppDelegate: FlutterAppDelegate {
+  /// Made with the main menu, before the window starts Flutter (see
+  /// MainFlutterWindow.awakeFromNib).
+  override init() {
+    AppDelegate.raiseOpenFileLimit()
+    super.init()
+  }
+
+  /// An app launched from the Dock or Finder may hold 256 descriptors at
+  /// once, as launchd has it: the agents, terminals, language servers and
+  /// Git the app runs come near that, and a process started past it fails
+  /// ("Too many open files"). Worse, Dart leaves the child it had forked
+  /// then waiting forever, never exec'd, with a copy of every descriptor
+  /// the app had open: the pipes of the processes running then never come
+  /// to an end, so are never closed, and the next start fails sooner. As
+  /// many as macOS lets a process have without asking for more (OPEN_MAX).
+  static func raiseOpenFileLimit() {
+    var limit = rlimit()
+    guard getrlimit(RLIMIT_NOFILE, &limit) == 0 else { return }
+    let wanted = min(rlim_t(OPEN_MAX), limit.rlim_max)
+    guard limit.rlim_cur < wanted else { return }
+    limit.rlim_cur = wanted
+    setrlimit(RLIMIT_NOFILE, &limit)
+  }
   /// Closing the window quits, unless the menu bar icon is up: the close
   /// button only hides the window then, and AppKit counts a window ordered
   /// out as closed (see Attention.swift). With the IDE's windows, the app

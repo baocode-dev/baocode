@@ -108,7 +108,8 @@ abstract final class BrowserTools {
           kind: ToolKind.browser,
           summary: (input, output) =>
               browserStepSummary(tool.name, input, output),
-          run: (input, call) async {
+          run: (raw, call) async {
+            final input = numbersAsSchemaSays(tool.inputSchema, raw);
             final tabId = input['tabId'];
             if (tabId is! int) return tool.run(input, call);
             // What the page logs and loads, kept from now on.
@@ -127,6 +128,40 @@ abstract final class BrowserTools {
         ),
       );
     }
+  }
+
+  /// [input] with the numbers [schema] asks for that a model sent as text
+  /// (`"406885479"` for a tab's id) as numbers, at any depth (a step of
+  /// browser_act's); text that is no number left as it is, for the tool
+  /// to refuse, and text where text is asked for (what is typed) too (#274).
+  @visibleForTesting
+  static Map<String, Object?> numbersAsSchemaSays(
+    Map<String, Object?> schema,
+    Map<String, Object?> input,
+  ) => _asSchemaSays(schema, input) as Map<String, Object?>;
+
+  static Object? _asSchemaSays(Object? schema, Object? value) {
+    if (schema is! Map) return value;
+    switch ((schema['type'], value)) {
+      case ('integer', final String text)
+          when int.tryParse(text.trim()) != null:
+        return int.parse(text.trim());
+      case ('integer', final double number)
+          when number == number.roundToDouble():
+        return number.toInt();
+      case ('number', final String text) when num.tryParse(text.trim()) != null:
+        return num.parse(text.trim());
+      case (_, final Map<Object?, Object?> object):
+        final properties = schema['properties'];
+        if (properties is! Map) return value;
+        return <String, Object?>{
+          for (final MapEntry(:key, :value) in object.entries)
+            '$key': _asSchemaSays(properties[key], value),
+        };
+      case (_, final List<Object?> list):
+        return [for (final item in list) _asSchemaSays(schema['items'], item)];
+    }
+    return value;
   }
 
   static Future<void> _watch(int tabId) async {

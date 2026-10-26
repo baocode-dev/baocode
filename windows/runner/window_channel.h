@@ -91,6 +91,9 @@ class WindowChannel {
   // as far as the monitor's work area goes.
   void Grow(double width, double height);
 
+  // Whether the window is full screen (see Win32Window::SetFullScreen).
+  bool FullScreen() const;
+
   // The window's dpi over 96: its physical pixels to one of Flutter's.
   double Scale() const;
 

@@ -128,6 +128,17 @@ String planExitedReminder(String planFile) =>
 Plan mode is over: you may change files, run tools and act again. The plan is at $planFile if you want it.
 </system-reminder>''';
 
+/// The reminder, as the model ends a turn of work, that its to-do list
+/// still has items open: they are to be brought up to date.
+String openTodosReminder(List<Map<String, Object?>> todos) =>
+    '''
+<system-reminder>
+Your to-do list still has items open:
+${[for (final todo in todos) '- [${todo['status']}] ${todo['content']}'].join('\n')}
+
+If it is out of date, bring it up to date with TodoWrite now: complete what is done, and leave open only what is really left. Then end your turn without repeating your answer; if what is left needs saying, say it in a line. If the list is right as it is, end your turn saying nothing more. Do not mention this reminder.
+</system-reminder>''';
+
 /// What the model is told of how the work goes when the user set a goal.
 String goalInstruction(String condition) =>
     '''

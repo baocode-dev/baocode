@@ -19,17 +19,20 @@ import '../icons/project_icon_view.dart';
 import '../ide/ide_button.dart' show IdeButtonColors;
 import '../ide/ide_commands.dart' show ideUsesMacKeys;
 import '../ide/ide_hover.dart';
-import '../ide/ide_spinning.dart';
 import '../ide/ide_list.dart';
-import '../l10n/l10n.dart';
+import '../ide/ide_spinning.dart';
+import '../kernel/agent_kernel.dart' show KernelChoiceKind;
 import '../keybindings/chat_keybindings.dart';
-import '../keybindings/keybinding_service.dart';
 import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
+import '../keybindings/keybinding_service.dart';
+import '../l10n/l10n.dart';
+import '../models/model_provider.dart' show parseModelRef;
+import '../models/model_providers.dart';
 import '../remote/remote_location.dart';
 import '../remote/remote_status.dart' show sshErrorText;
 import '../remote/ssh_host.dart' show SshHost, SshHostState, SshHosts;
-import '../theme/codicons.dart';
 import '../theme/app_theme.dart';
+import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../update/update_service.dart';
 import '../workspace/chat_drag.dart';
@@ -846,6 +849,7 @@ class _SidebarState extends State<Sidebar>
                     child: _buildHostSwitcher(),
                   ),
           ),
+          ?_buildCollapseAll(),
           SidebarMenu(
             width: 150,
             placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
@@ -893,6 +897,27 @@ class _SidebarState extends State<Sidebar>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Folds every group that folds, or, all folded, unfolds them (#300):
+  /// shown where there are several to fold.
+  Widget? _buildCollapseAll() {
+    final groups = [
+      for (final group in _groups())
+        if (_collapsible(group)) group.id,
+    ];
+    if (groups.length < 2) return null;
+    final expand = groups.every(_workspace.isCollapsed);
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.only(right: 2),
+      child: SidebarIconButton(
+        icon: expand ? Codicons.expandAll : Codicons.collapseAll,
+        tooltip: expand ? l10n.sidebarExpandAll : l10n.sidebarCollapseAll,
+        size: 20,
+        onTap: () => _workspace.setCollapsed(groups, !expand),
       ),
     );
   }
@@ -1058,7 +1083,7 @@ class _SidebarState extends State<Sidebar>
       ),
       for (final host in _workspace.sshHosts)
         SidebarMenuItem(
-          _workspace.hostLabel(host),
+          RemoteLocation.hostName(host),
           leading: _HostIcon(
             workspace: _workspace,
             host: host,
@@ -1445,9 +1470,30 @@ class _SidebarState extends State<Sidebar>
         null => _buildThreadRow(thread, group),
       };
 
+  /// The model [thread] runs on, by its upstream and name: its session's,
+  /// open, else the one it opens with again (#245).
+  String? _modelOf(AgentThread thread) {
+    if (thread.isOpen) {
+      if (thread.session.models?.selected case final model?) {
+        return [?model.group?.label, model.label].join(' · ');
+      }
+    }
+    final kept = _workspace.keptChoice(thread, KernelChoiceKind.model);
+    if (parseModelRef(kept) case (:final provider, :final model)) {
+      final upstream = ModelProviders.current.provider(provider);
+      final name = upstream?.models
+          .where((option) => option.id == model)
+          .firstOrNull
+          ?.displayName;
+      return [?upstream?.name, name ?? model].join(' · ');
+    }
+    return kept;
+  }
+
   Widget _buildThreadRow(AgentThread thread, _Group group) {
     return _ThreadRow(
       thread: thread,
+      model: () => _modelOf(thread),
       height: _rowHeight,
       stashes: switch ((widget.stashes, thread.id)) {
         (final stashes?, final session?) => stashes.of(session),
@@ -2465,9 +2511,14 @@ class _GroupHeader extends StatelessWidget {
           content: (context) => Text(
             [
               project.root,
-              context.l10n.remoteProjectTooltip(host),
+              context.l10n.remoteProjectTooltip(
+                RemoteLocation.reachedBy(host),
+                RemoteLocation.hostName(host),
+              ),
               if (failed) ...[
-                context.l10n.remoteStatusTooltipLost(host),
+                context.l10n.remoteStatusTooltipLost(
+                  RemoteLocation.hostName(host),
+                ),
                 ?message,
               ],
             ].join('\n'),
@@ -2805,6 +2856,7 @@ class _MoreRow extends StatelessWidget {
 class _ThreadRow extends StatelessWidget {
   const _ThreadRow({
     required this.thread,
+    required this.model,
     required this.height,
     this.stashes = const [],
     this.onOpenStash,
@@ -2834,6 +2886,9 @@ class _ThreadRow extends StatelessWidget {
   });
 
   final AgentThread thread;
+
+  /// The model it runs on, as its hover shows it; none when unknown.
+  final String? Function() model;
   final double height;
 
   /// The stashes it carries out: a tag on it, opened by [onOpenStash].
@@ -3067,6 +3122,13 @@ class _ThreadRow extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(thread.project.path, style: faint),
+          if (model() case final model?)
+            Text(
+              l10n.sidebarHoverModel(model),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: faint,
+            ),
           for (final stash in stashes)
             Text(
               'Stash #${stash.id} · ${stash.title}',

@@ -150,6 +150,8 @@ class AgentLoop {
   Future<LoopResult> runTurn(CancelToken cancel) async {
     var stopHookActive = false;
     var compactedForLength = false;
+    var worked = false;
+    var remindedOfTodos = false;
     while (true) {
       if (cancel.isCancelled) return _interrupted(during: false);
       if (maxTurns != null && _requests >= maxTurns!) {
@@ -205,8 +207,24 @@ class AgentLoop {
           _appendUser('Stop hook feedback:\n${stop.feedback}', meta: true);
           continue;
         }
+        // Work done with items left open: the model is reminded once to
+        // bring its list up to date (#156). Appended, so what is cached
+        // stays.
+        if (worked && !remindedOfTodos && answer.stopReason != 'max_tokens') {
+          final todos = session.todos[run.agentId ?? session.sessionId];
+          final open = [
+            for (final todo in todos ?? const <Map<String, Object?>>[])
+              if (todo['status'] != 'completed') todo,
+          ];
+          if (open.isNotEmpty) {
+            remindedOfTodos = true;
+            _appendUser(openTodosReminder(open), meta: true);
+            continue;
+          }
+        }
         return _result('end_turn');
       }
+      worked = true;
       final stopped = await _runCalls(calls, cancel);
       if (cancel.isCancelled) return _interrupted(during: true, calls: calls);
       if (stopped) return _result('stopped');

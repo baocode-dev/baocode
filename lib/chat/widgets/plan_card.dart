@@ -43,7 +43,8 @@ class PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final files = FileOpenScope.maybeOf(context);
-    final VoidCallback? open = files == null
+    // A plan sent rather than written has no file: its card is all of it.
+    final VoidCallback? open = files == null || item.path.isEmpty
         ? null
         : () => files.onOpen(FileOpenRequest(item.path, plan: true));
     final card = item.status == PlanStatus.sentBack

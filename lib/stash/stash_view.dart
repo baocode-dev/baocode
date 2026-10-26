@@ -352,6 +352,7 @@ class StashViewState extends State<StashView>
         ..clear()
         ..addAll([for (final name in statuses) ?byName[name]]);
     }
+    _widenForNews();
   }
 
   /// Changes the filters as the user picks them, kept for the next time
@@ -389,6 +390,49 @@ class StashViewState extends State<StashView>
       if (note.newsMine) note,
   ];
 
+  bool _statusOk(StashNote note) =>
+      _statuses.isEmpty || _statuses.contains(note.status);
+
+  /// A workspace's: its folders' too.
+  bool _projectOk(StashNote note) =>
+      _projects.isEmpty ||
+      _projects.contains(note.project ?? '') ||
+      _projects.any(
+        (project) => project.isNotEmpty && _controller.isAbout(note, project),
+      );
+
+  /// Only the stashes with news ([filter] is news or allNews), every one of
+  /// them (see [_widenForNews]).
+  void _showNews(_IssueFilter filter) {
+    _filter(() => _issueFilter = filter);
+    setState(_widenForNews);
+  }
+
+  /// The filters that would hide a stash with news, while only those show,
+  /// let go of — for now, not kept, as for [reveal]. Else news that is
+  /// counted is not found: of a stash done, say (its issue closed), while
+  /// the list shows those not done.
+  void _widenForNews() {
+    final news = switch (_issueFilter) {
+      _IssueFilter.news => _newsMine,
+      _IssueFilter.allNews => _news,
+      _ => const <StashNote>[],
+    };
+    if (news.isEmpty) return;
+    final now = DateTime.now();
+    if (news.any((note) => !_timeOk(note, now))) _time = _Time.all;
+    if (_statuses.isNotEmpty) {
+      _statuses.addAll([for (final note in news) note.status]);
+    }
+    if (news.any((note) => !_projectOk(note))) _projects.clear();
+    if (_searching &&
+        _controller.store.search(_query.text, among: news).length <
+            news.length) {
+      _query.clear();
+      _aiResults = null;
+    }
+  }
+
   Future<void> _seenAll() async {
     final forge = _controller.forge;
     if (forge == null) return;
@@ -405,15 +449,6 @@ class StashViewState extends State<StashView>
   List<StashNote> get _filtered {
     final store = _controller.store;
     final now = DateTime.now();
-    bool statusOk(StashNote note) =>
-        _statuses.isEmpty || _statuses.contains(note.status);
-    // A workspace's: its folders' too.
-    bool projectOk(StashNote note) =>
-        _projects.isEmpty ||
-        _projects.contains(note.project ?? '') ||
-        _projects.any(
-          (project) => project.isNotEmpty && _controller.isAbout(note, project),
-        );
     bool issueOk(StashNote note) => switch (_issueFilter) {
       _IssueFilter.all => true,
       _IssueFilter.issue => note.ownIssue != null,
@@ -425,8 +460,8 @@ class StashViewState extends State<StashView>
       (note) =>
           !note.isBlank &&
           _timeOk(note, now) &&
-          statusOk(note) &&
-          projectOk(note) &&
+          _statusOk(note) &&
+          _projectOk(note) &&
           issueOk(note),
     );
     final ai = _aiResults;
@@ -804,11 +839,9 @@ class StashViewState extends State<StashView>
               _NewsPill(
                 count: news.length,
                 on: _issueFilter == _IssueFilter.news,
-                onTap: () => _filter(
-                  () => _issueFilter = _issueFilter == _IssueFilter.news
-                      ? _IssueFilter.all
-                      : _IssueFilter.news,
-                ),
+                onTap: () => _issueFilter == _IssueFilter.news
+                    ? _filter(() => _issueFilter = _IssueFilter.all)
+                    : _showNews(_IssueFilter.news),
               ),
             ],
             const Spacer(),
@@ -1255,7 +1288,11 @@ class StashViewState extends State<StashView>
                   IdeMenuAction(
                     _issueFilterLabel(l10n, filter),
                     checked: _issueFilter == filter,
-                    onSelected: () => _filter(() => _issueFilter = filter),
+                    onSelected: () => switch (filter) {
+                      _IssueFilter.news ||
+                      _IssueFilter.allNews => _showNews(filter),
+                      _ => _filter(() => _issueFilter = filter),
+                    },
                   ),
                 if (_news.isNotEmpty) ...[
                   const IdeMenuSeparator(),

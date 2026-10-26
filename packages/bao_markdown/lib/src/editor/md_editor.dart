@@ -1521,9 +1521,51 @@ class MarkdownEditorState extends State<MarkdownEditor>
   @override
   void updateEditingValueWithDeltas(List<TextEditingDelta> deltas) {
     for (final delta in deltas) {
-      _applyDelta(delta);
+      _applyDelta(_composedOverSelection(delta));
     }
     _syncRemote();
+  }
+
+  /// [delta] as what the platform did. Windows' engine (Linux's too),
+  /// composing over a selection, deletes the selection but tells of what
+  /// it composes as put in where the selection starts: the selection
+  /// stayed after it, and the text was out of step with the platform's.
+  TextEditingDelta _composedOverSelection(TextEditingDelta delta) {
+    final selection = _remote.selection;
+    final composing = delta.composing;
+    if (!selection.isValid ||
+        selection.isCollapsed ||
+        !composing.isValid ||
+        composing.isCollapsed ||
+        delta.oldText != _remote.text) {
+      return delta;
+    }
+    final (int at, int end, String text) = switch (delta) {
+      TextEditingDeltaInsertion() => (
+        delta.insertionOffset,
+        delta.insertionOffset,
+        delta.textInserted,
+      ),
+      TextEditingDeltaReplacement() => (
+        delta.replacedRange.start,
+        delta.replacedRange.end,
+        delta.replacementText,
+      ),
+      _ => (-1, -1, ''),
+    };
+    if (at != selection.start ||
+        end != at ||
+        composing.start != at ||
+        composing.end != at + text.length) {
+      return delta;
+    }
+    return TextEditingDeltaReplacement(
+      oldText: delta.oldText,
+      replacementText: text,
+      replacedRange: TextRange(start: selection.start, end: selection.end),
+      selection: delta.selection,
+      composing: composing,
+    );
   }
 
   @override

@@ -120,6 +120,7 @@ void main() {
           ],
         }),
         Reply.text('ok'),
+        Reply.text(''),
       ]);
       await h.turn('work');
       final asked = h.model.requests.length;

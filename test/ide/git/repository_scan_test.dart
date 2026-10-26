@@ -185,15 +185,22 @@ void main() {
   test('a folder is a repository at its working tree\'s top level', () async {
     Future<bool> isTop(IdeGitOutput output) => IdeGitService(
       '/w/site',
-      runner: (arguments, {required workingDirectory, limit}) async {
-        expect(arguments, [
-          'rev-parse',
-          '--is-inside-work-tree',
-          '--show-prefix',
-        ]);
-        expect(workingDirectory, p.normalize('/w/site'));
-        return output;
-      },
+      runner:
+          (
+            arguments, {
+            required workingDirectory,
+            limit,
+            stdin,
+            environment,
+          }) async {
+            expect(arguments, [
+              'rev-parse',
+              '--is-inside-work-tree',
+              '--show-prefix',
+            ]);
+            expect(workingDirectory, p.normalize('/w/site'));
+            return output;
+          },
     ).isRepositoryTop();
 
     expect(await isTop(const IdeGitOutput(0, 'true\n\n')), isTrue);
@@ -213,7 +220,11 @@ void main() {
     addTearDown(() => dir.delete(recursive: true));
     final root = dir.path;
     Future<void> git(List<String> arguments) async {
-      final result = await Process.run('git', arguments, workingDirectory: root);
+      final result = await Process.run(
+        'git',
+        arguments,
+        workingDirectory: root,
+      );
       expect(result.exitCode, 0, reason: '${result.stderr}');
     }
 
@@ -233,9 +244,6 @@ void main() {
       p.join(root, 'vendor', 'a b'),
     ];
     expect(await IdeGitService(root).submodulePaths(), expected);
-    expect(
-      await IdeGitService(p.join(root, 'src')).submodulePaths(),
-      expected,
-    );
+    expect(await IdeGitService(p.join(root, 'src')).submodulePaths(), expected);
   });
 }

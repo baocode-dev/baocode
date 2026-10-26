@@ -414,6 +414,39 @@ void main() {
     });
   });
 
+  group('code citations', () {
+    final document = MarkdownView.document(tags: true);
+    List<String> tags(String text) => [
+      for (final node in document.parse(text))
+        if (node is md.Element) node.tag,
+    ];
+
+    test('end at their closing fence, though more lines than they cite', () {
+      // #308: cited as two lines, shown as four: the closing fence was
+      // looked for no further, and the rest of the reply was code.
+      const text =
+          '```1:2:lib/a.dart\none\ntwo\nthree\nfour\n```\n\nAfter.\n\n'
+          '```dart\nx\n```\n';
+      expect(tags(text), ['pre', 'p', 'pre']);
+      final code = (document.parse(text).first as md.Element).textContent;
+      expect(code, 'one\ntwo\nthree\nfour\n');
+    });
+
+    test('end at the closing fence after the lines they cite, a fence '
+        'among those', () {
+      const text = '```1:3:a.md\n```\nx\n```\n```\n\nAfter.\n';
+      expect(tags(text), ['pre', 'p']);
+      expect(
+        (document.parse(text).first as md.Element).textContent,
+        '```\nx\n```\n',
+      );
+    });
+
+    test('end at the first closing fence, fewer lines than they cite', () {
+      expect(tags('```1:9:a.dart\none\n```\n\nAfter.\n'), ['pre', 'p']);
+    });
+  });
+
   group('segments', () {
     // Every kind of block, some across blank lines, as a long reply has
     // them, and the same again until it is long.
@@ -434,6 +467,8 @@ void main() {
         '<br>\n',
         '~~~\ntilde\n\n````\n~~~\n',
         '    indented\n\n    code\n',
+        // Not a fence: a backtick fence's info has no backtick (#308).
+        '```js inline```\n',
       ];
       final out = StringBuffer();
       for (var i = 0; out.length < length; i++) {
@@ -513,16 +548,17 @@ void main() {
         );
       }
 
-      // The same text, as high as its blocks in one column.
-      expect(
-        await shown(MarkdownView(text)),
-        await shown(
-          MarkdownBlocks(
-            nodes: MarkdownView.document(tags: true).parse(text),
-            style: MarkdownView.baseStyle,
-          ),
+      // The same text, as high as its blocks in one column (but for the
+      // order the heights are added in).
+      final (segmented, high) = await shown(MarkdownView(text));
+      final (whole, wholeHigh) = await shown(
+        MarkdownBlocks(
+          nodes: MarkdownView.document(tags: true).parse(text),
+          style: MarkdownView.baseStyle,
         ),
       );
+      expect(segmented, whole);
+      expect(high, moreOrLessEquals(wholeHigh, epsilon: 0.01));
     });
   });
 }

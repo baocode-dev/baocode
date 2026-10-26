@@ -1033,6 +1033,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdToggleChat => '切换聊天';
 
   @override
+  String get cmdToggleFullScreen => '切换全屏';
+
+  @override
+  String get cmdToggleWordWrap => '切换自动换行';
+
+  @override
+  String get menuWordWrap => '自动换行';
+
+  @override
   String get cmdTogglePanel => '切换面板可见性';
 
   @override
@@ -1148,6 +1157,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cmdOpenKeyboardShortcuts => '打开键盘快捷方式';
+
+  @override
+  String get cmdOpenLspSettings => '打开语言服务器设置 (JSON)';
 
   @override
   String get cmdJumpToBracket => '转到括号';
@@ -1637,6 +1649,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidePanelAddToChat => '添加到对话';
 
   @override
+  String get termClearTask => '清除';
+
+  @override
+  String get termClearEndedTasks => '清除所有已结束的任务';
+
+  @override
   String get sidePanelBackgroundTasks => '后台任务';
 
   @override
@@ -1761,6 +1779,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarUnread => '未读';
 
   @override
+  String sidebarHoverModel(String model) {
+    return '模型：$model';
+  }
+
+  @override
   String get sidebarDone => '已完成';
 
   @override
@@ -1771,6 +1794,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sidebarAgents => '智能体';
+
+  @override
+  String get sidebarCollapseAll => '全部折叠';
+
+  @override
+  String get sidebarExpandAll => '全部展开';
 
   @override
   String get sidebarNoMatchingAgents => '没有匹配的智能体';
@@ -7093,6 +7122,13 @@ class AppLocalizationsZh extends AppLocalizations {
       '字体有对应字形时，把 => 、!= 等组合画成一个字形。终端不使用连字。';
 
   @override
+  String get appearanceSettingsWordWrap => '自动换行';
+
+  @override
+  String get appearanceSettingsWordWrapDescription =>
+      '长行在编辑器宽度处折行，所有编辑器共用。编辑器右键菜单和命令面板（切换自动换行）也能切换。超过 5000 行的文件不折行。';
+
+  @override
   String get appearanceSettingsUiScale => '界面大小';
 
   @override
@@ -7267,28 +7303,28 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String remoteStatus(String host) {
-    return 'SSH: $host';
+  String remoteStatus(String kind, String host) {
+    return '$kind: $host';
   }
 
   @override
-  String remoteStatusConnecting(String host) {
-    return 'SSH: $host（正在连接...）';
+  String remoteStatusConnecting(String kind, String host) {
+    return '$kind: $host（正在连接...）';
   }
 
   @override
-  String remoteStatusReconnecting(String host) {
-    return 'SSH: $host（正在重连...）';
+  String remoteStatusReconnecting(String kind, String host) {
+    return '$kind: $host（正在重连...）';
   }
 
   @override
-  String remoteStatusFailed(String host) {
-    return 'SSH: $host（已断开）';
+  String remoteStatusFailed(String kind, String host) {
+    return '$kind: $host（已断开）';
   }
 
   @override
-  String remoteStatusInstalling(String host, int percent) {
-    return 'SSH: $host（正在安装 Claude Code $percent%）';
+  String remoteStatusInstalling(String kind, String host, int percent) {
+    return '$kind: $host（正在安装 Claude Code $percent%）';
   }
 
   @override
@@ -7312,8 +7348,8 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String remoteStatusTooltip(String host) {
-    return '已通过 SSH 连接到 $host';
+  String remoteStatusTooltip(String kind, String host) {
+    return '已通过 $kind 连接到 $host';
   }
 
   @override
@@ -7330,8 +7366,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get remoteReconnect => '重新连接';
 
   @override
-  String remoteProjectTooltip(String host) {
-    return '位于 $host（通过 SSH）';
+  String remoteProjectTooltip(String kind, String host) {
+    return '位于 $host（通过 $kind）';
   }
 
   @override
@@ -9660,6 +9696,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get remoteFailUnreachable => '连不上服务器：请检查地址、端口和网络。';
 
   @override
+  String get remoteFailWsl => 'WSL 无法启动这个发行版：请确认已安装 WSL，并且 wsl --list 里有这个发行版。';
+
+  @override
   String get channelSetupTitle => '欢迎使用 BaoCode';
 
   @override
@@ -10589,6 +10628,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get diffIgnoreWhitespace => '忽略行首尾空白';
 
   @override
+  String get diffWhitespaceNone => '不忽略空白';
+
+  @override
+  String get diffIgnoreAllWhitespace => '忽略所有空白';
+
+  @override
+  String get diffCollapseUnchanged => '折叠未改动的部分';
+
+  @override
+  String diffUnchangedLines(int count) {
+    return '$count 行未改动';
+  }
+
+  @override
   String get diffHighlightCharacters => '按字符高亮';
 
   @override
@@ -10905,6 +10958,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get gitBranchCompareFiles => '查看改动的文件';
+
+  @override
+  String scmGraphRangeIn(String to, String from) {
+    return '“$to”有而“$from”没有的提交';
+  }
+
+  @override
   String get gitBranchesRecent => '最近';
 
   @override
@@ -11107,4 +11168,452 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get gitMergeDiscardButton => '放弃';
+
+  @override
+  String get gitDiffExcludeChange => '这处改动不提交';
+
+  @override
+  String get gitDiffIncludeChange => '提交这处改动';
+
+  @override
+  String get gitDiffExcludeLine => '这一行不提交';
+
+  @override
+  String get gitDiffIncludeLine => '提交这一行';
+
+  @override
+  String get gitChangelistActive => '当前';
+
+  @override
+  String get gitChangelistMoveTo => '移到其他变更列表';
+
+  @override
+  String get gitChangelistNew => '新建变更列表…';
+
+  @override
+  String get gitChangelistCreate => '新建';
+
+  @override
+  String get gitChangelistName => '变更列表名称';
+
+  @override
+  String get gitChangelistCommitOnly => '只提交这个变更列表';
+
+  @override
+  String get gitChangelistSetActive => '设为当前变更列表';
+
+  @override
+  String get gitChangelistRename => '重命名变更列表…';
+
+  @override
+  String get gitChangelistRenameButton => '重命名';
+
+  @override
+  String get gitChangelistDelete => '删除变更列表';
+
+  @override
+  String gitChangelistTurn(String request) {
+    return 'AI：$request';
+  }
+
+  @override
+  String get gitStashChangesTitle => '暂存改动（Stash）';
+
+  @override
+  String gitStashFilesTitle(int count) {
+    return '暂存 $count 个文件（Stash）';
+  }
+
+  @override
+  String get gitStashButton => '暂存';
+
+  @override
+  String get gitStashMessage => '说明（可不填）';
+
+  @override
+  String get gitStashUntracked => '包含未跟踪的文件';
+
+  @override
+  String get gitStashBase => '基准';
+
+  @override
+  String get gitStashApply => '应用';
+
+  @override
+  String get gitStashPop => '应用并删除（Pop）';
+
+  @override
+  String get gitStashAsBranch => '取出为新分支…';
+
+  @override
+  String get gitStashCopyMessage => '复制说明';
+
+  @override
+  String get gitStashDrop => '删除…';
+
+  @override
+  String gitStashDropConfirm(String ref) {
+    return '删除 $ref？';
+  }
+
+  @override
+  String get gitStashDropButton => '删除';
+
+  @override
+  String get gitStashClear => '清空 Stash…';
+
+  @override
+  String get gitStashClearConfirm => '删除全部 Stash？';
+
+  @override
+  String get gitStashClearButton => '清空';
+
+  @override
+  String get gitStashNone => '没有 Stash';
+
+  @override
+  String get gitStashTab => 'Stash';
+
+  @override
+  String get gitCommitTab => '提交';
+
+  @override
+  String get gitStashSelected => '暂存选中的文件…';
+
+  @override
+  String get gitCommitIgnored => '已忽略的文件';
+
+  @override
+  String get gitCommitShowIgnored => '显示已忽略的文件';
+
+  @override
+  String gitCommitLongSubject(int limit) {
+    return '标题超过 $limit 个字符';
+  }
+
+  @override
+  String get gitCommitNoBlankLine => '标题和正文之间要空一行';
+
+  @override
+  String get gitCommitMessageHistory => '提交信息历史 (Ctrl+M)';
+
+  @override
+  String get gitCommitNoMessageHistory => '还没有提交信息';
+
+  @override
+  String get gitCommitOptions => '提交选项';
+
+  @override
+  String get gitCommitAuthor => '作者…';
+
+  @override
+  String gitCommitAuthorIs(String author) {
+    return '作者：$author';
+  }
+
+  @override
+  String get gitCommitAuthorReset => '使用配置的作者';
+
+  @override
+  String get gitCommitAuthorPlaceholder => '姓名 <邮箱>';
+
+  @override
+  String get gitCommitSignOff => '签名提交 (Sign-off)';
+
+  @override
+  String get gitCommitRunHooks => '运行 Git 钩子';
+
+  @override
+  String get gitCommitSignedOff => '已签名';
+
+  @override
+  String get gitCommitNoHooks => '跳过钩子';
+
+  @override
+  String get gitLogInteractiveRebase => '从这里开始交互式变基…';
+
+  @override
+  String gitRebaseTitle(int count, String base) {
+    return '变基 $count 个提交（从 $base 开始）';
+  }
+
+  @override
+  String get gitRebasePick => '保留';
+
+  @override
+  String get gitRebaseReword => '改信息';
+
+  @override
+  String get gitRebaseEdit => '编辑';
+
+  @override
+  String get gitRebaseSquash => '压缩';
+
+  @override
+  String get gitRebaseFixup => '修正';
+
+  @override
+  String get gitRebaseDrop => '丢弃';
+
+  @override
+  String get gitRebaseMoveUp => '上移 (Alt+↑)';
+
+  @override
+  String get gitRebaseMoveDown => '下移 (Alt+↓)';
+
+  @override
+  String get gitRebaseMessage => '提交信息';
+
+  @override
+  String get gitRebaseStart => '开始变基';
+
+  @override
+  String get gitRebaseNothingBelow => '保留下来的最早一个提交不能压缩或修正：它下面没有提交可以并入。';
+
+  @override
+  String get gitRebaseStopped => '变基已暂停：修改这个提交或解决冲突后，点「继续」。';
+
+  @override
+  String get gitRebaseCleanUpWithAi => '让 AI 整理';
+
+  @override
+  String get gitRebaseCleanUpWithAiDetail => '由模型建议哪些提交该修正、压缩、改信息；开始变基前你可以逐条检查';
+
+  @override
+  String get gitRebaseAiPlanning => '整理中…（点击停止）';
+
+  @override
+  String get gitRebaseAiNoPlan => '模型的回答不是这些提交的变基列表。';
+
+  @override
+  String gitRebaseAiFailed(String error) {
+    return 'AI 整理失败：$error';
+  }
+
+  @override
+  String gitTagPushTo(String remote) {
+    return '推送标签到 $remote';
+  }
+
+  @override
+  String gitTagDeleteOn(String remote) {
+    return '删除 $remote 上的标签';
+  }
+
+  @override
+  String gitTagDeleteOnConfirm(String name, String remote) {
+    return '删除 $remote 上的标签 $name？';
+  }
+
+  @override
+  String get gitRemotesManage => '管理远程仓库…';
+
+  @override
+  String get gitRemotesTitle => 'Git 远程仓库';
+
+  @override
+  String get gitRemotesNone => '没有远程仓库';
+
+  @override
+  String get gitRemoteAdd => '添加远程仓库';
+
+  @override
+  String get gitRemoteEdit => '编辑远程仓库';
+
+  @override
+  String get gitRemoteRemove => '移除';
+
+  @override
+  String get gitRemoteName => '名称';
+
+  @override
+  String get gitRemoteUrl => 'URL';
+
+  @override
+  String gitRemoteRemoveConfirm(String name) {
+    return '移除远程仓库 $name？';
+  }
+
+  @override
+  String get gitRemoteRemoveDetail => '它的远程分支会一起移除；服务器上的内容不受影响。';
+
+  @override
+  String get gitCloneTitle => '从版本控制获取';
+
+  @override
+  String get gitCloneUrl => 'URL';
+
+  @override
+  String get gitCloneDirectory => '目录';
+
+  @override
+  String get gitCloneBrowse => '浏览…';
+
+  @override
+  String get gitCloneButton => '克隆';
+
+  @override
+  String get gitCloning => '正在克隆…';
+
+  @override
+  String get gitCloneCommand => '克隆仓库…';
+
+  @override
+  String get gitReviewWithAi => '用 AI 审查改动';
+
+  @override
+  String get gitReviewStop => '停止审查';
+
+  @override
+  String get gitReviewBeforeCommit => '提交前用 AI 审查';
+
+  @override
+  String get gitReviewRunning => '正在审查改动…';
+
+  @override
+  String get gitReviewClean => '没有发现问题';
+
+  @override
+  String gitReviewFound(int count) {
+    return '发现 $count 个问题';
+  }
+
+  @override
+  String get gitReviewCommitAnyway => '仍然提交';
+
+  @override
+  String get gitReviewCommitAndPushAnyway => '仍然提交并推送';
+
+  @override
+  String gitReviewFailed(String error) {
+    return '审查失败：$error';
+  }
+
+  @override
+  String get gitAskAiCommit => '问 AI 这个提交';
+
+  @override
+  String gitAskAiCommitPrompt(String id, String subject) {
+    return '解释提交 $id（“$subject”）：改了什么、为什么改，以及有没有看起来有风险的地方。可以用 `git show $id` 查看。';
+  }
+
+  @override
+  String gitAskAiCommits(int count) {
+    return '问 AI 这 $count 个提交';
+  }
+
+  @override
+  String gitAskAiCommitsPrompt(String ids) {
+    return '解释提交 $ids：它们合起来改了什么，以及有没有看起来有风险的地方。可以用 `git show` 查看。';
+  }
+
+  @override
+  String get gitAskAiHunk => '问 AI 这处改动';
+
+  @override
+  String gitAskAiHunkPrompt(String path, int line, String change) {
+    return '关于 $path 第 $line 行的这处改动：解释它做了什么，有没有问题。\n\n```diff\n$change\n```';
+  }
+
+  @override
+  String get gitAskAiChanges => '问 AI 这些改动';
+
+  @override
+  String gitAskAiChangesPrompt(String paths) {
+    return '审查我在 $paths 中还没提交的改动（`git diff HEAD -- $paths`）：说明它们做了什么，指出有问题的地方。';
+  }
+
+  @override
+  String get gitAskAiConflicts => '让 AI 解决冲突';
+
+  @override
+  String gitAskAiConflictsPrompt(String paths) {
+    return '解决 $paths 中的合并冲突：保留双方各自的意图，然后告诉我你是怎么取舍的。不要暂存或提交。';
+  }
+
+  @override
+  String get gitLogFixup => '用勾选的改动修正 (Fixup)';
+
+  @override
+  String get compareWith => '比较';
+
+  @override
+  String get compareWithClipboard => '剪贴板';
+
+  @override
+  String compareWithClipboardLabel(String name) {
+    return '$name（剪贴板 ↔ 文件）';
+  }
+
+  @override
+  String get gitCompareWithBranch => '分支或标签…';
+
+  @override
+  String get gitCompareWithRevision => '某个版本…';
+
+  @override
+  String get gitCompareWithBranchPlaceholder => '选择要与文件比较的分支或标签';
+
+  @override
+  String get gitCompareWithRevisionPlaceholder => '选择要比较的文件版本';
+
+  @override
+  String gitCompareLabel(String name, String other) {
+    return '$name（$other ↔ 工作区）';
+  }
+
+  @override
+  String get explorerSelectForCompare => '选择以进行比较';
+
+  @override
+  String explorerCompareWithSelected(String name) {
+    return '与“$name”比较';
+  }
+
+  @override
+  String compareFoldersSame(String original, String modified) {
+    return '“$original”和“$modified”的文件完全相同。';
+  }
+
+  @override
+  String compareFoldersPick(String original, String modified) {
+    return '“$original”和“$modified”不同的文件';
+  }
+
+  @override
+  String compareFoldersOnlyIn(String name) {
+    return '只在“$name”里';
+  }
+
+  @override
+  String get compareFoldersModified => '有改动';
+
+  @override
+  String get compareWithLocalHistory => '本地历史…';
+
+  @override
+  String get localHistoryShow => '查看本地历史';
+
+  @override
+  String localHistoryNone(String name) {
+    return '“$name”还没有本地历史：保存文件时才会记录。';
+  }
+
+  @override
+  String localHistoryPick(String name) {
+    return '选择“$name”的一个版本来比较';
+  }
+
+  @override
+  String localHistoryLabel(String name, String time) {
+    return '$name（本地历史，$time）';
+  }
+
+  @override
+  String get explorerCompareSelected => '比较所选文件';
+
+  @override
+  String compareFilesLabel(String original, String modified) {
+    return '$original ↔ $modified';
+  }
 }

@@ -84,9 +84,13 @@ class ModelDialogFrame extends StatelessWidget {
     required this.child,
     required this.actions,
     this.onSubmit,
+    this.maxWidth = 560,
   });
 
   final String title;
+
+  /// The most it is wide, in a window wide enough; 440 at least.
+  final double maxWidth;
   final Widget child;
   final List<Widget> actions;
 
@@ -99,7 +103,7 @@ class ModelDialogFrame extends StatelessWidget {
     final border = colors.get('widget.border');
     final shadow = colors.get('widget.shadow');
     final size = MediaQuery.sizeOf(context);
-    final width = math.max(440.0, math.min(560.0, size.width * .9));
+    final width = math.max(440.0, math.min(maxWidth, size.width * .9));
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -464,28 +468,31 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
                                 onChanged: toggle,
                               ),
                               const SizedBox(width: 8),
+                              // The id first: what follows it is cut short
+                              // before it is (#246).
                               Flexible(
-                                child: Text(
-                                  model.id,
+                                child: Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: model.id,
+                                        style: _text(context).copyWith(
+                                          fontFamily: AppFonts.mono,
+                                          fontFamilyFallback:
+                                              AppFonts.monoFallbacks,
+                                        ),
+                                      ),
+                                      if (detail.isNotEmpty)
+                                        TextSpan(
+                                          text: '  $detail',
+                                          style: _muted(context),
+                                        ),
+                                    ],
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: _text(context).copyWith(
-                                    fontFamily: AppFonts.mono,
-                                    fontFamilyFallback: AppFonts.monoFallbacks,
-                                  ),
                                 ),
                               ),
-                              if (detail.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Flexible(
-                                  child: Text(
-                                    detail,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: _muted(context),
-                                  ),
-                                ),
-                              ],
                               if (!known.contains(model.id)) ...[
                                 const SizedBox(width: 6),
                                 ModelBadge(l10n.modelsFetchNew),
@@ -502,6 +509,8 @@ class _FetchModelsDialogState extends State<FetchModelsDialog> {
     }
     return ModelDialogFrame(
       title: l10n.modelsFetchTitle(widget.provider.name),
+      // Room for the long ids some upstreams give theirs.
+      maxWidth: 760,
       onSubmit: listed == null ? null : _apply,
       actions: [
         if (error != null)

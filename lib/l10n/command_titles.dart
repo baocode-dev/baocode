@@ -1,6 +1,7 @@
 // Command titles in the display language, by command id, as VS Code's
 // `localize2` titles: the palette lists the localized `Category: Title` and
 // also matches the English one (upstream `commandAlias`).
+import '../ide/editor_word_wrap.dart';
 import '../ide/explorer_history.dart'
     show explorerRedoCommandId, explorerUndoCommandId;
 import '../ide/ide_commands.dart';
@@ -28,6 +29,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'workbench.action.files.saveAll' => l10n.cmdSaveAll,
     'workbench.action.files.saveAs' => l10n.cmdSaveAs,
     toggleAutoSaveCommandId => l10n.cmdToggleAutoSave,
+    EditorWordWrap.commandId => l10n.cmdToggleWordWrap,
     'markdown.showPreview' => l10n.cmdMarkdownShowPreview,
     'markdown.showSource' => l10n.cmdMarkdownShowSource,
     'workbench.action.files.newUntitledFile' => l10n.cmdNewUntitledFile,
@@ -59,6 +61,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'workbench.action.lastEditorInGroup' => l10n.cmdLastEditorInGroup,
     'workbench.action.toggleSidebarVisibility' => l10n.cmdToggleSidebar,
     'workbench.action.toggleAuxiliaryBar' => l10n.cmdToggleChat,
+    'workbench.action.toggleFullScreen' => l10n.cmdToggleFullScreen,
     'workbench.action.togglePanel' => l10n.cmdTogglePanel,
     'workbench.action.terminal.toggleTerminal' => l10n.cmdToggleTerminal,
     'workbench.action.terminal.new' => l10n.cmdNewTerminal,
@@ -116,6 +119,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     WindowCommandIds.showChat => l10n.cmdShowChatWindow,
     'workbench.action.openSettings' => l10n.cmdOpenSettings,
     'workbench.action.openGlobalKeybindings' => l10n.cmdOpenKeyboardShortcuts,
+    'baocode.openLspSettings' => l10n.cmdOpenLspSettings,
     // The chat's (chatExtraCommands).
     ChatCommandIds.newChat => l10n.cmdChatNewAgent,
     ChatCommandIds.closePane => l10n.cmdChatClosePane,
@@ -194,6 +198,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'git.commit' => l10n.scmCommit,
     'git.checkout' => l10n.cmdGitCheckout,
     'git.fetch' => l10n.scmFetch,
+    'git.clone' => l10n.gitCloneCommand,
     'git.fetchAll' => l10n.scmFetchFromAllRemotes,
     'git.pull' => l10n.scmPull,
     'git.push' => l10n.scmPush,

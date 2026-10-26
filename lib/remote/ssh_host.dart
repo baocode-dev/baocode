@@ -214,7 +214,8 @@ class SshHost extends ChangeNotifier implements ProjectHost {
           SshFailure.hostKey ||
           SshFailure.hostKeyChanged ||
           SshFailure.unsupported ||
-          SshFailure.noSsh => true,
+          SshFailure.noSsh ||
+          SshFailure.wsl => true,
           _ => false,
         },
         _ => false,
@@ -351,6 +352,7 @@ class SshHosts extends ChangeNotifier {
   final SshPasswords passwords;
   final Map<String, SshHost> _hosts = {};
   Future<SshLauncher>? _launcher;
+  Future<SshLauncher>? _wslLauncher;
 
   /// The servers the user saved in the app (its form), by host: reached
   /// through the app's ssh config ([configFile]) rather than as typed.
@@ -470,6 +472,16 @@ class SshHosts extends ChangeNotifier {
     if (_connectOverride case final connect?) {
       return connect(target, onProgress: onProgress);
     }
+    // A WSL distribution: wsl.exe, no ssh, nothing to sign in to.
+    if (target.wslDistro != null) {
+      return (_wslLauncher ??= _makeWslLauncher()).then(
+        (launcher) => launcher.connect(target, onProgress: onProgress),
+        onError: (Object error, StackTrace stack) {
+          _wslLauncher = null;
+          Error.throwWithStackTrace(error, stack);
+        },
+      );
+    }
     final launcher = _launcher ??= _makeLauncher();
     return launcher
         .then(
@@ -498,6 +510,24 @@ class SshHosts extends ChangeNotifier {
         );
   }
 
+  /// The app's build of the server; in development, one of the sources.
+  static Future<RemoteServerBinaries> _serverBinaries() async {
+    final binaries =
+        bundledServerBinaries() ?? await SourceServerBinaries.find();
+    if (binaries == null) {
+      throw const SshConnectException(
+        SshFailure.server,
+        'This build of the app has no remote server '
+        '(dart run tool/build_remote_server.dart makes one).',
+      );
+    }
+    return binaries;
+  }
+
+  /// WSL distributions' launcher: `ssh` never run.
+  Future<SshLauncher> _makeWslLauncher() async =>
+      SshLauncher(ssh: 'ssh', binaries: await _serverBinaries());
+
   Future<SshLauncher> _makeLauncher() async {
     final ssh = await chooseSsh(
       Platform.environment,
@@ -513,19 +543,9 @@ class SshHosts extends ChangeNotifier {
         'No ssh here: install OpenSSH to open remote projects.',
       );
     }
-    // The app's build of the server; in development, one of the sources.
-    final binaries =
-        bundledServerBinaries() ?? await SourceServerBinaries.find();
-    if (binaries == null) {
-      throw const SshConnectException(
-        SshFailure.server,
-        'This build of the app has no remote server '
-        '(dart run tool/build_remote_server.dart makes one).',
-      );
-    }
     return SshLauncher(
       ssh: ssh,
-      binaries: binaries,
+      binaries: await _serverBinaries(),
       prompter: passwords.answer,
     );
   }

@@ -16,6 +16,7 @@ class StandardLsp {
     required this.provider,
     required this.packs,
     this.dataDirectory,
+    this.changes,
   });
 
   /// Bundled Helix languages, then language packs, then the user's
@@ -33,6 +34,27 @@ class StandardLsp {
   /// Where `lsp.json`, `language-packs/` and `servers/` are; null on the
   /// web.
   final String? dataDirectory;
+
+  /// Told once [catalog] has loaded again, `lsp.json` edited (#304); null
+  /// where it is not watched (the web).
+  final Listenable? changes;
+
+  /// [manager]'s documents matched to servers again each time [catalog]
+  /// changes, until it shuts down: a server set for a language in
+  /// `lsp.json` serves its open files as soon as the file is saved.
+  void follow(LspManager manager) {
+    final changes = this.changes;
+    if (changes == null) return;
+    void reload() {
+      if (manager.isShutDown) {
+        changes.removeListener(reload);
+      } else {
+        manager.reloadCatalog();
+      }
+    }
+
+    changes.addListener(reload);
+  }
 }
 
 /// Loads the standard catalog (bundled < packs < user settings) and the
@@ -58,6 +80,7 @@ LspManager standardLspManager(String root, {AssetBundle? bundle}) {
     (lsp) {
       catalog.loaded = lsp.catalog;
       manager.reloadCatalog();
+      lsp.follow(manager);
     },
     onError: (Object error, StackTrace stack) {
       debugPrint('Language servers unavailable: $error\n$stack');

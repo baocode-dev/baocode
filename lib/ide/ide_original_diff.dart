@@ -16,10 +16,12 @@ class IdeOriginalDiff {
     EditorDocumentModel modified, {
     required this.onChanged,
     bool ignoreTrimWhitespace = true,
+    bool ignoreAllWhitespace = false,
   }) : model = DiffEditorModel(
          original: original.text,
          modified: modified,
          ignoreTrimWhitespace: ignoreTrimWhitespace,
+         ignoreAllWhitespace: ignoreAllWhitespace,
        ) {
     original.text.addListener(_textChanged);
     _textChanged();

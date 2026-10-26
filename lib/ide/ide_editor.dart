@@ -44,12 +44,15 @@ import '../base/uri.dart' show VsUri;
 import '../debug/base/event.dart' show DisposableStore;
 import '../debug/service/debug_service.dart';
 import 'debug_editor_glue.dart';
+import 'editor_word_wrap.dart';
 import 'git/git_annotations.dart';
 import 'git/git_blame.dart';
 import 'git/git_line_changes.dart';
 import 'git/git_model.dart' show IdeGitBlameInformation, IdeGitLogLines;
 import 'ide_agent_edits.dart';
 import 'ide_line_change_popup.dart';
+import 'ide_code_diff.dart'
+    show IdeDiffRevertArrow, ideDiffChangeTop, ideDiffRevertEdit;
 import 'ide_diff_options.dart';
 import 'ide_commands.dart';
 import 'ide_find_widget.dart';
@@ -82,6 +85,9 @@ typedef IdeEditorPosition = ({
   int selectionLength,
 });
 
+/// What a file is compared with (JetBrains' Compare with…).
+enum IdeCompareWith { branch, revision, clipboard, localHistory }
+
 /// The Fast IDE editor: the painted Monaco port by default, with the Flutter
 /// TextField kept as a fallback (`--dart-define=BAOCODE_NATIVE_EDITOR=false`).
 class IdeEditor extends StatefulWidget {
@@ -103,6 +109,7 @@ class IdeEditor extends StatefulWidget {
     this.gitBlame = true,
     this.onShowCommit,
     this.onShowHistory,
+    this.onCompare,
     this.keyResolver,
     this.onPaste,
     this.debug,
@@ -146,6 +153,10 @@ class IdeEditor extends StatefulWidget {
   /// Shows the Git log of a file, or of some of its lines (their numbers
   /// at HEAD): Show History, and Show History for Selection.
   final void Function(String path, IdeGitLogLines? lines)? onShowHistory;
+
+  /// Compares a file with a branch or tag, a revision of it or the
+  /// clipboard, in a diff tab (JetBrains' Compare with…).
+  final void Function(String path, IdeCompareWith what)? onCompare;
 
   /// The app's keybindings (the workbench resolves them with its context):
   /// which command a key runs, the editor's own included. Without it the
@@ -315,7 +326,8 @@ class IdeEditorState extends State<IdeEditor> {
     _themes.addListener(_colorThemeChanged);
     EditorLanguageOverrides.instance.addListener(_languageModesChanged);
     widget.agentEdits?.addListener(_rebuildSoon);
-    IdeDiffOptions.instance.addListener(_rebuildSoon);
+    IdeDiffOptions.instance.addListener(_diffOptionsChanged);
+    EditorWordWrap.on.addListener(_rebuildSoon);
     if (widget.nativeEditorEnabled) _activateNativeController();
     _selectionChanged();
     _updateBlame(navigated: false);
@@ -1603,15 +1615,44 @@ class IdeEditorState extends State<IdeEditor> {
     );
   }
 
+  /// The diff tabs shown as now chosen: compared again where they ignore
+  /// other whitespace.
+  void _diffOptionsChanged() {
+    final whitespace = IdeDiffOptions.instance.whitespace;
+    final stale = <IdeOriginalDiff>[];
+    _diffs.removeWhere((_, diff) {
+      final model = diff.model;
+      final ignored = model.ignoreAllWhitespace
+          ? IdeDiffWhitespace.all
+          : model.ignoreTrimWhitespace
+          ? IdeDiffWhitespace.trim
+          : IdeDiffWhitespace.none;
+      if (ignored == whitespace) return false;
+      stale.add(diff);
+      return true;
+    });
+    _rebuildSoon();
+    if (stale.isEmpty) return;
+    // Once the editors showing them are gone.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final diff in stale) {
+        diff.dispose();
+      }
+    });
+  }
+
   /// [doc]'s diff and original side, where it is a diff tab.
   IdeOriginalDiff? _diffOf(IdeDocument doc) {
     final original = doc.diff;
     if (original == null) return null;
     return _diffs.putIfAbsent(doc, () {
+      final whitespace = IdeDiffOptions.instance.whitespace;
       final diff = IdeOriginalDiff(
         original,
         doc.model,
         onChanged: _rebuildSoon,
+        ignoreTrimWhitespace: whitespace != IdeDiffWhitespace.none,
+        ignoreAllWhitespace: whitespace == IdeDiffWhitespace.all,
       );
       if (_textMateDocuments[doc]?.$2.languageId case final language?) {
         diff.highlight(_textMate, language);
@@ -1778,7 +1819,8 @@ class IdeEditorState extends State<IdeEditor> {
   void dispose() {
     widget.workspace.removeListener(_workspaceChanged);
     _themes.removeListener(_colorThemeChanged);
-    IdeDiffOptions.instance.removeListener(_rebuildSoon);
+    IdeDiffOptions.instance.removeListener(_diffOptionsChanged);
+    EditorWordWrap.on.removeListener(_rebuildSoon);
     EditorLanguageOverrides.instance.removeListener(_languageModesChanged);
     widget.agentEdits?.removeListener(_rebuildSoon);
     _debugListeners?.dispose();
@@ -1980,7 +2022,39 @@ class IdeEditorState extends State<IdeEditor> {
                 l10n.gitShowHistoryForSelection,
                 onSelected: () => showHistory(selection: true),
               ),
+            if (widget.onCompare case final compare?
+                when widget.active.isFile && widget.active.diff == null)
+              IdeMenuAction(
+                l10n.compareWith,
+                submenu: [
+                  if (canShowHistory) ...[
+                    IdeMenuAction(
+                      l10n.gitCompareWithBranch,
+                      onSelected: () =>
+                          compare(widget.active.path, IdeCompareWith.branch),
+                    ),
+                    IdeMenuAction(
+                      l10n.gitCompareWithRevision,
+                      onSelected: () =>
+                          compare(widget.active.path, IdeCompareWith.revision),
+                    ),
+                  ],
+                  IdeMenuAction(
+                    l10n.compareWithClipboard,
+                    onSelected: () =>
+                        compare(widget.active.path, IdeCompareWith.clipboard),
+                  ),
+                  IdeMenuAction(
+                    l10n.compareWithLocalHistory,
+                    onSelected: () => compare(
+                      widget.active.path,
+                      IdeCompareWith.localHistory,
+                    ),
+                  ),
+                ],
+              ),
           ],
+          [wordWrapMenuAction(l10n)],
           [
             if (showCommands != null)
               IdeMenuAction(
@@ -2563,6 +2637,8 @@ class IdeEditorState extends State<IdeEditor> {
     controller: _nativeController!,
     focusNode: _focusNode,
     readOnly: widget.active.readOnly,
+    // A diff's sides keep their lines aligned unwrapped.
+    wrap: side == null && EditorWordWrap.on.value,
     backgroundColor: colors['editor.background'],
     selectionColor: colors['editor.selectionBackground'],
     caretColor: colors['editorCursor.foreground'],
@@ -2582,6 +2658,7 @@ class IdeEditorState extends State<IdeEditor> {
     viewZones: side?.zones ?? agent?.zones ?? const [],
     scrollPosition: side?.scrollPosition,
     folding: side == null,
+    hiddenLines: side?.hiddenLines,
     showMinimap: side == null,
     onKeyEvent: _onEditorKey,
     keyResolver: widget.keyResolver == null ? null : _resolveTextKey,
@@ -2658,6 +2735,8 @@ class IdeEditorState extends State<IdeEditor> {
       model: diff.model,
       sideBySide: options.sideBySide,
       highlight: options.highlight,
+      hideUnchanged: options.collapseUnchanged,
+      unchangedLabel: context.l10n.diffUnchangedLines,
       style: _editorStyle(colors),
       theme: theme,
       colors: DiffEditorColors.from(colors.get),
@@ -2683,13 +2762,74 @@ class IdeEditorState extends State<IdeEditor> {
           scrollPosition: side.scrollPosition,
           glyphMargin: side.sideBySide,
           folding: false,
+          hiddenLines: side.hiddenLines,
           showMinimap: false,
           style: _editorStyle(colors),
         );
       },
       modified: (context, side) => _surface(colors, side: side),
+      overlay: widget.active.readOnly
+          ? null
+          : (context, layout) => _revertArrows(diff, layout),
     );
   }
+
+  /// JetBrains' `>>` by each change of a diff tab whose file can be edited
+  /// (on the split side by side, at the file's left edge inline): the
+  /// change reverted in the file, unsaved as any edit.
+  Widget _revertArrows(IdeOriginalDiff diff, DiffEditorLayout layout) =>
+      ListenableBuilder(
+        listenable: _viewTick,
+        builder: (context, _) {
+          final view = switch (_surfaceKey.currentState) {
+            final EditorSurfaceView view => view,
+            _ => null,
+          };
+          final area = view?.textArea;
+          final controller = _nativeController;
+          final mappings = diff.model.mappings;
+          final original = diff.model.originalSnapshot;
+          if (view == null ||
+              area == null ||
+              controller == null ||
+              mappings == null ||
+              original == null) {
+            return const SizedBox.shrink();
+          }
+          final snapshot = controller.document.snapshot;
+          const size = 16.0;
+          return Stack(
+            children: [
+              for (final change in mappings)
+                if (ideDiffChangeTop(view, snapshot, change) case final top?
+                    when top >= area.top - 2 && top + size <= area.bottom)
+                  Positioned(
+                    key: ObjectKey(change),
+                    left: layout.sideBySide
+                        ? layout.splitLeft - size / 2
+                        : layout.modifiedLeft + 2,
+                    top: top + (view.lineHeight - size) / 2,
+                    width: size,
+                    height: size,
+                    child: IdeDiffRevertArrow(
+                      added: change.original.isEmpty,
+                      onTap: () {
+                        controller.applyEdits([
+                          ideDiffRevertEdit(
+                            change,
+                            original,
+                            controller.document.snapshot,
+                          ),
+                        ]);
+                        // Shown reverted at once, not after the debounce.
+                        diff.model.refresh();
+                      },
+                    ),
+                  ),
+            ],
+          );
+        },
+      );
 
   @override
   Widget build(BuildContext context) {

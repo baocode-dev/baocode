@@ -163,6 +163,8 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       notifyListeners();
       return;
     }
+    // Nothing to show: for the review alone.
+    if (event is FilesMayHaveChanged) return _reviewEvent(event);
     if (event is KernelInfoChanged || _transcript.apply(event)) {
       _cache.clear();
       _timeQuiet();
@@ -181,6 +183,23 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   /// Gives the edits reported a moment to settle before a look.
   Timer? _lookTimer;
+
+  /// The whole project's next look while the agent works, after what may
+  /// have written files without saying which (a command, a subagent): see
+  /// [_scanSoon].
+  Timer? _scanTimer;
+
+  /// Set from a look's start till [_scanInterval] after its end: looks
+  /// asked for meanwhile wait ([_scanWanted]).
+  bool _scanBusy = false;
+  bool _scanWanted = false;
+  Timer? _scanRest;
+
+  /// How soon after a command the project is looked at, and how far apart
+  /// two such looks are at least: a look reads the whole project (Git's
+  /// status of it), too much for every command of a busy turn.
+  static const _scanDelay = Duration(seconds: 1);
+  static const _scanInterval = Duration(seconds: 5);
 
   /// The review, while it holds: null before it opened, or once it failed
   /// (the changes are then those the kernel reported).
@@ -233,7 +252,11 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       case TurnEnded():
         review.working = isStreaming;
         _lookTimer?.cancel();
+        _stopScans();
         unawaited(review.observe());
+      // Only while it works: between turns, what changes is not the agent's.
+      case FilesMayHaveChanged() when isStreaming:
+        _scanSoon(review);
       case FileEdited(:final change, :final original):
         review.report(change, original: original);
         _lookTimer?.cancel();
@@ -243,6 +266,48 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
         );
       default:
     }
+  }
+
+  /// A look at the whole project, soon: [_scanDelay] after it is asked
+  /// for, then no other till [_scanInterval] after it ends, those asked for
+  /// meanwhile taken in by one look then.
+  void _scanSoon(ChangeReviews review) {
+    if (_scanTimer != null) return;
+    if (_scanBusy) {
+      _scanWanted = true;
+      return;
+    }
+    _scanTimer = Timer(_scanDelay, () => unawaited(_scan(review)));
+  }
+
+  Future<void> _scan(ChangeReviews review) async {
+    _scanTimer = null;
+    if (_disposed || !isStreaming) return;
+    _scanBusy = true;
+    try {
+      await review.observe();
+    } finally {
+      if (!_disposed && _scanBusy) {
+        _scanRest = Timer(_scanInterval, () {
+          _scanRest = null;
+          _scanBusy = false;
+          if (_scanWanted) {
+            _scanWanted = false;
+            _scanSoon(review);
+          }
+        });
+      }
+    }
+  }
+
+  /// No more looks of the turn's: its end looks at everything.
+  void _stopScans() {
+    _scanTimer?.cancel();
+    _scanTimer = null;
+    _scanRest?.cancel();
+    _scanRest = null;
+    _scanBusy = false;
+    _scanWanted = false;
   }
 
   Timer? _quietTimer;
@@ -688,17 +753,37 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     );
   }
 
-  /// Background commands, including completed ones for their output tabs.
+  /// Background commands, including completed ones for their output tabs
+  /// (until cleared, [clearTasks]).
   List<KernelTask> get terminalTasks => _cached(
     #terminalTasks,
     () => [
       for (final task in _transcript.tasks)
-        if (task.background && task.kind == KernelTaskKind.command) task,
+        if (task.background &&
+            task.kind == KernelTaskKind.command &&
+            !_clearedTasks.contains(task.id))
+          task,
     ],
   );
 
+  /// The background commands ended and cleared from [terminalTasks], by id.
+  final Set<String> _clearedTasks = {};
+
   void stopTask(KernelTask task) {
     if (_kernel case final RunsBackgroundTasks kernel) kernel.stopTask(task.id);
+  }
+
+  /// Takes [tasks] that have ended (done, failed, stopped) off
+  /// [terminalTasks]: those running stay.
+  void clearTasks(Iterable<KernelTask> tasks) {
+    var cleared = false;
+    for (final task in tasks) {
+      if (task.status == CommandStatus.running) continue;
+      cleared |= _clearedTasks.add(task.id);
+    }
+    if (!cleared) return;
+    _cache.remove(#terminalTasks);
+    notifyListeners();
   }
 
   /// Moves what the item at [index] runs (a command, a subagent) to the
@@ -847,6 +932,22 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       return byPath.values.toList();
     });
   }
+
+  /// The files changed and neither kept nor undone, each with the turn
+  /// that changed it (its id) and what that turn was asked, in the order
+  /// they were changed: what the IDE's changelists of turns are made of.
+  List<({String turn, String request, String path})> get turnEdits =>
+      _cached(#turnEdits, () {
+        return [
+          for (final (seq: _, :change, :turnId) in _pendingEdits)
+            if (turnId != null)
+              (
+                turn: turnId,
+                request: _transcript.turnMessage(turnId)?.text ?? '',
+                path: _absolute(change.path),
+              ),
+        ];
+      });
 
   /// The files the agent read or changed (or was given: a picture a tool
   /// returned, saved), absolute: what its text may link to outside the
@@ -1153,6 +1254,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     _disposed = true;
     _quietTimer?.cancel();
     _lookTimer?.cancel();
+    _stopScans();
     _review
       ?..removeListener(_reviewChanged)
       ..dispose();

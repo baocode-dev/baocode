@@ -121,6 +121,7 @@ class EditorSurface extends StatefulWidget {
     this.lineNumbers = true,
     this.glyphMargin = true,
     this.folding = true,
+    this.hiddenLines,
     this.foldingRules,
     this.brackets,
     this.matchBrackets = true,
@@ -150,7 +151,13 @@ class EditorSurface extends StatefulWidget {
   /// Selection fill while focused (`editor.selectionBackground`).
   final Color selectionColor;
   final Color caretColor;
+
+  /// Whether long lines wrap at the text area's width; documents longer
+  /// than [maxWrappedLines] do not (a wrapped layout shapes every line).
   final bool wrap;
+
+  /// The most lines a document may have and still wrap.
+  static const maxWrappedLines = 5000;
 
   /// Optional one-based token spans, supplied by the active theme/tokenizer.
   /// Read lazily for painted lines; spans whose text no longer matches a
@@ -210,6 +217,10 @@ class EditorSurface extends StatefulWidget {
 
   /// Indentation-based folding with chevrons in the gutter.
   final bool folding;
+
+  /// Lines hidden besides collapsed folds' (a diff's unchanged ones), with
+  /// no placeholder: the embedder shows what stands for them, in a zone.
+  final HiddenLineRanges? hiddenLines;
 
   /// Folding markers/off-side rule; defaults to the controller's
   /// `languageConfiguration.folding`.
@@ -2270,13 +2281,24 @@ class _EditorSurfaceState extends State<EditorSurface>
     TextScaler scaler,
   ) {
     final size = Size(geometry.contentWidth, geometry.size.height);
-    final hidden = _folding.hiddenLines;
+    final hidden = switch ((_folding.hiddenLines, widget.hiddenLines)) {
+      (final folds, null) => folds,
+      (final folds, final other?) when other.isEmpty => folds,
+      (final folds, final other?) when folds.isEmpty => other,
+      (final folds, final other?) => HiddenLineRanges([
+        ...folds.ranges,
+        ...other.ranges,
+      ]),
+    };
     final lineHeight = _glyphs!.lineHeight;
     final zones = [
       for (final zone in _zones)
         ViewportZone(zone.afterLineNumber, zone.heightInLines * lineHeight),
     ];
-    final wrap = widget.wrap && size.width > 0;
+    final wrap =
+        widget.wrap &&
+        size.width > 0 &&
+        snapshot.lineCount <= EditorSurface.maxWrappedLines;
     // Lines are decorated only while some decoration changes their layout.
     final decorations = _decorationsAffectLayout ? _decorations : null;
     final current = _layout;

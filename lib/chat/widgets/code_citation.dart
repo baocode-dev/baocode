@@ -94,14 +94,16 @@ class CodeCitationFenceSyntax extends md.BlockSyntax {
       '^ {0,3}${RegExp.escape(marker[0])}{${marker.length},}[ \\t]*\$',
     );
     final cited = citation.end - citation.start + 1;
-    // Lines ahead of the opening fence to the closing one.
+    // Lines ahead of the opening fence to the closing one: the one after
+    // the lines cited (a fence among them, cited from markdown), else the
+    // first. Past them too: more lines than cited, the rest of the reply is
+    // not code (#308).
     int? end;
-    for (var i = 1; i <= cited + 1; i++) {
+    for (var i = 1; end == null || i <= cited + 1; i++) {
       final line = parser.peek(i);
       if (line == null) break;
       if (!close.hasMatch(line.content)) continue;
-      end ??= i;
-      if (i == cited + 1) end = i;
+      end = i == cited + 1 ? i : end ?? i;
     }
     parser.advance();
     final lines = <String>[];

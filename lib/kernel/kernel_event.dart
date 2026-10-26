@@ -122,6 +122,13 @@ final class FileEdited extends KernelEvent {
   final FileOriginal? original;
 }
 
+/// Something ran that may have written files without telling which: a
+/// command, a subagent. The project is looked at again for the review, a
+/// little later rather than at once (the turn's end looks anyway).
+final class FilesMayHaveChanged extends KernelEvent {
+  const FilesMayHaveChanged(super.seq);
+}
+
 /// The agent wrote its plan, the file at [path]: not a change to review,
 /// a document to show.
 final class PlanWritten extends KernelEvent {

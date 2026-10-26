@@ -26,11 +26,14 @@ import 'git_service_stub.dart'
 export 'package:bao_remote/git.dart';
 
 /// Runs `git` with [arguments] in [workingDirectory]; with [limit], reads
-/// only that many NUL-terminated records of its output (`runGit`'s).
+/// only that many NUL-terminated records of its output (`runGit`'s); [stdin]
+/// is written to it, and [environment] added to its.
 typedef IdeGitRunner = Future<IdeGitOutput> Function(
   List<String> arguments, {
   required String workingDirectory,
   int? limit,
+  String? stdin,
+  Map<String, String>? environment,
 });
 
 /// Changes under the repository at [repositoryRoot].
@@ -84,11 +87,35 @@ class IdeGitService {
     List<String> arguments, {
     String? cwd,
     int? limit,
+    String? stdin,
+    Map<String, String>? environment,
   }) => _run(
     arguments,
     workingDirectory: cwd ?? _repositoryRoot ?? root,
     limit: limit,
+    stdin: stdin,
+    environment: environment,
   );
+
+  /// JetBrains' Get from Version Control: [url] cloned into [directory],
+  /// which Git makes; on this machine, or through [runner]. No prompt for
+  /// a password waits on a terminal there is none of.
+  static Future<void> clone(
+    String url,
+    String directory, {
+    IdeGitRunner? runner,
+    p.Context? pathContext,
+  }) async {
+    final paths = pathContext ?? p.context;
+    _check(
+      await (runner ?? platform.runGit)(
+        ['clone', '--', url, directory],
+        workingDirectory: paths.dirname(directory),
+        environment: const {'GIT_TERMINAL_PROMPT': '0'},
+      ),
+      'Cannot clone $url.',
+    );
+  }
 
   static IdeGitOutput _check(IdeGitOutput output, String what) {
     if (output.exitCode == 0) return output;
@@ -287,12 +314,7 @@ class IdeGitService {
     final kept = _relative(top, paths);
     if (kept.isNotEmpty) {
       _check(
-        await _git([
-          'checkout',
-          ours ? '--ours' : '--theirs',
-          '--',
-          ...kept,
-        ]),
+        await _git(['checkout', ours ? '--ours' : '--theirs', '--', ...kept]),
         'Cannot take ${ours ? 'the current' : 'the incoming'} version.',
       );
       _check(
@@ -330,7 +352,11 @@ class IdeGitService {
             ? '--skip'
             : '--continue',
       ]),
-      'Cannot ${abort ? 'abort' : skip ? 'skip' : 'continue'} the '
+      'Cannot ${abort
+          ? 'abort'
+          : skip
+          ? 'skip'
+          : 'continue'} the '
       '${operation.command}.',
     );
   }
@@ -445,6 +471,7 @@ class IdeGitService {
     String message,
     Iterable<String> paths, {
     bool amend = false,
+    IdeGitCommitOptions options = const IdeGitCommitOptions(),
   }) async {
     final top = await _requireRoot();
     final relative = _relative(top, paths);
@@ -452,10 +479,78 @@ class IdeGitService {
       await _git([
         'commit',
         '--quiet',
+        ...options.arguments,
         if (amend) '--amend',
         if (message.isEmpty && amend) '--no-edit' else ...['-m', message],
         if (relative.isNotEmpty) ...['--only', '--', ...relative],
       ]),
+      'Cannot commit.',
+    );
+  }
+
+  /// Commits [paths] as they are in the working tree and each of
+  /// [partial]'s files with its text there (some of its changes left out),
+  /// whatever is staged, as [commitPaths] does: through an index of its
+  /// own (`GIT_INDEX_FILE`) made from HEAD's, the repository's then given
+  /// what was committed of them. [amend] replaces the last commit.
+  Future<void> commitPartial(
+    String message,
+    Iterable<String> paths,
+    Map<String, String> partial, {
+    bool amend = false,
+    IdeGitCommitOptions options = const IdeGitCommitOptions(),
+  }) async {
+    final top = await _requireRoot();
+    final indexPath = _check(
+      await _git(['rev-parse', '--git-path', 'baocode-commit-index']),
+      'Cannot commit.',
+    ).stdout.trim();
+    final environment = {
+      'GIT_INDEX_FILE': pathContext.isAbsolute(indexPath)
+          ? indexPath
+          : pathContext.join(top, indexPath),
+    };
+    Future<IdeGitOutput> git(List<String> arguments, {String? stdin}) async =>
+        _check(
+          await _git(arguments, stdin: stdin, environment: environment),
+          'Cannot commit.',
+        );
+    final head = await _git(['rev-parse', '--verify', '-q', 'HEAD']);
+    await git(['read-tree', if (head.exitCode == 0) 'HEAD' else '--empty']);
+    final whole = _relative(top, paths);
+    if (whole.isNotEmpty) await git(['add', '-A', '--', ...whole]);
+    final parts = <String>[];
+    for (final MapEntry(key: path, value: text) in partial.entries) {
+      final relative = _relative(top, [path]).single;
+      parts.add(relative);
+      final blob = (await git([
+        'hash-object',
+        '-w',
+        '--path',
+        relative,
+        '--stdin',
+      ], stdin: text)).stdout.trim();
+      // Its mode as committed.
+      final listed = (await git(['ls-files', '-s', '--', relative])).stdout;
+      final mode = listed.isEmpty ? '100644' : listed.split(' ').first;
+      await git([
+        'update-index',
+        '--add',
+        '--cacheinfo',
+        '$mode,$blob,$relative',
+      ]);
+    }
+    await git([
+      'commit',
+      '--quiet',
+      ...options.arguments,
+      if (amend) '--amend',
+      if (message.isEmpty && amend) '--no-edit' else ...['-m', message],
+    ]);
+    // The repository's index: the files as committed, the rest of the
+    // partial ones' changes left unstaged.
+    _check(
+      await _git(['reset', '-q', '--', ...whole, ...parts]),
       'Cannot commit.',
     );
   }
@@ -593,6 +688,80 @@ class IdeGitService {
       for (final line in output.stdout.split('\n'))
         if (line.trim().isNotEmpty) line.trim(),
     ];
+  }
+
+  /// Each remote and the URL it fetches from (`git remote -v`), by name.
+  Future<Map<String, String>> remoteUrls() async {
+    await _requireRoot();
+    final output = _check(
+      await _git(['remote', '-v']),
+      'Cannot read the remotes.',
+    );
+    final urls = <String, String>{};
+    for (final line in output.stdout.split('\n')) {
+      final match = RegExp(r'^(\S+)\s+(.*?)\s+\((fetch|push)\)$')
+          .firstMatch(line.trim());
+      if (match == null) continue;
+      if (match[3] == 'fetch' || !urls.containsKey(match[1])) {
+        urls[match[1]!] = match[2]!;
+      }
+    }
+    return urls;
+  }
+
+  /// JetBrains' Manage Remotes: a remote added (`git remote add`).
+  Future<void> addRemote(String name, String url) async {
+    await _requireRoot();
+    _check(
+      await _git(['remote', 'add', '--', name, url]),
+      'Cannot add the remote $name.',
+    );
+  }
+
+  /// Remote [name] renamed [to] where it is not, its URL [url].
+  Future<void> editRemote(String name, {String? to, String? url}) async {
+    await _requireRoot();
+    var current = name;
+    if (to != null && to != name) {
+      _check(
+        await _git(['remote', 'rename', '--', name, to]),
+        'Cannot rename the remote $name.',
+      );
+      current = to;
+    }
+    if (url != null) {
+      _check(
+        await _git(['remote', 'set-url', '--', current, url]),
+        'Cannot change the URL of $current.',
+      );
+    }
+  }
+
+  /// Remote [name] removed, its remote branches with it.
+  Future<void> removeRemote(String name) async {
+    await _requireRoot();
+    _check(
+      await _git(['remote', 'remove', '--', name]),
+      'Cannot remove the remote $name.',
+    );
+  }
+
+  /// The tag [name] pushed to [remote].
+  Future<void> pushTag(String remote, String name) async {
+    await _requireRoot();
+    _check(
+      await _git(['push', remote, 'refs/tags/$name']),
+      'Cannot push the tag $name.',
+    );
+  }
+
+  /// The tag [name] deleted on [remote].
+  Future<void> deleteRemoteTag(String remote, String name) async {
+    await _requireRoot();
+    _check(
+      await _git(['push', remote, '--delete', 'refs/tags/$name']),
+      'Cannot delete the tag $name on $remote.',
+    );
   }
 
   /// `git fetch <remote> --tags` for one remote, or `git fetch --all
@@ -843,6 +1012,55 @@ class IdeGitService {
     return output.exitCode == 0 && value.isNotEmpty ? value : null;
   }
 
+  /// The messages of the last [limit] commits of the user's (by
+  /// `user.email`, else anyone's) from HEAD, the newest first, each once:
+  /// JetBrains' commit message history.
+  Future<List<String>> recentMessages({int limit = 20}) async {
+    await _requireRoot();
+    final email = await config('user.email');
+    final output = await _git([
+      'log',
+      '-n',
+      '$limit',
+      '--format=%B%x1e',
+      if (email != null) '--author=<${_escapeRegExp(email)}>',
+      'HEAD',
+      '--',
+    ]);
+    if (output.exitCode != 0) return const [];
+    return {
+      for (final message in output.stdout.split('\x1e'))
+        if (message.trim() case final text when text.isNotEmpty) text,
+    }.toList();
+  }
+
+  static String _escapeRegExp(String text) =>
+      text.replaceAllMapped(RegExp(r'[.*+?^${}()|[\]\\]'), (m) => '\\${m[0]}');
+
+  /// The files and folders Git ignores (a folder ignored whole once, its
+  /// path ending in a separator), by absolute path: JetBrains' Ignored
+  /// Files.
+  Future<List<String>> ignoredFiles() async {
+    final top = await _requireRoot();
+    final output = _check(
+      await _git([
+        'ls-files',
+        '--others',
+        '--ignored',
+        '--exclude-standard',
+        '--directory',
+        '-z',
+      ]),
+      'Cannot read the ignored files.',
+    );
+    return [
+      for (final relative in output.stdout.split('\x00'))
+        if (relative.isNotEmpty)
+          pathContext.join(top, pathContext.joinAll(relative.split('/'))) +
+              (relative.endsWith('/') ? pathContext.separator : ''),
+    ]..sort();
+  }
+
   /// The commits that changed [path], following renames.
   Future<List<IdeGitCommit>> fileLog(String path, {int limit = 50}) async {
     final top = await _requireRoot();
@@ -893,6 +1111,93 @@ class IdeGitService {
       'Cannot compare with $commit.',
     );
     return _parseNameStatus(top, output.stdout);
+  }
+
+  // --- Stashes ---------------------------------------------------------------
+
+  /// The stashes, the newest first.
+  Future<List<IdeGitStash>> stashes() async {
+    await _requireRoot();
+    final output = _check(
+      await _git(['stash', 'list', '--format=%gd%x00%H%x00%ct%x00%gs']),
+      'Cannot list the stashes.',
+    );
+    return parseGitStashes(output.stdout);
+  }
+
+  /// Stashes the local changes (only [paths]' where given) with [message];
+  /// [untracked] the untracked files too, [keepIndex] leaving what is
+  /// staged.
+  Future<void> stash({
+    String message = '',
+    Iterable<String>? paths,
+    bool untracked = false,
+    bool keepIndex = false,
+  }) async {
+    final top = await _requireRoot();
+    _check(
+      await _git([
+        'stash',
+        'push',
+        if (message.isNotEmpty) ...['-m', message],
+        if (untracked) '--include-untracked',
+        if (keepIndex) '--keep-index',
+        if (paths != null) ...['--', ..._relative(top, paths)],
+      ]),
+      'Cannot stash the changes.',
+    );
+  }
+
+  /// Applies [ref]'s changes ([pop]: and drops it once they apply);
+  /// [index]: what was staged staged again.
+  Future<void> unstash(
+    String ref, {
+    bool pop = false,
+    bool index = false,
+  }) async {
+    await _requireRoot();
+    _check(
+      await _git(['stash', pop ? 'pop' : 'apply', if (index) '--index', ref]),
+      'Cannot apply the stash.',
+    );
+  }
+
+  Future<void> dropStash(String ref) async {
+    await _requireRoot();
+    _check(await _git(['stash', 'drop', ref]), 'Cannot drop the stash.');
+  }
+
+  Future<void> clearStashes() async {
+    await _requireRoot();
+    _check(await _git(['stash', 'clear']), 'Cannot clear the stashes.');
+  }
+
+  /// A branch [name] made where [ref] was stashed, its changes on it, the
+  /// stash dropped (`git stash branch`).
+  Future<void> stashBranch(String name, String ref) async {
+    await _requireRoot();
+    _check(
+      await _git(['stash', 'branch', name, ref]),
+      'Cannot unstash to the branch $name.',
+    );
+  }
+
+  /// The files stashed in [stash] (its commit) that were untracked: its
+  /// third parent's.
+  Future<List<String>> stashedUntracked(String stash) async {
+    final top = await _requireRoot();
+    final output = await _git([
+      'ls-tree',
+      '-r',
+      '--name-only',
+      '-z',
+      '$stash^3',
+    ]);
+    if (output.exitCode != 0) return const [];
+    return [
+      for (final path in output.stdout.split('\x00'))
+        if (path.isNotEmpty) pathContext.join(top, path),
+    ];
   }
 
   // --- Commit operations (JetBrains' Git log) --------------------------------
@@ -993,6 +1298,22 @@ class IdeGitService {
     );
   }
 
+  /// JetBrains' Fixup: the `fixup!` commit just made (HEAD) squashed into
+  /// [commit] (`rebase -i --autosquash`, no editor), the changes not
+  /// committed set aside meanwhile; where the rebase fails, the fixup
+  /// commit undone, its changes staged.
+  Future<void> autosquash(IdeGitCommit commit) async {
+    await _requireRoot();
+    await _requireLinearSince(commit);
+    await _rebaseFrom(
+      commit,
+      ['-i', '--autosquash'],
+      undo: () async {
+        await _git(['reset', '--soft', 'HEAD~']);
+      },
+    );
+  }
+
   /// Takes [commit] out of the branch: the commits after it rebased onto
   /// its parent (`git rebase --onto`), the changes not committed set aside
   /// meanwhile.
@@ -1030,6 +1351,56 @@ class IdeGitService {
     await _rebaseFrom(commits.first, [
       '-i',
     ], sequenceEditor: 'sed -i.bak $script');
+  }
+
+  /// JetBrains' interactive rebase: the commits from [from] on, as [steps]
+  /// (oldest first, in their new order) say: each picked, reworded (its
+  /// message put in through Git, an `exec` amending it, so that a rebase
+  /// stopped and continued still has it), stopped at to be edited, squashed
+  /// or fixed up into the one before, or dropped. True where the rebase
+  /// stopped (to edit a commit, at a conflict): it is still under way.
+  Future<bool> interactiveRebase(
+    IdeGitCommit from,
+    List<IdeGitRebaseStep> steps,
+  ) async {
+    await _requireRoot();
+    await _requireLinearSince(from);
+    Future<String> blob(String text) async => _check(
+      await _git(['hash-object', '-w', '--stdin'], stdin: text),
+      'Cannot rebase.',
+    ).stdout.trim();
+    final todo = StringBuffer();
+    for (final step in steps) {
+      final id = step.commit;
+      switch (step.action) {
+        case IdeGitRebaseAction.reword:
+          todo
+            ..writeln('pick $id')
+            ..writeln(
+              'exec git cat-file blob ${await blob(step.message ?? '')} | '
+              'git commit --amend --only --allow-empty --no-verify -q -F -',
+            );
+        case final action:
+          todo.writeln('${action.name} $id');
+      }
+    }
+    final list = await blob(todo.toString());
+    final output = await _git([
+      '-c',
+      'sequence.editor=git cat-file blob $list >',
+      '-c',
+      'core.editor=:',
+      'rebase',
+      '-i',
+      '--autostash',
+      '--no-autosquash',
+      if (from.parentIds.isEmpty) '--root' else from.parentIds.first,
+    ]);
+    // Stopped where Git left REBASE_HEAD: at a commit to edit, or a
+    // conflict.
+    final underWay = await _operation() == IdeGitOperation.rebase;
+    if (output.exitCode != 0 && !underWay) _check(output, 'Cannot rebase.');
+    return underWay;
   }
 
   /// Rebases from [commit] with [options] and no editor (the list as it is,

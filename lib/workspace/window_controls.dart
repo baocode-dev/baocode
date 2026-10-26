@@ -101,6 +101,20 @@ abstract final class WindowControls {
     }
   }
 
+  /// Whether the window can go full screen: the desktop app (#299).
+  static bool get canFullScreen => isDesktop;
+
+  /// Takes the window to full screen, or back out of it as it was: whether
+  /// it is now (null where there is no window to ask).
+  static Future<bool?> toggleFullScreen({int? viewId}) async {
+    if (!canFullScreen) return null;
+    try {
+      return await _of(viewId).invokeMethod<bool>('toggleFullScreen');
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   /// Whether the window can be made larger for what it shows: the desktop
   /// app.
   static bool get canGrow => isDesktop;

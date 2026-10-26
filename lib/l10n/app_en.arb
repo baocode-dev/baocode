@@ -452,6 +452,9 @@
   },
   "cmdToggleSidebar": "Toggle Primary Side Bar Visibility",
   "cmdToggleChat": "Toggle Chat",
+  "cmdToggleFullScreen": "Toggle Full Screen",
+  "cmdToggleWordWrap": "Toggle Word Wrap",
+  "menuWordWrap": "Word Wrap",
   "cmdTogglePanel": "Toggle Panel Visibility",
   "cmdToggleTerminal": "Toggle Terminal",
   "cmdNewTerminal": "Create New Terminal",
@@ -491,6 +494,7 @@
   "cmdBackToChat": "Back to Chat",
   "cmdOpenSettings": "Open Settings",
   "cmdOpenKeyboardShortcuts": "Open Keyboard Shortcuts",
+  "cmdOpenLspSettings": "Open Language Server Settings (JSON)",
   "cmdJumpToBracket": "Go to Bracket",
   "cmdUndo": "Undo",
   "cmdRedo": "Redo",
@@ -763,6 +767,8 @@
   "@sidePanelAddToChat": {
     "description": "Puts the files of a row or tab of the side panel in the chat's composer."
   },
+  "termClearTask": "Clear",
+  "termClearEndedTasks": "Clear All Ended Tasks",
   "sidePanelBackgroundTasks": "Background Tasks",
   "@sidePanelBackgroundTasks": {
     "description": "The side panel's terminal page: the group of the agent's background commands in its list."
@@ -894,10 +900,19 @@
   "sidebarNeedsInput": "Needs input",
   "sidebarRunning": "Running",
   "sidebarUnread": "Unread",
+  "sidebarHoverModel": "Model: {model}",
+  "@sidebarHoverModel": {
+    "description": "A conversation's hover in the sidebar: the model it runs on.",
+    "placeholders": {
+      "model": {"type": "String"}
+    }
+  },
   "sidebarDone": "Done",
   "sidebarArchived": "Archived",
   "sidebarOpenFolder": "Open folder…",
   "sidebarAgents": "Agents",
+  "sidebarCollapseAll": "Collapse All",
+  "sidebarExpandAll": "Expand All",
   "sidebarNoMatchingAgents": "No matching agents",
   "sidebarNoAgentsYet": "No agents yet",
   "sidebarHideArchived": "Hide archived",
@@ -5326,6 +5341,8 @@
   },
   "appearanceSettingsLigatures": "Font Ligatures",
   "appearanceSettingsLigaturesDescription": "Draws sequences such as => and != as one glyph where the font has one. The terminal does not.",
+  "appearanceSettingsWordWrap": "Word Wrap",
+  "appearanceSettingsWordWrapDescription": "Wraps long lines at the editor's width, in every editor. An editor's context menu and the Command Palette (Toggle Word Wrap) switch it too. Files of more than 5,000 lines are not wrapped.",
   "appearanceSettingsUiScale": "Interface Size",
   "appearanceSettingsUiScaleDescription": "Zooms the whole interface (its text, icons and spacing), code in the chat, and terminal text while the terminal size follows it. Code in the IDE editor and side panel files and changes keeps its own size.",
   "appearanceSettingsUiScaleLabel": "Interface size: {percent}%",
@@ -5484,41 +5501,61 @@
       }
     }
   },
-  "remoteStatus": "SSH: {host}",
+  "remoteStatus": "{kind}: {host}",
   "@remoteStatus": {
     "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
       "host": {
         "type": "String"
       }
     }
   },
-  "remoteStatusConnecting": "SSH: {host} (connecting...)",
+  "remoteStatusConnecting": "{kind}: {host} (connecting...)",
   "@remoteStatusConnecting": {
     "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
       "host": {
         "type": "String"
       }
     }
   },
-  "remoteStatusReconnecting": "SSH: {host} (reconnecting...)",
+  "remoteStatusReconnecting": "{kind}: {host} (reconnecting...)",
   "@remoteStatusReconnecting": {
     "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
       "host": {
         "type": "String"
       }
     }
   },
-  "remoteStatusFailed": "SSH: {host} (disconnected)",
+  "remoteStatusFailed": "{kind}: {host} (disconnected)",
   "@remoteStatusFailed": {
     "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
       "host": {
         "type": "String"
       }
     }
   },
-  "remoteStatusInstalling": "SSH: {host} (installing Claude Code {percent}%)",
+  "remoteStatusInstalling": "{kind}: {host} (installing Claude Code {percent}%)",
   "@remoteStatusInstalling": {
     "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
       "host": {
         "type": "String"
       },
@@ -5568,9 +5605,13 @@
       }
     }
   },
-  "remoteStatusTooltip": "Connected to {host} over SSH",
+  "remoteStatusTooltip": "Connected to {host} over {kind}",
   "@remoteStatusTooltip": {
     "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
       "host": {
         "type": "String"
       }
@@ -5593,9 +5634,13 @@
     }
   },
   "remoteReconnect": "Reconnect",
-  "remoteProjectTooltip": "On {host}, over SSH",
+  "remoteProjectTooltip": "On {host}, over {kind}",
   "@remoteProjectTooltip": {
     "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
       "host": {
         "type": "String"
       }
@@ -7137,6 +7182,7 @@
   "remoteFailHostKey": "The server's key is not known, and your ssh config says not to accept new ones (StrictHostKeyChecking).",
   "remoteFailHostKeyChanged": "The server's key changed since the last connection: it was reinstalled, or someone is in between.",
   "remoteFailUnreachable": "The server could not be reached: check the address, port and network.",
+  "remoteFailWsl": "WSL could not start this distribution: check that WSL is installed and that the distribution is listed by wsl --list.",
   "channelSetupTitle": "Welcome to BaoCode",
   "channelSetupLead": "Finish your first-time setup on baocode.dev. It takes about 10 seconds.",
   "channelSetupStepTitle": "Finish setup in your browser",
@@ -7680,6 +7726,17 @@
   "diffSideBySide": "Side-by-Side Viewer",
   "diffUnified": "Unified Viewer",
   "diffIgnoreWhitespace": "Ignore Whitespace at Line Ends",
+  "diffWhitespaceNone": "Do Not Ignore Whitespace",
+  "diffIgnoreAllWhitespace": "Ignore All Whitespace",
+  "diffCollapseUnchanged": "Collapse Unchanged Fragments",
+  "diffUnchangedLines": "{count, plural, =1{1 unchanged line} other{{count} unchanged lines}}",
+  "@diffUnchangedLines": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "diffHighlightCharacters": "Highlight Characters",
   "diffHighlightWords": "Highlight Words",
   "diffHighlightLines": "Highlight Lines",
@@ -7794,6 +7851,9 @@
   "gitBranchRestore": "Restore",
   "gitBranchCompared": "“{name}” has {ahead} commits “{current}” has not; “{current}” has {behind} it has not.",
   "@gitBranchCompared": {"placeholders": {"name": {"type": "String"}, "current": {"type": "String"}, "ahead": {"type": "int"}, "behind": {"type": "int"}}},
+  "gitBranchCompareFiles": "Show Changed Files",
+  "scmGraphRangeIn": "Commits in “{to}” Not in “{from}”",
+  "@scmGraphRangeIn": {"placeholders": {"to": {"type": "String"}, "from": {"type": "String"}}},
   "gitBranchesRecent": "Recent",
   "gitBranchesSearch": "Search for branches and actions",
   "gitUpdateProject": "Update Project",
@@ -7859,5 +7919,164 @@
   "gitMergeUnresolvedDetail": "Save the result as it is and mark the file resolved?",
   "gitMergeSaveAnyway": "Save and Mark Resolved",
   "gitMergeDiscard": "Discard the merge result?",
-  "gitMergeDiscardButton": "Discard"
+  "gitMergeDiscardButton": "Discard",
+  "gitDiffExcludeChange": "Leave This Change Out of the Commit",
+  "gitDiffIncludeChange": "Include This Change in the Commit",
+  "gitDiffExcludeLine": "Leave This Line Out of the Commit",
+  "gitDiffIncludeLine": "Include This Line in the Commit",
+  "gitChangelistActive": "active",
+  "gitChangelistMoveTo": "Move to Another Changelist",
+  "gitChangelistNew": "New Changelist…",
+  "gitChangelistCreate": "Create",
+  "gitChangelistName": "Changelist name",
+  "gitChangelistCommitOnly": "Commit Only This Changelist",
+  "gitChangelistSetActive": "Set Active Changelist",
+  "gitChangelistRename": "Rename Changelist…",
+  "gitChangelistRenameButton": "Rename",
+  "gitChangelistDelete": "Delete Changelist",
+  "gitChangelistTurn": "AI: {request}",
+  "@gitChangelistTurn": {"placeholders": {"request": {"type": "String"}}},
+  "gitStashChangesTitle": "Stash Changes",
+  "gitStashFilesTitle": "{count, plural, =1{Stash 1 File} other{Stash {count} Files}}",
+  "@gitStashFilesTitle": {"placeholders": {"count": {"type": "int"}}},
+  "gitStashButton": "Stash",
+  "gitStashMessage": "Message (optional)",
+  "gitStashUntracked": "Include untracked files",
+  "gitStashBase": "Base",
+  "gitStashApply": "Apply",
+  "gitStashPop": "Pop",
+  "gitStashAsBranch": "Unstash as Branch…",
+  "gitStashCopyMessage": "Copy Message",
+  "gitStashDrop": "Drop…",
+  "gitStashDropConfirm": "Drop {ref}?",
+  "@gitStashDropConfirm": {"placeholders": {"ref": {"type": "String"}}},
+  "gitStashDropButton": "Drop",
+  "gitStashClear": "Clear Stashes…",
+  "gitStashClearConfirm": "Drop every stash?",
+  "gitStashClearButton": "Clear",
+  "gitStashNone": "No stashes",
+  "gitStashTab": "Stash",
+  "gitCommitTab": "Commit",
+  "gitStashSelected": "Stash Selected Files…",
+  "gitCommitIgnored": "Ignored Files",
+  "gitCommitShowIgnored": "Show Ignored Files",
+  "gitCommitLongSubject": "The subject is longer than {limit} characters",
+  "@gitCommitLongSubject": {"placeholders": {"limit": {"type": "int"}}},
+  "gitCommitNoBlankLine": "Separate the subject from the body with a blank line",
+  "gitCommitMessageHistory": "Commit Message History (Ctrl+M)",
+  "gitCommitNoMessageHistory": "No messages yet",
+  "gitCommitOptions": "Commit Options",
+  "gitCommitAuthor": "Author…",
+  "gitCommitAuthorIs": "Author: {author}",
+  "@gitCommitAuthorIs": {"placeholders": {"author": {"type": "String"}}},
+  "gitCommitAuthorReset": "Use the Configured Author",
+  "gitCommitAuthorPlaceholder": "Name <email>",
+  "gitCommitSignOff": "Sign-off Commit",
+  "gitCommitRunHooks": "Run Git Hooks",
+  "gitCommitSignedOff": "Signed off",
+  "gitCommitNoHooks": "Hooks skipped",
+  "gitLogInteractiveRebase": "Interactively Rebase from Here…",
+  "gitRebaseTitle": "Rebasing {count, plural, =1{1 Commit} other{{count} Commits}} from {base}",
+  "@gitRebaseTitle": {"placeholders": {"count": {"type": "int"}, "base": {"type": "String"}}},
+  "gitRebasePick": "Pick",
+  "gitRebaseReword": "Reword",
+  "gitRebaseEdit": "Edit",
+  "gitRebaseSquash": "Squash",
+  "gitRebaseFixup": "Fixup",
+  "gitRebaseDrop": "Drop",
+  "gitRebaseMoveUp": "Move Up (Alt+Up)",
+  "gitRebaseMoveDown": "Move Down (Alt+Down)",
+  "gitRebaseMessage": "Commit message",
+  "gitRebaseStart": "Start Rebasing",
+  "gitRebaseNothingBelow": "The oldest commit kept cannot be squashed or fixed up: there is nothing below it.",
+  "gitRebaseStopped": "The rebase stopped: amend the commit or resolve the conflicts, then Continue.",
+  "gitRebaseCleanUpWithAi": "Clean Up with AI",
+  "gitRebaseCleanUpWithAiDetail": "Let the model suggest what to fix up, squash and reword; you look it over before the rebase starts",
+  "gitRebaseAiPlanning": "Planning… (click to stop)",
+  "gitRebaseAiNoPlan": "The model's answer was not a rebase list of these commits.",
+  "gitRebaseAiFailed": "Could not clean up with AI: {error}",
+  "@gitRebaseAiFailed": {"placeholders": {"error": {"type": "String"}}},
+  "gitTagPushTo": "Push Tag to {remote}",
+  "@gitTagPushTo": {"placeholders": {"remote": {"type": "String"}}},
+  "gitTagDeleteOn": "Delete Tag on {remote}",
+  "@gitTagDeleteOn": {"placeholders": {"remote": {"type": "String"}}},
+  "gitTagDeleteOnConfirm": "Delete the tag {name} on {remote}?",
+  "@gitTagDeleteOnConfirm": {"placeholders": {"name": {"type": "String"}, "remote": {"type": "String"}}},
+  "gitRemotesManage": "Manage Remotes…",
+  "gitRemotesTitle": "Git Remotes",
+  "gitRemotesNone": "No remotes",
+  "gitRemoteAdd": "Add Remote",
+  "gitRemoteEdit": "Edit Remote",
+  "gitRemoteRemove": "Remove",
+  "gitRemoteName": "Name",
+  "gitRemoteUrl": "URL",
+  "gitRemoteRemoveConfirm": "Remove the remote {name}?",
+  "@gitRemoteRemoveConfirm": {"placeholders": {"name": {"type": "String"}}},
+  "gitRemoteRemoveDetail": "Its remote branches go with it; nothing on the server changes.",
+  "gitCloneTitle": "Get from Version Control",
+  "gitCloneUrl": "URL",
+  "gitCloneDirectory": "Directory",
+  "gitCloneBrowse": "Browse…",
+  "gitCloneButton": "Clone",
+  "gitCloning": "Cloning…",
+  "gitCloneCommand": "Clone Repository…",
+  "gitReviewWithAi": "Review Changes with AI",
+  "gitReviewStop": "Stop the Review",
+  "gitReviewBeforeCommit": "Review with AI Before Committing",
+  "gitReviewRunning": "Reviewing the changes…",
+  "gitReviewClean": "No problems found",
+  "gitReviewFound": "{count, plural, =1{1 problem found} other{{count} problems found}}",
+  "@gitReviewFound": {"placeholders": {"count": {"type": "int"}}},
+  "gitReviewCommitAnyway": "Commit Anyway",
+  "gitReviewCommitAndPushAnyway": "Commit and Push Anyway",
+  "gitReviewFailed": "Could not review the changes: {error}",
+  "@gitReviewFailed": {"placeholders": {"error": {"type": "String"}}},
+  "gitAskAiCommit": "Ask AI About This Commit",
+  "gitAskAiCommitPrompt": "Explain commit {id} (\u201c{subject}\u201d): what it changes and why, and anything in it that looks risky. Read it with `git show {id}`.",
+  "@gitAskAiCommitPrompt": {"placeholders": {"id": {"type": "String"}, "subject": {"type": "String"}}},
+  "gitAskAiCommits": "{count, plural, =1{Ask AI About This Commit} other{Ask AI About These {count} Commits}}",
+  "@gitAskAiCommits": {"placeholders": {"count": {"type": "int"}}},
+  "gitAskAiCommitsPrompt": "Explain commits {ids}: what they change together, and anything in them that looks risky. Read them with `git show`.",
+  "@gitAskAiCommitsPrompt": {"placeholders": {"ids": {"type": "String"}}},
+  "gitAskAiHunk": "Ask AI About This Change",
+  "gitAskAiHunkPrompt": "About this change in {path} at line {line}: explain what it does and whether anything in it is wrong.\n\n```diff\n{change}\n```",
+  "@gitAskAiHunkPrompt": {"placeholders": {"path": {"type": "String"}, "line": {"type": "int"}, "change": {"type": "String"}}},
+  "gitAskAiChanges": "Ask AI About These Changes",
+  "gitAskAiChangesPrompt": "Review my uncommitted changes in {paths} (`git diff HEAD -- {paths}`): explain what they do and point out anything wrong.",
+  "@gitAskAiChangesPrompt": {"placeholders": {"paths": {"type": "String"}}},
+  "gitAskAiConflicts": "Ask AI to Resolve the Conflicts",
+  "gitAskAiConflictsPrompt": "Resolve the merge conflicts in {paths}: keep what both sides meant, then tell me what you chose. Don't stage or commit.",
+  "@gitAskAiConflictsPrompt": {"placeholders": {"paths": {"type": "String"}}},
+  "gitLogFixup": "Fixup with Checked Changes",
+  "compareWith": "Compare With",
+  "compareWithClipboard": "Clipboard",
+  "compareWithClipboardLabel": "{name} (Clipboard \u2194 File)",
+  "@compareWithClipboardLabel": {"placeholders": {"name": {"type": "String"}}},
+  "gitCompareWithBranch": "Branch or Tag…",
+  "gitCompareWithRevision": "Revision…",
+  "gitCompareWithBranchPlaceholder": "Select a branch or tag to compare the file with",
+  "gitCompareWithRevisionPlaceholder": "Select a revision of the file to compare it with",
+  "gitCompareLabel": "{name} ({other} \u2194 Working Tree)",
+  "@gitCompareLabel": {"placeholders": {"name": {"type": "String"}, "other": {"type": "String"}}},
+  "explorerSelectForCompare": "Select for Compare",
+  "explorerCompareWithSelected": "Compare with '{name}'",
+  "@explorerCompareWithSelected": {"placeholders": {"name": {"type": "String"}}},
+  "compareFoldersSame": "“{original}” and “{modified}” have the same files.",
+  "@compareFoldersSame": {"placeholders": {"original": {"type": "String"}, "modified": {"type": "String"}}},
+  "compareFoldersPick": "Files “{original}” and “{modified}” differ in",
+  "@compareFoldersPick": {"placeholders": {"original": {"type": "String"}, "modified": {"type": "String"}}},
+  "compareFoldersOnlyIn": "Only in “{name}”",
+  "@compareFoldersOnlyIn": {"placeholders": {"name": {"type": "String"}}},
+  "compareFoldersModified": "Changed",
+  "compareWithLocalHistory": "Local History…",
+  "localHistoryShow": "Show Local History",
+  "localHistoryNone": "No local history of “{name}” yet: it is kept as the file is saved.",
+  "@localHistoryNone": {"placeholders": {"name": {"type": "String"}}},
+  "localHistoryPick": "A version of “{name}” to compare with",
+  "@localHistoryPick": {"placeholders": {"name": {"type": "String"}}},
+  "localHistoryLabel": "{name} (Local History, {time})",
+  "@localHistoryLabel": {"placeholders": {"name": {"type": "String"}, "time": {"type": "String"}}},
+  "explorerCompareSelected": "Compare Selected",
+  "compareFilesLabel": "{original} \u2194 {modified}",
+  "@compareFilesLabel": {"placeholders": {"original": {"type": "String"}, "modified": {"type": "String"}}}
 }

@@ -36,12 +36,15 @@ class IdeWindow : public ViewWindow {
   // Its view's id, once made (see Create); -1 before.
   int64_t view_id() const { return view_id_; }
 
-  // Shows it in front, the keyboard's: maximized the first time, if it was
-  // asked to be (see ShowMaximizedFirst).
+  // Shows it in front, the keyboard's: maximized or full screen the first
+  // time, if it was asked to be (see ShowMaximizedFirst).
   void ShowInFront();
 
   // Shown maximized, the first time it shows.
   void ShowMaximizedFirst() { maximize_on_show_ = true; }
+
+  // Shown full screen, the first time it shows (out of it, as it was put).
+  void ShowFullScreenFirst() { full_screen_on_show_ = true; }
 
   // Taskbar buttons made anew are told this (see Attention::BadgeWindow).
   void SetAttention(Attention* attention) { attention_ = attention; }
@@ -64,6 +67,7 @@ class IdeWindow : public ViewWindow {
   FlutterDesktopViewControllerRef controller_ = nullptr;
   int64_t view_id_ = -1;
   bool maximize_on_show_ = false;
+  bool full_screen_on_show_ = false;
   Attention* attention_ = nullptr;
   UINT taskbar_button_created_ = 0;
 };
