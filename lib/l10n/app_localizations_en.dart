@@ -5830,6 +5830,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'e.g. .git, node_modules, *.log';
 
   @override
+  String get explorerLineCountSetting => 'Explorer line count';
+
+  @override
+  String get explorerLineCountSettingDescription =>
+      'Display compact line counts on files in the Explorer tree.';
+
+  @override
+  String get explorerLineCountMinLinesSetting => 'Minimum lines to display';
+
+  @override
+  String get explorerLineCountMinLinesSettingDescription =>
+      'Only show line count badges for files with at least this many lines (0 shows for all).';
+
+  @override
+  String get explorerLineCountMaxFileSizeSetting => 'Maximum file size (MB)';
+
+  @override
+  String get explorerLineCountMaxFileSizeSettingDescription =>
+      'Skip line counting for files larger than this to preserve performance.';
+
+  @override
   String get claudePathSetting => 'Path';
 
   @override

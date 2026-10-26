@@ -56,6 +56,7 @@ import 'extensions/ide_extensions_view.dart';
 import 'explorer_excludes.dart';
 import 'explorer_history.dart'
     show explorerRedoCommandId, explorerUndoCommandId;
+import 'explorer_line_count.dart';
 import 'file_views.dart';
 import 'file_service.dart'
     show
@@ -790,9 +791,39 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // The explorer's exclusions follow the file (a pattern added elsewhere
     // shows at once).
     _explorer.excludes = _excludes;
+    _applyLineCountSettings();
     // Auto save turned on (or its delay changed) saves what is unsaved.
     _scheduleAutoSave();
     setState(() {});
+  }
+
+  void _applyLineCountSettings() {
+    final settings = widget.settings;
+    if (settings == null) return;
+    final lineCount = _explorer.lineCount;
+    var changed = false;
+    final enabled = (settings[IdeExplorerLineCount.settingEnabled] as bool?) ?? true;
+    if (lineCount.enabled != enabled) {
+      lineCount.enabled = enabled;
+      changed = true;
+    }
+    final maxMb = settings[IdeExplorerLineCount.settingMaxFileSize];
+    if (maxMb is num) {
+      final newMax = (maxMb * 1024 * 1024).round();
+      if (lineCount.maxFileSize != newMax) {
+        lineCount.maxFileSize = newMax;
+        changed = true;
+      }
+    }
+    final minLines = settings[IdeExplorerLineCount.settingMinLineDisplay];
+    final newMin = (minLines is num) ? minLines.toInt() : 0;
+    if (lineCount.minLineDisplay != newMin) {
+      lineCount.minLineDisplay = newMin;
+      changed = true;
+    }
+    if (changed) {
+      lineCount.clear();
+    }
   }
 
   static const _sashWidth = IdeModernUI.gap;
@@ -1151,6 +1182,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           ? workspace.watchFolder
           : (_) => const Stream.empty(),
     );
+    _applyLineCountSettings();
+    workspace.onSaved = (path) {
+      _explorer.lineCount.invalidate(path);
+    };
     _fileIndex = IdeFileIndex(
       workspace.files,
       workspace.root,
@@ -1252,14 +1287,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       debug.host
         ..onOpenDebugView = (() => _showView(IdeSideView.debug))
         ..onOpenRepl = (() => _selectPanel(IdePanelTab.debugConsole));
-      workspace.onSaved = debug.saved;
+      final onSaved = debug.saved;
+      workspace.onSaved = (path) {
+        onSaved(path);
+        _explorer.lineCount.invalidate(path);
+      };
       setState(() => _ideDebug = debug);
       _syncDebugListener();
     });
   }
 
   void _detachDebug(IdeWorkspace workspace) {
-    workspace.onSaved = null;
+    workspace.onSaved = (path) {
+      _explorer.lineCount.invalidate(path);
+    };
     final debug = _ideDebug;
     _ideDebug = null;
     _syncDebugListener();
@@ -3814,48 +3855,32 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           _open(path, range: range, select: true, focusEditor: focusEditor),
       onError: _report,
     ),
-    // The Git log, in the side bar's and the editor's place (see
-    // [_split]): the local changes' commit box and groups its first row's
-    // details, their changes in its table's place.
-    IdeSideView.sourceControl => IdeGitLogView(
-      key: _gitLogKey,
+    // The Source Control view: Changes and Graph panes in the sidebar,
+    // leaving the editor area intact.
+    IdeSideView.sourceControl => IdeScmView(
+      key: _scmKey,
       host: widget.workspace,
       session: _scm,
-      notifications: _notifications,
-      onOpen: (path) {
-        _leaveGitLog();
-        unawaited(_open(path, focusEditor: true));
-      },
-      onAddToChat: widget.onAddToChat,
-      changes: IdeGitCommitPanel(
-        key: _scmKey,
-        host: widget.workspace,
-        session: _scm,
-        sessionOf: (git) => identical(git, _git)
-            ? _scm
-            : _scmSessions.putIfAbsent(
-                git,
-                () => IdeScmSession(
-                  settings: widget.settings,
-                  favoriteBranches: _favoriteBranches,
-                ),
+      sessionOf: (git) => identical(git, _git)
+          ? _scm
+          : _scmSessions.putIfAbsent(
+              git,
+              () => IdeScmSession(
+                settings: widget.settings,
+                favoriteBranches: _favoriteBranches,
               ),
-        notifications: _notifications,
-        onOpen: (path, {focusEditor = false}) {
-          _leaveGitLog();
-          return _open(path, focusEditor: focusEditor);
-        },
-        onOpenChange: _openChangeInLog,
-        onRevealInExplorer: (path) {
-          _leaveGitLog();
-          _revealInExplorer(path);
-        },
-        onAddToChat: widget.onAddToChat,
-        trash: WindowControls.canMoveToTrash
-            ? WindowControls.moveToTrash
-            : null,
-        commitMessage: widget.commitMessage,
-      ),
+            ),
+      notifications: _notifications,
+      onOpen: (path, {focusEditor = false}) =>
+          _open(path, focusEditor: focusEditor),
+      onOpenChange: (resource, {head = false, focusEditor = false}) =>
+          _openChange(resource, head: head, focusEditor: focusEditor),
+      onRevealInExplorer: _revealInExplorer,
+      onAddToChat: widget.onAddToChat,
+      trash: WindowControls.canMoveToTrash
+          ? WindowControls.moveToTrash
+          : null,
+      commitMessage: widget.commitMessage,
     ),
     IdeSideView.debug => switch (_debug) {
       final debug? => DebugView(
@@ -4383,11 +4408,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
     final sidebarVisible = columns.sidebar > 0;
     final chatVisible = columns.chat > 0;
-    // Source Control, the Git log, has the side bar's and the editor's
-    // place, above the panel; the editor is kept, back as another view
-    // shows.
-    final gitLog =
-        !editorHidden && sidebarVisible && _view == IdeSideView.sourceControl;
     final sidebar = SizedBox(
       key: const ValueKey('ide-sidebar'),
       width: columns.sidebar,
@@ -4442,18 +4462,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 key: const ValueKey('ide-activity-bar'),
                 child: _activityBar(sidebarShowing: sidebarVisible),
               ),
-              if (!editorHidden && sidebarVisible && !gitLog) sidebar,
+              if (!editorHidden && sidebarVisible) sidebar,
               Expanded(
                 key: const ValueKey('ide-editor-column'),
                 child: _editorColumn(
                   size.height,
                   commands,
-                  inPlace: gitLog
-                      ? KeyedSubtree(
-                          key: _sidebarKey,
-                          child: _sidebarPart(border: false),
-                        )
-                      : !editorHidden
+                  inPlace: !editorHidden
                       ? null
                       : sidebarVisible
                       ? Stack(
@@ -4477,7 +4492,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             ],
           ),
         ),
-        if (!editorHidden && !gitLog)
+        if (!editorHidden)
           _sashAt(bar + columns.sidebar, size.width, sidebarSash),
         if (!editorHidden && (chatVisible || _chatSashDragging))
           _sashAt(size.width - columns.chat, size.width, chatSash)
