@@ -17,6 +17,7 @@ import 'package:baocode/settings/pages/models_page.dart';
 import 'package:baocode/settings/pages/settings_widgets.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/widgets/pixel_loader.dart';
 
@@ -193,6 +194,44 @@ void main() {
     await tester.tap(find.text('Automatic'));
     await tester.pumpAndSettle();
     expect(find.text("Claude Code Haiku (this machine's setup)"), findsNothing);
+  });
+
+  testWidgets('a long model id shows whole, its context window after it '
+      '(#246)', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const id = 'meta/muse-spark-1.3-contributor-preview-0915';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FetchModelsDialog(
+            provider: const ModelProvider(
+              id: 'up',
+              name: 'Upstream',
+              baseUrl: 'https://up.dev',
+              auth: ProviderAuth.apiKey,
+              models: [],
+            ),
+            keyOf: () async => 'sk',
+            list: (_, _) async => const [
+              RemoteModel(id, contextWindow: 1000000),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final row = find.textContaining(id, findRichText: true);
+    expect(row, findsOneWidget);
+    final paragraph = tester.renderObject<RenderParagraph>(row);
+    expect(paragraph.didExceedMaxLines, isFalse);
+    // Wider than the other dialogs: room for such ids.
+    expect(tester.getSize(find.byType(FetchModelsDialog)).width, 1400);
+    expect(
+      tester.getSize(find.byType(ModelDialogFrame)).width,
+      greaterThan(560),
+    );
   });
 
   testWidgets('an upstream is added, set up, its models fetched and its '
