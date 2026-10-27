@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_session.dart';
@@ -168,4 +170,81 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 5));
   });
+
+  testWidgets('a selection stays on its text as earlier turns come in '
+      'before it', (tester) async {
+    String? copied;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    final earlier = Completer<ClaudeHistoryPage>();
+    final session = await _open(tester, earlier);
+    final position = tester
+        .state<ScrollableState>(find.byType(Scrollable).first)
+        .position;
+    position.jumpTo(position.minScrollExtent);
+    await tester.pump();
+    await tester.pump();
+    expect(session.loadingEarlier, isTrue);
+
+    // "Answer 11." and on, in the list (not the copy stuck to the top).
+    final answer = find
+        .descendant(
+          of: find.byType(Scrollable).first,
+          matching: find.textContaining('Answer 11.', findRichText: true),
+        )
+        .first;
+    final from = tester.getTopLeft(answer) + const Offset(1, 8);
+    final mouse = await tester.startGesture(
+      from,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await mouse.moveTo(from + const Offset(60, 0));
+    await tester.pump();
+    await mouse.moveTo(from + const Offset(120, 0));
+    await tester.pump();
+    await mouse.up();
+    await tester.pump();
+
+    Future<String?> copy() async {
+      copied = null;
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await tester.pump();
+      return copied;
+    }
+
+    final selected = await copy();
+    expect(selected, startsWith('Answer 11'));
+
+    earlier.complete(ClaudeHistoryPage(_turns(1, 10)));
+    for (var frame = 0; frame < 5; frame++) {
+      await tester.pump();
+    }
+    expect(session.itemCount, 40);
+    expect(await copy(), selected);
+    // Shown selected still, as the list builds anew around it.
+    position.jumpTo(position.pixels + 300);
+    await tester.pump();
+    await tester.pump();
+    position.jumpTo(position.pixels - 300);
+    await tester.pump();
+    await tester.pump();
+    final paragraph = tester.renderObject<RenderParagraph>(answer);
+    expect(paragraph.selections.any((s) => !s.isCollapsed), isTrue);
+    expect(await copy(), selected);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 5));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 }

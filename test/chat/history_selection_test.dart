@@ -684,4 +684,65 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
   }, variant: TargetPlatformVariant.desktop());
+
+  for (final composerFirst in [false, true]) {
+    testWidgets('a drag on text holds as something else takes the focus '
+        '(the composer focused first: $composerFirst)', (tester) async {
+      const answer = 'The parser drops the last token of every line.';
+      final feed = _Feed([
+        const UserMessageItem(text: 'Fix the parser.'),
+        const AssistantTextItem(answer),
+      ])..streaming = false;
+      addTearDown(feed.dispose);
+      final elsewhere = FocusNode();
+      addTearDown(elsewhere.dispose);
+      // In use: a selection losing the focus is cleared only then.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(
+            body: Column(
+              children: [
+                Expanded(child: ChatHistoryView(feed: feed)),
+                // A panel come up meanwhile, taking the focus (a question's).
+                Focus(focusNode: elsewhere, child: const SizedBox(height: 40)),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      if (composerFirst) {
+        elsewhere.requestFocus();
+        await tester.pump();
+      }
+
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.byWidgetPredicate(
+          (widget) => widget is RichText && widget.text.toPlainText() == answer,
+        ),
+      );
+      Offset at(double x) =>
+          paragraph.localToGlobal(Offset(x, paragraph.size.height / 2));
+      final mouse = await tester.startGesture(
+        at(0.5),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await mouse.moveTo(at(paragraph.size.width / 3));
+      await tester.pump();
+      elsewhere.requestFocus();
+      await tester.pump();
+      await mouse.moveTo(at(paragraph.size.width - 0.5));
+      await tester.pump();
+      expect(paragraph.selections.any((s) => !s.isCollapsed), isTrue);
+      await mouse.up();
+      await tester.pump();
+      expect(paragraph.selections.any((s) => !s.isCollapsed), isTrue);
+      // Focused again, for the keys to copy it.
+      expect(elsewhere.hasFocus, isFalse);
+      expect(tester.takeException(), isNull);
+    }, variant: TargetPlatformVariant.desktop());
+  }
 }
