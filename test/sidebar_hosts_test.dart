@@ -186,6 +186,28 @@ void main() {
     expect(workspace.sshHosts, ['box', 'dev']);
   });
 
+  testWidgets('a project taken off a host stays off as the host is '
+      'connected to again; and as the host is removed and added back', (
+    tester,
+  ) async {
+    final workspace = await pumpLoaded(tester);
+    await workspace.openFolder('ssh://wsl+Ubuntu/home/me/app');
+    await workspace.openFolder('ssh://wsl+Ubuntu/home/me/lib');
+    final app = workspace.projects.firstWhere((p) => p.name == 'app');
+    final lib = workspace.projects.firstWhere((p) => p.name == 'lib');
+    workspace.hideProject(app);
+
+    // Another project there opened: connected again.
+    workspace.addSshHost('wsl+Ubuntu');
+    expect(workspace.isHidden(app), isTrue);
+
+    workspace.removeSshHost('wsl+Ubuntu');
+    expect(workspace.isHidden(lib), isTrue);
+    workspace.addSshHost('wsl+Ubuntu');
+    expect(workspace.isHidden(lib), isFalse);
+    expect(workspace.isHidden(app), isTrue);
+  });
+
   testWidgets('a host is renamed in the heading, given an icon; both kept '
       'between runs', (tester) async {
     final store = MemoryPreferenceStore();

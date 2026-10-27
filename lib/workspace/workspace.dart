@@ -1373,16 +1373,24 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     for (final project in sidebarProjects) ?project.host,
   }.toList();
 
-  /// Keeps [host] among [sshHosts], with no project there yet; its
-  /// projects taken off with it ([removeSshHost]) are listed again.
+  /// Keeps [host] among [sshHosts], with no project there yet. Added
+  /// again, its projects taken off with it ([removeSshHost]) are listed
+  /// again; not those the user took off one by one ([hideProject]), nor
+  /// any as it is connected to again, kept already.
   void addSshHost(String host) {
-    final unhidden = _projects
-        .where((project) => project.host == host && isHidden(project))
-        .map((project) => project.path)
-        .toList();
-    if (_sshHosts.contains(host) && unhidden.isEmpty) return;
-    if (!_sshHosts.contains(host)) _sshHosts.add(host);
-    unhidden.forEach(_hiddenProjects.remove);
+    if (_sshHosts.contains(host)) return;
+    _sshHosts.add(host);
+    final hidden = {
+      for (final project in _projects)
+        if (project.host == host) project.path: ?_hiddenProjects[project.path],
+    };
+    if (hidden.isNotEmpty) {
+      // Taken off with the host: at the time it went, the last.
+      final removed = hidden.values.reduce((a, b) => a.isAfter(b) ? a : b);
+      hidden.forEach((path, since) {
+        if (since == removed) _hiddenProjects.remove(path);
+      });
+    }
     _save();
     notifyListeners();
   }
@@ -1394,7 +1402,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _sshServers.remove(host);
     final now = DateTime.now();
     for (final project in _projects) {
-      if (project.host == host) _hiddenProjects[project.path] = now;
+      // Those off already stay as they were (see [addSshHost]).
+      if (project.host == host) {
+        _hiddenProjects.putIfAbsent(project.path, () => now);
+      }
     }
     if (_sidebarHost == host) _sidebarHost = null;
     _save();
