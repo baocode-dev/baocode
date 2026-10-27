@@ -144,8 +144,15 @@ class IdeGitRepository extends ChangeNotifier {
     _watcher = service
         .watch(root)
         .listen(
-          (_) {
+          (path) {
             working = true;
+            // What a build or a test run writes (`build/`, `.dart_tool/`,
+            // `node_modules/`): the status lists such a folder whole, so
+            // nothing in it changes it. An agent's runs write there many
+            // times a second, each a read of the status otherwise.
+            if (path.isNotEmpty && (decorations?.ignores(path) ?? false)) {
+              return;
+            }
             scheduleRefresh();
           },
           // Changes were lost (the change buffer overflowed): read them.

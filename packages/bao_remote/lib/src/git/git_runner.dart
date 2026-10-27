@@ -181,8 +181,9 @@ Future<IdeGitOutput> _runLimited(
 
 /// File changes under [repositoryRoot] that can change the status: the
 /// working tree, and the index, HEAD and refs of `.git` (not its objects
-/// or logs). An error (changes lost) is passed on.
-Stream<void> watchRepository(String repositoryRoot) {
+/// or logs), each as the path changed. An error (changes lost) is passed
+/// on.
+Stream<String> watchRepository(String repositoryRoot) {
   final gitDir = p.join(repositoryRoot, '.git');
   bool relevant(String path) {
     if (!p.isWithin(gitDir, path)) return true;
@@ -204,7 +205,14 @@ Stream<void> watchRepository(String repositoryRoot) {
                   event.destination != null &&
                   relevant(event.destination!)),
         )
-        .map((_) {});
+        .map(
+          (event) => switch (event) {
+            FileSystemMoveEvent(:final destination?)
+                when relevant(destination) =>
+              destination,
+            _ => event.path,
+          },
+        );
   } on FileSystemException {
     return const Stream.empty();
   } on UnsupportedError {
@@ -215,7 +223,7 @@ Stream<void> watchRepository(String repositoryRoot) {
 /// [watchRepository] where a tree cannot be watched whole (Linux): each
 /// folder on its own, but not those of `.git` other than `refs`, nor the
 /// dependency and build folders Quick Open skips.
-Stream<void> watchRepositoryRecursively(String repositoryRoot) {
+Stream<String> watchRepositoryRecursively(String repositoryRoot) {
   final gitDir = p.join(repositoryRoot, '.git');
   bool relevant(String path) {
     if (!p.isWithin(gitDir, path)) return true;
@@ -235,5 +243,5 @@ Stream<void> watchRepositoryRecursively(String repositoryRoot) {
       return dir != gitDir &&
           ideIndexExcludedDirectories.contains(p.basename(dir));
     },
-  ).where((event) => relevant(event.path)).map((_) {});
+  ).where((event) => relevant(event.path)).map((event) => event.path);
 }

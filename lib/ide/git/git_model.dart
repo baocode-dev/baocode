@@ -535,6 +535,9 @@ class IdeGitDecorations {
     }
   }
 
+  /// Whether [path] is ignored, or in an ignored folder.
+  bool ignores(String path) => _isIgnored(_paths.normalize(path));
+
   /// A file's decoration.
   IdeGitDecoration? file(String path) {
     final normalized = _paths.normalize(path);

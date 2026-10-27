@@ -90,7 +90,14 @@ enum ModelKind {
 
 /// What a model of [id] is for, as its name tells: an image model's of
 /// the known families; else a conversation's.
-ModelKind guessModelKind(String id) {
+ModelKind guessModelKind(String id) =>
+    // Asked for every model listed, as often as the list is: the few ids
+    // there are, each told once.
+    _guessedKinds[id] ??= _guessModelKind(id);
+
+final _guessedKinds = <String, ModelKind>{};
+
+ModelKind _guessModelKind(String id) {
   final name = id.toLowerCase().split('/').last;
   final words = name.split(RegExp(r'[-_.:\s]+'));
   // Not a video model's (`grok-imagine-video`): those are not made here.
@@ -680,23 +687,31 @@ class ModelProvider {
       accounts.where((account) => account.id == id).firstOrNull;
 
   /// [models] by name ([compareModelNames]): as they are listed.
-  List<ProviderModel> get sortedModels => [...models]
-    ..sort((a, b) {
+  List<ProviderModel> get sortedModels => _sorted[this] ??= List.unmodifiable(
+    [...models]..sort((a, b) {
       final byName = compareModelNames(a.displayName, b.displayName);
       return byName != 0 ? byName : a.id.compareTo(b.id);
-    });
+    }),
+  );
 
   /// The conversation models offered in the picker.
-  List<ProviderModel> get enabledModels => [
-    for (final model in sortedModels)
-      if (model.enabled && !model.kind.generatesImages) model,
-  ];
+  List<ProviderModel> get enabledModels =>
+      _enabled[this] ??= List.unmodifiable([
+        for (final model in sortedModels)
+          if (model.enabled && !model.kind.generatesImages) model,
+      ]);
 
   /// The image models turned on: the agents' `generate_image`'s.
   List<ProviderModel> get imageModels => [
     for (final model in sortedModels)
       if (model.enabled && model.kind.generatesImages) model,
   ];
+
+  // Each upstream's, worked out once: it does not change (another is made
+  // for a change), and the model picker's choices read them for every
+  // event of a conversation streaming.
+  static final _sorted = Expando<List<ProviderModel>>();
+  static final _enabled = Expando<List<ProviderModel>>();
 
   ProviderModel? model(String id) =>
       models.where((model) => model.id == id).firstOrNull;
