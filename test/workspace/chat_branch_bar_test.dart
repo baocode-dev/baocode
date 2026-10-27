@@ -6,6 +6,7 @@ import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/ide/git/git_repository.dart';
 import 'package:baocode/ide/git/git_service.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/workspace/chat_branch_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -108,6 +109,157 @@ void main() {
       find.textContaining('local changes would be overwritten'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('refresh reads a switch made elsewhere', (tester) async {
+    final fake = _git('/work/monad');
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    await _pump(tester, repositories: [('/work/monad', git)]);
+    expect(find.text('main'), findsOneWidget);
+
+    // Switched in a terminal, to a branch made there.
+    fake
+      ..status = '## hotfix\x00'
+      ..forEachRef = [
+        gitRefRecord('refs/heads/main', 'a' * 40),
+        gitRefRecord('refs/heads/hotfix', 'c' * 40),
+      ].join('\n');
+    // In the menu's title, not beside the pill.
+    expect(find.byIcon(Codicons.refresh), findsNothing);
+    await tester.tap(find.text('main'));
+    await tester.pumpAndSettle();
+    expect(find.text('feature'), findsOneWidget);
+    await tester.tap(find.byIcon(Codicons.refresh));
+    await tester.pumpAndSettle();
+    // The menu stays open, now the branches read again.
+    expect(find.text('Switch Branch'), findsOneWidget);
+    expect(find.text('feature'), findsNothing);
+    expect(find.text('hotfix'), findsNWidgets(2));
+    expect(find.text('main'), findsOneWidget);
+    // Fetched first: one pushed by others shows.
+    expect(fake.callsTo('fetch'), [
+      ['fetch', '--all', '--tags'],
+    ]);
+  });
+
+  testWidgets('a remote branch is listed, and checked out tracking it', (
+    tester,
+  ) async {
+    final fake = _git('/work/monad')
+      ..upstreams['main'] = 'origin/main'
+      ..forEachRef = [
+        gitRefRecord('refs/heads/main', 'a' * 40),
+        gitRefRecord('refs/heads/feature', 'b' * 40),
+        gitRefRecord('refs/remotes/origin/main', 'a' * 40),
+        gitRefRecord('refs/remotes/origin/teammate', 'd' * 40),
+        gitRefRecord('refs/remotes/origin/HEAD', 'a' * 40),
+      ].join('\n');
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    await _pump(tester, repositories: [('/work/monad', git)]);
+    await tester.tap(find.text('main'));
+    await tester.pumpAndSettle();
+    // Local ones first, then those only the remote has; origin/main has
+    // a local one, and origin/HEAD is no branch.
+    expect(find.text('On the remote'), findsOneWidget);
+    expect(find.text('origin/teammate'), findsOneWidget);
+    expect(find.text('origin/main'), findsNothing);
+    expect(find.text('origin/HEAD'), findsNothing);
+
+    fake.onCommand = (arguments) {
+      if (arguments case ['checkout', ...]) fake.status = '## teammate\x00';
+    };
+    await tester.tap(find.text('origin/teammate'));
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('checkout'), [
+      ['checkout', '-q', '--track', 'origin/teammate'],
+    ]);
+    expect(find.text('teammate'), findsOneWidget);
+  });
+
+  testWidgets('a remote branch a local one tracks is checked out as it', (
+    tester,
+  ) async {
+    final fake = _git('/work/monad')
+      ..upstreams['mine'] = 'origin/teammate'
+      ..forEachRef = [
+        gitRefRecord('refs/heads/main', 'a' * 40),
+        gitRefRecord('refs/heads/mine', 'd' * 40),
+        gitRefRecord('refs/remotes/origin/teammate', 'd' * 40),
+      ].join('\n');
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    await _pump(tester, repositories: [('/work/monad', git)]);
+    await tester.tap(find.text('main'));
+    await tester.pumpAndSettle();
+    fake.onCommand = (arguments) {
+      if (arguments case ['checkout', ...]) fake.status = '## mine\x00';
+    };
+    // A local branch tracks it under another name: that one, not a new one.
+    await tester.tap(find.text('origin/teammate'));
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('checkout'), [
+      ['checkout', '-q', 'mine'],
+    ]);
+    expect(find.text('mine'), findsOneWidget);
+  });
+
+  testWidgets('says why the fetch failed, listing the branches anyway', (
+    tester,
+  ) async {
+    final fake = _git('/work/monad')
+      ..answers['fetch'] = const IdeGitOutput(
+        128,
+        '',
+        'fatal: unable to access: Could not resolve host',
+      );
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    await _pump(tester, repositories: [('/work/monad', git)]);
+    await tester.tap(find.text('main'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Codicons.refresh));
+    await tester.pumpAndSettle();
+    expect(find.text("Couldn't fetch from the remotes"), findsOneWidget);
+    expect(find.textContaining('Could not resolve host'), findsOneWidget);
+  });
+
+  testWidgets('a project switched to shows its own branches', (tester) async {
+    final monad = _git('/work/monad').repository();
+    final relay =
+        (FakeGit('/work/relay')
+              ..status = '## dev\x00'
+              ..forEachRef = [
+                gitRefRecord('refs/heads/dev', 'a' * 40),
+                gitRefRecord('refs/heads/release', 'b' * 40),
+              ].join('\n'))
+            .repository();
+    addTearDown(monad.dispose);
+    addTearDown(relay.dispose);
+    final session = ChatSession(historyCount: 0);
+    addTearDown(session.dispose);
+    Widget bar(String name, IdeGitRepository git) => MaterialApp(
+      theme: buildAppTheme(),
+      home: Scaffold(
+        body: ChatBranchBar(
+          session: session,
+          name: name,
+          repositories: [('/work/$name', git)],
+        ),
+      ),
+    );
+    await tester.pumpWidget(bar('monad', monad));
+    await tester.pumpAndSettle();
+    expect(find.text('main'), findsOneWidget);
+    // The same bar, now another project's.
+    await tester.pumpWidget(bar('relay', relay));
+    await tester.pumpAndSettle();
+    expect(find.text('dev'), findsOneWidget);
+    await tester.tap(find.text('dev'));
+    await tester.pumpAndSettle();
+    expect(find.text('release'), findsOneWidget);
+    expect(find.text('feature'), findsNothing);
   });
 
   testWidgets('nothing to switch while the agent works', (tester) async {

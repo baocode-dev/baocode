@@ -44,6 +44,7 @@ class ComposerPicker extends StatefulWidget {
     this.checks,
     this.emphasized = false,
     this.title,
+    this.titleAction,
     this.tooltip,
     this.menuWidth = 248,
     this.tapRegionGroupId,
@@ -86,6 +87,10 @@ class ComposerPicker extends StatefulWidget {
 
   /// Heads the menu, e.g. the question its options answer.
   final String? title;
+
+  /// At the end of [title]'s line, e.g. a button that reads the options
+  /// again; the menu stays open when it is pressed.
+  final Widget? titleAction;
 
   /// The pill's hover, e.g. what it does and the key that opens it (`Set
   /// Mode (⌘.)`); none when null.
@@ -1081,10 +1086,23 @@ class ComposerPickerState extends State<ComposerPicker> {
         children: [
           if (widget.title case final title?)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-              child: Text(
-                title,
-                style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+              // With an action at its end, as high as without.
+              padding: widget.titleAction == null
+                  ? const EdgeInsets.fromLTRB(12, 6, 12, 6)
+                  : const EdgeInsets.fromLTRB(12, 3, 6, 3),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                  ?widget.titleAction,
+                ],
               ),
             ),
           if (_searches)

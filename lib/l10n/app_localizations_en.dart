@@ -9186,6 +9186,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get branchBarSearch => 'Search branches';
 
   @override
+  String get branchBarRefresh => 'Refresh Branches';
+
+  @override
   String get branchBarCreate => 'Create Branch…';
 
   @override
@@ -9215,6 +9218,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get branchBarNotRepository => 'Not a Git repository';
+
+  @override
+  String get branchBarRemoteGroup => 'On the remote';
+
+  @override
+  String get branchBarFetchFailed => 'Couldn\'t fetch from the remotes';
 
   @override
   String get branchBarWorkspace => 'Branches of the folders';

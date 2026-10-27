@@ -6577,6 +6577,10 @@
   "@branchBarSearch": {
     "description": "Placeholder of the branch picker's search line under the chat input."
   },
+  "branchBarRefresh": "Refresh Branches",
+  "@branchBarRefresh": {
+    "description": "Tooltip of the refresh button in the branch picker's title under the chat input: fetches from all the remotes, then reads the repository's branch and its branches again, so that ones pushed by others are listed."
+  },
   "branchBarCreate": "Create Branch…",
   "@branchBarCreate": {
     "description": "Action of the branch picker under the chat input: names a new branch and checks it out."
@@ -6623,6 +6627,14 @@
   "branchBarNotRepository": "Not a Git repository",
   "@branchBarNotRepository": {
     "description": "Under a workspace folder's name in the branch picker under the chat input: the folder has no Git repository."
+  },
+  "branchBarRemoteGroup": "On the remote",
+  "@branchBarRemoteGroup": {
+    "description": "Heading of the remote branches in the branch picker under the chat input, below the local ones: each is checked out as a local branch tracking it."
+  },
+  "branchBarFetchFailed": "Couldn't fetch from the remotes",
+  "@branchBarFetchFailed": {
+    "description": "Message of the dialog shown when the branch picker's refresh could not fetch (offline, no access); Git's own message is the detail, and the branches here are read all the same."
   },
   "branchBarWorkspace": "Branches of the folders",
   "@branchBarWorkspace": {

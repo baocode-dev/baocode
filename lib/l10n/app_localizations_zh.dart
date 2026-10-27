@@ -8679,6 +8679,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get branchBarSearch => '搜索分支';
 
   @override
+  String get branchBarRefresh => '刷新分支';
+
+  @override
   String get branchBarCreate => '新建分支…';
 
   @override
@@ -8707,6 +8710,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get branchBarNotRepository => '不是 Git 仓库';
+
+  @override
+  String get branchBarRemoteGroup => '远程分支';
+
+  @override
+  String get branchBarFetchFailed => '无法从远程获取';
 
   @override
   String get branchBarWorkspace => '各文件夹的分支';

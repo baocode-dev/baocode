@@ -14967,6 +14967,12 @@ abstract class AppLocalizations {
   /// **'Search branches'**
   String get branchBarSearch;
 
+  /// Tooltip of the refresh button in the branch picker's title under the chat input: fetches from all the remotes, then reads the repository's branch and its branches again, so that ones pushed by others are listed.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Branches'**
+  String get branchBarRefresh;
+
   /// Action of the branch picker under the chat input: names a new branch and checks it out.
   ///
   /// In en, this message translates to:
@@ -15014,6 +15020,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not a Git repository'**
   String get branchBarNotRepository;
+
+  /// Heading of the remote branches in the branch picker under the chat input, below the local ones: each is checked out as a local branch tracking it.
+  ///
+  /// In en, this message translates to:
+  /// **'On the remote'**
+  String get branchBarRemoteGroup;
+
+  /// Message of the dialog shown when the branch picker's refresh could not fetch (offline, no access); Git's own message is the detail, and the branches here are read all the same.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t fetch from the remotes'**
+  String get branchBarFetchFailed;
 
   /// Tooltip and menu title of the branch picker under the chat input of a multi-folder workspace.
   ///

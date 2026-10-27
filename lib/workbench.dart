@@ -3656,15 +3656,27 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   Widget _branchBar(AgentThread thread) {
     final project = thread.project;
     final multi = _workspace.workspaceOf(project);
-    final git = multi == null ? _sidePanelGit(thread) : null;
-    return ChatBranchBar(
-      session: thread.session,
-      name: multi?.name ?? project.name,
-      workspace: multi != null,
-      repositories: multi != null
-          ? _sidePanelRepositories(multi)
-          : [if (git != null) (project.path, git)],
-    );
+    Widget build() {
+      final git = multi == null ? _sidePanelGit(thread) : null;
+      return ChatBranchBar(
+        session: thread.session,
+        name: multi?.name ?? project.name,
+        workspace: multi != null,
+        repositories: multi != null
+            ? _sidePanelRepositories(multi)
+            : [if (git != null) (project.path, git)],
+      );
+    }
+
+    // Its IDE's repositories, as they are found and one is picked in
+    // Source Control.
+    if (_ideSpaces[multi?.path ?? project.path] case final space?) {
+      return ListenableBuilder(
+        listenable: space,
+        builder: (context, _) => build(),
+      );
+    }
+    return build();
   }
 
   final Map<String, Future<bool> Function(String)> _projectFileChecks = {};
