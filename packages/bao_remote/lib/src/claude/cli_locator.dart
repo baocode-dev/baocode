@@ -84,10 +84,43 @@ abstract final class CliLocator {
       for (final candidate in (candidatesOverride ?? _candidates)(environment))
         if (File(candidate).existsSync() &&
             runnable(candidate) &&
+            !onWindowsDrive(_realPath(candidate)) &&
             seen.add(_realPath(candidate)))
           ClaudeCli(candidate, environment),
     ];
   }
+
+  /// Under WSL, where Windows' drives are mounted (`/mnt/c`, …), from
+  /// `/proc/mounts`; none elsewhere.
+  static final List<String> _windowsDrives = Platform.isLinux
+      ? (() {
+          try {
+            return windowsDrivesIn(File('/proc/mounts').readAsStringSync());
+          } on FileSystemException {
+            return const <String>[];
+          }
+        })()
+      : const <String>[];
+
+  /// The drvfs mounts in [mounts] (`/proc/mounts`): Windows' drives under
+  /// WSL.
+  @visibleForTesting
+  static List<String> windowsDrivesIn(String mounts) => [
+    for (final line in mounts.split('\n'))
+      if (line.split(' ') case [_, final at, final type, final options, ...]
+          when type == 'drvfs' || options.contains('aname=drvfs'))
+        at,
+  ];
+
+  /// Whether [path] is on one of Windows' drives under WSL: Windows' own
+  /// build, the npm one of the PATH WSL hands on. Run from WSL it runs in
+  /// Windows, its tools there and not in the distribution, and the paths
+  /// it is given (`--settings /dev/shm/…`) it takes for its drive's
+  /// (`E:\dev\shm\…`, not found). Passed over: the distribution is given
+  /// its own.
+  @visibleForTesting
+  static bool onWindowsDrive(String path, {List<String>? drives}) =>
+      (drives ?? _windowsDrives).any((drive) => p.posix.isWithin(drive, path));
 
   static String _realPath(String path) {
     try {
