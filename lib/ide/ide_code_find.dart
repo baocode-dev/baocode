@@ -336,6 +336,8 @@ class IdeCodeFind extends ChangeNotifier {
     onReplace: _replaceOne,
     onReplaceAll: _replaceAll,
     commandIds: editorFindCommandIds,
+    // Lines found across, as the editor's.
+    multiline: true,
   );
 
   @override
