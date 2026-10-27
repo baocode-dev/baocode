@@ -151,4 +151,20 @@ void main() {
     expect(text, contains('[Flutter framework]\nBad state: in a gesture\n\n'));
     expect(text, contains('[uncaught]\nBad state: in a future\n\n'));
   });
+
+  test('a release build writes all a FlutterError says, not its first line '
+      'alone', () {
+    final error = FlutterError.fromParts([
+      ErrorSummary('A drag on text selected nothing.'),
+      ErrorDescription('Pressed at Offset(1.0, 2.0); 3 listed.'),
+      ErrorHint('Done again.'),
+    ]);
+    expect(
+      ErrorLog.describe(error, release: true),
+      'A drag on text selected nothing.\n'
+      'Pressed at Offset(1.0, 2.0); 3 listed.\n'
+      'Done again.',
+    );
+    expect(ErrorLog.describe(StateError('x'), release: true), 'Bad state: x');
+  });
 }

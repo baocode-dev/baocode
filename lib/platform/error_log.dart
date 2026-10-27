@@ -110,8 +110,10 @@ class ErrorLog {
     String? context,
   }) {
     if (_full) return;
-    final message = '$error';
-    final key = '$source\n$context\n$message';
+    final message = describe(error);
+    // Told apart as before: by its first line alone in a release build,
+    // not the details that change each time (a size, a position).
+    final key = '$source\n$context\n$error';
     final count = _counts[key] = (_counts[key] ?? 0) + 1;
     final String entry;
     if (count <= repeatsInFull) {
@@ -138,6 +140,22 @@ class ErrorLog {
     // On the events' timeline too, for what came before and after it.
     appEvent('error', '[$source] ${message.split('\n').first}');
     _write(entry);
+  }
+
+  /// What [error] says. A [FlutterError] says only its first line in a
+  /// release build (its toString); its description and hints, what tells
+  /// what went wrong, are written too.
+  @visibleForTesting
+  static String describe(Object error, {bool release = kReleaseMode}) {
+    if (!release || error is! FlutterError) return '$error';
+    final lines = [
+      for (final node in error.diagnostics)
+        if (node is ErrorSummary ||
+            node is ErrorDescription ||
+            node is ErrorHint)
+          (node as DiagnosticsProperty).valueToString(),
+    ];
+    return lines.isEmpty ? '$error' : lines.join('\n');
   }
 
   void _write(String entry) {
