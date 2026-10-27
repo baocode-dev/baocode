@@ -62,8 +62,8 @@ enum ChatMinimapElasticity {
 /// steps), the part in view under a drop of liquid glass that follows it
 /// (shown while the history is scrolled, or the pointer is over it), and a
 /// press or a drag on it scrolls there. In the margin left of the column
-/// when there is room for it (not in a narrow pane), and while the history
-/// has more than it shows.
+/// when there is room for it (not in a narrow pane), and once the
+/// conversation is long ([longAfter]).
 ///
 /// Light to keep: an item is sampled once, and again only when it changes
 /// (a changed item is a new one); only the strokes in sight are painted, and
@@ -76,7 +76,7 @@ class ChatMinimap extends StatefulWidget {
     required this.span,
     required this.moved,
     required this.columnIn,
-    required this.scrolls,
+    required this.long,
     required this.scrolling,
     required this.onSeek,
     required this.onSeekEnd,
@@ -99,8 +99,8 @@ class ChatMinimap extends StatefulWidget {
   /// The column's left and width in the history, [width] wide.
   final ({double left, double width}) Function(double width) columnIn;
 
-  /// Whether the history has more than it shows: shown only then.
-  final bool scrolls;
+  /// Whether the conversation is long ([longAfter]): shown only then.
+  final bool long;
 
   /// Whether the user is scrolling the history: the glass shows meanwhile.
   final bool Function() scrolling;
@@ -141,6 +141,12 @@ class ChatMinimap extends StatefulWidget {
   /// that (a very narrow pane or window only), it gives the room up, and
   /// the minimap is not shown.
   static const roomFrom = 320.0;
+
+  /// How much more than it shows a conversation has before it has one,
+  /// in heights of the history: a short one has nothing to find its way
+  /// around in, and its steps folded or not would bring it and take it
+  /// away (see ChatHistoryView).
+  static const longAfter = 1.5;
 
   /// How tall [item] samples in a column [width] wide, for tests.
   @visibleForTesting
@@ -799,7 +805,7 @@ class _ChatMinimapState extends State<ChatMinimap>
           0.0,
           constraints.maxHeight - 2 * ChatMinimap._inset,
         );
-        final shown = fits && widget.scrolls && widget.rowCount > 0;
+        final shown = fits && widget.long && widget.rowCount > 0;
         final left = math.max(0.0, place?.left ?? 0);
         final out = math.max(
           0.0,
