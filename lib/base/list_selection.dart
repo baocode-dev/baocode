@@ -16,6 +16,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import 'safe_selection_indexes.dart';
+
 /// A selection end: where in item [index] it is.
 typedef _ItemPoint = ({int index, Offset local});
 
@@ -249,7 +251,8 @@ class _ListSelectionItemState extends State<ListSelectionItem> {
 
 /// The selection of a [ListSelection]: its ends as points in items, given
 /// to the text as it is now wherever the list has scrolled.
-class _ListSelectionDelegate extends StaticSelectionContainerDelegate {
+class _ListSelectionDelegate extends StaticSelectionContainerDelegate
+    with SafeSelectionIndexes {
   _ListSelectionDelegate(this._list);
 
   final _ListSelectionState _list;

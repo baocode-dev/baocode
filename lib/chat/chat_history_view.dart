@@ -39,6 +39,7 @@ import 'widgets/hover_builder.dart';
 import 'widgets/lazy_segment.dart' show SelectionEndHolder;
 import 'widgets/turn_footer.dart';
 import 'widgets/user_message_bubble.dart';
+import '../base/safe_selection_indexes.dart';
 
 /// Virtualized, selectable conversation history followed by the live turn.
 /// Sticks to the bottom while the user is there.
@@ -2869,7 +2870,8 @@ class _ItemRegistrar implements SelectionRegistrar, SelectionEndHolder {
 ///
 /// It also does what the list's own selection handling would: auto-scroll a
 /// drag held at an edge, and follow a drag while wheel-scrolling.
-class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
+class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
+    with SafeSelectionIndexes {
   _ChatSelectionDelegate({
     required this.locate,
     required this.resolve,

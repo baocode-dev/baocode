@@ -43,6 +43,7 @@ import 'file_edit.dart';
 import 'file_link.dart';
 import 'file_open.dart';
 import 'line_diff.dart';
+import '../../base/safe_selection_indexes.dart';
 
 /// A file in the side panel: its text in the IDE's editor, to edit, search
 /// and save (Cmd+S, Ctrl+S), the lines asked for marked and scrolled to,
@@ -1022,7 +1023,8 @@ class _LinesState extends State<_Lines> {
 /// The selection of [_Lines]: what is selected of each row, one to a line
 /// (each row's text is a selection of its own, which the list would run
 /// together), and which rows, told as it is copied.
-class _LinesSelection extends StaticSelectionContainerDelegate {
+class _LinesSelection extends StaticSelectionContainerDelegate
+    with SafeSelectionIndexes {
   _LinesSelection(this.onCopy);
 
   final void Function(int first, int last, String text) onCopy;
@@ -1084,7 +1086,8 @@ class _SelectableRowState extends State<_SelectableRow> {
       SelectionContainer(delegate: _selection, child: widget.child);
 }
 
-class _RowSelection extends StaticSelectionContainerDelegate {
+class _RowSelection extends StaticSelectionContainerDelegate
+    with SafeSelectionIndexes {
   _RowSelection(this.row);
 
   _SelectableRow row;

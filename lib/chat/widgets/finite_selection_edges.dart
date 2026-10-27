@@ -1,6 +1,8 @@
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../base/safe_selection_indexes.dart';
+
 /// The content of a scroll view in the conversation: a selection's edge
 /// sent to it always at a point its text can place.
 ///
@@ -35,7 +37,8 @@ class _FiniteSelectionEdgesState extends State<FiniteSelectionEdges> {
       SelectionContainer(delegate: _delegate, child: widget.child);
 }
 
-class _FiniteEdgesDelegate extends StaticSelectionContainerDelegate {
+class _FiniteEdgesDelegate extends StaticSelectionContainerDelegate
+    with SafeSelectionIndexes {
   @override
   SelectionResult dispatchSelectionEvent(SelectionEvent event) {
     if (event
