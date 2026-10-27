@@ -229,7 +229,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.widget<Transform>(transform).transform, isNot(zoomed));
 
-    await tester.tap(find.byIcon(Icons.close));
+    await tester.tap(find.byIcon(Codicons.close));
     await tester.pumpAndSettle();
     expect(find.byType(InteractiveViewer), findsNothing);
     expect(find.byType(Image), findsOneWidget);

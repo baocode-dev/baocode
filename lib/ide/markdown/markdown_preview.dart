@@ -24,8 +24,10 @@ import '../../platform/svg_text_transform.dart';
 import '../../stash/stash_ai.dart' show polishStashText;
 import '../../stash/stash_editor.dart' show StashEditor;
 import '../../theme/app_theme.dart';
+import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../l10n/l10n.dart';
+import '../../workspace/window_controls.dart';
 import '../ide_hover.dart';
 import '../ide_menu.dart';
 import 'markdown_format_bar.dart';
@@ -776,12 +778,17 @@ class _MarkdownImage extends StatelessWidget {
               ),
             ),
             Positioned(
-              top: 8,
+              // Below a header the window draws itself: its buttons take
+              // the clicks there, over this one.
+              top: WindowControls.drawsHeader ? AppMetrics.headerHeight + 8 : 8,
               right: 8,
-              child: IconButton(
-                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+              child: IdeActionButton(
+                icon: Codicons.close,
+                tooltip: context.l10n.dialogCloseDialog,
+                size: 32,
+                iconSize: 20,
+                color: Colors.white,
                 onPressed: () => Navigator.of(dialogContext).pop(),
-                icon: const Icon(Icons.close, color: Colors.white),
               ),
             ),
           ],
