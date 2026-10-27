@@ -8,6 +8,8 @@ import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer_draft.dart';
+import 'package:baocode/chat/widgets/edit_step.dart';
+import 'package:baocode/chat/widgets/step_header.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
@@ -618,4 +620,68 @@ void main() {
       expect(tester.takeException(), isNull);
     }
   });
+
+  testWidgets('text below an open diff with a line cut short is '
+      'selectable', (tester) async {
+    const answer = 'The parser drops the last token.';
+    final feed = _Feed([
+      const UserMessageItem(text: 'Fix the parser.'),
+      CodeDiffItem(
+        fileName: 'parser.dart',
+        directory: 'lib',
+        lines: [
+          for (var i = 1; i <= 20; i++)
+            DiffLine(
+              i.isEven ? DiffLineType.added : DiffLineType.context,
+              i,
+              // Wider than the diff: cut short with an ellipsis.
+              i == 3 ? 'final token = ${'x' * 300};' : 'line $i',
+            ),
+        ],
+      ),
+      const AssistantTextItem(answer),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // The diff open, taller than its box: what it scrolls to lies below it,
+    // under the answer.
+    tester
+        .widget<StepHeader>(
+          find.descendant(
+            of: find.byType(EditStep),
+            matching: find.byType(StepHeader),
+          ),
+        )
+        .onToggle!();
+    await tester.pumpAndSettle();
+    expect(find.byType(StepBody), findsOneWidget);
+
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.byWidgetPredicate(
+        (widget) => widget is RichText && widget.text.toPlainText() == answer,
+      ),
+    );
+    final mouse = await tester.startGesture(
+      paragraph.localToGlobal(Offset(0.5, paragraph.size.height / 2)),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await mouse.moveTo(
+      paragraph.localToGlobal(
+        Offset(paragraph.size.width - 0.5, paragraph.size.height / 2),
+      ),
+    );
+    await tester.pump();
+    // Selected as it is dragged, not only by the history's retry.
+    expect(paragraph.selections.any((s) => !s.isCollapsed), isTrue);
+    await mouse.up();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  }, variant: TargetPlatformVariant.desktop());
 }

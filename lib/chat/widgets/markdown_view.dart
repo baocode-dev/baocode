@@ -14,6 +14,7 @@ import '../composer/composer_embeds.dart' show FileImageChip;
 import '../side_panel/file_open.dart';
 import 'code_citation.dart';
 import 'content_image.dart';
+import 'finite_selection_edges.dart';
 import 'hover_scrollbar.dart';
 import 'inline_code.dart';
 import 'lazy_segment.dart';
@@ -863,7 +864,7 @@ class _TableState extends State<_Table> {
           child: SingleChildScrollView(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
-            child: WillChangePaint(child: table),
+            child: FiniteSelectionEdges(child: WillChangePaint(child: table)),
           ),
         ),
       ),
