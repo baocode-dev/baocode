@@ -504,6 +504,12 @@ void WindowChannel::HandleMethodCall(
     return;
   }
 
+  if (method == "setWindowBlur") {
+    Win32Window::SetWindowBlur(Boolean(call.arguments(), false));
+    result->Success();
+    return;
+  }
+
   if (method == "setAppearance") {
     Win32Window::SetDarkAppearance(Boolean(call.arguments(), false));
     result->Success();

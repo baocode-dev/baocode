@@ -7022,6 +7022,13 @@ class AppLocalizationsZh extends AppLocalizations {
       '在对话左侧显示整段对话的缩略图，滚动时显示当前所在位置，点击或拖动即可跳转。开启时代替右侧滚动条；窗口太窄时不显示。关闭后恢复右侧滚动条。';
 
   @override
+  String get appearanceSettingsWindowBlur => '原生高斯模糊';
+
+  @override
+  String get appearanceSettingsWindowBlurDescription =>
+      '窗口底部使用系统的模糊效果（macOS 的侧边栏材质、Windows 11 的亚克力），侧边栏和对话区会透出窗口后面的内容。关闭后窗口不透明。';
+
+  @override
   String get appearanceSettingsSidebarTimes => '侧边栏显示时间';
 
   @override

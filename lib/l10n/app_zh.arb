@@ -2004,6 +2004,8 @@
   "appearanceSettingsReplyScrollLabel": "回复时滚动：{choice}",
   "appearanceSettingsMinimap": "对话缩略图",
   "appearanceSettingsMinimapDescription": "在对话左侧显示整段对话的缩略图，滚动时显示当前所在位置，点击或拖动即可跳转。开启时代替右侧滚动条；窗口太窄时不显示。关闭后恢复右侧滚动条。",
+  "appearanceSettingsWindowBlur": "原生高斯模糊",
+  "appearanceSettingsWindowBlurDescription": "窗口底部使用系统的模糊效果（macOS 的侧边栏材质、Windows 11 的亚克力），侧边栏和对话区会透出窗口后面的内容。关闭后窗口不透明。",
   "appearanceSettingsSidebarTimes": "侧边栏显示时间",
   "appearanceSettingsSidebarTimesDescription": "在侧边栏每个智能体的右侧显示它最后一次活动的时间。关闭后只在鼠标悬停时显示。",
   "appearanceSettingsMinimapGlass": "液态玻璃不透明度",

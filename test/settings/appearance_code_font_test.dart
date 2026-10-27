@@ -8,7 +8,9 @@ import 'package:baocode/settings/pages/appearance_page.dart';
 import 'package:baocode/settings/pages/settings_dropdown.dart';
 import 'package:baocode/settings/pages/settings_widgets.dart';
 import 'package:baocode/settings/user_settings.dart';
+import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/code_font.dart';
+import 'package:baocode/theme/window_blur.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -327,6 +329,27 @@ void main() {
     expect(settings.written[CodeFont.ligaturesSettingKey], isNull);
     await leave(tester);
   });
+
+  testWidgets('the windows\' blur is off until switched on in settings.json', (
+    tester,
+  ) async {
+    addTearDown(() => WindowBlur.enabled.value = false);
+    final settings = await pumpPage(tester);
+    expect(WindowBlur.enabled.value, isFalse);
+    expect(AppColors.sidebarSurface.a, 1);
+    await tester.tap(find.text('Native Window Blur'));
+    await tester.pump();
+    expect(WindowBlur.enabled.value, isTrue);
+    expect(settings.written[WindowBlur.settingKey], isTrue);
+    expect(AppColors.sidebarSurface.a, lessThan(1));
+
+    await tester.tap(find.text('Native Window Blur'));
+    await tester.pump();
+    expect(WindowBlur.enabled.value, isFalse);
+    expect(settings.written.containsKey(WindowBlur.settingKey), isTrue);
+    expect(settings.written[WindowBlur.settingKey], isNull);
+    await leave(tester);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets(
     'the preview is the sample alone: no gutter, guides or scrolling',

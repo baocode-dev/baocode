@@ -63,8 +63,10 @@ class BaoWindow: NSWindow {
       )
     }
 
-    self.contentViewController = VibrantContent(
-      flutter: flutterViewController, size: windowFrame.size)
+    let content = VibrantContent(flutter: flutterViewController, size: windowFrame.size)
+    // Blurred or not as the app last said (setWindowBlur).
+    content.blurred = Self.keptWindowBlur
+    self.contentViewController = content
     self.setFrame(windowFrame, display: true)
     self.contentMinSize = Self.minimumSize
 
@@ -363,6 +365,18 @@ class BaoWindow: NSWindow {
   }
 
   static let darkAppearanceKey = "BaoCodeDarkAppearance"
+  static let windowBlurKey = "BaoCodeWindowBlur"
+
+  /// Whether the windows were last blurred underneath; not the first time.
+  static var keptWindowBlur: Bool {
+    UserDefaults.standard.bool(forKey: windowBlurKey)
+  }
+
+  /// The material under the Flutter view blurring what is behind the
+  /// window, or not (Flutter then paints the window opaque).
+  func setBlurred(_ blurred: Bool) {
+    (contentViewController as? VibrantContent)?.blurred = blurred
+  }
 
   /// Whether the last color theme was dark; dark the first time.
   static var keptDarkAppearance: Bool {
@@ -589,6 +603,15 @@ class MainFlutterWindow: BaoWindow {
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
       }
       result(nil)
+    case "setWindowBlur":
+      // Settings → Appearance: the system's blur under every window, or
+      // none. Kept for the next start.
+      let blurred = call.arguments as? Bool ?? false
+      UserDefaults.standard.set(blurred, forKey: Self.windowBlurKey)
+      for case let window as BaoWindow in NSApp.windows {
+        window.setBlurred(blurred)
+      }
+      result(nil)
     case "setFileMenuTitles":
       fileMenu?.setTitles(call.arguments as? [String: String] ?? [:])
       result(nil)
@@ -658,9 +681,23 @@ class MainFlutterWindow: BaoWindow {
 /// The window's content: the system's sidebar material, blurring what is
 /// behind the window, under the Flutter view. Flutter paints over it all
 /// but the sidebar, which only tints it (see AppColors.sidebarSurface).
+/// Not [blurred], it blurs nothing (as an inactive window's sidebar), and
+/// Flutter paints the window opaque.
 private class VibrantContent: NSViewController {
   private let flutter: FlutterViewController
   private let size: NSSize
+  private var material: NSVisualEffectView?
+
+  var blurred = true {
+    didSet { apply() }
+  }
+
+  private func apply() {
+    guard let material else { return }
+    material.blendingMode = blurred ? .behindWindow : .withinWindow
+    // Dimmed while another window is in front, as the system's sidebars.
+    material.state = blurred ? .followsWindowActiveState : .inactive
+  }
 
   init(flutter: FlutterViewController, size: NSSize) {
     self.flutter = flutter
@@ -675,9 +712,8 @@ private class VibrantContent: NSViewController {
   override func loadView() {
     let material = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
     material.material = .sidebar
-    material.blendingMode = .behindWindow
-    // Dimmed while another window is in front, as the system's sidebars.
-    material.state = .followsWindowActiveState
+    self.material = material
+    apply()
     addChild(flutter)
     flutter.view.frame = material.bounds
     flutter.view.autoresizingMask = [.width, .height]

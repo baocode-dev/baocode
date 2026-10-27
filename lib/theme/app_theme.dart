@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../ide/terminal/terminal_colors.dart';
 import '../platform/app_platform.dart';
 import 'code_font.dart';
+import 'window_blur.dart';
 import 'workbench_theme.dart' hide ColorScheme;
 
 /// The app's colors, from the workbench's color theme: each is a VS Code
@@ -25,9 +26,10 @@ abstract final class AppColors {
 
   /// Whether the window has the system's material under it, to show
   /// through the sidebar and the conversation: macOS (see
-  /// MainFlutterWindow.swift) and Windows 11 (see win32_window.cpp).
+  /// MainFlutterWindow.swift) and Windows 11 (see win32_window.cpp), once
+  /// Settings → Appearance turns it on ([WindowBlur]).
   static bool get usesSystemMaterial =>
-      AppPlatform.isMacOS || AppPlatform.isWindows11;
+      WindowBlur.available && WindowBlur.enabled.value;
 
   /// Under everything: the material itself where there is one. All but the
   /// sidebar cover it (see Workbench).
