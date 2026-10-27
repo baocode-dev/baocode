@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import '../kernel/claude_code/claude_environment.dart';
 import 'mcp_probe.dart';
@@ -84,9 +85,7 @@ Future<McpProbeResult> _probeCommand(
   final stderr = McpLogTail();
   final answered = Completer<McpProbeResult>();
   final subscriptions = [
-    process.stderr
-        .transform(const Utf8Decoder(allowMalformed: true))
-        .listen(stderr.add),
+    process.stderr.transform(_consoleText).listen(stderr.add),
     process.stdout
         .transform(const Utf8Decoder(allowMalformed: true))
         .transform(const LineSplitter())
@@ -138,6 +137,35 @@ Future<McpProbeResult> _probeCommand(
     _ => result,
   };
 }
+
+/// A program's console output, a line at a time: UTF-8 if it is, else in
+/// the system's code page (cmd.exe's and npm's errors on a Chinese Windows
+/// come in GBK), so that why it failed reads as it was said.
+final StreamTransformer<List<int>, String> _consoleText =
+    StreamTransformer.fromBind((bytes) async* {
+      final line = BytesBuilder(copy: false);
+      String text(List<int> bytes) {
+        try {
+          return utf8.decode(bytes);
+        } on FormatException {
+          return Platform.isWindows
+              ? systemEncoding.decode(bytes)
+              : utf8.decode(bytes, allowMalformed: true);
+        }
+      }
+
+      await for (final chunk in bytes) {
+        var start = 0;
+        for (var i = 0; i < chunk.length; i++) {
+          if (chunk[i] != 0x0A) continue;
+          line.add(chunk.sublist(start, i + 1));
+          start = i + 1;
+          yield text(line.takeBytes());
+        }
+        if (start < chunk.length) line.add(chunk.sublist(start));
+      }
+      if (line.isNotEmpty) yield text(line.takeBytes());
+    });
 
 /// What a line of a server's says of `initialize`, if it is the answer.
 McpProbeResult? _answer(String line) {

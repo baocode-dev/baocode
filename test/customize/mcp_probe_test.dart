@@ -54,4 +54,20 @@ void main() {
     expect(seen, ['application/json']);
     expect(result.status, McpProbeStatus.connected, reason: result.message);
   });
+
+  test('a command that fails: its exit code and what it said, as said, '
+      'lines whole however they come', () async {
+    final result = await platformMcpProber!({
+      'command': 'sh',
+      'args': [
+        '-c',
+        // 文 split between two writes.
+        r"printf '\344\270\255\346\226' >&2; sleep 0.2; "
+            r"printf '\207: not found\nnext\n' >&2; exit 1",
+      ],
+    });
+    expect(result.status, McpProbeStatus.failed);
+    expect(result.exitCode, 1);
+    expect(result.log, '中文: not found\nnext');
+  }, testOn: '!windows');
 }
