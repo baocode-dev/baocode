@@ -6,7 +6,7 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
-import 'process_isolate.dart';
+import '../platform/process_isolate.dart';
 import 'review_store.dart';
 
 /// A Git command that failed.
@@ -432,6 +432,7 @@ class GitReviewStore implements ReviewStore {
     }
     _nested.remove(gitDir);
     _links.removeWhere((index, _) => p.isWithin(gitDir, index));
+    _written.removeWhere((index, _) => p.isWithin(gitDir, index));
   }
 
   Future<String> _snapshot(Iterable<String>? paths) async {
@@ -461,10 +462,11 @@ class GitReviewStore implements ReviewStore {
       files += changed;
       size += bytes;
       if (files > maxFiles || size > maxBytes) throw const _TooLarge();
-      if (specs.isNotEmpty) await _add(repo, specs);
-      final tree = trees[repo] = (await _git([
-        'write-tree',
-      ], repo: repo)).text.trim();
+      // Nothing new, changed or gone since its index: nothing to add.
+      final nothing =
+          whole && changed == 0 && File(_indexOf(repo)).existsSync();
+      if (specs.isNotEmpty && !nothing) await _add(repo, specs);
+      final tree = trees[repo] = await _writeTree(repo);
       for (final link in await _gitlinks(repo, tree)) {
         await take(repo.isEmpty ? link : '$repo/$link');
       }
@@ -484,7 +486,7 @@ class GitReviewStore implements ReviewStore {
     final found = <String>{};
     Future<void> visit(String repo) async {
       if (!File(_indexOf(repo)).existsSync()) return;
-      final tree = (await _git(['write-tree'], repo: repo)).text.trim();
+      final tree = await _writeTree(repo);
       for (final link in await _gitlinks(repo, tree)) {
         final nested = repo.isEmpty ? link : '$repo/$link';
         found.add(nested);
@@ -494,6 +496,33 @@ class GitReviewStore implements ReviewStore {
 
     await visit('');
     return found;
+  }
+
+  /// The tree last written of each index, and the index as it was then.
+  static final Map<String, ({String tree, DateTime modified, int size})>
+  _written = {};
+
+  /// The tree of [repo]'s index: the one written last where the index is
+  /// as it was then (Git changes it only to change what is in it; another
+  /// run of the app may have since).
+  Future<String> _writeTree(String repo) async {
+    final index = File(_indexOf(repo));
+    final last = _written[index.path];
+    if (last != null) {
+      final stat = index.statSync();
+      if (stat.modified == last.modified && stat.size == last.size) {
+        return last.tree;
+      }
+    }
+    final tree = (await _git(['write-tree'], repo: repo)).text.trim();
+    // Written with the tree's cache.
+    final stat = index.statSync();
+    _written[index.path] = (
+      tree: tree,
+      modified: stat.modified,
+      size: stat.size,
+    );
+    return tree;
   }
 
   /// The innermost of [nested] that [path] is in; empty for none.

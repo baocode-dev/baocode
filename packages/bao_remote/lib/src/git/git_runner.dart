@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../files/ide_file.dart';
 import '../files/recursive_watch.dart';
+import '../platform/process_isolate.dart';
 import 'git_types.dart';
 
 // `GIT_OPTIONAL_LOCKS=0` rather than `--no-optional-locks`: the same in Git
@@ -29,8 +30,25 @@ List<String> _gitArguments(List<String> arguments) => [
 /// With [limit], the output is NUL-terminated records (`-z`) of which only
 /// the first [limit] are read: Git is stopped at the one after, and the
 /// output is [IdeGitOutput.truncated] (VS Code's `git.statusLimit`).
-/// [stdin] is written to it, and [environment] added to its.
+/// [stdin] is written to it, and [environment] added to its. It is started
+/// from the isolate of [onProcessIsolate], not this one.
 Future<IdeGitOutput> runGit(
+  List<String> arguments, {
+  required String workingDirectory,
+  int? limit,
+  String? stdin,
+  Map<String, String>? environment,
+}) => onProcessIsolate(
+  () => _runGit(
+    arguments,
+    workingDirectory: workingDirectory,
+    limit: limit,
+    stdin: stdin,
+    environment: environment,
+  ),
+);
+
+Future<IdeGitOutput> _runGit(
   List<String> arguments, {
   required String workingDirectory,
   int? limit,

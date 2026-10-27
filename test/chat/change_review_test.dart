@@ -485,9 +485,9 @@ void main() {
     final before = GitReviewStore.runs;
 
     await review.observe();
-    // What changed, added, and its tree: nothing compared, counted or kept
+    // What changed, and nothing: nothing added, compared, counted or kept
     // again.
-    expect(GitReviewStore.runs - before, 3);
+    expect(GitReviewStore.runs - before, 1);
     expect(changesOf(review)['a.txt']!.added, 1);
 
     write('a.txt', 'one\ntwo\n');
