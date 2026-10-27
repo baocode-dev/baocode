@@ -122,6 +122,9 @@ LONG HeightOf(const RECT& rect) {
 #ifndef DWMWA_SYSTEMBACKDROP_TYPE
 #define DWMWA_SYSTEMBACKDROP_TYPE 38
 #endif
+#ifndef DWMSBT_NONE
+#define DWMSBT_NONE 1
+#endif
 #ifndef DWMSBT_TRANSIENTWINDOW
 #define DWMSBT_TRANSIENTWINDOW 3
 #endif
@@ -143,6 +146,29 @@ constexpr const wchar_t kGetPreferredBrightnessRegValue[] = L"AppsUseLightTheme"
 // The number of Win32Window objects that currently exist.
 static int g_active_window_count = 0;
 static std::optional<bool> g_dark_appearance;
+
+/// Where the windows' blur is kept (SetWindowBlur), as the app's other
+/// words for the next start (see app_windows.cpp).
+constexpr wchar_t kSettingsKey[] = L"Software\\BaoCode";
+constexpr wchar_t kWindowBlurValue[] = L"WindowBlur";
+static std::optional<bool> g_window_blur;
+
+// Whether the windows are blurred underneath: as the app last said, else
+// as the last run left it; not the first time.
+bool WindowBlurred() {
+  if (g_window_blur.has_value()) {
+    return *g_window_blur;
+  }
+  DWORD blurred = 0;
+  DWORD size = sizeof(blurred);
+  if (::RegGetValueW(HKEY_CURRENT_USER, kSettingsKey, kWindowBlurValue,
+                     RRF_RT_REG_DWORD, nullptr, &blurred,
+                     &size) != ERROR_SUCCESS) {
+    blurred = 0;
+  }
+  g_window_blur = blurred != 0;
+  return *g_window_blur;
+}
 
 using EnableNonClientDpiScaling = BOOL __stdcall(HWND hwnd);
 
@@ -191,8 +217,8 @@ DWORD WindowsBuild() {
 
 // Acrylic, on the Windows 11 builds that have no backdrop attribute yet:
 // the undocumented composition policy. The tint is the app's own dark, in
-// the policy's AABBGGRR.
-void AskForAccentAcrylic(HWND window) {
+// the policy's AABBGGRR. Not [blurred], none.
+void AskForAccentAcrylic(HWND window, bool blurred) {
   using SetWindowCompositionAttributePtr =
       BOOL(WINAPI*)(HWND, void*);
   struct AccentPolicy {
@@ -215,8 +241,10 @@ void AskForAccentAcrylic(HWND window) {
   if (set_attribute == nullptr) {
     return;
   }
-  // ACCENT_ENABLE_ACRYLICBLURBEHIND, and the flag that tints it.
-  AccentPolicy policy = {4, 2, 0xCC181818, 0};
+  // ACCENT_ENABLE_ACRYLICBLURBEHIND, and the flag that tints it; or
+  // ACCENT_DISABLED.
+  AccentPolicy policy = blurred ? AccentPolicy{4, 2, 0xCC181818, 0}
+                                : AccentPolicy{0, 0, 0, 0};
   CompositionAttribute data = {19, &policy, sizeof(policy)};
   set_attribute(window, &data);
 }
@@ -266,12 +294,14 @@ void AskForSystemFrame(HWND window) {
       has_theme ? apps_use_light_theme == 0 : false);
   const COLORREF border = dark ? 0x002C2C2C : 0x00D6D6D6;
   ::DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &border, sizeof(border));
+  // None while the app paints the window opaque (SetWindowBlur).
+  const bool blurred = WindowBlurred();
   if (build >= kSystemBackdropBuild) {
-    const int backdrop = DWMSBT_TRANSIENTWINDOW;
+    const int backdrop = blurred ? DWMSBT_TRANSIENTWINDOW : DWMSBT_NONE;
     ::DwmSetWindowAttribute(window, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
                             sizeof(backdrop));
   } else {
-    AskForAccentAcrylic(window);
+    AskForAccentAcrylic(window, blurred);
   }
 }
 
@@ -663,6 +693,20 @@ void Win32Window::SetQuitOnClose(bool quit_on_close) {
 
 void Win32Window::SetMinimumSize(const Size& size) {
   minimum_size_ = size;
+}
+
+void Win32Window::SetWindowBlur(bool blurred) {
+  g_window_blur = blurred;
+  const DWORD kept = blurred ? 1 : 0;
+  ::RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, kWindowBlurValue,
+                    REG_DWORD, &kept, sizeof(kept));
+  EnumThreadWindows(
+      GetCurrentThreadId(),
+      [](HWND window, LPARAM) -> BOOL {
+        AskForSystemFrame(window);
+        return TRUE;
+      },
+      0);
 }
 
 void Win32Window::SetDarkAppearance(bool dark) {

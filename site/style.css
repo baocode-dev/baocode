@@ -67,6 +67,8 @@ h1 .channel-logo[src="/icon.png"] { border-radius: .18em; }
 .meta span:not(:last-child)::after { content: "·"; margin: 0 8px; color: var(--faint); }
 
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 30px 0 0; font: 15px var(--sans); }
+/* What waits for the release to have it (site.js shows it then). */
+[data-shown][hidden] { display: none; }
 .button { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; font: 500 15px var(--sans); white-space: nowrap; border: 1px solid var(--rule); border-radius: 6px; color: var(--ink); font-weight: 500; text-decoration: none; }
 .button:hover { border-color: var(--faint); }
 .button.primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }

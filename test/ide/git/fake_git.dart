@@ -98,6 +98,20 @@ class FakeGit {
     if (arguments case ['log', '--no-walk', '--source', ...]) {
       return IdeGitOutput(0, operation == null ? '' : '$operation\n');
     }
+    // A rebase's folder, there while REBASE_HEAD is: not counted either.
+    if (arguments case [
+      'rev-parse',
+      '--git-path',
+      'rebase-merge/head-name',
+      ...,
+    ]) {
+      return const IdeGitOutput(0, '.git/rebase-merge/head-name\n');
+    }
+    if (arguments case ['hash-object', '--', '.git/rebase-merge/head-name']) {
+      return operation == 'REBASE_HEAD'
+          ? const IdeGitOutput(0, '0000\n')
+          : const IdeGitOutput(128, '', 'fatal: could not open');
+    }
     calls.add(arguments);
     if (stdin != null) stdins.add(stdin);
     if (environment != null) environments.add(environment);

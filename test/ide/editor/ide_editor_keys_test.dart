@@ -575,6 +575,35 @@ void main() {
     expect(bench.editor.hasTextFocus, isTrue);
   }, variant: _windows);
 
+  testWidgets('find across lines: text pasted keeps its lines, the widget '
+      'grows with them; Enter finds, Ctrl+Enter is a new line', (tester) async {
+    const text = 'x a\nb y\na\nc';
+    final bench = await _pump(tester, text);
+    await _press(tester, LogicalKeyboardKey.keyF, control: true);
+    final widget = find.byType(IdeFindWidget);
+    expect(tester.getSize(widget).height, IdeFindWidget.rowHeight);
+    final field = find
+        .descendant(of: widget, matching: find.byType(EditableText))
+        .first;
+    await tester.enterText(field, 'a\r\nb');
+    await _settle(tester);
+    final input = tester.widget<EditableText>(field).controller;
+    // A line break as a text area keeps it.
+    expect(input.text, 'a\nb');
+    expect(bench.editor.findMatches, hasLength(1));
+    // Two lines: a line's height more.
+    expect(tester.getSize(widget).height, IdeFindWidget.rowHeight + 16);
+    await _press(tester, LogicalKeyboardKey.enter);
+    expect(bench.selection, _range(2, 5));
+    expect(input.text, 'a\nb');
+    // Ctrl+Enter: a line break where the caret is.
+    input.selection = const TextSelection.collapsed(offset: 1);
+    await _press(tester, LogicalKeyboardKey.enter, control: true);
+    expect(input.text, 'a\n\nb');
+    expect(bench.editor.findMatches, isEmpty);
+    expect(bench.text, text);
+  }, variant: _windows);
+
   group('suggestions', () {
     const source = 'void main() {\n  pri\n}\n';
     FakeLanguageFeatures languages() =>

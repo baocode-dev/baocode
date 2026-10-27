@@ -2370,25 +2370,24 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final searched = <String>{};
     for (final doc in [...widget.workspace.documents]) {
       if (!doc.isFile || !searched.add(doc.path)) continue;
-      final matches = <IdeTextMatch>[];
-      for (final (line, text) in doc.text.split(_lineBreak).indexed) {
-        for (final match in pattern.allMatches(text)) {
-          if (match.end == match.start) continue;
-          if (count == query.maxResults) {
-            limitHit = true;
-            break;
-          }
-          count++;
-          matches.add(IdeTextMatch(line, match.start, match.end, text));
-        }
+      final left = query.maxResults - count;
+      final matches = ideMatchLines(
+        doc.text,
+        pattern,
+        // One more: whether the limit cut it short.
+        limit: left + 1,
+        multiline: query.isMultiline,
+      );
+      if (matches.length > left) {
+        limitHit = true;
+        matches.removeRange(left, matches.length);
       }
+      count += matches.length;
       if (matches.isNotEmpty) yield IdeFileMatches(doc.path, matches);
       if (limitHit) break;
     }
     yield IdeTextSearchComplete(limitHit: limitHit);
   }
-
-  static final _lineBreak = RegExp(r'\r\n|\r|\n');
 
   void _tabAction(IdeDocument doc, IdeTabAction action) {
     final docs = widget.workspace.documents;
@@ -5358,11 +5357,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         ),
                       ),
                       // Typing moves the caret and edits the document, and
-                      // the status bar is all that shows either.
+                      // the status bar is all that shows either; as it is
+                      // all that shows a language server's progress.
                       ListenableBuilder(
                         listenable: Listenable.merge([
                           _caret,
                           widget.workspace.edits,
+                          _languages?.progressChanges,
                         ]),
                         builder: (context, _) => _statusBar(),
                       ),

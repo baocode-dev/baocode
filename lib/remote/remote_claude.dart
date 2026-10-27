@@ -251,12 +251,12 @@ Future<RemoteClient> _clientOf(SshHost host) async {
     return await host.ready;
   } on SshConnectException catch (error) {
     throw ClaudeUnavailable(
-      'Could not connect to ${host.host}: ${error.message}',
+      'Could not connect to ${RemoteLocation.hostName(host.host)}: ${error.message}',
       detail: error.detail,
     );
   } on Object catch (error) {
     throw ClaudeUnavailable(
-      'Could not connect to ${host.host}',
+      'Could not connect to ${RemoteLocation.hostName(host.host)}',
       detail: '$error',
     );
   }
@@ -291,7 +291,9 @@ Future<String> askRemoteHaiku(
       ),
     );
   } on Object catch (error) {
-    throw ClaudeHaikuException('Claude Code on ${host.host}: $error');
+    throw ClaudeHaikuException(
+      'Claude Code on ${RemoteLocation.hostName(host.host)}: $error',
+    );
   }
   var cancelled = false;
   unawaited(
@@ -390,7 +392,8 @@ class RemoteClaudeTransport implements ClaudeCodeTransport {
       return RemoteClaudeTransport._(process);
     } on ClaudeDownloadFailed catch (error) {
       throw ClaudeUnavailable(
-        'Claude Code could not be installed on ${host.host}',
+        'Claude Code could not be installed on '
+        '${RemoteLocation.hostName(host.host)}',
         detail:
             '${error.message}${error.detail == null ? '' : ': ${error.detail}'}'
             '\n\nInstall it there, in a terminal of the project:\n'
@@ -401,20 +404,22 @@ class RemoteClaudeTransport implements ClaudeCodeTransport {
       rethrow;
     } on ClaudeNotInstalled catch (error) {
       throw ClaudeUnavailable(
-        'Claude Code is not installed on ${host.host}',
+        'Claude Code is not installed on ${RemoteLocation.hostName(host.host)}',
         detail:
             '${error.detail ?? error.message}\n\nInstall it there, in a '
             'terminal of the project:\n$remoteClaudeInstallCommand',
       );
     } on ClaudeUnavailable catch (error) {
       throw ClaudeUnavailable(
-        '${error.message} (on ${host.host})',
+        '${error.message} (on ${RemoteLocation.hostName(host.host)})',
         detail: error.detail,
       );
     } on IdeFileNotFoundException {
       throw ClaudeFolderGone(cwd);
     } on RpcClosed {
-      throw ClaudeUnavailable('The connection to ${host.host} was lost');
+      throw ClaudeUnavailable(
+        'The connection to ${RemoteLocation.hostName(host.host)} was lost',
+      );
     }
   }
 

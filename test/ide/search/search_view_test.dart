@@ -33,7 +33,7 @@ void main() {
     for (final MapEntry(key: path, value: text) in contents.entries) {
       final relative = p.relative(path, from: root).replaceAll(r'\', '/');
       if (!accept(relative)) continue;
-      final matches = ideMatchLines(text, regExp);
+      final matches = ideMatchLines(text, regExp, multiline: query.isMultiline);
       if (matches.isNotEmpty) yield IdeFileMatches(path, matches);
     }
     yield const IdeTextSearchComplete(limitHit: false);
@@ -135,7 +135,10 @@ void main() {
   ) async {
     await pumpSearch(tester, open: ['lib/a.dart']);
     await search(tester, 'foo');
-    // The replace input shows at first.
+    // The replace input folded away at first, as upstream's.
+    expect(input('Replace'), findsNothing);
+    await tester.tap(find.byTooltip('Toggle Replace'));
+    await tester.pumpAndSettle();
     await tester.enterText(input('Replace'), 'bar');
     await tester.pumpAndSettle();
     // The preview shows the replacement.
@@ -159,6 +162,52 @@ void main() {
       find.text("Replaced 3 occurrences across 2 files with 'bar'."),
       findsOneWidget,
     );
+  });
+
+  testWidgets('text pasted with its lines keeps them, and matches across '
+      'them; Enter searches, Ctrl+Enter is a new line', (tester) async {
+    await pumpSearch(tester);
+    await search(tester, 'one\nFoo');
+    final field = tester.widget<EditableText>(input('Search'));
+    expect(field.controller.text, 'one\nFoo');
+    expect(queries.last.pattern, 'one\nFoo');
+    expect(find.text('1 result in 1 file'), findsOneWidget);
+    expect(matchRow('foo one⏎Foo two'), findsOneWidget);
+
+    // Ctrl+Enter: a line break where the caret is.
+    field.controller.selection = const TextSelection.collapsed(offset: 3);
+    await tester.pump();
+    await chord(tester, LogicalKeyboardKey.enter, control: true);
+    await tester.pump();
+    expect(field.controller.text, 'one\n\nFoo');
+    // Enter: searched at once, the text as it is.
+    final before = queries.length;
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(queries.length, before + 1);
+    expect(field.controller.text, 'one\n\nFoo');
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the replace input and the files to include and exclude fold '
+      'away at first, and are kept as the user leaves them', (tester) async {
+    final session = IdeSearchSession();
+    addTearDown(session.dispose);
+    expect(session.replaceShown, isFalse);
+    expect(session.detailsShown, isFalse);
+    expect(session.kept, isEmpty);
+    session
+      ..replaceShown = true
+      ..detailsShown = true;
+    final again = IdeSearchSession()..restore(session.kept);
+    addTearDown(again.dispose);
+    expect(again.replaceShown, isTrue);
+    expect(again.detailsShown, isTrue);
+    // Files to include kept: shown.
+    final included = IdeSearchSession()..restore({'includes': 'lib'});
+    addTearDown(included.dispose);
+    expect(included.detailsShown, isTrue);
+    expect(included.replaceShown, isFalse);
   });
 
   testWidgets('dismissing hides a result', (tester) async {
@@ -187,7 +236,10 @@ void main() {
     final details = find.byTooltip('Toggle Search Details (Ctrl+Shift+J)');
     expect(tester.getSize(details), const Size(25, 16));
 
-    // The details show at first.
+    // The details folded away at first, as upstream's.
+    expect(find.text('files to exclude'), findsNothing);
+    await tester.tap(details);
+    await tester.pumpAndSettle();
     final exclude = box('files to exclude');
     expect(exclude.height, 28);
     final toggle = tester.getRect(

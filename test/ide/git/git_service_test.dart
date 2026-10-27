@@ -221,4 +221,51 @@ void main() {
     await write('lib/new.dart', 'new\n');
     expect(await service.blame(p.join(root, 'lib/new.dart')), isNull);
   }, skip: hasGit ? false : 'Git is not installed');
+
+  test('a rebase goes on with what is checked staged; changes left '
+      'unchecked are said to be in the way', () async {
+    await git(['checkout', '-q', '-b', 'feature']);
+    await write('lib/a.dart', 'feature\n');
+    await git(['commit', '-q', '-am', 'Feature']);
+    await git(['checkout', '-q', 'main']);
+    await write('lib/a.dart', 'main\n');
+    await write('lib/b.dart', 'b\n');
+    await git(['add', '-A']);
+    await git(['commit', '-q', '-m', 'Main']);
+    await git(['checkout', '-q', 'feature']);
+    final rebase = await Process.run('git', [
+      'rebase',
+      'main',
+    ], workingDirectory: root);
+    expect(rebase.exitCode, isNot(0));
+    // Resolved on disk, not staged; another file changed besides.
+    await write('lib/a.dart', 'both\n');
+    await write('lib/b.dart', 'b, edited\n');
+    final service = IdeGitService(root);
+    final a = p.join(root, 'lib/a.dart');
+    await expectLater(
+      service.continueOperation(IdeGitOperation.rebase, include: [a]),
+      throwsA(
+        isA<IdeGitException>().having(
+          (e) => e.message,
+          'message',
+          contains('not checked to be committed'),
+        ),
+      ),
+    );
+
+    await service.continueOperation(
+      IdeGitOperation.rebase,
+      include: [a, p.join(root, 'lib/b.dart')],
+    );
+    final state = (await service.status())!;
+    // Done, though Git leaves REBASE_HEAD.
+    expect(state.operation, isNull);
+    expect(state.resources, isEmpty);
+    expect([for (final c in await service.log()) c.subject].take(2), [
+      'Feature',
+      'Main',
+    ]);
+    expect(await File(a).readAsString(), 'both\n');
+  }, skip: hasGit ? false : 'Git is not installed');
 }

@@ -142,6 +142,8 @@ void main() {
     workspace.select(workspace.threads.first);
     await tester.pump();
     expect(_bar, findsNothing);
+    // The mock's reply played out.
+    await tester.pump(const Duration(seconds: 30));
     await tester.pumpAndSettle(const Duration(seconds: 1));
   }, variant: _mac);
 

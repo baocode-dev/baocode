@@ -14,6 +14,7 @@ import '../ide/lsp/install/mason_registry.dart';
 import '../ide/lsp/install/mason_server_provider.dart';
 import '../ide/lsp/lsp_manager.dart';
 import '../ide/lsp/lsp_server_definition.dart';
+import 'remote_location.dart';
 import 'remote_services.dart';
 import 'ssh_host.dart';
 
@@ -64,7 +65,9 @@ class RemoteLspProvider implements LspServerProvider {
       throw LspInstallException('$name is not in the registry');
     }
     final client = await host.ready;
-    onProgress?.call('Installing $name on ${host.host}…');
+    onProgress?.call(
+      'Installing $name on ${RemoteLocation.hostName(host.host)}…',
+    );
     await client.installLanguageServer(package, onProgress: onProgress);
   }
 }

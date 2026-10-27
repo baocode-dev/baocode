@@ -14,6 +14,7 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_find.dart' show ChatFindMarks;
 import '../side_panel/file_link.dart' show FileLineRange, FileLink;
 import '../side_panel/file_open.dart' show FileOpenScope;
+import 'finite_selection_edges.dart';
 import 'hover_builder.dart';
 import 'will_change_paint.dart';
 
@@ -665,7 +666,9 @@ class _CodeCardState extends State<_CodeCard> {
                   controller: _horizontal,
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.only(right: 12),
-                  child: WillChangePaint(child: code),
+                  child: FiniteSelectionEdges(
+                    child: WillChangePaint(child: code),
+                  ),
                 ),
               ),
             ],

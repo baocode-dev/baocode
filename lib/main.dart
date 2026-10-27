@@ -10,6 +10,7 @@ import 'package:bao_editor/textmate/textmate_syntax.dart';
 
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
+import 'base/quiet_view.dart';
 import 'base/smooth_scroll.dart' show BaoScrollBehavior;
 import 'browser/browser_bridge.dart';
 import 'browser/browser_tools.dart' show BrowserHistory;
@@ -105,6 +106,7 @@ import 'theme/app_theme.dart';
 import 'theme/code_font.dart';
 import 'theme/pixel_snapped_text_scaler.dart';
 import 'theme/ui_zoom.dart';
+import 'theme/window_blur.dart';
 import 'theme/workbench_theme.dart';
 import 'update/update_controller.dart';
 import 'update/update_platform.dart';
@@ -272,6 +274,11 @@ Future<void> main(List<String> arguments) async {
     ChatMinimap.follow(files.settings, (key) => files.settings[key]);
     // Settings → Appearance: what an agent and a subagent show running.
     PixelLoaderRole.follow(files.settings, (key) => files.settings[key]);
+    // Settings → Appearance: whether the windows are blurred underneath.
+    WindowBlur.follow(
+      files.settings,
+      () => files.settings[WindowBlur.settingKey],
+    );
     // Settings → Appearance: whether the sidebar's agents show their times.
     SidebarTimes.follow(
       files.settings,
@@ -689,11 +696,13 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
 
   late final AppLocale _locale = widget.appLocale ?? AppLocale();
 
-  /// The code's font, size and ligatures: what restyles all code.
+  /// The code's font, size and ligatures: what restyles all code; and the
+  /// windows' blur, which every surface over it is tinted for.
   static final Listenable _codeFont = Listenable.merge([
     CodeFont.families,
     CodeFont.size,
     CodeFont.ligatures,
+    WindowBlur.enabled,
   ]);
 
   late final AppSettings _settings =
@@ -815,7 +824,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
                       ])
                         if (_windows.host.viewOf(window.viewId)
                             case final view?)
-                          View(
+                          QuietView(
                             key: ValueKey(window.viewId),
                             view: view,
                             child: _app(window),

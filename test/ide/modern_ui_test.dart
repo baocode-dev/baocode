@@ -6,17 +6,25 @@ import 'package:baocode/ide/ide_status_bar.dart';
 import 'package:baocode/ide/lsp_ui/hover_markdown.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/window_blur.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 
 import 'workbench/fake_files.dart';
 
 void main() {
   testWidgets('the shell is the side bar\'s color, opaque on every platform '
-      '(the agents sidebar is a tint over the material)', (tester) async {
+      '(the agents sidebar is a tint over the material, once the windows '
+      'are blurred)', (tester) async {
     final side = WorkbenchThemeService.instance.colors['sideBar.background'];
     expect(IdeModernUI.shell, side);
     expect(IdeModernUI.shell.a, 1);
+    // Off by default: opaque.
+    expect(AppColors.sidebarSurface.a, 1);
+    WindowBlur.enabled.value = true;
+    addTearDown(() => WindowBlur.enabled.value = false);
+    expect(IdeModernUI.shell.a, 1);
     expect(AppColors.sidebarSurface.a, lessThan(1));
+    expect(AppColors.windowCanvas.a, 0);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('the parts are flush and square, the activity bar VS Code\'s', (

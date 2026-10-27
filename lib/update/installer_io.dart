@@ -36,7 +36,7 @@ PlatformUpdates? platformUpdates({required String updatesDirectory}) {
       updatesDirectory: updatesDirectory,
     );
   } else if (Platform.isWindows) {
-    platform = 'windows-x64';
+    platform = windowsUpdatePlatform(arm64: Abi.current() == Abi.windowsArm64);
     installer = WindowsUpdateInstaller(
       executable: executable,
       pid: pid,
@@ -83,6 +83,13 @@ String editionUpdatePlatform(String platform, {required bool channel}) =>
 @visibleForTesting
 String macUpdatePlatform({required bool arm64, required bool translated}) =>
     arm64 || translated ? 'macos-arm64' : 'macos-x64';
+
+/// The Windows build an app updates to: its own processor's. An x64 build
+/// Windows on Arm runs emulated stays x64 (the user picks the Arm one from
+/// the site, which installs over it).
+@visibleForTesting
+String windowsUpdatePlatform({required bool arm64}) =>
+    arm64 ? 'windows-arm64' : 'windows-x64';
 
 /// Whether Rosetta runs this process: an x64 one on Apple silicon.
 bool get _translated {

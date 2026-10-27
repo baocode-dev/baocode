@@ -23,9 +23,12 @@ void main() {
   });
 
   Future<void> open(WidgetTester tester) async {
-    await pumpWorkbench(tester, const {
-      'lib/a.dart': '<<<<<<< HEAD\na\n=======\nb\n>>>>>>> c2\n',
-    }, git: git.repository(), size: const Size(1800, 900));
+    await pumpWorkbench(
+      tester,
+      const {'lib/a.dart': '<<<<<<< HEAD\na\n=======\nb\n>>>>>>> c2\n'},
+      git: git.repository(),
+      size: const Size(1800, 900),
+    );
     await tester.pumpAndSettle();
     await chord(tester, LogicalKeyboardKey.keyG, control: true, shift: true);
     await tester.pumpAndSettle();
@@ -71,11 +74,20 @@ void main() {
   });
 
   testWidgets('Continue once resolved; Abort once confirmed', (tester) async {
-    git.status = '## main\x00M  lib/a.dart\x00';
+    // One resolved and staged, one changed besides: both checked.
+    git.status = '## main\x00M  lib/a.dart\x00 M lib/b.dart\x00';
     await open(tester);
     expect(find.text('Rebasing · main  —  conflicts resolved'), findsOne);
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
+    // What is checked goes into the commit, as Commit takes it.
+    expect(git.callsTo('add').last, [
+      'add',
+      '-A',
+      '--',
+      'lib/a.dart',
+      'lib/b.dart',
+    ]);
     expect(git.callsTo('-c').last, [
       '-c',
       'core.editor=:',

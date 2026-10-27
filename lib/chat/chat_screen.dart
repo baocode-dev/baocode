@@ -886,9 +886,10 @@ class _ChatScreenState extends State<ChatScreen>
                           final build? when _starting => Align(
                             alignment: Alignment.bottomCenter,
                             child: SingleChildScrollView(
+                              // No minimap yet: nothing to scroll.
                               child: _ConversationColumn(
                                 maxWidth: _maxContentWidth,
-                                minimap: _minimap,
+                                minimap: false,
                                 child: build(context, const SizedBox.shrink()),
                               ),
                             ),
@@ -990,7 +991,7 @@ class _ChatScreenState extends State<ChatScreen>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ListenableBuilder(
-          listenable: _session,
+          listenable: Listenable.merge([_session, layer.minimapRoom]),
           builder: (context, _) => SubagentHeader(
             trail: [
               for (final open in _layers.take(index + 1))
@@ -999,7 +1000,8 @@ class _ChatScreenState extends State<ChatScreen>
             onBack: _back,
             backFocusNode: layer.backFocus,
             maxContentWidth: _maxContentWidth,
-            minimap: _minimap,
+            // Level with the history's column.
+            minimap: layer.minimapRoom.value,
           ),
         ),
         Expanded(
@@ -1008,6 +1010,7 @@ class _ChatScreenState extends State<ChatScreen>
             feed: layer.feed,
             maxContentWidth: _maxContentWidth,
             minimap: _minimap,
+            minimapRoom: layer.minimapRoom,
             onOpenAgent: _openAgent,
             onSetGoal: _setGoal,
             onFindClosed: layer.backFocus.requestFocus,
@@ -1286,6 +1289,10 @@ class _AgentLayer {
   final FocusNode backFocus = FocusNode(debugLabel: 'Subagent back');
   final GlobalKey historyKey = GlobalKey();
 
+  /// Whether its history keeps the minimap's room (see
+  /// [ChatHistoryView.minimapRoom]).
+  final ValueNotifier<bool> minimapRoom = ValueNotifier(false);
+
   /// Going back: sliding out, no longer the one shown.
   bool leaving = false;
 
@@ -1293,6 +1300,7 @@ class _AgentLayer {
     animation.dispose();
     controller.dispose();
     backFocus.dispose();
+    minimapRoom.dispose();
     feed.dispose();
   }
 }

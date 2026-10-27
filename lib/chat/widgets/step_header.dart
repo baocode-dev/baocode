@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../base/smooth_scroll.dart';
 import '../../theme/app_theme.dart';
+import 'finite_selection_edges.dart';
 import 'hover_builder.dart';
 import 'image_thumbnails.dart' show PreviewClick, PreviewPressScope;
 import 'shimmer_text.dart';
@@ -316,8 +317,10 @@ class _StepBodyState extends State<StepBody> {
             controller: _controller,
             reverse: widget.followEnd,
             padding: padding,
-            child: WheelLatch(
-              child: SizedBox(width: double.infinity, child: child),
+            child: FiniteSelectionEdges(
+              child: WheelLatch(
+                child: SizedBox(width: double.infinity, child: child),
+              ),
             ),
           ),
         ),

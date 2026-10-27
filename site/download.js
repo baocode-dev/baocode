@@ -8,11 +8,11 @@
   if (isWin) list.prepend(list.querySelector('[data-os="windows"]'));
   if (isLinux) list.prepend(list.querySelector('[data-os="linux"]'));
   // Only Chromium tells an Intel Mac from Apple silicon (Safari says Intel
-  // on both), or an arm64 Linux from an x64 one; where it does, this
-  // machine's build is the one offered first.
+  // on both), an arm64 Linux from an x64 one, or Windows on Arm; where it
+  // does, this machine's build is the one offered first.
   try {
     const { architecture } = await navigator.userAgentData.getHighEntropyValues(['architecture']);
-    const os = isLinux ? 'linux' : 'macos';
+    const os = isWin ? 'windows' : isLinux ? 'linux' : 'macos';
     const mine = document.querySelector(`[data-os="${os}"] [data-arch="${architecture}"]`);
     if (!mine) return;
     for (const a of mine.parentElement.querySelectorAll('[data-arch]')) a.classList.toggle('primary', a === mine);

@@ -45,11 +45,15 @@ class SshStatusIndicator implements IdeRemoteIndicator {
     if (host.installingClaude case final installing?
         when host.state == SshHostState.connected) {
       return IdeStatusBarItem(
-        l10n.remoteStatusInstalling(
-          kind,
-          name,
-          ((installing.fraction ?? 0) * 100).round(),
-        ),
+        switch (installing.fraction) {
+          final fraction? => l10n.remoteStatusInstalling(
+            kind,
+            name,
+            (fraction * 100).round(),
+          ),
+          // Its size not known yet: no 0% for what is under way.
+          null => l10n.remoteStatusInstallingUnsized(kind, name),
+        },
         icon: Codicons.sync,
         tooltip: tooltip(claudeInstallText(l10n, name, installing)),
         onTapRect: onChoose,
@@ -112,6 +116,7 @@ String claudeInstallText(
   String host,
   ClaudeInstallProgress progress,
 ) {
+  host = RemoteLocation.hostName(host);
   final percent = switch (progress.fraction) {
     final fraction? => (fraction * 100).round(),
     null => null,
@@ -247,7 +252,7 @@ class SshHostBanner extends StatelessWidget {
             health: KernelHealth(
               KernelHealthStatus.failed,
               message: [
-                context.l10n.remoteConnectFailed(name),
+                context.l10n.remoteConnectFailed(RemoteLocation.hostName(name)),
                 ?message,
               ].join(': '),
               detail: detail,

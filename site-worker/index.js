@@ -1,5 +1,6 @@
 // baocode.dev's Worker: site/ is served as static assets, and this runs only
-// for /dl/* (run_worker_first in wrangler.jsonc). /dl/windows, /dl/macos-arm64,
+// for /dl/* (run_worker_first in wrangler.jsonc). /dl/windows,
+// /dl/windows-arm64, /dl/macos-arm64,
 // /dl/macos-x64, /dl/linux-x64 and /dl/linux-arm64 redirect to that build of
 // the release in latest.json, and
 // /dl/android to the phone app's in releases/mobile/latest.json, so
@@ -27,7 +28,7 @@ const MOBILE_OFFLINE = new Set(['android']);
 const TESTFLIGHT = 'https://testflight.apple.com/join/KWwGgyhv';
 const EXTENSION = new Set(['browser-extension', 'chrome-web-store']);
 const EXTENSION_ID = 'jfjagocghaaheooicmdnhcholmgdkngk';
-const DESKTOP = new Set(['windows', 'macos-arm64', 'macos-x64', 'linux-x64', 'linux-arm64']);
+const DESKTOP = new Set(['windows', 'windows-arm64', 'macos-arm64', 'macos-x64', 'linux-x64', 'linux-arm64']);
 // A channel's id, as site.js takes one.
 const CHANNEL = /^[\p{L}\p{N}._-]{1,128}$/u;
 

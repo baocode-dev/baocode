@@ -512,7 +512,7 @@ void main() {
     expect(asked, ['gw/down']);
     expect(find.byType(PixelLoader), findsOneWidget);
     replies['down']!.complete(answer);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.byType(PixelLoader), findsNothing);
     expect(timed, findsOneWidget);
     expect(
@@ -529,7 +529,7 @@ void main() {
     expect(find.byType(PixelLoader), findsNWidgets(2));
     replies['down']!.complete(answer);
     replies['up']!.completeError(Exception('401 Unauthorized'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(timed, findsOneWidget);
     expect(find.text('Failed'), findsOneWidget);
     expect(

@@ -8,12 +8,12 @@ import 'fake_git.dart';
 
 void main() {
   late FakeGit git;
-  late StreamController<void> changes;
+  late StreamController<String> changes;
   late IdeGitRepository repository;
 
   setUp(() async {
     git = FakeGit('/project');
-    changes = StreamController<void>();
+    changes = StreamController<String>();
     repository = IdeGitRepository(
       IdeGitService(git.root, runner: git.run, watcher: (_) => changes.stream),
       refreshDelay: const Duration(milliseconds: 50),
@@ -32,7 +32,7 @@ void main() {
   test('files that keep changing do not hold the status back', () async {
     final ticker = Timer.periodic(
       const Duration(milliseconds: 10),
-      (_) => changes.add(null),
+      (_) => changes.add(''),
     );
     addTearDown(ticker.cancel);
     await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -41,8 +41,25 @@ void main() {
 
   test('a burst of changes reads the status once', () async {
     for (var i = 0; i < 20; i++) {
-      changes.add(null);
+      changes.add('');
     }
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(statusReads(), 1);
+  });
+
+  test('what changes in an ignored folder does not read the status; '
+      'what changes beside it does', () async {
+    git.status = '## main\x00!! build/\x00';
+    await repository.refresh();
+    git.calls.clear();
+    for (var i = 0; i < 20; i++) {
+      changes.add('/project/build/out/$i.o');
+    }
+    changes.add('/project/build');
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    expect(statusReads(), 0);
+
+    changes.add('/project/lib/a.dart');
     await Future<void>.delayed(const Duration(milliseconds: 120));
     expect(statusReads(), 1);
   });
@@ -81,7 +98,7 @@ void main() {
         return null;
       };
 
-      changes.add(null);
+      changes.add('');
       await Future<void>.delayed(const Duration(milliseconds: 60));
       final syncing = repository.sync();
       await Future<void>.delayed(Duration.zero);
@@ -103,7 +120,7 @@ void main() {
 
     test('only its first changes are kept, and file changes no longer read '
         'it until a refresh finds fewer', () async {
-      final changes = StreamController<void>.broadcast();
+      final changes = StreamController<String>.broadcast();
       addTearDown(changes.close);
       final repository = IdeGitRepository(
         IdeGitService(
@@ -121,7 +138,7 @@ void main() {
       expect(changes.hasListener, isFalse);
 
       git.calls.clear();
-      changes.add(null);
+      changes.add('');
       await Future<void>.delayed(const Duration(milliseconds: 60));
       expect(statusReads(), 0);
 
@@ -129,7 +146,7 @@ void main() {
       await repository.refresh();
       expect(repository.state!.didHitLimit, isFalse);
       expect(changes.hasListener, isTrue);
-      changes.add(null);
+      changes.add('');
       await Future<void>.delayed(const Duration(milliseconds: 60));
       expect(statusReads(), 2);
     });

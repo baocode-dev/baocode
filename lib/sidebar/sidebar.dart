@@ -1176,7 +1176,7 @@ class _SidebarState extends State<Sidebar>
       builder: (context) {
         final l10n = context.l10n;
         return _ConfirmDialog(
-          title: l10n.sidebarRemoveHostTitle(host),
+          title: l10n.sidebarRemoveHostTitle(RemoteLocation.hostName(host)),
           message: l10n.sidebarRemoveHostMessage,
           action: l10n.sidebarRemove,
         );
@@ -1194,7 +1194,7 @@ class _SidebarState extends State<Sidebar>
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            context.l10n.sidebarNoProjectsOn(host),
+            context.l10n.sidebarNoProjectsOn(RemoteLocation.hostName(host)),
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textFaint, fontSize: 12),
           ),
@@ -1225,7 +1225,9 @@ class _SidebarState extends State<Sidebar>
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
-                          context.l10n.sidebarOpenFolderOn(host),
+                          context.l10n.sidebarOpenFolderOn(
+                            RemoteLocation.hostName(host),
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

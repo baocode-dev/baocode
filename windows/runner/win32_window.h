@@ -72,6 +72,11 @@ class Win32Window {
 
   static void SetDarkAppearance(bool dark);
 
+  // Settings → Appearance: the system's acrylic under every window
+  // (Windows 11), or none, Flutter then painting them opaque. Kept for the
+  // next start, whose windows open as it says; off the first time.
+  static void SetWindowBlur(bool blurred);
+
   // Full screen: the window over the whole of its monitor, the taskbar too,
   // with no border to resize it by; and, out of it, back as it was (where it
   // was, maximized or not). The header stays, the app's own.

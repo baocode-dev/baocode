@@ -21,6 +21,7 @@ import 'package:baocode/ide/lsp/lsp_server_definition.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
+import 'package:baocode/kernel/claude_code/claude_install_progress.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/models/launch_environment.dart';
@@ -325,6 +326,27 @@ void main() {
         await until(() => changes > after);
       },
     );
+
+    test('a folder watched while the host could not be reached: told '
+        'once it is, to be read again', () async {
+      connector.failure = const SshConnectException(
+        SshFailure.server,
+        'The BaoCode server could not be downloaded',
+      );
+      final host = hosts['dev'];
+      final files = host.files(root) as RemoteIdeFileService;
+      await expectLater(files.list(root), throwsA(isA<SshConnectException>()));
+      var changes = 0;
+      final watching = files.watchDirectory(root).listen((_) => changes++);
+      addTearDown(watching.cancel);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(changes, 0);
+
+      connector.failure = null;
+      await host.reconnect();
+      await until(() => changes > 0);
+      expect(await files.list(root), isEmpty);
+    });
 
     test('Git runs there', () async {
       Process.runSync('git', ['init', '-q'], workingDirectory: root);
@@ -1113,6 +1135,29 @@ printf '%s\n' "$line"
         SshStatusIndicator(hosts['wsl+Ubuntu']).item(context).text,
         'WSL: Ubuntu (disconnected)',
       );
+      expect(
+        claudeInstallText(
+          englishLocalizations,
+          'wsl+Ubuntu',
+          const ClaudeInstallProgress(0, null),
+        ),
+        englishLocalizations.remoteInstallingClaude('Ubuntu'),
+      );
+
+      // Installing Claude Code there: how far once its size is known.
+      await tester.runAsync(() => hosts['dev'].reconnect());
+      hosts['dev'].installingClaude = const ClaudeInstallProgress(10, null);
+      expect(
+        SshStatusIndicator(hosts['dev']).item(context).text,
+        'SSH: dev (installing Claude Code...)',
+      );
+      hosts['dev'].installingClaude = const ClaudeInstallProgress(50, 100);
+      expect(
+        SshStatusIndicator(hosts['dev']).item(context).text,
+        'SSH: dev (installing Claude Code 50%)',
+      );
+      hosts['dev'].installingClaude = null;
+      await tester.runAsync(() => hosts['dev'].close());
 
       // With the menu: the same state, clickable, its tooltip saying so.
       Rect? chosen;

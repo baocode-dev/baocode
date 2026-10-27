@@ -128,17 +128,13 @@ void main() {
     expect(queries.last.isWordMatch, isTrue);
     await press(tester, LogicalKeyboardKey.keyW, alt: true);
 
-    // Ctrl+Down: through the inputs, all shown at first, to the results,
-    // their first row focused.
-    for (final next in const [
-      'replaceInputBoxFocus',
-      'patternIncludesInputBoxFocus',
-      'patternExcludesInputBoxFocus',
-      'listFocus',
-    ]) {
-      await press(tester, LogicalKeyboardKey.arrowDown, control: true);
-      expect(focused(state), next);
-    }
+    // Ctrl+Down: the replace input and the files to include and exclude
+    // folded away at first, as upstream's: the results, their first row
+    // focused.
+    expect(input('Replace'), findsNothing);
+    expect(input('files to include'), findsNothing);
+    await press(tester, LogicalKeyboardKey.arrowDown, control: true);
+    expect(focused(state), 'listFocus');
     expect(state.keyContext('inputFocus'), isFalse);
     expect(state.keyContext('firstMatchFocus'), isTrue);
     expect(state.keyContext('fileMatchFocus'), isTrue);
@@ -164,7 +160,7 @@ void main() {
     expect(focused(state), 'listFocus');
     await press(tester, LogicalKeyboardKey.arrowUp);
     await press(tester, LogicalKeyboardKey.arrowUp, control: true);
-    expect(focused(state), 'patternExcludesInputBoxFocus');
+    expect(focused(state), 'searchInputBoxFocus');
 
     // End, then Delete: b.dart's match is dismissed (search.action.remove).
     await press(tester, LogicalKeyboardKey.arrowDown, control: true);
@@ -212,16 +208,11 @@ void main() {
     await type(tester, 'Search', 'foo');
     await type(tester, 'Replace', 'bar');
     expect(focused(state), 'replaceInputBoxFocus');
-    // Ctrl+Up / Ctrl+Down: search, replace, the files to include and
-    // exclude, then the results.
+    // Ctrl+Up / Ctrl+Down: search, replace, then the results (the files
+    // to include and exclude folded away).
     await press(tester, LogicalKeyboardKey.arrowUp, control: true);
     expect(focused(state), 'searchInputBoxFocus');
-    for (final next in const [
-      'replaceInputBoxFocus',
-      'patternIncludesInputBoxFocus',
-      'patternExcludesInputBoxFocus',
-      'listFocus',
-    ]) {
+    for (final next in const ['replaceInputBoxFocus', 'listFocus']) {
       await press(tester, LogicalKeyboardKey.arrowDown, control: true);
       expect(focused(state), next);
     }
@@ -231,25 +222,18 @@ void main() {
     final contents = (workspace.files as TreeFiles).contents;
     expect(contents[inRoot('lib/a.dart')], 'bar one\nFoo two');
     expect(find.text('2 results in 2 files'), findsOneWidget);
-    // Ctrl+Up from the first row: back through the inputs to the replace
-    // input; Escape hides it.
+    // Ctrl+Up from the first row: back to the replace input; Escape hides
+    // it.
     await press(tester, LogicalKeyboardKey.home);
-    for (final next in const [
-      'patternExcludesInputBoxFocus',
-      'patternIncludesInputBoxFocus',
-      'replaceInputBoxFocus',
-    ]) {
-      await press(tester, LogicalKeyboardKey.arrowUp, control: true);
-      expect(focused(state), next);
-    }
+    await press(tester, LogicalKeyboardKey.arrowUp, control: true);
+    expect(focused(state), 'replaceInputBoxFocus');
     await press(tester, LogicalKeyboardKey.escape);
     expect(state.keyContext('replaceActive'), isFalse);
     expect(input('Replace'), findsNothing);
     expect(focused(state), 'searchInputBoxFocus');
 
-    // Ctrl+Shift+J hides the files to include and exclude, shown at first;
-    // again, it shows them, the files to include focused.
-    await press(tester, LogicalKeyboardKey.keyJ, control: true, shift: true);
+    // Ctrl+Shift+J shows the files to include and exclude, folded away at
+    // first, the files to include focused; again, it hides them.
     expect(input('files to include'), findsNothing);
     await press(tester, LogicalKeyboardKey.keyJ, control: true, shift: true);
     expect(focused(state), 'patternIncludesInputBoxFocus');
@@ -295,14 +279,15 @@ void main() {
     expect(queries.last.pattern, 'fo+');
     expect(queries.last.isRegExp, isTrue);
     expect(queries.last.includes, 'lib');
-    // All the inputs show, as at first.
+    // The files to include show, given; the replace input not, folded
+    // away at first.
     expect(find.text('files to include'), findsOneWidget);
     expect(find.text('3 results in 2 files'), findsOneWidget);
-    expect(state.keyContext('replaceActive'), isTrue);
+    expect(state.keyContext('replaceActive'), isFalse);
     expect(state.keyContext('viewHasFilePattern'), isTrue);
 
-    // Past the replace input and the files to include and exclude.
-    for (var i = 0; i < 4; i++) {
+    // Past the files to include and exclude.
+    for (var i = 0; i < 3; i++) {
       await press(tester, LogicalKeyboardKey.arrowDown, control: true);
     }
     expect(focused(state), 'listFocus');

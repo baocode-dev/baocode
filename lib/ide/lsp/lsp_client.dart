@@ -76,6 +76,7 @@ class LspClient {
     this.requestTimeout = const Duration(seconds: 30),
     this.onDiagnostics,
     this.onChanged,
+    this.onProgress,
     this.onApplyEdit,
     this.onExit,
     this.logLimit = 200,
@@ -122,8 +123,12 @@ class LspClient {
   final void Function(String uri, List<LspDiagnostic> diagnostics)?
   onDiagnostics;
 
-  /// Capabilities, progress or the log changed.
+  /// Its state or capabilities changed.
   final void Function()? onChanged;
+
+  /// [progress] changed: [onChanged] when null. Apart, as a server indexing
+  /// reports it many times a second and only a status bar shows it.
+  final void Function()? onProgress;
 
   /// `workspace/applyEdit`: completes with whether the edit was applied.
   final Future<bool> Function(LspWorkspaceEdit edit, String? label)?
@@ -812,7 +817,7 @@ class LspClient {
       default:
         return;
     }
-    onChanged?.call();
+    (onProgress ?? onChanged)?.call();
   }
 
   void _logMessage(Object? params) {
@@ -825,10 +830,10 @@ class LspClient {
       3 => 'info',
       _ => 'log',
     };
+    // Kept for [log], read when asked: nothing shows it as it comes.
     for (final line in const LineSplitter().convert(message)) {
       _log('[$level] $line');
     }
-    onChanged?.call();
   }
 
   void _log(String line) {

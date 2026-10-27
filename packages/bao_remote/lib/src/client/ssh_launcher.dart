@@ -59,6 +59,9 @@ class SshTarget {
   /// The host of WSL distribution [distro].
   static String wslHost(String distro) => '$wslPrefix$distro';
 
+  /// What messages call it: a WSL distribution by its name, else [text].
+  String get name => wslDistro ?? text;
+
   /// The WSL distribution [text] names; null for a host reached by `ssh`.
   String? get wslDistro {
     if (!text.startsWith(wslPrefix)) return null;
@@ -796,7 +799,7 @@ exit 0
     void Function(String message)? onProgress,
   }) async {
     final progress = onProgress ?? (_) {};
-    progress('Connecting to ${target.text}');
+    progress('Connecting to ${target.name}');
     final extra = await hostKeyOptions(target);
     final probe = await _run(
       target,
@@ -827,7 +830,7 @@ exit 0
       );
     }
     if (!lines.contains('BAOCODE-PRESENT')) {
-      progress('Installing the BaoCode server on ${target.text}');
+      progress('Installing the BaoCode server on ${target.name}');
       final binary = await binaries.read(platform);
       if (binary == null) {
         throw SshConnectException(
@@ -845,12 +848,12 @@ exit 0
       if (upload.exitCode != 0) {
         throw SshConnectException(
           SshFailure.server,
-          'The server could not be installed on ${target.text}',
+          'The server could not be installed on ${target.name}',
           detail: _tail(upload.stderr),
         );
       }
     }
-    progress('Starting the BaoCode server on ${target.text}');
+    progress('Starting the BaoCode server on ${target.name}');
     return _launch(target, extra);
   }
 
@@ -883,7 +886,7 @@ exit 0
       throw _failure(
         code,
         said.join('\n'),
-        fallback: 'The server on ${target.text} did not start: $error',
+        fallback: 'The server on ${target.name} did not start: $error',
         cancelled: askpass?.cancelled ?? false,
         wsl: target.wslDistro != null,
       );

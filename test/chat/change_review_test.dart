@@ -476,6 +476,25 @@ void main() {
     expect(read('a.txt'), '1\n2\n3\n4\n5\n');
   }, skip: !hasGit);
 
+  test('a look when nothing changed since runs only the Git that tells '
+      'it so', () async {
+    final review = await open(session: 'session-1');
+    await review.begin();
+    write('a.txt', 'one\n');
+    await review.observe();
+    final before = GitReviewStore.runs;
+
+    await review.observe();
+    // What changed, and nothing: nothing added, compared, counted or kept
+    // again.
+    expect(GitReviewStore.runs - before, 1);
+    expect(changesOf(review)['a.txt']!.added, 1);
+
+    write('a.txt', 'one\ntwo\n');
+    await review.observe();
+    expect(changesOf(review)['a.txt']!.added, 2);
+  }, skip: !hasGit);
+
   test('leaves out its checkpoints where the project holds them', () async {
     // A home folder opened as the project, the data folder in it.
     checkpoints = path('.baocode-server/data/checkpoints');

@@ -528,11 +528,15 @@ class IdeGitDecorations {
     var current = path;
     while (true) {
       if (_ignored.contains(current)) return true;
-      final parent = _paths.dirname(current);
+      // Each row's walk, each build: without package:path's parsing.
+      final parent = ideGitDirname(current, _paths);
       if (parent == current) return false;
       current = parent;
     }
   }
+
+  /// Whether [path] is ignored, or in an ignored folder.
+  bool ignores(String path) => _isIgnored(_paths.normalize(path));
 
   /// A file's decoration.
   IdeGitDecoration? file(String path) {

@@ -8,6 +8,7 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import 'agent_step.dart' show AgentStep;
 import 'edge_fade_mask.dart';
+import 'finite_selection_edges.dart';
 import 'live_selectable_text.dart';
 import 'step_header.dart';
 import 'wheel_latch.dart';
@@ -248,10 +249,12 @@ class _ThinkingSectionState extends State<ThinkingSection> {
             child: SingleChildScrollView(
               controller: _scrollController,
               // Selectable text that keeps its selection as it grows.
-              child: WheelLatch(
-                child: SizedBox(
-                  width: double.infinity,
-                  child: LiveSelectableText(_text, style: _textStyle),
+              child: FiniteSelectionEdges(
+                child: WheelLatch(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: LiveSelectableText(_text, style: _textStyle),
+                  ),
                 ),
               ),
             ),

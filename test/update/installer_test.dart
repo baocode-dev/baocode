@@ -187,6 +187,11 @@ void main() {
     expect(macUpdatePlatform(arm64: false, translated: true), 'macos-arm64');
   });
 
+  test('Windows updates to the build for its processor (#165)', () {
+    expect(windowsUpdatePlatform(arm64: false), 'windows-x64');
+    expect(windowsUpdatePlatform(arm64: true), 'windows-arm64');
+  });
+
   test('the channel build updates to the channel build', () {
     expect(editionUpdatePlatform('macos-arm64', channel: false), 'macos-arm64');
     expect(

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../base/step_clock.dart';
 import '../../theme/app_theme.dart';
 
 /// Something running, as a 3×3 grid of square pixels played frame by
@@ -379,17 +380,12 @@ class _PixelAnimation extends StatefulWidget {
   State<_PixelAnimation> createState() => _PixelAnimationState();
 }
 
-class _PixelAnimationState extends State<_PixelAnimation>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: _period,
-  );
+class _PixelAnimationState extends State<_PixelAnimation> {
+  // Drawn only as its frame changes, not at every vsync.
+  late final StepClock _clock = StepClock(_frameTime);
 
-  Duration get _period => Duration(
-    microseconds:
-        (widget.style.frameMs * 1000 / widget.speed).round() *
-        widget.style.frames.length,
+  Duration get _frameTime => Duration(
+    microseconds: (widget.style.frameMs * 1000 / widget.speed).round(),
   );
 
   bool _still = false;
@@ -397,26 +393,20 @@ class _PixelAnimationState extends State<_PixelAnimation>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _still = MediaQuery.disableAnimationsOf(context);
-    if (_still) {
-      _controller.stop();
-    } else if (!_controller.isAnimating) {
-      _controller.repeat();
-    }
+    _still = _clock.keepTo(context);
   }
 
   @override
   void didUpdateWidget(_PixelAnimation old) {
     super.didUpdateWidget(old);
     if (old.style != widget.style || old.speed != widget.speed) {
-      _controller.duration = _period;
-      if (_controller.isAnimating) _controller.repeat();
+      _clock.step = _frameTime;
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _clock.dispose();
     super.dispose();
   }
 
@@ -426,7 +416,7 @@ class _PixelAnimationState extends State<_PixelAnimation>
       dimension: widget.size,
       child: CustomPaint(
         painter: _PixelPainter(
-          _controller,
+          _clock,
           widget.style,
           widget.color,
           still: _still,
@@ -437,10 +427,10 @@ class _PixelAnimationState extends State<_PixelAnimation>
 }
 
 class _PixelPainter extends CustomPainter {
-  _PixelPainter(this.time, this.style, this.color, {required this.still})
-    : super(repaint: time);
+  _PixelPainter(this.clock, this.style, this.color, {required this.still})
+    : super(repaint: clock);
 
-  final Animation<double> time;
+  final StepClock clock;
   final PixelLoaderStyle style;
   final Color color;
   final bool still;
@@ -448,9 +438,7 @@ class _PixelPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final count = style.frames.length;
-    final frame = still
-        ? style.rest
-        : (time.value * count).floor().clamp(0, count - 1);
+    final frame = still ? style.rest : clock.ticks % count;
     final side = size.shortestSide;
     // As drawn at 14: pixels of 3, gaps of 2, the grid of 13 in the
     // middle. Each to the nearest half pixel, so as sharp at 2×.

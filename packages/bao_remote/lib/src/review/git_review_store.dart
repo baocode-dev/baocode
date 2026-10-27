@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
+import '../platform/process_isolate.dart';
 import 'review_store.dart';
 
 /// A Git command that failed.
@@ -66,6 +67,8 @@ class GitReviewStore implements ReviewStore {
         : null;
     final store = GitReviewStore._(root, gitDir, own);
     _opened.add(gitDir);
+    // It may be made anew: its latest is set again.
+    _latestTrees.remove(gitDir);
     try {
       if (!await File(p.join(gitDir, 'HEAD')).exists()) {
         await _dropFolder(gitDir);
@@ -244,6 +247,11 @@ class GitReviewStore implements ReviewStore {
 
   static int _scratch = 0;
 
+  /// The Git commands the stores have run in this process: what a look
+  /// takes, for tests to tell.
+  static int get runs => _runs;
+  static int _runs = 0;
+
   /// Runs `git` on the repository and the project, with the index at
   /// [index] (by default its own); fails unless the exit code is in [ok]
   /// (null: any). With [repo], on that repository inside the project (see
@@ -258,9 +266,10 @@ class GitReviewStore implements ReviewStore {
     Duration timeout = const Duration(seconds: 60),
   }) async {
     final workTree = repo.isEmpty ? root : _full(repo);
-    final Process process;
+    _runs++;
+    final ProcessRun ran;
     try {
-      process = await Process.start(
+      ran = await runProcess(
         'git',
         [
           '--git-dir=$gitDir',
@@ -281,35 +290,16 @@ class GitReviewStore implements ReviewStore {
           'GIT_INDEX_FILE': index ?? _indexOf(repo),
           ...environment,
         },
+        input: input,
+        timeout: timeout,
       );
     } on ProcessException catch (error) {
       throw ReviewUnavailable('Git could not be started: ${error.message}');
     }
-    final stdout = BytesBuilder(copy: false);
-    final stderr = StringBuffer();
-    final reading = Future.wait([
-      process.stdout.listen(stdout.add).asFuture<void>(),
-      process.stderr
-          .transform(const Utf8Decoder(allowMalformed: true))
-          .listen(stderr.write)
-          .asFuture<void>(),
-    ]);
-    // Git may be done before it read it all.
-    unawaited(process.stdin.done.catchError((Object _) {}));
-    if (input != null) process.stdin.add(input);
-    unawaited(process.stdin.close().catchError((Object _) {}));
-    final code = await process.exitCode.timeout(
-      timeout,
-      onTimeout: () {
-        process.kill();
-        return -1;
-      },
-    );
-    await reading;
-    if (ok != null && !ok.contains(code)) {
-      throw GitReviewError(arguments, code, stderr.toString());
+    if (ok != null && !ok.contains(ran.exitCode)) {
+      throw GitReviewError(arguments, ran.exitCode, ran.stderr);
     }
-    return _Output(code, stdout.takeBytes());
+    return _Output(ran.exitCode, ran.stdout);
   }
 
   String _full(String path) => p.join(root, path);
@@ -406,7 +396,10 @@ class GitReviewStore implements ReviewStore {
       final tree = await _snapshot(paths);
       // The latest is kept: what the indexes have is in it (theirs are not
       // all of Git's, and would otherwise go with the rest).
-      await _git(['update-ref', _latest, tree]);
+      if (_latestTrees[gitDir] != tree) {
+        await _git(['update-ref', _latest, tree]);
+        _latestTrees[gitDir] = tree;
+      }
       return tree;
     } on _TooLarge {
       _oversized.add(gitDir);
@@ -419,6 +412,17 @@ class GitReviewStore implements ReviewStore {
 
   static const _latest = 'refs/baocode/latest';
 
+  /// The tree [_latest] was set to here, per repository of snapshots.
+  static final Map<String, String> _latestTrees = {};
+
+  /// What Git said of the same trees not long ago, by repository and
+  /// trees: named by what is in them, they get the same answer again. A
+  /// look asks the same of them more than once (a snapshot's gitlinks,
+  /// then what changed), and again when nothing did.
+  static final _diffs = _Recent<List<ReviewTreeChange>>();
+  static final _counts = _Recent<Map<String, ({int added, int removed})?>>();
+  static final _overlays = _Recent<String>();
+
   Future<void> _deleteIndexes() async {
     await _deleteIndex(_indexOf(''));
     try {
@@ -428,6 +432,7 @@ class GitReviewStore implements ReviewStore {
     }
     _nested.remove(gitDir);
     _links.removeWhere((index, _) => p.isWithin(gitDir, index));
+    _written.removeWhere((index, _) => p.isWithin(gitDir, index));
   }
 
   Future<String> _snapshot(Iterable<String>? paths) async {
@@ -457,10 +462,11 @@ class GitReviewStore implements ReviewStore {
       files += changed;
       size += bytes;
       if (files > maxFiles || size > maxBytes) throw const _TooLarge();
-      if (specs.isNotEmpty) await _add(repo, specs);
-      final tree = trees[repo] = (await _git([
-        'write-tree',
-      ], repo: repo)).text.trim();
+      // Nothing new, changed or gone since its index: nothing to add.
+      final nothing =
+          whole && changed == 0 && File(_indexOf(repo)).existsSync();
+      if (specs.isNotEmpty && !nothing) await _add(repo, specs);
+      final tree = trees[repo] = await _writeTree(repo);
       for (final link in await _gitlinks(repo, tree)) {
         await take(repo.isEmpty ? link : '$repo/$link');
       }
@@ -480,7 +486,7 @@ class GitReviewStore implements ReviewStore {
     final found = <String>{};
     Future<void> visit(String repo) async {
       if (!File(_indexOf(repo)).existsSync()) return;
-      final tree = (await _git(['write-tree'], repo: repo)).text.trim();
+      final tree = await _writeTree(repo);
       for (final link in await _gitlinks(repo, tree)) {
         final nested = repo.isEmpty ? link : '$repo/$link';
         found.add(nested);
@@ -490,6 +496,33 @@ class GitReviewStore implements ReviewStore {
 
     await visit('');
     return found;
+  }
+
+  /// The tree last written of each index, and the index as it was then.
+  static final Map<String, ({String tree, DateTime modified, int size})>
+  _written = {};
+
+  /// The tree of [repo]'s index: the one written last where the index is
+  /// as it was then (Git changes it only to change what is in it; another
+  /// run of the app may have since).
+  Future<String> _writeTree(String repo) async {
+    final index = File(_indexOf(repo));
+    final last = _written[index.path];
+    if (last != null) {
+      final stat = index.statSync();
+      if (stat.modified == last.modified && stat.size == last.size) {
+        return last.tree;
+      }
+    }
+    final tree = (await _git(['write-tree'], repo: repo)).text.trim();
+    // Written with the tree's cache.
+    final stat = index.statSync();
+    _written[index.path] = (
+      tree: tree,
+      modified: stat.modified,
+      size: stat.size,
+    );
+    return tree;
   }
 
   /// The innermost of [nested] that [path] is in; empty for none.
@@ -691,25 +724,27 @@ class GitReviewStore implements ReviewStore {
   @override
   Future<List<ReviewTreeChange>> diff(String from, String to) async {
     if (from == to) return const [];
-    final records = (await _git([
-      'diff-tree',
-      '-r',
-      '-z',
-      '--no-renames',
-      from,
-      to,
-    ])).records;
-    ReviewBlob? blob(String mode, String oid) =>
-        mode == '000000' ? null : ReviewBlob(mode, oid);
-    return [
-      for (var i = 0; i + 1 < records.length; i += 2)
-        if (_rawRecord.firstMatch(records[i]) case final match?)
-          ReviewTreeChange(
-            records[i + 1],
-            blob(match[1]!, match[3]!),
-            blob(match[2]!, match[4]!),
-          ),
-    ];
+    return _diffs.get('$gitDir\x00$from\x00$to', () async {
+      final records = (await _git([
+        'diff-tree',
+        '-r',
+        '-z',
+        '--no-renames',
+        from,
+        to,
+      ])).records;
+      ReviewBlob? blob(String mode, String oid) =>
+          mode == '000000' ? null : ReviewBlob(mode, oid);
+      return List.unmodifiable([
+        for (var i = 0; i + 1 < records.length; i += 2)
+          if (_rawRecord.firstMatch(records[i]) case final match?)
+            ReviewTreeChange(
+              records[i + 1],
+              blob(match[1]!, match[3]!),
+              blob(match[2]!, match[4]!),
+            ),
+      ]);
+    });
   }
 
   @override
@@ -718,51 +753,61 @@ class GitReviewStore implements ReviewStore {
     String to,
   ) async {
     if (from == to) return const {};
-    final records = (await _git([
-      'diff-tree',
-      '-r',
-      '-z',
-      '--numstat',
-      '--no-renames',
-      from,
-      to,
-    ])).records;
-    return {
-      for (final record in records)
-        if (record.split('\t') case [final added, final removed, ...final path])
-          path.join('\t'): switch ((
-            int.tryParse(added),
-            int.tryParse(removed),
-          )) {
-            (final added?, final removed?) => (added: added, removed: removed),
-            _ => null,
-          },
-    };
+    return _counts.get('$gitDir\x00$from\x00$to', () async {
+      final records = (await _git([
+        'diff-tree',
+        '-r',
+        '-z',
+        '--numstat',
+        '--no-renames',
+        from,
+        to,
+      ])).records;
+      return Map.unmodifiable({
+        for (final record in records)
+          if (record.split('\t') case [
+            final added,
+            final removed,
+            ...final path,
+          ])
+            path.join('\t'): switch ((
+              int.tryParse(added),
+              int.tryParse(removed),
+            )) {
+              (final added?, final removed?) => (
+                added: added,
+                removed: removed,
+              ),
+              _ => null,
+            },
+      });
+    });
   }
 
   @override
   Future<String> overlay(String tree, Map<String, ReviewBlob?> entries) async {
     if (entries.isEmpty && tree.isNotEmpty) return tree;
-    final index = p.join(gitDir, 'overlay-$pid-${_scratch++}');
-    try {
-      if (tree.isNotEmpty) await _git(['read-tree', tree], index: index);
-      final none = '0' * 40;
-      await _git(
-        ['update-index', '-z', '--add', '--replace', '--index-info'],
-        index: index,
-        input: utf8.encode(
-          [
-            for (final MapEntry(key: path, value: blob) in entries.entries)
-              blob == null
-                  ? '0 $none\t$path\x00'
-                  : '${blob.mode} ${blob.oid}\t$path\x00',
-          ].join(),
-        ),
-      );
-      return (await _git(['write-tree'], index: index)).text.trim();
-    } finally {
-      await _deleteIndex(index);
-    }
+    final none = '0' * 40;
+    final info = [
+      for (final MapEntry(key: path, value: blob) in entries.entries)
+        blob == null
+            ? '0 $none\t$path\x00'
+            : '${blob.mode} ${blob.oid}\t$path\x00',
+    ].join();
+    return _overlays.get('$gitDir\x00$tree\x00$info', () async {
+      final index = p.join(gitDir, 'overlay-$pid-${_scratch++}');
+      try {
+        if (tree.isNotEmpty) await _git(['read-tree', tree], index: index);
+        await _git(
+          ['update-index', '-z', '--add', '--replace', '--index-info'],
+          index: index,
+          input: utf8.encode(info),
+        );
+        return (await _git(['write-tree'], index: index)).text.trim();
+      } finally {
+        await _deleteIndex(index);
+      }
+    });
   }
 
   @override
@@ -1208,6 +1253,7 @@ class GitReviewStore implements ReviewStore {
       }
       _nested.remove(gitDir);
       _links.removeWhere((index, _) => p.isWithin(gitDir, index));
+      _latestTrees.remove(gitDir);
     }
     await _gitOn(gitDir, ['gc', '--quiet', '--prune=$prune']);
   }
@@ -1226,5 +1272,24 @@ class GitReviewStore implements ReviewStore {
         (_) => unawaited(tidy(checkpoints)),
       );
     });
+  }
+}
+
+/// The last few values worked out, by key.
+final class _Recent<T> {
+  static const _size = 32;
+
+  // Oldest first.
+  final _values = <String, T>{};
+
+  Future<T> get(String key, Future<T> Function() compute) async {
+    if (_values.containsKey(key)) {
+      // The most recent now.
+      return _values[key] = _values.remove(key) as T;
+    }
+    final value = await compute();
+    _values[key] = value;
+    if (_values.length > _size) _values.remove(_values.keys.first);
+    return value;
   }
 }

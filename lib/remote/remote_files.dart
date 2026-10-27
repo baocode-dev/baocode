@@ -237,10 +237,10 @@ class OpenRemoteFileFlow {
     final ssh = _picker.hosts[host];
     show(
       IdeQuickPick(
-        placeholder: l10n.remoteConnecting(host),
+        placeholder: l10n.remoteConnecting(RemoteLocation.hostName(host)),
         items: [
           IdeQuickPickItem(
-            label: l10n.remoteConnecting(host),
+            label: l10n.remoteConnecting(RemoteLocation.hostName(host)),
             icon: const IdeSpinning(Icon(Codicons.loading)),
           ),
         ],
@@ -253,11 +253,13 @@ class OpenRemoteFileFlow {
       final (message, detail) = sshErrorText(error, l10n);
       _next(
         IdeQuickPick(
-          placeholder: l10n.remoteConnectFailed(host),
+          placeholder: l10n.remoteConnectFailed(RemoteLocation.hostName(host)),
           sortByLabel: false,
           items: [
             IdeQuickPickItem(
-              label: message ?? l10n.remoteConnectFailed(host),
+              label:
+                  message ??
+                  l10n.remoteConnectFailed(RemoteLocation.hostName(host)),
               detail: detail?.split('\n').last,
               icon: const Icon(Codicons.error),
             ),
@@ -322,7 +324,7 @@ class OpenRemoteFileFlow {
 
     _next(
       IdeQuickPick(
-        placeholder: l10n.remoteFilePlaceholder(host),
+        placeholder: l10n.remoteFilePlaceholder(RemoteLocation.hostName(host)),
         sortByLabel: false,
         itemsFor: (value) {
           final typed = value.trim();

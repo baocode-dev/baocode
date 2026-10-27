@@ -4,6 +4,7 @@
 //
 //   dart run tool/release_manifest.dart \
 //     --windows build/installers/BaoCode-1.2.0-setup.exe \
+//     [--windows-arm64 build/installers/BaoCode-1.2.0-setup-arm64.exe] \
 //     --macos-arm64 build/installers/BaoCode-1.2.0-mac-arm64.zip \
 //     --macos-x64 build/installers/BaoCode-1.2.0-mac-x64.zip \
 //     [--dmg-arm64 build/installers/BaoCode-1.2.0-arm64.dmg] \
@@ -39,8 +40,9 @@
 //
 // Besides what the app reads, `downloads` gives the download page
 // (site/site.js) what it offers: the disk images (--dmg-arm64, --dmg-x64),
-// which the app does not update from, the Windows installer, and the Linux
-// packages (which the app updates from too).
+// which the app does not update from, the Windows installers (`windows`,
+// and `windows-arm64`), and the Linux packages (which the app updates from
+// too).
 import 'dart:convert';
 import 'dart:io';
 
@@ -64,6 +66,12 @@ const _macArchitectures = ['arm64', 'x64'];
 /// The Linux packages built (tool/package_linux_deb.sh), the same.
 const _linuxArchitectures = ['x64', 'arm64'];
 
+/// The Windows installers built (tool/build_windows.dart): `--windows` is
+/// the x64 one, as it always was; Arm's is `--windows-arm64`.
+const _windowsArchitectures = ['x64', 'arm64'];
+String _windowsOption(String arch) =>
+    arch == 'x64' ? 'windows' : 'windows-$arch';
+
 /// The editions built: the standard one, and the channel build, whose
 /// options and platform keys end in this.
 const _channel = '-channel';
@@ -75,6 +83,7 @@ const _keyVariable = 'BAOCODE_UPDATE_SIGNING_KEY';
 const _usage = '''
 Usage:
   dart run tool/release_manifest.dart [--windows <setup.exe>]
+      [--windows-arm64 <setup-arm64.exe>]
       [--macos-arm64 <mac-arm64.zip>] [--macos-x64 <mac-x64.zip>]
       [--dmg-arm64 <arm64.dmg>] [--dmg-x64 <x64.dmg>]
       [--linux-x64 <amd64.deb>] [--linux-arm64 <arm64.deb>]
@@ -115,8 +124,9 @@ Future<void> main(List<String> arguments) async {
   );
   final files = {
     for (final edition in _editions) ...{
-      if (options['windows$edition'] case final path?)
-        'windows-x64$edition': File(path),
+      for (final arch in _windowsArchitectures)
+        if (options['${_windowsOption(arch)}$edition'] case final path?)
+          'windows-$arch$edition': File(path),
       for (final arch in _macArchitectures)
         if (options['macos-$arch$edition'] case final path?)
           'macos-$arch$edition': File(path),
@@ -127,7 +137,8 @@ Future<void> main(List<String> arguments) async {
   };
   if (files.isEmpty) {
     _fail(
-      'Nothing to sign: give --windows, --macos-arm64, --macos-x64, '
+      'Nothing to sign: give --windows, --windows-arm64, --macos-arm64, '
+      '--macos-x64, '
       '--linux-x64 or --linux-arm64.\n\n'
       '$_usage',
     );
@@ -203,12 +214,14 @@ Future<void> main(List<String> arguments) async {
   }
 
   for (final edition in _editions) {
-    if (assets['windows-x64$edition'] case final installer?) {
-      offer('windows', edition, {
-        'url': '${installer.url}',
-        'size': installer.size,
-        'sha256': installer.sha256,
-      });
+    for (final arch in _windowsArchitectures) {
+      if (assets['windows-$arch$edition'] case final installer?) {
+        offer(_windowsOption(arch), edition, {
+          'url': '${installer.url}',
+          'size': installer.size,
+          'sha256': installer.sha256,
+        });
+      }
     }
     // The packages as they are: the page's links, and the app's updates.
     for (final arch in _linuxArchitectures) {
@@ -273,7 +286,7 @@ Future<void> main(List<String> arguments) async {
     for (final edition in _editions)
       if (edition.isEmpty ||
           assets.keys.any((key) => key.endsWith(edition))) ...{
-        'windows-x64$edition',
+        for (final arch in _windowsArchitectures) 'windows-$arch$edition',
         for (final arch in _macArchitectures) 'macos-$arch$edition',
         for (final arch in _linuxArchitectures) 'linux-$arch$edition',
       },
@@ -341,6 +354,7 @@ Map<String, String?> _parse(List<String> arguments) {
   const flags = {'public-key', 'help'};
   const files = {
     'windows',
+    'windows-arm64',
     'macos-arm64',
     'macos-x64',
     'dmg-arm64',

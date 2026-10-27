@@ -17,3 +17,7 @@ tags:
   # `flutter test --run-skipped -t ssh-e2e`.
   ssh-e2e:
     skip: "Connects to sshd containers"
+  # A project in a WSL distribution, on Windows with WSL: opt in with
+  # `flutter test --run-skipped -t wsl-e2e` (see the test for its setup).
+  wsl-e2e:
+    skip: "Connects to a real WSL distribution"

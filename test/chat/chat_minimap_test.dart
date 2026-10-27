@@ -192,6 +192,58 @@ void main() {
     expect(_opacity(tester), 0);
   });
 
+  testWidgets('its room kept only once the history scrolls: until then the '
+      'column is where it is without one', (tester) async {
+    double textLeft() => tester.getRect(find.byType(AssistantText).first).left;
+    await _pump(tester, _Feed(_conversation(1)), width: 790, maxWidth: 1200);
+    final short = textLeft();
+    await _pump(
+      tester,
+      _Feed(_conversation(1)),
+      width: 790,
+      maxWidth: 1200,
+      minimap: false,
+    );
+    expect(short, textLeft());
+    expect(short, lessThan(ChatMinimap.room));
+    await _pump(tester, _Feed(_conversation(30)), width: 790, maxWidth: 1200);
+    expect(_opacity(tester), 1);
+    expect(textLeft(), greaterThanOrEqualTo(ChatMinimap.room));
+  });
+
+  testWidgets('not while the conversation is short, though it scrolls; once '
+      'long, it stays as the history grows shorter (its steps folded)', (
+    tester,
+  ) async {
+    // The fewest turns that scroll at all.
+    var turns = 1;
+    while (true) {
+      await _pump(tester, _Feed(_conversation(turns)));
+      if (_position(tester).maxScrollExtent > 0) break;
+      turns++;
+    }
+    final position = _position(tester);
+    expect(
+      position.maxScrollExtent,
+      lessThan(position.viewportDimension * ChatMinimap.longAfter),
+    );
+    expect(_opacity(tester), 0);
+
+    final items = _conversation(30);
+    final feed = _Feed(items);
+    await _pump(tester, feed);
+    expect(_opacity(tester), 1);
+    items.removeRange(2 * turns, items.length);
+    feed.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(_position(tester).maxScrollExtent, greaterThan(0));
+    expect(
+      _position(tester).maxScrollExtent,
+      lessThan(position.viewportDimension * ChatMinimap.longAfter),
+    );
+    expect(_opacity(tester), 1);
+  });
+
   testWidgets('not where it is not asked for (the IDE)', (tester) async {
     await _pump(tester, _Feed(_conversation(30)), minimap: false);
     expect(find.byType(ChatMinimap), findsNothing);

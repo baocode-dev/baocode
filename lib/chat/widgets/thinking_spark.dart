@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../base/step_clock.dart';
 import '../../theme/app_theme.dart';
 
 /// Claude's spark while it thinks, as Claude Code draws it: a star that
@@ -39,24 +40,15 @@ class ThinkingSpark extends StatefulWidget {
   State<ThinkingSpark> createState() => _ThinkingSparkState();
 }
 
-class _ThinkingSparkState extends State<ThinkingSpark>
-    with SingleTickerProviderStateMixin {
-  // Once per turn; a whole number of bounces fits in it.
-  late final AnimationController _clock = AnimationController(
-    vsync: this,
-    duration: ThinkingSpark.turn,
-  );
+class _ThinkingSparkState extends State<ThinkingSpark> {
+  // A step each shape: drawn only as it changes, not at every vsync.
+  final StepClock _clock = StepClock(ThinkingSpark.frameTime);
   bool _still = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _still = MediaQuery.disableAnimationsOf(context);
-    if (_still) {
-      _clock.stop();
-    } else if (!_clock.isAnimating) {
-      _clock.repeat();
-    }
+    _still = _clock.keepTo(context);
   }
 
   @override
@@ -80,19 +72,22 @@ class _SparkPainter extends CustomPainter {
   _SparkPainter(this.clock, this.color, {required this.still})
     : super(repaint: clock);
 
-  final Animation<double> clock;
+  final StepClock clock;
   final Color color;
   final bool still;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final shape = still
-        ? 4
-        : ThinkingSpark.shapeAt(ThinkingSpark.turn * clock.value);
+    final time = clock.time;
+    final shape = still ? 4 : ThinkingSpark.shapeAt(time);
+    final turned =
+        time.inMicroseconds %
+        ThinkingSpark.turn.inMicroseconds /
+        ThinkingSpark.turn.inMicroseconds;
     canvas
       ..save()
       ..translate(size.width / 2, size.height / 2)
-      ..rotate(still ? 0 : clock.value * 2 * math.pi)
+      ..rotate(still ? 0 : turned * 2 * math.pi)
       // Drawn at a radius of 1.
       ..scale(size.shortestSide / 2);
     final paint = Paint()..color = color;

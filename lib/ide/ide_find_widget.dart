@@ -63,6 +63,10 @@ const Map<IdeFindAction, String> terminalFindCommandIds = {
 /// input Enter and ⌘Enter / Ctrl+Enter). With it, the host's keybindings:
 /// a key in the widget whose command is one of [commandIds] runs that
 /// action's callback, and every other key goes on to the host.
+///
+/// [multiline], as the editor's: its inputs keep the lines pasted in and
+/// grow with them; Ctrl+Enter (on a Mac too) is a new line where no
+/// keybinding takes it, and Enter never is (findWidget.ts).
 class IdeFindWidget extends StatefulWidget {
   const IdeFindWidget({
     super.key,
@@ -89,6 +93,7 @@ class IdeFindWidget extends StatefulWidget {
     this.enterFindsPrevious = false,
     this.commandIds,
     this.resolveKey,
+    this.multiline = false,
   });
 
   final TextEditingController findController;
@@ -132,6 +137,9 @@ class IdeFindWidget extends StatefulWidget {
   /// built-in keys (see the class doc); keys are left to the input method
   /// while it composes.
   final String? Function(KeyEvent event)? resolveKey;
+
+  /// Whether what is found may span lines (see the class doc).
+  final bool multiline;
 
   static const width = 419.0;
   static const rowHeight = 33.0;
@@ -217,16 +225,52 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
       }
     }
     final command = resolve(event);
-    if (command == null) return KeyEventResult.ignored;
     for (final MapEntry(key: action, value: id)
         in (widget.commandIds ?? const {}).entries) {
-      if (id != command) continue;
+      if (command == null || id != command) continue;
       final callback = _callback(action);
-      if (callback == null) return KeyEventResult.ignored;
+      if (callback == null) break;
       callback();
       return KeyEventResult.handled;
     }
-    return KeyEventResult.ignored;
+    // Another command's: the host's.
+    return command == null ? _multilineKey(event) : KeyEventResult.ignored;
+  }
+
+  /// In a [IdeFindWidget.multiline] input, a key no keybinding took:
+  /// Ctrl+Enter a new line; Enter and ⇧Enter the next and previous match
+  /// (in the replace input Enter replaces), never a new line (findWidget.ts
+  /// `_onFindInputKeyDown`, `_onReplaceInputKeyDown`).
+  KeyEventResult _multilineKey(KeyEvent event) {
+    if (!widget.multiline || event.logicalKey != LogicalKeyboardKey.enter) {
+      return KeyEventResult.ignored;
+    }
+    final keys = HardwareKeyboard.instance;
+    if (keys.isControlPressed && !keys.isMetaPressed && !keys.isAltPressed) {
+      _insertNewline();
+    } else if (widget.replaceFocusNode?.hasFocus ?? false) {
+      widget.onReplace?.call();
+    } else if (keys.isShiftPressed) {
+      widget.onPrevious();
+    } else {
+      widget.onNext();
+    }
+    return KeyEventResult.handled;
+  }
+
+  /// A line break where the caret is, in the input focused.
+  void _insertNewline() {
+    final controller = widget.replaceFocusNode?.hasFocus ?? false
+        ? widget.replaceController
+        : widget.findFocusNode.hasFocus
+        ? widget.findController
+        : null;
+    if (controller == null) return;
+    final value = controller.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    controller.value = value.replaced(selection, '\n');
   }
 
   /// The keybinding label of [action]'s command (null when it has none),
@@ -336,6 +380,9 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
     const SingleActivator(LogicalKeyboardKey.f3, shift: true):
         widget.onPrevious,
     ..._toggleBindings,
+    if (widget.multiline)
+      const SingleActivator(LogicalKeyboardKey.enter, control: true):
+          _insertNewline,
   };
 
   Widget _body(
@@ -348,17 +395,48 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
   ) {
     final l10n = context.l10n;
     final colors = themeColors;
+    final multiline = widget.multiline;
+    // Several lines: the rows as tall as their inputs (each [padding] above
+    // and below), what is beside them level with the first line; else
+    // [height] tall, centered.
+    Widget row(double height, EdgeInsets padding, List<Widget> children) =>
+        multiline
+        ? Padding(
+            padding: padding,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          )
+        : SizedBox(
+            height: height,
+            child: Padding(
+              padding: EdgeInsets.only(bottom: padding.bottom),
+              child: Row(children: children),
+            ),
+          );
+    Widget level(Widget child) => multiline
+        ? SizedBox(
+            height: _FindInput.lineHeight,
+            child: Center(widthFactor: 1, child: child),
+          )
+        : child;
+    Widget height(Widget child) => multiline
+        ? IntrinsicHeight(child: child)
+        : SizedBox(
+            height: _replaceShown
+                ? IdeFindWidget.rowHeight * 2 - 4
+                : IdeFindWidget.rowHeight,
+            child: child,
+          );
     return Material(
       color: colors['editorWidget.background'],
       shape: RoundedRectangleBorder(
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(4)),
         side: border == null ? BorderSide.none : BorderSide(color: border),
       ),
-      child: SizedBox(
-        height: _replaceShown
-            ? IdeFindWidget.rowHeight * 2 - 4
-            : IdeFindWidget.rowHeight,
-        child: Row(
+      child: height(
+        Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (widget.onToggleReplace case final onToggleReplace?)
@@ -372,52 +450,54 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                    height: IdeFindWidget.rowHeight,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _FindInput(
-                            controller: widget.findController,
-                            focusNode: widget.findFocusNode,
-                            hint: l10n.findFind,
-                            error: noResults,
-                            toggles: [
-                              _InlineToggle(
-                                tooltip: tooltip(
-                                  l10n.findMatchCase,
-                                  IdeFindAction.toggleMatchCase,
-                                ),
-                                active: widget.matchCase,
-                                onTap: widget.onToggleMatchCase,
-                                child: const Icon(
-                                  Codicons.caseSensitive,
-                                  size: 16,
-                                ),
+                  row(
+                    IdeFindWidget.rowHeight,
+                    const EdgeInsets.symmetric(vertical: 3.5),
+                    [
+                      Expanded(
+                        child: _FindInput(
+                          multiline: multiline,
+                          controller: widget.findController,
+                          focusNode: widget.findFocusNode,
+                          hint: l10n.findFind,
+                          error: noResults,
+                          toggles: [
+                            _InlineToggle(
+                              tooltip: tooltip(
+                                l10n.findMatchCase,
+                                IdeFindAction.toggleMatchCase,
                               ),
-                              _InlineToggle(
-                                tooltip: tooltip(
-                                  l10n.findWholeWord,
-                                  IdeFindAction.toggleWholeWord,
-                                ),
-                                active: widget.wholeWord,
-                                onTap: widget.onToggleWholeWord,
-                                child: const Icon(Codicons.wholeWord, size: 16),
+                              active: widget.matchCase,
+                              onTap: widget.onToggleMatchCase,
+                              child: const Icon(
+                                Codicons.caseSensitive,
+                                size: 16,
                               ),
-                              _InlineToggle(
-                                tooltip: tooltip(
-                                  l10n.findRegularExpression,
-                                  IdeFindAction.toggleRegex,
-                                ),
-                                active: widget.regex,
-                                onTap: widget.onToggleRegex,
-                                child: const Icon(Codicons.regex, size: 16),
+                            ),
+                            _InlineToggle(
+                              tooltip: tooltip(
+                                l10n.findWholeWord,
+                                IdeFindAction.toggleWholeWord,
                               ),
-                            ],
-                          ),
+                              active: widget.wholeWord,
+                              onTap: widget.onToggleWholeWord,
+                              child: const Icon(Codicons.wholeWord, size: 16),
+                            ),
+                            _InlineToggle(
+                              tooltip: tooltip(
+                                l10n.findRegularExpression,
+                                IdeFindAction.toggleRegex,
+                              ),
+                              active: widget.regex,
+                              onTap: widget.onToggleRegex,
+                              child: const Icon(Codicons.regex, size: 16),
+                            ),
+                          ],
                         ),
-                        Flexible(
-                          child: Container(
+                      ),
+                      Flexible(
+                        child: level(
+                          Container(
                             constraints: BoxConstraints(minWidth: counterWidth),
                             padding: const EdgeInsets.only(left: 6, right: 2),
                             alignment: Alignment.centerLeft,
@@ -439,6 +519,8 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                             ),
                           ),
                         ),
+                      ),
+                      level(
                         _FindButton(
                           tooltip: tooltip(
                             l10n.findPreviousMatch,
@@ -447,6 +529,8 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                           icon: Codicons.arrowUp,
                           onTap: count == 0 ? null : widget.onPrevious,
                         ),
+                      ),
+                      level(
                         _FindButton(
                           tooltip: tooltip(
                             l10n.findNextMatch,
@@ -455,67 +539,69 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
                           icon: Codicons.arrowDown,
                           onTap: count == 0 ? null : widget.onNext,
                         ),
+                      ),
+                      level(
                         _FindButton(
                           tooltip: tooltip(l10n.findClose, IdeFindAction.close),
                           icon: Codicons.close,
                           onTap: widget.onClose,
                         ),
-                        const SizedBox(width: 4),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
                   ),
                   if (_replaceShown)
-                    SizedBox(
-                      height: IdeFindWidget.rowHeight - 4,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: CallbackShortcuts(
-                                bindings: {
-                                  if (widget.resolveKey == null) ...{
-                                    const SingleActivator(
-                                      LogicalKeyboardKey.enter,
-                                    ): widget.onReplace ?? () {},
-                                    SingleActivator(
-                                      LogicalKeyboardKey.enter,
-                                      meta: mac,
-                                      control: !mac,
-                                    ): widget.onReplaceAll ?? () {},
-                                  },
-                                },
-                                child: _FindInput(
-                                  controller: widget.replaceController!,
-                                  focusNode: widget.replaceFocusNode!,
-                                  hint: l10n.findReplace,
-                                  error: false,
-                                  toggles: const [],
-                                ),
-                              ),
+                    row(
+                      IdeFindWidget.rowHeight - 4,
+                      const EdgeInsets.only(bottom: 4),
+                      [
+                        Expanded(
+                          child: CallbackShortcuts(
+                            bindings: {
+                              if (widget.resolveKey == null) ...{
+                                const SingleActivator(LogicalKeyboardKey.enter):
+                                    widget.onReplace ?? () {},
+                                SingleActivator(
+                                  LogicalKeyboardKey.enter,
+                                  meta: mac,
+                                  control: !mac,
+                                ): widget.onReplaceAll ?? () {},
+                              },
+                            },
+                            child: _FindInput(
+                              multiline: multiline,
+                              controller: widget.replaceController!,
+                              focusNode: widget.replaceFocusNode!,
+                              hint: l10n.findReplace,
+                              error: false,
+                              toggles: const [],
                             ),
-                            const SizedBox(width: 6),
-                            _FindButton(
-                              tooltip: tooltip(
-                                l10n.findReplaceMatch,
-                                IdeFindAction.replace,
-                              ),
-                              icon: Codicons.replace,
-                              onTap: count == 0 ? null : widget.onReplace,
-                            ),
-                            _FindButton(
-                              tooltip: tooltip(
-                                l10n.findReplaceAll,
-                                IdeFindAction.replaceAll,
-                              ),
-                              icon: Codicons.replaceAll,
-                              onTap: count == 0 ? null : widget.onReplaceAll,
-                            ),
-                            // Keeps the replace input as wide as the find one.
-                            SizedBox(width: counterWidth + 22 - 6 + 4),
-                          ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        level(
+                          _FindButton(
+                            tooltip: tooltip(
+                              l10n.findReplaceMatch,
+                              IdeFindAction.replace,
+                            ),
+                            icon: Codicons.replace,
+                            onTap: count == 0 ? null : widget.onReplace,
+                          ),
+                        ),
+                        level(
+                          _FindButton(
+                            tooltip: tooltip(
+                              l10n.findReplaceAll,
+                              IdeFindAction.replaceAll,
+                            ),
+                            icon: Codicons.replaceAll,
+                            onTap: count == 0 ? null : widget.onReplaceAll,
+                          ),
+                        ),
+                        // Keeps the replace input as wide as the find one.
+                        SizedBox(width: counterWidth + 22 - 6 + 4),
+                      ],
                     ),
                 ],
               ),
@@ -579,6 +665,7 @@ class _FindInput extends StatelessWidget {
     required this.hint,
     required this.error,
     required this.toggles,
+    this.multiline = false,
   });
 
   final TextEditingController controller;
@@ -586,6 +673,17 @@ class _FindInput extends StatelessWidget {
   final String hint;
   final bool error;
   final List<Widget> toggles;
+
+  /// Its lines kept, growing with them to [maxLines], then scrolling
+  /// (Monaco's `flexibleHeight`, to 118px).
+  final bool multiline;
+
+  /// Its height with one line.
+  static const lineHeight = 26.0;
+  static const maxLines = 7;
+
+  /// A line's height, with several.
+  static const _textLine = 16.0;
 
   @override
   Widget build(BuildContext context) {
@@ -595,44 +693,74 @@ class _FindInput extends StatelessWidget {
         : focusNode.hasFocus
         ? IdeInputColors.focusBorder
         : IdeInputColors.border;
-    return Container(
-      height: 26,
-      margin: const EdgeInsets.only(left: 2),
-      decoration: BoxDecoration(
-        color: IdeInputColors.background,
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: borderColor),
+    final field = TextField(
+      controller: controller,
+      focusNode: focusNode,
+      autocorrect: false,
+      enableSuggestions: false,
+      cursorColor: IdeInputColors.foreground,
+      cursorWidth: 1.5,
+      cursorHeight: ideCaretHeight(12.5),
+      minLines: 1,
+      maxLines: multiline ? maxLines : 1,
+      keyboardType: multiline ? TextInputType.multiline : TextInputType.text,
+      // As a text area has it: a line break, not a carriage return.
+      inputFormatters: multiline
+          ? [FilteringTextInputFormatter.deny('\r')]
+          : null,
+      style: TextStyle(
+        fontSize: 12.5,
+        color: IdeInputColors.foreground,
+        // A line [_textLine] tall: one in a [lineHeight] box, as before.
+        height: multiline ? _textLine / 12.5 : null,
+        leadingDistribution: multiline ? TextLeadingDistribution.even : null,
       ),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 12.5, color: IdeInputColors.placeholder),
+        hintMaxLines: 1,
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: 6,
+          vertical: multiline ? (lineHeight - 2 - _textLine) / 2 : 5,
+        ),
+        border: InputBorder.none,
+        // The desktop's compact density would take the padding away, the
+        // lines then not where one line is.
+        visualDensity: multiline ? VisualDensity.standard : null,
+      ),
+    );
+    final decoration = BoxDecoration(
+      color: IdeInputColors.background,
+      borderRadius: BorderRadius.circular(3),
+      border: Border.all(color: borderColor),
+    );
+    if (multiline) {
+      return Container(
+        constraints: const BoxConstraints(minHeight: lineHeight),
+        margin: const EdgeInsets.only(left: 2),
+        decoration: decoration,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: field),
+            // Level with the first line.
+            SizedBox(
+              height: lineHeight - 2,
+              child: Row(mainAxisSize: MainAxisSize.min, children: toggles),
+            ),
+            if (toggles.isNotEmpty) const SizedBox(width: 2),
+          ],
+        ),
+      );
+    }
+    return Container(
+      height: lineHeight,
+      margin: const EdgeInsets.only(left: 2),
+      decoration: decoration,
       child: Row(
         children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              focusNode: focusNode,
-              autocorrect: false,
-              enableSuggestions: false,
-              cursorColor: IdeInputColors.foreground,
-              cursorWidth: 1.5,
-              cursorHeight: ideCaretHeight(12.5),
-              style: TextStyle(
-                fontSize: 12.5,
-                color: IdeInputColors.foreground,
-              ),
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: TextStyle(
-                  fontSize: 12.5,
-                  color: IdeInputColors.placeholder,
-                ),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 5,
-                ),
-                border: InputBorder.none,
-              ),
-            ),
-          ),
+          Expanded(child: field),
           ...toggles,
           if (toggles.isNotEmpty) const SizedBox(width: 2),
         ],

@@ -39,6 +39,7 @@ import 'widgets/hover_builder.dart';
 import 'widgets/lazy_segment.dart' show SelectionEndHolder;
 import 'widgets/turn_footer.dart';
 import 'widgets/user_message_bubble.dart';
+import '../base/safe_selection_indexes.dart';
 
 /// Virtualized, selectable conversation history followed by the live turn.
 /// Sticks to the bottom while the user is there.
@@ -48,6 +49,7 @@ class ChatHistoryView extends StatefulWidget {
     required this.feed,
     this.maxContentWidth = 760,
     this.minimap = false,
+    this.minimapRoom,
     this.onOpenAgent,
     this.onSetGoal,
     this.onFindClosed,
@@ -58,8 +60,13 @@ class ChatHistoryView extends StatefulWidget {
   final double maxContentWidth;
 
   /// Whether a minimap of it shows in the margin left of its column, when
-  /// there is room for one (see [ChatMinimap]).
+  /// there is room for one (see [ChatMinimap]). Its room is kept only
+  /// once the conversation is long: until then there is none to show.
   final bool minimap;
+
+  /// Told whether the column keeps the minimap's room, for what is level
+  /// with it (a subagent's header).
+  final ValueNotifier<bool>? minimapRoom;
 
   /// Opens a subagent's own conversation, from its card.
   final ValueChanged<AgentItem>? onOpenAgent;
@@ -488,6 +495,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// Where a drag on the list's text began, to check what it selected.
   Offset? _dragFrom;
+
+  /// A press on the list's text is held, the history focused by it.
+  bool _pressFocused = false;
   bool _isPointerInside = false;
   bool _shownAtBottom = true;
 
@@ -507,6 +517,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     plainTextOf: _plainTextOf,
     itemCount: () => _feed.itemCount,
     onDragEdge: _autoScrollToward,
+    pressHeld: () => _pressFocused && !_selectionFocusNode.hasFocus,
   );
   bool _reselectScheduled = false;
   Timer? _reselectTimer;
@@ -644,6 +655,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   void didUpdateWidget(ChatHistoryView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.feed != widget.feed) {
+      _long = false;
       _noteLeft(oldWidget.feed);
       _shownFirst = null;
       oldWidget.feed.removeListener(_handleSessionChanged);
@@ -902,6 +914,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (_feed.editing case (:final index, :final draft)) {
       _feed.editing = (index: index + count, draft: draft);
     }
+    _selectionDelegate.shiftItems(count);
   }
 
   /// [count] rows are put before the others, not laid out yet: the list
@@ -1190,6 +1203,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     } else {
       _selectionFocusNode.requestFocus();
     }
+    _pressFocused = false;
+    if (_dragFrom != null) {
+      // Once the focus has moved (in a microtask).
+      scheduleMicrotask(() {
+        _pressFocused = _dragFrom != null && _selectionFocusNode.hasFocus;
+      });
+    }
     // Shift+click extends the selection (desktop only, as in Flutter).
     final desktop = switch (defaultTargetPlatform) {
       TargetPlatform.macOS ||
@@ -1220,6 +1240,14 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       });
     }
     if (_pointersDown <= 0) {
+      // Its focus taken while held: back, for the keys to copy what it
+      // selected.
+      if (_pressFocused &&
+          !_selectionFocusNode.hasFocus &&
+          _selectionDelegate.value.status == SelectionStatus.uncollapsed) {
+        _selectionFocusNode.requestFocus();
+      }
+      _pressFocused = false;
       _scrub(false);
       _autoScroller?.stopAutoScroll();
       _selectionDelegate
@@ -1349,10 +1377,15 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (!position.hasContentDimensions) return;
     final below = position.pixels < position.maxScrollExtent - 0.5;
     final above = position.pixels > position.minScrollExtent + 0.5;
-    if (below != _contentBelow || above != _contentAbove) {
+    final long =
+        _long ||
+        position.maxScrollExtent - position.minScrollExtent >=
+            position.viewportDimension * ChatMinimap.longAfter;
+    if (below != _contentBelow || above != _contentAbove || long != _long) {
       setState(() {
         _contentBelow = below;
         _contentAbove = above;
+        _long = long;
       });
     }
   }
@@ -2303,10 +2336,24 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   double _columnLeft = 0;
   double _insetLeft = 0;
 
+  /// Whether the history is long: what it does not show is more than
+  /// [ChatMinimap.longAfter] of what it does, as last laid out (estimated
+  /// past what is built: near enough). Once it is, it stays so for the
+  /// conversation: its steps folded and unfolded, an early one most of
+  /// all, do not take the minimap away and bring it back.
+  bool _long = false;
+
+  /// Whether there is a minimap to show: once the history is [_long].
+  bool get _wantsMinimap => _long && _feed.itemCount > 0;
+
+  /// Whether the column keeps room for the minimap: once there is one to
+  /// show. Narrower then, the history only grows taller, and scrolls on.
+  bool get _keepsRoom => widget.minimap && _wantsMinimap;
+
   /// The room the column keeps either side of it for the minimap, within
   /// the margin of [gutter] (see [ChatColumn.room]).
   double _roomAt(double gutter) =>
-      widget.minimap ? math.max(0.0, ChatMinimap.room - gutter) : 0;
+      _keepsRoom ? math.max(0.0, ChatMinimap.room - gutter) : 0;
 
   double get _room => _roomAt(_gutter);
 
@@ -2315,8 +2362,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// Whether the minimap shows: the scrollbar then does not, it stands in
   /// for it.
-  bool get _minimapShown =>
-      _minimapFits && (_contentAbove || _contentBelow) && _feed.itemCount > 0;
+  bool get _minimapShown => _minimapFits && _wantsMinimap;
 
   /// The history as built for [_gutter] and [_columnRight], until this
   /// builds again: a new width with the same margin (a pane being resized)
@@ -2327,6 +2373,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   @override
   Widget build(BuildContext context) {
     _built = null;
+    if (widget.minimapRoom case final room? when room.value != _keepsRoom) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) room.value = _keepsRoom;
+      });
+    }
     final inset = _inset = ChatColumnInset.of(context);
     final insetLeft = _insetLeft = ChatColumnInset.leftOf(context);
     // A picture shown whole goes on to the others: ← and →.
@@ -2538,7 +2589,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                         _editorMoved,
                       ]),
                       columnIn: _columnIn,
-                      scrolls: _contentAbove || _contentBelow,
+                      long: _long,
                       scrolling: () =>
                           _scrollController.hasClients && _userScrolling,
                       onSeek: _seek,
@@ -2819,7 +2870,8 @@ class _ItemRegistrar implements SelectionRegistrar, SelectionEndHolder {
 ///
 /// It also does what the list's own selection handling would: auto-scroll a
 /// drag held at an edge, and follow a drag while wheel-scrolling.
-class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
+class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
+    with SafeSelectionIndexes {
   _ChatSelectionDelegate({
     required this.locate,
     required this.resolve,
@@ -2827,6 +2879,7 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
     required this.plainTextOf,
     required this.itemCount,
     required this.onDragEdge,
+    required this.pressHeld,
   });
 
   final _ItemPoint? Function(Offset globalPosition) locate;
@@ -2839,6 +2892,12 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
   final String Function(int index) plainTextOf;
   final int Function() itemCount;
   final void Function(Offset globalPosition) onDragEdge;
+
+  /// A press on the text is held, and the focus it gave the history taken
+  /// since (a question's panel coming up, the composer built again): that
+  /// does not clear the selection, as [SelectableRegion] would — a drag
+  /// then went on with its end alone and selected nothing.
+  final bool Function() pressHeld;
 
   /// A Shift+click is in progress: it moves the end and keeps the start.
   bool extending = false;
@@ -2948,6 +3007,8 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
       case ClearSelectionEvent() ||
               SelectionEdgeUpdateEvent(type: SelectionEventType.startEdgeUpdate)
           when extending && _start != null:
+        return SelectionResult.none;
+      case ClearSelectionEvent() when pressHeld():
         return SelectionResult.none;
       case ClearSelectionEvent():
         _start = _end = null;
@@ -3168,6 +3229,25 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate {
   }
 
   void endDrag() => _dragEnd = null;
+
+  /// [count] items came in before all the others (earlier history): the
+  /// selection's ends are in the items [count] on.
+  void shiftItems(int count) {
+    _SelectionEdge? shifted(_SelectionEdge? edge) => edge == null
+        ? null
+        : (
+            point: (index: edge.point.index + count, local: edge.point.local),
+            granularity: edge.granularity,
+          );
+    _start = shifted(_start);
+    _end = shifted(_end);
+    final text = {
+      for (final MapEntry(:key, :value) in _endText.entries) key + count: value,
+    };
+    _endText
+      ..clear()
+      ..addAll(text);
+  }
 
   // --- Copy ----------------------------------------------------------------
 

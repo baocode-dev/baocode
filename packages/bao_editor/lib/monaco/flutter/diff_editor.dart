@@ -474,62 +474,68 @@ class _DiffEditorState extends State<DiffEditor> {
           modifiedLeft = originalWidth;
         }
         final shadow = widget.theme.scrollbarShadow;
-        return Stack(
-          children: [
-            Positioned(
-              left: 0,
-              top: 0,
-              width: originalWidth,
-              height: height,
-              child: ClipRect(
-                child: OverflowBox(
-                  alignment: Alignment.topLeft,
-                  minWidth: sideBySide ? originalWidth : originalWidth + 200,
-                  maxWidth: sideBySide ? originalWidth : originalWidth + 200,
-                  child: widget.original(context, sides.original),
-                ),
-              ),
-            ),
-            Positioned(
-              left: modifiedLeft,
-              top: 0,
-              width: math.max(0, content - modifiedLeft),
-              height: height,
-              child: widget.modified(context, sides.modified),
-            ),
-            if (sideBySide) ...[
-              // `.editor.original` and `.editor.modified`: a 1px border and
-              // a shadow each side of the split.
+        // Not compared yet, unchanged lines to hide: not the whole text
+        // first, then hidden (a long text is compared on another isolate).
+        final waiting = widget.hideUnchanged && widget.model.mappings == null;
+        return Opacity(
+          opacity: waiting ? 0 : 1,
+          child: Stack(
+            children: [
               Positioned(
-                left: originalWidth - 6,
+                left: 0,
                 top: 0,
-                width: 12,
+                width: originalWidth,
                 height: height,
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _SplitShadowPainter(shadow, widget.border),
+                child: ClipRect(
+                  child: OverflowBox(
+                    alignment: Alignment.topLeft,
+                    minWidth: sideBySide ? originalWidth : originalWidth + 200,
+                    maxWidth: sideBySide ? originalWidth : originalWidth + 200,
+                    child: widget.original(context, sides.original),
                   ),
                 ),
               ),
-              _sash(originalWidth, content, height),
-            ],
-            Positioned(
-              left: content,
-              top: 0,
-              width: DiffEditor.overviewWidth,
-              height: height,
-              child: _overview(sides, lineHeight, height),
-            ),
-            if (widget.overlay case final overlay?)
-              Positioned.fill(
-                child: overlay(context, (
-                  sideBySide: sideBySide,
-                  splitLeft: originalWidth,
-                  modifiedLeft: modifiedLeft,
-                  contentWidth: content,
-                )),
+              Positioned(
+                left: modifiedLeft,
+                top: 0,
+                width: math.max(0, content - modifiedLeft),
+                height: height,
+                child: widget.modified(context, sides.modified),
               ),
-          ],
+              if (sideBySide) ...[
+                // `.editor.original` and `.editor.modified`: a 1px border and
+                // a shadow each side of the split.
+                Positioned(
+                  left: originalWidth - 6,
+                  top: 0,
+                  width: 12,
+                  height: height,
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _SplitShadowPainter(shadow, widget.border),
+                    ),
+                  ),
+                ),
+                _sash(originalWidth, content, height),
+              ],
+              Positioned(
+                left: content,
+                top: 0,
+                width: DiffEditor.overviewWidth,
+                height: height,
+                child: _overview(sides, lineHeight, height),
+              ),
+              if (widget.overlay case final overlay?)
+                Positioned.fill(
+                  child: overlay(context, (
+                    sideBySide: sideBySide,
+                    splitLeft: originalWidth,
+                    modifiedLeft: modifiedLeft,
+                    contentWidth: content,
+                  )),
+                ),
+            ],
+          ),
         );
       },
     );

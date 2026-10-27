@@ -258,6 +258,16 @@ void main() {
       expect(items.last, isA<IdeTextSearchComplete>());
     });
 
+    test('across lines: where the match ends comes too', () async {
+      File(at('a.txt')).writeAsStringSync('one\r\n  two\n');
+      final items = await client()
+          .searchText(root, const IdeTextQuery('one\n  two'))
+          .toList();
+      final match = items.whereType<IdeFileMatches>().single.matches.single;
+      expect((match.line, match.start), (0, 0));
+      expect((match.endLine, match.endColumn), (1, 5));
+    });
+
     test('an invalid pattern fails the stream', () async {
       await expectLater(
         client().searchText(root, const IdeTextQuery('(', isRegExp: true)),
@@ -295,12 +305,14 @@ void main() {
     });
 
     test('changes to the repository are heard', () async {
-      final heard = <void>[];
+      final heard = <String>[];
       final subscription = client().watchRepository(root).listen(heard.add);
       await Future<void>.delayed(const Duration(milliseconds: 300));
       File(at('y.txt')).writeAsStringSync('y');
       await until(() => heard.isNotEmpty);
       await subscription.cancel();
+      // Where: the app skips what is ignored.
+      expect(heard, contains(endsWith('y.txt')));
     });
 
     test('git that cannot run fails as a Git error', () async {

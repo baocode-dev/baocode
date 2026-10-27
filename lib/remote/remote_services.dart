@@ -16,11 +16,14 @@ import '../ide/search/text_search.dart';
 import '../ide/terminal/pty.dart';
 import '../ide/terminal/terminal_instance.dart';
 import '../ide/terminal/terminal_profiles.dart';
+import 'remote_location.dart';
 import 'ssh_host.dart';
 
 /// [open]'s items on [host]'s connection, opened again (after what
 /// [resumed] gives, if anything) each time the connection is made again;
-/// ends when [open]'s stream does.
+/// ends when [open]'s stream does. [resumed] is given too when the first
+/// had to wait for a connection (one that failed, made by a retry): what
+/// was read before it may have failed.
 Stream<T> resilientStream<T>(
   SshHost host,
   Stream<T> Function(RemoteClient client) open, {
@@ -30,9 +33,13 @@ Stream<T> resilientStream<T>(
   StreamSubscription<T>? subscription;
   RemoteClient? previous;
   void Function()? stopWaiting;
+  var waited = false;
 
   void listen(RemoteClient client) {
-    if (previous != null && resumed != null) controller.add(resumed());
+    if ((previous != null || waited) && resumed != null) {
+      controller.add(resumed());
+    }
+    waited = false;
     previous = client;
     var lost = false;
     late void Function() wait;
@@ -55,9 +62,12 @@ Stream<T> resilientStream<T>(
   }
 
   controller = StreamController<T>(
-    onListen: () => _awaitClient(host, null, listen, (stop) {
-      stopWaiting = stop;
-    }),
+    onListen: () {
+      waited = host.client == null;
+      _awaitClient(host, null, listen, (stop) {
+        stopWaiting = stop;
+      });
+    },
     onCancel: () {
       stopWaiting?.call();
       stopWaiting = null;
@@ -186,7 +196,8 @@ IdeGitService remoteGitService(SshHost host, String root) => IdeGitService(
   watcher: (repository) => resilientStream(
     host,
     (client) => client.watchRepository(repository),
-    resumed: () {},
+    // Where is not known: changes may have been missed meanwhile.
+    resumed: () => '',
   ),
 );
 
@@ -328,7 +339,7 @@ LspProcessStarter remoteLspStarter(SshHost host) => (launch) async {
     );
   } on RemoteException catch (error) {
     throw LspStartException(
-      'Could not start ${launch.serverId} on ${host.host}',
+      'Could not start ${launch.serverId} on ${RemoteLocation.hostName(host.host)}',
       detail: error.message,
     );
   }

@@ -1,4 +1,4 @@
-# Builds BaoCode for macOS, Windows and Linux and publishes it to dl.baocode.dev
+# Builds BaoCode for macOS, Windows (x64, arm64) and Linux and publishes it to dl.baocode.dev
 # (Cloudflare R2), where installed apps find their updates. docs/release.md
 # has the whole of it: versions, secrets, what goes where.
 #
@@ -252,45 +252,78 @@ jobs:
           security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
           rm -f "$RUNNER_TEMP/notary.p8"
 
+  # x64, and arm64 on an Arm runner: flutter builds for the machine it
+  # runs on alone.
   windows:
-    name: Build for Windows (${{ matrix.edition }})
+    name: Build for Windows (${{ matrix.arch }}, ${{ matrix.edition }})
     needs: [check, remote]
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       # One edition failing leaves the other building, to be re-run alone.
       fail-fast: false
       matrix:
+        arch: [x64, arm64]
         edition: ${{ fromJSON(needs.check.outputs.editions) }}
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
     env:
       SUFFIX: ${{ matrix.edition == 'channel' && '-channel' || '' }}
+      # The x64 installer's name has no arch, as it always had.
+      ARCH_SUFFIX: ${{ matrix.arch == 'arm64' && '-arm64' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
+        if: matrix.arch == 'x64'
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+      # Flutter's Windows SDK archive carries an x64 Dart; cloned at the
+      # release's tag, it downloads the Arm one for this machine.
+      - name: Clone Flutter
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch "$env:FLUTTER_VERSION" https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" --version
+          # The engine's artifacts and packages (sky_engine), for pub.
+          & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" precache --windows
       - name: Install Inno Setup
+        if: matrix.arch == 'x64'
         run: choco install innosetup --no-progress -y
+      # Its installer itself, where Chocolatey may not be (the Arm image).
+      - name: Install Inno Setup
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          $is = "$env:RUNNER_TEMP\innosetup.exe"
+          Invoke-WebRequest https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe -OutFile $is
+          if ((Get-FileHash $is -Algorithm SHA256).Hash -ne '9C73C3BAE7ED48D44112A0F48E66742C00090BDB5BEF71D9D3C056C66E97B732') { throw 'innosetup-6.7.3.exe: wrong SHA-256' }
+          $setup = Start-Process $is -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/ALLUSERS' -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Inno Setup's installer exited with $($setup.ExitCode)" }
       - uses: actions/download-artifact@v4
         with:
           name: remote
           path: build/remote
       - name: Build
-        run: dart run tool/build_windows.dart --remote-built ${{ matrix.edition == 'channel' && '--channel' || '' }}
+        run: dart run tool/build_windows.dart --remote-built --arch ${{ matrix.arch }} ${{ matrix.edition == 'channel' && '--channel' || '' }}
       - uses: actions/upload-artifact@v4
         with:
-          name: windows${{ env.SUFFIX }}
+          name: windows-${{ matrix.arch }}${{ env.SUFFIX }}
           if-no-files-found: error
-          path: build/installers/BaoCode-*-setup${{ env.SUFFIX }}.exe
+          path: build/installers/BaoCode-*-setup${{ env.ARCH_SUFFIX }}${{ env.SUFFIX }}.exe
       # The Dart code's symbols, for a hang report's app.so+0x… frames
       # (tool/build_windows.dart). Not released: kept with the run.
       - uses: actions/upload-artifact@v4
         with:
-          name: symbols-windows${{ env.SUFFIX }}
+          name: symbols-windows-${{ matrix.arch }}${{ env.SUFFIX }}
           if-no-files-found: error
           retention-days: 90
-          path: build/symbols/app.windows-x64.symbols
+          path: build/symbols/app.windows-${{ matrix.arch }}.symbols
 
   linux:
     name: Build for Linux (${{ matrix.arch }}, ${{ matrix.edition }})
@@ -507,7 +540,8 @@ jobs:
               cp dist/macos$edition/BaoCode-$MARKETING-$arch$edition.dmg \
                 dist/macos$edition/BaoCode-$MARKETING-mac-$arch$edition.zip out/
             done
-            cp dist/windows$edition/BaoCode-$MARKETING-setup$edition.exe out/
+            cp dist/windows-x64$edition/BaoCode-$MARKETING-setup$edition.exe \
+              dist/windows-arm64$edition/BaoCode-$MARKETING-setup-arm64$edition.exe out/
             for arch in x64 arm64; do
               cp dist/linux-$arch$edition/BaoCode-$MARKETING-linux-*.deb \
                 dist/linux-$arch$edition/BaoCode-$MARKETING-linux-*.tar.gz out/
@@ -549,6 +583,7 @@ jobs:
           for edition in "${editions[@]}"; do
             files+=(
               --windows$edition out/BaoCode-$MARKETING-setup$edition.exe
+              --windows-arm64$edition out/BaoCode-$MARKETING-setup-arm64$edition.exe
               --macos-arm64$edition out/BaoCode-$MARKETING-mac-arm64$edition.zip
               --macos-x64$edition out/BaoCode-$MARKETING-mac-x64$edition.zip
               --dmg-arm64$edition out/BaoCode-$MARKETING-arm64$edition.dmg
@@ -609,6 +644,7 @@ jobs:
           # Published again: the release is made anew, on the tag's commit.
           gh release delete "v$MARKETING" --yes 2>/dev/null || true
           gh release create "v$MARKETING" --title "BaoCode $MARKETING" "${notes[@]}" \
-            out/BaoCode-$MARKETING-arm64.dmg out/BaoCode-$MARKETING-x64.dmg out/BaoCode-$MARKETING-setup.exe \
+            out/BaoCode-$MARKETING-arm64.dmg out/BaoCode-$MARKETING-x64.dmg \
+            out/BaoCode-$MARKETING-setup.exe out/BaoCode-$MARKETING-setup-arm64.exe \
             out/BaoCode-$MARKETING-linux-amd64.deb out/BaoCode-$MARKETING-linux-arm64.deb \
             out/BaoCode-$MARKETING-linux-amd64.tar.gz out/BaoCode-$MARKETING-linux-arm64.tar.gz

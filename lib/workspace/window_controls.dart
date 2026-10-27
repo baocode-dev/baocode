@@ -91,6 +91,17 @@ abstract final class WindowControls {
     }
   }
 
+  /// The system's blur under every window, or none (see WindowBlur); kept
+  /// for the next start, whose windows open as it says.
+  static Future<void> setWindowBlur(bool on) async {
+    if (!(AppPlatform.isMacOS || AppPlatform.isWindows)) return;
+    try {
+      await _main.invokeMethod<void>('setWindowBlur', on);
+    } on MissingPluginException {
+      // A host without the channel (e.g. tests).
+    }
+  }
+
   /// Keeps the window above other apps' windows, or not.
   static Future<void> setAlwaysOnTop(bool onTop, {int? viewId}) async {
     if (!canKeepOnTop) return;

@@ -219,6 +219,7 @@ Windows 上，WSL 发行版也当成一台主机，主机名 `wsl+<发行版>`�
 - wsl.exe 自己失败（没装 WSL、没有这个发行版、起不来）退出码是 -1，归为 `SshFailure.wsl`，提示“WSL 无法启动这个发行版…”；起不来 wsl.exe 本身也是这个分类。
 - 杀掉 wsl.exe（相当于断线）后，服务端的会话还在，按普通主机的方式重连回同一个会话。
 - 真机验证：`packages/bao_remote/tool/wsl_e2e.dart <发行版> <baocode-server-linux-x64>`，在装了 WSL 的 Windows 上跑：列出发行版、不存在的发行版报 `wsl`、装服务端、文件、Git、终端、杀掉 wsl.exe 后重连、关闭。
+- 应用这一层：`test/remote/wsl_windows_e2e_test.dart`（标签 `wsl-e2e`，默认跳过；设好 `BAOCODE_REMOTE_SERVER_DIR`、`BAOCODE_WSL_DISTRO` 后 `flutter test --run-skipped -t wsl-e2e`），走应用自己的“打开远程项目”：真的 wsl.exe 列出主机、选中、连接、浏览到文件夹并打开，再看文件、Git 和状态栏，主机选择框画到 `build/wsl_e2e/hosts.png`。没有 Visual Studio、没人登录桌面也能跑（flutter_tester）。
 
 ---
 

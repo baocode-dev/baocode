@@ -9,6 +9,7 @@ import 'hover_builder.dart';
 import 'fade_curve.dart';
 import 'markdown_view.dart';
 import 'plan_start.dart';
+import '../../base/safe_selection_indexes.dart';
 
 /// A round of planning in the conversation: the plan's title over its
 /// text, the text fading out past a height; a click shows it in full beside
@@ -239,7 +240,8 @@ class _PlanPreviewState extends State<_PlanPreview> {
 /// A paint clip does not clip selection events. Hidden paragraphs must not
 /// receive a pointer meant for a later reply. Crossing the whole preview
 /// still selects its full text, as select-all does.
-class _PlanPreviewSelectionDelegate extends StaticSelectionContainerDelegate {
+class _PlanPreviewSelectionDelegate extends StaticSelectionContainerDelegate
+    with SafeSelectionIndexes {
   SelectionResult _resultAt(Offset globalPosition) {
     final inverse = getTransformTo(null)..invert();
     return SelectionUtils.getResultBasedOnRect(

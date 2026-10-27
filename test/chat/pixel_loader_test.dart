@@ -65,7 +65,12 @@ void main() {
   ) async {
     await tester.pumpWidget(const Center(child: PixelLoader.agent(size: 10)));
     expect(tester.getSize(find.byType(PixelLoader)), const Size.square(10));
-    expect(tester.hasRunningAnimations, isTrue);
+    // A frame only as its own changes, not at every vsync.
+    expect(tester.hasRunningAnimations, isFalse);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    await tester.binding.delayed(const Duration(milliseconds: 200));
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    await tester.pump();
 
     // The ring there was before.
     PixelLoaderRole.agent.style.value = PixelLoaderStyle.circle;
@@ -78,6 +83,8 @@ void main() {
         child: Center(child: PixelLoader.subagent()),
       ),
     );
-    expect(tester.hasRunningAnimations, isFalse);
+    await tester.pump();
+    await tester.binding.delayed(const Duration(seconds: 1));
+    expect(tester.binding.hasScheduledFrame, isFalse);
   });
 }

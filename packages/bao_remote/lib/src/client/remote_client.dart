@@ -539,8 +539,12 @@ class RemoteClient {
     );
   }
 
-  Stream<void> watchRepository(String root) =>
-      openStream(RemoteProtocol.gitWatch, {'root': root}).map((_) {});
+  /// The paths changed in the repository at [root]; '' for a change from a
+  /// server that does not say where (one from before it did).
+  Stream<String> watchRepository(String root) => openStream(
+    RemoteProtocol.gitWatch,
+    {'root': root},
+  ).map((path) => path is String ? path : '');
 
   // --- Processes -------------------------------------------------------------
 

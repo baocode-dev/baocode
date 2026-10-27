@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../base/step_clock.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
@@ -30,16 +31,24 @@ class ShimmerText extends StatefulWidget {
   State<ShimmerText> createState() => _ShimmerTextState();
 }
 
-class _ShimmerTextState extends State<ShimmerText>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1600),
-  )..repeat();
+class _ShimmerTextState extends State<ShimmerText> {
+  /// A sweep across.
+  static const _sweep = Duration(milliseconds: 1600);
+
+  // A step each of the shared clock's frames, not every vsync: a highlight
+  // that smooth is all it needs.
+  final StepClock _clock = StepClock(StepClock.frame);
+  bool _still = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _still = _clock.keepTo(context);
+  }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _clock.dispose();
     super.dispose();
   }
 
@@ -49,9 +58,17 @@ class _ShimmerTextState extends State<ShimmerText>
     return Padding(
       padding: widget.padding,
       child: AnimatedBuilder(
-        animation: _controller,
+        animation: _clock,
         builder: (context, child) {
-          final t = _controller.value * 3 - 1;
+          // Still, the highlight is off the text: where motion is turned
+          // down, just the muted label.
+          final t = _still
+              ? -1.0
+              : _clock.time.inMicroseconds %
+                        _sweep.inMicroseconds /
+                        _sweep.inMicroseconds *
+                        3 -
+                    1;
           // As upstream's: the description's color, `chat.thinkingShimmer`
           // sweeping across.
           final base = AppColors.textMuted;
