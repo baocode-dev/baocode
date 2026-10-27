@@ -120,7 +120,11 @@ class IdeGitService {
 
   static IdeGitOutput _check(IdeGitOutput output, String what) {
     if (output.exitCode == 0) return output;
-    final error = output.stderr.trim();
+    // What a failure says, some of Git's commands say on their output.
+    final error = switch (output.stderr.trim()) {
+      '' => output.stdout.trim(),
+      final error => error,
+    };
     final detail = error.length > 500 ? '${error.substring(0, 500)}…' : error;
     throw IdeGitException(detail.isEmpty ? what : '$what\n$detail');
   }
@@ -298,9 +302,34 @@ class IdeGitService {
       IdeGitOperation.revert,
       IdeGitOperation.merge,
     ]) {
-      if (refs.contains(operation.ref)) return operation;
+      if (!refs.contains(operation.ref)) continue;
+      if (operation == IdeGitOperation.rebase && !await _rebasing()) continue;
+      return operation;
     }
     return null;
+  }
+
+  /// Whether a rebase is under way, REBASE_HEAD there: Git (2.50) leaves
+  /// it once the rebase is done, which goes by its folder, `rebase-merge`
+  /// (or `rebase-apply`, `rebasing` in it: not `git am`'s). Read by Git
+  /// (`hash-object`, which fails on a file not there), the repository
+  /// being where Git runs. One that cannot be told is taken to be.
+  Future<bool> _rebasing() async {
+    final paths = await _git([
+      'rev-parse',
+      '--git-path',
+      'rebase-merge/head-name',
+      '--git-path',
+      'rebase-apply/rebasing',
+    ]);
+    if (paths.exitCode != 0) return true;
+    for (final path in paths.stdout.split('\n')) {
+      if (path.trim().isEmpty) continue;
+      if ((await _git(['hash-object', '--', path.trim()])).exitCode == 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Resolves the conflicts of [paths] with one side's version: the
@@ -333,33 +362,52 @@ class IdeGitService {
   }
 
   /// Goes on with [operation] (`--continue`), its conflicts resolved and
-  /// staged; or aborts it (`--abort`), or skips the commit it stopped on
-  /// (`--skip`).
+  /// staged, [include] staged first (what is checked to be committed, as
+  /// Commit takes it); or aborts it (`--abort`), or skips the commit it
+  /// stopped on (`--skip`).
   Future<void> continueOperation(
     IdeGitOperation operation, {
     bool abort = false,
     bool skip = false,
+    Iterable<String> include = const [],
   }) async {
-    await _requireRoot();
-    _check(
-      await _git([
-        // Its commit's message as it is: no editor.
-        '-c',
-        'core.editor=:',
-        operation.command,
-        abort
-            ? '--abort'
+    final top = await _requireRoot();
+    final going = !abort && !skip;
+    final failed =
+        'Cannot ${abort
+            ? 'abort'
             : skip
-            ? '--skip'
-            : '--continue',
-      ]),
-      'Cannot ${abort
-          ? 'abort'
+            ? 'skip'
+            : 'continue'} the '
+        '${operation.command}.';
+    final staged = going ? _relative(top, include) : const <String>[];
+    if (staged.isNotEmpty) {
+      _check(await _git(['add', '-A', '--', ...staged]), failed);
+    }
+    final output = await _git([
+      // Its commit's message as it is: no editor.
+      '-c',
+      'core.editor=:',
+      operation.command,
+      abort
+          ? '--abort'
           : skip
-          ? 'skip'
-          : 'continue'} the '
-      '${operation.command}.',
-    );
+          ? '--skip'
+          : '--continue',
+    ]);
+    // A rebase goes on only from a clean tree; Git says so as if the
+    // conflicts were not resolved.
+    if (output.exitCode != 0 &&
+        going &&
+        operation == IdeGitOperation.rebase &&
+        (await _git(['diff', '--quiet'])).exitCode == 1) {
+      throw IdeGitException(
+        '$failed\nChanges not checked to be committed are left: a rebase '
+        'goes on only without them. Check them, or roll them back or '
+        'stash them.',
+      );
+    }
+    _check(output, failed);
   }
 
   /// `git add -A --`: stages the changes of [paths] (all when null),

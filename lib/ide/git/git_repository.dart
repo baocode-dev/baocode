@@ -248,13 +248,22 @@ class IdeGitRepository extends ChangeNotifier {
     );
   });
 
-  /// Continue, Abort or Skip of the operation under way.
-  Future<void> continueOperation({bool abort = false, bool skip = false}) =>
-      _operate(() async {
-        final operation = _state?.operation;
-        if (operation == null) return;
-        await service.continueOperation(operation, abort: abort, skip: skip);
-      });
+  /// Continue, Abort or Skip of the operation under way; Continue with
+  /// [include] staged first (the paths checked to be committed).
+  Future<void> continueOperation({
+    bool abort = false,
+    bool skip = false,
+    Iterable<String> include = const [],
+  }) => _operate(() async {
+    final operation = _state?.operation;
+    if (operation == null) return;
+    await service.continueOperation(
+      operation,
+      abort: abort,
+      skip: skip,
+      include: include,
+    );
+  });
 
   /// Stage All Changes: everything in the working tree, untracked files
   /// included.

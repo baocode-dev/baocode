@@ -1687,7 +1687,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                 label: l10n.gitOperationContinue,
                 onPressed: conflicts > 0
                     ? null
-                    : () => unawaited(_run(git.continueOperation)),
+                    : () => unawaited(_run(() => _continue(git))),
               ),
               if (operation.skips)
                 IdeButton(
@@ -1706,6 +1706,15 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
         ],
       ),
     );
+  }
+
+  /// Continue: what is checked goes into the commit Git goes on with, as
+  /// Commit would take it.
+  Future<void> _continue(IdeGitRepository git) async {
+    await git.continueOperation(
+      include: [for (final file in _toCommit(git)) file.path],
+    );
+    _sessionOf(git).included.clear();
   }
 
   /// Abort, once confirmed: what was done since it began is undone.
