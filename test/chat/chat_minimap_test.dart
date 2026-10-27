@@ -192,6 +192,25 @@ void main() {
     expect(_opacity(tester), 0);
   });
 
+  testWidgets('its room kept only once the history scrolls: until then the '
+      'column is where it is without one', (tester) async {
+    double textLeft() => tester.getRect(find.byType(AssistantText).first).left;
+    await _pump(tester, _Feed(_conversation(1)), width: 790, maxWidth: 1200);
+    final short = textLeft();
+    await _pump(
+      tester,
+      _Feed(_conversation(1)),
+      width: 790,
+      maxWidth: 1200,
+      minimap: false,
+    );
+    expect(short, textLeft());
+    expect(short, lessThan(ChatMinimap.room));
+    await _pump(tester, _Feed(_conversation(30)), width: 790, maxWidth: 1200);
+    expect(_opacity(tester), 1);
+    expect(textLeft(), greaterThanOrEqualTo(ChatMinimap.room));
+  });
+
   testWidgets('not where it is not asked for (the IDE)', (tester) async {
     await _pump(tester, _Feed(_conversation(30)), minimap: false);
     expect(find.byType(ChatMinimap), findsNothing);

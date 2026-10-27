@@ -48,6 +48,7 @@ class ChatHistoryView extends StatefulWidget {
     required this.feed,
     this.maxContentWidth = 760,
     this.minimap = false,
+    this.minimapRoom,
     this.onOpenAgent,
     this.onSetGoal,
     this.onFindClosed,
@@ -58,8 +59,13 @@ class ChatHistoryView extends StatefulWidget {
   final double maxContentWidth;
 
   /// Whether a minimap of it shows in the margin left of its column, when
-  /// there is room for one (see [ChatMinimap]).
+  /// there is room for one (see [ChatMinimap]). Its room is kept only
+  /// once the history scrolls: until then there is none to show.
   final bool minimap;
+
+  /// Told whether the column keeps the minimap's room, for what is level
+  /// with it (a subagent's header).
+  final ValueNotifier<bool>? minimapRoom;
 
   /// Opens a subagent's own conversation, from its card.
   final ValueChanged<AgentItem>? onOpenAgent;
@@ -2303,10 +2309,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   double _columnLeft = 0;
   double _insetLeft = 0;
 
+  /// Whether the history has more than it shows.
+  bool get _scrolls => (_contentAbove || _contentBelow) && _feed.itemCount > 0;
+
+  /// Whether the column keeps room for the minimap: once there is one to
+  /// show. Narrower then, the history only grows taller, and scrolls on.
+  bool get _keepsRoom => widget.minimap && _scrolls;
+
   /// The room the column keeps either side of it for the minimap, within
   /// the margin of [gutter] (see [ChatColumn.room]).
   double _roomAt(double gutter) =>
-      widget.minimap ? math.max(0.0, ChatMinimap.room - gutter) : 0;
+      _keepsRoom ? math.max(0.0, ChatMinimap.room - gutter) : 0;
 
   double get _room => _roomAt(_gutter);
 
@@ -2315,8 +2328,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// Whether the minimap shows: the scrollbar then does not, it stands in
   /// for it.
-  bool get _minimapShown =>
-      _minimapFits && (_contentAbove || _contentBelow) && _feed.itemCount > 0;
+  bool get _minimapShown => _minimapFits && _scrolls;
 
   /// The history as built for [_gutter] and [_columnRight], until this
   /// builds again: a new width with the same margin (a pane being resized)
@@ -2327,6 +2339,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   @override
   Widget build(BuildContext context) {
     _built = null;
+    if (widget.minimapRoom case final room? when room.value != _keepsRoom) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) room.value = _keepsRoom;
+      });
+    }
     final inset = _inset = ChatColumnInset.of(context);
     final insetLeft = _insetLeft = ChatColumnInset.leftOf(context);
     // A picture shown whole goes on to the others: ← and →.
