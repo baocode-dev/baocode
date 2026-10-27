@@ -4,25 +4,25 @@ import 'package:flutter/widgets.dart';
 
 import '../base/step_clock.dart';
 
-/// A codicon turning as `codicon-modifier-spin` turns one: once in 1.5s, in
-/// 30 steps; still where motion is turned down.
+/// A codicon turning as `codicon-modifier-spin` turns one: once in 1.5s;
+/// still where motion is turned down.
+///
+/// Deviation: upstream's turns in 30 steps; this one a step each of
+/// [StepClock.frame]s, which 30 steps of 50ms would not fall on evenly.
 class IdeSpinning extends StatefulWidget {
   const IdeSpinning(this.child, {super.key});
 
   final Widget child;
 
-  /// The steps of a turn.
-  static const steps = 30;
-
-  /// One step: drawn only then, not at every vsync.
-  static const step = Duration(milliseconds: 1500 ~/ steps);
+  /// Once round.
+  static const turn = Duration(milliseconds: 1500);
 
   @override
   State<IdeSpinning> createState() => _IdeSpinningState();
 }
 
 class _IdeSpinningState extends State<IdeSpinning> {
-  final StepClock _clock = StepClock(IdeSpinning.step);
+  final StepClock _clock = StepClock(StepClock.frame);
   bool _still = false;
 
   @override
@@ -43,7 +43,11 @@ class _IdeSpinningState extends State<IdeSpinning> {
     builder: (context, child) => Transform.rotate(
       angle: _still
           ? 0
-          : _clock.ticks % IdeSpinning.steps / IdeSpinning.steps * 2 * math.pi,
+          : _clock.time.inMicroseconds %
+                IdeSpinning.turn.inMicroseconds /
+                IdeSpinning.turn.inMicroseconds *
+                2 *
+                math.pi,
       child: child,
     ),
     child: widget.child,

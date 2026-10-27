@@ -53,6 +53,7 @@ dependencies:
     path: packages/bao_xterm
   # The names project icons are kept under (lib/icons/icon_library.dart).
   bonsoir: ^7.1.5
+  clock: ^1.1.2
   crypto: ^3.0.6
   flutter:
     sdk: flutter

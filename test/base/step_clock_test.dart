@@ -1,4 +1,5 @@
 import 'package:baocode/base/step_clock.dart';
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,6 +24,27 @@ void main() {
     clock.stop();
     await tester.pump(const Duration(milliseconds: 500));
     expect(told, inInclusiveRange(9, 11));
+  });
+
+  testWidgets('clocks on other steps change in the same frames, no more '
+      'than 30 a second', (tester) async {
+    final frame = StepClock.frame.inMicroseconds;
+    final told = <int>{};
+    final clocks = [
+      for (final ms in [53, 62, 120, 33]) StepClock(Duration(milliseconds: ms)),
+    ];
+    for (final each in clocks) {
+      each
+        ..addListener(() => told.add(clock.now().microsecondsSinceEpoch))
+        ..start();
+    }
+    await tester.pump(const Duration(seconds: 2));
+    for (final each in clocks) {
+      each.dispose();
+    }
+    expect(told, isNotEmpty);
+    expect(told.every((at) => at % frame == 0), isTrue);
+    expect(told.length, lessThanOrEqualTo(61));
   });
 
   testWidgets('still where tickers are off or motion is turned down', (

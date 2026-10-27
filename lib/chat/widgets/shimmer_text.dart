@@ -35,8 +35,9 @@ class _ShimmerTextState extends State<ShimmerText> {
   /// A sweep across.
   static const _sweep = Duration(milliseconds: 1600);
 
-  // 30 a second, not every vsync: a highlight that smooth is all it needs.
-  final StepClock _clock = StepClock(const Duration(microseconds: 33333));
+  // A step each of the shared clock's frames, not every vsync: a highlight
+  // that smooth is all it needs.
+  final StepClock _clock = StepClock(StepClock.frame);
   bool _still = false;
 
   @override
