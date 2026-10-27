@@ -10,6 +10,7 @@ import 'package:bao_editor/textmate/textmate_syntax.dart';
 
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
+import 'base/quiet_view.dart';
 import 'base/smooth_scroll.dart' show BaoScrollBehavior;
 import 'browser/browser_bridge.dart';
 import 'browser/browser_tools.dart' show BrowserHistory;
@@ -815,7 +816,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
                       ])
                         if (_windows.host.viewOf(window.viewId)
                             case final view?)
-                          View(
+                          QuietView(
                             key: ValueKey(window.viewId),
                             view: view,
                             child: _app(window),
