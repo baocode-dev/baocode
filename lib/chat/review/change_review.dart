@@ -433,19 +433,21 @@ class ChangeReview extends ChangeNotifier {
 
   /// [changes] anew, with their line counts.
   Future<void> _refresh() async {
-    final snapshot = _snapshot ?? (_wide ? '' : null);
     final counts = <String, ({int added, int removed})?>{};
     final inside = {
       for (final MapEntry(key: path, value: entry) in _entries.entries)
         if (!_outside(path)) path: entry,
     };
-    if (snapshot != null && inside.isNotEmpty) {
+    if (inside.isNotEmpty) {
+      // Trees of their files alone, not the whole project's: the same
+      // counts, without every file of the project read in at each look;
+      // the one of what was there before is the same from look to look.
       try {
-        final now = await _store.overlay(snapshot, {
+        final now = await _store.overlay('', {
           for (final MapEntry(key: path, value: entry) in inside.entries)
-            if (entry.loose) path: entry.current,
+            path: entry.current,
         });
-        final base = await _store.overlay(snapshot, {
+        final base = await _store.overlay('', {
           for (final MapEntry(key: path, value: entry) in inside.entries)
             path: entry.base,
         });
@@ -628,34 +630,45 @@ class ChangeReview extends ChangeNotifier {
 
   // --- Keeping it between runs ----------------------------------------------
 
+  /// The session and what [_persist] last kept under it (empty: nothing):
+  /// kept again only once it changed, not at each look.
+  String? _persisted;
+
   Future<void> _persist() async {
     final session = _session;
     if (session == null) return;
-    if (_entries.isEmpty && _unseen.isEmpty) {
-      await _store.forget(session);
-      return;
-    }
-    await _store.save(
-      session,
-      jsonEncode({
-        'version': 3,
-        'entries': {
-          for (final MapEntry(key: path, value: entry) in _entries.entries)
-            path: entry.toJson(),
-        },
-        'unseen': [
-          for (final change in _unseen.values)
-            {
-              'path': change.path,
-              'added': change.added,
-              'removed': change.removed,
+    final nothing = _entries.isEmpty && _unseen.isEmpty;
+    final data = nothing
+        ? ''
+        : jsonEncode({
+            'version': 3,
+            'entries': {
+              for (final MapEntry(key: path, value: entry) in _entries.entries)
+                path: entry.toJson(),
             },
+            'unseen': [
+              for (final change in _unseen.values)
+                {
+                  'path': change.path,
+                  'added': change.added,
+                  'removed': change.removed,
+                },
+            ],
+          });
+    final kept = '$session\x00$data';
+    if (kept == _persisted) return;
+    if (nothing) {
+      await _store.forget(session);
+    } else {
+      await _store.save(
+        session,
+        data,
+        blobs: [
+          for (final entry in _entries.values) ...[?entry.base, ?entry.after],
         ],
-      }),
-      blobs: [
-        for (final entry in _entries.values) ...[?entry.base, ?entry.after],
-      ],
-    );
+      );
+    }
+    _persisted = kept;
   }
 
   Future<void> _load(String session) async {
@@ -745,6 +758,7 @@ class ChangeReview extends ChangeNotifier {
   Future<void> discard() {
     final session = _session;
     _session = null;
+    _persisted = null;
     if (session == null) return Future.value();
     return _queue = _queue.then(
       (_) => _store.forget(session).catchError((Object _) {}),
