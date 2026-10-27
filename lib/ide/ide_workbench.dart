@@ -5316,11 +5316,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         ),
                       ),
                       // Typing moves the caret and edits the document, and
-                      // the status bar is all that shows either.
+                      // the status bar is all that shows either; as it is
+                      // all that shows a language server's progress.
                       ListenableBuilder(
                         listenable: Listenable.merge([
                           _caret,
                           widget.workspace.edits,
+                          _languages?.progressChanges,
                         ]),
                         builder: (context, _) => _statusBar(),
                       ),

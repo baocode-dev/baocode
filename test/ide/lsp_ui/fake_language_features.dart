@@ -259,6 +259,9 @@ class FakeLanguageFeatures extends ChangeNotifier implements LanguageFeatures {
   Stream<LspApplyEditRequest> get workspaceEdits => _workspaceEdits.stream;
 
   @override
+  Listenable get progressChanges => this;
+
+  @override
   List<LanguageServerStatus> statusFor(String path) =>
       statuses[path] ?? const [];
 

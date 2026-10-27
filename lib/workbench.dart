@@ -327,6 +327,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   final Map<String, IdeWorkspace> _ideSpaces = {};
   final Map<String, GlobalKey<IdeWorkbenchState>> _ideKeys = {};
 
+  /// Each hidden IDE as last built: built again only once shown. A hidden
+  /// one is still laid out, and the window rebuilds with every change to
+  /// the workspace (an agent's status, its title, its diff).
+  final Map<String, ({IdeWorkspace space, Widget ide})> _hiddenIdes = {};
+
   /// The agents' changes each folder's IDE shows in its files.
   final Map<String, IdeAgentEdits> _ideAgentEdits = {};
   final Map<String, List<IdeCommand>> _ideCommands = {};
@@ -2637,6 +2642,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (_ideWindow) return _buildIde(folder, _ideSpace(folder), shown: true);
     final ide = _showsIde;
     if (ide) _ideSpace(folder);
+    _hiddenIdes.removeWhere((path, _) => !_ideSpaces.containsKey(path));
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -2649,6 +2655,17 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   /// The IDE of [path] (see [_ideSpace]), kept built while another shows.
   Widget _buildIde(String path, IdeWorkspace space, {required bool shown}) {
+    if (shown) {
+      _hiddenIdes.remove(path);
+    } else if (_hiddenIdes[path] case final kept? when kept.space == space) {
+      return kept.ide;
+    }
+    final built = _ideOf(path, space, shown: shown);
+    if (!shown) _hiddenIdes[path] = (space: space, ide: built);
+    return built;
+  }
+
+  Widget _ideOf(String path, IdeWorkspace space, {required bool shown}) {
     return Offstage(
       key: ValueKey(path),
       offstage: !shown,

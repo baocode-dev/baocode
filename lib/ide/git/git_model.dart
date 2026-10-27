@@ -528,7 +528,8 @@ class IdeGitDecorations {
     var current = path;
     while (true) {
       if (_ignored.contains(current)) return true;
-      final parent = _paths.dirname(current);
+      // Each row's walk, each build: without package:path's parsing.
+      final parent = ideGitDirname(current, _paths);
       if (parent == current) return false;
       current = parent;
     }

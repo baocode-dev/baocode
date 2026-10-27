@@ -107,6 +107,11 @@ abstract interface class LanguageFeatures implements Listenable {
   /// edit and completes with whether it did.
   Stream<LspApplyEditRequest> get workspaceEdits;
 
+  /// Notifies as a server's progress ([LanguageServerStatus.progress])
+  /// changes, which this does not: many times a second while a server
+  /// indexes, and only the status bar shows it.
+  Listenable get progressChanges;
+
   /// Servers for [path] and how they stand, for the status bar.
   List<LanguageServerStatus> statusFor(String path);
 
