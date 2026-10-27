@@ -104,7 +104,7 @@ const attribution = (() => {
   let framedChannel = null;
   if (window.top !== window) {
     ready.then((r) => { framedChannel = r?.source === 'channel' ? r.value : null; });
-    const DESKTOP = new Set(['windows', 'macos-arm64', 'macos-x64', 'linux-x64', 'linux-arm64']);
+    const DESKTOP = new Set(['windows', 'windows-arm64', 'macos-arm64', 'macos-x64', 'linux-x64', 'linux-arm64']);
     const newTab = (a) => { a.target = '_blank'; a.rel = 'noopener'; };
     document.addEventListener('click', (event) => {
       const a = event.target.closest?.('a[href]');
@@ -277,12 +277,25 @@ for (const button of document.querySelectorAll('[data-sound]')) {
   } catch {}
 })();
 
+// The home page's Windows button: on Windows on Arm, its Arm64 build. Only
+// Chromium says which (Edge, Chrome); elsewhere it stays x64, which Windows
+// on Arm runs too, emulated. Its link is the manifest's once that is read
+// (showDownloads, by data-file), else the Worker's.
+(async () => {
+  const a = document.querySelector('a[data-windows]');
+  if (!a || !/win/i.test(navigator.userAgentData?.platform || navigator.platform || '')) return;
+  try {
+    const { architecture } = await navigator.userAgentData.getHighEntropyValues(['architecture']);
+    if (architecture !== 'arm') return;
+    a.dataset.file = 'windows-arm64';
+    a.href = '/dl/windows-arm64';
+  } catch {}
+})();
+
 // Each download's link and size, as a manifest gives them.
 function showDownloads(downloads, v) {
   for (const [os, file] of Object.entries(downloads || {})) {
     if (!file?.url) continue;
-    // What waits for a release that has it (Windows on Arm's installer).
-    for (const el of document.querySelectorAll(`[data-shown="${os}"]`)) el.hidden = false;
     for (const a of document.querySelectorAll(`[data-file="${os}"]`)) {
       a.href = file.url;
       if (a.classList.contains('button')) a.title = `≈ ${Math.round(file.size / 1e6)} MB`;

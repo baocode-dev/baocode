@@ -9,8 +9,7 @@
   if (isLinux) list.prepend(list.querySelector('[data-os="linux"]'));
   // Only Chromium tells an Intel Mac from Apple silicon (Safari says Intel
   // on both), an arm64 Linux from an x64 one, or Windows on Arm; where it
-  // does, this machine's build is the one offered first (one the release
-  // has: Windows on Arm's shows once it does).
+  // does, this machine's build is the one offered first.
   try {
     const { architecture } = await navigator.userAgentData.getHighEntropyValues(['architecture']);
     const os = isWin ? 'windows' : isLinux ? 'linux' : 'macos';
