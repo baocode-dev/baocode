@@ -651,6 +651,10 @@ extension _SearchAndListKeys on IdeWorkbenchState {
     }
     if (option<bool>('showIncludesExcludes') case final value?) {
       session.detailsShown = value;
+    } else if (session.includes.text.isNotEmpty ||
+        session.excludes.text.isNotEmpty) {
+      // Files to include or exclude: shown, not to be missed.
+      session.detailsShown = true;
     }
     _showView(IdeSideView.search);
     session.requestFocus();

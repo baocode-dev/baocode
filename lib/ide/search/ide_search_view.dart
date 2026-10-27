@@ -76,10 +76,10 @@ class IdeSearchSession extends ChangeNotifier {
   bool useRegExp = false;
   bool preserveCase = false;
   bool useExcludesAndIgnoreFiles = true;
-  // All of it shows at first: the replace input, and the files to include
-  // and exclude (a deviation: upstream's are folded away).
-  bool replaceShown = true;
-  bool detailsShown = true;
+  // Folded away at first, as upstream's: the replace input, and the files
+  // to include and exclude; as the user left them after that.
+  bool replaceShown = false;
+  bool detailsShown = false;
 
   final List<IdeSearchFileResult> results = [];
   final Set<String> collapsed = {};
@@ -114,7 +114,8 @@ class IdeSearchSession extends ChangeNotifier {
       results.fold(0, (count, file) => count + file.matches.length);
 
   /// What is kept of it for the next run, as VS Code keeps it with the
-  /// workspace: the files to include and exclude, and the options (#268).
+  /// workspace: the files to include and exclude, the options (#268), and
+  /// whether the replace input and the files show.
   Map<String, Object?> get kept => {
     if (includes.text.isNotEmpty) 'includes': includes.text,
     if (excludes.text.isNotEmpty) 'excludes': excludes.text,
@@ -123,6 +124,8 @@ class IdeSearchSession extends ChangeNotifier {
     if (useRegExp) 'useRegExp': true,
     if (preserveCase) 'preserveCase': true,
     if (!useExcludesAndIgnoreFiles) 'useExcludesAndIgnoreFiles': false,
+    if (replaceShown) 'replaceShown': true,
+    if (detailsShown) 'detailsShown': true,
   };
 
   /// As [kept] gave it, before it searches.
@@ -139,6 +142,12 @@ class IdeSearchSession extends ChangeNotifier {
     useRegExp = kept['useRegExp'] == true;
     preserveCase = kept['preserveCase'] == true;
     useExcludesAndIgnoreFiles = kept['useExcludesAndIgnoreFiles'] != false;
+    replaceShown = kept['replaceShown'] == true;
+    // Files to include or exclude kept: shown, not to be missed.
+    detailsShown =
+        kept['detailsShown'] == true ||
+        includes.text.isNotEmpty ||
+        excludes.text.isNotEmpty;
   }
 
   /// Told when [kept] may have changed: as the inputs are typed in, and
@@ -1089,20 +1098,29 @@ class IdeSearchViewState extends State<IdeSearchView>
                     placeholder: context.l10n.searchTitle,
                     semanticsLabel: context.l10n.searchTitle,
                     padding: _widgetPadding,
+                    // Lines pasted kept, as upstream's: it grows with
+                    // them, and searches across lines.
+                    maxLines: _queryMaxLines,
                     validation: regExpError == null
                         ? null
                         : IdeInputValidation(regExpError),
                     onChanged: (_) => session.searchSoon(_root),
-                    onSubmitted: (_) => session.search(_root),
-                    // Escape leaves to the host where it asked for it
-                    // (the side panel's search closes with it); the IDE
-                    // passes none, and its own command handles the key.
-                    shortcuts: widget.onEscape == null
-                        ? const {}
-                        : {
-                            const SingleActivator(LogicalKeyboardKey.escape):
-                                widget.onEscape!,
-                          },
+                    shortcuts: {
+                      // Enter searches; Ctrl+Enter (on a Mac too) is a new
+                      // line, as upstream's `ctrlKeyMod | Enter`.
+                      const SingleActivator(LogicalKeyboardKey.enter): () =>
+                          session.search(_root),
+                      const SingleActivator(
+                        LogicalKeyboardKey.enter,
+                        control: true,
+                      ): () =>
+                          _insertNewline(session.query),
+                      // Escape leaves to the host where it asked for it
+                      // (the side panel's search closes with it); the IDE
+                      // passes none, and its own command handles the key.
+                      const SingleActivator(LogicalKeyboardKey.escape):
+                          ?widget.onEscape,
+                    },
                     toggles: [
                       IdeInputToggle(
                         icon: Codicons.caseSensitive,
@@ -1186,6 +1204,19 @@ class IdeSearchViewState extends State<IdeSearchView>
         ),
       ),
     );
+  }
+
+  /// How tall the search input grows, in lines.
+  static const _queryMaxLines = 8;
+
+  /// A line break where the caret is, in place of what is selected.
+  void _insertNewline(TextEditingController controller) {
+    final value = controller.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    controller.value = value.replaced(selection, '\n');
+    _session.searchSoon(_root);
   }
 
   /// `.query-details`: Toggle Search Details, and the files to include and
@@ -1404,7 +1435,7 @@ class IdeSearchViewState extends State<IdeSearchView>
     file.path,
     LspRange(
       LspPosition(match.line, match.start),
-      LspPosition(match.line, match.end),
+      LspPosition(match.endLine, match.endColumn),
     ),
     focusEditor: focusEditor,
   );

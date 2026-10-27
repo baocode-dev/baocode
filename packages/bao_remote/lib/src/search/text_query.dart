@@ -13,7 +13,9 @@
 // src/vs/workbench/services/search/common/replace.ts (`ReplacePattern`)
 // and src/vs/base/common/search.ts (`buildReplaceStringWithCasePreserved`).
 //
-// Deviations: a pattern matches within a line, never across lines.
+// A pattern with a line break in it (pasted, or `\n` in an expression)
+// matches across lines, as ripgrep's multiline mode does for upstream; a
+// line break matched as `\r?\n`.
 
 /// What to search for, and where.
 class IdeTextQuery {
@@ -44,6 +46,9 @@ class IdeTextQuery {
   /// `search.maxResults`.
   final int maxResults;
 
+  /// Whether it matches across lines: a line break in it.
+  bool get isMultiline => ideIsMultilinePattern(pattern, isRegExp: isRegExp);
+
   /// The pattern as a regular expression; throws a [FormatException] for
   /// an invalid one.
   RegExp toRegExp() => ideCreateRegExp(
@@ -67,14 +72,22 @@ class IdeTextQuery {
 }
 
 /// One occurrence: [line] (zero-based) and its [start] and [end] in the
-/// line's [text] (UTF-16 offsets).
+/// line's [text] (UTF-16 offsets). One across lines ends on [endLine]:
+/// [text] is its lines, from [line]'s start to [endLine]'s end.
 class IdeTextMatch {
-  const IdeTextMatch(this.line, this.start, this.end, this.text);
+  const IdeTextMatch(this.line, this.start, this.end, this.text, {int? endLine})
+    : endLine = endLine ?? line;
 
   final int line;
   final int start;
   final int end;
   final String text;
+  final int endLine;
+
+  bool get isMultiline => endLine != line;
+
+  /// Where it ends in [endLine].
+  int get endColumn => end - (text.lastIndexOf('\n', end - 1) + 1);
 
   String get matched => text.substring(start, end);
 }
@@ -124,13 +137,61 @@ RegExp ideCreateRegExp(
   bool wholeWord = false,
 }) {
   if (searchString.isEmpty) throw const FormatException('Empty pattern');
-  var source = isRegExp ? searchString : RegExp.escape(searchString);
+  var source = isRegExp
+      ? _lineBreaksInExpression(searchString)
+      : searchString.split(_lineBreak).map(RegExp.escape).join(r'\r?\n');
   if (wholeWord) {
     final word = RegExp(r'\w');
     if (word.hasMatch(source[0])) source = '\\b$source';
     if (word.hasMatch(source[source.length - 1])) source = '$source\\b';
   }
   return RegExp(source, caseSensitive: matchCase, unicode: true);
+}
+
+final _lineBreak = RegExp(r'\r\n|\r|\n');
+
+/// Whether [pattern] has a line break: as typed (or pasted), or as `\n` in
+/// an expression.
+bool ideIsMultilinePattern(String pattern, {required bool isRegExp}) {
+  if (pattern.contains('\n') || pattern.contains('\r')) return true;
+  if (!isRegExp) return false;
+  for (var i = 0; i < pattern.length - 1; i++) {
+    if (pattern[i] != r'\') continue;
+    if (pattern[i + 1] == 'n') return true;
+    i++;
+  }
+  return false;
+}
+
+/// [pattern]'s line breaks (`\n` outside a class, or one typed) as either
+/// of a file's: `\r?\n`; one after `\r` already is.
+String _lineBreaksInExpression(String pattern) {
+  final out = StringBuffer();
+  var inClass = false;
+  for (var i = 0; i < pattern.length; i++) {
+    final char = pattern[i];
+    if (char == r'\' && i + 1 < pattern.length) {
+      final next = pattern[i + 1];
+      final afterCr = i >= 2 && pattern.substring(i - 2, i) == r'\r';
+      if (next == 'n' && !inClass && !afterCr) {
+        out.write(r'(?:\r?\n)');
+      } else {
+        out
+          ..write(char)
+          ..write(next);
+      }
+      i++;
+      continue;
+    }
+    if (char == '\n' && !inClass) {
+      out.write(r'(?:\r?\n)');
+      continue;
+    }
+    if (char == '[') inClass = true;
+    if (char == ']') inClass = false;
+    out.write(char);
+  }
+  return out.toString();
 }
 
 /// A glob as a regular expression over `/`-separated paths: `**` any
@@ -228,8 +289,15 @@ Iterable<String> _splitGlobs(String patterns) sync* {
   yield patterns.substring(start);
 }
 
-/// Matches [regExp] in [text], line by line, up to [limit].
-List<IdeTextMatch> ideMatchLines(String text, RegExp regExp, {int? limit}) {
+/// Matches [regExp] in [text], line by line, up to [limit]; across lines
+/// with [multiline] (see [IdeTextQuery.isMultiline]).
+List<IdeTextMatch> ideMatchLines(
+  String text,
+  RegExp regExp, {
+  int? limit,
+  bool multiline = false,
+}) {
+  if (multiline) return _matchAcross(text, regExp, limit: limit);
   final matches = <IdeTextMatch>[];
   var line = 0;
   var start = 0;
@@ -251,6 +319,50 @@ List<IdeTextMatch> ideMatchLines(String text, RegExp regExp, {int? limit}) {
   return matches;
 }
 
+List<IdeTextMatch> _matchAcross(String text, RegExp regExp, {int? limit}) {
+  final lineStarts = [0];
+  for (var i = 0; i < text.length; i++) {
+    if (text.codeUnitAt(i) == 0x0A) lineStarts.add(i + 1);
+  }
+  int lineOf(int offset) {
+    var low = 0;
+    var high = lineStarts.length - 1;
+    while (low < high) {
+      final middle = (low + high + 1) >> 1;
+      if (lineStarts[middle] <= offset) {
+        low = middle;
+      } else {
+        high = middle - 1;
+      }
+    }
+    return low;
+  }
+
+  final matches = <IdeTextMatch>[];
+  for (final match in regExp.allMatches(text)) {
+    if (match.end == match.start) continue;
+    final line = lineOf(match.start);
+    // Past a line break it ends at the next line's start.
+    final endLine = lineOf(match.end);
+    final from = lineStarts[line];
+    var to = endLine + 1 < lineStarts.length
+        ? lineStarts[endLine + 1] - 1
+        : text.length;
+    if (to > match.end && text.codeUnitAt(to - 1) == 0x0D) to--;
+    matches.add(
+      IdeTextMatch(
+        line,
+        match.start - from,
+        match.end - from,
+        text.substring(from, to),
+        endLine: endLine,
+      ),
+    );
+    if (limit != null && matches.length >= limit) break;
+  }
+  return matches;
+}
+
 /// The Search view's match preview (`Match.preview`): what comes before
 /// (cut to 26 characters at a word boundary), the match, and after, within
 /// 250 characters.
@@ -260,7 +372,8 @@ List<IdeTextMatch> ideMatchLines(String text, RegExp regExp, {int? limit}) {
   const maxPreview = 250;
   final before = ideLcut(match.text.substring(0, match.start), 26, '…');
   var remaining = maxPreview - before.length;
-  var inside = match.matched;
+  // A match across lines: its line breaks shown, as one line.
+  var inside = match.matched.replaceAll(_lineBreak, '⏎');
   if (inside.length > remaining) inside = inside.substring(0, remaining);
   remaining -= inside.length;
   var after = match.text.substring(match.end);

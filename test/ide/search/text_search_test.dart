@@ -109,6 +109,69 @@ void main() {
     });
   });
 
+  group('across lines', () {
+    List<IdeTextMatch> find(String text, IdeTextQuery query) =>
+        ideMatchLines(text, query.toRegExp(), multiline: query.isMultiline);
+
+    test('text pasted with its line breaks matches across lines, LF or '
+        'CRLF either way', () {
+      const pasted = '  b();\r\n  return true;';
+      final query = const IdeTextQuery(pasted);
+      expect(query.isMultiline, isTrue);
+      for (final text in [
+        'a {\n  b();\n  return true;\n}',
+        'a {\r\n  b();\r\n  return true;\r\n}',
+      ]) {
+        final match = find(text, query).single;
+        expect(match.line, 1);
+        expect(match.endLine, 2);
+        expect(match.start, 0);
+        expect(match.endColumn, '  return true;'.length);
+        expect(match.matched.replaceAll('\r', ''), '  b();\n  return true;');
+        // Its lines, the end's line break not.
+        expect(match.text.endsWith('return true;'), isTrue);
+        final preview = ideMatchPreview(match);
+        expect(preview.inside, '  b();⏎  return true;');
+        expect(preview.after, '');
+      }
+      // Within a line, as before.
+      expect(const IdeTextQuery('b();').isMultiline, isFalse);
+    });
+
+    test('an expression with \\n matches across lines; one in a class '
+        'or after \\r as it is', () {
+      final query = const IdeTextQuery(r'one\n\s*two', isRegExp: true);
+      expect(query.isMultiline, isTrue);
+      final match = find('x one\r\n  two y', query).single;
+      expect((match.line, match.start), (0, 2));
+      expect((match.endLine, match.endColumn), (1, 5));
+      expect(
+        find('one\r\ntwo', const IdeTextQuery(r'one\r\ntwo', isRegExp: true)),
+        hasLength(1),
+      );
+      expect(
+        find('ab', const IdeTextQuery(r'a[^\n]', isRegExp: true)),
+        hasLength(1),
+      );
+      expect(const IdeTextQuery(r'a\\n', isRegExp: true).isMultiline, isFalse);
+    });
+
+    test('ending on a line break: at the next line\'s start', () {
+      final match = find('one\ntwo', const IdeTextQuery('one\n')).single;
+      expect((match.endLine, match.endColumn), (1, 0));
+    });
+
+    test('replaced across lines', () {
+      final query = const IdeTextQuery(r'(\w+)\n(\w+)', isRegExp: true);
+      final regExp = query.toRegExp();
+      final match = find('x\none\ntwo', query).first;
+      expect(
+        ideReplaceString(match, r'$2 $1', regExp: regExp, isRegExp: true),
+        'one x',
+      );
+    });
+  });
+
   group('engine', () {
     late Directory root;
     setUp(() {
@@ -179,6 +242,11 @@ void main() {
       if (init.exitCode != 0) return;
       final (files, _) = await run(const IdeTextQuery('needle'));
       expect(files, {'lib/a.dart': 2});
+    });
+
+    test('across lines', () async {
+      final (files, _) = await run(const IdeTextQuery('one\nno'));
+      expect(files, {'lib/a.dart': 1});
     });
 
     test('an invalid expression is an error', () async {

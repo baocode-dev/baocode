@@ -258,6 +258,16 @@ void main() {
       expect(items.last, isA<IdeTextSearchComplete>());
     });
 
+    test('across lines: where the match ends comes too', () async {
+      File(at('a.txt')).writeAsStringSync('one\r\n  two\n');
+      final items = await client()
+          .searchText(root, const IdeTextQuery('one\n  two'))
+          .toList();
+      final match = items.whereType<IdeFileMatches>().single.matches.single;
+      expect((match.line, match.start), (0, 0));
+      expect((match.endLine, match.endColumn), (1, 5));
+    });
+
     test('an invalid pattern fails the stream', () async {
       await expectLater(
         client().searchText(root, const IdeTextQuery('(', isRegExp: true)),
