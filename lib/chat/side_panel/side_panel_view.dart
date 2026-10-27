@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import '../../base/shown_when_ready.dart';
 import '../../browser/browser_bridge.dart';
 import '../../browser/browser_mirror.dart';
 import '../../ide/file_service.dart';
@@ -669,7 +670,7 @@ class AgentSidePanelView extends StatelessWidget {
       tabs: _fileTabs(context, tabs, tabs.files, active),
       body: active == null
           ? _EmptySection(l10n.sidePanelSelectFile)
-          : _preview(context, active),
+          : ShownWhenReady(child: _preview(context, active)),
     );
   }
 
@@ -692,7 +693,9 @@ class AgentSidePanelView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   ?_fileTabs(context, tabs, tabs.diffs, active),
-                  Expanded(child: _preview(context, active)),
+                  Expanded(
+                    child: ShownWhenReady(child: _preview(context, active)),
+                  ),
                 ],
               ),
       );
@@ -719,7 +722,11 @@ class AgentSidePanelView extends StatelessWidget {
             readOnly: true,
           ),
         ),
-        overlay: active == null ? null : _preview(context, active),
+        // A file shown once read, compared and colored: what was before
+        // until then.
+        overlay: active == null
+            ? null
+            : ShownWhenReady(child: _preview(context, active)),
         overlayTabs: _fileTabs(context, tabs, tabs.diffs, active),
         onCloseOverlay: () => panel.showLog(session),
         onAddToChat: session.draft.insertFiles,

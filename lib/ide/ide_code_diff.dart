@@ -15,6 +15,7 @@ import 'package:bao_editor/monaco/vs/editor/common/diff/default_lines_diff_compu
 import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart';
 import 'package:bao_editor/textmate/textmate_syntax.dart';
 
+import '../base/shown_when_ready.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/code_font.dart';
@@ -182,6 +183,41 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
   Timer? _write;
   StreamSubscription<Object?>? _edits;
 
+  /// Lets it be shown in place of what was before (see [ShownWhenReady]),
+  /// once compared, scrolled to where it opens ([_placed]) and its lines
+  /// colored ([_colored]): not each in turn.
+  VoidCallback? _release;
+  bool _placed = false;
+  bool _colored = false;
+
+  void _readyIf() {
+    final release = _release;
+    if (release == null || !_placed) return;
+    if (!_colored) {
+      // Colored once a language is picked, its lines on screen.
+      if (_highlight != null) _firstColors();
+      return;
+    }
+    _release = null;
+    release();
+  }
+
+  /// The lines on screen colored, or none to be: once placed there.
+  void _firstColors() {
+    final highlight = _highlight;
+    if (highlight != null) {
+      final range = _view?.visibleLineRange;
+      if (!_placed || range == null) return;
+      final styled = highlight.styledLines;
+      if (!styled.containsKey(range.first) && !styled.containsKey(range.last)) {
+        return;
+      }
+      highlight.removeListener(_firstColors);
+    }
+    _colored = true;
+    _readyIf();
+  }
+
   TextMateSyntax get _textMate =>
       widget.highlights?.syntax ??
       (_ownTextMate ??= TextMateSyntax(themes: _themes));
@@ -193,6 +229,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
     _options.addListener(_optionsChanged);
     widget.checks?.addListener(_changed);
     _whitespace = _ignoredWhitespace;
+    _release = ShownWhenReady.hold(context);
     _open(widget.modified);
   }
 
@@ -222,6 +259,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
   void dispose() {
     _texts++;
     _flush();
+    _release?.call();
     _themes.removeListener(_changed);
     _options.removeListener(_optionsChanged);
     widget.checks?.removeListener(_changed);
@@ -267,6 +305,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
     unawaited(_edits?.cancel());
     _edits = null;
     _highlight?.removeListener(_changed);
+    _highlight?.removeListener(_firstColors);
     _highlight?.dispose();
     _highlight = null;
     _diff.model.removeListener(_compared);
@@ -380,14 +419,18 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
         path,
         firstLine: firstLine,
       );
-      if (!mounted || texts != _texts || languageId == null) return;
+      if (!mounted || texts != _texts) return;
+      if (languageId == null) return _firstColors();
       _highlight = _textMate.open(languageId, _modified.document.snapshot)
-        ?..addListener(_changed);
+        ?..addListener(_changed)
+        ..addListener(_firstColors);
+      if (_highlight == null) _firstColors();
       _diff.highlight(_textMate, languageId);
       setState(() {});
       WidgetsBinding.instance.addPostFrameCallback((_) => _viewChanged());
     } on Object {
       // Plain text, then.
+      if (mounted && texts == _texts) _firstColors();
     }
   }
 
@@ -416,7 +459,10 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       _revealLine(line);
       return;
     }
-    if (mappings.isEmpty) return;
+    if (mappings.isEmpty) {
+      _placed = true;
+      return _readyIf();
+    }
     _showChange(widget.start == IdeDiffStart.last ? mappings.length - 1 : 0);
   }
 
@@ -428,6 +474,8 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       final offset = snapshot.lineStarts[at];
       _view?.revealRange(offset, offset, center: true);
       _viewTick.value++;
+      _placed = true;
+      _readyIf();
     });
   }
 

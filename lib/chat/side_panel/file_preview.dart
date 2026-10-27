@@ -11,6 +11,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:path/path.dart' as p;
 
+import '../../base/shown_when_ready.dart';
 import '../../base/smooth_scroll.dart';
 import '../../ide/file_service.dart';
 import '../../ide/ide_agent_edits.dart';
@@ -169,6 +170,10 @@ class _FilePreviewState extends State<FilePreview> {
   EditorDocumentModel? _markdown;
   int _load = 0;
 
+  /// Lets it be shown in place of the file before (see [ShownWhenReady]):
+  /// once read.
+  VoidCallback? _release;
+
   /// The file's text in the editor, once read; none for changes.
   SidePanelFileEdit? _edit;
 
@@ -260,6 +265,7 @@ class _FilePreviewState extends State<FilePreview> {
     _dropMarkdown();
     _detach();
     _hunks.dispose();
+    _ready();
     super.dispose();
   }
 
@@ -329,8 +335,15 @@ class _FilePreviewState extends State<FilePreview> {
     if (_edit case final edit?) {
       _loaded = const _Text([]);
       if (_isMarkdown) _markdown = edit.controller.document;
+    } else {
+      _release ??= ShownWhenReady.hold(context);
     }
     unawaited(_read(load));
+  }
+
+  void _ready() {
+    _release?.call();
+    _release = null;
   }
 
   Future<void> _read(int load) async {
@@ -352,6 +365,8 @@ class _FilePreviewState extends State<FilePreview> {
       }
     }
     if (!mounted || load != _load) return;
+    // A diff holds it back itself, until compared and colored.
+    _ready();
     final _Loaded loaded;
     if (request.diff && original != null) {
       if (text == null && error is! IdeFileNotFoundException) {
