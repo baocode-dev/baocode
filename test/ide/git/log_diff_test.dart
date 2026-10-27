@@ -13,6 +13,7 @@ import 'package:baocode/ide/ide_code_diff.dart';
 import 'package:baocode/ide/ide_diff_options.dart';
 import 'package:baocode/ide/ide_list.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show Opacity;
 import 'package:flutter_test/flutter_test.dart';
 
 import '../workbench/fake_files.dart';
@@ -275,5 +276,56 @@ void main() {
     IdeDiffOptions.instance.collapseUnchanged = false;
     await tester.pumpAndSettle();
     expect(hidden(), isNull);
+  });
+
+  testWidgets('another file is shown collapsed at once, not whole first', (
+    tester,
+  ) async {
+    // Long enough to be compared on another isolate.
+    final lines = [for (var i = 1; i <= 300; i++) 'line $i of the file'];
+    final head = '${lines.join('\n')}\n';
+    final staged = '${([...lines]..[150] = 'LINE 151').join('\n')}\n';
+    git.show['HEAD:lib/staged.dart'] = head;
+    git.show[':lib/staged.dart'] = staged;
+    await showDiff(tester);
+    files.contents[inRoot('lib/staged.dart')] = staged;
+
+    final seen = <String>[];
+    void look() {
+      for (final element
+          in find
+              .byWidgetPredicate(
+                (widget) =>
+                    widget is EditorSurface &&
+                    !widget.readOnly &&
+                    widget.controller.document.text == staged,
+              )
+              .evaluate()) {
+        var visible = true;
+        element.visitAncestorElements((ancestor) {
+          if (ancestor.widget case Opacity(:final opacity) when opacity == 0) {
+            visible = false;
+          }
+          return visible;
+        });
+        if (!visible) continue;
+        final surface = element.widget as EditorSurface;
+        seen.add(surface.hiddenLines == null ? 'whole' : 'collapsed');
+      }
+    }
+
+    await tester.tap(find.byTooltip(RegExp('^Previous File')));
+    for (var i = 0; i < 40; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 5)),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+      look();
+    }
+    await tester.pumpAndSettle();
+    look();
+    expect(find.text('1 / 3'), findsOneWidget);
+    expect(seen, isNotEmpty);
+    expect(seen, everyElement('collapsed'));
   });
 }

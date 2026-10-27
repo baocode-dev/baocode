@@ -20,6 +20,7 @@ import 'package:bao_editor/monaco/flutter/diff_editor_model.dart'
 
 import '../../base/give_way_row.dart';
 import '../../base/smooth_scroll.dart';
+import '../../base/shown_when_ready.dart';
 import '../../chat/composer/composer_files.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
@@ -3450,14 +3451,19 @@ String get _alt => defaultTargetPlatform == TargetPlatform.macOS ? '⌥' : 'Alt+
 class _DiffAreaState extends State<_DiffArea> {
   final FocusNode _focus = FocusNode(debugLabel: 'git log diff');
 
-  /// The diff shown, for its changes to be stepped through.
-  final GlobalKey<IdeCodeDiffState> _code = GlobalKey();
+  /// Each file's diff, for its changes to be stepped through: the one
+  /// shown, and the next while it is made ready to show in its place.
+  final Map<IdeGitDiffFile, GlobalKey<IdeCodeDiffState>> _codes = {};
+
+  GlobalKey<IdeCodeDiffState> _codeOf(IdeGitDiffFile file) =>
+      _codes[file] ??= GlobalKey();
 
   /// The next change (F7), or, past the file's last, the next file's
   /// first; [delta] -1: the previous, or the previous file's last.
   void _stepChange(int delta) {
-    if (_code.currentState?.step(delta) ?? false) return;
     final diff = widget.diff;
+    final code = _codes[diff.files[diff.index]];
+    if (code?.currentState?.step(delta) ?? false) return;
     final index = diff.index + delta;
     if (index < 0 || index >= diff.files.length) return;
     widget.onStep(
@@ -3759,22 +3765,27 @@ class _DiffAreaState extends State<_DiffArea> {
             ),
           ),
           Expanded(
-            child: _DiffBody(
-              key: ValueKey(file),
-              file: file,
-              start: diff.start,
-              code: _code,
-              position: _position,
-              onAsk: switch (widget.onAsk) {
-                final ask? => (change, line) => ask(
-                  context.l10n.gitAskAiHunkPrompt(
-                    widget.paths.relative(file.path, from: widget.root),
-                    line,
-                    change,
+            // The file before stays until this one is read, compared and
+            // collapsed, scrolled to its change and colored: not each step
+            // in turn (the whole text, then its unchanged lines hidden).
+            child: ShownWhenReady(
+              child: _DiffBody(
+                key: ValueKey(file),
+                file: file,
+                start: diff.start,
+                code: _codeOf(file),
+                position: _position,
+                onAsk: switch (widget.onAsk) {
+                  final ask? => (change, line) => ask(
+                    context.l10n.gitAskAiHunkPrompt(
+                      widget.paths.relative(file.path, from: widget.root),
+                      line,
+                      change,
+                    ),
                   ),
-                ),
-                null => null,
-              },
+                  null => null,
+                },
+              ),
             ),
           ),
         ],
@@ -3812,6 +3823,27 @@ class _DiffBodyState extends State<_DiffBody> {
     ]);
     return (texts[0], texts[1]);
   }();
+
+  /// Not shown while it reads: the diff holds it then (see IdeCodeDiff).
+  VoidCallback? _release;
+
+  @override
+  void initState() {
+    super.initState();
+    _release = ShownWhenReady.hold(context);
+    _texts.whenComplete(_released).ignore();
+  }
+
+  void _released() {
+    _release?.call();
+    _release = null;
+  }
+
+  @override
+  void dispose() {
+    _released();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<(String, String)>(
