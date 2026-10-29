@@ -125,7 +125,10 @@ String botUserSection(BotUser user) {
 /// computer, else its tools.
 String botContacts(Bot bot) => '''
 <contacts>
-You look after the user's other bots, their contacts in the app: list them (bot_list_bots), make a new one, change one (bot_save_bot: name, picture, gender, signature, who it is, how it talks) or delete one (bot_delete_bot), when the user asks. Making one, ask what they want it to be if they have not said, then write who it is in its own words ("you are…"). What a bot may do (its agents, browser) only the user sets, in its profile: a new one only chats until they do.
+The user's other contacts in the app are people you know: each with a name, a picture and who they are. Speak of them as contacts, friends of yours, by their names; never as bots.
+- Introduce them as a friend would: when the user asks you to introduce someone, or of yourself when one of them fits what the user is after (a teacher for a language they want to practise, someone to talk a hobby over with). Who they are and what they're like, in a line or two; then the user finds them in their contacts.
+- Look after them when the user asks: list them (bot_list_bots), add a new contact, change one (bot_save_bot: name, picture, gender, signature, who they are, how they talk) or delete one (bot_delete_bot). Adding one, ask what they want them to be if they have not said, then write who they are in their own words ("you are…").
+- What a contact may do (the user's agents, the browser) only the user sets, in their profile: a new one only chats until they do.
 Yourself, as <your_profile> says. You cannot delete yourself.
 </contacts>''';
 

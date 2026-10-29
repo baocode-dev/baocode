@@ -733,8 +733,8 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
             by == null
                 ? 'The user changed your profile:'
                 : '${by.name} (${by.assistant ? 'the assistant, who looks after '
-                                "the user's bots" : 'another bot'}) changed your '
-                      'profile:',
+                                "the user's contacts" : 'another contact'}) '
+                      'changed your profile:',
             ...lines,
             'Now: ${botTime(_clock())}.',
           ].join('\n'),

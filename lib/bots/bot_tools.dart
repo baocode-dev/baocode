@@ -624,8 +624,8 @@ abstract final class BotTools {
       (
         tool(
           'bot_list_bots',
-          "Lists the user's bots, you among them: id, name, picture, gender, "
-              'signature, what they may do; and who each is.',
+          "Lists the user's contacts, you among them: id, name, picture, "
+              'gender, signature, what they may do; and who each is.',
           const {},
           (input, call) async {
             final me = freshOf(call);
@@ -653,10 +653,10 @@ abstract final class BotTools {
       (
         tool(
           'bot_save_bot',
-          "Makes a new bot for the user (no bot), or changes one of the "
-              "others: what you give changes, the rest stays. Its picture is "
-              'an emoji, or a picture file (one generate_image saved, say), '
-              'cut square. Yourself, with bot_edit_me.',
+          "Adds a new contact for the user (no bot), or changes one of the "
+              "others: what you give changes, the rest stays. Their picture "
+              'is an emoji, or a picture file (one generate_image saved, '
+              'say), cut square. Yourself, with bot_edit_me.',
           {
             'bot': {
               'type': 'string',
@@ -730,8 +730,8 @@ abstract final class BotTools {
       (
         tool(
           'bot_delete_bot',
-          "Deletes one of the user's bots, its chat and memory with it: only "
-              'when the user asks. Not yourself.',
+          "Deletes one of the user's contacts, their chat and memory with "
+              'them: only when the user asks. Not yourself.',
           {
             'bot': {'type': 'string', 'description': 'Its id (bot_list_bots).'},
           },
