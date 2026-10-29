@@ -30,6 +30,18 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.7.3">
+    <h2 class="plain"><a href="#v1.7.3">1.7.3</a></h2>
+    <p>Fixes 1.7.2's bots running in the background without a phone.</p>
+    <p>Fixed</p>
+    <ul>
+    <li>With no phone paired, bots are no longer told what your agents do, and do not come back to what they meant to. Each such notice had a bot answer on your model, paid for and read by no one. Once a phone is paired, they carry on.</li>
+    <li>A bot's conversation no longer shows in the desktop's notifications, the Dock badge or the tray, and a notification no longer opens it as an ordinary conversation.</li>
+    <li>Each bot has an Agent notifications switch, off at first, the assistant's too. On, it hears when any agent waits, fails, finishes or runs long; off, only of the agents it started or wrote to. On the phone, this needs 0.1.4.</li>
+    <li>A bot skips what happens to agents that its chat does not need, instead of answering each one.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.7.2">
     <h2 class="plain"><a href="#v1.7.2">1.7.2</a></h2>
     <p>This release is about bots on the phone: agents that chat with you as a person does, running on your computer and talked to from your phone. Split panes also get a side panel each and can be dragged around, and a number of things are fixed.</p>
