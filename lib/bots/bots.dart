@@ -1051,22 +1051,17 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     }
   }
 
-  /// [events] for the bots they concern, to tell when it is time: each,
-  /// of those it started or wrote to (its chat asked for them); of all of
-  /// them, those the user lets be ([BotAbility.proactive], off at first:
-  /// a turn of the model's each). None without a phone to write to.
+  /// [events] for the bots the user lets be told of the agents
+  /// ([BotAbility.proactive], off at first: a turn of the model's each),
+  /// to tell when it is time; none for the others, not even of the agents
+  /// they started or wrote to (off is off), nor without a phone to write
+  /// to.
   void _tell(List<BotEvent> events) {
     if (events.isEmpty || !_hasPhone) return;
     for (final bot in _bots) {
-      final watching = _watching[bot.id] ?? const <String>[];
-      final all = bot.can(BotAbility.proactive);
-      final told = [
-        for (final event in events)
-          if (all || watching.contains(event.chat)) event,
-      ];
-      if (told.isEmpty) continue;
+      if (!bot.can(BotAbility.proactive)) continue;
       final pacer = _pacers[bot.id] ??= BotPacer();
-      told.forEach(pacer.add);
+      events.forEach(pacer.add);
     }
     _schedule();
   }

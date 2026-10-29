@@ -796,8 +796,8 @@ void main() {
       expect(notes(bot).single, contains('done: "${agent.title}"'));
     });
 
-    test('only a bot let be is told of every agent; another, of those it '
-        'started or wrote to', () async {
+    test('only a bot let be is told of the agents; another, not even of '
+        'those it started or wrote to', () async {
       final assistant = toldOfAll();
       final mia = bots.save(
         name: 'Mia',
@@ -828,11 +828,12 @@ void main() {
       await finish(first);
       expect(notes(assistant), hasLength(1));
       expect(notes(mia), isEmpty);
-      // One it started: told of it.
+      // One it started: not told of it either, off being off.
       final second = await run();
       bots.watch(mia, second);
       await finish(second);
-      expect(notes(mia).single, contains('done: "${second.title}"'));
+      expect(notes(mia), isEmpty);
+      expect(notes(assistant).last, contains('done: "${second.title}"'));
       await pumpEventQueue();
       expect(store.preferences['watching'], {
         mia.id: [BotTools.idOf(second)],
@@ -1258,8 +1259,7 @@ void main() {
       return agent;
     }
 
-    test('the assistant is told of no agent at first; of one it started, '
-        'yes', () async {
+    test('the assistant is told of no agent at first', () async {
       final assistant = bots.bots.single;
       expect(assistant.can(BotAbility.proactive), isFalse);
       await runAndFinish();
@@ -1299,7 +1299,7 @@ void main() {
       final bot = bots.bots.single;
       expect(
         botAbilities(bot),
-        contains('only of the agents you started or wrote to'),
+        contains('The app does not tell you what the user'),
       );
       expect(
         botAbilities(bot.copyWith(abilities: {BotAbility.proactive})),
