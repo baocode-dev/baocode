@@ -1167,6 +1167,8 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
         workspace.threads.any(
           (thread) =>
               !thread.archived &&
+              // A bot's answering is not the user's work to lose.
+              !workspace.isAppFolder(thread.project.path) &&
               (thread.status == ThreadStatus.running ||
                   thread.status == ThreadStatus.needsInput),
         ) ||

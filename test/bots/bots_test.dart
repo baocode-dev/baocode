@@ -306,6 +306,22 @@ void main() {
       expect(store.preferences, isNot(contains('bots')));
     });
 
+    test('a bot\'s conversation never shows on the desktop', () {
+      final thread = bots.threadFor(bots.bots.single);
+      final shown = workspace.current;
+      workspace.select(thread);
+      expect(workspace.current, shown);
+      // Shown before the bots were (kept from the last run): no longer.
+      final setup = workspace.agentSetup;
+      workspace.agentSetup = null;
+      workspace.select(thread);
+      expect(workspace.current, thread);
+      workspace.agentSetup = setup;
+      expect(workspace.grid.contains(thread), isFalse);
+      expect(workspace.current, isNot(thread));
+      expect(workspace.current!.project.path, app);
+    });
+
     test('a bot\'s folder is no project of the sidebar\'s', () {
       final bot = bots.bots.single;
       final thread = bots.threadFor(bot);
