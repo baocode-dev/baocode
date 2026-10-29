@@ -826,6 +826,31 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     notifyListeners();
   }
 
+  /// [bot]'s conversation deleted, and a new one started: it chats again
+  /// from nothing said, who it is and what it remembers (MEMORY.md,
+  /// SELF.md) kept. What it meant to come back to, and was to be told of,
+  /// was of that conversation: gone with it.
+  void clearChat(Bot bot) {
+    workspace.deleteAll([
+      for (final thread in workspace.threads)
+        if (thread.project.path == bot.folder) thread,
+    ]);
+    _followed.removeWhere((session, _) => !_sessionOf(session));
+    _pacers.remove(bot.id);
+    _restartWhenIdle.remove(bot.id);
+    _seen.remove(bot.id);
+    _writeLaters(bot, const []);
+    threadFor(bot);
+    _save();
+    _schedule();
+    notifyListeners();
+  }
+
+  /// Whether [session] is a bot's conversation's still.
+  bool _sessionOf(ChatSession session) => workspace.threads.any(
+    (thread) => thread.isOpen && identical(thread.session, session),
+  );
+
   /// [bot], its folder gone: its conversation deleted, nothing kept of it.
   void _forget(Bot bot) {
     workspace.deleteAll([

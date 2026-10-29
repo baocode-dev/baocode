@@ -838,6 +838,28 @@ void main() {
       });
     });
 
+    test('its chat deleted: a new one, from nothing said; who it is and '
+        'what it remembers kept', () async {
+      final bot = bots.save(name: 'Mia', identity: 'x', abilities: {});
+      final had = bots.threadFor(bot);
+      had.session.send(const ComposerMessage(text: 'hi'));
+      await pumpEventQueue();
+      bots.setMemory(bot, 'Likes tea');
+      bots.later(bot, const Duration(hours: 1), 'Ask how it went');
+      bots.clearChat(bot);
+      expect(workspace.threads, isNot(contains(had)));
+      final now = bots.threadOf(bot)!;
+      expect(now, isNot(had));
+      expect(now.session.itemCount, 0);
+      expect(bots.memory(bot), contains('Likes tea'));
+      expect(bots.laters(bot), isEmpty);
+      expect(bots.byId(bot.id)!.identity, 'x');
+      // Its conversation still followed: what it says, seen.
+      now.session.send(const ComposerMessage(text: 'again'));
+      await pumpEventQueue();
+      expect(bots.threadOf(bot), now);
+    });
+
     test('it drops what it meant to come back to', () async {
       final bot = bots.save(name: 'Mia', identity: '', abilities: {});
       await call(bot, 'bot_later', {'minutes': 3, 'note': 'Remind of tea'});

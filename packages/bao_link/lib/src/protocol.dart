@@ -145,6 +145,12 @@ abstract final class LinkMethods {
   /// `unsupported` for the assistant.
   static const deleteBot = 'deleteBot';
 
+  /// `{"bot"}`: the bot's conversation deleted, a new one started in its
+  /// place ([LinkBot.session] another): what it remembers and who it is
+  /// stay; what it meant to come back to goes with it. `unknown` from a
+  /// desktop before it.
+  static const clearBotChat = 'clearBotChat';
+
   /// `{"bot"}`: what the bot remembers of the user, as it keeps it (kept
   /// on the desktop, never sent elsewhere): `{"text", "self"}`, `self`
   /// what it noted of itself (a desktop before those has no `self`).

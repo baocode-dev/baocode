@@ -494,6 +494,9 @@ class WorkspaceBridge {
         }
         _bots().delete(bot.id);
         return null;
+      case LinkMethods.clearBotChat:
+        _bots().clearChat(_bot(params['bot']));
+        return null;
       case LinkMethods.botMemory:
         final bot = _bot(params['bot']);
         return {'text': _bots().memory(bot), 'self': _bots().selfNotes(bot)};
