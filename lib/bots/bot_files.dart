@@ -51,7 +51,16 @@ abstract final class BotFiles {
   ], bot.identity);
 
   /// The abilities a card says yes or no to: those the user turns on.
-  static const shownAbilities = [BotAbility.agents, BotAbility.browser];
+  static const shownAbilities = [
+    BotAbility.agents,
+    BotAbility.browser,
+    BotAbility.proactive,
+  ];
+
+  /// The assistant's, as the app starts it, and for what its card does not
+  /// say: all but being told of every agent ([BotAbility.proactive]), a
+  /// turn of the model's each, which the user turns on.
+  static const assistantAbilities = {BotAbility.agents, BotAbility.browser};
 
   /// The bot whose card is [card] and style [style], in [folder]; null
   /// for a card without a name.
@@ -72,8 +81,10 @@ abstract final class BotFiles {
       style: style.trim(),
       abilities: {
         for (final ability in shownAbilities)
-          // Not said: the assistant's on, another's off.
-          if (_yes(fields[ability.name]) ?? assistant) ability,
+          // Not said: the assistant's own on, another's off.
+          if (_yes(fields[ability.name]) ??
+              (assistant && assistantAbilities.contains(ability)))
+            ability,
       },
       model: text('model').isEmpty ? null : text('model'),
       assistant: assistant,

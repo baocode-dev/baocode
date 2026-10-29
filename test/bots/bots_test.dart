@@ -267,7 +267,31 @@ void main() {
       ];
     }
 
-    test('start with the assistant, every ability on, kept', () async {
+    /// What the app told [bot]: its notes in its conversation.
+    List<String> notes(Bot bot) {
+      final session = bots.threadFor(bot).session;
+      return [
+        for (var i = 0; i < session.itemCount; i++)
+          if (session.itemAt(i) case final UserMessageItem item)
+            ?ChatCodec.botEvent(item),
+      ];
+    }
+
+    /// The assistant, told of every agent: the user turned it on.
+    Bot toldOfAll() {
+      final assistant = bots.bots.single;
+      return bots.save(
+        id: assistant.id,
+        name: assistant.name,
+        identity: assistant.identity,
+        abilities: {...assistant.abilities, BotAbility.proactive},
+        // Not told of it, a turn of its own.
+        by: assistant,
+      );
+    }
+
+    test('start with the assistant, its abilities on but being told of '
+        'every agent, kept', () async {
       final assistant = bots.bots.single;
       expect(assistant.assistant, isTrue);
       expect(assistant.name, '小宝');
@@ -276,6 +300,7 @@ void main() {
       final card = utf8.decode(folders.files['${assistant.folder}/BOT.md']!);
       expect(card, contains('name: 小宝'));
       expect(card, contains('agents: true'));
+      expect(card, contains('proactive: false'));
       expect(card, isNot(contains('files:')));
       expect(card, contains('assistant: true'));
       expect(store.preferences, isNot(contains('bots')));
@@ -736,8 +761,8 @@ void main() {
     });
 
     test('it writes first of an agent done, in a note of the app\'s', () async {
-      final bot = bots.bots.single;
-      final agent = workspace.startAgent(workspace.projects.single);
+      final bot = toldOfAll();
+      final agent = workspace.startAgent(workspace.projectAt(app));
       agent.session.send(const ComposerMessage(text: 'build it'));
       for (var i = 0; i < 300 && !agent.session.isStreaming; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -751,17 +776,12 @@ void main() {
       workspace.notifyListeners();
       now = now.add(const Duration(minutes: 2));
       bots.deliver();
-      final note = bots.threadOf(bot)!.session.itemAt(0);
-      expect(note, isA<UserMessageItem>());
-      expect(
-        ChatCodec.botEvent(note as UserMessageItem),
-        contains('done: "${agent.title}"'),
-      );
+      expect(notes(bot).single, contains('done: "${agent.title}"'));
     });
 
-    test('only the assistant is told of every agent; another, of those it '
+    test('only a bot let be is told of every agent; another, of those it '
         'started or wrote to', () async {
-      final assistant = bots.bots.single;
+      final assistant = toldOfAll();
       final mia = bots.save(
         name: 'Mia',
         identity: '',
@@ -787,25 +807,15 @@ void main() {
         bots.deliver();
       }
 
-      List<String> told(Bot bot) {
-        final session = bots.threadFor(bot).session;
-        return [
-          for (var i = 0; i < session.itemCount; i++)
-            if (session.itemAt(i) case final UserMessageItem item
-                when ChatCodec.botEvent(item) != null)
-              ChatCodec.botEvent(item)!,
-        ];
-      }
-
       final first = await run();
       await finish(first);
-      expect(told(assistant), hasLength(1));
-      expect(told(mia), isEmpty);
+      expect(notes(assistant), hasLength(1));
+      expect(notes(mia), isEmpty);
       // One it started: told of it.
       final second = await run();
       bots.watch(mia, second);
       await finish(second);
-      expect(told(mia).single, contains('done: "${second.title}"'));
+      expect(notes(mia).single, contains('done: "${second.title}"'));
       await pumpEventQueue();
       expect(store.preferences['watching'], {
         mia.id: [BotTools.idOf(second)],
@@ -1169,8 +1179,8 @@ void main() {
     });
 
     test('it tells of an agent at work a long while, once', () async {
-      final bot = bots.bots.single;
-      final agent = workspace.startAgent(workspace.projects.single);
+      final bot = toldOfAll();
+      final agent = workspace.startAgent(workspace.projectAt(app));
       agent.session.send(const ComposerMessage(text: 'build it'));
       for (var i = 0; i < 300 && !agent.session.isStreaming; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -1183,26 +1193,79 @@ void main() {
       bots.checkRunning();
       now = now.add(const Duration(minutes: 2));
       bots.deliver();
-      final session = bots.threadOf(bot)!.session;
-      expect(
-        ChatCodec.botEvent(session.itemAt(0) as UserMessageItem),
-        contains('running: "${agent.title}"'),
-      );
-      expect(
-        ChatCodec.botEvent(session.itemAt(0) as UserMessageItem),
-        contains('running for 31 min'),
-      );
+      expect(notes(bot).single, contains('running: "${agent.title}"'));
+      expect(notes(bot).single, contains('running for 31 min'));
       // Not again, while it runs on.
       now = now.add(const Duration(hours: 1));
       bots.checkRunning();
       now = now.add(const Duration(hours: 1));
       bots.deliver();
-      expect([
-        for (var i = 0; i < session.itemCount; i++)
-          if (session.itemAt(i) case final UserMessageItem item
-              when ChatCodec.botEvent(item) != null)
-            item,
-      ], hasLength(1));
+      expect(notes(bot), hasLength(1));
+    });
+
+    Future<AgentThread> runAndFinish() async {
+      final agent = workspace.startAgent(workspace.projectAt(app));
+      agent.session.send(const ComposerMessage(text: 'build it'));
+      for (var i = 0; i < 300 && !agent.session.isStreaming; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      workspace.notifyListeners();
+      agent.session.stop();
+      for (var i = 0; i < 300 && agent.session.isStreaming; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      workspace.notifyListeners();
+      now = now.add(const Duration(minutes: 2));
+      return agent;
+    }
+
+    test('the assistant is told of no agent at first; of one it started, '
+        'yes', () async {
+      final assistant = bots.bots.single;
+      expect(assistant.can(BotAbility.proactive), isFalse);
+      await runAndFinish();
+      bots.deliver();
+      expect(notes(assistant), isEmpty);
+      // An old card, saying nothing of it: off still.
+      expect(
+        BotFiles.read(
+          '/bots/assistant',
+          '---\nname: 小宝\nassistant: true\n---\n',
+        )!.abilities,
+        BotFiles.assistantAbilities,
+      );
+    });
+
+    test('with no phone paired, told of nothing nor come back to', () async {
+      var paired = false;
+      bots.hasPhone = () => paired;
+      final bot = toldOfAll();
+      await runAndFinish();
+      bots.later(bot, const Duration(minutes: 1), 'Ask how it went');
+      now = now.add(const Duration(minutes: 5));
+      bots.deliver();
+      expect(notes(bot), isEmpty);
+      // Paired: what it meant to come back to, now; what happened meanwhile
+      // was never kept.
+      paired = true;
+      bots.phonesChanged();
+      bots.deliver();
+      expect(notes(bot).single, contains('Ask how it went'));
+      expect(notes(bot).single, isNot(contains('done:')));
+    });
+
+    test('told it may ignore what happened to agents its chat does not '
+        'need', () {
+      expect(botEvents, contains('yours to ignore unless this chat needs it'));
+      final bot = bots.bots.single;
+      expect(
+        botAbilities(bot),
+        contains('only of the agents you started or wrote to'),
+      );
+      expect(
+        botAbilities(bot.copyWith(abilities: {BotAbility.proactive})),
+        contains('when any of the user'),
+      );
     });
   });
 }

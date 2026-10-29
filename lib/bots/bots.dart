@@ -66,6 +66,18 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   /// The computer the bots live on, as the user named it: for them to know.
   String? computer;
 
+  /// Whether a phone is paired: the bots are the phone's, and with none
+  /// they are told of nothing nor come back to anything (each a turn of
+  /// the model's, paid for), until one is ([phonesChanged]). Unset, one is.
+  bool Function()? hasPhone;
+
+  bool get _hasPhone => hasPhone?.call() ?? true;
+
+  /// A phone was paired or unpaired: what is due, delivered, or held.
+  void phonesChanged() {
+    if (_started && !_disposed) _schedule();
+  }
+
   static Future<String?> _thisComputer() async =>
       (await LinkPlatform.current()?.device())?.name;
 
@@ -413,7 +425,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       name: defaults.name,
       folder: p.join(root, 'assistant'),
       identity: defaults.identity,
-      abilities: BotFiles.shownAbilities.toSet(),
+      abilities: BotFiles.assistantAbilities,
       assistant: true,
       created: _clock(),
     );
@@ -671,7 +683,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       abilities: abilities,
       proactive: proactive,
     );
-    if (!bot.can(BotAbility.agents)) _pacers.remove(bot.id);
+    // What it was to be told, dropped with being told of the agents.
+    if (had.can(BotAbility.proactive) && !bot.can(BotAbility.proactive)) {
+      _pacers.remove(bot.id);
+    }
     _writeBot(bot);
     _restart(bot);
     // Changed by itself, it knows.
@@ -1011,20 +1026,18 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     }
   }
 
-  /// [events] for the bots they concern, to tell when it is time: the
-  /// assistant, which looks after the agents, of all of them (if it may
-  /// see them); another, of those it started or wrote to. Not every bot
-  /// of everything, each to write of it.
+  /// [events] for the bots they concern, to tell when it is time: each,
+  /// of those it started or wrote to (its chat asked for them); of all of
+  /// them, those the user lets be ([BotAbility.proactive], off at first:
+  /// a turn of the model's each). None without a phone to write to.
   void _tell(List<BotEvent> events) {
-    if (events.isEmpty) return;
+    if (events.isEmpty || !_hasPhone) return;
     for (final bot in _bots) {
       final watching = _watching[bot.id] ?? const <String>[];
+      final all = bot.can(BotAbility.proactive);
       final told = [
         for (final event in events)
-          if (bot.assistant
-              ? bot.can(BotAbility.agents)
-              : watching.contains(event.chat))
-            event,
+          if (all || watching.contains(event.chat)) event,
       ];
       if (told.isEmpty) continue;
       final pacer = _pacers[bot.id] ??= BotPacer();
@@ -1144,6 +1157,9 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   void _schedule() {
     _timer?.cancel();
+    _timer = null;
+    // Held, with no phone to write to: until one is paired.
+    if (!_hasPhone) return;
     final now = _clock();
     DateTime? next;
     for (final bot in _bots) {
@@ -1162,6 +1178,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   /// conversation, which it answers as it writes first.
   @visibleForTesting
   void deliver() {
+    if (!_hasPhone) return;
     final now = _clock();
     var busy = false;
     for (final bot in _bots) {

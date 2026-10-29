@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/notifications/attention_host.dart';
@@ -196,6 +197,26 @@ void main() {
     // The tray, now on, shows it waiting.
     expect(host.trays.last!.waiting.single.title, 'Rate limit per API key');
     background.session.stop();
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets("a bot's conversation is neither told of nor counted", (
+    tester,
+  ) async {
+    start();
+    final bot = _thread(workspace, 'Rate limit per API key');
+    final folder = bot.project.path;
+    workspace.agentSetup = (path) => path == folder
+        ? AgentSetup(workspace: () => const KernelWorkspace(folders: []))
+        : null;
+    service.refresh();
+    final badge = host.badge;
+    bot.session.send(const ComposerMessage(text: '加一个限流'));
+    await _runUntilQuestion(tester, bot.session);
+    expect(host.notifications, isEmpty);
+    expect(host.badge, badge);
+    expect(host.trays.last!.waiting, isEmpty);
+    bot.session.stop();
     await tester.pump(const Duration(seconds: 5));
   });
 

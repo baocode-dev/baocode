@@ -370,8 +370,8 @@ Future<void> main(List<String> arguments) async {
           store: PreferenceStore.file(
             p.join(DataDirectory.current.botsDir, 'bots.json'),
           ),
-          chinese: (locale.locale ?? AppLocale.systemLocale()).languageCode ==
-              'zh',
+          chinese:
+              (locale.locale ?? AppLocale.systemLocale()).languageCode == 'zh',
         );
   unawaited(bots?.start());
   final link = kIsWeb
@@ -381,6 +381,16 @@ Future<void> main(List<String> arguments) async {
           customizations: customizations,
           bots: bots,
         );
+  if (bots != null && link != null) {
+    // The bots are the phones': with none paired, told of nothing.
+    var paired = false;
+    bots.hasPhone = () => link.phones.isNotEmpty;
+    link.addListener(() {
+      if (link.phones.isNotEmpty == paired) return;
+      paired = !paired;
+      bots.phonesChanged();
+    });
+  }
   unawaited(link?.load());
   // The first frame is in the kept theme, restored from storage as VS Code
   // does before the workbench shows; its file is read after. The setting
