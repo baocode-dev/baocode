@@ -185,62 +185,21 @@ void main() {
       }
     });
 
-    test('messages go as it said them', () {
-      final said = roundTrip(
-        const ToolCallItem(
-          kind: ToolKind.other,
-          tool: ChatCodec.botSayTool,
-          target: '等下 我看看',
-          input: {'text': '等下 我看看'},
-        ),
-      );
-      expect(ChatCodec.botSay(said), '等下 我看看');
-      expect(ChatCodec.botSent(said), isTrue);
-      expect(
-        ChatCodec.botSay(
-          roundTrip(
-            const ToolCallItem(
-              kind: ToolKind.other,
-              tool: ChatCodec.botSayTool,
-              target: 'x',
-              status: ToolStatus.failed,
-              input: {'text': 'x'},
-            ),
+    test('its messages are its reply\'s bot_say tags, once closed', () {
+      final said = ChatCodec.decode(
+        ChatCodec.encode(
+          const AssistantTextItem(
+            'notes <bot_say>哇 终于</bot_say>\n<bot_say> </bot_say>'
+            '<bot_say>是 relay\n断线那个吗</bot_say> more <bot_say>还在',
           ),
         ),
-        isNull,
       );
-    });
-
-    test('its own texts show only before it talks with its tools', () {
-      const say = ToolCallItem(
-        kind: ToolKind.other,
-        tool: ChatCodec.botSayTool,
-        target: '在',
-        input: {'text': '在'},
-      );
-      const look = ToolCallItem(
-        kind: ToolKind.other,
-        tool: 'bot_list_chats',
-        target: '',
-      );
-      final items = <ChatItem>[
-        const UserMessageItem(text: 'old'),
-        const AssistantTextItem('Before it talked so: shown.'),
-        const UserMessageItem(text: '在吗'),
-        const AssistantTextItem('Notes to itself.'),
-        say,
-        // What the user wrote meanwhile, waiting: the turn goes on.
-        const UserMessageItem(text: '?', queued: true),
-        look,
-        const AssistantTextItem('Done.'),
-        const UserMessageItem(text: 'ok'),
-        look,
-        // Taken up as it talked: what it writes after is a note still.
-        const UserMessageItem(text: '算了'),
-        const AssistantTextItem('They called it off.'),
-      ];
-      expect(ChatCodec.botQuiet(items.length, (i) => items[i]), {3, 7, 11});
+      expect(ChatCodec.botSays((said as AssistantTextItem).text), [
+        '哇 终于',
+        '是 relay\n断线那个吗',
+      ]);
+      expect(ChatCodec.botSays('Notes to itself.'), isEmpty);
+      expect(ChatCodec.botSent(said), isFalse);
     });
 
     test('the user\'s sticker is told by its text', () {

@@ -554,10 +554,9 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     final session = thread.session;
     final count = session.itemCount;
     final seen = (_seen[bot.id] ??= count).clamp(0, count);
-    final quiet = ChatCodec.botQuiet(count, session.itemAt);
     var unread = 0;
     for (var i = seen; i < count; i++) {
-      if (_shown(session.itemAt(i), quiet.contains(i))) unread++;
+      unread += _shown(session.itemAt(i));
     }
     return unread;
   }
@@ -570,25 +569,15 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     notifyListeners();
   }
 
-  /// Whether [item] shows in a bot's chat as one of its messages: what it
-  /// sent; a text of its own, unless [quiet] (see [ChatCodec.botQuiet]).
-  static bool _shown(ChatItem item, bool quiet) => switch (item) {
-    AssistantTextItem(:final text) => !quiet && text.trim().isNotEmpty,
-    _ => ChatCodec.botSent(item),
+  /// How many of a bot's messages [item] shows as in its chat: those of its
+  /// reply (see [ChatCodec.botSays]); what it sent with its tools.
+  static int _shown(ChatItem item) => switch (item) {
+    AssistantTextItem(:final text) => ChatCodec.botSays(text).length,
+    _ => ChatCodec.botSent(item) ? 1 : 0,
   };
 
-  /// Whether [bot] is writing to the user: at work, not on a note to
-  /// itself at the end of a turn it talked in (see [ChatCodec.botQuiet]).
-  bool typing(Bot bot) {
-    final thread = threadOf(bot);
-    if (thread == null || thread.status != ThreadStatus.running) return false;
-    if (!thread.isOpen) return true;
-    final session = thread.session;
-    final last = session.itemCount - 1;
-    return last < 0 ||
-        session.itemAt(last) is! AssistantTextItem ||
-        !ChatCodec.botQuiet(session.itemCount, session.itemAt).contains(last);
-  }
+  /// Whether [bot] is writing to the user: at work.
+  bool typing(Bot bot) => threadOf(bot)?.status == ThreadStatus.running;
 
   /// The last [bot] said: its first line; a picture or a sticker, as a
   /// chat app's list says it.
@@ -596,7 +585,6 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     final thread = threadOf(bot);
     if (thread == null || !thread.isOpen) return null;
     final session = thread.session;
-    final quiet = ChatCodec.botQuiet(session.itemCount, session.itemAt);
     String? firstLine(String text) {
       final line = text
           .split('\n')
@@ -608,10 +596,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
     for (var i = session.itemCount - 1; i >= 0; i--) {
       switch (session.itemAt(i)) {
-        case AssistantTextItem(:final text) when !quiet.contains(i):
-          if (firstLine(text) case final line?) return line;
-        case final ToolCallItem item when ChatCodec.botSay(item) != null:
-          if (firstLine(ChatCodec.botSay(item)!) case final line?) return line;
+        case AssistantTextItem(:final text):
+          if (ChatCodec.botSays(text).lastOrNull case final said?) {
+            if (firstLine(said) case final line?) return line;
+          }
         case final ToolCallItem item
             when item.status != ToolStatus.failed &&
                 (item.images.isNotEmpty || ChatCodec.botImageUrl(item) != null):
@@ -1039,7 +1027,12 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         final now = (
           session.itemCount,
           session.isStreaming,
-          last >= 0 && session.itemAt(last) is AssistantTextItem,
+          // Each of its messages, as its reply's tags close.
+          last >= 0 && session.itemAt(last) is AssistantTextItem
+              ? ChatCodec.botSays(
+                  (session.itemAt(last) as AssistantTextItem).text,
+                ).length
+              : null,
         );
         if (now == was) return;
         was = now;

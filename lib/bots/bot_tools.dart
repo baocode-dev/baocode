@@ -44,13 +44,6 @@ abstract final class BotTools {
 
   static final Map<String, BotToolAccess> _access = {};
 
-  /// How long a bot pauses after a message of [text], before its next: as
-  /// long as a person takes to write one, about. None in tests.
-  static Duration Function(String text) pause = typingPause;
-
-  static Duration typingPause(String text) =>
-      Duration(milliseconds: (300 + 40 * text.runes.length).clamp(600, 2400));
-
   /// Who [tool] is for, if a bot's.
   static BotToolAccess? abilityOf(String tool) => _access[tool];
 
@@ -156,29 +149,6 @@ abstract final class BotTools {
         _clip('${input[key] ?? ''}', 80);
 
     return [
-      (
-        tool(
-          ChatCodec.botSayTool,
-          'Sends the user a message: the only way you talk to them. One '
-          'message a call, as a person texts: call it again for the next. '
-          'Nothing else you write reaches them.',
-          {
-            'text': {
-              'type': 'string',
-              'description': 'The message: plain text, no Markdown.',
-            },
-          },
-          (input, call) async {
-            final said = text(input, 'text');
-            await Future<void>.delayed(pause(said));
-            // That the user has it: not a message of theirs to answer.
-            return 'The user received your message (${botTime(bots.now)}).';
-          },
-          required: ['text'],
-          summary: (input, _) => clip(input, 'text'),
-        ),
-        const BotToolAccess(),
-      ),
       (
         tool(
           'bot_later',

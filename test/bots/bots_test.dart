@@ -419,7 +419,6 @@ void main() {
         expect(hers, contains('bot_remember'));
         final none = bots.save(name: 'Quiet', identity: '', abilities: {});
         expect(await offered(none.folder), [
-          'bot_say',
           'bot_later',
           'bot_cancel_later',
           'bot_send_image',
@@ -611,29 +610,6 @@ void main() {
               'params': {'name': tool, 'arguments': input},
             }, ClaudeSdkCall(cwd: bot.folder)))['result']
             as Map;
-
-    test('it talks with bot_say, a pause after each message', () async {
-      final paused = <String>[];
-      BotTools.pause = (text) {
-        paused.add(text);
-        return Duration.zero;
-      };
-      addTearDown(() => BotTools.pause = BotTools.typingPause);
-      final bot = bots.bots.single;
-      final sent = await call(bot, 'bot_say', {'text': '等下 我看看'});
-      expect(sent['isError'], isNot(isTrue));
-      // That the user has it, and the time, as the conversation goes on.
-      expect('${sent['content']}', contains('The user received your message'));
-      expect('${sent['content']}', contains('Thursday 2026-10-29 14:00'));
-      expect(paused, ['等下 我看看']);
-      expect((await call(bot, 'bot_say', {'text': ' '}))['isError'], isTrue);
-      // As long as it takes to write, about; never long.
-      expect(BotTools.typingPause('嗯'), const Duration(milliseconds: 600));
-      expect(
-        BotTools.typingPause('x' * 500),
-        const Duration(milliseconds: 2400),
-      );
-    });
 
     test('it comes back later on its own, when it said', () async {
       final bot = bots.save(name: 'Mia', identity: '', abilities: {});
