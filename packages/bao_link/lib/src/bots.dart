@@ -9,11 +9,6 @@ enum BotAbility {
   /// retries and archives them, writes to them, starts new ones.
   agents,
 
-  /// Works with the computer's files, nothing asked: reads and writes them
-  /// and runs commands (Claude Code's Read, Write, Edit and Bash); keeps
-  /// itself in the files of its folder.
-  files,
-
   /// Uses the user's browser, as the agents may.
   browser,
 

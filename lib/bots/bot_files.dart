@@ -51,11 +51,7 @@ abstract final class BotFiles {
   ], bot.identity);
 
   /// The abilities a card says yes or no to: those the user turns on.
-  static const shownAbilities = [
-    BotAbility.agents,
-    BotAbility.files,
-    BotAbility.browser,
-  ];
+  static const shownAbilities = [BotAbility.agents, BotAbility.browser];
 
   /// The bot whose card is [card] and style [style], in [folder]; null
   /// for a card without a name.

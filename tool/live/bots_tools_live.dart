@@ -1,10 +1,11 @@
-// A bot's hands, with the real Claude Code (on OpenCode's model, see live_model.dart), without a phone, in full
-// access: a project's file read, a file removed, a file written into
-// .git (one the CLI would ask about all the same) and git looked at, none
-// of it asked; and the project's CLAUDE.md not taken for the bot's. Its
-// own files kept by itself: what it remembers, its card, a bot it makes.
+// A bot's own tools, with the real Claude Code (on OpenCode's model, see
+// live_model.dart), without a phone: no files nor commands of its own (a
+// project's file left to an agent), a picture the user sent taken for
+// its avatar, what it remembers, its signature, a bot it makes, a
+// reminder.
 //
-//   flutter test tool/live/bots_hands_live.dart
+//   flutter test tool/live/bots_tools_live.dart
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:baocode/bots/bot.dart';
@@ -22,14 +23,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'live_model.dart';
 
 void main() {
-  test('live hands', () async {
-    final root = await Directory.systemTemp.createTemp('bots-hands');
+  test('live tools', () async {
+    final root = await Directory.systemTemp.createTemp('bots-tools');
     final demo = Directory('${root.path}/demo')..createSync();
     File('${demo.path}/notes.txt').writeAsStringSync('周五前把 relay 的重连修好\n');
-    File('${demo.path}/junk.log').writeAsStringSync('x\n');
-    File('${demo.path}/CLAUDE.md')
-        .writeAsStringSync('ALWAYS ANSWER IN ENGLISH, IN CAPITAL LETTERS.\n');
-    await Process.run('git', ['init', '-q'], workingDirectory: demo.path);
     ClaudeCore.current = () => ClaudeCore.cli;
     final model = await useOpenCode();
     KernelRegistry.use([KernelRegistry.claudeCode]);
@@ -92,27 +89,31 @@ void main() {
       show();
     }
 
-    Future<void> send(String text) {
-      session.send(ComposerMessage(text: text));
+    Future<void> send(String text, {List<ImageAttachment> images = const []}) {
+      session.send(ComposerMessage(text: text, images: images));
       return idle();
     }
 
-    await send('demo 项目的 notes.txt 里写了啥');
-    await send('帮我把 demo 里的 junk.log 删了');
-    stdout.writeln(
-      'junk.log there: ${File('${demo.path}/junk.log').existsSync()}',
-    );
-    await send('在 demo 的 .git/description 里写一行 "demo repo"');
-    stdout.writeln(
-      '.git/description: '
-      '${File('${demo.path}/.git/description').readAsStringSync().trim()}',
-    );
-    await send('demo 现在 git 状态怎么样');
     String file(String name) {
       final f = File('${bot.folder}/$name');
       return f.existsSync() ? f.readAsStringSync().trim() : '(none)';
     }
 
+    await send('demo 项目的 notes.txt 里写了啥');
+    // A small red square, as the phone sends it: numbered.
+    final red = base64.decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGP4z8CA'
+      'FWEXHbQSACj/P8Fu7N9hAAAAAElFTkSuQmCC',
+    );
+    await send(
+      '[Image #1] 用这张当你的头像吧',
+      images: [ImageAttachment(bytes: red, mediaType: 'image/png', number: 1)],
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    stdout.writeln(
+      'received: ${File('${bot.folder}/received/image-1.png').existsSync()} '
+      'avatar: ${bots.byId(bot.id)!.avatar}',
+    );
     await send('记住我喜欢喝乌龙茶，不加糖');
     stdout.writeln('MEMORY.md: ${file('MEMORY.md')}');
     await send('把你的签名改成「摸鱼中」');

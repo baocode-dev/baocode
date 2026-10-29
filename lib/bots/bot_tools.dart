@@ -4,15 +4,14 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:bao_link/bao_link.dart' show LinkLimits;
+import 'package:path/path.dart' as p;
 
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
-import '../ide/file_service.dart';
 import '../images/image_tools.dart' show imagePreview;
 import '../kernel/claude_code/claude_sdk_tools.dart';
 import '../link/chat_codec.dart';
-import '../link/workspace_bridge.dart' show WorkspaceBridge, hostFilesOf;
+import '../link/workspace_bridge.dart' show WorkspaceBridge;
 import '../models/image_api.dart' show imageMediaType;
 import '../workspace/workspace.dart';
 import 'bot.dart';
@@ -446,63 +445,27 @@ abstract final class BotTools {
       (
         tool(
           ChatCodec.botImageTool,
-          'Sends a picture into this chat: one of a project\'s files '
-          '(project and path), or one on the web (url). A picture made '
-          'with generate_image shows in the chat by itself: do not send '
-          'it again.',
+          'Sends a picture from the web into this chat (its https '
+          'address). A picture made with generate_image shows in the chat '
+          'by itself: do not send it again.',
           {
-            'project': {
-              'type': 'string',
-              'description': 'Its name or id, for one of its files.',
-            },
-            'path': {
-              'type': 'string',
-              'description': "The file, from the project's root.",
-            },
             'url': {
               'type': 'string',
               'description': 'A picture on the web: its https address.',
             },
           },
           (input, call) async {
-            final url = (input['url'] as String? ?? '').trim();
-            if (url.isNotEmpty) {
-              final uri = Uri.tryParse(url);
-              if (uri == null ||
-                  !(uri.isScheme('https') || uri.isScheme('http')) ||
-                  uri.host.isEmpty) {
-                throw ArgumentError('Not a web address: $url');
-              }
-              return 'Sent.';
+            final url = text(input, 'url');
+            final uri = Uri.tryParse(url);
+            if (uri == null ||
+                !(uri.isScheme('https') || uri.isScheme('http')) ||
+                uri.host.isEmpty) {
+              throw ArgumentError('Not a web address: $url');
             }
-            if (!botOf(call).can(BotAbility.files)) {
-              throw StateError(
-                "You cannot read the projects' files, so cannot send them.",
-              );
-            }
-            final found = project(input);
-            final (:files, :paths) = hostFilesOf(found);
-            final full = paths.normalize(
-              paths.join(found.root, text(input, 'path')),
-            );
-            if (!paths.isWithin(found.root, full)) {
-              throw StateError('Not in the project');
-            }
-            final bytes = await readBytesThrough(files, full);
-            if (bytes.length > LinkLimits.image) {
-              throw StateError('Too large to send (over 8 MB).');
-            }
-            final type =
-                imageMediaType(bytes) ??
-                (throw StateError('Not a PNG, JPEG, WebP or GIF picture.'));
-            // As small as the agent's own pictures: the phone shows it so.
-            final preview = await imagePreview(bytes, type);
-            return [
-              claudeSdkText('Sent.'),
-              claudeSdkImage(preview.base64, preview.type),
-            ];
+            return 'Sent.';
           },
-          summary: (input, _) => '${input['path'] ?? input['url'] ?? ''}',
+          required: ['url'],
+          summary: (input, _) => '${input['url'] ?? ''}',
         ),
         const BotToolAccess(),
       ),
@@ -600,7 +563,9 @@ abstract final class BotTools {
             },
             'picture': {
               'type': 'string',
-              'description': 'A picture file, by its absolute path.',
+              'description':
+                  'A picture file: by its full path, or from your folder '
+                  '(received/image-3.png, one the user sent).',
             },
             'signature': {
               'type': 'string',
@@ -629,7 +594,7 @@ abstract final class BotTools {
             };
             BotAvatarImage? picture;
             if (given('picture') case final path? when path.isNotEmpty) {
-              picture = await _avatarFrom(path);
+              picture = await _avatarFrom(bots, me, path);
             }
             final name = given('name');
             bots.save(
@@ -703,7 +668,9 @@ abstract final class BotTools {
             },
             'picture': {
               'type': 'string',
-              'description': 'A picture file, by its absolute path.',
+              'description':
+                  'A picture file: by its full path, or from your folder '
+                  '(received/image-3.png, one the user sent).',
             },
             'gender': {'type': 'string'},
             'signature': {
@@ -731,7 +698,7 @@ abstract final class BotTools {
                       ));
             BotAvatarImage? picture;
             if (given('picture') case final path? when path.isNotEmpty) {
-              picture = await _avatarFrom(path);
+              picture = await _avatarFrom(bots, me, path);
             }
             final name = given('name') ?? had?.name ?? '';
             if (name.isEmpty) throw ArgumentError('A new bot needs a name');
@@ -788,16 +755,40 @@ abstract final class BotTools {
     ];
   }
 
-  /// The picture file at [path] as a bot's (see [squarePicture]).
-  static Future<BotAvatarImage> _avatarFrom(String path) async {
-    final file = File(path);
-    if (!file.existsSync()) throw StateError('No file $path');
-    return squarePicture(await file.readAsBytes());
+  /// The picture file at [path] (in [bot]'s folder, if not a full path)
+  /// as a bot's (see [squarePicture]).
+  static Future<BotAvatarImage> _avatarFrom(
+    Bots bots,
+    Bot bot,
+    String path,
+  ) async {
+    final bytes = p.isAbsolute(path)
+        ? switch (File(path)) {
+            final file when file.existsSync() => await file.readAsBytes(),
+            _ => null,
+          }
+        : bots.folders.readFile(p.join(bot.folder, path));
+    if (bytes == null) throw StateError('No file $path');
+    return squarePicture(bytes);
   }
 
   /// The picture [bytes] as a bot's: its middle, square, no larger than
   /// [avatarSide], as PNG.
-  static Future<BotAvatarImage> squarePicture(Uint8List bytes) async {
+  static Future<BotAvatarImage> squarePicture(Uint8List bytes) async => (
+    bytes: await _drawn(bytes, square: true, side: avatarSide),
+    type: 'image/png',
+  );
+
+  /// The picture [bytes] as PNG, its longer side no more than [side]: of
+  /// its middle, [square].
+  static Future<Uint8List> pngOf(Uint8List bytes, {int side = 2048}) =>
+      _drawn(bytes, side: side);
+
+  static Future<Uint8List> _drawn(
+    Uint8List bytes, {
+    bool square = false,
+    required int side,
+  }) async {
     if (imageMediaType(bytes) == null) {
       throw StateError('Not a PNG, JPEG, WebP or GIF picture.');
     }
@@ -806,24 +797,28 @@ abstract final class BotTools {
     codec.dispose();
     final image = frame.image;
     try {
-      final side = math.min(image.width, image.height);
-      final out = math.min(side, avatarSide);
+      final shortest = math.min(image.width, image.height);
+      final (w, h) = square
+          ? (shortest, shortest)
+          : (image.width, image.height);
+      final scale = math.min(1.0, side / math.max(w, h));
+      final (outW, outH) = ((w * scale).round(), (h * scale).round());
       final recorder = ui.PictureRecorder();
       ui.Canvas(recorder).drawImageRect(
         image,
         ui.Rect.fromLTWH(
-          (image.width - side) / 2,
-          (image.height - side) / 2,
-          side.toDouble(),
-          side.toDouble(),
+          (image.width - w) / 2,
+          (image.height - h) / 2,
+          w.toDouble(),
+          h.toDouble(),
         ),
-        ui.Rect.fromLTWH(0, 0, out.toDouble(), out.toDouble()),
+        ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
         ui.Paint()..filterQuality = ui.FilterQuality.high,
       );
-      final squared = await recorder.endRecording().toImage(out, out);
-      final png = await squared.toByteData(format: ui.ImageByteFormat.png);
-      squared.dispose();
-      return (bytes: png!.buffer.asUint8List(), type: 'image/png');
+      final drawn = await recorder.endRecording().toImage(outW, outH);
+      final png = await drawn.toByteData(format: ui.ImageByteFormat.png);
+      drawn.dispose();
+      return png!.buffer.asUint8List();
     } finally {
       image.dispose();
     }

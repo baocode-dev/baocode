@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -15,7 +16,6 @@ import '../kernel/kernel_registry.dart';
 import '../kernel/queued_messages.dart';
 import '../link/chat_codec.dart';
 import '../link/link_platform.dart';
-import '../remote/remote_location.dart';
 import '../workspace/preference_store.dart';
 import '../workspace/workspace.dart';
 import 'bot.dart';
@@ -380,6 +380,22 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     if (p.isWithin(bot.folder, path)) folders.deleteFile(path);
   }
 
+  /// Where the picture the user sent [bot] as `[Image #number]` is kept,
+  /// from its folder: as PNG, for its tools to take.
+  static String receivedPicture(int number) =>
+      p.join('received', 'image-$number.png');
+
+  Future<void> _keepReceived(Bot bot, ImageAttachment image) async {
+    final number = image.number;
+    if (number == null) return;
+    try {
+      final png = await BotTools.pngOf(image.bytes);
+      folders.writeFile(p.join(bot.folder, receivedPicture(number)), png);
+    } on Object catch (error) {
+      debugPrint('bots: picture #$number not kept: $error');
+    }
+  }
+
   /// A note of the app's to [bot], in its conversation.
   void _note(Bot bot, String text, {List<ImageAttachment> images = const []}) {
     final thread = threadOf(bot);
@@ -425,10 +441,6 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
           computer: computer,
           model: modelOf(bot),
           now: _clock(),
-          projects: [
-            for (final project in _localProjects)
-              (name: project.name, path: project.path),
-          ],
           imageModel:
               ClaudeSdkTools.called(
                 'mcp__${ClaudeSdkTools.server}__${ImageTools.name}',
@@ -437,19 +449,11 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         ),
         // Told only who it is and how it talks: no coding agent's prompt.
         ownPrompt: true,
-        // Its own tools; the web's; reading and working in the projects,
-        // if it may; the tool search, for the browser's, which are
-        // deferred. All of it unasked, what Claude Code would ask about
-        // still too: the user is on their phone, not at the computer.
+        // Its own tools; the web's; the tool search, for the browser's,
+        // which are deferred. All of it unasked: the user is on their
+        // phone, not at the computer.
         tools: BotPermissions.tools(bot),
         approvesAll: true,
-        // The projects as its working directories: what it does there
-        // judged as in its own folder (going into one with cd, say), the
-        // coding agents' CLAUDE.md not read.
-        reaches: BotPermissions.reaches(
-          bot,
-          projects: [for (final project in _localProjects) project.path],
-        ),
         // What the user writes while it talks, taken up as it does: as a
         // person hears what is said meanwhile; and shown where they wrote
         // it.
@@ -461,13 +465,6 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     ),
     null => null,
   };
-
-  /// The user's projects on this computer: those a bot reads and works
-  /// in with Claude Code's tools (a remote one's, with its own).
-  List<Project> get _localProjects => [
-    for (final project in workspace.sidebarProjects)
-      if (!RemoteLocation.isRemote(project.path)) project,
-  ];
 
   // --- What a bot is offered -------------------------------------------------
 
@@ -512,9 +509,16 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   /// [bot]'s conversation, started if it has none.
   AgentThread threadFor(Bot bot) {
-    if (threadOf(bot) case final thread?) return thread;
-    folders.make(bot.folder);
-    return workspace.startAgent(workspace.projectAt(bot.folder));
+    final thread =
+        threadOf(bot) ??
+        (() {
+          folders.make(bot.folder);
+          return workspace.startAgent(workspace.projectAt(bot.folder));
+        })();
+    // Followed from now: what is sent it, seen.
+    thread.session;
+    _follow();
+    return thread;
   }
 
   /// Has [bot]'s agent start again on its conversation, to be told what
@@ -960,7 +964,29 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       if (_followed.containsKey(session)) continue;
       Object? was;
       var streaming = session.isStreaming;
+      // The pictures the user sent it, as files for its tools: by their
+      // numbers, those it has had already not again.
+      final received = <int>{
+        for (var i = 0; i < session.itemCount; i++)
+          if (session.itemAt(i) case UserMessageItem(:final images))
+            for (final image in images) ?image.number,
+      };
+      var count = session.itemCount;
       void listener() {
+        if (session.itemCount != count) {
+          count = session.itemCount;
+          // A message comes in near the end (before what it shows of the
+          // turn), not always last.
+          for (var i = math.max(0, count - 4); i < count; i++) {
+            if (session.itemAt(i) case UserMessageItem(:final images)) {
+              for (final image in images) {
+                if (image.number case final number? when received.add(number)) {
+                  unawaited(_keepReceived(bot, image));
+                }
+              }
+            }
+          }
+        }
         // Its turn done: what it changed of its files, taken up.
         if (streaming && !session.isStreaming) {
           scheduleMicrotask(() => reload(by: byId(bot.id) ?? bot));

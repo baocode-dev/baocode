@@ -162,7 +162,7 @@ void main() {
       final told = botAbilities(bot);
       expect(told, contains('bot_list_chats'));
       expect(told, contains('bot_stop_chat'));
-      expect(told, contains('You cannot read or change files'));
+      expect(told, contains('You do not read or change files'));
       expect(
         botAbilities(const Bot(id: 'q', name: 'Q', folder: '/bots/q')),
         contains("You cannot see the user's agents"),
@@ -172,60 +172,27 @@ void main() {
       expect(told, contains('generate_image'));
     });
 
-    test('what of Claude Code\'s it has, by what it may', () {
+    test('what of Claude Code\'s it has: the web\'s, the browser\'s by '
+        'the tool search; no files, no commands', () {
       Bot bot(Set<BotAbility> abilities) =>
           Bot(id: 'b1', name: 'Mia', folder: '/bots/b1', abilities: abilities);
-      // Only the web's, chatting or looking after the agents.
       for (final abilities in [
         <BotAbility>{},
         {BotAbility.agents},
       ]) {
-        final it = bot(abilities);
-        expect(BotPermissions.tools(it), ['WebSearch', 'WebFetch']);
-        expect(BotPermissions.reaches(it, projects: ['/p']), isEmpty);
+        expect(BotPermissions.tools(bot(abilities)), ['WebSearch', 'WebFetch']);
       }
-      // With the computer's files: its hands, the projects its folders.
-      final hands = bot({BotAbility.files});
-      expect(BotPermissions.tools(hands), [
-        'WebSearch',
-        'WebFetch',
-        'Read',
-        'Write',
-        'Edit',
-        'Bash',
-      ]);
-      expect(BotPermissions.reaches(hands, projects: ['/p']), ['/p']);
-      // The browser's, by the tool search.
       expect(BotPermissions.tools(bot({BotAbility.browser})), [
         'WebSearch',
         'WebFetch',
         'ToolSearch',
       ]);
-    });
-
-    test('one that works on the computer is told of its files', () {
-      const hands = Bot(
-        id: 'b1',
-        name: 'Mia',
-        folder: '/bots/b1',
-        avatar: 'avatar-1.png',
-        abilities: {BotAbility.files},
-      );
-      final told = botInstructions(
-        hands,
-        memory: '',
-        user: const BotUser(name: 'Leo', picture: 'me-1.png'),
-      );
-      expect(told, contains('<your_files>'));
-      expect(told, contains('/bots/b1/BOT.md'.substring('/bots/b1/'.length)));
-      expect(told, contains('/bots/USER.md'));
-      // Its tools all the same: the files are theirs too.
+      // Its files not shown it: its tools keep them.
+      final told = botInstructions(bot(BotAbility.values.toSet()), memory: '');
       expect(told, contains('bot_remember'));
       expect(told, contains('bot_edit_me'));
-      expect(told, contains('avatar: /'));
-      expect(botInstructions(bot, memory: ''), contains('bot_remember'));
-      expect(botInstructions(bot, memory: ''), isNot(contains('avatar: /')));
-      expect(botInstructions(bot, memory: ''), isNot(contains('<your_files>')));
+      expect(told, isNot(contains('<your_files>')));
+      expect(told, contains('received/image-3.png'));
     });
 
     test('pictures: made with the image model, or said there is none', () {
@@ -307,16 +274,12 @@ void main() {
       final assistant = bots.bots.single;
       expect(assistant.assistant, isTrue);
       expect(assistant.name, '小宝');
-      expect(assistant.abilities, {
-        BotAbility.agents,
-        BotAbility.files,
-        BotAbility.browser,
-      });
+      expect(assistant.abilities, {BotAbility.agents, BotAbility.browser});
       // Its card, a file of its folder.
       final card = utf8.decode(folders.files['${assistant.folder}/BOT.md']!);
       expect(card, contains('name: 小宝'));
       expect(card, contains('agents: true'));
-      expect(card, contains('files: true'));
+      expect(card, isNot(contains('files:')));
       expect(card, contains('assistant: true'));
       expect(store.preferences, isNot(contains('bots')));
     });
@@ -364,38 +327,19 @@ void main() {
         isTrue,
       );
       expect(launch.sdkServers, [ClaudeSdkTools.server]);
-      // The web's; the projects worked in, as it may (the assistant may
-      // all); the browser's tool search; no other.
-      expect(launch.tools, [
-        'WebSearch',
-        'WebFetch',
-        'Read',
-        'Write',
-        'Edit',
-        'Bash',
-        'ToolSearch',
-      ]);
+      // The web's, the browser's tool search; no other.
+      expect(launch.tools, ['WebSearch', 'WebFetch', 'ToolSearch']);
       expect(
         launch.arguments,
-        containsAllInOrder([
-          '--tools',
-          'WebSearch,WebFetch,Read,Write,Edit,Bash,ToolSearch',
-        ]),
+        containsAllInOrder(['--tools', 'WebSearch,WebFetch,ToolSearch']),
       );
       // Nothing it is made to ask about.
       expect(
         (launch.settings['permissions'] as Map?)?.containsKey('ask'),
         isNot(true),
       );
-      expect(launch.instructions, contains('- app: $app'));
-      // The projects its working directories, their CLAUDE.md not read.
-      expect(launch.directories, [app]);
-      expect(
-        (launch.settings['env'] as Map).containsKey(
-          'CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD',
-        ),
-        isFalse,
-      );
+      // No project its to work in: the agents do.
+      expect(launch.directories, isEmpty);
       // None of the user's MCP servers: their notices are not its to tell.
       expect(launch.arguments, contains('--strict-mcp-config'));
     });
@@ -588,7 +532,7 @@ void main() {
       expect(ClaudeSdkTools.asksUser(app), isTrue);
     });
 
-    test('it sends pictures from the web or a project', () async {
+    test('it sends pictures from the web', () async {
       Future<Map> call(
         Bot bot,
         String tool,
@@ -616,38 +560,6 @@ void main() {
       expect(
         (await call(assistant, 'bot_send_image', {
           'url': 'file:///etc/x',
-        }))['isError'],
-        isTrue,
-      );
-
-      // A project's picture: back as the picture, for the chat.
-      final png = base64.decode(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk'
-        '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-      );
-      File('$app/pic.png').writeAsBytesSync(png);
-      final sent = await call(assistant, 'bot_send_image', {
-        'project': 'app',
-        'path': 'pic.png',
-      });
-      expect(sent['isError'], isNot(isTrue));
-      expect(
-        (sent['content'] as List).map((c) => (c as Map)['type']),
-        contains('image'),
-      );
-      expect(
-        (await call(assistant, 'bot_send_image', {
-          'project': 'app',
-          'path': '../outside.png',
-        }))['isError'],
-        isTrue,
-      );
-      // Not by one that may not read the projects' files.
-      final mia = bots.save(name: 'Mia', identity: '', abilities: {});
-      expect(
-        (await call(mia, 'bot_send_image', {
-          'project': 'app',
-          'path': 'pic.png',
         }))['isError'],
         isTrue,
       );
@@ -1014,8 +926,8 @@ void main() {
       );
     });
 
-    test('one on the computer keeps its files itself, read again after its '
-        'turn; how far it is trusted stays the user\'s', () async {
+    test('its files, read again after its turn; how far it is trusted stays '
+        'the user\'s', () async {
       final assistant = bots.bots.single;
       void write(String path, String text) =>
           folders.writeFile(path, Uint8List.fromList(utf8.encode(text)));
@@ -1026,14 +938,14 @@ void main() {
         cardPath,
         read(cardPath)
             .replaceFirst('name: 小宝', 'name: 宝宝')
-            .replaceFirst('files: true', 'files: false')
+            .replaceFirst('agents: true', 'agents: false')
             .replaceFirst('browser: true', 'browser: false'),
       );
       // A bot it made, saying it is the assistant, on the computer.
       folders.make('/bots/cat');
       write(
         '/bots/cat/BOT.md',
-        '---\nname: 阿猫\navatar: 🐱\nfiles: true\nassistant: true\n'
+        '---\nname: 阿猫\navatar: 🐱\nagents: true\nassistant: true\n'
             '---\n\n你是一只懒猫\n',
       );
       write('/bots/cat/LATER.md', '- 2026-10-29 16:00 喊用户喝水\nmine\n');
@@ -1050,9 +962,9 @@ void main() {
       }
       final self = bots.bots.first;
       expect(self.name, '宝宝');
-      expect(self.can(BotAbility.files), isTrue);
+      expect(self.can(BotAbility.agents), isTrue);
       expect(self.can(BotAbility.browser), isTrue);
-      expect(read(cardPath), contains('files: true'));
+      expect(read(cardPath), contains('agents: true'));
       expect(read(cardPath), contains('browser: true'));
       final cat = bots.byId('cat')!;
       expect(cat.avatar, '🐱');
@@ -1060,7 +972,7 @@ void main() {
       expect(cat.assistant, isFalse);
       expect(cat.abilities, isEmpty);
       expect(cat.created, now);
-      expect(read('/bots/cat/BOT.md'), contains('files: false'));
+      expect(read('/bots/cat/BOT.md'), contains('agents: false'));
       expect(bots.threadOf(cat), isNotNull);
       expect(bots.laters(cat).single.at, DateTime(2026, 10, 29, 16));
       expect(bots.me.name, 'Leo');
@@ -1075,10 +987,10 @@ void main() {
       // The user, by hand: as they wrote it.
       write(
         cardPath,
-        read(cardPath).replaceFirst('files: true', 'files: false'),
+        read(cardPath).replaceFirst('agents: true', 'agents: false'),
       );
       bots.reload();
-      expect(bots.bots.first.can(BotAbility.files), isFalse);
+      expect(bots.bots.first.can(BotAbility.agents), isFalse);
     });
 
     test('every bot changes its own profile: with bot_edit_me, or in its '
@@ -1095,7 +1007,7 @@ void main() {
         return bots.byId(id)!;
       }
 
-      // Without the files: its tool, and told how.
+      // Its tool, and told how.
       final mia = bots.save(name: 'Mia', identity: '', abilities: {});
       final told = workspace.agentSetup!(mia.folder)!.workspace().instructions;
       expect(told, contains('<your_profile>'));
@@ -1117,11 +1029,9 @@ void main() {
         isEmpty,
       );
 
-      // With them: its card, the picture's path in it.
+      // Its card, the picture's path in it (by the user's hand).
       final self = bots.bots.first;
       final card = '${self.folder}/BOT.md';
-      final mine = workspace.agentSetup!(self.folder)!.workspace().instructions;
-      expect(mine, contains('avatar: /'));
       void write(String text) =>
           folders.writeFile(card, Uint8List.fromList(utf8.encode(text)));
       String read() => utf8.decode(folders.files[card]!);
@@ -1169,6 +1079,36 @@ void main() {
       expect(read(), contains('avatar: 🐼'));
       expect(bots.byId(self.id)!.signature, '在线');
     });
+
+    test(
+      'a picture the user sends, kept in its folder for its tools',
+      () async {
+        final wide = base64.decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAQAAAACCAYAAAB/qH1jAAAAEklEQVR4nGP4z8Dw'
+          'HxkzoAsAAA8hD/EEN8afAAAAAElFTkSuQmCC',
+        );
+        final mia = bots.save(name: 'Mia', identity: '', abilities: {});
+        final session = bots.threadFor(mia).session;
+        session.send(
+          ComposerMessage(
+            text: '[Image #3] 用这个当头像',
+            images: [
+              ImageAttachment(bytes: wide, mediaType: 'image/png', number: 3),
+            ],
+          ),
+        );
+        final kept = '${mia.folder}/${Bots.receivedPicture(3)}';
+        for (var i = 0; i < 300 && !folders.files.containsKey(kept); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        final png = await decodeImageFromList(folders.files[kept]!);
+        expect((png.width, png.height), (4, 2));
+        session.stop();
+        // By its path from its folder.
+        await call(mia, 'bot_edit_me', {'picture': 'received/image-3.png'});
+        expect(isAvatarImage(bots.byId(mia.id)!.avatar), isTrue);
+      },
+    );
 
     test('the assistant\'s folder removed: it starts again, as new', () async {
       final first = bots.bots.first;
