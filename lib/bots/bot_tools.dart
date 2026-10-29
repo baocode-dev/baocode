@@ -171,7 +171,8 @@ abstract final class BotTools {
           (input, call) async {
             final said = text(input, 'text');
             await Future<void>.delayed(pause(said));
-            return 'Sent, ${botTime(bots.now)}.';
+            // That the user has it: not a message of theirs to answer.
+            return 'The user received your message (${botTime(bots.now)}).';
           },
           required: ['text'],
           summary: (input, _) => clip(input, 'text'),

@@ -622,7 +622,8 @@ void main() {
       final bot = bots.bots.single;
       final sent = await call(bot, 'bot_say', {'text': '等下 我看看'});
       expect(sent['isError'], isNot(isTrue));
-      // The time told, as the conversation goes on.
+      // That the user has it, and the time, as the conversation goes on.
+      expect('${sent['content']}', contains('The user received your message'));
       expect('${sent['content']}', contains('Thursday 2026-10-29 14:00'));
       expect(paused, ['等下 我看看']);
       expect((await call(bot, 'bot_say', {'text': ' '}))['isError'], isTrue);
