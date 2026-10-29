@@ -1,15 +1,22 @@
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html;
 
-/// [source] (an HTML page) as Markdown: its text, headings, links, lists,
-/// code and tables; scripts, styles and the page's furniture left out.
+/// [source] (an HTML page) as Markdown: its title, then its text,
+/// headings, links, lists, code and tables; scripts, styles and the page's
+/// furniture left out.
 String htmlToMarkdown(String source, {Uri? base}) {
   final document = html.parse(source);
   final body = document.body ?? document.documentElement;
   if (body == null) return '';
   final out = _Writer(base);
   out.children(body);
-  return out.result();
+  final text = out.result();
+  // A page may say what it is only in its <head>.
+  final title = document.querySelector('title')?.text.trim() ?? '';
+  if (title.isEmpty || text.startsWith(title) || text.startsWith('# $title')) {
+    return text;
+  }
+  return text.isEmpty ? title : '$title\n\n$text';
 }
 
 /// The title of the HTML page [source], if it has one.

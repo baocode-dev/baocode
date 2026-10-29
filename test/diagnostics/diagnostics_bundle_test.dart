@@ -93,6 +93,41 @@ void main() {
     test('none without the folder', () {
       expect(listDiagnosticsLogs(p.join(logs.path, 'gone')), isEmpty);
     });
+
+    test('the crash reports between the logs and the hang reports', () {
+      write('errors.log', 'a');
+      write('hangs/hang-20261011-090000-2.txt', 't');
+      write('reports/BaoCode-2026-10-28-120616.ips', '{}');
+      final listed = listDiagnosticsLogs(
+        logs.path,
+        crashFolders: [p.join(logs.path, 'reports')],
+      );
+      expect(
+        [for (final log in listed) log.name],
+        [
+          'errors.log',
+          'crashes/BaoCode-2026-10-28-120616.ips',
+          'hangs/hang-20261011-090000-2.txt',
+        ],
+      );
+      expect([for (final log in listed) log.isCrash], [false, true, false]);
+    });
+  });
+
+  test('the hang and crash reports of hangs/ sorted as their times', () {
+    write('hangs/hang-20261010-120000-1.txt', 'h');
+    write('hangs/crash-20261011-090000-2.txt', 'c');
+    write('hangs/crash-20261011-090000-2.dmp', 'd');
+    write('hangs/jank-20261009-000000-3.txt', 'j');
+    expect(
+      [for (final log in listDiagnosticsLogs(logs.path)) log.name],
+      [
+        'hangs/crash-20261011-090000-2.txt',
+        'hangs/crash-20261011-090000-2.dmp',
+        'hangs/hang-20261010-120000-1.txt',
+        'hangs/jank-20261009-000000-3.txt',
+      ],
+    );
   });
 
   group('redactHome', () {
@@ -115,6 +150,13 @@ void main() {
           windows: true,
         ),
         r'~\a; ~/b; {"p":"~\\c"}; C:\Users\Anna',
+      );
+    });
+
+    test("in JSON's escaped slashes, as macOS' crash reports have them", () {
+      expect(
+        redactHome(r'"procPath" : "\/Users\/ann\/a\/BaoCode"', '/Users/ann'),
+        r'"procPath" : "~\/a\/BaoCode"',
       );
     });
 
@@ -197,6 +239,58 @@ void main() {
         'hangs/hang-20261010-000000-1.dmp',
       ]);
       expect(bundle.omittedDumps, 1);
+    });
+
+    test('the crash reports, without the home folder and the key', () {
+      write('errors.log', 'boom\n');
+      write(
+        'reports/BaoCode-2026-10-28-120616.ips',
+        '{"procPath" : "\\/Users\\/ann\\/BaoCode.app",'
+            ' "crashReporterKey" : "742F288F"}',
+      );
+      final bundle = packDiagnosticsSync(
+        logs.path,
+        dumps: false,
+        crashFolders: [p.join(logs.path, 'reports')],
+        home: '/Users/ann',
+      );
+      final files = untar(gzip.decode(bundle.bytes));
+      expect(files.keys, [
+        'errors.log',
+        'crashes/BaoCode-2026-10-28-120616.ips',
+      ]);
+      expect(
+        utf8.decode(files['crashes/BaoCode-2026-10-28-120616.ips']!),
+        '{"procPath" : "~\\/BaoCode.app", "crashReporterKey" : ""}',
+      );
+      expect(
+        bundle.files.last.size,
+        files['crashes/BaoCode-2026-10-28-120616.ips']!.length,
+      );
+    });
+
+    test("Windows' reports, in UTF-8, the home folder written ~", () {
+      final wer = 'EventType=APPCRASH\r\nAppPath=C:\\Users\\Ann\\b.exe\r\n';
+      write('wer/AppCrash_baocode.exe_1a_2b/Report.wer', [
+        0xff,
+        0xfe,
+        for (final unit in wer.codeUnits) ...[unit & 0xff, unit >> 8],
+      ]);
+      final bundle = packDiagnosticsSync(
+        logs.path,
+        dumps: false,
+        crashFolders: [p.join(logs.path, 'wer')],
+        home: r'C:\Users\Ann',
+        windows: true,
+      );
+      expect(
+        utf8.decode(
+          untar(
+            gzip.decode(bundle.bytes),
+          )['crashes/AppCrash_baocode.exe_1a_2b.wer']!,
+        ),
+        'EventType=APPCRASH\r\nAppPath=~\\b.exe\r\n',
+      );
     });
 
     test('nothing to send: an empty tar', () {

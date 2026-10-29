@@ -29,24 +29,15 @@ class SkillTool extends Tool {
   bool isEnabled(AgentSession session) => available(session).isNotEmpty;
 
   @override
-  String promptFor(AgentSession session) {
-    final listing = [
-      for (final command in available(session))
-        '- ${command.name}: ${command.description}'
-            '${command.whenToUse == null ? '' : ' - ${command.whenToUse}'}',
-    ].join('\n');
-    return '''Loads a skill into this conversation: its instructions come in, and you follow them here.
+  String promptFor(AgentSession session) => '''Loads a skill into this conversation: its instructions come in, and you follow them here. The skills there are are listed in the conversation's context.
 
-A skill brings know-how or a way of working for some kind of task. Before taking on a task, see whether one of those below fits it. A "slash command", "/<name>" ("/commit", "/review-pr"), is a skill too, called this way.
+A skill brings know-how or a way of working for some kind of task. Before taking on a task, see whether one fits it. A "slash command", "/<name>" ("/commit", "/review-pr"), is a skill too, called this way.
 
 - Call it with the skill's name, and args for what the user said after it: `skill: "pdf"`, `skill: "commit", args: "-m 'Fix bug'"`. A plugin's skill can be named with its plugin: `skill: "office:pdf"`.
 - When one fits what the user asks, load it first, before saying or doing anything else about the task.
+- Only the names listed: do not guess at one.
 - Do not speak of a skill as used without calling this tool.
-- One already loaded is not loaded again: a <command-name> tag in this turn means it is here already, so follow its instructions.
-
-The skills there are:
-$listing''';
-  }
+- One already loaded is not loaded again: a <command-name> tag in this turn means it is here already, so follow its instructions.''';
 
   @override
   Map<String, Object?> get inputSchema => const {
@@ -54,7 +45,7 @@ $listing''';
     'properties': {
       'skill': {
         'type': 'string',
-        'description': 'The skill, by name: "commit", "review-pr", "pdf"',
+        'description': 'The skill, by a name from the list of skills: "commit", "review-pr", "pdf"',
       },
       'args': {'type': 'string', 'description': 'What to pass it, if anything'},
     },
@@ -117,9 +108,7 @@ $listing''';
       );
     }
     final body = command.expand(args);
-    final text = command.isSkill
-        ? 'Base directory for this skill: ${command.baseDir}\n\n$body'
-        : body;
+    final text = command.withBaseDir(body);
     return ToolOutput(
       'Loaded the skill ${command.name}.',
       result: {

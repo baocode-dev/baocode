@@ -7,6 +7,7 @@
 
 #include "flutter/generated_plugin_registrant.h"
 #include "hang_watchdog.h"
+#include "log_folder.h"
 
 static_assert(AppWindows::kCloseMessage != hang_watchdog::kPingMessage);
 
@@ -187,6 +188,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   // with it, which left the app running and the installer unable to close
   // it. What it ran (agents, terminals) is ended at the next launch.
   if (message == WM_ENDSESSION && wparam) {
+    log_folder::AppendExit(
+        (lparam & ENDSESSION_CLOSEAPP) != 0
+            ? "closed by an installer (the Restart Manager)"
+            : (lparam & ENDSESSION_LOGOFF) != 0
+                  ? "the session ended: logging off"
+                  : "the session ended: shutting down");
     ::DestroyWindow(hwnd);
     return 0;
   }

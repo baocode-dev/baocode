@@ -51,4 +51,15 @@ std::optional<ClipboardImage> ImageAtPath(const std::wstring& path);
 bool WriteClipboardImage(HWND owner, const std::vector<uint8_t>& bytes,
                          const std::string& media_type);
 
+// Puts |text| on the clipboard, owned by |owner|, for other apps, and beside
+// it |copy| (what an editor copied, as UTF-8 JSON, kept as it is; see
+// lib/platform/native_md_clipboard.dart) for the app's editors. False when
+// the clipboard is not to be had.
+bool WriteClipboardMarkdown(HWND owner, const std::wstring& text,
+                            const std::string& copy);
+
+// The editors' copy the clipboard holds (WriteClipboardMarkdown's); nullopt
+// when something was copied since (that emptied it).
+std::optional<std::string> ClipboardMarkdown();
+
 #endif  // RUNNER_CLIPBOARD_IMAGES_H_

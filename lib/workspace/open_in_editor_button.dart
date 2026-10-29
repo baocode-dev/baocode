@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -24,10 +26,20 @@ class OpenInEditorButton extends StatelessWidget {
     super.key,
     required this.workspace,
     required this.project,
+    this.agent,
+    this.compact = false,
   });
 
   final Workspace workspace;
   final Project project;
+
+  /// The agent whose chat the IDE opens with [project]; null: the focused
+  /// one's, where it is this project's.
+  final AgentThread? agent;
+
+  /// The editor's icon alone: a pane's title bar among others, where the
+  /// label does not fit beside them.
+  final bool compact;
 
   /// Opens a project in an editor; replaceable under test.
   @visibleForTesting
@@ -38,8 +50,11 @@ class OpenInEditorButton extends StatelessWidget {
     // A remote project's files are not this machine's: only the IDE's own
     // opens them.
     if (editor == Editor.fastIde || project.host != null) {
-      // The project in the IDE, with the current agent's chat there.
-      if (workspace.current case final thread? when thread.project == project) {
+      // The project in the IDE, with the agent's chat there.
+      final thread =
+          agent ??
+          (workspace.current?.project == project ? workspace.current : null);
+      if (thread != null) {
         workspace.openInIde(thread);
       } else {
         workspace
@@ -77,7 +92,7 @@ class OpenInEditorButton extends StatelessWidget {
       ],
       builder: (context, menu) {
         final foreground = IdeButtonColors.foreground;
-        final width = titleBarSwitchWidth(context);
+        final width = compact ? 0.0 : titleBarSwitchWidth(context);
         return Container(
           height: 22,
           constraints: BoxConstraints(minWidth: width),
@@ -92,7 +107,7 @@ class OpenInEditorButton extends StatelessWidget {
               ConstrainedBox(
                 // The label's part fills what the chevron leaves.
                 constraints: BoxConstraints(
-                  minWidth: width - 2 - openInEditorChevronWidth,
+                  minWidth: math.max(0, width - 2 - openInEditorChevronWidth),
                 ),
                 child: _Segment(
                   semanticsLabel: open,
@@ -106,7 +121,10 @@ class OpenInEditorButton extends StatelessWidget {
                         )
                       : open,
                   onTap: () => _open(editor),
-                  padding: const EdgeInsets.only(left: 8, right: 6),
+                  padding: EdgeInsets.only(
+                    left: compact ? 6 : 8,
+                    right: compact ? 4 : 6,
+                  ),
                   borderRadius: const BorderRadius.horizontal(
                     left: Radius.circular(3),
                   ),
@@ -114,15 +132,17 @@ class OpenInEditorButton extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(editor.icon, size: 16, color: foreground),
-                      const SizedBox(width: 4),
-                      Text(
-                        editor.localizedPlatformLabel(context.l10n),
-                        style: TextStyle(
-                          color: foreground,
-                          fontSize: 12,
-                          height: 16 / 12,
+                      if (!compact) ...[
+                        const SizedBox(width: 4),
+                        Text(
+                          editor.localizedPlatformLabel(context.l10n),
+                          style: TextStyle(
+                            color: foreground,
+                            fontSize: 12,
+                            height: 16 / 12,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

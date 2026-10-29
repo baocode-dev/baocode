@@ -90,8 +90,10 @@ class FakeModel implements ModelClient {
   /// Delays each streamed event (to interrupt a turn under test).
   Duration delay = Duration.zero;
 
+  /// Whether it stands for Anthropic's own API (the requests laid out as
+  /// for it), or for a provider's.
   @override
-  bool get firstParty => true;
+  bool firstParty = true;
 
   @override
   Future<List<Map<String, Object?>>?> models() async => null;

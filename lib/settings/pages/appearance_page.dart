@@ -22,6 +22,7 @@ import '../../ide/terminal/terminal_render_theme.dart'
 import '../../ide/ide_menu.dart';
 import '../../sidebar/sidebar_times.dart';
 import '../../l10n/l10n.dart';
+import '../../platform/event_log.dart' show appEvent;
 import '../../theme/app_theme.dart';
 import '../../theme/code_font.dart';
 import '../../theme/window_blur.dart';
@@ -354,6 +355,7 @@ class AppearanceSettingsPage extends StatelessWidget {
   }
 
   void _selectUiScale(int percent) {
+    appEvent('zoom', 'Interface Size set');
     CodeFont.uiScale.value = percent;
     _keep(CodeFont.uiScaleSettingKey, CodeFont.uiScaleSetting(percent));
   }

@@ -4,6 +4,7 @@
 /// Dart: the sockets of `dart:io` are in `bao_link_io.dart`.
 library;
 
+export 'src/bots.dart';
 export 'src/discovery.dart';
 export 'src/identity.dart';
 export 'src/pairing.dart';

@@ -1,0 +1,15 @@
+name: bao_sampler
+description: >-
+  What the app's UI thread was doing for a few seconds, its stack taken
+  every so often, on Windows and Linux (built by a native assets hook).
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  code_assets: ^1.2.1
+  hooks: ^2.0.2
+  native_toolchain_c: ^0.19.2

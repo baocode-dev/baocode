@@ -891,7 +891,7 @@ class IdeGitRepository extends ChangeNotifier {
   ) => service.commitStats(commit);
 
   /// The branches that have [commit].
-  Future<List<String>> branchesContaining(String commit) =>
+  Future<List<IdeGitRef>> branchesContaining(String commit) =>
       service.branchesContaining(commit);
 
   /// The user's email as Git commits with it (`user.email`), read once.

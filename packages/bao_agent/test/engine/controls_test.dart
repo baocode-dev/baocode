@@ -278,6 +278,7 @@ void main() {
           'description': 'Look',
           'prompt': 'SUB: look',
           'model': 'haiku',
+          'run_in_background': false,
         }),
         Reply.text('ok'),
       ]);
@@ -510,8 +511,9 @@ void main() {
         expect(jsonEncode(sum['content']), contains('5'));
         expect(jsonEncode(list['content']), contains('mem://note'));
         expect(jsonEncode(read['content']), contains('remember milk'));
+        // What the server says of its tools, in the context.
         expect(
-          jsonEncode(h.model.turns.first.body['system']),
+          jsonEncode(h.model.turns.first.body['messages']),
           contains('Use add for sums.'),
         );
         // Its prompt, as a command.

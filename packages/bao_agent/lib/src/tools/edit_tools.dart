@@ -121,6 +121,7 @@ class WriteTool extends Tool with _Editing {
           'content': content,
           'structuredPatch': <Object?>[],
           'originalFile': null,
+          'userModified': false,
         },
       );
     }
@@ -134,6 +135,7 @@ class WriteTool extends Tool with _Editing {
         'content': content,
         'structuredPatch': patchJson(hunks),
         'originalFile': before.text,
+        'userModified': false,
       },
     );
   }

@@ -65,19 +65,75 @@ void main() {
       );
     });
 
-    test('a marker lost, doubled or made up: not taken', () {
+    test('a marker lost or made up: not taken', () {
       final asked = composerPolishText(content());
       expect(
         composerPolishContent('Fix the bug ⟦1⟧ ⟦2⟧ ⟦3⟧ ⟦4⟧', asked),
         isNull,
       );
-      expect(composerPolishContent('⟦1⟧ ⟦1⟧ ⟦2⟧ ⟦3⟧ ⟦4⟧ ⟦5⟧', asked), isNull);
       expect(composerPolishContent('⟦1⟧ ⟦2⟧ ⟦3⟧ ⟦4⟧ ⟦5⟧ ⟦6⟧', asked), isNull);
+    });
+
+    test('a marker written again: an embed as its text, once an embed', () {
+      final asked = composerPolishText(content());
+      final back = composerPolishContent(
+        'In ⟦1⟧ ⟦2⟧ ⟦3⟧ ⟦4⟧ ⟦5⟧, then ⟦1⟧ and ⟦5⟧ again',
+        asked,
+      )!;
+      expect(
+        back,
+        endsWith(', then ${file.plainText} and /tmp/run/out.log again'),
+      );
+      expect(composerEmbedsIn(back).map((found) => found.embed), [file]);
     });
   });
 
   group('polishComposerText', () {
     tearDown(() => composerPolishAsker = null);
+
+    test('a prompt made more specific is taken', () async {
+      final longer = 'Fix the crash. ${'Check the code first. ' * 12}';
+      composerPolishAsker = (
+        system,
+        prompt, {
+        model,
+        exact = false,
+        location,
+      }) async => longer;
+      expect(
+        await polishComposerText(composerPolishText('fix it')),
+        longer.trim(),
+      );
+    });
+
+    test('the agent\'s last turn goes before the message, its end only '
+        'past the limit', () async {
+      final prompts = <String>[];
+      composerPolishAsker =
+          (system, prompt, {model, exact = false, location}) async {
+            prompts.add(prompt);
+            return 'Do option 2.';
+          };
+      await polishComposerText(
+        composerPolishText('do 2'),
+        reply: 'Option 1 or option 2?',
+      );
+      expect(
+        prompts.last,
+        '<agent_reply>\nOption 1 or option 2?\n</agent_reply>\n\n'
+        '<message>\ndo 2\n</message>',
+      );
+
+      await polishComposerText(
+        composerPolishText('do 2'),
+        reply: 'a${'b' * composerPolishReplyLimit}',
+      );
+      expect(prompts.last, contains('<agent_reply>\n…bbb'));
+      expect(prompts.last, isNot(contains('ab')));
+
+      await polishComposerText(composerPolishText('do 2'), reply: '  ');
+      expect(prompts.last, '<message>\ndo 2\n</message>');
+    });
 
     test('a reply far longer (written on), or empty, is not taken', () async {
       final asked = composerPolishText('fix it');
@@ -87,7 +143,7 @@ void main() {
         model,
         exact = false,
         location,
-      }) async => 'x' * 400;
+      }) async => 'x' * 1000;
       await expectLater(
         polishComposerText(asked),
         throwsA(isA<ComposerPolishException>()),
@@ -138,16 +194,15 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: buildAppTheme(),
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-          ],
+          localizationsDelegates: const [AppLocalizations.delegate],
           home: Scaffold(
             body: ChatComposer(session: session, draft: session.draft),
           ),
         ),
       );
       await tester.pump();
-      return tester.widget<MarkdownEditor>(find.byType(MarkdownEditor))
+      return tester
+              .widget<MarkdownEditor>(find.byType(MarkdownEditor))
               .controller
           as ComposerController;
     }

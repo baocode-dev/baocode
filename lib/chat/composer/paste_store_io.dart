@@ -26,10 +26,7 @@ String? savePaste(String text) {
 }
 
 Future<String?> readPaste(String path) async {
-  for (final candidate in {
-    path,
-    p.join(DataDirectory.current.pastesDir, p.basename(path)),
-  }) {
+  for (final candidate in _candidates(path)) {
     try {
       return await File(candidate).readAsString();
     } on Object {
@@ -38,3 +35,19 @@ Future<String?> readPaste(String path) async {
   }
   return null;
 }
+
+String? readPasteNow(String path) {
+  for (final candidate in _candidates(path)) {
+    try {
+      return File(candidate).readAsStringSync();
+    } on Object {
+      // Not there.
+    }
+  }
+  return null;
+}
+
+Set<String> _candidates(String path) => {
+  path,
+  p.join(DataDirectory.current.pastesDir, p.basename(path)),
+};

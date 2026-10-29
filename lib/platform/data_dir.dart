@@ -128,6 +128,10 @@ class DataDirectory {
   /// mark that a browser has connected once.
   String get browserDir => p.join(path, 'browser');
 
+  /// The bots: `bots.json` listing them, and a folder each, where its
+  /// conversation runs and its memory is kept (see lib/bots/).
+  String get botsDir => p.join(path, 'bots');
+
   /// The pictures agents made where they did not say where (see
   /// lib/images/image_tools.dart): kept, as the conversations that show
   /// them are.

@@ -642,6 +642,22 @@ void WindowChannel::HandleMethodCall(
     return;
   }
 
+  if (method == "writePasteboardMarkdown") {
+    result->Success(flutter::EncodableValue(WriteClipboardMarkdown(
+        window_, Utf16FromUtf8(String(arguments, "text")),
+        String(arguments, "copy"))));
+    return;
+  }
+
+  if (method == "readPasteboardMarkdown") {
+    if (std::optional<std::string> copy = ClipboardMarkdown()) {
+      result->Success(flutter::EncodableValue(std::move(*copy)));
+    } else {
+      result->Success();
+    }
+    return;
+  }
+
   if (method == "writePasteboardImage") {
     const auto found = arguments.find(flutter::EncodableValue("bytes"));
     const auto* bytes =

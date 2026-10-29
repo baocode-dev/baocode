@@ -451,6 +451,130 @@ void main() {
       expect(toolVerb(ToolKind.message), 'Said');
     });
 
+    test('todos written read as a step: the list its text', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      )..turnId = '11111111-1111-4111-8111-111111111111';
+      void call(
+        String id,
+        String name,
+        Map<String, Object?> input,
+        String result, {
+        Map<String, Object?>? structured,
+      }) => translator
+        ..translate({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': 'msg-$id',
+            'role': 'assistant',
+            'content': [
+              {'type': 'tool_use', 'id': id, 'name': name, 'input': input},
+            ],
+          },
+        })
+        ..translate({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'tool_result', 'tool_use_id': id, 'content': result},
+            ],
+          },
+          'tool_use_result': ?structured,
+        });
+      call('t1', 'TodoWrite', {
+        'todos': [
+          {
+            'content': 'Read it',
+            'status': 'completed',
+            'activeForm': 'Reading',
+          },
+          {
+            'content': 'Fix it',
+            'status': 'in_progress',
+            'activeForm': 'Fixing',
+          },
+          {'content': 'Test it', 'status': 'pending', 'activeForm': 'Testing'},
+        ],
+      }, 'Todos have been modified successfully.');
+      call(
+        't2',
+        'TaskCreate',
+        {'subject': 'Ship it'},
+        'Task #1 created successfully: Ship it',
+        structured: {
+          'task': {'id': '1', 'subject': 'Ship it'},
+        },
+      );
+      call('t3', 'TaskUpdate', {
+        'taskId': '1',
+        'status': 'completed',
+      }, 'Updated task #1 status');
+      call('t4', 'TaskUpdate', {
+        'taskId': '7',
+        'status': 'deleted',
+      }, 'Updated task #7 deleted');
+      final items = [
+        for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+      ].whereType<ToolCallItem>().toList();
+      expect(items.map((item) => (item.kind, item.target, item.output)), [
+        (ToolKind.todo, 'Fix it', '☒ Read it\n◐ Fix it\n☐ Test it'),
+        (ToolKind.todo, 'Ship it', 'Task #1 created successfully: Ship it'),
+        (ToolKind.todo, 'Ship it', 'Updated task #1 status'),
+        (ToolKind.todo, '#7', 'Updated task #7 deleted'),
+      ]);
+      // What each did, said by its line.
+      expect(
+        [
+          for (final item in items)
+            todoStep(item.tool, item.input, item.target),
+        ],
+        [
+          (verb: 'Todos 1/3', object: 'Fix it', detail: null),
+          (verb: 'Added todo', object: 'Ship it', detail: null),
+          (verb: 'Completed todo', object: 'Ship it', detail: null),
+          (verb: 'Removed todo', object: '#7', detail: null),
+        ],
+      );
+      expect(
+        todoStep('TodoWrite', {
+          'todos': [
+            {'content': 'Read it', 'status': 'completed'},
+          ],
+        }, ''),
+        (verb: 'Todos 1/1', object: 'All done', detail: null),
+      );
+      // A list read: from the lines it returned.
+      const listed =
+          '#1 [completed] Ship it\n'
+          '#2 [in_progress] Tag it (alice)\n'
+          '#3 [pending] Tell them [blocked by #2]';
+      expect(todoItems('TaskList', const {}, listed), [
+        (content: 'Ship it', status: 'completed'),
+        (content: 'Tag it (alice)', status: 'in_progress'),
+        (content: 'Tell them [blocked by #2]', status: 'pending'),
+      ]);
+      expect(todoStep('TaskList', const {}, '', output: listed), (
+        verb: 'Checked todos',
+        object: 'Tag it (alice)',
+        detail: '1/3',
+      ));
+      expect(
+        todoStep('TaskList', const {}, '', output: '#1 [completed] Ship it'),
+        (verb: 'Checked todos', object: 'All done', detail: '1/1'),
+      );
+      expect(todoStep('TaskList', const {}, '', output: 'No tasks found'), (
+        verb: 'Checked todos',
+        object: 'List empty',
+        detail: null,
+      ));
+    });
+
     test('a notebook edit shows its cell changed, line by line', () {
       final transcript = Transcript();
       var seq = 0;
@@ -1053,6 +1177,13 @@ void main() {
       expect(worked('p1'), const Duration(seconds: 45));
       expect(worked('p2'), isNull, reason: 'stopped');
       expect(worked('p3'), const Duration(seconds: 3));
+      // When each was sent, as kept: for a chat app's times.
+      expect(
+        (transcript.itemAt(
+          transcript.indexOf('p2')!,
+        ) as UserMessageItem).sentAt,
+        DateTime.utc(2026, 10, 1, 10, 0, 50).toLocal(),
+      );
     });
 
     test('translating a message twice changes nothing', () {
@@ -1198,6 +1329,62 @@ void main() {
         kernel.dispose();
       },
     );
+
+    test("a model's usage given as strings counts as the numbers", () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      Future<void> stream(Map<String, Object?> event) async {
+        cli.push({'type': 'stream_event', 'event': event});
+        await pumpEventQueue();
+      }
+
+      await stream({
+        'type': 'message_start',
+        'message': {
+          'id': 'm1',
+          'usage': {
+            'input_tokens': '10',
+            'cache_read_input_tokens': '1000',
+            'output_tokens': 'n/a',
+          },
+        },
+      });
+      await stream({
+        'type': 'content_block_start',
+        'index': '0',
+        'content_block': {'type': 'text', 'text': ''},
+      });
+      await stream({
+        'type': 'content_block_delta',
+        'index': '0',
+        'delta': {'type': 'text_delta', 'text': 'Hi.'},
+      });
+      await stream({'type': 'content_block_stop', 'index': '0'});
+      await stream({
+        'type': 'message_delta',
+        'usage': {'output_tokens': '40'},
+      });
+      await stream({'type': 'message_stop'});
+      expect(transcript.output?.tokens, 40);
+      cli.push({
+        'type': 'result',
+        'subtype': 'success',
+        'usage': {'input_tokens': '10', 'output_tokens': '40'},
+      });
+      await pumpEventQueue();
+      final usage = (transcript.itemAt(
+        transcript.indexOf('u1')!,
+      ) as UserMessageItem).usage!;
+      expect(usage.inputTokens, 1010);
+      expect(usage.outputTokens, 40);
+      expect([
+        for (final (_, item) in transcript.liveItems)
+          if (item is NoticeItem && item.kind == NoticeKind.error) item,
+      ], isEmpty);
+      kernel.dispose();
+    });
 
     test('starts on first send, then writes the message', () async {
       final cli = FakeCli();
@@ -2731,6 +2918,50 @@ void main() {
         },
       );
 
+      test("reads a model's usage given as strings", () async {
+        final kernel = open(
+          (session, {required turns, before}) async => ClaudeHistoryPage([
+            prompt('u1'),
+            {
+              ...answer('u1', 0),
+              'message': {
+                ...answer('u1', 0)['message']! as Map<String, Object?>,
+                'usage': {
+                  'input_tokens': '1',
+                  'cache_read_input_tokens': 'none',
+                  'cache_creation_input_tokens': '300',
+                },
+              },
+            },
+            // As some write the stream too.
+            {
+              'type': 'stream_event',
+              'event': {
+                'type': 'message_start',
+                'message': {
+                  'id': 'm-x',
+                  'usage': {'input_tokens': '1', 'output_tokens': '2'},
+                },
+              },
+            },
+            {
+              'type': 'stream_event',
+              'event': {'type': 'message_stop'},
+            },
+          ]),
+        );
+        final transcript = Transcript();
+        kernel.events.listen(transcript.apply);
+        await pumpEventQueue();
+        expect(prompts(transcript), ['u1']);
+        expect([
+          for (final (_, item) in transcript.liveItems)
+            if (item is NoticeItem) item.text,
+        ], isEmpty);
+        expect(transcript.stats!.cache!.conversation.written, 300);
+        kernel.dispose();
+      });
+
       test('turns kept show as their footers did, on every page; those '
           'not kept as before', () async {
         const usage = TurnUsage(
@@ -3589,6 +3820,61 @@ void main() {
         isA<KernelOption>().having((o) => o.caution, 'caution', isTrue),
       );
       kernel.dispose();
+    });
+
+    test('the last turn\'s reply: all the agent said since the last '
+        'message, in order', () async {
+      final cli = FakeCli();
+      final descriptor = KernelDescriptor(
+        id: 'claude-code',
+        label: 'Claude Code',
+        icon: Icons.auto_awesome_rounded,
+        description: '',
+        create: (context) => ClaudeCodeKernel(
+          MockKernels.claudeCode,
+          context,
+          start: (_) async => cli,
+        ),
+      );
+      final session = ChatSession(
+        kernel: descriptor,
+        kernels: [descriptor],
+        historyCount: 0,
+      );
+      addTearDown(session.dispose);
+      Future<void> say(String id, String text) async {
+        cli.push({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': id,
+            'role': 'assistant',
+            'content': [
+              {'type': 'text', 'text': text},
+            ],
+          },
+        });
+        await pumpEventQueue();
+      }
+
+      expect(session.lastTurnReply, isNull);
+      session.send(const ComposerMessage(text: 'one'));
+      await pumpEventQueue();
+      await say('m1', 'Old answer.');
+      cli.push({
+        'type': 'result',
+        'subtype': 'success',
+        'is_error': false,
+        'session_id': 's',
+      });
+      await pumpEventQueue();
+      expect(session.lastTurnReply, 'Old answer.');
+      session.send(const ComposerMessage(text: 'two'));
+      await pumpEventQueue();
+      expect(session.lastTurnReply, isNull);
+      await say('m2', 'Looking.');
+      await say('m3', 'Option 1 or 2?');
+      expect(session.lastTurnReply, 'Looking.\n\nOption 1 or 2?');
     });
 
     test('a status row stays at the end all through a turn, hidden where '

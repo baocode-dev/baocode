@@ -18,40 +18,10 @@ void main() {
     expect(AppFonts.codeStyle(13).fontSize, editor! + 4);
   });
 
-  testWidgets('the interface text scale stops at code: CodeTextScale puts '
-      "back the system's", (tester) async {
-    late TextScaler interface;
-    late TextScaler code;
-    await tester.pumpWidget(
-      MediaQuery(
-        data: const MediaQueryData(textScaler: TextScaler.linear(1.1)),
-        child: SystemTextScale(
-          scaler: const TextScaler.linear(1.1),
-          child: MediaQuery(
-            data: const MediaQueryData(textScaler: TextScaler.linear(1.65)),
-            child: Builder(
-              builder: (context) {
-                interface = MediaQuery.textScalerOf(context);
-                return CodeTextScale(
-                  child: Builder(
-                    builder: (context) {
-                      code = MediaQuery.textScalerOf(context);
-                      return const SizedBox();
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-    expect(interface.scale(10), closeTo(16.5, 1e-9));
-    expect(code.scale(10), closeTo(11, 1e-9));
-  });
-
-  testWidgets('the IDE editor keeps to the code size; one sized as the '
-      "interface (the side panel's) to the interface's text", (tester) async {
+  testWidgets('the IDE editor is the code size zoomed with the window; one '
+      "sized as the interface (the side panel's) the interface's text", (
+    tester,
+  ) async {
     Future<(double, double)> pump({required bool interfaceSized}) async {
       final controller = EditorSurfaceController();
       addTearDown(controller.dispose);
@@ -80,14 +50,14 @@ void main() {
 
     CodeFont.size.value = CodeFont.defaultSize + 4;
     final (editorScale, editorSize) = await pump(interfaceSized: false);
-    expect(editorScale, 1);
+    expect(editorScale, 1.5);
     expect(editorSize, AppFonts.codeStyle(13).fontSize);
     final (panelScale, panelSize) = await pump(interfaceSized: true);
     expect(panelScale, 1.5);
     expect(panelSize, AppFonts.uiCodeStyle(13).fontSize);
   });
 
-  testWidgets('side panel code follows code size, not interface scale', (
+  testWidgets('side panel code follows code size and the interface scale', (
     tester,
   ) async {
     final scale = ValueNotifier(1.0);
@@ -128,14 +98,15 @@ void main() {
     scale.value = 1.5;
     await tester.pump();
     expect(tester.state(surface), same(state));
-    expect(view.lineHeight, closeTo(height, 1e-9));
+    expect(view.lineHeight, greaterThan(height * 1.4));
     expect(
       view.caretRectAt(12)!.left - view.caretRectAt(0)!.left,
-      closeTo(width, 1e-9),
+      closeTo(width * 1.5, 1),
     );
+    final zoomed = view.lineHeight;
     CodeFont.size.value = CodeFont.defaultSize + 6;
     await tester.pump();
-    expect(view.lineHeight, greaterThan(height * 1.4));
+    expect(view.lineHeight, greaterThan(zoomed * 1.4));
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 20));
   });

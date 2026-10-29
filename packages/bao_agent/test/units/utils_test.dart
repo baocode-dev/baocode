@@ -102,6 +102,20 @@ void main() {
       expect(md, contains('a&b <tag>'));
       expect(md, isNot(contains('alert')));
       expect(md, isNot(contains('.x{}')));
+      expect(md, startsWith('The Title\n\n# Main'));
+    });
+
+    test('the title once, when the page opens with it', () {
+      expect(
+        htmlToMarkdown(
+          '<head><title>Docs</title></head><body><h1>Docs</h1><p>x</p></body>',
+        ),
+        '# Docs\n\nx',
+      );
+      expect(
+        htmlToMarkdown('<head><title>Only</title></head><body></body>'),
+        'Only',
+      );
     });
   });
 
@@ -145,7 +159,7 @@ void main() {
       file.writeAsStringSync(text);
     }
 
-    test('user, project up the tree, rules, local; imports in', () {
+    test('user, project up the tree, rules, local; imports after', () {
       write('home/.claude/CLAUDE.md', 'User memory.');
       write('home/.claude/rules/style.md', 'User rule.');
       write('work/CLAUDE.md', 'Workspace memory.');
@@ -171,14 +185,18 @@ void main() {
         'home/.claude/rules/style.md',
         'work/CLAUDE.md',
         'work/app/CLAUDE.md',
+        // What a file imports comes after it, a file of its own.
+        'work/app/docs/more.md',
+        'work/app/docs/deeper.md',
         'work/app/.claude/rules/dart.md',
         'work/app/CLAUDE.local.md',
       ]);
       expect(byName['home/.claude/CLAUDE.md']!.type, MemoryType.user);
       expect(byName['work/app/CLAUDE.local.md']!.type, MemoryType.local);
       final app = byName['work/app/CLAUDE.md']!.content;
-      expect(app, allOf(contains('More, with'), contains('Deepest.')));
+      expect(app, contains('See @docs/more.md'));
       expect(app, contains('`@not/this.md`'));
+      expect(byName['work/app/docs/deeper.md']!.content, 'Deepest.');
       final rule = byName['work/app/.claude/rules/dart.md']!;
       expect(rule.conditional, isTrue);
       final cwd = p.join(root.path, 'work', 'app');

@@ -82,7 +82,7 @@ class Compaction {
     if (session.hooks.has(HookEvent.preCompact)) {
       final hook = await session.hooks.run(
         HookEvent.preCompact,
-        {'trigger': trigger, 'custom_instructions': instructions ?? ''},
+        {'trigger': trigger, 'custom_instructions': instructions},
         query: trigger,
         cancel: cancel,
       );
@@ -113,9 +113,24 @@ class Compaction {
       'logicalParentUuid': store.leaf,
       'compactMetadata': {'trigger': trigger, 'preTokens': before},
     });
+    // The session starts over from the summary: its SessionStart hooks
+    // run again, what they add kept with it.
+    var started = const <String>[];
+    if (session.hooks.has(HookEvent.sessionStart)) {
+      final hook = await session.hooks.run(
+        HookEvent.sessionStart,
+        {'source': 'compact', 'model': session.resolvedModel},
+        query: 'compact',
+        cancel: cancel,
+      );
+      started = [...hook.additionalContext, ...hook.outputs];
+    }
     final text = [
       compactedSummary(summary, transcriptPath: store.file),
       ..._carriedOver(),
+      if (started.isNotEmpty)
+        '<system-reminder>\nA SessionStart hook adds: '
+            '${started.join('\n\n')}\n</system-reminder>',
     ].join('\n\n');
     final after = estimateTokens(text);
     session.emit({
@@ -145,21 +160,17 @@ class Compaction {
     // What the next request reports is the context now.
     session.lastUsage = null;
     session.emitSystem('status', {'status': null});
+    session.hooks.notify(HookEvent.postCompact, {
+      'trigger': trigger,
+      'compact_summary': summary,
+    }, query: trigger);
     return true;
   }
 
-  /// What the model is to keep in view after the summary: its todos, the
-  /// plan it was writing.
+  /// What the model is to keep in view after the summary: the plan it was
+  /// writing.
   List<String> _carriedOver() {
     final out = <String>[];
-    final todos = session.mainTodos;
-    if (todos.isNotEmpty) {
-      out.add(
-        '<system-reminder>\nYour todo list before the conversation was '
-        'compacted:\n${[for (final t in todos) '- [${t['status']}] ${t['content']}'].join('\n')}\n'
-        '</system-reminder>',
-      );
-    }
     if (session.planSlug != null && session.planExists) {
       out.add(
         '<system-reminder>\nThe plan of this session is in '

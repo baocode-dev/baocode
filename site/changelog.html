@@ -30,6 +30,24 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.7.1">
+    <h2 class="plain"><a href="#v1.7.1">1.7.1</a></h2>
+    <p>This release helps us track down the app becoming unresponsive while an agent works: on macOS, a hang is now written down as it happens, and sent with the diagnostics. It also fixes the chat's terminal and split panes.</p>
+    <p>Diagnostics</p>
+    <ul>
+    <li>On macOS, when the interface stops responding for 4 seconds, what each thread was doing and how long it lasted go into the logs, and are sent with the diagnostics. It costs next to nothing until then, and samples at most 3 times a run.</li>
+    <li>The logs say how each run ended (quit, update, ended by the system, crashed); a run that ended without a word is noted as the next one starts.</li>
+    <li>The diagnostics include the reports the system kept of the app: macOS' crashes, hangs it was force quit at, and long stretches of high CPU, and Windows Error Reporting's. The computer's name is left out of their names.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>The chat's terminal is each conversation's own: each split pane shows its project's terminals, as wide as the conversation. A pane's title bar buttons for the terminal, the side panel and the editor act on that pane's agent.</li>
+    <li>Dragging a line to resize a terminal tells it the size once you stop, rather than filling the scrollback with the prompt redrawn at every width.</li>
+    <li>Opening a remote project or file, a folder that is slow to read shows &quot;Reading…&quot; rather than the pick going away.</li>
+    <li>Source control: Generate Commit Message sits beside the commit buttons; the divider above the message stays under the pointer as you drag it, and a double click resets it.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.7.0">
     <h2 class="plain"><a href="#v1.7.0">1.7.0</a></h2>
     <p>New Git View</p>
@@ -83,12 +101,14 @@
     </li>
     <li>Git and checkpoints run in the background and no longer hold up the interface. A check when nothing changed runs 3 Git commands instead of 13.</li>
     <li>Changes in ignored folders such as build and node_modules no longer refresh the Git status. The model lists are worked out once.</li>
+    <li>A stretch of sustained jank is sampled into the logs, to help track it down: on Windows and Linux now, as on macOS.</li>
     </ul>
     <p>Other new features</p>
     <ul>
     <li>Settings → Appearance has a Native Window Blur switch for the system blur under the windows on macOS and Windows 11. It is off by default.</li>
     <li>Word wrap in the editors: turn it on in Settings → Appearance, or toggle it with Alt+Z in an editor.</li>
     <li>Full screen, from the View menu or F11 (⌃⌘F on macOS).</li>
+    <li>Zoom: ⌘= and ⌘- move Interface Size 2% a press (Ctrl on Windows and Linux), and ⌘ with keypad 0 resets it. Code in the editor and the side panel's files and changes zooms with it.</li>
     <li>Sidebar:
     <ul>
     <li>Pin projects to the top. Collapse or expand all projects at once.</li>
@@ -100,6 +120,12 @@
     <li>Set up a language server of your own from Open Language Server Settings. It takes effect when saved, with no restart.</li>
     <li>Background tasks that ended can be cleared, one at a time or all at once.</li>
     <li>When the built-in core's agent ends its work with to-do items still open, the model is reminded to update its list.</li>
+    <li>The message box's Polish button is now Enhance prompt: the auxiliary model rewrites what you wrote into a clearer, more specific prompt. It reads the AI's last reply, so &quot;do option 2&quot; is understood. Undo takes it back.</li>
+    <li>With ChatGPT accounts for Codex, the quota left on the conversation's account shows below the message box. A click lists every account, with its quota and reset times. &quot;Continue after limit reset&quot; now covers ChatGPT accounts too, when every one is out of quota.</li>
+    <li>The agent knows the chat shows math, Mermaid diagrams, local images and folding sections, and uses them where they help. The file links it writes are tidier, and open.</li>
+    <li>Mermaid diagrams: while a reply streams in, a placeholder shows instead of the diagram's code. Small flowcharts have square lines, and a tall top-down one is drawn across where it fits. Sequence diagrams take the flowchart's colors. A diagram enlarges and has a right-click menu as a picture does, copying it among them.</li>
+    <li>Task list boxes are squares in the links' color. Folding sections lose the rule down their side.</li>
+    <li>Choosing a folder or opening a file on an SSH host, a refresh button reads the list again: a folder made in a terminal since shows without opening it anew.</li>
     </ul>
     <p>Fixed</p>
     <ul>
@@ -117,6 +143,10 @@
     <li>On Windows, the title bar over Settings shows only the window's buttons.</li>
     <li>On macOS, the app launched from the Dock or Finder can hold more than 256 open files. With many agents, terminals and language servers open, Claude Code failed to start with &quot;Too many open files&quot;.</li>
     <li>A remote folder that failed to load on the first connection loads again once a retry connects.</li>
+    <li>A drag selecting text in a conversation holds when the focus is taken (a question's panel coming up) or earlier history loads; selections no longer stop halfway.</li>
+    <li>Text below an open diff with a long line can be selected again.</li>
+    <li>On Windows, the image preview's close button no longer sits under the window's buttons.</li>
+    <li>With some themes, the New Chat button no longer turns red under the pointer. It takes the side panel rail's colors and reads more clearly.</li>
     </ul>
   </section>
 

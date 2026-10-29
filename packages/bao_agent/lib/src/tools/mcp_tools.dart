@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../engine/session.dart';
 import '../mcp/jsonrpc.dart';
 import '../mcp/mcp_manager.dart';
 import '../permissions/decision.dart';
@@ -36,6 +37,14 @@ class McpTool extends Tool {
         ? const {'type': 'object', 'properties': <String, Object?>{}}
         : {...schema, 'type': 'object'};
   }
+
+  /// As the server gave it.
+  @override
+  Map<String, Object?> toApi(AgentSession session) => {
+    'name': name,
+    'description': promptFor(session),
+    'input_schema': inputSchema,
+  };
 
   Map<String, Object?> get _annotations => asMap(definition['annotations']);
 

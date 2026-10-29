@@ -5,91 +5,13 @@ import '../permissions/decision.dart';
 import '../util/json.dart';
 import 'tool.dart';
 
-/// Keeps the agent's todo list.
-class TodoWriteTool extends Tool {
-  const TodoWriteTool();
-
-  @override
-  String get name => 'TodoWrite';
-
-  @override
-  String get description => '''Keeps your to-do list for this session, which the user sees as a checklist beside the conversation. Each call replaces the whole list: send every item each time, with its status (pending, in_progress or completed).
-
-Keep one when the work takes several steps (three or more), when the user hands you a list of things to do, or when it helps them see where you are. Skip it for a single quick change, or for a question you can simply answer.
-
-As you go:
-- Write the steps down when you start; add the ones you discover, and drop those that stop mattering.
-- Keep exactly one item in_progress: mark it before you begin, and complete it the moment it is done, not later together with others.
-- Complete an item only when it is really done. With tests failing, an error unresolved or the work half finished it stays in_progress, and a new item says what is in the way.
-- Word each item twice: content says what to do ("Run the tests"), activeForm what is going on while you do it ("Running the tests").''';
-
-  @override
-  Map<String, Object?> get inputSchema => const {
-    'type': 'object',
-    'properties': {
-      'todos': {
-        'type': 'array',
-        'description': 'The whole list, as it is now',
-        'items': {
-          'type': 'object',
-          'properties': {
-            'content': {'type': 'string', 'minLength': 1},
-            'status': {
-              'type': 'string',
-              'enum': ['pending', 'in_progress', 'completed'],
-            },
-            'activeForm': {'type': 'string', 'minLength': 1},
-          },
-          'required': ['content', 'status', 'activeForm'],
-          'additionalProperties': false,
-        },
-      },
-    },
-    'required': ['todos'],
-    'additionalProperties': false,
-  };
-
-  @override
-  Future<PermissionDecision> checkPermissions(
-    Map<String, Object?> input,
-    ToolContext context,
-  ) async => const PermissionAllow();
-
-  @override
-  bool isConcurrencySafe(Map<String, Object?> input) => false;
-
-  @override
-  Future<ToolOutput> call(
-    Map<String, Object?> input,
-    ToolContext context,
-  ) async {
-    final key = context.run.agentId ?? context.session.sessionId;
-    final old = context.session.todos[key] ?? const [];
-    final todos = [
-      for (final raw in asList(input['todos']))
-        {
-          'content': '${asMap(raw)['content'] ?? ''}',
-          'status': '${asMap(raw)['status'] ?? 'pending'}',
-          'activeForm':
-              '${asMap(raw)['activeForm'] ?? asMap(raw)['content'] ?? ''}',
-        },
-    ];
-    // All done: the list is cleared.
-    final kept = todos.every((todo) => todo['status'] == 'completed')
-        ? <Map<String, Object?>>[]
-        : todos;
-    context.session.todos[key] = kept;
-    return ToolOutput(
-      'The to-do list is updated. Keep it current as you work, and go on with '
-      'the item in progress.',
-      result: {'oldTodos': old, 'newTodos': todos},
-    );
-  }
-}
-
 /// Puts questions to the user, with options to pick.
 class AskUserQuestionTool extends Tool {
   const AskUserQuestionTool();
+
+  /// Only with someone there to answer.
+  @override
+  bool isEnabled(AgentSession session) => session.options.canAsk;
 
   @override
   String get name => 'AskUserQuestion';
@@ -146,6 +68,7 @@ class AskUserQuestionTool extends Tool {
                   },
                 },
                 'required': ['label', 'description'],
+                'additionalProperties': false,
               },
             },
             'multiSelect': {
@@ -155,18 +78,45 @@ class AskUserQuestionTool extends Tool {
             },
           },
           'required': ['question', 'header', 'options', 'multiSelect'],
+          'additionalProperties': false,
         },
       },
       'answers': {
         'type': 'object',
         'description': 'The user\'s answers, filled in by the host',
+        'propertyNames': {'type': 'string'},
+        'additionalProperties': {'type': 'string'},
       },
       'annotations': {
         'type': 'object',
-        'description':
-            'The user\'s notes on the questions, filled in by the host',
+        'description': 'The user\'s notes on the questions, by question, filled in by the host',
+        'propertyNames': {'type': 'string'},
+        'additionalProperties': {
+          'type': 'object',
+          'properties': {
+            'preview': {
+              'type': 'string',
+              'description': 'The preview of the option picked, if it had one',
+            },
+            'notes': {
+              'type': 'string',
+              'description': 'What the user wrote beside their answer',
+            },
+          },
+          'additionalProperties': false,
+        },
       },
-      'metadata': {'type': 'object', 'description': 'For the host\'s own use'},
+      'metadata': {
+        'type': 'object',
+        'description': 'For the host\'s own use; not shown to the user',
+        'properties': {
+          'source': {
+            'type': 'string',
+            'description': 'What asked the questions, for the host\'s records',
+          },
+        },
+        'additionalProperties': false,
+      },
     },
     'required': ['questions'],
     'additionalProperties': false,
@@ -256,7 +206,8 @@ In plan mode, read the code to see how things are done now, decide on an approac
   bool get changesMode => true;
 
   @override
-  bool isEnabled(AgentSession session) => session.permissionMode != 'plan';
+  bool isEnabled(AgentSession session) =>
+      session.options.canAsk && session.permissionMode != 'plan';
 
   @override
   bool isReadOnly(Map<String, Object?> input) => true;
@@ -290,6 +241,10 @@ In plan mode, read the code to see how things are done now, decide on an approac
 class ExitPlanModeTool extends Tool {
   const ExitPlanModeTool();
 
+  /// Only with someone there to answer.
+  @override
+  bool isEnabled(AgentSession session) => session.options.canAsk;
+
   @override
   String get name => 'ExitPlanMode';
 
@@ -302,12 +257,29 @@ Call it only when the plan is finished, and only for work that will change code,
   Map<String, Object?> get inputSchema => const {
     'type': 'object',
     'properties': {
-      'plan': {
-        'type': 'string',
-        'description': 'The plan, when it was not written to the plan file (else it is read from there)',
+      'allowedPrompts': {
+        'type': 'array',
+        'description': 'No longer used.',
+        'items': {
+          'type': 'object',
+          'properties': {
+            'tool': {
+              'type': 'string',
+              'enum': ['Bash'],
+              'description': 'The tool it is for',
+            },
+            'prompt': {
+              'type': 'string',
+              'description':
+                  'What the action does, in a few words ("run the tests")',
+            },
+          },
+          'required': ['tool', 'prompt'],
+          'additionalProperties': false,
+        },
       },
     },
-    'additionalProperties': true,
+    'additionalProperties': <String, Object?>{},
   };
 
   @override
@@ -381,8 +353,7 @@ Call it only when the plan is finished, and only for work that will change code,
     return ToolOutput(
       plan == null
           ? 'Plan mode is over: go ahead.'
-          : 'The user approved your plan. Carry it out, starting with your '
-                'to-do list if you keep one.\n\n'
+          : 'The user approved your plan. Carry it out.\n\n'
                 'The plan is kept at $path for reference.\n\n'
                 '## The approved plan\n$plan',
       result: {'plan': plan, 'isAgent': !context.run.isMain, 'filePath': path},

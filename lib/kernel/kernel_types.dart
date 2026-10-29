@@ -347,18 +347,6 @@ class KernelTask {
 
 enum KernelTaskKind { command, agent, other }
 
-enum TodoStatus { pending, inProgress, completed }
-
-class TodoEntry {
-  const TodoEntry(this.content, this.status, {this.activeForm});
-
-  final String content;
-  final TodoStatus status;
-
-  /// How it reads while in progress, e.g. "Running tests".
-  final String? activeForm;
-}
-
 // --- Goal -----------------------------------------------------------------------
 
 enum GoalState {

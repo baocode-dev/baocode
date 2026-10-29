@@ -82,8 +82,11 @@ void main() {
             {'command': 'ls && cat a.txt | head -1', 'description': 'List'},
           ),
           ('Read', {'file_path': p.join(h.cwd, 'a.txt')}),
-          ('Glob', {'pattern': '*.txt'}),
-          ('Grep', {'pattern': 'hello'}),
+          (
+            'Bash',
+            {'command': "find . -name '*.txt'", 'description': 'Find'},
+          ),
+          ('Bash', {'command': 'grep -rn hello .', 'description': 'Search'}),
         ]),
         Reply.text('ok'),
       ]);
@@ -393,7 +396,7 @@ void main() {
         settings: {
           'permissions': {
             'deny': ['Read(./secret.env)', 'Edit(docs/**)'],
-            'ask': ['Edit(src/**)', 'Glob'],
+            'ask': ['Edit(src/**)', 'Bash(ls:*)'],
           },
         },
       );
@@ -409,7 +412,7 @@ void main() {
             {'file_path': p.join(h.cwd, 'src', 'new.txt'), 'content': 'x'},
           ),
           ('Write', {'file_path': p.join(outside, 'o.txt'), 'content': 'x'}),
-          ('Glob', {'pattern': '*'}),
+          ('Bash', {'command': 'ls', 'description': 'List'}),
         ]),
         Reply.text('ok'),
       ]);
@@ -441,7 +444,7 @@ void main() {
         ),
       );
       expect(far['blocked_path'], p.join(outside, 'o.txt'));
-      expect(asked['Glob']!['matched_ask_rule'], 'Glob');
+      expect(asked['Bash']!['matched_ask_rule'], 'Bash(ls:*)');
     });
 
     test('allow rules from the flag settings', () async {

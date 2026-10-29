@@ -1036,6 +1036,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdToggleFullScreen => '切换全屏';
 
   @override
+  String get cmdZoomIn => '放大';
+
+  @override
+  String get cmdZoomOut => '缩小';
+
+  @override
+  String get cmdZoomReset => '重置缩放';
+
+  @override
   String get cmdToggleWordWrap => '切换自动换行';
 
   @override
@@ -2242,6 +2251,35 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolUpdatedTodos => '已更新待办';
 
   @override
+  String todoCount(int done, int total) {
+    return '待办 $done/$total';
+  }
+
+  @override
+  String get todoAllDone => '全部完成';
+
+  @override
+  String get todoNone => '列表为空';
+
+  @override
+  String get todoAdded => '添加待办';
+
+  @override
+  String get todoStarted => '开始待办';
+
+  @override
+  String get todoCompleted => '完成待办';
+
+  @override
+  String get todoRemoved => '删除待办';
+
+  @override
+  String get todoUpdated => '更新待办';
+
+  @override
+  String get todoChecked => '查看待办';
+
+  @override
   String get toolSending => '正在说';
 
   @override
@@ -3007,11 +3045,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get mcpProbeNote =>
       '启动后用 MCP 的 initialize 握手检测，与 `claude mcp list` 的检测方式相同。';
-
-  @override
-  String todoCount(int done, int total) {
-    return '待办 $done/$total';
-  }
 
   @override
   String queuedMessages(int count) {
@@ -6112,10 +6145,24 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get modelsAccountDisabled => '已禁用';
+
+  @override
   String get modelsAccountLimited => '额度已用尽';
 
   @override
   String get modelsAccountQuotaUnknown => '额度尚未获取';
+
+  @override
+  String get modelsQuotaShortWindow => '短周期';
+
+  @override
+  String get modelsQuotaLongWindow => '长周期';
+
+  @override
+  String modelsQuotaLastUpdated(String time) {
+    return '上次更新 $time';
+  }
 
   @override
   String get modelsQuotaWeek => '每周';
@@ -6134,6 +6181,40 @@ class AppLocalizationsZh extends AppLocalizations {
   String modelsQuotaUsed(int percent) {
     return '已用 $percent%';
   }
+
+  @override
+  String modelsQuotaRemaining(int percent) {
+    return '剩余 $percent%';
+  }
+
+  @override
+  String quotaBarWindowLeft(String window, int percent) {
+    return '$window剩 $percent%';
+  }
+
+  @override
+  String quotaBarAvailable(int count, int total) {
+    return '$count/$total 可用';
+  }
+
+  @override
+  String quotaBarAllOut(String time) {
+    return '账号额度全部用尽 · $time 恢复';
+  }
+
+  @override
+  String quotaBarBackAt(String time) {
+    return '额度已用尽 · $time 恢复';
+  }
+
+  @override
+  String get quotaBarNone => '没有可用的账号';
+
+  @override
+  String get quotaBarThisChat => '当前对话';
+
+  @override
+  String get quotaBarRefresh => '刷新额度';
 
   @override
   String modelsQuotaResetsIn(String time) {
@@ -6790,7 +6871,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get diagnosticsDescription =>
-      '把 BaoCode 的错误日志发给开发者，帮助排查问题。只有点击上传时才会发送。';
+      '把 BaoCode 的错误日志和系统记录的崩溃和卡死报告发给开发者，帮助排查问题。只有点击上传时才会发送。';
 
   @override
   String get diagnosticsUpload => '上传…';
@@ -7114,7 +7195,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceSettingsCodeSizeDescription =>
-      'Fast IDE 编辑器及侧边栏文件、变更视图中源码的字号。对话中的代码跟随界面大小，终端使用终端字号。';
+      'Fast IDE 编辑器及侧边栏文件、变更视图中源码的字号，按 100% 界面大小算，界面缩放时随之等比放大缩小。对话中的代码跟随界面大小，终端使用终端字号。';
 
   @override
   String appearanceSettingsCodeSizeLabel(String size) {
@@ -7140,7 +7221,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceSettingsUiScaleDescription =>
-      '缩放整个界面（文字、图标与间距）、对话中的代码，以及终端字号为“跟随界面大小”时的终端文字。Fast IDE 编辑器及侧边栏文件、变更中的源码使用代码字号。';
+      '缩放整个界面（文字、图标与间距）和其中的代码，以及终端字号为“跟随界面大小”时的终端文字。编辑器中的源码按代码字号等比缩放。';
 
   @override
   String appearanceSettingsUiScaleLabel(String percent) {
@@ -7263,6 +7344,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get remoteFolderRefresh => '重新读取文件夹';
+
+  @override
   String get remoteOpenThisFolder => '打开此文件夹';
 
   @override
@@ -7276,6 +7360,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String remoteListFailed(String path) {
     return '无法列出 $path';
+  }
+
+  @override
+  String remoteReadingFolder(String path) {
+    return '正在读取 $path…';
   }
 
   @override
@@ -8426,26 +8515,26 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stashPolishHint => '让 AI 把选中的文字理顺，保持你的原意，不加结构';
 
   @override
-  String get composerPolish => '润色';
+  String get composerPolish => '提示词增强';
 
   @override
-  String get composerPolishing => '润色中…';
+  String get composerPolishing => '增强中…';
 
   @override
   String get composerPolishHint =>
-      '润色：用辅助模型把消息改得更清楚，保留你的意思和口吻；图片、文件、代码和链接原样不动，可撤销';
+      '提示词增强：用辅助模型把消息改写成更清楚、更具体的提示词，没说清的地方由它补全；图片、文件、代码和链接原样不动，可撤销';
 
   @override
   String composerPolishFailed(String error) {
-    return '润色失败：$error';
+    return '提示词增强失败：$error';
   }
 
   @override
-  String get generalSettingsComposerPolish => '润色按钮';
+  String get generalSettingsComposerPolish => '提示词增强按钮';
 
   @override
   String get generalSettingsComposerPolishDescription =>
-      '在输入框里显示润色按钮，发送前用辅助模型把写的内容改得更清楚';
+      '在输入框里显示提示词增强按钮，发送前用辅助模型把写的内容改写成更清楚、更具体的提示词';
 
   @override
   String get generalSettingsLiveTurnStats => '运行时实时显示详细速率和时间';
@@ -10390,6 +10479,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gitLogInNoBranch => '没有分支包含此提交。';
 
   @override
+  String gitLogInBranches(int count) {
+    return '所在分支（$count）';
+  }
+
+  @override
   String get gitLogList => '列表';
 
   @override
@@ -10471,6 +10565,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get gitLogCopyHash => '复制完整哈希';
+
+  @override
+  String get gitLogCopyRefNames => '复制分支或标签名';
+
+  @override
+  String gitLogCopyName(String name) {
+    return '复制“$name”';
+  }
 
   @override
   String get gitLogLoading => '正在读取历史…';
@@ -10557,9 +10659,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get gitCommitCollapseAll => '全部折叠';
-
-  @override
-  String get gitCommitGroupByDirectory => '按目录分组';
 
   @override
   String get gitCommitEmptyMessage => '请填写提交信息。';

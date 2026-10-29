@@ -14,12 +14,16 @@ class UserMessageItem extends ChatItem {
     this.images = const [],
     this.worked,
     this.usage,
+    this.sentAt,
   });
 
   final String text;
 
   /// Pictures sent with it (screenshots, mockups…).
   final List<ImageAttachment> images;
+
+  /// When it was sent, where known: a chat app's times between messages.
+  final DateTime? sentAt;
 
   /// Sent while the agent was busy: waits for its turn, and can be taken
   /// back until then.
@@ -39,6 +43,7 @@ class UserMessageItem extends ChatItem {
         images: images,
         worked: worked ?? this.worked,
         usage: usage ?? this.usage,
+        sentAt: sentAt,
       );
 }
 

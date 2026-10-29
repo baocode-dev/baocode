@@ -121,7 +121,8 @@ class IdeQuickPickItem extends IdeQuickPickEntry {
   final List<IdeQuickPickItemButton> buttons;
 }
 
-/// A button of an [IdeQuickPickItem] (upstream `IQuickInputButton`).
+/// A button of an [IdeQuickPickItem], or of an [IdeQuickPick]'s input
+/// (upstream `IQuickInputButton`).
 class IdeQuickPickItemButton {
   const IdeQuickPickItemButton({
     required this.icon,
@@ -168,6 +169,8 @@ class IdeQuickPick extends IdeQuickInputModel {
     this.activeItems,
     this.matchOnDescription = false,
     this.sortByLabel = true,
+    this.buttons = const [],
+    this.refresh,
     this.onDidChangeActive,
     this.onDidChangeValue,
     this.onDidAccept,
@@ -186,6 +189,15 @@ class IdeQuickPick extends IdeQuickInputModel {
 
   final bool matchOnDescription;
   final bool sortByLabel;
+
+  /// At the right of the input (upstream `IQuickPick.buttons`): each runs
+  /// as it is pressed, the pick staying open. A button pressed that reads
+  /// its items again calls [refresh].
+  final List<IdeQuickPickItemButton> buttons;
+
+  /// Recomputes the rows when it notifies, e.g. once a button read them
+  /// again. The pick is the same one (its [itemsFor] reads the new state).
+  final Listenable? refresh;
 
   /// The active item (null: none) as it shows, then whenever the arrow or
   /// page keys, the filter or a click change it (upstream
@@ -286,7 +298,8 @@ class IdeQuickInput extends StatefulWidget {
   /// [IdeQuickPick]'s `onDidAccept`).
   final VoidCallback onClose;
 
-  /// Recomputes the rows when it notifies, e.g. when a file index loads.
+  /// Recomputes the rows when it notifies, e.g. when a file index loads
+  /// or a pick's button read them again (see [IdeQuickPick.refresh]).
   final Listenable? refresh;
 
   /// The row active as it shows (upstream `itemActivation`: the first, the
@@ -417,7 +430,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
         : TextSelection.collapsed(offset: widget.initialText.length);
     _controller.addListener(_textEdited);
     _focusNode.addListener(_keepSelection);
-    widget.refresh?.addListener(_recompute);
+    _listen(widget);
     if (widget.inputBox case final box?) {
       _lastText = _controller.text;
       _validation = box.validate?.call(_controller.text);
@@ -496,15 +509,30 @@ class IdeQuickInputState extends State<IdeQuickInput> {
   @override
   void didUpdateWidget(IdeQuickInput oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.refresh != widget.refresh) {
-      oldWidget.refresh?.removeListener(_recompute);
-      widget.refresh?.addListener(_recompute);
+    if (oldWidget.refresh != widget.refresh ||
+        oldWidget.pick?.refresh != widget.pick?.refresh) {
+      _unlisten(oldWidget);
+      _listen(widget);
+    }
+  }
+
+  /// Listens to what recomputes the rows: [IdeQuickInput.refresh], and an
+  /// [IdeQuickPick]'s own.
+  void _listen(IdeQuickInput widget) {
+    for (final listenable in [widget.refresh, widget.pick?.refresh]) {
+      listenable?.addListener(_recompute);
+    }
+  }
+
+  void _unlisten(IdeQuickInput widget) {
+    for (final listenable in [widget.refresh, widget.pick?.refresh]) {
+      listenable?.removeListener(_recompute);
     }
   }
 
   @override
   void dispose() {
-    widget.refresh?.removeListener(_recompute);
+    _unlisten(widget);
     _controller.dispose();
     _focusNode.dispose();
     _listFocus.dispose();
@@ -536,6 +564,9 @@ class IdeQuickInputState extends State<IdeQuickInput> {
     if (_lastText != _controller.text) _recompute();
   }
 
+  /// Recomputes the rows: the text changed, or a [refresh] read them
+  /// again. Only the text's changes (and a refresh) do, not the caret's
+  /// or the selection's.
   void _recompute() {
     if (!mounted) return;
     final textChanged = _lastText != _controller.text;
@@ -546,18 +577,28 @@ class IdeQuickInputState extends State<IdeQuickInput> {
       return;
     }
     if (widget.pick case final pick?) {
-      if (!textChanged) return;
-      pick.onDidChangeValue?.call(_controller.text);
+      if (textChanged) pick.onDidChangeValue?.call(_controller.text);
       final previous = _active;
       setState(() {
         _rows = _filter(pick, _controller.text);
-        // Upstream focuses the first match (`trySelectFirst`).
-        _selected = _rows.isEmpty ? -1 : 0;
-        if (_scroll.hasClients) _scroll.jumpTo(0);
+        if (textChanged) {
+          // Upstream focuses the first match (`trySelectFirst`).
+          _selected = _rows.isEmpty ? -1 : 0;
+          if (_scroll.hasClients) _scroll.jumpTo(0);
+        } else {
+          // Read again: the same row stays active, by its item, else the
+          // one where it was, else the first.
+          final same = previous == null
+              ? -1
+              : _rows.indexWhere((row) => identical(row.item, previous));
+          _selected = same >= 0
+              ? same
+              : _selected.clamp(-1, _rows.length - 1);
+        }
       });
       // Its list drops the focus as it filters, then focuses the first
       // match: the active item changes unless none was and none is.
-      if (previous != null || _active != null) {
+      if (previous != _active && (previous != null || _active != null)) {
         pick.onDidChangeActive?.call(_active);
       }
       return;
@@ -758,6 +799,45 @@ class IdeQuickInputState extends State<IdeQuickInput> {
     LogicalKeyboardKey.metaRight,
   };
 
+  /// The filter's field, its placeholder [placeholder], with an input
+  /// box's border taking its validation's color (`showDecoration`).
+  Widget _inputField(String? placeholder) {
+    final validationBorder = _validation?.colors.$2;
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      autocorrect: false,
+      enableSuggestions: false,
+      cursorColor: IdeInputColors.foreground,
+      cursorWidth: 1.5,
+      cursorHeight: ideCaretHeight(13),
+      style: TextStyle(color: IdeInputColors.foreground, fontSize: 13),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: placeholder,
+        hintStyle: TextStyle(color: IdeInputColors.placeholder, fontSize: 13),
+        filled: true,
+        fillColor: IdeInputColors.background,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 7,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(IdeQuickInput.innerRadius),
+          borderSide: BorderSide(
+            color: validationBorder ?? IdeInputColors.border,
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(IdeQuickInput.innerRadius),
+          borderSide: BorderSide(
+            color: validationBorder ?? IdeInputColors.focusBorder,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
@@ -769,9 +849,6 @@ class IdeQuickInputState extends State<IdeQuickInput> {
       _rows.fold(0.0, (height, row) => height + _heightOf(row)),
       IdeQuickInput.maxVisibleRows * IdeQuickInput.rowHeight,
     );
-    // An input box's border takes its validation's color
-    // (`showDecoration`).
-    final validationBorder = _validation?.colors.$2;
     return Focus(
       focusNode: _listFocus,
       onKeyEvent: _onKey,
@@ -819,52 +896,23 @@ class IdeQuickInputState extends State<IdeQuickInput> {
                         else
                           Padding(
                             padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
-                            child: TextField(
-                              controller: _controller,
-                              focusNode: _focusNode,
-                              autocorrect: false,
-                              enableSuggestions: false,
-                              cursorColor: IdeInputColors.foreground,
-                              cursorWidth: 1.5,
-                              cursorHeight: ideCaretHeight(13),
-                              style: TextStyle(
-                                color: IdeInputColors.foreground,
-                                fontSize: 13,
-                              ),
-                              decoration: InputDecoration(
-                                isDense: true,
-                                hintText: placeholder,
-                                hintStyle: TextStyle(
-                                  color: IdeInputColors.placeholder,
-                                  fontSize: 13,
-                                ),
-                                filled: true,
-                                fillColor: IdeInputColors.background,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 7,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    IdeQuickInput.innerRadius,
+                            child: Row(
+                              children: [
+                                Expanded(child: _inputField(placeholder)),
+                                // The pick's own buttons, at the input's
+                                // right (upstream `IQuickPick.buttons`).
+                                for (final button
+                                    in widget.pick?.buttons ?? const [])
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 4),
+                                    child: IdeActionButton(
+                                      icon: button.icon,
+                                      tooltip: button.tooltip,
+                                      size: 20,
+                                      onPressed: button.onPressed,
+                                    ),
                                   ),
-                                  borderSide: BorderSide(
-                                    color:
-                                        validationBorder ??
-                                        IdeInputColors.border,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    IdeQuickInput.innerRadius,
-                                  ),
-                                  borderSide: BorderSide(
-                                    color:
-                                        validationBorder ??
-                                        IdeInputColors.focusBorder,
-                                  ),
-                                ),
-                              ),
+                              ],
                             ),
                           ),
                         if (widget.inputBox case final box?)

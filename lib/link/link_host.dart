@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:bao_link/bao_link.dart';
 import 'package:flutter/foundation.dart';
 
+import '../bots/bots.dart';
 import '../customize/customization_store.dart';
 import '../workspace/workspace.dart';
 import 'link_platform.dart';
@@ -114,6 +115,7 @@ class LinkHost extends ChangeNotifier {
     LinkPlatform? platform,
     this.offerLifetime = const Duration(minutes: 10),
     this.customizations,
+    this.bots,
     this.filesOf = hostFilesOf,
   }) : platform = platform ?? LinkPlatform.current();
 
@@ -121,6 +123,9 @@ class LinkHost extends ChangeNotifier {
 
   /// Claude Code's customizations here, for the phones to list.
   final CustomizationStore? customizations;
+
+  /// The user's bots, for the phones to chat with and edit.
+  final Bots? bots;
 
   /// A project's files, for the phones to browse.
   final ProjectFiles Function(Project project) filesOf;
@@ -651,6 +656,7 @@ class LinkHost extends ChangeNotifier {
             project.host == null ? platform?.branchOf(project.root) : null,
         filesOf: filesOf,
         customizations: customizations,
+        bots: bots,
       )..start());
     notifyListeners();
   }

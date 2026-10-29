@@ -4,6 +4,7 @@
 
 import 'package:baocode/ide/git/git_changelists.dart';
 import 'package:baocode/ide/git/ide_git_commit_panel.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -85,7 +86,7 @@ void main() {
       await chord(tester, LogicalKeyboardKey.keyG, control: true, shift: true);
       await tester.pumpAndSettle();
       // Flat, so that a file's row is its name.
-      await tester.tap(inPanel(find.byTooltip('Group by Directory')));
+      await tester.tap(inPanel(find.byIcon(Codicons.listFlat)));
       await tester.pumpAndSettle();
 
       await menu(

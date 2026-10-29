@@ -125,8 +125,12 @@ class _IdeButtonState extends State<IdeButton> {
       label = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[icon, const SizedBox(width: 4)],
-          Flexible(child: label),
+          ?icon,
+          // An empty label: the icon alone.
+          if (widget.label.isNotEmpty) ...[
+            if (icon != null) const SizedBox(width: 4),
+            Flexible(child: label),
+          ],
           for (final (count, icon) in widget.counts) ...[
             Text(' $count', style: style),
             // `.monaco-text-button .codicon { margin: 0 0.2em }`.

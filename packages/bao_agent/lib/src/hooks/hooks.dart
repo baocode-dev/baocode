@@ -4,7 +4,11 @@ import 'dart:io';
 
 import '../config/extensions.dart';
 import '../config/settings.dart';
+import '../engine/agent_loop.dart';
+import '../engine/agent_run.dart';
 import '../engine/session.dart';
+import '../engine/session_store.dart';
+import '../util/ids.dart';
 import '../util/cancel.dart';
 import '../util/json.dart';
 import '../util/processes.dart';
@@ -14,30 +18,98 @@ abstract final class HookEvent {
   static const preToolUse = 'PreToolUse';
   static const postToolUse = 'PostToolUse';
   static const postToolUseFailure = 'PostToolUseFailure';
-  static const permissionRequest = 'PermissionRequest';
-  static const userPromptSubmit = 'UserPromptSubmit';
+  static const postToolBatch = 'PostToolBatch';
   static const notification = 'Notification';
+  static const userPromptSubmit = 'UserPromptSubmit';
+  static const userPromptExpansion = 'UserPromptExpansion';
+  static const sessionStart = 'SessionStart';
+  static const sessionEnd = 'SessionEnd';
   static const stop = 'Stop';
+  static const stopFailure = 'StopFailure';
   static const subagentStart = 'SubagentStart';
   static const subagentStop = 'SubagentStop';
   static const preCompact = 'PreCompact';
-  static const sessionStart = 'SessionStart';
-  static const sessionEnd = 'SessionEnd';
+  static const postCompact = 'PostCompact';
+  static const preModelSwitch = 'PreModelSwitch';
+  static const postModelSwitch = 'PostModelSwitch';
+  static const permissionRequest = 'PermissionRequest';
+  static const permissionDenied = 'PermissionDenied';
+  static const setup = 'Setup';
+  static const teammateIdle = 'TeammateIdle';
+  static const taskCreated = 'TaskCreated';
+  static const taskCompleted = 'TaskCompleted';
+  static const elicitation = 'Elicitation';
+  static const elicitationResult = 'ElicitationResult';
+  static const configChange = 'ConfigChange';
+  static const worktreeCreate = 'WorktreeCreate';
+  static const worktreeRemove = 'WorktreeRemove';
+  static const instructionsLoaded = 'InstructionsLoaded';
+  static const cwdChanged = 'CwdChanged';
+  static const fileChanged = 'FileChanged';
+  static const directoryAdded = 'DirectoryAdded';
+  static const messageDisplay = 'MessageDisplay';
 
   static const all = [
     preToolUse,
     postToolUse,
     postToolUseFailure,
-    permissionRequest,
-    userPromptSubmit,
+    postToolBatch,
     notification,
+    userPromptSubmit,
+    userPromptExpansion,
+    sessionStart,
+    sessionEnd,
     stop,
+    stopFailure,
     subagentStart,
     subagentStop,
     preCompact,
+    postCompact,
+    preModelSwitch,
+    postModelSwitch,
+    permissionRequest,
+    permissionDenied,
+    setup,
+    teammateIdle,
+    taskCreated,
+    taskCompleted,
+    elicitation,
+    elicitationResult,
+    configChange,
+    worktreeCreate,
+    worktreeRemove,
+    instructionsLoaded,
+    cwdChanged,
+    fileChanged,
+    directoryAdded,
+    messageDisplay,
+  ];
+
+  /// Those of the session's own life, not of a turn: told no permission
+  /// mode.
+  static const lifecycle = {
     sessionStart,
     sessionEnd,
-  ];
+    setup,
+    instructionsLoaded,
+    cwdChanged,
+    preCompact,
+    postCompact,
+    subagentStart,
+  };
+
+  /// Those of a turn at work with its tools: told its effort.
+  static const inTurn = {
+    preToolUse,
+    postToolUse,
+    postToolUseFailure,
+    postToolBatch,
+    permissionRequest,
+    permissionDenied,
+    stop,
+    stopFailure,
+    subagentStop,
+  };
 }
 
 /// One hook, where it was set.
@@ -52,15 +124,20 @@ class Hook {
     this.model,
     this.plugin,
     this.evaluate,
+    this.spec = const {},
   });
 
   final String event;
 
-  /// `command` or `prompt`.
+  /// `command`, `prompt`, `agent`, `http` or `mcp_tool`.
   final String type;
 
-  /// The command run, or the prompt asked.
+  /// The command run, the prompt asked (of a model or an agent), the URL
+  /// posted to, or the MCP tool called (`server:tool`).
   final String text;
+
+  /// The hook as set: the fields of its type (`headers`, `input`…).
+  final Map<String, Object?> spec;
 
   /// `userSettings`, `projectSettings`, `localSettings`,
   /// `policySettings`, `flagSettings`, `pluginHook`, `sessionHook`.
@@ -287,15 +364,11 @@ class HookRunner {
     Plugin? plugin,
   }) => [
     for (final hook in hooks)
-      if (asString(hook['type']) case final type?
-          when (type == 'command' && asText(hook['command']) != null) ||
-              (type == 'prompt' && asText(hook['prompt']) != null))
+      if (_text(hook) case final text?)
         Hook(
           event: event,
-          type: type,
-          text: type == 'command'
-              ? asText(hook['command'])!
-              : asText(hook['prompt'])!,
+          type: asString(hook['type'])!,
+          text: text,
           source: source,
           matcher: matcher,
           timeout: switch (asInt(hook['timeout'])) {
@@ -304,8 +377,22 @@ class HookRunner {
           },
           model: asText(hook['model']),
           plugin: plugin,
+          spec: hook,
         ),
   ];
+
+  /// What [hook] runs, by its type; null for a hook not set right.
+  static String? _text(Map<String, Object?> hook) =>
+      switch (asString(hook['type'])) {
+        'command' => asText(hook['command']),
+        'prompt' || 'agent' => asText(hook['prompt']),
+        'http' => asText(hook['url']),
+        'mcp_tool' => switch ((asText(hook['server']), asText(hook['tool']))) {
+          (final server?, final tool?) => '$server:$tool',
+          _ => null,
+        },
+        _ => null,
+      };
 
   /// The listing `get_hooks_listing` answers with.
   Map<String, Object?> listing() => {
@@ -314,8 +401,18 @@ class HookRunner {
 
   bool has(String event) => hooks.any((hook) => hook.event == event);
 
+  /// Runs the hooks of [event] for what they do, not for what they say:
+  /// not waited for, their failures their own.
+  void notify(String event, Map<String, Object?> input, {String? query}) {
+    if (!has(event)) return;
+    unawaited(
+      run(event, input, query: query).then((_) {}, onError: (Object _) {}),
+    );
+  }
+
   /// Runs the hooks of [event] that match [query], with [input] (the
-  /// fields of the event: the common ones are added).
+  /// fields of the event: the common ones are added; an `agent_id` and
+  /// `agent_type` in it are put with them).
   Future<HookOutcome> run(
     String event,
     Map<String, Object?> input, {
@@ -332,13 +429,22 @@ class HookRunner {
       );
     }
     if (matching.isEmpty) return HookOutcome.empty;
+    final rest = {...input};
+    final agentId = rest.remove('agent_id');
+    final agentType = rest.remove('agent_type');
     final full = {
       'session_id': session.sessionId,
       'transcript_path': session.store.file ?? '',
       'cwd': session.cwd,
-      'permission_mode': session.permissionMode,
+      'prompt_id': ?session.promptId,
+      if (!HookEvent.lifecycle.contains(event))
+        'permission_mode': session.permissionMode,
+      'agent_id': ?agentId,
+      'agent_type': ?agentType,
+      if (HookEvent.inTurn.contains(event))
+        if (session.turnEffort case final level?) 'effort': {'level': level},
       'hook_event_name': event,
-      ...input,
+      ...rest,
     };
     final token = cancel ?? CancelToken();
     final results = await Future.wait([
@@ -358,6 +464,9 @@ class HookRunner {
       }
       final result = switch (hook.type) {
         'prompt' => await _prompt(hook, input, cancel),
+        'agent' => await _agent(hook, input, cancel),
+        'http' => await _http(hook, input, cancel),
+        'mcp_tool' => await _mcpTool(hook, input, cancel),
         _ => await _command(hook, input, cancel),
       };
       return result.from(hook.text);
@@ -380,7 +489,7 @@ class HookRunner {
       shell.posix ? ['-c', command] : ['/d', '/s', '/c', command],
       workingDirectory: session.cwd,
       environment: {
-        ...session.commandEnvironment,
+        ...session.shellEnvironment,
         'CLAUDE_PROJECT_DIR': session.cwd,
         if (hook.plugin case final plugin?) 'CLAUDE_PLUGIN_ROOT': plugin.root,
       },
@@ -514,7 +623,11 @@ class HookRunner {
       cancel: cancel,
       maxTokens: 1024,
     );
-    final json = extractJson(answer);
+    return _verdict(hook, extractJson(answer));
+  }
+
+  /// A model's `{ok, reason}` as the hook's result.
+  static HookResult _verdict(Hook hook, Map<String, Object?> json) {
     final ok = json['ok'] == true || json['decision'] == 'approve';
     final reason = asString(json['reason']);
     if (ok) return HookResult(systemMessage: asString(json['systemMessage']));
@@ -522,9 +635,210 @@ class HookRunner {
       HookEvent.preToolUse => HookResult(decision: 'deny', reason: reason),
       _ => HookResult(
         blocked: true,
-        reason: reason ?? 'Blocked by a prompt hook',
+        reason: reason ?? 'Blocked by a ${hook.type} hook',
       ),
     };
+  }
+
+  /// What an agent hook's agent is.
+  static const _checker = AgentDefinition(
+    name: 'hook-checker',
+    description: 'Checks what a hook asks, with tools that only read.',
+    source: 'built-in',
+    tools: ['Read', 'Bash'],
+    prompt:
+        'You check something for a hook of a coding agent: a condition '
+        'about the work, or whether an action should go ahead. Look at what '
+        'you need to (the files, with the tools you have), then end with a '
+        'JSON object only, no other text: {"ok": true} when it holds or the '
+        'action may go ahead, or {"ok": false, "reason": "why"} when not.',
+  );
+
+  /// An agent hook: an agent that looks before it answers.
+  Future<HookResult> _agent(
+    Hook hook,
+    Map<String, Object?> input,
+    CancelToken cancel,
+  ) async {
+    final prompt = hook.text.contains(r'$ARGUMENTS')
+        ? hook.text.replaceAll(r'$ARGUMENTS', jsonEncode(input))
+        : '${hook.text}\n\nHook input:\n${jsonEncode(input)}';
+    final model = hook.model == null
+        ? session.resolvedModel
+        : session.catalog.resolve(hook.model!);
+    final run = AgentRun(
+      session: session,
+      agentId: 'hook-${randomHex(4)}',
+      agentType: _checker.name,
+      modeOverride: 'dontAsk',
+    )..quiet = true;
+    final store = SessionStore(sessionId: session.sessionId, cwd: session.cwd);
+    store.append({
+      'type': 'user',
+      'message': {'role': 'user', 'content': prompt},
+      'isSidechain': true,
+      'parentUuid': null,
+    });
+    final tools = session.toolbox.forAgent(_checker);
+    final own = CancelToken(cancel);
+    final work = AgentLoop(
+      session: session,
+      run: run,
+      store: store,
+      tools: tools,
+      prompt: session.context.agent(_checker, model, tools),
+      model: model,
+      maxTurns: 50,
+    ).runTurn(own);
+    final timeout = hook.timeout ?? const Duration(seconds: 60);
+    final timer = Timer(timeout, () => own.cancel('timed out'));
+    LoopResult? result;
+    try {
+      result = await work;
+    } on Cancelled {
+      result = null;
+    } finally {
+      timer.cancel();
+    }
+    if (cancel.isCancelled) throw Cancelled(cancel.reason);
+    if (own.isCancelled || result == null) {
+      return HookResult(
+        error:
+            '${hook.event} agent hook timed out after '
+            '${timeout.inSeconds}s',
+      );
+    }
+    if (!result.ok && result.lastText.isEmpty) {
+      return HookResult(
+        error:
+            '${hook.event} agent hook failed: '
+            '${result.error ?? result.reason}',
+      );
+    }
+    return _verdict(hook, extractJson(result.lastText));
+  }
+
+  /// An HTTP hook: the event posted as JSON; the answer read as a
+  /// command's output.
+  Future<HookResult> _http(
+    Hook hook,
+    Map<String, Object?> input,
+    CancelToken cancel,
+  ) async {
+    final allowed = {
+      for (final name in asList(hook.spec['allowedEnvVars'])) '$name',
+    };
+    final env = session.environment;
+    String fill(String value) => value.replaceAllMapped(
+      RegExp(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)'),
+      (m) {
+        final name = m[1] ?? m[2]!;
+        return allowed.contains(name) ? env[name] ?? '' : '';
+      },
+    );
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 30);
+    final timeout = hook.timeout ?? const Duration(seconds: 60);
+    try {
+      final request = await client
+          .postUrl(Uri.parse(hook.text))
+          .timeout(timeout);
+      request.headers.contentType = ContentType.json;
+      for (final MapEntry(:key, :value) in asMap(
+        hook.spec['headers'],
+      ).entries) {
+        request.headers.set(key, fill('$value'));
+      }
+      request.add(utf8.encode(jsonEncode(input)));
+      final work = request.close().then(
+        (response) async => (
+          status: response.statusCode,
+          body: await response.transform(utf8.decoder).join(),
+        ),
+      );
+      final ended = await Future.any([
+        work,
+        cancel.whenCancelled.then((_) => null),
+      ]).timeout(timeout, onTimeout: () => (status: -1, body: ''));
+      if (ended == null) throw Cancelled(cancel.reason);
+      if (ended.status == -1) {
+        return HookResult(
+          error:
+              '${hook.event} hook timed out after ${timeout.inSeconds}s: '
+              '${hook.text}',
+        );
+      }
+      if (ended.status < 200 || ended.status >= 300) {
+        return HookResult(
+          error:
+              '${hook.event} hook got HTTP ${ended.status} from '
+              '${hook.text}',
+        );
+      }
+      return parseOutput(hook.event, ended.body.trim());
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// An MCP tool hook: the tool called, `${path}` in its input filled from
+  /// the event; what it answers read as a command's output.
+  Future<HookResult> _mcpTool(
+    Hook hook,
+    Map<String, Object?> input,
+    CancelToken cancel,
+  ) async {
+    final name = asText(hook.spec['server'])!;
+    final server = session.mcp.servers[name];
+    if (server == null || !server.connected) {
+      return HookResult(
+        error: '${hook.event} hook: MCP server "$name" is not connected',
+      );
+    }
+    Object? lookup(String path) {
+      Object? value = input;
+      for (final key in path.split('.')) {
+        value = value is Map ? value[key] : null;
+      }
+      return value;
+    }
+
+    Object? fill(Object? value) => switch (value) {
+      final String text => () {
+        final whole = RegExp(r'^\$\{([\w.]+)\}$').firstMatch(text);
+        if (whole != null) return lookup(whole[1]!);
+        return text.replaceAllMapped(
+          RegExp(r'\$\{([\w.]+)\}'),
+          (m) => switch (lookup(m[1]!)) {
+            final String s => s,
+            null => '',
+            final other => jsonEncode(other),
+          },
+        );
+      }(),
+      final Map<Object?, Object?> map => {
+        for (final e in map.entries) '${e.key}': fill(e.value),
+      },
+      final List<Object?> list => [for (final v in list) fill(v)],
+      _ => value,
+    };
+
+    final result = await session.mcp
+        .callTool(
+          server,
+          asText(hook.spec['tool'])!,
+          asMap(fill(asMap(hook.spec['input']))),
+          cancel: cancel,
+        )
+        .timeout(hook.timeout ?? const Duration(seconds: 60));
+    final text = [
+      for (final block in asList(result['content']))
+        if (asMap(block)['type'] == 'text') '${asMap(block)['text']}',
+    ].join('\n').trim();
+    if (result['isError'] == true) {
+      return HookResult(error: '${hook.event} hook (${hook.text}): $text');
+    }
+    return parseOutput(hook.event, text);
   }
 }
 

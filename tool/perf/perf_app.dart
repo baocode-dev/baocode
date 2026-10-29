@@ -34,6 +34,7 @@ import 'package:flutter/widgets.dart';
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
 import 'package:baocode/diagnostics/app_event_watch.dart';
 import 'package:baocode/diagnostics/frame_watch.dart';
+import 'package:baocode/diagnostics/hang_watch.dart';
 import 'package:baocode/platform/event_log.dart';
 import 'package:baocode/ide/lsp/packs/language_packs.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
@@ -321,6 +322,11 @@ void _setUpApp(String temp) {
     Platform.environment['BAOCODE_PERF_EVENTS'] ??
         DataDirectory.current.logsDir,
   );
+  // The macOS app's hang watchdog writes there too (hang.ui); the Windows
+  // app keeps the folder it is told for the real app, so is not.
+  if (Platform.isMacOS) {
+    unawaited(shareLogsFolder(EventLog.current!.directory));
+  }
   AppEventWatch.start();
   FrameWatch.start(
     slow: Duration(

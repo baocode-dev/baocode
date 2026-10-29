@@ -353,7 +353,10 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
         padding: const EdgeInsets.only(top: 4, left: 4),
         child: MouseRegion(
           onEnter: (_) => _pointedAt(),
-          child: Row(children: [Flexible(child: _buildPill(context))]),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [Flexible(child: _buildPill(context))],
+          ),
         ),
       ),
     );

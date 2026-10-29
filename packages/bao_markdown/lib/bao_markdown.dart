@@ -1,6 +1,7 @@
 /// A markdown editor that shows what the markdown says as it is written.
 library;
 
+export 'src/editor/md_clipboard.dart';
 export 'src/editor/md_display.dart';
 export 'src/editor/md_editor.dart';
 export 'src/editor/md_embeds.dart';

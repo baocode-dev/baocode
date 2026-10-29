@@ -67,6 +67,14 @@ abstract final class CodeFont {
   static const maxUiScale = 150;
   static const defaultUiScale = 100;
 
+  /// What Zoom In and Zoom Out (⌘= and ⌘-) move the window's scale by.
+  static const uiScaleStep = 2;
+
+  /// [percent] moved [steps] of [uiScaleStep] (back, negative), kept within
+  /// [minUiScale]..[maxUiScale].
+  static int zoomedUiScale(int percent, int steps) =>
+      (percent + steps * uiScaleStep).clamp(minUiScale, maxUiScale);
+
   /// The families code is drawn in, the first one used.
   static final ValueNotifier<List<String>> families = ValueNotifier(
     defaultFamilies,
@@ -186,7 +194,7 @@ abstract final class CodeFont {
 }
 
 /// The text scale the system gives the window, before [CodeFont.uiScale]
-/// moves it; what [CodeTextScale] puts back for code.
+/// moves it: what a terminal at a size of its own is drawn at.
 class SystemTextScale extends InheritedWidget {
   const SystemTextScale({
     super.key,
@@ -202,23 +210,4 @@ class SystemTextScale extends InheritedWidget {
   @override
   bool updateShouldNotify(SystemTextScale oldWidget) =>
       oldWidget.scaler != scaler;
-}
-
-/// [child], code an editor or a file's view draws, at the system's text
-/// scale: its size is [CodeFont.size]'s alone, which [CodeFont.uiScale]
-/// does not move.
-class CodeTextScale extends StatelessWidget {
-  const CodeTextScale({super.key, required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final system = SystemTextScale.maybeOf(context);
-    if (system == null) return child;
-    return MediaQuery(
-      data: MediaQuery.of(context).copyWith(textScaler: system),
-      child: child,
-    );
-  }
 }

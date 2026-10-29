@@ -64,12 +64,17 @@ class IdeGitRefLabelView extends StatelessWidget {
     this.label, {
     super.key,
     this.compact = false,
+    this.full = false,
     this.foreground,
     this.trailing = const [],
   });
 
   final IdeGitRefLabel label;
   final bool compact;
+
+  /// The whole name, wrapped where it is long, rather than cut short: a
+  /// commit's details'.
+  final bool full;
   final Color? foreground;
   final List<Widget> trailing;
 
@@ -109,6 +114,18 @@ class IdeGitRefLabelView extends StatelessWidget {
             ],
           )
         : mark;
+    final name = Text(
+      label.text,
+      maxLines: full ? null : 1,
+      overflow: full ? null : TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 12,
+        color: label.current
+            ? foreground ?? IdeListColors.foreground
+            : IdeListColors.description,
+        fontWeight: label.current ? FontWeight.w600 : null,
+      ),
+    );
     return IdeHover(
       message: label.tooltip,
       child: compact
@@ -118,21 +135,13 @@ class IdeGitRefLabelView extends StatelessWidget {
               children: [
                 icons,
                 const SizedBox(width: 3),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 240),
-                  child: Text(
-                    label.text,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: label.current
-                          ? foreground ?? IdeListColors.foreground
-                          : IdeListColors.description,
-                      fontWeight: label.current ? FontWeight.w600 : null,
-                    ),
+                if (full)
+                  Flexible(child: name)
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 240),
+                    child: name,
                   ),
-                ),
                 ...trailing,
               ],
             ),

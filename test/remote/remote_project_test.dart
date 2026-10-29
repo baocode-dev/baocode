@@ -812,6 +812,48 @@ printf '%s\n' "$line"
       expect(opened, RemoteLocation.of('dev', p.join(root, 'app')));
     });
 
+    test('a folder read that takes a while says so, rather than going '
+        'away until it is read', () async {
+      // A host whose replies take a while; fast ones show no wait at all.
+      connector.replyDelay = const Duration(milliseconds: 300);
+      remoteReadingDelay = const Duration(milliseconds: 50);
+      addTearDown(() => remoteReadingDelay = const Duration(milliseconds: 200));
+      Directory(p.join(root, 'app')).createSync();
+      final shown = <IdeQuickPick>[];
+      final flow = OpenRemoteFlow(
+        show: shown.add,
+        l10n: englishLocalizations,
+        onOpen: (_) {},
+        hosts: hosts,
+        configHosts: () async => ['dev'],
+      );
+      await flow.start();
+      shown.single.onDidAccept!(
+        shown.single.itemsFor!('').whereType<IdeQuickPickItem>().first,
+      );
+      // Connecting, then the home folder there.
+      final placeholder = englishLocalizations.remoteFolderPlaceholder('dev');
+      bool isBrowse(IdeQuickPick pick) =>
+          pick.placeholder == placeholder && pick.itemsFor != null;
+      await until(() => shown.any(isBrowse));
+      final browse = shown.lastWhere(isBrowse);
+      (browse.itemsFor!(root).first as IdeQuickPickItem).onAccept!();
+      bool listsApp(IdeQuickPick pick) =>
+          (pick.itemsFor?.call('') ?? const <IdeQuickPickEntry>[])
+              .whereType<IdeQuickPickItem>()
+              .any((item) => item.label == 'app');
+      // The wait said, then the folder in its place.
+      await until(
+        () => shown.any(
+          (pick) => pick.items.whereType<IdeQuickPickItem>().any(
+            (item) =>
+                item.label == englishLocalizations.remoteReadingFolder(root),
+          ),
+        ),
+      );
+      await until(() => listsApp(shown.last));
+    });
+
     test('the hosts added come first, by their names and icons; then '
         "~/.ssh/config's", () async {
       final shown = <IdeQuickPick>[];

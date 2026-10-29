@@ -68,11 +68,21 @@ Future<void> until(
 class MemoryLink {
   MemoryLink._(this.server, this.client, this._toServer, this._toClient);
 
-  static Future<MemoryLink> open(String dataDir) async {
+  static Future<MemoryLink> open(String dataDir, {Duration? replyDelay}) async {
     final toServer = StreamController<String>();
     final toClient = StreamController<String>();
+    // A reply that takes a while, as a slow host's does; each timer of the
+    // same length keeps its place, so the order holds.
+    void reply(String message) {
+      if (replyDelay case final delay?) {
+        Timer(delay, () => toClient.add(message));
+      } else {
+        toClient.add(message);
+      }
+    }
+
     final server = RemoteServer(
-      RpcPeer(toServer.stream, toClient.add),
+      RpcPeer(toServer.stream, reply),
       dataDir: dataDir,
       version: 'test',
     );
@@ -103,6 +113,9 @@ class MemoryConnector {
   Object? failure;
   int attempts = 0;
 
+  /// How long the server's replies take to arrive, as a slow host's do.
+  Duration? replyDelay;
+
   Future<SshConnection> call(
     SshTarget target, {
     void Function(String message)? onProgress,
@@ -110,7 +123,7 @@ class MemoryConnector {
     attempts++;
     if (failure case final failure?) throw failure;
     onProgress?.call('Starting the BaoCode server on ${target.text}');
-    final link = await MemoryLink.open(dataDir);
+    final link = await MemoryLink.open(dataDir, replyDelay: replyDelay);
     links.add(link);
     return SshConnection.over(
       target,

@@ -55,7 +55,10 @@ class _FakeCodex extends CodexService {
   }
 
   @override
-  Future<void> refreshUsage(ModelProvider provider) async => refreshed++;
+  Future<void> refreshUsage(
+    ModelProvider provider, {
+    bool force = true,
+  }) async => refreshed++;
 
   @override
   CodexUsage? usage(String providerId, String accountId) => usages[accountId];
@@ -66,6 +69,16 @@ class _FakeCodex extends CodexService {
 
   @override
   DateTime? limitedUntil(String providerId, String accountId) => null;
+
+  @override
+  bool signedOut(String providerId, String accountId) => accountId == 'b';
+
+  @override
+  ProviderAccount? accountFor(ModelProvider provider, {String? session}) =>
+      null;
+
+  @override
+  DateTime? backAt(ModelProvider provider) => null;
 
   @override
   Future<void> removeAccount(String providerId, String accountId) async {

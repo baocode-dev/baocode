@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import '../platform/data_dir.dart';
 import '../telemetry/telemetry_io.dart' show abiArch;
 import '../update/version.dart';
+import 'crash_reports.dart';
 import 'diagnostics_bundle.dart';
 
 /// Where to upload instead, to try a server.
@@ -57,7 +58,8 @@ final class DiagnosticsFailed extends DiagnosticsResult {
   final Object? error;
 }
 
-/// Uploads the logs folder's files ([packDiagnostics]) to stats.baocode.dev
+/// Uploads the logs folder's files and the system's crash reports of the
+/// app ([packDiagnostics]) to stats.baocode.dev
 /// when the user asks to (Settings → Updates → Diagnostic Logs): with
 /// the note they typed, the app's version, the system's and the display
 /// language; nothing that tells who sent it, not the usage statistics'
@@ -70,6 +72,7 @@ class DiagnosticsUploader {
     String? os,
     String? osVersion,
     String? arch,
+    this.crashFolders = const [],
     this.home,
     this.windows = false,
     this.timeout = const Duration(seconds: 15),
@@ -82,17 +85,20 @@ class DiagnosticsUploader {
        arch = arch ?? abiArch(Abi.current()),
        _client = client ?? HttpClient.new;
 
-  /// The app's: the data folder's `logs`, [url] the one
-  /// [diagnosticsUrlVariable] names, if any.
+  /// The app's: the data folder's `logs`, the system's crash reports
+  /// ([crashReportFolders]), [url] the one [diagnosticsUrlVariable] names,
+  /// if any.
   factory DiagnosticsUploader.platform() {
     final environment = Platform.environment;
     final override = environment[diagnosticsUrlVariable]?.trim() ?? '';
+    final home = Platform.isWindows
+        ? environment['USERPROFILE']
+        : environment['HOME'];
     return DiagnosticsUploader(
       folder: DataDirectory.current.logsDir,
       url: override.isEmpty ? null : Uri.tryParse(override),
-      home: Platform.isWindows
-          ? environment['USERPROFILE']
-          : environment['HOME'],
+      crashFolders: platformCrashReportFolders(),
+      home: home,
       windows: Platform.isWindows,
     );
   }
@@ -107,6 +113,9 @@ class DiagnosticsUploader {
 
   /// The logs folder.
   final String folder;
+
+  /// Where the system keeps the app's crash reports ([listCrashReports]).
+  final List<String> crashFolders;
   final Uri url;
   final String version;
   final String os;
@@ -126,7 +135,8 @@ class DiagnosticsUploader {
   HttpClient? _sending;
 
   /// What would be sent, as the logs are now.
-  Future<List<DiagnosticsLog>> logs() async => listDiagnosticsLogs(folder);
+  Future<List<DiagnosticsLog>> logs() async =>
+      listDiagnosticsLogs(folder, crashFolders: crashFolders);
 
   /// The logs folder, made if need be (to show it).
   Future<String> ensureFolder() async {
@@ -144,6 +154,7 @@ class DiagnosticsUploader {
     final bundle = await packDiagnostics(
       folder,
       dumps: dumps,
+      crashFolders: crashFolders,
       home: home,
       windows: windows,
     );

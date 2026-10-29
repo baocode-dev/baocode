@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
 import '../api/anthropic_client.dart';
 import '../api/model_client.dart';
+import '../config/extensions.dart';
+import '../config/memory.dart';
+import '../config/output_styles.dart';
 import '../config/settings.dart';
 import '../hooks/hooks.dart';
 import '../prompts/system_prompt.dart';
@@ -16,6 +20,7 @@ import '../util/ids.dart';
 import '../util/json.dart';
 import 'agent_loop.dart';
 import 'compaction.dart';
+import 'context.dart';
 import 'session.dart';
 import 'session_store.dart';
 import 'tasks.dart';
@@ -26,50 +31,114 @@ const engineVersion = '1.0.0';
 
 /// A command of the agent's own, as `initialize` lists it.
 class BuiltInCommand {
-  const BuiltInCommand(this.name, this.description, {this.argumentHint = ''});
+  const BuiltInCommand(
+    this.name,
+    this.description, {
+    this.argumentHint = '',
+    this.aliases = const [],
+  });
+
+  /// One of the bundled prompts ([bundledSkills]), listed in its place
+  /// among the agent's own.
+  const BuiltInCommand.bundled(this.name)
+    : description = '',
+      argumentHint = '',
+      aliases = const [];
 
   final String name;
   final String description;
   final String argumentHint;
+  final List<String> aliases;
+
+  bool get isBundled => description.isEmpty;
 
   Map<String, Object?> toJson() => {
     'name': name,
     'description': description,
     'argumentHint': argumentHint,
+    if (aliases.isNotEmpty) 'aliases': aliases,
     'builtin': true,
   };
 }
 
+/// The agent's own commands, in the order they are listed (after the
+/// bundled skills).
 const builtInCommands = [
   BuiltInCommand(
+    'autocompact',
+    'Set when the conversation gets compacted: by the model\'s window, or '
+        'at a number of tokens',
+    argumentHint: '[auto|<tokens>]',
+  ),
+  BuiltInCommand(
+    'clear',
+    'Start again with an empty context; what was said so far stays in the '
+        'transcript',
+    argumentHint: '[name]',
+    aliases: ['reset', 'new'],
+  ),
+  BuiltInCommand(
     'compact',
-    'Replace the conversation so far with a summary of it',
+    'Replace the conversation so far with a summary of it, to free up '
+        'context',
     argumentHint: '<what the summary should keep>',
+  ),
+  BuiltInCommand(
+    'config',
+    'Change a setting, by its key',
+    argumentHint: 'key=value',
+    aliases: ['settings'],
+  ),
+  BuiltInCommand(
+    'output-style',
+    'List the output styles, or switch to one',
+    argumentHint: '[style]',
   ),
   BuiltInCommand('context', 'How full the context window is, and with what'),
   BuiltInCommand(
-    'cost',
-    'What this session has cost so far, and how long it has run',
+    'effort',
+    'Set how hard the model works',
+    argumentHint: '<low|medium|high|xhigh|max|auto>',
   ),
+  BuiltInCommand.bundled('init'),
+  BuiltInCommand(
+    'mcp',
+    'The MCP servers: how they are, or reconnect, switch on or off',
+    argumentHint: '[reconnect|enable|disable [<server>|all]]',
+  ),
+  BuiltInCommand('model', 'Switch to another model', argumentHint: '<model>'),
+  BuiltInCommand(
+    'reload-plugins',
+    'Take up the plugins installed or switched on since the session began',
+    argumentHint: '[--force]',
+  ),
+  BuiltInCommand(
+    'reload-skills',
+    'Take up the skills added or changed on disk since the session began',
+  ),
+  BuiltInCommand(
+    'rename',
+    'Give this conversation a name',
+    argumentHint: '[name]',
+    aliases: ['name'],
+  ),
+  BuiltInCommand.bundled('security-review'),
+  BuiltInCommand(
+    'usage',
+    'What this session has used and cost so far',
+    aliases: ['cost', 'stats'],
+  ),
+  BuiltInCommand.bundled('insights'),
+  BuiltInCommand('recap', 'Sum the session up in a line, now'),
   BuiltInCommand(
     'goal',
     'Set a goal the agent keeps working toward until it is met',
-    argumentHint: '[condition | clear]',
   ),
   BuiltInCommand(
-    'init',
-    'Write a CLAUDE.md that tells agents how this codebase works',
+    'list-agents',
+    'List the agents of this session a message can be sent to',
+    aliases: ['peers'],
   ),
-  BuiltInCommand(
-    'review',
-    'Review the pending changes (or a pull request)',
-    argumentHint: '[pull request or focus]',
-  ),
-  BuiltInCommand(
-    'security-review',
-    'Look for security holes in the changes on this branch',
-  ),
-  BuiltInCommand('todos', 'Show the agent\'s to-do list'),
 ];
 
 /// A message of the user's, sent and not yet taken up.
@@ -144,6 +213,8 @@ class AgentEngine {
       clientFactory: clientFactory,
     );
     session.onTaskEnded = _taskEnded;
+    session.onAgentMessage = _agentMessage;
+    session.scheduler.onFire = _scheduledPrompt;
     _ready = _start();
     // A failure to start is told with the first request.
     unawaited(_ready.catchError((Object _) {}));
@@ -198,6 +269,17 @@ class AgentEngine {
       );
     }
     _mcpReady = session.mcp.start().catchError((Object _) {});
+    session.scheduler.load();
+    for (final file in session.memory) {
+      // Auto memory is no instructions file: not told.
+      if (file.type == MemoryType.auto) continue;
+      final type = file.type.name;
+      session.hooks.notify(HookEvent.instructionsLoaded, {
+        'file_path': file.path,
+        'memory_type': '${type[0].toUpperCase()}${type.substring(1)}',
+        'load_reason': 'session_start',
+      }, query: 'session_start');
+    }
     if (session.hooks.has(HookEvent.sessionStart)) {
       final outcome = await session.hooks.run(HookEvent.sessionStart, {
         'source': resume == null ? 'startup' : 'resume',
@@ -237,6 +319,7 @@ class AgentEngine {
     } on Object {
       // Ending all the same.
     }
+    session.scheduler.dispose();
     await session.tasks.stopAll().catchError((Object _) {});
     await session.mcp.close().catchError((Object _) {});
     _done.complete();
@@ -343,7 +426,7 @@ class AgentEngine {
         session.setPermissionMode(mode);
         return {'mode': session.permissionMode};
       case 'set_model':
-        session.model = asText(request['model']) ?? 'default';
+        await _switchModel(asText(request['model']) ?? 'default');
         return const {};
       case 'apply_flag_settings':
         final settings = asMap(request['settings']);
@@ -353,8 +436,12 @@ class AgentEngine {
           session.effort = asText(settings['effortLevel']);
         }
         if (settings.containsKey('model')) {
-          session.model = asText(settings['model']) ?? session.model;
+          await _switchModel(asText(settings['model']) ?? session.model);
         }
+        session.hooks.notify(HookEvent.configChange, {
+          'source': SettingsSource.flag.wire,
+          'changes': settings,
+        }, query: SettingsSource.flag.wire);
         return const {};
       case 'get_settings':
         return {
@@ -490,9 +577,17 @@ class AgentEngine {
   }
 
   List<Map<String, Object?>> _commands() => [
-    for (final command in builtInCommands) command.toJson(),
     for (final command in session.promptCommands)
-      if (command.userInvocable) command.toCommandJson(),
+      if (command.userInvocable && command.source != 'bundled')
+        command.toCommandJson(),
+    for (final command in session.promptCommands)
+      if (command.source == 'bundled' && command.isSkill)
+        command.toCommandJson(),
+    for (final command in builtInCommands)
+      if (!command.isBundled)
+        command.toJson()
+      else if (_bundled(command.name) case final bundled?)
+        bundled.toCommandJson(),
     for (final server in session.mcp.servers.values)
       if (server.connected)
         for (final prompt in server.prompts)
@@ -506,6 +601,27 @@ class AgentEngine {
           },
   ];
 
+  /// The bundled prompt [name] names, unless one of the user's has the
+  /// name.
+  PromptCommand? _bundled(String name) => session.promptCommands
+      .where((c) => c.name == name && c.source == 'bundled')
+      .firstOrNull;
+
+  /// The command [typed] runs: by its name, else by one of its aliases.
+  String _commandName(String typed) {
+    if (builtInCommands.any((c) => c.name == typed && !c.isBundled) ||
+        session.promptCommands.any((c) => c.name == typed)) {
+      return typed;
+    }
+    for (final command in builtInCommands) {
+      if (command.aliases.contains(typed)) return command.name;
+    }
+    for (final command in session.promptCommands) {
+      if (command.aliases.contains(typed)) return command.name;
+    }
+    return typed;
+  }
+
   Map<String, Object?> _initialize() {
     final picker = [
       for (final option in asList(
@@ -513,8 +629,17 @@ class AgentEngine {
       ))
         ?asText(asMap(option)['model']),
     ];
+    final agents = [...session.agentDefinitions]
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return {
       'commands': _commands(),
+      'agents': [for (final agent in agents) agent.toJson()],
+      'output_style': asText(session.settings['outputStyle']) ?? 'default',
+      'available_output_styles': [
+        'default',
+        for (final style in session.outputStyles) style.name,
+      ],
+      'user_output_styles_dir': OutputStyle.userDir(session.paths),
       'models': [
         ...session.catalog.listed(),
         for (final model in picker)
@@ -527,12 +652,26 @@ class AgentEngine {
             'supportedEffortLevels': session.catalog.info(model).effortLevels,
           },
       ],
-      'current_permission_mode': session.permissionMode,
-      'agents': [for (final agent in session.agentDefinitions) agent.toJson()],
-      'output_style': asText(session.settings['outputStyle']) ?? 'default',
-      'available_output_styles': const ['default', 'Explanatory', 'Learning'],
-      'account': {'apiKeySource': _apiKeySource, 'tokenSource': 'none'},
+      'account': {
+        'tokenSource': 'none',
+        'apiKeySource': _apiKeySource,
+        'apiProvider':
+            ApiConfig.isFirstParty(
+              asText(session.environment['ANTHROPIC_BASE_URL']) ??
+                  ApiConfig.defaultBaseUrl,
+              session.environment,
+            )
+            ? 'firstParty'
+            : 'custom',
+      },
       'pid': pid,
+      'current_permission_mode': session.permissionMode,
+      'feedback_mode': {'kind': 'disabled'},
+      'analytics_disabled': true,
+      'fast_mode_state': 'off',
+      'fast_mode_disabled_reason': 'unsupported',
+      'session_state': _turn == null ? 'idle' : 'running',
+      'capabilities': const ['ui_surface_v1'],
     };
   }
 
@@ -548,11 +687,26 @@ class AgentEngine {
 
   // --- The context ----------------------------------------------------------------
 
+  /// What the main agent is told besides the conversation.
+  AgentPrompt _mainPrompt(ToolSet tools) => session.context.main(
+    own: options.systemPrompt,
+    appended: [?options.appendSystemPrompt, ?_appendedByHost],
+    notes: [
+      if (_startContext case final start?)
+        '<system-reminder>\nA SessionStart hook adds: $start\n</system-reminder>',
+      if (session.goal case final goal?) goalInstruction(goal),
+    ],
+    tools: tools,
+  );
+
   /// What the context holds, by kind (`get_context_usage`, `/context`).
   Map<String, Object?> contextUsage() {
-    final system = session.context.mainSystem();
-    final systemTokens = estimateTokens(system.join('\n'));
-    final tools = session.toolbox.main().tools;
+    final toolSet = session.toolbox.main();
+    final prompt = _mainPrompt(toolSet);
+    final systemTokens = estimateTokens(
+      [...prompt.system, prompt.context].join('\n'),
+    );
+    final tools = toolSet.tools;
     final builtIn = estimateTokens([
       for (final tool in tools)
         if (!tool.name.startsWith('mcp__')) tool.toApi(session),
@@ -561,7 +715,7 @@ class AgentEngine {
       for (final tool in tools)
         if (tool.name.startsWith('mcp__')) tool.toApi(session),
     ]);
-    final memory = estimateTokens(session.context.userContext());
+    final memory = estimateTokens(prompt.reminders.join('\n'));
     final fixed = systemTokens + builtIn + mcp + memory;
     final compaction = Compaction(session);
     final used = session.lastUsage == null
@@ -627,7 +781,7 @@ class AgentEngine {
   List<Map<String, Object?>> _takeNext() {
     final taken = <Map<String, Object?>>[];
     _queue.removeWhere((queued) {
-      if (queued.priority != 'next' || queued.command != null || queued.own) {
+      if (queued.priority != 'next' || queued.command != null) {
         return false;
       }
       taken.add({'uuid': queued.uuid, 'message': queued.body});
@@ -651,6 +805,7 @@ class AgentEngine {
       'model': session.resolvedModel,
       'permissionMode': session.permissionMode,
       'slash_commands': [for (final command in _commands()) command['name']],
+      'terminal_slash_commands': const <String>[],
       'apiKeySource': _apiKeySource,
       'claude_code_version': engineVersion,
       'output_style': asText(session.settings['outputStyle']) ?? 'default',
@@ -663,8 +818,14 @@ class AgentEngine {
         for (final plugin in session.plugins)
           {'name': plugin.name, 'path': plugin.root},
       ],
+      'capabilities': const ['msg_lifecycle_v1', 'ui_surface_v1'],
+      'analytics_disabled': true,
+      'product_feedback_disabled': true,
+      if (session.autoMemoryDir case final dir?)
+        'memory_paths': {'auto': '$dir${Platform.pathSeparator}'},
+      'fast_mode_state': 'off',
+      'fast_mode_disabled_reason': 'unsupported',
       'effort': _effortShown,
-      'terminal_slash_commands': const <String>[],
     });
   }
 
@@ -690,6 +851,8 @@ class AgentEngine {
           'state': 'started',
         });
       }
+      // What the user typed starts a prompt of its own, for the hooks.
+      if (batch.any((q) => !q.own)) session.promptId = newUuid();
       final command = options.slashCommands ? batch.first.command : null;
       if (command != null) {
         await _runCommand(turn, batch.first, command.name, command.args);
@@ -777,32 +940,14 @@ class AgentEngine {
 
   /// Runs the main agent on the conversation as it stands, and reports.
   Future<LoopResult> _runModel(_Turn turn) async {
-    final context = [
-      session.context.userContext(),
-      if (_startContext case final start?)
-        '<system-reminder>\nA SessionStart hook adds: $start\n</system-reminder>',
-      if (session.goal case final goal?) goalInstruction(goal),
-    ].join('\n');
+    final tools = session.toolbox.main();
     final loop = AgentLoop(
       session: session,
       run: session.mainRun,
       store: session.store,
-      tools: session.toolbox.main(),
-      system: [
-        ...switch (options.systemPrompt) {
-          final own? => [
-            own,
-            if (options.appendSystemPrompt case final extra?
-                when extra.trim().isNotEmpty)
-              extra,
-          ],
-          null => session.context.mainSystem(),
-        },
-        if (_appendedByHost case final extra? when extra.trim().isNotEmpty)
-          extra,
-      ],
+      tools: tools,
+      prompt: _mainPrompt(tools),
       model: session.resolvedModel,
-      userContext: context,
       maxTurns: options.maxTurns,
       takeQueued: _takeNext,
     );
@@ -1005,17 +1150,76 @@ class AgentEngine {
         'message': {
           'role': 'user',
           'content':
-              '<command-message>$name is running…</command-message>\n'
+              '<command-message>$name</command-message>\n'
               '<command-name>/$name</command-name>\n'
-              '<command-args>$args</command-args>',
+              '${args.isEmpty ? '' : '<command-args>$args</command-args>\n'}',
         },
         'uuid': queued.uuid,
       });
       session.checkpoints.begin(queued.uuid);
     }
 
-    /// The command as a prompt to the model.
-    Future<void> prompt(String text) async {
+    void reply(String text) {
+      _localReply(text, store: false);
+      _emitResult(turn, _localResult(text));
+    }
+
+    /// The command as a prompt to the model, once the UserPromptExpansion
+    /// hooks let it.
+    Future<void> prompt(String text, {String? source}) async {
+      if (session.hooks.has(HookEvent.userPromptExpansion)) {
+        final hook = await session.hooks.run(HookEvent.userPromptExpansion, {
+          'expansion_type': name.startsWith('mcp__')
+              ? 'mcp_prompt'
+              : 'slash_command',
+          'command_name': name,
+          'command_args': args,
+          'command_source': ?switch (source) {
+            'user' => 'userSettings',
+            'project' => 'projectSettings',
+            final other => other,
+          },
+          'prompt': queued.text,
+        }, query: name);
+        if (hook.blocked || hook.stop) {
+          final why = hook.blockReason.isEmpty
+              ? (hook.stopReason ?? 'a hook said no')
+              : hook.blockReason;
+          reply('/$name was blocked: $why');
+          return;
+        }
+        if (hook.additionalContext.isNotEmpty) {
+          text =
+              '$text\n\n<system-reminder>\n'
+              '${hook.additionalContext.join('\n')}\n</system-reminder>';
+        }
+      }
+      // Then, as any prompt, what the user typed goes by its hooks.
+      if (session.hooks.has(HookEvent.userPromptSubmit)) {
+        final hook = await session.hooks.run(HookEvent.userPromptSubmit, {
+          'prompt': queued.text,
+        }, cancel: turn.cancel);
+        if (hook.blocked || hook.stop) {
+          final reason = hook.blocked
+              ? hook.blockReason
+              : (hook.stopReason ?? '');
+          _localReply(
+            'A UserPromptSubmit hook held this prompt back:\n$reason'.trim(),
+            store: false,
+          );
+          _emitResult(
+            turn,
+            _localResult('', error: 'Blocked by a hook: $reason'),
+          );
+          return;
+        }
+        final added = [...hook.additionalContext, ...hook.outputs];
+        if (added.isNotEmpty) {
+          text =
+              '$text\n\n<system-reminder>\n${added.join('\n')}\n'
+              '</system-reminder>';
+        }
+      }
       typed();
       final images = [
         for (final block in queued.blocks)
@@ -1042,12 +1246,7 @@ class AgentEngine {
       await _runModel(turn);
     }
 
-    void reply(String text) {
-      _localReply(text, store: false);
-      _emitResult(turn, _localResult(text));
-    }
-
-    switch (name) {
+    switch (_commandName(name)) {
       case 'compact':
         if (store.apiMessages().isEmpty) {
           reply('Nothing to compact.');
@@ -1074,33 +1273,47 @@ class AgentEngine {
           );
           _emitResult(turn, _localResult('', error: '$error'));
         }
+      case 'clear':
+        _clear(args);
+        _emitResult(turn, _localResult(''));
       case 'context':
         reply(_contextReport());
-      case 'cost':
+      case 'usage':
         reply(_costReport());
-      case 'todos':
-        final todos = session.mainTodos;
-        reply(
-          todos.isEmpty
-              ? 'The to-do list is empty.'
-              : [
-                  '${todos.length} todo${todos.length == 1 ? '' : 's'}:',
-                  for (final todo in todos)
-                    '${switch (todo['status']) {
-                      'completed' => '☒',
-                      'in_progress' => '◐',
-                      _ => '☐',
-                    }} ${todo['content']}',
-                ].join('\n'),
-        );
       case 'goal':
         await _goalCommand(turn, queued, args, typed);
-      case 'init':
-        await prompt(initPrompt);
-      case 'review':
-        await prompt(reviewPrompt(args));
-      case 'security-review':
-        await prompt(securityReviewPrompt);
+      case 'model':
+        reply(await _modelCommand(args));
+      case 'effort':
+        reply(_effortCommand(args));
+      case 'config':
+        reply(await _configCommand(args));
+      case 'output-style':
+        reply(_outputStyleCommand(args));
+      case 'autocompact':
+        reply(_autocompactCommand(args));
+      case 'mcp':
+        reply(await _mcpCommand(args));
+      case 'reload-skills':
+        session.context.reloadExtensions();
+        final skills = session.promptCommands.where((c) => c.isSkill).length;
+        reply('Skills read again: $skills available.');
+      case 'reload-plugins':
+        session.context.reloadPlugins();
+        await _mcpReady;
+        await session.mcp.connectNew();
+        reply(
+          'Plugins read again: ${session.plugins.length} '
+          'plugin${session.plugins.length == 1 ? '' : 's'}, '
+          '${session.promptCommands.length} commands and skills, '
+          '${session.agentDefinitions.length} agents.',
+        );
+      case 'rename':
+        reply(await _rename(args));
+      case 'list-agents':
+        reply(_agentsReport());
+      case 'recap':
+        reply(await _recap());
       default:
         if (name.startsWith('mcp__')) {
           final text = await _mcpPrompt(name, args);
@@ -1111,9 +1324,10 @@ class AgentEngine {
           }
           return;
         }
+        final resolved = _commandName(name);
         final custom =
-            SkillTool.find(session, name) ??
-            session.promptCommands.where((c) => c.name == name).firstOrNull;
+            SkillTool.find(session, resolved) ??
+            session.promptCommands.where((c) => c.name == resolved).firstOrNull;
         if (custom == null || !custom.userInvocable) {
           reply('Unknown skill: $name');
           return;
@@ -1125,11 +1339,9 @@ class AgentEngine {
             SettingsSource.session,
           );
         }
-        final body = custom.expand(args);
         await prompt(
-          custom.isSkill
-              ? 'Base directory for this skill: ${custom.baseDir}\n\n$body'
-              : body,
+          custom.withBaseDir(custom.expand(args)),
+          source: custom.source,
         );
     }
   }
@@ -1228,6 +1440,277 @@ class AgentEngine {
     }
     if (d.inMinutes > 0) return '${d.inMinutes}m ${d.inSeconds % 60}s';
     return '${(d.inMilliseconds / 1000).toStringAsFixed(1)}s';
+  }
+
+  /// `/clear`: the conversation starts again from nothing; what came
+  /// before stays in the transcript, behind a boundary.
+  void _clear(String name) {
+    final store = session.store;
+    if (store.chain.isNotEmpty) {
+      store.append({
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'content': 'Conversation cleared',
+        'isMeta': false,
+        'level': 'info',
+        'parentUuid': null,
+        'logicalParentUuid': store.leaf,
+        'compactMetadata': {'trigger': 'clear', 'preTokens': 0},
+      });
+    }
+    if (session.goal != null) _endGoal(met: false, sentinel: true);
+    session.lastUsage = null;
+    session.mainRun.readFiles.clear();
+    if (name.trim().isNotEmpty) {
+      store.note({'type': 'custom-title', 'customTitle': name.trim()});
+      _titled = true;
+    }
+  }
+
+  Future<String> _modelCommand(String args) async {
+    if (args.isEmpty) return 'Model: ${session.resolvedModel}';
+    if (await _switchModel(args) case final refused?) return refused;
+    return 'Model set to ${session.resolvedModel}';
+  }
+
+  /// Switches to [model], unless a PreModelSwitch hook says not to: then
+  /// why. The PostModelSwitch hooks are told.
+  Future<String?> _switchModel(String model) async {
+    final from = session.resolvedModel;
+    final to = session.catalog.resolve(model);
+    if (session.hooks.has(HookEvent.preModelSwitch)) {
+      final outcome = await session.hooks.run(HookEvent.preModelSwitch, {
+        'from_model': from,
+        'to_model': to,
+      }, query: to);
+      if (outcome.blocked || outcome.stop) {
+        final why = outcome.blockReason.isEmpty
+            ? (outcome.stopReason ?? 'a hook said no')
+            : outcome.blockReason;
+        return 'Model not switched: $why';
+      }
+    }
+    session.model = model;
+    if (from != session.resolvedModel) {
+      session.hooks.notify(HookEvent.postModelSwitch, {
+        'from_model': from,
+        'to_model': session.resolvedModel,
+      }, query: session.resolvedModel);
+    }
+    return null;
+  }
+
+  static const _effortLevels = ['low', 'medium', 'high', 'xhigh', 'max'];
+
+  String _effortCommand(String args) {
+    final level = args.toLowerCase();
+    if (level.isEmpty) {
+      return 'Effort: ${_effortShown ?? 'the model\'s own'}';
+    }
+    if (level == 'auto') {
+      session.effort = null;
+      return 'Effort set to auto: ${_effortShown ?? 'the model\'s own'}';
+    }
+    if (!_effortLevels.contains(level)) {
+      return 'Unknown effort "$args": one of ${_effortLevels.join(', ')}, '
+          'or auto.';
+    }
+    final info = session.modelInfo;
+    if (info.known && !info.supportsEffort) {
+      return '${session.resolvedModel} has no effort setting.';
+    }
+    session.effort = level;
+    return 'Effort set to $level';
+  }
+
+  /// Writes [key] to the user's settings (null removes it), and reads the
+  /// settings again.
+  void _saveSetting(String key, Object? value, {SettingsSource? to}) {
+    final path = session.settings.fileOf(to ?? SettingsSource.user);
+    if (path == null) return;
+    AgentSettings.editJson(path, (json) {
+      if (value == null) {
+        json.remove(key);
+      } else {
+        json[key] = value;
+      }
+    });
+    session.reloadSettings();
+    session.hooks.notify(HookEvent.configChange, {
+      'source': (to ?? SettingsSource.user).wire,
+      'file_path': path,
+      'changes': {key: value},
+    }, query: (to ?? SettingsSource.user).wire);
+  }
+
+  Future<String> _configCommand(String args) async {
+    final at = args.indexOf('=');
+    if (at <= 0) {
+      return 'Usage: /config key=value (the value as JSON, or as text). '
+          'An empty value removes the key.';
+    }
+    final key = args.substring(0, at).trim();
+    final raw = args.substring(at + 1).trim();
+    Object? value;
+    if (raw.isNotEmpty) {
+      try {
+        value = jsonDecode(raw);
+      } on FormatException {
+        value = raw;
+      }
+    }
+    _saveSetting(key, value);
+    if (key == 'model' && value is String) await _switchModel(value);
+    if (key == 'effortLevel') session.effort = asText(value);
+    return value == null
+        ? 'Removed $key from the user settings.'
+        : 'Set $key to ${jsonEncode(value)} in the user settings.';
+  }
+
+  String _outputStyleCommand(String args) {
+    final styles = session.outputStyles;
+    final current = asText(session.settings['outputStyle']) ?? 'default';
+    if (args.isEmpty) {
+      return [
+        'Output styles (current: $current):',
+        '- default: the agent as it is, for software work',
+        for (final style in styles) '- ${style.name}: ${style.description}',
+      ].join('\n');
+    }
+    final String name;
+    if (args.toLowerCase() == 'default') {
+      name = 'default';
+    } else if (OutputStyle.find(styles, args) case final style?) {
+      name = style.name;
+    } else {
+      return 'No output style "$args". Run /output-style to list them.';
+    }
+    _saveSetting(
+      'outputStyle',
+      name == 'default' ? null : name,
+      to: SettingsSource.local,
+    );
+    return 'Output style set to $name';
+  }
+
+  String _autocompactCommand(String args) {
+    final value = args.toLowerCase().replaceAll(',', '').replaceAll('_', '');
+    if (value.isEmpty) {
+      final asked = session.settings.autoCompactWindow;
+      return 'Compacts at ${session.contextWindow} tokens '
+          '(${asked == null ? 'auto: the model\'s window' : 'set'}).';
+    }
+    if (value == 'auto') {
+      _saveSetting('autoCompactWindow', null);
+      return 'Compacts by the model\'s window again '
+          '(${session.contextWindow} tokens).';
+    }
+    final match = RegExp(r'^(\d+(?:\.\d+)?)(k|m)?$').firstMatch(value);
+    if (match == null) return 'Usage: /autocompact [auto|<tokens>]';
+    final tokens =
+        (double.parse(match[1]!) *
+                switch (match[2]) {
+                  'k' => 1000,
+                  'm' => 1000000,
+                  _ => 1,
+                })
+            .round();
+    _saveSetting('autoCompactWindow', tokens);
+    return 'Compacts at ${session.contextWindow} tokens.';
+  }
+
+  Future<String> _mcpCommand(String args) async {
+    await _mcpReady;
+    final mcp = session.mcp;
+    final words = args.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    final action = words.firstOrNull;
+    final target = words.skip(1).join(' ');
+    if (action == null) {
+      if (mcp.servers.isEmpty) return 'No MCP servers are set up.';
+      return [
+        'MCP servers:',
+        for (final server in mcp.servers.values)
+          '- ${server.name}: ${server.status}',
+      ].join('\n');
+    }
+    if (!const {'reconnect', 'enable', 'disable'}.contains(action)) {
+      return 'Usage: /mcp [reconnect|enable|disable [<server>|all]]';
+    }
+    final names = target.isEmpty || target == 'all'
+        ? mcp.servers.keys.toList()
+        : [target];
+    if (names.isEmpty) return 'No MCP servers are set up.';
+    final done = <String>[];
+    for (final name in names) {
+      if (!mcp.servers.containsKey(name)) return 'No MCP server "$name".';
+      if (action == 'reconnect') {
+        await mcp.reconnect(name);
+      } else {
+        await mcp.toggle(name, action == 'enable');
+      }
+      done.add('$name: ${mcp.servers[name]?.status ?? 'gone'}');
+    }
+    return done.join('\n');
+  }
+
+  Future<String> _rename(String args) async {
+    var name = args.trim();
+    if (name.isEmpty) {
+      final conversation = transcriptText(
+        session.store.apiMessages(),
+        maxChars: 2000,
+        withTools: false,
+      );
+      if (conversation.trim().isEmpty) return 'Nothing to name yet.';
+      try {
+        name =
+            (await session.quickQuery(
+                  system: titleSystem,
+                  prompt: titlePrompt(conversation),
+                  maxTokens: 60,
+                ))
+                .split('\n')
+                .first
+                .replaceAll(RegExp(r'''^["'#\s]+|["'.\s]+$'''), '')
+                .trim();
+      } on Object catch (error) {
+        return 'Could not make up a name: $error';
+      }
+      if (name.isEmpty) return 'Could not make up a name.';
+    }
+    session.store.note({'type': 'custom-title', 'customTitle': name});
+    _titled = true;
+    return 'Conversation named: $name';
+  }
+
+  String _agentsReport() {
+    final jobs = session.subagents.values;
+    if (jobs.isEmpty) return 'No agents in this session yet.';
+    return [
+      'Agents of this session (send to one with SendMessage):',
+      for (final job in jobs)
+        '- ${job.agentId}: ${job.description} '
+            '(${job.agent.name}, ${job.running ? 'busy' : job.status})',
+    ].join('\n');
+  }
+
+  Future<String> _recap() async {
+    final conversation = transcriptText(
+      session.store.apiMessages(),
+      maxChars: 8000,
+      withTools: false,
+    );
+    if (conversation.trim().isEmpty) return 'Nothing has happened yet.';
+    try {
+      final line = await session.quickQuery(
+        system: recapSystem,
+        prompt: recapPrompt(conversation),
+        maxTokens: 120,
+      );
+      return line.trim().split('\n').first;
+    } on Object catch (error) {
+      return 'Could not sum it up: $error';
+    }
   }
 
   // --- The goal ---------------------------------------------------------------------
@@ -1482,6 +1965,30 @@ class AgentEngine {
       });
     }
     return sent;
+  }
+
+  /// A subagent sent the main conversation [text]: taken up within the
+  /// turn running, else in a turn of its own.
+  void _agentMessage(String from, String text) {
+    final queued = _Queued({
+      'type': 'user',
+      'message': {'role': 'user', 'content': text},
+      'uuid': newUuid(),
+      'priority': 'next',
+    })..own = true;
+    _enqueue(queued);
+  }
+
+  /// A scheduled prompt came due: sent as the user's, once no turn runs.
+  void _scheduledPrompt(String prompt) {
+    _enqueue(
+      _Queued({
+        'type': 'user',
+        'message': {'role': 'user', 'content': prompt},
+        'uuid': newUuid(),
+        'priority': 'later',
+      }),
+    );
   }
 
   /// A background task ended: the model is told, in a turn of its own if

@@ -51,8 +51,7 @@ void main() {
     expect(text.indexOf('first run'), lessThan(text.indexOf('second run')));
   });
 
-  test('past its size the file moves aside and a new one keeps the latest',
-      () {
+  test('past its size the file moves aside and a new one keeps the latest', () {
     final events = log(maxBytes: 300);
     for (var i = 0; i < 12; i++) {
       events.record('views', 'event number $i');
@@ -71,13 +70,79 @@ void main() {
     ]);
   });
 
+  test('a run that said how it ended: nothing said of it next time', () {
+    log()
+      ..record('app', 'started')
+      ..record(EventLog.exitCategory, 'quit');
+    log().record('app', 'started');
+
+    final text = File(log().path).readAsStringSync();
+    expect(text, isNot(contains('the run before')));
+  });
+
+  test('a run that ended without a word: the next says so, as it starts', () {
+    log().record('app', 'started');
+    log().record('app', 'started again');
+
+    final lines = File(log().path).readAsLinesSync();
+    final second = lines.lastIndexWhere((line) => line.startsWith('--- '));
+    expect(
+      lines[second + 1],
+      '2026-10-16T12:33:19.000 [app] the run before (pid $pid) ended '
+      'without saying how, after 2026-10-16T12:33:19.000: killed '
+      '(kill -9, out of memory), a crash, or the system going down',
+    );
+    expect(lines[second + 2], endsWith('[app] started again'));
+  });
+
+  test("with the crash report the system kept, where there is one", () {
+    log().record('app', 'started');
+    DateTime? asked;
+    EventLog(
+      '${folder.path}/logs',
+      clock: () => DateTime(2026, 10, 16, 12, 40),
+      crashSince: (since) {
+        asked = since;
+        return 'BaoCode-2026-10-16-123320.ips: EXC_BAD_ACCESS (SIGSEGV)';
+      },
+    ).record('app', 'started again');
+
+    expect(asked, DateTime(2026, 10, 16, 12, 33, 19));
+    expect(
+      File(log().path).readAsStringSync(),
+      contains(
+        'ended without saying how, after 2026-10-16T12:33:19.000: crash '
+        'report BaoCode-2026-10-16-123320.ips: EXC_BAD_ACCESS (SIGSEGV)\n',
+      ),
+    );
+  });
+
+  test('a line the native side wrote counts as how the run ended', () {
+    log().record('app', 'started');
+    File(log().path).writeAsStringSync(
+      '2026-10-16T12:34:00.123 [exit] crashed: SIGSEGV at libapp.so+0x10\n',
+      mode: FileMode.append,
+    );
+    log().record('app', 'started again');
+
+    expect(
+      File(log().path).readAsStringSync(),
+      isNot(contains('the run before')),
+    );
+  });
+
+  test('a first run says nothing of one before', () {
+    log().record('app', 'started');
+    expect(
+      File(log().path).readAsStringSync(),
+      isNot(contains('the run before')),
+    );
+  });
+
   test('an error written to errors.log shows on the timeline too', () {
     final events = EventLog.current = log();
-    ErrorLog('${folder.path}/logs').record(
-      StateError('no view\nmore detail'),
-      null,
-      source: 'uncaught',
-    );
+    ErrorLog('${folder.path}/logs')
+        .record(StateError('no view\nmore detail'), null, source: 'uncaught');
 
     expect(
       File(events.path).readAsStringSync(),

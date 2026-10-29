@@ -132,6 +132,50 @@ void main() {
     expect(fits.last, (9, 5));
   });
 
+  testWidgets('a size that keeps changing is told once it stops', (
+    tester,
+  ) async {
+    final t = _Terminal(cols: 10, rows: 5);
+    addTearDown(t.dispose);
+    final fits = <(int, int)>[];
+    Future<void> show(double width) => tester.pumpWidget(
+      Center(
+        child: SizedBox(
+          width: width,
+          height: 104,
+          child: TerminalWidget(
+            source: t.source,
+            onResize: (cols, rows) => fits.add((cols, rows)),
+          ),
+        ),
+      ),
+    );
+
+    // 215 - 10 scrollbar: 20 columns, told at once.
+    await show(215);
+    await tester.pump();
+    expect(fits, [(20, 10)]);
+
+    // A line dragged: each step a width of its own, and none told while
+    // it changes, as the shell redraws its prompt at each size it hears.
+    for (final width in [205.0, 195.0, 185.0, 175.0]) {
+      await show(width);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(fits, [(20, 10)]);
+
+    // Stopped, the last of them.
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(fits.last, (16, 10));
+
+    // A while after, a single change is the first of another run: told
+    // at once.
+    await tester.pump(const Duration(seconds: 1));
+    await show(215);
+    await tester.pump();
+    expect(fits.last, (20, 10));
+  });
+
   testWidgets('paints at most once per frame', (tester) async {
     final t = _Terminal();
     addTearDown(t.dispose);

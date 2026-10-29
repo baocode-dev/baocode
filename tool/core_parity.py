@@ -296,6 +296,9 @@ def main():
             [dart, 'run', os.path.join(REPO, 'packages/bao_agent/bin/bao_agent.dart'), *flags],
             os.path.join(root, 'ours'),
             extra_env={
+                # The fake API stands for Anthropic's own: requests laid out
+                # as for it, as the CLI lays out all of its.
+                'BAOCODE_FIRST_PARTY_API': '1',
                 'PUB_CACHE': os.environ.get('PUB_CACHE')
                 or os.path.join(os.path.expanduser('~'), '.pub-cache'),
                 'PATH': os.path.dirname(dart) + os.pathsep + os.environ.get('PATH', ''),

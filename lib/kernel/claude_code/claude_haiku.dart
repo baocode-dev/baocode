@@ -104,7 +104,7 @@ Future<String> askClaudeHaiku(
 /// nothing written. At most [maxTurns] turns, its answer the last.
 class ClaudeHaikuTools {
   const ClaudeHaikuTools({
-    this.tools = const ['Read', 'Glob', 'Grep'],
+    this.tools = const ['Read'],
     this.directory,
     this.readable = const [],
     this.maxTurns = 12,

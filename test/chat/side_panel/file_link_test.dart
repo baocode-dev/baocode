@@ -245,7 +245,9 @@ see also `pubspec.yaml` and [the site](https://baocode.dev).
     final prompt = arguments[at + 1];
     expect(prompt, contains(ClaudeLaunch.citingCode));
     expect(prompt, contains(ClaudeLaunch.fileLinks));
+    expect(prompt, contains(ClaudeLaunch.formatting));
     expect(ClaudeLaunch.fileLinks, contains('#L42-L58'));
+    expect(ClaudeLaunch.formatting, contains(r'\(...\)'));
     // Its examples parse as it asks them to be written.
     expect(
       FileLink.parseHref('path/relative/to/working/directory#L42'),

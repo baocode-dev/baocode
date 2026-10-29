@@ -292,11 +292,16 @@ class _IdeInputBoxState extends State<IdeInputBox> {
                     link: _link,
                     targetAnchor: Alignment.bottomLeft,
                     showWhenUnlinked: false,
-                    child: Align(
-                      alignment: Alignment.topLeft,
-                      child: SizedBox(
-                        width: constraints.maxWidth,
-                        child: _message(validation),
+                    // Clicked through: what it is over stays at hand (the
+                    // commit panel's Generate Commit Message, the message
+                    // wanted).
+                    child: IgnorePointer(
+                      child: Align(
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(
+                          width: constraints.maxWidth,
+                          child: _message(validation),
+                        ),
                       ),
                     ),
                   ),

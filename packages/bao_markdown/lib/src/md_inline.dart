@@ -193,6 +193,89 @@ abstract final class MdAtoms {
   }
 }
 
+/// A stretch of a text as an input method is told of it: each atom
+/// ([MdAtoms]) one character, [MdAtoms.shown]. And where an offset of
+/// either is in the other: the one place that is worked out, for what is
+/// told, what comes back, and the edits in between.
+@immutable
+class MdTold {
+  const MdTold._(this.text, this.start, this._atoms);
+
+  /// Nothing told.
+  static const empty = MdTold._('', 0, []);
+
+  /// [source], the text's from [start], as it is told.
+  factory MdTold.of(String source, {int start = 0}) {
+    if (!source.contains(MdAtoms.open)) {
+      return MdTold._(source, start, const []);
+    }
+    final atoms = <(int, int)>[];
+    final told = StringBuffer();
+    var at = 0;
+    for (final run in MdAtoms.parse(source)) {
+      told
+        ..write(source.substring(at, run.start))
+        ..write(MdAtoms.shown);
+      atoms.add((told.length - 1, run.end - run.start));
+      at = run.end;
+    }
+    told.write(source.substring(at));
+    return MdTold._(told.toString(), start, atoms);
+  }
+
+  /// What is told.
+  final String text;
+
+  /// Where it starts in the text.
+  final int start;
+
+  /// Each atom: where its character is in [text], and how long it is in
+  /// the text. In order.
+  final List<(int, int)> _atoms;
+
+  /// The text's offset of [told], an offset in [text].
+  int toSource(int told) {
+    var offset = start + told;
+    for (final (at, length) in _atoms) {
+      if (at >= told) break;
+      offset += length - 1;
+    }
+    return offset;
+  }
+
+  /// Where the text's [offset] is in [text]: one inside an atom at the
+  /// atom's.
+  int toTold(int offset) {
+    var told = offset - start;
+    var shift = 0;
+    for (final (at, length) in _atoms) {
+      final from = start + at + shift;
+      if (offset <= from) break;
+      told -= offset >= from + length ? length - 1 : offset - from;
+      shift += length - 1;
+    }
+    return told;
+  }
+
+  /// This after [from] to [to] of [text] was replaced by [inserted], as an
+  /// input method edits it: the atoms in it gone (what it puts in is
+  /// text), those after it moved. (An edit out of step with [text] leaves
+  /// it as it was, the atoms moved as told.)
+  MdTold edited(int from, int to, String inserted) => MdTold._(
+    0 <= from && from <= to && to <= text.length
+        ? text.replaceRange(from, to, inserted)
+        : text,
+    start,
+    [
+      for (final (at, length) in _atoms)
+        if (at < from)
+          (at, length)
+        else if (at >= to)
+          (at + inserted.length - (to - from), length),
+    ],
+  );
+}
+
 /// The runs of [runs] (and in them) that [column] is in or beside, the
 /// outermost first.
 List<MdInline> inlinesAt(List<MdInline> runs, int column) {

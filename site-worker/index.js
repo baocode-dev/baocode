@@ -19,9 +19,9 @@ const MANIFEST = 'https://dl.baocode.dev/releases/latest.json';
 const MOBILE_MANIFEST = 'https://dl.baocode.dev/releases/mobile/latest.json';
 const EXTENSION_MANIFEST = 'https://dl.baocode.dev/releases/extension/latest.json';
 const MOBILE = new Set(['android', 'ios']);
-// The phone apps off the site for now: their links go to the download page
-// instead of to a build. Android's, until it is back.
-const MOBILE_OFFLINE = new Set(['android']);
+// A phone app off the site: its link goes to the download page instead of
+// to a build. None now.
+const MOBILE_OFFLINE = new Set();
 // iOS is on TestFlight, not in the manifest: /dl/ios is its public beta's
 // link (App Store Connect → BaoCode → TestFlight → Public beta), the same
 // for every build.

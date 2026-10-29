@@ -201,6 +201,10 @@ final class StashPanel: NSPanel, FlutterHostWindow {
     case "canPaste":
       result(NSPasteboard.general.canReadObject(
         forClasses: [NSString.self, NSURL.self, NSImage.self], options: nil))
+    case "writePasteboardMarkdown":
+      result(BaoWindow.writePasteboardMarkdown(call.arguments as? [String: Any] ?? [:]))
+    case "readPasteboardMarkdown":
+      result(BaoWindow.readPasteboardMarkdown())
     case "writePasteboardImage":
       guard let arguments = call.arguments as? [String: Any],
             let bytes = arguments["bytes"] as? FlutterStandardTypedData

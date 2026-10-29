@@ -12,6 +12,7 @@
 // or not to be met, or an error that ends it, leaves no line there.
 
 import '../kernel_types.dart';
+import 'claude_numbers.dart';
 
 /// Reads what the session [sessionId], run in [cwd], kept of its goal: its
 /// `goal_status` lines, in the order written.
@@ -68,17 +69,14 @@ KernelGoal? keptGoal(List<Map<String, Object?>> records, {int seen = 0}) {
             : KernelGoal(
                 condition,
                 state: met ? GoalState.met : GoalState.failed,
-                checks:
-                    (record['iterations'] as num?)?.toInt() ??
-                    known?.checks ??
-                    0,
+                checks: claudeInt(record['iterations']) ?? known?.checks ?? 0,
                 lastReason: reason ?? known?.lastReason,
                 setAt: known?.setAt,
                 duration: switch (record['durationMs']) {
                   final num ms => Duration(milliseconds: ms.round()),
                   _ => null,
                 },
-                tokens: (record['tokens'] as num?)?.toInt(),
+                tokens: claudeInt(record['tokens']),
               );
         continue;
       }

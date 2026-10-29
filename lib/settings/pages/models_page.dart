@@ -13,6 +13,7 @@ import '../../icons/project_icon_picker.dart';
 import '../../kernel/claude_code/claude_haiku.dart';
 import '../../l10n/l10n.dart';
 import '../../models/codex/codex_api.dart' show codexClientVersion;
+import '../../models/codex/codex_quota_format.dart';
 import '../../models/codex/codex_service.dart';
 import '../../models/codex/codex_usage.dart';
 import '../../models/auxiliary_model_menu.dart';
@@ -1948,34 +1949,6 @@ class _QuotaLine extends StatelessWidget {
 
   final CodexWindow window;
 
-  static String name(BuildContext context, int? minutes) {
-    final l10n = context.l10n;
-    if (minutes == null || minutes <= 0) return '';
-    if (minutes % 10080 == 0 && minutes == 10080) return l10n.modelsQuotaWeek;
-    if (minutes % 1440 == 0) return l10n.modelsQuotaDays(minutes ~/ 1440);
-    return l10n.modelsQuotaHours((minutes / 60).round());
-  }
-
-  static String resets(BuildContext context, DateTime at, DateTime now) {
-    final l10n = context.l10n;
-    final left = at.difference(now);
-    if (left.inMinutes < 60) {
-      return l10n.modelsQuotaResetsIn(
-        l10n.modelsDurationMinutes(left.inMinutes < 1 ? 1 : left.inMinutes),
-      );
-    }
-    if (left.inHours < 24) {
-      return l10n.modelsQuotaResetsIn(
-        l10n.modelsDurationHours(left.inHours, left.inMinutes % 60),
-      );
-    }
-    final local = at.toLocal();
-    String two(int n) => n.toString().padLeft(2, '0');
-    return l10n.modelsQuotaResetsAt(
-      '${local.month}/${local.day} ${two(local.hour)}:${two(local.minute)}',
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -1987,7 +1960,8 @@ class _QuotaLine extends StatelessWidget {
         : AppColors.added;
     final detail = [
       l10n.modelsQuotaUsed(used.round()),
-      if (window.resetsAt case final at?) resets(context, at, DateTime.now()),
+      if (window.resetsAt case final at?)
+        quotaResets(l10n, at, DateTime.now()),
     ].join(' · ');
     return Padding(
       padding: const EdgeInsets.only(top: 2),
@@ -1996,7 +1970,7 @@ class _QuotaLine extends StatelessWidget {
           SizedBox(
             width: 52,
             child: Text(
-              name(context, window.minutes),
+              quotaWindowName(l10n, window.minutes),
               style: SettingsText.description,
             ),
           ),

@@ -84,6 +84,21 @@ Map<String, Object?> claudeSdkText(String text) => {
   'text': text,
 };
 
+/// Which of the app's tools an agent is offered, by the folder it works in:
+/// a bot's are its own, its abilities'; a project's agent has none of
+/// them.
+abstract interface class ClaudeSdkGate {
+  bool offersTool(String cwd, String tool);
+
+  /// Whether what [feature] tells of its tools ([ClaudeSdkTools.instruct])
+  /// is told there.
+  bool tellsFeature(String cwd, String feature);
+
+  /// Whether a tool called there may wait on the user at the computer (to
+  /// pick a model, say): not where there is none to.
+  bool asksUser(String cwd);
+}
+
 /// The app's server and its tools (registered as their features start).
 abstract final class ClaudeSdkTools {
   /// The server's name: its tools are `mcp__baocode__<name>` to the agent.
@@ -109,6 +124,21 @@ abstract final class ClaudeSdkTools {
       ? _instructions.remove(feature)
       : _instructions[feature] = text;
 
+  /// Which tools, by name, an agent working in a folder is offered, and
+  /// which features' instructions it is told (see [ClaudeSdkGate]); all of
+  /// them when null.
+  static ClaudeSdkGate? gate;
+
+  static bool _offers(String cwd, String tool) =>
+      gate?.offersTool(cwd, tool) ?? true;
+
+  static bool _tells(String cwd, String feature) =>
+      gate?.tellsFeature(cwd, feature) ?? true;
+
+  /// Whether a tool called by an agent working in [cwd] may wait on the
+  /// user at the computer ([ClaudeSdkGate.asksUser]).
+  static bool asksUser(String cwd) => gate?.asksUser(cwd) ?? true;
+
   /// The tool an agent calls [name] (`mcp__baocode__<name>`), if one of
   /// this server's.
   static ClaudeSdkTool? called(String name) {
@@ -124,6 +154,11 @@ abstract final class ClaudeSdkTools {
   /// The servers to launch Claude Code with: this one, if it has tools.
   static List<String> get servers => any ? const [server] : const [];
 
+  /// The servers to launch an agent working in [cwd] with: this one, if it
+  /// offers that agent a tool.
+  static List<String> serversFor(String cwd) =>
+      _tools.keys.any((name) => _offers(cwd, name)) ? const [server] : const [];
+
   /// The answer to [message] (JSON-RPC) for the server.
   static Future<Map<String, Object?>> handle(
     Map<String, Object?> message,
@@ -138,27 +173,35 @@ abstract final class ClaudeSdkTools {
     };
     switch (message['method']) {
       case 'initialize':
+        final told = [
+          for (final MapEntry(key: feature, value: text)
+              in _instructions.entries)
+            if (_tells(call.cwd, feature)) text,
+        ];
         return result({
           'protocolVersion': params['protocolVersion'] ?? '2024-11-05',
           'capabilities': {'tools': <String, Object?>{}},
           'serverInfo': {'name': server, 'version': '1.0.0'},
-          if (_instructions.isNotEmpty)
-            'instructions': _instructions.values.join('\n\n'),
+          if (told.isNotEmpty) 'instructions': told.join('\n\n'),
         });
       case 'tools/list':
         return result({
           'tools': [
             for (final tool in _tools.values)
-              {
-                'name': tool.name,
-                'description': tool.description,
-                'inputSchema': tool.inputSchema,
-                if (tool.alwaysLoad) '_meta': {'anthropic/alwaysLoad': true},
-              },
+              if (_offers(call.cwd, tool.name))
+                {
+                  'name': tool.name,
+                  'description': tool.description,
+                  'inputSchema': tool.inputSchema,
+                  if (tool.alwaysLoad) '_meta': {'anthropic/alwaysLoad': true},
+                },
           ],
         });
       case 'tools/call':
-        final tool = _tools[params['name']];
+        final tool = switch (params['name']) {
+          final String name when _offers(call.cwd, name) => _tools[name],
+          _ => null,
+        };
         final input =
             (params['arguments'] as Map?)?.cast<String, Object?>() ?? {};
         if (tool == null) {

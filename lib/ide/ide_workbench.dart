@@ -4138,20 +4138,38 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         keys.titleWithKeybinding(l10n.extTitle, 'workbench.view.extensions'),
       ),
     ];
+    // Settings at its foot, as upstream's Manage gear: the chat's sidebar
+    // has them, the IDE had no way to them but the palette.
+    final settings = _hostCommand(openSettingsCommandId);
     return SizedBox(
       width: IdeModernUI.activityBarWidth,
       child: IdePart(
         color: IdeModernUI.activityBarBackground,
         border: Border(right: IdePart.side('activityBar.border')),
         child: Padding(
-          // Half the lane above; the items centered across.
-          padding: const EdgeInsets.only(top: IdeModernUI.activityLane / 2),
+          // Half the lane above and below; the items centered across.
+          padding: const EdgeInsets.symmetric(
+            vertical: IdeModernUI.activityLane / 2,
+          ),
           child: Column(
             children: [
               for (final (index, item) in items.indexed) ...[
                 if (index > 0)
                   const SizedBox(height: IdeModernUI.activityItemGap),
                 item,
+              ],
+              if (settings != null) ...[
+                const Spacer(),
+                _ActivityItem(
+                  key: const ValueKey('ide.activity.settings'),
+                  icon: Codicons.settingsGear,
+                  label: keys.titleWithKeybinding(
+                    l10n.settingsTitle,
+                    openSettingsCommandId,
+                  ),
+                  selected: false,
+                  onTap: settings.run,
+                ),
               ],
             ],
           ),
@@ -5660,6 +5678,7 @@ class _SashState extends State<_Sash> {
 /// the hovered item sit on a rounded 32px box.
 class _ActivityItem extends StatefulWidget {
   const _ActivityItem({
+    super.key,
     required this.icon,
     required this.label,
     required this.selected,

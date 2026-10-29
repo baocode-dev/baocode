@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/ide/ide_commands.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
 import 'package:baocode/ide/ide_status_bar.dart';
 import 'package:baocode/ide/lsp_ui/hover_markdown.dart';
+import 'package:baocode/keybindings/default_keybindings.dart'
+    show openSettingsCommandId;
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/window_blur.dart';
@@ -142,6 +145,37 @@ void main() {
     await tester.pump();
     expect(find.byKey(const ValueKey('ide-sidebar')), findsNothing);
     expect(box(Codicons.files).color, isNull);
+  });
+
+  testWidgets('settings are at the activity bar\'s foot, as in the chat\'s '
+      'sidebar', (tester) async {
+    var opened = 0;
+    await pumpWorkbench(
+      tester,
+      {'a.txt': 'a'},
+      commands: [
+        IdeCommand(
+          id: openSettingsCommandId,
+          label: 'Open Settings',
+          run: () => opened++,
+        ),
+      ],
+    );
+    final bar = tester.getRect(find.byKey(const ValueKey('ide-activity-bar')));
+    final gear = tester.getRect(
+      find.byKey(const ValueKey('ide.activity.settings')),
+    );
+    // Half the lane from the bottom, as the first item from the top.
+    expect(gear.size, const Size.square(36));
+    expect(bar.bottom - gear.bottom, 4);
+    await tester.tap(find.byIcon(Codicons.settingsGear));
+    await tester.pump();
+    expect(opened, 1);
+  });
+
+  testWidgets('no gear without a way to settings', (tester) async {
+    await pumpWorkbench(tester, {'a.txt': 'a'});
+    expect(find.byKey(const ValueKey('ide.activity.settings')), findsNothing);
   });
 
   group('hover markdown', () {

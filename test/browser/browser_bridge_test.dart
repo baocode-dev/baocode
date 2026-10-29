@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:baocode/browser/browser_bridge.dart';
 import 'package:baocode/l10n/app_localizations_en.dart';
@@ -123,6 +124,43 @@ void main() {
         l10n.browserSettingsAppOld,
       ),
     ]);
+  }, skip: Platform.isWindows);
+
+  test('a big answer, in many chunks, is read whole', () async {
+    await bridge.start();
+    final host = await connect({
+      'browser': 'Google Chrome',
+      'version': '0.1.0',
+    });
+    addTearDown(host.destroy);
+    final asked = BytesBuilder();
+    host.listen(asked.add);
+    await until(() => bridge.browsers.isNotEmpty);
+
+    final big = 'x' * (20 << 20);
+    final answer = bridge.browsers.single.request('screenshot');
+    int length() => asked.length < 4
+        ? 1 << 30
+        : ByteData.sublistView(asked.toBytes()).getUint32(0, Endian.little);
+    await until(() => asked.length >= 4 + length());
+    final request = asked.toBytes();
+    final {'id': id} = jsonDecode(
+      utf8.decode(request.sublist(4, 4 + length())),
+    );
+    final body = utf8.encode(jsonEncode({'id': id, 'result': big}));
+    final message = Uint8List(4 + body.length)
+      ..buffer.asByteData().setUint32(0, body.length, Endian.little)
+      ..setRange(4, 4 + body.length, body);
+    // The header itself split, then the rest as a socket hands it on.
+    for (var at = 0; at < message.length; at += at == 0 ? 2 : 64 << 10) {
+      final end = at == 0 ? 2 : at + (64 << 10);
+      host.add(
+        Uint8List.sublistView(message, at, end.clamp(0, message.length)),
+      );
+    }
+    await host.flush();
+
+    expect(await answer, big);
   }, skip: Platform.isWindows);
 
   test('on Linux, a browser from Snap or Flatpak is said to be kept out', () {

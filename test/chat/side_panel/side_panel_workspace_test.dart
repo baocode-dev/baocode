@@ -18,6 +18,7 @@ import 'package:baocode/ide/ide_explorer.dart';
 import 'package:baocode/ide/ide_list.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -151,7 +152,7 @@ Finder _inChanges(String text) => find.descendant(
 );
 
 void main() {
-  testWidgets('the file tree preview responds to code size, not interface '
+  testWidgets('the file tree preview responds to code size and interface '
       'size', (tester) async {
     final scale = ValueNotifier(1.0);
     final originalSize = CodeFont.size.value;
@@ -168,14 +169,15 @@ void main() {
     scale.value = 1.5;
     await tester.pumpAndSettle();
     expect(tester.state(surface), same(state));
-    expect(view.lineHeight, closeTo(height, 1e-9));
+    expect(view.lineHeight, greaterThan(height * 1.4));
     expect(
       view.caretRectAt(7)!.left - view.caretRectAt(0)!.left,
-      closeTo(width, 1e-9),
+      closeTo(width * 1.5, 1),
     );
+    final zoomed = view.lineHeight;
     CodeFont.size.value = CodeFont.defaultSize + 6;
     await tester.pumpAndSettle();
-    expect(view.lineHeight, greaterThan(height * 1.4));
+    expect(view.lineHeight, greaterThan(zoomed * 1.4));
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 20));
   });
@@ -217,6 +219,42 @@ void main() {
     expect(_inList('main.go'), findsNothing);
     expect(
       find.descendant(of: _list, matching: find.byType(IdeExplorer)),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('the files page has each folder\'s Git status, as the IDE\'s '
+      'explorer', (tester) async {
+    final site = FakeGit(_site)..status = '## main\x00';
+    final api = FakeGit(_api)..status = '## dev\x00 M main.go\x00?? new.go\x00';
+    final repositories = [(_site, site.repository()), (_api, api.repository())];
+    for (final (_, git) in repositories) {
+      addTearDown(git.dispose);
+      await git.refresh();
+    }
+    await _pump(
+      tester,
+      section: SidePanelSection.files,
+      repositories: repositories,
+    );
+    Finder letterOf(String name) => find.descendant(
+      of: find.ancestor(of: _inList(name), matching: find.byType(IdeListRow)),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Text && widget.data != name,
+      ),
+    );
+    expect(tester.widget<Text>(letterOf('main.go')).data, 'M');
+    expect(tester.widget<Text>(letterOf('new.go')).data, 'U');
+    expect(letterOf('index.html'), findsNothing);
+    // The folder with changes: its dot.
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: _inList('api'),
+          matching: find.byType(IdeListRow),
+        ),
+        matching: find.byIcon(Codicons.circleFilled),
+      ),
       findsOneWidget,
     );
   });

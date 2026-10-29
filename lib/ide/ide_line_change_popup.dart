@@ -12,7 +12,6 @@ import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart';
 
 import '../l10n/l10n.dart';
-import '../theme/code_font.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
 import 'git/git_line_changes.dart';
@@ -169,9 +168,7 @@ class IdeLineChangePopup extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  child: CodeTextScale(
-                    child: Text(was, softWrap: false, style: style),
-                  ),
+                  child: Text(was, softWrap: false, style: style),
                 ),
               ),
             ),

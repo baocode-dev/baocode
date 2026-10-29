@@ -218,6 +218,10 @@ class PastedText extends AppendedText {
   PastedText storedAt(String path) =>
       PastedText(number: number, text: '', file: path, lines: extraLines);
 
+  /// This, as the message's paste [number].
+  PastedText numbered(int number) =>
+      PastedText(number: number, text: text, file: file, lines: lines);
+
   /// Pasted as a tag past this many characters…
   static const maxLength = 1000;
 

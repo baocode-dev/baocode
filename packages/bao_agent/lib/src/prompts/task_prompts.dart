@@ -61,6 +61,17 @@ const titleSystem =
 String titlePrompt(String conversation) =>
     'Name this conversation:\n\n$conversation';
 
+/// Asks for the session summed up in a line (`/recap`).
+const recapSystem =
+    'You sum up where a session between a user and a coding agent stands, '
+    'for the user coming back to it. Answer with one sentence of at most '
+    '30 words, in the language the user writes in: what was being done, '
+    'and what is done or left. No preamble, no quotes.';
+
+String recapPrompt(String conversation) =>
+    'The session so far (most recent last):\n\n$conversation\n\n'
+    'Where does it stand?';
+
 /// Asks what the user is likely to say next.
 const suggestionSystem =
     'You predict the next message a user will send to their coding agent. '
@@ -124,16 +135,6 @@ Look through the codebase first, then put in it:
 
 Notes for coding agents working in this repository.
 ```''';
-
-/// The command that has the agent review the changes not committed.
-String reviewPrompt(String args) =>
-    '''Review ${args.trim().isEmpty ? 'the changes in this repository that are not committed, staged or not (git status, git diff), and those of the branch against the main branch if it has commits of its own' : args.trim()}, as a careful reviewer would.
-
-1. Find the changes, and read the code around them until you understand them.
-2. Look for what is wrong: bugs and cases not handled, security, performance, and where they go against how the project does things.
-3. Report what you found, the most serious first: for each, the file and line, why it matters, and how to fix it. If nothing needs changing, say so plainly.
-
-Be brief, but miss nothing that matters.''';
 
 /// The command that has the agent review the branch for security issues.
 const securityReviewPrompt = '''Look for security holes in what this branch changes: its diff against the main branch, and what is not committed yet.

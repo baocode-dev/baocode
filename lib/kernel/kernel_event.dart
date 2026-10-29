@@ -181,13 +181,6 @@ final class TasksReported extends KernelEvent {
   final List<KernelTask> tasks;
 }
 
-/// The agent's todo list, as it last wrote it.
-final class TodosReported extends KernelEvent {
-  const TodosReported(super.seq, this.todos);
-
-  final List<TodoEntry> todos;
-}
-
 /// The session's goal, as it now stands; null with none.
 final class GoalReported extends KernelEvent {
   const GoalReported(super.seq, this.goal);

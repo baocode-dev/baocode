@@ -78,6 +78,15 @@ class OpenRemoteFlow {
   /// The next step's pick, once the one accepted has hidden.
   void _next(IdeQuickPick pick) => Timer.run(() => show(pick));
 
+  /// The pick saying [directory] is being read, once reading it takes a
+  /// while (see [readingPick]).
+  ReadingWait _reading(String host, String directory) => readingPick(
+    _next,
+    l10n: l10n,
+    placeholder: l10n.remoteFolderPlaceholder(RemoteLocation.hostName(host)),
+    directory: directory,
+  );
+
   /// The hosts to pick from (see [RemoteHostPicker]).
   Future<void> start() => RemoteHostPicker(
     show: show,
@@ -178,29 +187,61 @@ class OpenRemoteFlow {
   }
 
   /// The folders in [directory] on [host], to open it or go on.
+  /// [waiting] is the wait's pick, if one was shown already (a path typed
+  /// that led here).
   Future<void> _browse(
     String host,
     RemoteClient client,
-    String directory,
-  ) async {
+    String directory, {
+    ReadingWait? waiting,
+  }) async {
     final paths = p.posix;
-    List<String> folders;
+    List<String> folders = const [];
     String? failure;
-    try {
-      folders = [
-        for (final entry in await client.list(directory, directory))
-          if (entry.isDirectory) entry.name,
-      ]..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    } on Object catch (error) {
-      folders = const [];
-      failure = '$error';
+
+    /// Whether the folders are being read: the pick's rows are read again
+    /// as it changes (its `refresh`).
+    final reading = ValueNotifier(false);
+
+    /// Reads the folders again, e.g. one made in a terminal since.
+    Future<void> read() async {
+      if (reading.value) return;
+      reading.value = true;
+      try {
+        folders = [
+          for (final entry in await client.list(directory, directory))
+            if (entry.isDirectory) entry.name,
+        ]..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+        failure = null;
+      } on Object catch (error) {
+        folders = const [];
+        failure = '$error';
+      } finally {
+        reading.value = false;
+      }
     }
+
+    final wait = waiting ?? _reading(host, directory);
+    try {
+      await read();
+    } finally {
+      wait.cancel();
+    }
+    // Closed meanwhile: nothing of this read is shown.
+    if (wait.dismissed) return;
     final parent = paths.dirname(directory);
     Future<void> goTo(String path) async {
+      final wait = _reading(host, path);
       try {
         final real = await client.realPath(path);
-        await _browse(host, client, real);
+        if (wait.dismissed) {
+          wait.cancel();
+          return;
+        }
+        await _browse(host, client, real, waiting: wait);
       } on Object catch (error) {
+        wait.cancel();
+        if (wait.dismissed) return;
         _next(
           IdeQuickPick(
             items: [
@@ -223,6 +264,16 @@ class OpenRemoteFlow {
           RemoteLocation.hostName(host),
         ),
         sortByLabel: false,
+        refresh: reading,
+        buttons: [
+          IdeQuickPickItemButton(
+            icon: Codicons.refresh,
+            tooltip: l10n.remoteFolderRefresh,
+            // A second press while the folders are read is left out (see
+            // [read]).
+            onPressed: () => unawaited(read()),
+          ),
+        ],
         itemsFor: (value) {
           final typed = value.trim();
           final isPath = typed.startsWith('/') || typed.startsWith('~');

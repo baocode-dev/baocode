@@ -72,7 +72,20 @@ class DartCoreTransport implements ClaudeCodeTransport {
       directories: launch.directories,
       flagSettings: launch.settings,
       sdkServers: launch.sdkServers,
-      appendSystemPrompt: instructions == null || instructions.isEmpty
+      // The app's servers' tools offered as well.
+      tools: switch (launch.tools) {
+        final tools? => [
+          ...tools,
+          for (final server in launch.sdkServers) 'mcp__$server',
+        ],
+        null => null,
+      },
+      // Only the app's servers then, as the CLI's --strict-mcp-config.
+      strictMcpConfig: launch.tools != null,
+      systemPrompt: launch.ownPrompt ? instructions ?? '' : null,
+      appendSystemPrompt: launch.ownPrompt
+          ? null
+          : instructions == null || instructions.isEmpty
           ? ClaudeLaunch.appendedSystemPrompt
           : '${ClaudeLaunch.appendedSystemPrompt}\n\n$instructions',
       promptSuggestions: launch.promptSuggestions,

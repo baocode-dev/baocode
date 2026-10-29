@@ -431,7 +431,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('read-only file rows follow code size, not interface size', (
+  testWidgets('read-only file rows follow code size and interface size', (
     tester,
   ) async {
     final scale = ValueNotifier(1.0);
@@ -480,12 +480,13 @@ void main() {
 
       scale.value = 1.5;
       await tester.pumpAndSettle();
-      expect(lineHeight(), closeTo(initial, 1e-9));
-      expect(MediaQuery.textScalerOf(tester.element(list)).scale(12), 12);
+      expect(lineHeight(), closeTo(initial * 1.5, 1e-9));
+      expect(MediaQuery.textScalerOf(tester.element(list)).scale(12), 18);
 
+      final zoomed = lineHeight();
       CodeFont.size.value = CodeFont.defaultSize + 6;
       await tester.pumpAndSettle();
-      expect(lineHeight(), greaterThan(initial * 1.3));
+      expect(lineHeight(), greaterThan(zoomed * 1.3));
     }
 
     // Changes asked for, without the text before them: the text.
@@ -1105,7 +1106,7 @@ void main() {
     // Not grouped by directory: each file with its folder, and the panel
     // remembers it.
     await tester.tap(
-      find.descendant(of: list, matching: find.byTooltip('Group by Directory')),
+      find.descendant(of: list, matching: find.byIcon(Codicons.listFlat)),
     );
     await tester.pumpAndSettle();
     expect(panel.changesAsTree, isFalse);
@@ -2429,6 +2430,60 @@ void main() {
     await tester.tap(find.text('Source'));
     await tester.pumpAndSettle();
     expect(find.byType(MarkdownEditor), findsNothing);
+  });
+
+  testWidgets('a markdown file\'s changes (Git\'s) show it rendered as it is '
+      'after them, the changes a click away; a deleted one\'s, the '
+      'changes', (tester) async {
+    _bigWindow(tester);
+    await tester.pumpWidget(
+      _app(
+        FilePreview(
+          request: FileOpenRequest(
+            '/p/notes.md',
+            diff: true,
+            original: () async => '# Notes\n\nbefore\n',
+            readOnly: true,
+          ),
+          files: _Files({'/p/notes.md': '# Notes\n\nafter\n'}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final preview = find.byType(MarkdownEditor);
+    expect(preview, findsOneWidget);
+    expect(tester.widget<MarkdownEditor>(preview).readOnly, isTrue);
+    expect(
+      tester.widget<MarkdownEditor>(preview).controller.text,
+      '# Notes\n\nafter\n',
+    );
+    expect(find.byType(IdeCodeDiff), findsNothing);
+
+    await tester.tap(find.text('Changes'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MarkdownEditor), findsNothing);
+    expect(find.byType(IdeCodeDiff), findsOneWidget);
+    await tester.tap(find.text('Preview'));
+    await tester.pumpAndSettle();
+    expect(find.byType(MarkdownEditor), findsOneWidget);
+
+    await tester.pumpWidget(
+      _app(
+        FilePreview(
+          key: const ValueKey('deleted'),
+          request: FileOpenRequest(
+            '/p/gone.md',
+            diff: true,
+            original: () async => '# Gone\n',
+            readOnly: true,
+          ),
+          files: _Files({}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(MarkdownEditor), findsNothing);
+    expect(find.byType(IdeCodeDiff), findsOneWidget);
   });
 
   testWidgets('files dropped on a markdown file\'s preview are copied '

@@ -600,9 +600,18 @@ class BrowserConnection {
       ..add(body);
   }
 
+  /// How many bytes [_buffer] must have for a whole message to be in it:
+  /// a header's, then, once that is in, its message's too.
+  int _wanted = 4;
+
   void _read(Uint8List data) {
     _buffer.add(data);
+    // Not taking the bytes before a message is all there: taken at every
+    // chunk, a big message (a screenshot's, a page's) was copied over and
+    // over, seconds of the main thread for some megabytes.
+    if (_buffer.length < _wanted) return;
     final bytes = _buffer.takeBytes();
+    _wanted = 4;
     var offset = 0;
     while (bytes.length - offset >= 4) {
       final length = ByteData.sublistView(
@@ -614,7 +623,10 @@ class BrowserConnection {
         _close();
         return;
       }
-      if (bytes.length - offset - 4 < length) break;
+      if (bytes.length - offset - 4 < length) {
+        _wanted = 4 + length;
+        break;
+      }
       final body = Uint8List.sublistView(
         bytes,
         offset + 4,

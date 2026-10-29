@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -575,6 +577,42 @@ abstract final class WindowControls {
     } on MissingPluginException {
       return false;
     }
+  }
+
+  /// Puts [text] on the clipboard, and beside it, in a format of the app's
+  /// own, [markdown]: what an editor copied, its tags and all (see
+  /// NativeMdClipboard), [plain] where a plain text's. Whether it could;
+  /// throws [MissingPluginException] where the host has no such format.
+  static Future<bool> writePasteboardMarkdown(
+    String text,
+    String markdown, {
+    required bool plain,
+  }) async =>
+      // The host keeps the copy as it is given, its JSON.
+      await _channel.invokeMethod<bool>('writePasteboardMarkdown', {
+        'text': text,
+        'copy': jsonEncode({'markdown': markdown, 'plain': plain}),
+      }) ??
+      false;
+
+  /// The editors' copy on the clipboard ([writePasteboardMarkdown]); null
+  /// where it has none (it was copied elsewhere since). Throws
+  /// [MissingPluginException] where the host has no such format.
+  static Future<({String markdown, bool plain})?>
+  readPasteboardMarkdown() async {
+    final copy = await _channel.invokeMethod<String>('readPasteboardMarkdown');
+    if (copy == null) return null;
+    try {
+      if (jsonDecode(copy) case {
+        'markdown': final String markdown,
+        'plain': final bool plain,
+      }) {
+        return (markdown: markdown, plain: plain);
+      }
+    } on FormatException {
+      // Not one of ours after all.
+    }
+    return null;
   }
 
   /// The image file at [path] as the composer takes one (the formats it

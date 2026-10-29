@@ -580,14 +580,39 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _feed.addListener(_handleSessionChanged);
     UserMessageStyle.current.addListener(_handleStyleChanged);
     // Its size, for a slow frame's line in the event log.
-    FrameWatch.notes[this] = () =>
-        '${_feed.itemCount} items${_feed.isStreaming ? ', streaming' : ''}';
+    FrameWatch.notes[this] = _frameNote;
     _wasLive = _feed.isStreaming;
     _prependedSeen = _session?.prependedCount ?? 0;
     _refold();
     _seeItems();
     _resumeEditing();
     _goBack();
+  }
+
+  /// What a slow frame's line says of it: its items, and what only a live
+  /// session holds (subagents' tasks at work, their own conversations).
+  String _frameNote() {
+    var subagents = 0;
+    void count(List<ChatItem> children) {
+      subagents += children.length;
+      for (final child in children) {
+        if (child is AgentItem) count(child.children);
+      }
+    }
+
+    for (var index = 0; index < _feed.itemCount; index++) {
+      if (_feed.itemAt(index) case AgentItem(:final children)) count(children);
+    }
+    final running = [
+      for (final task in _session?.tasks ?? const [])
+        if (task.status == CommandStatus.running) task,
+    ].length;
+    return [
+      '${_feed.itemCount} items',
+      if (_feed.isStreaming) 'streaming',
+      if (running > 0) '$running tasks running',
+      if (subagents > 0) '$subagents in subagents',
+    ].join(', ');
   }
 
   /// The row shown first, as last scrolled to while not at the end (see
@@ -2556,9 +2581,6 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                   ),
                                 ),
                               ),
-                              if (_editingIndex ?? _closingIndex
-                                  case final index?)
-                                _buildEditorLayer(index),
                               Positioned(
                                 right: 0,
                                 left: 0,
@@ -2577,6 +2599,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                     ),
                   ),
                 ),
+                // Over the list, outside its selection: the editor's presses,
+                // keys and right clicks are its own, its text selected by it
+                // alone (the history's selection took drags begun in it, and
+                // ⌘C with nothing selected in it copied what the history had).
+                if (_editingIndex ?? _closingIndex case final index?)
+                  _buildEditorLayer(index),
                 // Beside the list, not over it: a press on it selects nothing.
                 if (widget.minimap)
                   Positioned.fill(

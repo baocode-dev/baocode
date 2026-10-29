@@ -136,6 +136,23 @@ void main() {
     });
   });
 
+  testWidgets('a task\'s box is square, its text clear of it', (tester) async {
+    await pumpMarkdown(tester, '- [x] done\n- [ ] to do');
+    final boxes = find.byWidgetPredicate(
+      (widget) =>
+          widget is Container &&
+          widget.decoration is BoxDecoration &&
+          (widget.decoration! as BoxDecoration).borderRadius != null &&
+          widget.constraints?.maxWidth == 15,
+    );
+    expect(boxes, findsNWidgets(2));
+    for (final box in boxes.evaluate()) {
+      final rect = tester.getRect(find.byWidget(box.widget));
+      expect(rect.size, const Size(15, 15 + 3.5));
+      expect(tester.getTopLeft(find.text('done')).dx, greaterThan(rect.right));
+    }
+  });
+
   testWidgets('a file link has its menu on a right click', (tester) async {
     final existence = FileExistence((_) async => true);
     addTearDown(existence.dispose);

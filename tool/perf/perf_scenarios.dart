@@ -759,9 +759,10 @@ final List<PerfScenario> _scenarios = [
   PerfScenario(
     'hang.ui',
     'The UI thread held 7 s in _holdUiThread, past the hang watchdog\'s 6 '
-        '(Windows): its report in the data folder\'s logs\\hangs, whose '
-        'app.so frames the build\'s symbols should name so; and the event '
-        'log\'s slow frame.',
+        '(Windows) or 4 (macOS): its report in the logs\' hangs/ (Windows: '
+        'the data folder\'s; macOS: the event log\'s, beside the [hang] '
+        'lines), whose Dart frames the build\'s symbols should name so; and '
+        'the event log\'s slow frame.',
     (c) async {
       await c.settle();
       await c.phase('hang', (r) async {
@@ -774,6 +775,9 @@ final List<PerfScenario> _scenarios = [
         await done.future;
         await c.settle();
       });
+      // macOS' sample of it, begun 4 s in, written before the app goes.
+      if (Platform.isMacOS)
+        await Future<void>.delayed(const Duration(seconds: 8));
     },
   ),
   PerfScenario(

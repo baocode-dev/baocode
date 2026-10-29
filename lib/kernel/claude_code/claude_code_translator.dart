@@ -6,12 +6,13 @@ import '../kernel_event.dart';
 import '../kernel_types.dart';
 import '../output_meter.dart';
 import 'claude_goal.dart';
+import 'claude_numbers.dart';
 import 'claude_sdk_tools.dart';
 import 'turn_stats.dart';
 
 /// Translates Claude Code's conversation messages (stream-json output, or
 /// the lines of a kept session) into [KernelEvent]s: text, thoughts, tool
-/// calls and their results, subagents, tasks, todos and runtime notices.
+/// calls and their results, subagents, tasks and runtime notices.
 ///
 /// Turns, settings and control requests are the kernel's; this only knows
 /// the conversation. Items are addressed by the CLI's own ids (message id
@@ -117,7 +118,9 @@ class ClaudeTranslator {
 
   final Map<String, KernelTask> _tasks = {};
   final Map<String, String> _taskOutputs = {};
-  final Map<String, TodoEntry> _todos = {};
+
+  /// The subjects of the todos created (TaskCreate), by their ids.
+  final Map<String, String> _taskSubjects = {};
 
   /// The session's goal (`/goal`), as last reported.
   KernelGoal? _goal;
@@ -357,6 +360,11 @@ class ClaudeTranslator {
     _goalRecords.clear();
   }
 
+  /// When [message] (the user's) was sent: as kept; live, now.
+  DateTime? _sentAt(Map<String, Object?> message) =>
+      DateTime.tryParse('${message['timestamp']}')?.toLocal() ??
+      (replaying ? null : DateTime.now());
+
   void _replayedAt(Map<String, Object?> message) {
     if (!replaying || _replayed == null) return;
     if (message['uuid'] == _replayed!.id) return;
@@ -472,17 +480,19 @@ class ClaudeTranslator {
       case 'message_delta':
         final usage = _map(event['usage']);
         for (final MapEntry(:key, :value) in usage.entries) {
-          if (value is num) _messageUsage[key] = value;
+          if (claudeNumber(value) != null) _messageUsage[key] = value;
         }
-        if (usage['output_tokens'] is num) _messageCounted = true;
-        if (_map(usage['output_tokens_details'])['thinking_tokens']
-            case final num tokens) {
-          _messageThinking = tokens.toInt();
+        if (claudeNumber(usage['output_tokens']) != null) {
+          _messageCounted = true;
+        }
+        if (claudeInt(_map(usage['output_tokens_details'])['thinking_tokens'])
+            case final tokens?) {
+          _messageThinking = tokens;
         }
       case 'message_stop':
         _endMessage();
       case 'content_block_start':
-        final index = event['index'] as int;
+        final index = claudeInt(event['index']) ?? 0;
         final block = _map(event['content_block']);
         final id = '$_messageId:$index';
         switch (block['type']) {
@@ -526,7 +536,7 @@ class ClaudeTranslator {
       case 'content_block_delta':
         final delta = _map(event['delta']);
         _meterDelta(delta);
-        final id = _streamed[event['index']];
+        final id = _streamed[claudeInt(event['index']) ?? 0];
         if (id == null) return;
         switch (delta['type']) {
           case 'thinking_delta':
@@ -553,7 +563,7 @@ class ClaudeTranslator {
         }
       case 'content_block_stop':
         _blockSince = DateTime.now();
-        final id = _streamed.remove(event['index']);
+        final id = _streamed.remove(claudeInt(event['index']) ?? 0);
         if (id == null) return;
         if (_thoughts.containsKey(id)) {
           _completeThought(id, null);
@@ -591,7 +601,7 @@ class ClaudeTranslator {
 
   /// Adds the message ended to the turn's usage.
   void _endMessage() {
-    int count(String key) => (_messageUsage[key] as num?)?.toInt() ?? 0;
+    int count(String key) => claudeInt(_messageUsage[key]) ?? 0;
     final output = count('output_tokens');
     _turnInput +=
         count('input_tokens') +
@@ -822,6 +832,7 @@ class ClaudeTranslator {
       final item = UserMessageItem(
         text: args.isEmpty ? command : '$command $args',
         images: images,
+        sentAt: _sentAt(message),
       );
       _answerPlan(feedback: item.text);
       _put(id, item);
@@ -840,7 +851,11 @@ class ClaudeTranslator {
       if (replaying) _replayedStopped = true;
       return;
     }
-    final item = UserMessageItem(text: trimmed, images: images);
+    final item = UserMessageItem(
+      text: trimmed,
+      images: images,
+      sentAt: _sentAt(message),
+    );
     // Said with a plan awaiting: what should change in it.
     _answerPlan(feedback: trimmed);
     _put(id, item);
@@ -892,38 +907,6 @@ class ClaudeTranslator {
         }
         _putAgent(id);
         return;
-      case 'TodoWrite':
-        if (input['todos'] case final List<Object?> todos) {
-          _todos
-            ..clear()
-            ..addEntries([
-              for (final (i, raw) in todos.indexed)
-                MapEntry('$i', _todo(_map(raw))),
-            ]);
-          _reportTodos();
-        }
-      case 'TaskCreate' when input['subject'] != null:
-        _todos[id] = TodoEntry(
-          input['subject'] as String,
-          TodoStatus.pending,
-          activeForm: _string(input['activeForm']),
-        );
-        _reportTodos();
-      case 'TaskUpdate':
-        final key = _string(input['taskId']);
-        final entry = key == null ? null : _todos[key];
-        if (key != null && entry != null) {
-          if (input['status'] == 'deleted') {
-            _todos.remove(key);
-          } else {
-            _todos[key] = TodoEntry(
-              _string(input['subject']) ?? entry.content,
-              _todoStatus(input['status']) ?? entry.status,
-              activeForm: _string(input['activeForm']) ?? entry.activeForm,
-            );
-          }
-          _reportTodos();
-        }
       // Not written to a file (see [_planCall]): the plan is said.
       case 'ExitPlanMode':
         if (_string(input['plan']) case final plan?) {
@@ -1091,15 +1074,39 @@ class ClaudeTranslator {
         target: _string(input['query']) ?? '',
         status: status,
       ),
-      'TodoWrite' ||
-      'TaskCreate' ||
-      'TaskUpdate' ||
-      'TaskList' ||
-      'TaskGet' => ToolCallItem(
+      // The list written, as text: not kept anywhere else. Its line says
+      // what is in progress; what it does, by [tool] and [input] (see
+      // todoStep).
+      'TodoWrite' => ToolCallItem(
         kind: ToolKind.todo,
-        label: tense('Updated todos', 'Updating todos'),
-        target: _string(input['subject']) ?? '',
+        tool: name,
+        input: input,
+        target:
+            [
+              for (final raw in _list(input['todos']))
+                if (_map(raw)['status'] == 'in_progress')
+                  _string(_map(raw)['content']) ?? '',
+            ].firstOrNull ??
+            '',
         status: status,
+        output: status == ToolStatus.failed
+            ? output
+            : _todoList(input['todos']),
+      ),
+      // One item a call: named by its subject, the one it was created
+      // with when the call gives only its id.
+      'TaskCreate' || 'TaskUpdate' || 'TaskList' || 'TaskGet' => ToolCallItem(
+        kind: ToolKind.todo,
+        tool: name,
+        input: input,
+        target:
+            _string(input['subject']) ??
+            switch (_string(input['taskId'])) {
+              final id? => _taskSubjects[id] ?? '#$id',
+              null => '',
+            },
+        status: status,
+        output: output,
       ),
       'AskUserQuestion' => ToolCallItem(
         kind: ToolKind.question,
@@ -1209,10 +1216,10 @@ class ClaudeTranslator {
               : CommandStatus.failed,
           result: _agentReport(structured, text),
           prompt: _string(structured?['prompt']),
-          tokens: structured?['totalTokens'] as int?,
-          toolUses: structured?['totalToolUseCount'] as int?,
-          duration: switch (structured?['totalDurationMs']) {
-            final int ms => Duration(milliseconds: ms),
+          tokens: claudeInt(structured?['totalTokens']),
+          toolUses: claudeInt(structured?['totalToolUseCount']),
+          duration: switch (claudeInt(structured?['totalDurationMs'])) {
+            final ms? => Duration(milliseconds: ms),
             _ => null,
           },
           model: _string(structured?['resolvedModel']),
@@ -1301,9 +1308,11 @@ class ClaudeTranslator {
       case 'ExitPlanMode':
         if (_string(tool.input['plan']) != null) return;
       case 'TaskCreate':
-        if (structured?['task'] case final Map<Object?, Object?> task) {
-          final entry = _todos.remove(id);
-          if (entry != null) _todos['${task['id']}'] = entry;
+        if ((structured?['task'], _string(tool.input['subject'])) case (
+          final Map<Object?, Object?> task,
+          final subject?,
+        )) {
+          _taskSubjects['${task['id']}'] = subject;
         }
     }
     _put(
@@ -1407,8 +1416,8 @@ class ClaudeTranslator {
     } else {
       for (final raw in hunks) {
         final hunk = _map(raw);
-        var oldLine = hunk['oldStart'] as int? ?? 1;
-        var newLine = hunk['newStart'] as int? ?? 1;
+        var oldLine = claudeInt(hunk['oldStart']) ?? 1;
+        var newLine = claudeInt(hunk['newStart']) ?? 1;
         for (final line in _list(hunk['lines']).whereType<String>()) {
           if (line.isEmpty) continue;
           final text = line.substring(1);
@@ -1550,8 +1559,8 @@ class ClaudeTranslator {
       case 'compact_boundary':
         if (_activity?.kind == KernelActivityKind.compacting) _report(null);
         final meta = _map(message['compact_metadata']);
-        final before = meta['pre_tokens'] as int?;
-        final after = meta['post_tokens'] as int?;
+        final before = claudeInt(meta['pre_tokens']);
+        final after = claudeInt(meta['post_tokens']);
         _put(
           uuid,
           NoticeItem(
@@ -1568,7 +1577,8 @@ class ClaudeTranslator {
       case 'api_retry' when !replaying:
         final attempt = message['attempt'];
         final max = message['max_retries'];
-        final delay = ((message['retry_delay_ms'] as int? ?? 0) / 1000).ceil();
+        final delay = ((claudeInt(message['retry_delay_ms']) ?? 0) / 1000)
+            .ceil();
         final status = message['error_status'];
         _put(
           'retry:$turnId',
@@ -1610,7 +1620,7 @@ class ClaudeTranslator {
         if (_planCalls.containsKey(id)) return;
         _put(id, _toolItem(tool, _Outcome.denied), parent: tool.parent);
       case 'thinking_tokens':
-        final estimate = message['estimated_tokens'] as int?;
+        final estimate = claudeInt(message['estimated_tokens']);
         final id = _thoughts.keys.lastOrNull;
         if (estimate == null || id == null) return;
         _thinkingTokens[id] = estimate;
@@ -1671,8 +1681,8 @@ class ClaudeTranslator {
         final agent = toolUseId == null ? null : _agents[toolUseId];
         if (agent != null) {
           agent.item = agent.item.copyWith(
-            tokens: usage['total_tokens'] as int?,
-            toolUses: usage['tool_uses'] as int?,
+            tokens: claudeInt(usage['total_tokens']),
+            toolUses: claudeInt(usage['tool_uses']),
             lastTool: _string(message['last_tool_name']),
             activity: _string(message['description']),
           );
@@ -1776,10 +1786,10 @@ class ClaudeTranslator {
     if (_agents[card] case final agent?) {
       agent.item = agent.item.copyWith(
         status: status,
-        tokens: usage['total_tokens'] as int?,
-        toolUses: usage['tool_uses'] as int?,
-        duration: switch (usage['duration_ms']) {
-          final int ms => Duration(milliseconds: ms),
+        tokens: claudeInt(usage['total_tokens']),
+        toolUses: claudeInt(usage['tool_uses']),
+        duration: switch (claudeInt(usage['duration_ms'])) {
+          final ms? => Duration(milliseconds: ms),
           _ => null,
         },
       );
@@ -1802,8 +1812,6 @@ class ClaudeTranslator {
   }
 
   void _reportTasks() => emit(TasksReported(nextSeq(), [..._tasks.values]));
-
-  void _reportTodos() => emit(TodosReported(nextSeq(), [..._todos.values]));
 
   // --- Helpers ------------------------------------------------------------------------
 
@@ -1970,18 +1978,15 @@ class ClaudeTranslator {
     return report.isEmpty ? null : report;
   }
 
-  static TodoEntry _todo(Map<String, Object?> raw) => TodoEntry(
-    _string(raw['content']) ?? '',
-    _todoStatus(raw['status']) ?? TodoStatus.pending,
-    activeForm: _string(raw['activeForm']),
-  );
-
-  static TodoStatus? _todoStatus(Object? status) => switch (status) {
-    'pending' => TodoStatus.pending,
-    'in_progress' => TodoStatus.inProgress,
-    'completed' => TodoStatus.completed,
-    _ => null,
-  };
+  /// A todo list written, one line an item marked by its status.
+  static String _todoList(Object? todos) => [
+    for (final raw in _list(todos))
+      '${switch (_map(raw)['status']) {
+        'completed' => '☒',
+        'in_progress' => '◐',
+        _ => '☐',
+      }} ${_string(_map(raw)['content']) ?? ''}',
+  ].join('\n');
 
   static CommandStatus? _taskStatus(Object? status) => switch (status) {
     'running' || 'pending' => CommandStatus.running,

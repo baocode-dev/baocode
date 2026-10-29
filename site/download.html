@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Download BaoCode</title>
-<meta name="description" content="Download BaoCode for macOS, Windows and Linux, and the beta for iPhone and iPad.">
+<meta name="description" content="Download BaoCode for macOS, Windows and Linux, and the beta for Android, iPhone and iPad.">
 <link rel="icon" href="icon.png">
 <link rel="stylesheet" href="style.css">
 <script src="/head.js"></script>
@@ -35,7 +35,7 @@
 
 <main class="page">
   <h1>Download BaoCode</h1>
-  <p class="meta"><span data-version>Version 1.7.0</span><span>Free and open source</span></p>
+  <p class="meta"><span data-version>Version 1.7.1</span><span>Free and open source</span></p>
 
   <div class="platforms" data-platforms>
     <section class="platform" data-os="macos">
@@ -65,8 +65,18 @@
   </div>
 
   <h2 class="plain" id="phone">BaoCode on your phone <span class="beta">Beta</span></h2>
-  <p class="meta"><span>iPhone and iPad</span><span>Through TestFlight</span></p>
+  <p class="meta"><span data-mobile-version>Version 0.1.2</span><span>Android, iPhone and iPad</span></p>
   <div class="platforms" data-phones>
+    <section class="platform" data-os="android">
+      <h2 class="plain"><svg class="ic logo" aria-hidden="true"><use href="#ic-android"/></svg>Android</h2>
+      <p>Android 7.0 or later. Download it, then open the APK to install; your phone may first ask you to let the browser install apps.</p>
+      <div class="get">
+        <a class="button primary" data-file="android" href="/dl/android"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>Download the APK</a>
+      </div>
+      <div class="qr">
+        <img src="qr/android.svg" alt="QR code for the Android APK, the same download as the button above">
+      </div>
+    </section>
     <section class="platform" data-os="ios">
       <h2 class="plain"><svg class="ic logo" aria-hidden="true"><use href="#ic-apple"/></svg>iOS</h2>
       <p>iOS 15 or later. The beta is on TestFlight, Apple’s app for trying apps before they reach the App Store: install TestFlight from the App Store, then open this link on your iPhone or iPad to join.</p>
@@ -79,7 +89,7 @@
     </section>
   </div>
   <p>Follow and drive your computer’s agents from your phone, over the local network or the internet, end-to-end encrypted. To pair, open Settings → Mobile in BaoCode on your computer, turn on Allow Phones to Connect, click Show QR Code, and scan it from the app. This is a beta: expect rough edges. <a href="/mobile-privacy">Privacy</a>.</p>
-  <p>Reading this on a computer? Hover over the card — or tap it on a phone or a tablet — for a QR code to scan with your iPhone or iPad.</p>
+  <p>Reading this on a computer? Hover over the card — or tap it on a phone or a tablet — for a QR code to scan with your phone: no cable, no file to move.</p>
 
   <h2 class="plain" id="browser">The browser extension <span class="beta">Beta</span></h2>
   <p class="meta"><span data-extension-version>Version 0.1.0</span><span>Chrome, Edge, Brave, Arc</span></p>

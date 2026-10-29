@@ -18,6 +18,8 @@ class BashTool extends Tool {
 
   static const defaultTimeout = Duration(minutes: 2);
   static const maxTimeout = Duration(minutes: 10);
+  static const defaultBackgroundTimeout = Duration(minutes: 30);
+  static const maxBackgroundTimeout = Duration(hours: 2);
   static const defaultMaxOutput = 30000;
 
   @override
@@ -26,60 +28,29 @@ class BashTool extends Tool {
   @override
   String get description => 'Runs a shell command and returns what it printed.';
 
-  /// What the model is told of it, with the session's commit trailer.
   @override
-  String promptFor(AgentSession session) {
-    final attribution = session.attribution;
-    final trailer = attribution.commit.isEmpty
-        ? ''
-        : '\n\n   ${attribution.commit}';
-    final prLine = attribution.pr.isEmpty ? '' : '\n\n${attribution.pr}';
-    return '''Runs a command in a shell and gives back what it printed.
+  String promptFor(AgentSession session) =>
+      '''Runs a command in a shell and gives back what it printed.
 
-Each call gets a fresh shell, in the directory the one before it ended in: variables, aliases and functions do not carry over. The environment is the user's login shell's.
+- The shell starts where the last command left it, but give absolute paths where you can: a `cd` inside a compound command may need the user's say-so. Variables and functions do not carry over from call to call; the shell is set up from the user's profile.
+- Do not use it to read or change files (cat, head, tail, sed, awk, echo): Read, Edit and Write do that better, and the user can follow them. Use it for that only when nothing else will do, or the user asked for it.
+- ${_search(session)} Keep a search narrow (a folder, a file type) and its output short (`-l`, `| head`).
+- What a command prints is shown to you, not always to the user: say what matters in your reply.
+- `timeout` is in milliseconds: ${defaultTimeout.inMilliseconds} unless given, at most ${maxTimeout.inMilliseconds} in the foreground.
+- `run_in_background` starts it detached: it runs on across turns, and you are woken when it ends. `timeout` then bounds how long it may run (${defaultBackgroundTimeout.inMilliseconds} unless given, at most ${maxBackgroundTimeout.inMilliseconds}): at that limit it is stopped, and you are told. It needs no `&`.
 
-Use it for what needs a shell: builds, tests, package managers, git, docker, scripts. Files have tools of their own, which do it better and which the user can follow: Read to look at a file (not cat, head or tail), Edit and Write to change one (not sed, awk, echo or heredocs), Glob and Grep to find and search files (not find, ls -R, grep or rg). Tell the user things in your reply, not with echo.
+# Git
+- Nothing interactive works here: no `git rebase -i`, no `git add -i`.
+- Use `gh` for GitHub: pull requests, issues, the API.
+- Make commits and push them only when told to; on the default branch, start a branch for them first.
+- End commit messages and pull request descriptions with the attribution lines the conversation gives in a <system-reminder>, when it gives any.''';
 
-- Give a short description of what the command does, in about 5 to 10 words: the user sees it in place of the command.
-- A command is stopped after ${defaultTimeout.inMinutes} minutes, or after `timeout` milliseconds (at most ${maxTimeout.inMinutes} minutes).
-- Output beyond $defaultMaxOutput characters is cut.
-- Quote paths with spaces in them ("my dir/file.txt"). Before creating a file or a folder, make sure its parent exists and is the one you mean.
-- Prefer absolute paths to `cd`, so the directory stays where it is; change it only when the user asks.
-- Commands that do not depend on each other can be separate calls in one response, run side by side. Chain those that do in one call with `&&` (with `;` when a failure should not stop the rest); never separate them with newlines.
-- `run_in_background` starts a command you need not wait for (a server, a long build): you are told when it ends, and read what it printed with TaskOutput or from its output file. It needs no `&`.
-- Nothing interactive works: no `git rebase -i` or `git add -i`, no editor waiting for input.
-
-# Git commits
-
-Commit only when the user asks you to; if you are not sure they did, ask. Then:
-1. Look at the state first, in parallel: `git status` (untracked files too), `git diff` (staged and not), and `git log`, for how this repository words its messages.
-2. Leave out files that may hold secrets (.env, credentials, keys), and say so if the user asked for them.
-3. Write a message in the repository's style, a sentence or two on why the change was made rather than only what it is. Stage the files that belong to it, commit, and check with `git status` that it worked.
-4. If a pre-commit hook fails, fix what it found and commit again, anew: the failed commit never happened, so amending would change the one before it.
-
-Never change the git config, never skip hooks (--no-verify) or signing, and run nothing that cannot be undone (push --force, reset --hard, deleting a branch) unless the user asks; warn them before a force-push to main or master. Amend only when asked. With nothing to commit, make no empty commit.
-
-Pass the message through a heredoc, so that it keeps its lines:
-<example>
-git commit -F - <<'MSG'
-The message.$trailer
-MSG
-</example>
-
-# Pull requests
-
-Use `gh` for everything on GitHub: issues, pull requests, checks, releases, and links to any of them. To open a pull request, first see what the branch holds: `git status`, `git diff`, whether it tracks a remote and is pushed, and `git log` with `git diff <base>...HEAD` for every commit since it left its base. Write a title and a summary that cover all of those commits, push the branch if it needs it, and create the pull request with its body in a heredoc:
-<example>
-gh pr create --title "The title" --body-file - <<'BODY'
-## What changed
-<one to three points>
-
-## How it was checked
-<the tests run, by hand or not>$prLine
-BODY
-</example>
-End with the pull request's URL, for the user to open.''';
-  }
+  /// How to search, with what this machine has: a model told of `rg`
+  /// where there is none spends a call finding that out.
+  static String _search(AgentSession session) =>
+      session.fileIndex.ripgrep != null
+      ? "To find files and what is in them, search here: `rg` (or `grep -rn`) for text, `rg --files -g '<glob>'` (or `find`) for names."
+      : 'To find files and what is in them, search here: `grep -rn` for text, `find` for names (ripgrep is not installed: no `rg`).';
 
   @override
   Map<String, Object?> get inputSchema => const {
@@ -88,7 +59,7 @@ End with the pull request's URL, for the user to open.''';
       'command': {'type': 'string', 'description': 'The command to run'},
       'timeout': {
         'type': 'number',
-        'description': 'How long it may run, in milliseconds (at most 600000)',
+        'description': 'How long it may run, in milliseconds (at most 600000 in the foreground)',
       },
       'description': {
         'type': 'string',
@@ -96,7 +67,7 @@ End with the pull request's URL, for the user to open.''';
       },
       'run_in_background': {
         'type': 'boolean',
-        'description': 'Start it and go on without waiting; read its output later with TaskOutput',
+        'description': 'Start it detached and go on: you are woken when it ends. `timeout` then bounds how long it may run (1800000 unless given, at most 7200000)',
       },
       'dangerouslyDisableSandbox': {
         'type': 'boolean',
@@ -166,6 +137,12 @@ End with the pull request's URL, for the user to open.''';
         description: description,
         cwd: context.cwd,
         toolUseId: context.toolUseId,
+        limit: Duration(
+          milliseconds:
+              (asInt(input['timeout']) ??
+                      defaultBackgroundTimeout.inMilliseconds)
+                  .clamp(1000, maxBackgroundTimeout.inMilliseconds),
+        ),
       );
       return _backgroundOutput(task);
     }
@@ -183,7 +160,7 @@ End with the pull request's URL, for the user to open.''';
         workingDirectory: Directory(context.cwd).existsSync()
             ? context.cwd
             : session.cwd,
-        environment: session.commandEnvironment,
+        environment: session.shellEnvironment,
         includeParentEnvironment: false,
       );
     } on ProcessException catch (error) {
@@ -320,7 +297,7 @@ End with the pull request's URL, for the user to open.''';
   static ToolOutput _backgroundOutput(BackgroundTask task) => ToolOutput(
     'Command running in background with ID: ${task.id}. Output is being '
     'written to: ${task.outputFile}. You will be notified when it finishes; '
-    'you can check on it with the TaskOutput tool.',
+    'read that file to see how it is going meanwhile.',
     result: {
       'stdout': '',
       'stderr': '',
@@ -396,124 +373,6 @@ End with the pull request's URL, for the user to open.''';
         .allMatches(text.substring(max ~/ 2, text.length - max ~/ 2))
         .length;
     return '$head\n\n... [$dropped lines truncated] ...\n\n$tail';
-  }
-}
-
-/// Reads what a background task has written.
-class TaskOutputTool extends Tool {
-  const TaskOutputTool();
-
-  @override
-  String get name => 'TaskOutput';
-
-  @override
-  List<String> get aliases => const ['BashOutput', 'AgentOutputTool'];
-
-  @override
-  String get description => '''Reads what a background task has produced (a shell started with run_in_background, or an agent sent to the background), and whether it is still running. For a shell, only what it printed since the last read comes back.
-
-By default it waits for the task to end, for up to `timeout` milliseconds; with block set to false it looks without waiting.''';
-
-  @override
-  Map<String, Object?> get inputSchema => const {
-    'type': 'object',
-    'properties': {
-      'task_id': {'type': 'string', 'description': 'The task\'s ID'},
-      'bash_id': {'type': 'string', 'description': 'Older name of task_id'},
-      'block': {
-        'type': 'boolean',
-        'description': 'Wait for the task to end',
-        'default': true,
-      },
-      'timeout': {
-        'type': 'number',
-        'description': 'The longest to wait, in milliseconds',
-        'default': 30000,
-      },
-      'filter': {
-        'type': 'string',
-        'description':
-            'A regular expression: only the lines that match it come back',
-      },
-    },
-    'additionalProperties': false,
-  };
-
-  @override
-  bool isReadOnly(Map<String, Object?> input) => true;
-
-  @override
-  Future<PermissionDecision> checkPermissions(
-    Map<String, Object?> input,
-    ToolContext context,
-  ) async => const PermissionAllow();
-
-  @override
-  Future<String?> validate(
-    Map<String, Object?> input,
-    ToolContext context,
-  ) async {
-    final id = asText(input['task_id']) ?? asText(input['bash_id']);
-    if (id == null) return 'task_id is required';
-    if (context.session.tasks[id] == null) return 'No task found with ID: $id';
-    return null;
-  }
-
-  @override
-  Future<ToolOutput> call(
-    Map<String, Object?> input,
-    ToolContext context,
-  ) async {
-    final id = asText(input['task_id']) ?? asText(input['bash_id'])!;
-    final task = context.session.tasks[id]!;
-    if (input['block'] != false && task.status == TaskStatus.running) {
-      final wait = Duration(
-        milliseconds: (asInt(input['timeout']) ?? 30000).clamp(0, 600000),
-      );
-      await context.cancel.guard(task.done.timeout(wait, onTimeout: () {}));
-    }
-    final all = task.output();
-    var fresh = task.isShell
-        ? all.substring(task.readOffset.clamp(0, all.length))
-        : all;
-    task.readOffset = all.length;
-    if (asText(input['filter']) case final filter?) {
-      try {
-        final regExp = RegExp(filter);
-        fresh = fresh.split('\n').where(regExp.hasMatch).join('\n');
-      } on FormatException catch (error) {
-        return ToolOutput.error('Invalid filter: ${error.message}');
-      }
-    }
-    if (!task.isShell && task.result != null) fresh = task.result!;
-    final text = StringBuffer()
-      ..writeln('<task_id>$id</task_id>')
-      ..writeln('<task_type>${task.type}</task_type>')
-      ..writeln('<status>${task.status.name}</status>');
-    if (task.exitCode != null) {
-      text.writeln('<exit_code>${task.exitCode}</exit_code>');
-    }
-    text.write(
-      fresh.trim().isEmpty
-          ? '<output>(no new output)</output>'
-          : '<output>\n${fresh.trimRight()}\n</output>',
-    );
-    return ToolOutput(
-      text.toString(),
-      result: {
-        'retrieval_status': task.status == TaskStatus.running
-            ? 'timeout'
-            : 'success',
-        'task': {
-          'task_id': id,
-          'task_type': task.type,
-          'status': task.status.name,
-          'description': task.description,
-          'output': fresh,
-          'exitCode': task.exitCode,
-        },
-      },
-    );
   }
 }
 

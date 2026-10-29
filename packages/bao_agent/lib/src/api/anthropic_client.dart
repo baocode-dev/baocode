@@ -19,6 +19,7 @@ class ApiConfig {
     this.idleTimeout = const Duration(minutes: 5),
     this.userAgent = 'baocode-agent',
     this.userId,
+    this.deviceId,
   });
 
   static const defaultBaseUrl = 'https://api.anthropic.com';
@@ -49,13 +50,45 @@ class ApiConfig {
   /// account) that has it cached.
   final String? userId;
 
+  /// The machine, as Anthropic's own API is told it with [userId].
+  final String? deviceId;
+
   bool get hasCredentials =>
       (apiKey?.isNotEmpty ?? false) || (authToken?.isNotEmpty ?? false);
 
-  /// Whether this is Anthropic's own API.
-  bool get firstParty {
+  /// Whether this is Anthropic's own API (or, with
+  /// `BAOCODE_FIRST_PARTY_API`, a server that speaks all of it).
+  bool get firstParty => isFirstParty(baseUrl, environment);
+
+  /// Whether requests to [baseUrl] go to Anthropic's own API (or the
+  /// environment says to treat them so).
+  static bool isFirstParty(String baseUrl, Map<String, String> environment) {
+    final forced = environment['BAOCODE_FIRST_PARTY_API'];
+    if (forced != null && forced.isNotEmpty) {
+      return forced != '0' && forced != 'false';
+    }
     final host = Uri.tryParse(baseUrl)?.host ?? '';
     return host == 'api.anthropic.com';
+  }
+
+  /// `metadata.user_id`: for Anthropic's own API the machine, the account
+  /// and the session; for others the session alone.
+  String? get metadataUserId {
+    final id = userId;
+    if (id == null || !firstParty) return id;
+    try {
+      final session = jsonDecode(id);
+      if (session is Map) {
+        return jsonEncode({
+          'device_id': deviceId ?? '',
+          'account_uuid': '',
+          'session_id': session['session_id'],
+        });
+      }
+    } on FormatException {
+      // As it is.
+    }
+    return id;
   }
 
   Uri endpoint(String path) {
@@ -183,17 +216,14 @@ class AnthropicClient implements ModelClient {
     try {
       final HttpClientResponse response;
       try {
-        http = await client.postUrl(config.endpoint('/v1/messages'));
-        _headers(betas: request.betas).forEach(http.headers.set);
-        http.add(
-          utf8.encode(
-            jsonEncode({
-              if (config.userId case final id?) 'metadata': {'user_id': id},
-              ...request.body,
-              'stream': true,
-            }),
-          ),
+        final endpoint = config.endpoint('/v1/messages');
+        http = await client.postUrl(
+          config.firstParty
+              ? endpoint.replace(queryParameters: {'beta': 'true'})
+              : endpoint,
         );
+        _headers(betas: request.betas).forEach(http.headers.set);
+        http.add(utf8.encode(jsonEncode(_body(request.body))));
         response = await http.close();
       } on Cancelled {
         rethrow;
@@ -266,6 +296,21 @@ class AnthropicClient implements ModelClient {
       unawaited(aborted);
       client.close(force: true);
     }
+  }
+
+  /// [body] as sent: the conversation, the system prompt and the tools
+  /// first, then who asks, then the rest.
+  Map<String, Object?> _body(Map<String, Object?> body) {
+    final out = <String, Object?>{
+      for (final key in const ['model', 'messages', 'system', 'tools'])
+        if (body.containsKey(key)) key: body[key],
+      if (config.metadataUserId case final id?) 'metadata': {'user_id': id},
+    };
+    for (final MapEntry(:key, :value) in body.entries) {
+      out.putIfAbsent(key, () => value);
+    }
+    out['stream'] = true;
+    return out;
   }
 
   static bool _retryableType(String type) =>

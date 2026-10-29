@@ -1008,8 +1008,8 @@ class IdeGitService {
   }
 
   /// The branches, local and remote, that have [commit]
-  /// (`git branch -a --contains`).
-  Future<List<String>> branchesContaining(String commit) async {
+  /// (`git branch -a --contains`): a remote's HEAD left out.
+  Future<List<IdeGitRef>> branchesContaining(String commit) async {
     await _requireRoot();
     final output = _check(
       await _git(['branch', '-a', '--contains', commit, '--format=%(refname)']),
@@ -1017,13 +1017,20 @@ class IdeGitService {
     );
     return [
       for (final line in output.stdout.split('\n'))
-        if (line.trim() case final ref
-            when ref.isNotEmpty && ref != 'refs/remotes/origin/HEAD')
-          ref.startsWith('refs/heads/')
-              ? ref.substring('refs/heads/'.length)
-              : ref.startsWith('refs/remotes/')
-              ? ref.substring('refs/remotes/'.length)
-              : ref,
+        if (line.trim() case final ref when ref.isNotEmpty)
+          if (ref.startsWith('refs/heads/'))
+            IdeGitRef(
+              ref,
+              ref.substring('refs/heads/'.length),
+              IdeGitRefKind.branch,
+            )
+          else if (ref.startsWith('refs/remotes/'))
+            if (!ref.endsWith('/HEAD'))
+              IdeGitRef(
+                ref,
+                ref.substring('refs/remotes/'.length),
+                IdeGitRefKind.remote,
+              ),
     ];
   }
 

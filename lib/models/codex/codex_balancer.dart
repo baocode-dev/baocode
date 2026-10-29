@@ -19,6 +19,39 @@ class CodexBalancer {
     AccountBalance mode, {
     String? session,
     double? Function(ProviderAccount account)? used,
+  }) => _choose(
+    providerId,
+    available,
+    mode,
+    session: session,
+    used: used,
+    take: true,
+  );
+
+  /// The one [pick] would give now, nothing changed by asking: the
+  /// account [session] is kept on, or the next it would go to.
+  ProviderAccount? peek(
+    String providerId,
+    List<ProviderAccount> available,
+    AccountBalance mode, {
+    String? session,
+    double? Function(ProviderAccount account)? used,
+  }) => _choose(
+    providerId,
+    available,
+    mode,
+    session: session,
+    used: used,
+    take: false,
+  );
+
+  ProviderAccount? _choose(
+    String providerId,
+    List<ProviderAccount> available,
+    AccountBalance mode, {
+    required String? session,
+    required double? Function(ProviderAccount account)? used,
+    required bool take,
   }) {
     if (available.isEmpty) return null;
     final key = session == null ? null : '$providerId/$session';
@@ -37,10 +70,10 @@ class CodexBalancer {
       );
     } else {
       final turn = _turns[providerId] ?? 0;
-      _turns[providerId] = turn + 1;
+      if (take) _turns[providerId] = turn + 1;
       account = available[turn % available.length];
     }
-    if (key != null) {
+    if (key != null && take) {
       _sticky.remove(key);
       _sticky[key] = account.id;
       if (_sticky.length > _remembered) _sticky.remove(_sticky.keys.first);

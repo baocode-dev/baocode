@@ -49,6 +49,7 @@ class AgentCommandLine {
     int? maxTurns;
     var strict = false;
     var slashCommands = true;
+    var canAsk = false;
     var inputFormat = 'text';
     var outputFormat = 'text';
     while (rest.isNotEmpty) {
@@ -58,7 +59,7 @@ class AgentCommandLine {
         case '--replay-user-messages' || '--allow-dangerously-skip-permissions':
           break;
         case '--permission-prompt-tool':
-          value(flag);
+          canAsk = value(flag) != null;
         case '--thinking-display':
           thinkingDisplay = value(flag);
         case '--input-format':
@@ -150,6 +151,7 @@ class AgentCommandLine {
         maxTurns: maxTurns,
         strictMcpConfig: strict,
         slashCommands: slashCommands,
+        canAsk: canAsk,
       ),
     );
   }

@@ -84,14 +84,17 @@
 - 配对相关：`hello`、`confirm`、`unpair`
 - 状态与订阅：`state`、`open`、`close`
 - 翻更早的消息：`earlier`（见「会话增量」）
-- 操作会话：`send`、`stop`、`answer`、`choose`、`rename`、`pin`、`archive`、`keep`、`undo`
+- 操作会话：`send`、`edit`、`stop`、`answer`、`choose`、`rename`、`pin`、`archive`、`keep`、`undo`
 - 后台任务：`stopTask`（停任务或子代理）、`output`（命令输出的最后 64K 字符；手机打开终端页时每秒读一次）
 - 文件：`files`（列出项目文件，最多 2 万个，跳过 node_modules 等；附带各会话还没保留的改动）、`read`（读文件，最大 512KB，二进制和过大文件不传；被改过的文件附带改动前的原文，手机据此显示改动）
 - 扩展：`extensions`（本机用户级和各本地项目的技能、MCP、插件、子代理，来自「自定义」用的 `CustomizationStore`）
 - 新对话：`draft`（项目的「新对话」智能体，和桌面端 New Chat 用的同一个，发消息前不出现在列表里）。手机 `open` 它拿到可选的模型、模式、权限、思考强度，用 `choose` 选好，再 `send` 给它，就按选好的设置开始。
+- 图片：`image`（`{project, path}` → `{type, data}`，读项目里的 png/jpeg/gif/webp，最大 8MB，超过返回 `{tooLarge, size}`；回复里 `![](路径)` 引用的截图手机靠它显示）
 - 项目图标：`state` 里每个项目带 `icon`（emoji、codicon 加主题色、图片、厂商 logo，格式同桌面端 `ProjectIcon.toJson`）。图片用 `icon`（`{id}` → `{kind, data}`）读取；id 由内容算出，手机按 id 缓存。
 
 `files`、`read` 和新建会话的 `send` 只认侧栏里列出的项目（按项目路径匹配），读文件的路径归一化后必须仍在项目根目录内，所以手机拿不到项目以外的文件。多文件夹工作区和 VS Code 的多根资源管理器一样：每个文件夹以它的名字作为顶层（`mobile/lib/main.dart`），列文件、读文件、会话改动的路径、`@文件` 都按这个命名；手机发来的 `@文件` 会换成文件的完整路径再交给智能体。智能体改了项目以外的文件时，手机拿到的是完整路径，只有这种被该项目智能体改过的文件可以按完整路径读取。`send` 可以带图片（`images`，base64，png/jpeg/gif/webp，桌面端接着会话里的编号往下编，并在文字末尾写上 `[Image #N]`）和 `@文件`（`mentions`，相对项目根目录的路径）。
+
+`edit`：`{session, index, text, images?, mentions?}`，和桌面端「编辑消息」一样：把第 `index` 条用户消息改成新内容重发，它之后的内容全部丢弃、从那里重新跑。`index` 和增量的 `start` 一样从手机拿到的第一条算起（用 `window` 打开时不是会话的第一条）。那里不是用户消息返回 `notFound`，智能体不能回退返回 `unsupported`；旧版桌面端不认识这个方法，返回 `unknown`，手机提示升级桌面端。
 
 桌面 → 手机的事件：`state`（项目和会话列表，有变化时推送，每 150ms 最多一次）、`session`（已订阅会话的增量更新，包括后台任务列表 `tasks`）、`unpaired`。
 

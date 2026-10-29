@@ -91,6 +91,8 @@ class ChatItemView extends StatelessWidget {
         :final path,
         :final results,
         :final label,
+        :final tool,
+        :final input,
         :final status,
         :final output,
         :final images,
@@ -103,6 +105,8 @@ class ChatItemView extends StatelessWidget {
           path: path,
           results: results,
           label: label,
+          tool: tool,
+          input: input,
           status: status,
           output: output,
           images: images,
@@ -207,14 +211,21 @@ String chatItemPlainText(
       :final input,
     ) =>
       [
-        StepHeader.text(
-          label ??
-              (kind == ToolKind.browser
-                  ? browserVerb(tool, input, status: status, l10n: strings)
-                  : toolVerb(kind, status: status, l10n: strings)),
-          target,
-          detail,
-        ),
+        switch (kind == ToolKind.todo
+            ? todoStep(tool, input, target, output: output, l10n: strings)
+            : null) {
+          (:final verb, :final object, detail: final todoDetail)
+              when label == null =>
+            StepHeader.text(verb, object, todoDetail ?? detail),
+          _ => StepHeader.text(
+            label ??
+                (kind == ToolKind.browser
+                    ? browserVerb(tool, input, status: status, l10n: strings)
+                    : toolVerb(kind, status: status, l10n: strings)),
+            target,
+            detail,
+          ),
+        },
         if (expanded)
           if (results.isNotEmpty)
             results.join('\n')

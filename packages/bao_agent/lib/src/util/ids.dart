@@ -20,6 +20,12 @@ String randomId(int length) {
   ].join();
 }
 
+/// [bytes] random bytes, in hex.
+String randomHex(int bytes) => [
+  for (var i = 0; i < bytes; i++)
+    _random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+].join();
+
 /// Whether [id] is fit to name a session's files: nothing that walks out
 /// of a folder.
 bool isSafeId(String id) => RegExp(r'^[0-9a-zA-Z][0-9a-zA-Z_-]*$').hasMatch(id);

@@ -28,7 +28,6 @@ import '../../ide/markdown/markdown_preview.dart';
 import '../../l10n/l10n.dart';
 import '../../platform/app_platform.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/code_font.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
@@ -193,10 +192,15 @@ class _FilePreviewState extends State<FilePreview> {
   /// An image shows as it is, its changes too: there is no text to compare.
   bool get _image => ideIsImagePath(_request.path);
 
-  /// A markdown file rendered: its changes not, unless the text before is
-  /// not known and the file shows as it is.
+  /// A markdown file rendered: its changes too, as the file is after them
+  /// (its changes a click away), unless it was deleted.
   bool get _isMarkdown =>
-      isMarkdownPath(_request.path) && (!_request.diff || _loaded is _Text);
+      isMarkdownPath(_request.path) &&
+      switch (_loaded) {
+        _ when !_request.diff => true,
+        _Text() || _Diff(deleted: false) => true,
+        _ => false,
+      };
 
   /// The file's own text shows, to edit: not its changes, nor the index's,
   /// nor what is only shown ([FileOpenRequest.readOnly]).
@@ -329,7 +333,7 @@ class _FilePreviewState extends State<FilePreview> {
     _loaded = null;
     _colors = const [];
     // The agent's change shows in the text.
-    if (_request.agentChange && _isMarkdown) _source = true;
+    if (_request.agentChange && isMarkdownPath(_request.path)) _source = true;
     _dropMarkdown();
     if (_image) return;
     // Its tab's edit shows as it is while the file is read anew.
@@ -537,7 +541,11 @@ class _FilePreviewState extends State<FilePreview> {
             ),
           if (_isMarkdown && _markdown != null)
             _TextButton(
-              label: _source ? l10n.sidePanelPreview : l10n.sidePanelSource,
+              label: _source
+                  ? l10n.sidePanelPreview
+                  : _loaded is _Diff
+                  ? l10n.sidePanelChanges
+                  : l10n.sidePanelSource,
               onPressed: () => setState(() => _source = !_source),
             ),
           if ((widget.agentEdit, _agent) case (final edit?, _?)
@@ -584,6 +592,8 @@ class _FilePreviewState extends State<FilePreview> {
               : Codicons.error,
           text: localizedFileError(context.l10n, error),
         );
+      case _Text() || _Diff() when _markdown != null && !_source:
+        return _markdownPreview(_markdown!);
       case _Diff(:final original, :final modified, :final deleted):
         return IdeCodeDiff(
           // Asked for again: scrolled back to the lines asked for.
@@ -599,68 +609,65 @@ class _FilePreviewState extends State<FilePreview> {
               : (text, start, end) => _copied(start, end, text),
         );
       case _Text(:final lines):
-        if (_markdown case final model? when !_source) {
-          // The file's own text, its edit's: edited here, as in its source.
-          final edit = _edit;
-          final editable =
-              edit != null &&
-              !_request.agentChange &&
-              identical(model, edit.controller.document);
-          final preview = IdeMarkdownPreview(
-            key: _previewKey,
-            path: _request.path,
-            model: model,
-            readBytes: widget.readBytes ?? readFileBytes,
-            pathContext: widget.paths,
-            readOnly: !editable,
-            // Its source's editor told, which keeps whether it is saved.
-            onEdited: edit?.controller.syncFromDocument,
-            // Pictures and files pasted: copied beside it, linked to.
-            onPaste: editable
-                ? () => _markdownPaste().paste(_request.path)
-                : null,
-            initialLine: _request.range?.start,
-            onOpenFile: _openLinked,
-            onOpenExternal: (uri) => unawaited(openExternal(uri.toString())),
-            // This machine's files only, not a remote project's host's.
-            onReveal:
-                widget.files is! IdeHostFiles &&
-                    WindowControls.canRevealInFileManager
-                ? (path) => unawaited(WindowControls.revealInFileManager(path))
-                : null,
-          );
-          if (!editable) return preview;
-          // Files dropped on it from other apps: as pasted, where they are
-          // let go.
-          return _saved(
-            edit,
-            FileDropRegion(delegate: _markdownDrop, child: preview),
-          );
-        }
         if (_edit case final edit?) return _editing(edit);
         final range = _request.range;
         final gutter = _gutter(context, lines.length);
-        return CodeTextScale(
-          child: _Lines(
-            key: ValueKey(('text', _request.path)),
-            count: lines.length,
-            lineHeight: _lineHeight(context),
-            reveal: widget.reveal,
-            target: range == null ? null : range.start - 1,
-            width: _widthOf(context, lines, () => lines) + gutter + 20,
-            onCopy: (first, last, text) => _copied(first + 1, last + 1, text),
-            row: (context, i, sideways) => _LineRow(
-              number: i + 1,
-              text: lines[i],
-              colors: _colors.elementAtOrNull(i),
-              gutter: gutter,
-              sideways: sideways,
-              marked:
-                  range != null && i + 1 >= range.start && i + 1 <= range.end,
-            ),
+        return _Lines(
+          key: ValueKey(('text', _request.path)),
+          count: lines.length,
+          lineHeight: _lineHeight(context),
+          reveal: widget.reveal,
+          target: range == null ? null : range.start - 1,
+          width: _widthOf(context, lines, () => lines) + gutter + 20,
+          onCopy: (first, last, text) => _copied(first + 1, last + 1, text),
+          row: (context, i, sideways) => _LineRow(
+            number: i + 1,
+            text: lines[i],
+            colors: _colors.elementAtOrNull(i),
+            gutter: gutter,
+            sideways: sideways,
+            marked: range != null && i + 1 >= range.start && i + 1 <= range.end,
           ),
         );
     }
+  }
+
+  /// A markdown file rendered: its own text, edited here as in its source;
+  /// its changes', as it is after them, only shown.
+  Widget _markdownPreview(EditorDocumentModel model) {
+    // The file's own text, its edit's: edited here, as in its source.
+    final edit = _edit;
+    final editable =
+        edit != null &&
+        !_request.agentChange &&
+        identical(model, edit.controller.document);
+    final preview = IdeMarkdownPreview(
+      key: _previewKey,
+      path: _request.path,
+      model: model,
+      readBytes: widget.readBytes ?? readFileBytes,
+      pathContext: widget.paths,
+      readOnly: !editable,
+      // Its source's editor told, which keeps whether it is saved.
+      onEdited: edit?.controller.syncFromDocument,
+      // Pictures and files pasted: copied beside it, linked to.
+      onPaste: editable ? () => _markdownPaste().paste(_request.path) : null,
+      initialLine: _request.range?.start,
+      onOpenFile: _openLinked,
+      onOpenExternal: (uri) => unawaited(openExternal(uri.toString())),
+      // This machine's files only, not a remote project's host's.
+      onReveal:
+          widget.files is! IdeHostFiles && WindowControls.canRevealInFileManager
+          ? (path) => unawaited(WindowControls.revealInFileManager(path))
+          : null,
+    );
+    if (!editable) return preview;
+    // Files dropped on it from other apps: as pasted, where they are
+    // let go.
+    return _saved(
+      edit,
+      FileDropRegion(delegate: _markdownDrop, child: preview),
+    );
   }
 
   /// [child], where [edit] is edited, saving it with the IDE's keys.
@@ -791,7 +798,7 @@ class _FilePreviewState extends State<FilePreview> {
       AppFonts.codeStyle(12).copyWith(height: 1.5);
 
   static TextScaler _codeScaler(BuildContext context) =>
-      SystemTextScale.maybeOf(context) ?? MediaQuery.textScalerOf(context);
+      MediaQuery.textScalerOf(context);
 
   /// The actual height of one source line, including the configured scaler.
   static double _lineHeight(BuildContext context) {

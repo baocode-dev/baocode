@@ -15,9 +15,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../base/give_way_row.dart';
 import '../../base/smooth_scroll.dart';
 import '../../chat/composer/composer_files.dart';
 import '../../chat/composer/file_drag.dart';
@@ -40,6 +42,7 @@ import 'git_partial.dart';
 import 'git_review.dart';
 import 'git_repository.dart';
 import 'git_service.dart';
+import 'ide_git_list_tree_switch.dart';
 import 'ide_git_log_view.dart' show IdeGitDiffFile;
 import 'ide_git_merge_dialog.dart';
 import 'ide_git_stash_view.dart';
@@ -1563,8 +1566,10 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                           : _tree(context, rows),
                     ),
                     _Divider(
-                      onDrag: (delta) =>
-                          setState(() => _treeHeight = treeHeight + delta),
+                      size: treeHeight,
+                      onResize: (height) =>
+                          setState(() => _treeHeight = height),
+                      onReset: () => setState(() => _treeHeight = null),
                     ),
                     Expanded(child: _commitArea(context)),
                   ],
@@ -1756,100 +1761,116 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     final rows = _rows;
     final focused = rows.where((row) => row.key == _selected).firstOrNull;
     final byDirectory = git == null ? true : _sessionOf(git).treeView;
+    Widget viewSwitch({required bool labels}) => IdeGitListTreeSwitch(
+      tree: byDirectory,
+      labels: labels,
+      onChanged: (tree) {
+        if (tree == byDirectory) return;
+        setState(() {
+          for (final git in _repositories) {
+            _sessionOf(git).treeView = tree;
+          }
+        });
+        widget.onTreeViewChanged?.call(tree);
+      },
+    );
     return SizedBox(
       height: 30,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Row(
+        child: GiveWayRow(
           children: [
-            IdeActionButton(
-              icon: Codicons.refresh,
-              tooltip: l10n.commonRefresh,
-              onPressed: () => unawaited(
-                _run(() async {
-                  for (final git in _repositories) {
-                    await git.refresh(force: true);
-                  }
-                }),
+            GiveWay(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IdeActionButton(
+                    icon: Codicons.refresh,
+                    tooltip: l10n.commonRefresh,
+                    onPressed: () => unawaited(
+                      _run(() async {
+                        for (final git in _repositories) {
+                          await git.refresh(force: true);
+                        }
+                      }),
+                    ),
+                  ),
+                  IdeActionButton(
+                    icon: Codicons.discard,
+                    tooltip: l10n.gitCommitRollback,
+                    onPressed: _rollbackTargets.isEmpty
+                        ? null
+                        : () => unawaited(() async {
+                            for (final (git, files) in _rollbackTargets) {
+                              await _rollback(git, files);
+                            }
+                          }()),
+                  ),
+                  IdeActionButton(
+                    icon: Codicons.gitStash,
+                    tooltip: l10n.gitStashChangesTitle,
+                    onPressed: git == null || rows.isEmpty
+                        ? null
+                        : () => unawaited(_stash(git)),
+                  ),
+                  IdeActionButton(
+                    icon: Codicons.diff,
+                    tooltip: l10n.gitCommitShowDiff,
+                    // A click shows it in the log's place; this, in the editor.
+                    onPressed: focused is _FileRow
+                        ? () => unawaited(_show(focused, editor: true))
+                        : null,
+                  ),
+                  const SizedBox(width: 4),
+                  IdeActionButton(
+                    icon: Codicons.expandAll,
+                    tooltip: l10n.gitCommitExpandAll,
+                    onPressed: () => setState(() {
+                      for (final git in _repositories) {
+                        _sessionOf(git).collapsedFolders.clear();
+                      }
+                    }),
+                  ),
+                  IdeActionButton(
+                    icon: Codicons.collapseAll,
+                    tooltip: l10n.gitCommitCollapseAll,
+                    onPressed: _collapseAll,
+                  ),
+                  IdeActionButton(
+                    icon: Codicons.eyeClosed,
+                    tooltip: l10n.gitCommitShowIgnored,
+                    checked: _session.showIgnored,
+                    onPressed: () => setState(() {
+                      final show = !_session.showIgnored;
+                      for (final git in _repositories) {
+                        _sessionOf(git).showIgnored = show;
+                      }
+                    }),
+                  ),
+                ],
               ),
             ),
-            IdeActionButton(
-              icon: Codicons.discard,
-              tooltip: l10n.gitCommitRollback,
-              onPressed: _rollbackTargets.isEmpty
-                  ? null
-                  : () => unawaited(() async {
-                      for (final (git, files) in _rollbackTargets) {
-                        await _rollback(git, files);
-                      }
-                    }()),
-            ),
-            IdeActionButton(
-              icon: Codicons.gitStash,
-              tooltip: l10n.gitStashChangesTitle,
-              onPressed: git == null || rows.isEmpty
-                  ? null
-                  : () => unawaited(_stash(git)),
-            ),
-            IdeActionButton(
-              icon: Codicons.diff,
-              tooltip: l10n.gitCommitShowDiff,
-              // A click shows it in the log's place; this, in the editor.
-              onPressed: focused is _FileRow
-                  ? () => unawaited(_show(focused, editor: true))
-                  : null,
-            ),
-            const SizedBox(width: 4),
-            IdeActionButton(
-              icon: Codicons.folder,
-              tooltip: l10n.gitCommitGroupByDirectory,
-              checked: byDirectory,
-              onPressed: () {
-                setState(() {
-                  for (final git in _repositories) {
-                    _sessionOf(git).treeView = !byDirectory;
-                  }
-                });
-                widget.onTreeViewChanged?.call(!byDirectory);
-              },
-            ),
-            IdeActionButton(
-              icon: Codicons.expandAll,
-              tooltip: l10n.gitCommitExpandAll,
-              onPressed: () => setState(() {
-                for (final git in _repositories) {
-                  _sessionOf(git).collapsedFolders.clear();
-                }
-              }),
-            ),
-            IdeActionButton(
-              icon: Codicons.collapseAll,
-              tooltip: l10n.gitCommitCollapseAll,
-              onPressed: _collapseAll,
-            ),
-            IdeActionButton(
-              icon: Codicons.eyeClosed,
-              tooltip: l10n.gitCommitShowIgnored,
-              checked: _session.showIgnored,
-              onPressed: () => setState(() {
-                final show = !_session.showIgnored;
-                for (final git in _repositories) {
-                  _sessionOf(git).showIgnored = show;
-                }
-              }),
-            ),
-            const Spacer(),
+            const GiveWay.fill(SizedBox()),
             if (_repositories.any((git) => git.busy))
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: IdeSpinning(
-                  Icon(
-                    Codicons.loading,
-                    size: 14,
-                    color: IdeListColors.description,
+              GiveWay(
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: IdeSpinning(
+                    Icon(
+                      Codicons.loading,
+                      size: 14,
+                      color: IdeListColors.description,
+                    ),
                   ),
                 ),
               ),
+            // As a commit's files in the log have it, named where there is
+            // room: a folder's icon among the others went unfound.
+            GiveWay(
+              viewSwitch(labels: true),
+              priority: 0,
+              compact: viewSwitch(labels: false),
+            ),
           ],
         ),
       ),
@@ -2555,37 +2576,40 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                     size: 20,
                     onPressed: () => unawaited(_messageHistory()),
                   ),
-                  if (widget.commitMessage != null)
-                    IdeActionButton(
-                      icon: _session.generating == null
-                          ? Codicons.sparkle
-                          : Codicons.debugStop,
-                      tooltip: _session.generating == null
-                          ? l10n.scmGenerateCommitMessage
-                          : l10n.scmCancelGenerateCommitMessage,
-                      size: 20,
-                      onPressed: () => unawaited(_generateMessage()),
-                    ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 8),
-          Row(
+          // Generate Commit Message as its icon alone where its label
+          // leaves the others no room.
+          GiveWayRow(
             children: [
-              IdeButton(
-                label: l10n.gitCommitButton,
-                onPressed: busy ? null : () => unawaited(_commit()),
+              if (widget.commitMessage != null) ...[
+                GiveWay(
+                  _generateButton(context, labeled: true),
+                  priority: 0,
+                  compact: _generateButton(context, labeled: false),
+                ),
+                const GiveWay(SizedBox(width: 6)),
+              ],
+              GiveWay(
+                IdeButton(
+                  label: l10n.gitCommitButton,
+                  onPressed: busy ? null : () => unawaited(_commit()),
+                ),
               ),
-              const SizedBox(width: 6),
-              IdeButton(
-                label: l10n.gitCommitAndPush,
-                secondary: true,
-                onPressed: busy ? null : () => unawaited(_commit(push: true)),
+              const GiveWay(SizedBox(width: 6)),
+              GiveWay(
+                IdeButton(
+                  label: l10n.gitCommitAndPush,
+                  secondary: true,
+                  onPressed: busy ? null : () => unawaited(_commit(push: true)),
+                ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
+              const GiveWay(SizedBox(width: 8)),
+              GiveWay.fill(
+                Text(
                   total == 0 ? '' : l10n.gitCommitSelected(checked, total),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -2601,6 +2625,24 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
         ],
       ),
     );
+  }
+
+  /// Generate Commit Message, or while it runs, its cancel: the first of
+  /// the buttons under the message; unless [labeled], its icon alone, the
+  /// label in its hover.
+  Widget _generateButton(BuildContext context, {required bool labeled}) {
+    final l10n = context.l10n;
+    final generating = _session.generating != null;
+    final label = generating
+        ? l10n.scmCancelGenerateCommitMessage
+        : l10n.scmGenerateCommitMessage;
+    final button = IdeButton(
+      icon: generating ? Codicons.debugStop : Codicons.sparkle,
+      label: labeled ? label : '',
+      secondary: true,
+      onPressed: () => unawaited(_generateMessage()),
+    );
+    return labeled ? button : IdeHover(message: label, child: button);
   }
 }
 
@@ -2626,8 +2668,10 @@ class _Check extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = themeColors;
     final on = value != false;
-    final accent =
-        colors.get('checkbox.selectBackground') ?? colors['button.background'];
+    // The button's color, not checkbox.selectBackground: that is for a
+    // box on a selected row, and defaults to the widgets' gray, which the
+    // check is all but lost on.
+    final accent = colors['button.background'];
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
@@ -2703,11 +2747,22 @@ class _Welcome extends StatelessWidget {
   );
 }
 
-/// The line between the tree and the message, dragged to size them.
+/// The line between the tree and the message, dragged to size them. The
+/// tree's height goes by how far the pointer is from where the drag began,
+/// so that the line stays under it, back from past where the height stops
+/// too; while dragged, the cursor is its own over the whole window (VS
+/// Code's drag shield). A double click resets the height.
 class _Divider extends StatefulWidget {
-  const _Divider({required this.onDrag});
+  const _Divider({
+    required this.size,
+    required this.onResize,
+    required this.onReset,
+  });
 
-  final ValueChanged<double> onDrag;
+  /// The tree's height, now.
+  final double size;
+  final ValueChanged<double> onResize;
+  final VoidCallback onReset;
 
   @override
   State<_Divider> createState() => _DividerState();
@@ -2715,28 +2770,78 @@ class _Divider extends StatefulWidget {
 
 class _DividerState extends State<_Divider> {
   bool _hover = false;
+  bool _dragging = false;
+
+  /// Where the drag began, and the height then.
+  double _start = 0;
+  double _startSize = 0;
+
+  OverlayEntry? _shield;
+
+  void _begin(DragStartDetails details) {
+    _start = details.globalPosition.dy;
+    _startSize = widget.size;
+    setState(() => _dragging = true);
+    if (Overlay.maybeOf(context) case final overlay?) {
+      _shield = OverlayEntry(
+        builder: (context) => const MouseRegion(
+          cursor: SystemMouseCursors.resizeRow,
+          opaque: true,
+        ),
+      );
+      overlay.insert(_shield!);
+    }
+  }
+
+  void _end() {
+    _removeShield();
+    if (mounted) setState(() => _dragging = false);
+  }
+
+  void _removeShield() {
+    _shield
+      ?..remove()
+      ..dispose();
+    _shield = null;
+  }
 
   @override
-  Widget build(BuildContext context) => MouseRegion(
-    cursor: SystemMouseCursors.resizeRow,
-    onEnter: (_) => setState(() => _hover = true),
-    onExit: (_) => setState(() => _hover = false),
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onVerticalDragUpdate: (details) => widget.onDrag(details.delta.dy),
-      child: SizedBox(
-        height: 5,
-        child: Center(
-          child: Container(
-            height: _hover ? 3 : 1,
-            color: _hover
-                ? themeColors['sash.hoverBorder']
-                : themeColors.get('panel.border') ?? IdeListColors.description,
+  void dispose() {
+    _removeShield();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = _hover || _dragging;
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeRow,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        dragStartBehavior: DragStartBehavior.down,
+        onVerticalDragStart: _begin,
+        onVerticalDragUpdate: (details) =>
+            widget.onResize(_startSize + details.globalPosition.dy - _start),
+        onVerticalDragEnd: (_) => _end(),
+        onVerticalDragCancel: _end,
+        onDoubleTap: widget.onReset,
+        child: SizedBox(
+          height: 5,
+          child: Center(
+            child: Container(
+              height: active ? 3 : 1,
+              color: active
+                  ? themeColors['sash.hoverBorder']
+                  : themeColors.get('panel.border') ??
+                        IdeListColors.description,
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// A tab of the panel's: Commit, Stash.

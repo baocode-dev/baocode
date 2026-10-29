@@ -214,8 +214,12 @@ class SessionStore {
 /// blocks of one answer (kept a line each) as one message; consecutive
 /// messages of one role as one; a call's result first in the message after
 /// it, and a result made up for a call left unanswered (an interrupted
-/// turn, a crash); empty text left out.
-List<Map<String, Object?>> toApiMessages(List<Map<String, Object?>> chain) {
+/// turn, a crash); empty text left out. The notes kept for the model as
+/// system messages are among them when [systemNotes].
+List<Map<String, Object?>> toApiMessages(
+  List<Map<String, Object?>> chain, {
+  bool systemNotes = false,
+}) {
   var start = 0;
   for (var i = chain.length - 1; i >= 0; i--) {
     final entry = chain[i];
@@ -227,6 +231,23 @@ List<Map<String, Object?>> toApiMessages(List<Map<String, Object?>> chain) {
   final messages = <Map<String, Object?>>[];
   for (final entry in chain.skip(start)) {
     final type = entry['type'];
+    if (type == 'attachment' &&
+        systemNotes &&
+        entry['renderedRole'] == 'system' &&
+        messages.isNotEmpty) {
+      final text = asString(asMap(entry['attachment'])['text']);
+      if (text == null || text.isEmpty) continue;
+      final block = {'type': 'text', 'text': text};
+      if (messages.last['role'] == 'system') {
+        (messages.last['content'] as List<Map<String, Object?>>).add(block);
+      } else {
+        messages.add({
+          'role': 'system',
+          'content': [block],
+        });
+      }
+      continue;
+    }
     if (type != 'user' && type != 'assistant') continue;
     final message = asMap(entry['message']);
     if (type == 'assistant' && message['model'] == '<synthetic>') continue;

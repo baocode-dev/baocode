@@ -2,6 +2,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:baocode/chat/widgets/tool_call_row.dart'
+    show todoDoingIcon, todoDoneIcon, todoOpenIcon;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/panels/activity_strip.dart';
@@ -510,6 +512,41 @@ void main() {
         ),
       );
       expect(header('Said Report back'), findsOneWidget);
+    });
+
+    testWidgets('todos written: their count and the one in progress, opening '
+        'to the list, each item marked', (tester) async {
+      await pumpStep(
+        tester,
+        const ToolCallItem(
+          kind: ToolKind.todo,
+          tool: 'TodoWrite',
+          input: {
+            'todos': [
+              {'content': 'Read it', 'status': 'completed'},
+              {'content': 'Fix it', 'status': 'in_progress'},
+              {'content': 'Test it', 'status': 'pending'},
+            ],
+          },
+          target: 'Fix it',
+          output: '☒ Read it\n◐ Fix it\n☐ Test it',
+        ),
+      );
+      expect(header('Todos 1/3 Fix it'), findsOneWidget);
+      await tester.tap(header('Todos 1/3 Fix it'));
+      await tester.pump();
+      expect(find.text('Read it'), findsOneWidget);
+      expect(find.text('Test it'), findsOneWidget);
+      expect(find.textContaining('☒'), findsNothing);
+      expect(
+        [
+          for (final svg in tester.widgetList<SvgPicture>(
+            find.byType(SvgPicture),
+          ))
+            (svg.bytesLoader as SvgAssetLoader).assetName,
+        ],
+        [todoDoneIcon, todoDoingIcon, todoOpenIcon],
+      );
     });
 
     testWidgets('a proposed goal offers to set it, once', (tester) async {

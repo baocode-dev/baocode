@@ -10,11 +10,15 @@ import '../api/model_catalog.dart';
 import '../api/model_client.dart';
 import '../config/extensions.dart';
 import '../config/memory.dart';
+import '../config/output_styles.dart';
 import '../config/paths.dart';
 import '../config/settings.dart';
 import '../hooks/hooks.dart';
 import '../mcp/mcp_manager.dart';
 import '../permissions/permission_engine.dart';
+import '../tools/agent_tool.dart';
+import 'scheduler.dart';
+import 'worktrees.dart';
 import '../tools/file_index.dart';
 import '../util/cancel.dart';
 import '../util/ids.dart';
@@ -52,6 +56,7 @@ class EngineOptions {
     this.maxTurns,
     this.strictMcpConfig = false,
     this.slashCommands = true,
+    this.canAsk = true,
   });
 
   factory EngineOptions.fromJson(Map<String, Object?> json) => EngineOptions(
@@ -82,6 +87,7 @@ class EngineOptions {
     maxTurns: asInt(json['maxTurns']),
     strictMcpConfig: json['strictMcpConfig'] == true,
     slashCommands: json['slashCommands'] != false,
+    canAsk: json['canAsk'] != false,
   );
 
   final String cwd;
@@ -141,6 +147,11 @@ class EngineOptions {
   /// Whether `/name` runs a command (`--disable-slash-commands` when not).
   final bool slashCommands;
 
+  /// Whether a host is there to answer questions and approve plans (the
+  /// app, or `--permission-prompt-tool`): without one, the tools that ask
+  /// are not offered.
+  final bool canAsk;
+
   Map<String, Object?> toJson() => {
     'cwd': cwd,
     'resume': ?resume,
@@ -164,6 +175,7 @@ class EngineOptions {
     'maxTurns': ?maxTurns,
     'strictMcpConfig': strictMcpConfig,
     'slashCommands': slashCommands,
+    'canAsk': canAsk,
   };
 }
 
@@ -244,17 +256,88 @@ class AgentSession {
   List<AgentDefinition> agentDefinitions = builtInAgents;
   List<MemoryFile> memory = const [];
   late final MemoryLoader memoryLoader = MemoryLoader(paths);
+  List<OutputStyle> outputStyles = OutputStyle.builtIn;
+
+  /// The output style chosen, if not the default.
+  OutputStyle? get outputStyle =>
+      OutputStyle.find(outputStyles, asText(settings['outputStyle']));
+
+  /// The folder the agent's own memory of this project is kept in; null
+  /// when that is turned off (`autoMemoryEnabled`,
+  /// `CLAUDE_CODE_DISABLE_AUTO_MEMORY`).
+  String? get autoMemoryDir {
+    if (settings['autoMemoryEnabled'] == false) return null;
+    final off = environment['CLAUDE_CODE_DISABLE_AUTO_MEMORY'];
+    if (off != null && off.isNotEmpty && off != '0' && off != 'false') {
+      return null;
+    }
+    if (asText(settings['autoMemoryDirectory']) case final dir?) {
+      return p.normalize(paths.expandHome(dir));
+    }
+    return p.join(paths.projectDir(_realCwd), 'memory');
+  }
+
+  /// [cwd] with its links followed, as the memory folder is named after.
+  late final String _realCwd = () {
+    try {
+      return Directory(cwd).resolveSymbolicLinksSync();
+    } on FileSystemException {
+      return cwd;
+    }
+  }();
 
   /// The model as asked for: an alias (`opus`, `default`) or an id.
   late String model;
   String? effort;
   late String permissionMode;
 
+  /// The id of what the user last typed: hooks are told it, so theirs of a
+  /// turn can be told apart.
+  String? promptId;
+
   /// The mode before plan mode was entered, to go back to.
   String? modeBeforePlan;
 
-  /// Each agent's todos, by agent (the session's id for the main one).
-  final Map<String, List<Map<String, Object?>>> todos = {};
+  /// The subagents started in the session, by id: to send messages to,
+  /// and to list.
+  final Map<String, SubagentJob> subagents = {};
+
+  /// The prompts scheduled for later (CronCreate, ScheduleWakeup).
+  late final Scheduler scheduler = Scheduler(cwd: cwd);
+
+  /// Told of a message a subagent sends the main conversation.
+  void Function(String from, String text)? onAgentMessage;
+
+  /// Gives the main conversation [message] from the subagent [from].
+  void deliverToMain(String from, String message) => onAgentMessage?.call(
+    from,
+    '<agent-message from="$from">\n$message\n</agent-message>',
+  );
+
+  /// The worktree EnterWorktree moved the main agent into, and where it
+  /// was before.
+  Worktree? worktree;
+  String? _cwdBeforeWorktree;
+
+  /// Moves [run] into [worktree].
+  void enterWorktree(Worktree worktree, AgentRun run) {
+    if (run.isMain) {
+      _cwdBeforeWorktree ??= run.cwd;
+      this.worktree = worktree;
+    }
+    run.cwd = worktree.path;
+    sessionDirectories.add(worktree.path);
+  }
+
+  /// Moves [run] back out of the worktree; returns where it is now.
+  String leaveWorktree(AgentRun run) {
+    final back = _cwdBeforeWorktree ?? cwd;
+    run.cwd = back;
+    if (worktree case final left?) sessionDirectories.remove(left.path);
+    worktree = null;
+    _cwdBeforeWorktree = null;
+    return back;
+  }
 
   /// Folders added to the session's (`addDirectories` for the session).
   final List<String> sessionDirectories = [];
@@ -321,6 +404,22 @@ class AgentSession {
     'GIT_EDITOR': 'true',
   };
 
+  /// The effort of a turn, as hooks and commands are told it: none for a
+  /// model known to take none; a model not known is sent none, and works
+  /// as at `high`.
+  String? get turnEffort {
+    final info = modelInfo;
+    if (info.known && !info.supportsEffort) return null;
+    return reportedEffort ?? 'high';
+  }
+
+  /// [commandEnvironment], with the effort of the turn (`CLAUDE_EFFORT`):
+  /// what the model's commands and the hooks run in.
+  Map<String, String> get shellEnvironment => {
+    ...commandEnvironment,
+    'CLAUDE_EFFORT': ?turnEffort,
+  };
+
   static bool _secret(String name) =>
       name == 'ANTHROPIC_API_KEY' || name == 'ANTHROPIC_AUTH_TOKEN';
 
@@ -380,8 +479,15 @@ class AgentSession {
       // As the CLI gives it (JSON with a `session_id`): what our model
       // proxy and the gateways read the session from.
       userId: jsonEncode({'session_id': sessionId}),
+      deviceId: deviceId,
     );
   }
+
+  /// The machine's id as Claude Code keeps it (`userID` in
+  /// `~/.claude.json`), else one made up for this session.
+  late final String deviceId =
+      asText(AgentSettings.readJson(paths.claudeJson)['userID']) ??
+      randomHex(32);
 
   /// The key the settings' `apiKeyHelper` prints, kept for five minutes.
   String? _keyFromHelper() {
@@ -538,6 +644,7 @@ class AgentSession {
     settings.plansDirectory,
     tasks.outputDir,
     paths.projectDir(cwd),
+    ?autoMemoryDir,
     p.join(paths.configDir, 'skills'),
     p.join(paths.configDir, 'agents'),
     p.join(paths.configDir, 'commands'),
@@ -548,8 +655,14 @@ class AgentSession {
     (dir) => p.equals(dir, path) || p.isWithin(dir, path),
   );
 
-  /// Whether the agent may write [path] whatever the mode: its plan file.
-  bool internalWritable(String path) => p.equals(path, planFilePath);
+  /// Whether the agent may write [path] whatever the mode: its plan file,
+  /// its memory.
+  bool internalWritable(String path) =>
+      p.equals(path, planFilePath) ||
+      switch (autoMemoryDir) {
+        final dir? => p.isWithin(dir, path),
+        null => false,
+      };
 
   // --- Files --------------------------------------------------------------------
 
@@ -766,8 +879,4 @@ class AgentSession {
         if (block['type'] == 'text') '${block['text']}',
     ].join().trim();
   }
-
-  // --- Todos and goal ----------------------------------------------------------
-
-  List<Map<String, Object?>> get mainTodos => todos[sessionId] ?? const [];
 }

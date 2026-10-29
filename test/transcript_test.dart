@@ -229,7 +229,7 @@ void main() {
     expect(workedOn(stopped), isNull);
   });
 
-  test('tasks and todos are replaced whole', () {
+  test('tasks are replaced whole', () {
     final started = DateTime(2026);
     final transcript = Transcript()
       ..apply(
@@ -243,11 +243,7 @@ void main() {
           ),
         ]),
       )
-      ..apply(const TasksReported(2, []))
-      ..apply(
-        const TodosReported(3, [TodoEntry('Write tests', TodoStatus.pending)]),
-      );
+      ..apply(const TasksReported(2, []));
     expect(transcript.tasks, isEmpty);
-    expect(transcript.todos.single.content, 'Write tests');
   });
 }

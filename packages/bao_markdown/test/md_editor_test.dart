@@ -12,6 +12,21 @@ const _style = MarkdownEditorStyle(
   text: TextStyle(fontSize: 14, height: 1.5, color: Color(0xFF000000)),
 );
 
+/// What the editors copied ([written]), and what a paste finds ([held]).
+class _FakeClipboard extends MdClipboard {
+  MdClip? written;
+  ({String? text, MdClip? clip}) held = (text: null, clip: null);
+
+  @override
+  Future<void> write(MdClip clip) async {
+    written = clip;
+    held = (text: clip.plain, clip: clip);
+  }
+
+  @override
+  Future<({String? text, MdClip? clip})> read() async => held;
+}
+
 Future<MarkdownEditorState> _pump(
   WidgetTester tester,
   MarkdownController controller, {
@@ -523,6 +538,72 @@ void main() {
     controller.selection = TextSelection.collapsed(offset: controller.length);
     await state.paste();
     expect(controller.text, 'x **b** y\n- itemx **b** y\n- item');
+  });
+
+  testWidgets('copies and pastes through MdClipboard.instance: its copy as '
+      'its markdown, of the other kind or none as the text', (tester) async {
+    final clipboard = _FakeClipboard();
+    MdClipboard.instance = clipboard;
+    addTearDown(() => MdClipboard.instance = const MdClipboard());
+    final controller = MarkdownController(text: 'x **b** y');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: controller.length,
+    );
+    await state.copy();
+    expect(
+      clipboard.written,
+      const MdClip(plain: 'x b y', markdown: 'x **b** y', fromPlain: false),
+    );
+
+    // Its copy: pasted as it was, though the text is not the copy's.
+    controller.selection = TextSelection.collapsed(offset: controller.length);
+    clipboard.held = (
+      text: 'something else',
+      clip: const MdClip(plain: 'x b y', markdown: ' *i*', fromPlain: false),
+    );
+    await state.paste();
+    expect(controller.text, 'x **b** y *i*');
+
+    // Another app's copy: its text.
+    clipboard.held = (text: ' t', clip: null);
+    await state.paste();
+    expect(controller.text, 'x **b** y *i* t');
+
+    // A plain text's copy: its text, not its markdown.
+    clipboard.held = (
+      text: ' p',
+      clip: const MdClip(plain: ' p', markdown: ' **p**', fromPlain: true),
+    );
+    await state.paste();
+    expect(controller.text, 'x **b** y *i* t p');
+  });
+
+  testWidgets('MdClipboard pastes its copy back while the clipboard has its '
+      'text', (tester) async {
+    String? text;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async => switch (call.method) {
+        'Clipboard.setData' => () {
+          text = (call.arguments as Map)['text'] as String;
+          return null;
+        }(),
+        'Clipboard.getData' => {'text': text},
+        _ => null,
+      },
+    );
+    addTearDown(MdClipboard.reset);
+    const clipboard = MdClipboard();
+    const clip = MdClip(plain: 'b', markdown: '**b**', fromPlain: false);
+    await clipboard.write(clip);
+    expect(text, 'b');
+    expect((await clipboard.read()).clip, clip);
+    // Copied elsewhere since.
+    text = 'c';
+    expect(await clipboard.read(), (text: 'c', clip: null));
   });
 
   testWidgets('a drag selects, past the bottom it scrolls on', (tester) async {

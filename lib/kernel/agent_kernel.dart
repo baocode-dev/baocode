@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import 'kernel_event.dart';
+import 'queued_messages.dart';
 import 'kernel_types.dart';
 
 /// An agent runtime (Claude Code, Codex, …) behind one interface: the
@@ -79,12 +80,31 @@ class KernelContext {
 /// The folders an agent works in besides its directory, those of a
 /// multi-folder workspace, and what it is told of them.
 class KernelWorkspace {
-  const KernelWorkspace({required this.folders, this.instructions = ''});
+  const KernelWorkspace({
+    required this.folders,
+    this.instructions = '',
+    this.ownPrompt = false,
+    this.tools,
+    this.queuedMessages,
+  });
 
   final List<String> folders;
 
-  /// Added to the agent's system prompt.
+  /// Added to the agent's system prompt; or, when [ownPrompt], all of it.
   final String instructions;
+
+  /// Whether [instructions] are its whole system prompt, in place of the
+  /// agent's own (a coding agent's): for one that is not one.
+  final bool ownPrompt;
+
+  /// When the messages sent while it works are taken up, over the user's
+  /// setting; theirs when null.
+  final QueuedMessages? queuedMessages;
+
+  /// The only built-in tools it has (none for an empty list), the app's
+  /// own aside; all when null. Set, the app's MCP servers are its only
+  /// ones: none of the user's.
+  final List<String>? tools;
 }
 
 /// A setting the kernel offers a choice for. What is in effect is what the

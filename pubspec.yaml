@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.7.0+19
+version: 1.7.1+21
 
 environment:
   sdk: ^3.13.4
@@ -30,6 +30,7 @@ workspace:
   - packages/bao_markdown
   - packages/bao_pty
   - packages/bao_remote
+  - packages/bao_sampler
   - packages/bao_xterm
 
 # Dependencies specify other packages that your package needs in order to work.
@@ -49,6 +50,8 @@ dependencies:
     path: packages/bao_pty
   bao_remote:
     path: packages/bao_remote
+  bao_sampler:
+    path: packages/bao_sampler
   bao_xterm:
     path: packages/bao_xterm
   # The names project icons are kept under (lib/icons/icon_library.dart).

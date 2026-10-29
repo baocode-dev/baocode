@@ -31,6 +31,9 @@ abstract final class PasteStore {
   /// before the app's data moved is looked for where they are now.
   static Future<String?> read(String path) => platform.readPaste(path);
 
+  /// [read], at once: for a copy, which has to have it now.
+  static String? readNow(String path) => platform.readPasteNow(path);
+
   /// [text], a message with its [codeAppendix], with the pastes in it that
   /// are too long ([isStored]) kept in files, and named in their place.
   static String offload(String text) {

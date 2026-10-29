@@ -4,11 +4,13 @@ import '../tools/bash_tool.dart';
 import '../tools/edit_tools.dart';
 import '../tools/mcp_tools.dart';
 import '../tools/read_tool.dart';
-import '../tools/search_tools.dart';
+import '../tools/schedule_tools.dart';
 import '../tools/session_tools.dart';
 import '../tools/skill_tool.dart';
+import '../tools/team_tools.dart';
 import '../tools/tool.dart';
 import '../tools/web_tools.dart';
+import '../tools/worktree_tools.dart';
 import 'agent_loop.dart';
 import 'session.dart';
 
@@ -21,26 +23,32 @@ class Toolbox {
   /// One for the session: it keeps the pages it fetched.
   final WebFetchTool _webFetch = WebFetchTool();
 
+  /// In the order the model is offered them: by name.
   late final List<Tool> builtIn = [
     const AgentTool(),
-    const BashTool(),
-    const GlobTool(),
-    const GrepTool(),
-    const ExitPlanModeTool(),
-    const ReadTool(),
-    EditTool(),
-    WriteTool(),
-    NotebookEditTool(),
-    _webFetch,
-    const TodoWriteTool(),
-    const WebSearchTool(),
-    const TaskOutputTool(),
-    const TaskStopTool(),
     const AskUserQuestionTool(),
-    const SkillTool(),
+    const BashTool(),
+    const CronCreateTool(),
+    const CronDeleteTool(),
+    const CronListTool(),
+    EditTool(),
     const EnterPlanModeTool(),
+    const EnterWorktreeTool(),
+    const ExitPlanModeTool(),
+    const ExitWorktreeTool(),
+    const ListAgentsTool(),
     const ListMcpResourcesTool(),
+    NotebookEditTool(),
+    const ReadTool(),
     const ReadMcpResourceTool(),
+    const ReportFindingsTool(),
+    const ScheduleWakeupTool(),
+    const SendMessageTool(),
+    const SkillTool(),
+    const TaskStopTool(),
+    _webFetch,
+    const WebSearchTool(),
+    WriteTool(),
   ];
 
   /// The MCP servers' tools, as connected now.
@@ -76,14 +84,13 @@ class Toolbox {
       if (_offered(tool)) tool,
   ]);
 
-  /// What no subagent has: it does not start subagents of its own, ask the
-  /// user, or change the session's mode.
+  /// What no subagent has: it does not ask the user, or change the
+  /// session's mode.
   static const _mainOnly = {
-    'Agent',
     'AskUserQuestion',
     'EnterPlanMode',
     'ExitPlanMode',
-    'TaskStop',
+    'ScheduleWakeup',
   };
 
   /// [agent]'s tools: those it names (all but the main agent's own when

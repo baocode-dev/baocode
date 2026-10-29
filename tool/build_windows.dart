@@ -13,8 +13,9 @@
 //                                                  without VERSION; tool/
 //                                                  fetch_remote_server.dart)
 //                                                  instead of building one
-//   dart run tool/build_windows.dart --stock-engine keep Flutter's own
-//                                                  flutter_windows.dll
+//   dart run tool/build_windows.dart --patched-engine
+//                                                  put in tool/engine's
+//                                                  flutter_windows.dll (x64)
 //   dart run tool/build_windows.dart --channel      the channel build
 //                                                  (BAOCODE_CHANNEL;
 //                                                  lib/channel/), its
@@ -29,10 +30,10 @@
 //                                                  installer is named
 //                                                  -setup-arm64.exe
 //
-// The x64 bundle's flutter_windows.dll is replaced by tool/engine's, the
-// engine built with tool/engine/windows_text.patch (see
-// tool/engine/README.md); there is none built for arm64, whose bundle keeps
-// Flutter's own.
+// The bundle keeps Flutter's own flutter_windows.dll: the app draws with
+// Skia (windows/runner/main.cpp), and tool/engine/windows_text.patch only
+// changes Impeller's text (see tool/engine/README.md). --patched-engine puts
+// that engine in, for x64; there is none built for arm64.
 //
 // The bundle carries OpenSSH for Windows (openssh\), Microsoft's build, for
 // remote projects where the system's ssh is too old to ask for a password
@@ -139,8 +140,11 @@ Future<void> main(List<String> arguments) async {
   if (!_openSshBuilds.containsKey(arch)) {
     _fail('--arch is x64 or arm64, not $arch.');
   }
+  final patchedEngine = arguments.contains('--patched-engine');
   // No patched engine built for arm64.
-  final stockEngine = arguments.contains('--stock-engine') || arch != 'x64';
+  if (patchedEngine && arch != 'x64') {
+    _fail('There is no patched engine built for $arch.');
+  }
 
   // The script lives in tool/, so the repository is one level above it.
   final root = File.fromUri(Platform.script).parent.parent.absolute;
@@ -172,14 +176,11 @@ Future<void> main(List<String> arguments) async {
   _step('Checking the bundle');
   _checkBundle(bundle, _required);
 
-  if (stockEngine) {
-    _step(
-      'Keeping Flutter\'s own engine'
-      '${arch == 'x64' ? '' : ' (none patched for $arch)'}',
-    );
-  } else {
+  if (patchedEngine) {
     _step('Putting in the patched engine');
     _swapEngine(root, bundle);
+  } else {
+    _step('Keeping Flutter\'s own engine');
   }
 
   // The server remote projects run on their host (Linux and macOS, x64 and
@@ -362,7 +363,7 @@ void _swapEngine(Directory root, Directory bundle) {
       'one replaces, so Flutter has changed version. Rebuild the engine with\n'
       'tool/engine/build_windows_engine.ps1 -Tag <the new version> -Mode release,\n'
       'put its flutter_windows.dll in tool/engine, and update both hashes in\n'
-      'this script; or build with --stock-engine.\n'
+      'this script; or build without --patched-engine.\n'
       '  bundle: $current',
     );
   }

@@ -246,6 +246,14 @@ jobs:
           path: |
             build/installers/BaoCode-*.dmg
             build/installers/BaoCode-*-mac-*.zip
+      # The Dart code's symbols, for a jank sample's `??? (in App)` frames
+      # (tool/build_macos.dart). Not released: kept with the run.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: symbols-macos${{ env.SUFFIX }}
+          if-no-files-found: error
+          retention-days: 90
+          path: build/symbols/App.macos.symbols
       - name: Forget the certificate and the key
         if: always()
         run: |
@@ -376,8 +384,15 @@ jobs:
         with:
           name: remote
           path: build/remote
+      # The Dart code's symbols are saved beside it, for a jank sample's
+      # libapp.so+0x… frames (tool/symbolize_jank_sample.dart). Only saved:
+      # libapp.so stays as it was.
       - name: Build
-        run: flutter build linux --release ${{ matrix.edition == 'channel' && '--dart-define=BAOCODE_CHANNEL=true' || '' }}
+        run: |
+          mkdir -p build/symbols
+          flutter build linux --release \
+            "--extra-gen-snapshot-options=--save-debugging-info=$PWD/build/symbols/app.linux-${{ matrix.arch }}.symbols" \
+            ${{ matrix.edition == 'channel' && '--dart-define=BAOCODE_CHANNEL=true' || '' }}
       - name: Package the .deb and the tarball
         run: |
           sh tool/package_linux_deb.sh ${{ matrix.edition == 'channel' && '--channel' || '' }}
@@ -431,6 +446,13 @@ jobs:
           path: |
             build/installers/BaoCode-*.deb
             build/installers/BaoCode-*.tar.gz
+      # Not released: kept with the run.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: symbols-linux-${{ matrix.arch }}${{ env.SUFFIX }}
+          if-no-files-found: error
+          retention-days: 90
+          path: build/symbols/app.linux-${{ matrix.arch }}.symbols
 
   share:
     name: Put it at dl.baocode.dev/test/ for testers

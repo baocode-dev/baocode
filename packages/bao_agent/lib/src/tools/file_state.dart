@@ -146,12 +146,12 @@ bool looksBinary(List<int> bytes) {
   return sample.isNotEmpty && control / sample.length > 0.1;
 }
 
-/// [lines] numbered as `cat -n` numbers them, from [first].
+/// [lines] numbered from [first]: each its number, a tab, the line.
 String numberLines(List<String> lines, int first) {
   final out = StringBuffer();
   for (final (i, line) in lines.indexed) {
     if (i > 0) out.write('\n');
-    out.write('${'${first + i}'.padLeft(6)}\t$line');
+    out.write('${first + i}\t$line');
   }
   return out.toString();
 }

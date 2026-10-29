@@ -140,6 +140,8 @@ class PromptCommand {
     this.userInvocable = true,
     this.whenToUse,
     this.plugin,
+    this.origin,
+    this.aliases = const [],
   });
 
   /// As it is run: `review`, `cloudflare:workers`.
@@ -167,8 +169,20 @@ class PromptCommand {
   final String? whenToUse;
   final Plugin? plugin;
 
+  /// Where it comes from, as the user is shown it (`project`, `user`, a
+  /// plugin's name); null for the agent's own.
+  final String? origin;
+
+  /// Other names it runs by.
+  final List<String> aliases;
+
   /// The folder it is in (a skill's own).
   String get baseDir => p.dirname(path);
+
+  /// [body] as the model is given it: a skill on disk says where it is.
+  String withBaseDir(String body) => isSkill && source != 'bundled'
+      ? 'Base directory for this skill: $baseDir\n\n$body'
+      : body;
 
   /// [body] with [arguments] put in: `$ARGUMENTS` for all of them, `$1`…
   /// for each; at the end when it names none.
@@ -212,8 +226,10 @@ class PromptCommand {
   /// As the `initialize` answer lists it.
   Map<String, Object?> toCommandJson() => {
     'name': name,
-    'description': description,
+    'description': origin == null ? description : '$description ($origin)',
     'argumentHint': argumentHint ?? '',
+    if (aliases.isNotEmpty) 'aliases': aliases,
+    if (source == 'bundled') 'builtin': true,
   };
 }
 
@@ -291,7 +307,8 @@ List<PromptCommand> _commands(String folder, String source, Plugin? plugin) {
     out.add(
       PromptCommand(
         name: name,
-        description: '$description ($where)',
+        description: description,
+        origin: where,
         body: front.body,
         path: file.path,
         source: source,
@@ -336,6 +353,7 @@ List<PromptCommand> _skills(String folder, String source, Plugin? plugin) {
         path: file.path,
         source: source,
         isSkill: true,
+        origin: plugin?.name ?? source,
         argumentHint: front.string('argument-hint'),
         allowedTools: front.list('allowed-tools') ?? const [],
         model: front.string('model'),
@@ -373,6 +391,8 @@ class AgentDefinition {
     this.permissionMode,
     this.color,
     this.skills = const [],
+    this.effort,
+    this.isolation,
   });
 
   /// `subagent_type`.
@@ -397,14 +417,36 @@ class AgentDefinition {
   final String? color;
   final List<String> skills;
 
+  /// How hard it thinks, unless the call says.
+  final String? effort;
+
+  /// `worktree`: it works in a git worktree of its own.
+  final String? isolation;
+
+  /// Its tools, as the model is told them.
+  String get toolsLabel {
+    final tools = this.tools;
+    if (tools != null) return tools.join(', ');
+    return disallowedTools.isEmpty
+        ? '*'
+        : 'All tools except ${disallowedTools.join(', ')}';
+  }
+
   Map<String, Object?> toJson() => {
     'name': name,
     'description': description,
-    'source': source,
     'model': ?model,
-    'tools': ?tools,
   };
 }
+
+/// What a read-only agent may not use.
+const _readOnlyDenied = [
+  'Agent',
+  'ExitPlanMode',
+  'Edit',
+  'Write',
+  'NotebookEdit',
+];
 
 /// The subagents everyone has.
 const builtInAgents = <AgentDefinition>[
@@ -421,8 +463,8 @@ const builtInAgents = <AgentDefinition>[
         'it is done, your last message is your report, full enough that it '
         'need not be redone.\n\n'
         'How to go about it:\n'
-        '- To find things, Glob and Grep across the codebase; Read when you '
-        'know the file.\n'
+        '- To find things, search the codebase through Bash (grep or find, '
+        'rg where it is installed); Read when you know the file.\n'
         '- Start wide and narrow down. If one way of looking finds nothing, '
         'try another: other places, other spellings of a name, files that go '
         'with the ones you found.\n'
@@ -434,24 +476,32 @@ const builtInAgents = <AgentDefinition>[
         '- No emoji.',
   ),
   AgentDefinition(
+    name: 'claude',
+    description:
+        'For whatever no other kind of agent fits: the agent to start when '
+        'no kind is named.',
+    source: 'built-in',
+    prompt:
+        'You are an agent that a coding agent has handed a task to. Do what '
+        'was asked with the tools you have, as a careful engineer would: '
+        'read before you change, change only what the task needs, and check '
+        'that it works. When it is done, your last message is your report: '
+        'what you did, what you found, and anything left open, with the '
+        'files that matter named by absolute path. No emoji.',
+  ),
+  AgentDefinition(
     name: 'Explore',
     description:
-        'A quick agent for finding your way around a codebase: files by '
-        'pattern ("lib/**/*_test.dart"), code by what it says ("where the '
-        'session is saved"), or how something works ("how are requests '
-        'retried?"). Say how thorough it should be: "quick", "medium" or '
-        '"very thorough" (many places, many spellings).',
+        'A quick, read-only agent for searches that sweep many files: files '
+        'by pattern ("lib/**/*_test.dart"), code by what it says ("where the '
+        'session is saved"), which files use a name. It reads parts of '
+        'files, so it finds code rather than reviewing or auditing it; use '
+        'it when you need only what it concludes. Say how thorough it should '
+        'be: "quick", "medium" or "very thorough" (many places, many '
+        'spellings).',
     source: 'built-in',
-    model: 'haiku',
-    tools: [
-      'Glob',
-      'Grep',
-      'Read',
-      'Bash',
-      'WebFetch',
-      'WebSearch',
-      'TaskOutput',
-    ],
+    model: 'inherit',
+    disallowedTools: _readOnlyDenied,
     prompt:
         'You search codebases for a coding agent: you find files, read '
         'them, and report what you found.\n\n'
@@ -459,10 +509,10 @@ const builtInAgents = <AgentDefinition>[
         'do not write files through redirects, and run no command that '
         'changes anything on the machine.\n\n'
         'How to go about it:\n'
-        '- Glob to find files by name, Grep to find what they contain, Read '
-        'for a file you know.\n'
-        '- Bash only for commands that change nothing: ls, git status, git '
-        'log, git diff, find, cat, head, tail.\n'
+        '- Through Bash: find for files by name, grep for what they contain '
+        '(or rg, where it is installed). Read for a file you know.\n'
+        '- Bash only for commands that change nothing: ls, grep, rg, find, '
+        'git status, git log, git diff.\n'
         '- Run searches and reads that do not depend on each other at once, '
         'side by side in one reply.\n'
         '- Go as deep as you were asked to: a quick look, or every place and '
@@ -477,15 +527,7 @@ const builtInAgents = <AgentDefinition>[
         'matter most and what each way of doing it costs.',
     source: 'built-in',
     model: 'inherit',
-    tools: [
-      'Glob',
-      'Grep',
-      'Read',
-      'Bash',
-      'WebFetch',
-      'WebSearch',
-      'TaskOutput',
-    ],
+    disallowedTools: _readOnlyDenied,
     prompt:
         'You plan software changes for a coding agent: you look through the '
         'codebase and work out how the change should be made.\n\n'
@@ -493,8 +535,8 @@ const builtInAgents = <AgentDefinition>[
         'command that changes anything on the machine.\n\n'
         '1. Make sure you understand what is wanted.\n'
         '2. Look through the code: the files you were pointed to, how the '
-        'code is laid out now, the ways it already does such things (Glob, '
-        'Grep, Read), and the paths the change will run through.\n'
+        'code is laid out now, the ways it already does such things (grep and '
+        'find through Bash, Read), and the paths the change will run through.\n'
         '3. Work out the change: weigh the ways of doing it, keeping to how '
         'the code already works where that fits.\n'
         '4. Write the plan: the steps in order, what each depends on, and '
@@ -549,6 +591,8 @@ List<AgentDefinition> loadAgents({
         permissionMode: front.string('permissionMode'),
         color: front.string('color'),
         skills: front.list('skills') ?? const [],
+        effort: front.string('effort'),
+        isolation: front.string('isolation'),
       );
     }
   }

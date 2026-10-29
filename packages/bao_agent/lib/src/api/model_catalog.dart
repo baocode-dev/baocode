@@ -350,35 +350,48 @@ class ModelCatalog {
 
   /// The models listed to the user (the `initialize` answer's `models`).
   List<Map<String, Object?>> listed() {
-    Map<String, Object?> entry(String value, String label, String description) {
+    String price(double dollars) => dollars == dollars.roundToDouble()
+        ? '\$${dollars.round()}'
+        : '\$${dollars.toStringAsFixed(2)}';
+
+    Map<String, Object?> entry(String value, String? label, String role) {
       final resolved = resolve(value);
       final model = info(resolved);
+      final name = model.known ? model.name : resolved;
+      final cost = model.inputPrice > 0
+          ? ' · ${price(model.inputPrice)}/${price(model.outputPrice)} '
+                'per Mtok'
+          : '';
       return {
         'value': value,
         'resolvedModel': resolved,
-        'displayName': label,
-        'description': description,
+        'displayName':
+            label ?? '${value[0].toUpperCase()}${value.substring(1)}',
+        'description': label == null
+            ? '$name · $role$cost'
+            : '$role (now $name)$cost',
         'supportsEffort': model.supportsEffort,
         'supportedEffortLevels': model.effortLevels,
+        if (model.thinking == ThinkingStyle.adaptive)
+          'supportsAdaptiveThinking': true,
         'supportsAutoMode': true,
       };
-    }
-
-    String named(String alias) {
-      final model = info(resolve(alias));
-      return model.known ? model.name : resolve(alias);
     }
 
     return [
       entry(
         defaultAlias,
         'Default (recommended)',
-        '${named(defaultAlias)} · the best fit for most coding work',
+        'The model to use unless told otherwise',
       ),
-      entry('fable', named('fable'), 'Deepest reasoning, long-horizon work'),
-      entry('opus', named('opus'), 'Most capable for complex work'),
-      entry('sonnet', named('sonnet'), 'Fast and capable for everyday tasks'),
-      entry('haiku', named('haiku'), 'Fastest, for quick answers'),
+      entry('opus', null, 'The best fit for most complex work'),
+      entry(
+        'fable',
+        null,
+        'The deepest reasoning, for the longest and hardest work',
+      ),
+      entry('sonnet', null, 'Quick and able, for everyday work'),
+      entry('haiku', null, 'The quickest, for short answers'),
     ];
   }
 }

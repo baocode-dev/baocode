@@ -63,7 +63,7 @@ class ComposerEmbed {
   static ComposerEmbed? of(MdInline run, String line) =>
       parse(MdAtoms.data(run, line));
 
-  /// Text it contributes to the sent message and to plain-text copies.
+  /// Text it contributes to the sent message.
   String get plainText => switch (type) {
     ComposerTokenEmbed.type => ComposerTokenEmbed.plainText(data),
     ComposerCodeEmbed.type => ComposerCodeEmbed.plainText(data),
@@ -71,6 +71,20 @@ class ComposerEmbed {
     ComposerStashEmbed.type => ComposerStashEmbed.plainText(data),
     ComposerImageEmbed.type => ComposerImageEmbed.plainText(data),
     _ => '',
+  };
+
+  /// What it is copied as, for other apps: what was pasted to make it (a
+  /// long paste's text, the code of lines copied from the IDE), not the
+  /// message's reference to it; the rest as [plainText].
+  String get copiedText => switch (type) {
+    ComposerCodeEmbed.type => ComposerCodeEmbed.decode(data).code,
+    ComposerPastedTextEmbed.type => switch (ComposerPastedTextEmbed.decode(
+      data,
+    )) {
+      PastedText(:final file?) => PasteStore.readNow(file) ?? plainText,
+      final pasted => pasted.text,
+    },
+    _ => plainText,
   };
 
   @override
@@ -107,16 +121,29 @@ Iterable<({int start, int end, ComposerEmbed embed})> composerEmbedsIn(
   }
 }
 
-/// The composer's text as it shows, each thing in it one character
-/// (U+FFFC), as an input method is told of it.
-String composerShownText(String content) {
-  if (!content.contains(MdAtoms.open)) return content;
-  final shown = StringBuffer();
-  for (final piece in composerPieces(content)) {
-    shown.write(piece is String ? piece : MdAtoms.shown);
+/// [content], a copy of the composer's pasted back into one, its long
+/// pastes numbered on from [from], as pasted anew they would be: their
+/// references, which tell them apart in the message, not the same as
+/// those of the pastes already there.
+String renumberPastes(String content, {required int from}) {
+  var next = from;
+  final renumbered = StringBuffer();
+  var at = 0;
+  for (final (:start, :end, :embed) in composerEmbedsIn(content)) {
+    if (embed.type != ComposerPastedTextEmbed.type) continue;
+    final pasted = ComposerPastedTextEmbed.decode(embed.data);
+    renumbered
+      ..write(content.substring(at, start))
+      ..write(ComposerPastedTextEmbed.of(pasted.numbered(next++)).atom);
+    at = end;
   }
-  return shown.toString();
+  if (at == 0) return content;
+  return (renumbered..write(content.substring(at))).toString();
 }
+
+/// The composer's text as it shows, each thing in it one character
+/// (U+FFFC): as an input method is told of it ([MdTold]).
+String composerShownText(String content) => MdTold.of(content).text;
 
 /// The composer's text as text: each thing as the message says it.
 String composerPlainText(String content) {
@@ -359,7 +386,7 @@ class ComposerChips extends MarkdownEmbeds {
 
   @override
   String plainText(MdInline run, String line) =>
-      ComposerEmbed.of(run, line)?.plainText ?? '';
+      ComposerEmbed.of(run, line)?.copiedText ?? '';
 }
 
 /// An image's reference in the composer: the image as [ComposerImages]

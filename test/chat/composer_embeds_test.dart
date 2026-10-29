@@ -274,18 +274,64 @@ void main() {
         await tester.pump();
         final editor = tester.state<MarkdownEditorState>(_editor);
         await editor.copy();
-        // Outside, it is text: the message's.
-        expect(clipboard.text, 'see ${embed.plainText} now');
+        // Outside, it is text: what was pasted to make it (a long paste's,
+        // the code), else the message's.
+        expect(clipboard.text, 'see ${embed.copiedText} now');
+        expect(embed.copiedText, switch (embed.type) {
+          ComposerCodeEmbed.type => code.code,
+          ComposerPastedTextEmbed.type => pasted.text,
+          _ => embed.plainText,
+        });
 
         controller.selection = TextSelection.collapsed(
           offset: controller.length,
         );
         await editor.paste();
         await tester.pump();
-        expect(controller.text, '$content$content');
-        expect(controller.embeds.map((thing) => thing.embed), [embed, embed]);
+        // A long paste numbered on from the one there, as pasted anew.
+        final again = embed.type == ComposerPastedTextEmbed.type
+            ? ComposerPastedTextEmbed.of(pasted.numbered(pasted.number + 1))
+            : embed;
+        expect(controller.text, '${content}see ${again.atom} now');
+        expect(controller.embeds.map((thing) => thing.embed), [embed, again]);
       });
     }
+
+    testWidgets('all of them among lines, cut and pasted back, as they were', (
+      tester,
+    ) async {
+      final clipboard = _Clipboard(tester);
+      await _pump(tester, [], images: [image]);
+      final controller = _controller(tester);
+      final things = [
+        for (final (embed, _) in cases.values)
+          if (embed.type != ComposerGhostEmbed.type) embed,
+      ];
+      String written(String Function(ComposerEmbed embed) each) => [
+        '  first ',
+        for (final (i, embed) in things.indexed) ...[
+          each(embed),
+          // A tag never ends a line (the composer pads it).
+          i.isEven ? ' 看 \u{1F600} ' : ' \nthen ',
+        ],
+      ].join();
+      final content = written((embed) => embed.atom);
+      controller.replace(
+        0,
+        controller.length,
+        content,
+        selection: TextSelection(baseOffset: 0, extentOffset: content.length),
+      );
+      await tester.pump();
+      final editor = tester.state<MarkdownEditorState>(_editor);
+      await editor.copy(cut: true);
+      expect(controller.text, '');
+      expect(clipboard.text, written((embed) => embed.copiedText));
+
+      await editor.paste();
+      await tester.pump();
+      expect(controller.text, content);
+    });
 
     testWidgets('text from elsewhere with the marks in it stays text', (
       tester,

@@ -18,7 +18,6 @@ import 'package:bao_editor/textmate/textmate_syntax.dart';
 import '../base/shown_when_ready.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
-import '../theme/code_font.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
 import 'git/git_partial.dart' show ideGitHunkKeys, ideGitLineKey;
@@ -490,66 +489,63 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
         .copyWith(color: colors['editor.foreground'], height: 1.45);
     final editable = widget.onEdit != null;
     final overlay = editable || widget.checks != null || widget.onAsk != null;
-    return CodeTextScale(
-      child: DiffEditor(
-        key: ObjectKey(_diff),
-        model: _diff.model,
-        style: style,
-        theme: theme,
-        colors: DiffEditorColors.from(colors.get),
-        dark:
-            type == ThemeTypeSelector.vsDark ||
-            type == ThemeTypeSelector.hcBlack,
-        originalStyledLines: _diff.textMate?.styledLines,
-        border: colors.get('diffEditor.border'),
-        sashHover: colors.get('sash.hoverBorder'),
-        sideBySide: _options.sideBySide,
-        highlight: _options.highlight,
-        hideUnchanged: _options.collapseUnchanged,
-        unchangedLabel: context.l10n.diffUnchangedLines,
-        keepVisible: widget.line,
-        overlay: overlay ? _overlay : null,
-        original: (context, side) {
-          final controller = _diff.controller;
-          if (controller == null) return const SizedBox.expand();
-          return EditorSurface(
-            // Found by it for its lines' check boxes.
-            key: GlobalObjectKey(controller),
-            controller: controller,
-            readOnly: true,
-            backgroundColor: colors['editor.background'],
-            selectionColor: colors['editor.selectionBackground'],
-            caretColor: colors['editorCursor.foreground'],
-            theme: theme,
-            styledLines: _diff.textMate?.styledLines,
-            decorations: side.decorations,
-            viewZones: side.zones,
-            scrollPosition: side.scrollPosition,
-            glyphMargin: side.sideBySide,
-            folding: false,
-            hiddenLines: side.hiddenLines,
-            showMinimap: false,
-            style: style,
-          );
-        },
-        modified: (context, side) => EditorSurface(
-          key: _modifiedKey,
-          controller: _modified,
-          readOnly: !editable,
+    return DiffEditor(
+      key: ObjectKey(_diff),
+      model: _diff.model,
+      style: style,
+      theme: theme,
+      colors: DiffEditorColors.from(colors.get),
+      dark:
+          type == ThemeTypeSelector.vsDark || type == ThemeTypeSelector.hcBlack,
+      originalStyledLines: _diff.textMate?.styledLines,
+      border: colors.get('diffEditor.border'),
+      sashHover: colors.get('sash.hoverBorder'),
+      sideBySide: _options.sideBySide,
+      highlight: _options.highlight,
+      hideUnchanged: _options.collapseUnchanged,
+      unchangedLabel: context.l10n.diffUnchangedLines,
+      keepVisible: widget.line,
+      overlay: overlay ? _overlay : null,
+      original: (context, side) {
+        final controller = _diff.controller;
+        if (controller == null) return const SizedBox.expand();
+        return EditorSurface(
+          // Found by it for its lines' check boxes.
+          key: GlobalObjectKey(controller),
+          controller: controller,
+          readOnly: true,
           backgroundColor: colors['editor.background'],
           selectionColor: colors['editor.selectionBackground'],
           caretColor: colors['editorCursor.foreground'],
           theme: theme,
-          styledLines: _highlight?.styledLines,
+          styledLines: _diff.textMate?.styledLines,
           decorations: side.decorations,
           viewZones: side.zones,
           scrollPosition: side.scrollPosition,
+          glyphMargin: side.sideBySide,
           folding: false,
           hiddenLines: side.hiddenLines,
           showMinimap: false,
-          onViewChanged: _viewChanged,
           style: style,
-        ),
+        );
+      },
+      modified: (context, side) => EditorSurface(
+        key: _modifiedKey,
+        controller: _modified,
+        readOnly: !editable,
+        backgroundColor: colors['editor.background'],
+        selectionColor: colors['editor.selectionBackground'],
+        caretColor: colors['editorCursor.foreground'],
+        theme: theme,
+        styledLines: _highlight?.styledLines,
+        decorations: side.decorations,
+        viewZones: side.zones,
+        scrollPosition: side.scrollPosition,
+        folding: false,
+        hiddenLines: side.hiddenLines,
+        showMinimap: false,
+        onViewChanged: _viewChanged,
+        style: style,
       ),
     );
   }
@@ -928,8 +924,8 @@ class _HunkCheck extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = themeColors;
     final l10n = context.l10n;
-    final accent =
-        colors.get('checkbox.selectBackground') ?? colors['button.background'];
+    // As the commit panel's: checkbox.selectBackground is a gray.
+    final accent = colors['button.background'];
     final on = checked != false;
     final box = line ? 11.0 : 13.0;
     return IdeHover(

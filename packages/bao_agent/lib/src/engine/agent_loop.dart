@@ -8,12 +8,14 @@ import '../hooks/hooks.dart';
 import '../permissions/decision.dart';
 import '../prompts/system_prompt.dart';
 import '../prompts/task_prompts.dart';
+import '../tools/mcp_tools.dart';
 import '../tools/tool.dart';
 import '../util/cancel.dart';
 import '../util/ids.dart';
 import '../util/json.dart';
 import 'agent_run.dart';
 import 'compaction.dart';
+import 'context.dart';
 import 'session.dart';
 import 'session_store.dart';
 import 'transcript.dart';
@@ -68,6 +70,9 @@ class _Call {
   final String name;
   Map<String, Object?> input;
   bool done = false;
+
+  /// The result's content, as the model is sent it.
+  Object? sent;
 }
 
 /// What a request to the model came to.
@@ -88,9 +93,8 @@ class AgentLoop {
     required this.run,
     required this.store,
     required this.tools,
-    required this.system,
+    required this.prompt,
     required this.model,
-    this.userContext,
     this.maxTurns,
     this.takeQueued,
   });
@@ -100,15 +104,11 @@ class AgentLoop {
   final SessionStore store;
   final ToolSet tools;
 
-  /// The system prompt's blocks.
-  final List<String> system;
+  /// What the model is told besides the conversation: not kept in it.
+  final AgentPrompt prompt;
 
   /// The model's id.
   String model;
-
-  /// Told the model with the conversation's first message (its memory
-  /// files, the date): not kept in it.
-  final String? userContext;
   final int? maxTurns;
 
   /// The messages sent while the turn runs, to be taken up between its
@@ -118,6 +118,11 @@ class AgentLoop {
   bool get isMain => run.isMain;
 
   String? get _parent => run.parentToolUseId;
+
+  /// Sends [message] to the host, unless the run is a quiet one.
+  void _emit(Map<String, Object?> message) {
+    if (!run.quiet) session.emit(message);
+  }
 
   /// What was found not to be taken by the model or its provider, and is
   /// not sent again.
@@ -132,6 +137,19 @@ class AgentLoop {
   static const _thinkingBeta = 'interleaved-thinking-2025-05-14';
   static const _contextBeta = 'context-management-2025-06-27';
   static const _effortBeta = 'effort-2025-11-24';
+
+  /// What Anthropic's own API is asked for: system messages within the
+  /// conversation among them.
+  static const _firstPartyBetas = [
+    _thinkingBeta,
+    'thinking-token-count-2026-05-13',
+    _contextBeta,
+    'prompt-caching-scope-2026-01-05',
+    'mid-conversation-system-2026-04-07',
+    'per-turn-control-2026-07-01',
+    'mid-conversation-tool-changes-2026-07-01',
+    _effortBeta,
+  ];
 
   final Map<String, Object?> _usage = {
     'input_tokens': 0,
@@ -150,8 +168,6 @@ class AgentLoop {
   Future<LoopResult> runTurn(CancelToken cancel) async {
     var stopHookActive = false;
     var compactedForLength = false;
-    var worked = false;
-    var remindedOfTodos = false;
     while (true) {
       if (cancel.isCancelled) return _interrupted(during: false);
       if (maxTurns != null && _requests >= maxTurns!) {
@@ -164,6 +180,7 @@ class AgentLoop {
           return _interrupted(during: false);
         }
       }
+      _noteBudget();
       final _Answer answer;
       try {
         answer = await _ask(cancel);
@@ -207,27 +224,13 @@ class AgentLoop {
           _appendUser('Stop hook feedback:\n${stop.feedback}', meta: true);
           continue;
         }
-        // Work done with items left open: the model is reminded once to
-        // bring its list up to date (#156). Appended, so what is cached
-        // stays.
-        if (worked && !remindedOfTodos && answer.stopReason != 'max_tokens') {
-          final todos = session.todos[run.agentId ?? session.sessionId];
-          final open = [
-            for (final todo in todos ?? const <Map<String, Object?>>[])
-              if (todo['status'] != 'completed') todo,
-          ];
-          if (open.isNotEmpty) {
-            remindedOfTodos = true;
-            _appendUser(openTodosReminder(open), meta: true);
-            continue;
-          }
-        }
         return _result('end_turn');
       }
-      worked = true;
       final stopped = await _runCalls(calls, cancel);
       if (cancel.isCancelled) return _interrupted(during: true, calls: calls);
       if (stopped) return _result('stopped');
+      if (await _batchHooks(calls, cancel)) return _result('stopped');
+      if (cancel.isCancelled) return _interrupted(during: false);
       // Messages sent meanwhile join the turn here.
       for (final message
           in takeQueued?.call() ?? const <Map<String, Object?>>[]) {
@@ -238,42 +241,73 @@ class AgentLoop {
 
   // --- Asking the model --------------------------------------------------------
 
+  /// Whether the conversation holds system messages (the context, what is
+  /// left of the budget): Anthropic's own API, which takes them.
+  bool get _systemMessages {
+    try {
+      return session.client.firstParty && !_refusedBetas.contains(model);
+    } on MissingCredentials {
+      return false;
+    }
+  }
+
+  /// Tells the model what is left of the turn's budget after what was
+  /// added since its last answer (a prompt, results): kept in the
+  /// conversation, so the cache holds.
+  void _noteBudget() {
+    if (!_systemMessages || store.chain.isEmpty) return;
+    if (store.chain.last['type'] != 'user') return;
+    final left = AgentPrompt.budget - (asInt(_usage['output_tokens']) ?? 0);
+    store.append({
+      'type': 'attachment',
+      'attachment': {'type': 'total_tokens_reminder', 'text': budgetNote(left)},
+      'renderedRole': 'system',
+      if (!isMain) ...{'agentId': run.agentId, 'isSidechain': true},
+    });
+  }
+
   /// The request as it stands: the conversation, the tools, the system
   /// prompt, the model's settings.
   ModelRequest buildRequest({List<Map<String, Object?>>? messages}) {
     final info = session.catalog.info(model);
-    final conversation = messages ?? store.apiMessages();
-    _addContext(conversation);
+    final inline = _systemMessages;
+    final conversation =
+        messages ?? toApiMessages(store.chain, systemNotes: inline);
     final cache = !_truthy(session.environment['DISABLE_PROMPT_CACHING']);
+    final maxTokens = _maxTokens(info);
+    final settings = _thinking(info, maxTokens);
+    _addContext(conversation, inline: inline, settings: settings);
+    final texts = [
+      ...prompt.system,
+      if (!inline) prompt.context,
+    ].where((text) => text.trim().isNotEmpty).toList();
     final systemBlocks = [
-      for (final (i, text) in system.indexed)
-        if (text.trim().isNotEmpty)
-          {
-            'type': 'text',
-            'text': text,
-            if (cache && i == system.length - 1)
-              'cache_control': {'type': 'ephemeral'},
-          },
+      for (final (i, text) in texts.indexed)
+        {
+          'type': 'text',
+          'text': text,
+          if (cache && (inline || i == texts.length - 1))
+            'cache_control': {'type': 'ephemeral'},
+        },
     ];
     final toolList = tools.toApi(session);
-    if (cache && toolList.isNotEmpty) {
+    if (cache && !inline && toolList.isNotEmpty) {
       toolList[toolList.length - 1] = {
         ...toolList.last,
         'cache_control': {'type': 'ephemeral'},
       };
     }
-    if (cache) _markCache(conversation);
+    if (cache) _markCache(conversation, last: inline ? 1 : 2);
     _addPlanReminder(conversation);
-    final maxTokens = _maxTokens(info);
     final body = <String, Object?>{
       'model': model,
-      'max_tokens': maxTokens,
-      'system': systemBlocks,
       'messages': conversation,
+      'system': systemBlocks,
       if (toolList.isNotEmpty) 'tools': toolList,
-      ..._thinking(info, maxTokens),
+      'max_tokens': maxTokens,
+      ...settings,
     };
-    return ModelRequest(body, betas: _betas(info, body));
+    return ModelRequest(body, betas: _betas(info, body, inline: inline));
   }
 
   static bool _truthy(String? value) =>
@@ -288,9 +322,7 @@ class AgentLoop {
 
   Map<String, Object?> _thinking(ModelInfo info, int maxTokens) {
     final out = <String, Object?>{};
-    final chosen = run.isMain || run.agentType != 'Explore'
-        ? session.effectiveEffort
-        : null;
+    final chosen = run.effort ?? session.effectiveEffort;
     // None chosen: a known model's own, said (what the API takes for none
     // is higher than some models are best at).
     final effort = chosen ?? (info.known ? info.defaultEffort : null);
@@ -363,8 +395,13 @@ class AgentLoop {
     return out;
   }
 
-  List<String> _betas(ModelInfo info, Map<String, Object?> body) {
+  List<String> _betas(
+    ModelInfo info,
+    Map<String, Object?> body, {
+    required bool inline,
+  }) {
     final betas = <String>[
+      if (inline) ..._firstPartyBetas,
       for (final beta in (session.environment['ANTHROPIC_BETAS'] ?? '').split(
         ',',
       ))
@@ -372,7 +409,7 @@ class AgentLoop {
     ];
     // What the request uses of the API's betas, for a model known (one
     // not may be on a provider that knows none).
-    if (info.known && !_refusedBetas.contains(model)) {
+    if (!inline && info.known && !_refusedBetas.contains(model)) {
       if (body['thinking'] case {'type': final String type}
           when type != 'disabled') {
         betas.add(_thinkingBeta);
@@ -391,19 +428,50 @@ class AgentLoop {
     return betas;
   }
 
-  /// Tells the model of its context with the first message.
-  void _addContext(List<Map<String, Object?>> conversation) {
+  /// Tells the model of its context: the reminders with the first
+  /// message, and (when [inline]) where it works in a system message after
+  /// it, with the turn's settings; system messages in a row made one.
+  void _addContext(
+    List<Map<String, Object?>> conversation, {
+    required bool inline,
+    required Map<String, Object?> settings,
+  }) {
     if (conversation.isEmpty) return;
-    final context = userContext;
-    if (context != null && context.trim().isNotEmpty) {
+    final reminders = [
+      for (final text in prompt.reminders)
+        if (text.trim().isNotEmpty) {'type': 'text', 'text': text},
+    ];
+    if (reminders.isNotEmpty) {
       final first = conversation.first;
       conversation[0] = {
         ...first,
+        'content': [...reminders, ..._asBlocks(first['content'])],
+      };
+    }
+    if (inline && prompt.context.trim().isNotEmpty) {
+      conversation.insert(1, {
+        'role': 'system',
         'content': [
-          {'type': 'text', 'text': context},
-          ..._asBlocks(first['content']),
+          {'type': 'text', 'text': prompt.context},
+        ],
+        'output_config': ?settings['output_config'],
+      });
+    }
+    for (var i = conversation.length - 1; i > 0; i--) {
+      final message = conversation[i];
+      final before = conversation[i - 1];
+      if (message['role'] != 'system' || before['role'] != 'system') continue;
+      final text = [
+        for (final m in [before, message])
+          for (final block in _asBlocks(m['content'])) '${block['text']}',
+      ].join('\n\n');
+      conversation[i - 1] = {
+        ...before,
+        'content': [
+          {'type': 'text', 'text': text},
         ],
       };
+      conversation.removeAt(i);
     }
   }
 
@@ -414,7 +482,7 @@ class AgentLoop {
     if (conversation.isEmpty) return;
     if (isMain && session.permissionMode == 'plan') {
       final last = conversation.last;
-      if (last['role'] == 'user') {
+      if (last['role'] != 'assistant') {
         final path = session.planFilePath;
         conversation[conversation.length - 1] = {
           ...last,
@@ -442,11 +510,14 @@ class AgentLoop {
         _ => const [],
       };
 
-  /// Marks where the cache ends: the last message, and the user's message
-  /// before it (so the next turn reads what this one wrote).
-  static void _markCache(List<Map<String, Object?>> conversation) {
+  /// Marks where the cache ends: the last message, and (for [last] 2) the
+  /// user's message before it, so the next turn reads what this one wrote.
+  static void _markCache(
+    List<Map<String, Object?>> conversation, {
+    required int last,
+  }) {
     var marked = 0;
-    for (var i = conversation.length - 1; i >= 0 && marked < 2; i--) {
+    for (var i = conversation.length - 1; i >= 0 && marked < last; i--) {
       final message = conversation[i];
       if (i != conversation.length - 1 && message['role'] != 'user') continue;
       final blocks = _asBlocks(message['content']);
@@ -500,6 +571,14 @@ class AgentLoop {
               ].contains(beta),
             ) &&
             !_refusedBetas.contains(model)) {
+          _refusedBetas.add(model);
+          continue;
+        }
+        // System messages within the conversation not taken: the layout
+        // of other providers from now on.
+        if (_systemMessages &&
+            message.contains('system') &&
+            (message.contains('role') || message.contains('message'))) {
           _refusedBetas.add(model);
           continue;
         }
@@ -567,7 +646,7 @@ class AgentLoop {
           continue;
         }
         if (isMain) {
-          session.emit({
+          _emit({
             'type': 'stream_event',
             'event': event,
             'parent_tool_use_id': null,
@@ -646,7 +725,7 @@ class AgentLoop {
         if (input != null) shown = {...block, 'input': input};
       }
     }
-    session.emit({
+    _emit({
       'type': 'assistant',
       'message': messageOf(shown),
       'parent_tool_use_id': _parent,
@@ -662,6 +741,13 @@ class AgentLoop {
 
   /// Ends the turn with what went wrong said, as the model would say it.
   LoopResult _failed(String error) {
+    if (isMain) {
+      session.hooks.notify(HookEvent.stopFailure, {
+        ..._who,
+        'error': error,
+        'last_assistant_message': _lastText,
+      });
+    }
     final message = {
       'id': 'msg_${randomId(20)}',
       'type': 'message',
@@ -682,7 +768,7 @@ class AgentLoop {
     });
     // The main agent's error is the result's to tell.
     if (!isMain) {
-      session.emit({
+      _emit({
         'type': 'assistant',
         'message': message,
         'parent_tool_use_id': _parent,
@@ -755,7 +841,7 @@ class AgentLoop {
       if (!isMain) ...{'agentId': run.agentId, 'isSidechain': true},
     });
     if (emitIt) {
-      session.emit({
+      _emit({
         'type': 'user',
         'message': entry['message'],
         'parent_tool_use_id': _parent,
@@ -768,8 +854,23 @@ class AgentLoop {
 
   /// A message sent while the turn ran, taken up now.
   void _appendQueued(Map<String, Object?> message) {
+    if (!isMain) {
+      final entry = store.append({
+        'type': 'user',
+        'message': asMap(message['message']),
+        'agentId': run.agentId,
+        'isSidechain': true,
+      });
+      _emit({
+        'type': 'user',
+        'message': entry['message'],
+        'parent_tool_use_id': _parent,
+        'uuid': entry['uuid'],
+      });
+      return;
+    }
     final uuid = asString(message['uuid']) ?? newUuid();
-    session.emit({
+    _emit({
       'type': 'command_lifecycle',
       'command_uuid': uuid,
       'state': 'started',
@@ -780,7 +881,7 @@ class AgentLoop {
       'uuid': uuid,
     });
     session.checkpoints.begin(uuid);
-    session.emit({
+    _emit({
       'type': 'user',
       'message': entry['message'],
       'parent_tool_use_id': null,
@@ -798,6 +899,7 @@ class AgentLoop {
       'content': content is String && content.isEmpty ? '(no output)' : content,
       if (output.isError) 'is_error': true,
     };
+    call.sent = block['content'];
     final entry = store.append({
       'type': 'user',
       'message': {
@@ -808,7 +910,7 @@ class AgentLoop {
       if (!isMain) ...{'agentId': run.agentId, 'isSidechain': true},
     });
     if (emitResult) {
-      session.emit({
+      _emit({
         'type': 'user',
         'message': entry['message'],
         'parent_tool_use_id': _parent,
@@ -823,7 +925,7 @@ class AgentLoop {
         if (followUp['isMeta'] == true) 'isMeta': true,
         if (!isMain) ...{'agentId': run.agentId, 'isSidechain': true},
       });
-      session.emit({
+      _emit({
         'type': 'user',
         'message': extra['message'],
         'parent_tool_use_id': _parent,
@@ -929,6 +1031,14 @@ class AgentLoop {
                 'tool_use_id': call.id,
                 'tool_input': input,
               });
+              session.hooks.notify(HookEvent.permissionDenied, {
+                ..._who,
+                'tool_name': tool.name,
+                'tool_input': input,
+                'tool_use_id': call.id,
+                'reason': message,
+                'mcp_server': ?_mcpServer(tool),
+              }, query: tool.name);
               session.emitSystem('permission_denied', {
                 'tool_use_id': call.id,
                 'tool_name': tool.name,
@@ -962,6 +1072,7 @@ class AgentLoop {
     ToolContext context,
   ) async {
     ToolOutput output;
+    final took = Stopwatch()..start();
     try {
       output = await tool.call(input, context);
     } on ToolFailure catch (failure) {
@@ -978,14 +1089,17 @@ class AgentLoop {
       final post = await session.hooks.run(
         event,
         {
+          ..._who,
           'tool_name': tool.name,
           'tool_input': input,
+          if (!output.isError) 'tool_response': output.result ?? output.text,
           'tool_use_id': context.toolUseId,
-          if (output.isError)
-            'error': output.text
-          else
-            'tool_response': output.result ?? output.text,
-          if (!isMain) 'agent_id': run.agentId,
+          if (output.isError) ...{
+            'error': output.text,
+            'is_interrupt': context.cancel.isCancelled,
+          },
+          'duration_ms': took.elapsedMilliseconds,
+          'mcp_server': ?_mcpServer(tool),
         },
         query: tool.name,
         cancel: context.cancel,
@@ -1047,10 +1161,11 @@ class AgentLoop {
       final pre = await session.hooks.run(
         HookEvent.preToolUse,
         {
+          ..._who,
           'tool_name': tool.name,
           'tool_input': input,
           'tool_use_id': context.toolUseId,
-          if (!isMain) 'agent_id': run.agentId,
+          'mcp_server': ?_mcpServer(tool),
         },
         query: tool.name,
         cancel: context.cancel,
@@ -1138,10 +1253,11 @@ class AgentLoop {
       final hook = await session.hooks.run(
         HookEvent.permissionRequest,
         {
+          ..._who,
           'tool_name': tool.name,
           'tool_input': input,
-          'tool_use_id': context.toolUseId,
           'permission_suggestions': ask.suggestions,
+          'mcp_server': ?_mcpServer(tool),
         },
         query: tool.name,
         cancel: context.cancel,
@@ -1236,6 +1352,12 @@ class AgentLoop {
         case 'addDirectories':
           final dirs = [...asList(update['directories']).whereType<String>()];
           session.sessionDirectories.addAll(dirs);
+          for (final dir in dirs) {
+            session.hooks.notify(HookEvent.directoryAdded, {
+              'directory': dir,
+              'destination': destination.wire,
+            });
+          }
           if (destination != SettingsSource.session) {
             session.settings.addDirectories(dirs, destination);
             session.reloadSettings();
@@ -1291,6 +1413,91 @@ class AgentLoop {
     return text.length > 4000 ? '${text.substring(0, 4000)}…' : text;
   }
 
+  /// Which subagent a hook fires in: nothing for the main agent.
+  Map<String, Object?> get _who => isMain
+      ? const {}
+      : {'agent_id': run.agentId, 'agent_type': run.agentType ?? ''};
+
+  /// The server of an MCP tool, as hooks are told it.
+  static Map<String, Object?>? _mcpServer(Tool tool) => tool is McpTool
+      ? {
+          'name': tool.server.name,
+          'source': tool.server.scope == 'flag' ? 'dynamic' : tool.server.scope,
+        }
+      : null;
+
+  /// The work in the background that will wake the session, for the Stop
+  /// hooks to tell a session done from one waiting.
+  List<Map<String, Object?>> _backgroundTasks() => [
+    for (final task in session.tasks.running)
+      if (task.backgrounded)
+        {
+          'id': task.id,
+          'type': task.isShell ? 'shell' : 'subagent',
+          'status': task.status.name,
+          'description': _clip(task.description),
+          if (task.command case final command?) 'command': _clip(command),
+          if (!task.isShell) 'agent_type': ?task.agentType,
+        },
+  ];
+
+  /// The session's own scheduled prompts (not those kept on disk).
+  List<Map<String, Object?>> _sessionCrons() {
+    final scheduler = session.scheduler;
+    return [
+      for (final job in scheduler.jobs.values)
+        if (!job.durable)
+          {
+            'id': job.id,
+            'schedule': job.cron,
+            'recurring': job.recurring,
+            'prompt': _clip(job.prompt),
+          },
+      if (scheduler.wakeup case final wakeup?)
+        {
+          'id': 'wakeup',
+          'schedule':
+              '${wakeup.at.minute} ${wakeup.at.hour} ${wakeup.at.day} '
+              '${wakeup.at.month} *',
+          'recurring': false,
+          'prompt': _clip(wakeup.prompt),
+        },
+    ];
+  }
+
+  /// The PostToolBatch hooks, once all the calls of an answer have run:
+  /// what they add goes to the model with the results. Returns whether
+  /// one stopped the turn.
+  Future<bool> _batchHooks(List<_Call> calls, CancelToken cancel) async {
+    if (!session.hooks.has(HookEvent.postToolBatch)) return false;
+    final HookOutcome outcome;
+    try {
+      outcome = await session.hooks.run(HookEvent.postToolBatch, {
+        ..._who,
+        'tool_calls': [
+          for (final call in calls)
+            {
+              'tool_name': call.name,
+              'tool_input': call.input,
+              'tool_use_id': call.id,
+              'tool_response': ?call.sent,
+            },
+        ],
+      }, cancel: cancel);
+    } on Cancelled {
+      return false;
+    }
+    _notifyHookMessages(outcome);
+    if (outcome.stop) return true;
+    final notes = [
+      if (outcome.blocked)
+        'PostToolBatch hook feedback:\n${outcome.blockReason}',
+      ...outcome.additionalContext,
+    ];
+    if (notes.isNotEmpty) _appendUser(notes.join('\n\n'), meta: true);
+    return false;
+  }
+
   // --- Stopping ---------------------------------------------------------------------
 
   /// The Stop (or SubagentStop) hooks' say on ending the turn; null when
@@ -1302,12 +1509,12 @@ class AgentLoop {
       final outcome = await session.hooks.run(
         event,
         {
+          ..._who,
           'stop_hook_active': active,
-          if (!isMain) ...{
-            'agent_id': run.agentId,
-            'agent_type': run.agentType,
-          },
+          if (!isMain) 'agent_transcript_path': ?store.file,
           'last_assistant_message': _lastText,
+          'background_tasks': _backgroundTasks(),
+          'session_crons': _sessionCrons(),
         },
         query: isMain ? null : run.agentType,
         cancel: cancel,
@@ -1323,3 +1530,8 @@ class AgentLoop {
 extension on String {
   String? get nullIfEmpty => isEmpty ? null : this;
 }
+
+/// [text], clipped at 1000 characters as hooks are told long values.
+String _clip(String text) => text.length <= 1000
+    ? text
+    : '${text.substring(0, 1000)}… [+${text.length - 1000} chars]';

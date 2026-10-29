@@ -108,6 +108,9 @@ void main() {
       expect(line.outputFormat, 'stream-json');
       final options = line.options;
       expect(options.cwd, cwd);
+      // Someone to ask: the tools that ask are offered.
+      expect(options.canAsk, isTrue);
+      expect(parse(['-p']).options.canAsk, isFalse);
       expect(options.promptSuggestions, isTrue);
       expect(options.permissionMode, 'acceptEdits');
       expect(options.model, 'opus');

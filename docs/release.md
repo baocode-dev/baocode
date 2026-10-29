@@ -413,7 +413,7 @@ TestFlight 上每个 build 都要回答出口合规（加密）问题，否则�
 
 环境的部署规则里要允许 `mobile-*` 标签。
 
-下载页这两张卡片各带一个二维码（`site/qr/android.svg`、`site/qr/ios.svg`，鼠标悬停或点击卡片时显示）：码里是卡片自己那个按钮的链接，也就是 `/dl/android`、`/dl/ios`，扫到就跳到当时最新的那版安装包。链接变了就先跑 `dart run tool/make_download_qr.dart` 重新生成（`test/tool/download_qr_test.dart` 会检查页面、按钮和码三者一致）。**别把 `dl.baocode.dev` 上带哈希的直链写进码里**：那地址每次发版都换，码是要能一直用的。`latest.json` 里已经没有 iOS 的包：`/dl/ios` 跳到 TestFlight 公开测试的链接（`site-worker/index.js` 的 `TESTFLIGHT`，App Store Connect → BaoCode → TestFlight → Public beta），每个 build 都是这一个，上了 App Store 再换。Android 的卡片暂时下线（`MOBILE_OFFLINE`），`/dl/android` 跳回下载页。
+下载页这两张卡片各带一个二维码（`site/qr/android.svg`、`site/qr/ios.svg`，鼠标悬停或点击卡片时显示）：码里是卡片自己那个按钮的链接，也就是 `/dl/android`、`/dl/ios`，扫到就跳到当时最新的那版安装包。链接变了就先跑 `dart run tool/make_download_qr.dart` 重新生成（`test/tool/download_qr_test.dart` 会检查页面、按钮和码三者一致）。**别把 `dl.baocode.dev` 上带哈希的直链写进码里**：那地址每次发版都换，码是要能一直用的。`latest.json` 里已经没有 iOS 的包：`/dl/ios` 跳到 TestFlight 公开测试的链接（`site-worker/index.js` 的 `TESTFLIGHT`，App Store Connect → BaoCode → TestFlight → Public beta），每个 build 都是这一个，上了 App Store 再换。要暂时下线哪个平台，把它加进 `site-worker/index.js` 的 `MOBILE_OFFLINE`，它的链接就跳回下载页。
 
 > 发布密钥库丢了就再也发不了能覆盖安装的 APK：本机和 CI 之外务必另存一份。
 

@@ -63,7 +63,7 @@ class WebFetchTool extends Tool {
 - If an MCP server offers a fetch tool of its own, use that instead: it may reach more.
 - Give a whole URL; http is taken as https.
 - Say in the prompt what you want from the page.
-- A very long page is cut short before it is read.
+- A very long page is read a part at a time: the answer says where the part ended, and `offset` reads on from there.
 - A page fetched in the last 15 minutes is answered from a copy.
 - A redirect to another host is not followed: you are told where it goes, and can fetch that URL in a new call.
 - For GitHub, `gh` through Bash (gh pr view, gh issue view, gh api) usually does better.
@@ -81,6 +81,15 @@ class WebFetchTool extends Tool {
       'prompt': {
         'type': 'string',
         'description': 'What you want to know from the page',
+      },
+      'offset': {
+        'type': 'integer',
+        'minimum': 0,
+        'maximum': 9007199254740991,
+        'description':
+            'The character of the page\'s text to begin at. A page longer '
+            'than one call returns is read in parts: pass the number the '
+            'last part ended at',
       },
     },
     'required': ['url', 'prompt'],
@@ -189,9 +198,10 @@ class WebFetchTool extends Tool {
         'The server answered ${page.code} ${page.codeText}.',
       );
     }
-    final content = page.text.length > maxText
-        ? '${page.text.substring(0, maxText)}\n\n[The rest of the page is left out.]'
-        : page.text;
+    final offset = (asInt(input['offset']) ?? 0).clamp(0, page.text.length);
+    final end = (offset + maxText).clamp(0, page.text.length);
+    final content = page.text.substring(offset, end);
+    final more = end < page.text.length;
     final answer = await context.session.quickQuery(
       system:
           'You answer questions about the content of a web page, from that '
@@ -204,8 +214,13 @@ class WebFetchTool extends Tool {
       cancel: context.cancel,
       maxTokens: 4096,
     );
+    final text = more
+        ? '$answer\n\n[This was the page\'s text from character $offset to '
+              '$end of ${page.text.length}. To read on, call WebFetch again '
+              'with offset $end.]'
+        : answer;
     return ToolOutput(
-      answer,
+      text,
       result: {
         'bytes': page.bytes,
         'code': page.code,

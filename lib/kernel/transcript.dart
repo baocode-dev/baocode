@@ -88,7 +88,6 @@ class Transcript {
   ContextUsage? usage;
   UsageStats? stats;
   List<KernelTask> tasks = const [];
-  List<TodoEntry> todos = const [];
 
   /// The session's goal, if it has one (or just met one).
   KernelGoal? goal;
@@ -186,8 +185,6 @@ class Transcript {
         usage = reported;
       case TasksReported(tasks: final reported):
         tasks = reported;
-      case TodosReported(todos: final reported):
-        todos = reported;
       case GoalReported(goal: final reported):
         goal = reported;
       case StatsReported(stats: final reported):

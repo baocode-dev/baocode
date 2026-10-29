@@ -117,12 +117,16 @@ Dart snapshot is the same because the tag (and so the Dart SDK) is.
 `windows_text.patch` as of f36847d, built with
 `build_windows_engine.ps1 -Mode release`; SHA-256
 `d20feefdf335b0e3ae92f4e2f1b1892b5bd9d4c80b194b14b8bb87b34b9591d5`.
-`tool/build_windows.dart`
-(and so the release workflow) puts it in the bundle in place of Flutter's,
-after checking the hashes it keeps: the bundle's must be the stock engine of
-the same Flutter. `--stock-engine` leaves Flutter's in.
+It is not shipped now: the app draws with Skia on Windows, as on macOS
+(`windows/runner/main.cpp`), and the patch only changes Impeller's text, so
+`tool/build_windows.dart` (and so the release workflow) keeps Flutter's engine.
+`dart run tool/build_windows.dart --patched-engine` puts this one in the bundle
+in place of Flutter's, after checking the hashes it keeps: the bundle's must be
+the stock engine of the same Flutter. It only matters with Impeller
+(`BAOCODE_IMPELLER=1`).
 
-When `FLUTTER_VERSION` changes, the check stops the build. Then:
+When `FLUTTER_VERSION` changes, the check stops a `--patched-engine` build.
+Then:
 
 1. `build_windows_engine.ps1 -Tag <new version> -Mode release` (the patch may
    need its context refreshed).

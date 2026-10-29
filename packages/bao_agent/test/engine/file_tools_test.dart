@@ -8,31 +8,6 @@ import '../support/harness.dart';
 
 /// A ripgrep on this machine, if there is one (on `PATH`, or the one
 /// BaoCode's extension host brings).
-String? _ripgrep() {
-  for (final dir in (Platform.environment['PATH'] ?? '').split(':')) {
-    final candidate = File(p.join(dir, 'rg'));
-    if (candidate.existsSync()) return candidate.path;
-  }
-  final home = Platform.environment['HOME'] ?? '';
-  final hosts = Directory(
-    p.join(home, 'Library', 'Application Support', 'baocode', 'exthost'),
-  );
-  if (!hosts.existsSync()) return null;
-  try {
-    return hosts
-        .listSync(recursive: true, followLinks: false)
-        .whereType<File>()
-        .where(
-          (f) =>
-              p.basename(f.path) == 'rg' &&
-              f.path.contains('${Platform.isMacOS ? 'darwin' : 'linux'}-'),
-        )
-        .map((f) => f.path)
-        .firstOrNull;
-  } on FileSystemException {
-    return null;
-  }
-}
 
 void main() {
   late Harness h;
@@ -77,7 +52,12 @@ void main() {
       expect(longLine, contains('[line truncated]'));
       expect(empty, contains('but empty'));
       expect(beyond, contains('nothing starts at line'));
-      expect(crlf.split('\n').map((l) => l.trimLeft()), ['1\ta', '2\tb']);
+      // A final line break leaves an empty line after it, as the CLI shows.
+      expect(crlf.split('\n').map((l) => l.trimLeft()), [
+        '1\ta',
+        '2\tb',
+        '3\t',
+      ]);
       expect(relative.trimLeft(), '1\tline 1');
       final file = (h.toolResults[1]['tool_use_result'] as Map)['file'] as Map;
       expect(
@@ -239,145 +219,5 @@ void main() {
       expect('${h.toolResults[4]['content']}', contains('NotebookEdit'));
       expect(h.file('nested/deep/w.txt'), 'deep');
     });
-  });
-
-  for (final backend in ['dart', 'ripgrep']) {
-    final rg = backend == 'ripgrep' ? _ripgrep() : null;
-    group('Grep ($backend)', () {
-      late String bin;
-
-      setUp(() {
-        bin = Directory.systemTemp
-            .createTempSync('bin_')
-            .resolveSymbolicLinksSync();
-        if (rg != null) {
-          File(p.join(bin, 'rg'))
-            ..writeAsStringSync('#!/bin/sh\nexec "$rg" "\$@"\n')
-            ..setLastModifiedSync(DateTime.now());
-          Process.runSync('chmod', ['+x', p.join(bin, 'rg')]);
-        }
-      });
-
-      tearDown(() => Directory(bin).deleteSync(recursive: true));
-
-      Future<Harness> start(Map<String, String> files) => Harness.start(
-        files: files,
-        environment: {
-          'PATH': backend == 'ripgrep' ? '$bin:/usr/bin:/bin' : '/usr/bin:/bin',
-        },
-      );
-
-      test('modes, context, case, types, globs, paging, multiline', () async {
-        h = await start({
-          'src/a.ts': 'const Alpha = 1;\nconst beta = 2;\nconst gamma = 3;\n',
-          'src/b.js': 'alpha();\n',
-          'docs/c.md': 'Alpha\nand\nOmega\n',
-          '.gitignore': 'ignored/\n',
-          'ignored/x.ts': 'Alpha\n',
-          '.hidden/h.ts': 'Alpha\n',
-        });
-        Process.runSync('git', ['init', '-q'], workingDirectory: h.cwd);
-        h.model.script.addAll([
-          Reply.tools([
-            ('Grep', {'pattern': 'Alpha'}),
-            ('Grep', {'pattern': 'alpha', '-i': true, 'output_mode': 'count'}),
-            ('Grep', {'pattern': 'beta', 'output_mode': 'content', '-C': 1}),
-            ('Grep', {'pattern': 'Alpha', 'type': 'md'}),
-            ('Grep', {'pattern': 'a', 'glob': '*.{ts,js}', 'path': 'src'}),
-            (
-              'Grep',
-              {
-                'pattern': 'const',
-                'output_mode': 'content',
-                'head_limit': 1,
-                'offset': 1,
-              },
-            ),
-            (
-              'Grep',
-              {'pattern': 'Alpha.and', 'multiline': true, 'path': 'docs'},
-            ),
-            ('Grep', {'pattern': 'nothing-here'}),
-            ('Grep', {'pattern': '(unclosed'}),
-          ]),
-          Reply.text('ok'),
-        ]);
-        await h.turn('search');
-        final [
-          files,
-          count,
-          context,
-          typed,
-          globbed,
-          paged,
-          multi,
-          none,
-          invalid,
-        ] = [
-          for (final r in h.toolResults) '${r['content']}',
-        ];
-        expect(
-          files,
-          allOf(
-            contains('src/a.ts'),
-            contains('docs/c.md'),
-            contains('.hidden/h.ts'),
-          ),
-        );
-        expect(files, isNot(contains('ignored')));
-        expect(count, allOf(contains('src/a.ts:1'), contains('src/b.js:1')));
-        expect(
-          context,
-          allOf(
-            contains('src/a.ts-1-const Alpha'),
-            contains('src/a.ts:2:const beta'),
-            contains('src/a.ts-3-const gamma'),
-          ),
-        );
-        expect(typed, contains('docs/c.md'));
-        expect(typed, isNot(contains('a.ts')));
-        expect(globbed, allOf(contains('a.ts'), contains('b.js')));
-        expect(
-          paged.split('\n').where((l) => l.contains('const')),
-          hasLength(1),
-        );
-        expect(paged, contains('offset 2 gives the next 1'));
-        expect(multi, contains('docs/c.md'));
-        expect(none, 'No files found');
-        expect(h.toolResults.last['is_error'], isTrue);
-        expect(
-          invalid,
-          matches(RegExp('regular expression|regex parse error')),
-        );
-      });
-    }, skip: backend == 'ripgrep' && rg == null ? 'no ripgrep here' : false);
-  }
-
-  test('Glob: newest first, ignored files left out, a folder given', () async {
-    h = await Harness.start(
-      files: {
-        'a.dart': '',
-        'lib/b.dart': '',
-        '.gitignore': 'gen/\n',
-        'gen/c.dart': '',
-      },
-    );
-    Process.runSync('git', ['init', '-q'], workingDirectory: h.cwd);
-    File(p.join(h.cwd, 'a.dart')).setLastModifiedSync(DateTime(2020));
-    h.model.script.addAll([
-      Reply.tools([
-        ('Glob', {'pattern': '**/*.dart'}),
-        ('Glob', {'pattern': '*.dart', 'path': p.join(h.cwd, 'lib')}),
-        ('Glob', {'pattern': '*.nothing'}),
-      ]),
-      Reply.text('ok'),
-    ]);
-    await h.turn('glob');
-    final [all, inLib, none] = [
-      for (final r in h.toolResults) '${r['content']}',
-    ];
-    expect(all.split('\n'), ['lib/b.dart', 'a.dart']);
-    expect(inLib, 'lib/b.dart');
-    expect(none, 'No files found');
   });
 }

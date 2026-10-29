@@ -73,7 +73,7 @@ void main() {
         arguments.indexOf('--tools'),
         2 + arguments.indexOf('--tools'),
       ),
-      ['--tools', 'Read,Glob,Grep'],
+      ['--tools', 'Read'],
     );
     expect(arguments.join(' '), contains('--max-turns 16'));
     expect(tools.settings, {

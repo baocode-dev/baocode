@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../../chat/chat_models.dart';
 import '../../chat/composer/paste_store.dart';
 import '../../chat/composer/remote_drops.dart';
+import '../../models/codex/codex_service.dart';
 import '../../models/launch_environment.dart';
 import '../../models/model_icons.dart';
 import '../../models/model_provider.dart';
@@ -28,6 +29,7 @@ import 'claude_code_transport.dart';
 import 'claude_code_translator.dart';
 import 'claude_elicitation.dart';
 import 'claude_goal.dart';
+import 'claude_numbers.dart';
 import 'claude_sdk_tools.dart';
 import 'turn_stats.dart';
 import 'control_channel.dart';
@@ -123,6 +125,7 @@ class ClaudeCodeKernel
     ClaudeUsageSwitch? usageOffBy,
     this._rejectTooOld,
     ModelProviders? providers,
+    this._codex,
     ProviderEnvironment? providerEnvironment,
     Future<bool> Function(String url)? openLink,
   }) : _openLink = openLink ?? openExternal,
@@ -206,6 +209,9 @@ class ClaudeCodeKernel
   /// The providers of the user's (Settings → Models), whose models are
   /// offered beside Claude Code's own.
   final ModelProviders _providers;
+
+  /// The ChatGPT providers' accounts: the app's when null.
+  final CodexService? _codex;
   final ProviderEnvironment _providerEnvironment;
 
   static Future<String?> _usageOn() async => null;
@@ -375,9 +381,14 @@ class ClaudeCodeKernel
   String? _reportedModel;
 
   /// When the usage limit the last turn hit resets (see
-  /// [ReportsUsageLimit]): on the account's own plan only, a provider's
-  /// limits being its own.
+  /// [ReportsUsageLimit]): the account's own plan's, or every ChatGPT
+  /// account of a provider out of quota; another provider's limits are
+  /// its own.
   DateTime? _limitResetsAt;
+
+  /// Whose limit [_limitResetsAt] is: '' the plan's, else the provider's
+  /// ([_providerKey]) whose accounts are out of quota.
+  String _limitOn = '';
   // What the agent does (Agent, Ask, Plan) and how its actions are
   // approved, picked apart: the CLI runs the approvals as they are, but in
   // Plan, which is a permission mode of its own (see _cliMode). Ask is only
@@ -473,6 +484,11 @@ class ClaudeCodeKernel
   /// The workspace [_cwd] is the folder of, as it is at this launch.
   KernelWorkspace? get _workspace => _context.workspace?.call();
 
+  /// When the messages sent while it works are taken up: as its workspace
+  /// would have them, else as the user set.
+  QueuedMessages get _queuedMessages =>
+      _workspace?.queuedMessages ?? QueuedMessages.current();
+
   /// Starts the process, if not yet, and waits until it is ready.
   Future<void> _ensureStarted() {
     if (_disposed) return Future.error(StateError('disposed'));
@@ -546,7 +562,7 @@ class ClaudeCodeKernel
       _launchedModel = custom != null ? _model : null;
       _launchedWindow = _autocompact;
       _launchedSuggestions = PromptSuggestions.current();
-      final sdkServers = ClaudeSdkTools.servers;
+      final sdkServers = ClaudeSdkTools.serversFor(_cwd);
       final transport = await _start(
         ClaudeLaunch(
           cwd: _cwd,
@@ -571,6 +587,8 @@ class ClaudeCodeKernel
               ? RemoteDrops.folders
               : [?PasteStore.directory],
           instructions: workspace?.instructions,
+          ownPrompt: workspace?.ownPrompt ?? false,
+          tools: workspace?.tools,
           models: switch (custom) {
             (final provider, _) => _requestedModels(provider),
             null => const [],
@@ -883,7 +901,12 @@ class ClaudeCodeKernel
       ItemUpserted(
         nextSeq,
         turn.id,
-        UserMessageItem(text: turn.text, queued: busy, images: turn.images),
+        UserMessageItem(
+          text: turn.text,
+          queued: busy,
+          images: turn.images,
+          sentAt: DateTime.now(),
+        ),
       ),
     );
     // Taken now, as the message was sent.
@@ -906,8 +929,7 @@ class ClaudeCodeKernel
   bool get _holds {
     final waiting = _queued.where((id) => !_held.containsKey(id));
     return waiting.any((id) => _sent[id]?.now ?? false) ||
-        (waiting.isNotEmpty &&
-            QueuedMessages.current() == QueuedMessages.afterTurn);
+        (waiting.isNotEmpty && _queuedMessages == QueuedMessages.afterTurn);
   }
 
   /// Gives the CLI the messages held for it, as far as [_holds] lets it: one
@@ -942,7 +964,7 @@ class ClaudeCodeKernel
         // CLI's own default).
         'priority': spareBackground
             ? 'now'
-            : switch (QueuedMessages.current()) {
+            : switch (_queuedMessages) {
                 QueuedMessages.afterTurn => 'later',
                 QueuedMessages.duringTurn => 'next',
               },
@@ -1711,7 +1733,10 @@ class ClaudeCodeKernel
         emitInfoChanged();
       case 'assistant':
         if (_countRequest(message)) _reportStats();
-        if (message['error'] == 'rate_limit') _limitSaid(message['message']);
+        if (message['error'] == 'rate_limit') {
+          _limitSaid(message['message']);
+          _accountsLimited();
+        }
         _translator.translate(message);
       case 'result':
         _result(message);
@@ -1823,6 +1848,7 @@ class ClaudeCodeKernel
               UserMessageItem(
                 text: _sent[id]?.text ?? '',
                 images: _sent[id]?.images ?? const [],
+                sentAt: DateTime.now(),
               ),
             ),
           );
@@ -1864,6 +1890,7 @@ class ClaudeCodeKernel
     if (message['is_error'] == true && message['result'] is String) {
       final error = message['result'] as String;
       if (_limitResetsAt == null) _limitSaid(error);
+      _accountsLimited();
       if (error.isNotEmpty) {
         final host = _remoteHost;
         emit(
@@ -1891,16 +1918,12 @@ class ClaudeCodeKernel
       // API time is the session's, too coarse for a speed).
       usage: switch (message['usage']) {
         final Map<Object?, Object?> usage => TurnUsage(
-          inputTokens:
-              [
-                'input_tokens',
-                'cache_creation_input_tokens',
-                'cache_read_input_tokens',
-              ].fold<int>(
-                0,
-                (sum, key) => sum + ((usage[key] as num?) ?? 0).toInt(),
-              ),
-          outputTokens: (usage['output_tokens'] as num?)?.toInt(),
+          inputTokens: [
+            'input_tokens',
+            'cache_creation_input_tokens',
+            'cache_read_input_tokens',
+          ].fold<int>(0, (sum, key) => sum + (claudeInt(usage[key]) ?? 0)),
+          outputTokens: claudeInt(usage['output_tokens']),
           costUsd: turnCost,
         ),
         _ => TurnUsage(costUsd: turnCost),
@@ -1994,21 +2017,44 @@ class ClaudeCodeKernel
   @override
   DateTime? get usageLimitResetsAt => usageLimitApplies ? _limitResetsAt : null;
 
-  /// A provider's model picked: the next message goes there, the plan's
-  /// limit no bar to it.
+  /// Another provider's model picked: the next message goes there, the
+  /// limit hit no bar to it. None hit, whether the one picked has a limit
+  /// known here.
   @override
-  bool get usageLimitApplies => _providerKey.isEmpty;
+  bool get usageLimitApplies =>
+      _limitResetsAt == null ? _hasLimit(_model) : _limitOn == _providerKey;
 
   @override
-  bool usageLimitAppliesTo(String model) => _providerKeyOf(model).isEmpty;
+  bool usageLimitAppliesTo(String model) => _hasLimit(model);
+
+  /// Whether [model] is held to a limit known here: the plan's, or its
+  /// ChatGPT accounts' quota; not another provider's.
+  bool _hasLimit(String? model) => switch (_providers.resolve(model)) {
+    (final provider, _) => provider.protocol.usesAccounts,
+    null => true,
+  };
 
   /// The usage limit is hit, to reset [at]; null, it no longer holds.
-  void _limitHit(DateTime? at) {
-    // A provider's limits are its own, and so is what it says of them.
-    if (at != null && _launchedProvider.isNotEmpty) return;
-    if (at == _limitResetsAt) return;
+  /// [on] is whose: '' the plan's, else the provider's of [_accountsLimited].
+  void _limitHit(DateTime? at, {String on = ''}) {
+    // A provider's limits are its own, and so is what it says of them:
+    // its accounts' quota is learned of them, not of the CLI.
+    if (at != null && on != _launchedProvider) return;
+    if (at == _limitResetsAt && on == _limitOn) return;
     _limitResetsAt = at;
+    _limitOn = on;
     emitInfoChanged();
+  }
+
+  /// A turn failed on a provider of ChatGPT accounts: if each one is out
+  /// of quota, its limit is hit, to reset as the first is back.
+  void _accountsLimited() {
+    if (_launchedProvider.isEmpty) return;
+    if (_custom case (final provider, _) when provider.protocol.usesAccounts) {
+      if ((_codex ?? codexService).backAt(provider) case final at?) {
+        _limitHit(at, on: _launchedProvider);
+      }
+    }
   }
 
   /// When the limit hit resets, as [said] (an error's text, or the
@@ -2275,10 +2321,7 @@ class ClaudeCodeKernel
     };
     if (id == null || usage == null) return false;
     final model = (body as Map)['model'] as String?;
-    int count(String key) => switch (usage[key]) {
-      final num n => n.toInt(),
-      _ => 0,
-    };
+    int count(String key) => claudeInt(usage[key]) ?? 0;
     final tokens = CacheTokens(
       read: count('cache_read_input_tokens'),
       written: count('cache_creation_input_tokens'),

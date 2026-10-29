@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../platform/data_dir.dart' show writeFileAtomically;
+import '../platform/event_log.dart' show appEvent;
 import 'jsonc.dart';
 
 /// Why a [JsoncFile] could not be changed: it does not parse now (the user
@@ -291,6 +292,14 @@ class JsoncFile extends ChangeNotifier {
       } else {
         _error = errors.first.describe(text);
       }
+    }
+    if (value != null && _value == null) {
+      // Every setting back to its default: worth knowing when it was not
+      // the user who emptied the file.
+      appEvent(
+        'settings',
+        '${p.basename(path)} read ${text == null ? 'missing' : 'empty'}',
+      );
     }
     if (_error != error || !jsonEquals(_value, value)) notifyListeners();
   }

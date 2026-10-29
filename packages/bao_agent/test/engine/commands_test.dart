@@ -44,18 +44,35 @@ void main() {
           containsAll([
             'compact',
             'context',
-            'cost',
+            'usage',
             'init',
-            'review',
+            'code-review',
+            'loop',
+            'clear',
             'goal',
             'fix',
           ]),
         );
+        // The project's first, then the bundled skills, then the agent's
+        // own commands.
+        expect(names.first, 'fix');
+        expect(names.indexOf('dataviz'), 1);
+        expect(names.indexOf('loop'), lessThan(names.indexOf('autocompact')));
+        expect(names.indexOf('autocompact'), lessThan(names.indexOf('init')));
+        expect(names, isNot(contains('cost')));
         final init = await h.request('initialize');
         final commands = init['commands'] as List;
         final fix = commands.cast<Map>().firstWhere((c) => c['name'] == 'fix');
         expect(fix['description'], 'Fix an issue (project)');
         expect(fix['argumentHint'], '<number>');
+        final usage = commands.cast<Map>().firstWhere(
+          (c) => c['name'] == 'usage',
+        );
+        expect(usage['aliases'], ['cost', 'stats']);
+        expect(usage['builtin'], isTrue);
+        final skills = h.of('system', 'init').single['skills'] as List;
+        expect(skills, containsAll(['dataviz', 'code-review', 'loop']));
+        expect(skills, isNot(contains('init')));
       },
     );
 
@@ -107,36 +124,51 @@ void main() {
       expect(security, contains('security'));
     });
 
-    test('/cost, /context and /todos answer at once', () async {
+    test(
+      '/usage (as /cost), /context and the settings answer at once',
+      () async {
+        h = await Harness.start();
+        h.model.script.add(Reply.text('ok'));
+        await h.turn('work');
+        final asked = h.model.requests.length;
+        await h.turn('/cost');
+        expect(
+          said().last,
+          allOf(contains('Total cost:'), contains('Usage by model:')),
+        );
+        await h.turn('/context');
+        expect(
+          said().last,
+          allOf(contains('## Context Usage'), contains('System prompt')),
+        );
+        await h.turn('/model sonnet');
+        expect(said().last, contains('claude-sonnet'));
+        expect(h.engine.session.resolvedModel, contains('sonnet'));
+        await h.turn('/effort low');
+        expect(h.engine.session.effort, 'low');
+        await h.turn('/effort auto');
+        expect(h.engine.session.effort, isNull);
+        await h.turn('/output-style');
+        expect(
+          said().last,
+          allOf(contains('Explanatory'), contains('Learning')),
+        );
+        await h.turn('/output-style concise');
+        expect(h.engine.session.outputStyle?.name, 'Concise');
+        await h.turn('/rename Apples');
+        expect(h.engine.session.store.title, 'Apples');
+        expect(h.model.requests, hasLength(asked));
+      },
+    );
+
+    test('/clear starts again from nothing', () async {
       h = await Harness.start();
-      h.model.script.addAll([
-        Reply.tool('TodoWrite', {
-          'todos': [
-            {
-              'content': 'Write it',
-              'status': 'in_progress',
-              'activeForm': 'Writing it',
-            },
-          ],
-        }),
-        Reply.text('ok'),
-        Reply.text(''),
-      ]);
-      await h.turn('work');
-      final asked = h.model.requests.length;
-      await h.turn('/cost');
-      expect(
-        said().last,
-        allOf(contains('Total cost:'), contains('Usage by model:')),
-      );
-      await h.turn('/context');
-      expect(
-        said().last,
-        allOf(contains('## Context Usage'), contains('System prompt')),
-      );
-      await h.turn('/todos');
-      expect(said().last, '1 todo:\n◐ Write it');
-      expect(h.model.requests, hasLength(asked));
+      h.model.script.addAll([Reply.text('first'), Reply.text('second')]);
+      await h.turn('remember APPLES');
+      await h.turn('/clear');
+      await h.turn('hello');
+      expect(sentIn(h.model.turns.last), isNot(contains('APPLES')));
+      expect(sentIn(h.model.turns.last), contains('hello'));
     });
 
     test(
@@ -318,7 +350,9 @@ void main() {
       );
       final records = [
         for (final l in kept())
-          if (l['type'] == 'attachment') l['attachment'] as Map,
+          if (l['type'] == 'attachment' &&
+              (l['attachment'] as Map)['type'] != 'total_tokens_reminder')
+            l['attachment'] as Map,
       ];
       expect(records.first, containsPair('sentinel', true));
       expect(

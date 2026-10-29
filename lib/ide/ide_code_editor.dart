@@ -21,7 +21,6 @@ import '../keybindings/keybinding_service.dart';
 import '../l10n/command_titles.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
-import '../theme/code_font.dart';
 import '../theme/workbench_theme.dart' hide ColorScheme;
 import 'builtin_formatting.dart';
 import 'editor_word_wrap.dart';
@@ -157,8 +156,8 @@ class IdeCodeEditor extends StatefulWidget {
   /// null.
   final IdeCodeHighlights? highlights;
 
-  /// Sized as the window's text is ([AppFonts.uiCodeStyle]), not by the
-  /// code size: for a file shown beside the chat.
+  /// Sized as the window's code among its text is ([AppFonts.uiCodeStyle]),
+  /// not by the code size: for a file shown beside the chat.
   final bool interfaceSized;
 
   /// Formats its text with the project's language servers, shared with
@@ -716,9 +715,7 @@ class IdeCodeEditorState extends State<IdeCodeEditor> {
       );
     }
 
-    final text = widget.interfaceSized
-        ? Builder(builder: surface)
-        : CodeTextScale(child: Builder(builder: surface));
+    final text = Builder(builder: surface);
     if (widget.bare) return text;
     return Stack(
       children: [

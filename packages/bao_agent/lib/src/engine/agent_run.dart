@@ -1,3 +1,4 @@
+import '../hooks/hooks.dart';
 import '../tools/file_state.dart';
 import 'session.dart';
 
@@ -12,8 +13,9 @@ class AgentRun {
     this.agentType,
     String? cwd,
     this.modeOverride,
+    this.effort,
     ReadFileState? readFiles,
-  }) : cwd = cwd ?? session.cwd,
+  }) : _cwd = cwd ?? session.cwd,
        readFiles = readFiles ?? ReadFileState();
 
   final AgentSession session;
@@ -28,10 +30,28 @@ class AgentRun {
   final String? agentType;
 
   /// Where its shell is: a `cd` in one command holds for the next.
-  String cwd;
+  String get cwd => _cwd;
+  String _cwd;
+
+  set cwd(String to) {
+    final from = _cwd;
+    _cwd = to;
+    if (from != to && isMain) {
+      session.hooks.notify(HookEvent.cwdChanged, {
+        'old_cwd': from,
+        'new_cwd': to,
+      });
+    }
+  }
 
   /// Its own permission mode, if its definition sets one.
   String? modeOverride;
+
+  /// Its own effort, if it was given one.
+  final String? effort;
+
+  /// Whether what it says is kept from the host (a hook's agent).
+  bool quiet = false;
 
   final ReadFileState readFiles;
 

@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 
 import '../../ide/ide_hover.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show WorkbenchThemeScope, themeColors;
 import '../../workspace/editor_launcher.dart';
@@ -187,6 +188,7 @@ class _MarkdownViewState extends State<MarkdownView> {
   static List<md.Node> _parse(String text, {required bool keep}) {
     if (_parsed.remove(text) case final nodes?) return _parsed[text] = nodes;
     final nodes = MarkdownView._document.parse(text);
+    if (endsInOpenFence(text)) _markWriting(nodes);
     if (keep) {
       _parsed[text] = nodes;
       if (_parsed.length > _parsedKept) _parsed.remove(_parsed.keys.first);
@@ -360,6 +362,44 @@ List<String> _cut(String data, int from) {
 }
 
 const _segmentLength = 2000;
+
+/// Whether [text] ends in a fence not closed: a code block still being
+/// written, as a reply streams in.
+@visibleForTesting
+bool endsInOpenFence(String text) {
+  String? fence;
+  for (final line in text.split('\n')) {
+    final match = _fenceLine.firstMatch(line);
+    if (match == null) continue;
+    if (fence == null) {
+      // A backtick fence's info has no backtick: else inline code.
+      if (match[1]![0] == '~' || !(match[2] ?? '').contains('`')) {
+        fence = match[1];
+      }
+    } else if (match[2] == null &&
+        match[1]![0] == fence[0] &&
+        match[1]!.length >= fence.length) {
+      fence = null;
+    }
+  }
+  return fence != null;
+}
+
+/// Marks the last code block of [nodes], the fence [endsInOpenFence] found
+/// open, as still being written.
+void _markWriting(List<md.Node> nodes) {
+  md.Element? last;
+  void visit(md.Node node) {
+    if (node is! md.Element) return;
+    if (node.tag == 'pre') last = node;
+    node.children?.forEach(visit);
+  }
+
+  nodes.forEach(visit);
+  last?.attributes[_writingAttribute] = '';
+}
+
+const _writingAttribute = 'data-writing';
 
 final _linkDefinition = RegExp(r'^ {0,3}\[[^\]]+\]:', multiLine: true);
 
@@ -609,7 +649,10 @@ Widget? _block(md.Node node, TextStyle style, MarkdownOptions options) {
       // `python title="a.py"`: the language is the first word.
       final name = language?.trim().split(RegExp(r'\s')).first;
       if (name?.toLowerCase() == 'mermaid') {
-        return MermaidCodeBlock(code: body);
+        return MermaidCodeBlock(
+          code: body,
+          writing: node.attributes.containsKey(_writingAttribute),
+        );
       }
       return MarkdownCodeBlock(
         code: body,
@@ -672,7 +715,7 @@ class _List extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
-                  width: ordered ? 24 : 18,
+                  width: _isTask(item) ? 22 : (ordered ? 24 : 18),
                   child: _marker(item, ordered ? '${start + i}.' : '•'),
                 ),
                 Expanded(child: _itemBody(item)),
@@ -683,17 +726,43 @@ class _List extends StatelessWidget {
     );
   }
 
+  static bool _isTask(md.Element item) => switch (item.children?.firstOrNull) {
+    md.Element(tag: 'input') => true,
+    _ => false,
+  };
+
   Widget _marker(md.Element item, String text) {
     final checkbox = item.children?.firstOrNull;
     if (checkbox is md.Element && checkbox.tag == 'input') {
       final checked = checkbox.attributes['checked'] != null;
-      final box = Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Icon(
-          checked ? Icons.check_box_rounded : Icons.check_box_outline_blank,
-          size: 14,
-          color: checked ? AppColors.added : AppColors.textMuted,
+      // In the links' color, as tall as a capital and centred on the line.
+      final accent = AppColors.accent;
+      // Its own size, at the start of the marker's column (which is wider).
+      final square = Container(
+        width: 15,
+        height: 15,
+        margin: const EdgeInsets.only(top: 3.5),
+        decoration: BoxDecoration(
+          color: checked ? accent : null,
+          border: Border.all(
+            color: checked ? accent : accent.withValues(alpha: 0.7),
+            width: 1.3,
+          ),
+          borderRadius: BorderRadius.circular(3.5),
         ),
+        child: checked
+            ? Icon(
+                Codicons.check,
+                size: 13,
+                color: AppColors.conversationSurface,
+              )
+            : null,
+      );
+      final box = Align(
+        alignment: AlignmentDirectional.topStart,
+        widthFactor: 1,
+        heightFactor: 1,
+        child: square,
       );
       final toggle = options.onToggleTask;
       final task = int.tryParse(checkbox.attributes[_taskAttribute] ?? '');

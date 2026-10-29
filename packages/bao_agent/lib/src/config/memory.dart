@@ -7,7 +7,7 @@ import 'frontmatter.dart';
 import 'paths.dart';
 
 /// Whose a memory file is.
-enum MemoryType { managed, user, project, local }
+enum MemoryType { managed, user, project, local, auto }
 
 /// One memory file's instructions, its imports filled in.
 class MemoryFile {
@@ -30,14 +30,17 @@ class MemoryFile {
     MemoryType.local =>
       "the user's own for this project, kept out of its "
           'repository',
+    MemoryType.auto =>
+      'your own memory of this project, kept across conversations',
   };
 }
 
 /// The memory files that apply to a project, as Claude Code finds them:
 /// the organisation's, the user's (`~/.claude/CLAUDE.md` and its rules), and
 /// from the root down to the project those of each folder (`CLAUDE.md`,
-/// `.claude/CLAUDE.md`, `.claude/rules/*.md`, `CLAUDE.local.md`). `@path`
-/// imports are read in, five deep at most.
+/// `.claude/CLAUDE.md`, `.claude/rules/*.md`, `CLAUDE.local.md`), then the
+/// agent's own memory index. The files a file imports (`@path`, five deep
+/// at most) follow it, each a file of its own.
 class MemoryLoader {
   MemoryLoader(this.paths);
 
@@ -45,12 +48,17 @@ class MemoryLoader {
 
   static const maxImportDepth = 5;
 
+  /// The lines of the agent's memory index read, at most.
+  static const maxAutoMemoryLines = 200;
+
   /// The files for [cwd] and the [additional] folders (whose own files are
-  /// read when [readAdditional]).
+  /// read when [readAdditional]), and the agent's memory index at
+  /// [autoMemory].
   List<MemoryFile> load(
     String cwd, {
     List<String> additional = const [],
     bool readAdditional = false,
+    String? autoMemory,
   }) {
     final files = <MemoryFile>[];
     final seen = <String>{};
@@ -59,9 +67,16 @@ class MemoryLoader {
       if (!file.existsSync()) return;
       final real = _real(path);
       if (!seen.add(real)) return;
-      final content = expand(path, file.readAsStringSync(), {real});
-      if (content.trim().isEmpty) return;
-      files.add(MemoryFile(path, type, content.trim()));
+      final String text;
+      try {
+        text = file.readAsStringSync();
+      } on FileSystemException {
+        return;
+      }
+      if (text.trim().isNotEmpty) {
+        files.add(MemoryFile(path, type, text.trim()));
+      }
+      files.addAll(imports(path, text, type, seen));
     }
 
     void addRules(String folder, MemoryType type) {
@@ -80,9 +95,12 @@ class MemoryLoader {
         final text = rule.readAsStringSync();
         final front = Frontmatter.parse(text);
         final globs = front.list('paths') ?? front.list('globs') ?? const [];
-        final content = expand(rule.path, front.body, {real}).trim();
+        final content = front.body.trim();
         if (content.isEmpty) continue;
         files.add(MemoryFile(rule.path, type, content, globs: globs));
+        if (globs.isEmpty) {
+          files.addAll(imports(rule.path, content, type, seen));
+        }
       }
     }
 
@@ -111,7 +129,54 @@ class MemoryLoader {
         add(p.join(dir, 'CLAUDE.local.md'), MemoryType.local);
       }
     }
+    if (autoMemory != null && File(autoMemory).existsSync()) {
+      try {
+        final lines = File(autoMemory).readAsLinesSync();
+        final text = lines.take(maxAutoMemoryLines).join('\n').trim();
+        if (text.isNotEmpty) {
+          files.add(MemoryFile(autoMemory, MemoryType.auto, text));
+        }
+      } on FileSystemException {
+        // Left out.
+      }
+    }
     return files;
+  }
+
+  /// The files [text] (of the file at [path]) imports, and theirs in
+  /// turn, each as a file of its own: those not in [seen] yet.
+  List<MemoryFile> imports(
+    String path,
+    String text,
+    MemoryType type,
+    Set<String> seen, [
+    int depth = 0,
+  ]) {
+    if (depth >= maxImportDepth || !text.contains('@')) return const [];
+    final out = <MemoryFile>[];
+    var inFence = false;
+    for (final line in text.split('\n')) {
+      if (line.trimLeft().startsWith('```')) inFence = !inFence;
+      if (inFence || !line.contains('@')) continue;
+      for (final match in _import.allMatches(_withoutCode(line))) {
+        final target = _resolve(path, match[1]!);
+        if (target == null) continue;
+        final file = File(target);
+        if (!file.existsSync()) continue;
+        if (!seen.add(_real(target))) continue;
+        final String imported;
+        try {
+          imported = file.readAsStringSync();
+        } on FileSystemException {
+          continue;
+        }
+        if (imported.trim().isNotEmpty) {
+          out.add(MemoryFile(target, type, imported.trim()));
+        }
+        out.addAll(imports(target, imported, type, seen, depth + 1));
+      }
+    }
+    return out;
   }
 
   /// The instructions under [folder] (below the project) that apply once

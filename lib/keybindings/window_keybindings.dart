@@ -5,6 +5,10 @@
 // too, where no editor is open), Switch Window… (⌃W on macOS), Toggle Full
 // Screen (F11; ⌃⌘F on macOS, as its View menu has it).
 //
+// Zoom In, Zoom Out and Reset Zoom (⌘= / ⌘- / ⌘numpad0, Ctrl elsewhere)
+// move the window's scale, the Appearance settings' Interface Size, by
+// [CodeFont.uiScaleStep] at a time.
+//
 // Show Chat Window is BaoCode's: the chat's window back from an IDE's. It
 // has no keys of its own: ⌘0 / Ctrl+0 are Focus Side Bar's.
 
@@ -18,6 +22,9 @@ abstract final class WindowCommandIds {
   static const switchWindow = 'workbench.action.switchWindow';
   static const showChat = 'baocode.window.showChat';
   static const toggleFullScreen = 'workbench.action.toggleFullScreen';
+  static const zoomIn = 'workbench.action.zoomIn';
+  static const zoomOut = 'workbench.action.zoomOut';
+  static const zoomReset = 'workbench.action.zoomReset';
 }
 
 final List<CommandInfo> windowCommands = [
@@ -34,6 +41,9 @@ final List<CommandInfo> windowCommands = [
     'Toggle Full Screen',
     category: 'View',
   ),
+  const CommandInfo(WindowCommandIds.zoomIn, 'Zoom In', category: 'View'),
+  const CommandInfo(WindowCommandIds.zoomOut, 'Zoom Out', category: 'View'),
+  const CommandInfo(WindowCommandIds.zoomReset, 'Reset Zoom', category: 'View'),
 ];
 
 final List<KeybindingEntry> windowKeybindings = [
@@ -66,5 +76,41 @@ final List<KeybindingEntry> windowKeybindings = [
     key: 'f11',
     mac: 'ctrl+cmd+f',
     command: WindowCommandIds.toggleFullScreen,
+  ),
+  // As VS Code has them: ⌘= and ⌘+ (shifted) and the keypad's.
+  const KeybindingEntry(
+    key: 'ctrl+=',
+    mac: 'cmd+=',
+    command: WindowCommandIds.zoomIn,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+shift+=',
+    mac: 'shift+cmd+=',
+    command: WindowCommandIds.zoomIn,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+numpad_add',
+    mac: 'cmd+numpad_add',
+    command: WindowCommandIds.zoomIn,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+-',
+    mac: 'cmd+-',
+    command: WindowCommandIds.zoomOut,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+shift+-',
+    mac: 'shift+cmd+-',
+    command: WindowCommandIds.zoomOut,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+numpad_subtract',
+    mac: 'cmd+numpad_subtract',
+    command: WindowCommandIds.zoomOut,
+  ),
+  const KeybindingEntry(
+    key: 'ctrl+numpad0',
+    mac: 'cmd+numpad0',
+    command: WindowCommandIds.zoomReset,
   ),
 ];

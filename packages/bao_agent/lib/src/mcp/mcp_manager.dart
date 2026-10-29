@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../config/settings.dart';
 import '../engine/session.dart';
+import '../hooks/hooks.dart';
 import '../util/cancel.dart';
 import '../util/json.dart';
 import 'jsonrpc.dart';
@@ -374,6 +375,21 @@ class McpManager {
           ],
         };
       case 'elicitation/create':
+        final asked = {
+          'mcp_server_name': server.name,
+          'message': params['message'],
+          'mode': params['mode'] ?? (params['url'] != null ? 'url' : 'form'),
+          'requested_schema': ?params['requestedSchema'],
+          'url': ?params['url'],
+        };
+        if (session.hooks.has(HookEvent.elicitation)) {
+          final hook = await session.hooks.run(
+            HookEvent.elicitation,
+            asked,
+            query: server.name,
+          );
+          if (hook.blocked) return {'action': 'decline'};
+        }
         final answer = await session.hostRequest('elicitation', {
           'mcp_server_name': server.name,
           'message': params['message'],
@@ -382,6 +398,11 @@ class McpManager {
           'url': ?params['url'],
           'elicitation_id': ?params['elicitationId'],
         });
+        session.hooks.notify(HookEvent.elicitationResult, {
+          'mcp_server_name': server.name,
+          'action': answer['action'] ?? 'cancel',
+          'content': ?answer['content'],
+        }, query: server.name);
         return {
           'action': answer['action'] ?? 'cancel',
           if (answer['content'] != null) 'content': answer['content'],

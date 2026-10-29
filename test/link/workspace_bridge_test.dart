@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:bao_link/bao_link.dart';
 import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
 import 'package:baocode/chat/chat_session.dart' show ComposerMessage;
 import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/bots/bot_folders.dart';
+import 'package:baocode/bots/bots.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/link/chat_codec.dart';
@@ -87,18 +91,11 @@ void main() {
     await pumpEventQueue();
     id = WorkspaceBridge.idOf(thread);
 
-    final (a, b) = MemoryLinkSocket.pair();
-    final desktop = LinkIdentity.generate();
-    final accepted = SecureChannel.accept(b, identity: desktop);
-    final connected = await SecureChannel.connect(
-      a,
-      identity: LinkIdentity.generate(),
-      serverKey: desktop.publicKey,
-    );
-    phone = LinkPeer(connected);
+    final LinkPeer desktop;
+    (phone, desktop) = await peers();
     bridge = WorkspaceBridge(
       workspace: workspace,
-      peer: LinkPeer(await accepted),
+      peer: desktop,
       device: () => const DeviceInfo(name: 'Mac', kind: 'mac', system: 'macOS'),
       throttle: const Duration(milliseconds: 10),
     )..start();
@@ -288,4 +285,202 @@ void main() {
       ),
     );
   });
+
+  group('edit', () {
+    test('an answer is not a message to edit', () async {
+      await open();
+      expect(
+        bridge.handle(LinkMethods.edit, {
+          'session': id,
+          'index': 1,
+          'text': 'again',
+        }),
+        throwsA(
+          isA<LinkRemoteException>().having(
+            (e) => e.code,
+            'code',
+            LinkErrors.notFound,
+          ),
+        ),
+      );
+    });
+
+    test('the index is counted from the phone\'s first item', () async {
+      // a5, u6, a6: the phone's 1 is the session's u6.
+      final first = await open(3);
+      expect(texts(first.items), ['-', 'u6', '-']);
+      await bridge.handle(LinkMethods.edit, {
+        'session': id,
+        'index': 1,
+        'text': 'u6 again',
+      });
+      // Counted from the session's first, its 1 would be an answer.
+      expect(
+        bridge.handle(LinkMethods.edit, {
+          'session': id,
+          'index': 0,
+          'text': 'a5 is no message',
+        }),
+        throwsA(isA<LinkRemoteException>()),
+      );
+    });
+  });
+
+  group('image', () {
+    test('a file that is not a picture is refused', () async {
+      expect(
+        bridge.handle(LinkMethods.image, {'project': '/p', 'path': 'a.txt'}),
+        throwsA(isA<LinkRemoteException>()),
+      );
+    });
+
+    test('a picture not there is not found', () async {
+      expect(
+        bridge.handle(LinkMethods.image, {'project': '/p', 'path': 'x.png'}),
+        throwsA(
+          isA<LinkRemoteException>().having(
+            (e) => e.code,
+            'code',
+            LinkErrors.notFound,
+          ),
+        ),
+      );
+    });
+  });
+
+  test('a bot\'s agent: its model the user picks, not how it asks', () async {
+    late final KernelDescriptor descriptor;
+    descriptor = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Icons.auto_awesome_rounded,
+      description: '',
+      create: (context) =>
+          ClaudeCodeKernel(descriptor, context, start: (_) async => FakeCli()),
+    );
+    final workspace = Workspace(kernels: [descriptor]);
+    addTearDown(workspace.dispose);
+    final bots = Bots(workspace: workspace, folders: MemoryBotFolders());
+    await bots.start();
+    addTearDown(bots.dispose);
+    final (_, desktop) = await peers();
+    final withBots = WorkspaceBridge(
+      workspace: workspace,
+      peer: desktop,
+      device: () => const DeviceInfo(name: 'Mac', kind: 'mac', system: 'macOS'),
+      bots: bots,
+    );
+    addTearDown(withBots.dispose);
+    final assistant = bots.bots.single;
+    final thread = bots.threadFor(assistant);
+    final session = WorkspaceBridge.idOf(thread);
+    expect(
+      withBots.handle(LinkMethods.choose, {
+        'session': session,
+        'kind': 'permission',
+        'option': 'bypassPermissions',
+      }),
+      throwsA(
+        isA<LinkRemoteException>().having(
+          (e) => e.code,
+          'code',
+          LinkErrors.unsupported,
+        ),
+      ),
+    );
+    final models = thread.session.models!;
+    final other = models.options.firstWhere((o) => o != models.selected);
+    await withBots.handle(LinkMethods.choose, {
+      'session': session,
+      'kind': 'model',
+      'option': other.id,
+    });
+    expect(bots.byId('assistant')!.model, other.id);
+    expect(
+      withBots.state().bots.single,
+      isA<LinkBot>().having((b) => b.model, 'model', other.label),
+    );
+  });
+
+  test('a bot\'s picture: sent with it, asked for, kept', () async {
+    final workspace = Workspace();
+    addTearDown(workspace.dispose);
+    final bots = Bots(workspace: workspace, folders: MemoryBotFolders());
+    await bots.start();
+    addTearDown(bots.dispose);
+    final (_, desktop) = await peers();
+    final withBots = WorkspaceBridge(
+      workspace: workspace,
+      peer: desktop,
+      device: () => const DeviceInfo(name: 'Mac', kind: 'mac', system: 'macOS'),
+      bots: bots,
+    );
+    addTearDown(withBots.dispose);
+    final jpeg = base64.encode([255, 216, 255, 1, 2, 3]);
+    final made = (await withBots.handle(LinkMethods.saveBot, {
+      'name': 'Mia',
+      'identity': '',
+      'abilities': <String>[],
+      'avatarImage': {'data': jpeg, 'type': 'image/jpeg'},
+    }) as Map)['bot'];
+    final mia = LinkBot.fromJson(made as Map<String, Object?>);
+    expect(mia.hasAvatarImage, isTrue);
+    expect(mia.avatar, endsWith('.jpg'));
+    expect(await withBots.handle(LinkMethods.botAvatar, {'bot': mia.id}), {
+      'type': 'image/jpeg',
+      'data': jpeg,
+    });
+    // Kept by its name as other things change.
+    await withBots.handle(LinkMethods.saveBot, {
+      'bot': mia.id,
+      'name': 'Mia B.',
+      'avatar': mia.avatar,
+      'identity': '',
+      'abilities': <String>[],
+    });
+    expect(bots.byId(mia.id)!.avatar, mia.avatar);
+    // What is not a picture, or too large, is refused.
+    for (final image in [
+      {'data': jpeg, 'type': 'text/html'},
+      {
+        'data': base64.encode(List.filled(LinkLimits.avatar + 1, 0)),
+        'type': 'image/png',
+      },
+    ]) {
+      expect(
+        withBots.handle(LinkMethods.saveBot, {
+          'bot': mia.id,
+          'name': 'Mia',
+          'identity': '',
+          'abilities': <String>[],
+          'avatarImage': image,
+        }),
+        throwsA(isA<LinkRemoteException>()),
+      );
+    }
+    // None for one with an emoji.
+    expect(
+      withBots.handle(LinkMethods.botAvatar, {'bot': 'assistant'}),
+      throwsA(
+        isA<LinkRemoteException>().having(
+          (e) => e.code,
+          'code',
+          LinkErrors.notFound,
+        ),
+      ),
+    );
+  });
+}
+
+/// A phone's end and a desktop's, connected.
+Future<(LinkPeer, LinkPeer)> peers() async {
+  final (a, b) = MemoryLinkSocket.pair();
+  final desktop = LinkIdentity.generate();
+  final accepted = SecureChannel.accept(b, identity: desktop);
+  final connected = await SecureChannel.connect(
+    a,
+    identity: LinkIdentity.generate(),
+    serverKey: desktop.publicKey,
+  );
+  return (LinkPeer(connected), LinkPeer(await accepted));
 }

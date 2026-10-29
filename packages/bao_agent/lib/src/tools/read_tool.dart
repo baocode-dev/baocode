@@ -46,7 +46,7 @@ class ReadTool extends Tool {
 - An image (PNG, JPG, GIF, WebP) comes back as the picture itself.
 - A PDF comes back as the document; for a long one, ask for some pages, at most 20 at a time (pages: "1-5").
 - A notebook comes back cell by cell, each with what it printed.
-- A folder cannot be read: list it with `ls` through Bash, or with Glob.
+- A folder cannot be read: list it with `ls` through Bash.
 - Several files that may matter can be read at once, in calls side by side in one reply.
 - An empty file comes back as a note saying so.''';
 
@@ -60,10 +60,14 @@ class ReadTool extends Tool {
       },
       'offset': {
         'type': 'integer',
+        'minimum': 0,
+        'maximum': 9007199254740991,
         'description': 'The first line to give, counting from 1: only for a file too long to take whole',
       },
       'limit': {
         'type': 'integer',
+        'exclusiveMinimum': 0,
+        'maximum': 9007199254740991,
         'description':
             'How many lines to give: only for a file too long to take whole',
       },
@@ -122,7 +126,7 @@ class ReadTool extends Tool {
     if (type == FileSystemEntityType.directory) {
       return ToolOutput.error(
         'EISDIR: $path is a directory, not a file. Use `ls` through the '
-        'Bash tool, or the Glob tool, to see what is in it.',
+        'Bash tool to see what is in it.',
       );
     }
     if (type == FileSystemEntityType.notFound) {
@@ -142,7 +146,7 @@ class ReadTool extends Tool {
       return ToolOutput.error(
         'The file is ${(length / 1024).round()}KB, over the '
         '${maxBytes ~/ 1024}KB that can be read at once. Read a part of it '
-        'with offset and limit, or find what you need in it with Grep.',
+        'with offset and limit, or find what you need in it with rg through Bash.',
       );
     }
     final bytes = file.readAsBytesSync();
@@ -156,9 +160,8 @@ class ReadTool extends Tool {
     final decoded = decodeText(bytes);
     final text = decoded.text;
     final modified = file.lastModifiedSync();
+    // A final newline is followed by an empty last line, shown as such.
     final lines = text.isEmpty ? <String>[] : text.split('\n');
-    // A final newline ends the last line.
-    if (lines.isNotEmpty && lines.last.isEmpty) lines.removeLast();
     final total = lines.length;
     // `offset` is a line number, 1 the first: 0 is taken as 1.
     final start = offset == null || offset <= 1 ? 0 : offset - 1;
@@ -204,7 +207,7 @@ class ReadTool extends Tool {
       return ToolOutput.error(
         'Those lines come to about ${body.length ~/ 4} tokens, over the '
         '$maxTokens that can be read at once. Read fewer with offset and '
-        'limit, or find what you need with Grep.',
+        'limit, or find what you need with rg through Bash.',
       );
     }
     final note = end < total && limit == null

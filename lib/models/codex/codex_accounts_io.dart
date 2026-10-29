@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import '../model_provider.dart';
 import '../model_providers.dart';
 import '../model_runtime.dart' show UpstreamException;
+import '../proxy/prompt_cache_key.dart';
 import '../secret_store.dart';
 import '../upstream.dart';
 import 'codex_api.dart';
@@ -38,7 +39,7 @@ class CodexAccounts extends CodexService {
 
   final CodexBalancer _balancer = CodexBalancer();
   final Map<String, ({String access, DateTime expiresAt})> _tokens = {};
-  final Map<String, Future<String>> _refreshing = {};
+  final Map<String, _AccountRequests> _requests = {};
   final Map<String, CodexUsage> _usage = {};
   final Map<String, String> _errors = {};
   final Map<String, DateTime> _limited = {};
@@ -85,7 +86,7 @@ class CodexAccounts extends CodexService {
     return until;
   }
 
-  /// Whether account [accountId] is signed out: to be signed in again.
+  @override
   bool signedOut(String providerId, String accountId) =>
       _signedOut.contains(_key(providerId, accountId));
 
@@ -117,6 +118,28 @@ class CodexAccounts extends CodexService {
     session: session,
     used: (account) => usage(provider.id, account.id)?.mostUsed,
   );
+
+  @override
+  ProviderAccount? accountFor(ModelProvider provider, {String? session}) =>
+      _balancer.peek(
+        provider.id,
+        available(provider),
+        provider.balance,
+        session: session == null ? null : promptCacheKeyOf(session),
+        used: (account) => usage(provider.id, account.id)?.mostUsed,
+      );
+
+  @override
+  DateTime? backAt(ModelProvider provider) {
+    DateTime? first;
+    for (final account in provider.accounts) {
+      if (!account.enabled || signedOut(provider.id, account.id)) continue;
+      final until = limitedUntil(provider.id, account.id);
+      if (until == null) return null;
+      if (first == null || until.isBefore(first)) first = until;
+    }
+    return first;
+  }
 
   /// Account [account] out of quota until [until].
   void markLimited(
@@ -172,25 +195,45 @@ class CodexAccounts extends CodexService {
         held.expiresAt.isAfter(_now().add(const Duration(minutes: 1)))) {
       return held.access;
     }
-    if (_refreshing[key] case final running?) return running;
-    // Not `=> remove(key)`: that is this future, which would wait on itself.
-    final refresh = _refresh(provider.id, account).whenComplete(() {
-      _refreshing.remove(key);
+    final requests = _requests.putIfAbsent(key, _AccountRequests.new);
+    if (requests.token case final running?) return running;
+    final refresh = _refresh(provider.id, account, requests).whenComplete(() {
+      requests.token = null;
     });
-    _refreshing[key] = refresh;
+    requests.token = refresh;
     return refresh;
   }
 
-  Future<String> _refresh(String providerId, ProviderAccount account) async {
+  bool _current(
+    String providerId,
+    String accountId,
+    _AccountRequests requests,
+  ) =>
+      identical(_requests[_key(providerId, accountId)], requests) &&
+      _providers().provider(providerId)?.account(accountId) != null;
+
+  Future<String> _refresh(
+    String providerId,
+    ProviderAccount account,
+    _AccountRequests requests,
+  ) async {
     final key = _key(providerId, account.id);
     final ref = ModelProvider.accountRefFor(providerId, account.id);
     final secrets = _providers().secrets;
+    void checkCurrent() {
+      if (!_current(providerId, account.id, requests)) {
+        throw const CodexException('The account changed.');
+      }
+    }
+
     String? refreshToken;
     try {
       refreshToken = await secrets.read(ref);
     } on SecretStoreException catch (error) {
+      checkCurrent();
       throw _fail(key, 'The token could not be read: $error');
     }
+    checkCurrent();
     if (refreshToken == null || refreshToken.isEmpty) {
       throw _fail(key, 'Signed out: sign in again.', signedOut: true);
     }
@@ -198,6 +241,7 @@ class CodexAccounts extends CodexService {
       endpoints.token,
       codexRefreshForm(refreshToken),
     );
+    checkCurrent();
     if (status >= 400) {
       final message = upstreamErrorMessage(status, text);
       // The refresh token refused (used, expired, revoked): only signing
@@ -221,6 +265,7 @@ class CodexAccounts extends CodexService {
       } on SecretStoreException catch (error) {
         debugPrint('Refresh token of ${account.id} not kept: $error');
       }
+      checkCurrent();
     }
     _tokens[key] = (access: tokens.access, expiresAt: tokens.expiresAt);
     _signedOut.remove(key);
@@ -324,6 +369,9 @@ class CodexAccounts extends CodexService {
         accountId: identity.accountId,
       ),
     };
+    final key = _key(providerId, account.id);
+    // Requests from before this sign-in must not change its token or quota.
+    _requests.remove(key);
     try {
       await providers.secrets.write(
         ModelProvider.accountRefFor(providerId, account.id),
@@ -332,7 +380,7 @@ class CodexAccounts extends CodexService {
     } on SecretStoreException catch (error) {
       throw CodexException('The token could not be kept: $error');
     }
-    final key = _key(providerId, account.id);
+    _requests.remove(key);
     _tokens[key] = (access: tokens.access, expiresAt: tokens.expiresAt);
     _signedOut.remove(key);
     _errors.remove(key);
@@ -347,6 +395,8 @@ class CodexAccounts extends CodexService {
 
   @override
   Future<void> removeAccount(String providerId, String accountId) async {
+    final key = _key(providerId, accountId);
+    _requests.remove(key);
     final providers = _providers();
     if (providers.provider(providerId) case final provider?) {
       await providers.save(
@@ -365,7 +415,7 @@ class CodexAccounts extends CodexService {
     } on SecretStoreException catch (error) {
       debugPrint('Token of $accountId not removed: $error');
     }
-    final key = _key(providerId, accountId);
+    _requests.remove(key);
     _tokens.remove(key);
     _usage.remove(key);
     _errors.remove(key);
@@ -378,16 +428,74 @@ class CodexAccounts extends CodexService {
   // --- Quota and models ------------------------------------------------------
 
   @override
-  Future<void> refreshUsage(ModelProvider provider) => Future.wait([
-    for (final account in provider.accounts) _fetchUsage(provider.id, account),
-  ]);
+  Future<void> refreshUsage(ModelProvider provider, {bool force = true}) =>
+      Future.wait([
+        for (final account in provider.accounts)
+          _fetchUsage(provider.id, account, force: force),
+      ]);
 
-  Future<void> _fetchUsage(String providerId, ProviderAccount account) async {
+  Future<void> _fetchUsage(
+    String providerId,
+    ProviderAccount account, {
+    bool force = true,
+  }) {
     final key = _key(providerId, account.id);
     final provider = _providers().provider(providerId);
-    if (provider == null) return;
+    if (provider?.account(account.id) == null) return Future.value();
+    final requests = _requests.putIfAbsent(key, _AccountRequests.new);
+    if (requests.usage case final running?) return running;
+    final previous = _usage[key];
+    if (!force && !_stale(previous, requests.usageAttemptedAt)) {
+      return Future.value();
+    }
+    requests.usageAttemptedAt = _now();
+    final fetch = _queryUsage(provider!, account, requests, previous)
+        .whenComplete(() {
+          requests.usage = null;
+        });
+    requests.usage = fetch;
+    return fetch;
+  }
+
+  /// Whether [usage] is to be asked again: not known, learned (or [tried])
+  /// [CodexService.usageMaxAge] ago, or a window of it started over since
+  /// (and not tried since).
+  bool _stale(CodexUsage? usage, DateTime? tried) {
+    final now = _now();
+    if (usage != null &&
+        usage.windows.any(
+          (window) => switch (window.resetsAt) {
+            final at? =>
+              at.isAfter(usage.at) &&
+                  !at.isAfter(now) &&
+                  (tried == null || tried.isBefore(at)),
+            null => false,
+          },
+        )) {
+      return true;
+    }
+    final last = [?usage?.at, ?tried].fold<DateTime?>(
+      null,
+      (latest, at) => latest == null || at.isAfter(latest) ? at : latest,
+    );
+    return last == null || now.difference(last) >= CodexService.usageMaxAge;
+  }
+
+  Future<void> _queryUsage(
+    ModelProvider provider,
+    ProviderAccount account,
+    _AccountRequests requests,
+    CodexUsage? previous,
+  ) async {
+    final key = _key(provider.id, account.id);
+    // Headers learned while this query ran are newer, even at the same clock
+    // time. Neither its answer nor an error should replace that snapshot.
+    bool current() =>
+        _current(provider.id, account.id, requests) &&
+        identical(_usage[key], previous);
     try {
       final (status, text) = await _get(provider, account, endpoints.usage);
+      if (!current()) return;
       if (status >= 400) {
         _errors[key] = upstreamErrorMessage(status, text);
       } else {
@@ -396,8 +504,10 @@ class CodexAccounts extends CodexService {
         if (_usage[key]?.limitReached == false) _limited.remove(key);
       }
     } on CodexException catch (error) {
+      if (!current()) return;
       _errors[key] = error.message;
     } on Object catch (error) {
+      if (!current()) return;
       _errors[key] = '$error';
     }
     notifyListeners();
@@ -563,6 +673,13 @@ class CodexAccounts extends CodexService {
       return null;
     }
   }
+}
+
+/// Requests belong to one sign-in, not a later account with the same id.
+class _AccountRequests {
+  Future<String>? token;
+  Future<void>? usage;
+  DateTime? usageAttemptedAt;
 }
 
 /// A sign-in waiting for the browser to come back to this machine.

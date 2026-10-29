@@ -24,6 +24,9 @@ namespace {
 constexpr ULONGLONG kHangMilliseconds = 6000;
 constexpr ULONGLONG kExitMilliseconds = 10000;
 
+// The longest a crash's report is waited for before the app goes.
+constexpr DWORD kCrashMilliseconds = 15000;
+
 // The most reports a run writes: a hang that comes and goes is written a
 // few times, not on and on.
 constexpr int kMaxReports = 3;
@@ -69,11 +72,11 @@ std::wstring ReportFolder() {
 // (hang-*.txt and the .dmp beside each), all but the newest
 // kKeptReports - 1 are deleted. Their names (hang-YYYYMMDD-HHMMSS-pid) sort
 // as their times.
-void PruneReports(const std::wstring& folder) {
+void PruneReports(const std::wstring& folder, const wchar_t* kind) {
   std::vector<std::wstring> reports;
   WIN32_FIND_DATAW found = {};
-  const HANDLE find =
-      ::FindFirstFileW((folder + L"\\hang-*.txt").c_str(), &found);
+  const HANDLE find = ::FindFirstFileW(
+      (folder + L"\\" + kind + L"-*.txt").c_str(), &found);
   if (find == INVALID_HANDLE_VALUE) {
     return;
   }
@@ -255,19 +258,28 @@ void WriteThreads(FILE* out, HANDLE process, DWORD process_id,
   ::CloseHandle(snapshot);
 }
 
+// What a crash report is of: the exception, and the thread it came on.
+struct Crash {
+  EXCEPTION_POINTERS* pointers;
+  DWORD thread;
+};
+
 // The report of |process| (this one, or the copy running: see
-// ReportRunningCopy), for |reason|: a minidump and a text report.
+// ReportRunningCopy), for |reason|: a minidump and a text report, named
+// |kind|-<time>-<pid> (hang, crash). With |crash|, the thread it came on
+// first, from where it came, and the exception in the minidump.
 void WriteReport(HANDLE process, DWORD process_id, DWORD windows_thread,
-                 const char* reason) {
+                 const char* reason, const wchar_t* kind = L"hang",
+                 const Crash* crash = nullptr) {
   const std::wstring folder = ReportFolder();
   if (folder.empty()) {
     return;
   }
-  PruneReports(folder);
+  PruneReports(folder, kind);
   SYSTEMTIME now = {};
   ::GetLocalTime(&now);
   wchar_t stamp[64];
-  std::swprintf(stamp, 64, L"\\hang-%04u%02u%02u-%02u%02u%02u-%lu",
+  std::swprintf(stamp, 64, L"\\%ls-%04u%02u%02u-%02u%02u%02u-%lu", kind,
                 static_cast<unsigned>(now.wYear),
                 static_cast<unsigned>(now.wMonth),
                 static_cast<unsigned>(now.wDay),
@@ -296,6 +308,21 @@ void WriteReport(HANDLE process, DWORD process_id, DWORD windows_thread,
   ::SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS |
                   SYMOPT_FAIL_CRITICAL_ERRORS | SYMOPT_NO_PROMPTS);
   const bool symbols = ::SymInitialize(process, search.c_str(), TRUE) != FALSE;
+  if (crash != nullptr) {
+    const HANDLE thread =
+        ::OpenThread(THREAD_GET_CONTEXT | THREAD_QUERY_LIMITED_INFORMATION,
+                     FALSE, crash->thread);
+    std::fprintf(out, "\nThread %lu %s [crashed]\n", crash->thread,
+                 thread == nullptr ? "" : ThreadName(thread).c_str());
+    if (thread != nullptr) {
+      for (const DWORD64 address :
+           Walk(process, thread, *crash->pointers->ContextRecord)) {
+        std::fprintf(out, "  %s\n", Describe(process, address).c_str());
+      }
+      ::CloseHandle(thread);
+    }
+    std::fflush(out);
+  }
   WriteThreads(out, process, process_id, windows_thread);
   if (symbols) {
     ::SymCleanup(process);
@@ -306,12 +333,18 @@ void WriteReport(HANDLE process, DWORD process_id, DWORD windows_thread,
       ::CreateFileW((base + L".dmp").c_str(), GENERIC_WRITE, 0, nullptr,
                     CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (dump != INVALID_HANDLE_VALUE) {
+    MINIDUMP_EXCEPTION_INFORMATION exception = {};
+    if (crash != nullptr) {
+      exception.ThreadId = crash->thread;
+      exception.ExceptionPointers = crash->pointers;
+      exception.ClientPointers = FALSE;
+    }
     ::MiniDumpWriteDump(
         process, process_id, dump,
         static_cast<MINIDUMP_TYPE>(MiniDumpWithThreadInfo |
                                    MiniDumpWithUnloadedModules |
                                    MiniDumpWithProcessThreadData),
-        nullptr, nullptr, nullptr);
+        crash != nullptr ? &exception : nullptr, nullptr, nullptr);
     ::CloseHandle(dump);
   }
 }
@@ -371,6 +404,60 @@ DWORD WINAPI Watch(LPVOID) {
   return 0;
 }
 
+// The filter the app's crash handler came after (Flutter's, if any).
+LPTOP_LEVEL_EXCEPTION_FILTER g_previous_filter = nullptr;
+std::atomic<bool> g_crashed{false};
+
+// Writes down |param|'s crash (a Crash), from a thread of its own: the
+// one it came on may have no stack left (a stack overflow), or hold a lock.
+DWORD WINAPI WriteCrash(LPVOID param) {
+  const auto* crash = static_cast<const Crash*>(param);
+  const HANDLE process = ::GetCurrentProcess();
+  const EXCEPTION_RECORD* record = crash->pointers->ExceptionRecord;
+  const DWORD64 address =
+      reinterpret_cast<DWORD64>(record->ExceptionAddress);
+  // Where, for the event log's line: module+offset (app.so's for the Dart
+  // code), no symbols (DbgHelp loads them in WriteReport).
+  char where[400] = "?";
+  HMODULE module = nullptr;
+  if (::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(address), &module)) {
+    char path[MAX_PATH] = {};
+    ::GetModuleFileNameA(module, path, MAX_PATH);
+    const char* name = std::strrchr(path, '\\');
+    std::snprintf(where, sizeof(where), "%s+0x%llx",
+                  name == nullptr ? path : name + 1,
+                  static_cast<unsigned long long>(
+                      address - reinterpret_cast<DWORD64>(module)));
+  } else if (const DWORD64 base = ElfBase(process, address)) {
+    std::snprintf(where, sizeof(where), "app.so+0x%llx",
+                  static_cast<unsigned long long>(address - base));
+  }
+  char how[512];
+  std::snprintf(how, sizeof(how), "crashed: exception 0x%08lx at %s",
+                record->ExceptionCode, where);
+  log_folder::AppendExit(how);
+  WriteReport(process, ::GetCurrentProcessId(), g_windows_thread, how,
+              L"crash", crash);
+  return 0;
+}
+
+LONG WINAPI OnCrash(EXCEPTION_POINTERS* pointers) {
+  if (!g_crashed.exchange(true)) {
+    Crash crash = {pointers, ::GetCurrentThreadId()};
+    const HANDLE thread =
+        ::CreateThread(nullptr, 0, WriteCrash, &crash, 0, nullptr);
+    if (thread != nullptr) {
+      ::WaitForSingleObject(thread, kCrashMilliseconds);
+      ::CloseHandle(thread);
+    }
+  }
+  // On to Windows Error Reporting, as before.
+  return g_previous_filter != nullptr ? g_previous_filter(pointers)
+                                      : EXCEPTION_CONTINUE_SEARCH;
+}
+
 // The file name |path| ends in.
 const wchar_t* FileName(const wchar_t* path) {
   const wchar_t* slash = std::wcsrchr(path, L'\\');
@@ -399,6 +486,10 @@ void Answer() {
 
 void LoopEnded() {
   g_loop_ended.store(Now());
+}
+
+void InstallCrashHandler() {
+  g_previous_filter = ::SetUnhandledExceptionFilter(OnCrash);
 }
 
 void ReportRunningCopy() {

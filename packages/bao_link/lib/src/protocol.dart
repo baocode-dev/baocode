@@ -1,3 +1,5 @@
+import 'bots.dart';
+
 /// What a phone asks a desktop ([LinkPeer.call]).
 abstract final class LinkMethods {
   /// The first request: `{"name", "system", "token"?, "request"?}`;
@@ -37,13 +39,23 @@ abstract final class LinkMethods {
   /// `{"session"}`: no longer followed.
   static const close = 'close';
 
-  /// `{"session"?, "project"?, "text", "images"?, "mentions"?, "now"?}`: a
-  /// message to the session; with no session, to a new one in the project.
+  /// `{"session"?, "project"?, "bot"?, "text", "images"?, "mentions"?,
+  /// "now"?}`: a message to the bot's conversation ([LinkBot.id]), started
+  /// if it has none; else to the session; with neither, to a new one in the
+  /// project.
   /// Images are `{"data" (base64), "type", "name"?}`; mentions, the
   /// project's files the text names (`@path`), from its root. With `now`,
   /// taken up at once, the turn running stopped for it, rather than queued
   /// behind it. Answered with `{"session"}`.
   static const send = 'send';
+
+  /// `{"session", "index", "text", "images"?, "mentions"?}`: the user's
+  /// message at `index` (counted from the phone's first item, as an
+  /// update's `start` is) sent again as this, as the desktop's edit of a
+  /// message: everything after it is discarded, and the turn runs again
+  /// from there. `notFound` where there is no message of the user's;
+  /// `unsupported` where the agent cannot go back.
+  static const edit = 'edit';
 
   /// `{"session"}`: stops the turn under way.
   static const stop = 'stop';
@@ -110,6 +122,35 @@ abstract final class LinkMethods {
   /// `{"type": "image", "id"}`): `{"kind": "png"|"gif"|"svg", "data"}`
   /// (base64). The id is of its content: the same id, the same picture.
   static const icon = 'icon';
+
+  /// `{"project", "path"}`: a picture of the project (PNG, JPEG, GIF,
+  /// WebP), as a reply names it: `{"type", "data"}` (its media type, and
+  /// base64), or `{"tooLarge": true, "size"}` past [LinkLimits.image].
+  /// `bad` for a file that is not a picture.
+  static const image = 'image';
+
+  /// `{"bot"?, "name", "avatar"?, "avatarImage"?, "identity", "abilities",
+  /// "proactive"}` (as [LinkBot]'s JSON): the bot changed, or a new one (no
+  /// `bot`): `{"bot": LinkBot}`. `avatarImage`, `{"data" (base64), "type"}`
+  /// (at most [LinkLimits.avatar]), is a new picture for it; else `avatar`
+  /// is an emoji, or the picture it has, kept.
+  static const saveBot = 'saveBot';
+
+  /// `{"bot"}`: its picture ([LinkBot.avatar], [isAvatarImage]):
+  /// `{"type", "data"}` (its media type, and base64); `notFound` when it
+  /// has none.
+  static const botAvatar = 'botAvatar';
+
+  /// `{"bot"}`: the bot deleted, its conversation and memory with it;
+  /// `unsupported` for the assistant.
+  static const deleteBot = 'deleteBot';
+
+  /// `{"bot"}`: what the bot remembers of the user, as it keeps it (kept
+  /// on the desktop, never sent elsewhere): `{"text"}`.
+  static const botMemory = 'botMemory';
+
+  /// `{"bot", "text"}`: its memory as the user wrote it; empty clears it.
+  static const setBotMemory = 'setBotMemory';
 }
 
 /// How much of what a phone asks for it gets, at most.
@@ -122,6 +163,12 @@ abstract final class LinkLimits {
 
   /// A project's files listed.
   static const files = 20000;
+
+  /// A picture's bytes.
+  static const image = 8 * 1024 * 1024;
+
+  /// A bot's picture's bytes.
+  static const avatar = 1024 * 1024;
 }
 
 /// A task an agent left running beside the conversation: a command, a
@@ -259,6 +306,12 @@ abstract final class LinkErrors {
 
   /// The desktop's user turned the pairing down.
   static const rejected = 'rejected';
+
+  /// The desktop cannot do that here (an agent that cannot go back).
+  static const unsupported = 'unsupported';
+
+  /// The request was not one the desktop knows: one from before it could.
+  static const unknown = 'unknown';
 }
 
 /// The desktop, as the phone lists it.
@@ -411,6 +464,7 @@ class LinkState {
     required this.device,
     this.projects = const [],
     this.sessions = const [],
+    this.bots = const [],
   });
 
   factory LinkState.fromJson(Map<String, Object?> json) => LinkState(
@@ -423,16 +477,25 @@ class LinkState {
       for (final session in (json['sessions'] as List?) ?? const [])
         SessionSummary.fromJson(_map(session)),
     ],
+    bots: [
+      for (final bot in (json['bots'] as List?) ?? const [])
+        LinkBot.fromJson(_map(bot)),
+    ],
   );
 
   final DeviceInfo device;
   final List<ProjectInfo> projects;
   final List<SessionSummary> sessions;
 
+  /// The bots, the assistant first; their conversations are not among
+  /// [sessions].
+  final List<LinkBot> bots;
+
   Map<String, Object?> toJson() => {
     'device': device.toJson(),
     'projects': [for (final project in projects) project.toJson()],
     'sessions': [for (final session in sessions) session.toJson()],
+    if (bots.isNotEmpty) 'bots': [for (final bot in bots) bot.toJson()],
   };
 }
 
@@ -516,6 +579,7 @@ class LinkSessionUpdate {
     this.changes = const [],
     this.tasks = const [],
     this.earlier,
+    this.goal,
   });
 
   factory LinkSessionUpdate.fromJson(Map<String, Object?> json) =>
@@ -542,6 +606,10 @@ class LinkSessionUpdate {
             LinkTask.fromJson(_map(task)),
         ],
         earlier: json['earlier'] as bool?,
+        goal: switch (json['goal']) {
+          final Map<String, Object?> map => map,
+          _ => null,
+        },
       );
 
   final String session;
@@ -572,6 +640,11 @@ class LinkSessionUpdate {
   /// asked to).
   final bool? earlier;
 
+  /// The goal the agent works toward (Claude Code's `/goal`), as JSON,
+  /// if any: `{"condition", "state", "checks", "reason", "setAt",
+  /// "duration", "tokens"}`, its times in milliseconds.
+  final Map<String, Object?>? goal;
+
   Map<String, Object?> toJson() => {
     'session': session,
     'start': start,
@@ -583,6 +656,7 @@ class LinkSessionUpdate {
     'changes': changes,
     if (tasks.isNotEmpty) 'tasks': [for (final task in tasks) task.toJson()],
     'earlier': ?earlier,
+    'goal': ?goal,
   };
 }
 

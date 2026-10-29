@@ -495,3 +495,54 @@ bool WriteClipboardImage(HWND owner, const std::vector<uint8_t>& bytes,
   ::CloseClipboard();
   return written;
 }
+
+namespace {
+
+// The format of the editors' copies, the app's own.
+UINT MarkdownFormat() {
+  static const UINT format = ::RegisterClipboardFormatW(L"BaoCode Markdown");
+  return format;
+}
+
+}  // namespace
+
+bool WriteClipboardMarkdown(HWND owner, const std::wstring& text,
+                            const std::string& copy) {
+  const UINT format = MarkdownFormat();
+  if (format == 0) {
+    return false;
+  }
+  // Each with its terminating null.
+  std::vector<uint8_t> text_bytes((text.size() + 1) * sizeof(wchar_t), 0);
+  std::memcpy(text_bytes.data(), text.c_str(), text.size() * sizeof(wchar_t));
+  std::vector<uint8_t> copy_bytes(copy.begin(), copy.end());
+  copy_bytes.push_back(0);
+  // Owned by a window: with none, EmptyClipboard leaves it to no one and
+  // SetClipboardData fails.
+  if (!::OpenClipboard(owner)) {
+    return false;
+  }
+  ::EmptyClipboard();
+  const bool written = SetClipboardBytes(CF_UNICODETEXT, text_bytes) &&
+                       SetClipboardBytes(format, copy_bytes);
+  ::CloseClipboard();
+  return written;
+}
+
+std::optional<std::string> ClipboardMarkdown() {
+  const UINT format = MarkdownFormat();
+  if (format == 0 || !::IsClipboardFormatAvailable(format) ||
+      !::OpenClipboard(nullptr)) {
+    return std::nullopt;
+  }
+  std::optional<std::string> copy;
+  if (HANDLE handle = ::GetClipboardData(format)) {
+    if (const auto* data = static_cast<const char*>(::GlobalLock(handle))) {
+      // Up to its null: the block may be larger than what was put in it.
+      copy = std::string(data, ::strnlen(data, ::GlobalSize(handle)));
+      ::GlobalUnlock(handle);
+    }
+  }
+  ::CloseClipboard();
+  return copy;
+}

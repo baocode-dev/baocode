@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>下载 BaoCode</title>
-<meta name="description" content="下载 macOS、Windows 和 Linux 版 BaoCode，以及 iPhone 和 iPad 测试版。">
+<meta name="description" content="下载 macOS、Windows 和 Linux 版 BaoCode，以及 Android、iPhone 和 iPad 测试版。">
 <link rel="icon" href="/icon.png">
 <link rel="stylesheet" href="/style.css">
 <script src="/head.js"></script>
@@ -35,7 +35,7 @@
 
 <main class="page">
   <h1>下载 BaoCode</h1>
-  <p class="meta"><span data-version>版本 1.7.0</span><span>免费开源</span></p>
+  <p class="meta"><span data-version>版本 1.7.1</span><span>免费开源</span></p>
 
   <div class="platforms" data-platforms>
     <section class="platform" data-os="macos">
@@ -65,8 +65,18 @@
   </div>
 
   <h2 class="plain" id="phone">手机版 <span class="beta">Beta</span></h2>
-  <p class="meta"><span>iPhone 和 iPad</span><span>通过 TestFlight</span></p>
+  <p class="meta"><span data-mobile-version>版本 0.1.2</span><span>Android、iPhone 和 iPad</span></p>
   <div class="platforms" data-phones>
+    <section class="platform" data-os="android">
+      <h2 class="plain"><svg class="ic logo" aria-hidden="true"><use href="#ic-android"/></svg>Android</h2>
+      <p>Android 7.0 或更高版本。下载后打开 APK 安装；手机可能会先要求你允许浏览器安装应用。</p>
+      <div class="get">
+        <a class="button primary" data-file="android" href="/dl/android"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>下载 APK</a>
+      </div>
+      <div class="qr">
+        <img src="/qr/android.svg" alt="Android 版 APK 的下载二维码，与上面的按钮指向同一下载">
+      </div>
+    </section>
     <section class="platform" data-os="ios">
       <h2 class="plain"><svg class="ic logo" aria-hidden="true"><use href="#ic-apple"/></svg>iOS</h2>
       <p>iOS 15 或更高版本。测试版通过 TestFlight 发布，这是 Apple 用来试用尚未上架 App Store 的应用的 App：先从 App Store 安装 TestFlight，再在 iPhone 或 iPad 上打开这个链接加入。</p>
@@ -79,7 +89,7 @@
     </section>
   </div>
   <p>在手机上查看并操作电脑上的智能体，经由局域网或公网直连，端到端加密。配对方法：在电脑上的 BaoCode 里打开 设置 → 手机，打开「允许手机连接」，点「显示二维码」，再用手机 App 扫码。目前是测试版，可能还有不完善的地方。<a href="/zh/mobile-privacy">隐私说明</a>。</p>
-  <p>在电脑上看这一页？鼠标移到卡片上就会显示二维码，用 iPhone 或 iPad 扫一扫即可（在手机或平板上点一下卡片同样可以）。</p>
+  <p>在电脑上看这一页？鼠标移到卡片上就会显示二维码，用手机扫一扫即可下载，不用数据线，也不用传文件（在手机或平板上点一下卡片同样可以）。</p>
 
   <h2 class="plain" id="browser">浏览器扩展 <span class="beta">Beta</span></h2>
   <p class="meta"><span data-extension-version>版本 0.1.0</span><span>Chrome、Edge、Brave、Arc</span></p>

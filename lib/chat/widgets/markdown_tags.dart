@@ -2,7 +2,6 @@ import 'package:flutter/widgets.dart';
 import 'package:markdown/markdown.dart' as md;
 
 import '../../l10n/l10n.dart';
-import '../../theme/app_theme.dart';
 import 'markdown_view.dart';
 import 'step_header.dart';
 
@@ -178,12 +177,6 @@ class _TagSectionState extends State<TagSection> {
           Container(
             width: double.infinity,
             margin: const EdgeInsets.only(top: 4),
-            padding: const EdgeInsets.only(left: 12),
-            decoration: BoxDecoration(
-              border: Border(
-                left: BorderSide(color: AppColors.partBorder, width: 2),
-              ),
-            ),
             child: MarkdownBlocks(
               nodes: children,
               style: widget.style,

@@ -24,7 +24,6 @@ import 'package:bao_editor/textmate/textmate_syntax.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/code_font.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' hide ColorScheme;
 import '../ide_button.dart';
@@ -723,17 +722,15 @@ class IdeGitMergeDialogState extends State<IdeGitMergeDialog> {
           ),
         ),
         Expanded(
-          child: CodeTextScale(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _pane(_Pane.ours)),
-                _gutter(IdeGitMergeSide.ours),
-                Expanded(child: _resultPane()),
-                _gutter(IdeGitMergeSide.theirs),
-                Expanded(child: _pane(_Pane.theirs)),
-              ],
-            ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _pane(_Pane.ours)),
+              _gutter(IdeGitMergeSide.ours),
+              Expanded(child: _resultPane()),
+              _gutter(IdeGitMergeSide.theirs),
+              Expanded(child: _pane(_Pane.theirs)),
+            ],
           ),
         ),
       ],

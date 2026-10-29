@@ -2,11 +2,12 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:baocode/chat/widgets/code_citation.dart';
+import 'package:baocode/chat/widgets/content_image.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/chat/widgets/mermaid_code_block.dart';
+import 'package:baocode/chat/widgets/mermaid_theme.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/workbench_theme.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -219,100 +220,54 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
   });
 
-  testWidgets('tapping the diagram opens it expanded', (tester) async {
-    await _pump(tester, _flow);
-    await tester.tap(_paint);
-    await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsOneWidget);
-    await tester.tap(find.byIcon(Codicons.close));
-    await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsNothing);
-  });
-
-  testWidgets('expand opens a pannable and zoomable diagram, close returns', (
+  testWidgets('tapping the diagram, or expand, shows it as a picture', (
     tester,
   ) async {
-    await _pump(tester, _flow);
-    await _hover(tester);
-    await tester.tap(find.byIcon(Codicons.screenFull));
-    await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsOneWidget);
-    expect(find.byType(InteractiveViewer), findsOneWidget);
-    final viewer = tester.widget<InteractiveViewer>(
-      find.byType(InteractiveViewer),
+    Finder picture() => find.byWidgetPredicate(
+      (widget) => widget is Image && widget.image is MemoryImage,
     );
-    expect(viewer.maxScale, greaterThan(1));
-    await tester.sendEventToBinding(
-      PointerScrollEvent(
-        position: tester.getCenter(find.byType(InteractiveViewer)),
-        scrollDelta: const Offset(0, -100),
-      ),
-    );
-    await tester.pump();
-    final transform = tester.widget<Transform>(
-      find
-          .descendant(
-            of: find.byType(InteractiveViewer),
-            matching: find.byType(Transform),
-          )
-          .first,
-    );
-    expect(transform.transform.getMaxScaleOnAxis(), greaterThan(1));
-    await tester.drag(find.byType(InteractiveViewer), const Offset(40, 20));
-    await tester.pumpAndSettle();
+    for (final open in ['tap', 'expand']) {
+      await _pump(tester, _flow);
+      if (open == 'expand') await _hover(tester);
+      await tester.runAsync(() async {
+        await tester.tap(
+          open == 'tap' ? _paint : find.byIcon(Codicons.screenFull),
+        );
+        // The picture is made off the frame.
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pumpAndSettle();
+      expect(picture(), findsWidgets, reason: open);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(picture(), findsNothing, reason: open);
+    }
     expect(tester.takeException(), isNull);
-    await tester.tap(find.byIcon(Codicons.close));
-    await tester.pumpAndSettle();
-    expect(find.byType(Dialog), findsNothing);
-    expect(_paint, findsOneWidget);
   });
 
-  testWidgets('the expanded dialog hugs a small diagram at its own size', (
+  testWidgets('its picture: on the background, a margin round it, sharp', (
     tester,
   ) async {
     await _pump(tester, 'graph LR; A --> B');
     final scene = _scene(tester);
-    await tester.tap(_paint);
-    await tester.pumpAndSettle();
-    final dialog = tester.getSize(
-      find.descendant(of: find.byType(Dialog), matching: find.byType(Material)),
-    );
-    final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
-    expect(dialog.width, lessThan(screen.width - 80));
-    expect(dialog.height, lessThan(screen.height - 80));
-    final painted = tester.getSize(
-      find.descendant(of: find.byType(Dialog), matching: _paint),
-    );
-    expect(
-      (painted.width, painted.height),
-      (scene.size.width, scene.size.height),
-    );
-    final shape =
-        tester.widget<Dialog>(find.byType(Dialog)).shape!
-            as RoundedRectangleBorder;
-    expect(shape.borderRadius, BorderRadius.circular(8));
-    await tester.tap(find.byIcon(Codicons.close));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('expanded wide scenes can reach native text size', (
-    tester,
-  ) async {
-    await _pump(tester, 'graph LR; A[${'x' * 15000}]');
-    final scene = _scene(tester);
-    await _hover(tester);
-    await tester.tap(find.byIcon(Codicons.screenFull));
-    await tester.pumpAndSettle();
-    final viewer = tester.widget<InteractiveViewer>(
-      find.byType(InteractiveViewer),
-    );
-    final viewport = tester.getSize(find.byType(InteractiveViewer));
-    final fit = (viewport.width - 48) / scene.size.width;
-    expect(viewer.maxScale * fit, greaterThanOrEqualTo(1));
-    await tester.tap(find.byIcon(Codicons.close));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
+    const background = Color(0xff202124);
+    final (width, height, corner) = (await tester.runAsync(() async {
+      final picture = await mermaidPicture(scene, background: background);
+      expect(picture.mediaType, 'image/png');
+      final codec = await ui.instantiateImageCodec(picture.bytes);
+      final image = (await codec.getNextFrame()).image;
+      final pixels = await image.toByteData();
+      final corner = Color.fromARGB(
+        pixels!.getUint8(3),
+        pixels.getUint8(0),
+        pixels.getUint8(1),
+        pixels.getUint8(2),
+      );
+      return (image.width, image.height, corner);
+    }))!;
+    expect(width, ((scene.size.width + 48) * 3).ceil());
+    expect(height, ((scene.size.height + 48) * 3).ceil());
+    expect(corner, background);
   });
 
   testWidgets('wide diagrams shrink to a narrow column, tall ones show whole', (
@@ -350,6 +305,49 @@ void main() {
     }
   });
 
+  test('a theme with its sequence colors: those changed, the rest kept', () {
+    const base = mermaid.MermaidTheme.darkTheme;
+    const gold = mermaid.Color(0xffd4a15a);
+    final themed = base.withSequenceColors(
+      actorBorder: gold,
+      noteBkgColor: gold,
+    );
+    expect(themed.actorBorder, gold);
+    expect(themed.noteBkgColor, gold);
+    expect(themed.actorBkg, base.actorBkg);
+    expect(themed.pie1, base.pie1);
+    expect(themed.xyChartPlotColorPalette, base.xyChartPlotColorPalette);
+    expect(base.withSequenceColors(), base);
+  });
+
+  test('a top-down flowchart drawn across: its header only', () {
+    expect(mermaidAcross('flowchart TD\n  A --> B'), 'flowchart LR\n  A --> B');
+    expect(mermaidAcross('%% c\ngraph\nA --> B'), '%% c\ngraph LR\nA --> B');
+    expect(mermaidAcross('graph TB;\nA-->B'), 'graph LR;\nA-->B');
+    expect(mermaidAcross('flowchart BT\nA-->B'), 'flowchart RL\nA-->B');
+    expect(mermaidAcross('flowchart LR\nA-->B'), isNull);
+    expect(mermaidAcross('graph TD; A-->B'), isNull);
+    expect(mermaidAcross('sequenceDiagram\nA->>B: hi'), isNull);
+  });
+
+  testWidgets('a tall top-down flowchart is drawn across where the column '
+      'fits it so, down where it does not', (tester) async {
+    final code = [
+      'flowchart TD',
+      for (var i = 0; i < 4; i++) '  N$i[Step $i] --> N${i + 1}[Step ${i + 1}]',
+    ].join('\n');
+    await _pump(tester, code, width: 800);
+    await tester.pump(const Duration(milliseconds: 200));
+    var scene = _scene(tester);
+    expect(scene.size.width, greaterThan(scene.size.height));
+
+    await _pump(tester, code, width: 160);
+    await tester.pump(const Duration(milliseconds: 200));
+    scene = _scene(tester);
+    expect(scene.size.height, greaterThan(scene.size.width));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('bad, unsupported and oversized sources remain copyable code', (
     tester,
   ) async {
@@ -380,36 +378,111 @@ void main() {
     }
   });
 
-  testWidgets(
-    'stream updates debounce, recover and cannot leave stale scenes',
-    (tester) async {
-      await _pump(tester, 'graph TD; A --> B', closed: false);
-      expect(_paint, findsOneWidget);
-      final first = _scene(tester);
-      // An ordinary rebuild reuses the parsed scene.
-      await _pump(tester, 'graph TD; A --> B', closed: false);
-      expect(identical(_scene(tester), first), isTrue);
-      await _pump(tester, 'graph TD; A[unfinished', closed: false);
-      expect(_paint, findsNothing);
-      await tester.pump(const Duration(milliseconds: 100));
-      await _pump(tester, 'graph TD; A[Finished] --> B', closed: false);
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(_paint, findsNothing);
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(_paint, findsOneWidget);
-      expect(identical(_scene(tester), first), isFalse);
-      await _pump(tester, 'not mermaid');
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(_paint, findsNothing);
-      await _pump(tester, _flow);
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(_paint, findsOneWidget);
-      await _pump(tester, 'graph TD; A');
-      await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('a fence still being written: a placeholder, not its source; '
+      'drawn at once closed, or once it goes quiet', (tester) async {
+    Finder placeholder() => find.byType(ContentImagePlaceholder);
+    await _pump(tester, 'graph LR; A --> B', closed: false);
+    expect(placeholder(), findsOneWidget);
+    expect(_paint, findsNothing);
+    expect(find.textContaining('graph LR'), findsNothing);
+    await _pump(tester, 'graph LR; A[Finished] --> B', closed: false);
+    expect(placeholder(), findsOneWidget);
+    await _pump(tester, 'graph LR; A[Finished] --> B');
+    expect(placeholder(), findsNothing);
+    expect(_paint, findsOneWidget);
+
+    await _pump(tester, 'graph LR; A --> C', closed: false);
+    expect(placeholder(), findsOneWidget);
+    await tester.pump(MermaidCodeBlock.quietFor);
+    expect(placeholder(), findsNothing);
+    expect(_paint, findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a closed fence changed: debounced, never a stale scene', (
+    tester,
+  ) async {
+    await _pump(tester, 'graph TD; A --> B');
+    expect(_paint, findsOneWidget);
+    final first = _scene(tester);
+    // An ordinary rebuild reuses the parsed scene.
+    await _pump(tester, 'graph TD; A --> B');
+    expect(identical(_scene(tester), first), isTrue);
+    await _pump(tester, 'graph TD; A[Finished] --> B');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_paint, findsNothing);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_paint, findsOneWidget);
+    expect(identical(_scene(tester), first), isFalse);
+    await _pump(tester, 'not mermaid');
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(_paint, findsNothing);
+    await _pump(tester, 'graph TD; A');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(tester.takeException(), isNull);
+  });
+
+  test('its lines square: ELK asked for first, after any front matter', () {
+    const elk = '%%{init: {"layout": "elk"}}%%\n';
+    expect(mermaidSquare('graph LR\nA-->B'), '${elk}graph LR\nA-->B');
+    expect(
+      mermaidSquare('---\ntitle: T\n---\ngraph LR\nA-->B'),
+      '---\ntitle: T\n---\n${elk}graph LR\nA-->B',
+    );
+  });
+
+  testWidgets('a flowchart\'s lines are square', (tester) async {
+    await _pump(tester, 'graph LR; A --> B; B --> C; A --> C; C -.-> A');
+    var diagonal = 0;
+    var cubic = 0;
+    void visit(mermaid.SceneNode node) {
+      if (node is mermaid.SceneGroup) node.children.forEach(visit);
+      if (node case mermaid.SceneShape(
+        geometry: mermaid.PathGeometry(:final commands),
+      )) {
+        mermaid.Point? at;
+        for (final command in commands) {
+          if (command is mermaid.CubicTo) cubic++;
+          if (command is mermaid.MoveTo) at = command.p;
+          if (command is mermaid.LineTo) {
+            final from = at!;
+            if ((command.p.x - from.x).abs() > 0.5 &&
+                (command.p.y - from.y).abs() > 0.5) {
+              diagonal++;
+            }
+            at = command.p;
+          }
+        }
+      }
+    }
+
+    _scene(tester).nodes.forEach(visit);
+    expect((cubic, diagonal), (0, 0));
+  });
+
+  test('its text\'s entities read as Mermaid\'s HTML labels show them', () {
+    String read(String text) => (mermaidUnescaped(
+      mermaid.SceneText(
+        text: text,
+        bounds: const mermaid.Rect.fromLTWH(0, 0, 10, 10),
+        style: const mermaid.TextStyleSpec(fontFamily: 'x', fontSize: 13),
+        color: const mermaid.Color(0xff000000),
+      ),
+    ) as mermaid.SceneText).text;
+    expect(read('Stream&lt;KernelEvent&gt;'), 'Stream<KernelEvent>');
+    expect(read('a #lt; b #35; &#60; &#x3C; &amp;'), 'a < b # < < &');
+    expect(read('issue #12; &60; &bogus;'), 'issue #12; &60; &bogus;');
+  });
+
+  test('a fence still being written is told from one closed', () {
+    expect(endsInOpenFence('a\n```mermaid\ngraph LR'), isTrue);
+    expect(endsInOpenFence('a\n```mermaid\ngraph LR\n```'), isFalse);
+    expect(endsInOpenFence('```\nx\n```\n\n~~~js\ny'), isTrue);
+    expect(endsInOpenFence('see ```inline``` code'), isFalse);
+  });
 
   testWidgets('same-brightness and light theme changes repaint the diagram', (
     tester,

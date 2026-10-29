@@ -28,6 +28,12 @@
 // downloads instead of carrying them (tool/build_remote_server.dart), to
 // upload with the release.
 //
+// The Dart code's symbols are saved as it is built, to build/symbols/
+// App.macos.symbols (universal: the App framework's executable before it is
+// stripped): a jank sample (lib/diagnostics/jank_sample.dart) names its
+// frames by their offsets in App, which tool/symbolize_jank_sample.dart
+// turns into functions with that file. The app ships stripped, as before.
+//
 // Signed with a Developer ID and notarised when the environment says how
 // (docs/release.md has how to get each):
 //
@@ -54,6 +60,10 @@ import 'dart:io';
 /// clean already removes.
 const _bundleRelative = 'build/macos/Build/Products/Release/BaoCode.app';
 const _installersRelative = 'build/installers';
+const _symbolsRelative = 'build/symbols';
+
+/// The App framework's executable: the Dart code, compiled.
+const _appExecutable = 'Contents/Frameworks/App.framework/Versions/A/App';
 
 /// Where each architecture's app is made of the universal one.
 const _thinRelative = 'build/macos/thin';
@@ -135,7 +145,16 @@ Future<void> main(List<String> arguments) async {
       'macos',
       '--release',
       if (channel) '--dart-define=BAOCODE_CHANNEL=true',
+      // Its symbols kept, to be saved before it is stripped below.
+      '--extra-gen-snapshot-options=--no-strip',
     ], root.path);
+    _step('Saving the Dart code\'s symbols, then stripping them');
+    final app = File('${bundle.path}/$_appExecutable');
+    final symbols = Directory('${root.path}/$_symbolsRelative')
+      ..createSync(recursive: true);
+    app.copySync('${symbols.path}/App.macos.symbols');
+    // -x: the local symbols, the Dart code's (as flutter strips it).
+    await _run('strip', ['-x', app.path, '-o', app.path], root.path);
   } else {
     _step('Using the app already built');
   }

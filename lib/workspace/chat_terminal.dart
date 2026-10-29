@@ -29,10 +29,12 @@ const togglePanelCommand = 'workbench.action.togglePanel';
 /// Create New Terminal (⌃⇧`).
 const newTerminalCommand = 'workbench.action.terminal.new';
 
-/// The chat window's terminals, in a panel under the conversations as the
+/// The chat window's terminals, in a panel under each conversation as the
 /// IDE's is under its editor. Each project has its own, started in its
-/// folder; the panel shows those of [root], the focused agent's project.
-/// They run on while the panel is hidden, or shows another project's.
+/// folder; each shows under the pane of that project (see
+/// [ChatTerminalArea]), and the window's commands act on [root]'s, the
+/// focused agent's project. They run on while their panel is hidden, or
+/// shows another project's.
 class ChatTerminals extends ChangeNotifier {
   ChatTerminals(
     this.backend, {
@@ -51,7 +53,8 @@ class ChatTerminals extends ChangeNotifier {
   /// remote project's path on its host).
   final String Function(String root)? pathOf;
 
-  /// The project the panel is for: the focused agent's; none without one.
+  /// The project the window's commands act on: the focused agent's; none
+  /// without one.
   final String? Function() rootOf;
 
   final Map<String, TerminalService> _services = {};
@@ -62,21 +65,47 @@ class ChatTerminals extends ChangeNotifier {
 
   String? get root => rootOf();
 
-  /// The terminals of [root]; none until the panel first shows there.
-  TerminalService? get current => switch (root) {
+  /// The terminals of [root]; none until its panel first shows there.
+  TerminalService? serviceOf(String? root) => switch (root) {
     final root? => _services[root],
     null => null,
   };
 
-  bool _shown = false;
+  /// The terminals of [root] (the focused project's); none until the panel
+  /// first shows there.
+  TerminalService? get current => serviceOf(root);
 
-  /// Whether the panel shows: opened, and [root] has terminals. Open, it
+  /// The projects whose panel is open.
+  final Set<String> _shown = {};
+
+  /// Whether [root]'s panel shows: opened, and it has terminals. Open, it
   /// shows again for a project that has (none are made for one that has
   /// not, the agents gone through).
-  bool get shown => _shown && (current?.instances.isNotEmpty ?? false);
+  bool shownFor(String root) =>
+      _shown.contains(root) && (serviceOf(root)?.instances.isNotEmpty ?? false);
 
-  /// As dragged; null: a third of the room, as the IDE's panel opens.
-  double? height;
+  /// Whether [root]'s panel, the focused project's, shows.
+  bool get shown => switch (root) {
+    final root? => shownFor(root),
+    null => false,
+  };
+
+  /// Each project's panel as dragged; null: a third of the room, as the
+  /// IDE's panel opens.
+  final Map<String, double> _heights = {};
+
+  /// How high [root]'s panel was dragged to; null while it is the room's
+  /// third.
+  double? heightOf(String root) => _heights[root];
+
+  /// [root]'s panel dragged to [height]; null: back to the room's third.
+  void setHeight(String root, double? height) {
+    if (height == null) {
+      _heights.remove(root);
+    } else {
+      _heights[root] = height;
+    }
+  }
 
   /// Once the panel shows a project's last terminal closed, it hides (as
   /// VS Code's `terminal.integrated.hideOnLastClosed`); this is told, for
@@ -88,7 +117,7 @@ class ChatTerminals extends ChangeNotifier {
     service = TerminalService(
       root: pathOf?.call(root) ?? root,
       backend: backendFor?.call(root) ?? backend,
-    )..addListener(() => _changed(service));
+    )..addListener(() => _changed(root, service));
     return service;
   });
 
@@ -103,45 +132,49 @@ class ChatTerminals extends ChangeNotifier {
     ),
   );
 
-  void _changed(TerminalService service) {
-    if (_shown && identical(service, current) && service.instances.isEmpty) {
-      _shown = false;
+  void _changed(String root, TerminalService service) {
+    if (_shown.contains(root) && service.instances.isEmpty) {
+      _shown.remove(root);
       notifyListeners();
-      onLastClosed?.call();
+      // Only the focused project's, whose terminal may have had the
+      // keyboard: another's closing leaves the chat where it is.
+      if (root == this.root) onLastClosed?.call();
       return;
     }
     notifyListeners();
   }
 
-  /// The panel with [root]'s terminals (one made if there is none), the
-  /// active one focused.
-  void show() {
-    final root = this.root;
-    if (root == null) return;
-    final service = _serviceOf(root);
-    _shown = true;
+  /// [root]'s panel (the focused project's), with a terminal made if there
+  /// is none, the active one focused.
+  void show({String? root}) {
+    final target = root ?? this.root;
+    if (target == null) return;
+    final service = _serviceOf(target);
+    _shown.add(target);
     service.ensureTerminal();
     notifyListeners();
     _focusSoon(service);
   }
 
-  /// Hides the panel; true if a terminal had the keyboard.
-  bool hide() {
-    if (!_shown) return false;
-    final hadFocus = focused;
-    _shown = false;
+  /// Hides [root]'s panel (the focused project's); true if a terminal of it
+  /// had the keyboard.
+  bool hide({String? root}) {
+    final target = root ?? this.root;
+    if (target == null || !_shown.contains(target)) return false;
+    final hadFocus = serviceOf(target)?.active?.focusNode.hasFocus ?? false;
+    _shown.remove(target);
     notifyListeners();
     return hadFocus;
   }
 
-  /// A new terminal for [root] on [profile]'s shell (else the default
-  /// profile's), shown and focused.
-  void create({TerminalProfile? profile}) {
-    final root = this.root;
-    if (root == null) return;
-    final service = _serviceOf(root);
+  /// A new terminal for [root] (the focused project) on [profile]'s shell
+  /// (else the default profile's), shown and focused.
+  void create({TerminalProfile? profile, String? root}) {
+    final target = root ?? this.root;
+    if (target == null) return;
+    final service = _serviceOf(target);
     service.create(profile: profile);
-    _shown = true;
+    _shown.add(target);
     notifyListeners();
     _focusSoon(service);
   }
@@ -194,19 +227,27 @@ class ChatTerminals extends ChangeNotifier {
   }
 }
 
-/// [child] (the conversations) and, under it while [terminals] shows, the
-/// terminal panel: its top edge drags it higher or lower (snapped shut
+/// [child] (a conversation) and, under it while its project's panel shows,
+/// the terminal panel: its top edge drags it higher or lower (snapped shut
 /// below half its least height), a double click on it gives it back a
-/// third of the room. The conversations keep [IdeRows.minChat].
+/// third of the room. The conversation keeps [IdeRows.minChat].
+///
+/// Each pane has its own, in its width, so a project's terminals show
+/// under its conversation and not across the window.
 class ChatTerminalArea extends StatefulWidget {
   const ChatTerminalArea({
     super.key,
     required this.terminals,
+    required this.root,
     required this.child,
     this.onOpenLink,
   });
 
   final ChatTerminals terminals;
+
+  /// The project whose terminals the panel shows.
+  final String root;
+
   final Widget child;
 
   /// Opens a link ⌘-clicked (Ctrl-clicked off macOS) in a terminal.
@@ -227,18 +268,21 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
   bool _dragging = false;
 
   ChatTerminals get _terminals => widget.terminals;
+  String get _root => widget.root;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: _terminals,
     builder: (context, _) => LayoutBuilder(
       builder: (context, constraints) {
-        final service = _terminals.current;
-        final shown = _terminals.shown;
+        final service = _terminals.serviceOf(_root);
+        final shown = _terminals.shownFor(_root);
         final room = constraints.maxHeight - ChatTerminalArea.sashHeight;
         final rows = IdeRows.fit(
           room,
-          panel: shown ? _terminals.height ?? IdeRows.defaultPanel(room) : null,
+          panel: shown
+              ? _terminals.heightOf(_root) ?? IdeRows.defaultPanel(room)
+              : null,
           minAbove: IdeRows.minChat,
         );
         // The conversations stay the first child, whether the panel shows
@@ -253,6 +297,7 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
                 height: rows.panel,
                 child: _ChatTerminalPanel(
                   terminals: _terminals,
+                  root: _root,
                   service: service,
                   onOpenLink: widget.onOpenLink,
                 ),
@@ -282,18 +327,18 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
           details.globalPosition.dy - start.y,
         );
         if (next.panel > 0) {
-          _terminals.height = next.panel;
+          _terminals.setHeight(_root, next.panel);
           setState(() {});
         } else {
           // Snapped shut: it opens again as high as it was.
-          _terminals.height = start.rows.panel;
+          _terminals.setHeight(_root, start.rows.panel);
           _endDrag();
-          _terminals.hide();
+          _terminals.hide(root: _root);
         }
       },
       onVerticalDragEnd: (_) => _endDrag(),
       onVerticalDragCancel: _endDrag,
-      onDoubleTap: () => setState(() => _terminals.height = null),
+      onDoubleTap: () => setState(() => _terminals.setHeight(_root, null)),
       child: Container(
         height: ChatTerminalArea.sashHeight,
         alignment: Alignment.bottomCenter,
@@ -322,11 +367,17 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
 class _ChatTerminalPanel extends StatelessWidget {
   const _ChatTerminalPanel({
     required this.terminals,
+    required this.root,
     required this.service,
     this.onOpenLink,
   });
 
   final ChatTerminals terminals;
+
+  /// The project the panel is of: what New Terminal makes one for, and
+  /// Hide hides.
+  final String root;
+
   final TerminalService service;
   final ValueChanged<TerminalLink>? onOpenLink;
 
@@ -359,9 +410,9 @@ class _ChatTerminalPanel extends StatelessWidget {
                 const Spacer(),
                 TerminalTitleActions(
                   terminals: service,
-                  onNew: terminals.create,
+                  onNew: () => terminals.create(root: root),
                   onNewWithProfile: (profile) =>
-                      terminals.create(profile: profile),
+                      terminals.create(profile: profile, root: root),
                 ),
                 IdeActionButton(
                   icon: Codicons.close,
@@ -369,7 +420,7 @@ class _ChatTerminalPanel extends StatelessWidget {
                     l10n.chatTerminalHide,
                     toggleTerminalCommand,
                   ),
-                  onPressed: terminals.hide,
+                  onPressed: () => terminals.hide(root: root),
                 ),
                 const SizedBox(width: 8),
               ],

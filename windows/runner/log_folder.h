@@ -31,6 +31,12 @@ std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> Listen(
 // The folder, made if need be; empty if there is none. From any thread.
 std::wstring Path();
 
+// Writes how the app is ending to the event log (lib/platform/
+// event_log.dart's events.log), as Flutter's lines: "<time> [exit] |how|".
+// For the ends Flutter is not told of: the session's, a crash. From any
+// thread.
+void AppendExit(const char* how);
+
 }  // namespace log_folder
 
 #endif  // RUNNER_LOG_FOLDER_H_

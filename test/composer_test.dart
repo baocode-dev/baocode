@@ -41,6 +41,7 @@ import 'package:baocode/chat/panels/activity_strip.dart';
 import 'package:baocode/chat/panels/interaction_panel.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
+import 'package:baocode/platform/native_md_clipboard.dart';
 import 'package:baocode/theme/app_theme.dart';
 
 Future<ChatSession> pumpScreen(
@@ -987,6 +988,76 @@ void main() {
       );
       expect(composerController(tester).text, contains('line 29'));
     }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+    testWidgets('a long paste copies as its text, for other apps, and pastes '
+        'back from the clipboard as a tag numbered on', (tester) async {
+      MdClipboard.instance = const NativeMdClipboard();
+      addTearDown(() => MdClipboard.instance = const MdClipboard());
+      await pumpScreen(tester);
+      final long = List.generate(30, (i) => 'line $i').join('\n');
+      // The clipboard as the host has it: its text, and the app's own copy
+      // beside it.
+      String? text = long;
+      String? copy;
+      tester.binding.defaultBinaryMessenger
+        ..setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async =>
+              call.method == 'Clipboard.getData' ? {'text': text} : null,
+        )
+        ..setMockMethodCallHandler(const MethodChannel('baocode/window'), (
+          call,
+        ) async {
+          switch (call.method) {
+            case 'writePasteboardMarkdown':
+              final arguments = call.arguments as Map;
+              text = arguments['text'] as String;
+              copy = arguments['copy'] as String;
+              return true;
+            case 'readPasteboardMarkdown':
+              return copy;
+          }
+          return null;
+        });
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger
+          ..setMockMethodCallHandler(SystemChannels.platform, null)
+          ..setMockMethodCallHandler(
+            const MethodChannel('baocode/window'),
+            null,
+          );
+      });
+      final editor = tester.state<MarkdownEditorState>(composerEditor());
+      final controller = composerController(tester);
+
+      await editor.paste();
+      await tester.pump();
+      await typeText(tester, 'read it');
+      expect(content(tester), '[[Pasted text #1 +29 lines]] read it');
+
+      controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: controller.length,
+      );
+      await editor.copy();
+      expect(text, '$long read it', reason: 'the tag as what was pasted');
+
+      controller.selection = TextSelection.collapsed(offset: controller.length);
+      await editor.paste();
+      await tester.pump();
+      expect(
+        content(tester),
+        '[[Pasted text #1 +29 lines]] read it'
+        '[[Pasted text #2 +29 lines]] read it',
+      );
+      expect(
+        [
+          for (final (:embed, start: _, end: _) in controller.embeds)
+            ComposerPastedTextEmbed.decode(embed.data).text,
+        ],
+        [long, long],
+      );
+    }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
   });
 
   testWidgets(
@@ -1618,6 +1689,41 @@ void main() {
       await drag.up();
       await tester.pump();
       expect(editorInHistory(), findsNothing);
+    });
+
+    testWidgets('the editor is outside the history\'s selection: a drag in '
+        'it selects its own text', (tester) async {
+      await pumpScreen(tester);
+      await reveal(tester, '第 2 轮');
+      await tester.tap(bubble('第 2 轮'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      // Not in the history's selection, whose gestures, keys (⌘C with
+      // nothing selected in the editor) and menu would be the editor's too.
+      expect(
+        find.ancestor(
+          of: editorInHistory(),
+          matching: find.byType(SelectionArea),
+        ),
+        findsNothing,
+      );
+      final controller = editController(tester);
+      final state = tester.state<MarkdownEditorState>(editorInHistory());
+      final from = state.caretRect(0)!.center;
+      final to = state.caretRect(4)!.center;
+      final drag = await tester.startGesture(
+        from,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await drag.moveTo(to);
+      await tester.pump();
+      await drag.up();
+      await tester.pump();
+      expect(
+        controller.selection,
+        const TextSelection(baseOffset: 0, extentOffset: 4),
+      );
     });
 
     testWidgets('a message with inline tags copies as its text', (

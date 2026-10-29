@@ -91,8 +91,11 @@ when others were not.
   turn, spun through, and a reply streamed below it. Run it on the whole
   transcript and on one turn of it: the difference is what the history
   costs each frame.
-- `hang.ui`: the UI thread held 7 s, past the Windows hang watchdog's 6:
-  its report (the data folder's `logs\hangs`), read with the symbols
+- `hang.ui`: the UI thread held 7 s, past the hang watchdog's 6 on Windows
+  (its report in the data folder's `logs\hangs`) or 4 on macOS
+  (macos/Runner/HangWatchdog.swift: `[hang]` lines in the event log, a
+  `/usr/bin/sample` in `hangs/` beside it, which
+  `tool/symbolize_jank_sample.dart` reads). The Windows report, read with the symbols
   (`--extra-gen-snapshot-options=--save-debugging-info=<file>` as the app
   is built, then `--no-build`), should name `_holdUiThread`; and the event
   log a 7 s frame. `BAOCODE_PERF_EVENTS=<folder>` keeps the event log

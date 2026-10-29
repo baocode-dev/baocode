@@ -4,6 +4,7 @@
 #include <shlobj.h>
 #include <windows.h>
 
+#include <cstdio>
 #include <vector>
 
 #include "utils.h"
@@ -125,6 +126,25 @@ std::wstring Path() {
     return fallback;
   }
   return std::wstring();
+}
+
+void AppendExit(const char* how) {
+  const std::wstring folder = Path();
+  if (folder.empty()) {
+    return;
+  }
+  FILE* out = nullptr;
+  // Binary: a line ends in \n alone, as Flutter's do.
+  if (_wfopen_s(&out, (folder + L"\\events.log").c_str(), L"ab") != 0 ||
+      out == nullptr) {
+    return;
+  }
+  SYSTEMTIME now = {};
+  ::GetLocalTime(&now);
+  std::fprintf(out, "%04u-%02u-%02uT%02u:%02u:%02u.%03u [exit] %s\n",
+               now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute,
+               now.wSecond, now.wMilliseconds, how);
+  std::fclose(out);
 }
 
 }  // namespace log_folder
