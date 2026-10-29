@@ -202,6 +202,19 @@ void main() {
       expect(ChatCodec.botSent(said), isFalse);
     });
 
+    test('its narration, in order among its messages; not one of them', () {
+      const text =
+          '<bot_narrate>她揉了揉眼睛</bot_narrate>\n<bot_say>在呢</bot_say>'
+          '<bot_narrate>把手机凑近了些</bot_say><bot_say>怎么啦</bot_say>'
+          '<bot_narrate>还';
+      expect(ChatCodec.botParts(text), [
+        ('她揉了揉眼睛', true),
+        ('在呢', false),
+        ('怎么啦', false),
+      ]);
+      expect(ChatCodec.botSays(text), ['在呢', '怎么啦']);
+    });
+
     test('the user\'s sticker is told by its text', () {
       expect(ChatCodec.sticker(ChatCodec.stickerText('love')), 'love');
       expect(ChatCodec.sticker('[Sticker: love]\n[Image #3]'), 'love');

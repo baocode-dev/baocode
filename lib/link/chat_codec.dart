@@ -29,6 +29,10 @@ abstract final class ChatCodec {
   /// user. What it writes outside them is not for the user.
   static const botSayTag = 'bot_say';
 
+  /// The tag a bot wraps narration in: what it does or what goes on, told
+  /// beside its messages, not said to the user.
+  static const botNarrateTag = 'bot_narrate';
+
   /// What the app told a bot in [item], if it is such a note.
   static String? botEvent(UserMessageItem item) {
     // The pictures that came with it referred to after it, if they are.
@@ -55,12 +59,20 @@ abstract final class ChatCodec {
   /// The messages a bot's reply [text] has, in order: each `<bot_say>`'s,
   /// once closed (one still being written shows when it is whole).
   static List<String> botSays(String text) => [
-    for (final match in _botSays.allMatches(text))
-      if (match[1]!.trim() case final said when said.isNotEmpty) said,
+    for (final (said, narration) in botParts(text))
+      if (!narration) said,
   ];
 
-  static final _botSays = RegExp(
-    '<$botSayTag>(.*?)</$botSayTag>',
+  /// What a bot's reply [text] shows, in order: its messages, and its
+  /// narration (`<bot_narrate>`, [narration] true); each once closed.
+  static List<(String text, bool narration)> botParts(String text) => [
+    for (final match in _botParts.allMatches(text))
+      if (match[2]!.trim() case final part when part.isNotEmpty)
+        (part, match[1] == botNarrateTag),
+  ];
+
+  static final _botParts = RegExp(
+    '<($botSayTag|$botNarrateTag)>(.*?)</\\1>',
     dotAll: true,
   );
 

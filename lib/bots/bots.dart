@@ -1027,9 +1027,9 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         final now = (
           session.itemCount,
           session.isStreaming,
-          // Each of its messages, as its reply's tags close.
+          // Each of its messages and narration, as its reply's tags close.
           last >= 0 && session.itemAt(last) is AssistantTextItem
-              ? ChatCodec.botSays(
+              ? ChatCodec.botParts(
                   (session.itemAt(last) as AssistantTextItem).text,
                 ).length
               : null,
