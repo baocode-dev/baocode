@@ -30,8 +30,8 @@ use std::{
 
 use futures_util::{FutureExt, StreamExt};
 use iroh::{
-    Endpoint, EndpointAddr, PublicKey, RelayMap, RelayMode, RelayUrl, SecretKey, TransportAddr,
-    Watcher,
+    Endpoint, EndpointAddr, PublicKey, RelayConfig, RelayMap, RelayMode, RelayUrl, SecretKey,
+    TransportAddr, Watcher,
     endpoint::{
         BindOpts, Connection, IdleTimeout, QuicTransportConfig, ReadExactError, RecvStream,
         SendStream, VarInt, presets,
@@ -405,7 +405,9 @@ async fn accept_loop(endpoint: Endpoint, sender: mpsc::UnboundedSender<Connectio
         let sender = sender.clone();
         runtime().spawn(async move {
             // One that never finishes its handshake holds up no other.
-            if let Ok(Ok(connection)) = tokio::time::timeout(Duration::from_secs(20), incoming).await {
+            if let Ok(Ok(connection)) =
+                tokio::time::timeout(Duration::from_secs(20), incoming).await
+            {
                 let _ = sender.send(connection);
             }
         });
@@ -414,8 +416,10 @@ async fn accept_loop(endpoint: Endpoint, sender: mpsc::UnboundedSender<Connectio
 
 /// When the home relay goes away iroh picks another only at its next
 /// network report, 20 to 26 s on, and meanwhile no one reaches this end
-/// through a relay. A network change makes it look at once: after 3 s
-/// down, then less often while it stays down.
+/// through a relay. (`network_change` does not help: it looks only if the
+/// interfaces changed.) A change to the relay map makes it report at once,
+/// so the relay down is put in it again: after 3 s down, then less often
+/// while it stays down.
 async fn relay_watchdog(endpoint: Endpoint) {
     const FIRST: Duration = Duration::from_secs(3);
     let mut home = endpoint.home_relay_status();
@@ -424,11 +428,16 @@ async fn relay_watchdog(endpoint: Endpoint) {
     // has its own error) do not put it off.
     let mut kick: Option<tokio::time::Instant> = None;
     loop {
-        let down = {
+        let down: Vec<RelayUrl> = {
             let status = home.get();
-            !status.is_empty() && !status.iter().any(|s| s.is_connected())
+            if status.iter().any(|s| s.is_connected()) {
+                Vec::new()
+            } else {
+                status.iter().map(|s| s.url().clone()).collect()
+            }
         };
-        if !down {
+        let down = (!down.is_empty()).then_some(down);
+        if down.is_none() {
             wait = FIRST;
             kick = None;
         } else if kick.is_none() {
@@ -439,7 +448,9 @@ async fn relay_watchdog(endpoint: Endpoint) {
             changed = home.updated() => if changed.is_err() { return },
             _ = endpoint.closed() => return,
             _ = tokio::time::sleep_until(at), if kick.is_some() => {
-                endpoint.network_change().await;
+                for url in down.into_iter().flatten() {
+                    endpoint.insert_relay(url.clone(), Arc::new(RelayConfig::from(url))).await;
+                }
                 wait = (wait * 2).min(Duration::from_secs(30));
                 kick = None;
             }
@@ -666,9 +677,12 @@ fn answer(generation: u64, req: i64, done: Done) {
 pub extern "C" fn bi_connection_open(req: i64, handle: i64) {
     spawn(req, async move {
         let connection = connection_of(handle)?;
-        let (send, recv) = connection.open_bi().await.map_err(|e| Fail::End(e.to_string()))?;
-        let handle =
-            keep(generation(), stream_obj(send, recv)).ok_or_else(|| Fail::End("restarted".into()))?;
+        let (send, recv) = connection
+            .open_bi()
+            .await
+            .map_err(|e| Fail::End(e.to_string()))?;
+        let handle = keep(generation(), stream_obj(send, recv))
+            .ok_or_else(|| Fail::End("restarted".into()))?;
         Ok((Vec::new(), handle))
     });
 }
@@ -679,9 +693,12 @@ pub extern "C" fn bi_connection_open(req: i64, handle: i64) {
 pub extern "C" fn bi_connection_accept(req: i64, handle: i64) {
     spawn(req, async move {
         let connection = connection_of(handle)?;
-        let (send, recv) = connection.accept_bi().await.map_err(|e| Fail::End(e.to_string()))?;
-        let handle =
-            keep(generation(), stream_obj(send, recv)).ok_or_else(|| Fail::End("restarted".into()))?;
+        let (send, recv) = connection
+            .accept_bi()
+            .await
+            .map_err(|e| Fail::End(e.to_string()))?;
+        let handle = keep(generation(), stream_obj(send, recv))
+            .ok_or_else(|| Fail::End("restarted".into()))?;
         Ok((Vec::new(), handle))
     });
 }
@@ -835,7 +852,9 @@ pub extern "C" fn bi_stream_finish(req: i64, handle: i64) {
 /// is not written yet never is.
 #[unsafe(no_mangle)]
 pub extern "C" fn bi_stream_reset(handle: i64) {
-    let Ok(stream) = stream_of(handle) else { return };
+    let Ok(stream) = stream_of(handle) else {
+        return;
+    };
     stream.stop_reading.send_replace(true);
     stream.reset.send_replace(true);
     runtime().spawn(async move {

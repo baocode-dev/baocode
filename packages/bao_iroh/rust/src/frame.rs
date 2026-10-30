@@ -20,7 +20,11 @@ pub const HEADER: usize = 5;
 /// [payload] as a frame, header and all.
 pub fn encode(payload: &[u8]) -> Result<Vec<u8>, String> {
     if payload.len() > MAX_MESSAGE {
-        return Err(format!("message of {} bytes, over {}", payload.len(), MAX_MESSAGE));
+        return Err(format!(
+            "message of {} bytes, over {}",
+            payload.len(),
+            MAX_MESSAGE
+        ));
     }
     let (flags, body) = match deflate(payload) {
         Some(body) => (DEFLATED, body),
@@ -63,7 +67,8 @@ fn deflate(payload: &[u8]) -> Option<Vec<u8>> {
     if payload.len() < COMPRESS_FROM {
         return None;
     }
-    let mut encoder = DeflateEncoder::new(Vec::with_capacity(payload.len() / 3), Compression::new(3));
+    let mut encoder =
+        DeflateEncoder::new(Vec::with_capacity(payload.len() / 3), Compression::new(3));
     encoder.write_all(payload).ok()?;
     let body = encoder.finish().ok()?;
     (body.len() + 16 < payload.len()).then_some(body)

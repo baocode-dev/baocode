@@ -97,6 +97,15 @@ abstract final class LinkMethods {
   /// [LinkLimits.output] characters: `{"text"}`.
   static const output = 'output';
 
+  /// `{"session", "task"}`: a command task's output as it grows: its last
+  /// [LinkLimits.output] characters now, `{"text", "offset"}` (where the
+  /// text ends in all of it), then [LinkEvents.output] with what is added
+  /// ([LinkOutput]), until [unwatchOutput] or the connection ends.
+  static const watchOutput = 'watchOutput';
+
+  /// `{"session", "task"}`: no more [LinkEvents.output] for it.
+  static const unwatchOutput = 'unwatchOutput';
+
   /// `{"project"}`: the project's files, `/`-separated from its root:
   /// `{"paths", "truncated"?, "changes": {path: "added" | "modified"}}`, the
   /// changes being its agents' not kept yet.
@@ -168,6 +177,10 @@ abstract final class LinkMethods {
   /// `{"data" (base64), "type"}` at most [LinkLimits.avatar], none for
   /// none). Sent when it changes, and on connecting.
   static const setMe = 'setMe';
+
+  /// Those whose answers can be large: each goes on a stream of its own
+  /// (see [LinkPeer]), holding up nothing else.
+  static const bulk = {read, image, icon, files, botAvatar, extensions};
 }
 
 /// How much of what a phone asks for it gets, at most.
@@ -307,6 +320,59 @@ abstract final class LinkEvents {
 
   /// The desktop unpaired the phone; the connection ends.
   static const unpaired = 'unpaired';
+
+  /// A [LinkOutput]: what a task watched ([LinkMethods.watchOutput]) wrote.
+  static const output = 'output';
+
+  /// `{"session"}`: not sent: the phone's [LinkPeer] tells its app so when
+  /// a session's update does not fit what it has (see
+  /// [LinkSessionMirror]). The session should be opened again.
+  static const resync = 'resync';
+}
+
+/// What a watched task wrote ([LinkEvents.output]): [text], ending at
+/// [offset] in all its output. With [reset], [text] is its last
+/// [LinkLimits.output] characters, in place of what the phone has (the
+/// output was cut, or too much came at once); else it follows on.
+class LinkOutput {
+  const LinkOutput({
+    required this.session,
+    required this.task,
+    required this.offset,
+    required this.text,
+    this.reset = false,
+  });
+
+  static LinkOutput? fromJson(Object? json) => switch (json) {
+    {
+      'session': final String session,
+      'task': final String task,
+      'offset': final int offset,
+      'text': final String text,
+    } =>
+      LinkOutput(
+        session: session,
+        task: task,
+        offset: offset,
+        text: text,
+        reset: json['reset'] == true,
+      ),
+    _ => null,
+  };
+
+  final String session;
+  final String task;
+  final int offset;
+  final String text;
+  final bool reset;
+
+  Map<String, Object?> toJson() => {
+    'session': session,
+    'task': task,
+    'offset': offset,
+    'text': text,
+    if (reset) 'reset': true,
+  };
 }
 
 /// Error codes of [LinkRemoteException].
