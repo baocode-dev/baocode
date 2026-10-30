@@ -2875,6 +2875,10 @@ class IdeEditorState extends State<IdeEditor> {
   /// (side by side, where the change's band leaves the original; at the
   /// file's left edge inline): the change reverted in the file, unsaved as
   /// any edit.
+  /// The revert arrows last built: for which changes, in which colors.
+  (List<LineRangeMapping>, Object, Map<LineRangeMapping, Widget>)?
+  _revertArrowWidgets;
+
   Widget _revertArrows(IdeOriginalDiff diff, DiffEditorLayout layout) =>
       ListenableBuilder(
         listenable: _viewTick,
@@ -2896,6 +2900,17 @@ class IdeEditorState extends State<IdeEditor> {
           }
           final snapshot = controller.document.snapshot;
           const size = 16.0;
+          // The same arrows as the view scrolls, moved, not built again
+          // each frame: built anew for other changes or colors.
+          final colors = _themes.colors;
+          final arrows = switch (_revertArrowWidgets) {
+            (final changes, final builtIn, final arrows)
+                when identical(changes, mappings) &&
+                    identical(builtIn, colors) =>
+              arrows,
+            _ => <LineRangeMapping, Widget>{},
+          };
+          _revertArrowWidgets = (mappings, colors, arrows);
           return Stack(
             children: [
               for (final change in mappings)
@@ -2908,7 +2923,7 @@ class IdeEditorState extends State<IdeEditor> {
                     top: top,
                     width: size,
                     height: size,
-                    child: IdeDiffRevertArrow(
+                    child: arrows[change] ??= IdeDiffRevertArrow(
                       added: change.original.isEmpty,
                       onTap: () {
                         controller.applyEdits([
