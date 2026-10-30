@@ -211,6 +211,8 @@ jobs:
           path: build/remote
       - name: Install create-dmg
         run: brew install create-dmg
+      # bao_iroh's Rust (the phones' link), built by its build hook.
+      - uses: ./.github/actions/setup-rust
       - name: Build, sign and notarise
         env:
           BAOCODE_MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
@@ -317,6 +319,8 @@ jobs:
         with:
           name: remote
           path: build/remote
+      # bao_iroh's Rust (the phones' link), built by its build hook.
+      - uses: ./.github/actions/setup-rust
       - name: Build
         run: dart run tool/build_windows.dart --remote-built --arch ${{ matrix.arch }} ${{ matrix.edition == 'channel' && '--channel' || '' }}
       - uses: actions/upload-artifact@v4
@@ -384,6 +388,8 @@ jobs:
         with:
           name: remote
           path: build/remote
+      # bao_iroh's Rust (the phones' link), built by its build hook.
+      - uses: ./.github/actions/setup-rust
       # The Dart code's symbols are saved beside it, for a jank sample's
       # libapp.so+0x… frames (tool/symbolize_jank_sample.dart). Only saved:
       # libapp.so stays as it was.
@@ -397,6 +403,8 @@ jobs:
         run: |
           sh tool/package_linux_deb.sh ${{ matrix.edition == 'channel' && '--channel' || '' }}
           dpkg-deb --info build/installers/BaoCode-*.deb
+          # The phones' link (bao_iroh's Rust) is in it.
+          dpkg-deb --contents build/installers/BaoCode-*.deb | grep -q 'lib/libbao_iroh.so$'
       - name: Install the package and launch it
         run: |
           sudo apt-get install -y ./build/installers/BaoCode-*.deb

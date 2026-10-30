@@ -98,6 +98,11 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+      # bao_iroh's Rust (the link), built by its build hook for the
+      # phone's targets.
+      - uses: ./monad/.github/actions/setup-rust
+        with:
+          dir: monad/packages/bao_iroh/rust
       - name: Put the release key in a file
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
@@ -158,6 +163,11 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+      # bao_iroh's Rust (the link), built by its build hook for the
+      # phone's targets.
+      - uses: ./monad/.github/actions/setup-rust
+        with:
+          dir: monad/packages/bao_iroh/rust
       - name: Put the certificate in a keychain, and the profile where Xcode finds it
         run: |
           keychain="$RUNNER_TEMP/signing.keychain-db"
