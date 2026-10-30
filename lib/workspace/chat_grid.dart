@@ -103,6 +103,61 @@ class ChatGrid<T extends Object> {
 
   bool get isEmpty => _cells.isEmpty;
 
+  /// Under each pane, the ones it covered (see [cover]), the last covered
+  /// last: closed, it shows the last of them again ([uncover]). They are
+  /// not built while covered.
+  Map<T, List<T>> _under = {};
+
+  /// The panes [pane] covers, the next to show again last.
+  List<T> under(T pane) => List.unmodifiable(_under[pane] ?? const []);
+
+  /// Whether [pane] is covered by another: not shown, kept to show again.
+  bool isCovered(T pane) => _under.values.any((under) => under.contains(pane));
+
+  /// [pane] no longer under any other: shown elsewhere, or gone.
+  void forget(T pane) {
+    for (final under in _under.values) {
+      under.remove(pane);
+    }
+    _under.removeWhere((_, under) => under.isEmpty);
+  }
+
+  /// [covered], under [pane], shown in its place over it: [pane] goes on top
+  /// of the rest under it.
+  void raise(T pane, T covered) {
+    final under = _under.remove(pane);
+    if (under == null || !under.remove(covered) || !contains(pane)) {
+      if (under != null) _under[pane] = under;
+      return;
+    }
+    _cells = [for (final cell in _cells) cell == pane ? covered : cell];
+    _under[covered] = [...under, pane];
+  }
+
+  /// Shows [pane] over [old], in its place: [old] and those it covered under
+  /// it, to show again once [pane] closes; the [maxUnder] last covered.
+  void cover(T old, T pane) {
+    assert(contains(old) && !contains(pane));
+    forget(pane);
+    final under = [...?_under.remove(old), old];
+    if (under.length > maxUnder) under.removeRange(0, under.length - maxUnder);
+    _cells = [for (final shown in _cells) shown == old ? pane : shown];
+    _under[pane] = under;
+  }
+
+  static const maxUnder = 8;
+
+  /// [pane] closed where it covers another: the last it covered shows in its
+  /// place again, over the rest. Null, nothing changed, where it covers none.
+  T? uncover(T pane) {
+    final under = _under.remove(pane);
+    if (under == null || under.isEmpty || !contains(pane)) return null;
+    final shown = under.removeLast();
+    _cells = [for (final cell in _cells) cell == pane ? shown : cell];
+    if (under.isNotEmpty) _under[shown] = under;
+    return shown;
+  }
+
   /// The panes, top left first, row by row.
   List<T> get panes => {..._cells}.toList();
   int get length => panes.length;
@@ -124,6 +179,7 @@ class ChatGrid<T extends Object> {
       if (!_isRectangle(own)) return false;
     }
     _cells = [...cells];
+    _under = {};
     return true;
   }
 
@@ -163,10 +219,12 @@ class ChatGrid<T extends Object> {
   /// [pane] alone, on the whole grid.
   void show(T pane) {
     _cells = List.filled(4, pane);
+    _under = {};
   }
 
   void clear() {
     _cells = const [];
+    _under = {};
   }
 
   /// Whether [pane] can give another the half of it on [side]: it has two
@@ -185,6 +243,7 @@ class ChatGrid<T extends Object> {
   /// Gives [added] the half of [target] on its [side] (see [canSplit]).
   void split(T target, PaneSide side, T added) {
     assert(canSplit(target, side) && !contains(added));
+    forget(added);
     _keepLines(
       () => _cells = [
         for (final (cell, pane) in _cells.indexed)
@@ -212,20 +271,26 @@ class ChatGrid<T extends Object> {
     final next = copy()..remove(pane);
     if (!next.canSplit(target, side)) return false;
     next.split(target, side, pane);
+    // What it covered goes with it.
+    if (_under[pane] case final under?) next._under[pane] = under;
     _cells = next._cells;
+    _under = next._under;
     _columnRatios = next._columnRatios;
     _rowRatios = next._rowRatios;
     _columnsFirst = next._columnsFirst;
     return true;
   }
 
-  /// Shows [pane] where [old] was.
+  /// Shows [pane] where [old] was, over what [old] covered.
   void replace(T old, T pane) {
     assert(!contains(pane));
+    forget(pane);
     _cells = [for (final shown in _cells) shown == old ? pane : shown];
+    if (_under.remove(old) case final under?) _under[pane] = under;
   }
 
-  /// Takes [pane] out: a pane beside it takes its cells, the one across the
+  /// Takes [pane] out, and those it covered with it: a pane beside it takes
+  /// its cells, the one across the
   /// straight line first (see [columnsFirst]: above or below where it is the
   /// column line). Where no one pane can (it had a whole row or column, the
   /// other half split), each cell goes to the pane across from it. Returns
@@ -237,6 +302,7 @@ class ChatGrid<T extends Object> {
       clear();
       return null;
     }
+    _under.remove(pane);
     // Across the straight line first: it stays straight, and the other's
     // parts where they were.
     final first = columnsFirst ? 2 : 1;
@@ -255,6 +321,8 @@ class ChatGrid<T extends Object> {
           shown != pane ? shown : heir ?? _cells[column ? cell ^ 1 : cell ^ 2],
       ],
     );
+    // Alone, a pane shows another in its place, not over it (see [cover]).
+    if (length == 1) _under = {};
     return _cells[gone.reduce(math.min)];
   }
 
@@ -267,6 +335,9 @@ class ChatGrid<T extends Object> {
   /// A grid the same as this one, to change without changing it.
   ChatGrid<T> copy() => ChatGrid<T>()
     .._cells = [..._cells]
+    .._under = {
+      for (final MapEntry(:key, :value) in _under.entries) key: [...value],
+    }
     .._columnRatios = [..._columnRatios]
     .._rowRatios = [..._rowRatios]
     .._columnsFirst = _columnsFirst;

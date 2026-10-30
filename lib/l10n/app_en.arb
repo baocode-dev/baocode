@@ -3704,6 +3704,33 @@
     }
   },
   "workspaceClosePane": "Close pane",
+  "workspaceCloseBackTo": "Close pane, back to {title}",
+  "@workspaceCloseBackTo": {
+    "description": "A pane's close button, where it covers another conversation, which shows again once it closes.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "workspaceCovers": "Over {title}, which shows again once this closes",
+  "@workspaceCovers": {
+    "description": "Shown while dropping a conversation over a pane of several.",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "workspaceCovered": "{count, plural, =1{1 conversation under this one} other{{count} conversations under this one}}",
+  "@workspaceCovered": {
+    "description": "A pane's button that lists the conversations it covers, to show one again.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "workspaceLoadingProjects": "Loading projects…",
   "workspaceDesktopOnly": "Agents run in the desktop app",
   "workspaceDesktopOnlyDetail": "Claude Code runs as a local process, which a browser cannot start.",

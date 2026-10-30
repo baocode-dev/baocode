@@ -839,7 +839,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// dropped too, unless it shows or something was sent to it.
   void dropDragAgent(AgentThread thread) {
     if (!_threads.contains(thread) || !_isUntouched(thread)) return;
-    if (_grid.contains(thread)) return;
+    if (_hasPane(thread)) return;
     if (_windowAgents.contains(thread)) return;
     if (_ideChats.values.any((tabs) => tabs.contains(thread))) return;
     _discard(thread);
@@ -849,7 +849,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// unless it shows elsewhere too.
   void closeWindowAgent(AgentThread thread) {
     if (!_threads.contains(thread) || !_isUntouched(thread)) return;
-    if (_grid.contains(thread)) return;
+    if (_hasPane(thread)) return;
     if (_ideChats.values.any((tabs) => tabs.contains(thread))) return;
     _discard(thread);
   }
@@ -1022,7 +1022,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         _ideChatShown[folder] = heirs[(at - 1).clamp(0, heirs.length - 1)];
       }
     }
-    if (_isUntouched(thread) && !_grid.contains(thread)) {
+    if (_isUntouched(thread) && !_hasPane(thread)) {
       _discard(thread);
     }
     return true;
@@ -1211,7 +1211,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   bool listsInSidebar(AgentThread thread) =>
       _projects.contains(thread.project) &&
       !isAppFolder(thread.project.path) &&
-      (!_isUntouched(thread) || _grid.contains(thread));
+      (!_isUntouched(thread) || _hasPane(thread));
 
   /// The sidebar's key for the group of [path]'s project.
   static String projectGroup(String path) => 'project:$path';
@@ -1358,13 +1358,16 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// The agents of the app's own folders (a bot's) out of the panes: never
   /// shown here, their user on the phone.
   void _leaveAppFolders() {
+    for (final thread in _threads) {
+      if (isAppFolder(thread.project.path)) _grid.forget(thread);
+    }
     final shown = [
       for (final thread in _grid.panes)
         if (isAppFolder(thread.project.path)) thread,
     ];
     if (shown.isEmpty) return;
     for (final thread in shown) {
-      _grid.remove(thread);
+      if (_grid.uncover(thread) == null) _grid.remove(thread);
     }
     if (_grid.isEmpty) {
       _selected = null;
@@ -1928,7 +1931,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
               (t) =>
                   t.project == project &&
                   _isUntouched(t) &&
-                  !_grid.contains(t) &&
+                  !_hasPane(t) &&
                   !heirs.containsValue(t),
             )
             .firstOrNull ??
@@ -2028,6 +2031,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Takes [thread] off the list, to be listed again from where its
   /// session is kept now: nothing of it forgotten, its session closed.
   void _drop(AgentThread thread) {
+    _grid.forget(thread);
     final listener = _listeners.remove(thread);
     if (listener != null) thread.session.removeListener(listener);
     _snapshots.remove(thread);
@@ -2893,13 +2897,27 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (!_grid.contains(thread)) {
       final focused = _selected;
       if (focused != null && _grid.contains(focused)) {
-        _grid.replace(focused, thread);
+        _showInPlaceOf(focused, thread);
       } else {
         _grid.show(thread);
       }
     }
     _selected = thread;
   }
+
+  /// [thread] in [target]'s pane: of several, over it, to show again once
+  /// [thread] closes (see [ChatGrid.cover]); alone, in its place.
+  void _showInPlaceOf(AgentThread target, AgentThread thread) {
+    if (_grid.length > 1) {
+      _grid.cover(target, thread);
+    } else {
+      _grid.replace(target, thread);
+    }
+  }
+
+  /// Whether [thread] has a pane: shown, or covered by another.
+  bool _hasPane(AgentThread thread) =>
+      _grid.contains(thread) || _grid.isCovered(thread);
 
   /// Shows [thread] in the half of [target]'s pane on its [side], and
   /// focuses it; where it shows already, only focuses it. Nothing where
@@ -2912,11 +2930,11 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     select(thread);
   }
 
-  /// Shows [thread] in [target]'s pane, and focuses it; where it shows
-  /// already, only focuses it.
+  /// Shows [thread] in [target]'s pane (see [_showInPlaceOf]), and focuses
+  /// it; where it shows already, only focuses it.
   void openInPlaceOf(AgentThread target, AgentThread thread) {
     if (!_grid.contains(target)) return;
-    if (!_grid.contains(thread)) _grid.replace(target, thread);
+    if (!_grid.contains(thread)) _showInPlaceOf(target, thread);
     select(thread);
   }
 
@@ -2926,11 +2944,24 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (_grid.rearrange(thread, target, side: side)) select(thread);
   }
 
-  /// Closes [thread]'s pane, the one beside it taking its place; the last
-  /// one stays. The agent goes on, in the sidebar.
+  /// Shows [covered], under [pane] (see [ChatGrid.cover]), in [pane]'s
+  /// place, [pane] going under it; focused.
+  void raiseCovered(AgentThread pane, AgentThread covered) {
+    if (!_grid.under(pane).contains(covered)) return;
+    _grid.raise(pane, covered);
+    select(covered);
+  }
+
+  /// Whether [thread]'s pane can close: another shows beside it.
+  bool canClosePane(AgentThread thread) =>
+      _grid.contains(thread) && _grid.length > 1;
+
+  /// Closes [thread]'s pane: the agent it covered shows there again, else
+  /// the one beside it takes its place; the last one stays. The agent goes
+  /// on, in the sidebar.
   void closePane(AgentThread thread) {
-    if (_grid.length < 2 || !_grid.contains(thread)) return;
-    final heir = _grid.remove(thread)!;
+    if (!canClosePane(thread)) return;
+    final heir = _grid.uncover(thread) ?? _grid.remove(thread)!;
     if (identical(thread, _selected)) _focus(heir);
     notifyListeners();
   }
@@ -2969,7 +3000,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     for (final thread in _threads) {
       if (thread.project == project &&
           _isUntouched(thread) &&
-          !_grid.contains(thread)) {
+          !_hasPane(thread)) {
         return thread;
       }
     }
@@ -3284,9 +3315,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   }
 
   void _leaveMany(Set<AgentThread> gone) {
+    gone.forEach(_grid.forget);
     final shown = gone.where(_grid.contains).toList();
     for (final thread in shown) {
-      _grid.remove(thread);
+      if (_grid.uncover(thread) == null) _grid.remove(thread);
     }
     if (shown.isEmpty) return;
     if (_grid.isEmpty) {
@@ -3307,11 +3339,17 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     }
   }
 
-  /// After [gone] is archived or deleted: its pane closes, the one beside
-  /// it taking its place; the last one shows the most recent remaining
-  /// agent instead, or a new one.
+  /// After [gone] is archived or deleted: the agent it covered shows in its
+  /// pane again; else its pane closes, the one beside it taking its place;
+  /// the last one shows the most recent remaining agent instead, or a new
+  /// one.
   void _leave(AgentThread gone) {
+    _grid.forget(gone);
     if (!_grid.contains(gone)) return;
+    if (_grid.uncover(gone) case final heir?) {
+      if (identical(gone, _selected)) _focus(heir);
+      return;
+    }
     if (_grid.length > 1) {
       final heir = _grid.remove(gone)!;
       if (identical(gone, _selected)) _focus(heir);

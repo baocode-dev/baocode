@@ -938,6 +938,82 @@ void main() {
     expect(inHeader(OpenInEditorButton), findsOneWidget);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
+  testWidgets('the sidebar shows an agent over the focused pane: not built '
+      'while covered, back where it was once the other closes', (tester) async {
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    final right = tester.getRect(pane(second));
+    await tester.tap(inSidebar(find.textContaining(third)));
+    await tester.pumpAndSettle();
+    expect(paneTitles(tester), unorderedEquals([first, third]));
+    expect(pane(second), findsNothing);
+    // The pane says what is under it, and its close button what comes back.
+    final layers = find.descendant(
+      of: pane(third),
+      matching: find.bySemanticsLabel('1 conversation under this one'),
+    );
+    expect(layers, findsOneWidget);
+    expect(
+      find.descendant(
+        of: pane(third),
+        matching: find.bySemanticsLabel('Close pane, back to $second'),
+      ),
+      findsOneWidget,
+    );
+    // Its menu shows the one under it again, the other going under.
+    await tester.tap(layers);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(second).last);
+    await tester.pumpAndSettle();
+    expect(paneTitles(tester), unorderedEquals([first, second]));
+    expect(workspace.grid.under(workspace.current!).single.title, third);
+    workspace.select(workspace.threads.firstWhere((t) => t.title == third));
+    await tester.pumpAndSettle();
+    expect(workspace.grid.under(workspace.current!).single.title, second);
+
+    // Dragged to a pane's middle: the preview says it goes over it.
+    final gesture = await dragAgent(
+      tester,
+      fourth,
+      tester.getRect(pane(first)).center,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Over $first, which shows again once this closes'),
+      findsOneWidget,
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(workspace.grid.under(workspace.current!).single.title, first);
+    workspace.closePane(workspace.current!);
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.descendant(
+        of: pane(third),
+        matching: find.bySemanticsLabel('Close pane, back to $second'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(paneTitles(tester), unorderedEquals([first, second]));
+    expect(tester.getRect(pane(second)), right);
+    // Another pane's close leaves the focus where it was.
+    expect(workspace.current!.title, first);
+
+    // Shown in the other pane meanwhile, it is not given back.
+    AgentThread agent(String title) =>
+        workspace.threads.firstWhere((thread) => thread.title == title);
+    workspace.select(agent(second));
+    workspace.select(agent(third));
+    workspace.select(agent(first));
+    workspace.select(agent(second));
+    await tester.pumpAndSettle();
+    expect(paneTitles(tester), unorderedEquals([second, third]));
+    workspace.closePane(agent(third));
+    await tester.pumpAndSettle();
+    expect(paneTitles(tester), [second]);
+  });
+
   testWidgets('the lines drag, each shared by the panes either side of it', (
     tester,
   ) async {
