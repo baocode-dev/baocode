@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -599,6 +600,32 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
     );
   }
 
+  /// The buttons by the changes as last built, by what each shows, and
+  /// the colors they were built in: the same widgets as the view scrolls,
+  /// moved, not built again each frame (their hovers are not light).
+  (Object, Map<Object, Widget>) _buttons = (Object(), {});
+
+  /// The changes' keys ([ideGitHunkKeys]) for the texts and changes they
+  /// were found for.
+  (DocumentSnapshot, DocumentSnapshot, List<LineRangeMapping>, List<String>)?
+  _hunkKeys;
+
+  List<String> _hunkKeysOf(
+    DocumentSnapshot original,
+    DocumentSnapshot modified,
+    List<LineRangeMapping> mappings,
+  ) {
+    if (_hunkKeys case (final o, final m, final changes, final keys)
+        when identical(o, original) &&
+            identical(m, modified) &&
+            identical(changes, mappings)) {
+      return keys;
+    }
+    final keys = ideGitHunkKeys(original, modified, mappings);
+    _hunkKeys = (original, modified, mappings, keys);
+    return keys;
+  }
+
   /// By each change, at its top: a revert arrow where the file can be
   /// edited (side by side, where the change's band leaves the original; at
   /// the modified editor's left edge inline), and a check box where it can
@@ -626,8 +653,15 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
           // Keyed by the text they were found in; none while it was edited
           // since.
           final keys = checks != null && identical(mapped, snapshot)
-              ? ideGitHunkKeys(original, snapshot, mappings)
+              ? _hunkKeysOf(original, snapshot, mappings)
               : null;
+          final colors = _themes.colors;
+          final (builtIn, built) = _buttons;
+          final buttons = <Object, Widget>{};
+          _buttons = (colors, buttons);
+          // [key]'s button as built before in these colors, else anew.
+          Widget button(Object key, Widget Function() build) => buttons[key] =
+              (identical(builtIn, colors) ? built[key] : null) ?? build();
           final arrowLeft = ideDiffArrowLeft(
             layout,
             size,
@@ -653,9 +687,10 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
             List<String> lines,
           ) {
             final area = view.textArea;
-            final rect = view.caretRectAt(text.lineStarts[line - 1]);
+            final rect = view.lineRectAt(line);
             if (area == null || rect == null) return null;
-            if (rect.top < area.top - 2 || rect.bottom > area.bottom + 2) {
+            final top = rect.top;
+            if (top < area.top - 2 || top + view.lineHeight > area.bottom + 2) {
               return null;
             }
             final excluded = checks!.isIncluded(hunk) == false;
@@ -663,23 +698,26 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
             return Positioned(
               key: ValueKey(('line', key)),
               left: left + area.left - lineSize - 2,
-              top: (rect.top + rect.bottom - lineSize) / 2,
+              top: top + (view.lineHeight - lineSize) / 2,
               width: lineSize,
               height: lineSize,
-              child: _HunkCheck(
-                checked: included,
-                line: true,
-                onTap: () {
-                  if (excluded) {
-                    // Of a change left out, this line alone in.
-                    checks.setIncluded(hunk, true);
-                    for (final other in lines) {
-                      if (other != key) checks.setIncluded(other, false);
+              child: button(
+                ('line', key, included, excluded),
+                () => _HunkCheck(
+                  checked: included,
+                  line: true,
+                  onTap: () {
+                    if (excluded) {
+                      // Of a change left out, this line alone in.
+                      checks.setIncluded(hunk, true);
+                      for (final other in lines) {
+                        if (other != key) checks.setIncluded(other, false);
+                      }
+                    } else {
+                      checks.setIncluded(key, !included);
                     }
-                  } else {
-                    checks.setIncluded(key, !included);
-                  }
-                },
+                  },
+                ),
               ),
             );
           }
@@ -707,9 +745,12 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
                   top: arrowTop,
                   width: size,
                   height: size,
-                  child: IdeDiffRevertArrow(
-                    added: change.original.isEmpty,
-                    onTap: () => revert(change),
+                  child: button(
+                    ('arrow', change),
+                    () => IdeDiffRevertArrow(
+                      added: change.original.isEmpty,
+                      onTap: () => revert(change),
+                    ),
                   ),
                 ),
               );
@@ -731,7 +772,11 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
                     right: DiffEditor.overviewWidth + 34,
                     top: top + 1,
                     height: view.lineHeight - 2,
-                    child: _AgentMark(turns: agent.turns),
+                    child: button((
+                      'agent',
+                      change,
+                      agent.turns,
+                    ), () => _AgentMark(turns: agent.turns)),
                   ),
                 );
               }
@@ -745,12 +790,15 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
                   top: top + (view.lineHeight - size) / 2,
                   width: size + 2,
                   height: size + 2,
-                  child: IdeActionButton(
-                    icon: Codicons.sparkle,
-                    tooltip: context.l10n.gitAskAiHunk,
-                    onPressed: () => ask(
-                      _changeText(original, snapshot, change),
-                      change.modified.startLineNumber,
+                  child: button(
+                    ('ask', change),
+                    () => IdeActionButton(
+                      icon: Codicons.sparkle,
+                      tooltip: context.l10n.gitAskAiHunk,
+                      onPressed: () => ask(
+                        _changeText(original, snapshot, change),
+                        change.modified.startLineNumber,
+                      ),
                     ),
                   ),
                 ),
@@ -781,9 +829,12 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
                   top: top + (view.lineHeight - size) / 2,
                   width: size,
                   height: size,
-                  child: _HunkCheck(
-                    checked: state,
-                    onTap: () => checks.setIncluded(hunk, state != true),
+                  child: button(
+                    ('check', change, state),
+                    () => _HunkCheck(
+                      checked: state,
+                      onTap: () => checks.setIncluded(hunk, state != true),
+                    ),
                   ),
                 ),
               );
@@ -879,8 +930,8 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       if (top == null || y < top - 2) continue;
       final end = change.modified.endLineNumberExclusive;
       final bottom = end > text.lineCount
-          ? view.caretRectAt(text.text.length)?.bottom
-          : view.caretRectAt(text.lineStarts[end - 1])?.top;
+          ? view.lineRectAt(text.lineCount)?.bottom
+          : view.lineRectAt(end)?.top;
       if (bottom != null && y <= bottom + 2) return index;
     }
     return null;
@@ -911,9 +962,8 @@ double? ideDiffChangeTop(
   LineRangeMapping change,
 ) {
   final start = change.modified.startLineNumber;
-  if (start <= 1) return view.caretRectAt(0)?.top;
-  final line = (start - 2).clamp(0, text.lineCount - 1);
-  return view.caretRectAt(text.lineStarts[line])?.bottom;
+  if (start <= 1) return view.lineRectAt(1)?.top;
+  return view.lineRectAt(math.min(start - 1, text.lineCount))?.bottom;
 }
 
 /// The left of a change's revert arrow, [size] square: side by side, where
