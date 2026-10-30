@@ -26,29 +26,26 @@ void main() {
     );
     await tester.pump();
     expect(find.text('Off'), findsOneWidget);
-    expect(find.text('192.168.1.5:47100'), findsOneWidget);
-    expect(find.text('Not Available Yet'), findsOneWidget);
+    expect(find.text('None reached'), findsOneWidget);
 
     await tester.tap(find.text('Show QR Code'));
     await tester.pump();
     await tester.pump();
     expect(host.enabled, isTrue);
     expect(find.byType(QrView), findsOneWidget);
-    expect(find.text('Listening on port 47100'), findsOneWidget);
+    expect(
+      find.text('On, reachable through relay-hk1.baocode.dev'),
+      findsOneWidget,
+    );
 
     // A phone scans it.
     final phone = LinkIdentity.generate();
-    final (a, b) = MemoryLinkSocket.pair();
-    platform.incoming.add(b);
     final offer = host.offer!;
     var answered = false;
     () async {
-      final channel = await SecureChannel.connect(
-        a,
-        identity: phone,
-        serverKey: offer.key,
-      );
-      await LinkPeer(channel).call(LinkMethods.hello, {
+      final connection = await platform.phone(phone).connect(offer.address);
+      final peer = await LinkPeer.connect(connection);
+      await peer.call(LinkMethods.hello, {
         'name': 'iPhone',
         'token': encodeKey(offer.token),
       });
@@ -91,17 +88,12 @@ void main() {
     await tester.pump();
 
     final phone = LinkIdentity.generate();
-    final (a, b) = MemoryLinkSocket.pair();
-    platform.incoming.add(b);
     final key = host.offer!.key;
+    final address = host.offer!.address;
     Object? confirmed;
     () async {
-      final channel = await SecureChannel.connect(
-        a,
-        identity: phone,
-        serverKey: key,
-      );
-      final peer = LinkPeer(channel);
+      final connection = await platform.phone(phone).connect(address);
+      final peer = await LinkPeer.connect(connection);
       await peer.call(LinkMethods.hello, {'name': 'Pixel', 'request': true});
       confirmed = await peer.call(LinkMethods.confirm);
     }();
@@ -122,5 +114,45 @@ void main() {
     expect(host.phones.single.name, 'Pixel');
     await tester.pump();
     expect(find.text('Paired with Pixel.'), findsOneWidget);
+    // The path is counted once it has settled.
+    await tester.pump(const Duration(seconds: 16));
+  });
+
+  testWidgets('phones paired before the rebuild are shown to pair again', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final platform = FakeLinkPlatform()
+      ..kept = {
+        'version': 1,
+        'identity': {'privateKey': 'AAAA', 'publicKey': 'AAAA'},
+        'phones': [
+          {'key': 'AAAA', 'name': 'Old iPhone', 'system': 'iOS 18'},
+        ],
+      };
+    final host = LinkHost(workspace: Workspace.mock(), platform: platform);
+    addTearDown(host.dispose);
+    await host.load();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: MobileSettingsPage(host: host)),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Old iPhone'), findsOneWidget);
+    expect(find.textContaining('Needs pairing again'), findsOneWidget);
+    await tester.tap(find.text('Pair Again'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(QrView), findsOneWidget);
+    host.endPairing();
+    await tester.pump();
+
+    await tester.tap(find.text('Remove'));
+    await tester.pump();
+    expect(find.text('Old iPhone'), findsNothing);
+    expect(find.text('No phone is paired yet.'), findsOneWidget);
   });
 }

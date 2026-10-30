@@ -8219,13 +8219,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileSettingsDescription =>
-      '在手机上的 BaoCode 里查看并操作这台电脑的智能体，经由局域网或公网直连。两端之间的内容端到端加密。';
+      '在手机上的 BaoCode 里查看并操作这台电脑的智能体：同一网络里直接连；跨网时自动打洞直连；都不行时经 BaoCode 中继。两端之间的内容端到端加密，中继也看不到。';
 
   @override
   String get mobileAllow => '允许手机连接';
 
   @override
-  String get mobileAllowDescription => '与这台电脑配对过的手机可以直接连接它。';
+  String get mobileAllowDescription => '与这台电脑配对过的手机，无论在哪里都可以连接它。';
 
   @override
   String get mobileStatus => '状态';
@@ -8237,53 +8237,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileStatusStarting => '正在启动…';
 
   @override
-  String mobileStatusListening(int port) {
-    return '正在监听端口 $port';
-  }
-
-  @override
   String mobileStatusFailed(String error) {
-    return '无法监听：$error';
+    return '无法启动：$error';
   }
 
   @override
-  String get mobileAddresses => '地址';
+  String get mobileRelay => '中继';
 
   @override
-  String get mobileAddressesDescription => '手机按此顺序尝试连接这台电脑：先局域网，再公网。';
-
-  @override
-  String get mobileAddressesNone => '未找到可用的网络。';
-
-  @override
-  String get mobileAddressesRefresh => '刷新';
-
-  @override
-  String get mobilePort => '端口';
-
-  @override
-  String get mobilePortDescription => '手机连接的端口。在路由器上转发此端口，即可从公网访问这台电脑。';
-
-  @override
-  String mobilePortInvalid(String text) {
-    return '不是有效端口：$text。请填写 1 到 65535 之间的数字。';
-  }
-
-  @override
-  String get mobilePublicAddress => '公网地址';
-
-  @override
-  String get mobilePublicAddressDescription =>
-      '可从公网访问这台电脑的域名或 IP（需转发端口），会写入二维码；多个用逗号分隔。经只收 HTTPS 的代理（如 Cloudflare Tunnel）访问时，写成 wss://域名。公网 IPv6 地址会自动加入。';
-
-  @override
-  String get mobileRelay => '中转';
-
-  @override
-  String get mobileRelayDescription => '当这台电脑的地址都无法直连时，经由 BaoCode 中转服务连接。即将推出。';
-
-  @override
-  String get mobileRelayUnavailable => '暂不可用';
+  String get mobileRelayDescription => '手机无法直连这台电脑时经由中继连接。中继只转发两端加密后的内容。';
 
   @override
   String get mobilePair => '配对手机';
@@ -8374,6 +8336,49 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobilePairAllow => '允许';
+
+  @override
+  String mobileStatusOnline(String relay) {
+    return '已开启，可经 $relay 连接';
+  }
+
+  @override
+  String get mobileStatusNoRelay => '已开启；还没连上中继，暂时只有同一网络里的手机能连';
+
+  @override
+  String mobileStatusDenied(String reason) {
+    return '已开启，但中继拒绝了这台电脑：$reason';
+  }
+
+  @override
+  String get mobileRelayNone => '未连上';
+
+  @override
+  String get mobileRelayCustom => '自建中继';
+
+  @override
+  String get mobileRelayCustomDescription =>
+      '你自己部署的中继（baocode-relay），与 BaoCode 的中继一起使用；多个用逗号分隔，如 https://relay.example.com。改动后新配对的手机会知道它们。';
+
+  @override
+  String get mobilePathLan => '局域网直连';
+
+  @override
+  String get mobilePathDirect => '打洞直连';
+
+  @override
+  String get mobilePathRelay => '经中继';
+
+  @override
+  String mobilePathRtt(int ms) {
+    return '$ms 毫秒';
+  }
+
+  @override
+  String get mobileLegacyPhone => '需要重新配对：连接方式升级前配对的';
+
+  @override
+  String get mobileLegacyRepair => '重新配对';
 
   @override
   String get settingsSectionStash => 'Stash';

@@ -77,6 +77,8 @@ const _required = [
   'msvcp140.dll',
   'vcruntime140.dll',
   'vcruntime140_1.dll',
+  // The phones' link: iroh (bao_iroh's hook/build.dart builds it).
+  'bao_iroh.dll',
   r'data\app.so',
   r'data\icudtl.dat',
   r'data\flutter_assets',

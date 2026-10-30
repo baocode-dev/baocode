@@ -3,11 +3,18 @@ import 'dart:async';
 import 'package:bao_link/bao_link.dart';
 import 'package:baocode/link/link_platform.dart';
 
-/// The machine, in memory: phones' sockets are put in [incoming]; what it
-/// advertises is in [advertised].
+/// The machine, in memory: its node is on [network], where phones' nodes
+/// dial it; what it advertises is in [advertised].
 class FakeLinkPlatform implements LinkPlatform {
   Map<String, Object?> kept = {};
-  final incoming = StreamController<LinkSocket>.broadcast();
+  final network = MemoryLinkNetwork();
+
+  /// The node bound last, while it is.
+  MemoryLinkNode? node;
+
+  /// What it was bound with last.
+  List<String> boundRelays = const [];
+  int binds = 0;
 
   /// Advertised now, the latest last.
   final List<LinkAdvert> advertised = [];
@@ -19,12 +26,18 @@ class FakeLinkPlatform implements LinkPlatform {
   Future<void> write(Map<String, Object?> json) async => kept = json;
 
   @override
-  Future<LinkListener> listen(int port) async => _Listener(port, incoming);
+  Future<LinkNode> bind(
+    LinkIdentity identity, {
+    required List<String> relays,
+    required int port,
+  }) async {
+    binds++;
+    boundRelays = relays;
+    return node = network.node(identity.id, relays: relays);
+  }
 
-  @override
-  Future<List<DirectEndpoint>> endpoints(int port) async => [
-    DirectEndpoint('192.168.1.5', port),
-  ];
+  /// A phone on the same network, as [identity].
+  MemoryLinkNode phone(LinkIdentity identity) => network.node(identity.id);
 
   @override
   Future<LinkAdvertising?> advertise(LinkAdvert advert) async {
@@ -47,18 +60,4 @@ class _Advertising implements LinkAdvertising {
 
   @override
   Future<void> stop() async => _stop();
-}
-
-class _Listener implements LinkListener {
-  _Listener(this.port, this._incoming);
-
-  @override
-  final int port;
-  final StreamController<LinkSocket> _incoming;
-
-  @override
-  Stream<LinkSocket> get sockets => _incoming.stream;
-
-  @override
-  Future<void> close() async {}
 }

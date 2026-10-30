@@ -538,7 +538,7 @@ Future<void> main(List<String> arguments) async {
       link: link,
       customizations: customizations,
     );
-    _startTelemetry(files);
+    _startTelemetry(files, link);
   }
   // The theme extensions (lib/extensions/): color and file icon themes
   // from Open VSX or a .vsix, `workbench.iconTheme` followed as
@@ -684,7 +684,7 @@ void _openChannelGate(SettingsFiles files) {
 
 /// The app's usage data (lib/telemetry/): once a UTC day it is in front.
 /// None in a debug build.
-void _startTelemetry(SettingsFiles files) {
+void _startTelemetry(SettingsFiles files, LinkHost? link) {
   final platform = platformTelemetry();
   if (platform == null) return;
   // The setup's, read back as it was set.
@@ -704,6 +704,8 @@ void _startTelemetry(SettingsFiles files) {
     inFront: inFront,
     edition: () => ChannelSetup.editionOf(channel),
     attribution: () => channel.attribution?.toJson(),
+    linkPaths: () => link?.pathCounts.pending,
+    linkPathsSent: link?.pathCountsSent,
   )..start();
   // Back in front: a new day, if it is one. For the app's whole run.
   AppLifecycleListener(onResume: telemetry.markActive);

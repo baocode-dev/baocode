@@ -26,6 +26,7 @@ environment:
 workspace:
   - packages/bao_agent
   - packages/bao_editor
+  - packages/bao_iroh
   - packages/bao_link
   - packages/bao_markdown
   - packages/bao_pty
