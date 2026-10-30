@@ -487,7 +487,7 @@
   "btwCommandDetail": "在当前对话旁边提问",
   "sidePanelSideChat": "侧边提问",
   "sideChatStale": "此对话开启后主对话又有新进展",
-  "sideChatRefresh": "更新快照",
+  "sideChatRefresh": "读入最新进展（这里的问答重新开始）",
   "sideChatNoContext": "主对话当时还没有可分享的内容，此处回答看不到它",
   "sideChatFailed": "侧边提问未能开启",
   "sideChatRetry": "重试",

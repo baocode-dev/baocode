@@ -186,8 +186,10 @@ class ChatScreen extends StatefulWidget {
   final OpenEditor? Function()? openEditor;
 
   /// Given, a `/btw` sent here asks it (the question beside the
-  /// conversation, see lib/chat/side_chat/) rather than the agent.
-  final void Function(ChatSession session, String question)? onSideQuestion;
+  /// conversation, see lib/chat/side_chat/) rather than the agent: its
+  /// images and mentions asked with it.
+  final void Function(ChatSession session, ComposerMessage question)?
+  onSideQuestion;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -659,13 +661,22 @@ class _ChatScreenState extends State<ChatScreen>
     return _commands;
   }
 
-  /// Takes `/btw …` for the side chat: true when it was one.
+  /// Takes `/btw …` for the side chat: true when it was one. What follows,
+  /// on this line or the next, is asked with the message's images and
+  /// mentions; `/btw` alone shows the side chat.
   bool _interceptSideQuestion(ComposerMessage message) {
     final handler = widget.onSideQuestion;
     if (handler == null) return false;
     final text = message.text.trimLeft();
-    if (text != '/btw' && !text.startsWith('/btw ')) return false;
-    handler(_session, text.substring('/btw'.length).trim());
+    if (!text.startsWith(RegExp(r'^/btw(\s|$)'))) return false;
+    handler(
+      _session,
+      ComposerMessage(
+        text: text.substring('/btw'.length).trim(),
+        mentions: message.mentions,
+        images: message.images,
+      ),
+    );
     return true;
   }
 

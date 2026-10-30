@@ -1637,7 +1637,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sideChatStale => 'The conversation went on since this chat opened';
 
   @override
-  String get sideChatRefresh => 'Update snapshot';
+  String get sideChatRefresh => 'Catch up (the questions here start over)';
 
   @override
   String get sideChatNoContext =>

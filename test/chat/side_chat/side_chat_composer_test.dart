@@ -55,6 +55,13 @@ void main() {
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
+    if (taken == null) {
+      // It went to the agent: its mock's script runs on timers — its
+      // thinking streams a chunk at a time, and a background task outlives
+      // the turn (see MockScript) — walked to their end so none is left
+      // pending.
+      await tester.pump(const Duration(seconds: 30));
+    }
     return (sent, taken);
   }
 

@@ -10,14 +10,33 @@ import 'side_chat.dart';
 
 /// The side panel's page of the questions asked beside a conversation
 /// (`/btw`): its agent's answers, in a conversation of their own, kept out
-/// of the one they are answered about.
-class SideChatPage extends StatelessWidget {
+/// of the one they are answered about. While the page shows, its agent is
+/// held (see [SideChat.attach]); let go once it does not.
+class SideChatPage extends StatefulWidget {
   const SideChatPage({super.key, required this.chat});
 
   final SideChat chat;
 
   @override
+  State<SideChatPage> createState() => _SideChatPageState();
+}
+
+class _SideChatPageState extends State<SideChatPage> {
+  @override
+  void initState() {
+    super.initState();
+    widget.chat.attach();
+  }
+
+  @override
+  void dispose() {
+    widget.chat.detach();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final chat = widget.chat;
     final l10n = context.l10n;
     return ListenableBuilder(
       // The conversation too: its going on makes the snapshot stale.

@@ -1598,7 +1598,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sideChatStale => '此对话开启后主对话又有新进展';
 
   @override
-  String get sideChatRefresh => '更新快照';
+  String get sideChatRefresh => '读入最新进展（这里的问答重新开始）';
 
   @override
   String get sideChatNoContext => '主对话当时还没有可分享的内容，此处回答看不到它';

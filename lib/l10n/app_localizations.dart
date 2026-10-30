@@ -3002,36 +3002,31 @@ abstract class AppLocalizations {
   /// **'Plan'**
   String get sidePanelPlan;
 
-  /// The /btw command's menu line: it asks a question beside the
-  /// conversation instead of in it.
+  /// The /btw command's menu line: it asks a question beside the conversation instead of in it.
   ///
   /// In en, this message translates to:
   /// **'Ask beside this conversation'**
   String get btwCommandDetail;
 
-  /// The side panel's page of the questions asked beside the conversation
-  /// (/btw).
+  /// The side panel's page of the questions asked beside the conversation (/btw).
   ///
   /// In en, this message translates to:
   /// **'Side Chat'**
   String get sidePanelSideChat;
 
-  /// Shown in the side chat once the conversation it was asked beside has
-  /// said more than its snapshot holds.
+  /// Shown in the side chat once the conversation it was asked beside has said more than its snapshot holds.
   ///
   /// In en, this message translates to:
   /// **'The conversation went on since this chat opened'**
   String get sideChatStale;
 
-  /// The side chat's button that opens it again on the conversation as it
-  /// is now.
+  /// The side chat's button that opens it again on the conversation as it is now: what was asked before is gone with the snapshot it was asked on.
   ///
   /// In en, this message translates to:
-  /// **'Update snapshot'**
+  /// **'Catch up (the questions here start over)'**
   String get sideChatRefresh;
 
-  /// Shown in the side chat when it opened before the conversation had
-  /// anything the agent could be told.
+  /// Shown in the side chat when it opened before the conversation had anything the agent could be told.
   ///
   /// In en, this message translates to:
   /// **'This conversation had nothing to share yet; answers here cannot see it'**

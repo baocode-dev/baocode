@@ -708,9 +708,9 @@
   "@sideChatStale": {
     "description": "Shown in the side chat once the conversation it was asked beside has said more than its snapshot holds."
   },
-  "sideChatRefresh": "Update snapshot",
+  "sideChatRefresh": "Catch up (the questions here start over)",
   "@sideChatRefresh": {
-    "description": "The side chat's button that opens it again on the conversation as it is now."
+    "description": "The side chat's button that opens it again on the conversation as it is now: what was asked before is gone with the snapshot it was asked on."
   },
   "sideChatNoContext": "This conversation had nothing to share yet; answers here cannot see it",
   "@sideChatNoContext": {
