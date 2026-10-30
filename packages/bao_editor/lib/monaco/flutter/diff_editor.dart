@@ -1050,7 +1050,11 @@ class _SplitPainter extends CustomPainter {
       final leftColor = o.isEmpty ? inserted : removed;
       final rightColor = m.isEmpty ? removed : inserted;
       if (leftColor == null || rightColor == null) continue;
-      Color? edge(Color? bar) => bar?.withValues(alpha: bar.a * 0.45);
+      Color? edge(Color? bar) => bar?.withValues(alpha: bar.a * 0.55);
+      final leftEdge = edge(o.isEmpty ? colors.insertedBar : colors.removedBar);
+      final rightEdge = edge(
+        m.isEmpty ? colors.removedBar : colors.insertedBar,
+      );
       band(
         top,
         bottom,
@@ -1058,30 +1062,24 @@ class _SplitPainter extends CustomPainter {
         rightBottom,
         leftColor,
         rightColor,
-        leftEdge: edge(o.isEmpty ? colors.insertedBar : colors.removedBar),
-        rightEdge: edge(m.isEmpty ? colors.removedBar : colors.insertedBar),
+        leftEdge: leftEdge,
+        rightEdge: rightEdge,
       );
-      // Where a side has none of the change's lines: a line across it.
-      if (o.isEmpty && top >= -1 && top <= height + 1) {
-        if (colors.insertedBar case final color?) {
-          canvas.drawRect(
-            Rect.fromLTWH(0, top - 0.5, bandLeft, 1),
-            paint..color = color,
-          );
-        }
+      // The band's edges go on across each side, round the change's lines
+      // there (one line where a side has none of them).
+      void across(double y, double from, double to, Color? color) {
+        if (color == null || y < -1 || y > height + 1) return;
+        canvas.drawRect(
+          Rect.fromLTRB(from, y - 0.5, to, y + 0.5),
+          paint..color = color,
+        );
       }
-      if (m.isEmpty && rightTop >= -1 && rightTop <= height + 1) {
-        if (colors.removedBar case final color?) {
-          canvas.drawRect(
-            Rect.fromLTRB(
-              modifiedLeft,
-              rightTop - 0.5,
-              contentWidth,
-              rightTop + 0.5,
-            ),
-            paint..color = color,
-          );
-        }
+
+      across(top, 0, bandLeft, leftEdge);
+      if (!o.isEmpty) across(bottom, 0, bandLeft, leftEdge);
+      across(rightTop, modifiedLeft, contentWidth, rightEdge);
+      if (!m.isEmpty) {
+        across(rightBottom, modifiedLeft, contentWidth, rightEdge);
       }
     }
 
