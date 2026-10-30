@@ -345,6 +345,9 @@ pub unsafe extern "C" fn bi_endpoint_bind(
         if config.accept {
             runtime().spawn(accept_loop(endpoint.clone(), sender));
         }
+        if !config.relays.is_empty() {
+            runtime().spawn(relay_watchdog(endpoint.clone()));
+        }
         let id = hex(endpoint.id().as_bytes());
         let obj = Arc::new(EndpointObj {
             endpoint,
@@ -406,6 +409,41 @@ async fn accept_loop(endpoint: Endpoint, sender: mpsc::UnboundedSender<Connectio
                 let _ = sender.send(connection);
             }
         });
+    }
+}
+
+/// When the home relay goes away iroh picks another only at its next
+/// network report, 20 to 26 s on, and meanwhile no one reaches this end
+/// through a relay. A network change makes it look at once: after 3 s
+/// down, then less often while it stays down.
+async fn relay_watchdog(endpoint: Endpoint) {
+    const FIRST: Duration = Duration::from_secs(3);
+    let mut home = endpoint.home_relay_status();
+    let mut wait = FIRST;
+    // When to look again, while down. Status updates (each failed retry
+    // has its own error) do not put it off.
+    let mut kick: Option<tokio::time::Instant> = None;
+    loop {
+        let down = {
+            let status = home.get();
+            !status.is_empty() && !status.iter().any(|s| s.is_connected())
+        };
+        if !down {
+            wait = FIRST;
+            kick = None;
+        } else if kick.is_none() {
+            kick = Some(tokio::time::Instant::now() + wait);
+        }
+        let at = kick.unwrap_or_else(tokio::time::Instant::now);
+        tokio::select! {
+            changed = home.updated() => if changed.is_err() { return },
+            _ = endpoint.closed() => return,
+            _ = tokio::time::sleep_until(at), if kick.is_some() => {
+                endpoint.network_change().await;
+                wait = (wait * 2).min(Duration::from_secs(30));
+                kick = None;
+            }
+        }
     }
 }
 
