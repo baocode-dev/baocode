@@ -353,6 +353,11 @@ abstract interface class EditorSurfaceView {
   /// The caret box at [offset] (one line tall), clipped to nothing.
   Rect? caretRectAt(int offset);
 
+  /// The one-based model [lineNumber]'s rows (at a hidden line, where it
+  /// would be), across the text area: found without laying its text out,
+  /// for what follows many lines as the view scrolls.
+  Rect? lineRectAt(int lineNumber);
+
   /// The union of the boxes of `[start, end)` on the line of [start].
   Rect? rangeRectAt(int start, int end);
 
@@ -1064,6 +1069,20 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   @override
   Rect? get textArea => _geometry?.contentRect;
+
+  @override
+  Rect? lineRectAt(int lineNumber) {
+    final layout = _layout;
+    final geometry = _geometry;
+    if (layout == null || geometry == null) return null;
+    final content = geometry.contentRect;
+    return Rect.fromLTWH(
+      content.left,
+      content.top + layout.lineTop(lineNumber) - layout.verticalScrollOffset,
+      content.width,
+      layout.lineRowsHeight(lineNumber),
+    );
+  }
 
   @override
   Rect? caretRectAt(int offset) {
