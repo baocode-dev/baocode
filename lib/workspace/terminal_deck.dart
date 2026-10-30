@@ -1,19 +1,18 @@
 import 'dart:async';
 
-import 'package:flutter/gestures.dart' show kMiddleMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../chat/chat_models.dart' show CommandStatus;
 import '../chat/chat_session.dart';
 import '../chat/side_panel/terminal_preview.dart';
-import '../chat/widgets/inline_rename_field.dart';
 import '../ide/file_service.dart';
 import '../ide/ide_button.dart';
 import '../ide/ide_chat_title.dart' show TabDragSource, TabDropLine;
 import '../ide/ide_hover.dart';
 import '../ide/ide_list.dart' show IdeTitleBadge;
 import '../ide/ide_menu.dart';
+import '../ide/ide_tab_bar.dart' show IdeEditorTab, IdeTabStrip;
 import '../ide/tab_strip_scroll.dart';
 import '../ide/terminal/links/terminal_links.dart';
 import '../ide/terminal/terminal_hosts.dart';
@@ -29,7 +28,6 @@ import '../kernel/kernel_types.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
-import '../theme/workbench_theme.dart' show themeColors;
 
 /// A chat's background commands, as a [TerminalDeck] (and the IDE's
 /// TERMINAL tab) lists them.
@@ -114,8 +112,10 @@ class TerminalDeck extends StatefulWidget {
   /// After New Terminal at the row's end: the panel's Hide.
   final Widget? trailing;
 
-  /// The row of tabs' height.
-  static const barHeight = 34.0;
+  /// What it is on, all of it, its terminals' screens too: the editor's
+  /// background, the side panel's and the conversation's surface, not
+  /// the terminals' own (the IDE's panel's).
+  static Color get background => AppColors.code;
 
   /// As [TerminalView.skipShell] and [TerminalView.onOpenLink].
   final List<ShortcutActivator> skipShell;
@@ -190,7 +190,7 @@ class _TerminalDeckState extends State<TerminalDeck> {
       widget.hosts.release(widget.place, except: shell);
       final here = shell != null && widget.hosts.take(shell, widget.place);
       return ColoredBox(
-        color: themeColors.get('terminal.background') ?? AppColors.code,
+        color: TerminalDeck.background,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -210,18 +210,18 @@ class _TerminalDeckState extends State<TerminalDeck> {
     bool here,
   ) {
     final terminals = widget.terminals;
-    return SizedBox(
-      height: TerminalDeck.barHeight,
+    return IdeTabStrip(
+      line: AppColors.partBorder,
+      small: true,
       child: Row(
         children: [
           Expanded(
             child: TabStripScroll(
               controller: _scroll,
-              padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (final (i, shell) in shells.indexed) ...[
-                    if (i > 0) const SizedBox(width: 2),
                     if (_spot == i) const TabDropLine(),
                     TabDragSource(
                       key: _tabKeys.putIfAbsent(shell, GlobalKey.new),
@@ -250,7 +250,6 @@ class _TerminalDeckState extends State<TerminalDeck> {
                   ],
                   if (_spot == shells.length) const TabDropLine(),
                   if (tasks.isNotEmpty) ...[
-                    if (shells.isNotEmpty) const SizedBox(width: 2),
                     _TasksTab(
                       key: const ValueKey(_tasksTab),
                       tasks: widget.tasks!,
@@ -412,6 +411,7 @@ class _TerminalDeckState extends State<TerminalDeck> {
           skipShell: widget.skipShell,
           onKill: () => terminals!.kill(shell),
           onOpenLink: widget.onOpenLink,
+          background: TerminalDeck.background,
         );
       case final String id:
         final task = tasks.firstWhere((task) => task.id == id);
@@ -426,6 +426,7 @@ class _TerminalDeckState extends State<TerminalDeck> {
           linkStat: terminals?.backend.linkStat,
           skipShell: widget.skipShell,
           onOpenLink: widget.onOpenLink,
+          background: TerminalDeck.background,
         );
       default:
         return _Note(
@@ -446,137 +447,22 @@ KernelTask? _latest(List<KernelTask> tasks) => tasks.isEmpty
         orElse: () => tasks.last,
       );
 
-/// A tab of the deck's: a rounded pill of [icon] and [label] (or
-/// [editor] in its place), filled while [active] or hovered; [trailing]
-/// after it, the close button there while hovered or active. Its menu on
-/// a right click, closed by the middle button too.
-class _DeckTab extends StatefulWidget {
+/// A tab of the deck's: the side panel's tabs over it ([IdeEditorTab]) a
+/// size smaller, the one shown under `tab.activeBorderTop` as an editor's.
+class _DeckTab extends IdeEditorTab {
   const _DeckTab({
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-    required this.active,
-    required this.onSelect,
-    required this.onMenu,
-    this.editor,
-    this.trailing,
-    this.closeTooltip,
-    this.onClose,
-  });
-
-  final Widget icon;
-  final String label;
-  final String tooltip;
-  final bool active;
-  final VoidCallback onSelect;
-  final ValueChanged<Offset> onMenu;
-  final Widget? editor;
-  final Widget? trailing;
-  final String? closeTooltip;
-  final VoidCallback? onClose;
-
-  static const height = 24.0;
-  static const radius = 6.0;
-  static const labelStyle = TextStyle(fontSize: 12);
-
-  @override
-  State<_DeckTab> createState() => _DeckTabState();
-}
-
-class _DeckTabState extends State<_DeckTab> {
-  bool _hover = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final active = widget.active;
-    final foreground = active || _hover
-        ? AppColors.textPrimary
-        : AppColors.textMuted;
-    final onClose = widget.onClose;
-    final editor = widget.editor;
-    final tab = MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Listener(
-        onPointerDown: (event) {
-          if (event.buttons & kMiddleMouseButton != 0) onClose?.call();
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onSelect,
-          onSecondaryTapUp: (details) => widget.onMenu(details.globalPosition),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            height: _DeckTab.height,
-            constraints: const BoxConstraints(maxWidth: 200),
-            // Tight to its ends: a button at the end has room of its own.
-            padding: EdgeInsets.only(
-              left: 6,
-              right: onClose != null || widget.trailing != null ? 2 : 6,
-            ),
-            decoration: BoxDecoration(
-              color: active
-                  ? AppColors.hover
-                  : _hover
-                  ? AppColors.hover.withValues(alpha: AppColors.hover.a * .5)
-                  : null,
-              borderRadius: BorderRadius.circular(_DeckTab.radius),
-              border: Border.all(
-                color: active ? AppColors.border : Colors.transparent,
-              ),
-            ),
-            child: IconTheme.merge(
-              data: IconThemeData(size: 14, color: foreground),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox.square(
-                    dimension: 14,
-                    child: Center(child: widget.icon),
-                  ),
-                  const SizedBox(width: 5),
-                  if (editor != null)
-                    SizedBox(width: 120, child: editor)
-                  else
-                    Flexible(
-                      child: Text(
-                        widget.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _DeckTab.labelStyle.copyWith(color: foreground),
-                      ),
-                    ),
-                  ?widget.trailing,
-                  if (onClose != null)
-                    SizedBox.square(
-                      dimension: 18,
-                      child: Visibility.maintain(
-                        visible: _hover || active,
-                        child: IdeActionButton(
-                          icon: Codicons.close,
-                          tooltip: widget.closeTooltip ?? '',
-                          size: 18,
-                          iconSize: 12,
-                          color: foreground,
-                          onPressed: onClose,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    return Semantics(
-      button: true,
-      selected: active,
-      label: widget.tooltip,
-      child: IdeHover(message: widget.tooltip, child: tab),
-    );
-  }
+    required super.icon,
+    required String super.label,
+    required String super.tooltip,
+    required super.active,
+    required super.onSelect,
+    required ValueChanged<Offset> super.onMenu,
+    super.trailing,
+    super.closeTooltip,
+    super.onClose,
+    super.renaming,
+    super.onRenamed,
+  }) : super(minWidth: 0, small: true);
 }
 
 /// A terminal's tab: its name (edited in place while [renaming]), the
@@ -614,18 +500,11 @@ class _ShellTab extends StatelessWidget {
         label: shell.title,
         tooltip: shell.exitMessage ?? shell.title,
         active: active,
-        editor: renaming
-            ? InlineRenameField(
-                initial: shell.title,
-                style: _DeckTab.labelStyle.copyWith(
-                  color: AppColors.textPrimary,
-                ),
-                onDone: (title) {
-                  terminals.endRename(shell, title);
-                  shell.focus();
-                },
-              )
-            : null,
+        renaming: renaming,
+        onRenamed: (title) {
+          terminals.endRename(shell, title);
+          shell.focus();
+        },
         onSelect: onSelect,
         closeTooltip: l10n.termKillTerminal,
         onClose: () => terminals.kill(shell),

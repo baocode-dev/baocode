@@ -191,6 +191,26 @@ void main() {
       expect(pixels.at(35, 5), _bg);
     });
 
+    test('a background of its place fills it and stands for the default '
+        'one', () async {
+      const place = Color(0xFF292925);
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.write('\x1b[7mI\x1b[0m\x1b[44m \x1b[0m');
+      h.renderer.background = place;
+      expect(h.paintRequests, greaterThan(0));
+      final pixels = await h.paint();
+      expect(h.renderer.backgroundColor, place);
+      // An inverted cell's text is the place's, its own colors kept.
+      expect(h.renderer.debugCellColors(0, 0)!.fg, place);
+      expect(pixels.at(15, 5), Color(terminalAnsiColors()[4].toARGB32()));
+      expect(pixels.at(55, 5), place);
+      h.renderer.background = null;
+      await h.paint();
+      expect(h.renderer.backgroundColor, _bg);
+      expect(h.renderer.debugCellColors(0, 0)!.fg, _bg);
+    });
+
     test('a dim palette color is half of it, not transparent', () async {
       // PSReadLine's inline prediction: bright white, dim, italic.
       final h = _Harness();
