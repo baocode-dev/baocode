@@ -676,6 +676,14 @@ class ClaudeTranslator {
     final messageId = body['id'] as String? ?? '${message['uuid']}';
     final eventId = message['uuid'] as String? ?? messageId;
     final synthetic = body['model'] == '<synthetic>';
+    // A subagent's: the model it runs on, as the upstream answered.
+    if (_agents[parent] case final agent? when !synthetic) {
+      if (_string(body['model']) case final model?
+          when model.isNotEmpty && model != agent.item.model) {
+        agent.item = agent.item.copyWith(model: model);
+        _putAgent(parent!);
+      }
+    }
     for (final (index, raw) in _list(body['content']).indexed) {
       final block = _map(raw);
       final kind = block['type'] == 'text' ? 'text' : 'thinking';
@@ -1201,7 +1209,10 @@ class ClaudeTranslator {
           // id, where its output goes). It reports in a notification.
           agent.item = agent.item.copyWith(
             prompt: _string(structured?['prompt']),
-            model: _string(structured?['resolvedModel']),
+            // What the CLI resolved, if its messages did not say.
+            model: agent.item.model == null
+                ? _string(structured?['resolvedModel'])
+                : null,
             background: true,
           );
           _putAgent(id);
@@ -1222,7 +1233,9 @@ class ClaudeTranslator {
             final ms? => Duration(milliseconds: ms),
             _ => null,
           },
-          model: _string(structured?['resolvedModel']),
+          model: agent.item.model == null
+              ? _string(structured?['resolvedModel'])
+              : null,
         );
         _putAgent(id);
         return;

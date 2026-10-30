@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../l10n/l10n.dart';
+import '../../models/model_provider.dart' show parseModelRef;
+import '../../models/model_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_models.dart';
@@ -123,6 +125,48 @@ class AgentStep extends StatefulWidget {
     return null;
   }
 
+  /// [model], a subagent's as its upstream answered, as people read it:
+  /// an upstream's model by the name the picker gives it, and that
+  /// upstream (unless more than one has a model of that id); Claude's as
+  /// "Opus 5.5"; else as it is.
+  static ({String label, String? upstream}) modelName(
+    String model, {
+    ModelProviders? providers,
+  }) {
+    final all = (providers ?? ModelProviders.current).providers;
+    final ref = parseModelRef(model);
+    final found = [
+      for (final provider in all)
+        if (ref == null || ref.provider == provider.id)
+          if (provider.model(ref?.model ?? model) case final info?)
+            (provider, info),
+    ];
+    if (found.isNotEmpty) {
+      return (
+        label: found.first.$2.displayName,
+        upstream: found.length == 1 ? found.first.$1.name : null,
+      );
+    }
+    final id = ref?.model ?? model;
+    final claude = RegExp(r'^claude-(?:[\d-]+-)?(opus|sonnet|haiku|fable)\b')
+        .firstMatch(id);
+    if (claude != null) {
+      final family = claude[1]!;
+      final version = [
+        for (final part in id.replaceFirst(RegExp(r'\[.*\]$'), '').split('-'))
+          if (RegExp(r'^\d{1,2}$').hasMatch(part)) part,
+      ].join('.');
+      return (
+        label: [
+          '${family[0].toUpperCase()}${family.substring(1)}',
+          if (version.isNotEmpty) version,
+        ].join(' '),
+        upstream: null,
+      );
+    }
+    return (label: id, upstream: null);
+  }
+
   /// The card as text, for copying: as it reads.
   static String plainText(AgentItem item, {AppLocalizations? l10n}) => [
     item.description,
@@ -220,6 +264,7 @@ class _AgentStepState extends State<AgentStep> {
               ),
             ),
           ),
+          if (item.model case final model?) _Model(model),
           // Its buttons take their own presses (see _down).
           Listener(
             onPointerDown: (_) => _onButton = true,
@@ -311,6 +356,35 @@ class _AgentStepState extends State<AgentStep> {
                 child: content,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The model it runs on, at the card's end ("Haiku 5.5"); its upstream and
+/// its id in full on hover.
+class _Model extends StatelessWidget {
+  const _Model(this.model);
+
+  final String model;
+
+  @override
+  Widget build(BuildContext context) {
+    final (:label, :upstream) = AgentStep.modelName(model);
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: IdeHover(
+        message: [?upstream, model].join(' · '),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 140),
+          child: Text(
+            label,
+            strutStyle: _lineStrut,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: AppColors.textFaint, fontSize: 12),
           ),
         ),
       ),
