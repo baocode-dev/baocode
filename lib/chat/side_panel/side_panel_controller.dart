@@ -33,6 +33,10 @@ class SidePanelTab {
   /// the lines asked for once more.
   int reveal = 0;
 
+  /// Where its changes were scrolled, for them to show there again when
+  /// it is in front once more; none once it is asked for again.
+  Offset? diffScroll;
+
   /// Its file's text as edited, once read: kept while the tab is open (see
   /// [AgentSidePanel.keepEdit]); none for changes.
   SidePanelFileEdit? edit;
@@ -522,7 +526,8 @@ class AgentSidePanel extends ChangeNotifier {
       if (!request.preview) tab._preview = false;
       tab
         ..request = request
-        ..reveal += 1;
+        ..reveal += 1
+        ..diffScroll = null;
     }
     if (request.diff) {
       tabs

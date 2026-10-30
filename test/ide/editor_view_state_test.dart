@@ -218,7 +218,6 @@ void main() {
     await tester.pumpWidget(_host(workspace, key));
     await tester.pump();
     final surfaces = find.byType(EditorSurface);
-    expect(surfaces, findsNWidgets(2));
     final modified = tester.state(surfaces.last) as EditorSurfaceView;
     final offset = workspace.active!.model.snapshot.lineStarts[149];
     modified.revealRange(offset, offset, center: true);
@@ -235,6 +234,48 @@ void main() {
       final view = (element as StatefulElement).state as EditorSurfaceView;
       expect(view.scrollOffset, scrolled);
     }
+  });
+
+  testWidgets('side by side, a diff tab shown again is where it was '
+      'scrolled, both sides', (tester) async {
+    final workspace = await workspaceOf(tester);
+    tester.view.physicalSize = const Size(1600, 300);
+    await workspace.openDiff(
+      _first,
+      label: 'Working Tree',
+      original: () async => _lines('first')
+          .replaceFirst('line 30\n', 'line 30!\n')
+          .replaceFirst('line 100\n', 'line 100!\nput in\n')
+          .replaceFirst('line 170\n', 'line 170!\n'),
+    );
+    final key = GlobalKey<IdeEditorState>();
+    await tester.pumpWidget(_host(workspace, key));
+    await tester.pump();
+    final surfaces = find.byType(EditorSurface);
+    expect(surfaces, findsNWidgets(2));
+    final modified = tester.state(surfaces.last) as EditorSurfaceView;
+    final offset = workspace.active!.model.snapshot.lineStarts[99];
+    modified.revealRange(offset, offset, center: true);
+    await tester.pump();
+    await tester.pump();
+    final scrolled = [
+      for (final element in surfaces.evaluate())
+        ((element as StatefulElement).state as EditorSurfaceView).scrollOffset,
+    ];
+    expect(scrolled.last.dy, greaterThan(0));
+    expect(scrolled.first.dy, greaterThan(0));
+
+    workspace.select(_second);
+    await tester.pump();
+    workspace.select(workspace.documents.last.key);
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(surfaces, findsNWidgets(2));
+    expect([
+      for (final element in surfaces.evaluate())
+        ((element as StatefulElement).state as EditorSurfaceView).scrollOffset,
+    ], scrolled);
   });
 
   test('view states keep the most recent, and go through JSON', () {

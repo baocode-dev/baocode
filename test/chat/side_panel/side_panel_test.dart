@@ -799,6 +799,46 @@ void main() {
     expect(tabs.active, isNotNull);
   });
 
+  testWidgets('a changes tab in front again is where it was scrolled; asked '
+      'for again, at its change', (tester) async {
+    String lines(String name) =>
+        [for (var i = 1; i <= 300; i++) '$name $i'].join('\n');
+    final (:panel, :session, files: _) = await _pumpChat(
+      tester,
+      texts: {'/p/a.dart': lines('a'), '/p/b.dart': lines('b')},
+    );
+    FileOpenRequest diff(String path, String name) => FileOpenRequest(
+      path,
+      diff: true,
+      original: () async => lines(name).replaceFirst('$name 20\n', '\n'),
+    );
+    panel.open(session, diff('/p/a.dart', 'a'));
+    await tester.pumpAndSettle();
+    EditorSurfaceView modified() =>
+        tester.state(find.byType(EditorSurface).last) as EditorSurfaceView;
+    final at = tester
+        .widget<EditorSurface>(find.byType(EditorSurface).last)
+        .controller
+        .document
+        .snapshot
+        .lineStarts[249];
+    modified().revealRange(at, at, center: true);
+    await tester.pumpAndSettle();
+    final scrolled = modified().scrollOffset;
+    expect(scrolled.dy, greaterThan(0));
+
+    panel.open(session, diff('/p/b.dart', 'b'));
+    await tester.pumpAndSettle();
+    final tabs = panel.tabsOf(session);
+    panel.activate(session, tabs.diffs.first);
+    await tester.pumpAndSettle();
+    expect(modified().scrollOffset, scrolled);
+
+    panel.open(session, diff('/p/a.dart', 'a'));
+    await tester.pumpAndSettle();
+    expect(modified().scrollOffset.dy, lessThan(scrolled.dy));
+  });
+
   test('the plan opens on a page of its own, there while it is', () {
     final panel = AgentSidePanel();
     addTearDown(panel.dispose);
