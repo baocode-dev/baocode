@@ -1018,12 +1018,14 @@ class ClaudeCodeKernel
                 },
               },
             ],
-            if (turn.text.isNotEmpty) {'type': 'text', 'text': turn.text},
             for (final note in turn.notes) {'type': 'text', 'text': note},
             if (ask)
               {'type': 'text', 'text': _askNote}
             else if (askEnded)
               {'type': 'text', 'text': _askEndedNote},
+            // Last: the CLI takes a message for a command (`/compact`)
+            // only by its last block.
+            if (turn.text.isNotEmpty) {'type': 'text', 'text': turn.text},
           ],
         },
       });
