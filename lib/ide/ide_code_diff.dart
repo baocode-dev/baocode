@@ -503,6 +503,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       dark:
           type == ThemeTypeSelector.vsDark || type == ThemeTypeSelector.hcBlack,
       originalStyledLines: _diff.textMate?.styledLines,
+      background: colors['editor.background'],
       border: colors.get('diffEditor.border'),
       sashHover: colors.get('sash.hoverBorder'),
       sideBySide: _options.sideBySide,
@@ -527,10 +528,14 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
           decorations: side.decorations,
           viewZones: side.zones,
           scrollPosition: side.scrollPosition,
-          glyphMargin: side.sideBySide,
+          lineNumbers: side.lineNumbers,
+          lineNumbersMinChars: side.lineNumbersMinChars,
+          // Room for its lines' check boxes.
+          glyphMargin: widget.checks != null,
           folding: false,
           hiddenLines: side.hiddenLines,
           showMinimap: false,
+          verticalScrollbar: false,
           style: style,
         );
       },
@@ -546,9 +551,14 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
         decorations: side.decorations,
         viewZones: side.zones,
         scrollPosition: side.scrollPosition,
+        // Side by side, the line numbers are by the split; inline, the
+        // margin has the arrows and check boxes.
+        glyphMargin: !side.sideBySide || widget.checks != null,
+        lineNumbersMinChars: side.lineNumbersMinChars,
         folding: false,
         hiddenLines: side.hiddenLines,
         showMinimap: false,
+        verticalScrollbar: false,
         onViewChanged: _viewChanged,
         style: style,
       ),
@@ -556,9 +566,10 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
   }
 
   /// By each change, at its top: a revert arrow where the file can be
-  /// edited (on the split side by side, at the modified editor's left edge
-  /// inline), and a check box where it can be left out of a commit (at the
-  /// modified editor's left edge, the arrow then after it inline).
+  /// edited (side by side, where the change's band leaves the original; at
+  /// the modified editor's left edge inline), and a check box where it can
+  /// be left out of a commit (at the modified editor's left edge, the arrow
+  /// then after it inline).
   Widget _overlay(BuildContext context, DiffEditorLayout layout) =>
       ListenableBuilder(
         listenable: Listenable.merge([_viewTick, _hovered]),
@@ -583,9 +594,11 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
           final keys = checks != null && identical(mapped, snapshot)
               ? ideGitHunkKeys(original, snapshot, mappings)
               : null;
-          final arrowLeft = layout.sideBySide
-              ? layout.splitLeft - size / 2
-              : layout.modifiedLeft + (checks == null ? 2 : 22);
+          final arrowLeft = ideDiffArrowLeft(
+            layout,
+            size,
+            inline: checks == null ? 2 : 22,
+          );
           final originalView = switch (_diff.controller) {
             final controller? when layout.sideBySide => switch (GlobalObjectKey(
               controller,
@@ -642,12 +655,22 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
             final top = ideDiffChangeTop(view, snapshot, change);
             if (top == null) continue;
             final shows = top >= area.top - 2 && top + size <= area.bottom;
-            if (shows && widget.onEdit != null) {
+            final arrowTop = ideDiffArrowTop(
+              view,
+              snapshot,
+              change,
+              layout,
+              size,
+            );
+            if (widget.onEdit != null &&
+                arrowTop != null &&
+                arrowTop >= area.top - 2 &&
+                arrowTop + size <= area.bottom) {
               children.add(
                 Positioned(
                   key: ObjectKey(change),
                   left: arrowLeft,
-                  top: top + (view.lineHeight - size) / 2,
+                  top: arrowTop,
                   width: size,
                   height: size,
                   child: IdeDiffRevertArrow(
@@ -857,6 +880,36 @@ double? ideDiffChangeTop(
   if (start <= 1) return view.caretRectAt(0)?.top;
   final line = (start - 2).clamp(0, text.lineCount - 1);
   return view.caretRectAt(text.lineStarts[line])?.bottom;
+}
+
+/// The left of a change's revert arrow, [size] square: side by side, where
+/// the change's band leaves the original; inline, [inline] into the
+/// modified editor's margin.
+double ideDiffArrowLeft(
+  DiffEditorLayout layout,
+  double size, {
+  double inline = 2,
+}) => layout.sideBySide ? layout.bandLeft + 2 : layout.modifiedLeft + inline;
+
+/// The top of a change's revert arrow, [size] square: side by side, by the
+/// change's first original line (on the line between the original's lines,
+/// where it only added some); inline, by the top of the change in the
+/// modified editor [view] of [text].
+double? ideDiffArrowTop(
+  EditorSurfaceView view,
+  DocumentSnapshot text,
+  LineRangeMapping change,
+  DiffEditorLayout layout,
+  double size,
+) {
+  if (layout.originalTop case final originalTop?) {
+    final top = originalTop(change.original.startLineNumber);
+    return change.original.isEmpty
+        ? top - size / 2
+        : top + (view.lineHeight - size) / 2;
+  }
+  final top = ideDiffChangeTop(view, text, change);
+  return top == null ? null : top + (view.lineHeight - size) / 2;
 }
 
 /// JetBrains' `>>` by a change (`×` for lines only added): reverts it.

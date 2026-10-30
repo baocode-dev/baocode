@@ -21,6 +21,8 @@ import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart'
     show DetailedLineRangeMapping, LineRangeMapping;
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/editor_view_painters.dart'
+    show EditorViewGeometry;
 import 'package:bao_editor/monaco/flutter/monaco_syntax.dart';
 import 'package:bao_editor/monaco/flutter/selection_adapter.dart';
 import 'package:bao_editor/monaco/flutter/theme_assets.dart';
@@ -52,7 +54,11 @@ import 'git/git_model.dart' show IdeGitBlameInformation, IdeGitLogLines;
 import 'ide_agent_edits.dart';
 import 'ide_line_change_popup.dart';
 import 'ide_code_diff.dart'
-    show IdeDiffRevertArrow, ideDiffChangeTop, ideDiffRevertEdit;
+    show
+        IdeDiffRevertArrow,
+        ideDiffArrowLeft,
+        ideDiffArrowTop,
+        ideDiffRevertEdit;
 import 'ide_diff_options.dart';
 import 'ide_commands.dart';
 import 'ide_find_widget.dart';
@@ -2737,9 +2743,15 @@ class IdeEditorState extends State<IdeEditor> {
     // have one unless it is turned off (EditorMinimap).
     viewZones: side?.zones ?? agent?.zones ?? const [],
     scrollPosition: side?.scrollPosition,
+    // Side by side, the line numbers are by the split: no margin between.
+    glyphMargin: side == null || !side.sideBySide,
+    lineNumbersMinChars:
+        side?.lineNumbersMinChars ?? EditorViewGeometry.lineNumbersMinChars,
     folding: side == null,
     hiddenLines: side?.hiddenLines,
     showMinimap: side == null && EditorMinimap.on.value,
+    // A diff's overview scrolls it.
+    verticalScrollbar: side == null,
     onKeyEvent: _onEditorKey,
     keyResolver: widget.keyResolver == null ? null : _resolveTextKey,
     onHover: _language == null
@@ -2824,6 +2836,7 @@ class IdeEditorState extends State<IdeEditor> {
       dark:
           type == ThemeTypeSelector.vsDark || type == ThemeTypeSelector.hcBlack,
       originalStyledLines: diff.textMate?.styledLines,
+      background: colors['editor.background'],
       border: colors.get('diffEditor.border'),
       sashHover: colors.get('sash.hoverBorder'),
       original: (context, side) {
@@ -2841,10 +2854,13 @@ class IdeEditorState extends State<IdeEditor> {
           decorations: side.decorations,
           viewZones: side.zones,
           scrollPosition: side.scrollPosition,
-          glyphMargin: side.sideBySide,
+          lineNumbers: side.lineNumbers,
+          lineNumbersMinChars: side.lineNumbersMinChars,
+          glyphMargin: false,
           folding: false,
           hiddenLines: side.hiddenLines,
           showMinimap: false,
+          verticalScrollbar: false,
           style: _editorStyle(colors),
         );
       },
@@ -2856,8 +2872,9 @@ class IdeEditorState extends State<IdeEditor> {
   }
 
   /// JetBrains' `>>` by each change of a diff tab whose file can be edited
-  /// (on the split side by side, at the file's left edge inline): the
-  /// change reverted in the file, unsaved as any edit.
+  /// (side by side, where the change's band leaves the original; at the
+  /// file's left edge inline): the change reverted in the file, unsaved as
+  /// any edit.
   Widget _revertArrows(IdeOriginalDiff diff, DiffEditorLayout layout) =>
       ListenableBuilder(
         listenable: _viewTick,
@@ -2882,14 +2899,13 @@ class IdeEditorState extends State<IdeEditor> {
           return Stack(
             children: [
               for (final change in mappings)
-                if (ideDiffChangeTop(view, snapshot, change) case final top?
+                if (ideDiffArrowTop(view, snapshot, change, layout, size)
+                    case final top?
                     when top >= area.top - 2 && top + size <= area.bottom)
                   Positioned(
                     key: ObjectKey(change),
-                    left: layout.sideBySide
-                        ? layout.splitLeft - size / 2
-                        : layout.modifiedLeft + 2,
-                    top: top + (view.lineHeight - size) / 2,
+                    left: ideDiffArrowLeft(layout, size),
+                    top: top,
                     width: size,
                     height: size,
                     child: IdeDiffRevertArrow(

@@ -43,14 +43,16 @@ class EditorViewGeometry {
     required bool folding,
     required double minimapWidth,
     double annotationsWidth = 0,
+    bool verticalScrollbar = true,
+    int minLineNumberChars = lineNumbersMinChars,
   }) {
     final glyphMarginWidth = glyphMargin ? lineHeight.roundToDouble() : 0.0;
-    final digits = math.max('$lineCount'.length, lineNumbersMinChars);
+    final digits = math.max('$lineCount'.length, minLineNumberChars);
     final lineNumbersWidth = lineNumbers
         ? (digits * digitWidth).roundToDouble()
         : 0.0;
     final decorationsWidth = 10.0 + (folding ? 16 : 0);
-    const scrollbar = 14.0;
+    final scrollbar = verticalScrollbar ? 14.0 : 0.0;
     final remaining =
         size.width -
         glyphMarginWidth -
@@ -1158,6 +1160,9 @@ class EditorGutterPainter extends CustomPainter {
   /// The column right of the line numbers, if any.
   final EditorLineAnnotations? annotations;
 
+  /// [EditorDecoration.gutterBarColor]'s bar.
+  static const double gutterBarWidth = 3;
+
   @override
   void paint(Canvas canvas, Size size) {
     final rect = geometry.gutterRect;
@@ -1247,9 +1252,12 @@ class EditorGutterPainter extends CustomPainter {
       snapshot.contentEnds[visible.last - 1],
     )) {
       final margin = decoration.marginColor;
+      final edge = decoration.gutterBarColor;
       final icon = decoration.lineDecorationIcon;
       final bar = decoration.changeBar;
-      if (margin == null && icon == null && bar == null) continue;
+      if (margin == null && edge == null && icon == null && bar == null) {
+        continue;
+      }
       final first = snapshot.positionAtOffset(decoration.start).lineNumber;
       final last = snapshot.positionAtOffset(decoration.end).lineNumber;
       for (final line in visible) {
@@ -1261,6 +1269,12 @@ class EditorGutterPainter extends CustomPainter {
           canvas.drawRect(
             Rect.fromLTWH(0, top, rect.width, height),
             paint..color = margin,
+          );
+        }
+        if (edge != null) {
+          canvas.drawRect(
+            Rect.fromLTWH(0, top, gutterBarWidth, height),
+            paint..color = edge,
           );
         }
         if (icon == null) continue;
