@@ -10733,10 +10733,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get diffRevertChange => '回滚';
+  String get diffRevertChange => '撤销这处改动（改回左边的样子）';
 
   @override
-  String get diffRemoveChange => '删除';
+  String get diffRemoveChange => '撤销这处改动（删掉新加的这几行）';
 
   @override
   String get diffPreviousDifference => '上一处差异';
@@ -11355,11 +11355,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get gitChangelistDelete => '删除变更列表';
-
-  @override
-  String gitChangelistTurn(String request) {
-    return 'AI：$request';
-  }
 
   @override
   String get gitStashChangesTitle => '暂存改动（Stash）';
