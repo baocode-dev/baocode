@@ -53,7 +53,8 @@ abstract interface class IdeDiffChecks implements Listenable {
 /// ([DiffEditor]), as JetBrains IDEs' diff viewer shows one: side by side
 /// or unified as [IdeDiffOptions] says, both highlighted as the language of
 /// [path], scrolled to [line] of [modified] (from 1) or to its first change
-/// ([start]: its last). With [onEdit], the modified side is the file's and
+/// ([start]: its last), or where it was scrolled when shown before
+/// ([scrolled], told [onScrolled] as it scrolls). With [onEdit], the modified side is the file's and
 /// can be edited, each change with a revert arrow beside it; what is
 /// typed and reverted goes to [onEdit]. Copied, the modified's lines are
 /// told [onCopy] (from 1).
@@ -72,6 +73,8 @@ class IdeCodeDiff extends StatefulWidget {
     this.checks,
     this.agent,
     this.onAsk,
+    this.scrolled,
+    this.onScrolled,
   });
 
   final String path;
@@ -101,6 +104,11 @@ class IdeCodeDiff extends StatefulWidget {
   /// Asks the AI about a change: its lines as a diff writes them (`-`
   /// taken out, `+` put in), and where it starts in [modified].
   final void Function(String change, int line)? onAsk;
+
+  /// Where it was scrolled when shown before: there again, not at [line]
+  /// or a change.
+  final Offset? scrolled;
+  final ValueChanged<Offset>? onScrolled;
 
   /// How long typing goes on before what is typed is written.
   static const writeDelay = Duration(milliseconds: 400);
@@ -229,7 +237,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
     widget.checks?.addListener(_changed);
     _whitespace = _ignoredWhitespace;
     _release = ShownWhenReady.hold(context);
-    _open(widget.modified);
+    _open(widget.modified, scroll: widget.scrolled);
   }
 
   IdeDiffWhitespace get _ignoredWhitespace =>
@@ -270,9 +278,15 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
     super.dispose();
   }
 
-  void _open(String text) {
+  /// Shows [text] against the original, at [scroll] if it was shown
+  /// before, else revealed (see [_reveal]).
+  void _open(String text, {Offset? scroll}) {
     final texts = ++_texts;
-    _revealed = false;
+    _revealed = scroll != null;
+    if (_revealed) {
+      _placed = true;
+      _readyIf();
+    }
     _change = -1;
     final document = EditorDocumentModel(text);
     _modified = EditorSurfaceController(document: document)
@@ -285,7 +299,9 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       onChanged: _changed,
       ignoreTrimWhitespace: _whitespace != IdeDiffWhitespace.none,
       ignoreAllWhitespace: _whitespace == IdeDiffWhitespace.all,
+      scroll: scroll ?? Offset.zero,
     );
+    _diff.scroll.addListener(_scrolled);
     _diff.model.addListener(_compared);
     // Small texts are compared at once, before there was a listener.
     if (_diff.model.mappings != null) {
@@ -307,6 +323,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
     _highlight?.removeListener(_firstColors);
     _highlight?.dispose();
     _highlight = null;
+    _diff.scroll.removeListener(_scrolled);
     _diff.model.removeListener(_compared);
     _diff.dispose();
     _original.dispose();
@@ -318,6 +335,8 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
   void _changed() {
     if (mounted) setState(() {});
   }
+
+  void _scrolled() => widget.onScrolled?.call(_diff.scroll.value);
 
   /// Whitespace ignored or not: compared again, the text as it is now.
   void _optionsChanged() {

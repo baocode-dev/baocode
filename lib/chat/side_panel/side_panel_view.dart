@@ -1192,6 +1192,8 @@ class AgentSidePanelView extends StatelessWidget {
     reveal: tab.reveal,
     edit: tab.edit,
     onEdit: (edit) => panel.keepEdit(tab, edit),
+    diffScroll: tab.diffScroll,
+    onDiffScrolled: (offset) => tab.diffScroll = offset,
     agentEdit: tab.diff || tab.request.local || tab.request.readOnly
         ? null
         : IdeAgentEdit.inSession(session, tab.path),
