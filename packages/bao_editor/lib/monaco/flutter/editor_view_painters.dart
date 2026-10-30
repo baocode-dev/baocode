@@ -45,13 +45,17 @@ class EditorViewGeometry {
     double annotationsWidth = 0,
     bool verticalScrollbar = true,
     int minLineNumberChars = lineNumbersMinChars,
+    double? glyphMarginWidth,
+    double lineDecorationsWidth = defaultLineDecorationsWidth,
   }) {
-    final glyphMarginWidth = glyphMargin ? lineHeight.roundToDouble() : 0.0;
+    glyphMarginWidth = glyphMargin
+        ? glyphMarginWidth ?? lineHeight.roundToDouble()
+        : 0.0;
     final digits = math.max('$lineCount'.length, minLineNumberChars);
     final lineNumbersWidth = lineNumbers
         ? (digits * digitWidth).roundToDouble()
         : 0.0;
-    final decorationsWidth = 10.0 + (folding ? 16 : 0);
+    final decorationsWidth = lineDecorationsWidth + (folding ? 16 : 0);
     final scrollbar = verticalScrollbar ? 14.0 : 0.0;
     final remaining =
         size.width -
@@ -77,6 +81,9 @@ class EditorViewGeometry {
 
   /// Monaco's `lineNumbersMinChars` default.
   static const int lineNumbersMinChars = 5;
+
+  /// Monaco's `lineDecorationsWidth` default.
+  static const double defaultLineDecorationsWidth = 10;
 
   final Size size;
   final double glyphMarginWidth;
