@@ -1578,8 +1578,8 @@ void main() {
         await pumpEventQueue();
         final content = (cli.users.last['message'] as Map)['content'] as List;
         expect(content, [
-          {'type': 'text', 'text': 'Carry out the plan'},
           {'type': 'text', 'text': ClaudeTranslator.planStartedNote(planFile)},
+          {'type': 'text', 'text': 'Carry out the plan'},
         ]);
         // Only the message that starts it says so.
         kernel.send(const KernelTurn(id: 'u3', text: 'And test it'));
@@ -1652,7 +1652,7 @@ void main() {
       await pumpEventQueue();
       final content = (cli.users.last['message'] as Map)['content'] as List;
       expect(
-        (content.last as Map)['text'],
+        (content.first as Map)['text'],
         ClaudeTranslator.planStartedNote(''),
       );
       expect(
@@ -3917,6 +3917,8 @@ void main() {
         for (final part
             in ((cli.users[i]['message'] as Map)['content'] as List)
                 .cast<Map<Object?, Object?>>()
+                .toList()
+                .reversed
                 .skip(1))
           part['text'],
       ];
@@ -3935,7 +3937,7 @@ void main() {
       await pumpEventQueue();
       final content = ((cli.users.single['message'] as Map)['content'] as List)
           .cast<Map<Object?, Object?>>();
-      expect(content.first['text'], 'why is it slow?');
+      expect(content.last['text'], 'why is it slow?');
       expect(notes(0), [contains('in Ask mode')]);
       cli.push({...cli.users.single, 'isReplay': true});
       await pumpEventQueue();
