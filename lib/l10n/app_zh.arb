@@ -1292,6 +1292,8 @@
   "langInstallingTooltip": "正在安装 {id}",
   "langNoneFound": "{kind, select, definition{未找到定义} typeDefinition{未找到类型定义} implementation{未找到实现} other{未找到引用}}",
   "langNoneFoundFor": "{kind, select, definition{未找到“{word}”的定义} typeDefinition{未找到“{word}”的类型定义} implementation{未找到“{word}”的实现} other{未找到“{word}”的引用}}",
+  "langNavigationUnavailable": "此文件没有可用于代码跳转的语言服务器。",
+  "langNavigationInstall": "安装“{id}”语言服务器后，即可在此文件中跳转到定义和引用。",
   "langReferences": "引用",
   "langReferencesTo": "“{word}”的引用",
   "langDefinitions": "定义",

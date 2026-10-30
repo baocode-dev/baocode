@@ -506,6 +506,7 @@ class IdeEditorState extends State<IdeEditor> {
       onApplyWorkspaceEdit: applyWorkspaceEdit,
       onFocusEditor: focus,
       onFormatterMissing: _formatterMissing,
+      onNavigationUnavailable: _navigationUnavailable,
       paths: widget.workspace.paths,
       semanticTokenStyler: _semanticTokenStyler,
       languageId: _textMateDocuments[doc]?.$2.languageId ?? 'plaintext',
@@ -534,6 +535,51 @@ class IdeEditorState extends State<IdeEditor> {
         }),
       ],
     );
+  }
+
+  bool _navigationUnavailable(String path) {
+    final languages = widget.workspace.languages;
+    if (!mounted || languages == null) return false;
+    final notifications = IdeNotificationsScope.maybeOf(context);
+    if (notifications == null) return false;
+    final l10n = context.l10n;
+    for (final status in languages.statusFor(path)) {
+      final id = status.serverId;
+      final String message;
+      final actions = <IdeNotificationAction>[];
+      switch (status.state) {
+        case LanguageServerState.missing:
+          if (status.missingRuntime case final runtime?) {
+            message = l10n.extMissingRuntime(id, runtime);
+          } else if (status.installable) {
+            message = l10n.langNavigationInstall(id);
+            actions.add(
+              IdeNotificationAction(l10n.extInstall, () async {
+                try {
+                  await languages.install(id, path: path);
+                } catch (error) {
+                  if (mounted) widget.onError(error);
+                }
+              }),
+            );
+          } else {
+            message = l10n.extUnavailable(id);
+          }
+        case LanguageServerState.failed || LanguageServerState.restarting:
+          message = [l10n.langFailed(id), ?status.message].join('\n');
+          actions.add(
+            IdeNotificationAction(
+              l10n.cmdRetryLanguageServices,
+              () => languages.retry(id, path: path),
+            ),
+          );
+        default:
+          continue;
+      }
+      notifications.notify(IdeSeverity.warning, message, primary: actions);
+      return true;
+    }
+    return false;
   }
 
   void _disposeLanguageSession() {
@@ -1990,19 +2036,19 @@ class IdeEditorState extends State<IdeEditor> {
   bool _languageCommandEnabled(String id) {
     final session = _language;
     if (session == null) return false;
-    // As upstream's `formatDocument.none`: offered with no formatter too,
-    // to say so and which server would be one.
-    if (id == 'editor.action.formatDocument' ||
+    // Explicit navigation waits for a starting server or explains how to
+    // install/retry a missing one, as formatting does without a formatter.
+    if (id == 'editor.action.revealDefinition' ||
+        id == 'editor.action.goToTypeDefinition' ||
+        id == 'editor.action.goToImplementation' ||
+        id == 'editor.action.goToReferences' ||
+        id == 'editor.action.referenceSearch.trigger' ||
+        id == 'editor.action.goToDeclaration' ||
+        id == 'editor.action.formatDocument' ||
         id == 'editor.action.formatSelection') {
       return true;
     }
     final request = switch (id) {
-      'editor.action.revealDefinition' => LanguageRequest.definition,
-      'editor.action.goToTypeDefinition' => LanguageRequest.typeDefinition,
-      'editor.action.goToImplementation' => LanguageRequest.implementation,
-      'editor.action.goToReferences' ||
-      'editor.action.referenceSearch.trigger' => LanguageRequest.references,
-      'editor.action.goToDeclaration' => LanguageRequest.definition,
       'editor.action.rename' => LanguageRequest.rename,
       'editor.action.quickFix' ||
       'editor.action.refactor' ||
@@ -2016,8 +2062,8 @@ class IdeEditorState extends State<IdeEditor> {
 
   /// The editor's context menu (`MenuId.EditorContext`): go-to commands,
   /// then modifications, then the clipboard, then the Command Palette; the
-  /// language items only while the language server has the feature, as
-  /// VS Code hides them without a provider.
+  /// navigation stays available while a server starts or needs installing;
+  /// other language items follow the server's capabilities.
   void _showContextMenu(Offset position) {
     if (_nativeController == null) return;
     final hasSelection = _nativeController!.selections.any(

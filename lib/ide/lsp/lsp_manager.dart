@@ -25,6 +25,9 @@ class _Document {
   /// with no definition (null).
   final List<(String, _Server?)> entries = [];
 
+  /// Remote root markers are still being read before servers can attach.
+  final List<Future<void>> attaching = [];
+
   Iterable<_Server> get servers => entries.map((e) => e.$2).nonNulls;
 
   String get languageId => language?.languageId ?? language?.id ?? 'plaintext';
@@ -204,8 +207,8 @@ class LspManager extends ChangeNotifier
       final folder = _workspaceFolder(path, definition, language!);
       if (folder is Future<String?>) {
         // Its markers looked for on another machine: matched once found.
-        unawaited(
-          folder.then((folder) {
+        doc.attaching.add(
+          folder.then<void>((folder) {
             if (_shutDown || !identical(_documents[path], doc)) return;
             _attach(doc, id, definition, folder);
             _notify();
@@ -949,6 +952,8 @@ class LspManager extends ChangeNotifier
   ) async {
     final doc = _documents[_normalize(path)];
     if (doc == null) return null;
+    await Future.wait(doc.attaching);
+    if (_shutDown || !identical(_documents[doc.path], doc)) return null;
     await Future.wait([
       for (final server in doc.servers)
         if (server.definition.provides(_featureOf(request))) _ensure(server),

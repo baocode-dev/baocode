@@ -3409,6 +3409,15 @@
       }
     }
   },
+  "langNavigationUnavailable": "No language server is available for code navigation in this file.",
+  "langNavigationInstall": "Install the '{id}' language server to enable code navigation in this file.",
+  "@langNavigationInstall": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
   "langReferences": "References",
   "langReferencesTo": "References to '{word}'",
   "@langReferencesTo": {
