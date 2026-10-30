@@ -540,7 +540,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     final lists = widget.changelists;
     if (lists == null || !lists.several) return false;
     final list = lists.byId(lists.listOf(path));
-    return list != null && list.id != lists.active && !list.turn;
+    return list != null && list.id != lists.active;
   }
 
   /// Whether [files] are checked: all (true), none (false), or some (null),
@@ -689,7 +689,6 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
               for (final file in files)
                 if (lists.listOf(file.path) == list.id) file,
             ];
-            if (inList.isEmpty && list.turn) continue;
             addGroup(kind, inList, list: list.id);
           }
           continue;
@@ -1960,14 +1959,6 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
       ),
       _GroupRow(:final kind, :final list) => Row(
         children: [
-          if (_changelist(list) case IdeGitChangelist(turn: true)) ...[
-            Icon(
-              Codicons.sparkle,
-              size: 14,
-              color: themeColors['textLink.foreground'],
-            ),
-            const SizedBox(width: 4),
-          ],
           Flexible(
             child: Text(
               switch (kind) {

@@ -927,7 +927,9 @@ double? ideDiffArrowTop(
   return top == null ? null : top + (view.lineHeight - size) / 2;
 }
 
-/// JetBrains' `>>` by a change (`×` for lines only added): reverts it.
+/// By a change: undoes it, the file there as the original has it. One
+/// icon however it changed (not JetBrains' `>>`, `×` for lines only
+/// added, which read as two things); the tooltip says what it does.
 class IdeDiffRevertArrow extends StatefulWidget {
   const IdeDiffRevertArrow({
     super.key,
@@ -965,7 +967,7 @@ class _IdeDiffRevertArrowState extends State<IdeDiffRevertArrow> {
               borderRadius: BorderRadius.circular(3),
             ),
             child: Icon(
-              widget.added ? Codicons.close : Codicons.arrowRight,
+              Codicons.discard,
               size: 13,
               color: _hover
                   ? colors['editor.foreground']

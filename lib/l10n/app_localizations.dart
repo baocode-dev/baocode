@@ -18522,13 +18522,13 @@ abstract class AppLocalizations {
   /// No description provided for @diffRevertChange.
   ///
   /// In en, this message translates to:
-  /// **'Revert'**
+  /// **'Undo this change (back to the left side)'**
   String get diffRevertChange;
 
   /// No description provided for @diffRemoveChange.
   ///
   /// In en, this message translates to:
-  /// **'Remove'**
+  /// **'Undo this change (remove the added lines)'**
   String get diffRemoveChange;
 
   /// No description provided for @diffPreviousDifference.
@@ -19574,12 +19574,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete Changelist'**
   String get gitChangelistDelete;
-
-  /// No description provided for @gitChangelistTurn.
-  ///
-  /// In en, this message translates to:
-  /// **'AI: {request}'**
-  String gitChangelistTurn(String request);
 
   /// No description provided for @gitStashChangesTitle.
   ///

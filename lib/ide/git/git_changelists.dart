@@ -1,19 +1,17 @@
 // JetBrains IDEs' changelists: the local changes sorted into named lists,
 // one of them active, where a change goes as it first shows; a file moved
 // from one to another, a list renamed or deleted (its files going to the
-// default list). BaoCode's own: what an agent changes in a turn goes to a
-// list of that turn's, named after what it was asked.
+// default list).
 
 import 'package:flutter/foundation.dart';
 
 /// A changelist: [name] (empty for the default list, "Changes" in the
-/// display language), [turn] for an agent's turn's.
+/// display language).
 class IdeGitChangelist {
-  IdeGitChangelist(this.id, this.name, {this.turn = false});
+  IdeGitChangelist(this.id, this.name);
 
   final String id;
   String name;
-  final bool turn;
 }
 
 class IdeGitChangelists extends ChangeNotifier {
@@ -102,41 +100,17 @@ class IdeGitChangelists extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// [paths]' changes, in their agent's [turn] (its id), go to that turn's
-  /// list, named [name], unless they are in a list already.
-  void assignTurn(String turn, String name, Iterable<String> paths) {
-    final id = 'turn:$turn';
-    final fresh = [
-      for (final path in paths)
-        if (!_assigned.containsKey(path)) path,
-    ];
-    if (fresh.isEmpty) return;
-    if (byId(id) == null) {
-      _lists.add(IdeGitChangelist(id, name, turn: true));
-    }
-    for (final path in fresh) {
-      _assigned[path] = id;
-    }
-    notifyListeners();
-  }
-
-  /// Only [changed] are changes still: the others are in no list, and a
-  /// turn's list with none of them goes.
+  /// Only [changed] are changes still: the others are in no list.
   void prune(Set<String> changed) {
-    final before = (_assigned.length, _lists.length);
+    final before = _assigned.length;
     _assigned.removeWhere((path, _) => !changed.contains(path));
-    final used = _assigned.values.toSet();
-    _lists.removeWhere(
-      (list) => list.turn && list.id != _active && !used.contains(list.id),
-    );
-    if (before != (_assigned.length, _lists.length)) notifyListeners();
+    if (before != _assigned.length) notifyListeners();
   }
 
   Map<String, Object?> toJson() => {
     'active': _active,
     'lists': [
-      for (final list in _lists)
-        {'id': list.id, 'name': list.name, if (list.turn) 'turn': true},
+      for (final list in _lists) {'id': list.id, 'name': list.name},
     ],
     'assigned': _assigned,
   };
@@ -150,15 +124,18 @@ class IdeGitChangelists extends ChangeNotifier {
       ..clear()
       ..add(IdeGitChangelist(defaultId, ''));
     for (final list in lists) {
+      // Not the agents' turns' lists there once were.
       if (list case {'id': final String id, 'name': final String name}
-          when id != defaultId) {
-        _lists.add(IdeGitChangelist(id, name, turn: list['turn'] == true));
+          when id != defaultId && list['turn'] != true) {
+        _lists.add(IdeGitChangelist(id, name));
       }
     }
     _assigned.clear();
     if (json['assigned'] case final Map assigned) {
       for (final MapEntry(:key, :value) in assigned.entries) {
-        if (key is String && value is String) _assigned[key] = value;
+        if (key is String && value is String && byId(value) != null) {
+          _assigned[key] = value;
+        }
       }
     }
     _active = switch (json['active']) {

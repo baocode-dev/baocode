@@ -11339,10 +11339,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get diffRevertChange => 'Revert';
+  String get diffRevertChange => 'Undo this change (back to the left side)';
 
   @override
-  String get diffRemoveChange => 'Remove';
+  String get diffRemoveChange => 'Undo this change (remove the added lines)';
 
   @override
   String get diffPreviousDifference => 'Previous Difference';
@@ -11983,11 +11983,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get gitChangelistDelete => 'Delete Changelist';
-
-  @override
-  String gitChangelistTurn(String request) {
-    return 'AI: $request';
-  }
 
   @override
   String get gitStashChangesTitle => 'Stash Changes';
