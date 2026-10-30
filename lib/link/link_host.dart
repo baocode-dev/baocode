@@ -9,6 +9,10 @@ import '../workspace/workspace.dart';
 import 'link_platform.dart';
 import 'workspace_bridge.dart';
 
+/// The UDP port the desktop takes if it is free (another if not): the same
+/// one each time, for a firewall rule to name.
+const defaultLinkPort = 47100;
+
 /// A phone paired with this desktop.
 class PairedPhone {
   const PairedPhone({
@@ -62,6 +66,34 @@ class PairedPhone {
   };
 }
 
+/// A phone paired before the link moved to iroh (its key of another kind):
+/// it connects no more, and is shown as needing pairing again.
+class LegacyPhone {
+  const LegacyPhone({
+    required this.name,
+    required this.system,
+    required this.pairedAt,
+  });
+
+  factory LegacyPhone.fromJson(Map<String, Object?> json) => LegacyPhone(
+    name: json['name'] as String? ?? '',
+    system: json['system'] as String? ?? '',
+    pairedAt: DateTime.fromMillisecondsSinceEpoch(
+      json['pairedAt'] as int? ?? 0,
+    ),
+  );
+
+  final String name;
+  final String system;
+  final DateTime pairedAt;
+
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'system': system,
+    'pairedAt': pairedAt.millisecondsSinceEpoch,
+  };
+}
+
 /// A phone pairing, waiting for the user to compare the safety codes:
 /// kept only once it says they matched. One that scanned the code has its
 /// secret; one that found this desktop nearby has not, and is kept only
@@ -97,18 +129,52 @@ enum LinkHostStatus {
   /// Not allowed (Settings → Mobile), or no link on this platform.
   off,
   starting,
+
+  /// On the network, taking phones' connections.
   listening,
 
-  /// The port could not be listened on ([LinkHost.error] says why).
+  /// It could not get on the network ([LinkHost.error] says why).
   failed,
 }
 
-/// The desktop's end of the link with its phones: listens for them on the
-/// LAN (and on the internet, where reachable), pairs new ones by QR code,
-/// and gives each one paired a [WorkspaceBridge] to the workspace.
+/// How many phone connections took which path, for the usage report (by
+/// kind only: who, where and when are not kept).
+class LinkPathCounts {
+  LinkPathCounts([Map<String, int>? counts]) : _counts = {...?counts};
+
+  final Map<String, int> _counts;
+
+  void add(LinkPathKind kind) {
+    if (kind == LinkPathKind.none) return;
+    _counts[kind.name] = (_counts[kind.name] ?? 0) + 1;
+  }
+
+  /// What there is to report; null when nothing.
+  Map<String, int>? get pending =>
+      _counts.values.any((n) => n > 0) ? {..._counts} : null;
+
+  /// [sent] got through: not reported again.
+  void sent(Map<String, int> sent) {
+    for (final MapEntry(:key, :value) in sent.entries) {
+      final left = (_counts[key] ?? 0) - value;
+      if (left > 0) {
+        _counts[key] = left;
+      } else {
+        _counts.remove(key);
+      }
+    }
+  }
+
+  Map<String, int> toJson() => {..._counts};
+}
+
+/// The desktop's end of the link with its phones: on the network as its
+/// key (iroh: phones reach it directly when they can, through a relay when
+/// not), pairs new ones by QR code, and gives each one paired a
+/// [WorkspaceBridge] to the workspace.
 ///
-/// Kept in `state/mobile.json`: this desktop's key pair, the phones
-/// paired, and the settings (allowed, port, public addresses).
+/// Kept in `state/mobile.json`: this desktop's key, the phones paired, and
+/// the settings (allowed, discoverable, the user's own relays).
 class LinkHost extends ChangeNotifier {
   LinkHost({
     required this.workspace,
@@ -117,6 +183,7 @@ class LinkHost extends ChangeNotifier {
     this.customizations,
     this.bots,
     this.filesOf = hostFilesOf,
+    this.pathSettle = const Duration(seconds: 15),
   }) : platform = platform ?? LinkPlatform.current();
 
   final Workspace workspace;
@@ -136,6 +203,10 @@ class LinkHost extends ChangeNotifier {
   /// How long a QR code is good for.
   final Duration offerLifetime;
 
+  /// How long a connection has to find its way (a hole punched) before
+  /// its path is counted.
+  final Duration pathSettle;
+
   bool get supported => platform != null;
 
   late LinkIdentity _identity;
@@ -144,13 +215,13 @@ class LinkHost extends ChangeNotifier {
   /// This desktop's key, as the phones show it.
   String get fingerprint => _loaded ? _identity.fingerprint : '';
 
+  /// Its id on the network (relays name it in their ban lists).
+  String get id => _loaded ? _identity.id : '';
+
   bool _enabled = false;
 
   /// Phones may connect (Settings → Mobile).
   bool get enabled => _enabled;
-
-  int _port = defaultLinkPort;
-  int get port => _port;
 
   bool _discoverable = true;
 
@@ -161,12 +232,13 @@ class LinkHost extends ChangeNotifier {
   /// Advertised on the LAN now.
   bool get advertised => _advertised != null;
 
-  List<String> _publicAddresses = const [];
+  List<String> _customRelays = const [];
 
-  /// Addresses on the internet this desktop can be reached at, as the
-  /// user gave them (a forwarded port, a domain): put in the QR code after
-  /// those found here.
-  List<String> get publicAddresses => _publicAddresses;
+  /// Relays the user added (a self-hosted one): kept to besides BaoCode's.
+  List<String> get customRelays => _customRelays;
+
+  /// The relays kept to.
+  List<String> get relays => linkRelays(_customRelays);
 
   LinkHostStatus _status = LinkHostStatus.off;
   LinkHostStatus get status => _status;
@@ -174,23 +246,11 @@ class LinkHost extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
-  List<DirectEndpoint> _local = const [];
+  LinkNode? _node;
+  LinkNodeInfo? _info;
 
-  /// Where phones can reach this desktop: its own addresses, then those
-  /// given.
-  List<DirectEndpoint> get endpoints => [
-    ..._local,
-    for (final address in _publicAddresses) ?_parse(address),
-  ];
-
-  DirectEndpoint? _parse(String address) {
-    try {
-      // No port given: this one's.
-      return DirectEndpoint.parse(address, defaultPort: _port);
-    } on FormatException {
-      return null;
-    }
-  }
+  /// Where it stands on the network now: its addresses, its relay.
+  LinkNodeInfo? get info => _info;
 
   final Map<String, PairedPhone> _phones = {};
 
@@ -198,11 +258,22 @@ class LinkHost extends ChangeNotifier {
   List<PairedPhone> get phones =>
       _phones.values.toList()..sort((a, b) => b.pairedAt.compareTo(a.pairedAt));
 
+  List<LegacyPhone> _legacy = const [];
+
+  /// Phones paired before the link moved to iroh: to pair again.
+  List<LegacyPhone> get legacyPhones => _legacy;
+
   final List<_Connection> _connections = [];
 
   /// Whether the phone [id] is connected now.
   bool isConnected(String id) =>
       _connections.any((connection) => connection.phone?.id == id);
+
+  /// The path to the phone [id], while it is connected.
+  LinkPath? pathOf(String id) => _connections
+      .where((connection) => connection.phone?.id == id)
+      .lastOrNull
+      ?.path;
 
   PairingOffer? _offer;
 
@@ -218,43 +289,62 @@ class LinkHost extends ChangeNotifier {
   /// The phone paired from the code shown last, until a new one is shown.
   PairedPhone? get justPaired => _justPaired;
 
-  LinkListener? _listener;
-  StreamSubscription<LinkSocket>? _accepting;
+  StreamSubscription<LinkConnection>? _accepting;
+  StreamSubscription<LinkNodeInfo>? _watching;
   DeviceInfo? _device;
+
+  /// The connections' paths, for the usage report.
+  LinkPathCounts _counts = LinkPathCounts();
+  LinkPathCounts get pathCounts => _counts;
 
   // --- Loading and keeping ----------------------------------------------------
 
-  /// Reads what is kept, and listens if phones are allowed.
+  /// Reads what is kept, and gets on the network if phones are allowed.
   Future<void> load() async {
     final platform = this.platform;
     if (platform == null) return;
     final json = await platform.read();
     var save = false;
-    try {
-      _identity = LinkIdentity.fromJson(
-        json['identity']! as Map<String, Object?>,
-      );
-    } on Object {
-      _identity = LinkIdentity.generate();
-      save = true;
-    }
+    final identity = switch (json['identity']) {
+      final Map<String, Object?> kept => LinkIdentity.fromJson(kept),
+      _ => null,
+    };
+    _identity = identity ?? LinkIdentity.generate();
     _loaded = true;
     _enabled = json['enabled'] == true;
-    _port = switch (json['port']) {
-      final int port when port > 0 && port < 65536 => port,
-      _ => defaultLinkPort,
-    };
-    _publicAddresses = [
-      ...?(json['publicAddresses'] as List?)?.whereType<String>(),
-    ];
     _discoverable = json['discoverable'] != false;
-    for (final phone in (json['phones'] as List?) ?? const []) {
-      try {
-        final paired = PairedPhone.fromJson(phone as Map<String, Object?>);
-        _phones[paired.id] = paired;
-      } on Object {
-        // Not one this version reads.
+    _customRelays = [...?(json['relays'] as List?)?.whereType<String>()];
+    _legacy = [
+      for (final phone in (json['legacyPhones'] as List?) ?? const [])
+        if (phone is Map<String, Object?>) LegacyPhone.fromJson(phone),
+    ];
+    final kept = [
+      for (final phone in (json['phones'] as List?) ?? const [])
+        if (phone is Map<String, Object?>) phone,
+    ];
+    if (identity == null) {
+      // The key of before (or none): the phones paired with it cannot
+      // connect to the new one. Shown as needing pairing again.
+      _legacy = [
+        ..._legacy,
+        for (final phone in kept) LegacyPhone.fromJson(phone),
+      ];
+      save = true;
+    } else {
+      for (final phone in kept) {
+        try {
+          final paired = PairedPhone.fromJson(phone);
+          _phones[paired.id] = paired;
+        } on Object {
+          // Not one this version reads.
+        }
       }
+    }
+    if (json['pathCounts'] case final Map<String, Object?> counts) {
+      _counts = LinkPathCounts({
+        for (final MapEntry(:key, :value) in counts.entries)
+          if (value is int) key: value,
+      });
     }
     _device = await platform.device();
     if (save) await _save();
@@ -263,12 +353,15 @@ class LinkHost extends ChangeNotifier {
   }
 
   Map<String, Object?> _toJson() => {
+    'version': 2,
     'identity': _identity.toJson(),
     'enabled': _enabled,
-    'port': _port,
-    'publicAddresses': _publicAddresses,
     'discoverable': _discoverable,
+    'relays': _customRelays,
     'phones': [for (final phone in _phones.values) phone.toJson()],
+    if (_legacy.isNotEmpty)
+      'legacyPhones': [for (final phone in _legacy) phone.toJson()],
+    'pathCounts': _counts.toJson(),
   };
 
   Future<void> _saving = Future.value();
@@ -282,6 +375,12 @@ class LinkHost extends ChangeNotifier {
         debugPrint('mobile.json not kept: $error');
       }),
     );
+  }
+
+  /// [sent] of [pathCounts] got through the usage report.
+  void pathCountsSent(Map<String, int> sent) {
+    _counts.sent(sent);
+    unawaited(_save());
   }
 
   // --- Settings ---------------------------------------------------------------
@@ -298,9 +397,24 @@ class LinkHost extends ChangeNotifier {
     }
   }
 
-  Future<void> setPort(int port) async {
-    if (!_loaded || port == _port || port <= 0 || port > 65535) return;
-    _port = port;
+  void setDiscoverable(bool discoverable) {
+    if (!_loaded || discoverable == _discoverable) return;
+    _discoverable = discoverable;
+    unawaited(_save());
+    notifyListeners();
+  }
+
+  /// The user's own relays, as given; those that are not relay URLs, and
+  /// BaoCode's own, left out. On the network again with them.
+  Future<void> setCustomRelays(List<String> relays) async {
+    final cleaned = {
+      for (final relay in relays)
+        if (parseRelayUrl(relay) case final url?
+            when !defaultLinkRelays.contains(url))
+          url,
+    }.toList();
+    if (!_loaded || listEquals(cleaned, _customRelays)) return;
+    _customRelays = cleaned;
     unawaited(_save());
     notifyListeners();
     if (_enabled) {
@@ -309,55 +423,55 @@ class LinkHost extends ChangeNotifier {
     }
   }
 
-  void setDiscoverable(bool discoverable) {
-    if (!_loaded || discoverable == _discoverable) return;
-    _discoverable = discoverable;
+  /// Forgets a phone paired before the link moved to iroh.
+  void forgetLegacy(LegacyPhone phone) {
+    _legacy = [..._legacy]..remove(phone);
     unawaited(_save());
     notifyListeners();
   }
 
-  void setPublicAddresses(List<String> addresses) {
-    final cleaned = [
-      for (final address in addresses)
-        if (address.trim().isNotEmpty) address.trim(),
-    ];
-    if (listEquals(cleaned, _publicAddresses)) return;
-    _publicAddresses = cleaned;
-    unawaited(_save());
-    notifyListeners();
-  }
-
-  // --- Listening --------------------------------------------------------------
+  // --- On the network ---------------------------------------------------------
 
   Future<void> _start() async {
     final platform = this.platform;
-    if (platform == null || _listener != null) return;
+    if (platform == null || _node != null) return;
     _status = LinkHostStatus.starting;
     _error = null;
     notifyListeners();
     try {
-      final listener = await platform.listen(_port);
-      if (!_enabled) {
-        await listener.close();
+      final node = await platform.bind(
+        _identity,
+        relays: relays,
+        port: defaultLinkPort,
+      );
+      if (!_enabled || _disposed) {
+        await node.close();
         return;
       }
-      _listener = listener;
-      _accepting = listener.sockets.listen(
-        (socket) => unawaited(_accept(socket)),
+      _node = node;
+      _accepting = node.incoming.listen(
+        (connection) => unawaited(_accept(connection)),
       );
+      _info = await node.info();
+      _watching = node.changes.listen((info) {
+        _info = info;
+        notifyListeners();
+      });
       _status = LinkHostStatus.listening;
     } on Object catch (error) {
       _status = LinkHostStatus.failed;
       _error = '$error';
     }
-    await refreshEndpoints();
+    notifyListeners();
   }
 
   Future<void> _stop() async {
-    final listener = _listener;
-    _listener = null;
+    final node = _node;
+    _node = null;
     await _accepting?.cancel();
     _accepting = null;
+    await _watching?.cancel();
+    _watching = null;
     for (final connection in [..._connections]) {
       await connection.peer.close();
     }
@@ -365,30 +479,37 @@ class LinkHost extends ChangeNotifier {
     _offer = null;
     _expiry?.cancel();
     _pending = null;
-    await listener?.close();
+    _info = null;
+    await node?.close();
     _status = LinkHostStatus.off;
     notifyListeners();
   }
 
-  /// Looks again for this machine's addresses: they change as it moves
-  /// from network to network.
-  Future<void> refreshEndpoints() async {
-    final platform = this.platform;
-    if (platform == null) return;
-    _local = await platform.endpoints(_listener?.port ?? _port);
+  /// Where it stands on the network, asked again now.
+  Future<void> refresh() async {
+    final node = _node;
+    if (node == null) return;
+    _info = await node.info();
     notifyListeners();
   }
 
-  DeviceInfo _deviceInfo() {
-    final device = _device ?? const DeviceInfo(name: '', kind: '', system: '');
-    return DeviceInfo(
-      name: device.name,
-      kind: device.kind,
-      system: device.system,
-      laptop: device.laptop,
-      endpoints: [for (final endpoint in endpoints) '$endpoint'],
-    );
+  /// The relays to tell a phone: the one kept to now first, then the rest.
+  List<String> get _tellRelays => {...?_info?.relays, ...relays}.toList();
+
+  /// The addresses to tell a phone: on the LAN first, a few at most (the
+  /// QR code stays easy to scan).
+  List<String> get _tellAddrs {
+    final addrs = [...?_info?.addrs];
+    final lan = addrs.where(isLanAddress);
+    final other = addrs.where((addr) => !isLanAddress(addr));
+    return [...lan, ...other].take(8).toList();
   }
+
+  DeviceInfo _deviceInfo() =>
+      (_device ?? const DeviceInfo(name: '', kind: '', system: '')).copyWith(
+        relays: _tellRelays,
+        addrs: _tellAddrs,
+      );
 
   // --- Pairing ----------------------------------------------------------------
 
@@ -397,7 +518,7 @@ class LinkHost extends ChangeNotifier {
   Future<PairingOffer?> beginPairing() async {
     if (!_loaded) return null;
     if (!_enabled) await setEnabled(true);
-    await refreshEndpoints();
+    await refresh();
     if (_status != LinkHostStatus.listening) return null;
     _justPaired = null;
     _offer = PairingOffer(
@@ -405,7 +526,8 @@ class LinkHost extends ChangeNotifier {
       key: _identity.publicKey,
       token: randomBytes(16),
       expires: DateTime.now().add(offerLifetime),
-      endpoints: endpoints,
+      relays: _tellRelays,
+      addrs: _tellAddrs,
     );
     // Expired: no longer advertised as pairing.
     _expiry?.cancel();
@@ -478,20 +600,30 @@ class LinkHost extends ChangeNotifier {
 
   // --- Phones -----------------------------------------------------------------
 
-  Future<void> _accept(LinkSocket socket) async {
-    final SecureChannel channel;
+  Future<void> _accept(LinkConnection link) async {
+    final key = keyOfDeviceId(link.remote);
+    if (key == null) {
+      link.close();
+      return;
+    }
+    final LinkPeer peer;
     try {
-      channel = await SecureChannel.accept(socket, identity: _identity);
+      peer = await LinkPeer.accept(link);
     } on Object {
       return;
     }
-    final connection = _Connection(LinkPeer(channel), channel.peerKey);
-    connection.peer.onRequest = (method, params) =>
-        _request(connection, channel.peerKey, method, params);
+    final connection = _Connection(peer, key);
+    peer.onRequest = (method, params) =>
+        _request(connection, key, method, params);
     _connections.add(connection);
+    connection.watchPath(link, pathSettle, (kind) {
+      _counts.add(kind);
+      unawaited(_save());
+    }, notifyListeners);
     unawaited(
-      connection.peer.done.then((_) {
+      peer.done.then((_) {
         _connections.remove(connection);
+        connection.dispose();
         connection.bridge?.dispose();
         if (_pending case final pending?
             when pending._connection == connection) {
@@ -499,7 +631,7 @@ class LinkHost extends ChangeNotifier {
           // Gone while the user here was asked.
           if (pending._confirmed case final confirmed?
               when !confirmed.isCompleted) {
-            confirmed.completeError(const LinkClosedException());
+            confirmed.completeError(const LinkClosedException('gone'));
           }
         }
         if (connection.phone case final phone?
@@ -630,6 +762,11 @@ class LinkHost extends ChangeNotifier {
       lastSeen: DateTime.now(),
     );
     _phones[phone.id] = phone;
+    // The same phone, paired again since the move to iroh.
+    _legacy = [
+      for (final legacy in _legacy)
+        if (legacy.name != phone.name) legacy,
+    ];
     _pending = null;
     _offer = null;
     _expiry?.cancel();
@@ -640,7 +777,7 @@ class LinkHost extends ChangeNotifier {
   }
 
   void _connect(_Connection connection, PairedPhone phone) {
-    // One connection a phone: an older one is gone, its socket not closed.
+    // One connection a phone: an older one is gone, not closed yet.
     for (final other in [..._connections]) {
       if (other != connection && other.phone?.id == phone.id) {
         unawaited(other.peer.close());
@@ -688,20 +825,22 @@ class LinkHost extends ChangeNotifier {
   /// What is being made so: one change at a time.
   Future<void> _advertising = Future.value();
 
-  /// What this desktop should advertise now: nothing unless listening and
-  /// discoverable.
+  /// What this desktop should advertise now: nothing unless on the network
+  /// and discoverable.
   LinkAdvert? get _wantedAdvert {
+    final port = _info?.port;
     if (_disposed ||
         !_loaded ||
         !_discoverable ||
-        _status != LinkHostStatus.listening) {
+        _status != LinkHostStatus.listening ||
+        port == null) {
       return null;
     }
     final offer = _offer;
     return LinkAdvert(
       name: _device?.name ?? '',
       key: _identity.publicKey,
-      port: _listener?.port ?? _port,
+      port: port,
       pairing:
           offer != null && !offer.expiredAt(DateTime.now()) && _pending == null,
     );
@@ -764,4 +903,54 @@ class _Connection {
   /// Once paired, or known.
   PairedPhone? phone;
   WorkspaceBridge? bridge;
+
+  /// The path to it now.
+  LinkPath path = LinkPath.none;
+
+  StreamSubscription<LinkPath>? _paths;
+  Timer? _settle;
+
+  /// Follows [connection]'s path; once it has had [settle] to find its way
+  /// (or ends sooner), tells [count] the best it found.
+  void watchPath(
+    LinkConnection connection,
+    Duration settle,
+    void Function(LinkPathKind kind) count,
+    void Function() changed,
+  ) {
+    var best = LinkPathKind.none;
+    var counted = false;
+    void countOnce() {
+      if (counted) return;
+      counted = true;
+      count(best);
+    }
+
+    _paths = connection.paths.listen(
+      (path) {
+        this.path = path;
+        if (_rank(path.kind) > _rank(best)) best = path.kind;
+        changed();
+      },
+      onDone: countOnce,
+      onError: (Object _) => countOnce(),
+    );
+    _settle = Timer(settle, countOnce);
+    _countOnce = countOnce;
+  }
+
+  void Function()? _countOnce;
+
+  static int _rank(LinkPathKind kind) => switch (kind) {
+    LinkPathKind.none => 0,
+    LinkPathKind.relay => 1,
+    LinkPathKind.direct => 2,
+    LinkPathKind.lan => 3,
+  };
+
+  void dispose() {
+    _countOnce?.call();
+    _settle?.cancel();
+    unawaited(_paths?.cancel());
+  }
 }

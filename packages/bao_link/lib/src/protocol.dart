@@ -404,7 +404,8 @@ class DeviceInfo {
     required this.kind,
     required this.system,
     this.laptop = true,
-    this.endpoints = const [],
+    this.relays = const [],
+    this.addrs = const [],
   });
 
   factory DeviceInfo.fromJson(Map<String, Object?> json) => DeviceInfo(
@@ -412,7 +413,8 @@ class DeviceInfo {
     kind: json['kind'] as String? ?? 'mac',
     system: json['system'] as String? ?? '',
     laptop: json['laptop'] as bool? ?? true,
-    endpoints: [...?(json['endpoints'] as List?)?.whereType<String>()],
+    relays: [...?(json['relays'] as List?)?.whereType<String>()],
+    addrs: [...?(json['addrs'] as List?)?.whereType<String>()],
   );
 
   final String name;
@@ -424,16 +426,28 @@ class DeviceInfo {
   final String system;
   final bool laptop;
 
-  /// Where it can be reached now (see [DirectEndpoint.parse]): the phone
-  /// keeps them, for next time.
-  final List<String> endpoints;
+  /// The relays it keeps to now, and its addresses (`ip:port`): the phone
+  /// keeps them for next time (see [LinkAddress]).
+  final List<String> relays;
+  final List<String> addrs;
+
+  DeviceInfo copyWith({List<String>? relays, List<String>? addrs}) =>
+      DeviceInfo(
+        name: name,
+        kind: kind,
+        system: system,
+        laptop: laptop,
+        relays: relays ?? this.relays,
+        addrs: addrs ?? this.addrs,
+      );
 
   Map<String, Object?> toJson() => {
     'name': name,
     'kind': kind,
     'system': system,
     'laptop': laptop,
-    'endpoints': endpoints,
+    'relays': relays,
+    'addrs': addrs,
   };
 }
 

@@ -8,10 +8,11 @@ import 'protocol.dart';
 /// - `"partial": true`: of `live`, `interaction`, `choices`, `changes`,
 ///   `tasks`, `earlier`, `goal`, only those that changed are there (null:
 ///   gone);
-/// - `"append": {"index", "path", "text"}`: the item at `index` is as
-///   before but for `text` added at the end of the string at `path` in it
-///   (keys and list indices): the message streaming in, without sending
-///   all of it again each time.
+/// - `"append": {"index", "path", "text"}`: the item at `index` (the one
+///   before `start`) is as before but for `text` added at the end of the
+///   string at `path` in it (keys and list indices); the items from `start`
+///   follow whole as ever: the message streaming in (with the live line
+///   after it), without sending all of it again each time.
 ///
 /// [LinkSessionMirror] makes whole updates of these again on the phone.
 abstract final class LinkSessionWire {
@@ -33,8 +34,8 @@ class LinkSessionSlimmer {
   Map<String, String> _rest = const {};
 
   /// [update] for the wire: whole when [full]; else with only the rest
-  /// that changed, and, when the one item changed is [before] (its JSON as
-  /// sent last) with text added to one string of it, that text alone.
+  /// that changed, and, when its first item is [before] (that item's JSON
+  /// as sent last) with text added to one string of it, that text alone.
   Map<String, Object?> encode(
     LinkSessionUpdate update, {
     bool full = false,
@@ -56,16 +57,14 @@ class LinkSessionSlimmer {
       for (final key in LinkSessionWire.rest)
         if (rest[key] != previous[key]) key: json[key],
     };
-    if (before != null &&
-        update.items.length == 1 &&
-        update.start == update.count - 1) {
-      if (jsonAppendPatch(before, update.items.single) case (
+    if (before != null && update.items.isNotEmpty) {
+      if (jsonAppendPatch(before, update.items.first) case (
         final path,
         final text,
       )) {
         slim
-          ..['start'] = update.count
-          ..['items'] = const <Object?>[]
+          ..['start'] = update.start + 1
+          ..['items'] = update.items.sublist(1)
           ..['append'] = {'index': update.start, 'path': path, 'text': text};
       }
     }

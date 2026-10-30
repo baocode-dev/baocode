@@ -14118,7 +14118,7 @@ abstract class AppLocalizations {
   /// No description provided for @mobileSettingsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Follow and drive this computer\'s agents from BaoCode on your phone, over the local network or the internet. What goes between them is end-to-end encrypted.'**
+  /// **'Follow and drive this computer\'s agents from BaoCode on your phone: directly on the same network, across the internet through a hole punched in the routers between them, or through BaoCode\'s relay when neither works. What goes between them is end-to-end encrypted; a relay cannot read it.'**
   String get mobileSettingsDescription;
 
   /// No description provided for @mobileAllow.
@@ -14130,7 +14130,7 @@ abstract class AppLocalizations {
   /// No description provided for @mobileAllowDescription.
   ///
   /// In en, this message translates to:
-  /// **'Phones paired with this computer connect to it directly.'**
+  /// **'Phones paired with this computer can connect to it, wherever they are.'**
   String get mobileAllowDescription;
 
   /// No description provided for @mobileStatus.
@@ -14151,71 +14151,11 @@ abstract class AppLocalizations {
   /// **'Starting…'**
   String get mobileStatusStarting;
 
-  /// No description provided for @mobileStatusListening.
-  ///
-  /// In en, this message translates to:
-  /// **'Listening on port {port}'**
-  String mobileStatusListening(int port);
-
   /// No description provided for @mobileStatusFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not listen: {error}'**
+  /// **'Could not start: {error}'**
   String mobileStatusFailed(String error);
-
-  /// No description provided for @mobileAddresses.
-  ///
-  /// In en, this message translates to:
-  /// **'Addresses'**
-  String get mobileAddresses;
-
-  /// No description provided for @mobileAddressesDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Where phones reach this computer, in the order they try them: the local network first, then the internet.'**
-  String get mobileAddressesDescription;
-
-  /// No description provided for @mobileAddressesNone.
-  ///
-  /// In en, this message translates to:
-  /// **'No network found.'**
-  String get mobileAddressesNone;
-
-  /// No description provided for @mobileAddressesRefresh.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh'**
-  String get mobileAddressesRefresh;
-
-  /// No description provided for @mobilePort.
-  ///
-  /// In en, this message translates to:
-  /// **'Port'**
-  String get mobilePort;
-
-  /// No description provided for @mobilePortDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'The port phones connect to. Forward it on the router to reach this computer from the internet.'**
-  String get mobilePortDescription;
-
-  /// No description provided for @mobilePortInvalid.
-  ///
-  /// In en, this message translates to:
-  /// **'Not a port: {text}. Enter a number from 1 to 65535.'**
-  String mobilePortInvalid(String text);
-
-  /// No description provided for @mobilePublicAddress.
-  ///
-  /// In en, this message translates to:
-  /// **'Public Address'**
-  String get mobilePublicAddress;
-
-  /// No description provided for @mobilePublicAddressDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'A domain or IP this computer can be reached at from the internet (with the port forwarded), put in the QR code; several separated by commas. Behind a proxy that only takes HTTPS (such as a Cloudflare Tunnel), write it as wss://domain. Public IPv6 addresses are found by themselves.'**
-  String get mobilePublicAddressDescription;
 
   /// No description provided for @mobileRelay.
   ///
@@ -14226,14 +14166,8 @@ abstract class AppLocalizations {
   /// No description provided for @mobileRelayDescription.
   ///
   /// In en, this message translates to:
-  /// **'Reach this computer through BaoCode\'s relay when none of its addresses can be reached. Coming later.'**
+  /// **'Phones that cannot reach this computer directly go through it. It only passes along what is sealed between the two.'**
   String get mobileRelayDescription;
-
-  /// No description provided for @mobileRelayUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Not Available Yet'**
-  String get mobileRelayUnavailable;
 
   /// No description provided for @mobilePair.
   ///
@@ -14390,6 +14324,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Allow'**
   String get mobilePairAllow;
+
+  /// No description provided for @mobileStatusOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'On, reachable through {relay}'**
+  String mobileStatusOnline(String relay);
+
+  /// No description provided for @mobileStatusNoRelay.
+  ///
+  /// In en, this message translates to:
+  /// **'On; no relay reached yet, so only phones on the same network can connect'**
+  String get mobileStatusNoRelay;
+
+  /// No description provided for @mobileStatusDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'On, but the relay turned this computer away: {reason}'**
+  String mobileStatusDenied(String reason);
+
+  /// No description provided for @mobileRelayNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None reached'**
+  String get mobileRelayNone;
+
+  /// No description provided for @mobileRelayCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Own Relays'**
+  String get mobileRelayCustom;
+
+  /// No description provided for @mobileRelayCustomDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Relays you run yourself (baocode-relay), used besides BaoCode\'s; several separated by commas, as https://relay.example.com. Phones paired after the change learn them.'**
+  String get mobileRelayCustomDescription;
+
+  /// No description provided for @mobilePathLan.
+  ///
+  /// In en, this message translates to:
+  /// **'Same network'**
+  String get mobilePathLan;
+
+  /// No description provided for @mobilePathDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct'**
+  String get mobilePathDirect;
+
+  /// No description provided for @mobilePathRelay.
+  ///
+  /// In en, this message translates to:
+  /// **'Through the relay'**
+  String get mobilePathRelay;
+
+  /// No description provided for @mobilePathRtt.
+  ///
+  /// In en, this message translates to:
+  /// **'{ms} ms'**
+  String mobilePathRtt(int ms);
+
+  /// No description provided for @mobileLegacyPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs pairing again: paired before the connection was rebuilt'**
+  String get mobileLegacyPhone;
+
+  /// No description provided for @mobileLegacyRepair.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair Again'**
+  String get mobileLegacyRepair;
 
   /// No description provided for @settingsSectionStash.
   ///

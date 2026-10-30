@@ -187,6 +187,27 @@ void main() {
       expect(whole.live, isTrue);
     });
 
+    test('the line after a message streaming in still goes whole', () {
+      final slimmer = LinkSessionSlimmer();
+      final mirror = LinkSessionMirror()
+        ..opened(
+          slimmer.encode(
+            update(0, [message('Hel', id: 'r'), message('…', id: 'l')], 2),
+            full: true,
+          ),
+        );
+      final wire = slimmer.encode(
+        update(0, [message('Hello', id: 'r'), message('… 2', id: 'l')], 2),
+        before: message('Hel', id: 'r'),
+      );
+      expect(wire['start'], 1);
+      expect(wire['items'], [message('… 2', id: 'l')]);
+      expect((wire['append']! as Map)['index'], 0);
+      final whole = LinkSessionUpdate.fromJson(mirror.apply(wire)!);
+      expect(whole.start, 0);
+      expect(whole.items, [message('Hello', id: 'r'), message('… 2', id: 'l')]);
+    });
+
     test('what is not text added goes whole, and the rest when it changes', () {
       final slimmer = LinkSessionSlimmer();
       final mirror = LinkSessionMirror()

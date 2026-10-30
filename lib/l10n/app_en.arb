@@ -6336,21 +6336,13 @@
   },
   "settingsSectionMobile": "Mobile",
   "settingsMobileKeywords": "phone iphone android ios pair qr code remote lan",
-  "mobileSettingsDescription": "Follow and drive this computer's agents from BaoCode on your phone, over the local network or the internet. What goes between them is end-to-end encrypted.",
+  "mobileSettingsDescription": "Follow and drive this computer's agents from BaoCode on your phone: directly on the same network, across the internet through a hole punched in the routers between them, or through BaoCode's relay when neither works. What goes between them is end-to-end encrypted; a relay cannot read it.",
   "mobileAllow": "Allow Phones to Connect",
-  "mobileAllowDescription": "Phones paired with this computer connect to it directly.",
+  "mobileAllowDescription": "Phones paired with this computer can connect to it, wherever they are.",
   "mobileStatus": "Status",
   "mobileStatusOff": "Off",
   "mobileStatusStarting": "Starting…",
-  "mobileStatusListening": "Listening on port {port}",
-  "@mobileStatusListening": {
-    "placeholders": {
-      "port": {
-        "type": "int"
-      }
-    }
-  },
-  "mobileStatusFailed": "Could not listen: {error}",
+  "mobileStatusFailed": "Could not start: {error}",
   "@mobileStatusFailed": {
     "placeholders": {
       "error": {
@@ -6358,25 +6350,8 @@
       }
     }
   },
-  "mobileAddresses": "Addresses",
-  "mobileAddressesDescription": "Where phones reach this computer, in the order they try them: the local network first, then the internet.",
-  "mobileAddressesNone": "No network found.",
-  "mobileAddressesRefresh": "Refresh",
-  "mobilePort": "Port",
-  "mobilePortDescription": "The port phones connect to. Forward it on the router to reach this computer from the internet.",
-  "mobilePortInvalid": "Not a port: {text}. Enter a number from 1 to 65535.",
-  "@mobilePortInvalid": {
-    "placeholders": {
-      "text": {
-        "type": "String"
-      }
-    }
-  },
-  "mobilePublicAddress": "Public Address",
-  "mobilePublicAddressDescription": "A domain or IP this computer can be reached at from the internet (with the port forwarded), put in the QR code; several separated by commas. Behind a proxy that only takes HTTPS (such as a Cloudflare Tunnel), write it as wss://domain. Public IPv6 addresses are found by themselves.",
   "mobileRelay": "Relay",
-  "mobileRelayDescription": "Reach this computer through BaoCode's relay when none of its addresses can be reached. Coming later.",
-  "mobileRelayUnavailable": "Not Available Yet",
+  "mobileRelayDescription": "Phones that cannot reach this computer directly go through it. It only passes along what is sealed between the two.",
   "mobilePair": "Pair a Phone",
   "mobilePairDescription": "Scan the code with BaoCode on the phone (Me → Paired computers → Pair a computer), or pick this computer under Nearby Computers there.",
   "mobilePairShow": "Show QR Code",
@@ -6438,6 +6413,21 @@
   },
   "mobilePairRequestBody": "It found this computer nearby. Allow it only if the phone shows the same code.",
   "mobilePairAllow": "Allow",
+  "mobileStatusOnline": "On, reachable through {relay}",
+  "@mobileStatusOnline": {"placeholders": {"relay": {"type": "String"}}},
+  "mobileStatusNoRelay": "On; no relay reached yet, so only phones on the same network can connect",
+  "mobileStatusDenied": "On, but the relay turned this computer away: {reason}",
+  "@mobileStatusDenied": {"placeholders": {"reason": {"type": "String"}}},
+  "mobileRelayNone": "None reached",
+  "mobileRelayCustom": "Your Own Relays",
+  "mobileRelayCustomDescription": "Relays you run yourself (baocode-relay), used besides BaoCode's; several separated by commas, as https://relay.example.com. Phones paired after the change learn them.",
+  "mobilePathLan": "Same network",
+  "mobilePathDirect": "Direct",
+  "mobilePathRelay": "Through the relay",
+  "mobilePathRtt": "{ms} ms",
+  "@mobilePathRtt": {"placeholders": {"ms": {"type": "int"}}},
+  "mobileLegacyPhone": "Needs pairing again: paired before the connection was rebuilt",
+  "mobileLegacyRepair": "Pair Again",
   "settingsSectionStash": "Stash",
   "settingsSectionCustomize": "Customize",
   "settingsCustomizeKeywords": "skills subagents rules commands agents claude memory hooks mcp plugins",

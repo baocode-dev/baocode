@@ -76,6 +76,40 @@ void main() {
       expect(sender.sent.last['attribution'], told);
     });
 
+    test('tells how phones connected, once it got through', () async {
+      Map<String, int>? pending = {'lan': 2, 'relay': 1};
+      final told = <Map<String, int>>[];
+      final service = TelemetryService(
+        current: AppVersion.parse('1.2.0+12'),
+        os: 'macos',
+        arch: 'arm64',
+        sender: sender,
+        url: Uri.parse('https://example.test/v1/ping'),
+        store: store,
+        now: () => now,
+        newId: () => 'id-1',
+        linkPaths: () => pending,
+        linkPathsSent: (sent) {
+          told.add(sent);
+          pending = null;
+        },
+      );
+      sender.status = null;
+      service.markActive();
+      await pumpEventQueue();
+      expect(sender.sent.last['link'], {'lan': 2, 'relay': 1});
+      expect(told, isEmpty);
+      sender.status = 204;
+      await service.flush();
+      expect(told, [
+        {'lan': 2, 'relay': 1},
+      ]);
+      now = now.add(const Duration(days: 1));
+      service.markActive();
+      await pumpEventQueue();
+      expect(sender.sent.last.containsKey('link'), isFalse);
+    });
+
     test('reports a day once, with as little as it needs', () async {
       final service = serviceOf();
       service.markActive();

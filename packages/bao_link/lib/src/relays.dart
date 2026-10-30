@@ -15,7 +15,7 @@ const defaultLinkRelays = [
 /// https), or null when it is not one.
 String? parseRelayUrl(String text) {
   var value = text.trim();
-  if (value.isEmpty) return null;
+  if (value.isEmpty || value.contains(RegExp(r'\s'))) return null;
   if (!value.contains('://')) value = 'https://$value';
   final Uri uri;
   try {
