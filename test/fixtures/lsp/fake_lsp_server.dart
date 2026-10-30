@@ -459,6 +459,23 @@ Future<void> _notification(String method, Map<String, Object?> params) async {
           ],
         });
       }
+      if (_options['registerNavigationAfterMs'] case final int delay) {
+        await Future<void>.delayed(Duration(milliseconds: delay));
+        await _request('client/registerCapability', {
+          'registrations': [
+            for (final method in ['definition', 'references'])
+              {
+                'id': method,
+                'method': 'textDocument/$method',
+                'registerOptions': {
+                  'documentSelector': [
+                    {'language': 'fake'},
+                  ],
+                },
+              },
+          ],
+        });
+      }
       if (_options['registerHover'] == true) {
         await _request('client/registerCapability', {
           'registrations': [

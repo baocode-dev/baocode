@@ -45,6 +45,7 @@ class _Server {
   LanguageServerState state = LanguageServerState.idle;
   LspClient? client;
   Future<LspClient?>? starting;
+  DateTime? runningAt;
 
   /// Bumped to abandon a start or restart under way.
   int generation = 0;
@@ -455,6 +456,7 @@ class LspManager extends ChangeNotifier
       if (stale() || !identical(server.client, started)) return null;
       server
         ..state = LanguageServerState.running
+        ..runningAt = _clock()
         ..message = null;
       for (final doc in server.documents) {
         started.didOpen(doc.uri, doc.languageId, doc.version, doc.text);
@@ -948,8 +950,9 @@ class LspManager extends ChangeNotifier
   /// starting stopped ones).
   Future<(_Document, List<LspClient>)?> _clients(
     String path,
-    LanguageRequest request,
-  ) async {
+    LanguageRequest request, {
+    bool waitForRegistration = false,
+  }) async {
     final doc = _documents[_normalize(path)];
     if (doc == null) return null;
     await Future.wait(doc.attaching);
@@ -959,6 +962,39 @@ class LspManager extends ChangeNotifier
         if (server.definition.provides(_featureOf(request))) _ensure(server),
     ]);
     if (!identical(_documents[doc.path], doc)) return null;
+    final now = _clock();
+    final deadlines = [
+      if (waitForRegistration)
+        for (final server in doc.servers)
+          if (server.state == LanguageServerState.running &&
+              server.definition.provides(_featureOf(request)) &&
+              server.runningAt != null)
+            server.runningAt!.add(const Duration(seconds: 2)),
+    ].where((deadline) => deadline.isAfter(now)).toList()..sort();
+    if (deadlines.isNotEmpty && _runningFor(doc, request).isEmpty) {
+      // Dart registers navigation after initialized/didOpen. Allow that
+      // brief startup window; unsupported commands must not wait forever.
+      final remaining = deadlines.last.difference(now);
+      final wait = remaining < requestTimeout ? remaining : requestTimeout;
+      final ready = Completer<void>();
+      void changed() {
+        if (_shutDown ||
+            !identical(_documents[doc.path], doc) ||
+            _runningFor(doc, request).isNotEmpty ||
+            doc.servers.every((s) => s.state != LanguageServerState.running)) {
+          if (!ready.isCompleted) ready.complete();
+        }
+      }
+
+      addListener(changed);
+      try {
+        changed();
+        await ready.future.timeout(wait, onTimeout: () {});
+      } finally {
+        removeListener(changed);
+      }
+    }
+    if (_shutDown || !identical(_documents[doc.path], doc)) return null;
     return (doc, _runningFor(doc, request).toList());
   }
 
@@ -981,9 +1017,14 @@ class LspManager extends ChangeNotifier
     String path,
     LanguageRequest request,
     String method,
-    Object? Function(_Document doc) params,
-  ) async {
-    final found = await _clients(path, request);
+    Object? Function(_Document doc) params, {
+    bool waitForRegistration = false,
+  }) async {
+    final found = await _clients(
+      path,
+      request,
+      waitForRegistration: waitForRegistration,
+    );
     if (found == null) return const [];
     final (doc, clients) = found;
     final answers = await Future.wait([
@@ -1084,7 +1125,13 @@ class LspManager extends ChangeNotifier
     String method,
     Object? Function(_Document doc) params,
   ) async {
-    final answers = await _askAll(path, request, method, params);
+    final answers = await _askAll(
+      path,
+      request,
+      method,
+      params,
+      waitForRegistration: true,
+    );
     final seen = <String>{};
     return [
       for (final (_, answer) in answers)
