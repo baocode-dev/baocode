@@ -47,8 +47,10 @@ const _system =
     'words (or 20 characters in Chinese, Japanese or Korean), in the '
     'language the message is written in, keeping code identifiers, file '
     'names and technical terms as they are. Capitalize its first letter; '
-    'no quotes, Markdown or trailing period. When the message is only a '
-    'link or reference, name what it points at.';
+    'no quotes, Markdown or trailing period. You have no tools: do not try '
+    'to open links or read files, title it from its text alone; a link is '
+    'named after what it shows (its repository, issue or pull request '
+    'number, page).';
 
 /// Claude Haiku's title for [message], through Claude Code; null when it
 /// gives none (e.g. Claude Code is not there).
@@ -79,12 +81,18 @@ Future<String?> claudeAgentTitle(
 }
 
 /// A reply as a title: its first line, without quotes, Markdown emphasis
-/// or a trailing period, and not too long to show; null when empty.
+/// or a trailing period, and not too long to show; null when empty, or
+/// when it is markup rather than words (a model calling a tool it does
+/// not have, in its own format: `<｜DSML｜function_calls>`, `<tool_call>`).
 String? cleanAgentTitle(String reply) {
   final line = reply
       .split('\n')
       .map((line) => line.trim())
       .firstWhere((line) => line.isNotEmpty, orElse: () => '');
+  if (line.startsWith('<') && line.endsWith('>') ||
+      line.contains(_specialToken)) {
+    return null;
+  }
   var title = line
       .replaceFirst(RegExp(r'^(#+\s*|title:\s*)', caseSensitive: false), '')
       .replaceAll(RegExp(r'^[*_`"“「『\x27]+|[*_`"”」』\x27.。]+$'), '')
@@ -95,3 +103,6 @@ String? cleanAgentTitle(String reply) {
   }
   return title.isEmpty ? null : title;
 }
+
+/// The bounds of a model's special tokens: `<|…|>`, `<｜…｜>`.
+final _specialToken = RegExp('<[|｜]|[|｜]>');
