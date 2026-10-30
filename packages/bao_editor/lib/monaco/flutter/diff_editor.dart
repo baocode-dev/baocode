@@ -1050,11 +1050,12 @@ class _SplitPainter extends CustomPainter {
       final leftColor = o.isEmpty ? inserted : removed;
       final rightColor = m.isEmpty ? removed : inserted;
       if (leftColor == null || rightColor == null) continue;
-      Color? edge(Color? bar) => bar?.withValues(alpha: bar.a * 0.55);
-      final leftEdge = edge(o.isEmpty ? colors.insertedBar : colors.removedBar);
-      final rightEdge = edge(
-        m.isEmpty ? colors.removedBar : colors.insertedBar,
-      );
+      // The edges a deeper shade of the blocks' own color, not the bars'
+      // louder one: of a piece with what they go round.
+      Color edge(Color fill) =>
+          fill.withValues(alpha: math.min(1.0, fill.a * 2.6));
+      final leftEdge = edge(leftColor);
+      final rightEdge = edge(rightColor);
       band(
         top,
         bottom,
