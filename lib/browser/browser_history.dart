@@ -66,6 +66,21 @@ class BrowserHistory extends ChangeNotifier {
   bool _started = false;
   final Map<BrowserTab, _HistoryFile> _files = {};
 
+  /// The files of the tabs gone, as they finish writing.
+  final Set<Future<void>> _closing = {};
+
+  /// Done when all queued so far is on disk.
+  Future<void> _written() => Future.wait([
+    for (final file in _files.values) file.written,
+    ..._closing,
+  ]);
+
+  void _close(_HistoryFile file) {
+    final closing = file.close();
+    _closing.add(closing);
+    unawaited(closing.whenComplete(() => _closing.remove(closing)));
+  }
+
   /// The tabs captured (their records kept), and those the user stopped
   /// (cancelled the browser's debugging bar): left alone till shared again.
   final Set<BrowserTab> _capturing = {};
@@ -91,6 +106,7 @@ class BrowserHistory extends ChangeNotifier {
       await file.close();
     }
     _files.clear();
+    await _written();
   }
 
   void _connections() {
@@ -149,7 +165,7 @@ class BrowserHistory extends ChangeNotifier {
         final file = _files.remove(tab);
         if (file != null) {
           file.write({'t': 'end', 'why': event.event});
-          unawaited(file.close());
+          _close(file);
         }
       case 'detached' when tabId != null:
         final tab = BrowserTab(event.connection, tabId);
@@ -341,6 +357,7 @@ class BrowserHistory extends ChangeNotifier {
       await file.close();
     }
     _files.clear();
+    await _written();
     _pages.clear();
     try {
       final root = Directory(folder);
@@ -412,6 +429,7 @@ class BrowserHistory extends ChangeNotifier {
     DateTime until,
     bool Function(Map<String, Object?> record) keep,
   ) async {
+    await _written();
     final root = Directory(folder);
     if (!root.existsSync()) return const [];
     final out = <Map<String, Object?>>[];
@@ -462,8 +480,10 @@ class BrowserHistory extends ChangeNotifier {
   }
 }
 
-/// A tab's capture, as a file of the history's: each record written as
-/// it comes (read back at once).
+/// A tab's capture, as a file of the history's: each record queued as it
+/// comes and written off the main thread, those that came meanwhile
+/// together (a busy page's records, megabytes a second, kept the UI from
+/// its frames when written there); read back once [written].
 class _HistoryFile {
   _HistoryFile._(this.file);
 
@@ -491,24 +511,41 @@ class _HistoryFile {
   final RandomAccessFile file;
   bool _closed = false;
 
-  /// Writes [record], a line: its bytes.
+  /// The lines not yet written, and the writing of those before.
+  final _queued = BytesBuilder(copy: false);
+  Future<void>? _writing;
+
+  /// Done when the lines queued so far are on disk.
+  Future<void> get written => _writing ?? Future.value();
+
+  /// Queues [record], a line: its bytes.
   int write(Map<String, Object?> record) {
     if (_closed) return 0;
     final line = utf8.encode('${jsonEncode(record)}\n');
+    _queued.add(line);
+    _writing ??= _drain();
+    return line.length;
+  }
+
+  Future<void> _drain() async {
     try {
-      file.writeFromSync(line);
+      while (_queued.isNotEmpty) {
+        await file.writeFrom(_queued.takeBytes());
+      }
     } on FileSystemException catch (error) {
       debugPrint('browser history: $error');
-      return 0;
+      _queued.clear();
+    } finally {
+      _writing = null;
     }
-    return line.length;
   }
 
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    await written;
     try {
-      file.closeSync();
+      await file.close();
     } on FileSystemException {
       // Gone.
     }
