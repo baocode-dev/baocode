@@ -128,7 +128,9 @@ class EditorSurface extends StatefulWidget {
     this.scrollPosition,
     this.lineNumbers = true,
     this.lineNumbersMinChars = EditorViewGeometry.lineNumbersMinChars,
+    this.lineDecorationsWidth = EditorViewGeometry.defaultLineDecorationsWidth,
     this.glyphMargin = true,
+    this.glyphMarginWidth,
     this.folding = true,
     this.hiddenLines,
     this.foldingRules,
@@ -226,8 +228,15 @@ class EditorSurface extends StatefulWidget {
   /// (`lineNumbersMinChars`).
   final int lineNumbersMinChars;
 
+  /// The room between the line numbers and the text (`lineDecorationsWidth`),
+  /// besides the folding chevrons'.
+  final double lineDecorationsWidth;
+
   /// Reserves Monaco's glyph margin (one line height) left of line numbers.
   final bool glyphMargin;
+
+  /// The glyph margin's width; a line height when null.
+  final double? glyphMarginWidth;
 
   /// Indentation-based folding with chevrons in the gutter.
   final bool folding;
@@ -2551,6 +2560,8 @@ class _EditorSurfaceState extends State<EditorSurface>
           annotationsWidth: widget.lineAnnotations?.width ?? 0,
           verticalScrollbar: widget.verticalScrollbar,
           minLineNumberChars: widget.lineNumbersMinChars,
+          glyphMarginWidth: widget.glyphMarginWidth,
+          lineDecorationsWidth: widget.lineDecorationsWidth,
         );
         _geometry = geometry;
         _zones = _computeZones(glyphs.lineHeight);

@@ -430,6 +430,7 @@ class _DiffEditorState extends State<DiffEditor> {
             style: widget.style,
             textScaler: scaler,
             styledLines: widget.originalStyledLines,
+            highlight: widget.highlight,
           ),
       ];
       if (widget.hideUnchanged && mappings != null) {
@@ -1410,7 +1411,8 @@ class _DiffOverviewSliderPainter extends CustomPainter {
 }
 
 /// A [DiffZone]: [original]'s deleted lines, numbered as the original
-/// numbers them, on the removed margin with its bar at the edge.
+/// numbers them, on the removed margin with its bar at the edge; marked
+/// as much as [highlight] says, as the inserted lines are.
 EditorViewZone _deletedCodeZone(
   DiffZone zone,
   DocumentSnapshot original, {
@@ -1418,6 +1420,7 @@ EditorViewZone _deletedCodeZone(
   required TextStyle style,
   required TextScaler textScaler,
   Map<int, List<TextSpan>>? styledLines,
+  DiffHighlight highlight = DiffHighlight.characters,
 }) => EditorViewZone(
   afterLineNumber: zone.afterLineNumber,
   heightInLines: zone.heightInLines,
@@ -1430,8 +1433,14 @@ EditorViewZone _deletedCodeZone(
       styledLines: styledLines,
       style: style,
       textScaler: textScaler,
-      lineBackground: colors.removedLine,
-      textBackground: colors.removedText,
+      lineBackground: highlight == DiffHighlight.none
+          ? null
+          : colors.removedLine,
+      textBackground:
+          highlight == DiffHighlight.none || highlight == DiffHighlight.lines
+          ? null
+          : colors.removedText,
+      words: highlight == DiffHighlight.words,
     ),
   ),
   margin: CustomPaint(
@@ -1455,6 +1464,7 @@ class _DeletedCodePainter extends CustomPainter {
     required this.textScaler,
     required this.lineBackground,
     required this.textBackground,
+    this.words = false,
   });
 
   final DocumentSnapshot original;
@@ -1465,6 +1475,9 @@ class _DeletedCodePainter extends CustomPainter {
   final TextScaler textScaler;
   final Color? lineBackground;
   final Color? textBackground;
+
+  /// The inner changes grown to the words they are in.
+  final bool words;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1504,12 +1517,11 @@ class _DeletedCodePainter extends CustomPainter {
           if (line < range.startLineNumber || line > range.endLineNumber) {
             continue;
           }
-          final start = line == range.startLineNumber
-              ? range.startColumn - 1
-              : 0;
-          final end = line == range.endLineNumber
+          var start = line == range.startLineNumber ? range.startColumn - 1 : 0;
+          var end = line == range.endLineNumber
               ? range.endColumn - 1
               : text.length;
+          if (words) (start, end) = diffWordRange(text, start, end);
           double x(int column) => painter
               .getOffsetForCaret(
                 TextPosition(offset: column.clamp(0, text.length)),
@@ -1546,7 +1558,8 @@ class _DeletedCodePainter extends CustomPainter {
       old.style != style ||
       old.textScaler != textScaler ||
       old.lineBackground != lineBackground ||
-      old.textBackground != textBackground;
+      old.textBackground != textBackground ||
+      old.words != words;
 }
 
 /// The deleted code's margin: the removed gutter background, and a bar at

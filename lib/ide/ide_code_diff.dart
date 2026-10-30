@@ -485,6 +485,14 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
 
   // --- Building --------------------------------------------------------------
 
+  /// The room between the line numbers and the text: the lines' check
+  /// boxes' (14 wide, 2 from the text) where there are some.
+  double get _lineChecksWidth => widget.checks != null ? 22 : 10;
+
+  /// The glyph margin with a change's check box and its arrow (16 each, 2
+  /// and 22 in).
+  static const _checkAndArrowWidth = 42.0;
+
   @override
   Widget build(BuildContext context) {
     final colors = _themes.colors;
@@ -532,6 +540,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
           lineNumbersMinChars: side.lineNumbersMinChars,
           // Room for its lines' check boxes.
           glyphMargin: widget.checks != null,
+          lineDecorationsWidth: _lineChecksWidth,
           folding: false,
           hiddenLines: side.hiddenLines,
           showMinimap: false,
@@ -554,7 +563,13 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
         // Side by side, the line numbers are by the split; inline, the
         // margin has the arrows and check boxes.
         glyphMargin: !side.sideBySide || widget.checks != null,
+        // Inline, a change's check box and its arrow side by side there.
+        glyphMarginWidth: !side.sideBySide && widget.checks != null && editable
+            ? _checkAndArrowWidth
+            : null,
         lineNumbersMinChars: side.lineNumbersMinChars,
+        // Its lines' check boxes between the line numbers and the text.
+        lineDecorationsWidth: _lineChecksWidth,
         folding: false,
         hiddenLines: side.hiddenLines,
         showMinimap: false,
