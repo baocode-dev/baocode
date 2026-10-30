@@ -36,4 +36,14 @@ void main() {
     expect(long.runes.length, 80);
     expect(long, endsWith('…'));
   });
+
+  test('a tool call written out as text is no title', () {
+    expect(cleanAgentTitle('<｜DSML｜function_calls>\n<｜DSML｜invoke>'), isNull);
+    expect(cleanAgentTitle('<｜DSML｜ calls>'), isNull);
+    expect(cleanAgentTitle('<tool_call>\n{"name": "WebFetch"}'), isNull);
+    expect(cleanAgentTitle('<|tool_calls_begin|>fetch'), isNull);
+    // Angle brackets inside words are kept.
+    expect(cleanAgentTitle('重构 <Button> 组件'), '重构 <Button> 组件');
+    expect(cleanAgentTitle('Fix a < b || c check'), 'Fix a < b || c check');
+  });
 }
