@@ -3095,7 +3095,6 @@
   "diffHighlightCharacters": "按字符高亮",
   "diffHighlightWords": "按词高亮",
   "diffHighlightLines": "按行高亮",
-  "diffHighlightNone": "不高亮",
   "diffGoToFile": "转到改动的文件",
   "lineChangePrevious": "上一处改动",
   "lineChangeNext": "下一处改动",

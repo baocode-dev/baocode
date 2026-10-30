@@ -10799,9 +10799,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get diffHighlightLines => '按行高亮';
 
   @override
-  String get diffHighlightNone => '不高亮';
-
-  @override
   String get diffGoToFile => '转到改动的文件';
 
   @override

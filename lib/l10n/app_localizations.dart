@@ -18627,12 +18627,6 @@ abstract class AppLocalizations {
   /// **'Highlight Lines'**
   String get diffHighlightLines;
 
-  /// No description provided for @diffHighlightNone.
-  ///
-  /// In en, this message translates to:
-  /// **'Do Not Highlight'**
-  String get diffHighlightNone;
-
   /// No description provided for @diffGoToFile.
   ///
   /// In en, this message translates to:

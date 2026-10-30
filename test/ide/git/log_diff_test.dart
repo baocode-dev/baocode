@@ -155,9 +155,18 @@ void main() {
 
     await tester.tap(find.byTooltip('Viewer Settings'));
     await tester.pumpAndSettle();
+    // The changed lines always colored: no "Do Not Highlight", and one
+    // chosen before is the lines.
+    expect(find.text('Highlight Lines'), findsOneWidget);
+    expect(find.text('Do Not Highlight'), findsNothing);
     await tester.tap(find.text('Highlight Words'));
     await tester.pumpAndSettle();
     expect(editor().highlight, DiffHighlight.words);
+    IdeDiffOptions.instance.highlight = DiffHighlight.none;
+    await tester.pumpAndSettle();
+    expect(editor().highlight, DiffHighlight.lines);
+    IdeDiffOptions.instance.highlight = DiffHighlight.words;
+    await tester.pumpAndSettle();
 
     // Whitespace: at the line ends by default, anywhere, or none (counted
     // here all the same, where changes are checked for the commit).

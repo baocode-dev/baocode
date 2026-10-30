@@ -7853,7 +7853,6 @@
   "diffHighlightCharacters": "Highlight Characters",
   "diffHighlightWords": "Highlight Words",
   "diffHighlightLines": "Highlight Lines",
-  "diffHighlightNone": "Do Not Highlight",
   "diffGoToFile": "Go to Changed File",
   "lineChangePrevious": "Previous Change",
   "lineChangeNext": "Next Change",

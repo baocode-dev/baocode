@@ -11412,9 +11412,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get diffHighlightLines => 'Highlight Lines';
 
   @override
-  String get diffHighlightNone => 'Do Not Highlight';
-
-  @override
   String get diffGoToFile => 'Go to Changed File';
 
   @override
