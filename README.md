@@ -21,7 +21,7 @@ BaoCode has no agent of its own, by design. Claude Code is the agent, and its ec
 - **Goals.** Type `/goal` and what you want done, and Claude keeps working until it is met, with the goal and its progress above the input.
 - **A rich-text input.** Code copied from the editor arrives as a reference to its file and lines; pasted images and dropped files sit where you put them in the sentence.
 - **Fast IDE.** An editor, a terminal and Source Control with a commit graph, built in. Claude Code drafts your commit messages. VS Code, IntelliJ, Sublime and Atom keymaps, and language servers.
-- **Your VS Code themes.** The editor, the conversation and the sidebar all follow them.
+- **Your VS Code themes.** The editor, the conversation and the sidebar all follow them. Set `"window.autoDetectColorScheme": true` in user settings to follow the system between Bao Light and Bao Dark; `workbench.colorTheme` keeps your fixed preference. The default remains fixed.
 - **Skills, MCP servers and more.** Plugins, MCP servers, skills, subagents, rules, commands and hooks in one place, for you or for a single project.
 - **Any model.** Add an upstream that speaks Anthropic's API, OpenAI's Chat Completions or OpenAI's Responses; a local proxy translates between it and Claude Code. Keys stay in the system keychain.
 - **Remote projects over SSH.** The window stays on your machine; files, Git, search, terminals, language servers and Claude Code run on the remote host (Linux, x64 or arm64).

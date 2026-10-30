@@ -15,8 +15,8 @@
 //
 // Deviations: settings and storage are two preference entries the app keeps
 // (`ColorThemeStorage`), read once at startup; no customizations, transient
-// colors, theme watching, telemetry, file or product icon themes, or
-// automatic color scheme detection. Themes are named by their settings id.
+// colors, theme watching, telemetry, file or product icon themes.
+// 自动模式使用系统明暗对应的内置主题；固定主题仍按 settings id 选择。
 // Widgets read colors through [WorkbenchThemeService.colors] and are all
 // rebuilt when the theme changes ([WorkbenchThemeScope]), as a theme change
 // restyles the whole workbench upstream.
@@ -90,7 +90,12 @@ String migrateThemeSettingsId(String settingsId) => switch (settingsId) {
 abstract interface class ColorThemeStorage {
   String? get colorThemeSetting;
   String? get colorThemeData;
-  void storeColorTheme({required String setting, String? data});
+  bool get automaticColorTheme;
+  void storeColorTheme({
+    required String setting,
+    String? data,
+    bool automatic = false,
+  });
 }
 
 /// A color theme's colors as widgets read them: what the theme sets, else
@@ -140,7 +145,11 @@ WorkbenchColors get themeColors => WorkbenchThemeService.instance.colors;
 class WorkbenchThemeService extends ChangeNotifier
     implements IdeColorThemeController, TextMateThemeSource {
   WorkbenchThemeService({this.bundle, ColorThemeData? initial})
-    : _current =
+    : _selection = (
+        id: initial?.settingsId ?? ThemeSettingDefaults.colorThemeDark,
+        automatic: false,
+      ),
+      _current =
           initial ??
           ColorThemeData.createUnloadedThemeForThemeType(
             ColorScheme.dark,
@@ -160,8 +169,21 @@ class WorkbenchThemeService extends ChangeNotifier
   /// Where the choice is kept; none under test.
   ColorThemeStorage? storage;
 
-  /// The `workbench.colorTheme` setting: what [restoreColorTheme] loads.
-  String _setting = ThemeSettingDefaults.colorThemeDark;
+  /// 用户保存的固定主题与自动模式，不随预览或系统明暗变化改写。
+  @override
+  IdeColorThemeSelection get colorThemeSelection => _selection;
+  IdeColorThemeSelection _selection;
+  IdeColorThemeSelection? _preview;
+  ui.Brightness _systemBrightness =
+      ui.PlatformDispatcher.instance.platformBrightness;
+
+  String _resolve(IdeColorThemeSelection selection) => selection.automatic
+      ? (_systemBrightness == ui.Brightness.dark
+            ? ThemeSettingDefaults.colorThemeDark
+            : ThemeSettingDefaults.colorThemeLight)
+      : selection.id;
+
+  String get _effectiveSetting => _resolve(_preview ?? _selection);
 
   /// The current theme: from storage or a type's initial colors until the
   /// theme file is loaded ([ColorThemeData.isLoaded]).
@@ -170,8 +192,9 @@ class WorkbenchThemeService extends ChangeNotifier
 
   /// The settings id of the theme the workbench shows.
   @override
-  String get colorThemeId =>
-      _current.settingsId.startsWith('__') ? _setting : _current.settingsId;
+  String get colorThemeId => _current.settingsId.startsWith('__')
+      ? _effectiveSetting
+      : _current.settingsId;
 
   WorkbenchColors get colors => _colors ??= WorkbenchColors(_current);
 
@@ -332,11 +355,12 @@ class WorkbenchThemeService extends ChangeNotifier
     final first = !_extensionThemesKnown;
     _extensionThemesKnown = true;
     // The setting's theme, waiting for them (or gone with an extension).
-    if (_current.settingsId != _setting || !_current.isLoaded || first) {
-      if (_extensionThemes[_setting] case final theme?) {
+    final setting = _effectiveSetting;
+    if (_current.settingsId != setting || !_current.isLoaded || first) {
+      if (_extensionThemes[setting] case final theme?) {
         await theme.ensureLoaded(_read);
-        _apply(theme, preview: false);
-      } else if ((await _loadManifest()).themeById(_setting) == null) {
+        _apply(theme, preview: _preview != null);
+      } else if ((await _loadManifest()).themeById(setting) == null) {
         await _setColorTheme(_defaultSetting, preview: false);
       }
     }
@@ -358,15 +382,28 @@ class WorkbenchThemeService extends ChangeNotifier
 
   /// The constructor's restore: the kept theme, painted from storage when it
   /// is still the setting's, until [initialize] loads it.
-  void restore({String? setting, String? data}) {
-    if (setting != null && setting.isNotEmpty) {
-      _setting = migrateThemeSettingsId(setting);
-    }
+  void restore({
+    String? setting,
+    String? data,
+    bool automatic = false,
+    ui.Brightness? systemBrightness,
+  }) {
+    _selection = (
+      id: setting != null && setting.isNotEmpty
+          ? migrateThemeSettingsId(setting)
+          : ThemeSettingDefaults.colorThemeDark,
+      automatic: automatic,
+    );
+    _preview = null;
+    if (systemBrightness != null) _systemBrightness = systemBrightness;
+    final effective = _effectiveSetting;
     var theme = ColorThemeData.fromStorageData(data);
-    if (theme != null && theme.settingsId != _setting) theme = null;
+    if (theme != null && theme.settingsId != effective) theme = null;
     theme ??= ColorThemeData.createUnloadedThemeForThemeType(
-      ColorScheme.dark,
-      switch (_setting) {
+      effective == ThemeSettingDefaults.colorThemeLight
+          ? ColorScheme.light
+          : ColorScheme.dark,
+      switch (effective) {
         ThemeSettingDefaults.colorThemeLight => colorThemeLightInitialColors,
         ThemeSettingDefaults.colorThemeDark => colorThemeDarkInitialColors,
         _ => null,
@@ -379,9 +416,10 @@ class WorkbenchThemeService extends ChangeNotifier
   /// (`restoreColorTheme`); the default theme when it is gone.
   Future<void> initialize() => _queue(() async {
     final manifest = await _loadManifest();
-    final theme = manifest.themeById(_setting);
+    final setting = _effectiveSetting;
+    final theme = manifest.themeById(setting);
     if (theme == null) {
-      if (_extensionThemes[_setting] case final extension?) {
+      if (_extensionThemes[setting] case final extension?) {
         await extension.ensureLoaded(_read);
         if (!identical(extension, _current)) _apply(extension, preview: false);
         return;
@@ -417,27 +455,94 @@ class WorkbenchThemeService extends ChangeNotifier
     return result;
   }
 
-  /// `setColorTheme(settingsId, preview ? 'preview' : 'auto')`: shows the
-  /// theme; unless [preview], keeps it as the setting and in storage.
+  /// 应用 [settingsId]；[automatic] 时按系统明暗选择内置主题。
+  /// [preview] 不保存选择。返回主题加载和应用完成的 Future。
   @override
-  Future<void> setColorTheme(String settingsId, {bool preview = false}) =>
-      _queue(() => _setColorTheme(settingsId, preview: preview));
+  Future<void> setColorTheme(
+    String settingsId, {
+    bool preview = false,
+    bool automatic = false,
+  }) => _queue(
+    () => _setColorTheme(settingsId, preview: preview, automatic: automatic),
+  );
+
+  /// 在队列中结束预览，保留预览期间由设置文件等入口更新的选择。
+  @override
+  Future<void> restoreColorTheme() => _queue(() {
+    // 结束预览不依赖资源加载成功；失败后系统通知仍可重试保存的 Auto。
+    _preview = null;
+    return _setColorTheme(
+      _selection.id,
+      preview: false,
+      automatic: _selection.automatic,
+    );
+  });
+
+  /// 记录系统亮度 [brightness]，只对自动模式或 Auto 预览更新主题。
+  /// 返回更新完成的 Future；固定主题仍保持不变。
+  Future<void> setSystemBrightness(ui.Brightness brightness) => _queue(
+    () async {
+      _systemBrightness = brightness;
+      final selection = _preview ?? _selection;
+      // 按成功应用的配色去重，资源加载失败后同一亮度仍可重试。
+      if (selection.automatic &&
+          (!_current.isLoaded || _current.settingsId != _resolve(selection))) {
+        await _setColorTheme(
+          selection.id,
+          preview: _preview != null,
+          automatic: true,
+        );
+      }
+    },
+  );
 
   Future<void> _setColorTheme(
     String settingsId, {
     required bool preview,
+    bool automatic = false,
   }) async {
-    if (_current.isLoaded && settingsId == _current.settingsId) {
-      if (!preview) _keep(_current);
+    final selection = (id: settingsId, automatic: automatic);
+    final effective = _resolve(selection);
+    final same = _current.isLoaded && effective == _current.settingsId;
+    var data = _current;
+    if (!same) {
+      final manifest = await _loadManifest();
+      final theme = manifest.themeById(effective);
+      final found = theme != null
+          ? _themeData(theme)
+          : _extensionThemes[effective];
+      if (found == null) {
+        if (preview) return;
+        if (!automatic && waitsForExtensionThemes && !_extensionThemesKnown) {
+          _selection = selection;
+          _preview = null;
+          if (_current.isLoaded) _keep(_current);
+          notifyListeners();
+          return;
+        }
+        if (automatic || effective == _defaultSetting) {
+          throw StateError('Color theme not available: $effective');
+        }
+        await _setColorTheme(_defaultSetting, preview: false);
+        return;
+      }
+      data = found;
+      await data.ensureLoaded(_read);
+    }
+    final selectionChanged = _selection != selection || _preview != null;
+    if (preview) {
+      _preview = selection;
+    } else {
+      _selection = selection;
+      _preview = null;
+    }
+    if (same) {
+      if (!preview) {
+        _keep(_current);
+        if (selectionChanged) notifyListeners();
+      }
       return;
     }
-    final manifest = await _loadManifest();
-    final theme = manifest.themeById(settingsId);
-    final data = theme != null
-        ? _themeData(theme)
-        : _extensionThemes[settingsId];
-    if (data == null) return;
-    await data.ensureLoaded(_read);
     _apply(data, preview: preview);
   }
 
@@ -453,7 +558,11 @@ class WorkbenchThemeService extends ChangeNotifier
       'theme',
       '${theme.settingsId} (${theme.type.name}'
           '${theme.isLoaded ? '' : ', not loaded'}'
-          '${silent ? ', restored' : preview ? ', preview' : ''})',
+          '${silent
+              ? ', restored'
+              : preview
+              ? ', preview'
+              : ''})',
     );
     if (silent) return;
     notifyListeners();
@@ -462,10 +571,10 @@ class WorkbenchThemeService extends ChangeNotifier
   }
 
   void _keep(ColorThemeData theme) {
-    _setting = theme.settingsId;
     storage?.storeColorTheme(
-      setting: theme.settingsId,
+      setting: _selection.id,
       data: theme.toStorage(),
+      automatic: _selection.automatic,
     );
   }
 }

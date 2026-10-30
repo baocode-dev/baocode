@@ -19,13 +19,9 @@
 //   Extension" button, and Enter with no active item (a filter matching
 //   nothing) only closes the picker, where upstream opens the Extensions
 //   view's `category:themes` search.
-// - No `window.autoDetectColorScheme`: the preferred color scheme is always
-//   upstream's undefined, so the placeholder is its "detect system color
-//   mode disabled" title, the order is light, dark, then high contrast
-//   themes, and there is no color mode button beside the input.
-// - When a theme fails to apply, upstream applies the current one again
-//   without writing settings (`setColorTheme(current, undefined)`); here that
-//   is a preview of it, the controller's only way not to persist.
+// - 自动模式由主题服务处理；此步仍只列具体主题，按浅色、深色、高对比
+//   分组，输入框旁不另设颜色模式按钮。
+// - 取消或加载失败时结束预览，恢复服务最新保存的选择；过期失败不回滚。
 // - `localeCompare` is `ideLocaleCompare`, which approximates ICU's root
 //   collation.
 
@@ -55,13 +51,25 @@ class IdeColorThemeEntry {
   final String? description;
 }
 
+/// 用户保存的主题偏好；自动模式保留固定主题 id，实际配色由系统决定。
+typedef IdeColorThemeSelection = ({String id, bool automatic});
+
 /// What the picker needs from the theme service (upstream IWorkbenchThemeService).
 abstract interface class IdeColorThemeController {
   List<IdeColorThemeEntry> get colorThemes;
   String get colorThemeId;
+  IdeColorThemeSelection get colorThemeSelection;
 
-  /// `setColorTheme(id, 'preview')` when [preview], else applied and persisted.
-  Future<void> setColorTheme(String id, {bool preview = false});
+  /// 结束预览，恢复执行时已保存的选择；返回恢复完成的 Future。
+  Future<void> restoreColorTheme();
+
+  /// 应用 [id] 或 [automatic] 指定的系统配色；[preview] 时不保存。
+  /// 返回应用完成的 Future。
+  Future<void> setColorTheme(
+    String id, {
+    bool preview = false,
+    bool automatic = false,
+  });
 }
 
 /// The Preferences: Color Theme command.
@@ -88,8 +96,8 @@ Map<String, String> _defaultThemeDescriptions(AppLocalizations l10n) => {
 /// The quick pick of [themes]' color themes (`SelectColorThemeAction.run`
 /// with `InstalledThemesPicker.openQuickPick`): moving the active item
 /// previews its theme 200ms later, accepting applies and persists it, and
-/// hiding otherwise applies the theme that was current again. [onError]
-/// reports a theme that failed to apply (upstream `onUnexpectedError`).
+/// 取消时恢复服务最新保存的选择，不覆盖预览期间的外部配置变更。
+/// [onError] 报告当前请求的加载错误（上游 `onUnexpectedError`）。
 /// Its own words are in [l10n]'s language (English when null).
 IdeQuickPick ideColorThemePick(
   IdeColorThemeController themes, {
@@ -136,7 +144,7 @@ IdeQuickPick ideColorThemePick(
     ];
   }
 
-  // The order for an undefined preferred color scheme.
+  // 具体主题按浅色、深色、高对比分组。
   final picks = [
     ...toEntries(
       all.where((theme) => theme.type == ColorScheme.light),
@@ -153,41 +161,51 @@ IdeQuickPick ideColorThemePick(
   ];
 
   Timer? selectThemeTimeout;
+  var request = 0;
 
-  // Previews [theme] after 200ms, or applies it next (the current theme
-  // when null); a newer call replaces a pending one.
-  void selectTheme(IdeColorThemeEntry? theme, bool applyTheme) {
+  // 预览延迟 200ms；取消或无匹配项时结束预览，恢复最新保存的选择。
+  void selectTheme(IdeColorThemeSelection? theme, bool applyTheme) {
     selectThemeTimeout?.cancel();
+    final mine = ++request;
     selectThemeTimeout = Timer(
       applyTheme ? Duration.zero : const Duration(milliseconds: 200),
       () {
         selectThemeTimeout = null;
-        final id = theme?.id ?? currentId;
+        final change = theme == null
+            ? themes.restoreColorTheme()
+            : themes.setColorTheme(
+                theme.id,
+                preview: !applyTheme,
+                automatic: theme.automatic,
+              );
         unawaited(
-          themes
-              .setColorTheme(id, preview: !applyTheme)
-              .then<void>(
-                (_) {},
-                onError: (Object error) {
-                  onError?.call(error);
-                  unawaited(
-                    themes
-                        .setColorTheme(currentId, preview: true)
-                        .then<void>(
-                          (_) {},
-                          onError: (Object error) => onError?.call(error),
-                        ),
-                  );
-                },
-              ),
+          change.then<void>(
+            (_) {},
+            onError: (Object error) {
+              // 旧预览的失败不能覆盖后来接受的主题。
+              if (mine != request) return;
+              onError?.call(error);
+              unawaited(
+                themes.restoreColorTheme().then<void>(
+                  (_) {},
+                  onError: (Object error) {
+                    if (mine == request) onError?.call(error);
+                  },
+                ),
+              );
+            },
+          ),
         );
       },
     );
   }
 
   var isCompleted = false;
-  IdeColorThemeEntry? themeOf(IdeQuickPickItem? item) =>
-      item == null ? null : entries[item];
+  IdeColorThemeSelection? themeOf(IdeQuickPickItem? item) {
+    final theme = entries[item];
+    return theme == null ? null : (id: theme.id, automatic: false);
+  }
+
   final active = entries.keys.where((item) => entries[item]!.id == currentId);
   return IdeQuickPick(
     items: picks,
@@ -197,8 +215,8 @@ IdeQuickPick ideColorThemePick(
     onDidChangeActive: (item) => selectTheme(themeOf(item), false),
     onDidAccept: (item) {
       isCompleted = true;
-      // No item: upstream searches the marketplace (not ported).
-      if (themeOf(item) case final theme?) selectTheme(theme, true);
+      // 无匹配项也须结束预览，不能把临时 Auto 留在服务中。
+      selectTheme(themeOf(item), true);
     },
     onDidHide: () {
       if (!isCompleted) selectTheme(null, true);

@@ -75,7 +75,7 @@ class _FakeColorThemes implements IdeColorThemeController {
   _FakeColorThemes([
     this.colorThemeId = 'Dark Modern',
     this.colorThemes = _themes,
-  ]);
+  ]) : _selection = (id: colorThemeId, automatic: false);
 
   @override
   final List<IdeColorThemeEntry> colorThemes;
@@ -85,10 +85,24 @@ class _FakeColorThemes implements IdeColorThemeController {
 
   final List<String> calls = [];
 
+  IdeColorThemeSelection _selection;
+
   @override
-  Future<void> setColorTheme(String id, {bool preview = false}) async {
-    calls.add('${preview ? 'preview' : 'apply'} $id');
+  IdeColorThemeSelection get colorThemeSelection => _selection;
+
+  @override
+  Future<void> restoreColorTheme() =>
+      setColorTheme(_selection.id, automatic: _selection.automatic);
+
+  @override
+  Future<void> setColorTheme(
+    String id, {
+    bool preview = false,
+    bool automatic = false,
+  }) async {
+    calls.add('${preview ? 'preview' : 'apply'} ${automatic ? 'Auto' : id}');
     colorThemeId = id;
+    if (!preview) _selection = (id: id, automatic: automatic);
   }
 }
 
@@ -103,8 +117,17 @@ class _Storage implements ColorThemeStorage {
   String? get colorThemeData => null;
 
   @override
-  void storeColorTheme({required String setting, String? data}) =>
-      kept.add(setting);
+  bool automaticColorTheme = false;
+
+  @override
+  void storeColorTheme({
+    required String setting,
+    String? data,
+    bool automatic = false,
+  }) {
+    kept.add(setting);
+    automaticColorTheme = automatic;
+  }
 }
 
 const _files = {'lib/main.dart': 'void main() {}\n'};
@@ -470,19 +493,19 @@ void main() {
     await tester.pump();
     expect(_rows(tester), ['Tomorrow Night Blue']);
 
-    // Nothing matches: nothing is active, and the current theme is
-    // previewed; Enter only closes.
+    // 没有匹配项时结束预览；Enter 再次确保恢复完成后关闭。
     await tester.enterText(_input, 'zzz');
     await tester.pump();
     expect(_rows(tester), isEmpty);
     expect(_active(tester), isNull);
     await tester.pump(const Duration(milliseconds: 200));
-    expect(themes.calls.last, 'preview Dark Modern');
+    expect(themes.calls.last, 'apply Dark Modern');
     final count = themes.calls.length;
     await _key(tester, LogicalKeyboardKey.enter);
     expect(_picker, findsNothing);
     await tester.pump(const Duration(seconds: 1));
-    expect(themes.calls, hasLength(count));
+    expect(themes.calls.skip(count), ['apply Dark Modern']);
+    expect(themes.colorThemeSelection, (id: 'Dark Modern', automatic: false));
 
     // Clearing the filter lists the groups again.
     await _openPicker(tester);

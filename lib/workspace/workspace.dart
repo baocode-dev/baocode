@@ -2324,12 +2324,26 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   @override
   String? get colorThemeData => _colorThemeData;
   String? _colorThemeData;
+  @override
+  bool get automaticColorTheme => _automaticColorTheme;
+  bool _automaticColorTheme = false;
   bool _colorThemeStored = false;
 
   @override
-  void storeColorTheme({required String setting, String? data}) {
+  void storeColorTheme({
+    required String setting,
+    String? data,
+    bool automatic = false,
+  }) {
+    if (_colorThemeStored &&
+        _colorTheme == setting &&
+        _colorThemeData == data &&
+        _automaticColorTheme == automatic) {
+      return;
+    }
     _colorTheme = setting;
     _colorThemeData = data;
+    _automaticColorTheme = automatic;
     _colorThemeStored = true;
     // Not before what was kept is read: that would be written over.
     unawaited(_restoring.then((_) => _save()));
@@ -2478,6 +2492,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _sidePanelView = panel.cast<String, Object?>();
     }
     if (!_colorThemeStored) {
+      _automaticColorTheme = kept['automaticColorTheme'] == true;
       if (kept['colorTheme'] case final String setting) _colorTheme = setting;
       if (kept['colorThemeData'] case final String data) {
         _colorThemeData = data;
@@ -2550,6 +2565,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'sidePanel': ?_sidePanelView,
       'colorTheme': ?_colorTheme,
       'colorThemeData': ?_colorThemeData,
+      if (_automaticColorTheme) 'automaticColorTheme': true,
     }),
   );
 

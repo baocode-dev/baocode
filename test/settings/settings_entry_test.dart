@@ -472,10 +472,24 @@ class _FakeThemes extends ChangeNotifier implements IdeColorThemeController {
     ),
   ];
 
+  IdeColorThemeSelection _selection = (id: 'Dark 2026', automatic: false);
+
   @override
-  Future<void> setColorTheme(String id, {bool preview = false}) async {
+  IdeColorThemeSelection get colorThemeSelection => _selection;
+
+  @override
+  Future<void> restoreColorTheme() =>
+      setColorTheme(_selection.id, automatic: _selection.automatic);
+
+  @override
+  Future<void> setColorTheme(
+    String id, {
+    bool preview = false,
+    bool automatic = false,
+  }) async {
     applied.add((id, preview));
     colorThemeId = id;
+    if (!preview) _selection = (id: id, automatic: automatic);
     notifyListeners();
   }
 }

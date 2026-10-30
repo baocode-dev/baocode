@@ -395,5 +395,16 @@ class _Themes extends ChangeNotifier implements IdeColorThemeController {
   String get colorThemeId => 'Dark 2026';
 
   @override
-  Future<void> setColorTheme(String id, {bool preview = false}) async {}
+  Future<void> restoreColorTheme() async {}
+
+  @override
+  IdeColorThemeSelection get colorThemeSelection =>
+      (id: colorThemeId, automatic: false);
+
+  @override
+  Future<void> setColorTheme(
+    String id, {
+    bool preview = false,
+    bool automatic = false,
+  }) async {}
 }

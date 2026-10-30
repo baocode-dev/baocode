@@ -505,6 +505,9 @@ Future<void> main(List<String> arguments) async {
     ..restore(
       setting: colorTheme.colorThemeSetting,
       data: colorTheme.colorThemeData,
+      automatic: colorTheme.automaticColorTheme,
+      systemBrightness:
+          WidgetsBinding.instance.platformDispatcher.platformBrightness,
     )
     ..storage = colorTheme
     // A theme of an extension applies once they are read.
@@ -762,7 +765,7 @@ class BaoCodeApp extends StatefulWidget {
   State<BaoCodeApp> createState() => _BaoCodeAppState();
 }
 
-class _BaoCodeAppState extends State<BaoCodeApp> {
+class _BaoCodeAppState extends State<BaoCodeApp> with WidgetsBindingObserver {
   late final Workspace _workspace =
       widget.workspace ??
       (Workspace(preferences: PreferenceStore.file())..load());
@@ -834,6 +837,8 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
   void initState() {
     super.initState();
     _lifecycle;
+    WidgetsBinding.instance.addObserver(this);
+    didChangePlatformBrightness();
     _themes.addListener(_colorThemeChanged);
     _colorThemeChanged();
     _locale.addListener(_windows.relabel);
@@ -841,6 +846,19 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     // The IDE's windows of the last run, once the main one is drawn.
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => unawaited(_windows.restore()),
+    );
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    unawaited(
+      _themes
+          .setSystemBrightness(
+            WidgetsBinding.instance.platformDispatcher.platformBrightness,
+          )
+          .catchError((Object error) {
+            debugPrint('System color theme not applied: $error');
+          }),
     );
   }
 
@@ -865,6 +883,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _themes.removeListener(_colorThemeChanged);
     _locale.removeListener(_windows.relabel);
     _settings.files?.settings.removeListener(_windows.settingsChanged);

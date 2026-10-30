@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../platform/data_dir.dart';
 import '../theme/workbench_theme.dart';
 import 'app_locale.dart';
+import 'jsonc.dart';
 import 'jsonc_file.dart';
 
 /// `User/settings.json`: the user's settings as VS Code keeps them, one
@@ -141,6 +142,12 @@ class ColorThemeSettings implements ColorThemeStorage {
   final ColorThemeStorage state;
 
   static const key = 'workbench.colorTheme';
+  static const automaticKey = 'window.autoDetectColorScheme';
+
+  @override
+  bool get automaticColorTheme => settings[automaticKey] == true;
+
+  int _writes = 0;
 
   @override
   String? get colorThemeSetting => switch (settings[key]) {
@@ -152,17 +159,67 @@ class ColorThemeSettings implements ColorThemeStorage {
   String? get colorThemeData => state.colorThemeData;
 
   @override
-  void storeColorTheme({required String setting, String? data}) {
-    state.storeColorTheme(setting: setting, data: data);
-    // Unset is the default theme: the file is not written for it.
+  void storeColorTheme({
+    required String setting,
+    String? data,
+    bool automatic = false,
+  }) {
+    state.storeColorTheme(setting: setting, data: data, automatic: automatic);
     final current = colorThemeSetting ?? ThemeSettingDefaults.colorThemeDark;
-    if (migrateThemeSettingsId(current) == setting) return;
+    if (_writes == 0 &&
+        migrateThemeSettingsId(current) == setting &&
+        automaticColorTheme == automatic) {
+      return;
+    }
+    _writes++;
+    // 两个偏好一起写入，避免监听到“新主题、旧模式”的中间态。
     unawaited(
-      settings.update(key, setting).catchError((Object error) {
-        // A settings file that does not parse is left as it is; its error
-        // is shown.
-        debugPrint('workbench.colorTheme not kept: $error');
-      }),
+      settings
+          .transform((source) {
+            final text = source ?? '';
+            final errors = <JsoncParseError>[];
+            final parsed = parseJsonc(text, errors: errors);
+            if (errors.isNotEmpty) {
+              throw JsoncFileException(
+                settings.path,
+                errors.first.describe(text),
+              );
+            }
+            final values = parsed is Map ? parsed : const {};
+            var next = text;
+            void set(String name, Object? value) {
+              next = applyJsoncEdits(
+                next,
+                modifyJsonc(
+                  next,
+                  [name],
+                  value,
+                  remove: value == null,
+                  formatting: JsoncFormatting.detect(next),
+                ),
+              );
+            }
+
+            final kept = values[key];
+            final id = kept is String && kept.trim().isNotEmpty
+                ? kept.trim()
+                : ThemeSettingDefaults.colorThemeDark;
+            if (migrateThemeSettingsId(id) != setting) set(key, setting);
+            if ((values[automaticKey] == true) != automatic) {
+              set(automaticKey, automatic ? true : null);
+            }
+            return next == text ? null : next;
+          })
+          .then<void>(
+            (_) {
+              _writes--;
+              if (_writes == 0) _changed();
+            },
+            onError: (Object error) {
+              _writes--;
+              debugPrint('Color theme not kept: $error');
+            },
+          ),
     );
   }
 
@@ -177,11 +234,14 @@ class ColorThemeSettings implements ColorThemeStorage {
 
   void _changed() {
     final themes = _themes;
-    if (themes == null) return;
+    if (themes == null || _writes != 0) return;
     final id = migrateThemeSettingsId(
       colorThemeSetting ?? ThemeSettingDefaults.colorThemeDark,
     );
-    if (id != themes.colorThemeId) unawaited(themes.setColorTheme(id));
+    final selection = (id: id, automatic: automaticColorTheme);
+    if (selection != themes.colorThemeSelection) {
+      unawaited(themes.setColorTheme(id, automatic: selection.automatic));
+    }
   }
 
   void dispose() {
