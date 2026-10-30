@@ -50,10 +50,52 @@ void main() {
     final grid = ChatGrid<String>()
       ..show('A')
       ..split('A', PaneSide.right, 'B')
-      ..columnRatio = .3;
+      ..setColumnRatioIn(0, .3);
     grid.split('A', PaneSide.bottom, 'C');
-    expect(grid.columnRatio, .3);
-    expect(grid.rowRatio, .5);
+    expect(grid.columnRatios, [.3, .3]);
+    expect(grid.rowRatios, [.5, .5]);
+  });
+
+  test('the line through a column moves on its own; the one beside it '
+      'stays straight', () {
+    final grid = ChatGrid<String>()
+      ..show('A')
+      ..split('A', PaneSide.right, 'B')
+      ..split('A', PaneSide.bottom, 'C')
+      ..split('B', PaneSide.bottom, 'D');
+    expect(cells(grid), 'AB/CD');
+    expect(grid.columnsFirst, isTrue);
+    grid.setRowRatioIn(0, .3);
+    const size = Size(1000, 800);
+    var rects = grid.layout(size, gap: 4);
+    expect(rects['A']!.bottom, 238);
+    expect(rects['C']!.top, 242);
+    expect(rects['B']!.bottom, 398);
+    expect(rects['D']!.top, 402);
+    // The straight one moves in both rows.
+    grid.setColumnRatioIn(1, .4);
+    rects = grid.layout(size, gap: 4);
+    expect(rects['A']!.right, 398);
+    expect(rects['C']!.right, 398);
+
+    // Closed, a pane goes to the one across the straight line: the other
+    // column's line stays where it was.
+    grid.remove('D');
+    expect(cells(grid), 'AB/CB');
+    expect(grid.rowRatios.first, .3);
+
+    // Rows first: the column line moves in each row on its own.
+    final rows = ChatGrid<String>()
+      ..show('A')
+      ..split('A', PaneSide.bottom, 'C')
+      ..split('A', PaneSide.right, 'B')
+      ..split('C', PaneSide.right, 'D');
+    expect(cells(rows), 'AB/CD');
+    expect(rows.columnsFirst, isFalse);
+    rows.setColumnRatioIn(1, .7);
+    rects = rows.layout(size, gap: 4);
+    expect(rects['A']!.right, 498);
+    expect(rects['C']!.right, 698);
   });
 
   test('a closed pane is taken over by the one above or below it, else '
@@ -106,7 +148,7 @@ void main() {
     expect(rects['B'], const Rect.fromLTRB(502, 0, 1000, 398));
     expect(rects['C'], const Rect.fromLTRB(502, 402, 1000, 800));
 
-    grid.columnRatio = .1;
+    grid.setColumnRatioIn(0, .1);
     rects = grid.layout(size, gap: 4, minPane: const Size(300, 300));
     expect(rects['A']!.width, 300);
     // No room for both: in the middle.
@@ -123,12 +165,12 @@ void main() {
       ..show('A')
       ..split('A', PaneSide.right, 'B')
       ..split('B', PaneSide.bottom, 'C')
-      ..columnRatio = .35
-      ..rowRatio = .6;
+      ..columnRatios = [.35, .35]
+      ..rowRatios = [.6, .6];
     expect(grid.rearrange('A', 'C'), isTrue);
     expect(cells(grid), 'CB/CA');
-    expect(grid.columnRatio, .35);
-    expect(grid.rowRatio, .6);
+    expect(grid.columnRatios, [.35, .35]);
+    expect(grid.rowRatios, [.6, .6]);
     expect(grid.rearrange('A', 'A'), isFalse);
     expect(grid.rearrange('A', 'gone'), isFalse);
     expect(cells(grid), 'CB/CA');
@@ -151,13 +193,13 @@ void main() {
       ..split('A', PaneSide.right, 'B')
       ..split('A', PaneSide.bottom, 'C')
       ..split('B', PaneSide.bottom, 'D')
-      ..columnRatio = .4
-      ..rowRatio = .7;
+      ..columnRatios = [.4, .4]
+      ..rowRatios = [.7, .7];
     // A's cells would go to C, leaving B too small to split horizontally.
     expect(grid.rearrange('A', 'B', side: PaneSide.left), isFalse);
     expect(cells(grid), 'AB/CD');
-    expect(grid.columnRatio, .4);
-    expect(grid.rowRatio, .7);
+    expect(grid.columnRatios, [.4, .4]);
+    expect(grid.rowRatios, [.7, .7]);
     expect(grid.rearrange('A', 'C', side: PaneSide.top), isTrue);
     expect(cells(grid), 'AB/CD');
   });
