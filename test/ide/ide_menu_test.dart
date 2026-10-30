@@ -18,6 +18,7 @@ Future<void> _open(
   required List<IdeMenuEntry> entries,
   bool alignRight = false,
   bool iconsInCheckColumn = false,
+  bool speedSearch = false,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -39,6 +40,7 @@ Future<void> _open(
       anchor: anchor,
       alignRight: alignRight,
       iconsInCheckColumn: iconsInCheckColumn,
+      speedSearch: speedSearch,
       entries: entries,
     ),
   );
@@ -72,6 +74,58 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('speed search filters a menu as it is typed over', (
+    tester,
+  ) async {
+    String? chosen;
+    await _open(
+      tester,
+      size: size,
+      anchor: const Rect.fromLTWH(20, 20, 100, 26),
+      speedSearch: true,
+      entries: [
+        IdeMenuAction('No project', onSelected: () => chosen = 'none'),
+        const IdeMenuSeparator(),
+        for (final name in ['baocode', 'bank_info_ocr', 'demo'])
+          IdeMenuAction(name, onSelected: () => chosen = name),
+      ],
+    );
+    Future<void> type(List<LogicalKeyboardKey> keys) async {
+      for (final key in keys) {
+        await tester.sendKeyEvent(key);
+        await tester.pump();
+      }
+    }
+
+    await type([LogicalKeyboardKey.keyB, LogicalKeyboardKey.keyK]);
+    expect(find.text('bk'), findsOneWidget);
+    expect(find.text('1/4'), findsOneWidget);
+    expect(find.text('baocode'), findsNothing);
+    expect(find.text('No project'), findsNothing);
+    final label = tester.widget<Text>(find.text('bank_info_ocr'));
+    expect((label.textSpan! as TextSpan).children, isNotNull);
+
+    // Back to nothing, every action is listed again.
+    await type([LogicalKeyboardKey.backspace, LogicalKeyboardKey.backspace]);
+    expect(find.text('baocode'), findsOneWidget);
+    expect(find.text('No project'), findsOneWidget);
+
+    await type([LogicalKeyboardKey.keyD]);
+    expect(find.text('0/4'), findsNothing);
+    await type([LogicalKeyboardKey.keyQ]);
+    expect(find.text('0/4'), findsOneWidget);
+    // Escape clears the search first, then closes.
+    await type([LogicalKeyboardKey.escape]);
+    expect(find.text('dq'), findsNothing);
+    expect(_panels, findsOneWidget);
+
+    // Enter picks the best match, focused.
+    await type([LogicalKeyboardKey.keyD, LogicalKeyboardKey.enter]);
+    await tester.pumpAndSettle();
+    expect(_panels, findsNothing);
+    expect(chosen, 'demo');
+  });
 
   testWidgets('long dropdown scrolls within the window inset', (tester) async {
     var chosen = false;

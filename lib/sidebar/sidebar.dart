@@ -21,6 +21,7 @@ import '../ide/ide_button.dart' show IdeButtonColors;
 import '../ide/ide_commands.dart' show ideUsesMacKeys;
 import '../ide/ide_hover.dart';
 import '../ide/ide_list.dart';
+import '../ide/ide_speed_search.dart';
 import '../ide/ide_spinning.dart';
 import '../kernel/agent_kernel.dart' show KernelChoiceKind;
 import '../keybindings/chat_keybindings.dart';
@@ -1141,55 +1142,13 @@ class _SidebarState extends State<Sidebar>
   }
 
   /// What the speed search has been typed, in place of the heading, as a
-  /// filter on: how many projects it leaves of all, and a button to clear
-  /// it. Red while none matches.
-  Widget _buildSpeedHeading() {
-    final tint = _speedHits.isEmpty
-        ? themeColors['errorForeground']
-        : AppColors.accent;
-    return Container(
-      height: 22,
-      padding: const EdgeInsets.only(left: 6, right: 2),
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: .12),
-        border: Border.all(color: tint.withValues(alpha: .7)),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        children: [
-          Icon(Codicons.filterFilled, size: 13, color: tint),
-          const SizedBox(width: 5),
-          Expanded(
-            child: Text(
-              _speedQuery,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: _speedHits.isEmpty ? tint : AppColors.text,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Text(
-            '${_speedHits.length}/${_listProjects.length}',
-            style: TextStyle(
-              color: _speedHits.isEmpty ? tint : AppColors.textMuted,
-              fontSize: 11,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-          const SizedBox(width: 2),
-          SidebarIconButton(
-            icon: Icons.close_rounded,
-            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-            size: 18,
-            onTap: _speedEnd,
-          ),
-        ],
-      ),
-    );
-  }
+  /// filter on: how many projects it leaves of all.
+  Widget _buildSpeedHeading() => IdeSpeedSearchField(
+    query: _speedQuery,
+    found: _speedHits.length,
+    total: _listProjects.length,
+    onClear: _speedEnd,
+  );
 
   /// Folds every group that folds, or, all folded, unfolds them (#300):
   /// shown where there are several to fold.
@@ -2754,7 +2713,7 @@ class _GroupHeader extends StatelessWidget {
 
   Widget _label(Project? project) {
     final label = Text.rich(
-      _speedSpan(group.label, speedMatch ?? const []),
+      ideSpeedSpan(group.label, speedMatch ?? const []),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
@@ -4260,28 +4219,4 @@ class _HostDot extends StatelessWidget {
       ),
     );
   }
-}
-
-/// [text], the characters at [matched] in the list's highlight, as a
-/// tree's filter shows its matches.
-TextSpan _speedSpan(String text, List<int> matched) {
-  if (matched.isEmpty) return TextSpan(text: text);
-  final highlight = TextStyle(
-    color: IdeListColors.highlight,
-    fontWeight: FontWeight.w700,
-  );
-  final hits = matched.toSet();
-  final spans = <TextSpan>[];
-  var start = 0;
-  for (var i = 1; i <= text.length; i++) {
-    if (i < text.length && hits.contains(i) == hits.contains(start)) continue;
-    spans.add(
-      TextSpan(
-        text: text.substring(start, i),
-        style: hits.contains(start) ? highlight : null,
-      ),
-    );
-    start = i;
-  }
-  return TextSpan(children: spans);
 }

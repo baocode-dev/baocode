@@ -616,6 +616,31 @@ void main() {
       await forge.sync();
       expect(store.notes, hasLength(2));
     });
+
+    test('its project taken away, or one of other repositories, its issue '
+        'is let go; one of the same repository keeps it', () async {
+      await forge.sync();
+      final id = forge.stashOf(issueUrl)!.id;
+      // Of the same repository: still the issue.
+      await forge.projectChanged(id);
+      expect(store.byId(id)!.ownIssue, issueUrl);
+
+      await store.update(id, (note) => note.project = '~/code/other');
+      await forge.projectChanged(id);
+      expect(store.byId(id)!.ownIssue, isNull);
+      expect(store.byId(id)!.issues, isEmpty);
+      await forge.sync();
+      expect(store.notes, hasLength(2));
+    });
+
+    test('no project, no issue', () async {
+      await forge.sync();
+      final id = forge.stashOf(issueUrl)!.id;
+      await store.update(id, (note) => note.project = null);
+      await forge.projectChanged(id);
+      expect(store.byId(id)!.ownIssue, isNull);
+      expect(store.byId(id)!.local, isTrue);
+    });
   });
 
   test('published: its pictures put where the issue shows them, its other '

@@ -1068,6 +1068,24 @@ class StashForge extends ChangeNotifier {
   Future<void> allowIssue(int id) =>
       store.update(id, (note) => note.local = false, touch: false);
 
+  /// [id]'s stash's project changed: the issue it is let go (as
+  /// [keepLocal]) when it is of none of that project's repositories, or
+  /// the stash is of no project any more.
+  Future<void> projectChanged(int id) async {
+    final note = store.byId(id);
+    final own = note?.ownIssue;
+    if (note == null || own == null) return;
+    final repo = refOf(own)?.repo;
+    final project = note.project;
+    if (project != null &&
+        (repo == null || (await reposOf(project)).contains(repo))) {
+      return;
+    }
+    // Changed again meanwhile.
+    if (store.byId(id)?.project != project) return;
+    await keepLocal(id);
+  }
+
   /// [text] as it goes to [repo]'s issue: its pictures (in the stash's
   /// folder) put there and linked by their address, its other files'
   /// links their names.
