@@ -1589,6 +1589,33 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidePanelPlan => '计划';
 
   @override
+  String get btwCommandDetail => '在当前对话旁边提问';
+
+  @override
+  String get sidePanelSideChat => '侧边提问';
+
+  @override
+  String get sideChatStale => '此对话开启后主对话又有新进展';
+
+  @override
+  String get sideChatRefresh => '更新快照';
+
+  @override
+  String get sideChatNoContext => '主对话当时还没有可分享的内容，此处回答看不到它';
+
+  @override
+  String get sideChatFailed => '侧边提问未能开启';
+
+  @override
+  String get sideChatRetry => '重试';
+
+  @override
+  String get sideChatEmpty => '在对话旁边问点什么：在主对话输入框里输入 /btw，或直接在下方提问。';
+
+  @override
+  String get sideChatClear => '清空';
+
+  @override
   String get sidePanelOpenInFiles => '在文件中打开';
 
   @override

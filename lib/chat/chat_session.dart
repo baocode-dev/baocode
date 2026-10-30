@@ -1269,9 +1269,19 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   bool _disposed = false;
 
+  /// Told once it is disposed: what must close with it (its side chat's
+  /// agent, say).
+  void onDispose(VoidCallback callback) => _onDispose.add(callback);
+
+  final List<VoidCallback> _onDispose = [];
+
   @override
   void dispose() {
     _disposed = true;
+    for (final callback in _onDispose) {
+      callback();
+    }
+    _onDispose.clear();
     _quietTimer?.cancel();
     _lookTimer?.cancel();
     _stopScans();

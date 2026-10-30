@@ -1628,6 +1628,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidePanelPlan => 'Plan';
 
   @override
+  String get btwCommandDetail => 'Ask beside this conversation';
+
+  @override
+  String get sidePanelSideChat => 'Side Chat';
+
+  @override
+  String get sideChatStale => 'The conversation went on since this chat opened';
+
+  @override
+  String get sideChatRefresh => 'Update snapshot';
+
+  @override
+  String get sideChatNoContext =>
+      'This conversation had nothing to share yet; answers here cannot see it';
+
+  @override
+  String get sideChatFailed => 'The side chat could not open';
+
+  @override
+  String get sideChatRetry => 'Try again';
+
+  @override
+  String get sideChatEmpty =>
+      'Ask a question beside the conversation: /btw in its composer, or below.';
+
+  @override
+  String get sideChatClear => 'Clear';
+
+  @override
   String get sidePanelOpenInFiles => 'Open in Files';
 
   @override

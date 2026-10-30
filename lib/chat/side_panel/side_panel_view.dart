@@ -57,6 +57,7 @@ import '../widgets/plan_start.dart';
 import '../chat_column.dart';
 import '../composer/composer_files.dart';
 import '../composer/file_drag.dart';
+import '../side_chat/side_chat_panel.dart';
 import 'file_link.dart';
 import 'file_open.dart';
 import 'file_preview.dart';
@@ -585,6 +586,10 @@ class AgentSidePanelView extends StatelessWidget {
                 key: ValueKey(('page', SidePanelSection.browser)),
               ),
               SidePanelSection.plan => _planPage(context, tabs.plan!),
+              SidePanelSection.sideChat => SideChatPage(
+                chat: tabs.sideChat!,
+                key: ValueKey(('page', SidePanelSection.sideChat)),
+              ),
             },
           ),
         ],
@@ -1273,6 +1278,7 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.terminal => Codicons.terminal,
     SidePanelSection.browser => Codicons.globe,
     SidePanelSection.plan => Codicons.checklist,
+    SidePanelSection.sideChat => Codicons.commentDiscussion,
   };
 
   /// The command that shows it; none for the plan's, there only at times.
@@ -1280,7 +1286,9 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.files => ChatCommandIds.sidePanelFiles,
     SidePanelSection.changes => ChatCommandIds.sidePanelChanges,
     SidePanelSection.terminal => ChatCommandIds.sidePanelTerminal,
-    SidePanelSection.browser || SidePanelSection.plan => null,
+    SidePanelSection.browser ||
+    SidePanelSection.plan ||
+    SidePanelSection.sideChat => null,
   };
 
   String label(BuildContext context) => switch (this) {
@@ -1289,6 +1297,7 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.terminal => context.l10n.sidePanelTerminal,
     SidePanelSection.browser => context.l10n.sidePanelBrowser,
     SidePanelSection.plan => context.l10n.sidePanelPlan,
+    SidePanelSection.sideChat => context.l10n.sidePanelSideChat,
   };
 }
 
@@ -1324,7 +1333,8 @@ class SidePanelRail extends StatelessWidget {
           0,
     SidePanelSection.files ||
     SidePanelSection.browser ||
-    SidePanelSection.plan => 0,
+    SidePanelSection.plan ||
+    SidePanelSection.sideChat => 0,
   };
 
   static const _button = 26.0;
@@ -1425,6 +1435,7 @@ class _SectionBar extends StatelessWidget {
     ...alwaysShownSections,
     if (BrowserBridge.instance.used) SidePanelSection.browser,
     if (tabs.plan != null) SidePanelSection.plan,
+    if (tabs.sideChat != null) SidePanelSection.sideChat,
   ];
 
   /// What the tabs of [sections] take with their names (see
@@ -1513,7 +1524,8 @@ class _SectionBar extends StatelessWidget {
                     count: switch (section) {
                       SidePanelSection.files ||
                       SidePanelSection.browser ||
-                      SidePanelSection.plan => 0,
+                      SidePanelSection.plan ||
+                      SidePanelSection.sideChat => 0,
                       SidePanelSection.changes => changes,
                       SidePanelSection.terminal => running,
                     },

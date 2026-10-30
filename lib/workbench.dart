@@ -28,6 +28,7 @@ import 'chat/composer/file_drop.dart';
 import 'chat/composer/file_mentions.dart';
 import 'chat/open_editor.dart';
 import 'chat/panels/interaction_panel.dart';
+import 'chat/side_chat/side_chat.dart';
 import 'chat/side_panel/file_open.dart';
 import 'chat/side_panel/file_preview.dart' show FilePreview;
 import 'chat/side_panel/side_panel_controller.dart';
@@ -3595,6 +3596,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (thread != null) _sidePanel.showSection(thread.session, section);
   }
 
+  /// Asks [question] beside [thread]'s conversation (`/btw`): on its side
+  /// chat's page, which opens with it. An empty question only shows it.
+  void _askBeside(AgentThread thread, String question) {
+    final chat = _sidePanel.tabsOf(thread.session).sideChat ??= SideChat(
+      main: thread.session,
+    );
+    _sidePanel.showSection(thread.session, SidePanelSection.sideChat);
+    unawaited(chat.ask(question));
+  }
+
   Map<String, VoidCallback> _sidePanelCommands() => {
     ChatCommandIds.toggleSidePanel: _toggleSidePanel,
     ChatCommandIds.toggleSidePanelPosition: () =>
@@ -4519,6 +4530,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             ? null
             : (name) => _commandFileOf(thread, name),
         openEditor: openEditor ?? () => _sidePanelEditor(thread),
+        onSideQuestion: embedded
+            ? null
+            : (ChatSession _, String question) => _askBeside(thread, question),
       ),
     );
     if (place.alone || embedded) return chat;

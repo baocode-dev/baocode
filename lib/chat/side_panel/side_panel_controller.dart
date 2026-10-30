@@ -14,6 +14,7 @@ import '../../ide/search/ide_search_view.dart';
 import '../../ide/search/text_search.dart';
 import '../../ide/ide_diff_options.dart';
 import '../../settings/user_settings.dart';
+import '../side_chat/side_chat.dart';
 import 'file_edit.dart';
 import 'file_open.dart';
 
@@ -62,7 +63,7 @@ class SidePanelTab {
 /// commands; and the plan the agent wrote, alone, while there is one.
 /// The browser's page is there once a browser of the user's has connected
 /// (see lib/browser/browser_bridge.dart).
-enum SidePanelSection { files, changes, terminal, browser, plan }
+enum SidePanelSection { files, changes, terminal, browser, plan, sideChat }
 
 /// The pages there whether or not there is anything on them: not the
 /// plan's, there only once the agent wrote one.
@@ -79,10 +80,15 @@ class SidePanelTabs {
   /// The plan the agent wrote, on the plan page: none until it writes one.
   SidePanelTab? plan;
 
+  /// The questions asked beside this conversation (`/btw`), on their page:
+  /// none until one is asked ([SideChat.ask] makes it).
+  SideChat? sideChat;
+
   /// The page that shows: [section], but the changes page for the plan's
   /// without a plan.
   SidePanelSection get shown => switch (section) {
     SidePanelSection.plan when plan == null => SidePanelSection.changes,
+    SidePanelSection.sideChat when sideChat == null => SidePanelSection.changes,
     SidePanelSection.browser when !BrowserBridge.instance.used =>
       SidePanelSection.changes,
     _ => section,
@@ -106,6 +112,7 @@ class SidePanelTabs {
     SidePanelSection.changes => activeDiff,
     SidePanelSection.terminal || SidePanelSection.browser => null,
     SidePanelSection.plan => plan,
+    SidePanelSection.sideChat => null,
   };
 }
 
@@ -682,8 +689,11 @@ class AgentSidePanel extends ChangeNotifier {
           SidePanelSection.changes ||
           SidePanelSection.plan:
         if (tabs.current case final tab?) return close(conversation, tab);
-      // Its tabs are the terminals themselves, killed by their own Close.
-      case SidePanelSection.terminal || SidePanelSection.browser:
+      // Its tabs are the terminals themselves, killed by their own Close;
+      // the side chat's page has no tab to close.
+      case SidePanelSection.terminal ||
+          SidePanelSection.browser ||
+          SidePanelSection.sideChat:
         break;
     }
     hide();

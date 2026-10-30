@@ -86,13 +86,16 @@ class ClaudeStorage implements SessionCatalog, MovesSessions {
     path: location?.call(project.path) ?? project.path,
     sessions: [
       for (final session in project.sessions)
-        SessionRecord(
-          id: session.id,
-          title: session.title,
-          updatedAt: session.updatedAt,
-          cwd: location?.call(session.cwd) ?? session.cwd,
-          path: session.path,
-        ),
+        // A side chat's fork (see lib/chat/side_chat/): asked beside a
+        // conversation, never listed as one of its own.
+        if (!session.title.startsWith('btw: '))
+          SessionRecord(
+            id: session.id,
+            title: session.title,
+            updatedAt: session.updatedAt,
+            cwd: location?.call(session.cwd) ?? session.cwd,
+            path: session.path,
+          ),
     ],
   );
 }

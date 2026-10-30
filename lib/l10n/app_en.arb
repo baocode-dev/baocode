@@ -696,6 +696,42 @@
   "@sidePanelPlan": {
     "description": "The side panel's plan page: the plan the agent wrote in plan mode, shown while there is one."
   },
+  "btwCommandDetail": "Ask beside this conversation",
+  "@btwCommandDetail": {
+    "description": "The /btw command's menu line: it asks a question beside the conversation instead of in it."
+  },
+  "sidePanelSideChat": "Side Chat",
+  "@sidePanelSideChat": {
+    "description": "The side panel's page of the questions asked beside the conversation (/btw)."
+  },
+  "sideChatStale": "The conversation went on since this chat opened",
+  "@sideChatStale": {
+    "description": "Shown in the side chat once the conversation it was asked beside has said more than its snapshot holds."
+  },
+  "sideChatRefresh": "Update snapshot",
+  "@sideChatRefresh": {
+    "description": "The side chat's button that opens it again on the conversation as it is now."
+  },
+  "sideChatNoContext": "This conversation had nothing to share yet; answers here cannot see it",
+  "@sideChatNoContext": {
+    "description": "Shown in the side chat when it opened before the conversation had anything the agent could be told."
+  },
+  "sideChatFailed": "The side chat could not open",
+  "@sideChatFailed": {
+    "description": "Shown in the side chat when it could not be opened at all."
+  },
+  "sideChatRetry": "Try again",
+  "@sideChatRetry": {
+    "description": "The side chat's button that tries opening it again."
+  },
+  "sideChatEmpty": "Ask a question beside the conversation: /btw in its composer, or below.",
+  "@sideChatEmpty": {
+    "description": "Shown in an empty side chat, before the first question."
+  },
+  "sideChatClear": "Clear",
+  "@sideChatClear": {
+    "description": "The side chat's button that forgets the questions asked in it."
+  },
   "sidePanelOpenInFiles": "Open in Files",
   "@sidePanelOpenInFiles": {
     "description": "On the plan's tab: opens its file in a tab of the side panel's files page."
