@@ -938,6 +938,55 @@ void main() {
     expect(inHeader(OpenInEditorButton), findsOneWidget);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
+  testWidgets('a pane clicked, the sidebar goes to its agent\'s row, its '
+      'project unfolded where it is folded', (tester) async {
+    final workspace = await pumpApp(tester);
+    // Too short for the whole list.
+    tester.view.physicalSize = const Size(1400, 480);
+    AgentThread agent(String title) =>
+        workspace.threads.firstWhere((thread) => thread.title == title);
+    workspace.openBeside(agent(second), agent(first), PaneSide.right);
+    await tester.pumpAndSettle();
+    final scrollable = inSidebar(find.byType(Scrollable)).last;
+    final list = tester.state<ScrollableState>(scrollable);
+    expect(list.position.maxScrollExtent, greaterThan(0));
+    bool shown(Finder finder) =>
+        tester.getRect(scrollable).contains(tester.getCenter(finder));
+    // Well within the list, not at its top or bottom edge.
+    bool seen(Finder finder) {
+      final view = tester.getRect(scrollable);
+      final at = tester.getCenter(finder).dy;
+      return at >= view.top + view.height * .15 &&
+          at <= view.top + view.height * .85;
+    }
+
+    list.position.jumpTo(0);
+    await tester.pump();
+    final row = inSidebar(find.textContaining(second));
+    await tester.tapAt(tester.getRect(pane(first)).center);
+    await tester.pump();
+    await tester.tapAt(tester.getRect(pane(second)).center);
+    await tester.pumpAndSettle();
+    expect(workspace.current!.title, second);
+    expect(list.position.pixels, greaterThan(0));
+    expect(seen(row), isTrue);
+    expect(shown(inSidebar(find.text(agent(second).project.name))), isTrue);
+
+    // Its project folded: unfolded, and the row shown.
+    final project = agent(second).project;
+    final group = Workspace.projectGroup(project.path);
+    workspace.toggleCollapsed(group);
+    await tester.tapAt(tester.getRect(pane(first)).center);
+    await tester.pumpAndSettle();
+    expect(row, findsNothing);
+    list.position.jumpTo(0);
+    await tester.pump();
+    await tester.tapAt(tester.getRect(pane(second)).center);
+    await tester.pumpAndSettle();
+    expect(workspace.isCollapsed(group), isFalse);
+    expect(seen(row), isTrue);
+  });
+
   testWidgets('the lines drag, each shared by the panes either side of it', (
     tester,
   ) async {

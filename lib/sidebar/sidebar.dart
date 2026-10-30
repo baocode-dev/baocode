@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -596,6 +597,60 @@ class _SidebarState extends State<Sidebar>
     final index = _threadIndices[thread];
     if (index == null) return;
     ideRevealRange(_listScroll, _rowOffsets[index], _rowOffsets[index + 1]);
+  }
+
+  /// The open agent brought into view, once another is open (its pane
+  /// clicked, a shortcut, the search): its row, its project unfolded first
+  /// where it is folded, as the explorer reveals a file.
+  void _revealCurrent() {
+    final current = _current;
+    if (current == null || _onPage) return;
+    if (_threadIndices.containsKey(current)) return _bringToRow(current);
+    for (final row in _listRows) {
+      if (row.kind == _ListRowKind.header &&
+          _collapsed(row.group) &&
+          row.group.threads.contains(current)) {
+        _workspace.setCollapsed([row.group.id], false);
+        // Its row is there once the list is laid out again.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && identical(_current, current)) _bringToRow(current);
+        });
+        return;
+      }
+    }
+  }
+
+  /// Scrolls [thread]'s row to a third of the way down the list, where it
+  /// is seen, its project's header above it where that fits, unless it is
+  /// well within the list already (not near its top or bottom edge, where
+  /// it would go unnoticed).
+  void _bringToRow(AgentThread thread) {
+    final index = _threadIndices[thread];
+    if (index == null || !_listScroll.hasClients) return;
+    final position = _listScroll.position;
+    final view = position.viewportDimension;
+    final top = _rowOffsets[index] - position.pixels;
+    final bottom = _rowOffsets[index + 1] - position.pixels;
+    if (top >= view * .15 && bottom <= view * .85) return;
+    var at = _rowOffsets[index] - view / 3;
+    final header = _listRows
+        .take(index)
+        .toList()
+        .lastIndexWhere((row) => row.kind == _ListRowKind.header);
+    // The header at the top, where the row is still in the upper half.
+    if (header >= 0 &&
+        _rowOffsets[index + 1] - _rowOffsets[header] <= view / 2) {
+      at = math.min(at, _rowOffsets[header] - 8);
+    }
+    final target = at.clamp(position.minScrollExtent, position.maxScrollExtent);
+    if ((target - position.pixels).abs() < 1) return;
+    unawaited(
+      position.animateTo(
+        target,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+      ),
+    );
   }
 
   void _create([Project? project]) {
@@ -1311,6 +1366,12 @@ class _SidebarState extends State<Sidebar>
         _listSelection.select(
           _onPage || !_threadIndices.containsKey(_current) ? null : _current,
         );
+      }
+      // And the list goes to it, laid out first.
+      if (switched) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _revealCurrent();
+        });
       }
       _listSelection.values.retainWhere(_threadIndices.containsKey);
       if (!_threadIndices.containsKey(_listSelection.focused)) {
