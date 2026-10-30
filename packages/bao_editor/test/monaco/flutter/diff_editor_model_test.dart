@@ -8,8 +8,8 @@ import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/flutter/lines_diff.dart';
 import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart';
 
-/// A diff editor's model: the diff, and the alignments, zones and
-/// decorations each editor gets from it.
+/// A diff editor's model: the diff, and the zones and decorations each
+/// editor gets from it.
 void main() {
   // `b` changed to `B`, and `x` and `y` inserted before `d`.
   const originalText = 'a\nb\nc\nd\n';
@@ -24,10 +24,10 @@ void main() {
     removedText: Color(0xff000004),
     insertedGutter: Color(0xff000005),
     removedGutter: Color(0xff000006),
-    diagonalFill: Color(0xff000007),
     overviewInserted: Color(0xff000008),
     overviewRemoved: Color(0xff000009),
-    signForeground: Color(0xff00000a),
+    insertedBar: Color(0xff00000a),
+    removedBar: Color(0xff00000b),
   );
 
   late ValueNotifier<String?> original;
@@ -117,54 +117,18 @@ void main() {
     expect(isSmallLinesDiff(['a' * 1000], ['b' * 1000]), isFalse);
   });
 
-  test('side by side, the side with fewer lines is filled up', () {
-    final snapshot = DocumentSnapshot(originalText);
-    final alignments = computeDiffAlignments(
-      model.mappings!,
-      snapshot,
-      innerHunkAlignment: true,
-    );
-    expect(
-      [
-        for (final a in alignments)
-          '${lines(a.originalRange)} ${lines(a.modifiedRange)}',
-      ],
-      ['[2,3) [2,3)', '[4,4) [4,6)'],
-    );
-    final zones = computeDiffZones(alignments, sideBySide: true);
-    expect(zones.modified, isEmpty);
-    expect(zones.original, hasLength(1));
-    expect(zones.original.single.afterLineNumber, 3);
-    expect(zones.original.single.heightInLines, 2);
-    expect(zones.original.single.kind, DiffZoneKind.fill);
-    expect(zones.original.single.gutterDelete, isFalse);
-  });
-
-  test('inline, the modified shows the deleted code above each change, and '
-      'the original makes room beside it', () {
-    final alignments = computeDiffAlignments(
-      model.mappings!,
-      DocumentSnapshot(originalText),
-      innerHunkAlignment: false,
-    );
-    final zones = computeDiffZones(alignments, sideBySide: false);
-    expect(zones.modified, hasLength(1));
-    final deleted = zones.modified.single;
-    expect(deleted.kind, DiffZoneKind.deletedCode);
+  test('inline, the deleted code goes above the lines put in its place; '
+      'side by side, nothing is aligned with zones', () {
+    final zones = computeDiffZones(model.mappings!);
+    // `b` above `B`; nothing taken out where `x` and `y` were put in.
+    expect(zones, hasLength(1));
+    final deleted = zones.single;
     expect(deleted.afterLineNumber, 1);
     expect(deleted.heightInLines, 1);
-    expect(lines(deleted.deleted!), '[2,3)');
-
-    expect(
-      [
-        for (final zone in zones.original)
-          (zone.afterLineNumber, zone.heightInLines, zone.gutterDelete),
-      ],
-      [(2, 1.0, true), (3, 2.0, true)],
-    );
+    expect(lines(deleted.deleted), '[2,3)');
   });
 
-  test('decorates changed lines, their signs and the changed text', () {
+  test('decorates changed lines, their margins and the changed text', () {
     final decorations = computeDiffDecorations(
       model.mappings!,
       DocumentSnapshot(originalText),
@@ -178,7 +142,7 @@ void main() {
     expect(removed[0].isWholeLine, isTrue);
     expect(removed[0].backgroundColor, colors.removedLine);
     expect(removed[0].marginColor, colors.removedGutter);
-    expect(removed[0].lineDecorationIcon, diffRemoveIcon);
+    expect(removed[0].lineDecorationIcon, isNull);
     expect(removed[0].overviewRulerColor, colors.overviewRemoved);
     expect((removed[1].start, removed[1].end), (2, 3));
     expect(removed[1].isWholeLine, isFalse);
@@ -188,12 +152,31 @@ void main() {
     // `B`, then the inserted lines, whose text is all inserted.
     final inserted = decorations.modified;
     expect(inserted, hasLength(4));
-    expect(inserted[0].lineDecorationIcon, diffInsertIcon);
+    expect(inserted[0].lineDecorationIcon, isNull);
+    // Side by side, no bar at the gutter's edge.
+    expect(inserted[0].gutterBarColor, isNull);
     expect((inserted[2].start, inserted[2].end), (6, 9));
     expect(inserted[2].backgroundColor, colors.insertedLine);
     expect((inserted[3].start, inserted[3].end), (6, 9));
     expect(inserted[3].isWholeLine, isTrue);
     expect(inserted[3].backgroundColor, colors.insertedText);
+  });
+
+  test("inline, the inserted lines' margins have a bar at the edge", () {
+    final inserted = computeDiffDecorations(
+      model.mappings!,
+      DocumentSnapshot(originalText),
+      modified.snapshot,
+      colors,
+      gutterBars: true,
+    ).modified;
+    expect(
+      [
+        for (final d in inserted)
+          if (d.marginColor != null) d.gutterBarColor,
+      ],
+      [colors.insertedBar, colors.insertedBar],
+    );
   });
 
   test('a changed range grows to the words it touches', () {
@@ -257,7 +240,7 @@ void main() {
       expect(decorations.modified.single.backgroundColor, colors.insertedLine);
     });
 
-    test('none: no colour behind, the signs and margin kept', () {
+    test('none: no colour behind, the margin kept', () {
       final decorations = decorate(DiffHighlight.none);
       expect(inner(decorations.modified), isEmpty);
       for (final decoration in [
@@ -267,7 +250,6 @@ void main() {
         expect(decoration.backgroundColor, isNull);
       }
       expect(decorations.modified.single.marginColor, colors.insertedGutter);
-      expect(decorations.modified.single.lineDecorationIcon, diffInsertIcon);
     });
   });
 }

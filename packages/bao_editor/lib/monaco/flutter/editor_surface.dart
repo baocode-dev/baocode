@@ -64,10 +64,16 @@ class EditorViewZone {
     this.content,
     this.margin,
     this.interactive = false,
+    this.firstLineNumber,
   });
 
   final int afterLineNumber;
   final double heightInLines;
+
+  /// The number in the line numbers' column by the zone's first line, and
+  /// on by one by each line after it (a unified diff's deleted lines show
+  /// the original's), over [margin].
+  final int? firstLineNumber;
 
   /// Whether [content] and [margin] receive pointer events.
   final bool interactive;
@@ -121,6 +127,7 @@ class EditorSurface extends StatefulWidget {
     this.viewZones = const [],
     this.scrollPosition,
     this.lineNumbers = true,
+    this.lineNumbersMinChars = EditorViewGeometry.lineNumbersMinChars,
     this.glyphMargin = true,
     this.folding = true,
     this.hiddenLines,
@@ -132,6 +139,7 @@ class EditorSurface extends StatefulWidget {
     this.renderWhitespace = EditorRenderWhitespace.none,
     this.showMinimap = true,
     this.minimapWidth = 80,
+    this.verticalScrollbar = true,
     this.scrollBeyondLastLine = true,
     this.stopRenderingLineAfter = ViewportLayout.defaultStopRenderingLineAfter,
     this.onKeyEvent,
@@ -214,6 +222,10 @@ class EditorSurface extends StatefulWidget {
 
   final bool lineNumbers;
 
+  /// The fewest digits the line numbers' column has room for
+  /// (`lineNumbersMinChars`).
+  final int lineNumbersMinChars;
+
   /// Reserves Monaco's glyph margin (one line height) left of line numbers.
   final bool glyphMargin;
 
@@ -240,6 +252,10 @@ class EditorSurface extends StatefulWidget {
 
   /// Minimap on the right; hidden automatically in narrow editors.
   final bool showMinimap;
+
+  /// The vertical scrollbar at the right, with its overview ruler; off
+  /// where something else scrolls the editor (a diff editor's overview).
+  final bool verticalScrollbar;
 
   /// `editor.stopRenderingLineAfter`: longer lines are shaped and painted
   /// only this far, then end in a "Show more (…)" pill (-1 for never).
@@ -2442,6 +2458,7 @@ class _EditorSurfaceState extends State<EditorSurface>
     ViewportLayout layout,
     EditorViewGeometry geometry, {
     required bool content,
+    EditorGutterGlyphs? glyphs,
   }) {
     final area = content ? geometry.contentRect : geometry.gutterRect;
     if (area.isEmpty) return const [];
@@ -2451,7 +2468,20 @@ class _EditorSurfaceState extends State<EditorSurface>
         : area.width;
     final children = <Widget>[];
     for (final (index, zone) in _zones.indexed) {
-      final child = content ? zone.content : zone.margin;
+      var child = content ? zone.content : zone.margin;
+      if (!content && glyphs != null && geometry.lineNumbersWidth > 0) {
+        if (zone.firstLineNumber case final first?) {
+          child = CustomPaint(
+            foregroundPainter: _ZoneLineNumbersPainter(
+              first: first,
+              glyphs: glyphs,
+              right: geometry.annotationsLeft,
+              lineHeight: layout.lineHeight,
+            ),
+            child: child ?? const SizedBox.expand(),
+          );
+        }
+      }
       if (child == null || index >= layout.zones.length) continue;
       final top = layout.zoneTop(index) - _scrollTop;
       final height = layout.zones[index].height;
@@ -2519,6 +2549,8 @@ class _EditorSurfaceState extends State<EditorSurface>
           folding: widget.folding,
           minimapWidth: widget.showMinimap ? widget.minimapWidth : 0,
           annotationsWidth: widget.lineAnnotations?.width ?? 0,
+          verticalScrollbar: widget.verticalScrollbar,
+          minLineNumberChars: widget.lineNumbersMinChars,
         );
         _geometry = geometry;
         _zones = _computeZones(glyphs.lineHeight);
@@ -2673,7 +2705,7 @@ class _EditorSurfaceState extends State<EditorSurface>
               ),
             ),
             if (_zones.isNotEmpty)
-              ..._zoneWidgets(layout, geometry, content: false),
+              ..._zoneWidgets(layout, geometry, content: false, glyphs: glyphs),
             if (widget.gutterIconBuilder != null &&
                 widget.glyphMargin &&
                 !_decorations.isEmpty)
@@ -2830,6 +2862,43 @@ class _EditorSurfaceState extends State<EditorSurface>
     _layout?.dispose();
     super.dispose();
   }
+}
+
+/// [EditorViewZone.firstLineNumber] on: a number by each of a zone's
+/// lines, as the gutter paints its lines'.
+class _ZoneLineNumbersPainter extends CustomPainter {
+  _ZoneLineNumbersPainter({
+    required this.first,
+    required this.glyphs,
+    required this.right,
+    required this.lineHeight,
+  });
+
+  final int first;
+  final EditorGutterGlyphs glyphs;
+  final double right;
+  final double lineHeight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (lineHeight <= 0) return;
+    final lines = (size.height / lineHeight).round();
+    for (var i = 0; i < lines; i++) {
+      glyphs.paintNumber(
+        canvas,
+        first + i,
+        right,
+        i * lineHeight + (lineHeight - glyphs.lineHeight) / 2,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ZoneLineNumbersPainter old) =>
+      old.first != first ||
+      old.glyphs != glyphs ||
+      old.right != right ||
+      old.lineHeight != lineHeight;
 }
 
 class _EditorTextAction<T extends Intent> extends Action<T> {
