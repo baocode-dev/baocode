@@ -25,6 +25,8 @@ import 'package:baocode/link/link_platform_io.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'live_model.dart';
+
 void main() {
   test('live desktop', () async {
     const asked = String.fromEnvironment('BAOCODE_LIVE_DIR');
@@ -47,6 +49,7 @@ void main() {
     // The real Claude Code, not the scripted one tests run on; the CLI,
     // as main() reads it from the settings.
     ClaudeCore.current = () => ClaudeCore.cli;
+    final model = await useOpenCode();
     KernelRegistry.use([KernelRegistry.claudeCode]);
     final workspace = Workspace(
       projects: [Project('demo', demo.path)],
@@ -59,14 +62,13 @@ void main() {
       // The app's own: half an hour.
     );
     await bots.start();
+    onModel(bots, model);
     final assistant = bots.bots.single;
     bots.save(
       id: assistant.id,
       name: assistant.name,
       identity: assistantDefaults(chinese: true).identity,
       abilities: BotAbility.values.toSet(),
-      // Any hour: not to wait for the morning.
-      proactive: const BotProactive(perDay: 6, quietFrom: 0, quietTo: 0),
     );
 
     final host = LinkHost(

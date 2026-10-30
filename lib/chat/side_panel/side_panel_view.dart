@@ -36,11 +36,11 @@ import '../../ide/ide_tab_bar.dart'
 import '../../ide/save_copy.dart';
 import '../../ide/tab_strip_scroll.dart';
 import '../../ide/terminal/links/terminal_links.dart' show TerminalLink;
-import '../../ide/terminal/terminal_instance.dart';
+import '../../ide/terminal/terminal_hosts.dart';
 import '../../ide/terminal/terminal_service.dart';
-import '../../ide/terminal/terminal_tabs.dart';
 import '../../ide/terminal/terminal_view.dart';
-import '../../kernel/kernel_types.dart' show KernelTask;
+import '../../workspace/terminal_deck.dart';
+import '../../workspace/title_bar_double_click.dart';
 import '../../workspace/window_controls.dart';
 import '../chat_models.dart' show CommandStatus;
 import '../../keybindings/chat_keybindings.dart';
@@ -62,7 +62,6 @@ import 'file_open.dart';
 import 'file_preview.dart';
 import 'git_changes.dart';
 import 'side_panel_controller.dart';
-import 'terminal_preview.dart';
 
 /// [child] (the conversations) and, at its right (its left, as [panel] is
 /// [AgentSidePanel.atLeft]) while [panel] shows, the side panel [builder]
@@ -75,6 +74,10 @@ import 'terminal_preview.dart';
 /// preview reads its file anew when it changes).
 final IdeFileService _localFiles = IdeFileService(p.current);
 
+/// Where a terminal page with no panel beside it (no [TerminalHosts] of a
+/// window's) shows its terminals: there alone.
+final _pageHosts = TerminalHosts();
+
 class AgentSidePanelArea extends StatefulWidget {
   const AgentSidePanelArea({
     super.key,
@@ -83,11 +86,17 @@ class AgentSidePanelArea extends StatefulWidget {
     this.rail,
     this.railTop = AppMetrics.titleBarHeight + 4,
     this.hidden = false,
+    this.conversation,
     required this.child,
   });
 
   final AgentSidePanel panel;
   final WidgetBuilder builder;
+
+  /// One pane's, of agents side by side, its conversation's: shown as it
+  /// is there ([AgentSidePanel.shownIn]), with a focus of its own. None:
+  /// the window's ([AgentSidePanel.shown]).
+  final Object? conversation;
 
   /// While the panel is hidden, over the conversations' top right (left,
   /// the panel at their left), clear of their scrollbar: their column keeps
@@ -161,6 +170,22 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
 
   AgentSidePanel get _panel => widget.panel;
 
+  /// Whether it shows: the pane's, or the window's.
+  bool get _shownHere => switch (widget.conversation) {
+    final conversation? => _panel.shownIn(conversation),
+    null => _panel.shown,
+  };
+
+  FocusNode get _focusNode => switch (widget.conversation) {
+    final conversation? => _panel.focusNodeOf(conversation),
+    null => _panel.focusNode,
+  };
+
+  void _hide() => switch (widget.conversation) {
+    final conversation? => _panel.setShownIn(conversation, false),
+    null => _panel.hide(),
+  };
+
   /// The widest it shows in [room]: beside the conversations, what they
   /// leave at their least; over them, all but a strip of them.
   double _most(double room) => _overlay
@@ -180,7 +205,7 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
     builder: (context, _) => LayoutBuilder(
       builder: (context, constraints) {
         final room = constraints.maxWidth;
-        final shown = _panel.shown && !widget.hidden;
+        final shown = _shownHere && !widget.hidden;
         // Over the conversations only where it cannot be beside them at
         // its least; else beside them, narrower than it would be where
         // they need the room.
@@ -226,7 +251,7 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
                 Positioned.fill(
                   key: const ValueKey('scrim'),
                   child: GestureDetector(
-                    onTap: _panel.hide,
+                    onTap: _hide,
                     child: const ColoredBox(color: Color(0x33000000)),
                   ),
                 ),
@@ -299,12 +324,12 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
       // on the panel), for its keys.
       Listener(
         onPointerDown: (_) {
-          if (!_panel.focusNode.hasFocus) {
-            _panel.focusNode.requestFocus();
+          if (!_focusNode.hasFocus) {
+            _focusNode.requestFocus();
           }
         },
         child: Focus(
-          focusNode: _panel.focusNode,
+          focusNode: _focusNode,
           // The editor's background, all of it: the conversation's side,
           // not the window's.
           child: ColoredBox(
@@ -394,6 +419,7 @@ class AgentSidePanelView extends StatelessWidget {
     this.searchEngine = ideSearchText,
     this.git,
     this.terminals,
+    this.terminalHosts,
     this.terminalSkipShell = const [],
     this.onOpenTerminalLink,
     this.commitMessage,
@@ -406,6 +432,7 @@ class AgentSidePanelView extends StatelessWidget {
     this.onRemoveFolder,
     this.titleBarInset = 0,
     this.leading,
+    this.windowTitleBar = true,
   });
 
   final AgentSidePanel panel;
@@ -414,6 +441,11 @@ class AgentSidePanelView extends StatelessWidget {
   /// Room kept at the left of its tabs: for the traffic lights, where it
   /// is at the window's top left.
   final double titleBarInset;
+
+  /// Whether its tabs' bar runs along the window's top, the empty part of
+  /// it the window's title bar (see [TitleBarDoubleClick]): not in a pane
+  /// below another.
+  final bool windowTitleBar;
 
   /// Before its tabs, after [titleBarInset]: the window's sidebar toggle,
   /// by the traffic lights, where it is at the window's top left.
@@ -504,9 +536,13 @@ class AgentSidePanelView extends StatelessWidget {
   /// Where the changes page tells of what failed (the window's).
   final IdeNotifications notifications;
 
-  /// The project's terminals on the terminal page; none where terminals
-  /// cannot run.
+  /// The project's terminals on the terminal page, the same as its panel
+  /// under the conversation shows; none where terminals cannot run.
   final TerminalService? terminals;
+
+  /// Which of the two places shows each of them (see [TerminalDeck]);
+  /// none: the page's alone.
+  final TerminalHosts? terminalHosts;
 
   /// Keys the window keeps while one of them has focus (see
   /// [TerminalView.skipShell]).
@@ -538,6 +574,7 @@ class AgentSidePanelView extends StatelessWidget {
             changes: _gits.fold(0, (sum, git) => sum + (git.state?.count ?? 0)),
             inset: titleBarInset,
             leading: leading,
+            windowTitleBar: windowTitleBar,
           ),
           Expanded(
             child: switch (tabs.shown) {
@@ -672,7 +709,24 @@ class AgentSidePanelView extends StatelessWidget {
                 ),
               ],
             ),
-      tabs: _fileTabs(context, tabs, tabs.files, active),
+      // The list's toggle before the files' tabs, the page the only one
+      // with a list: there with no file open too.
+      tabs: _fileTabs(
+        context,
+        tabs,
+        tabs.files,
+        active,
+        leading: IdeActionButton(
+          key: const ValueKey('side-panel-list-toggle'),
+          icon: panel.listShown
+              ? Codicons.layoutSidebarLeft
+              : Codicons.layoutSidebarLeftOff,
+          tooltip: panel.listShown
+              ? l10n.sidePanelHideList
+              : l10n.sidePanelShowList,
+          onPressed: panel.toggleList,
+        ),
+      ),
       body: active == null
           ? _EmptySection(l10n.sidePanelSelectFile)
           : ShownWhenReady(child: _preview(context, active)),
@@ -838,146 +892,26 @@ class AgentSidePanelView extends StatelessWidget {
 
   /// The project's terminals and the agent's background commands, and
   /// those opened: a terminal, or a command's output.
+  /// The project's terminals and the agent's background commands, as the
+  /// panel under the conversation shows them ([TerminalDeck]).
   Widget _terminalPage(BuildContext context, SidePanelTabs tabs) {
-    final l10n = context.l10n;
     final terminals = this.terminals;
-    final shells = terminals?.instances ?? const <TerminalInstance>[];
-    final tasks = session.terminalTasks;
-    final byId = <Object, Object>{
-      for (final shell in shells) shell: shell,
-      for (final task in tasks) task.id: task,
-    };
-    final open = [
-      for (final id in tabs.terminals)
-        if (byId[id] case final item?) (id: id, item: item),
-    ];
-    final current = open
-        .where((entry) => entry.id == tabs.terminal)
-        .firstOrNull;
-    void newTerminal() {
-      final shell = terminals!.create();
-      panel.openTerminal(session, shell);
-      WidgetsBinding.instance.addPostFrameCallback((_) => shell.focus());
-    }
-
-    void kill(TerminalInstance shell) {
-      panel.closeTerminal(session, shell);
-      terminals!.kill(shell);
-    }
-
-    void stop(KernelTask task) => session.stopTask(task);
-
-    /// [id]'s tab's menu: closing it and the others, then what can be
-    /// done to what it shows.
-    List<IdeMenuEntry> menu(Object id) {
-      final ids = [for (final entry in open) entry.id];
-      final index = ids.indexOf(id);
-      final item = byId[id];
-      return ideMenuGroups([
-        _closeItems(
-          context,
-          index: index,
-          count: ids.length,
-          close: (which) {
-            for (final other in which(ids)) {
-              panel.closeTerminal(session, other);
-            }
-          },
-          id: id,
-        ),
-        [
-          if (item case final TerminalInstance shell)
-            IdeMenuAction(l10n.termKillTerminal, onSelected: () => kill(shell)),
-          if (item case final KernelTask task
-              when task.status == CommandStatus.running)
-            IdeMenuAction(l10n.chatStop, onSelected: () => stop(task)),
-        ],
-      ]);
-    }
-
-    return _Page(
+    return TerminalDeck(
       key: const ValueKey(('page', SidePanelSection.terminal)),
-      panel: panel,
-      // The IDE's terminal tabs, grouped: each opening in a tab here.
-      list: ColoredBox(
-        key: const ValueKey('side-panel-terminals'),
-        color: AppColors.code,
-        child: TerminalTabs(
-          terminals: terminals,
-          onNew: terminals == null ? null : newTerminal,
-          tasks: tasks,
-          grouped: true,
-          selected: current?.id,
-          onOpen: (id) => panel.openTerminal(session, id),
-          onKill: kill,
-          onStopTask: stop,
-          onClearTasks: session.clearTasks,
-          border: false,
-        ),
-      ),
-      tabs: open.isEmpty
-          ? null
-          : _TabStrip(
-              key: ValueKey(('terminals', session)),
-              selected: current?.id,
-              entries: [
-                for (final (:id, :item) in open)
-                  (
-                    id: id,
-                    child: switch (item) {
-                      final TerminalInstance shell => ListenableBuilder(
-                        listenable: shell,
-                        builder: (context, _) => _Tab(
-                          active: id == current?.id,
-                          icon: const _TabIcon(Codicons.terminal),
-                          label: shell.title,
-                          tooltip: shell.title,
-                          onTap: () => panel.openTerminal(session, id),
-                          onClose: () => panel.closeTerminal(session, id),
-                          menu: () => menu(id),
-                        ),
-                      ),
-                      final task as KernelTask => _Tab(
-                        active: id == current?.id,
-                        icon: TerminalTaskIcon(task, size: _Tab.iconSize),
-                        label: task.description,
-                        tooltip: task.description,
-                        onTap: () => panel.openTerminal(session, id),
-                        onClose: () => panel.closeTerminal(session, id),
-                        menu: () => menu(id),
-                      ),
-                    },
-                  ),
-              ],
-            ),
-      body: switch (current?.item) {
-        final TerminalInstance shell => TerminalView(
-          shell,
-          key: ObjectKey(shell),
-          skipShell: terminalSkipShell,
-          onKill: () => kill(shell),
-          onOpenLink: onOpenTerminalLink,
-        ),
-        final KernelTask task => TerminalPreview(
-          key: ValueKey((session, task.id)),
-          task: task,
-          command: session.commandOf(task.toolUseId),
-          files: files,
-          onStop: () => stop(task),
-          root: terminals?.root ?? session.root ?? '',
-          linkStat: terminals?.backend.linkStat,
-          skipShell: terminalSkipShell,
-          onOpenLink: onOpenTerminalLink,
-        ),
-        // The list says when there are none.
-        _ when shells.isEmpty && tasks.isEmpty && panel.listShown =>
-          const SizedBox.shrink(),
-        _ => _EmptySection(
-          shells.isEmpty && tasks.isEmpty
-              ? l10n.sidePanelNoTerminals
-              : l10n.sidePanelSelectTerminal,
-        ),
-      },
+      // Each conversation's page a place of its own.
+      place: session,
+      hosts: terminalHosts ?? _pageHosts,
+      terminals: terminals,
+      shown: tabs.terminal,
+      onShow: (id) => panel.openTerminal(session, id),
+      // Shown here, the panel's own left as it was.
+      onNew: () => terminals?.create(activate: false),
+      onNewWithProfile: (profile) =>
+          terminals?.create(profile: profile, activate: false),
+      tasks: SessionTerminalTasks(session),
+      files: files,
+      skipShell: terminalSkipShell,
+      onOpenLink: onOpenTerminalLink,
     );
   }
 
@@ -1110,9 +1044,10 @@ class AgentSidePanelView extends StatelessWidget {
     BuildContext context,
     SidePanelTabs tabs,
     List<SidePanelTab> list,
-    SidePanelTab? active,
-  ) {
-    if (list.isEmpty) return null;
+    SidePanelTab? active, {
+    Widget? leading,
+  }) {
+    if (list.isEmpty && leading == null) return null;
     final root = session.root;
     final descriptions = ideTabDescriptions([
       for (final tab in list) tab.path,
@@ -1125,6 +1060,7 @@ class AgentSidePanelView extends StatelessWidget {
     return _TabStrip(
       key: ValueKey((tabs.section, session)),
       selected: active,
+      leading: leading,
       entries: [
         for (final (i, tab) in list.indexed)
           (
@@ -1458,10 +1394,14 @@ class _SectionBar extends StatelessWidget {
     required this.changes,
     this.inset = 0,
     this.leading,
+    this.windowTitleBar = true,
   });
   final AgentSidePanel panel;
   final ChatSession session;
   final SidePanelTabs tabs;
+
+  /// See [AgentSidePanelView.windowTitleBar].
+  final bool windowTitleBar;
 
   /// Room kept at the left of the tabs (see
   /// [AgentSidePanelView.titleBarInset]).
@@ -1476,7 +1416,7 @@ class _SectionBar extends StatelessWidget {
   /// How many files Git has changed.
   final int changes;
 
-  /// The list's toggle and the close button, at the right.
+  /// Moving the panel and the close button, at the right.
   static const _actionsWidth = 2 * 22.0 + 2 + 6;
 
   /// The pages there: the browser's once one of the user's has connected,
@@ -1537,89 +1477,79 @@ class _SectionBar extends StatelessWidget {
     final running = session.terminalTasks
         .where((task) => task.status == CommandStatus.running)
         .length;
-    return IdeTabStrip(
-      line: AppColors.partBorder,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final sections = _sections;
-          final shown = tabs.shown;
-          final compact =
-              constraints.maxWidth <
-              _fullWidth(context, sections, {
-                    SidePanelSection.changes: changes,
-                    SidePanelSection.terminal: running,
-                  }) +
-                  _actionsWidth +
-                  inset +
-                  (leading == null ? 0 : _leadingWidth);
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(width: inset),
-              if (leading case final leading?) ...[
-                Center(child: leading),
-                const SizedBox(width: 6),
-              ],
-              for (final section in sections)
-                _SectionTab(
-                  section: section,
-                  selected: shown == section,
-                  compact: compact,
-                  count: switch (section) {
-                    SidePanelSection.files ||
-                    SidePanelSection.browser ||
-                    SidePanelSection.plan => 0,
-                    SidePanelSection.changes => changes,
-                    SidePanelSection.terminal => running,
-                  },
-                  onTap: () => panel.showSection(session, section),
-                ),
-              const Spacer(),
-              // To the conversations' other side.
-              Center(
-                child: IdeActionButton(
-                  key: const ValueKey('side-panel-move'),
-                  icon: Codicons.arrowSwap,
-                  tooltip: KeybindingService.instance.titleWithKeybinding(
-                    panel.atLeft
-                        ? l10n.sidePanelMoveRight
-                        : l10n.sidePanelMoveLeft,
-                    ChatCommandIds.toggleSidePanelPosition,
+    // On macOS it is part of the window's top, as the conversation's title
+    // bar beside it: its empty part drags the window, and a double click
+    // there does what one on the system's title bar does.
+    return TitleBarDoubleClick(
+      windowTitleBar: windowTitleBar,
+      child: IdeTabStrip(
+        line: AppColors.partBorder,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final sections = _sections;
+            final shown = tabs.shown;
+            final compact =
+                constraints.maxWidth <
+                _fullWidth(context, sections, {
+                      SidePanelSection.changes: changes,
+                      SidePanelSection.terminal: running,
+                    }) +
+                    _actionsWidth +
+                    inset +
+                    (leading == null ? 0 : _leadingWidth);
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(width: inset),
+                if (leading case final leading?) ...[
+                  Center(child: leading),
+                  const SizedBox(width: 6),
+                ],
+                for (final section in sections)
+                  _SectionTab(
+                    section: section,
+                    selected: shown == section,
+                    compact: compact,
+                    count: switch (section) {
+                      SidePanelSection.files ||
+                      SidePanelSection.browser ||
+                      SidePanelSection.plan => 0,
+                      SidePanelSection.changes => changes,
+                      SidePanelSection.terminal => running,
+                    },
+                    onTap: () => panel.showSection(session, section),
                   ),
-                  onPressed: () => panel.atLeft = !panel.atLeft,
-                ),
-              ),
-              const SizedBox(width: 2),
-              // The plan's page has no list to show or hide.
-              if (shown != SidePanelSection.plan) ...[
+                const Spacer(),
+                // To the conversations' other side.
                 Center(
                   child: IdeActionButton(
-                    key: const ValueKey('side-panel-list-toggle'),
-                    icon: panel.listShown
-                        ? Codicons.layoutSidebarLeft
-                        : Codicons.layoutSidebarLeftOff,
-                    tooltip: panel.listShown
-                        ? l10n.sidePanelHideList
-                        : l10n.sidePanelShowList,
-                    onPressed: panel.toggleList,
+                    key: const ValueKey('side-panel-move'),
+                    icon: Codicons.arrowSwap,
+                    tooltip: KeybindingService.instance.titleWithKeybinding(
+                      panel.atLeft
+                          ? l10n.sidePanelMoveRight
+                          : l10n.sidePanelMoveLeft,
+                      ChatCommandIds.toggleSidePanelPosition,
+                    ),
+                    onPressed: () => panel.atLeft = !panel.atLeft,
                   ),
                 ),
                 const SizedBox(width: 2),
-              ],
-              Center(
-                child: IdeActionButton(
-                  icon: Codicons.close,
-                  tooltip: KeybindingService.instance.titleWithKeybinding(
-                    l10n.sidePanelHide,
-                    ChatCommandIds.toggleSidePanel,
+                Center(
+                  child: IdeActionButton(
+                    icon: Codicons.close,
+                    tooltip: KeybindingService.instance.titleWithKeybinding(
+                      l10n.sidePanelHide,
+                      ChatCommandIds.toggleSidePanel,
+                    ),
+                    onPressed: () => panel.hideFor(session),
                   ),
-                  onPressed: panel.hide,
                 ),
-              ),
-              const SizedBox(width: 6),
-            ],
-          );
-        },
+                const SizedBox(width: 6),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -1797,9 +1727,17 @@ class _PageState extends State<_Page> {
 /// A page's tabs, the IDE editor's ([IdeTabStrip]): scrolled to keep the one in front
 /// in sight.
 class _TabStrip extends StatefulWidget {
-  const _TabStrip({super.key, required this.selected, required this.entries});
+  const _TabStrip({
+    super.key,
+    required this.selected,
+    required this.entries,
+    this.leading,
+  });
   final Object? selected;
   final List<({Object id, Widget child})> entries;
+
+  /// Before the tabs, not scrolled with them.
+  final Widget? leading;
 
   @override
   State<_TabStrip> createState() => _TabStripState();
@@ -1848,9 +1786,8 @@ class _TabStripState extends State<_TabStrip> {
   }
 
   @override
-  Widget build(BuildContext context) => IdeTabStrip(
-    line: AppColors.partBorder,
-    child: TabStripScroll(
+  Widget build(BuildContext context) {
+    final tabs = TabStripScroll(
       controller: _scroll,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1862,8 +1799,23 @@ class _TabStripState extends State<_TabStrip> {
             ),
         ],
       ),
-    ),
-  );
+    );
+    return IdeTabStrip(
+      line: AppColors.partBorder,
+      child: switch (widget.leading) {
+        final leading? => Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(width: 6),
+            Center(child: leading),
+            const SizedBox(width: 4),
+            Expanded(child: tabs),
+          ],
+        ),
+        null => tabs,
+      },
+    );
+  }
 }
 
 /// A codicon in a tab, as big as a file's icon there.

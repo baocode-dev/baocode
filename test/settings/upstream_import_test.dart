@@ -483,6 +483,10 @@ void main() {
       }
       await tester.tap(find.text(button ?? 'Cancel').last);
       await tester.pumpAndSettle();
+      // Its models got ready for 2s at least: a timer, not a frame, which
+      // pumpAndSettle does not wait for.
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
       // A new upstream's models, fetched, to check.
       if (find.textContaining('Models of ').evaluate().isNotEmpty) {
         for (final model in check) {

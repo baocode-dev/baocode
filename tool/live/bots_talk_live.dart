@@ -1,4 +1,4 @@
-// A bot's chat with the real Claude Code, without a phone: messages sent
+// A bot's chat with the real Claude Code (on OpenCode's model, see live_model.dart), without a phone: messages sent
 // to the assistant one after another (one while it is still talking), and
 // what it does with them printed, to see how it talks (bot_say), when it
 // says nothing, and whether it plans to come back (bot_later).
@@ -18,11 +18,14 @@ import 'package:baocode/link/chat_codec.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'live_model.dart';
+
 void main() {
   test('live talk', () async {
     final root = await Directory.systemTemp.createTemp('bots-talk');
     final demo = Directory('${root.path}/demo')..createSync();
     ClaudeCore.current = () => ClaudeCore.cli;
+    final model = await useOpenCode();
     KernelRegistry.use([KernelRegistry.claudeCode]);
     final workspace = Workspace(
       projects: [Project('demo', demo.path)],
@@ -34,13 +37,13 @@ void main() {
       chinese: true,
     );
     await bots.start();
+    onModel(bots, model);
     final bot = bots.bots.single;
     bots.save(
       id: bot.id,
       name: bot.name,
       identity: bot.identity,
       abilities: BotAbility.values.toSet(),
-      proactive: const BotProactive(perDay: 6, quietFrom: 0, quietTo: 0),
     );
     final session = bots.threadFor(bots.bots.single).session;
     final started = DateTime.now();

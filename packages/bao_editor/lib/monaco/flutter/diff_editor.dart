@@ -92,10 +92,15 @@ class DiffEditor extends StatefulWidget {
     this.hideUnchanged = false,
     this.unchangedLabel,
     this.keepVisible,
+    this.scrollPosition,
   });
 
   /// A modified line to show, its unchanged run not hidden.
   final int? keepVisible;
+
+  /// How far both editors are scrolled, for the caller to keep (where a
+  /// tab shown again was left); the editor's own when null.
+  final ValueNotifier<Offset>? scrollPosition;
 
   /// Unchanged runs of lines hidden, but for [unchangedContext] lines next
   /// to the changes, behind a bar that shows them again (JetBrains'
@@ -155,7 +160,9 @@ class DiffEditor extends StatefulWidget {
 }
 
 class _DiffEditorState extends State<DiffEditor> {
-  final ValueNotifier<Offset> _scroll = ValueNotifier(Offset.zero);
+  final ValueNotifier<Offset> _ownScroll = ValueNotifier(Offset.zero);
+
+  ValueNotifier<Offset> get _scroll => widget.scrollPosition ?? _ownScroll;
 
   /// The sash's place as a share of the width; null for
   /// `splitViewDefaultRatio`.
@@ -247,7 +254,7 @@ class _DiffEditorState extends State<DiffEditor> {
   @override
   void dispose() {
     widget.model.removeListener(_diffChanged);
-    _scroll.dispose();
+    _ownScroll.dispose();
     super.dispose();
   }
 

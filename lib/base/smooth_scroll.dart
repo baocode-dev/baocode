@@ -116,6 +116,63 @@ class _SmoothScrollingState extends State<SmoothScrolling> {
   Widget build(BuildContext context) => widget.builder(context, _controller);
 }
 
+/// A [SmoothScrolling] whose offset is kept in the nearest [PageStorage]
+/// under [identifier] as it goes, and where it starts when built there
+/// again: an IDE tab's view switched back to (`IdeViewStates.bucket`).
+class KeptScrolling extends StatefulWidget {
+  const KeptScrolling({
+    super.key,
+    required this.identifier,
+    required this.builder,
+  });
+
+  final Object identifier;
+
+  final Widget Function(BuildContext context, ScrollController controller)
+  builder;
+
+  @override
+  State<KeptScrolling> createState() => _KeptScrollingState();
+}
+
+class _KeptScrollingState extends State<KeptScrolling> {
+  PageStorageBucket? _bucket;
+  late final SmoothScrollController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _bucket = PageStorage.maybeOf(context);
+    final kept = _bucket?.readState(context, identifier: widget.identifier);
+    _controller = SmoothScrollController(
+      initialScrollOffset: kept is double ? kept : 0,
+      keepScrollOffset: false,
+    );
+  }
+
+  /// Kept while the list it scrolls is still there.
+  @override
+  void deactivate() {
+    if (_controller.hasClients) {
+      _bucket?.writeState(
+        context,
+        _controller.offset,
+        identifier: widget.identifier,
+      );
+    }
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _controller);
+}
+
 class _SmoothScrollPosition extends ScrollPositionWithSingleContext
     with WheelGliding {
   _SmoothScrollPosition({

@@ -555,6 +555,84 @@ void main() {
       skip: python() == null ? 'no python3' : false,
     );
 
+    test(
+      'switched off by the host, and back on: a tool by its rule, a skill by '
+      'skillOverrides, each key given whole in place of the one before',
+      () async {
+        final interpreter = python()!;
+        final dir = Directory.systemTemp
+            .createTempSync('mcp_')
+            .resolveSymbolicLinksSync();
+        addTearDown(() => Directory(dir).deleteSync(recursive: true));
+        final server = File(p.join(dir, 'server.py'))
+          ..writeAsStringSync(_stdioServer);
+        h = await Harness.start(
+          files: {
+            '.mcp.json': jsonEncode({
+              'mcpServers': {
+                'py': {
+                  'command': interpreter,
+                  'args': ['-I', server.path],
+                },
+              },
+            }),
+            '.claude/skills/greet/SKILL.md':
+                '---\nname: greet\ndescription: Greets someone\n---\nHi.\n',
+          },
+        );
+        Future<(List<Object?>, String)> offered(String prompt) async {
+          h.model.script.add(Reply.text('ok'));
+          await h.turn(prompt);
+          final body = h.model.turns.last.body;
+          return (
+            [for (final t in body['tools'] as List) (t as Map)['name']],
+            jsonEncode(body['messages']),
+          );
+        }
+
+        var (tools, sent) = await offered('hi');
+        expect(tools, contains('mcp__py__add'));
+        expect(sent, contains('greet: Greets someone'));
+
+        await h.request('apply_flag_settings', {
+          'settings': {
+            'permissions': {
+              'deny': ['mcp__py__add'],
+            },
+            'skillOverrides': {'greet': 'off'},
+          },
+        });
+        (tools, _) = await offered('again');
+        expect(tools, isNot(contains('mcp__py__add')));
+        expect([
+          for (final c in (await h.request('initialize'))['commands'] as List)
+            (c as Map)['name'],
+        ], isNot(contains('greet')));
+        final asked = h.model.requests.length;
+        await h.turn('/greet');
+        expect([
+          for (final m in h.of('assistant'))
+            for (final block in (m['message'] as Map)['content'] as List)
+              '${(block as Map)['text']}',
+        ], contains('Unknown skill: greet'));
+        expect(h.model.requests, hasLength(asked));
+
+        await h.request('apply_flag_settings', {
+          'settings': {
+            'permissions': {'deny': <String>[]},
+            'skillOverrides': <String, String>{},
+          },
+        });
+        (tools, _) = await offered('and again');
+        expect(tools, contains('mcp__py__add'));
+        expect([
+          for (final c in (await h.request('initialize'))['commands'] as List)
+            (c as Map)['name'],
+        ], contains('greet'));
+      },
+      skip: python() == null ? 'no python3' : false,
+    );
+
     test('an HTTP server', () async {
       final http = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() => http.close(force: true));

@@ -20,6 +20,7 @@ import '../../settings/user_settings.dart';
 import '../../workspace/editor_launcher.dart' show openExternal;
 import '../agent_kernel.dart';
 import '../commit_attribution.dart';
+import '../extension_switches.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
 import '../prompt_suggestions.dart';
@@ -138,6 +139,7 @@ class ClaudeCodeKernel
       goalSaid: _syncGoal,
     );
     _providers.addListener(_providersChanged);
+    ExtensionSwitches.changes?.addListener(_applySwitches);
     _live.add(this);
     _sessionId = _context.resume?.id;
     final settings = _context.settings;
@@ -429,6 +431,14 @@ class ClaudeCodeKernel
   /// a restart (see [_applyWindow]).
   bool _launchedSuggestions = true;
 
+  /// What the process was started with, its flag settings' permission
+  /// rules sent again with the [ExtensionSwitches] as they change.
+  ClaudeLaunch? _launched;
+
+  /// The [ExtensionSwitches] the process has: at start, then each change
+  /// sent ([_applySwitches]).
+  ExtensionSwitches _appliedSwitches = ExtensionSwitches.none;
+
   /// The context window, as the CLI reports it: the smaller of the
   /// model's and [_window].
   int _contextWindow = 200000;
@@ -562,9 +572,10 @@ class ClaudeCodeKernel
       _launchedModel = custom != null ? _model : null;
       _launchedWindow = _autocompact;
       _launchedSuggestions = PromptSuggestions.current();
+      _appliedSwitches = ExtensionSwitches.current();
       final sdkServers = ClaudeSdkTools.serversFor(_cwd);
       final transport = await _start(
-        ClaudeLaunch(
+        _launched = ClaudeLaunch(
           cwd: _cwd,
           sdkServers: sdkServers,
           resume: _sessionId,
@@ -578,9 +589,11 @@ class ClaudeCodeKernel
           thinking: custom != null && direct && effort == 'none' ? false : null,
           autocompact: _autocompact,
           promptSuggestions: _launchedSuggestions,
+          switches: _appliedSwitches,
           attribution: CommitAttribution.current(),
           env: env,
-          directories: workspace?.folders ?? const [],
+          directories: [...?workspace?.folders, ...?workspace?.reaches],
+          folderInstructions: workspace?.folders.isNotEmpty ?? false,
           // Long pastes are kept on this machine: only its agent reads them.
           // A remote one's reads the files of this machine's copied there.
           readable: RemoteLocation.isRemote(_cwd)
@@ -589,6 +602,7 @@ class ClaudeCodeKernel
           instructions: workspace?.instructions,
           ownPrompt: workspace?.ownPrompt ?? false,
           tools: workspace?.tools,
+          allowed: workspace?.allowedTools ?? const [],
           models: switch (custom) {
             (final provider, _) => _requestedModels(provider),
             null => const [],
@@ -619,6 +633,8 @@ class ClaudeCodeKernel
         return await _launch();
       }
       _setHealth(KernelHealth.ready);
+      // Switched since it was started.
+      _applySwitches();
       _syncGoal();
       final window = _window;
       _change([
@@ -818,11 +834,28 @@ class ClaudeCodeKernel
     _setHealth(KernelHealth.idle);
   }
 
+  /// The skills, MCP servers and tools turned on or off since the process
+  /// started, given it as flag settings: taken up at once, the next request
+  /// to the model without them.
+  void _applySwitches() {
+    final launch = _launched;
+    final switches = ExtensionSwitches.current();
+    if (!_running || launch == null || switches == _appliedSwitches) return;
+    _appliedSwitches = switches;
+    _change([
+      (
+        'apply_flag_settings',
+        {'settings': launch.switchSettings(switches, whole: true)},
+      ),
+    ]);
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _goalRetry?.cancel();
     _providers.removeListener(_providersChanged);
+    ExtensionSwitches.changes?.removeListener(_applySwitches);
     _live.remove(this);
     _cancelSdkCalls();
     _teardown();
@@ -1097,7 +1130,15 @@ class ClaudeCodeKernel
 
   @override
   void sendQueuedNow(String turnId) {
-    if (!_queued.contains(turnId) || !_running) return;
+    if (!_queued.contains(turnId)) return;
+    if (!_running) {
+      // The queue is shown before the process finishes starting. Keep the
+      // request behind its pending writes, then check the queue again.
+      _whenReady((_) {
+        if (_running) sendQueuedNow(turnId);
+      });
+      return;
+    }
     final others = [
       for (final id in _queued)
         if (id != turnId) id,
@@ -1499,14 +1540,15 @@ class ClaudeCodeKernel
       return;
     }
     // Full access is approved here (see _cliApproval), but for what the
-    // CLI's own would ask all the same. In Plan it leaves to the
+    // CLI's own would ask all the same: that too where no one is there to
+    // ask (a bot's, KernelWorkspace.approvesAll). In Plan it leaves to the
     // classifier what the CLI cannot tell is read-only; with no
     // classifier (another provider's model), that is approved here too,
     // as it would be by the classifier.
     if (_approval == 'bypassPermissions' &&
         (_work != 'plan' || !_classifies) &&
         tool != 'AskUserQuestion' &&
-        !_askedInFullAccess(request)) {
+        ((_workspace?.approvesAll ?? false) || !_askedInFullAccess(request))) {
       _control!.respond(requestId, {
         'behavior': 'allow',
         'updatedInput': input,

@@ -20,6 +20,11 @@
 //   its chat, ⌘N/Ctrl+N starts a chat there and ⌘W/Ctrl+W closes its tab
 //   (BaoCode's `baocode.chat.closeTab`), as Close Editor an editor's. From
 //   a subagent's conversation, Focus Chat Input goes back to the chat's.
+// - Add Selection to Chat (upstream's has no key) takes ⌘L/Ctrl+L, as
+//   Cursor has it, from the IDE's editor and from the side panel's files
+//   with lines selected: their lines go in the chat's input as tags of
+//   them, after what is typed. Without, the IDE's editor's shows the chat
+//   with the keyboard in its input; the side panel's is Focus Chat Input.
 // - Cancel also takes a plain Escape in the input while a turn runs, as the
 //   agents' own terminals do; Accept and Skip need no focus in the chat (in
 //   the chat window they act on the agent focused, as Cancel and Focus Chat
@@ -105,6 +110,10 @@ abstract final class ChatCommandIds {
   static const nextMode = 'baocode.chat.nextMode';
   static const openModelPicker = 'workbench.action.chat.openModelPicker';
   static const attachContext = 'workbench.action.chat.attachContext';
+
+  /// The lines selected in the IDE's editor, or in the side panel's file
+  /// shown, put in the chat's input as tags of them.
+  static const attachSelection = 'workbench.action.chat.attachSelection';
   static const pasteRaw = 'baocode.chat.pasteRaw';
   static const selectNextSuggestion = 'baocode.chat.selectNextSuggestion';
   static const selectPrevSuggestion = 'baocode.chat.selectPrevSuggestion';
@@ -219,6 +228,7 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.nextMode, 'Switch to Next Mode'),
     (ChatCommandIds.openModelPicker, 'Open Model Picker'),
     (ChatCommandIds.attachContext, 'Add Context…'),
+    (ChatCommandIds.attachSelection, 'Add Selection to Chat'),
     (ChatCommandIds.pasteRaw, 'Paste as Plain Text'),
     (ChatCommandIds.selectNextSuggestion, 'Select Next Suggestion'),
     (ChatCommandIds.selectPrevSuggestion, 'Select Previous Suggestion'),
@@ -419,6 +429,13 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     mac: 'cmd+l',
     command: ChatCommandIds.focusInput,
     when: '$_window || ${ChatContextKeys.inChat}',
+  ),
+  // As Cursor's: over Focus Chat Input, where lines can be selected.
+  const KeybindingEntry(
+    key: 'ctrl+l',
+    mac: 'cmd+l',
+    command: ChatCommandIds.attachSelection,
+    when: 'ideMode && editorTextFocus || $_sidePanel',
   ),
   // On macOS ⌘↑ moves the caret up until it is at the top.
   const KeybindingEntry(

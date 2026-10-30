@@ -159,6 +159,64 @@ void main() {
     expect(cli.requests('interrupt'), hasLength(1));
   });
 
+  testWidgets('send now pressed while the process starts interrupts once '
+      'it is ready', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final started = Completer<FakeCli>();
+    final cli = FakeCli();
+    late final KernelDescriptor descriptor;
+    descriptor = KernelDescriptor(
+      id: 'claude-code',
+      label: 'Claude Code',
+      icon: Icons.auto_awesome_rounded,
+      description: '',
+      create: (context) =>
+          ClaudeCodeKernel(descriptor, context, start: (_) => started.future),
+    );
+    final session = ChatSession(
+      kernel: descriptor,
+      kernels: [descriptor],
+      historyCount: 0,
+    );
+    addTearDown(session.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: ChatScreen(session: session),
+      ),
+    );
+    await tester.pump();
+    session
+      ..send(const ComposerMessage(text: 'first'))
+      ..send(const ComposerMessage(text: 'second'));
+    await tester.pump(const Duration(milliseconds: 100));
+    final queuedId = session.queued.single.$1;
+    await tester.tap(
+      find.descendant(
+        of: find.byType(QueuePanel),
+        matching: find.byIcon(Codicons.arrowUp),
+      ),
+    );
+    await tester.pump();
+    expect(cli.users, isEmpty);
+
+    started.complete(cli);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(cli.users, hasLength(2));
+    expect(cli.requests('interrupt'), hasLength(1));
+    cli.push({
+      'type': 'command_lifecycle',
+      'command_uuid': queuedId,
+      'state': 'started',
+    });
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(session.queued, isEmpty);
+    expect(find.byType(QueuePanel), findsNothing);
+    expect(session.isStreaming, isTrue);
+  });
+
   testWidgets('messages sent while the agent works wait over the composer, '
       'to be taken back to edit, sent now or removed', (tester) async {
     final (:session, :cli) = await pumpScripted(

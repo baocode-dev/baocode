@@ -24,7 +24,11 @@ class StashNoteEditor extends StatefulWidget {
     this.focusNode,
     this.refs,
     this.attachments = false,
+    this.scrollController,
   });
+
+  /// Scrolls its text; its own when null.
+  final ScrollController? scrollController;
 
   /// Its pictures and files shown above the text, each once.
   final bool attachments;
@@ -202,6 +206,7 @@ class StashNoteEditorState extends State<StashNoteEditor> {
       padding: widget.padding,
       focusNode: widget.focusNode,
       refs: widget.refs,
+      scrollController: widget.scrollController,
       onPolish: (text) => polishStashText(text, note: markdown),
     );
     if (!widget.attachments) return editor;

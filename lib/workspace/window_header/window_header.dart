@@ -55,6 +55,7 @@ class WindowHeader extends StatefulWidget {
     this.onToggleTerminal,
     this.sidePanelShown = false,
     this.onToggleSidePanel,
+    this.chatTools = true,
     this.onOpenSettings,
     this.onCommand,
     this.onFileCommand,
@@ -149,6 +150,11 @@ class WindowHeader extends StatefulWidget {
   /// the View menu's Side Panel); with none, neither is offered.
   final bool sidePanelShown;
   final VoidCallback? onToggleSidePanel;
+
+  /// Whether the strip has the chat's terminal, side panel and editor
+  /// buttons: not while conversations are side by side, each pane's title
+  /// bar having its own agent's (the menus still toggle the focused one's).
+  final bool chatTools;
 
   /// The File menu's Settings…: opens the settings dialog.
   final VoidCallback? onOpenSettings;
@@ -349,8 +355,10 @@ class _WindowHeaderState extends State<WindowHeader> {
     ],
     // The chat's terminal and side panel where the IDE has its
     // panel and chat, the pin after them, and the way to the other
-    // layout last: each where it was after a switch.
-    if (widget.onToggleTerminal case final toggle? when !ide)
+    // layout last: each where it was after a switch. Agents side by side
+    // have theirs in their panes, the pin alone here (see [chatTools]).
+    if (widget.onToggleTerminal case final toggle?
+        when !ide && widget.chatTools)
       KeyedSubtree(
         key: _terminal,
         child: Padding(
@@ -362,7 +370,8 @@ class _WindowHeaderState extends State<WindowHeader> {
           ),
         ),
       ),
-    if (widget.onToggleSidePanel case final toggle? when !ide)
+    if (widget.onToggleSidePanel case final toggle?
+        when !ide && widget.chatTools)
       KeyedSubtree(
         key: _sidePanel,
         child: Padding(
@@ -383,7 +392,7 @@ class _WindowHeaderState extends State<WindowHeader> {
       ),
     ),
     // The chat's; the IDE is the editor there.
-    if (widget.project case final project? when !ide) ...[
+    if (widget.project case final project? when !ide && widget.chatTools) ...[
       const SizedBox(width: 8),
       KeyedSubtree(
         key: _open,

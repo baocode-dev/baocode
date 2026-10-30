@@ -169,6 +169,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     ChatCommandIds.nextMode => l10n.cmdChatNextMode,
     ChatCommandIds.openModelPicker => l10n.cmdChatOpenModelPicker,
     ChatCommandIds.attachContext => l10n.cmdChatAttachContext,
+    ChatCommandIds.attachSelection => l10n.cmdChatAttachSelection,
     ChatCommandIds.pasteRaw => l10n.cmdChatPasteRaw,
     ChatCommandIds.selectNextSuggestion => l10n.cmdChatSelectNextSuggestion,
     ChatCommandIds.selectPrevSuggestion => l10n.cmdChatSelectPrevSuggestion,

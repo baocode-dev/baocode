@@ -164,10 +164,15 @@ class AgentLoop {
   final List<Map<String, Object?>> denials = [];
   String _lastText = '';
 
+  /// A call the user said no to ends the turn once its batch is answered
+  /// (see [Tool.endsTurnWhenDenied]).
+  bool _endsTurn = false;
+
   /// Runs the agent until it ends its turn.
   Future<LoopResult> runTurn(CancelToken cancel) async {
     var stopHookActive = false;
     var compactedForLength = false;
+    _endsTurn = false;
     while (true) {
       if (cancel.isCancelled) return _interrupted(during: false);
       if (maxTurns != null && _requests >= maxTurns!) {
@@ -231,6 +236,10 @@ class AgentLoop {
       if (stopped) return _result('stopped');
       if (await _batchHooks(calls, cancel)) return _result('stopped');
       if (cancel.isCancelled) return _interrupted(during: false);
+      if (_endsTurn) {
+        _endsTurn = false;
+        return _result('end_turn');
+      }
       // Messages sent meanwhile join the turn here.
       for (final message
           in takeQueued?.call() ?? const <Map<String, Object?>>[]) {
@@ -1046,6 +1055,9 @@ class AgentLoop {
               });
               output = ToolOutput(message, isError: true);
               if (interrupt) cancel.cancel('denied');
+              if (tool.endsTurnWhenDenied && verdict.reasonType == 'user') {
+                _endsTurn = true;
+              }
             default:
               output = ToolOutput.error('Permission was not granted.');
           }

@@ -242,7 +242,8 @@ LRESULT CALLBACK ViewWindow::ViewProc(HWND hwnd, UINT const message,
   }
 
   // A press on the top edge, the one part of the window's frame inside the
-  // view (the app draws the window's whole top, see NonClientSize). The view
+  // view (the app draws the window's whole top, see NonClientSize) — every
+  // edge, where the border is inside (see frame_inside_). The view
   // keeps those pixels (see above), and the system sizes a window by a frame
   // of its own to press, so the loop that sizes it is the window's to start —
   // from the press, and at the pointer, which is where the loop takes the

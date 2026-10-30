@@ -163,6 +163,167 @@ void main() {
     expect(titleDoubleClicks(calls), 0);
   }, variant: _macOS);
 
+  testWidgets('a press dragged on the bar\'s empty part moves the window; '
+      'one on its controls, or a click, does not', (tester) async {
+    final calls = recordWindowCalls(tester);
+    await tester.pumpWidget(titleBar());
+    int windowDrags() =>
+        calls.where((call) => call.method == 'dragWindow').length;
+    Future<void> dragFrom(Offset start) async {
+      final drag = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await drag.moveBy(const Offset(10, 0));
+      await drag.moveBy(const Offset(50, 20));
+      await drag.up();
+      await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    }
+
+    await dragFrom(const Offset(100, 15));
+    expect(windowDrags(), 1);
+
+    await tester.tapAt(const Offset(100, 15), kind: PointerDeviceKind.mouse);
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    await dragFrom(tester.getCenter(find.byKey(_button)));
+    await dragFrom(tester.getCenter(find.byKey(_controls)));
+    await dragFrom(tester.getCenter(find.byType(TextField)));
+    expect(windowDrags(), 1);
+  }, variant: _macOS);
+
+  testWidgets('a pane\'s bar drags the pane instead, and one below the '
+      'window\'s top neither', (tester) async {
+    final calls = recordWindowCalls(tester);
+    final paneDrags = <Offset>[];
+    Future<void> pump({required bool windowTitleBar, bool pane = true}) =>
+        tester.pumpWidget(
+          Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 600,
+              height: 30,
+              child: TitleBarDoubleClick(
+                key: UniqueKey(),
+                windowTitleBar: windowTitleBar,
+                onDragStart: pane
+                    ? (event) => paneDrags.add(event.position)
+                    : null,
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        );
+    Future<void> dragFrom(Offset start) async {
+      final drag = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await drag.moveBy(const Offset(40, 0));
+      await drag.up();
+      await tester.pump();
+    }
+
+    await pump(windowTitleBar: true);
+    await dragFrom(const Offset(100, 15));
+    expect(paneDrags, hasLength(1));
+
+    await pump(windowTitleBar: false, pane: false);
+    await dragFrom(const Offset(100, 15));
+    expect(paneDrags, hasLength(1));
+    expect(calls.where((call) => call.method == 'dragWindow'), isEmpty);
+  }, variant: _macOS);
+
+  testWidgets('labels are the bar\'s empty part; a drag handle keeps its '
+      'clicks but moves the window', (tester) async {
+    final calls = recordWindowCalls(tester);
+    var renames = 0;
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 600,
+            height: 30,
+            child: TitleBarDoubleClick(
+              child: Row(
+                children: [
+                  const Text('A label', key: Key('label')),
+                  const Spacer(),
+                  TitleBarDragHandle(
+                    child: GestureDetector(
+                      onDoubleTap: () => renames++,
+                      child: const Text('A title', key: Key('title')),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    int windowDrags() =>
+        calls.where((call) => call.method == 'dragWindow').length;
+    Future<void> dragFrom(Offset start) async {
+      final drag = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await drag.moveBy(const Offset(10, 0));
+      await drag.moveBy(const Offset(50, 20));
+      await drag.up();
+      await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    }
+
+    final label = tester.getCenter(find.byKey(const Key('label')));
+    final title = tester.getCenter(find.byKey(const Key('title')));
+    await dragFrom(label);
+    expect(windowDrags(), 1);
+    await doubleClickAt(tester, label);
+    expect(titleDoubleClicks(calls), 1);
+
+    await dragFrom(title);
+    expect(windowDrags(), 2);
+    await doubleClickAt(tester, title);
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+    expect(renames, 1);
+    expect(titleDoubleClicks(calls), 1);
+  }, variant: _macOS);
+
+  testWidgets('beside the traffic lights a pane\'s bar is the window\'s', (
+    tester,
+  ) async {
+    final calls = recordWindowCalls(tester);
+    var paneDrags = 0;
+    await tester.pumpWidget(
+      Align(
+        alignment: Alignment.topLeft,
+        child: SizedBox(
+          width: 600,
+          height: 30,
+          child: TitleBarDoubleClick(
+            windowStart: 80,
+            onDragStart: (_) => paneDrags++,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+    for (final start in const [Offset(40, 15), Offset(200, 15)]) {
+      final drag = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await drag.moveBy(const Offset(10, 0));
+      await drag.moveBy(const Offset(50, 0));
+      await drag.up();
+      await tester.pump();
+    }
+    expect(calls.where((call) => call.method == 'dragWindow'), hasLength(1));
+    expect(paneDrags, 1);
+  }, variant: _macOS);
+
   testWidgets('the bar\'s controls keep their double clicks, and their '
       'clicks come at once', (tester) async {
     final calls = recordWindowCalls(tester);

@@ -18,7 +18,9 @@ class FileView {
   /// Whether the file at [path] (absolute, on this machine) is one.
   final bool Function(String path) matches;
 
-  /// It, for the file at [path], in place of an editor.
+  /// It, for the file at [path], in place of an editor. In the IDE its tab
+  /// has a [PageStorage] of its own: a list it keeps there (`KeptScrolling`,
+  /// a [PageStorageKey]) is where it was when the tab shows again.
   final Widget Function(BuildContext context, String path) build;
 }
 

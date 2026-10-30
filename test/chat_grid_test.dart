@@ -118,6 +118,73 @@ void main() {
     expect(rects['A']!.width, 248);
   });
 
+  test('swapping panes preserves their rectangles and the line positions', () {
+    final grid = ChatGrid<String>()
+      ..show('A')
+      ..split('A', PaneSide.right, 'B')
+      ..split('B', PaneSide.bottom, 'C')
+      ..columnRatio = .35
+      ..rowRatio = .6;
+    expect(grid.rearrange('A', 'C'), isTrue);
+    expect(cells(grid), 'CB/CA');
+    expect(grid.columnRatio, .35);
+    expect(grid.rowRatio, .6);
+    expect(grid.rearrange('A', 'A'), isFalse);
+    expect(grid.rearrange('A', 'gone'), isFalse);
+    expect(cells(grid), 'CB/CA');
+  });
+
+  test('moving beside a pane removes its old place before splitting', () {
+    final grid = ChatGrid<String>()
+      ..show('A')
+      ..split('A', PaneSide.right, 'B');
+    expect(grid.rearrange('A', 'B', side: PaneSide.bottom), isTrue);
+    expect(cells(grid), 'BB/AA');
+    expect(grid.panes, ['B', 'A']);
+    expect(grid.columnsSplit, isFalse);
+    expect(grid.rowsSplit, isTrue);
+  });
+
+  test('an impossible move leaves the whole grid unchanged', () {
+    final grid = ChatGrid<String>()
+      ..show('A')
+      ..split('A', PaneSide.right, 'B')
+      ..split('A', PaneSide.bottom, 'C')
+      ..split('B', PaneSide.bottom, 'D')
+      ..columnRatio = .4
+      ..rowRatio = .7;
+    // A's cells would go to C, leaving B too small to split horizontally.
+    expect(grid.rearrange('A', 'B', side: PaneSide.left), isFalse);
+    expect(cells(grid), 'AB/CD');
+    expect(grid.columnRatio, .4);
+    expect(grid.rowRatio, .7);
+    expect(grid.rearrange('A', 'C', side: PaneSide.top), isTrue);
+    expect(cells(grid), 'AB/CD');
+  });
+
+  test('every rearrangement keeps all panes as rectangles', () {
+    const names = ['A', 'B', 'C', 'D'];
+    for (var encoding = 0; encoding < 256; encoding++) {
+      final original = [
+        for (var cell = 0; cell < 4; cell++)
+          names[(encoding >> (cell * 2)) & 3],
+      ];
+      final grid = ChatGrid<String>();
+      if (!grid.restore(original)) continue;
+      for (final source in grid.panes) {
+        for (final target in grid.panes) {
+          for (final side in [null, ...PaneSide.values]) {
+            final next = grid.copy();
+            final changed = next.rearrange(source, target, side: side);
+            expect(next.panes.toSet(), grid.panes.toSet());
+            expect(ChatGrid<String>().restore(next.cells), isTrue);
+            if (!changed) expect(next.cells, original);
+          }
+        }
+      }
+    }
+  });
+
   test('cells are given back only where they make a grid', () {
     final grid = ChatGrid<String>()..show('A');
     expect(grid.restore(['A', 'B', 'A', 'C']), isTrue);

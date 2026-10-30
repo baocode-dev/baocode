@@ -20,6 +20,7 @@ import 'package:baocode/search/search_palette.dart';
 import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/sidebar/sidebar_times.dart';
+import 'package:baocode/theme/code_font.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/workspace/chat_grid_view.dart';
@@ -1721,6 +1722,37 @@ void main() {
       expect(grabbingCursor(), findsNothing);
     },
   );
+
+  testWidgets('the dragged chat follows the pointer in a zoomed window', (
+    tester,
+  ) async {
+    CodeFont.uiScale.value = 150;
+    addTearDown(() => CodeFont.uiScale.value = CodeFont.defaultUiScale);
+    await pumpKept(
+      tester,
+      KeptCatalog([kept('a1', '/tmp/a', 1), kept('a2', '/tmp/a', 2)]),
+    );
+    final start = tester.getCenter(inSidebar(find.text('Chat a2')));
+    final gesture = await tester.startGesture(
+      start,
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveBy(const Offset(0, -10));
+    await tester.pump();
+    final at = start + const Offset(300, 120);
+    await gesture.moveTo(at);
+    await tester.pump();
+    final chip = find.descendant(
+      of: find.byType(ChatDragLayer),
+      matching: find.byType(IgnorePointer),
+    );
+    // Just below and right of the pointer, in the window's pixels.
+    final topLeft = tester.getTopLeft(chip);
+    expect(topLeft.dx, closeTo(at.dx + 12 * 1.5, 0.5));
+    expect(topLeft.dy, closeTo(at.dy + 10 * 1.5, 0.5));
+    await gesture.up();
+    await tester.pump();
+  });
 
   testWidgets('losing window focus cancels a chat drag', (tester) async {
     final workspace = await pumpKept(

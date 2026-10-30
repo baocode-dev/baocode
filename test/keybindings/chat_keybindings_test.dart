@@ -101,6 +101,8 @@ void main() {
     expect(mac(ChatCommandIds.openModelPicker), '⌥⌘.');
     expect(windows(ChatCommandIds.openModelPicker), 'Ctrl+Alt+.');
     expect(mac(ChatCommandIds.attachContext), '⌘/');
+    expect(mac(ChatCommandIds.attachSelection), '⌘L');
+    expect(windows(ChatCommandIds.attachSelection), 'Ctrl+L');
     expect(mac(ChatCommandIds.pasteRaw), '⇧⌘V');
     expect(windows(ChatCommandIds.pasteRaw), 'Ctrl+Shift+V');
     expect(linux(ChatCommandIds.pasteRaw), 'Ctrl+Shift+V');
@@ -151,6 +153,27 @@ void main() {
     expect(
       commandFor('enter', {ChatContextKeys.inInteraction: true}),
       ChatCommandIds.interactionAccept,
+    );
+    // Add Selection to Chat, as Cursor's: from the IDE's editor and the
+    // side panel; elsewhere Focus Chat Input.
+    expect(
+      commandFor('ctrl+l', {'ideMode': true, 'editorTextFocus': true}),
+      ChatCommandIds.attachSelection,
+    );
+    expect(
+      commandFor('ctrl+l', {
+        'chatMode': true,
+        ChatContextKeys.sidePanelFocus: true,
+      }),
+      ChatCommandIds.attachSelection,
+    );
+    expect(
+      commandFor('ctrl+l', {'chatMode': true, ChatContextKeys.inChat: true}),
+      ChatCommandIds.focusInput,
+    );
+    expect(
+      commandFor('ctrl+l', {'ideMode': true, ChatContextKeys.inChat: true}),
+      ChatCommandIds.focusInput,
     );
     // Only in the chat layout.
     expect(commandFor('ctrl+n', {'chatMode': true}), ChatCommandIds.newChat);

@@ -128,43 +128,7 @@ void main() {
   });
 
   group('a bot\'s', () {
-    test('cards go to the phone with the agent they open', () {
-      final card = roundTrip(
-        const ToolCallItem(
-          kind: ToolKind.other,
-          tool: ChatCodec.botCardTool,
-          target: 'Fix the tests',
-          input: {'chat': 's-1'},
-        ),
-      );
-      expect(ChatCodec.botCard(card), 's-1');
-      expect(card.tool, ChatCodec.botCardTool);
-      // Another tool's input is not a card's.
-      expect(
-        ChatCodec.botCard(
-          roundTrip(
-            const ToolCallItem(
-              kind: ToolKind.other,
-              tool: 'bot_read_chat',
-              target: 'x',
-              input: {'chat': 's-1'},
-            ),
-          ),
-        ),
-        isNull,
-      );
-    });
-
-    test('stickers and pictures from the web go as they were sent', () {
-      final sticker = roundTrip(
-        const ToolCallItem(
-          kind: ToolKind.other,
-          tool: ChatCodec.botStickerTool,
-          target: 'happy',
-          input: {'sticker': 'happy'},
-        ),
-      );
-      expect(ChatCodec.botSticker(sticker), 'happy');
+    test('pictures from the web go as they were sent', () {
       final url = roundTrip(
         const ToolCallItem(
           kind: ToolKind.other,
@@ -194,59 +158,46 @@ void main() {
       }
     });
 
-    test('messages go as it said them', () {
-      final said = roundTrip(
-        const ToolCallItem(
-          kind: ToolKind.other,
-          tool: ChatCodec.botSayTool,
-          target: '等下 我看看',
-          input: {'text': '等下 我看看'},
-        ),
-      );
-      expect(ChatCodec.botSay(said), '等下 我看看');
-      expect(ChatCodec.botSent(said), isTrue);
-      expect(
-        ChatCodec.botSay(
-          roundTrip(
-            const ToolCallItem(
-              kind: ToolKind.other,
-              tool: ChatCodec.botSayTool,
-              target: 'x',
-              status: ToolStatus.failed,
-              input: {'text': 'x'},
-            ),
+    test('its messages are its reply\'s bot_say tags, once closed', () {
+      final said = ChatCodec.decode(
+        ChatCodec.encode(
+          const AssistantTextItem(
+            'notes <bot_say>哇 终于</bot_say>\n<bot_say> </bot_say>'
+            '<bot_say>是 relay\n断线那个吗</bot_say> more <bot_say>还在',
           ),
         ),
-        isNull,
       );
+      expect(ChatCodec.botSays((said as AssistantTextItem).text), [
+        '哇 终于',
+        '是 relay\n断线那个吗',
+      ]);
+      expect(ChatCodec.botSays('Notes to itself.'), isEmpty);
+      expect(ChatCodec.botSent(said), isFalse);
     });
 
-    test('its own texts show only in a turn it sent nothing in', () {
-      const say = ToolCallItem(
-        kind: ToolKind.other,
-        tool: ChatCodec.botSayTool,
-        target: '在',
-        input: {'text': '在'},
-      );
-      const look = ToolCallItem(
-        kind: ToolKind.other,
-        tool: 'bot_list_chats',
-        target: '',
-      );
-      final items = <ChatItem>[
-        const UserMessageItem(text: 'old'),
-        const AssistantTextItem('Before it talked so: shown.'),
-        const UserMessageItem(text: '在吗'),
-        const AssistantTextItem('Notes to itself.'),
-        say,
-        // What the user wrote meanwhile, waiting: the turn goes on.
-        const UserMessageItem(text: '?', queued: true),
-        look,
-        const AssistantTextItem('Done.'),
-        const UserMessageItem(text: 'ok'),
-        look,
-      ];
-      expect(ChatCodec.botQuiet(items.length, (i) => items[i]), {3, 7});
+    test('its narration, in order among its messages; not one of them', () {
+      const text =
+          '<bot_narrate>她揉了揉眼睛</bot_narrate>\n<bot_say>在呢</bot_say>'
+          '<bot_narrate>把手机凑近了些</bot_say><bot_say>怎么啦</bot_say>'
+          '<bot_narrate>还';
+      expect(ChatCodec.botParts(text), [
+        (ChatCodec.botNarrateTag, '她揉了揉眼睛'),
+        (ChatCodec.botSayTag, '在呢'),
+        (ChatCodec.botSayTag, '怎么啦'),
+      ]);
+      expect(ChatCodec.botSays(text), ['在呢', '怎么啦']);
+    });
+
+    test('the agents it shows, by their ids, among its messages', () {
+      const text =
+          '<bot_say>就一个在跑</bot_say>\n<bot_show_chat> s-1 </bot_show_chat>'
+          '<bot_say>好了叫你</bot_say><bot_show_chat>s-2';
+      expect(ChatCodec.botParts(text), [
+        (ChatCodec.botSayTag, '就一个在跑'),
+        (ChatCodec.botCardTag, 's-1'),
+        (ChatCodec.botSayTag, '好了叫你'),
+      ]);
+      expect(ChatCodec.botSays(text), ['就一个在跑', '好了叫你']);
     });
 
     test('the user\'s sticker is told by its text', () {
@@ -269,6 +220,22 @@ void main() {
         '</${ChatCodec.botEventTag}>',
       );
       expect(ChatCodec.botEvent(note), '- failed: "Build" in monad');
+      // With a picture, referred to after it.
+      expect(
+        ChatCodec.botEvent(
+          user(
+            '<${ChatCodec.botEventTag}>\nnew picture\n</${ChatCodec.botEventTag}>\n[Image #2]',
+          ),
+        ),
+        'new picture',
+      );
+      // Taken up with the user's: theirs, without it.
+      expect(
+        ChatCodec.withoutBotEvents(
+          '<${ChatCodec.botEventTag}>\nx\n</${ChatCodec.botEventTag}>\n你好',
+        ),
+        '你好',
+      );
       expect(ChatCodec.botEvent(user('hi <${ChatCodec.botEventTag}>')), isNull);
     });
   });

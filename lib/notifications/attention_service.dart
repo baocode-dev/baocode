@@ -120,7 +120,11 @@ class AttentionService {
       final status = thread.status;
       final before = _statuses[thread];
       _statuses[thread] = status;
-      if (thread.archived) continue;
+      // A bot's conversation (see Bots) is the phone's, never shown here:
+      // not counted, nor told of.
+      if (thread.archived || workspace.isAppFolder(thread.project.path)) {
+        continue;
+      }
       switch (status) {
         case ThreadStatus.needsInput:
           badge++;

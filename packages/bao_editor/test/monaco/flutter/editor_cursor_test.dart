@@ -295,6 +295,20 @@ void main() {
       expect(copies, hasLength(3));
     });
 
+    test('the selections not empty, with the lines each spans', () {
+      final c = _controller(
+        'one\ntwo\nthree',
+        selections: [_range(8, 11), _at(1), _range(0, 8)],
+      );
+      expect(c.selectedLines(), [
+        // To the start of a line: the lines before it.
+        (text: 'one\ntwo\n', startLine: 1, endLine: 2),
+        (text: 'thr', startLine: 3, endLine: 3),
+      ]);
+      c.setSelections([_at(5)]);
+      expect(c.selectedLines(), isEmpty);
+    });
+
     test('cut of empty selections deletes whole lines', () async {
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;

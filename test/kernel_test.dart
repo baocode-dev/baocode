@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart' show Icons;
+import 'package:flutter/material.dart' show ChangeNotifier, Icons;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_remote/claude.dart'
     show ClaudeHistoryPage, ClaudeNotInstalled;
@@ -23,6 +23,7 @@ import 'package:baocode/kernel/claude_code/turn_stats.dart';
 import 'package:baocode/kernel/codex/codex_kernel.dart';
 import 'package:baocode/kernel/codex/codex_transport.dart';
 import 'package:baocode/kernel/commit_attribution.dart';
+import 'package:baocode/kernel/extension_switches.dart';
 import 'package:baocode/kernel/kernel_event.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
@@ -1661,6 +1662,50 @@ void main() {
       kernel.dispose();
     });
 
+    test('full access with no one to ask approves what the CLI would ask '
+        'all the same', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(
+        cli,
+        context: KernelContext(
+          cwd: '/p',
+          settings: const {'permission': 'bypassPermissions'},
+          workspace: () =>
+              const KernelWorkspace(folders: [], approvesAll: true),
+        ),
+      );
+      kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+      await pumpEventQueue();
+      const command = {'command': 'rm -rf build', 'description': 'Clean'};
+      for (final (i, why) in const [
+        {'decision_reason_type': 'safetyCheck'},
+        {'decision_reason_type': 'safetyCheck', 'classifier_approvable': false},
+        {
+          'decision_reason_type': 'rule',
+          'matched_ask_rule': {'toolName': 'Bash'},
+        },
+        {'decision_reason_code': 'outside_reads_blocked'},
+      ].indexed) {
+        cli.push({
+          'type': 'control_request',
+          'request_id': 'r$i',
+          'request': {
+            'subtype': 'can_use_tool',
+            'tool_name': 'Bash',
+            'input': command,
+            ...why,
+          },
+        });
+        await pumpEventQueue();
+        expect(transcript.pendingInteraction, isNull);
+        expect(cli.responses.last, {
+          'behavior': 'allow',
+          'updatedInput': command,
+        });
+      }
+      kernel.dispose();
+    });
+
     test('full access answers questions itself; Don\'t ask refuses what '
         'it would ask', () async {
       final cli = FakeCli();
@@ -1920,6 +1965,60 @@ void main() {
       kernel.dispose();
     });
 
+    test('skills, MCP servers and tools switched off: given at start, and '
+        'again whole as they change', () async {
+      final changes = ChangeNotifier();
+      var switches = const ExtensionSwitches(
+        disabledSkills: {'review'},
+        disabledServers: {'my.server'},
+      );
+      ExtensionSwitches.current = () => switches;
+      ExtensionSwitches.changes = changes;
+      addTearDown(() {
+        ExtensionSwitches.current = () => ExtensionSwitches.none;
+        ExtensionSwitches.changes = null;
+      });
+      final cli = FakeCli();
+      final launches = <ClaudeLaunch>[];
+      final kernel = ClaudeCodeKernel(
+        MockKernels.claudeCode,
+        const KernelContext(cwd: '/p'),
+        start: (launch) async {
+          launches.add(launch);
+          return cli;
+        },
+      );
+      kernel.prepare();
+      await pumpEventQueue();
+      final started = launches.single.settings;
+      final allow = (started['permissions'] as Map)['allow'];
+      expect((started['permissions'] as Map)['deny'], ['mcp__my_server']);
+      expect(started['skillOverrides'], {'review': 'off'});
+      expect(cli.requests('apply_flag_settings'), isEmpty);
+
+      // One back on, a tool off: all of it sent (the rules it started with
+      // kept), what is on now left out.
+      switches = switches
+          .withSkills(['review'], true)
+          .withServer('my.server', true)
+          .withTool('git', 'push', false);
+      changes.notifyListeners();
+      await pumpEventQueue();
+      expect(cli.requests('apply_flag_settings').single['settings'], {
+        'permissions': {
+          'allow': allow,
+          'deny': ['mcp__git__push'],
+        },
+        'skillOverrides': <String, String>{},
+      });
+      // The same again: nothing sent.
+      changes.notifyListeners();
+      await pumpEventQueue();
+      expect(cli.requests('apply_flag_settings'), hasLength(1));
+      kernel.dispose();
+      changes.dispose();
+    });
+
     test('Plan\'s commands are left to the classifier with the approvals '
         'that approve for the user', () async {
       final cli = FakeCli();
@@ -1955,6 +2054,78 @@ void main() {
       expect(sent(), [false, true, false]);
       kernel.dispose();
     });
+
+    test(
+      'a queued message sent now while the process starts is not lost',
+      () async {
+        final cli = FakeCli();
+        final started = Completer<ClaudeCodeTransport>();
+        final kernel = ClaudeCodeKernel(
+          MockKernels.claudeCode,
+          const KernelContext(cwd: '/p'),
+          start: (_) => started.future,
+        );
+        addTearDown(kernel.dispose);
+        final transcript = Transcript();
+        kernel.events.listen(transcript.apply);
+        kernel
+          ..send(const KernelTurn(id: 'u1', text: 'first'))
+          ..send(const KernelTurn(id: 'u2', text: 'second'));
+        await pumpEventQueue();
+        expect(kernel.health.status, KernelHealthStatus.starting);
+        expect(transcript.queued.single.$1, 'u2');
+
+        // The queue is already shown, even though the process is not ready.
+        // Pressing twice must not send the message or interrupt twice.
+        kernel
+          ..sendQueuedNow('u2')
+          ..sendQueuedNow('u2');
+        started.complete(cli);
+        await pumpEventQueue();
+
+        expect(cli.users.map((message) => message['uuid']), ['u1', 'u2']);
+        expect(cli.requests('interrupt'), hasLength(1));
+        expect(transcript.activeTurn, isNull);
+        cli.push({
+          'type': 'command_lifecycle',
+          'command_uuid': 'u2',
+          'state': 'started',
+        });
+        await pumpEventQueue();
+        expect(transcript.activeTurn, 'u2');
+        expect(transcript.queued, isEmpty);
+      },
+    );
+
+    test(
+      'a queued message sent now while initialization waits is not lost',
+      () async {
+        final cli = _SilentCli();
+        final (:kernel, :transcript, events: _) = claude(cli);
+        addTearDown(kernel.dispose);
+        kernel
+          ..send(const KernelTurn(id: 'u1', text: 'first'))
+          ..send(const KernelTurn(id: 'u2', text: 'second'));
+        await pumpEventQueue();
+        expect(kernel.health.status, KernelHealthStatus.starting);
+        final initialize = cli.written.single;
+
+        kernel.sendQueuedNow('u2');
+        cli.push({
+          'type': 'control_response',
+          'response': {
+            'subtype': 'success',
+            'request_id': initialize['request_id'],
+            'response': FakeCli._initialize,
+          },
+        });
+        await pumpEventQueue();
+
+        expect(cli.users.map((message) => message['uuid']), ['u1', 'u2']);
+        expect(cli.requests('interrupt'), hasLength(1));
+        expect(transcript.activeTurn, isNull);
+      },
+    );
 
     test('messages sent while busy queue, start in turn, or are taken '
         'back', () async {

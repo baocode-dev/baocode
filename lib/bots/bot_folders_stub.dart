@@ -14,10 +14,7 @@ class DataBotFolders implements BotFolders {
   void delete(String folder) {}
 
   @override
-  String readMemory(String folder) => '';
-
-  @override
-  void writeMemory(String folder, String text) {}
+  List<String> folders() => const [];
 
   @override
   Uint8List? readFile(String path) => null;

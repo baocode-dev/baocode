@@ -51,8 +51,13 @@ END
 //
 
 // Icon with lowest ID value placed first to ensure application icon
-// remains consistent on all systems.
+// remains consistent on all systems. A Debug build's has a DEV badge
+// (tool/make_dev_icons.py), to be told from an installed BaoCode.
+#ifdef BAOCODE_DEV_ICON
+IDI_APP_ICON            ICON                    "resources\\app_icon_dev.ico"
+#else
 IDI_APP_ICON            ICON                    "resources\\app_icon.ico"
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////

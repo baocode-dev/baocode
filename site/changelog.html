@@ -30,6 +30,66 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.7.3">
+    <h2 class="plain"><a href="#v1.7.3">1.7.3</a></h2>
+    <p>This release improves bots on the phone: they talk faster and more like people, with narration besides. It also fixes 1.7.2's bots running in the background without a phone. On the phone, this needs 0.1.4.</p>
+    <p>Bots</p>
+    <ul>
+    <li>A bot sends several messages in one reply, instead of a request to the model for each, so it answers faster and no longer repeats itself on weaker models.</li>
+    <li>A bot can narrate what it does or how it looks, shown between its messages.</li>
+    <li>When a bot speaks of one of your agents' conversations, it sends a card that opens it.</li>
+    <li>A bot can come back to you in as little as 10 seconds, not a minute.</li>
+    <li>On the phone, you can delete your chat with a bot to start again; who it is and what it remembers stay.</li>
+    <li>The assistant introduces the other bots to you as its friends.</li>
+    <li>Each bot has an Agent notifications switch, off at first, the assistant's too. On, it hears when any agent waits, fails, finishes or runs long; off, of none.</li>
+    </ul>
+    <p>New</p>
+    <ul>
+    <li>In Settings → Customize, each skill, MCP server and server tool has a switch, followed at once by agents already running.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>With no phone paired, bots are no longer told what your agents do, and do not come back to what they meant to. Each such notice had a bot answer on your model, paid for and read by no one. Once a phone is paired, they carry on.</li>
+    <li>After BaoCode restarted, a bot sometimes went on in a new, empty conversation, its chat seemingly gone on the phone. It now goes on in its own.</li>
+    <li>A bot's conversation no longer shows in the desktop's notifications, the Dock badge or the tray, and a notification no longer opens it as an ordinary conversation.</li>
+    <li>A bot skips what happens to agents that its chat does not need, instead of answering each one.</li>
+    <li>Built-in core: once a plan is put to you, the turn ends, instead of some models putting it again and again in the same turn.</li>
+    </ul>
+  </section>
+
+  <section class="release" id="v1.7.2">
+    <h2 class="plain"><a href="#v1.7.2">1.7.2</a></h2>
+    <p>This release is about bots on the phone: agents that chat with you as a person does, running on your computer and talked to from your phone. Split panes also get a side panel each and can be dragged around, and a number of things are fixed.</p>
+    <p>Bots (on the phone, with this version of the desktop app)</p>
+    <ul>
+    <li>Each bot has its own name, picture, gender, signature, way of speaking and model. There is an assistant to start with, and you can make your own.</li>
+    <li>You turn on what a bot may do, one thing at a time: look after your agents (see them, stop, retry and archive them, write to them, start new ones), use your browser, and tell you first when an agent is waiting for you or has failed.</li>
+    <li>Bots can search the web and remember what you told them, and make pictures once an image model is turned on in Settings → Models. A picture you send one is theirs to use, as their own picture for instance.</li>
+    <li>Bots do not read or write the projects on your computer: a project's work is an agent's.</li>
+    </ul>
+    <p>New</p>
+    <ul>
+    <li>Side by side, each pane has a side panel of its own, shown or hidden there.</li>
+    <li>Drag a pane by its title bar to put it beside another or swap the two. Drag a project's New Agent onto the panes to open a new agent beside them.</li>
+    <li>A file in the side panel opens in its default app, with a menu to open it in the terminal or the file manager, or copy its path.</li>
+    <li>The IDE's activity bar has a settings button at its foot.</li>
+    <li>The phone shows the pictures an agent makes, a tool's pictures, each step in the browser, and the goal and the turn's usage.</li>
+    <li>The built-in core is aligned with Claude Code CLI 2.1.293.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Send Now, pressed while the process is still starting, waits until it is ready.</li>
+    <li>A failed read of a provider's key is not remembered, and no longer drops a key set meanwhile.</li>
+    <li>A long message from the browser is handled once it has all arrived.</li>
+    <li>Usage given as strings by a model now shows.</li>
+    <li>Copying from the composer keeps its tags; other apps get the text.</li>
+    <li>A Markdown file's changes show it rendered, the diff a click away; the side panel's file tree has the Git status.</li>
+    <li>The Git log's graph shows whole, its details can be copied, and the branches show.</li>
+    <li>The commit panel's check boxes can be seen, the changes show as a list or a tree, and the buttons no longer overflow a narrow window.</li>
+    <li>Windows: side by side, each pane's title bar buttons act on its own agent, as on macOS; drawing is done by Skia, faster and with less memory.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.7.1">
     <h2 class="plain"><a href="#v1.7.1">1.7.1</a></h2>
     <p>This release helps us track down the app becoming unresponsive while an agent works: on macOS, a hang is now written down as it happens, and sent with the diagnostics. It also fixes the chat's terminal and split panes.</p>

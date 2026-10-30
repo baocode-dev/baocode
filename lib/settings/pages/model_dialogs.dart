@@ -646,6 +646,9 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
       null => '',
     },
   );
+  late final TextEditingController _endpointUrl = TextEditingController(
+    text: _start?.endpointUrl,
+  );
   late bool _images = _start?.images ?? true;
 
   /// What it is for, as picked; null to go by its name.
@@ -687,6 +690,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
     _id.dispose();
     _label.dispose();
     _context.dispose();
+    _endpointUrl.dispose();
     super.dispose();
   }
 
@@ -698,6 +702,30 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
       _shownKind.generatesImages || widget.provider.protocol.usesAccounts
       ? null
       : _protocol;
+
+  /// Its address as kept: none where [_keptProtocol] is none for want of
+  /// an endpoint of its own to speak to.
+  String? get _keptEndpointUrl =>
+      _shownKind.generatesImages || widget.provider.protocol.usesAccounts
+      ? null
+      : switch (_endpointUrl.text.trim()) {
+          '' => null,
+          final url => url,
+        };
+
+  /// Where it goes with no address of its own, as its endpoint type is
+  /// picked: the upstream's endpoint if it speaks the upstream's
+  /// protocol, else as the base URL says.
+  String get _endpointUrlByDefault {
+    final provider = widget.provider;
+    final protocol = _protocol ?? provider.protocol;
+    final speaking = provider.copyWith(
+      protocol: protocol,
+      endpointUrl: () =>
+          protocol == provider.protocol ? provider.endpointUrl : null,
+    );
+    return '${UpstreamUrls.endpoint(speaking) ?? ''}';
+  }
 
   /// What the Endpoint choice shows [protocol] as; the upstream's for
   /// null.
@@ -760,6 +788,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
               custom: true,
               kind: _keptKind,
               protocol: _keptProtocol,
+              endpointUrl: _keptEndpointUrl,
             )
           : model.copyWith(
               label: () => label.isEmpty ? null : label,
@@ -769,6 +798,7 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
               images: _images,
               kind: () => _keptKind,
               protocol: () => _keptProtocol,
+              endpointUrl: () => _keptEndpointUrl,
             ),
     );
   }
@@ -921,6 +951,29 @@ class _ModelEditDialogState extends State<ModelEditDialog> {
                       const SizedBox(height: 4),
                       Text(
                         l10n.modelsEndpointDescription,
+                        style: _text(
+                          context,
+                          size: 12,
+                        ).copyWith(color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+              if (!widget.provider.protocol.usesAccounts)
+                _field(
+                  l10n.modelsEndpointUrl,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      IdeInputBox(
+                        controller: _endpointUrl,
+                        placeholder: _endpointUrlByDefault,
+                        semanticsLabel: l10n.modelsEndpointUrl,
+                        onSubmitted: (_) => _save(),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.modelsModelEndpointUrlDescription,
                         style: _text(
                           context,
                           size: 12,

@@ -35,6 +35,7 @@ class McpProbeResult {
     this.timedOut = false,
     this.log = '',
     this.server,
+    this.tools,
   });
 
   static const checking = McpProbeResult(McpProbeStatus.checking);
@@ -58,6 +59,45 @@ class McpProbeResult {
 
   /// The name and version it gave, once connected.
   final String? server;
+
+  /// The tools it lists (`tools/list`), once connected; null where it did
+  /// not say.
+  final List<McpProbeTool>? tools;
+
+  /// This, with [tools].
+  McpProbeResult withTools(List<McpProbeTool>? tools) => McpProbeResult(
+    status,
+    message: message,
+    exitCode: exitCode,
+    timedOut: timedOut,
+    log: log,
+    server: server,
+    tools: tools,
+  );
+}
+
+/// One of a server's tools, as `tools/list` gives it.
+typedef McpProbeTool = ({String name, String description});
+
+/// The tools of a `tools/list` answer ([message], decoded), if it is one
+/// for request [id].
+List<McpProbeTool>? mcpToolsOf(Object? message, {required int id}) {
+  if (message is! Map<String, Object?> || message['id'] != id) return null;
+  final tools = switch (message['result']) {
+    {'tools': final List<Object?> tools} => tools,
+    _ => const <Object?>[],
+  };
+  return [
+    for (final tool in tools)
+      if (tool case {'name': final String name})
+        (
+          name: name,
+          description: switch (tool['description']) {
+            final String description => description.trim(),
+            _ => '',
+          },
+        ),
+  ];
 }
 
 /// Asks the server [config] describes (an `mcpServers` entry), started in

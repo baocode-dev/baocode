@@ -8,6 +8,16 @@ class AppDelegate: FlutterAppDelegate {
   override init() {
     AppDelegate.raiseOpenFileLimit()
     super.init()
+    #if DEBUG
+    // The Dock finds an app's icon by its bundle identifier: a debug build
+    // run beside the installed BaoCode, the same identifier, would show the
+    // installed one's. Set on the app itself, the DEV BUILD one shows.
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.didFinishLaunchingNotification, object: nil, queue: .main
+    ) { _ in
+      if let icon = NSImage(named: "AppIcon-Dev") { NSApp.applicationIconImage = icon }
+    }
+    #endif
   }
 
   /// An app launched from the Dock or Finder may hold 256 descriptors at

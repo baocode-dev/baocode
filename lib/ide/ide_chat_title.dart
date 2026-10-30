@@ -324,8 +324,8 @@ class _ChatTabsState extends State<_ChatTabs> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (final (i, thread) in tabs.indexed) ...[
-            if (_spot == i) const _DropLine(),
-            _TabDragSource(
+            if (_spot == i) const TabDropLine(),
+            TabDragSource(
               enabled: tabs.length > 1,
               onStart: () => setState(() => _dragged = thread),
               onUpdate: _moveDrag,
@@ -350,7 +350,7 @@ class _ChatTabsState extends State<_ChatTabs> {
               ),
             ),
           ],
-          if (_spot == tabs.length) const _DropLine(),
+          if (_spot == tabs.length) const TabDropLine(),
         ],
       ),
     );
@@ -380,8 +380,9 @@ class IdeThreadIcon extends StatelessWidget {
 
 /// A tab dragged among the tabs: past a few pixels, so a click still
 /// selects it.
-class _TabDragSource extends StatelessWidget {
-  const _TabDragSource({
+class TabDragSource extends StatelessWidget {
+  const TabDragSource({
+    super.key,
     required this.enabled,
     required this.onStart,
     required this.onUpdate,
@@ -432,8 +433,8 @@ class _TabDragRecognizer extends HorizontalDragGestureRecognizer {
 }
 
 /// Where a dragged tab would go: a line between tabs, taking no room.
-class _DropLine extends StatelessWidget {
-  const _DropLine();
+class TabDropLine extends StatelessWidget {
+  const TabDropLine({super.key});
 
   @override
   Widget build(BuildContext context) => SizedBox(

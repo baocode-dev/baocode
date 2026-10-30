@@ -18,12 +18,16 @@ class SkillTool extends Tool {
       'Loads a skill\'s instructions into this conversation.';
 
   /// The skills and commands the model may use.
-  static List<PromptCommand> available(AgentSession session) => [
-    for (final command in session.promptCommands)
-      if (command.modelInvocable &&
-          (command.isSkill || command.description.isNotEmpty))
-        command,
-  ];
+  static List<PromptCommand> available(AgentSession session) {
+    final overrides = session.settings.skillOverrides;
+    return [
+      for (final command in session.promptCommands)
+        if (command.modelInvocable &&
+            overrides[command.name] != 'user-invocable-only' &&
+            (command.isSkill || command.description.isNotEmpty))
+          command,
+    ];
+  }
 
   @override
   bool isEnabled(AgentSession session) => available(session).isNotEmpty;

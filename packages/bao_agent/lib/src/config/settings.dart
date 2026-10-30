@@ -107,14 +107,24 @@ class AgentSettings {
   }
 
   /// Lays [settings] over those the session started with
-  /// (`apply_flag_settings`).
+  /// (`apply_flag_settings`): each key in place of the one before, as the
+  /// CLI's, so that `permissions` given anew can take a rule back.
   void applyFlag(Map<String, Object?> settings) {
-    _layers[SettingsSource.flag] = mergeSettings(
-      _layers[SettingsSource.flag] ?? {},
-      settings,
-    );
+    _layers[SettingsSource.flag] = {
+      ...?_layers[SettingsSource.flag],
+      ...settings,
+    };
     _merged = null;
   }
+
+  /// `skillOverrides`, merged: by a skill's name, `on`, `name-only`,
+  /// `user-invocable-only` or `off`.
+  Map<String, String> get skillOverrides => {
+    for (final MapEntry(:key, :value) in asMap(
+      merged['skillOverrides'],
+    ).entries)
+      if (value is String) key: value,
+  };
 
   Map<String, Object?> layer(SettingsSource source) => _layers[source] ?? {};
 

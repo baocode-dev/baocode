@@ -408,16 +408,19 @@ class ModelProxy {
     HttpResponse response, {
     required bool countTokens,
   }) async {
-    final base = UpstreamUrls.anthropicBase(provider.baseUrl);
-    if (base == null) {
+    final messages = UpstreamUrls.messages(provider);
+    if (messages == null) {
       return _fail(response, 400, '${provider.name} has no valid base URL');
     }
-    final path = Uri.parse(
-      '$base/v1/messages${countTokens ? '/count_tokens' : ''}',
-    );
-    final url = request.uri.hasQuery
-        ? path.replace(query: request.uri.query)
-        : path;
+    final path = countTokens
+        ? messages.replace(path: '${messages.path}/count_tokens')
+        : messages;
+    // Claude Code's query (`beta=true`) after the endpoint's own.
+    final query = [
+      path.query,
+      request.uri.query,
+    ].where((query) => query.isNotEmpty).join('&');
+    final url = query.isEmpty ? path : path.replace(query: query);
     final client = await _upstream();
     final upstreamRequest = await client.postUrl(url);
     final key = await _key(provider.id);

@@ -493,10 +493,11 @@ Win32Window::MessageHandler(HWND hwnd,
 
     case WM_GETMINMAXINFO: {
       // At the dpi the window has now, with the frame it has (see
-      // NonClientSize): the sides and the bottom, no top.
+      // NonClientSize): the sides and the bottom, no top; none when the
+      // border is inside.
       if (minimum_size_.width > 0 && minimum_size_.height > 0) {
         const double scale = FlutterDesktopGetDpiForHWND(hwnd) / 96.0;
-        const SIZE border = ResizeBorder();
+        const SIZE border = frame_inside_ ? SIZE{0, 0} : ResizeBorder();
         auto* info = reinterpret_cast<MINMAXINFO*>(lparam);
         info->ptMinTrackSize.x =
             static_cast<LONG>(minimum_size_.width * scale) + 2 * border.cx;
@@ -511,6 +512,13 @@ Win32Window::MessageHandler(HWND hwnd,
         return *size;
       }
       break;
+
+    case WM_WINDOWPOSCHANGED: {
+      // Sized and moved (WM_SIZE, WM_MOVE) first, then looked at.
+      const LRESULT result = DefWindowProc(hwnd, message, wparam, lparam);
+      CheckFrameShown();
+      return result;
+    }
 
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
@@ -773,11 +781,50 @@ std::optional<LRESULT> Win32Window::NonClientSize(WPARAM wparam,
     }
     return 0;
   }
+  if (frame_inside_) {
+    return 0;
+  }
   const SIZE border = ResizeBorder();
   client->left += border.cx;
   client->right -= border.cx;
   client->bottom -= border.cy;
   return 0;
+}
+
+void Win32Window::CheckFrameShown() {
+  const HWND window = window_handle_;
+  if (frame_inside_ || full_screen_ || window == nullptr ||
+      !::IsWindowVisible(window) || ::IsZoomed(window) || ::IsIconic(window)) {
+    return;
+  }
+  RECT bounds = {};
+  RECT frame = {};
+  if (!::GetWindowRect(window, &bounds) ||
+      FAILED(::DwmGetWindowAttribute(window, DWMWA_EXTENDED_FRAME_BOUNDS,
+                                     &frame, sizeof(frame))) ||
+      WidthOf(frame) <= 0 || HeightOf(frame) <= 0 ||
+      // Nothing said of the frame (not yet): no telling.
+      ::EqualRect(&frame, &bounds)) {
+    return;
+  }
+  // What DWM leaves out of the border at each side is its invisible part;
+  // the rest it shows, the outline its last pixel.
+  const SIZE border = ResizeBorder();
+  const LONG shown = std::max({border.cx - (frame.left - bounds.left),
+                               border.cx - (bounds.right - frame.right),
+                               border.cy - (bounds.bottom - frame.bottom)});
+  if (shown <= 1) {
+    return;
+  }
+  LogContent(
+      "frame: DWM shows %ld px of the %ld px border outside the client "
+      "(window %ld,%ld,%ld,%ld; shown %ld,%ld,%ld,%ld): border inside",
+      shown, border.cx, bounds.left, bounds.top, bounds.right, bounds.bottom,
+      frame.left, frame.top, frame.right, frame.bottom);
+  frame_inside_ = true;
+  ::SetWindowPos(window, nullptr, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                     SWP_NOACTIVATE);
 }
 
 std::optional<LRESULT> Win32Window::ResizeHitTest(const POINT& point) const {
@@ -797,12 +844,14 @@ std::optional<LRESULT> Win32Window::ResizeHitTest(const POINT& point) const {
   const SIZE border = ResizeBorder();
   // The top is a strip of the client (there is no frame above it), and its
   // corners reach in as far as the sides' border reaches out; the sides and
-  // the bottom are the frame, outside the client.
+  // the bottom are the frame, outside the client — or strips of it as well,
+  // where the border is inside (see frame_inside_).
   const bool top = point.y < border.cy;
-  const LONG corner = top ? border.cx : 0;
-  const bool left = point.x < corner;
-  const bool right = point.x >= client.right - corner;
-  const bool bottom = point.y >= client.bottom;
+  const LONG side = (top || frame_inside_) ? border.cx : 0;
+  const bool left = point.x < side;
+  const bool right = point.x >= client.right - side;
+  const bool bottom =
+      point.y >= client.bottom - (frame_inside_ ? border.cy : 0);
   if (left && top) {
     return HTTOPLEFT;
   }

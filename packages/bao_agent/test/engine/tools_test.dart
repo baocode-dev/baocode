@@ -456,6 +456,24 @@ void main() {
       expect(h.model.turns, hasLength(2));
     });
 
+    test('stopped, though what it left running holds its output open '
+        '(a dev server\'s watcher)', () async {
+      h = await Harness.start();
+      h.model.script.addAll([
+        Reply.tool('Bash', {
+          'command': '(sleep 30 &); sleep 30',
+          'description': 'Dev server',
+          'run_in_background': true,
+        }),
+        Reply.text('ok'),
+      ]);
+      await h.turn('go');
+      final id =
+          (h.toolResults.single['tool_use_result'] as Map)['backgroundTaskId'];
+      await h.request('stop_task', {'task_id': id});
+      expect(h.of('system', 'task_notification').single['status'], 'killed');
+    }, skip: Platform.isWindows);
+
     test('one ends and the model is told; TaskStop stops another', () async {
       h = await Harness.start();
       h.model.script.addAll([

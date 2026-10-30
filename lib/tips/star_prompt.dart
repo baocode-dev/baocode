@@ -110,7 +110,9 @@ class StarPrompt {
       _statuses[thread] = status;
       if (before != ThreadStatus.running ||
           status == ThreadStatus.running ||
-          status == ThreadStatus.needsInput) {
+          status == ThreadStatus.needsInput ||
+          // A bot's, the phone's: not one of the user's here.
+          workspace.isAppFolder(thread.project.path)) {
         continue;
       }
       final session = thread.session;

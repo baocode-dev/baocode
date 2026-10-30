@@ -344,6 +344,7 @@ class ChatComposerState extends State<ChatComposer>
       if (!mounted) return;
       _focusNode.requestFocus();
       _takeDraftFiles();
+      _takeDraftCode();
       _takeDraftMessage();
     });
   }
@@ -679,6 +680,18 @@ class ChatComposerState extends State<ChatComposer>
     if (files.isNotEmpty) unawaited(insertFiles(files));
   }
 
+  /// The lines of code put in the draft from outside (see
+  /// [ComposerDraft.insertCode]): tags of them after what is typed, as the
+  /// IDE's lines pasted are.
+  void _takeDraftCode() {
+    final code = widget.draft?.takeCode() ?? const <CodeReference>[];
+    final root = widget.session.root;
+    _insertTags([
+      for (final lines in code)
+        ComposerCodeEmbed.of(lines.withPath(displayPath(lines.path, root))),
+    ], at: _controller.length);
+  }
+
   /// The message put back in the draft to be edited (see
   /// [ComposerDraft.restore]): after what is typed, the caret at its end.
   void _takeDraftMessage() {
@@ -738,6 +751,7 @@ class ChatComposerState extends State<ChatComposer>
   void _handleDraftChanged() {
     final draft = widget.draft;
     if (draft != null && draft.pendingFiles.isNotEmpty) _takeDraftFiles();
+    if (draft != null && draft.pendingCode.isNotEmpty) _takeDraftCode();
     if (draft?.pendingMessage != null) _takeDraftMessage();
     if (draft == null || identical(draft.savedBy, this) || !draft.saved) {
       return;

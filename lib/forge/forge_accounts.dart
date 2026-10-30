@@ -186,6 +186,20 @@ class ForgeAccounts extends ChangeNotifier {
 
   final Map<String, ForgeAccount> _accounts = {};
 
+  /// The token of each host as the keychain answered it, kept: what arrives
+  /// while a read is under way waits for that same read, and none reads the
+  /// keychain twice for an answer it has. A read on Windows runs a program
+  /// (PowerShell, DPAPI), and the app asks for a token once per request (see
+  /// the stash's refresh, which asks every linked issue at once): one program
+  /// for each of them was the hang.
+  final Map<String, Future<String?>> _tokens = {};
+
+  /// Each host's refresh under way (GitLab's): the requests that find the
+  /// token expired as it goes wait for it, not refresh it again. A refresh
+  /// token is good for one refresh only, so a second would be refused (and
+  /// would write the keychain once more).
+  final Map<String, Future<_Token>> _refreshing = {};
+
   List<ForgeAccount> get accounts => List.unmodifiable(_accounts.values);
 
   ForgeAccount? accountFor(String host) => _accounts[host.toLowerCase()];
@@ -228,7 +242,17 @@ class ForgeAccounts extends ChangeNotifier {
   ForgeApi? apiOf(ForgeRef ref) => apiFor(ref.repo.host);
 
   Future<String> _accessToken(ForgeAccount account) async {
-    final token = _Token.decode(await _secrets.read(_secretId(account.host)));
+    final read = _tokenOf(account.host);
+    final _Token? token;
+    try {
+      token = _Token.decode(await read);
+    } on Object {
+      // Answered, not kept: the keychain may read it the next time. Until
+      // that read answers them all, none of the requests that arrive starts
+      // one of its own (one program for each was the hang).
+      if (identical(_tokens[account.host], read)) _tokens.remove(account.host);
+      rethrow;
+    }
     if (token == null) {
       throw const ForgeException('Not signed in.', status: 401);
     }
@@ -239,8 +263,22 @@ class ForgeAccounts extends ChangeNotifier {
         _clock().isBefore(expires.subtract(const Duration(minutes: 2)))) {
       return token.access;
     }
-    return (await _refresh(account, refresh)).access;
+    final host = account.host;
+    if (_refreshing[host] case final refreshing?) {
+      return (await refreshing).access;
+    }
+    late final Future<_Token> refreshing;
+    refreshing = _refresh(account, refresh).whenComplete(() {
+      if (identical(_refreshing[host], refreshing)) _refreshing.remove(host);
+    });
+    _refreshing[host] = refreshing;
+    return (await refreshing).access;
   }
+
+  /// [host]'s token as the keychain has it, read once: the requests that
+  /// arrive while it is under way wait on that same read.
+  Future<String?> _tokenOf(String host) =>
+      _tokens[host] ??= _secrets.read(_secretId(host));
 
   /// A new token for [refresh] (GitLab's): kept in place of the old one.
   Future<_Token> _refresh(ForgeAccount account, String refresh) async {
@@ -260,6 +298,7 @@ class ForgeAccounts extends ChangeNotifier {
     }
     final token = _Token.fromOAuth(json, _clock());
     await _secrets.write(_secretId(account.host), token.encode());
+    _tokens.remove(account.host);
     return token;
   }
 
@@ -284,6 +323,8 @@ class ForgeAccounts extends ChangeNotifier {
     };
     final me = await api.me();
     await _secrets.write(_secretId(host), token.encode());
+    _tokens.remove(host);
+    _refreshing.remove(host);
     final account = ForgeAccount(
       kind: kind,
       host: host,
@@ -303,6 +344,8 @@ class ForgeAccounts extends ChangeNotifier {
     host = _hostOf(host);
     if (_accounts.remove(host) == null) return;
     await _secrets.delete(_secretId(host));
+    _tokens.remove(host);
+    _refreshing.remove(host);
     await _keep();
     notifyListeners();
   }

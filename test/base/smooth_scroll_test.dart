@@ -166,4 +166,40 @@ void main() {
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
+
+  testWidgets('a list kept in a PageStorage is where it was when built '
+      'there again; another kept apart', (tester) async {
+    final bucket = PageStorageBucket();
+    late ScrollController shown;
+    Future<void> show(Object? identifier) => tester.pumpWidget(
+      MaterialApp(
+        home: PageStorage(
+          bucket: bucket,
+          child: identifier == null
+              ? const SizedBox()
+              : KeptScrolling(
+                  key: ValueKey(identifier),
+                  identifier: identifier,
+                  builder: (context, controller) {
+                    shown = controller;
+                    return ListView.builder(
+                      controller: controller,
+                      itemCount: 100,
+                      itemBuilder: (context, i) =>
+                          SizedBox(height: 40, child: Text('$i')),
+                    );
+                  },
+                ),
+        ),
+      ),
+    );
+
+    await show('a');
+    shown.jumpTo(300);
+    await show(null);
+    await show('b');
+    expect(shown.offset, 0);
+    await show('a');
+    expect(shown.offset, 300);
+  });
 }

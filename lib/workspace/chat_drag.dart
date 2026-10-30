@@ -10,7 +10,8 @@ import 'workspace.dart';
 
 /// Where an agent dragged over the conversations would go, released there:
 /// the half of [target]'s pane on [side], or [target]'s place (null
-/// [side]). [thread] shown already, its own pane: released, it is focused.
+/// [side]). From the sidebar, [thread] shown already only focuses its own
+/// pane. From a title bar ([rearrange]), the center swaps their places.
 @immutable
 class ChatDrop {
   const ChatDrop({
@@ -20,6 +21,7 @@ class ChatDrop {
     required this.preview,
     this.growth = Size.zero,
     this.fits = true,
+    this.rearrange = false,
   });
 
   final AgentThread thread;
@@ -37,6 +39,10 @@ class ChatDrop {
   /// where it cannot, nothing happens.
   final bool fits;
 
+  /// A title bar's pane moved within the grid, not an agent opened from
+  /// the sidebar: the center swaps their places, the edges move it beside.
+  final bool rearrange;
+
   @override
   bool operator ==(Object other) =>
       other is ChatDrop &&
@@ -45,10 +51,12 @@ class ChatDrop {
       other.side == side &&
       other.preview == preview &&
       other.growth == growth &&
-      other.fits == fits;
+      other.fits == fits &&
+      other.rearrange == rearrange;
 
   @override
-  int get hashCode => Object.hash(thread, target, side, preview, growth, fits);
+  int get hashCode =>
+      Object.hash(thread, target, side, preview, growth, fits, rearrange);
 }
 
 /// Where else than the grid a dragged agent can go: the sidebar's list,
@@ -64,7 +72,8 @@ abstract interface class ChatDragList {
 
 /// An agent dragged from the sidebar onto the conversations, to show it
 /// beside the others (see [ChatGridView]), or within the sidebar
-/// ([list]), to order it.
+/// ([list]), to order it. From a title bar ([rearranging]), its existing
+/// pane is rearranged within the grid instead.
 ///
 /// It follows the pointer that started it, wherever it goes: released
 /// where the grid shows a drop, the drop is made ([onDrop]); over the
@@ -85,6 +94,11 @@ class ChatDrag extends ChangeNotifier {
   /// The agent dragged; null when there is no drag.
   AgentThread? get thread => _thread;
   AgentThread? _thread;
+
+  /// A pane dragged by its title bar: stays within the grid, never reorders
+  /// the sidebar's list.
+  bool get rearranging => _rearranging;
+  bool _rearranging = false;
 
   /// The selection at drag start, in sidebar order; empty while idle.
   List<AgentThread> get threads => _threads;
@@ -118,18 +132,29 @@ class ChatDrag extends ChangeNotifier {
   int? _pointer;
   AppLifecycleListener? _lifecycle;
 
+  /// Told as the drag ends without a drop on the grid (released elsewhere,
+  /// or cancelled): an agent made for it goes then.
+  VoidCallback? _onMissed;
+
+  /// [onMissed]: told where it ends without a drop on the grid, e.g. to
+  /// take back an agent made to be dragged (see [ChatNewDragSource]); such
+  /// a drag does not go over the list (it is in no order there yet).
   void start(
     AgentThread thread,
     int pointer,
     Offset position, {
     List<AgentThread>? threads,
+    VoidCallback? onMissed,
+    bool rearrange = false,
   }) {
     if (_thread != null) _stop();
     _thread = thread;
+    _rearranging = rearrange;
     _threads = List.unmodifiable(threads ?? [thread]);
     _pointer = pointer;
     _position = position;
     _room = null;
+    _onMissed = onMissed;
     _lifecycle = AppLifecycleListener(onInactive: cancel);
     // Every event of the pointer, wherever it is (not only over the row
     // that started it, which may go: the drawer closes).
@@ -150,8 +175,10 @@ class ChatDrag extends ChangeNotifier {
   /// Ends the drag; nothing is dropped.
   void cancel() {
     if (_thread == null) return;
+    final missed = _onMissed;
     _stop();
     notifyListeners();
+    missed?.call();
   }
 
   void _route(PointerEvent event) {
@@ -177,12 +204,15 @@ class ChatDrag extends ChangeNotifier {
       case PointerUpEvent():
         final drop = _drop;
         final (threads, overList, list) = (_threads, _overList, this.list);
+        final missed = _onMissed;
         _stop();
         notifyListeners();
         if (overList) {
           list?.drop(threads, event.position);
         } else if (drop != null && drop.fits) {
           onDrop(drop);
+        } else {
+          missed?.call();
         }
       case PointerCancelEvent() || PointerRemovedEvent():
         cancel();
@@ -206,7 +236,12 @@ class ChatDrag extends ChangeNotifier {
   void _update() {
     final thread = _thread;
     if (thread == null) return;
-    _overList = list?.hover(_threads, _position) ?? false;
+    // One made to be dragged is in no order of the list yet; a pane moved
+    // within the grid never reorders it.
+    _overList =
+        _onMissed == null &&
+        !_rearranging &&
+        (list?.hover(_threads, _position) ?? false);
     _drop = _overList || _threads.length != 1
         ? null
         : resolve?.call(thread, _position);
@@ -219,10 +254,12 @@ class ChatDrag extends ChangeNotifier {
     GestureBinding.instance.pointerRouter.removeGlobalRoute(_route);
     HardwareKeyboard.instance.removeHandler(_key);
     _thread = null;
+    _rearranging = false;
     _threads = const [];
     _pointer = null;
     _drop = null;
     _overList = false;
+    _onMissed = null;
   }
 
   @override
@@ -232,7 +269,7 @@ class ChatDrag extends ChangeNotifier {
   }
 }
 
-/// Makes [child] (a row of the sidebar) drag [thread] once the pointer
+/// Makes [child] (a sidebar row, or a pane's title) drag [thread] once the pointer
 /// pressed on it has moved [ChatDrag.threshold]: a shorter move is still
 /// the click it was.
 class ChatDragSource extends StatefulWidget {
@@ -242,6 +279,7 @@ class ChatDragSource extends StatefulWidget {
     required this.thread,
     required this.child,
     this.threads,
+    this.rearrange = false,
   });
 
   /// None for now (e.g. while the row is renamed): [child] as it is.
@@ -249,6 +287,9 @@ class ChatDragSource extends StatefulWidget {
   final AgentThread thread;
   final Widget child;
   final List<AgentThread> Function()? threads;
+
+  /// The title of an existing pane, not a sidebar row.
+  final bool rearrange;
 
   @override
   State<ChatDragSource> createState() => _ChatDragSourceState();
@@ -275,8 +316,66 @@ class _ChatDragSourceState extends State<ChatDragSource> {
                           pointer,
                           details.globalPosition,
                           threads: widget.threads?.call(),
+                          rearrange: widget.rearrange,
                         );
                       }
+                    },
+                ),
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Makes [child] (a New Agent button) drag a new agent once the pointer
+/// pressed on it has moved [ChatDrag.threshold]: [make] makes it as the
+/// drag begins, [onMissed] takes it back where it is not dropped on the
+/// grid. A shorter move is still the click it was.
+class ChatNewDragSource extends StatefulWidget {
+  const ChatNewDragSource({
+    super.key,
+    required this.drag,
+    required this.make,
+    required this.onMissed,
+    required this.child,
+  });
+
+  /// None: [child] as it is.
+  final ChatDrag? drag;
+  final AgentThread Function() make;
+  final ValueChanged<AgentThread> onMissed;
+  final Widget child;
+
+  @override
+  State<ChatNewDragSource> createState() => _ChatNewDragSourceState();
+}
+
+class _ChatNewDragSourceState extends State<ChatNewDragSource> {
+  int? _pointer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (event) => _pointer = event.pointer,
+      child: RawGestureDetector(
+        gestures: {
+          if (widget.drag case final drag?)
+            _DragRecognizer:
+                GestureRecognizerFactoryWithHandlers<_DragRecognizer>(
+                  _DragRecognizer.new,
+                  (recognizer) => recognizer
+                    ..onStart = (details) {
+                      final pointer = _pointer;
+                      if (pointer == null) return;
+                      final thread = widget.make();
+                      final missed = widget.onMissed;
+                      drag.start(
+                        thread,
+                        pointer,
+                        details.globalPosition,
+                        onMissed: () => missed(thread),
+                      );
                     },
                 ),
         },

@@ -102,6 +102,10 @@ abstract class Tool {
   /// the session's mode.
   bool get changesMode => false;
 
+  /// Whether the user saying no to a call of it ends the turn: what they
+  /// said is for their next message, not for the model to try again.
+  bool get endsTurnWhenDenied => false;
+
   /// What is wrong with [input] beyond its schema; null when nothing.
   Future<String?> validate(
     Map<String, Object?> input,

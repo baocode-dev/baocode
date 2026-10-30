@@ -5,11 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
+import 'package:baocode/chat/widgets/inline_rename_field.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/workspace/chat_drag.dart';
 import 'package:baocode/workspace/chat_grid.dart';
 import 'package:baocode/workspace/chat_grid_view.dart';
 import 'package:baocode/workspace/editor_launcher.dart';
@@ -17,6 +19,9 @@ import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/workspace/open_in_editor_button.dart';
 import 'package:baocode/workspace/title_bar_double_click.dart';
 import 'package:baocode/workspace/workspace.dart';
+import 'package:baocode/workspace/chat_terminal.dart';
+import 'package:baocode/workspace/pin_window_button.dart';
+import 'package:baocode/workspace/window_header/window_header.dart';
 
 const first = 'Optimize virtual list scrolling';
 const second = 'Rate limit per API key';
@@ -87,6 +92,30 @@ Future<void> dropAgent(WidgetTester tester, String title, Offset to) async {
   final gesture = await dragAgent(tester, title, to);
   await gesture.up();
   await tester.pumpAndSettle();
+}
+
+/// Drags a pane by its title, leaving the mouse down over [to].
+Future<TestGesture> dragTitle(
+  WidgetTester tester,
+  String title,
+  Offset to, {
+  bool empty = false,
+}) async {
+  final titleText = find.descendant(
+    of: pane(title),
+    matching: find.text(title),
+  );
+  final text = tester.getRect(titleText);
+  final gesture = await tester.startGesture(
+    empty ? Offset(text.right + 12, text.center.dy) : text.center,
+    kind: PointerDeviceKind.mouse,
+    pointer: 9,
+  );
+  await gesture.moveBy(const Offset(12, 0));
+  await tester.pump();
+  await gesture.moveTo(to);
+  await tester.pump();
+  return gesture;
 }
 
 /// Near the middle of [rect]'s [side].
@@ -206,6 +235,62 @@ void main() {
     expect(paneTitles(tester), [second]);
   });
 
+  testWidgets('a project\'s New Agent dragged beside the chat opens a new '
+      'agent there; released elsewhere, none is left', (tester) async {
+    final workspace = await pumpApp(tester);
+    final project = workspace.current!.project;
+    final count = workspace.threads.length;
+    // The project's header shows its button with the pointer over it.
+    final header = inSidebar(find.text(project.name));
+    final hover = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await hover.addPointer(location: tester.getCenter(header.first));
+    await tester.pump();
+    final add = find.descendant(
+      of: find.byType(ChatNewDragSource),
+      matching: find.byIcon(Icons.add_rounded),
+    );
+    expect(add, findsOneWidget);
+
+    Future<TestGesture> dragNew(Offset to) async {
+      // Its button shows again with the pointer back over the header.
+      await hover.moveTo(tester.getCenter(header.first));
+      await tester.pump();
+      final gesture = await tester.startGesture(
+        tester.getCenter(add),
+        kind: PointerDeviceKind.mouse,
+        pointer: 8,
+      );
+      await gesture.moveBy(const Offset(12, 0));
+      await tester.pump();
+      await gesture.moveTo(to);
+      await tester.pump();
+      return gesture;
+    }
+
+    // Released over the sidebar: nothing, and no agent left behind.
+    var gesture = await dragNew(near(gridRect(tester), PaneSide.right));
+    expect(preview(), findsOneWidget);
+    await gesture.moveTo(tester.getCenter(find.byType(Sidebar)));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(paneTitles(tester), [first]);
+    expect(workspace.threads.length, count);
+
+    // Beside the chat: a new agent of the project there, the chat still in
+    // view, the new one focused.
+    gesture = await dragNew(near(gridRect(tester), PaneSide.right));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(workspace.grid.length, 2);
+    expect(paneTitles(tester), contains(first));
+    final added = workspace.current!;
+    expect(added.title, isNot(first));
+    expect(added.project, same(project));
+    expect(added.untouched, isTrue);
+    expect(workspace.threads.length, count + 1);
+  });
+
   testWidgets('a third beside either, a fourth beside the one with a whole '
       'column; four full, one only takes a pane\'s place', (tester) async {
     final workspace = await pumpApp(tester);
@@ -295,9 +380,26 @@ void main() {
           (widget.decoration as BoxDecoration).border ==
               Border.all(color: ChatGridView.frameColor),
     );
-    // One frame, inside the pane and off its edges.
-    bool framed(String title) =>
-        tester.getRect(frame) == tester.getRect(pane(title)).deflate(4);
+    // One frame, round the whole pane: on the line between the two (over
+    // it, one line, not two), at the view's edges elsewhere.
+    bool framed(String title) {
+      final shown = tester.getRect(frame);
+      final rect = tester.getRect(pane(title));
+      final grid = gridRect(tester);
+      const out = ChatGridView.gap / 2 + .5;
+      bool near(double a, double b) => (a - b).abs() < .5;
+      return near(
+            shown.left,
+            rect.left > grid.left ? rect.left - out : grid.left,
+          ) &&
+          near(
+            shown.right,
+            rect.right < grid.right ? rect.right + out : grid.right,
+          ) &&
+          near(shown.top, grid.top) &&
+          near(shown.bottom, grid.bottom);
+    }
+
     expect(framed(second), isTrue);
     expect(framed(first), isFalse);
 
@@ -369,68 +471,277 @@ void main() {
     expect(find.bySemanticsLabel('Close pane'), findsNothing);
   });
 
-  testWidgets('each pane\'s title bar buttons are its own agent\'s: a click '
-      'on them, or on another pane\'s close, leaves the focus; Fast Ide '
-      'opens its agent', (tester) async {
-    final opened = <String>[];
-    OpenInEditorButton.launch = (editor, path) async {
-      opened.add(path);
-      return true;
-    };
-    addTearDown(() => OpenInEditorButton.launch = openInEditor);
+  testWidgets('on macOS a top pane\'s title bar drags the pane, not the '
+      'window; alone, the window', (tester) async {
+    const channel = MethodChannel('baocode/window');
+    var windowDrags = 0;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      if (call.method == 'dragWindow') windowDrags++;
+      return null;
+    });
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      );
+    });
     final workspace = await pumpApp(tester);
-    // An app to launch first; the Fast Ide (the default) below.
-    workspace.preferredEditor = Editor.vscode;
+    final away = Offset(gridRect(tester).center.dx, gridRect(tester).top + 80);
+
+    // Alone, by its title (a long one leaves little else) or beside it.
+    var gesture = await dragTitle(tester, first, away);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    gesture = await dragTitle(tester, first, away, empty: true);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(windowDrags, 2);
+
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    gesture = await dragTitle(
+      tester,
+      first,
+      tester.getRect(pane(second)).center,
+      empty: true,
+    );
+    expect(preview(), findsOneWidget);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(windowDrags, 2);
+    expect(workspace.grid.cells.first.title, second);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('a title dragged to another pane\'s center swaps their places '
+      'without rebuilding their conversations', (tester) async {
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    final left = tester.getRect(pane(first));
+    final right = tester.getRect(pane(second));
+    final firstState = tester.state(pane(first));
+    final secondState = tester.state(pane(second));
+    final firstSession = tester.widget<ChatScreen>(pane(first)).session;
+    final sidebarOrder = workspace.threads.toList();
+
+    final gesture = await dragTitle(tester, first, right.center);
+    expect(preview(), findsOneWidget);
+    expect(tester.getRect(preview()), right.deflate(4));
+    // Only the preview moves before release.
+    expect(tester.getRect(pane(first)), left);
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(tester.getRect(pane(first)), right);
+    expect(tester.getRect(pane(second)), left);
+    expect(tester.state(pane(first)), same(firstState));
+    expect(tester.state(pane(second)), same(secondState));
+    expect(tester.widget<ChatScreen>(pane(first)).session, same(firstSession));
+    expect(workspace.current!.title, first);
+    expect(workspace.threads, sidebarOrder);
+    expect(preview(), findsNothing);
+  });
+
+  testWidgets(
+    'the empty title bar drags a pane to an edge, changing two '
+    'columns to two rows',
+    (tester) async {
+      final workspace = await pumpApp(tester);
+      await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+      final before = workspace.grid.panes.toSet();
+      final gesture = await dragTitle(
+        tester,
+        first,
+        near(tester.getRect(pane(second)), PaneSide.bottom),
+        empty: true,
+      );
+      expect(preview(), findsOneWidget);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(workspace.grid.panes.toSet(), before);
+      expect(workspace.grid.columnsSplit, isFalse);
+      expect(workspace.grid.rowsSplit, isTrue);
+      final bottom = tester.getRect(pane(first));
+      final top = tester.getRect(pane(second));
+      expect(bottom.width, gridRect(tester).width);
+      expect(top.width, gridRect(tester).width);
+      expect(bottom.top, top.bottom + ChatGridView.gap);
+    },
+    variant: TargetPlatformVariant(const {
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
+
+  testWidgets('a lower pane\'s title can move it without losing another pane', (
+    tester,
+  ) async {
+    final workspace = await pumpApp(tester);
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
     await dropAgent(
       tester,
       third,
+      near(tester.getRect(pane(first)), PaneSide.bottom),
+    );
+    final before = workspace.grid.panes.toSet();
+    final gesture = await dragTitle(
+      tester,
+      third,
       near(tester.getRect(pane(second)), PaneSide.bottom),
+      empty: true,
     );
-    await tester.tapAt(tester.getRect(pane(first)).center);
-    await tester.pump();
-    final focused = workspace.current!;
-    expect(focused.title, first);
-    final right = workspace.threads.firstWhere(
-      (thread) => thread.title == second,
-    );
-    expect(right.project, isNot(focused.project));
-    Finder tool(String label) => find.descendant(
-      of: pane(second),
-      matching: find.bySemanticsLabel(label),
-    );
-
-    // The right pane's project, not the focused agent's.
-    await tester.tap(tool('Open in VS Code'));
-    await tester.pump();
-    expect(opened, [right.project.path]);
-    expect(workspace.current, same(focused));
-
-    await tester.tap(
-      find.descendant(
-        of: pane(third),
-        matching: find.bySemanticsLabel('Close pane'),
-      ),
-    );
+    await gesture.up();
     await tester.pumpAndSettle();
-    expect(paneTitles(tester), unorderedEquals([first, second]));
-    expect(workspace.current, same(focused));
-
-    // Its agent's chat in the IDE, the focused one's being another
-    // project's.
-    workspace.preferredEditor = Editor.fastIde;
-    await tester.pump();
-    await tester.tap(tool('Open in Fast Ide'));
-    await tester.pump();
-    await tester.pump();
-    expect(workspace.layout, WorkspaceLayout.ide);
-    expect(workspace.current, same(focused));
-    final ide = find.byType(IdeWorkbench);
-    expect(tester.widget<IdeWorkbench>(ide).project.path, right.project.path);
-    expect(opened, hasLength(1));
-    workspace.layout = WorkspaceLayout.chat;
-    await tester.pump();
+    expect(workspace.grid.panes.toSet(), before);
+    expect(tester.getRect(pane(first)).height, gridRect(tester).height);
+    expect(
+      tester.getRect(pane(third)).top,
+      tester.getRect(pane(second)).bottom + ChatGridView.gap,
+    );
   });
+
+  testWidgets('a title drag cancelled, dropped outside or on its own pane '
+      'does not rearrange the grid', (tester) async {
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    final original = workspace.grid.cells;
+    final right = tester.getRect(pane(second));
+
+    var gesture = await dragTitle(tester, first, right.center);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(workspace.grid.cells, original);
+    expect(preview(), findsNothing);
+
+    gesture = await dragTitle(tester, first, const Offset(20, 80));
+    expect(preview(), findsNothing);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(workspace.grid.cells, original);
+
+    gesture = await dragTitle(
+      tester,
+      first,
+      tester.getRect(pane(first)).center,
+    );
+    expect(preview(), findsNothing);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(workspace.grid.cells, original);
+  });
+
+  testWidgets('title double clicks still rename, and toolbar buttons never '
+      'start a pane drag', (tester) async {
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    final original = workspace.grid.cells;
+    final title = find.descendant(of: pane(first), matching: find.text(first));
+    await tester.tap(title, kind: PointerDeviceKind.mouse);
+    await tester.pump(const Duration(milliseconds: 80));
+    await tester.tap(title, kind: PointerDeviceKind.mouse);
+    await tester.pumpAndSettle();
+    expect(find.byType(InlineRenameField), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    final editor = find.descendant(
+      of: pane(second),
+      matching: find.byType(OpenInEditorButton),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(editor),
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveTo(tester.getRect(pane(first)).center);
+    await tester.pump();
+    expect(preview(), findsNothing);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(workspace.grid.cells, original);
+  });
+
+  testWidgets('a sidebar agent already shown still only focuses its pane', (
+    tester,
+  ) async {
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    final original = workspace.grid.cells;
+    await dropAgent(tester, first, tester.getRect(pane(second)).center);
+    expect(workspace.grid.cells, original);
+    expect(workspace.current!.title, first);
+  });
+
+  testWidgets(
+    'each pane\'s title bar buttons are its own agent\'s: a click '
+    'on them, or on another pane\'s close, leaves the focus; Fast Ide '
+    'opens its agent',
+    (tester) async {
+      final opened = <String>[];
+      OpenInEditorButton.launch = (editor, path) async {
+        opened.add(path);
+        return true;
+      };
+      addTearDown(() => OpenInEditorButton.launch = openInEditor);
+      final workspace = await pumpApp(tester);
+      // An app to launch first; the Fast Ide (the default) below.
+      workspace.preferredEditor = Editor.vscode;
+      await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+      await dropAgent(
+        tester,
+        third,
+        near(tester.getRect(pane(second)), PaneSide.bottom),
+      );
+      await tester.tapAt(tester.getRect(pane(first)).center);
+      await tester.pump();
+      final focused = workspace.current!;
+      expect(focused.title, first);
+      final right = workspace.threads.firstWhere(
+        (thread) => thread.title == second,
+      );
+      expect(right.project, isNot(focused.project));
+      Finder tool(String label) => find.descendant(
+        of: pane(second),
+        matching: find.bySemanticsLabel(label),
+      );
+
+      // The right pane's project, not the focused agent's.
+      await tester.tap(tool('Open in VS Code'));
+      await tester.pump();
+      expect(opened, [right.project.path]);
+      expect(workspace.current, same(focused));
+
+      await tester.tap(
+        find.descendant(
+          of: pane(third),
+          matching: find.bySemanticsLabel('Close pane'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(paneTitles(tester), unorderedEquals([first, second]));
+      expect(workspace.current, same(focused));
+
+      // Its agent's chat in the IDE, the focused one's being another
+      // project's.
+      workspace.preferredEditor = Editor.fastIde;
+      await tester.pump();
+      await tester.tap(tool('Open in Fast Ide'));
+      await tester.pump();
+      await tester.pump();
+      expect(workspace.layout, WorkspaceLayout.ide);
+      expect(workspace.current, same(focused));
+      final ide = find.byType(IdeWorkbench);
+      expect(tester.widget<IdeWorkbench>(ide).project.path, right.project.path);
+      expect(opened, hasLength(1));
+      workspace.layout = WorkspaceLayout.chat;
+      await tester.pump();
+    },
+    variant: TargetPlatformVariant(const {
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
 
   testWidgets(
     'side by side, each pane has the side panel\'s rail of its own agent, '
@@ -487,8 +798,10 @@ void main() {
         find.byType(AgentSidePanelView),
       );
       expect(view.session, same(workspace.current!.session));
-      // The panel shown, the rails give way to it.
-      expect(find.byType(SidePanelRail), findsNothing);
+      // Its own shown, its rail gives way to it; the other pane's, hidden
+      // there, is still there.
+      expect(find.byType(SidePanelRail), findsOneWidget);
+      expect(railOf(second), isNotNull);
     },
     variant: TargetPlatformVariant(const {
       TargetPlatform.macOS,
@@ -496,47 +809,134 @@ void main() {
     }),
   );
 
-  testWidgets('a pane\'s side panel button is its own agent\'s: it focuses '
-      'the pane and shows its panel', (tester) async {
-    final workspace = await pumpApp(tester);
-    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
-    await tester.tapAt(tester.getRect(pane(first)).center);
-    await tester.pumpAndSettle();
-    expect(workspace.current!.title, first);
-    bool shownIn(String title) => tester
-        .widget<SidePanelToggle>(
+  testWidgets(
+    'a pane\'s side panel button is its own agent\'s: it focuses '
+    'the pane and shows its panel',
+    (tester) async {
+      // Room for a panel beside each pane.
+      final workspace = await pumpApp(tester, width: 1800);
+      await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+      await tester.tapAt(tester.getRect(pane(first)).center);
+      await tester.pumpAndSettle();
+      expect(workspace.current!.title, first);
+      bool shownIn(String title) => tester
+          .widget<SidePanelToggle>(
+            find.descendant(
+              of: pane(title),
+              matching: find.byType(SidePanelToggle),
+            ),
+          )
+          .shown;
+      expect(shownIn(first), isFalse);
+      expect(shownIn(second), isFalse);
+
+      // The right pane's, another pane's agent focused: it is focused, and
+      // its panel shows.
+      await tester.tap(
+        find.descendant(
+          of: pane(second),
+          matching: find.byType(SidePanelToggle),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(workspace.current!.title, second);
+      expect(shownIn(second), isTrue);
+      expect(shownIn(first), isFalse);
+
+      // The left pane's again: its agent's panel too, the right one's still
+      // shown beside its own pane, each its agent's.
+      await tester.tap(
+        find.descendant(
+          of: pane(first),
+          matching: find.byType(SidePanelToggle),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(workspace.current!.title, first);
+      expect(shownIn(first), isTrue);
+      expect(shownIn(second), isTrue);
+      final views = tester
+          .widgetList<AgentSidePanelView>(find.byType(AgentSidePanelView))
+          .toList();
+      expect(views, hasLength(2));
+      for (final title in [first, second]) {
+        final view = tester.widget<AgentSidePanelView>(
           find.descendant(
-            of: pane(title),
-            matching: find.byType(SidePanelToggle),
+            of: find.ancestor(
+              of: pane(title),
+              matching: find.byType(AgentSidePanelArea),
+            ),
+            matching: find.byType(AgentSidePanelView),
           ),
-        )
-        .shown;
-    expect(shownIn(first), isFalse);
-    expect(shownIn(second), isFalse);
+        );
+        expect(
+          view.session,
+          same(tester.widget<ChatScreen>(pane(title)).session),
+        );
+      }
 
-    // The right pane's, another pane's agent focused: it is focused, and
-    // its panel shows.
+      // Hidden in the left one, the right one's stays.
+      await tester.tap(
+        find.descendant(
+          of: pane(first),
+          matching: find.byType(SidePanelToggle),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(shownIn(first), isFalse);
+      expect(shownIn(second), isTrue);
+      expect(find.byType(AgentSidePanelView), findsOneWidget);
+    },
+    variant: TargetPlatformVariant(const {
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
+
+  testWidgets('under Windows\' header, side by side, the terminal, side '
+      'panel and editor buttons leave it for the panes\' own, the pin '
+      'staying; one conversation again, they are back', (tester) async {
+    await pumpApp(tester);
+    Finder inHeader(Type type) => find.descendant(
+      of: find.byType(WindowHeader),
+      matching: find.byType(type),
+    );
+    expect(inHeader(SidePanelToggle), findsOneWidget);
+    expect(inHeader(OpenInEditorButton), findsOneWidget);
+    expect(inHeader(PinWindowButton), findsOneWidget);
+
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    expect(inHeader(SidePanelToggle), findsNothing);
+    expect(inHeader(ChatTerminalToggle), findsNothing);
+    expect(inHeader(OpenInEditorButton), findsNothing);
+    expect(inHeader(PinWindowButton), findsOneWidget);
+    for (final title in [first, second]) {
+      for (final type in [SidePanelToggle, OpenInEditorButton]) {
+        expect(
+          find.descendant(of: pane(title), matching: find.byType(type)),
+          findsOneWidget,
+        );
+      }
+      // The window's, in its header alone.
+      expect(
+        find.descendant(
+          of: pane(title),
+          matching: find.byType(PinWindowButton),
+        ),
+        findsNothing,
+      );
+    }
+
     await tester.tap(
-      find.descendant(of: pane(second), matching: find.byType(SidePanelToggle)),
+      find.descendant(
+        of: pane(second),
+        matching: find.bySemanticsLabel('Close pane'),
+      ),
     );
     await tester.pumpAndSettle();
-    expect(workspace.current!.title, second);
-    expect(shownIn(second), isTrue);
-    expect(shownIn(first), isFalse);
-
-    // The left pane's again: its agent's panel, not hidden for being
-    // another's.
-    await tester.tap(
-      find.descendant(of: pane(first), matching: find.byType(SidePanelToggle)),
-    );
-    await tester.pumpAndSettle();
-    expect(workspace.current!.title, first);
-    expect(shownIn(first), isTrue);
-    final view = tester.widget<AgentSidePanelView>(
-      find.byType(AgentSidePanelView),
-    );
-    expect(view.session, same(workspace.current!.session));
-  });
+    expect(inHeader(SidePanelToggle), findsOneWidget);
+    expect(inHeader(OpenInEditorButton), findsOneWidget);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('the lines drag, each shared by the panes either side of it', (
     tester,

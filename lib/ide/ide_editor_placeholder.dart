@@ -16,13 +16,20 @@
 // File for a missing file, and no Show Logs; a file not shown can be opened
 // in its default app.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/editor_launcher.dart';
+import '../workspace/window_controls.dart';
 import 'file_service.dart';
 import 'ide_button.dart';
+import 'ide_menu.dart';
 
 /// The placeholder's colors in the color theme.
 abstract final class IdePlaceholderColors {
@@ -87,9 +94,14 @@ class IdeEditorPlaceholder extends StatelessWidget {
     required this.onOpenAnyway,
     required this.onRetry,
     this.onOpenInDefaultApp,
+    this.path,
   });
 
   final Object error;
+
+  /// The file: with [onOpenInDefaultApp], its button's menu opens a
+  /// terminal in its folder, reveals it in the file manager and copies it.
+  final String? path;
 
   /// Binary and very large files: Open Anyway.
   final VoidCallback onOpenAnyway;
@@ -162,6 +174,9 @@ class IdeEditorPlaceholder extends StatelessWidget {
                           label: action.label,
                           secondary: index > 0,
                           onPressed: action.run,
+                          onDropdown: identical(action, external)
+                              ? _openMenu(context)
+                              : null,
                         ),
                       ),
                   ],
@@ -170,6 +185,42 @@ class IdeEditorPlaceholder extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Open in Default App's menu, as the title bar's Open In has: the
+  /// terminal, the file manager, Copy Path.
+  ValueChanged<Rect>? _openMenu(BuildContext context) {
+    final path = this.path;
+    if (path == null) return null;
+    final l10n = context.l10n;
+    return (anchor) => unawaited(
+      showIdeMenu(
+        context,
+        anchor: anchor,
+        // None is checked: the icons take the check's column.
+        iconsInCheckColumn: true,
+        entries: [
+          IdeMenuAction(
+            Editor.terminal.localizedPlatformLabel(l10n),
+            icon: Icon(Editor.terminal.icon),
+            onSelected: () =>
+                unawaited(openInEditor(Editor.terminal, p.dirname(path))),
+          ),
+          if (WindowControls.canRevealInFileManager)
+            IdeMenuAction(
+              l10n.fileManager,
+              icon: Icon(Editor.folder.icon),
+              onSelected: () =>
+                  unawaited(WindowControls.revealInFileManager(path)),
+            ),
+          IdeMenuAction(
+            l10n.workspaceCopyPath,
+            icon: const Icon(Codicons.copy),
+            onSelected: () => Clipboard.setData(ClipboardData(text: path)),
+          ),
+        ],
       ),
     );
   }

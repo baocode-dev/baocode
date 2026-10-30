@@ -30,6 +30,7 @@ import '../file_service.dart';
 import '../ide_hover.dart';
 import '../ide_menu.dart';
 import 'links/terminal_links.dart';
+import 'terminal_hosts.dart';
 import 'terminal_instance.dart';
 import 'terminal_profile_service.dart';
 import 'terminal_profiles.dart';
@@ -188,9 +189,19 @@ class TerminalPanel extends StatelessWidget {
     this.files,
     this.shownTask,
     this.onShowTask,
+    this.hosts,
+    this.place,
+    this.shown = true,
   });
 
   final TerminalService terminals;
+
+  /// Where else the terminals show (the chat's, sharing them): the panel
+  /// is [place] among [hosts]'s places, its view a mirror while another
+  /// has the terminal, and always while not [shown] (the IDE hidden).
+  final TerminalHosts? hosts;
+  final Object? place;
+  final bool shown;
 
   /// The background commands of the agent beside, listed with the
   /// terminals; [files] reads what their output links to.
@@ -219,6 +230,22 @@ class TerminalPanel extends StatelessWidget {
   /// Opens a link ⌘-clicked in a terminal.
   final ValueChanged<TerminalLink>? onOpenLink;
 
+  Widget _view(
+    TerminalInstance active, {
+    bool mirror = false,
+    VoidCallback? onActivate,
+  }) => TerminalView(
+    active,
+    key: ObjectKey(active),
+    mirror: mirror,
+    onActivate: onActivate,
+    skipShell: skipShell,
+    shouldSkipShell: shouldSkipShell,
+    resolveKey: resolveKey,
+    onKill: () => terminals.kill(active),
+    onOpenLink: onOpenLink,
+  );
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([terminals, ?tasks]),
@@ -246,15 +273,18 @@ class TerminalPanel extends StatelessWidget {
                   )
                 : active == null
                 ? const SizedBox.shrink()
-                : TerminalView(
-                    active,
-                    key: ObjectKey(active),
-                    skipShell: skipShell,
-                    shouldSkipShell: shouldSkipShell,
-                    resolveKey: resolveKey,
-                    onKill: () => terminals.kill(active),
-                    onOpenLink: onOpenLink,
-                  ),
+                : switch ((hosts, place)) {
+                    (final hosts?, final place?) => HostedTerminalView(
+                      key: ObjectKey(active),
+                      hosts: hosts,
+                      place: place,
+                      instance: active,
+                      takes: shown,
+                      builder: (mirror, onActivate) =>
+                          _view(active, mirror: mirror, onActivate: onActivate),
+                    ),
+                    _ => _view(active),
+                  },
           ),
           if (terminals.instances.length > 1 || list.isNotEmpty)
             SizedBox(

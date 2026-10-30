@@ -17,6 +17,42 @@ import 'package:flutter_test/flutter_test.dart';
 import '../forge/forge_test.dart' show FakeForgeHttp;
 import '../workspace/project_workspace_test.dart' show FakeWorkspaceDirectories;
 
+/// [inner], each request answered a turn later, and how many were asked at
+/// once at the most.
+class _CountingHttp implements ForgeHttp {
+  _CountingHttp(this.inner);
+
+  final ForgeHttp inner;
+  int _asking = 0;
+  int most = 0;
+
+  @override
+  Future<ForgeResponse> send(
+    String method,
+    Uri url, {
+    Map<String, String> headers = const {},
+    Object? json,
+    Map<String, String>? form,
+    List<int>? bytes,
+  }) async {
+    _asking++;
+    if (_asking > most) most = _asking;
+    try {
+      await Future<void>.delayed(Duration.zero);
+      return await inner.send(
+        method,
+        url,
+        headers: headers,
+        json: json,
+        form: form,
+        bytes: bytes,
+      );
+    } finally {
+      _asking--;
+    }
+  }
+}
+
 const issueUrl = 'https://github.com/o/r/issues/3';
 const pullUrl = 'https://github.com/o/r/pull/7';
 
@@ -800,6 +836,39 @@ void main() {
     expect(store.byId(note.id)!.news, StashNews.merged);
     expect(forge.pullsToFix(store.byId(note.id)!), isEmpty);
     expect(forge.mergedPulls(store.byId(note.id)!).single.url, pullUrl);
+  });
+
+  test('the linked issues asked a few at a time, not all at once', () async {
+    http.fallback = (request) {
+      final number = int.parse(request.url.pathSegments.last);
+      return {'number': number, 'title': 'Issue $number', 'state': 'open'};
+    };
+    final counting = _CountingHttp(http);
+    final accounts = ForgeAccounts(
+      http: counting,
+      secrets: MemorySecretStore(),
+    );
+    await accounts.signInWithToken(ForgeKind.github, 'github.com', 't');
+    final forge = StashForge(
+      store: store,
+      workspace: Workspace.mock(),
+      accounts: accounts,
+      remotes: (_) async => const [],
+    );
+    addTearDown(forge.dispose);
+    final urls = [
+      for (var i = 101; i <= 120; i++) 'https://github.com/o/r/issues/$i',
+    ];
+    final note = await store.create(body: 'Many');
+    await store.update(note.id, (note) {
+      note.issues.addAll([for (final url in urls) StashIssueLink(url: url)]);
+    });
+    counting.most = 0;
+    await forge.refresh();
+    expect(counting.most, StashForge.atOnce);
+    for (final url in urls) {
+      expect(forge.itemOf(url)?.title, startsWith('Issue '), reason: url);
+    }
   });
 
   test('the pull requests a conversation links to', () {

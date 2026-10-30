@@ -1,29 +1,16 @@
 // The desktop's bots, as the phone lists and edits them (see
 // LinkMethods.saveBot and the others of theirs).
 
-/// What a bot may do, each turned on by the user: none for a new bot, all
-/// for the assistant the desktop starts with.
+/// What a bot may do besides talking (messages, pictures, the web, what
+/// it remembers), each turned on by the user: none for a new bot, all for
+/// the assistant the desktop starts with.
 enum BotAbility {
-  /// Sees the agents and what they said.
-  viewChats,
-
-  /// Stops an agent, has it try again, archives it.
-  manageTasks,
-
-  /// Writes to an agent, as the user would.
-  sendToChats,
-
-  /// Starts an agent in a project.
-  newChat,
-
-  /// Reads the projects' files.
-  readFiles,
+  /// Looks after the user's agents: sees them and what they said, stops,
+  /// retries and archives them, writes to them, starts new ones.
+  agents,
 
   /// Uses the user's browser, as the agents may.
   browser,
-
-  /// Makes pictures, with the image model the desktop has set up.
-  images,
 
   /// Writes first, of what happened (an agent waits, fails).
   proactive,
@@ -77,8 +64,7 @@ class BotProactive {
 
 /// A bot: an agent of the user's own making that talks as a person does,
 /// who it is ([gender], [signature], [identity], [style]) all the user's
-/// words; what it may do, its
-/// [abilities]. Its conversation is [session] (none until the first
+/// words; what it may do, its [abilities]. Its conversation is [session] (none until the first
 /// message), on the desktop, its memory there too.
 class LinkBot {
   const LinkBot({

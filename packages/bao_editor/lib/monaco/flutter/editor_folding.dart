@@ -6,6 +6,7 @@ import '../vs/editor/common/languages/language_configuration.dart';
 import '../vs/editor/contrib/folding/browser/folding_ranges.dart';
 import '../vs/editor/contrib/folding/browser/indent_range_provider.dart';
 import 'document_snapshot.dart';
+import 'editor_view_state.dart';
 import 'viewport_layout.dart' show HiddenLineRanges;
 
 class _SnapshotLines implements FoldingLineSource {
@@ -254,6 +255,69 @@ class EditorFoldingModel {
     }
     return changed && _updateHidden();
   }
+
+  /// The collapsed regions, each with its hidden lines' checksum in
+  /// [snapshot] (upstream `FoldingModel.getMemento`).
+  List<EditorFoldState> collapsedState(DocumentSnapshot snapshot) => [
+    for (var i = 0; i < _regions.length; i++)
+      if (_regions.isCollapsed(i) &&
+          _regions.getEndLineNumber(i) <= snapshot.lineCount)
+        EditorFoldState(
+          _regions.getStartLineNumber(i),
+          _regions.getEndLineNumber(i),
+          checksum: _linesChecksum(
+            snapshot,
+            _regions.getStartLineNumber(i) + 1,
+            _regions.getEndLineNumber(i),
+          ),
+          userDefined: _regions.getSource(i) == FoldSource.userDefined,
+        ),
+  ];
+
+  /// Collapses [folds] in [snapshot] (now tracked) where their lines are
+  /// as they were, merged with the regions there are; the regions are
+  /// computed again after (upstream `FoldingModel.applyMemento`).
+  bool restoreCollapsed(
+    List<EditorFoldState> folds,
+    DocumentSnapshot snapshot,
+  ) {
+    _snapshot = snapshot;
+    _stale = true;
+    final lineCount = snapshot.lineCount;
+    final restored = <FoldRange>[
+      for (final fold in folds)
+        if (fold.startLineNumber >= 1 &&
+            fold.endLineNumber > fold.startLineNumber &&
+            fold.endLineNumber <= lineCount &&
+            (fold.checksum == null ||
+                fold.checksum ==
+                    _linesChecksum(
+                      snapshot,
+                      fold.startLineNumber + 1,
+                      fold.endLineNumber,
+                    )))
+          FoldRange(
+            startLineNumber: fold.startLineNumber,
+            endLineNumber: fold.endLineNumber,
+            isCollapsed: true,
+            source: fold.userDefined
+                ? FoldSource.userDefined
+                : FoldSource.provider,
+          ),
+    ]..sort((a, b) => a.startLineNumber.compareTo(b.startLineNumber));
+    if (restored.isEmpty) return false;
+    return _setRanges(
+      FoldingRegions.sanitizeAndMerge(_regions, restored, lineCount),
+    );
+  }
+
+  static int _linesChecksum(DocumentSnapshot snapshot, int start, int end) =>
+      foldChecksum(
+        snapshot.text.substring(
+          snapshot.lineStarts[start - 1],
+          snapshot.contentEnds[end - 1],
+        ),
+      );
 
   /// Expands every region.
   bool unfoldAll() {

@@ -15,6 +15,8 @@ import 'package:baocode/customize/mcp_probe.dart';
 import 'package:baocode/settings/pages/customize_page.dart';
 import 'package:baocode/ide/ide_code_editor.dart';
 import 'package:baocode/ide/ide_input.dart';
+import 'package:baocode/ide/ide_switch.dart';
+import 'package:baocode/kernel/extension_switches.dart';
 import 'package:baocode/ide/markdown/markdown_preview.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
@@ -432,14 +434,80 @@ void main() {
     expect(_inView(find.text('Failed')), findsOneWidget);
   }, variant: _mac);
 
+  testWidgets('switches: a skill, an MCP server and one of its tools, kept '
+      'as they are turned', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = _MemoryStore()
+      ..servers = [
+        const Customization(
+          kind: CustomizationKind.mcps,
+          scope: CustomizationScope.user,
+          name: 'git',
+          path: '/home/.claude.json',
+          editable: false,
+          server: {'command': 'git-mcp'},
+        ),
+      ];
+    CustomizeView.mcpProber = (config, {cwd}) async => const McpProbeResult(
+      McpProbeStatus.connected,
+      tools: [
+        (name: 'status', description: 'Shows the status'),
+        (name: 'push', description: ''),
+      ],
+    );
+    var kept = ExtensionSwitches.none;
+    ExtensionSwitches.current = () => kept;
+    ExtensionSwitches.save = (switches) async => kept = switches;
+    addTearDown(() {
+      ExtensionSwitches.current = () => ExtensionSwitches.none;
+      ExtensionSwitches.save = null;
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: CustomizeSettingsPage(customizations: store)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Finder switchOf(String label) => find.byWidgetPredicate(
+      (widget) => widget is IdeSwitch && widget.semanticLabel == label,
+    );
+    bool on(String label) => tester.widget<IdeSwitch>(switchOf(label)).value;
+
+    // All on to start.
+    expect(on('pdf'), isTrue);
+    await tester.tap(switchOf('pdf'));
+    await tester.pumpAndSettle();
+    expect(kept.disabledSkills, {'pdf'});
+    expect(on('pdf'), isFalse);
+
+    // A server's tools, as asking it found them, each with a switch.
+    await tester.tap(find.text('MCPs'));
+    await tester.pumpAndSettle();
+    expect(find.text('status'), findsNothing);
+    await tester.tap(find.text('2 tools'));
+    await tester.pumpAndSettle();
+    expect(find.text('Shows the status'), findsOneWidget);
+    await tester.tap(switchOf('push'));
+    await tester.pumpAndSettle();
+    expect(kept.disabledTools, {
+      'git': {'push'},
+    });
+    // The server off: its tools shown off, not to be turned.
+    await tester.tap(switchOf('git'));
+    await tester.pumpAndSettle();
+    expect(kept.disabledServers, {'git'});
+    expect(on('status'), isFalse);
+    expect(tester.widget<IdeSwitch>(switchOf('status')).enabled, isFalse);
+  });
+
   testWidgets('Settings → Customize edits a skill in place, without a title '
       'bar', (tester) async {
     final store = _MemoryStore();
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(
-          body: CustomizeSettingsPage(customizations: store),
-        ),
+        home: Scaffold(body: CustomizeSettingsPage(customizations: store)),
       ),
     );
     await tester.pumpAndSettle();

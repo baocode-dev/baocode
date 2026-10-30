@@ -35,7 +35,11 @@ class BaoWindow: NSWindow {
     titleVisibility = .hidden
     titlebarAppearsTransparent = true
     styleMask.insert(.fullSizeContentView)
-    isMovableByWindowBackground = true
+    // Not moved by its title bar on its own: the Window Server starts that
+    // drag before the app sees the press, so a split pane's title, under
+    // the title bar, could not be dragged. Flutter, which knows what is
+    // under the press, moves the window instead (dragWindow).
+    isMovable = false
     // One window a folder: no system tabs (the IDE has its own).
     tabbingMode = .disallowed
     // See-through, for the sidebar's material (see VibrantContent); light
@@ -154,6 +158,48 @@ class BaoWindow: NSWindow {
 
   private var drops: FileDropView?
 
+  /// The press under way, for Flutter's dragWindow: by the time Flutter has
+  /// seen it move, the current event is a later one.
+  private var press: NSEvent?
+
+  /// The mouse-up of a press the Window Server took to move the window,
+  /// until it comes: it may not (see dragWindow).
+  private var upOwed = false
+
+  override func sendEvent(_ event: NSEvent) {
+    switch event.type {
+    case .leftMouseUp:
+      press = nil
+      upOwed = false
+    case .leftMouseDown, .rightMouseDown, .otherMouseDown, .mouseMoved:
+      // Past the drag with no mouse-up: Flutter is given one where it
+      // ended, or it would take the button for still down.
+      if upOwed, let up = NSEvent.mouseEvent(
+        with: .leftMouseUp, location: event.locationInWindow,
+        modifierFlags: [], timestamp: event.timestamp,
+        windowNumber: windowNumber, context: nil,
+        eventNumber: 0, clickCount: 1, pressure: 0
+      ) {
+        upOwed = false
+        super.sendEvent(up)
+      }
+      if event.type == .leftMouseDown { press = event }
+    default:
+      break
+    }
+    super.sendEvent(event)
+  }
+
+  /// Moves the window with [press], as its title bar would have: the Window
+  /// Server takes the drag from here (performDrag works with the window not
+  /// movable on its own), and may not send the press's mouse-up.
+  private func dragWindow() {
+    guard let press, NSEvent.pressedMouseButtons & 1 != 0 else { return }
+    self.press = nil
+    performDrag(with: press)
+    upOwed = true
+  }
+
   /// Keeps the Flutter view's scale the window's. Flutter takes the pixel
   /// ratio from the view's layer (`contentsScale`) but the size in pixels
   /// from the window: a window opened while the app was not in front
@@ -224,6 +270,10 @@ class BaoWindow: NSWindow {
       // grown by twice that as the interface is zoomed (see ui_zoom.dart).
       trafficLightsDrop = CGFloat(call.arguments as? Double ?? 0)
       placeTrafficLights()
+      result(nil)
+    case "dragWindow":
+      // A press dragged on the empty part of the title bar Flutter draws.
+      dragWindow()
       result(nil)
     case "handleTitleDoubleClick":
       // A double click on the empty part of the title bar Flutter draws

@@ -7,6 +7,7 @@ import 'package:baocode/ide/git/git_repository.dart';
 import 'package:baocode/ide/git/repository_scan.dart';
 import 'package:baocode/ide/ide_color_theme_picker.dart';
 import 'package:baocode/ide/ide_commands.dart';
+import 'package:baocode/chat/composer/composer_files.dart' show CodeReference;
 import 'package:baocode/debug/service/debug_service.dart';
 import 'package:baocode/ide/extensions/ide_extensions.dart';
 import 'package:baocode/ide/ide_workbench.dart';
@@ -198,6 +199,7 @@ Future<IdeWorkspace> pumpWorkbench(
   DebugService? debugService,
   TerminalTasks? terminalTasks,
   ValueChanged<String>? onAskInChat,
+  ValueChanged<List<CodeReference>>? onAddCodeToChat,
   List<IdeCommand> commands = const [],
 }) async {
   tester.view.physicalSize = size;
@@ -232,6 +234,7 @@ Future<IdeWorkspace> pumpWorkbench(
         onAddFolder: onAddFolder,
         onRemoveFolder: onRemoveFolder,
         onAskInChat: onAskInChat,
+        onAddCodeToChat: onAddCodeToChat,
         commands: commands,
         visible: true,
         chat: chat,

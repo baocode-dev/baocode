@@ -97,6 +97,7 @@ class IdeEditor extends StatefulWidget {
     required this.onError,
     required this.onLspStatus,
     required this.onPositionChanged,
+    this.onScrolled,
     this.nativeEditorEnabled = const bool.fromEnvironment(
       'BAOCODE_NATIVE_EDITOR',
       defaultValue: true,
@@ -120,6 +121,10 @@ class IdeEditor extends StatefulWidget {
   final ValueChanged<Object> onError;
   final ValueChanged<String> onLspStatus;
   final ValueChanged<IdeEditorPosition> onPositionChanged;
+
+  /// Told as the text scrolls: where it is, for the workspace to keep
+  /// ([IdeEditorState.keepViewStates]).
+  final VoidCallback? onScrolled;
 
   /// Opt out with --dart-define=BAOCODE_NATIVE_EDITOR=false, or override in
   /// tests. The painted surface is a partial Monaco port; see PARITY.md.
@@ -418,12 +423,14 @@ class IdeEditorState extends State<IdeEditor> {
       final controller = EditorSurfaceController(document: doc.model)
         ..detectIndentation();
       // Where it was left, while it still fits the text.
+      final view = widget.workspace.viewStateOf(doc);
       final length = doc.model.text.length;
-      if (doc.selections case final kept?
+      if (view.selections case final kept?
           when kept.isNotEmpty &&
               kept.every((s) => s.isValid && s.start >= 0 && s.end <= length)) {
         controller.setSelections(kept);
       }
+      controller.viewState = view.editor;
       // Its lines pasted into the chat go in as a reference to them; not
       // so a revision's, whose lines are not the file's.
       if (doc.readRevision == null) {
@@ -930,6 +937,7 @@ class IdeEditorState extends State<IdeEditor> {
 
   void _viewChanged() {
     _viewTick.value++;
+    widget.onScrolled?.call();
     _language?.onViewChanged();
     _textMateViewportChanged();
     _languageChanged();
@@ -1184,6 +1192,8 @@ class IdeEditorState extends State<IdeEditor> {
       for (final entry in _nativeControllers.entries.toList()) {
         final controller = entry.value;
         if (!open.contains(entry.key)) {
+          // Closed, or moved: shown where it was if it opens again.
+          _keepViewState(entry.key, controller);
           _nativeControllers.remove(entry.key);
           _diffs.remove(entry.key)?.dispose();
           _agentDiffs.remove(entry.key)?.dispose();
@@ -1221,7 +1231,44 @@ class IdeEditorState extends State<IdeEditor> {
     _updateBlame(navigated: activeChanged ? false : null);
   }
 
-  void _disposeNativeControllers() {
+  /// The active document's surface.
+  EditorSurfaceView? get _surfaceView => switch (_surfaceKey.currentState) {
+    final EditorSurfaceView view => view,
+    _ => null,
+  };
+
+  /// Keeps where [doc]'s editor is ([controller]'s carets, its view, a
+  /// diff's scroll) in [workspace] (the editor's), for it to show again.
+  void _keepViewState(
+    IdeDocument doc,
+    EditorSurfaceController controller, [
+    IdeWorkspace? workspace,
+  ]) {
+    final diff = _diffs[doc];
+    // The surface showing it now has where it is; a diff's is its own.
+    final editor = diff == null && identical(controller, _nativeController)
+        ? _surfaceView?.viewState ?? controller.viewState
+        : controller.viewState;
+    (workspace ?? widget.workspace).keepViewState(
+      doc,
+      (kept) => kept.copyWith(
+        selections: controller.selections,
+        editor: diff == null ? editor : null,
+        diffScroll: diff?.scroll.value,
+      ),
+    );
+  }
+
+  /// Keeps where each open document's editor is in the workspace: see
+  /// [IdeWorkspace.viewStateOf].
+  void keepViewStates() {
+    for (final MapEntry(key: doc, value: controller)
+        in _nativeControllers.entries) {
+      _keepViewState(doc, controller);
+    }
+  }
+
+  void _disposeNativeControllers([IdeWorkspace? workspace]) {
     _disposeLanguageSession();
     _nativeController = null;
     _syntaxRequest++;
@@ -1235,7 +1282,7 @@ class IdeEditorState extends State<IdeEditor> {
     _textMateDocuments.clear();
     for (final MapEntry(key: doc, value: controller)
         in _nativeControllers.entries) {
-      doc.selections = controller.selections;
+      _keepViewState(doc, controller, workspace);
       controller.dispose();
     }
     _nativeControllers.clear();
@@ -1619,7 +1666,7 @@ class IdeEditorState extends State<IdeEditor> {
   void _diffOptionsChanged() {
     final whitespace = IdeDiffOptions.instance.whitespace;
     final stale = <IdeOriginalDiff>[];
-    _diffs.removeWhere((_, diff) {
+    _diffs.removeWhere((doc, diff) {
       final model = diff.model;
       final ignored = model.ignoreAllWhitespace
           ? IdeDiffWhitespace.all
@@ -1627,6 +1674,11 @@ class IdeEditorState extends State<IdeEditor> {
           ? IdeDiffWhitespace.trim
           : IdeDiffWhitespace.none;
       if (ignored == whitespace) return false;
+      // Its next diff where it was.
+      widget.workspace.keepViewState(
+        doc,
+        (kept) => kept.copyWith(diffScroll: diff.scroll.value),
+      );
       stale.add(diff);
       return true;
     });
@@ -1652,6 +1704,7 @@ class IdeEditorState extends State<IdeEditor> {
         onChanged: _rebuildSoon,
         ignoreTrimWhitespace: whitespace != IdeDiffWhitespace.none,
         ignoreAllWhitespace: whitespace == IdeDiffWhitespace.all,
+        scroll: widget.workspace.viewStateOf(doc).diffScroll ?? Offset.zero,
       );
       if (_textMateDocuments[doc]?.$2.languageId case final language?) {
         diff.highlight(_textMate, language);
@@ -1782,7 +1835,7 @@ class IdeEditorState extends State<IdeEditor> {
     final workspaceChanged = oldWidget.workspace != widget.workspace;
     if (workspaceChanged) {
       oldWidget.workspace.removeListener(_workspaceChanged);
-      _disposeNativeControllers();
+      _disposeNativeControllers(oldWidget.workspace);
       widget.workspace.addListener(_workspaceChanged);
     }
     var changed = false;
@@ -1793,7 +1846,11 @@ class IdeEditorState extends State<IdeEditor> {
           workspaceChanged;
       _activateNativeController();
     } else {
-      if (oldWidget.nativeEditorEnabled) _disposeNativeControllers();
+      if (oldWidget.nativeEditorEnabled) {
+        _disposeNativeControllers(
+          workspaceChanged ? oldWidget.workspace : null,
+        );
+      }
       if (oldWidget.active.path != widget.active.path ||
           _controller.text != widget.active.text ||
           oldWidget.nativeEditorEnabled ||
@@ -2165,6 +2222,24 @@ class IdeEditorState extends State<IdeEditor> {
 
   /// Whether the text has the keyboard (upstream `editorTextFocus`).
   bool get hasTextFocus => _focusNode.hasFocus;
+
+  /// The lines selected, each selection's, as references to them for the
+  /// chat (Add Selection to Chat); none of a revision's, whose lines are
+  /// not the file's.
+  List<CodeReference> selectedCode() {
+    final doc = widget.active;
+    final controller = _nativeController;
+    if (controller == null || doc.readRevision != null) return const [];
+    return [
+      for (final (:text, :startLine, :endLine) in controller.selectedLines())
+        CodeReference(
+          path: doc.path,
+          start: startLine,
+          end: endLine,
+          code: text,
+        ),
+    ];
+  }
 
   /// Whether anything the editor shows has the keyboard: its text, the find
   /// widget, the rename input (upstream `editorFocus`).
@@ -2734,6 +2809,7 @@ class IdeEditorState extends State<IdeEditor> {
     return DiffEditor(
       key: ObjectKey(diff),
       model: diff.model,
+      scrollPosition: diff.scroll,
       sideBySide: options.sideBySide,
       highlight: options.highlight,
       hideUnchanged: options.collapseUnchanged,

@@ -28,6 +28,7 @@ import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/chat/chat_find.dart';
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/kernel/agent_kernel.dart' show KernelContext;
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/composer/composer_caret.dart';
@@ -661,6 +662,41 @@ void main() {
     await tester.pump();
     expect(controller.shownText, '\uFFFC \uFFFC ');
     expect(session.draft.pendingFiles, isEmpty);
+  });
+
+  testWidgets('code put in the draft (Add Selection to Chat) goes in as '
+      'tags of its lines, after what is typed', (tester) async {
+    final session = ChatSession(
+      historyCount: 16,
+      kernelContext: const KernelContext(cwd: '/work'),
+    );
+    addTearDown(session.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: ChatScreen(session: session),
+      ),
+    );
+    await tester.pump();
+    await typeText(tester, 'why');
+    final controller = composerController(tester);
+    controller.selection = const TextSelection.collapsed(offset: 0);
+
+    const code = CodeReference(
+      path: '/work/lib/a.dart',
+      start: 3,
+      end: 5,
+      code: 'a\nb\nc',
+    );
+    session.draft.insertCode(const [code]);
+    await tester.pump();
+    expect(session.draft.pendingCode, isEmpty);
+    expect(controller.shownText, 'why \uFFFC ');
+    expect(controller.selection.baseOffset, controller.length);
+    expect(
+      composerEmbedsIn(controller.text).single.embed,
+      ComposerCodeEmbed.of(code.withPath('lib/a.dart')),
+    );
   });
 
   testWidgets('accepting a suggestion inserts exactly one space', (

@@ -426,7 +426,8 @@ void main() {
     );
     await tester.enterText(fields.at(0), 'my-model');
     await tester.enterText(fields.at(1), 'Mine');
-    await tester.enterText(fields.at(2), '128k');
+    // Its endpoint URL (2) left to its upstream's.
+    await tester.enterText(fields.at(3), '128k');
     // An effort taken off, a context added: its own lists.
     await tester.tap(
       find.byWidgetPredicate(
@@ -434,7 +435,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.enterText(fields.at(4), '64k');
+    await tester.enterText(fields.at(5), '64k');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
     await tester.ensureVisible(find.text('Does not take images'));
@@ -844,6 +845,79 @@ void main() {
     expect(providers.provider('gw')!.headers, {
       'x-session-id': '{{CLAUDE_SESSION_ID}}',
     });
+  });
+
+  testWidgets('an upstream\'s own addresses, folded under its connection, '
+      'and a model\'s own apart from its endpoint type', (tester) async {
+    await providers.save(
+      const ModelProvider(
+        id: 'gw',
+        name: 'Gateway',
+        protocol: ProviderProtocol.openaiChat,
+        baseUrl: 'http://10.0.0.1/api/v1/openai/v1',
+        models: [ProviderModel(id: 'm')],
+      ),
+    );
+    await pump(tester);
+    await tester.tap(find.text('Gateway'));
+    await tester.pumpAndSettle();
+    expect(find.text('Models URL'), findsNothing);
+    await tester.ensureVisible(find.text('Custom URLs'));
+    await tester.tap(find.text('Custom URLs'));
+    await tester.pumpAndSettle();
+    // What the base URL makes, while none is set.
+    expect(
+      find.text('http://10.0.0.1/api/v1/openai/v1/models'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('http://10.0.0.1/api/v1/openai/v1/chat/completions'),
+      findsOneWidget,
+    );
+    await type(tester, 'Models URL', 'http://10.0.0.1/api/models');
+    await type(tester, 'Endpoint URL', 'http://10.0.0.1/api/chat');
+    var provider = providers.provider('gw')!;
+    expect(provider.modelsUrl, 'http://10.0.0.1/api/models');
+    expect(provider.endpointUrl, 'http://10.0.0.1/api/chat');
+
+    await tester.ensureVisible(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is IdeActionButton && widget.tooltip == 'More Actions',
+      ),
+    );
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is IdeActionButton && widget.tooltip == 'More Actions',
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit…'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(ModelEditDialog);
+    // Its upstream's endpoint, while it has none of its own.
+    expect(
+      find.descendant(
+        of: dialog,
+        matching: find.text('http://10.0.0.1/api/chat'),
+      ),
+      findsOneWidget,
+    );
+    final input = find.descendant(
+      of: find.descendant(
+        of: dialog,
+        matching: find.bySemanticsLabel('Endpoint URL'),
+      ),
+      matching: find.byType(EditableText),
+    );
+    await tester.enterText(input.first, ' http://10.0.0.1/m ');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    provider = providers.provider('gw')!;
+    expect(provider.models.single.endpointUrl, 'http://10.0.0.1/m');
+    // Its endpoint type as it was: the upstream's.
+    expect(provider.models.single.protocol, isNull);
   });
 
   testWidgets('deleting an upstream asks first, and takes its key', (

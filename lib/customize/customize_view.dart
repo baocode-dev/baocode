@@ -8,6 +8,8 @@ import 'package:path/path.dart' as p;
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
 
 import '../base/smooth_scroll.dart';
+import '../ide/ide_switch.dart';
+import '../kernel/extension_switches.dart';
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../ide/ide_code_editor.dart';
@@ -147,6 +149,7 @@ class CustomizeViewState extends State<CustomizeView> {
   void initState() {
     super.initState();
     _query.addListener(() => setState(() {}));
+    ExtensionSwitches.changes?.addListener(_switchesChanged);
     unawaited(_load());
   }
 
@@ -177,6 +180,7 @@ class CustomizeViewState extends State<CustomizeView> {
 
   @override
   void dispose() {
+    ExtensionSwitches.changes?.removeListener(_switchesChanged);
     _query.dispose();
     _scroll.dispose();
     super.dispose();
@@ -277,6 +281,69 @@ class CustomizeViewState extends State<CustomizeView> {
     for (final item in items) {
       unawaited(_probe(item));
     }
+  }
+
+  // --- Switches -----------------------------------------------------------
+
+  /// What was switched, shown until it is written (or, with nowhere to
+  /// write it, kept here).
+  ExtensionSwitches? _switched;
+
+  ExtensionSwitches get _switches => _switched ?? ExtensionSwitches.current();
+
+  /// Whether [_kind]'s rows have switches: skills and MCP servers, which
+  /// Claude Code is given as flag settings.
+  bool get _switchable =>
+      _kind == CustomizationKind.skills || _kind == CustomizationKind.mcps;
+
+  void _switchesChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _switch(ExtensionSwitches switches) async {
+    setState(() => _switched = switches);
+    final save = ExtensionSwitches.save;
+    if (save == null) return;
+    try {
+      await save(switches);
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = error);
+    }
+    if (mounted && identical(_switched, switches)) {
+      setState(() => _switched = null);
+    }
+  }
+
+  /// The MCP servers whose tools are shown, by [_groupKey].
+  final Set<String> _expanded = {};
+
+  String _groupKey(Customization item) =>
+      '${item.scope.name}\u0000${item.name}';
+
+  void _toggleExpanded(String key) => setState(
+    () => _expanded.contains(key) ? _expanded.remove(key) : _expanded.add(key),
+  );
+
+  /// [item]'s switch, an MCP server's or a skill's; null for none.
+  Widget? _switchOf(Customization item) {
+    if (!_switchable) return null;
+    final switches = _switches;
+    final l10n = context.l10n;
+    final on = item.kind == CustomizationKind.mcps
+        ? switches.serverEnabled(item.name)
+        : switches.skillEnabled(item.name);
+    return _RowSwitch(
+      value: on,
+      label: item.name,
+      tooltip: on ? l10n.mcpDisable : l10n.mcpEnable,
+      onChanged: (enabled) => unawaited(
+        _switch(
+          item.kind == CustomizationKind.mcps
+              ? switches.withServer(item.name, enabled)
+              : switches.withSkills([item.name], enabled),
+        ),
+      ),
+    );
   }
 
   Future<void> _create(CustomizationScope scope) async {
@@ -670,16 +737,75 @@ class CustomizeViewState extends State<CustomizeView> {
           clipBehavior: Clip.antiAlias,
           child: Column(
             children: [
-              for (final (i, item) in items.indexed) ...[
+              for (final (i, row) in _rows(items).indexed) ...[
                 if (i > 0) Divider(height: 1, color: AppColors.partBorder),
-                _ItemRow(
-                  item: item,
-                  status: _statusOf(item),
-                  onOpen: () => setState(() => _open = item),
-                  menu: () => _menu(item),
-                ),
+                row,
               ],
             ],
+          ),
+        ),
+    ];
+  }
+
+  /// A group's rows: each item's, an MCP server's tools under its, when
+  /// shown.
+  List<Widget> _rows(List<Customization> items) => [
+    for (final item in items) ...[
+      _itemRow(item),
+      if (item.kind == CustomizationKind.mcps &&
+          _expanded.contains(_groupKey(item)))
+        ..._toolRows(item),
+    ],
+  ];
+
+  Widget _itemRow(Customization item) {
+    final tools = item.kind == CustomizationKind.mcps
+        ? _probes[_probeKey(item)]?.tools
+        : null;
+    final on = switch (item.kind) {
+      CustomizationKind.mcps => _switches.serverEnabled(item.name),
+      CustomizationKind.skills => _switches.skillEnabled(item.name),
+      _ => true,
+    };
+    return _ItemRow(
+      item: item,
+      status: _statusOf(item),
+      onOpen: () => setState(() => _open = item),
+      menu: () => _menu(item),
+      toggle: _switchOf(item),
+      dimmed: !on,
+      expanded: tools == null || tools.isEmpty
+          ? null
+          : _expanded.contains(_groupKey(item)),
+      onExpand: () => _toggleExpanded(_groupKey(item)),
+      detail: tools == null || tools.isEmpty
+          ? null
+          : context.l10n.chatToolCount(tools.length),
+    );
+  }
+
+  /// [server]'s tools, as asking it found them, each with its switch;
+  /// shown off while the server is.
+  List<Widget> _toolRows(Customization server) {
+    final l10n = context.l10n;
+    final switches = _switches;
+    final serverOn = switches.serverEnabled(server.name);
+    return [
+      for (final tool in _probes[_probeKey(server)]?.tools ?? const [])
+        _ToolRow(
+          name: tool.name,
+          description: tool.description,
+          dimmed: !serverOn || !switches.toolEnabled(server.name, tool.name),
+          toggle: _RowSwitch(
+            value: serverOn && switches.toolEnabled(server.name, tool.name),
+            enabled: serverOn,
+            label: tool.name,
+            tooltip: switches.toolEnabled(server.name, tool.name)
+                ? l10n.mcpDisable
+                : l10n.mcpEnable,
+            onChanged: (enabled) => unawaited(
+              _switch(switches.withTool(server.name, tool.name, enabled)),
+            ),
           ),
         ),
     ];
@@ -883,6 +1009,11 @@ class _ItemRow extends StatelessWidget {
     required this.onOpen,
     required this.menu,
     this.status,
+    this.toggle,
+    this.dimmed = false,
+    this.expanded,
+    this.onExpand,
+    this.detail,
   });
 
   final Customization item;
@@ -891,6 +1022,23 @@ class _ItemRow extends StatelessWidget {
 
   /// An MCP server's: whether it answers.
   final McpProbeResult? status;
+
+  /// Its switch, before its actions; none when null.
+  final Widget? toggle;
+
+  /// Switched off: its name and description fainter.
+  final bool dimmed;
+
+  /// Whether what is under it (an MCP server's tools) is shown; null for
+  /// nothing under it.
+  final bool? expanded;
+  final VoidCallback? onExpand;
+
+  /// Beside its name, with [expanded]'s chevron: how many are under it.
+  final String? detail;
+
+  /// A tool's indent, under its server: its name under the server's.
+  static const childIndent = 40.0;
 
   @override
   Widget build(BuildContext context) {
@@ -937,11 +1085,21 @@ class _ItemRow extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: AppColors.textPrimary,
+                                color: dimmed
+                                    ? AppColors.textMuted
+                                    : AppColors.textPrimary,
                                 fontSize: 13,
                               ),
                             ),
                           ),
+                          if (expanded case final expanded?) ...[
+                            const SizedBox(width: 6),
+                            _Disclosure(
+                              expanded: expanded,
+                              label: detail,
+                              onTap: onExpand,
+                            ),
+                          ],
                           if (status case final status?) ...[
                             const SizedBox(width: 8),
                             _McpStatusBadge(status),
@@ -968,7 +1126,9 @@ class _ItemRow extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: AppColors.textMuted,
+                            color: dimmed
+                                ? AppColors.textFaint
+                                : AppColors.textMuted,
                             fontSize: 12,
                           ),
                         ),
@@ -990,6 +1150,10 @@ class _ItemRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
+                if (toggle case final toggle?) ...[
+                  toggle,
+                  const SizedBox(width: 10),
+                ],
                 SidebarIconButton(
                   icon: Icons.more_horiz_rounded,
                   tooltip: l10n.sidebarMoreActions,
@@ -1003,6 +1167,127 @@ class _ItemRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A row's switch, with what turning it says on hover.
+class _RowSwitch extends StatelessWidget {
+  const _RowSwitch({
+    required this.value,
+    required this.label,
+    required this.tooltip,
+    required this.onChanged,
+    this.enabled = true,
+  });
+
+  final bool value;
+  final String label;
+  final String tooltip;
+  final ValueChanged<bool> onChanged;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) => IdeHover(
+    message: tooltip,
+    child: IdeSwitch(
+      value: value,
+      enabled: enabled,
+      semanticLabel: label,
+      onChanged: onChanged,
+    ),
+  );
+}
+
+/// A chevron, and how many it shows or hides: a row's own button.
+class _Disclosure extends StatelessWidget {
+  const _Disclosure({required this.expanded, this.label, this.onTap});
+
+  final bool expanded;
+  final String? label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => HoverBuilder(
+    cursor: SystemMouseCursors.click,
+    builder: (context, hovered) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: hovered ? AppColors.hover : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (label case final label?) ...[
+              Text(
+                label,
+                style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
+              ),
+              const SizedBox(width: 2),
+            ],
+            Icon(
+              expanded ? Codicons.chevronDown : Codicons.chevronRight,
+              size: 12,
+              color: hovered ? AppColors.text : AppColors.textFaint,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// One of an MCP server's tools, under it, with its switch.
+class _ToolRow extends StatelessWidget {
+  const _ToolRow({
+    required this.name,
+    required this.description,
+    required this.toggle,
+    this.dimmed = false,
+  });
+
+  final String name;
+  final String description;
+  final Widget toggle;
+  final bool dimmed;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(12 + _ItemRow.childIndent, 7, 40, 7),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: dimmed ? AppColors.textMuted : AppColors.text,
+                  fontFamily: AppFonts.mono,
+                  fontFamilyFallback: AppFonts.monoFallbacks,
+                  fontSize: 12,
+                ),
+              ),
+              if (description.isNotEmpty)
+                Text(
+                  description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.textFaint, fontSize: 11.5),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        toggle,
+      ],
+    ),
+  );
 }
 
 /// One customization's file, edited as text (⌘S saves); or, where it is

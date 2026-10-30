@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/terminal/pty.dart';
+import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/ide/terminal/terminal_service.dart';
 
 import 'fake_pty.dart';
@@ -56,6 +57,24 @@ void main() {
     expect(terminals.active, b);
     terminals.setActive(a);
     expect(terminals.active, a);
+  });
+
+  test('a tab moves to where it is dragged, past hidden ones, the active '
+      'one staying', () async {
+    final a = terminals.create();
+    final hidden = terminals.create(
+      config: const TerminalLaunchConfig(hideFromUser: true),
+    );
+    final b = terminals.create();
+    final c = terminals.create();
+    terminals.move(c, 0);
+    expect(terminals.instances, [c, a, b]);
+    terminals.move(c, 2);
+    expect(terminals.instances, [a, b, c]);
+    terminals.move(a, 1);
+    expect(terminals.instances, [b, a, c]);
+    expect(terminals.allInstances, contains(hidden));
+    expect(terminals.active, c);
   });
 
   test('killing one hangs it up; the one after it (else before) becomes '

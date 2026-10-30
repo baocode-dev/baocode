@@ -96,9 +96,8 @@ class SidePanelTabs {
   final List<SidePanelTab> diffs = [];
   SidePanelTab? activeDiff;
 
-  /// What is open on the terminal page: terminals (their instances) and
-  /// background commands' output (their ids).
-  final List<Object> terminals = [];
+  /// What the terminal page shows: a terminal (its instance), or a
+  /// background command's output (its id); none: its first terminal.
   Object? terminal;
 
   /// The tab in front on the page shown; none on the terminal page.
@@ -224,8 +223,47 @@ class AgentSidePanel extends ChangeNotifier {
   final Expando<SidePanelTabs> _tabs = Expando();
 
   /// Has the focus while it is anywhere in the panel: its keys (Close Tab)
-  /// hold there.
+  /// hold there. Of agents side by side, each pane's has its own
+  /// ([focusNodeOf]).
   final FocusNode focusNode = FocusNode(debugLabel: 'side panel');
+
+  final Map<Object, FocusNode> _focusNodes = Map.identity();
+
+  /// The focus of [conversation]'s panel, beside its pane of agents side
+  /// by side.
+  FocusNode focusNodeOf(Object conversation) =>
+      _focusNodes[conversation] ??= FocusNode(debugLabel: 'side panel');
+
+  /// Whether the focus is in a panel: the window's, or a pane's.
+  bool get hasFocus =>
+      focusNode.hasFocus || _focusNodes.values.any((node) => node.hasFocus);
+
+  /// The conversation of the focused pane, of agents side by side, each
+  /// with a panel of its own: [show], [hide] and what opens a page or a tab
+  /// in it are its, or the conversation's they name. None (or none given):
+  /// the window's one panel, [shown].
+  Object? Function()? pane;
+
+  Object? get _pane => pane?.call();
+
+  /// Each pane's panel shown or not, by its conversation: as it was left
+  /// there, hidden until asked for there.
+  final Expando<bool> _shownIn = Expando();
+
+  /// Whether [conversation]'s pane has its panel shown, of agents side by
+  /// side.
+  bool shownIn(Object conversation) => _shownIn[conversation] ?? false;
+
+  /// Shown, or hidden, beside [conversation]'s pane.
+  void setShownIn(Object conversation, bool shown) {
+    if (shown) {
+      _asks += 1;
+      _listAway = false;
+    }
+    if (shownIn(conversation) == shown && !shown) return;
+    _shownIn[conversation] = shown;
+    notifyListeners();
+  }
 
   /// The tabs open for [conversation] (its session).
   SidePanelTabs tabsOf(Object conversation) =>
@@ -351,47 +389,53 @@ class AgentSidePanel extends ChangeNotifier {
   int get asks => _asks;
   int _asks = 0;
 
+  /// Shown: the focused pane's, of agents side by side ([pane]), else the
+  /// window's.
   void show() {
+    if (_pane case final pane?) return setShownIn(pane, true);
     _asks += 1;
     _listAway = false;
     if (!_setShown(true)) notifyListeners();
   }
 
-  void hide() => _setShown(false);
-  void toggle() => _shown ? hide() : show();
+  void hide() {
+    if (_pane case final pane?) return setShownIn(pane, false);
+    _setShown(false);
+  }
 
-  void showSection(Object conversation, SidePanelSection section) {
-    tabsOf(conversation).section = section;
+  void toggle() => isShown ? hide() : show();
+
+  /// Hides [conversation]'s: beside its pane where agents are side by
+  /// side, else the window's.
+  void hideFor(Object conversation) {
+    if (_pane != null) return setShownIn(conversation, false);
+    hide();
+  }
+
+  /// Whether the panel [show] and [hide] are for shows: the focused
+  /// pane's, else the window's.
+  bool get isShown => switch (_pane) {
+    final pane? => shownIn(pane),
+    null => _shown,
+  };
+
+  /// Shown for [conversation]: beside its pane where it is one of agents
+  /// side by side, else the window's.
+  void _showFor(Object conversation) {
+    if (_pane != null) return setShownIn(conversation, true);
     show();
   }
 
-  /// Shows [id] in its tab: a terminal (its instance), or a background
-  /// command's output (its id).
-  void openTerminal(Object conversation, Object id) {
-    final tabs = tabsOf(conversation);
-    if (!tabs.terminals.contains(id)) {
-      tabs.terminals.add(id);
-      while (tabs.terminals.length > maxTabs) {
-        tabs.terminals.removeAt(0);
-      }
-    }
-    tabs.terminal = id;
-    showSection(conversation, SidePanelSection.terminal);
+  void showSection(Object conversation, SidePanelSection section) {
+    tabsOf(conversation).section = section;
+    _showFor(conversation);
   }
 
-  /// Closes the tab of [id]; selects the one after it, else before it,
-  /// else none.
-  void closeTerminal(Object conversation, Object id) {
-    final tabs = tabsOf(conversation);
-    final index = tabs.terminals.indexOf(id);
-    if (index < 0) return;
-    tabs.terminals.removeAt(index);
-    if (tabs.terminal == id) {
-      tabs.terminal = tabs.terminals.isEmpty
-          ? null
-          : tabs.terminals[index.clamp(0, tabs.terminals.length - 1)];
-    }
-    notifyListeners();
+  /// Shows [id] on the terminal page: a terminal (its instance), or a
+  /// background command's output (its id).
+  void openTerminal(Object conversation, Object id) {
+    tabsOf(conversation).terminal = id;
+    showSection(conversation, SidePanelSection.terminal);
   }
 
   /// Whether it changed.
@@ -451,7 +495,7 @@ class AgentSidePanel extends ChangeNotifier {
     bool listAway = false,
   }) {
     final tabs = tabsOf(conversation);
-    if (request.plan) return _openPlan(tabs, request);
+    if (request.plan) return _openPlan(conversation, tabs, request);
     if (listAway && !request.diff) _listAway = true;
     final list = request.diff ? tabs.diffs : tabs.files;
     var tab = list.where((tab) => tab.path == request.path).firstOrNull;
@@ -490,11 +534,15 @@ class AgentSidePanel extends ChangeNotifier {
         ..section = SidePanelSection.files;
       _reveal(request.path);
     }
-    _showAsked();
+    _showAsked(conversation);
   }
 
   /// The plan page, [request]'s plan on it: read anew where it showed.
-  void _openPlan(SidePanelTabs tabs, FileOpenRequest request) {
+  void _openPlan(
+    Object conversation,
+    SidePanelTabs tabs,
+    FileOpenRequest request,
+  ) {
     if (tabs.plan case final tab? when tab.path == request.path) {
       tab
         ..request = request
@@ -504,11 +552,13 @@ class AgentSidePanel extends ChangeNotifier {
       tabs.plan = SidePanelTab(request);
     }
     tabs.section = SidePanelSection.plan;
-    _showAsked();
+    _showAsked(conversation);
   }
 
-  /// Shown, as a page or tab asked for in it.
-  void _showAsked() {
+  /// Shown, as a page or tab asked for in it: for [conversation], beside
+  /// its pane where it is one of agents side by side.
+  void _showAsked(Object conversation) {
+    if (_pane != null) return setShownIn(conversation, true);
     _asks += 1;
     if (!_shown) {
       _shown = true;
@@ -535,7 +585,7 @@ class AgentSidePanel extends ChangeNotifier {
     _changed = true;
     tabsOf(conversation).section = SidePanelSection.files;
     if (!_revealFolder(directory)) _folderAsked = directory;
-    _showAsked();
+    _showAsked(conversation);
     onSave?.call();
   }
 
@@ -632,11 +682,8 @@ class AgentSidePanel extends ChangeNotifier {
           SidePanelSection.changes ||
           SidePanelSection.plan:
         if (tabs.current case final tab?) return close(conversation, tab);
-      case SidePanelSection.terminal:
-        if (tabs.terminal case final id?) {
-          return closeTerminal(conversation, id);
-        }
-      case SidePanelSection.browser:
+      // Its tabs are the terminals themselves, killed by their own Close.
+      case SidePanelSection.terminal || SidePanelSection.browser:
         break;
     }
     hide();
@@ -663,6 +710,9 @@ class AgentSidePanel extends ChangeNotifier {
     _disposed = true;
     highlights.dispose();
     focusNode.dispose();
+    for (final node in _focusNodes.values) {
+      node.dispose();
+    }
     for (final scm in _scm.values) {
       scm.dispose();
     }

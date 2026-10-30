@@ -117,6 +117,31 @@ class ChatGrid<T extends Object> {
     if (!rows && rowsSplit) rowRatio = .5;
   }
 
+  /// Moves [pane] beside [target] on [side], or swaps their places when
+  /// [side] is null. Nothing changes where removing [pane] leaves [target]
+  /// too small to split, or either pane is gone.
+  bool rearrange(T pane, T target, {PaneSide? side}) {
+    if (pane == target || !contains(pane) || !contains(target)) return false;
+    if (side == null) {
+      _cells = [
+        for (final shown in _cells)
+          shown == pane
+              ? target
+              : shown == target
+              ? pane
+              : shown,
+      ];
+      return true;
+    }
+    final next = copy()..remove(pane);
+    if (!next.canSplit(target, side)) return false;
+    next.split(target, side, pane);
+    _cells = next._cells;
+    columnRatio = next.columnRatio;
+    rowRatio = next.rowRatio;
+    return true;
+  }
+
   /// Shows [pane] where [old] was.
   void replace(T old, T pane) {
     assert(!contains(pane));

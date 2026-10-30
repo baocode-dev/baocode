@@ -1,7 +1,5 @@
 import 'dart:math' as math;
 
-import 'bot.dart';
-
 /// What happened to one of the user's agents, for a bot to tell of.
 enum BotEventKind {
   /// It asks the user: a question, a permission, a plan.
@@ -44,13 +42,12 @@ class BotEvent {
   }
 }
 
-/// When a bot writes first, of what happened: what comes close together is
-/// told at once, at most [BotProactive.perDay] times a day, [gap] apart,
-/// never in its quiet hours; what waits meanwhile is told then, together.
+/// When a bot is told what happened: what comes close together is told
+/// at once, [gather] after the first of it. Whether, and when, to tell the
+/// user is the bot's to judge (it knows the time).
 class BotPacer {
   BotPacer({
     this.gather = const Duration(seconds: 90),
-    this.gap = const Duration(minutes: 20),
     this.stale = const Duration(hours: 6),
   });
 
@@ -58,17 +55,11 @@ class BotPacer {
   /// that follow to be told with it.
   final Duration gather;
 
-  /// The least time between two of its messages.
-  final Duration gap;
-
   /// How old a [BotEventKind.done] may get before it is not worth telling.
   final Duration stale;
 
   /// The events not told yet, one an agent (its latest).
   final Map<String, BotEvent> _pending = {};
-
-  /// When it wrote first, the last day's.
-  final List<DateTime> _sent = [];
 
   bool get hasPending => _pending.isNotEmpty;
 
@@ -80,25 +71,17 @@ class BotPacer {
   /// Forgets what was not told: the user is talking to it, say.
   void clear() => _pending.clear();
 
-  /// When what waits may be told, by [settings]; null when nothing waits,
-  /// or it never writes first.
-  DateTime? dueAt(BotProactive settings, DateTime now) {
-    if (settings.perDay <= 0 || _pending.isEmpty) return null;
-    _sent.removeWhere((at) => now.difference(at) >= const Duration(days: 1));
+  /// When what waits is told; null when nothing waits.
+  DateTime? dueAt(DateTime now) {
+    if (_pending.isEmpty) return null;
     final first = _pending.values.map((e) => e.at).reduce(_earlier);
-    var due = first.add(gather);
-    if (_sent.isNotEmpty) due = _later(due, _sent.last.add(gap));
-    if (_sent.length >= settings.perDay) {
-      // Once the oldest of the day's is a day old.
-      final freed = _sent[_sent.length - settings.perDay];
-      due = _later(due, freed.add(const Duration(days: 1)));
-    }
-    return _later(_outOfQuiet(settings, due), now);
+    final due = first.add(gather);
+    return due.isAfter(now) ? due : now;
   }
 
   /// What is due at [now], told together; null when nothing is.
-  List<BotEvent>? take(BotProactive settings, DateTime now) {
-    final due = dueAt(settings, now);
+  List<BotEvent>? take(DateTime now) {
+    final due = dueAt(now);
     if (due == null || due.isAfter(now)) return null;
     final events =
         _pending.values
@@ -113,26 +96,10 @@ class BotPacer {
             return kind != 0 ? kind : a.at.compareTo(b.at);
           });
     _pending.clear();
-    if (events.isEmpty) return null;
-    _sent.add(now);
-    return events;
-  }
-
-  /// [at], or the end of the quiet hours it falls in.
-  static DateTime outOfQuiet(BotProactive settings, DateTime at) =>
-      _outOfQuiet(settings, at);
-
-  static DateTime _outOfQuiet(BotProactive settings, DateTime at) {
-    final minute = at.hour * 60 + at.minute;
-    if (!settings.isQuiet(minute)) return at;
-    final day = DateTime(at.year, at.month, at.day);
-    var end = day.add(Duration(minutes: settings.quietTo));
-    if (!end.isAfter(at)) end = end.add(const Duration(days: 1));
-    return end;
+    return events.isEmpty ? null : events;
   }
 
   static DateTime _earlier(DateTime a, DateTime b) => a.isBefore(b) ? a : b;
-  static DateTime _later(DateTime a, DateTime b) => a.isAfter(b) ? a : b;
 }
 
 /// [events] as the app's message to a bot.
@@ -183,8 +150,9 @@ String botWakeText(
   'Now: ${botTime(now)}.',
 ].join('\n');
 
-/// [at] as a bot is told the time: its day and the hour.
-String botTime(DateTime at) {
+/// [at] as a bot is told the time: its day and the hour; the seconds too,
+/// with [seconds], if it has some.
+String botTime(DateTime at, {bool seconds = false}) {
   const days = [
     'Monday',
     'Tuesday',
@@ -196,5 +164,6 @@ String botTime(DateTime at) {
   ];
   String two(int n) => n.toString().padLeft(2, '0');
   return '${days[at.weekday - 1]} ${at.year}-${two(at.month)}-${two(at.day)} '
-      '${two(at.hour)}:${two(at.minute)}';
+      '${two(at.hour)}:${two(at.minute)}'
+      '${seconds && at.second != 0 ? ':${two(at.second)}' : ''}';
 }

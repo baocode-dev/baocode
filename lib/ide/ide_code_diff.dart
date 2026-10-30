@@ -358,6 +358,11 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
     unawaited(onEdit(_modified.document.text));
   }
 
+  /// The modified side's selections not empty: their text and lines (from
+  /// 1), as [IdeCodeDiff.onCopy] is told of one copied.
+  List<({String text, int startLine, int endLine})> selectedLines() =>
+      _modified.selectedLines();
+
   /// [change] taken out of the modified side: its lines as the original
   /// has them (JetBrains' `>>`, or `×` for lines only added).
   void revert(LineRangeMapping change) {

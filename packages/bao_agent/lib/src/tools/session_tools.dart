@@ -285,6 +285,11 @@ Call it only when the plan is finished, and only for work that will change code,
   @override
   bool get changesMode => true;
 
+  /// Not approved, the plan waits on the user: called again, it would be
+  /// put to them again and again in the same turn.
+  @override
+  bool get endsTurnWhenDenied => true;
+
   @override
   bool isReadOnly(Map<String, Object?> input) => true;
 

@@ -321,6 +321,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   bool _loading = false;
   bool get loading => _loading;
 
+  /// Completes once [load] has listed what the kernels keep.
+  Future<void> get loaded => _loaded.future;
+  final _loaded = Completer<void>();
+
   // --- Loading -------------------------------------------------------------
 
   /// Lists the projects and sessions the kernels keep, then opens a new
@@ -368,6 +372,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _forgetGone(listed);
     }
     _loading = false;
+    if (!_loaded.isCompleted) _loaded.complete();
     for (final folder in {?_ideFolder, ..._windowFolders}) {
       _ensureIdeChat(folder);
     }
@@ -823,6 +828,21 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     final thread = _newThread(_openProject(path));
     notifyListeners();
     return thread;
+  }
+
+  /// A new agent in [project], to drag beside the panes (a project's New
+  /// Agent dragged): listed, not shown, the panes left as they are. An
+  /// untouched one there that does not show is reused.
+  AgentThread dragAgent(Project project) => startAgent(project);
+
+  /// [thread], made to be dragged ([dragAgent]), was not dropped anywhere:
+  /// dropped too, unless it shows or something was sent to it.
+  void dropDragAgent(AgentThread thread) {
+    if (!_threads.contains(thread) || !_isUntouched(thread)) return;
+    if (_grid.contains(thread)) return;
+    if (_windowAgents.contains(thread)) return;
+    if (_ideChats.values.any((tabs) => tabs.contains(thread))) return;
+    _discard(thread);
   }
 
   /// [thread]'s window closed: a new agent nothing was sent to is dropped,
@@ -1326,8 +1346,42 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _hiddenProjects.containsKey(project.path) || isAppFolder(project.path);
 
   /// The setup of agents in a folder the app keeps for itself, by its path;
-  /// null for a project's (see [AgentSetup]).
-  AgentSetup? Function(String path)? agentSetup;
+  /// null for a project's (see [AgentSetup]). Set, those folders' agents
+  /// shown (kept from before, say) are shown no longer.
+  AgentSetup? Function(String path)? get agentSetup => _agentSetup;
+  AgentSetup? Function(String path)? _agentSetup;
+  set agentSetup(AgentSetup? Function(String path)? setup) {
+    _agentSetup = setup;
+    if (setup != null) _leaveAppFolders();
+  }
+
+  /// The agents of the app's own folders (a bot's) out of the panes: never
+  /// shown here, their user on the phone.
+  void _leaveAppFolders() {
+    final shown = [
+      for (final thread in _grid.panes)
+        if (isAppFolder(thread.project.path)) thread,
+    ];
+    if (shown.isEmpty) return;
+    for (final thread in shown) {
+      _grid.remove(thread);
+    }
+    if (_grid.isEmpty) {
+      _selected = null;
+      final latest = [
+        for (final thread in _threads)
+          if (!thread.archived && listsInSidebar(thread)) thread,
+      ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      if (latest.isEmpty) {
+        create();
+        return;
+      }
+      _focus(latest.first);
+    } else if (_selected == null || shown.contains(_selected)) {
+      _focus(_grid.panes.first);
+    }
+    notifyListeners();
+  }
 
   /// Whether [path] is a folder the app keeps for itself: never listed.
   bool isAppFolder(String path) => agentSetup?.call(path) != null;
@@ -2769,7 +2823,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         },
         _ => null,
       };
-      if (thread != null && !shown.containsValue(thread)) {
+      if (thread != null &&
+          !shown.containsValue(thread) &&
+          !isAppFolder(thread.project.path)) {
         shown[pane] = thread;
       }
     }
@@ -2807,6 +2863,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Shows [thread] and focuses it: in its pane if it has one, else in
   /// place of the focused one.
   void select(AgentThread thread) {
+    // A bot's: the phone's, never shown here.
+    if (isAppFolder(thread.project.path)) return;
     _focus(thread);
     _followInSidebar(thread);
     notifyListeners();
@@ -2843,6 +2901,12 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (!_grid.contains(target)) return;
     if (!_grid.contains(thread)) _grid.replace(target, thread);
     select(thread);
+  }
+
+  /// Rearranges an existing pane: beside [target] on [side], or swapping
+  /// their places. The agents keep running; the moved one stays focused.
+  void rearrangePane(AgentThread thread, AgentThread target, {PaneSide? side}) {
+    if (_grid.rearrange(thread, target, side: side)) select(thread);
   }
 
   /// Closes [thread]'s pane, the one beside it taking its place; the last
@@ -3211,7 +3275,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (_grid.isEmpty) {
       final candidates = [
         for (final thread in _threads)
-          if (!thread.archived && _projects.contains(thread.project)) thread,
+          if (!thread.archived &&
+              _projects.contains(thread.project) &&
+              !isAppFolder(thread.project.path))
+            thread,
       ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       if (candidates.isNotEmpty) {
         _focus(candidates.first);
@@ -3237,7 +3304,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       for (final thread in _threads)
         if (!thread.archived &&
             !identical(thread, gone) &&
-            _projects.contains(thread.project))
+            _projects.contains(thread.project) &&
+            !isAppFolder(thread.project.path))
           thread,
     ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     _grid.clear();

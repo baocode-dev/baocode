@@ -108,8 +108,9 @@ class _MermaidCodeBlockState extends State<MermaidCodeBlock> {
     }
   }
 
-  /// [code] laid out, a flowchart's lines square where it is small enough
-  /// (see [mermaidSquare]), and its text as it reads (see
+  /// [code] laid out, a flowchart's labelled links read as mermaid.js reads
+  /// them (see [mermaidLinksSpaced]) and its lines square where it is small
+  /// enough (see [mermaidSquare]), and its text as it reads (see
   /// [mermaidUnescaped]); null for none.
   mermaid.RenderScene? _layout(String code, mermaid.MermaidTheme theme) {
     // Layout is synchronous: bound input before asking the native engine.
@@ -122,6 +123,7 @@ class _MermaidCodeBlockState extends State<MermaidCodeBlock> {
         // The parser expands grouped endpoints before returning its edge list.
         // Conservatively cap grouping tokens even inside labels/comments.
         if ('&'.allMatches(code).length > 20) return null;
+        code = mermaidLinksSpaced(code);
         final graph = mermaid.parseFlowchart(code);
         if (graph.nodes.length > 100 || graph.edges.length > 200) return null;
         // ELK takes a few milliseconds up to here, far more past it.
@@ -443,6 +445,72 @@ String mermaidSquare(String code) {
 }
 
 final _frontMatter = RegExp(r'^\s*---[ \t]*\n[\s\S]*?\n[ \t]*---[ \t]*\n');
+
+/// [code], a flowchart, its links' labels spaced from the links round them
+/// (`A-.label.->B` as `A-. label .->B`, `--label-->` and `==label==>`
+/// too), as mermaid.js reads them and mermaid_core only spaced; node text,
+/// edge `|labels|` and comments as they are.
+String mermaidLinksSpaced(String code) {
+  final out = StringBuffer();
+  // The ends of the brackets, quotes or bars a label is in, innermost last.
+  final closes = <String>[];
+  var comment = false;
+  for (var i = 0; i < code.length; i++) {
+    final c = code[i];
+    if (c == '\n') comment = false;
+    if (comment || closes.isNotEmpty) {
+      out.write(c);
+      if (closes.isEmpty) continue;
+      if (c == closes.last) {
+        closes.removeLast();
+      } else if (c == '"') {
+        closes.add('"');
+      }
+      continue;
+    }
+    if (_labelCloses[c] case final close?) closes.add(close);
+    if (code.startsWith('%%', i)) comment = true;
+    if (_linkText(code, i) case (final label, final end)) {
+      final opening = code.substring(i, i + 2);
+      out.write('$opening ${label.trim()} ');
+      i = end - 1;
+      continue;
+    }
+    out.write(c);
+  }
+  return out.toString();
+}
+
+const _labelCloses = {'"': '"', '[': ']', '(': ')', '{': '}', '|': '|'};
+
+/// The label of a link whose label runs from [at], and where the link's
+/// end begins; null for none there.
+(String, int)? _linkText(String code, int at) {
+  if (at + 2 >= code.length) return null;
+  final end = _linkEnds[code.substring(at, at + 2)];
+  if (end == null) return null;
+  // The middle of a link, or one with no label (`--->`, `-.->`, `--x`).
+  if (at > 0 && (code[at - 1] == '-' || code[at - 1] == '=')) return null;
+  final next = code[at + 2];
+  if ('-=.>|'.contains(next)) return null;
+  // A dotted link's head comes after its dots.
+  if (code[at + 1] != '.' && (next == 'x' || next == 'o')) return null;
+  var quoted = false;
+  for (var k = at + 2; k < code.length && code[k] != '\n'; k++) {
+    if (code[k] == '"') quoted = !quoted;
+    if (quoted || end.matchAsPrefix(code, k) == null) continue;
+    final label = code.substring(at + 2, k);
+    return label.trim().isEmpty ? null : (label, k);
+  }
+  return null;
+}
+
+/// A link's end, by its opening, as mermaid_core reads it.
+final _linkEnds = {
+  '-.': RegExp(r'\.+-[xo>]?'),
+  '--': RegExp(r'-{2,}[-xo>]'),
+  '==': RegExp(r'={2,}[=xo>]?'),
+};
 
 /// [node] with its text's entities read (`&lt;` as `<`, Mermaid's `#lt;`
 /// too), as Mermaid's HTML labels show them; laid out as written, it only

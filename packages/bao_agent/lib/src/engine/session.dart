@@ -252,7 +252,22 @@ class AgentSession {
   List<String> get sdkServers => options.sdkServers;
 
   List<Plugin> plugins = const [];
-  List<PromptCommand> promptCommands = const [];
+
+  /// The commands and skills, less those `skillOverrides` turns `off`:
+  /// neither offered the model nor run by `/name`.
+  List<PromptCommand> get promptCommands {
+    final overrides = settings.skillOverrides;
+    if (overrides.isEmpty) return _promptCommands;
+    return [
+      for (final command in _promptCommands)
+        if (overrides[command.name] != 'off') command,
+    ];
+  }
+
+  set promptCommands(List<PromptCommand> commands) =>
+      _promptCommands = commands;
+  List<PromptCommand> _promptCommands = const [];
+
   List<AgentDefinition> agentDefinitions = builtInAgents;
   List<MemoryFile> memory = const [];
   late final MemoryLoader memoryLoader = MemoryLoader(paths);

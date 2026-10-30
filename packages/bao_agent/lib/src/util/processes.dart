@@ -32,6 +32,35 @@ Future<void> killTree(int pid, {bool force = false, bool? windows}) async {
   );
 }
 
+/// A process's output, read to [stdout] and [stderr] as it comes.
+class ProcessOutput {
+  ProcessOutput(
+    Process process,
+    void Function(List<int> bytes) stdout,
+    void Function(List<int> bytes) stderr,
+  ) {
+    _reading = [process.stdout.listen(stdout), process.stderr.listen(stderr)];
+    _ended = Future.wait([for (final r in _reading) r.asFuture<void>()]);
+  }
+
+  late final List<StreamSubscription<List<int>>> _reading;
+  late final Future<void> _ended;
+
+  /// Waits, once the process has ended, for its output to end as well, for
+  /// [grace] at most: what it left running (started apart, out of
+  /// [killTree]'s reach) may hold its pipes open long after. Those still
+  /// open then are no longer read.
+  Future<void> ended({Duration grace = const Duration(seconds: 2)}) async {
+    try {
+      await _ended.timeout(grace);
+    } on TimeoutException {
+      await Future.wait([for (final r in _reading) r.cancel()]);
+    } on Object {
+      // A pipe that broke: what came of it is all there is.
+    }
+  }
+}
+
 Future<List<int>> _descendants(int pid) async {
   try {
     final result = await Process.run('ps', ['-A', '-o', 'pid=,ppid=']);

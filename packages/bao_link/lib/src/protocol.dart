@@ -145,12 +145,29 @@ abstract final class LinkMethods {
   /// `unsupported` for the assistant.
   static const deleteBot = 'deleteBot';
 
+  /// `{"bot"}`: the bot's conversation deleted, a new one started in its
+  /// place ([LinkBot.session] another): what it remembers and who it is
+  /// stay; what it meant to come back to goes with it. `unknown` from a
+  /// desktop before it.
+  static const clearBotChat = 'clearBotChat';
+
   /// `{"bot"}`: what the bot remembers of the user, as it keeps it (kept
-  /// on the desktop, never sent elsewhere): `{"text"}`.
+  /// on the desktop, never sent elsewhere): `{"text", "self"}`, `self`
+  /// what it noted of itself (a desktop before those has no `self`).
   static const botMemory = 'botMemory';
 
   /// `{"bot", "text"}`: its memory as the user wrote it; empty clears it.
   static const setBotMemory = 'setBotMemory';
+
+  /// `{"bot", "text"}`: its notes of itself as the user left them; empty
+  /// clears them.
+  static const setBotSelf = 'setBotSelf';
+
+  /// `{"name", "gender", "signature", "picture"?}`: who the user is, as
+  /// their phone's profile says, for their bots to know (`picture`,
+  /// `{"data" (base64), "type"}` at most [LinkLimits.avatar], none for
+  /// none). Sent when it changes, and on connecting.
+  static const setMe = 'setMe';
 }
 
 /// How much of what a phone asks for it gets, at most.

@@ -115,9 +115,15 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       history: historyCount > 0 ? MockConversation.itemAt : null,
       changes: changes,
       usage: usage ?? (historyCount > 0 ? MockConversation.usage : null),
+      queuedInPlace: _queuedInPlace,
     );
     _connect(kernel ?? this.kernels.first);
   }
+
+  /// Whether its messages sent while the agent works show where they
+  /// were sent ([KernelWorkspace.queuedInPlace]).
+  bool get _queuedInPlace =>
+      kernelContext.workspace?.call()?.queuedInPlace ?? false;
 
   /// Kernels this session may switch to before its first message.
   final List<KernelDescriptor> kernels;
@@ -415,6 +421,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     _kernel.dispose();
     _transcript = Transcript(
       changes: [for (final edit in _transcript.edits) edit.change],
+      queuedInPlace: _queuedInPlace,
     );
     _connect(descriptor);
     notifyListeners();

@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:flutter/services.dart' show TextSelection;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_layout.dart';
 import 'package:baocode/ide/ide_workbench.dart';
@@ -86,6 +88,52 @@ void main() {
     expect(kept.last['active'], inRoot('a.txt'));
   });
 
+  testWidgets('each editor\'s carets, scroll and folds come back, and are '
+      'kept a moment after it comes to rest', (tester) async {
+    final kept = <Map<String, Object?>>[];
+    final text = List.generate(300, (i) => 'line ${i + 1}').join('\n');
+    final workspace = await pumpWorkbench(
+      tester,
+      {'a.txt': text},
+      nativeEditor: true,
+      viewState: {
+        'editors': [inRoot('a.txt')],
+        'active': inRoot('a.txt'),
+        'editorViews': [
+          {
+            'key': inRoot('a.txt'),
+            'selections': [
+              [21, 21],
+            ],
+            'editor': {'line': 150},
+          },
+        ],
+      },
+      onViewState: kept.add,
+    );
+    await tester.pump(const Duration(milliseconds: 400));
+    final surface =
+        tester.state(find.byType(EditorSurface)) as EditorSurfaceView;
+    expect(surface.visibleLineRange!.first, 150);
+    expect(
+      tester
+          .widget<EditorSurface>(find.byType(EditorSurface))
+          .controller
+          .selections,
+      [const TextSelection.collapsed(offset: 21)],
+    );
+    expect(workspace.viewStateOf(workspace.active!).editor?.firstLine, 150);
+
+    final offset = workspace.active!.model.snapshot.lineStarts[39];
+    surface.revealRange(offset, offset, center: true);
+    await tester.pump();
+    final top = surface.visibleLineRange!.first;
+    await tester.pump(const Duration(milliseconds: 1400));
+    final views = kept.last['editorViews']! as List<Object?>;
+    expect(views.single, containsPair('key', inRoot('a.txt')));
+    expect((views.single! as Map)['editor'], containsPair('line', top));
+  });
+
   testWidgets('the search\'s files to include and exclude and its options '
       'come back, and are kept as they change (#268)', (tester) async {
     final kept = <Map<String, Object?>>[];
@@ -100,13 +148,19 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('**/gen'), findsOneWidget);
-    expect(kept.last['search'], {'excludes': '**/gen', 'matchCase': true});
+    // The files to include and exclude show, one of them set (#377).
+    expect(kept.last['search'], {
+      'excludes': '**/gen',
+      'matchCase': true,
+      'detailsShown': true,
+    });
 
     await tester.enterText(find.text('**/gen'), '**/gen, build');
     await tester.pump(const Duration(milliseconds: 400));
     expect(kept.last['search'], {
       'excludes': '**/gen, build',
       'matchCase': true,
+      'detailsShown': true,
     });
   });
 

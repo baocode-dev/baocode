@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show TextSelection;
 import 'package:path/path.dart' as p;
 
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
@@ -14,6 +13,7 @@ import 'git/repository_scan.dart';
 import 'ide_layout.dart';
 import 'ide_local_history.dart';
 import 'ide_notifications.dart';
+import 'ide_view_state.dart';
 import 'lsp/language_features.dart';
 import 'lsp/lsp_protocol.dart';
 import 'search/ide_search_view.dart' show IdeSearchReplaceBackend;
@@ -181,11 +181,6 @@ class IdeDocument {
   /// Whether its file was deleted while open: the tab says so, and saving
   /// makes the file again (VS Code's orphaned editors).
   bool deleted = false;
-
-  /// Where its carets were when its editor was last let go (a preview, an
-  /// image or a placeholder shown in its place): given back when it is
-  /// shown again, as upstream keeps an editor's view state.
-  List<TextSelection>? selections;
 
   /// Tells the tab apart from [path]'s others.
   String get key => label == null ? path : '$path\u0000$label';
@@ -376,6 +371,41 @@ class IdeWorkspace extends ChangeNotifier
   ];
 
   IdeGitRepository? _activeRepository;
+
+  /// Where each tab's editor was left, by its key: given back when it
+  /// shows again (VS Code's editors' view state).
+  final IdeViewStates viewStates = IdeViewStates();
+
+  /// The document each moved or saved elsewhere became.
+  final Expando<IdeDocument> _successors = Expando();
+
+  IdeDocument _latest(IdeDocument doc) {
+    for (var next = _successors[doc]; next != null; next = _successors[doc]) {
+      doc = next;
+    }
+    return doc;
+  }
+
+  /// [doc]'s view state, where it was left.
+  IdeViewState viewStateOf(IdeDocument doc) => viewStates[_latest(doc).key];
+
+  /// [doc]'s view state, [update]d: the document it became's, after it
+  /// moved.
+  void keepViewState(
+    IdeDocument doc,
+    IdeViewState Function(IdeViewState kept) update,
+  ) {
+    final latest = _latest(doc);
+    // A new file closed is gone; another of its name is another.
+    if (latest.isUntitled && !_documents.contains(latest)) return;
+    viewStates.keep(latest.key, update(viewStates[latest.key]));
+  }
+
+  /// [from] is [to] from now on: its view state too.
+  void _succeeded(IdeDocument from, IdeDocument to) {
+    _successors[from] = to;
+    viewStates.move(from.key, to.key);
+  }
 
   /// Repositories whose groups are folded in CHANGES, by root (#76).
   @override
@@ -898,6 +928,7 @@ class IdeWorkspace extends ChangeNotifier
           : paths.join(to, paths.relative(doc.path, from: from));
       _stopSync(doc, force: true);
       final next = IdeDocument._moved(path, doc);
+      _succeeded(doc, next);
       _documents[index] = next;
       moved.add(next);
       if (_activeKey == doc.key) _activeKey = next.key;
@@ -1227,6 +1258,7 @@ class IdeWorkspace extends ChangeNotifier
     if (index < 0) return null;
     _stopSync(doc, force: true);
     final saved = IdeDocument._saved(path, doc)..savedText = text;
+    _succeeded(doc, saved);
     _documents[index] = saved;
     if (_activeKey == doc.key) _activeKey = saved.key;
     _startSync(saved);
@@ -1279,6 +1311,7 @@ class IdeWorkspace extends ChangeNotifier
     if (index < 0) return;
     _selection++;
     _documents.removeAt(index);
+    if (doc.isUntitled) viewStates.keep(doc.key, IdeViewState.empty);
     _stopSync(doc);
     _release(doc);
     if (_activeKey == doc.key) {

@@ -1,28 +1,36 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
-import 'package:bao_link/bao_link.dart' show LinkLimits;
+import 'package:path/path.dart' as p;
 
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
-import '../ide/file_service.dart';
 import '../images/image_tools.dart' show imagePreview;
 import '../kernel/claude_code/claude_sdk_tools.dart';
 import '../link/chat_codec.dart';
-import '../link/workspace_bridge.dart' show WorkspaceBridge, hostFilesOf;
+import '../link/workspace_bridge.dart' show WorkspaceBridge;
 import '../models/image_api.dart' show imageMediaType;
 import '../workspace/workspace.dart';
 import 'bot.dart';
 import 'bot_pacer.dart' show botTime;
 import 'bots.dart';
 
-/// Which bots a tool of theirs is for: those with any of [anyOf] on; all of
-/// them for none.
+/// Which bots a tool of theirs is for: those trusted with [level]; only
+/// the assistant, if [assistant]. One that keeps what is in a bot's files
+/// ([files]) is not for a bot that works on the computer: it keeps its
+/// files itself, with Claude Code's tools.
 class BotToolAccess {
-  const BotToolAccess(this.anyOf);
+  const BotToolAccess({this.ability, this.assistant = false});
 
-  final Set<BotAbility> anyOf;
+  /// What a bot needs on for it; none for any bot.
+  final BotAbility? ability;
+  final bool assistant;
 
-  bool allows(Bot bot) => anyOf.isEmpty || anyOf.any(bot.can);
+  bool allows(Bot bot) =>
+      (!assistant || bot.assistant) && (ability == null || bot.can(ability!));
 }
 
 /// The bots' tools (`mcp__baocode__bot_*`): the user's agents seen,
@@ -30,18 +38,7 @@ class BotToolAccess {
 /// remembers kept. Each for the bots with its ability on (see
 /// [Bots.offersTool]); none for the agents of projects.
 abstract final class BotTools {
-  /// The tool that shows one of the user's agents in the bot's chat, as a
-  /// card the phone opens it from (see chat_codec.dart).
-  static const showChat = ChatCodec.botCardTool;
-
   static final Map<String, BotToolAccess> _access = {};
-
-  /// How long a bot pauses after a message of [text], before its next: as
-  /// long as a person takes to write one, about. None in tests.
-  static Duration Function(String text) pause = typingPause;
-
-  static Duration typingPause(String text) =>
-      Duration(milliseconds: (300 + 40 * text.runes.length).clamp(600, 2400));
 
   /// Who [tool] is for, if a bot's.
   static BotToolAccess? abilityOf(String tool) => _access[tool];
@@ -64,19 +61,20 @@ abstract final class BotTools {
     _access.clear();
   }
 
-  static const _view = BotToolAccess({BotAbility.viewChats});
-  static const _manage = BotToolAccess({BotAbility.manageTasks});
-  static const _projects = BotToolAccess({
-    BotAbility.viewChats,
-    BotAbility.newChat,
-    BotAbility.readFiles,
-  });
+  static const _agents = BotToolAccess(ability: BotAbility.agents);
 
   static List<(ClaudeSdkTool, BotToolAccess)> _tools(Bots bots) {
     final workspace = bots.workspace;
 
     Bot botOf(ClaudeSdkCall call) =>
         bots.botAt(call.cwd) ?? (throw StateError('Not a bot'));
+
+    // The bots as their files say now, before a tool of theirs changes
+    // them: what one edited in them this turn, kept.
+    Bot freshOf(ClaudeSdkCall call) {
+      bots.reload(by: botOf(call));
+      return botOf(call);
+    }
 
     List<AgentThread> chats() => [
       for (final thread in workspace.threads)
@@ -149,39 +147,18 @@ abstract final class BotTools {
     return [
       (
         tool(
-          ChatCodec.botSayTool,
-          'Sends the user a message: the only way you talk to them. One '
-          'message a call, as a person texts: call it again for the next. '
-          'Nothing else you write reaches them.',
-          {
-            'text': {
-              'type': 'string',
-              'description': 'The message: plain text, no Markdown.',
-            },
-          },
-          (input, call) async {
-            final said = text(input, 'text');
-            await Future<void>.delayed(pause(said));
-            return 'Sent, ${botTime(bots.now)}.';
-          },
-          required: ['text'],
-          summary: (input, _) => clip(input, 'text'),
-        ),
-        const BotToolAccess({}),
-      ),
-      (
-        tool(
           'bot_later',
-          'Comes back to the user on your own, later: in so many minutes '
+          'Comes back to the user on your own, later: in so many seconds '
               'you are woken with your note, to write to them if it still '
               'makes sense. Use it to follow something up (how a talk went, '
               'whether a fix worked, a reminder they asked for) instead of '
-              'promising to. At most ${Bots.maxLaters} waiting; their quiet '
-              'hours put it off to after them.',
+              'promising to. At most ${Bots.maxLaters} waiting. Woken, it is '
+              'yours to judge whether it still needs a word.',
           {
-            'minutes': {
+            'seconds': {
               'type': 'integer',
-              'description': 'From now: 1 to 10080 (a week).',
+              'description':
+                  'From now: 10 to 604800 (a week); 300 is five minutes.',
             },
             'note': {
               'type': 'string',
@@ -191,27 +168,49 @@ abstract final class BotTools {
           },
           (input, call) async {
             final bot = botOf(call);
-            if (bot.proactive.perDay <= 0) {
-              throw StateError(
-                'The user turned off your writing first: you cannot come '
-                'back on your own.',
-              );
-            }
-            final minutes = (input['minutes'] as num?)?.toInt() ?? 0;
-            if (minutes < 1 || minutes > 10080) {
-              throw ArgumentError('minutes is 1 to 10080');
+            final seconds = (input['seconds'] as num?)?.toInt() ?? 0;
+            if (seconds < 10 || seconds > 604800) {
+              throw ArgumentError('seconds is 10 to 604800');
             }
             final at = bots.later(
               bot,
-              Duration(minutes: minutes),
+              Duration(seconds: seconds),
               text(input, 'note'),
             );
-            return 'You will be woken ${botTime(at)}.';
+            return 'You will be woken ${botTime(at, seconds: true)}.';
           },
-          required: ['minutes', 'note'],
+          required: ['seconds', 'note'],
           summary: (input, _) => clip(input, 'note'),
         ),
-        const BotToolAccess({BotAbility.proactive}),
+        const BotToolAccess(),
+      ),
+      (
+        tool(
+          'bot_cancel_later',
+          'Drops what you meant to come back to (bot_later): the user called '
+              'it off, say, or it is done. Those whose note has what you give '
+              'in it go.',
+          {
+            'note': {
+              'type': 'string',
+              'description': 'Its note, or a part of it.',
+            },
+          },
+          (input, call) async {
+            final bot = botOf(call);
+            final dropped = bots.cancelLaters(bot, text(input, 'note'));
+            if (dropped.isNotEmpty) {
+              return 'Dropped: ${[for (final later in dropped) later.note].join('; ')}.';
+            }
+            final waiting = bots.laters(bot);
+            return waiting.isEmpty
+                ? 'Nothing was waiting.'
+                : 'None matched. Waiting: ${[for (final later in waiting) '${botTime(later.at, seconds: true)} ${later.note}'].join('; ')}.';
+          },
+          required: ['note'],
+          summary: (input, _) => clip(input, 'note'),
+        ),
+        const BotToolAccess(),
       ),
       (
         tool(
@@ -247,7 +246,7 @@ abstract final class BotTools {
             return lines.take(limit.clamp(1, 100)).join('\n');
           },
         ),
-        _view,
+        _agents,
       ),
       (
         tool(
@@ -289,22 +288,7 @@ abstract final class BotTools {
           required: ['chat'],
           summary: titled,
         ),
-        _view,
-      ),
-      (
-        tool(
-          showChat,
-          "Shows one of the user's agent conversations in this chat, as a "
-          'card they tap to open it. Use it whenever you speak of one.',
-          {'chat': chatId},
-          (input, call) async {
-            final thread = chat(input);
-            return 'Shown: "${thread.title}".';
-          },
-          required: ['chat'],
-          summary: titled,
-        ),
-        _view,
+        _agents,
       ),
       (
         tool(
@@ -322,7 +306,7 @@ abstract final class BotTools {
           required: ['chat'],
           summary: titled,
         ),
-        _manage,
+        _agents,
       ),
       (
         tool(
@@ -340,7 +324,7 @@ abstract final class BotTools {
           required: ['chat'],
           summary: titled,
         ),
-        _manage,
+        _agents,
       ),
       (
         tool(
@@ -354,7 +338,7 @@ abstract final class BotTools {
           required: ['chat'],
           summary: titled,
         ),
-        _manage,
+        _agents,
       ),
       (
         tool(
@@ -369,12 +353,14 @@ abstract final class BotTools {
             final session = chat(input).session;
             if (!session.canSend) return 'It is busy; try later.';
             session.send(ComposerMessage(text: text(input, 'text')));
+            // Told what comes of it.
+            bots.watch(botOf(call), chat(input));
             return 'Sent.';
           },
           required: ['chat', 'text'],
           summary: titled,
         ),
-        const BotToolAccess({BotAbility.sendToChats}),
+        _agents,
       ),
       (
         tool(
@@ -386,7 +372,7 @@ abstract final class BotTools {
               '${project.name} | ${project.path}',
           ].join('\n'),
         ),
-        _projects,
+        _agents,
       ),
       (
         tool(
@@ -400,139 +386,55 @@ abstract final class BotTools {
           (input, call) async {
             final thread = workspace.startAgent(project(input));
             thread.session.send(ComposerMessage(text: text(input, 'text')));
-            return 'Started: ${idOf(thread)}';
+            bots.watch(botOf(call), thread);
+            return 'Started: ${idOf(thread)}. You will be told when it is '
+                'done or needs the user.';
           },
           required: ['project', 'text'],
           summary: (input, _) => '${input['project'] ?? ''}',
         ),
-        const BotToolAccess({BotAbility.newChat}),
-      ),
-      (
-        tool(
-          'bot_list_files',
-          "Lists a project's files under a folder (all of them if none), "
-              'from its root.',
-          {
-            'project': {'type': 'string', 'description': 'Its name or id.'},
-            'folder': {'type': 'string'},
-          },
-          (input, call) async {
-            final found = project(input);
-            final (:files, :paths) = hostFilesOf(found);
-            final folder = (input['folder'] as String? ?? '').trim();
-            final root = found.root;
-            final listing = await listProjectFiles(
-              files,
-              folder.isEmpty ? root : paths.join(root, folder),
-              limit: 400,
-            );
-            return [
-              for (final path in listing.paths)
-                paths.relative(path, from: root).replaceAll(r'\', '/'),
-              if (listing.truncated) '…',
-            ].join('\n');
-          },
-          required: ['project'],
-          summary: (input, _) => '${input['project'] ?? ''}',
-        ),
-        const BotToolAccess({BotAbility.readFiles}),
-      ),
-      (
-        tool(
-          'bot_read_file',
-          "Reads a project's file, by its path from the project's root.",
-          {
-            'project': {'type': 'string', 'description': 'Its name or id.'},
-            'path': {'type': 'string'},
-          },
-          (input, call) async {
-            final found = project(input);
-            final (:files, :paths) = hostFilesOf(found);
-            final full = paths.normalize(
-              paths.join(found.root, text(input, 'path')),
-            );
-            if (!paths.isWithin(found.root, full)) {
-              throw StateError('Not in the project');
-            }
-            final read = await files.read(full);
-            return read.length > 40000
-                ? '${read.substring(0, 40000)}\n…'
-                : read;
-          },
-          required: ['project', 'path'],
-          summary: (input, _) => '${input['path'] ?? ''}',
-        ),
-        const BotToolAccess({BotAbility.readFiles}),
+        _agents,
       ),
       (
         tool(
           ChatCodec.botImageTool,
-          'Sends a picture into this chat: one of a project\'s files '
-          '(project and path), or one on the web (url). A picture made '
-          'with generate_image shows in the chat by itself: do not send '
-          'it again.',
+          'Sends a picture from the web into this chat (its https '
+          'address). A picture made with generate_image shows in the chat '
+          'by itself: do not send it again.',
           {
-            'project': {
-              'type': 'string',
-              'description': 'Its name or id, for one of its files.',
-            },
-            'path': {
-              'type': 'string',
-              'description': "The file, from the project's root.",
-            },
             'url': {
               'type': 'string',
               'description': 'A picture on the web: its https address.',
             },
           },
           (input, call) async {
-            final url = (input['url'] as String? ?? '').trim();
-            if (url.isNotEmpty) {
-              final uri = Uri.tryParse(url);
-              if (uri == null ||
-                  !(uri.isScheme('https') || uri.isScheme('http')) ||
-                  uri.host.isEmpty) {
-                throw ArgumentError('Not a web address: $url');
-              }
-              return 'Sent.';
+            final url = text(input, 'url');
+            final uri = Uri.tryParse(url);
+            if (uri == null ||
+                !(uri.isScheme('https') || uri.isScheme('http')) ||
+                uri.host.isEmpty) {
+              throw ArgumentError('Not a web address: $url');
             }
-            if (!botOf(call).can(BotAbility.readFiles)) {
-              throw StateError(
-                "You cannot read the projects' files, so cannot send them.",
-              );
-            }
-            final found = project(input);
-            final (:files, :paths) = hostFilesOf(found);
-            final full = paths.normalize(
-              paths.join(found.root, text(input, 'path')),
-            );
-            if (!paths.isWithin(found.root, full)) {
-              throw StateError('Not in the project');
-            }
-            final bytes = await readBytesThrough(files, full);
-            if (bytes.length > LinkLimits.image) {
-              throw StateError('Too large to send (over 8 MB).');
-            }
-            final type =
-                imageMediaType(bytes) ??
-                (throw StateError('Not a PNG, JPEG, WebP or GIF picture.'));
-            // As small as the agent's own pictures: the phone shows it so.
-            final preview = await imagePreview(bytes, type);
-            return [
-              claudeSdkText('Sent.'),
-              claudeSdkImage(preview.base64, preview.type),
-            ];
+            return 'Sent.';
           },
-          summary: (input, _) => '${input['path'] ?? input['url'] ?? ''}',
+          required: ['url'],
+          summary: (input, _) => '${input['url'] ?? ''}',
         ),
-        const BotToolAccess({}),
+        const BotToolAccess(),
       ),
       (
         tool(
           'bot_remember',
-          'Keeps what you remember about the user, across conversations: '
-              '"add" a line, or "replace" all of it with what you give.',
+          'Keeps what you remember across conversations: about the user, or '
+              'about yourself (what you said you like, did or think; what '
+              'your picture shows), to stay the same person. "add" a line, '
+              'or "replace" all of it with what you give.',
           {
+            'about': {
+              'type': 'string',
+              'enum': ['user', 'self'],
+              'description': 'Whose: the user\'s (if none) or yours.',
+            },
             'action': {
               'type': 'string',
               'enum': ['add', 'replace'],
@@ -541,23 +443,342 @@ abstract final class BotTools {
           },
           (input, call) async {
             final bot = botOf(call);
+            final self = input['about'] == 'self';
             final given = (input['text'] as String? ?? '').trim();
-            final kept = bots.memory(bot).trim();
+            final kept = (self ? bots.selfNotes(bot) : bots.memory(bot)).trim();
             final memory = input['action'] == 'replace'
                 ? given
                 : [
                     if (kept.isNotEmpty) kept,
                     if (given.isNotEmpty) '- $given',
                   ].join('\n');
-            bots.folders.writeMemory(bot.folder, memory);
+            if (self) {
+              bots.setSelfNotes(bot, memory);
+            } else {
+              bots.setMemory(bot, memory, restart: false);
+            }
             return 'Remembered.';
           },
           required: ['text'],
         ),
-        const BotToolAccess({}),
+        const BotToolAccess(),
+      ),
+      (
+        tool(
+          'bot_my_picture',
+          'Shows you your own picture, as the user sees it beside your '
+              'messages.',
+          const {},
+          (input, call) async {
+            final bot = botOf(call);
+            if (bots.avatarImage(bot) case final picture?) {
+              final preview = await imagePreview(picture.bytes, picture.type);
+              return [
+                claudeSdkText('Your picture:'),
+                claudeSdkImage(preview.base64, preview.type),
+              ];
+            }
+            return switch (bot.avatar) {
+              null => "You have none: your name's first letter shows.",
+              final emoji => 'Your picture is the emoji $emoji.',
+            };
+          },
+        ),
+        const BotToolAccess(),
+      ),
+      (
+        tool(
+          'bot_user_picture',
+          "Shows you the user's own picture, as it is beside their messages.",
+          const {},
+          (input, call) async {
+            final picture = bots.myPicture;
+            if (picture == null) return 'They have none.';
+            final preview = await imagePreview(picture.bytes, picture.type);
+            return [
+              claudeSdkText("The user's picture:"),
+              claudeSdkImage(preview.base64, preview.type),
+            ];
+          },
+        ),
+        const BotToolAccess(),
+      ),
+      (
+        tool(
+          'bot_edit_me',
+          'Changes your own profile, as the user sees it in the app: what you '
+              'give changes, the rest stays. Your picture is an emoji, or a '
+              'picture file (one generate_image saved, say), cut square.',
+          {
+            'emoji': {
+              'type': 'string',
+              'description': 'An emoji as your picture.',
+            },
+            'picture': {
+              'type': 'string',
+              'description':
+                  'A picture file: by its full path, or from your folder '
+                  '(received/image-3.png, one the user sent).',
+            },
+            'signature': {
+              'type': 'string',
+              'description': 'The line under your name.',
+            },
+            'name': {
+              'type': 'string',
+              'description': 'Only when the user asks.',
+            },
+            'gender': {'type': 'string'},
+            'identity': {
+              'type': 'string',
+              'description':
+                  'Who you are, to you: "you are…"; only when the user asks.',
+            },
+            'style': {
+              'type': 'string',
+              'description': 'How you talk; only when the user asks.',
+            },
+          },
+          (input, call) async {
+            final me = freshOf(call);
+            String? given(String key) => switch (input[key]) {
+              final String value => value.trim(),
+              _ => null,
+            };
+            BotAvatarImage? picture;
+            if (given('picture') case final path? when path.isNotEmpty) {
+              picture = await _avatarFrom(bots, me, path);
+            }
+            final name = given('name');
+            bots.save(
+              id: me.id,
+              name: name == null || name.isEmpty ? me.name : name,
+              avatar: given('emoji') ?? me.avatar,
+              avatarImage: picture,
+              gender: given('gender') ?? me.gender,
+              signature: given('signature') ?? me.signature,
+              identity: given('identity') ?? me.identity,
+              style: given('style') ?? me.style,
+              abilities: me.abilities,
+              proactive: me.proactive,
+              by: me,
+            );
+            return 'Saved: the user sees it now.';
+          },
+          summary: (input, _) => [
+            for (final key in ['emoji', 'signature', 'name'])
+              if (input[key] case final String value) value,
+            if (input['picture'] != null) 'picture',
+          ].join(' '),
+        ),
+        const BotToolAccess(),
+      ),
+      (
+        tool(
+          'bot_list_bots',
+          "Lists the user's contacts, you among them: id, name, picture, "
+              'gender, signature, what they may do; and who each is.',
+          const {},
+          (input, call) async {
+            final me = freshOf(call);
+            return [
+              for (final bot in bots.bots)
+                [
+                  '${bot.id} | ${bot.name}${bot.id == me.id ? ' (you)' : ''}'
+                      ' | ${switch (bot.avatar) {
+                        null => 'no picture',
+                        final file when isAvatarImage(file) => 'a picture',
+                        final emoji => emoji,
+                      }} | ${bot.gender.isEmpty ? '-' : bot.gender}'
+                      ' | ${bot.signature.isEmpty ? '-' : bot.signature}'
+                      ' | ${bot.abilities.isEmpty ? 'chat only' : [for (final a in bot.abilities) a.name].join(', ')}',
+                  if (bot.identity.trim().isNotEmpty)
+                    '  who: ${_clip(bot.identity, 300)}',
+                  if (bot.style.trim().isNotEmpty)
+                    '  talks: ${_clip(bot.style, 200)}',
+                ].join('\n'),
+            ].join('\n');
+          },
+        ),
+        const BotToolAccess(assistant: true),
+      ),
+      (
+        tool(
+          'bot_save_bot',
+          "Adds a new contact for the user (no bot), or changes one of the "
+              "others: what you give changes, the rest stays. Their picture "
+              'is an emoji, or a picture file (one generate_image saved, '
+              'say), cut square. Yourself, with bot_edit_me.',
+          {
+            'bot': {
+              'type': 'string',
+              'description': 'Its id (bot_list_bots); none for a new one.',
+            },
+            'name': {'type': 'string'},
+            'emoji': {
+              'type': 'string',
+              'description': 'An emoji as its picture.',
+            },
+            'picture': {
+              'type': 'string',
+              'description':
+                  'A picture file: by its full path, or from your folder '
+                  '(received/image-3.png, one the user sent).',
+            },
+            'gender': {'type': 'string'},
+            'signature': {
+              'type': 'string',
+              'description': 'The line under its name.',
+            },
+            'identity': {
+              'type': 'string',
+              'description': 'Who it is, to it: "you are…".',
+            },
+            'style': {'type': 'string', 'description': 'How it talks.'},
+          },
+          (input, call) async {
+            final me = freshOf(call);
+            String? given(String key) => switch (input[key]) {
+              final String value => value.trim(),
+              _ => null,
+            };
+            final id = given('bot');
+            final had = id == null || id.isEmpty
+                ? null
+                : bots.byId(id) ??
+                      (throw StateError(
+                        'No bot $id. List them with bot_list_bots.',
+                      ));
+            BotAvatarImage? picture;
+            if (given('picture') case final path? when path.isNotEmpty) {
+              picture = await _avatarFrom(bots, me, path);
+            }
+            final name = given('name') ?? had?.name ?? '';
+            if (name.isEmpty) throw ArgumentError('A new bot needs a name');
+            final saved = bots.save(
+              id: had?.id,
+              name: name,
+              avatar: given('emoji') ?? had?.avatar,
+              avatarImage: picture,
+              gender: given('gender') ?? had?.gender ?? '',
+              signature: given('signature') ?? had?.signature ?? '',
+              identity: given('identity') ?? had?.identity ?? '',
+              style: given('style') ?? had?.style ?? '',
+              // Only the user says what a bot may do.
+              abilities: had?.abilities ?? const {},
+              proactive: had?.proactive ?? const BotProactive(),
+              by: me,
+            );
+            return had == null
+                ? 'Made ${saved.name} (${saved.id}). It may do nothing more '
+                      'than chat until the user turns its abilities on, in its '
+                      'profile.'
+                : 'Saved ${saved.name}.';
+          },
+          summary: (input, _) => '${input['name'] ?? input['bot'] ?? ''}',
+        ),
+        const BotToolAccess(assistant: true),
+      ),
+      (
+        tool(
+          'bot_delete_bot',
+          "Deletes one of the user's contacts, their chat and memory with "
+              'them: only when the user asks. Not yourself.',
+          {
+            'bot': {'type': 'string', 'description': 'Its id (bot_list_bots).'},
+          },
+          (input, call) async {
+            final me = freshOf(call);
+            final bot =
+                bots.byId(text(input, 'bot')) ??
+                (throw StateError(
+                  'No such bot. List them with bot_list_bots.',
+                ));
+            if (bot.id == me.id || bot.assistant) {
+              throw StateError('You cannot delete yourself.');
+            }
+            bots.delete(bot.id);
+            return 'Deleted ${bot.name}.';
+          },
+          required: ['bot'],
+          summary: (input, _) => '${input['bot'] ?? ''}',
+        ),
+        const BotToolAccess(assistant: true),
       ),
     ];
   }
+
+  /// The picture file at [path] (in [bot]'s folder, if not a full path)
+  /// as a bot's (see [squarePicture]).
+  static Future<BotAvatarImage> _avatarFrom(
+    Bots bots,
+    Bot bot,
+    String path,
+  ) async {
+    final bytes = p.isAbsolute(path)
+        ? switch (File(path)) {
+            final file when file.existsSync() => await file.readAsBytes(),
+            _ => null,
+          }
+        : bots.folders.readFile(p.join(bot.folder, path));
+    if (bytes == null) throw StateError('No file $path');
+    return squarePicture(bytes);
+  }
+
+  /// The picture [bytes] as a bot's: its middle, square, no larger than
+  /// [avatarSide], as PNG.
+  static Future<BotAvatarImage> squarePicture(Uint8List bytes) async => (
+    bytes: await _drawn(bytes, square: true, side: avatarSide),
+    type: 'image/png',
+  );
+
+  /// The picture [bytes] as PNG, its longer side no more than [side]: of
+  /// its middle, [square].
+  static Future<Uint8List> pngOf(Uint8List bytes, {int side = 2048}) =>
+      _drawn(bytes, side: side);
+
+  static Future<Uint8List> _drawn(
+    Uint8List bytes, {
+    bool square = false,
+    required int side,
+  }) async {
+    if (imageMediaType(bytes) == null) {
+      throw StateError('Not a PNG, JPEG, WebP or GIF picture.');
+    }
+    final codec = await ui.instantiateImageCodec(bytes);
+    final frame = await codec.getNextFrame();
+    codec.dispose();
+    final image = frame.image;
+    try {
+      final shortest = math.min(image.width, image.height);
+      final (w, h) = square
+          ? (shortest, shortest)
+          : (image.width, image.height);
+      final scale = math.min(1.0, side / math.max(w, h));
+      final (outW, outH) = ((w * scale).round(), (h * scale).round());
+      final recorder = ui.PictureRecorder();
+      ui.Canvas(recorder).drawImageRect(
+        image,
+        ui.Rect.fromLTWH(
+          (image.width - w) / 2,
+          (image.height - h) / 2,
+          w.toDouble(),
+          h.toDouble(),
+        ),
+        ui.Rect.fromLTWH(0, 0, outW.toDouble(), outH.toDouble()),
+        ui.Paint()..filterQuality = ui.FilterQuality.high,
+      );
+      final drawn = await recorder.endRecording().toImage(outW, outH);
+      final png = await drawn.toByteData(format: ui.ImageByteFormat.png);
+      drawn.dispose();
+      return png!.buffer.asUint8List();
+    } finally {
+      image.dispose();
+    }
+  }
+
+  /// The largest side of a picture a bot is given as its own.
+  static const avatarSide = 512;
 
   static String _status(AgentThread thread) => switch (thread.status) {
     ThreadStatus.needsInput => 'waiting',

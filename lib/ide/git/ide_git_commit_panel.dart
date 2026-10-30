@@ -1501,18 +1501,9 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
           ? const SizedBox.shrink()
           : git.state == null
           ? _welcome(git)
-          : LayoutBuilder(
-              builder: (context, constraints) {
+          : Builder(
+              builder: (context) {
                 final rows = _rows;
-                // The message and its buttons: what is left to the tree, a
-                // third at least.
-                final treeHeight = math.max(
-                  80.0,
-                  math.min(
-                    _treeHeight ?? constraints.maxHeight * .55,
-                    constraints.maxHeight - 170,
-                  ),
-                );
                 if (_stashTab && widget.onShowDiff != null) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1559,19 +1550,51 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                           ),
                         ),
                       ),
-                    SizedBox(
-                      height: treeHeight,
-                      child: rows.isEmpty
-                          ? _empty(context)
-                          : _tree(context, rows),
+                    // Under the bars over it: the tree, and the message
+                    // and its buttons in what is left to it, 170 at least.
+                    // Shorter than both at their least (a side panel beside
+                    // one of agents above and below each other), they
+                    // scroll.
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final height = math.max(
+                            constraints.maxHeight,
+                            80.0 + _Divider.height + 170,
+                          );
+                          final treeHeight = math.max(
+                            80.0,
+                            math.min(
+                              _treeHeight ?? height * .55,
+                              height - _Divider.height - 170,
+                            ),
+                          );
+                          final parts = Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              SizedBox(
+                                height: treeHeight,
+                                child: rows.isEmpty
+                                    ? _empty(context)
+                                    : _tree(context, rows),
+                              ),
+                              _Divider(
+                                size: treeHeight,
+                                onResize: (height) =>
+                                    setState(() => _treeHeight = height),
+                                onReset: () =>
+                                    setState(() => _treeHeight = null),
+                              ),
+                              Expanded(child: _commitArea(context)),
+                            ],
+                          );
+                          if (height <= constraints.maxHeight) return parts;
+                          return SingleChildScrollView(
+                            child: SizedBox(height: height, child: parts),
+                          );
+                        },
+                      ),
                     ),
-                    _Divider(
-                      size: treeHeight,
-                      onResize: (height) =>
-                          setState(() => _treeHeight = height),
-                      onReset: () => setState(() => _treeHeight = null),
-                    ),
-                    Expanded(child: _commitArea(context)),
                   ],
                 );
               },
@@ -2764,6 +2787,9 @@ class _Divider extends StatefulWidget {
   final ValueChanged<double> onResize;
   final VoidCallback onReset;
 
+  /// Its own height, between the tree and the message.
+  static const height = 5.0;
+
   @override
   State<_Divider> createState() => _DividerState();
 }
@@ -2828,7 +2854,7 @@ class _DividerState extends State<_Divider> {
         onVerticalDragCancel: _end,
         onDoubleTap: widget.onReset,
         child: SizedBox(
-          height: 5,
+          height: _Divider.height,
           child: Center(
             child: Container(
               height: active ? 3 : 1,

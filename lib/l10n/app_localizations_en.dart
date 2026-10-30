@@ -214,6 +214,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdChatAttachContext => 'Add Context…';
 
   @override
+  String get cmdChatAttachSelection => 'Add Selection to Chat';
+
+  @override
   String get cmdChatPasteRaw => 'Paste as Plain Text';
 
   @override
@@ -4987,6 +4990,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get termKillTerminal => 'Kill Terminal';
 
   @override
+  String get termNoTerminals => 'No terminals';
+
+  @override
   String get termNewTerminal => 'New Terminal';
 
   @override
@@ -6719,6 +6725,31 @@ class AppLocalizationsEn extends AppLocalizations {
       'As the upstream documents it; without a version in its path (…/v1), /v1 is added.';
 
   @override
+  String get modelsCustomUrls => 'Custom URLs';
+
+  @override
+  String get modelsCustomUrlsDescription =>
+      'Where models are listed and conversations go is made from the Base URL. When the upstream has them elsewhere, give them in full here.';
+
+  @override
+  String get modelsModelsUrl => 'Models URL';
+
+  @override
+  String get modelsModelsUrlDescription =>
+      'Testing the connection and fetching models GET it. Empty, the one in grey (from the Base URL) is used.';
+
+  @override
+  String get modelsEndpointUrl => 'Endpoint URL';
+
+  @override
+  String get modelsEndpointUrlDescription =>
+      'Every conversation is POSTed to it. Empty, the one in grey (from the Base URL) is used. A model of another endpoint type still goes by the Base URL.';
+
+  @override
+  String get modelsEndpointUrlAnthropicDescription =>
+      'Every conversation is POSTed to it, Claude Code through the local proxy. Empty, the one in grey (from the Base URL) is used. A model of another endpoint type still goes by the Base URL.';
+
+  @override
   String get modelsApiKey => 'API Key';
 
   @override
@@ -6952,9 +6983,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'One Name: Value a line, sent on every request to this upstream. Values may use the CLAUDE_SESSION_ID variable (this conversation\'s session) and ANTHROPIC_MODEL (the model asked for), each between double braces; over the direct Anthropic protocol those two go as written, so only fixed values work there. Auth headers (Authorization, x-api-key) are ignored here: the key is set above.';
 
   @override
-  String get modelsHeadersPlaceholder => 'x-session-id: my-session';
-
-  @override
   String get modelsDuplicateProvider => 'Duplicate Upstream';
 
   @override
@@ -7115,6 +7143,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get modelsEndpointDescription =>
       'Which API this model\'s requests go to, at the upstream\'s base URL and with its key: on a relay that serves several, its Claude models at the Anthropic one and its GPT at Responses, say.';
+
+  @override
+  String get modelsModelEndpointUrlDescription =>
+      'Where this model\'s requests go, in full. Apart from the endpoint type: that says how a request is made, this only where it goes. Empty, the one in grey is used.';
 
   @override
   String get modelsImageBadge => 'Image';

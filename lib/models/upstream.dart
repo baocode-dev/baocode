@@ -71,14 +71,23 @@ abstract final class UpstreamUrls {
 
   static final _version = RegExp(r'^v\d+[a-z0-9.]*$', caseSensitive: false);
 
-  /// Where [provider] may list its models, to be tried in order; empty
-  /// when its base URL is not an http(s) URL. An Anthropic-compatible
-  /// endpoint under a prefix of another API
+  /// Where [provider] may list its models, to be tried in order: its own
+  /// list's address ([ModelProvider.modelsUrl]) alone, when it has one,
+  /// else as its base URL says ([modelsByBase]).
+  static List<Uri> models(ModelProvider provider) => switch (provider) {
+    ModelProvider(protocol: ProviderProtocol.codex) => modelsByBase(provider),
+    ModelProvider(:final modelsUrl?) => [?parse(modelsUrl)],
+    _ => modelsByBase(provider),
+  };
+
+  /// Where [provider] may list its models as its base URL says, to be
+  /// tried in order; empty when its base URL is not an http(s) URL. An
+  /// Anthropic-compatible endpoint under a prefix of another API
   /// (`https://api.deepseek.com/anthropic`) often lists none of its own:
   /// the API's `/v1/models` above it follows, each prefix shorter. Those
   /// whose list is elsewhere ([_modelLists]) are asked there first, the
   /// rest still after: should they move it, or list at the endpoint.
-  static List<Uri> models(ModelProvider provider) =>
+  static List<Uri> modelsByBase(ModelProvider provider) =>
       switch (provider.protocol) {
         ProviderProtocol.codex => [
           const CodexEndpoints().models(codexVersionOf(provider)),
@@ -127,8 +136,19 @@ abstract final class UpstreamUrls {
   }
 
   /// Where [provider] takes a conversation: Chat Completions or
-  /// Responses (Anthropic's is Claude Code's to call).
+  /// Responses (Anthropic's is Claude Code's to call, or [messages]); its
+  /// own endpoint ([ModelProvider.endpointUrl]), when it has one.
   static Uri? conversation(ModelProvider provider) =>
+      switch (provider.endpointUrl) {
+        final url? when provider.protocol != ProviderProtocol.codex => parse(
+          url,
+        ),
+        _ => conversationByBase(provider),
+      };
+
+  /// Where [provider] takes a conversation as its base URL says, its own
+  /// endpoint aside.
+  static Uri? conversationByBase(ModelProvider provider) =>
       provider.protocol == ProviderProtocol.codex
       ? const CodexEndpoints().responses
       : switch (openaiBase(provider.baseUrl)) {
@@ -139,6 +159,37 @@ abstract final class UpstreamUrls {
           },
           null => null,
         };
+
+  /// Where [provider], one of Anthropic's API, takes a conversation (its
+  /// tokens counted at `/count_tokens` under it): its own endpoint
+  /// ([ModelProvider.endpointUrl]), else `/v1/messages` under its base.
+  static Uri? messages(ModelProvider provider) =>
+      switch (provider.endpointUrl) {
+        final url? => parse(url),
+        _ => messagesByBase(provider),
+      };
+
+  /// Where [provider], one of Anthropic's API, takes a conversation as its
+  /// base URL says.
+  static Uri? messagesByBase(ModelProvider provider) =>
+      switch (anthropicBase(provider.baseUrl)) {
+        final base? => Uri.parse('$base/v1/messages'),
+        null => null,
+      };
+
+  /// Where a conversation goes to [provider], its protocol Anthropic's or
+  /// OpenAI's.
+  static Uri? endpoint(ModelProvider provider) =>
+      provider.protocol == ProviderProtocol.anthropic
+      ? messages(provider)
+      : conversation(provider);
+
+  /// Where a conversation goes as [provider]'s base URL says, its protocol
+  /// Anthropic's or OpenAI's: what its own endpoint stands in for.
+  static Uri? endpointByBase(ModelProvider provider) =>
+      provider.protocol == ProviderProtocol.anthropic
+      ? messagesByBase(provider)
+      : conversationByBase(provider);
 }
 
 /// Whether [provider]'s key goes as `x-api-key`: asked for, or left to

@@ -1,25 +1,26 @@
 import 'dart:typed_data';
 
+import 'package:path/path.dart' as p;
+
 import 'bot_folders_stub.dart'
     if (dart.library.io) 'bot_folders_io.dart'
     as platform;
 
-/// Where the bots' folders are, and what is kept in each: its memory, in
-/// `MEMORY.md`; its picture. Replaceable under test.
+/// Where the bots' folders are, each a bot's files (see bot_files.dart).
+/// Replaceable under test.
 abstract interface class BotFolders {
   /// The data folder's `bots/` (none on the web).
   factory BotFolders.data() = platform.DataBotFolders;
 
-  /// The folder holding the bots' own, and their list; null where there is
-  /// none.
+  /// The folder holding the bots' own, and the user's profile; null where
+  /// there is none.
   String? get root;
+
+  /// The folders in [root], each a bot's if it has a card.
+  List<String> folders();
 
   void make(String folder);
   void delete(String folder);
-
-  /// What [folder]'s bot remembers; empty for nothing.
-  String readMemory(String folder);
-  void writeMemory(String folder, String text);
 
   /// The file at [path]; null when there is none.
   Uint8List? readFile(String path);
@@ -36,31 +37,32 @@ class MemoryBotFolders implements BotFolders {
   @override
   final String? root;
 
-  final Set<String> folders = {};
-  final Map<String, String> memories = {};
+  final Set<String> made = {};
   final Map<String, Uint8List> files = {};
 
   @override
-  void make(String folder) => folders.add(folder);
+  List<String> folders() => [
+    for (final folder in made)
+      if (p.dirname(folder) == root) folder,
+  ]..sort();
+
+  @override
+  void make(String folder) => made.add(folder);
 
   @override
   void delete(String folder) {
-    folders.remove(folder);
-    memories.remove(folder);
-    files.removeWhere((path, _) => path.startsWith('$folder/'));
+    made.remove(folder);
+    files.removeWhere((path, _) => p.isWithin(folder, path));
   }
-
-  @override
-  String readMemory(String folder) => memories[folder] ?? '';
-
-  @override
-  void writeMemory(String folder, String text) => memories[folder] = text;
 
   @override
   Uint8List? readFile(String path) => files[path];
 
   @override
-  void writeFile(String path, Uint8List bytes) => files[path] = bytes;
+  void writeFile(String path, Uint8List bytes) {
+    made.add(p.dirname(path));
+    files[path] = bytes;
+  }
 
   @override
   void deleteFile(String path) => files.remove(path);

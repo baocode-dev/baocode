@@ -332,17 +332,29 @@ class ModelProviders extends ChangeNotifier {
 
   // --- Keys -------------------------------------------------------------------------
 
-  final Map<String, String?> _keys = {};
+  final Map<String, Future<String?>> _keys = {};
 
-  /// Provider [id]'s key, from the keychain (read once).
-  Future<String?> key(String id) async {
-    if (_keys.containsKey(id)) return _keys[id];
-    try {
-      return _keys[id] = await secrets.read(ModelProvider.keyRefFor(id));
-    } on SecretStoreException catch (error) {
+  /// Provider [id]'s key, from the keychain (read once: the requests that
+  /// arrive while the read is under way wait for that same read).
+  Future<String?> key(String id) {
+    if (_keys[id] case final read?) return read;
+    late final Future<String?> read;
+    read = secrets.read(ModelProvider.keyRefFor(id)).catchError((
+      Object error,
+      StackTrace stack,
+    ) {
+      // A failure, whatever it is, is not kept: the keychain may read it the
+      // next time. Until that read answers them all, none of the requests
+      // that arrive starts one of its own (one PowerShell for each was the
+      // hang). A key set meanwhile stays.
+      if (identical(_keys[id], read)) _keys.remove(id);
+      if (error is! SecretStoreException) {
+        Error.throwWithStackTrace(error, stack);
+      }
       debugPrint('Key of $id not read: $error');
       return null;
-    }
+    });
+    return _keys[id] = read;
   }
 
   /// Keeps [key] for provider [id]; empty removes it.
@@ -350,10 +362,10 @@ class ModelProviders extends ChangeNotifier {
     final trimmed = key.trim();
     if (trimmed.isEmpty) {
       await secrets.delete(ModelProvider.keyRefFor(id));
-      _keys[id] = null;
+      _keys[id] = Future.value();
     } else {
       await secrets.write(ModelProvider.keyRefFor(id), trimmed);
-      _keys[id] = trimmed;
+      _keys[id] = Future.value(trimmed);
     }
     notifyListeners();
   }

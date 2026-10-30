@@ -60,6 +60,7 @@ import 'terminal_widget.dart';
 
 import 'package:bao_xterm/common/data/escape_sequences.dart';
 import 'package:bao_xterm/common/lifecycle.dart';
+import 'package:bao_xterm/typings/xterm.dart' show IBufferRange;
 
 /// A terminal's screen, and the keyboard's way into it
 /// ([TerminalInstance.focusNode]).
@@ -72,9 +73,19 @@ class TerminalView extends StatefulWidget {
     this.resolveKey,
     this.onKill,
     this.onOpenLink,
+    this.mirror = false,
+    this.onActivate,
   });
 
   final TerminalInstance instance;
+
+  /// A second view of a terminal shown in another (as tmux shows a window
+  /// in two clients): it draws the screen at the size the other gave it,
+  /// scrolls and selects with it, but has neither its keyboard nor a say
+  /// in its size. A press on it calls [onActivate], for the place to make
+  /// it the terminal's view, focused, its size the process's.
+  final bool mirror;
+  final VoidCallback? onActivate;
 
   /// Keys the workbench keeps while the terminal has focus: the
   /// keybindings of VS Code's `terminal.integrated.commandsToSkipShell`.
@@ -137,6 +148,13 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   int _lookUp = 0;
   TerminalLink? _linkPressed;
 
+  // Whether this view has the terminal's keyboard and focus (not a
+  // mirror), and whether it is to focus it once it does (pressed).
+  bool _owning = false;
+  bool _focusOnOwning = false;
+
+  IBufferRange? _linkRange() => _link?.range;
+
   TerminalInstance get _instance => widget.instance;
 
   @override
@@ -174,9 +192,26 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
       _terminalFontSize = null;
       _attach();
       _syncTerminalFontSize();
-    } else {
+    } else if (oldWidget.mirror != widget.mirror) {
+      _detach(_instance);
+      _attach();
+      if (!widget.mirror) _owned();
+    } else if (_owning) {
       _instance.keyboard.runsKeybindings = widget.shouldSkipShell == null;
     }
+  }
+
+  /// Made the terminal's view from a mirror: the process hears of the size
+  /// it has here (told only as it changes otherwise), and the keyboard
+  /// comes here if it was pressed.
+  void _owned() {
+    final focus = _focusOnOwning;
+    _focusOnOwning = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.mirror) return;
+      if (_render.fit case final fit?) _instance.resize(fit.cols, fit.rows);
+      if (focus) _instance.focus();
+    });
   }
 
   void _attach() {
@@ -213,19 +248,21 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     );
     instance.addListener(_instanceChanged);
     _attachShellIntegration();
-    selection.currentLinkRange = () => _link?.range;
     _subscriptions.add(
       instance.find.onDidChange((_) {
         if (mounted) setState(() {});
       }),
     );
-    _subscriptions.add(instance.find.onDidReveal((_) => _focusFind()));
-    _findText.text = instance.find.inputValue;
     _render.setSelection(
       selection.selectionStart,
       selection.selectionEnd,
       columnSelectMode: selection.isColumnSelectMode,
     );
+    if (widget.mirror) return;
+    _owning = true;
+    selection.currentLinkRange = _linkRange;
+    _subscriptions.add(instance.find.onDidReveal((_) => _focusFind()));
+    _findText.text = instance.find.inputValue;
     instance.keyboard
       ..customKeyEventHandler = _allowKey
       ..runsKeybindings = widget.shouldSkipShell == null;
@@ -239,21 +276,30 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
     instance.removeListener(_instanceChanged);
     _integrationSubscriptions.clear();
     _integration = null;
-    instance.selection.currentLinkRange = null;
     _lookUp++;
     _link = null;
     _hover = null;
+    if (!_owning) return;
+    _owning = false;
     instance.focusNode.removeListener(_focusChanged);
-    instance.find.focused = false;
-    if (instance.keyboard.customKeyEventHandler == _allowKey) {
-      instance.keyboard
-        ..customKeyEventHandler = null
-        ..runsKeybindings = true;
+    // What is the terminal's view's, unless another view of it has it now.
+    if (instance.selection.currentLinkRange == _linkRange) {
+      instance.selection.currentLinkRange = null;
     }
     if (instance.clipboard.confirmPaste == _confirmPaste) {
       instance.clipboard.confirmPaste = null;
     }
-    _closeInput(instance);
+    if (instance.keyboard.customKeyEventHandler == _allowKey) {
+      instance.find.focused = false;
+      instance.keyboard
+        ..customKeyEventHandler = null
+        ..runsKeybindings = true;
+      _closeInput(instance);
+    } else {
+      _input?.close();
+      _input = null;
+      _render.composition = null;
+    }
   }
 
   @override
@@ -272,7 +318,9 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   }
 
   void _renderChanged() {
-    if (_render.hasValidSize) _instance.mouse.cellSize = _render.cellSize;
+    if (_owning && _render.hasValidSize) {
+      _instance.mouse.cellSize = _render.cellSize;
+    }
     _updateInputGeometry();
     _gutterChanged();
   }
@@ -693,6 +741,10 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   }
 
   void _pointerDown(PointerDownEvent event, Offset position) {
+    if (widget.mirror) {
+      _focusOnOwning = true;
+      widget.onActivate?.call();
+    }
     _linkPressed = event.buttons == kPrimaryButton && _linkModifier
         ? _link
         : null;
@@ -879,14 +931,15 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   @override
   Widget build(BuildContext context) {
     final instance = _instance;
+    final mirror = widget.mirror;
     return CallbackShortcuts(
-      bindings: _findKeys,
+      bindings: mirror ? const {} : _findKeys,
       child: LayoutBuilder(
         builder: (context, constraints) => Stack(
           children: [
             Positioned.fill(child: _terminal(instance)),
             Positioned.fill(child: _commandMarks(instance)),
-            if (instance.find.isVisible) _findWidget(constraints),
+            if (!mirror && instance.find.isVisible) _findWidget(constraints),
           ],
         ),
       ),
@@ -894,29 +947,35 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
   }
 
   Widget _terminal(TerminalInstance instance) {
-    return Focus(
-      focusNode: instance.focusNode,
-      onKeyEvent: _handleKey,
-      child: MouseRegion(
-        onExit: (_) => unawaited(_lookUpLink(null)),
-        child: TerminalWidget(
-          source: instance.source,
-          controller: _render,
-          focusNode: instance.focusNode,
-          padding: TerminalView.padding,
-          alignBottom: false,
-          onResize: instance.resize,
-          onPointerDown: _pointerDown,
-          onPointerMove: _pointerMove,
-          onPointerHover: _pointerHover,
-          onPointerUp: _pointerUp,
-          onPointerCancel: instance.mouse.handlePointerCancel,
-          onWheel: instance.mouse.handlePointerScroll,
-          onPanZoomUpdate: instance.mouse.handlePointerPanZoomUpdate,
-          capturesWheel: _capturesWheel,
-          mouseCursor: _cursor,
-        ),
+    final mirror = widget.mirror;
+    final screen = MouseRegion(
+      onExit: (_) => unawaited(_lookUpLink(null)),
+      child: TerminalWidget(
+        source: instance.source,
+        controller: _render,
+        focusNode: mirror ? null : instance.focusNode,
+        padding: TerminalView.padding,
+        alignBottom: false,
+        onResize: mirror ? null : instance.resize,
+        onPointerDown: _pointerDown,
+        onPointerMove: _pointerMove,
+        onPointerHover: _pointerHover,
+        onPointerUp: _pointerUp,
+        onPointerCancel: instance.mouse.handlePointerCancel,
+        onWheel: instance.mouse.handlePointerScroll,
+        onPanZoomUpdate: instance.mouse.handlePointerPanZoomUpdate,
+        capturesWheel: _capturesWheel,
+        mouseCursor: _cursor,
       ),
+    );
+    // A mirror without the terminal's node (it is in its view's), the same
+    // tree either way: the screen stays as it turns into the view.
+    return Focus(
+      focusNode: mirror ? null : instance.focusNode,
+      canRequestFocus: mirror ? false : null,
+      skipTraversal: mirror ? true : null,
+      onKeyEvent: mirror ? null : _handleKey,
+      child: screen,
     );
   }
 }

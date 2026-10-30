@@ -189,28 +189,54 @@ class StashForge extends ChangeNotifier {
       _inFlight.addAll(started);
       notifyListeners();
     }
-    await Future.wait([
-      for (final url in asking)
-        if (refOf(url) case final ref?)
-          if (accounts.apiOf(ref) case final api?)
-            api
-                .item(ref)
-                .then((item) {
-                  answers[url] = item;
-                  _failures.remove(url);
-                })
-                .catchError((Object error) {
-                  _failures[url] = error is ForgeException
-                      ? error
-                      : ForgeException('$error');
-                })
-                .whenComplete(() => _asked[url] = now),
-    ]);
+    await _eachAtOnce(
+      [
+        for (final url in asking)
+          if (refOf(url) case final ref?)
+            if (accounts.apiOf(ref) case final api?) (url, ref, api),
+      ],
+      (each) async {
+        final (url, ref, api) = each;
+        try {
+          answers[url] = await api.item(ref);
+          _failures.remove(url);
+        } on Object catch (error) {
+          _failures[url] = error is ForgeException
+              ? error
+              : ForgeException('$error');
+        } finally {
+          _asked[url] = now;
+        }
+      },
+    );
     _inFlight.removeAll(started);
     if (_disposed) return;
     _items.addAll(answers);
     notifyListeners();
     await _keep(answers);
+  }
+
+  /// How many requests go to the forges at once: the stashes link many
+  /// issues (more than a thousand, some), and asked all at once a forge
+  /// refuses them (GitHub's secondary rate limit).
+  static const atOnce = 6;
+
+  /// [ask]s each of [items], [atOnce] of them at a time; the rest let be
+  /// once disposed. [ask] throws nothing.
+  Future<void> _eachAtOnce<T>(
+    List<T> items,
+    Future<void> Function(T item) ask,
+  ) async {
+    final next = items.iterator;
+    Future<void> asking() async {
+      while (!_disposed && next.moveNext()) {
+        await ask(next.current);
+      }
+    }
+
+    await Future.wait([
+      for (var i = 0; i < atOnce && i < items.length; i++) asking(),
+    ]);
   }
 
   /// Whether [url] is being asked now (its row shows it loading).
@@ -400,44 +426,44 @@ class StashForge extends ChangeNotifier {
       }
     }
     final said = <String, ({List<ForgeComment> others, DateTime? latest})>{};
-    await Future.wait([
-      for (final MapEntry(key: url, value: link) in asking.entries)
-        if (refOf(url) case final ref?)
-          if (accounts.apiOf(ref) case final api?)
-            () async {
-              final item = answers[url]!;
-              try {
-                final comments = await api.comments(ref, total: item.comments);
-                _comments[url] = (
-                  at: _clock(),
-                  total: item.comments,
-                  comments: Future.value(comments),
-                );
-                final after = DateTime.tryParse(link.commentAt ?? '');
-                final fresh = after == null
-                    ? comments.sublist(
-                        max(
-                          0,
-                          comments.length - (item.comments - link.comments!),
-                        ),
-                      )
-                    : [
-                        for (final comment in comments)
-                          if (comment.created?.isAfter(after) ?? false) comment,
-                      ];
-                final me = _me(ref)?.toLowerCase();
-                said[url] = (
-                  others: [
-                    for (final comment in fresh)
-                      if (comment.author.toLowerCase() != me) comment,
-                  ],
-                  latest: comments.lastOrNull?.created ?? after,
-                );
-              } on Object {
-                // Told by their number.
-              }
-            }(),
-    ]);
+    await _eachAtOnce(
+      [
+        for (final MapEntry(key: url, value: link) in asking.entries)
+          if (refOf(url) case final ref?)
+            if (accounts.apiOf(ref) case final api?) (url, link, ref, api),
+      ],
+      (each) async {
+        final (url, link, ref, api) = each;
+        final item = answers[url]!;
+        try {
+          final comments = await api.comments(ref, total: item.comments);
+          _comments[url] = (
+            at: _clock(),
+            total: item.comments,
+            comments: Future.value(comments),
+          );
+          final after = DateTime.tryParse(link.commentAt ?? '');
+          final fresh = after == null
+              ? comments.sublist(
+                  max(0, comments.length - (item.comments - link.comments!)),
+                )
+              : [
+                  for (final comment in comments)
+                    if (comment.created?.isAfter(after) ?? false) comment,
+                ];
+          final me = _me(ref)?.toLowerCase();
+          said[url] = (
+            others: [
+              for (final comment in fresh)
+                if (comment.author.toLowerCase() != me) comment,
+            ],
+            latest: comments.lastOrNull?.created ?? after,
+          );
+        } on Object {
+          // Told by their number.
+        }
+      },
+    );
     return said;
   }
 

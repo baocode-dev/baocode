@@ -1624,10 +1624,15 @@ FileView stashFileView(
   id: 'stash',
   matches: (path) => controller.store.idOfFile(path) != null,
   build: (context, path) => switch (controller.store.idOfFile(path)) {
-    final id? => StashDetail(
-      controller: controller,
-      id: id,
-      onOpenAgent: onOpenAgent,
+    // Its text where it was, when its tab shows again.
+    final id? => KeptScrolling(
+      identifier: ('stash', id),
+      builder: (context, scroll) => StashDetail(
+        controller: controller,
+        id: id,
+        onOpenAgent: onOpenAgent,
+        scrollController: scroll,
+      ),
     ),
     null => const SizedBox.shrink(),
   },
@@ -1645,10 +1650,14 @@ class StashDetail extends StatefulWidget {
     this.onOpenLink,
     this.onClose,
     this.autofocus = false,
+    this.scrollController,
   });
 
   final StashController controller;
   final int id;
+
+  /// Scrolls its text; its own when null.
+  final ScrollController? scrollController;
 
   /// Whether its text has the keyboard as it shows (one just made).
   final bool autofocus;
@@ -2017,6 +2026,7 @@ class _StashDetailState extends State<StashDetail> with _StashActions {
             refs: _controller.refs(_openLink),
             placeholder: context.l10n.stashPlaceholder,
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            scrollController: widget.scrollController,
           ),
         ),
       ],

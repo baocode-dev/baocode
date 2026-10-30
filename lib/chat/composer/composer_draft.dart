@@ -45,6 +45,25 @@ class ComposerDraft extends ChangeNotifier {
     return files;
   }
 
+  /// Lines of code to put in as tags of them, after what is typed (Add
+  /// Selection to Chat), taken by the composer that shows the draft, or by
+  /// the next to.
+  List<CodeReference> get pendingCode => List.unmodifiable(_pendingCode);
+  final List<CodeReference> _pendingCode = [];
+
+  void insertCode(List<CodeReference> code) {
+    if (code.isEmpty) return;
+    _pendingCode.addAll(code);
+    notifyListeners();
+  }
+
+  /// [pendingCode], no longer pending.
+  List<CodeReference> takeCode() {
+    final code = [..._pendingCode];
+    _pendingCode.clear();
+    return code;
+  }
+
   /// A message to put back in, to be edited (a queued one taken back),
   /// taken by the composer that shows the draft, or by the next to.
   ({String text, List<ImageAttachment> images})? get pendingMessage =>

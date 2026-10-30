@@ -163,6 +163,18 @@ abstract final class WindowControls {
     }
   }
 
+  /// Moves the window with the press under way, as a drag on the system's
+  /// title bar would: macOS, where the window leaves that to the title bar
+  /// Flutter draws (see title_bar_double_click.dart).
+  static Future<void> dragWindow({int? viewId}) async {
+    if (!handlesTitleDoubleClick) return;
+    try {
+      await _of(viewId).invokeMethod<void>('dragWindow');
+    } on MissingPluginException {
+      // A host without the channel (e.g. tests).
+    }
+  }
+
   /// Whether a double click on the title bar is the app's to handle: macOS,
   /// where Flutter draws the title bar and so gets its clicks. On Windows
   /// the system handles its caption's own (HTCAPTION, see

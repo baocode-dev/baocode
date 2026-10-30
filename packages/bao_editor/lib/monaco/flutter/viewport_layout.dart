@@ -107,7 +107,10 @@ class ViewportLineDecorations {
         (injections ??= []).add((
           0,
           order++,
-          ViewportInjection(wholeLine ? 0 : decoration.start - lineStart, before),
+          ViewportInjection(
+            wholeLine ? 0 : decoration.start - lineStart,
+            before,
+          ),
         ));
       }
       if (decoration.after case final after?
@@ -912,6 +915,15 @@ class ViewportLayout {
   /// Index of the first row whose bottom is strictly below unscrolled [y]
   /// ([rows].length past the last).
   int rowIndexAt(double y) => _rowIndexAt(y);
+
+  /// The one-based model line of the first row whose bottom is strictly
+  /// below unscrolled [y] (the last line's past the end).
+  int lineNumberAt(double y) {
+    final count = wrap ? rows.length : viewLineCount;
+    if (count == 0) return 1;
+    final index = math.min(_rowIndexAt(y), count - 1);
+    return wrap ? rows[index].lineNumber : _modelLineOfView(index) + 1;
+  }
 
   /// Index of the first row whose bottom is strictly below document [y].
   int _rowIndexAt(double y) {

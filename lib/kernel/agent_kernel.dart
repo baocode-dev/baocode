@@ -85,7 +85,11 @@ class KernelWorkspace {
     this.instructions = '',
     this.ownPrompt = false,
     this.tools,
+    this.allowedTools = const [],
+    this.approvesAll = false,
+    this.reaches = const [],
     this.queuedMessages,
+    this.queuedInPlace = false,
   });
 
   final List<String> folders;
@@ -105,6 +109,25 @@ class KernelWorkspace {
   /// own aside; all when null. Set, the app's MCP servers are its only
   /// ones: none of the user's.
   final List<String>? tools;
+
+  /// Built-in tools it uses without asking, whatever its permission mode
+  /// (permission rules: `WebFetch`, say).
+  final List<String> allowedTools;
+
+  /// Whether in full access it is let do all it would do, what Claude
+  /// Code asks about all the same too (its safety checks): no one is
+  /// there to ask. A bot's.
+  final bool approvesAll;
+
+  /// Folders it works in besides, not of a workspace of its own: working
+  /// directories (`--add-dir`), their `CLAUDE.md` not read, nor their
+  /// changes reviewed. A bot's reach into the user's projects.
+  final List<String> reaches;
+
+  /// Whether what the user writes while it works shows where they wrote
+  /// it, as a chat app's messages do, from the moment it is sent: not
+  /// apart, until taken up.
+  final bool queuedInPlace;
 }
 
 /// A setting the kernel offers a choice for. What is in effect is what the

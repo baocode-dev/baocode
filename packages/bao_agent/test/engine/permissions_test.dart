@@ -259,8 +259,13 @@ void main() {
         h.permissionRequests.clear();
         h.onPermission = (_) async =>
             deny('Your plan is now shown to the user.');
+        final asked = h.model.turns.length;
         await h.turn('write the plan');
         expect(File(plan).readAsStringSync(), contains('Do it'));
+        // The plan put to the user ends the turn: the model is not asked
+        // again, to put it to them once more (it did, v31, v32...).
+        expect(h.model.turns.length - asked, 2);
+        expect(h.of('result').last['subtype'], 'success');
         final exit = h.permissionRequests.single;
         expect(exit['tool_name'], 'ExitPlanMode');
         expect((exit['input'] as Map)['plan'], contains('Do it'));

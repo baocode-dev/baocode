@@ -19,7 +19,9 @@ class FakeUpstream {
   }
 
   final HttpServer _server;
-  final List<({String path, Map<String, String> headers, Object? body})>
+  final List<
+    ({String path, String query, Map<String, String> headers, Object? body})
+  >
   requests = [];
 
   /// The status, and the lines of the answer.
@@ -32,7 +34,12 @@ class FakeUpstream {
     final headers = <String, String>{};
     request.headers.forEach((name, values) => headers[name] = values.join(','));
     final body = text.isEmpty ? null : jsonDecode(text);
-    requests.add((path: request.uri.path, headers: headers, body: body));
+    requests.add((
+      path: request.uri.path,
+      query: request.uri.query,
+      headers: headers,
+      body: body,
+    ));
     final (status, lines) = reply(body);
     request.response.statusCode = status;
     for (final line in lines) {
@@ -648,6 +655,8 @@ void main() {
         'x-session-id': '{{CLAUDE_SESSION_ID}}',
         'x-model': '{{ANTHROPIC_MODEL}}',
         'x-tenant': 'acme',
+        // The user agent may be the upstream's own client's.
+        'User-Agent': 'opencode/1.17.12',
         // A key must not go from here, and no auth header is overwritten.
         'authorization': 'Bearer nope',
         'x-api-key': 'nope',
@@ -672,8 +681,38 @@ void main() {
     expect(sent['x-session-id'], session);
     expect(sent['x-model'], 'gpt-5');
     expect(sent['x-tenant'], 'acme');
+    expect(sent['user-agent'], 'opencode/1.17.12');
     expect(sent['authorization'], 'Bearer sk-upstream');
     expect(sent.containsKey('x-api-key'), isFalse);
+  });
+
+  test('a conversation goes to the upstream\'s own endpoint, a model\'s '
+      'own address over it', () async {
+    final origin = Uri.parse(upstream.base).origin;
+    provider = provider.copyWith(
+      endpointUrl: () => '$origin/gateway/chat',
+      models: [
+        const ProviderModel(id: 'gpt-5'),
+        ProviderModel(id: 'plain', endpointUrl: '$origin/plain/chat'),
+      ],
+    );
+    for (final (model, path) in [
+      ('gpt-5', '/gateway/chat'),
+      ('plain', '/plain/chat'),
+    ]) {
+      await post(
+        await messages(),
+        {
+          'model': model,
+          'stream': true,
+          'messages': [
+            {'role': 'user', 'content': 'hi'},
+          ],
+        },
+        headers: {'authorization': 'Bearer tok'},
+      );
+      expect(upstream.requests.last.path, path, reason: model);
+    }
   });
 
   test('an unknown provider or endpoint is not found', () async {
@@ -855,6 +894,45 @@ void main() {
       expect(counted.status, 200);
       expect(anthropic.requests.last.path, '/v1/messages/count_tokens');
       expect((jsonDecode(counted.text) as Map)['input_tokens'], greaterThan(0));
+    });
+
+    test('Anthropic\'s API at an address of its own: the endpoint\'s query '
+        'kept, tokens counted under it', () async {
+      final origin = Uri.parse(anthropic.base).origin;
+      claude = claude.copyWith(endpointUrl: () => '$origin/relay/msg?k=1');
+      await post(
+        (await on('an')).replace(query: 'beta=true'),
+        {'model': 'claude-opus-4-5', 'messages': []},
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(anthropic.requests.last.path, '/relay/msg');
+      expect(anthropic.requests.last.query, 'k=1&beta=true');
+      expect(anthropic.requests.last.headers['x-api-key'], 'sk-an');
+      await post(
+        await on('an', '/count_tokens'),
+        {'model': 'claude-opus-4-5', 'messages': []},
+        headers: {'x-api-key': 'tok'},
+      );
+      expect(anthropic.requests.last.path, '/relay/msg/count_tokens');
+    });
+
+    test('a model\'s endpoint type and address apart: Anthropic\'s API '
+        'spoken to at its own address', () async {
+      final origin = Uri.parse(anthropic.base).origin;
+      provider = provider.withModel(
+        ProviderModel(
+          id: 'claude-x',
+          protocol: ProviderProtocol.anthropic,
+          endpointUrl: '$origin/x/messages',
+        ),
+      );
+      await post(
+        await messages(),
+        {'model': 'claude-x', 'messages': []},
+        headers: {'authorization': 'Bearer tok'},
+      );
+      expect(anthropic.requests.single.path, '/x/messages');
+      expect(upstream.requests, isEmpty);
     });
 
     test('Claude Code\'s own, or an upstream not here, is not found', () async {

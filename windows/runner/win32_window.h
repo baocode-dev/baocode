@@ -113,15 +113,17 @@ class Win32Window {
   //
   // The border is the system's at the left, right and bottom, outside the
   // client (see NonClientSize); at the top there is none, the header being
-  // the app's, so a strip of the client as tall as the border stands in.
+  // the app's, so a strip of the client as tall as the border stands in —
+  // and on every side where the border is kept inside (see frame_inside_).
   std::optional<LRESULT> ResizeHitTest(const POINT& point) const;
 
   // The client rectangle for a window that draws its own caption: the window
   // less the system's resize border at the left, right and bottom (invisible,
   // it is what those edges are grabbed by, outside the content), up to its
-  // top; the monitor's work area while maximized (Windows sizes a maximized
-  // window to cover the monitor, and that is what keeps the content off the
-  // taskbar); empty while minimized.
+  // top — or all of it, where DWM shows that border (see frame_inside_); the
+  // monitor's work area while maximized (Windows sizes a maximized window to
+  // cover the monitor, and that is what keeps the content off the taskbar);
+  // empty while minimized.
   //
   // Answered before the engine, which would otherwise have the window keep a
   // frame — and draw a caption over the top of the client, whatever the
@@ -153,6 +155,19 @@ class Win32Window {
   // left, right and bottom (see NonClientSize), and inside the client at the
   // top, where the app draws the header.
   SIZE ResizeBorder() const;
+
+  // Whether the resize border is inside the client on every side, as at the
+  // top. Outside it, the border is meant to be the invisible part of the
+  // frame; where DWM shows part of it instead (Windows 11 21H2, build 22000),
+  // that part is painted by no one — the window class has no brush, the
+  // view covers the client only — and shows white around the content. Found
+  // so once the window shows (CheckFrameShown), the border goes inside.
+  bool frame_inside_ = false;
+
+  // Whether DWM shows more of the border outside the client than its one
+  // pixel of outline, the window shown and neither maximized nor full screen:
+  // if so, the border is moved inside (see frame_inside_), and logged.
+  void CheckFrameShown();
 
   // The content sized to the client, as the window's size changes.
   //

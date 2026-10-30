@@ -25,6 +25,7 @@ import '../vs/editor/contrib/smartSelect/browser/smart_select.dart';
 import '../vs/editor/contrib/snippet/browser/snippet_session.dart';
 import 'bracket_matching.dart' show defaultBracketPairs;
 import 'document_snapshot.dart';
+import 'editor_view_state.dart';
 import 'editor_view_styles.dart';
 import 'editor_document_model.dart';
 
@@ -64,6 +65,11 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
   final EditorDocumentModel document;
   final bool _ownsDocument;
   bool _disposed = false;
+
+  /// Where the last surface to show it left its view (its scroll, its
+  /// folds): a surface shown it shows that again, as Monaco's
+  /// `restoreViewState`; null starts at the top.
+  EditorViewState? viewState;
 
   /// Secondary cursors in creation order (the primary is [value]'s).
   List<TextSelection> _secondary = const [];
@@ -710,8 +716,7 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
               : inserted.codeUnitAt(inserted.length - 1),
           unitAt(end),
         )) {
-      inserted =
-          before.substring(0, prefix) + inserted + before.substring(end);
+      inserted = before.substring(0, prefix) + inserted + before.substring(end);
       prefix = 0;
       end = before.length;
     }
@@ -1933,16 +1938,48 @@ class EditorSurfaceController extends ValueNotifier<TextEditingValue> {
       parts.length > 1 ? parts : null,
     );
     if (parts.length == 1) {
-      final selection = sorted.firstWhere((s) => !s.isCollapsed);
-      final start = snapshot.positionAtOffset(selection.start);
-      final end = snapshot.positionAtOffset(selection.end);
-      // A selection to the start of a line ends on the line before.
-      final endLine = end.column == 1 && end.lineNumber > start.lineNumber
-          ? end.lineNumber - 1
-          : end.lineNumber;
-      onCopy?.call(text, start.lineNumber, endLine);
+      final (start, end) = _linesOf(
+        snapshot,
+        sorted.firstWhere((s) => !s.isCollapsed),
+      );
+      onCopy?.call(text, start, end);
     }
     return text;
+  }
+
+  /// The first and last line (from 1) [selection] spans: one to the start
+  /// of a line ends on the line before.
+  static (int, int) _linesOf(
+    DocumentSnapshot snapshot,
+    TextSelection selection,
+  ) {
+    final start = snapshot.positionAtOffset(selection.start);
+    final end = snapshot.positionAtOffset(selection.end);
+    final endLine = end.column == 1 && end.lineNumber > start.lineNumber
+        ? end.lineNumber - 1
+        : end.lineNumber;
+    return (start.lineNumber, endLine);
+  }
+
+  /// The selections not empty, in the document's order: each one's text
+  /// and the lines (from 1) it spans, as [onCopy] is told of one copied.
+  List<({String text, int startLine, int endLine})> selectedLines() {
+    if (_disposed || !value.selection.isValid) return const [];
+    final snapshot = document.snapshot;
+    final sorted = [
+      for (final s in selections)
+        if (!s.isCollapsed) s,
+    ]..sort((a, b) => a.start.compareTo(b.start));
+    ({String text, int startLine, int endLine}) of(TextSelection s) {
+      final (start, end) = _linesOf(snapshot, s);
+      return (
+        text: snapshot.text.substring(s.start, s.end),
+        startLine: start,
+        endLine: end,
+      );
+    }
+
+    return [for (final s in sorted) of(s)];
   }
 
   /// [canEdit] lets a surface cancel a pending cut after losing editability.

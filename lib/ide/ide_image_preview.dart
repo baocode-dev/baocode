@@ -34,9 +34,18 @@ class IdeImagePreview extends StatefulWidget {
     required this.path,
     this.read,
     this.onOpenInDefaultApp,
+    this.initialTransform,
+    this.onLeave,
   });
 
   final String path;
+
+  /// How it was zoomed and panned when last left (a [Matrix4]'s storage),
+  /// as upstream's preview keeps its scale and offset.
+  final List<double>? initialTransform;
+
+  /// Told how it is zoomed and panned as it goes.
+  final ValueChanged<List<double>>? onLeave;
 
   /// Offered when the image cannot be shown.
   final VoidCallback? onOpenInDefaultApp;
@@ -65,11 +74,21 @@ class _IdeImagePreviewState extends State<IdeImagePreview> {
   @override
   void didUpdateWidget(IdeImagePreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.path != widget.path) unawaited(_read());
+    if (oldWidget.path != widget.path) {
+      _restore = false;
+      unawaited(_read());
+    }
   }
+
+  /// Whether [IdeImagePreview.initialTransform] is to be shown: at the
+  /// first read, not one again.
+  bool _restore = true;
 
   @override
   void dispose() {
+    if (_loaded != null) {
+      widget.onLeave?.call(_transform.value.storage.toList());
+    }
     _load++;
     _transform.dispose();
     super.dispose();
@@ -85,7 +104,13 @@ class _IdeImagePreviewState extends State<IdeImagePreview> {
       final bytes = await (widget.read ?? readFileBytes)(widget.path);
       final size = _svg ? null : await _imageSize(bytes);
       if (!mounted || load != _load) return;
-      _transform.value = Matrix4.identity();
+      _transform.value = switch (widget.initialTransform) {
+        final kept? when _restore && kept.length == 16 => Matrix4.fromList(
+          kept,
+        ),
+        _ => Matrix4.identity(),
+      };
+      _restore = false;
       setState(() => _loaded = _Loaded(bytes, size));
     } catch (error) {
       if (!mounted || load != _load) return;

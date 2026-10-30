@@ -213,6 +213,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdChatAttachContext => '添加上下文…';
 
   @override
+  String get cmdChatAttachSelection => '将所选内容添加到对话';
+
+  @override
   String get cmdChatPasteRaw => '粘贴为纯文本';
 
   @override
@@ -4664,6 +4667,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get termKillTerminal => '终止终端';
 
   @override
+  String get termNoTerminals => '没有终端';
+
+  @override
   String get termNewTerminal => '新建终端';
 
   @override
@@ -6310,6 +6316,31 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsBaseUrlOpenAIHint => '按上游文档填写；路径里没有版本号（…/v1）时自动加 /v1。';
 
   @override
+  String get modelsCustomUrls => '自定义地址';
+
+  @override
+  String get modelsCustomUrlsDescription =>
+      '拉模型列表和对话请求的地址默认由 Base URL 拼出；上游不按惯例时，在这里填完整地址。';
+
+  @override
+  String get modelsModelsUrl => '模型列表地址';
+
+  @override
+  String get modelsModelsUrlDescription =>
+      '测试连接和获取模型时 GET 这个地址。留空用灰字所示、由 Base URL 拼出的地址。';
+
+  @override
+  String get modelsEndpointUrl => '端点地址';
+
+  @override
+  String get modelsEndpointUrlDescription =>
+      '每次对话 POST 到这个完整地址。留空用灰字所示、由 Base URL 拼出的地址。单独设了其他端点类型的模型仍按 Base URL。';
+
+  @override
+  String get modelsEndpointUrlAnthropicDescription =>
+      '每次对话 POST 到这个完整地址，Claude Code 改经本地代理转发。留空用灰字所示、由 Base URL 拼出的地址。单独设了其他端点类型的模型仍按 Base URL。';
+
+  @override
   String get modelsApiKey => 'API Key';
 
   @override
@@ -6534,9 +6565,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '每行一个 Name: Value，对此上游的每次请求都会带上。值里可用双花括号变量 CLAUDE_SESSION_ID（本次对话的会话）与 ANTHROPIC_MODEL（所请求的模型）；走直连 Anthropic 协议时这两个变量原样发出，可用的只有固定值。鉴权头（Authorization、x-api-key）在此忽略：Key 在下方设置。';
 
   @override
-  String get modelsHeadersPlaceholder => 'x-session-id: my-session';
-
-  @override
   String get modelsDuplicateProvider => '复制上游';
 
   @override
@@ -6692,6 +6720,10 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get modelsEndpointDescription =>
       '这个模型的请求发往哪种接口，Base URL 和 Key 与上游相同。中转站同时提供多种接口时，可以让 Claude 模型走 Anthropic 接口、GPT 模型走 Responses。';
+
+  @override
+  String get modelsModelEndpointUrlDescription =>
+      '这个模型的请求发到这个完整地址。与端点类型互不影响：类型决定请求格式，地址只决定发到哪里。留空用灰字所示的地址。';
 
   @override
   String get modelsImageBadge => '图片';

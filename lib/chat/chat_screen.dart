@@ -67,6 +67,8 @@ class ChatScreen extends StatefulWidget {
     this.trailing,
     this.titleBarInset,
     this.onRename,
+    this.titleDragBuilder,
+    this.onTitleDragStart,
     this.autofocus = false,
     this.embedded = false,
     this.windowTitleBar = true,
@@ -103,6 +105,13 @@ class ChatScreen extends StatefulWidget {
 
   /// Given, a double click on the title edits it.
   final ValueChanged<String>? onRename;
+
+  /// Wraps the title as a drag source, when not renaming. Its double click
+  /// still renames; the title bar's controls are never part of the source.
+  final Widget Function(Widget title)? titleDragBuilder;
+
+  /// A drag from the title bar's empty area, alongside the title's source.
+  final ValueChanged<PointerMoveEvent>? onTitleDragStart;
 
   /// Focuses the composer once shown, e.g. for a new agent.
   final bool autofocus;
@@ -497,7 +506,7 @@ class _ChatScreenState extends State<ChatScreen>
     );
     final onRename = widget.onRename;
     final inset = widget.titleBarInset ?? AppMetrics.trafficLightsWidth + 12;
-    final Widget title;
+    Widget title;
     if (_renaming && onRename != null) {
       title = SizedBox(
         width: 320,
@@ -522,6 +531,11 @@ class _ChatScreenState extends State<ChatScreen>
           style: style,
         ),
       );
+      // A pane's title drags the pane; the chat's alone, the window, as the
+      // system's title does: a long one leaves little of the bar empty.
+      title =
+          widget.titleDragBuilder?.call(title) ??
+          (widget.windowTitleBar ? TitleBarDragHandle(child: title) : title);
     }
     final bar = SizedBox(
       height: AppMetrics.titleBarHeight,
@@ -552,7 +566,14 @@ class _ChatScreenState extends State<ChatScreen>
     );
     // Beside the title (a double click renames it) and the buttons, a
     // double click does what one on the system's title bar does.
-    return widget.windowTitleBar ? TitleBarDoubleClick(child: bar) : bar;
+    return TitleBarDoubleClick(
+      windowTitleBar: widget.windowTitleBar,
+      onDragStart: _renaming ? null : widget.onTitleDragStart,
+      // Beside the traffic lights it is the window's, panes side by side or
+      // not: with the sidebar hidden, nothing else along the top is.
+      windowStart: inset >= AppMetrics.trafficLightsWidth ? inset : 0,
+      child: bar,
+    );
   }
 
   Widget? _buildActivityStrip() {

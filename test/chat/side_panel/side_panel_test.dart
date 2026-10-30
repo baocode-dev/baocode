@@ -633,6 +633,90 @@ void main() {
     expect(copied, 'one\n\ntwo\n\n\nthree');
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
+  testWidgets('the lines selected where the focus is, for Add Selection to '
+      'Chat: of the lines shown, the file edited, its changes', (tester) async {
+    addTearDown(CopiedCode.clear);
+    List<CodeReference> selected() =>
+        FilePreview.selectedAt(FocusManager.instance.primaryFocus?.context);
+    final files = _Files({'/p/a.dart': 'one\n\ntwo\n\n\nthree'});
+
+    // Its lines, read only.
+    await tester.pumpWidget(
+      _app(
+        FilePreview(
+          request: const FileOpenRequest('/p/a.dart', diff: true),
+          files: files,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(selected(), isEmpty);
+    final from = tester.getTopLeft(find.text('two')) + const Offset(0.5, 4);
+    final to = tester.getTopRight(find.text('three')) + const Offset(1, 4);
+    final drag = await tester.startGesture(from, kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    await drag.moveTo(to);
+    await tester.pump();
+    await drag.up();
+    await tester.pump();
+    expect(selected(), [
+      const CodeReference(
+        path: '/p/a.dart',
+        start: 3,
+        end: 6,
+        code: 'two\n\n\nthree',
+      ),
+    ]);
+
+    // The file, edited.
+    await tester.pumpWidget(
+      _app(
+        FilePreview(
+          key: const ValueKey('edit'),
+          request: const FileOpenRequest('/p/a.dart'),
+          files: files,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(IdeCodeEditor));
+    await tester.pump();
+    tester
+        .widget<IdeCodeEditor>(find.byType(IdeCodeEditor))
+        .controller
+        .select(0, 3);
+    await tester.pump();
+    expect(selected(), [
+      const CodeReference(path: '/p/a.dart', start: 1, end: 1, code: 'one'),
+    ]);
+
+    // Its changes: the lines of the file as it is now.
+    await tester.pumpWidget(
+      _app(
+        FilePreview(
+          key: const ValueKey('diff'),
+          request: FileOpenRequest(
+            '/p/a.dart',
+            diff: true,
+            original: () async => 'one\ntwo\nthree',
+          ),
+          files: _Files({'/p/a.dart': 'one\nTWO\nthree'}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(EditorSurface).last);
+    await tester.pump();
+    tester
+        .widget<EditorSurface>(find.byType(EditorSurface).last)
+        .controller
+        .select(4, 7);
+    await tester.pump();
+    expect(selected(), [
+      const CodeReference(path: '/p/a.dart', start: 2, end: 2, code: 'TWO'),
+    ]);
+  });
+
   testWidgets('a diff shows in the IDE\'s diff editor; its lines copied '
       'paste into the composer as a reference to them', (tester) async {
     addTearDown(CopiedCode.clear);
@@ -693,11 +777,8 @@ void main() {
     panel.showSection(first, SidePanelSection.files);
     expect(panel.tabsOf(first).active!.path, '/p/a.dart');
     panel.openTerminal(first, 'bash-2');
-    expect(panel.tabsOf(first).terminals, ['bash-1', 'bash-2']);
-    panel.closeTerminal(first, 'bash-2');
-    expect(panel.tabsOf(first).terminals, ['bash-1']);
-    expect(panel.tabsOf(first).terminal, 'bash-1');
-    expect(panel.tabsOf(second).terminals, isEmpty);
+    expect(panel.tabsOf(first).terminal, 'bash-2');
+    expect(panel.tabsOf(second).terminal, isNull);
   });
 
   test('files and changes open on their own pages, each with its tabs', () {
@@ -931,6 +1012,15 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Select a file to preview it'), findsOneWidget);
+    // The list's toggle leads the files' tabs, there with none open; the
+    // other pages, without a list, have none.
+    final toggle = find.byKey(const ValueKey('side-panel-list-toggle'));
+    expect(toggle, findsOneWidget);
+    panel.showSection(session, SidePanelSection.changes);
+    await tester.pumpAndSettle();
+    expect(toggle, findsNothing);
+    panel.showSection(session, SidePanelSection.files);
+    await tester.pumpAndSettle();
     await tester.tap(find.descendant(of: list, matching: find.text('b.dart')));
     await tester.pumpAndSettle();
     expect(_active(panel, session)!.path, '/p/b.dart');
@@ -1693,18 +1783,14 @@ void main() {
         await _previewScreen(tester),
         '\$ sleep 120 && echo one\nfirst output\nnew output',
       );
-      // Each command is a row of the list; its output opens in a tab.
-      final list = find.byKey(const ValueKey('side-panel-terminals'));
-      expect(
-        find.descendant(of: list, matching: find.text('Background Tasks')),
-        findsOneWidget,
-      );
-      await tester.tap(
-        find.descendant(of: list, matching: find.text('command two')),
-      );
+      // The commands share a tab; its dropdown chooses which shows.
+      await tester.tap(find.byKey(const ValueKey('terminal-deck-tasks')));
+      await tester.pump();
+      await tester.tap(find.text('command two').last);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(panel.tabsOf(session).terminals, ['one', 'two']);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(panel.tabsOf(session).terminal, 'two');
       // Its command not known, its output alone.
       expect(await _previewScreen(tester), 'second output');
       final preview = find.byType(TerminalPreview);
@@ -1730,7 +1816,7 @@ void main() {
         find.descendant(of: preview, matching: find.byIcon(Codicons.debugStop)),
         findsNothing,
       );
-      panel.closeTerminal(session, 'two');
+      panel.openTerminal(session, 'one');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(await _previewScreen(tester), contains('first output'));
@@ -1741,8 +1827,9 @@ void main() {
     },
   );
 
-  testWidgets('the terminal page lists the project\'s terminals beside the '
-      'background tasks; each opens in a tab', (tester) async {
+  testWidgets('the terminal page\'s tabs are the project\'s terminals: New '
+      'Terminal adds one, a tab brings its own to the front, its Close kills '
+      'it', (tester) async {
     final started = <FakePty>[];
     final terminals = TerminalService(
       root: '/p',
@@ -1755,31 +1842,22 @@ void main() {
     );
     panel.showSection(session, SidePanelSection.terminal);
     await tester.pump();
-    final list = find.byKey(const ValueKey('side-panel-terminals'));
-    for (final group in ['Terminals', 'Background Tasks']) {
-      expect(
-        find.descendant(of: list, matching: find.text(group)),
-        findsOneWidget,
-      );
-    }
+    expect(find.text('No terminals'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('terminal-tabs-new')));
+    await tester.tap(find.byKey(const ValueKey('terminal-deck-new')));
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('terminal-tabs-new')));
+    await tester.tap(find.byKey(const ValueKey('terminal-deck-new')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     final [first, second] = terminals.instances;
     expect(started, hasLength(2));
-    expect(panel.tabsOf(session).terminals, [first, second]);
+    expect(panel.tabsOf(session).terminal, second);
     expect(
       tester.widget<TerminalView>(find.byType(TerminalView)).instance,
       second,
     );
 
-    // A row of the list brings its terminal to the front.
-    Finder row(TerminalInstance shell) =>
-        find.descendant(of: list, matching: find.byKey(ObjectKey(shell)));
-    await tester.tap(row(first));
+    await tester.tap(find.byKey(ObjectKey(first)));
     await tester.pump();
     expect(panel.tabsOf(session).terminal, first);
     expect(
@@ -1787,27 +1865,18 @@ void main() {
       first,
     );
 
-    // Its tab closes and it runs on, in the list; killed, it is gone.
-    panel.closeTerminal(session, first);
+    // The tab in front has its Close, which kills its terminal.
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(ObjectKey(first)),
+        matching: find.byIcon(Codicons.close),
+      ),
+    );
     await tester.pump();
-    expect(terminals.instances, [first, second]);
+    expect(terminals.instances, [second]);
     expect(
       tester.widget<TerminalView>(find.byType(TerminalView)).instance,
       second,
-    );
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    addTearDown(mouse.removePointer);
-    await mouse.addPointer(location: tester.getCenter(row(second)));
-    await tester.pump();
-    await tester.tap(
-      find.descendant(of: row(second), matching: find.byIcon(Codicons.trash)),
-    );
-    await tester.pump();
-    expect(terminals.instances, [first]);
-    expect(find.byType(TerminalView), findsNothing);
-    expect(
-      find.text('Select a background task to see its output'),
-      findsOneWidget,
     );
   });
 
@@ -2300,22 +2369,16 @@ void main() {
     }),
   );
 
-  test('closing the tab in front on the terminal page closes its terminal\'s '
-      'or command\'s tab', () {
+  test('Close Editor on the terminal page hides the panel: its tabs are '
+      'terminals, which only their own Close kills', () {
     final panel = AgentSidePanel();
     addTearDown(panel.dispose);
     final chat = Object();
-    panel
-      ..openTerminal(chat, 'one')
-      ..openTerminal(chat, 'two')
-      ..closeCurrent(chat);
-    expect(panel.tabsOf(chat).terminals, ['one']);
-    expect(panel.tabsOf(chat).terminal, 'one');
-    panel.closeCurrent(chat);
-    expect(panel.tabsOf(chat).terminals, isEmpty);
+    panel.openTerminal(chat, 'one');
     expect(panel.shown, isTrue);
     panel.closeCurrent(chat);
     expect(panel.shown, isFalse);
+    expect(panel.tabsOf(chat).terminal, 'one');
   });
 
   testWidgets('Toggle Side Panel\'s keys, as upstream\'s secondary side '
@@ -2584,5 +2647,49 @@ void main() {
     expect(edit!.controller.document.text, '# Notes\n\nSome abtext here.\n');
     await command(LogicalKeyboardKey.keyZ);
     expect(edit!.controller.document.text, text);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets('the pages\' bar is the window\'s title bar on macOS: its '
+      'empty part drags the window, its tabs do not', (tester) async {
+    _bigWindow(tester);
+    const window = MethodChannel('baocode/window');
+    final messenger = tester.binding.defaultBinaryMessenger;
+    var drags = 0;
+    messenger.setMockMethodCallHandler(window, (call) async {
+      if (call.method == 'dragWindow') drags++;
+      return null;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(window, null));
+    final session = ChatSession(historyCount: 0);
+    addTearDown(session.dispose);
+    final panel = AgentSidePanel();
+    addTearDown(panel.dispose);
+    await tester.pumpWidget(
+      _app(
+        AgentSidePanelView(
+          notifications: IdeNotifications(),
+          panel: panel,
+          session: session,
+          files: _Files({}),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> dragFrom(Offset start) async {
+      final drag = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await drag.moveBy(const Offset(40, 0));
+      await drag.up();
+      await tester.pump();
+    }
+
+    // Between the tabs and the buttons.
+    final move = find.byKey(const ValueKey('side-panel-move'));
+    await dragFrom(tester.getCenter(move) - const Offset(60, 0));
+    expect(drags, 1);
+    await dragFrom(tester.getCenter(find.byType(IdeEditorTab).first));
+    expect(drags, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 }

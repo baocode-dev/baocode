@@ -17,83 +17,71 @@ abstract final class ChatCodec {
   /// a note.
   static const botEventTag = 'bao-event';
 
-  /// The bot's tool that shows one of the user's agents in its chat (its
-  /// input's `chat`), as a card that opens it.
-  static const botCardTool = 'bot_show_chat';
-
-  /// The bot's tool that sends one of the app's stickers (its input's
-  /// `sticker`, as `package:bao_link`'s builtInStickers has it).
-  static const botStickerTool = 'bot_send_sticker';
-
   /// The bot's tool that sends a picture: a file's, which it answers with
   /// (the item's images), or one on the web (its input's `url`).
   static const botImageTool = 'bot_send_image';
 
-  /// The bot's tool that sends a message (its input's `text`): how it
-  /// talks. What it writes besides is not for the user (see [botQuiet]).
-  static const botSayTool = 'bot_say';
+  /// The tag a bot wraps each message of its reply in: what it says to the
+  /// user. What it writes outside them is not for the user.
+  static const botSayTag = 'bot_say';
+
+  /// The tag a bot wraps narration in: what it does or what goes on, told
+  /// beside its messages, not said to the user.
+  static const botNarrateTag = 'bot_narrate';
+
+  /// The tag a bot wraps one of the user's agents' ids in, to show it in
+  /// its chat as a card that opens it.
+  static const botCardTag = 'bot_show_chat';
 
   /// What the app told a bot in [item], if it is such a note.
   static String? botEvent(UserMessageItem item) {
-    final text = item.text.trim();
+    // The pictures that came with it referred to after it, if they are.
+    final text = item.text.replaceAll(imageReferencePattern, '').trim();
     const open = '<$botEventTag>', close = '</$botEventTag>';
     if (!text.startsWith(open) || !text.endsWith(close)) return null;
     return text.substring(open.length, text.length - close.length).trim();
   }
 
-  /// The agent [item] shows as a card, if it is the bot's tool that does.
-  static String? botCard(ToolCallItem item) =>
-      _botInput(item, botCardTool, 'chat');
+  /// [text] (a message of the user's to a bot) without the app's notes
+  /// in it: taken up with one, the two are one message.
+  static String withoutBotEvents(String text) =>
+      text.replaceAll(_botEvents, '').trim();
 
-  /// The message [item] sent, if it is the bot's tool that does.
-  static String? botSay(ToolCallItem item) => item.status == ToolStatus.failed
-      ? null
-      : _botInput(item, botSayTool, 'text');
+  static final _botEvents = RegExp(
+    '<$botEventTag>.*?</$botEventTag>',
+    dotAll: true,
+  );
 
-  /// Whether [item] is something a bot sent into its chat: a message, a
-  /// sticker, a card, a picture (one being made too).
+  /// The messages a bot's reply [text] has, in order: each `<bot_say>`'s,
+  /// once closed (one still being written shows when it is whole).
+  static List<String> botSays(String text) => [
+    for (final (tag, said) in botParts(text))
+      if (tag == botSayTag) said,
+  ];
+
+  /// What a bot's reply [text] shows, in order, each once closed: its
+  /// messages ([botSayTag]), its narration ([botNarrateTag]) and the
+  /// agents it shows ([botCardTag], their ids).
+  static List<(String tag, String text)> botParts(String text) => [
+    for (final match in _botParts.allMatches(text))
+      if (match[2]!.trim() case final part when part.isNotEmpty)
+        (match[1]!, part),
+  ];
+
+  static final _botParts = RegExp(
+    '<($botSayTag|$botNarrateTag|$botCardTag)>(.*?)</\\1>',
+    dotAll: true,
+  );
+
+  /// Whether [item] is something a bot sent into its chat with its tools:
+  /// a picture (one being made too). Its messages and cards are in its
+  /// texts (see [botParts]).
   static bool botSent(ChatItem item) =>
       item is ToolCallItem &&
       item.status != ToolStatus.failed &&
-      (botSay(item) != null ||
-          botSticker(item) != null ||
-          botCard(item) != null ||
-          botImageUrl(item) != null ||
+      (botImageUrl(item) != null ||
           item.kind == ToolKind.image ||
           item.images.isNotEmpty);
-
-  /// Which of a bot's [count] items ([at] each) are texts of its own not
-  /// shown in its chat: those of a turn it sent anything in (see
-  /// [botSent]), its notes to itself then. A turn it only wrote in, as
-  /// bots did before they talked with [botSayTool], shows them.
-  static Set<int> botQuiet(int count, ChatItem Function(int) at) {
-    final quiet = <int>{};
-    final texts = <int>[];
-    var sent = false;
-    void endTurn() {
-      if (sent) quiet.addAll(texts);
-      texts.clear();
-      sent = false;
-    }
-
-    for (var i = 0; i < count; i++) {
-      switch (at(i)) {
-        case UserMessageItem(queued: false):
-          endTurn();
-        case AssistantTextItem():
-          texts.add(i);
-        case final item when botSent(item):
-          sent = true;
-        default:
-      }
-    }
-    endTurn();
-    return quiet;
-  }
-
-  /// The sticker [item] sent, if it is the bot's tool that does.
-  static String? botSticker(ToolCallItem item) =>
-      _botInput(item, botStickerTool, 'sticker');
 
   /// The picture on the web [item] sent, if it is the bot's tool that did.
   static String? botImageUrl(ToolCallItem item) =>
@@ -162,10 +150,7 @@ abstract final class ChatCodec {
       'status': item.status.name,
       'output': ?_head(item.output),
       'tool': ?item.tool,
-      'card': ?botCard(item),
-      'sticker': ?botSticker(item),
       'url': ?botImageUrl(item),
-      'say': ?botSay(item),
       // What a browser's call does, for its line to say.
       if (item.kind == ToolKind.browser)
         'browse': {
@@ -302,18 +287,16 @@ abstract final class ChatCodec {
         output: optional('output'),
         tool: optional('tool'),
         images: _decodeImages(json['images']),
-        input: switch ((json['making'], json['browse'], json['card'])) {
-          (_, _, final String card) => {'chat': card},
+        input: switch ((json['making'], json['browse'])) {
           _ when json['sticker'] is String => {'sticker': json['sticker']},
           _ when json['url'] is String => {'url': json['url']},
-          _ when json['say'] is String => {'text': json['say']},
-          (final Map<String, Object?> making, _, _) => {
+          (final Map<String, Object?> making, _) => {
             'prompt': '',
             'count': ?making['count'],
             'size': ?making['size'],
             'aspect_ratio': ?making['aspect'],
           },
-          (_, final Map<String, Object?> browse, _) => {
+          (_, final Map<String, Object?> browse) => {
             'action': ?browse['action'],
             if (browse['url'] == true) 'url': '',
           },

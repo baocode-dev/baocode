@@ -967,6 +967,32 @@ void main() {
   });
 
   group('the chat panes', () {
+    testWidgets(
+      'rearranged panes and the moved agent focused survive a restart',
+      (tester) async {
+        final store = MemoryPreferenceStore();
+        var workspace = await pumpLoaded(tester, preferences: store);
+        final draft = workspace.selected;
+        final kept = workspace.threads.firstWhere(
+          (thread) => thread.record?.id == FakeCatalog.kept.id,
+        );
+        workspace.openBeside(kept, draft, PaneSide.right);
+        workspace.rearrangePane(kept, draft, side: PaneSide.bottom);
+        expect(workspace.grid.rowsSplit, isTrue);
+        expect(workspace.grid.columnsSplit, isFalse);
+        expect(workspace.current, same(kept));
+
+        await tester.pumpWidget(const SizedBox());
+        workspace = await pumpLoaded(tester, preferences: store);
+        expect(workspace.grid.panes, hasLength(2));
+        expect(workspace.grid.at(0)?.id, isNull);
+        expect(workspace.grid.at(2)?.id, FakeCatalog.kept.id);
+        expect(workspace.grid.rowsSplit, isTrue);
+        expect(workspace.grid.columnsSplit, isFalse);
+        expect(workspace.current?.id, FakeCatalog.kept.id);
+      },
+    );
+
     testWidgets('the agents open, where they were, and the one focused are '
         'kept between runs', (tester) async {
       final store = MemoryPreferenceStore();

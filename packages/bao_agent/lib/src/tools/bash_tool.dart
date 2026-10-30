@@ -181,10 +181,7 @@ class BashTool extends Tool {
     final shown = Timer(foregroundTaskAfter, () {
       if (running.task == null) session.tasks.registerForeground(running);
     });
-    final streams = Future.wait([
-      process.stdout.listen(running.addStdout).asFuture<void>(),
-      process.stderr.listen(running.addStderr).asFuture<void>(),
-    ]);
+    final output = ProcessOutput(process, running.addStdout, running.addStderr);
     var timedOut = false;
     var interrupted = false;
     final ended = Completer<String>();
@@ -215,7 +212,7 @@ class BashTool extends Tool {
         final task = running.task!;
         unawaited(() async {
           final code = await process.exitCode;
-          await streams.catchError((_) => <void>[]);
+          await output.ended();
           await running.closeSink();
           task.exitCode = code;
           session.tasks.finish(
@@ -242,9 +239,7 @@ class BashTool extends Tool {
         return -9;
       },
     );
-    await streams
-        .timeout(const Duration(seconds: 2), onTimeout: () => [])
-        .catchError((_) => <void>[]);
+    await output.ended();
     session.tasks.foreground.remove(context.toolUseId);
     if (running.registered case final task?) {
       task.exitCode = code;

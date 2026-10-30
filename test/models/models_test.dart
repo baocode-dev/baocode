@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,7 @@ import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/claude_code/claude_environment.dart';
 import 'package:baocode/icons/project_icon.dart';
+import 'package:baocode/models/codex/codex_api.dart';
 import 'package:baocode/models/launch_environment.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
@@ -27,6 +29,40 @@ const _gateway = ModelProvider(
   ],
   roles: ProviderRoles(haiku: 'mini'),
 );
+
+/// A [SecretStore] that answers what it is told to and counts the reads:
+/// one process each on the platforms whose keychain is a command.
+class _CountingSecretStore implements SecretStore {
+  _CountingSecretStore({this.value, this.failing = false, this.gate});
+
+  String? value;
+  bool failing;
+
+  /// Thrown instead, when given: not the keychain's own failure (e.g. its
+  /// process not started).
+  Object? error;
+
+  /// Held open, when given, to have the reads that arrive overlap.
+  Completer<void>? gate;
+
+  int reads = 0;
+
+  @override
+  Future<String?> read(String id) async {
+    reads++;
+    final gate = this.gate;
+    if (gate != null) await gate.future;
+    if (error case final error?) throw error;
+    if (failing) throw const SecretStoreException('no keychain here');
+    return value;
+  }
+
+  @override
+  Future<void> write(String id, String value) async => this.value = value;
+
+  @override
+  Future<void> delete(String id) async => value = null;
+}
 
 void main() {
   group('ModelProvider', () {
@@ -111,10 +147,10 @@ void main() {
           'x-session-id': 's',
           'Authorization': 'Bearer nope',
           'x-api-key': 'nope',
-          'User-Agent': 'nope',
+          'User-Agent': 'opencode/1.17.12',
           'Host': 'nope',
         }),
-        {'x-session-id': 's'},
+        {'x-session-id': 's', 'User-Agent': 'opencode/1.17.12'},
       );
       // The Codex CLI's own, set by the app for each account and
       // conversation: kept from a Codex upstream only.
@@ -122,6 +158,7 @@ void main() {
         'chatgpt-account-id': 'other',
         'Originator': 'nope',
         'session-id': 'nope',
+        'User-Agent': 'nope',
         'x-tenant': 't',
       };
       expect(sanitizeHeaders(codexOwn, ProviderProtocol.codex), {
@@ -393,6 +430,95 @@ void main() {
       expect(await secrets.read('provider.gw'), isNull);
     });
 
+    test('a key read once: the requests that arrive while the keychain is '
+        'answering it wait on that read, not on one of their own', () async {
+      final gate = Completer<void>();
+      final secrets = _CountingSecretStore(value: 'sk-1', gate: gate);
+      final providers = ModelProviders.memory(
+        providers: [_gateway],
+        secrets: secrets,
+      );
+
+      final reads = <Future<String?>>[
+        providers.key('gw'),
+        providers.key('gw'),
+        providers.key('gw'),
+      ];
+      expect(secrets.reads, 1, reason: 'one read for all of them');
+      gate.complete();
+      expect(await Future.wait(reads), ['sk-1', 'sk-1', 'sk-1']);
+      expect(secrets.reads, 1);
+
+      expect(await providers.key('gw'), 'sk-1');
+      expect(secrets.reads, 1, reason: 'kept: not read again');
+    });
+
+    test('a key read that fails is answered, and read again the next time: '
+        'one process, never one for each request', () async {
+      final gate = Completer<void>();
+      final secrets = _CountingSecretStore(failing: true, gate: gate);
+      final providers = ModelProviders.memory(
+        providers: [_gateway],
+        secrets: secrets,
+      );
+
+      final failed = <Future<String?>>[
+        providers.key('gw'),
+        providers.key('gw'),
+      ];
+      expect(secrets.reads, 1, reason: 'one read for all of them');
+      gate.complete();
+      expect(await Future.wait(failed), [null, null]);
+      expect(secrets.reads, 1);
+
+      // Not poisonous: a key the keychain has meanwhile is read again.
+      secrets.failing = false;
+      secrets.value = 'sk-2';
+      expect(await providers.key('gw'), 'sk-2');
+      expect(secrets.reads, 2, reason: 'the failure was not kept');
+      expect(await providers.key('gw'), 'sk-2');
+      expect(secrets.reads, 2);
+    });
+
+    test('a key read that fails otherwise throws to the requests that waited '
+        'on it, and is read again the next time', () async {
+      final gate = Completer<void>();
+      final secrets = _CountingSecretStore(value: 'sk-1', gate: gate)
+        ..error = const ProcessException('powershell.exe', [], 'not started');
+      final providers = ModelProviders.memory(
+        providers: [_gateway],
+        secrets: secrets,
+      );
+
+      final failed = [providers.key('gw'), providers.key('gw')];
+      gate.complete();
+      for (final read in failed) {
+        await expectLater(read, throwsA(isA<ProcessException>()));
+      }
+      expect(secrets.reads, 1);
+
+      secrets.error = null;
+      expect(await providers.key('gw'), 'sk-1');
+      expect(secrets.reads, 2, reason: 'the failure was not kept');
+    });
+
+    test('a key set while a read fails is kept', () async {
+      final gate = Completer<void>();
+      final secrets = _CountingSecretStore(failing: true, gate: gate);
+      final providers = ModelProviders.memory(
+        providers: [_gateway],
+        secrets: secrets,
+      );
+
+      final failed = providers.key('gw');
+      await providers.setKey('gw', 'sk-new');
+      gate.complete();
+      expect(await failed, isNull);
+
+      expect(await providers.key('gw'), 'sk-new');
+      expect(secrets.reads, 1, reason: 'the key set, not read again');
+    });
+
     test('an upstream removed, or its models, takes the other upstreams\' '
         'roles on them away', () async {
       final providers = ModelProviders.memory(
@@ -616,6 +742,104 @@ void main() {
         'https://x.example/v4/responses',
       );
       expect(UpstreamUrls.conversation(at('https://x.example')), isNull);
+    });
+
+    test('an upstream\'s own addresses over its base URL\'s, a model\'s '
+        'over its upstream\'s whatever its endpoint type', () {
+      final chat =
+          at(
+            'http://10.0.0.1/api/v1/openai/v1',
+            ProviderProtocol.openaiChat,
+          ).copyWith(
+            modelsUrl: () => ' http://10.0.0.1/api/models ',
+            endpointUrl: () => 'http://10.0.0.1/api/chat',
+            models: const [
+              ProviderModel(id: 'a'),
+              ProviderModel(id: 'b', endpointUrl: 'http://10.0.0.1/b'),
+              ProviderModel(
+                id: 'c',
+                protocol: ProviderProtocol.openaiResponses,
+              ),
+              ProviderModel(
+                id: 'd',
+                protocol: ProviderProtocol.anthropic,
+                endpointUrl: 'http://10.0.0.1/d/messages',
+              ),
+            ],
+          );
+      expect(chat.modelsUrl, 'http://10.0.0.1/api/models');
+      expect(UpstreamUrls.models(chat).join(' '), 'http://10.0.0.1/api/models');
+      expect(
+        UpstreamUrls.modelsByBase(chat).join(' '),
+        'http://10.0.0.1/api/v1/openai/v1/models',
+      );
+      expect('${UpstreamUrls.conversation(chat)}', 'http://10.0.0.1/api/chat');
+      expect(
+        '${UpstreamUrls.endpointByBase(chat)}',
+        'http://10.0.0.1/api/v1/openai/v1/chat/completions',
+      );
+      String? endpoint(String model) =>
+          UpstreamUrls.endpoint(chat.speakingFor(model))?.toString();
+      expect(endpoint('a'), 'http://10.0.0.1/api/chat');
+      expect(endpoint('b'), 'http://10.0.0.1/b');
+      // Of another type, no address of its own: as the base URL says.
+      expect(endpoint('c'), 'http://10.0.0.1/api/v1/openai/v1/responses');
+      expect(endpoint('d'), 'http://10.0.0.1/d/messages');
+      expect(chat.speakingFor('d').protocol, ProviderProtocol.anthropic);
+      // Kept as they are set.
+      expect(ModelProvider.fromJson(chat.toJson()), isNotNull);
+      final read = ModelProvider.fromJson(chat.toJson())!;
+      expect(read.modelsUrl, chat.modelsUrl);
+      expect(read.endpointUrl, chat.endpointUrl);
+      expect(read.models, chat.models);
+      // Emptied, none.
+      expect(chat.copyWith(endpointUrl: () => ' ').endpointUrl, isNull);
+      expect(
+        chat.copyWith(modelsUrl: () => '').toJson().containsKey('modelsUrl'),
+        isFalse,
+      );
+
+      // Anthropic's at an address of its own goes through the proxy.
+      final claude = at('https://x.example');
+      expect(claude.throughProxy, isFalse);
+      expect(
+        '${UpstreamUrls.messages(claude)}',
+        'https://x.example/v1/messages',
+      );
+      final relayed = claude.copyWith(
+        endpointUrl: () => 'https://x.example/relay/messages',
+      );
+      expect(relayed.throughProxy, isTrue);
+      expect(
+        '${UpstreamUrls.messages(relayed)}',
+        'https://x.example/relay/messages',
+      );
+      expect(
+        claude
+            .withModel(
+              const ProviderModel(id: 'm', endpointUrl: 'https://y.example/m'),
+            )
+            .throughProxy,
+        isTrue,
+      );
+      // A host from its addresses, with no base URL.
+      expect(
+        at(
+          '',
+          ProviderProtocol.openaiChat,
+        ).copyWith(endpointUrl: () => 'https://z.example/chat').connected,
+        isTrue,
+      );
+      // ChatGPT's (Codex) go where its accounts are, whatever is set.
+      final codex = at('', ProviderProtocol.codex).copyWith(
+        modelsUrl: () => 'https://x.example/models',
+        endpointUrl: () => 'https://x.example/chat',
+      );
+      expect(
+        UpstreamUrls.conversation(codex),
+        const CodexEndpoints().responses,
+      );
+      expect(UpstreamUrls.models(codex), UpstreamUrls.modelsByBase(codex));
     });
 
     test(
