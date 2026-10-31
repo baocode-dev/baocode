@@ -1002,7 +1002,7 @@ void main() {
         (thread) => thread.record?.id == FakeCatalog.kept.id,
       );
       workspace.openBeside(kept, draft, PaneSide.right);
-      workspace.grid.columnRatio = .3;
+      workspace.grid.setColumnRatioIn(0, .3);
       workspace.keepGridLines();
 
       // The next run.
@@ -1017,7 +1017,7 @@ void main() {
       expect(workspace.grid.at(0), same(panes.first));
       expect(workspace.grid.at(1), same(panes.last));
       expect(workspace.selected, same(panes.last));
-      expect(workspace.grid.columnRatio, .3);
+      expect(workspace.grid.columnRatios, [.3, .3]);
     });
 
     testWidgets("an agent that is no more leaves its pane to the others", (

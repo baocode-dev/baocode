@@ -387,7 +387,7 @@ final List<PerfScenario> interactionScenarios = [
       }
 
       Rect rows() {
-        final line = c.rectKeyed('row sash')!;
+        final line = c.rectKeyed('row sash 0')!;
         return Rect.fromCenter(
           center: Offset(line.left + line.width / 4, line.center.dy),
           width: 20,
@@ -399,10 +399,10 @@ final List<PerfScenario> interactionScenarios = [
       // the lines move 20px (columns) and 45px (rows) either way.
       const across = Offset(15, 0), down = Offset(0, 40);
       c.check(
-        c.rectKeyed('column sash') != null && c.rectKeyed('row sash') != null,
+        c.rectKeyed('column sash') != null && c.rectKeyed('row sash 0') != null,
         'the grid has its lines',
       );
-      if (c.rectKeyed('row sash') == null) return;
+      if (c.rectKeyed('row sash 0') == null) return;
       await c.phase('columns', (r) async {
         await _sweep(c, 'the columns\' line', columns, across);
       });

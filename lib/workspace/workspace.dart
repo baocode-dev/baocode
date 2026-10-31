@@ -2781,8 +2781,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'cells': [for (final pane in _grid.cells) panes.indexOf(pane)],
       if (focused != null && panes.contains(focused))
         'focused': panes.indexOf(focused),
-      'columnRatio': _grid.columnRatio,
-      'rowRatio': _grid.rowRatio,
+      'columnRatios': _grid.columnRatios,
+      'rowRatios': _grid.rowRatios,
+      'columnsFirst': _grid.columnsFirst,
     };
   }
 
@@ -2834,17 +2835,33 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     }
     if (cells.isEmpty) return;
     _grid.restore([for (final cell in cells.cells) shown[cell]!]);
-    if (kept['columnRatio'] case final num ratio when ratio > 0 && ratio < 1) {
-      _grid.columnRatio = ratio.toDouble();
+    if (kept['columnsFirst'] case final bool columnsFirst) {
+      _grid.columnsFirst = columnsFirst;
     }
-    if (kept['rowRatio'] case final num ratio when ratio > 0 && ratio < 1) {
-      _grid.rowRatio = ratio.toDouble();
+    if (_keptRatios(kept, 'columnRatio') case final ratios?) {
+      _grid.columnRatios = ratios;
+    }
+    if (_keptRatios(kept, 'rowRatio') case final ratios?) {
+      _grid.rowRatios = ratios;
     }
     final focused = switch (kept['focused']) {
       final int pane => shown[pane],
       _ => null,
     };
     _focus(focused ?? _grid.at(0)!);
+  }
+
+  /// A line's ratios as [_chatView] kept them under [name]`s`, one for each
+  /// of its parts; an earlier run's one ratio under [name], for both.
+  static List<double>? _keptRatios(Map<Object?, Object?> kept, String name) {
+    bool valid(Object? ratio) => ratio is num && ratio > 0 && ratio < 1;
+    if (kept['${name}s'] case [final a, final b] when valid(a) && valid(b)) {
+      return [(a as num).toDouble(), (b as num).toDouble()];
+    }
+    if (kept[name] case final num ratio when valid(ratio)) {
+      return [ratio.toDouble(), ratio.toDouble()];
+    }
+    return null;
   }
 
   /// A line between the panes moved: kept where it is now.

@@ -987,6 +987,33 @@ void main() {
     expect(tester.getRect(pane(third)).width, ChatGridView.minPane.width);
   });
 
+  testWidgets('four panes: the heights in one column move apart from the '
+      'other\'s', (tester) async {
+    await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    await dropAgent(
+      tester,
+      third,
+      near(tester.getRect(pane(first)), PaneSide.bottom),
+    );
+    await dropAgent(
+      tester,
+      fourth,
+      near(tester.getRect(pane(second)), PaneSide.bottom),
+    );
+    final left = tester.getRect(pane(first));
+    final right = tester.getRect(pane(second));
+    expect(left.bottom, right.bottom);
+    await tester.dragFrom(
+      Offset(left.center.dx, left.bottom + ChatGridView.gap / 2),
+      const Offset(0, 60),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(pane(first)).height, left.height + 60);
+    expect(tester.getRect(pane(second)), right);
+    expect(tester.getRect(pane(fourth)).top, right.bottom + ChatGridView.gap);
+  });
+
   testWidgets('too narrow for two, the window grows to fit once released; '
       'where it cannot, nothing is dropped', (tester) async {
     var room = <String, double>{'width': 400, 'height': 0};
