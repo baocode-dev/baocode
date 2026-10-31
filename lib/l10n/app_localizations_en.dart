@@ -1765,6 +1765,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get agentImageUntitled => 'Image';
 
   @override
+  String get chatTitleSummarize => 'Summarize into a new title';
+
+  @override
+  String get chatTitleSummarizing => 'Summarizing…';
+
+  @override
+  String get chatTitleSummarizeFailed => 'No title could be had. Try again';
+
+  @override
   String get sidebarNewAgent => 'New Chat';
 
   @override

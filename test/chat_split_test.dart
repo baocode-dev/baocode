@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
+import 'package:baocode/chat/widgets/hover_scroll_text.dart';
 import 'package:baocode/chat/widgets/inline_rename_field.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
 import 'package:baocode/ide/ide_workbench.dart';
@@ -632,6 +633,30 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     expect(workspace.grid.cells, original);
+  });
+
+  testWidgets('side by side, each pane names its project; alone, none '
+      'does', (tester) async {
+    await pumpApp(tester);
+    Finder project(String title, String name) => find.descendant(
+      of: pane(title),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is HoverScrollText && widget.text == name,
+      ),
+    );
+    expect(project(first, 'baocode'), findsNothing);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    expect(project(first, 'baocode'), findsOneWidget);
+    expect(project(second, 'api-gateway'), findsOneWidget);
+  });
+
+  test('a project on another computer is labelled with its name', () {
+    final workspace = Workspace();
+    expect(workspace.projectLabel(const Project('api', '/code/api')), 'api');
+    final remote = Project.at('ssh://devbox/home/me/api');
+    expect(workspace.projectLabel(remote), 'api · devbox');
+    workspace.renameHost('devbox', 'Build box');
+    expect(workspace.projectLabel(remote), 'api · Build box');
   });
 
   testWidgets('title double clicks still rename, and toolbar buttons never '
