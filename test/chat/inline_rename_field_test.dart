@@ -41,10 +41,15 @@ void main() {
   String text(WidgetTester tester) =>
       tester.widget<TextField>(find.byType(TextField)).controller!.text;
 
-  testWidgets('lists what was asked under it, the current title aside', (
-    tester,
-  ) async {
+  testWidgets('↓ lists what was asked under it, the current title aside; '
+      'not by itself, nor by ↑', (tester) async {
     await pump(tester, suggestions: ['Current', 'Fix login', 'Add tests']);
+    expect(find.text('Fix login'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    expect(find.text('Fix login'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
     expect(find.text('Fix login'), findsOneWidget);
     expect(find.text('Add tests'), findsOneWidget);
     // Only the field's.
@@ -69,9 +74,12 @@ void main() {
     expect(done, ['Add tests']);
   });
 
-  testWidgets('typing filters the list', (tester) async {
+  testWidgets('typing filters the list, and opens none', (tester) async {
     await pump(tester, suggestions: ['Fix login', 'Add tests']);
     await tester.enterText(find.byType(TextField), 'tes');
+    await tester.pump();
+    expect(find.text('Add tests'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.pump();
     expect(find.text('Add tests'), findsOneWidget);
     expect(find.text('Fix login'), findsNothing);
@@ -79,6 +87,8 @@ void main() {
 
   testWidgets('a click on one puts it in the field', (tester) async {
     final done = await pump(tester, suggestions: ['Fix login']);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
     await tester.tap(find.text('Fix login'));
     await tester.pump();
     expect(text(tester), 'Fix login');

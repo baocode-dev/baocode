@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_menu.dart' show IdeMenuColors;
+import '../../ide/ide_spinning.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
@@ -11,8 +12,8 @@ import '../../theme/workbench_theme.dart' show themeColors;
 /// Inline editor for a title, with it all selected: Enter or leaving it
 /// saves, Esc cancels.
 ///
-/// Given [suggestions], a list under it offers them, filtered by what is
-/// typed: ↑ and ↓ go through it, Enter or a click puts the one picked in
+/// Given [suggestions], ↓ opens a list of them under it, filtered by what
+/// is typed: ↑ and ↓ go through it, Enter or a click puts the one picked in
 /// the field, to be saved as any text is. Given [onSummarize], a button at
 /// the field's end puts a title summing it up there the same way.
 class InlineRenameField extends StatefulWidget {
@@ -60,9 +61,9 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
   final OverlayPortalController _portal = OverlayPortalController();
   bool _done = false;
 
-  /// Whether the list is wanted: until one of it is picked, and again as
-  /// the text is edited or ↓ pressed.
-  bool _open = true;
+  /// Whether the list is wanted: once ↓ is pressed, until one of it is
+  /// picked. Not at first: a rename does not pop it up by itself.
+  bool _open = false;
 
   /// What filters the suggestions: none until the text is edited (the
   /// title it starts with would leave none).
@@ -126,25 +127,27 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
   void _edited(String text) {
     setState(() {
       _query = text;
-      _open = true;
       _highlight = null;
     });
     _syncList();
   }
 
-  void _move(int by) {
+  /// ↑ or ↓: through the list, ↓ opening it; false for ↑ while it is
+  /// closed, the key left to the field.
+  bool _move(int by) {
     final count = _matches.length;
-    if (count == 0) return;
+    if (count == 0 || (!_open && by < 0)) return false;
     setState(() {
       if (!_open) {
         _open = true;
-        _highlight = by > 0 ? 0 : count - 1;
+        _highlight = 0;
       } else {
         final at = _highlight;
         _highlight = at == null ? (by > 0 ? 0 : count - 1) : (at + by) % count;
       }
     });
     _syncList();
+    return true;
   }
 
   void _pick(int index) {
@@ -202,13 +205,11 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
     if (!_hasList || _controller.value.composing.isValid) {
       return KeyEventResult.ignored;
     }
-    if (key == LogicalKeyboardKey.arrowDown) {
-      _move(1);
-      return KeyEventResult.handled;
-    }
-    if (key == LogicalKeyboardKey.arrowUp) {
-      _move(-1);
-      return KeyEventResult.handled;
+    if (key == LogicalKeyboardKey.arrowDown ||
+        key == LogicalKeyboardKey.arrowUp) {
+      return _move(key == LogicalKeyboardKey.arrowDown ? 1 : -1)
+          ? KeyEventResult.handled
+          : KeyEventResult.ignored;
     }
     if ((key == LogicalKeyboardKey.enter ||
             key == LogicalKeyboardKey.numpadEnter) &&
@@ -314,7 +315,9 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
           onTap: _summarizing ? null : _summarize,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Icon(icon, size: 14, color: color),
+            child: _summarizing
+                ? IdeSpinning(Icon(icon, size: 14, color: color))
+                : Icon(icon, size: 14, color: color),
           ),
         ),
       ),
