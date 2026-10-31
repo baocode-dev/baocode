@@ -129,25 +129,34 @@ List<String> askedTitles(ChatSession session) {
   return titles.toList();
 }
 
-/// What the user asked in [session], for a model to title it after: the
-/// messages in order, the latest kept where they are too many for
-/// [agentTitleMessageBudget].
-String askedText(ChatSession session) {
-  final messages = <String>[];
-  var length = 0;
-  for (var i = session.itemCount - 1; i >= 0; i--) {
-    if (session.itemAt(i) case UserMessageItem(:final text)) {
-      final message = text.replaceAll(imageReferencePattern, '').trim();
-      if (message.isEmpty) continue;
-      if (messages.isNotEmpty &&
-          length + message.length > agentTitleMessageBudget) {
-        break;
-      }
-      messages.add(message);
-      length += message.length + 2;
-    }
+/// The most of what was asked a title is summed up from: the latest
+/// messages.
+const agentSummaryMessages = 5;
+
+/// What the user asked in [session], for a model to title it after (see
+/// [summaryText]).
+String askedText(ChatSession session) => summaryText([
+  for (var i = 0; i < session.itemCount; i++)
+    if (session.itemAt(i) case UserMessageItem(:final text)) text,
+]);
+
+/// The last [agentSummaryMessages] of [messages] (in order, oldest
+/// first) that say something besides their images, in order, each cut to
+/// its share of [agentTitleMessageBudget]: a long one leaves the others
+/// their say.
+String summaryText(List<String> messages) {
+  final recent = <String>[];
+  for (final text in messages.reversed) {
+    final message = text.replaceAll(imageReferencePattern, '').trim();
+    if (message.isEmpty) continue;
+    recent.add(message);
+    if (recent.length == agentSummaryMessages) break;
   }
-  return messages.reversed.join('\n\n');
+  const share = agentTitleMessageBudget ~/ agentSummaryMessages;
+  return [
+    for (final message in recent.reversed)
+      message.length > share ? '${message.substring(0, share)}…' : message,
+  ].join('\n\n');
 }
 
 /// The bounds of a model's special tokens: `<|…|>`, `<｜…｜>`.
