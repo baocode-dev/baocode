@@ -203,18 +203,11 @@ void main() {
     expect(inSidebar(find.text('3')), findsOneWidget);
   });
 
-  testWidgets('typed over the sidebar, speed search finds a project', (
+  testWidgets('typed in the focused list, speed search finds a project; '
+      "typed in the chat, the pointer over the list, it is the chat's", (
     tester,
   ) async {
     final workspace = await pumpApp(tester);
-    // Folded, to be unfolded once found.
-    await tester.tap(inSidebar(find.text('api-gateway')));
-    await tester.pump();
-    expect(
-      inSidebar(find.textContaining('Rate limit per API key')),
-      findsNothing,
-    );
-
     Text header() => tester.widget<Text>(inSidebar(find.text('api-gateway')));
     bool highlighted() => (header().textSpan! as TextSpan).children != null;
     Future<void> type(String keys) async {
@@ -228,16 +221,28 @@ void main() {
       }
     }
 
+    // The chat's input has the keys: the pointer moved over the sidebar,
+    // what is typed is still the chat's.
+    final input = FocusManager.instance.primaryFocus;
+    expect(input?.debugLabel, 'Composer');
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(mouse.removePointer);
     await mouse.addPointer(location: const Offset(900, 450));
     await tester.pump();
-    // The pointer elsewhere, typing is not a search.
-    await type('g');
-    expect(inSidebar(find.text('g')), findsNothing);
-
     await mouse.moveTo(tester.getCenter(inSidebar(find.text('baocode'))));
     await tester.pump();
+    await type('g');
+    expect(inSidebar(find.text('g')), findsNothing);
+    expect(FocusManager.instance.primaryFocus, input);
+
+    // A project clicked (folded, to be unfolded once found): the list has
+    // the keys, and what is typed searches.
+    await tester.tap(inSidebar(find.text('api-gateway')));
+    await tester.pump();
+    expect(
+      inSidebar(find.textContaining('Rate limit per API key')),
+      findsNothing,
+    );
     await type('gw');
     expect(inSidebar(find.text('gw')), findsOneWidget);
     expect(highlighted(), isTrue);
@@ -253,17 +258,8 @@ void main() {
     expect(inSidebar(find.text('baocode')), findsOneWidget);
     expect(inSidebar(find.text('Pinned')), findsOneWidget);
 
-    // A key that went elsewhere: the pointer resting there, typing is the
-    // chat's again, until it moves.
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
-    await type('g');
-    expect(inSidebar(find.text('g')), findsNothing);
-    await mouse.moveBy(const Offset(0, 2));
-    await tester.pump();
-    await type('gw');
-    expect(inSidebar(find.text('gw')), findsOneWidget);
-
     // Deleted back to nothing, the list is as it was.
+    await type('gw');
     for (var i = 0; i < 2; i++) {
       await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
       await tester.pump();

@@ -322,9 +322,11 @@ class _SidebarState extends State<Sidebar>
   Offset? _projectDragPosition;
   List<Project> _projectDragProjects = const [];
 
-  /// Speed search, as IntelliJ's trees have: typed over the sidebar (the
-  /// pointer on it, or the list focused), the project whose name matches
-  /// best is scrolled to; its characters matched stand out.
+  /// Speed search, as IntelliJ's trees have: typed with the list focused (a
+  /// row or a project clicked), the project whose name matches best is
+  /// scrolled to; its characters matched stand out. Only the list's keys:
+  /// what is typed elsewhere (the chat's input, wherever the pointer is)
+  /// stays there.
   String _speedQuery = '';
 
   /// The project headers the search matches, top to bottom, by their
@@ -334,17 +336,6 @@ class _SidebarState extends State<Sidebar>
   /// The project found, among [_speedHits] (or found before, while none
   /// matches).
   String? _speedFound;
-
-  /// Where the keys went before the search took them, given back on Escape.
-  FocusNode? _speedReturn;
-
-  /// The pointer is over the sidebar.
-  bool _hovered = false;
-
-  /// The pointer moved over the sidebar since a key went elsewhere: what
-  /// is typed now searches. One resting there while the chat is typed in
-  /// leaves it alone.
-  bool _speedArmed = false;
 
   /// Shows the archived agents or hides them; shown, they are scrolled to,
   /// at the bottom of the list.
@@ -441,7 +432,6 @@ class _SidebarState extends State<Sidebar>
     SidebarTimes.shown.removeListener(_timesChanged);
     _clock.cancel();
     _autoScroll?.cancel();
-    if (_hovered) HardwareKeyboard.instance.removeHandler(_onHoverKey);
     _listFocus.removeListener(_focusChanged);
     _listFocus.dispose();
     _listScroll.dispose();
@@ -636,46 +626,8 @@ class _SidebarState extends State<Sidebar>
     ideRevealRange(_listScroll, _rowOffsets[index], _rowOffsets[index + 1]);
   }
 
-  static final _modifierKeys = {
-    LogicalKeyboardKey.shiftLeft,
-    LogicalKeyboardKey.shiftRight,
-    LogicalKeyboardKey.controlLeft,
-    LogicalKeyboardKey.controlRight,
-    LogicalKeyboardKey.altLeft,
-    LogicalKeyboardKey.altRight,
-    LogicalKeyboardKey.metaLeft,
-    LogicalKeyboardKey.metaRight,
-    LogicalKeyboardKey.capsLock,
-  };
-
-  void _hover(bool hovered) {
-    if (hovered == _hovered) return;
-    _hovered = hovered;
-    _speedArmed = hovered;
-    if (hovered) {
-      HardwareKeyboard.instance.addHandler(_onHoverKey);
-    } else {
-      HardwareKeyboard.instance.removeHandler(_onHoverKey);
-    }
-  }
-
-  /// Keys typed while the pointer is over the sidebar, wherever the focus
-  /// is: one that starts a search takes the keys to the list, so the rest
-  /// (Backspace, Enter…) are not the chat input's too.
-  bool _onHoverKey(KeyEvent event) {
-    if (_listFocus.hasFocus || event is KeyUpEvent) return false;
-    if (_speedArmed && _speedKey(event)) {
-      _speedReturn = FocusManager.instance.primaryFocus;
-      _listFocus.requestFocus();
-      return true;
-    }
-    if (!_modifierKeys.contains(event.logicalKey)) _speedArmed = false;
-    return false;
-  }
-
-  /// Speed search's keys, ahead of the list's own: a character typed
-  /// searches; while it does, Backspace, Escape, Enter and the arrows are
-  /// its.
+  /// Speed search's keys, the list's own: a character typed searches;
+  /// while it does, Backspace, Escape, Enter and the arrows are its.
   bool _speedKey(KeyEvent event) {
     if (event is KeyUpEvent || _renaming != null || _renamingHost) {
       return false;
@@ -683,9 +635,7 @@ class _SidebarState extends State<Sidebar>
     if (_speedQuery.isNotEmpty) {
       switch (event.logicalKey) {
         case LogicalKeyboardKey.escape:
-          final back = _speedReturn;
           _speedEnd();
-          if (back != null && back.context != null) back.requestFocus();
           return true;
         case LogicalKeyboardKey.backspace:
           final query = _speedQuery.characters.skipLast(1).toString();
@@ -728,7 +678,6 @@ class _SidebarState extends State<Sidebar>
     _speedQuery = '';
     _speedHits = const {};
     _speedFound = null;
-    _speedReturn = null;
   }
 
   /// Ends the search, every project listed again: the agent picked among
@@ -935,17 +884,11 @@ class _SidebarState extends State<Sidebar>
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.sidebarSurface,
-      child: MouseRegion(
-        onEnter: (_) => _hover(true),
-        onHover: (_) => _speedArmed = true,
-        onExit: (_) => _hover(false),
-        child: Listener(
-          // On the way up, so a click lands on the row it went down on
-          // before every project is listed again.
-          onPointerUp: (_) => _speedEnd(),
-          onPointerSignal: (_) => _speedArmed = true,
-          child: _buildContent(),
-        ),
+      child: Listener(
+        // On the way up, so a click lands on the row it went down on
+        // before every project is listed again.
+        onPointerUp: (_) => _speedEnd(),
+        child: _buildContent(),
       ),
     );
   }
@@ -1726,7 +1669,13 @@ class _SidebarState extends State<Sidebar>
       group: group,
       collapsed: _collapsed(group),
       light: !collapsible,
-      onToggle: collapsible ? () => _workspace.toggleCollapsed(group.id) : null,
+      // As a row clicked: the list has the keys then (its speed search).
+      onToggle: collapsible
+          ? () {
+              _listFocus.requestFocus();
+              _workspace.toggleCollapsed(group.id);
+            }
+          : null,
       onCreate: project == null ? null : () => _create(project),
       // Dragged onto the panes, beside them; not in an agent's window,
       // which has its one conversation.
