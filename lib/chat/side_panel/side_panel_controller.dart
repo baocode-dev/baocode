@@ -502,6 +502,15 @@ class AgentSidePanel extends ChangeNotifier {
     if (request.plan) return _openPlan(conversation, tabs, request);
     if (listAway && !request.diff) _listAway = true;
     final list = request.diff ? tabs.diffs : tabs.files;
+    if (request.diff) {
+      // One change at a time, as the log shows them: the one before goes,
+      // but for edits not saved.
+      list.removeWhere((tab) {
+        final other = tab.path != request.path && !tab.dirty;
+        if (other) tab._dropEdit(highlights);
+        return other;
+      });
+    }
     var tab = list.where((tab) => tab.path == request.path).firstOrNull;
     if (tab == null) {
       tab = SidePanelTab(request);

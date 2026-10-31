@@ -78,7 +78,8 @@ void main() {
   testWidgets('F7 steps change by change, on into the next file; Shift+F7 '
       'back to its last', (tester) async {
     await showDiff(tester);
-    expect(find.text('2 / 3'), findsOneWidget);
+    // The files as Source Control lists them.
+    expect(find.text('1 / 3'), findsOneWidget);
     expect(find.text('1 of 2'), findsOneWidget);
     // In the diff, its keys.
     await tester.tap(find.byType(DiffEditor));
@@ -87,10 +88,10 @@ void main() {
     expect(find.text('2 of 2'), findsOneWidget);
     // Past the last: the next file's first.
     await key(tester, LogicalKeyboardKey.f7);
-    expect(find.text('3 / 3'), findsOneWidget);
+    expect(find.text('2 / 3'), findsOneWidget);
     expect(find.text('1 of 1'), findsOneWidget);
     await key(tester, LogicalKeyboardKey.f7, shift: true);
-    expect(find.text('2 / 3'), findsOneWidget);
+    expect(find.text('1 / 3'), findsOneWidget);
     expect(find.text('2 of 2'), findsOneWidget);
 
     // The toolbar's buttons do the same.
@@ -346,7 +347,8 @@ void main() {
       }
     }
 
-    await tester.tap(find.byTooltip(RegExp('^Previous File')));
+    // staged.dart, after a.dart as Source Control lists them.
+    await tester.tap(find.byTooltip(RegExp('^Next File')));
     for (var i = 0; i < 40; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 5)),
@@ -356,7 +358,7 @@ void main() {
     }
     await tester.pumpAndSettle();
     look();
-    expect(find.text('1 / 3'), findsOneWidget);
+    expect(find.text('2 / 3'), findsOneWidget);
     expect(seen, isNotEmpty);
     expect(seen, everyElement('collapsed'));
   });

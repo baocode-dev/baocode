@@ -96,11 +96,13 @@ class IdeGitCommitPanel extends StatefulWidget {
   final Future<void> Function(String path, {bool focusEditor}) onOpen;
 
   /// Shows a change: its diff, where the host shows one ([focusEditor]: in
-  /// the editor, to edit).
+  /// the editor, to edit); [among], the changes of its repository as they
+  /// list, for the diff to step through in that order.
   final Future<void> Function(
     IdeGitResource resource, {
     bool head,
     bool focusEditor,
+    List<IdeGitResource>? among,
   })
   onOpenChange;
 
@@ -234,6 +236,15 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
   /// panel comes back.
   String? get _selected => _session.listSelected;
   set _selected(String? key) => _session.listSelected = key;
+
+  /// The path of the file whose row is selected, if one is.
+  @visibleForTesting
+  String? get selectedFile => switch (_selected) {
+    final key? when key.startsWith('x:') => key.substring(
+      key.lastIndexOf(':') + 1,
+    ),
+    _ => null,
+  };
   IdeInputValidation? _validation;
   bool _committing = false;
 
@@ -267,6 +278,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     _inputFocus.addListener(_rebuild);
     widget.hunks?.addListener(_rebuild);
     widget.changelists?.addListener(_rebuild);
+    _session.log.addListener(_followDiff);
   }
 
   @override
@@ -275,6 +287,8 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     if (!identical(oldWidget.session, widget.session)) {
       oldWidget.session.message.removeListener(_messageChanged);
       widget.session.message.addListener(_messageChanged);
+      oldWidget.session.log.removeListener(_followDiff);
+      widget.session.log.addListener(_followDiff);
       _messageText = widget.session.message.text;
       _validation = null;
     }
@@ -291,6 +305,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
   @override
   void dispose() {
     _session.message.removeListener(_messageChanged);
+    _session.log.removeListener(_followDiff);
     widget.hunks?.removeListener(_rebuild);
     widget.changelists?.removeListener(_rebuild);
     _listFocus.dispose();
@@ -608,7 +623,12 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     });
   }
 
-  List<_Row> get _rows {
+  List<_Row> get _rows => _rowsOf();
+
+  /// The tree's rows; [all]: those in collapsed folders and groups too.
+  List<_Row> _rowsOf({bool all = false}) {
+    bool collapsed(IdeGitRepository git, String key) =>
+        !all && _collapsed(git, key);
     final repositories = [
       for (final git in _repositories)
         if (git.state != null) git,
@@ -628,7 +648,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
       if (several) {
         final row = _RepoRow(git, all);
         rows.add(row);
-        if (_collapsed(git, row.key)) continue;
+        if (collapsed(git, row.key)) continue;
         depth = 1;
         parent = row.key;
       }
@@ -637,7 +657,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
         final group = _GroupRow(git, kind, files, depth, list: list)
           ..parent = parent;
         rows.add(group);
-        if (_collapsed(git, group.key)) return;
+        if (collapsed(git, group.key)) return;
         if (!byDirectory) {
           for (final file in files) {
             rows.add(
@@ -660,7 +680,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                   list: list,
                 )..parent = parent;
                 rows.add(folder);
-                if (!_collapsed(git, folder.key)) {
+                if (!collapsed(git, folder.key)) {
                   add(node.children, depth + 1, folder.key);
                 }
               case IdeScmTreeFile(:final resource):
@@ -740,11 +760,46 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     }
   }
 
-  /// A file's changes: where the host shows them, or ([editor]) in the
-  /// editor.
+  /// A file's changes: where the host shows them, among its repository's
+  /// as they list (collapsed or not), or ([editor]) in the editor.
   Future<void> _show(_FileRow row, {bool editor = false}) async {
     if (!identical(row.git, _git)) widget.host.selectRepository(row.git);
-    await widget.onOpenChange(row.resource, focusEditor: editor);
+    final among = <IdeGitResource>[];
+    for (final other in _rowsOf(all: true)) {
+      if (other is _FileRow &&
+          identical(other.git, row.git) &&
+          !among.any((file) => file.path == other.resource.path)) {
+        among.add(other.resource);
+      }
+    }
+    await widget.onOpenChange(row.resource, focusEditor: editor, among: among);
+  }
+
+  /// The local change the log's diff shows, stepped to from its file
+  /// menu or its arrows: selected here too, its folders opened.
+  void _followDiff() {
+    final diff = _session.log.diff;
+    final git = _git;
+    if (diff == null || diff.file.commitId != null || git == null) return;
+    final path = diff.file.path;
+    final rows = _rowsOf(all: true);
+    final row = rows
+        .whereType<_FileRow>()
+        .where((row) => identical(row.git, git) && row.resource.path == path)
+        .firstOrNull;
+    if (row == null || row.key == _selected) return;
+    final byKey = {for (final row in rows) row.key: row};
+    final folds = _sessionOf(git).collapsedFolders;
+    for (
+      var parent = row.parent;
+      parent != null;
+      parent = byKey[parent]?.parent
+    ) {
+      folds.remove(parent);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _select(row, reveal: true);
+    });
   }
 
   void _toggleCheck(_Row row) {
