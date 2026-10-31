@@ -634,48 +634,45 @@ class _SidebarState extends State<Sidebar>
   }
 
   /// The open agent brought into view, once another is open (its pane
-  /// clicked, a shortcut, the search): its row, its project unfolded first
-  /// where it is folded, as the explorer reveals a file.
+  /// clicked, a shortcut, the search): its row; in a folded project, the
+  /// project's header, marked (see [_GroupHeader.located]), the project
+  /// left folded as the user had it.
   void _revealCurrent() {
     final current = _current;
     // Searching, the list is the search's.
     if (current == null || _onPage || _speedQuery.isNotEmpty) return;
-    if (_threadIndices.containsKey(current)) return _bringToRow(current);
-    for (final row in _listRows) {
+    if (_threadIndices[current] case final index?) return _bringTo(index);
+    for (final (index, row) in _listRows.indexed) {
       if (row.kind == _ListRowKind.header &&
           _collapsed(row.group) &&
           row.group.threads.contains(current)) {
-        _workspace.setCollapsed([row.group.id], false);
-        // Its row is there once the list is laid out again.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && identical(_current, current)) _bringToRow(current);
-        });
-        return;
+        return _bringTo(index);
       }
     }
   }
 
-  /// Scrolls [thread]'s row to a third of the way down the list, where it
-  /// is seen, its project's header above it where that fits, unless it is
-  /// well within the list already (not near its top or bottom edge, where
-  /// it would go unnoticed).
-  void _bringToRow(AgentThread thread) {
-    final index = _threadIndices[thread];
-    if (index == null || !_listScroll.hasClients) return;
+  /// Scrolls row [index] to a third of the way down the list, where it is
+  /// seen, an agent's project's header above it where that fits, unless it
+  /// is well within the list already (not near its top or bottom edge,
+  /// where it would go unnoticed).
+  void _bringTo(int index) {
+    if (!_listScroll.hasClients) return;
     final position = _listScroll.position;
     final view = position.viewportDimension;
     final top = _rowOffsets[index] - position.pixels;
     final bottom = _rowOffsets[index + 1] - position.pixels;
     if (top >= view * .15 && bottom <= view * .85) return;
     var at = _rowOffsets[index] - view / 3;
-    final header = _listRows
-        .take(index)
-        .toList()
-        .lastIndexWhere((row) => row.kind == _ListRowKind.header);
-    // The header at the top, where the row is still in the upper half.
-    if (header >= 0 &&
-        _rowOffsets[index + 1] - _rowOffsets[header] <= view / 2) {
-      at = math.min(at, _rowOffsets[header] - 8);
+    if (_listRows[index].kind != _ListRowKind.header) {
+      final header = _listRows
+          .take(index)
+          .toList()
+          .lastIndexWhere((row) => row.kind == _ListRowKind.header);
+      // The header at the top, where the row is still in the upper half.
+      if (header >= 0 &&
+          _rowOffsets[index + 1] - _rowOffsets[header] <= view / 2) {
+        at = math.min(at, _rowOffsets[header] - 8);
+      }
     }
     final target = at.clamp(position.minScrollExtent, position.maxScrollExtent);
     if ((target - position.pixels).abs() < 1) return;
@@ -1730,7 +1727,12 @@ class _SidebarState extends State<Sidebar>
           : _workspace.workspaceOf(project)?.folders,
       dragged: project != null && identical(project, _draggedProject),
       speedMatch: _speedHits[group.id],
-      located: group.id == _speedFound && _speedHits.containsKey(group.id),
+      // The one the speed search found; else one folded over the agent open.
+      located:
+          (group.id == _speedFound && _speedHits.containsKey(group.id)) ||
+          (_speedQuery.isEmpty &&
+              _collapsed(group) &&
+              group.threads.contains(_current)),
       pinned: project != null && _workspace.isPinnedProject(project),
       icon: project == null
           ? null
@@ -2559,7 +2561,8 @@ class _GroupHeader extends StatelessWidget {
   /// The characters of its name the speed search matches.
   final List<int>? speedMatch;
 
-  /// The project the speed search found.
+  /// Marked: the project the speed search found, or one folded over the
+  /// agent open.
   final bool located;
 
   /// Null where the group does not fold.

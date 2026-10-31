@@ -940,8 +940,8 @@ void main() {
     expect(inHeader(OpenInEditorButton), findsOneWidget);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
-  testWidgets('a pane clicked, the sidebar goes to its agent\'s row, its '
-      'project unfolded where it is folded', (tester) async {
+  testWidgets('a pane clicked, the sidebar goes to its agent\'s row; in a '
+      'folded project to its header, the project left folded', (tester) async {
     final workspace = await pumpApp(tester);
     // Too short for the whole list.
     tester.view.physicalSize = const Size(1400, 480);
@@ -974,19 +974,24 @@ void main() {
     expect(seen(row), isTrue);
     expect(shown(inSidebar(find.text(agent(second).project.name))), isTrue);
 
-    // Its project folded: unfolded, and the row shown.
+    // Its project folded: left so, its header brought to instead.
     final project = agent(second).project;
     final group = Workspace.projectGroup(project.path);
     workspace.toggleCollapsed(group);
+    // Shorter still, for the folded list to scroll too.
+    tester.view.physicalSize = const Size(1400, 340);
     await tester.tapAt(tester.getRect(pane(first)).center);
     await tester.pumpAndSettle();
     expect(row, findsNothing);
+    expect(list.position.maxScrollExtent, greaterThan(0));
     list.position.jumpTo(0);
     await tester.pump();
     await tester.tapAt(tester.getRect(pane(second)).center);
     await tester.pumpAndSettle();
-    expect(workspace.isCollapsed(group), isFalse);
-    expect(seen(row), isTrue);
+    expect(workspace.isCollapsed(group), isTrue);
+    expect(row, findsNothing);
+    expect(list.position.pixels, greaterThan(0));
+    expect(shown(inSidebar(find.text(project.name))), isTrue);
   });
 
   testWidgets('a row clicked to open its agent stays under the pointer, '
