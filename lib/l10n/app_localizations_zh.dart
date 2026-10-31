@@ -9082,9 +9082,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get branchBarDetached => '分离的 HEAD';
 
   @override
-  String get branchBarRunning => 'Agent 运行时不能切换分支';
-
-  @override
   String branchBarFailed(String branch) {
     return '无法切换到“$branch”';
   }

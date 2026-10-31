@@ -6896,10 +6896,6 @@
   "@branchBarDetached": {
     "description": "What the branch picker under the chat input shows when no branch is checked out."
   },
-  "branchBarRunning": "Branches can't be switched while the agent works",
-  "@branchBarRunning": {
-    "description": "Tooltip of the branch under the chat input while the agent is working."
-  },
   "branchBarFailed": "Couldn't switch to “{branch}”",
   "@branchBarFailed": {
     "description": "Message of the dialog shown when Git refused to check out or create the branch {branch}; Git's own message is the detail.",
