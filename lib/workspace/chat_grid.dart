@@ -9,8 +9,9 @@ enum PaneSide { left, top, right, bottom }
 /// the middle and one across, each pane on one cell or on two (a whole row
 /// or column), so a line never stops against the middle of a pane.
 ///
-/// The lines are shared: the column line is at the same place in both rows,
-/// and the row line in both columns ([columnRatio], [rowRatio]).
+/// One line runs straight through the grid ([columnsFirst]: the column
+/// line); the other is in two parts, one each side of it, each moving on its
+/// own: the panes of one column are sized apart from the other's.
 class ChatGrid<T extends Object> {
   /// The pane on each cell, row by row: top left, top right, bottom left,
   /// bottom right. Empty with no pane at all.
@@ -18,12 +19,144 @@ class ChatGrid<T extends Object> {
 
   static const maxPanes = 4;
 
-  /// Where the column line is, as a share of the width; the row line, of
-  /// the height. A line that appears starts in the middle.
-  double columnRatio = .5;
-  double rowRatio = .5;
+  /// Where the column line is in each row, as a share of the width; the
+  /// row line in each column, of the height. A line that appears starts in
+  /// the middle; a straight one is at its first.
+  List<double> _columnRatios = [.5, .5];
+  List<double> _rowRatios = [.5, .5];
+
+  /// With four panes, whether the column line is the straight one: as it
+  /// was before the fourth came.
+  bool _columnsFirst = true;
+
+  List<double> get columnRatios => List.unmodifiable(_columnRatios);
+  set columnRatios(List<double> ratios) {
+    assert(ratios.length == 2);
+    _columnRatios = [...ratios];
+  }
+
+  List<double> get rowRatios => List.unmodifiable(_rowRatios);
+  set rowRatios(List<double> ratios) {
+    assert(ratios.length == 2);
+    _rowRatios = [...ratios];
+  }
+
+  /// Whether the column line runs straight through both rows, and the row
+  /// line is in a part for each column: where a pane has a whole column;
+  /// a whole row, the other way; with four, as they were.
+  bool get columnsFirst {
+    if (_cells.isEmpty) return _columnsFirst;
+    final column = _cells[0] == _cells[2] || _cells[1] == _cells[3];
+    final row = _cells[0] == _cells[1] || _cells[2] == _cells[3];
+    return column == row ? _columnsFirst : column;
+  }
+
+  set columnsFirst(bool value) => _columnsFirst = value;
+
+  /// Where the column line is in [row]: the straight line's, the same in
+  /// both.
+  double columnRatioIn(int row) => _columnRatios[columnsFirst ? 0 : row];
+  double rowRatioIn(int column) => _rowRatios[columnsFirst ? column : 0];
+
+  /// Moves the column line in [row]; the straight one, in both.
+  void setColumnRatioIn(int row, double ratio) {
+    if (columnsFirst) {
+      _columnRatios = [ratio, ratio];
+    } else {
+      _columnRatios[row] = ratio;
+    }
+  }
+
+  void setRowRatioIn(int column, double ratio) {
+    if (columnsFirst) {
+      _rowRatios[column] = ratio;
+    } else {
+      _rowRatios = [ratio, ratio];
+    }
+  }
+
+  /// Changes the cells with [change], the lines kept where they were: a
+  /// part that appears in the middle, or where the other part of its line
+  /// is, the line now straight.
+  void _keepLines(void Function() change) {
+    final columnsIn = [columnLineIn(0), columnLineIn(1)];
+    final rowsIn = [rowLineIn(0), rowLineIn(1)];
+    _columnsFirst = columnsFirst;
+    change();
+    _columnRatios = _kept(_columnRatios, columnsIn, straight: columnsFirst);
+    _rowRatios = _kept(_rowRatios, rowsIn, straight: !columnsFirst);
+  }
+
+  static List<double> _kept(
+    List<double> ratios,
+    List<bool> were, {
+    required bool straight,
+  }) {
+    final any = were[0]
+        ? ratios[0]
+        : were[1]
+        ? ratios[1]
+        : .5;
+    if (straight) return [any, any];
+    return [for (var i = 0; i < 2; i++) were[i] ? ratios[i] : any];
+  }
 
   bool get isEmpty => _cells.isEmpty;
+
+  /// Under each pane, the ones it covered (see [cover]), the last covered
+  /// last: closed, it shows the last of them again ([uncover]). They are
+  /// not built while covered.
+  Map<T, List<T>> _under = {};
+
+  /// The panes [pane] covers, the next to show again last.
+  List<T> under(T pane) => List.unmodifiable(_under[pane] ?? const []);
+
+  /// Whether [pane] is covered by another: not shown, kept to show again.
+  bool isCovered(T pane) => _under.values.any((under) => under.contains(pane));
+
+  /// [pane] no longer under any other: shown elsewhere, or gone.
+  void forget(T pane) {
+    for (final under in _under.values) {
+      under.remove(pane);
+    }
+    _under.removeWhere((_, under) => under.isEmpty);
+  }
+
+  /// [covered], under [pane], shown in its place over it: [pane] goes on top
+  /// of the rest under it.
+  void raise(T pane, T covered) {
+    final under = _under.remove(pane);
+    if (under == null || !under.remove(covered) || !contains(pane)) {
+      if (under != null) _under[pane] = under;
+      return;
+    }
+    _cells = [for (final cell in _cells) cell == pane ? covered : cell];
+    _under[covered] = [...under, pane];
+  }
+
+  /// Shows [pane] over [old], in its place: [old] and those it covered under
+  /// it, to show again once [pane] closes; the [maxUnder] last covered.
+  void cover(T old, T pane) {
+    assert(contains(old) && !contains(pane));
+    forget(pane);
+    final under = [...?_under.remove(old), old];
+    if (under.length > maxUnder) under.removeRange(0, under.length - maxUnder);
+    _cells = [for (final shown in _cells) shown == old ? pane : shown];
+    _under[pane] = under;
+  }
+
+  static const maxUnder = 8;
+
+  /// [pane] closed where it covers another: the last it covered shows in its
+  /// place again, over the rest. Null, nothing changed, where it covers none.
+  T? uncover(T pane) {
+    final under = _under.remove(pane);
+    if (under == null || under.isEmpty || !contains(pane)) return null;
+    final shown = under.removeLast();
+    _cells = [for (final cell in _cells) cell == pane ? shown : cell];
+    if (under.isNotEmpty) _under[shown] = under;
+    return shown;
+  }
 
   /// The panes, top left first, row by row.
   List<T> get panes => {..._cells}.toList();
@@ -46,6 +179,7 @@ class ChatGrid<T extends Object> {
       if (!_isRectangle(own)) return false;
     }
     _cells = [...cells];
+    _under = {};
     return true;
   }
 
@@ -85,10 +219,12 @@ class ChatGrid<T extends Object> {
   /// [pane] alone, on the whole grid.
   void show(T pane) {
     _cells = List.filled(4, pane);
+    _under = {};
   }
 
   void clear() {
     _cells = const [];
+    _under = {};
   }
 
   /// Whether [pane] can give another the half of it on [side]: it has two
@@ -107,14 +243,13 @@ class ChatGrid<T extends Object> {
   /// Gives [added] the half of [target] on its [side] (see [canSplit]).
   void split(T target, PaneSide side, T added) {
     assert(canSplit(target, side) && !contains(added));
-    final columns = columnsSplit;
-    final rows = rowsSplit;
-    _cells = [
-      for (final (cell, pane) in _cells.indexed)
-        pane == target && _onSide(cell, side) ? added : pane,
-    ];
-    if (!columns && columnsSplit) columnRatio = .5;
-    if (!rows && rowsSplit) rowRatio = .5;
+    forget(added);
+    _keepLines(
+      () => _cells = [
+        for (final (cell, pane) in _cells.indexed)
+          pane == target && _onSide(cell, side) ? added : pane,
+      ],
+    );
   }
 
   /// Moves [pane] beside [target] on [side], or swaps their places when
@@ -136,20 +271,28 @@ class ChatGrid<T extends Object> {
     final next = copy()..remove(pane);
     if (!next.canSplit(target, side)) return false;
     next.split(target, side, pane);
+    // What it covered goes with it.
+    if (_under[pane] case final under?) next._under[pane] = under;
     _cells = next._cells;
-    columnRatio = next.columnRatio;
-    rowRatio = next.rowRatio;
+    _under = next._under;
+    _columnRatios = next._columnRatios;
+    _rowRatios = next._rowRatios;
+    _columnsFirst = next._columnsFirst;
     return true;
   }
 
-  /// Shows [pane] where [old] was.
+  /// Shows [pane] where [old] was, over what [old] covered.
   void replace(T old, T pane) {
     assert(!contains(pane));
+    forget(pane);
     _cells = [for (final shown in _cells) shown == old ? pane : shown];
+    if (_under.remove(old) case final under?) _under[pane] = under;
   }
 
-  /// Takes [pane] out: a pane beside it takes its cells, the one above or
-  /// below first. Where no one pane can (it had a whole row or column, the
+  /// Takes [pane] out, and those it covered with it: a pane beside it takes
+  /// its cells, the one across the
+  /// straight line first (see [columnsFirst]: above or below where it is the
+  /// column line). Where no one pane can (it had a whole row or column, the
   /// other half split), each cell goes to the pane across from it. Returns
   /// the pane now on its first cell; null when it was the last.
   T? remove(T pane) {
@@ -159,19 +302,27 @@ class ChatGrid<T extends Object> {
       clear();
       return null;
     }
+    _under.remove(pane);
+    // Across the straight line first: it stays straight, and the other's
+    // parts where they were.
+    final first = columnsFirst ? 2 : 1;
     final neighbors = [
-      for (final cell in gone) _cells[cell ^ 2],
-      for (final cell in gone) _cells[cell ^ 1],
+      for (final cell in gone) _cells[cell ^ first],
+      for (final cell in gone) _cells[cell ^ (3 - first)],
     ].where((other) => other != pane);
     final heir = neighbors
         .where((other) => _isRectangle({..._cellsOf(other), ...gone}))
         .firstOrNull;
     // Down a column the cells go across; along a row, up or down.
     final column = gone.every((cell) => cell.isEven == gone.first.isEven);
-    _cells = [
-      for (final (cell, shown) in _cells.indexed)
-        shown != pane ? shown : heir ?? _cells[column ? cell ^ 1 : cell ^ 2],
-    ];
+    _keepLines(
+      () => _cells = [
+        for (final (cell, shown) in _cells.indexed)
+          shown != pane ? shown : heir ?? _cells[column ? cell ^ 1 : cell ^ 2],
+      ],
+    );
+    // Alone, a pane shows another in its place, not over it (see [cover]).
+    if (length == 1) _under = {};
     return _cells[gone.reduce(math.min)];
   }
 
@@ -184,12 +335,16 @@ class ChatGrid<T extends Object> {
   /// A grid the same as this one, to change without changing it.
   ChatGrid<T> copy() => ChatGrid<T>()
     .._cells = [..._cells]
-    ..columnRatio = columnRatio
-    ..rowRatio = rowRatio;
+    .._under = {
+      for (final MapEntry(:key, :value) in _under.entries) key: [...value],
+    }
+    .._columnRatios = [..._columnRatios]
+    .._rowRatios = [..._rowRatios]
+    .._columnsFirst = _columnsFirst;
 
-  /// Where the column line is in [width]: at [columnRatio], but leaving
-  /// each column [minPane] wide where there is room for both (in the middle
-  /// where there is not).
+  /// Where a line is in [extent]: at [ratio], but leaving each side
+  /// [minPane] where there is room for both (in the middle where there is
+  /// not).
   static double line(
     double ratio,
     double extent, {
@@ -201,6 +356,28 @@ class ChatGrid<T extends Object> {
     return least <= most ? (ratio * extent).clamp(least, most) : extent / 2;
   }
 
+  /// Where the column line is in each row, and the row line in each
+  /// column, in [size] (see [line]).
+  ({List<double> xs, List<double> ys}) lines(
+    Size size, {
+    required double gap,
+    Size minPane = Size.zero,
+  }) => (
+    xs: [
+      for (var row = 0; row < 2; row++)
+        line(columnRatioIn(row), size.width, gap: gap, minPane: minPane.width),
+    ],
+    ys: [
+      for (var column = 0; column < 2; column++)
+        line(
+          rowRatioIn(column),
+          size.height,
+          gap: gap,
+          minPane: minPane.height,
+        ),
+    ],
+  );
+
   /// Each pane's rectangle in [size], [gap] between them, the lines kept
   /// where the panes either side have [minPane] of room (see [line]).
   Map<T, Rect> layout(
@@ -208,18 +385,23 @@ class ChatGrid<T extends Object> {
     required double gap,
     Size minPane = Size.zero,
   }) {
-    final x = line(columnRatio, size.width, gap: gap, minPane: minPane.width);
-    final y = line(rowRatio, size.height, gap: gap, minPane: minPane.height);
-    final columns = columnsSplit
-        ? [(0.0, x - gap / 2), (x + gap / 2, size.width)]
-        : [(0.0, size.width), (0.0, size.width)];
-    final rows = rowsSplit
-        ? [(0.0, y - gap / 2), (y + gap / 2, size.height)]
-        : [(0.0, size.height), (0.0, size.height)];
+    final (:xs, :ys) = lines(size, gap: gap, minPane: minPane);
+    final columns = columnsSplit;
+    final rows = rowsSplit;
     final rects = <T, Rect>{};
     for (final (cell, pane) in _cells.indexed) {
-      final (left, right) = columns[cell % 2];
-      final (top, bottom) = rows[cell ~/ 2];
+      final column = cell % 2, row = cell ~/ 2;
+      final x = xs[row], y = ys[column];
+      final (left, right) = !columns
+          ? (0.0, size.width)
+          : column == 0
+          ? (0.0, x - gap / 2)
+          : (x + gap / 2, size.width);
+      final (top, bottom) = !rows
+          ? (0.0, size.height)
+          : row == 0
+          ? (0.0, y - gap / 2)
+          : (y + gap / 2, size.height);
       final rect = Rect.fromLTRB(left, top, right, bottom);
       rects[pane] = rects[pane]?.expandToInclude(rect) ?? rect;
     }
