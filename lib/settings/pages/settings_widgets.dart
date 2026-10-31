@@ -563,9 +563,7 @@ class SettingsTextField extends StatefulWidget {
     required this.onSubmitted,
     this.hint,
     this.width = 220,
-    this.controller,
     this.autofocus = false,
-    this.submitOnBlur = true,
   });
 
   final String value;
@@ -574,21 +572,14 @@ class SettingsTextField extends StatefulWidget {
   final String? hint;
   final double width;
 
-  /// The text, for a button beside the field to take it.
-  final TextEditingController? controller;
   final bool autofocus;
-
-  /// Entered when it loses focus too; only by Enter otherwise (a field
-  /// with a Cancel beside it).
-  final bool submitOnBlur;
 
   @override
   State<SettingsTextField> createState() => _SettingsTextFieldState();
 }
 
 class _SettingsTextFieldState extends State<SettingsTextField> {
-  late final _controller =
-      widget.controller ?? TextEditingController(text: widget.value);
+  late final _controller = TextEditingController(text: widget.value);
   final _focus = FocusNode();
 
   @override
@@ -610,12 +601,12 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
   void dispose() {
     _focus.removeListener(_focusChanged);
     _focus.dispose();
-    if (widget.controller == null) _controller.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   void _focusChanged() {
-    if (!_focus.hasFocus && widget.submitOnBlur) _submit(_controller.text);
+    if (!_focus.hasFocus) _submit(_controller.text);
   }
 
   void _submit(String text) {
@@ -644,8 +635,6 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
           controller: _controller,
           focusNode: _focus,
           autofocus: widget.autofocus,
-          // Kept focused when entered, for what was wrong to be put right.
-          onEditingComplete: widget.submitOnBlur ? null : () {},
           onSubmitted: _submit,
           style: mono.copyWith(color: AppColors.text),
           decoration: InputDecoration(

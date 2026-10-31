@@ -8380,31 +8380,19 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get mobileRelayBaoCode => 'BaoCode 的中继';
-
-  @override
-  String get mobileRelayOwn => '自建';
-
-  @override
-  String get mobileRelayInUse => '正在使用';
-
-  @override
-  String get mobileRelayRemove => '移除';
-
-  @override
-  String get mobileRelayAdd => '添加自建中继';
-
-  @override
-  String get mobileRelayAddDescription => '你自己部署的中继（baocode-relay）的地址。';
-
-  @override
-  String get mobileRelayAddButton => '添加';
-
-  @override
   String get mobileRelayInvalid => '不是中继地址，应形如 https://relay.example.com';
 
   @override
-  String get mobileRelayDuplicate => '已经在列表里了';
+  String get mobileRelayPinned => '指定的中继';
+
+  @override
+  String get mobileRelayCustom => '自定义';
+
+  @override
+  String get mobileRelayCustomAddress => '自定义地址';
+
+  @override
+  String get mobileRelayCustomDescription => '你自己部署的中继（baocode-relay）的地址。';
 
   @override
   String get mobileRelayMode => '方式';
@@ -8416,23 +8404,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileRelayModeAutoDescription => '使用 BaoCode 的中继，自动选最近的一台。';
 
   @override
-  String get mobileRelayModeAdded => '自己添加';
-
-  @override
-  String get mobileRelayModeAddedDescription => 'BaoCode 的中继之外，再加上你自己部署的。';
-
-  @override
   String get mobileRelayModePinned => '手动指定';
 
   @override
   String get mobileRelayModePinnedDescription =>
-      '只用你指定的一台：BaoCode 的某一台，或你自己部署的。';
-
-  @override
-  String get mobileRelayPicked => '已指定';
-
-  @override
-  String get mobileRelayPick => '用这台';
+      '只用你指定的一台：BaoCode 的某一台，或自定义地址。';
 
   @override
   String get mobilePathLan => '局域网直连';
