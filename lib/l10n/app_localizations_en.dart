@@ -151,6 +151,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdChatFocusPreviousPane => 'Focus Previous Pane';
 
   @override
+  String get cmdChatFocusPaneLeft => 'Focus Left Pane';
+
+  @override
+  String get cmdChatFocusPaneRight => 'Focus Right Pane';
+
+  @override
+  String get cmdChatFocusPaneUp => 'Focus Above Pane';
+
+  @override
+  String get cmdChatFocusPaneDown => 'Focus Below Pane';
+
+  @override
+  String get cmdChatNextPaneTab => 'Open Next Tab in Pane';
+
+  @override
+  String get cmdChatPreviousPaneTab => 'Open Previous Tab in Pane';
+
+  @override
+  String get cmdChatTogglePaneTabs => 'Toggle Pane Tabs';
+
+  @override
+  String get workspacePaneTabs => 'Show as Tabs';
+
+  @override
   String get cmdChatSearch => 'Search';
 
   @override

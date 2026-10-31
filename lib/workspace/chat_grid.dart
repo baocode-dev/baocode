@@ -111,6 +111,36 @@ class ChatGrid<T extends Object> {
   /// The panes [pane] covers, the next to show again last.
   List<T> under(T pane) => List.unmodifiable(_under[pane] ?? const []);
 
+  /// When each pane came to the slot it is in, for [tabs]' order: shown
+  /// again from under another, it keeps its place.
+  final Map<T, int> _opened = {};
+  int _openings = 0;
+
+  void _open(T pane) => _opened[pane] = _openings++;
+
+  /// [pane] and those it covers, as tabs: in the order they came to its
+  /// slot, whichever shows.
+  List<T> tabs(T pane) {
+    if (!contains(pane)) return const [];
+    return [...?_under[pane], pane]
+      ..sort((a, b) => (_opened[a] ?? -1).compareTo(_opened[b] ?? -1));
+  }
+
+  /// The pane beside [pane] on its [side]: the first along that edge (the
+  /// upper or left one); null at the grid's edge.
+  T? neighbor(T pane, PaneSide side) {
+    for (final cell in _cellsOf(pane).toList()..sort()) {
+      final next = switch (side) {
+        PaneSide.left => cell.isOdd ? cell - 1 : null,
+        PaneSide.right => cell.isEven ? cell + 1 : null,
+        PaneSide.top => cell >= 2 ? cell - 2 : null,
+        PaneSide.bottom => cell < 2 ? cell + 2 : null,
+      };
+      if (next != null && _cells[next] != pane) return _cells[next];
+    }
+    return null;
+  }
+
   /// Whether [pane] is covered by another: not shown, kept to show again.
   bool isCovered(T pane) => _under.values.any((under) => under.contains(pane));
 
@@ -141,6 +171,7 @@ class ChatGrid<T extends Object> {
     forget(pane);
     final under = [...?_under.remove(old), old];
     if (under.length > maxUnder) under.removeRange(0, under.length - maxUnder);
+    _open(pane);
     _cells = [for (final shown in _cells) shown == old ? pane : shown];
     _under[pane] = under;
   }
@@ -220,6 +251,7 @@ class ChatGrid<T extends Object> {
   void show(T pane) {
     _cells = List.filled(4, pane);
     _under = {};
+    _open(pane);
   }
 
   void clear() {
@@ -244,6 +276,7 @@ class ChatGrid<T extends Object> {
   void split(T target, PaneSide side, T added) {
     assert(canSplit(target, side) && !contains(added));
     forget(added);
+    _open(added);
     _keepLines(
       () => _cells = [
         for (final (cell, pane) in _cells.indexed)
@@ -271,10 +304,15 @@ class ChatGrid<T extends Object> {
     final next = copy()..remove(pane);
     if (!next.canSplit(target, side)) return false;
     next.split(target, side, pane);
-    // What it covered goes with it.
+    // What it covered goes with it, its tab where it was.
     if (_under[pane] case final under?) next._under[pane] = under;
+    if (_opened[pane] case final opened?) next._opened[pane] = opened;
     _cells = next._cells;
     _under = next._under;
+    _opened
+      ..clear()
+      ..addAll(next._opened);
+    _openings = next._openings;
     _columnRatios = next._columnRatios;
     _rowRatios = next._rowRatios;
     _columnsFirst = next._columnsFirst;
@@ -285,6 +323,7 @@ class ChatGrid<T extends Object> {
   void replace(T old, T pane) {
     assert(!contains(pane));
     forget(pane);
+    _opened[pane] = _opened[old] ?? _openings++;
     _cells = [for (final shown in _cells) shown == old ? pane : shown];
     if (_under.remove(old) case final under?) _under[pane] = under;
   }
@@ -334,6 +373,8 @@ class ChatGrid<T extends Object> {
 
   /// A grid the same as this one, to change without changing it.
   ChatGrid<T> copy() => ChatGrid<T>()
+    .._opened.addAll(_opened)
+    .._openings = _openings
     .._cells = [..._cells]
     .._under = {
       for (final MapEntry(:key, :value) in _under.entries) key: [...value],

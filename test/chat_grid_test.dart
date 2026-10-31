@@ -282,4 +282,39 @@ void main() {
     expect(grid.restore(['A', 'B', 'A']), isFalse);
     expect(cells(grid), 'AB/AC');
   });
+
+  test('a pane\'s tabs keep the order they came in, whichever shows', () {
+    final grid = ChatGrid<String>()
+      ..show('A')
+      ..split('A', PaneSide.right, 'B')
+      ..cover('A', 'C')
+      ..cover('C', 'D');
+    expect(grid.tabs('D'), ['A', 'C', 'D']);
+    grid.raise('D', 'A');
+    expect(grid.tabs('A'), ['A', 'C', 'D']);
+    expect(grid.tabs('B'), ['B']);
+    // Taken to the other pane, it is that one's last.
+    grid.cover('B', 'C');
+    expect(grid.tabs('A'), ['A', 'D']);
+    expect(grid.tabs('C'), ['B', 'C']);
+    // Moved with what it covers, it keeps its place among them.
+    grid.split('C', PaneSide.bottom, 'E');
+    expect(grid.rearrange('A', 'E', side: PaneSide.right), isTrue);
+    expect(grid.tabs('A'), ['A', 'D']);
+  });
+
+  test('the pane beside one each way, none past the edge', () {
+    final grid = ChatGrid<String>()
+      ..show('A')
+      ..split('A', PaneSide.right, 'B')
+      ..split('B', PaneSide.bottom, 'C');
+    expect(cells(grid), 'AB/AC');
+    expect(grid.neighbor('A', PaneSide.right), 'B');
+    expect(grid.neighbor('A', PaneSide.left), isNull);
+    expect(grid.neighbor('A', PaneSide.top), isNull);
+    expect(grid.neighbor('B', PaneSide.bottom), 'C');
+    expect(grid.neighbor('C', PaneSide.top), 'B');
+    expect(grid.neighbor('C', PaneSide.left), 'A');
+    expect(grid.neighbor('B', PaneSide.right), isNull);
+  });
 }
