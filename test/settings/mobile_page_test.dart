@@ -34,7 +34,7 @@ void main() {
     expect(host.enabled, isTrue);
     expect(find.byType(QrView), findsOneWidget);
     expect(
-      find.text('On, reachable through relay-hk1.baocode.dev'),
+      find.text('On, reachable through relay-us1.baocode.dev'),
       findsOneWidget,
     );
 
