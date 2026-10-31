@@ -8380,15 +8380,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get mobileRelayBaoCode => 'BaoCode 的中继';
-
-  @override
-  String get mobileRelayOwn => '自建';
-
-  @override
-  String get mobileRelayInUse => '正在使用';
-
-  @override
   String get mobileRelayRemove => '移除';
 
   @override
@@ -8405,6 +8396,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileRelayDuplicate => '已经在列表里了';
+
+  @override
+  String get mobileRelayPinned => '指定的中继';
+
+  @override
+  String get mobileRelayOwnList => '自建中继';
+
+  @override
+  String get mobileRelayOwnNone => '无';
+
+  @override
+  String mobileRelayOwnCount(int count) {
+    return '$count 台';
+  }
+
+  @override
+  String get mobileRelayAddMenu => '添加…';
 
   @override
   String get mobileRelayMode => '方式';
@@ -8427,12 +8435,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get mobileRelayModePinnedDescription =>
       '只用你指定的一台：BaoCode 的某一台，或你自己部署的。';
-
-  @override
-  String get mobileRelayPicked => '已指定';
-
-  @override
-  String get mobileRelayPick => '用这台';
 
   @override
   String get mobilePathLan => '局域网直连';

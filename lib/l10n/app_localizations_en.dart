@@ -8868,15 +8868,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get mobileRelayBaoCode => 'BaoCode\'s';
-
-  @override
-  String get mobileRelayOwn => 'Your own';
-
-  @override
-  String get mobileRelayInUse => 'In use';
-
-  @override
   String get mobileRelayRemove => 'Remove';
 
   @override
@@ -8895,6 +8886,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mobileRelayDuplicate => 'Already in the list';
+
+  @override
+  String get mobileRelayPinned => 'Relay Used';
+
+  @override
+  String get mobileRelayOwnList => 'Your Own Relays';
+
+  @override
+  String get mobileRelayOwnNone => 'None';
+
+  @override
+  String mobileRelayOwnCount(int count) {
+    return '$count relays';
+  }
+
+  @override
+  String get mobileRelayAddMenu => 'Add…';
 
   @override
   String get mobileRelayMode => 'How';
@@ -8919,12 +8927,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mobileRelayModePinnedDescription =>
       'Only the one picked: one of BaoCode\'s, or of your own.';
-
-  @override
-  String get mobileRelayPicked => 'Picked';
-
-  @override
-  String get mobileRelayPick => 'Use This One';
 
   @override
   String get mobilePathLan => 'Same network';

@@ -14373,24 +14373,6 @@ abstract class AppLocalizations {
   /// **'On, but the relay turned this computer away: {reason}'**
   String mobileStatusDenied(String reason);
 
-  /// No description provided for @mobileRelayBaoCode.
-  ///
-  /// In en, this message translates to:
-  /// **'BaoCode\'s'**
-  String get mobileRelayBaoCode;
-
-  /// No description provided for @mobileRelayOwn.
-  ///
-  /// In en, this message translates to:
-  /// **'Your own'**
-  String get mobileRelayOwn;
-
-  /// No description provided for @mobileRelayInUse.
-  ///
-  /// In en, this message translates to:
-  /// **'In use'**
-  String get mobileRelayInUse;
-
   /// No description provided for @mobileRelayRemove.
   ///
   /// In en, this message translates to:
@@ -14426,6 +14408,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Already in the list'**
   String get mobileRelayDuplicate;
+
+  /// No description provided for @mobileRelayPinned.
+  ///
+  /// In en, this message translates to:
+  /// **'Relay Used'**
+  String get mobileRelayPinned;
+
+  /// No description provided for @mobileRelayOwnList.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Own Relays'**
+  String get mobileRelayOwnList;
+
+  /// No description provided for @mobileRelayOwnNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get mobileRelayOwnNone;
+
+  /// No description provided for @mobileRelayOwnCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} relays'**
+  String mobileRelayOwnCount(int count);
+
+  /// No description provided for @mobileRelayAddMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Add…'**
+  String get mobileRelayAddMenu;
 
   /// No description provided for @mobileRelayMode.
   ///
@@ -14468,18 +14480,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Only the one picked: one of BaoCode\'s, or of your own.'**
   String get mobileRelayModePinnedDescription;
-
-  /// No description provided for @mobileRelayPicked.
-  ///
-  /// In en, this message translates to:
-  /// **'Picked'**
-  String get mobileRelayPicked;
-
-  /// No description provided for @mobileRelayPick.
-  ///
-  /// In en, this message translates to:
-  /// **'Use This One'**
-  String get mobileRelayPick;
 
   /// No description provided for @mobilePathLan.
   ///
