@@ -51,6 +51,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
+import '../../usage/ui/conversation_usage_view.dart';
 import '../chat_session.dart';
 import '../widgets/code_citation.dart' show CodeColorizer;
 import '../widgets/plan_start.dart';
@@ -581,6 +582,10 @@ class AgentSidePanelView extends StatelessWidget {
               SidePanelSection.files => _filesPage(context, tabs),
               SidePanelSection.changes => _changesPage(context, tabs),
               SidePanelSection.terminal => _terminalPage(context, tabs),
+              SidePanelSection.usage => ConversationUsageView(
+                key: ValueKey(('page', SidePanelSection.usage, session)),
+                session: session,
+              ),
               SidePanelSection.browser => const BrowserMirror(
                 key: ValueKey(('page', SidePanelSection.browser)),
               ),
@@ -1328,6 +1333,7 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.files => Codicons.files,
     SidePanelSection.changes => Codicons.sourceControl,
     SidePanelSection.terminal => Codicons.terminal,
+    SidePanelSection.usage => Codicons.graph,
     SidePanelSection.browser => Codicons.globe,
     SidePanelSection.plan => Codicons.checklist,
   };
@@ -1337,6 +1343,7 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.files => ChatCommandIds.sidePanelFiles,
     SidePanelSection.changes => ChatCommandIds.sidePanelChanges,
     SidePanelSection.terminal => ChatCommandIds.sidePanelTerminal,
+    SidePanelSection.usage => ChatCommandIds.sidePanelUsage,
     SidePanelSection.browser || SidePanelSection.plan => null,
   };
 
@@ -1344,6 +1351,7 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.files => context.l10n.sidePanelFiles,
     SidePanelSection.changes => context.l10n.sidePanelChanges,
     SidePanelSection.terminal => context.l10n.sidePanelTerminal,
+    SidePanelSection.usage => context.l10n.sidePanelUsage,
     SidePanelSection.browser => context.l10n.sidePanelBrowser,
     SidePanelSection.plan => context.l10n.sidePanelPlan,
   };
@@ -1380,6 +1388,7 @@ class SidePanelRail extends StatelessWidget {
               .length ??
           0,
     SidePanelSection.files ||
+    SidePanelSection.usage ||
     SidePanelSection.browser ||
     SidePanelSection.plan => 0,
   };
@@ -1569,6 +1578,7 @@ class _SectionBar extends StatelessWidget {
                     compact: compact,
                     count: switch (section) {
                       SidePanelSection.files ||
+                      SidePanelSection.usage ||
                       SidePanelSection.browser ||
                       SidePanelSection.plan => 0,
                       SidePanelSection.changes => changes,

@@ -1484,6 +1484,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdSidePanelFiles => 'Show Agent Files';
 
   @override
+  String get cmdSidePanelUsage => 'Show Conversation Usage';
+
+  @override
   String get cmdSidePanelTerminal => 'Show Agent Terminals';
 
   @override
@@ -12522,4 +12525,499 @@ class AppLocalizationsEn extends AppLocalizations {
   String compareFilesLabel(String original, String modified) {
     return '$original ↔ $modified';
   }
+
+  @override
+  String get settingsSectionUsage => 'Usage';
+
+  @override
+  String get sidePanelUsage => 'Usage';
+
+  @override
+  String get ustatKeywords =>
+      'usage statistics tokens cache calls cost dashboard upstream model';
+
+  @override
+  String get ustatDescription =>
+      'Every request to your custom upstreams, as BaoCode\'s model proxy passed it on: tokens, the cache, time, by conversation, subagent and tool. Claude\'s official service does not go through the proxy and is not counted. Kept on this computer only.';
+
+  @override
+  String get ustatAll => 'All';
+
+  @override
+  String get ustatAgent => 'Agent';
+
+  @override
+  String get ustatKind => 'Kind';
+
+  @override
+  String get ustatModel => 'Model';
+
+  @override
+  String get ustatUpstream => 'Upstream';
+
+  @override
+  String get ustatConversation => 'Conversation';
+
+  @override
+  String get ustatFailedOnly => 'Failed only';
+
+  @override
+  String get ustatResetFilters => 'Reset filters';
+
+  @override
+  String get ustatRefresh => 'Refresh';
+
+  @override
+  String get ustatUnpin => 'Back to the whole range';
+
+  @override
+  String get ustatRangeHour => 'Last hour';
+
+  @override
+  String get ustatRangeToday => 'Today';
+
+  @override
+  String get ustatRangeDay => 'Last 24 hours';
+
+  @override
+  String get ustatRangeWeek => 'Last 7 days';
+
+  @override
+  String get ustatRangeMonth => 'Last 30 days';
+
+  @override
+  String get ustatRangeQuarter => 'Last 90 days';
+
+  @override
+  String get ustatRangeAll => 'All time';
+
+  @override
+  String get ustatClassMain => 'Main agent';
+
+  @override
+  String get ustatClassSubagent => 'Subagent';
+
+  @override
+  String get ustatClassWorkflow => 'Workflow';
+
+  @override
+  String get ustatClassCompaction => 'Compaction';
+
+  @override
+  String get ustatClassAuxiliary => 'Auxiliary';
+
+  @override
+  String get ustatClassSideReply => 'Side reply';
+
+  @override
+  String get ustatMainAgent => 'Main agent';
+
+  @override
+  String get ustatPartSystem => 'System prompt';
+
+  @override
+  String get ustatPartTools => 'Tool definitions';
+
+  @override
+  String get ustatPartUser => 'User messages';
+
+  @override
+  String get ustatPartAssistant => 'Replies';
+
+  @override
+  String get ustatPartThinking => 'Thinking';
+
+  @override
+  String get ustatPartToolUse => 'Tool calls';
+
+  @override
+  String get ustatPartToolResult => 'Tool results';
+
+  @override
+  String get ustatPartMedia => 'Images & files';
+
+  @override
+  String get ustatTokenInput => 'Input';
+
+  @override
+  String get ustatTokenOutput => 'Output';
+
+  @override
+  String get ustatTokenCacheRead => 'Cache read';
+
+  @override
+  String get ustatTokenCacheWrite => 'Cache write';
+
+  @override
+  String get ustatTokenReasoning => 'Reasoning';
+
+  @override
+  String get ustatTotalTokens => 'Tokens';
+
+  @override
+  String ustatTokensDetail(String input, String output) {
+    return '$input in · $output out';
+  }
+
+  @override
+  String get ustatCalls => 'Calls';
+
+  @override
+  String ustatCallsDetail(String count) {
+    return '$count tool calls asked';
+  }
+
+  @override
+  String get ustatCallsOk => 'Succeeded';
+
+  @override
+  String ustatCallsShort(int count) {
+    return '$count calls';
+  }
+
+  @override
+  String get ustatCacheHit => 'Cache hit rate';
+
+  @override
+  String ustatCacheDetail(String read, String written) {
+    return '$read read · $written written';
+  }
+
+  @override
+  String get ustatFirstToken => 'Time to first token';
+
+  @override
+  String ustatDurationDetail(String duration) {
+    return '$duration per call on average';
+  }
+
+  @override
+  String get ustatSpeed => 'Output speed';
+
+  @override
+  String ustatOutputDetail(String tokens) {
+    return '$tokens output in all';
+  }
+
+  @override
+  String ustatReasoningDetail(String tokens) {
+    return '$tokens of it reasoning';
+  }
+
+  @override
+  String get ustatErrors => 'Failed';
+
+  @override
+  String ustatErrorRate(String rate) {
+    return '$rate of calls';
+  }
+
+  @override
+  String get ustatOverTime => 'Over time';
+
+  @override
+  String get ustatMetricTokens => 'Tokens';
+
+  @override
+  String get ustatMetricCalls => 'Calls';
+
+  @override
+  String get ustatMetricLatency => 'Latency';
+
+  @override
+  String get ustatMetricSpeed => 'Speed';
+
+  @override
+  String get ustatByClass => 'By kind of request';
+
+  @override
+  String get ustatByUpstream => 'By upstream';
+
+  @override
+  String get ustatByModel => 'By model';
+
+  @override
+  String get ustatByConversation => 'By conversation';
+
+  @override
+  String get ustatByAgent => 'Main agent and subagents';
+
+  @override
+  String get ustatByAgentDetail =>
+      'What each agent of the conversation sent and got back';
+
+  @override
+  String get ustatByTurn => 'By turn';
+
+  @override
+  String get ustatByTurnDetail =>
+      'Each of your messages and all the requests that answered it';
+
+  @override
+  String ustatTurnDetail(String duration, String peak) {
+    return '$duration · context up to $peak';
+  }
+
+  @override
+  String get ustatNoConversations => 'No conversation named its session';
+
+  @override
+  String get ustatTools => 'Tools';
+
+  @override
+  String get ustatToolsDetail =>
+      'What their results brought into the context (estimated), how often they were called, how long they ran';
+
+  @override
+  String get ustatToolSortTokens => 'Context';
+
+  @override
+  String get ustatToolSortCalls => 'Calls';
+
+  @override
+  String get ustatToolSortTime => 'Time';
+
+  @override
+  String get ustatNoTools => 'No tools were used';
+
+  @override
+  String get ustatToolCalled => 'Called';
+
+  @override
+  String get ustatToolResult => 'result';
+
+  @override
+  String ustatShowAll(int count) {
+    return 'Show all $count';
+  }
+
+  @override
+  String get ustatShowLess => 'Show less';
+
+  @override
+  String get ustatContextGrowth => 'Context growth';
+
+  @override
+  String ustatContextNow(String tokens) {
+    return '$tokens now';
+  }
+
+  @override
+  String ustatContextPeak(String tokens) {
+    return 'peak $tokens';
+  }
+
+  @override
+  String ustatCompactions(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count compactions',
+      one: '1 compaction',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ustatCompactedFrom(String tokens) {
+    return 'Compacted at $tokens';
+  }
+
+  @override
+  String get ustatContextMakeup => 'What fills the context';
+
+  @override
+  String ustatContextMakeupDetail(String tokens, String time) {
+    return 'The main agent\'s last request: $tokens, $time. Parts estimated from its text.';
+  }
+
+  @override
+  String get ustatRecentCalls => 'Recent calls';
+
+  @override
+  String get ustatCallsTitle => 'Calls';
+
+  @override
+  String ustatRecentCallsDetail(int count) {
+    return '$count in all, newest first';
+  }
+
+  @override
+  String ustatShowMoreCalls(int count) {
+    return 'Show more ($count left)';
+  }
+
+  @override
+  String get ustatNoCalls => 'No calls';
+
+  @override
+  String get ustatCopyJson => 'Copy the call as JSON';
+
+  @override
+  String get ustatFieldTime => 'Time';
+
+  @override
+  String get ustatFieldStatus => 'Status';
+
+  @override
+  String get ustatFieldUpstream => 'Upstream';
+
+  @override
+  String get ustatFieldModel => 'Model';
+
+  @override
+  String get ustatFieldEffort => 'Effort';
+
+  @override
+  String get ustatFieldClass => 'Kind';
+
+  @override
+  String get ustatFieldSession => 'Session';
+
+  @override
+  String get ustatFieldAgent => 'Agent';
+
+  @override
+  String get ustatFieldTask => 'Task';
+
+  @override
+  String get ustatFieldAccount => 'Account';
+
+  @override
+  String get ustatFieldUpstreamLatency => 'Upstream answered';
+
+  @override
+  String get ustatFieldFirstToken => 'First token';
+
+  @override
+  String get ustatFieldDuration => 'Duration';
+
+  @override
+  String get ustatFieldSpeed => 'Speed';
+
+  @override
+  String get ustatFieldMessages => 'Messages';
+
+  @override
+  String get ustatFieldTools => 'tools';
+
+  @override
+  String get ustatFieldBytes => 'Size';
+
+  @override
+  String get ustatFieldCompacted => 'After compaction';
+
+  @override
+  String get ustatFieldError => 'Error';
+
+  @override
+  String get ustatEmptyTitle => 'No calls yet';
+
+  @override
+  String get ustatEmptyDetail =>
+      'Calls show here once a conversation runs on a custom upstream (Settings → Models).';
+
+  @override
+  String get ustatEmptyFiltered => 'Nothing matches these filters';
+
+  @override
+  String get ustatConversationTitle => 'Conversation usage';
+
+  @override
+  String get ustatConversationNew => 'Usage shows once the conversation starts';
+
+  @override
+  String get ustatConversationEmpty => 'No calls kept for this conversation';
+
+  @override
+  String get ustatConversationEmptyDetail =>
+      'Only conversations on a custom upstream are counted: Claude\'s official service does not go through BaoCode\'s proxy.';
+
+  @override
+  String get ustatRecordOff => 'Usage is not being recorded';
+
+  @override
+  String get ustatTurnOn => 'Turn on';
+
+  @override
+  String get ustatDataTitle => 'Data';
+
+  @override
+  String get ustatDataDescription =>
+      'Detailed records take room: keep them as long as you like, and clear what you no longer need.';
+
+  @override
+  String get ustatRecord => 'Record usage';
+
+  @override
+  String get ustatRecordDescription =>
+      'Sessions on a custom upstream go through BaoCode\'s local proxy, which keeps each call. Applies to agents started from now on.';
+
+  @override
+  String get ustatRecordOffDescription =>
+      'Turn it on to keep each call to your custom upstreams: tokens, the cache, time, by conversation, subagent and tool.';
+
+  @override
+  String get ustatDetailed => 'Detailed records';
+
+  @override
+  String get ustatDetailedDescription =>
+      'Also keeps what filled each request\'s context and the tools\' share. Takes more room.';
+
+  @override
+  String get ustatRetention => 'Keep records for';
+
+  @override
+  String get ustatRetentionDescription =>
+      'Older days are deleted as they pass.';
+
+  @override
+  String ustatKeepDays(int days) {
+    return '$days days';
+  }
+
+  @override
+  String get ustatKeepForever => 'Forever';
+
+  @override
+  String ustatSpace(String size) {
+    return 'Using $size';
+  }
+
+  @override
+  String ustatSpaceDetail(int days, String oldest) {
+    return '$days days kept, since $oldest';
+  }
+
+  @override
+  String get ustatSpaceEmpty => 'Nothing kept yet';
+
+  @override
+  String get ustatClearEllipsis => 'Clear…';
+
+  @override
+  String get ustatClear => 'Clear';
+
+  @override
+  String ustatClearOlderThan(int days) {
+    return 'Clear all but the last $days days';
+  }
+
+  @override
+  String get ustatClearShown => 'Clear the time shown';
+
+  @override
+  String get ustatClearShownFiltered => 'Clear what the filters show';
+
+  @override
+  String get ustatClearAll => 'Clear everything';
+
+  @override
+  String ustatClearConfirm(String what) {
+    return '$what?';
+  }
+
+  @override
+  String get ustatClearDetail =>
+      'The calls are deleted from this computer. This cannot be undone.';
 }

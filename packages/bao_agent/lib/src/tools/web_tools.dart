@@ -419,7 +419,7 @@ class WebSearchTool extends Tool {
         },
       ],
       'stream': true,
-    });
+    }, headers: requestHints(session.environment, requestClass: 'auxiliary'));
     var accumulator = MessageAccumulator();
     try {
       await for (final event in session.client.stream(
