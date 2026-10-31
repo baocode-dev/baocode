@@ -9593,10 +9593,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get branchBarDetached => 'Detached HEAD';
 
   @override
-  String get branchBarRunning =>
-      'Branches can\'t be switched while the agent works';
-
-  @override
   String branchBarFailed(String branch) {
     return 'Couldn\'t switch to “$branch”';
   }

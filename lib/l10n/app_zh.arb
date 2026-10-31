@@ -2599,7 +2599,6 @@
   "branchBarCreateIn": "在“{folder}”中新建分支",
   "branchBarCreateButton": "创建",
   "branchBarDetached": "分离的 HEAD",
-  "branchBarRunning": "Agent 运行时不能切换分支",
   "branchBarFailed": "无法切换到“{branch}”",
   "branchBarNotRepository": "不是 Git 仓库",
   "branchBarWorkspace": "各文件夹的分支",

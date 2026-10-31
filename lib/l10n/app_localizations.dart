@@ -15651,12 +15651,6 @@ abstract class AppLocalizations {
   /// **'Detached HEAD'**
   String get branchBarDetached;
 
-  /// Tooltip of the branch under the chat input while the agent is working.
-  ///
-  /// In en, this message translates to:
-  /// **'Branches can\'t be switched while the agent works'**
-  String get branchBarRunning;
-
   /// Message of the dialog shown when Git refused to check out or create the branch {branch}; Git's own message is the detail.
   ///
   /// In en, this message translates to:
