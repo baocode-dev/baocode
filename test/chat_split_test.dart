@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -985,6 +987,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(workspace.isCollapsed(group), isFalse);
     expect(seen(row), isTrue);
+  });
+
+  testWidgets('a row clicked to open its agent stays under the pointer, '
+      'near the list\'s edge too', (tester) async {
+    final workspace = await pumpApp(tester);
+    tester.view.physicalSize = const Size(1400, 480);
+    await tester.pumpAndSettle();
+    final scrollable = inSidebar(find.byType(Scrollable)).last;
+    final list = tester.state<ScrollableState>(scrollable);
+    list.position.jumpTo(0);
+    await tester.pump();
+    final view = tester.getRect(scrollable);
+    // An agent not open whose row reaches into the list's last 15%,
+    // scrolled to be all shown there.
+    final near = workspace.threads.firstWhere((thread) {
+      if (identical(thread, workspace.current)) return false;
+      final finder = inSidebar(find.text(thread.title));
+      return finder.evaluate().length == 1 &&
+          tester.getRect(finder).bottom > view.top + view.height * .9;
+    });
+    final row = inSidebar(find.text(near.title));
+    list.position.jumpTo(
+      math.max(0, tester.getRect(row).bottom - (view.bottom - 4)),
+    );
+    await tester.pump();
+    final at = list.position.pixels;
+    expect(
+      tester.getRect(row).center.dy,
+      greaterThan(view.top + view.height * .85),
+    );
+    expect(tester.getRect(row).bottom, lessThanOrEqualTo(view.bottom));
+
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    expect(workspace.current, near);
+    expect(list.position.pixels, at);
   });
 
   testWidgets('the lines drag, each shared by the panes either side of it', (

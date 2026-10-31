@@ -311,6 +311,10 @@ class _SidebarState extends State<Sidebar>
 
   bool _rowsDirty = true;
   AgentThread? _listedCurrent;
+
+  /// The agent whose row was just clicked to open it: in view, under the
+  /// pointer, it is not scrolled to (see [_revealCurrent]).
+  AgentThread? _clickedOpen;
   List<Project> _listProjects = const [];
   List<_ListRow> _listRows = const [];
 
@@ -499,6 +503,7 @@ class _SidebarState extends State<Sidebar>
       return;
     }
     setState(() => _listSelection.select(thread));
+    _clickedOpen = thread;
     _open(thread);
   }
 
@@ -633,7 +638,8 @@ class _SidebarState extends State<Sidebar>
   /// where it is folded, as the explorer reveals a file.
   void _revealCurrent() {
     final current = _current;
-    if (current == null || _onPage) return;
+    // Searching, the list is the search's.
+    if (current == null || _onPage || _speedQuery.isNotEmpty) return;
     if (_threadIndices.containsKey(current)) return _bringToRow(current);
     for (final row in _listRows) {
       if (row.kind == _ListRowKind.header &&
@@ -1567,11 +1573,16 @@ class _SidebarState extends State<Sidebar>
           _onPage || !_threadIndices.containsKey(_current) ? null : _current,
         );
       }
-      // And the list goes to it, laid out first.
+      // And the list goes to it, laid out first; not from its own row,
+      // clicked: that moving away under the pointer.
       if (switched) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _revealCurrent();
-        });
+        final clicked = identical(_current, _clickedOpen);
+        _clickedOpen = null;
+        if (!clicked) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _revealCurrent();
+          });
+        }
       }
       // The rows picked stay while the search hides them.
       if (_speedQuery.isEmpty) {
