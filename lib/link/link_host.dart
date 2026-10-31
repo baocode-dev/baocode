@@ -129,10 +129,7 @@ enum LinkRelayMode {
   /// BaoCode's, the nearest that answers.
   auto,
 
-  /// BaoCode's and the user's own.
-  added,
-
-  /// Only the one picked: one of BaoCode's, or of the user's own.
+  /// Only the one picked: one of BaoCode's, or one at an address given.
   pinned,
 }
 
@@ -244,11 +241,6 @@ class LinkHost extends ChangeNotifier {
   /// Advertised on the LAN now.
   bool get advertised => _advertised != null;
 
-  List<String> _customRelays = const [];
-
-  /// Relays the user added (a self-hosted one): kept to besides BaoCode's.
-  List<String> get customRelays => _customRelays;
-
   LinkRelayMode _relayMode = LinkRelayMode.auto;
   LinkRelayMode get relayMode => _relayMode;
 
@@ -260,7 +252,6 @@ class LinkHost extends ChangeNotifier {
   /// The relays kept to.
   List<String> get relays => switch (_relayMode) {
     LinkRelayMode.auto => linkRelays(),
-    LinkRelayMode.added => linkRelays(_customRelays),
     LinkRelayMode.pinned => [_pinnedRelay ?? defaultLinkRelays.first],
   };
 
@@ -337,12 +328,16 @@ class LinkHost extends ChangeNotifier {
     _loaded = true;
     _enabled = json['enabled'] == true;
     _discoverable = json['discoverable'] != false;
-    _customRelays = [...?(json['relays'] as List?)?.whereType<String>()];
     _pinnedRelay = json['pinnedRelay'] as String?;
     _relayMode =
         LinkRelayMode.values.asNameMap()[json['relayMode']] ??
-        // Kept before there was a choice: one's own relays were added.
-        (_customRelays.isEmpty ? LinkRelayMode.auto : LinkRelayMode.added);
+        LinkRelayMode.auto;
+    // One's own relays, kept before there was a choice: the first picked.
+    final own = (json['relays'] as List?)?.whereType<String>().firstOrNull;
+    if (json['relayMode'] == null && own != null) {
+      _pinnedRelay = own;
+      _relayMode = LinkRelayMode.pinned;
+    }
     _legacy = [
       for (final phone in (json['legacyPhones'] as List?) ?? const [])
         if (phone is Map<String, Object?>) LegacyPhone.fromJson(phone),
@@ -386,7 +381,6 @@ class LinkHost extends ChangeNotifier {
     'identity': _identity.toJson(),
     'enabled': _enabled,
     'discoverable': _discoverable,
-    'relays': _customRelays,
     'relayMode': _relayMode.name,
     'pinnedRelay': ?_pinnedRelay,
     'phones': [for (final phone in _phones.values) phone.toJson()],
@@ -435,27 +429,6 @@ class LinkHost extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The user's own relays, as given; those that are not relay URLs, and
-  /// BaoCode's own, left out. One picked and removed: BaoCode's first
-  /// picked instead.
-  Future<void> setCustomRelays(List<String> relays) async {
-    final cleaned = {
-      for (final relay in relays)
-        if (parseRelayUrl(relay) case final url?
-            when !defaultLinkRelays.contains(url))
-          url,
-    }.toList();
-    if (!_loaded || listEquals(cleaned, _customRelays)) return;
-    await _relaysChanging(() {
-      _customRelays = cleaned;
-      if (_pinnedRelay case final pinned?
-          when !defaultLinkRelays.contains(pinned) &&
-              !cleaned.contains(pinned)) {
-        _pinnedRelay = null;
-      }
-    });
-  }
-
   Future<void> setRelayMode(LinkRelayMode mode) async {
     if (!_loaded || mode == _relayMode) return;
     await _relaysChanging(() {
@@ -470,14 +443,11 @@ class LinkHost extends ChangeNotifier {
     });
   }
 
-  /// Keeps to [url] alone: one of BaoCode's relays, or of the user's own
-  /// (added to them if it is not yet).
+  /// Keeps to [url] alone: one of BaoCode's relays, or one of the user's
+  /// own.
   Future<void> pinRelay(String url) async {
     if (!_loaded) return;
     await _relaysChanging(() {
-      if (!defaultLinkRelays.contains(url) && !_customRelays.contains(url)) {
-        _customRelays = [..._customRelays, url];
-      }
       _pinnedRelay = url;
       _relayMode = LinkRelayMode.pinned;
     });

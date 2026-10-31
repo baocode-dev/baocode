@@ -8868,41 +8868,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get mobileRelayRemove => 'Remove';
-
-  @override
-  String get mobileRelayAdd => 'Add Your Own Relay';
-
-  @override
-  String get mobileRelayAddDescription =>
-      'The address of one you run yourself (baocode-relay).';
-
-  @override
-  String get mobileRelayAddButton => 'Add';
-
-  @override
   String get mobileRelayInvalid =>
       'Not a relay address; one looks like https://relay.example.com';
-
-  @override
-  String get mobileRelayDuplicate => 'Already in the list';
 
   @override
   String get mobileRelayPinned => 'Relay Used';
 
   @override
-  String get mobileRelayOwnList => 'Your Own Relays';
+  String get mobileRelayCustom => 'Custom';
 
   @override
-  String get mobileRelayOwnNone => 'None';
+  String get mobileRelayCustomAddress => 'Custom Address';
 
   @override
-  String mobileRelayOwnCount(int count) {
-    return '$count relays';
-  }
-
-  @override
-  String get mobileRelayAddMenu => 'Add…';
+  String get mobileRelayCustomDescription =>
+      'The address of a relay you run yourself (baocode-relay).';
 
   @override
   String get mobileRelayMode => 'How';
@@ -8915,18 +8895,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'BaoCode\'s relays, the nearest that answers.';
 
   @override
-  String get mobileRelayModeAdded => 'Add Your Own';
-
-  @override
-  String get mobileRelayModeAddedDescription =>
-      'BaoCode\'s relays, and ones you run yourself.';
-
-  @override
   String get mobileRelayModePinned => 'Pick One';
 
   @override
   String get mobileRelayModePinnedDescription =>
-      'Only the one picked: one of BaoCode\'s, or of your own.';
+      'Only the one picked: one of BaoCode\'s, or a custom address.';
 
   @override
   String get mobilePathLan => 'Same network';

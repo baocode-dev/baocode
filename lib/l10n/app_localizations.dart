@@ -14373,41 +14373,11 @@ abstract class AppLocalizations {
   /// **'On, but the relay turned this computer away: {reason}'**
   String mobileStatusDenied(String reason);
 
-  /// No description provided for @mobileRelayRemove.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove'**
-  String get mobileRelayRemove;
-
-  /// No description provided for @mobileRelayAdd.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Your Own Relay'**
-  String get mobileRelayAdd;
-
-  /// No description provided for @mobileRelayAddDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'The address of one you run yourself (baocode-relay).'**
-  String get mobileRelayAddDescription;
-
-  /// No description provided for @mobileRelayAddButton.
-  ///
-  /// In en, this message translates to:
-  /// **'Add'**
-  String get mobileRelayAddButton;
-
   /// No description provided for @mobileRelayInvalid.
   ///
   /// In en, this message translates to:
   /// **'Not a relay address; one looks like https://relay.example.com'**
   String get mobileRelayInvalid;
-
-  /// No description provided for @mobileRelayDuplicate.
-  ///
-  /// In en, this message translates to:
-  /// **'Already in the list'**
-  String get mobileRelayDuplicate;
 
   /// No description provided for @mobileRelayPinned.
   ///
@@ -14415,29 +14385,23 @@ abstract class AppLocalizations {
   /// **'Relay Used'**
   String get mobileRelayPinned;
 
-  /// No description provided for @mobileRelayOwnList.
+  /// No description provided for @mobileRelayCustom.
   ///
   /// In en, this message translates to:
-  /// **'Your Own Relays'**
-  String get mobileRelayOwnList;
+  /// **'Custom'**
+  String get mobileRelayCustom;
 
-  /// No description provided for @mobileRelayOwnNone.
+  /// No description provided for @mobileRelayCustomAddress.
   ///
   /// In en, this message translates to:
-  /// **'None'**
-  String get mobileRelayOwnNone;
+  /// **'Custom Address'**
+  String get mobileRelayCustomAddress;
 
-  /// No description provided for @mobileRelayOwnCount.
+  /// No description provided for @mobileRelayCustomDescription.
   ///
   /// In en, this message translates to:
-  /// **'{count} relays'**
-  String mobileRelayOwnCount(int count);
-
-  /// No description provided for @mobileRelayAddMenu.
-  ///
-  /// In en, this message translates to:
-  /// **'Add…'**
-  String get mobileRelayAddMenu;
+  /// **'The address of a relay you run yourself (baocode-relay).'**
+  String get mobileRelayCustomDescription;
 
   /// No description provided for @mobileRelayMode.
   ///
@@ -14457,18 +14421,6 @@ abstract class AppLocalizations {
   /// **'BaoCode\'s relays, the nearest that answers.'**
   String get mobileRelayModeAutoDescription;
 
-  /// No description provided for @mobileRelayModeAdded.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Your Own'**
-  String get mobileRelayModeAdded;
-
-  /// No description provided for @mobileRelayModeAddedDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'BaoCode\'s relays, and ones you run yourself.'**
-  String get mobileRelayModeAddedDescription;
-
   /// No description provided for @mobileRelayModePinned.
   ///
   /// In en, this message translates to:
@@ -14478,7 +14430,7 @@ abstract class AppLocalizations {
   /// No description provided for @mobileRelayModePinnedDescription.
   ///
   /// In en, this message translates to:
-  /// **'Only the one picked: one of BaoCode\'s, or of your own.'**
+  /// **'Only the one picked: one of BaoCode\'s, or a custom address.'**
   String get mobileRelayModePinnedDescription;
 
   /// No description provided for @mobilePathLan.
