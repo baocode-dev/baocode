@@ -7857,6 +7857,18 @@ abstract class AppLocalizations {
   /// **'{kind, select, definition{No definition found for \'{word}\'} typeDefinition{No type definition found for \'{word}\'} implementation{No implementation found for \'{word}\'} other{No references found for \'{word}\'}}'**
   String langNoneFoundFor(String kind, String word);
 
+  /// No description provided for @langNavigationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No language server is available for code navigation in this file.'**
+  String get langNavigationUnavailable;
+
+  /// No description provided for @langNavigationInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install the \'{id}\' language server to enable code navigation in this file.'**
+  String langNavigationInstall(String id);
+
   /// No description provided for @langReferences.
   ///
   /// In en, this message translates to:

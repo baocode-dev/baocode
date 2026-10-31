@@ -4840,6 +4840,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get langNavigationUnavailable =>
+      'No language server is available for code navigation in this file.';
+
+  @override
+  String langNavigationInstall(String id) {
+    return 'Install the \'$id\' language server to enable code navigation in this file.';
+  }
+
+  @override
   String get langReferences => 'References';
 
   @override

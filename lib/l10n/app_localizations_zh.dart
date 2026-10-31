@@ -4535,6 +4535,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get langNavigationUnavailable => '此文件没有可用于代码跳转的语言服务器。';
+
+  @override
+  String langNavigationInstall(String id) {
+    return '安装“$id”语言服务器后，即可在此文件中跳转到定义和引用。';
+  }
+
+  @override
   String get langReferences => '引用';
 
   @override
