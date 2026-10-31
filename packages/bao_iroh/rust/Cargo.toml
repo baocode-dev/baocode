@@ -7,6 +7,9 @@ license = "MIT"
 description = "BaoCode's link transport: iroh endpoints, connections and framed streams behind a small C interface for Dart."
 
 [lib]
+# Said out loud: native_toolchain_rust reads the crate's name here, and a
+# [lib] without one is a name only Rust itself makes up (this package's).
+name = "bao_iroh"
 crate-type = ["staticlib", "cdylib"]
 
 [dependencies]
