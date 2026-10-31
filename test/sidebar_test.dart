@@ -204,6 +204,86 @@ void main() {
     expect(inSidebar(find.text('3')), findsOneWidget);
   });
 
+  testWidgets('typed in the focused list, speed search finds a project; '
+      "typed in the chat, the pointer over the list, it is the chat's", (
+    tester,
+  ) async {
+    final workspace = await pumpApp(tester);
+    Text header() => tester.widget<Text>(inSidebar(find.text('api-gateway')));
+    bool highlighted() => (header().textSpan! as TextSpan).children != null;
+    Future<void> type(String keys) async {
+      for (final key in keys.split('')) {
+        await tester.sendKeyEvent(switch (key) {
+          'g' => LogicalKeyboardKey.keyG,
+          'w' => LogicalKeyboardKey.keyW,
+          _ => throw ArgumentError(key),
+        });
+        await tester.pump();
+      }
+    }
+
+    // The chat's input has the keys: the pointer moved over the sidebar,
+    // what is typed is still the chat's.
+    final input = FocusManager.instance.primaryFocus;
+    expect(input?.debugLabel, 'Composer');
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: const Offset(900, 450));
+    await tester.pump();
+    await mouse.moveTo(tester.getCenter(inSidebar(find.text('baocode'))));
+    await tester.pump();
+    await type('g');
+    expect(inSidebar(find.text('g')), findsNothing);
+    expect(FocusManager.instance.primaryFocus, input);
+
+    // A project clicked (folded, to be unfolded once found): the list has
+    // the keys, and what is typed searches.
+    await tester.tap(inSidebar(find.text('api-gateway')));
+    await tester.pump();
+    expect(
+      inSidebar(find.textContaining('Rate limit per API key')),
+      findsNothing,
+    );
+    await type('gw');
+    expect(inSidebar(find.text('gw')), findsOneWidget);
+    expect(highlighted(), isTrue);
+    // Only the projects it matches are listed.
+    expect(inSidebar(find.text('baocode')), findsNothing);
+    expect(inSidebar(find.text('cursor-docs')), findsNothing);
+    expect(inSidebar(find.text('Pinned')), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(inSidebar(find.text('gw')), findsNothing);
+    expect(highlighted(), isFalse);
+    expect(inSidebar(find.text('baocode')), findsOneWidget);
+    expect(inSidebar(find.text('Pinned')), findsOneWidget);
+
+    // Deleted back to nothing, the list is as it was.
+    await type('gw');
+    for (var i = 0; i < 2; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+      await tester.pump();
+    }
+    expect(inSidebar(find.text('baocode')), findsOneWidget);
+    expect(inSidebar(find.text('g')), findsNothing);
+    await type('gw');
+    expect(inSidebar(find.text('baocode')), findsNothing);
+
+    // Enter goes into it, unfolded, its first agent focused; Enter again
+    // opens that one.
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(inSidebar(find.text('gw')), findsNothing);
+    expect(
+      inSidebar(find.textContaining('Rate limit per API key')),
+      findsOneWidget,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(workspace.selected.project.name, 'api-gateway');
+  });
+
   testWidgets('a new agent is named by its first message', (tester) async {
     final workspace = await pumpApp(tester);
     await tester.tap(inSidebar(find.text('New Chat')));
