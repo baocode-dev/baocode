@@ -7,6 +7,7 @@
 /// A relay only passes along what is sealed between the two ends; it
 /// cannot read it.
 const defaultLinkRelays = [
+  'https://relay-us1.baocode.dev',
   'https://relay-hk1.baocode.dev',
   'https://relay-jp1.baocode.dev',
 ];
