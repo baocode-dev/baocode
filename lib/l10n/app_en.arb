@@ -5405,6 +5405,18 @@
       }
     }
   },
+  "appearanceSettingsEditDetail": "File Edits",
+  "appearanceSettingsEditDetailDescription": "How the agent's edits to files show in the conversation: as a card of the changes, always open; or as one line that opens to them.",
+  "appearanceSettingsEditDetailCard": "Card with changes",
+  "appearanceSettingsEditDetailCompact": "Compact",
+  "appearanceSettingsEditDetailLabel": "File edits: {detail}",
+  "@appearanceSettingsEditDetailLabel": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "appearanceSettingsReplyScroll": "As a Reply Comes",
   "appearanceSettingsReplyScrollDescription": "Where the conversation stays as the reply to your message is written: at its end, following it; or at its start, your message at the top, for you to read on from there. Scrolled to the end, it follows again.",
   "appearanceSettingsReplyScrollFollow": "Automatic",

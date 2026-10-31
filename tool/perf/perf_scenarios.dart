@@ -12,6 +12,8 @@ import 'package:flutter/widgets.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/edit_detail.dart';
+import 'package:baocode/chat/widgets/step_header.dart' show StepBody;
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
@@ -573,6 +575,118 @@ final List<PerfScenario> perfScenarios = [
 ];
 
 final List<PerfScenario> _scenarios = [
+  // --- Pictures ----------------------------------------------------------------
+  PerfScenario(
+    'shot.edits',
+    'Not a measure, for its pictures (--shots): an agent writes a file and '
+        'edits another, its turn still under way; the edits as cards, then '
+        'compact (Settings → Appearance → File Edits).',
+    (c) async {
+      final root = c.project.root;
+      const written = 'src/middleware/rate-limiter/index.ts';
+      const edited = 'src/index.ts';
+      const content = '''import type { MiddlewareHandler } from 'hono'
+import { HTTPException } from 'hono/http-exception'
+
+export interface RateLimitOptions {
+  limit: number
+  windowMs: number
+  key?: (c: Context) => string
+}
+
+/** A sliding-window counter: two windows per key, the last weighted. */
+export const rateLimiter = (options: RateLimitOptions): MiddlewareHandler => {
+  const counts = new Map<string, { at: number; now: number; last: number }>()
+  return async (c, next) => {
+    const key = options.key?.(c) ?? c.req.header('x-forwarded-for') ?? ''
+    const window = Math.floor(Date.now() / options.windowMs)
+    const entry = counts.get(key) ?? { at: window, now: 0, last: 0 }
+    if (entry.at !== window) {
+      entry.last = entry.at === window - 1 ? entry.now : 0
+      entry.now = 0
+      entry.at = window
+    }
+    entry.now++
+    counts.set(key, entry)
+    if (entry.now + entry.last > options.limit) {
+      throw new HTTPException(429, { message: 'Too Many Requests' })
+    }
+    await next()
+  }
+}''';
+      final lines = content.split('\n');
+      final turn = PerfTurn([
+        const PerfSay(
+          'I\'ll add the rate limiter as a middleware of its own, then '
+          'export it from the package.',
+        ),
+        PerfTool(
+          'Write',
+          {'file_path': '$root/$written', 'content': content},
+          result: 'File created successfully at: $root/$written',
+          structured: {
+            'type': 'create',
+            'filePath': '$root/$written',
+            'content': content,
+            'structuredPatch': [
+              {
+                'oldStart': 0,
+                'oldLines': 0,
+                'newStart': 1,
+                'newLines': lines.length,
+                'lines': [for (final l in lines) '+$l'],
+              },
+            ],
+          },
+        ),
+        PerfTool(
+          'Edit',
+          {
+            'file_path': '$root/$edited',
+            'old_string': "export { logger } from './middleware/logger'",
+            'new_string':
+                "export { logger } from './middleware/logger'\n"
+                "export { rateLimiter } from './middleware/rate-limiter'",
+          },
+          result: 'The file $root/$edited has been updated successfully.',
+          structured: {
+            'filePath': '$root/$edited',
+            'structuredPatch': [
+              {
+                'oldStart': 12,
+                'oldLines': 4,
+                'newStart': 12,
+                'newLines': 5,
+                'lines': [
+                  " export { cors } from './middleware/cors'",
+                  " export { etag } from './middleware/etag'",
+                  "-export { logger } from './middleware/logger'",
+                  "+export { logger } from './middleware/logger'",
+                  "+export { rateLimiter } from './middleware/rate-limiter'",
+                  " export { secureHeaders } from './middleware/secure-headers'",
+                ],
+              },
+            ],
+          },
+        ),
+        // Under way still as the pictures are taken: a finished turn folds
+        // its work away.
+        const PerfPause(Duration(minutes: 5)),
+        const PerfSay('Now the tests.'),
+      ], pace: PerfPace.fast);
+      await c.start(c.agent, turn, prompt: 'Add a rate limiter middleware');
+      await c.settle(const Duration(seconds: 4));
+      await c.phase('card', (r) => c.settle());
+      // The written file's card scrolled partway: faded at both edges.
+      final card = c.find<StepBody>();
+      c.check(card != null, 'an edit\'s card shows');
+      if (card != null) c.scrollableIn(card)?.position.jumpTo(70);
+      await c.phase('card_scrolled', (r) => c.settle());
+      EditDetail.current.value = EditDetail.compact;
+      await c.phase('compact', (r) => c.settle());
+      EditDetail.current.value = EditDetail.card;
+    },
+  ),
   // --- The chat ----------------------------------------------------------------
   PerfScenario(
     'chat.stream',

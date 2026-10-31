@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:bao_editor/textmate/textmate_syntax.dart' show TextMateSyntax;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -84,6 +85,7 @@ class ChatScreen extends StatefulWidget {
     this.onOpenTerminalTask,
     this.colorizeCode,
     this.colorizeCodeBlock,
+    this.codeSyntax,
     this.start,
     this.startHint,
     this.below,
@@ -166,6 +168,9 @@ class ChatScreen extends StatefulWidget {
 
   /// Colors code blocks by the language their fences name.
   final CodeBlockColorizer? colorizeCodeBlock;
+
+  /// See [CodeCitationScope.syntax].
+  final TextMateSyntax Function()? codeSyntax;
 
   /// Over the composer while nothing was sent, e.g. where the agent is to
   /// work: given, the composer waits in the middle of the screen until then.
@@ -834,6 +839,7 @@ class _ChatScreenState extends State<ChatScreen>
           onOpen: links == null ? widget.onOpenCode : _openCode,
           colorize: widget.colorizeCode,
           colorizeBlock: widget.colorizeCodeBlock,
+          syntax: widget.codeSyntax,
           child: ComposerVocabulary(
             commands: _commandSuggestions(),
             suggestFiles: _suggestFiles(root),

@@ -142,7 +142,10 @@ class EditorSurface extends StatefulWidget {
     this.showMinimap = true,
     this.minimapWidth = 80,
     this.verticalScrollbar = true,
+    this.horizontalScrollbar = true,
     this.scrollBeyondLastLine = true,
+    this.alwaysConsumeMouseWheel = true,
+    this.lineNumberOf,
     this.stopRenderingLineAfter = ViewportLayout.defaultStopRenderingLineAfter,
     this.onKeyEvent,
     this.keyResolver,
@@ -266,6 +269,11 @@ class EditorSurface extends StatefulWidget {
   /// where something else scrolls the editor (a diff editor's overview).
   final bool verticalScrollbar;
 
+  /// The horizontal scrollbar at the bottom; off where something else
+  /// shows one (an editor as tall as its lines, whose foot is out of view;
+  /// see [EditorSurfaceView.maxScrollLeft]).
+  final bool horizontalScrollbar;
+
   /// `editor.stopRenderingLineAfter`: longer lines are shaped and painted
   /// only this far, then end in a "Show more (…)" pill (-1 for never).
   final int stopRenderingLineAfter;
@@ -273,6 +281,15 @@ class EditorSurface extends StatefulWidget {
 
   /// Allows scrolling until the last line is at the top of the viewport.
   final bool scrollBeyondLastLine;
+
+  /// `scrollbar.alwaysConsumeMouseWheel`: a wheel's move is the editor's
+  /// even where it cannot scroll that way; when false, it goes on to what
+  /// is around the editor (a page it is in) there.
+  final bool alwaysConsumeMouseWheel;
+
+  /// The number shown by each line (from 1), where the text is part of a
+  /// longer one (lines of a diff's hunks); the line's own when null.
+  final int Function(int line)? lineNumberOf;
 
   /// Sees focused key events before the editor's own bindings; return
   /// [KeyEventResult.handled] to consume one (e.g. a suggest widget's arrows).
@@ -363,6 +380,13 @@ abstract interface class EditorSurfaceView {
 
   /// The text area (right of the gutter, left of the minimap).
   Rect? get textArea;
+
+  /// How far the text scrolls left at most ([scrollOffset]'s `dx`); 0
+  /// before the first layout.
+  double get maxScrollLeft;
+
+  /// The line numbers' column, in the gutter; null before the first layout.
+  Rect? get lineNumbersArea;
 
   /// The glyph margin cell of [lineNumber], when visible.
   Rect? glyphMarginRect(int lineNumber);
@@ -1069,6 +1093,23 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   @override
   Rect? get textArea => _geometry?.contentRect;
+
+  @override
+  Rect? get lineNumbersArea => switch (_geometry) {
+    final geometry? => Rect.fromLTWH(
+      geometry.lineNumbersLeft,
+      0,
+      geometry.lineNumbersWidth,
+      geometry.size.height,
+    ),
+    null => null,
+  };
+
+  @override
+  double get maxScrollLeft => switch (_layout) {
+    final layout? => _maxScrollLeft(layout),
+    null => 0,
+  };
 
   @override
   Rect? lineRectAt(int lineNumber) {
@@ -1950,17 +1991,32 @@ class _EditorSurfaceState extends State<EditorSurface>
     }
   }
 
+  /// A wheel's move as the editor takes it: with Shift held, a vertical one
+  /// across.
+  static Offset _wheelDelta(PointerScrollEvent event) {
+    final delta = event.scrollDelta;
+    return HardwareKeyboard.instance.isShiftPressed && delta.dx == 0
+        ? Offset(delta.dy, 0)
+        : delta;
+  }
+
   void _onPointerSignal(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent || _layout == null) return;
+    final layout = _layout;
+    if (event is! PointerScrollEvent || layout == null) return;
+    if (!widget.alwaysConsumeMouseWheel) {
+      // Which way it goes as taken: Shift and the wheel, across.
+      final delta = _wheelDelta(event);
+      bool moves(double by, double at, double max) =>
+          by < 0 ? at > 0 : by > 0 && at < max;
+      if (!moves(delta.dx, _scrollLeft, _maxScrollLeft(layout)) &&
+          !moves(delta.dy, _scrollTop, _maxScrollTop(layout))) {
+        return;
+      }
+    }
     GestureBinding.instance.pointerSignalResolver.register(event, (resolved) {
       final scroll = resolved as PointerScrollEvent;
-      var dx = scroll.scrollDelta.dx;
-      var dy = scroll.scrollDelta.dy;
+      var Offset(:dx, :dy) = _wheelDelta(scroll);
       final keyboard = HardwareKeyboard.instance;
-      if (keyboard.isShiftPressed && dx == 0) {
-        dx = dy;
-        dy = 0;
-      }
       if (keyboard.isAltPressed) {
         // Monaco fastScrollSensitivity.
         dx *= 5;
@@ -2578,6 +2634,7 @@ class _EditorSurfaceState extends State<EditorSurface>
           minimapWidth: widget.showMinimap ? widget.minimapWidth : 0,
           annotationsWidth: widget.lineAnnotations?.width ?? 0,
           verticalScrollbar: widget.verticalScrollbar,
+          horizontalScrollbar: widget.horizontalScrollbar,
           minLineNumberChars: widget.lineNumbersMinChars,
           glyphMarginWidth: widget.glyphMarginWidth,
           lineDecorationsWidth: widget.lineDecorationsWidth,
@@ -2713,6 +2770,7 @@ class _EditorSurfaceState extends State<EditorSurface>
                     theme: theme,
                     glyphs: glyphs,
                     lineNumbers: lineNumbers,
+                    lineNumberOf: widget.lineNumberOf,
                     activeLines: activeLines,
                     cursorLine: primary.isValid
                         ? snapshot

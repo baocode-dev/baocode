@@ -7165,6 +7165,24 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get appearanceSettingsEditDetail => '文件编辑';
+
+  @override
+  String get appearanceSettingsEditDetailDescription =>
+      'Agent 编辑文件时在对话中的样子：直接显示为改动卡片；或者省略为一行，点开才看到改动。';
+
+  @override
+  String get appearanceSettingsEditDetailCard => '显示改动';
+
+  @override
+  String get appearanceSettingsEditDetailCompact => '省略';
+
+  @override
+  String appearanceSettingsEditDetailLabel(String detail) {
+    return '文件编辑：$detail';
+  }
+
+  @override
   String get appearanceSettingsReplyScroll => '回复时滚动';
 
   @override

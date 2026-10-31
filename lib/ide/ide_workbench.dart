@@ -2055,6 +2055,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     IdeGitResource resource, {
     bool head = false,
     bool focusEditor = false,
+    List<IdeGitResource>? among,
   }) async {
     final git = _git;
     final state = git?.state;
@@ -2062,9 +2063,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       _leaveGitLog();
       return _openChange(resource, head: head, focusEditor: focusEditor);
     }
-    final resources = [
-      for (final group in IdeGitGroup.values) ...state.group(group),
-    ];
+    // As Source Control lists them: its arrows and file menu step through
+    // them in that order.
+    final resources =
+        among ??
+        [for (final group in IdeGitGroup.values) ...state.group(group)];
     final l10n = context.l10n;
     final files = widget.workspace.files;
     _scm.log.showDiff(
@@ -2086,7 +2089,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           ),
         // The keys go on walking the changes.
       ],
-      resources.indexOf(resource),
+      resources.indexWhere((change) => change.path == resource.path),
       focus: false,
     );
   }

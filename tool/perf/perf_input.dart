@@ -80,6 +80,21 @@ class PerfInput {
     _mouseAt = at;
   }
 
+  /// The mouse gone from the window: nothing hovered any more.
+  void leave() {
+    if (!_mouseAdded) return;
+    _mouseAdded = false;
+    _send(
+      PointerRemovedEvent(
+        viewId: _viewId,
+        timeStamp: _now,
+        kind: PointerDeviceKind.mouse,
+        device: _mouse,
+        position: _mouseAt,
+      ),
+    );
+  }
+
   /// A left click at [at], the button held for a frame.
   Future<void> click(Offset at) async {
     hover(at);

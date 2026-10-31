@@ -44,6 +44,7 @@ class EditorViewGeometry {
     required double minimapWidth,
     double annotationsWidth = 0,
     bool verticalScrollbar = true,
+    bool horizontalScrollbar = true,
     int minLineNumberChars = lineNumbersMinChars,
     double? glyphMarginWidth,
     double lineDecorationsWidth = defaultLineDecorationsWidth,
@@ -75,7 +76,7 @@ class EditorViewGeometry {
       annotationsWidth: annotationsWidth,
       minimapWidth: minimap,
       verticalScrollbarWidth: scrollbar,
-      horizontalScrollbarHeight: 12,
+      horizontalScrollbarHeight: horizontalScrollbar ? 12 : 0,
     );
   }
 
@@ -1134,6 +1135,7 @@ class EditorGutterPainter extends CustomPainter {
     required this.theme,
     required this.glyphs,
     required this.lineNumbers,
+    this.lineNumberOf,
     required this.activeLines,
     this.cursorLine = 0,
     required this.folding,
@@ -1151,6 +1153,10 @@ class EditorGutterPainter extends CustomPainter {
   final EditorViewTheme theme;
   final EditorGutterGlyphs glyphs;
   final EditorLineNumbersStyle lineNumbers;
+
+  /// The number [EditorLineNumbersStyle.on] shows by a line; its own when
+  /// null.
+  final int Function(int line)? lineNumberOf;
   final Set<int> activeLines;
 
   /// The primary caret's line, which relative and interval numbers count
@@ -1238,7 +1244,7 @@ class EditorGutterPainter extends CustomPainter {
   @visibleForTesting
   int? numberOf(int line) => switch (lineNumbers) {
     EditorLineNumbersStyle.off => null,
-    EditorLineNumbersStyle.on => line,
+    EditorLineNumbersStyle.on => lineNumberOf?.call(line) ?? line,
     EditorLineNumbersStyle.relative =>
       line == cursorLine ? line : (line - cursorLine).abs(),
     EditorLineNumbersStyle.interval =>
@@ -1405,6 +1411,7 @@ class EditorGutterPainter extends CustomPainter {
       old.theme != theme ||
       old.glyphs != glyphs ||
       old.lineNumbers != lineNumbers ||
+      old.lineNumberOf != lineNumberOf ||
       old.cursorLine != cursorLine ||
       !setEquals(old.activeLines, activeLines) ||
       old.foldingVersion != foldingVersion ||

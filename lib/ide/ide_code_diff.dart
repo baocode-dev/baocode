@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import 'package:bao_editor/monaco/flutter/diff_editor.dart';
@@ -28,6 +29,16 @@ import 'ide_diff_options.dart';
 import 'ide_hover.dart';
 import 'ide_original_diff.dart';
 import 'ide_workspace.dart' show IdeDiffOriginal;
+
+/// An editor of a diff as a scrollbar across it outside the diff goes
+/// ([IdeCodeDiff.horizontal]): its text's left and width in the diff, how
+/// far it scrolls across, and its scroll.
+typedef IdeDiffHorizontal = ({
+  double left,
+  double width,
+  double max,
+  ValueNotifier<Offset> scroll,
+});
 
 /// Where a diff opens: at its first change, or (stepped back into from the
 /// next file) at its last.
@@ -76,6 +87,12 @@ class IdeCodeDiff extends StatefulWidget {
     this.onAsk,
     this.scrolled,
     this.onScrolled,
+    this.syntax,
+    this.sideBySide,
+    this.originalLineNumberOf,
+    this.modifiedLineNumberOf,
+    this.embedded = false,
+    this.horizontal,
   });
 
   final String path;
@@ -110,6 +127,47 @@ class IdeCodeDiff extends StatefulWidget {
   /// or a change.
   final Offset? scrolled;
   final ValueChanged<Offset>? onScrolled;
+
+  /// The TextMate worker it is colored by, where [highlights] is not
+  /// given; one of its own when neither is, but [embedded], which then
+  /// stays plain (a worker for each would be too many).
+  final TextMateSyntax? syntax;
+
+  /// Side by side (true) or unified (false) whatever [IdeDiffOptions]
+  /// says; as it says when null.
+  final bool? sideBySide;
+
+  /// The numbers the texts' lines show, where they are parts of longer
+  /// ones (an edit's hunks): see [DiffEditor.originalLineNumberOf].
+  final int Function(int line)? originalLineNumberOf;
+  final int Function(int line)? modifiedLineNumberOf;
+
+  /// In a page that scrolls (a chat's card), laid out as tall as its lines
+  /// ([lineHeight]): never scrolled past its last line, a wheel going on to
+  /// the page where the editors cannot scroll, no unchanged lines hidden
+  /// and no overview.
+  final bool embedded;
+
+  /// Given how each editor scrolls across once they are laid out, for
+  /// scrollbars of the embedder's where an [embedded] one's own, at its
+  /// foot, would be out of view: the editors then show none.
+  final ValueNotifier<List<IdeDiffHorizontal>>? horizontal;
+
+  /// How tall a line of it is.
+  static double lineHeight(BuildContext context) {
+    final painter = TextPainter(
+      text: TextSpan(text: ' ', style: _style(WorkbenchThemeService.instance)),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    );
+    final height = painter.preferredLineHeight;
+    painter.dispose();
+    return height;
+  }
+
+  static TextStyle _style(WorkbenchThemeService themes) =>
+      AppFonts.codeStyle(13)
+          .copyWith(color: themes.colors['editor.foreground'], height: 1.45);
 
   /// How long typing goes on before what is typed is written.
   static const writeDelay = Duration(milliseconds: 400);
@@ -226,9 +284,12 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
     _readyIf();
   }
 
-  TextMateSyntax get _textMate =>
+  TextMateSyntax? get _textMate =>
       widget.highlights?.syntax ??
-      (_ownTextMate ??= TextMateSyntax(themes: _themes));
+      widget.syntax ??
+      (widget.embedded
+          ? null
+          : _ownTextMate ??= TextMateSyntax(themes: _themes));
 
   @override
   void initState() {
@@ -439,17 +500,19 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       if (configuration != null) {
         _modified.languageConfiguration = configuration;
       }
-      final languageId = await _textMate.languageIdForPath(
+      final textMate = _textMate;
+      if (textMate == null) return _firstColors();
+      final languageId = await textMate.languageIdForPath(
         path,
         firstLine: firstLine,
       );
       if (!mounted || texts != _texts) return;
       if (languageId == null) return _firstColors();
-      _highlight = _textMate.open(languageId, _modified.document.snapshot)
+      _highlight = textMate.open(languageId, _modified.document.snapshot)
         ?..addListener(_changed)
         ..addListener(_firstColors);
       if (_highlight == null) _firstColors();
-      _diff.highlight(_textMate, languageId);
+      _diff.highlight(textMate, languageId);
       setState(() {});
       WidgetsBinding.instance.addPostFrameCallback((_) => _viewChanged());
     } on Object {
@@ -471,6 +534,54 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       _highlight?.setViewport(range.first, range.last);
     }
     _viewTick.value++;
+    _tellHorizontal();
+  }
+
+  /// The editors' scrolls, as last built.
+  ValueNotifier<Offset>? _originalScroll, _modifiedScroll;
+  bool _horizontalDue = false;
+
+  /// Once the editors are laid out, [IdeCodeDiff.horizontal] told how
+  /// they scroll across.
+  void _horizontalAfterLayout() {
+    if (widget.horizontal == null || _horizontalDue) return;
+    _horizontalDue = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _horizontalDue = false;
+      _tellHorizontal();
+    });
+  }
+
+  void _tellHorizontal() {
+    if (!mounted) return;
+    final out = widget.horizontal;
+    final box = context.findRenderObject();
+    if (out == null || box is! RenderBox || !box.hasSize) return;
+    final editors = <IdeDiffHorizontal>[];
+    void add(GlobalKey key, ValueNotifier<Offset>? scroll) {
+      final editor = key.currentContext?.findRenderObject();
+      if (key.currentState is! EditorSurfaceView ||
+          scroll == null ||
+          editor is! RenderBox ||
+          !editor.hasSize) {
+        return;
+      }
+      final view = key.currentState as EditorSurfaceView;
+      final area = view.textArea;
+      if (area == null) return;
+      editors.add((
+        left: editor.localToGlobal(area.topLeft, ancestor: box).dx,
+        width: area.width,
+        max: view.maxScrollLeft,
+        scroll: scroll,
+      ));
+    }
+
+    if (_diff.controller case final controller?) {
+      add(GlobalObjectKey(controller), _originalScroll);
+    }
+    add(_modifiedKey, _modifiedScroll);
+    if (!listEquals(editors, out.value)) out.value = editors;
   }
 
   /// A few lines over [IdeCodeDiff.line], else the first change (or the
@@ -509,6 +620,13 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
   /// boxes' (14 wide, 2 from the text) where there are some.
   double get _lineChecksWidth => widget.checks != null ? 22 : 10;
 
+  /// The digits of the modified side's last line number, at least two.
+  int _numberDigits(DiffEditorSide side) {
+    final lines = _modified.document.snapshot.lineCount;
+    final last = side.lineNumberOf?.call(lines) ?? lines;
+    return math.max(2, '$last'.length);
+  }
+
   /// The glyph margin with a change's check box and its arrow (16 each, 2
   /// and 22 in).
   static const _checkAndArrowWidth = 42.0;
@@ -516,10 +634,27 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
   @override
   Widget build(BuildContext context) {
     final colors = _themes.colors;
-    final theme = EditorViewTheme.fromColors(colors.get);
+    final embedded = widget.embedded;
+    // Embedded, on what it is in: no background of its own, the gutter's
+    // neither; and only read there, no current line marked where it was
+    // clicked.
+    const none = Color(0x00000000);
+    final theme = EditorViewTheme.fromColors(
+      embedded
+          ? (id) => switch (id) {
+              'editorGutter.background' ||
+              'editor.lineHighlightBackground' ||
+              'editor.lineHighlightBorder' => none,
+              'editorLineNumber.activeForeground' => colors.get(
+                'editorLineNumber.foreground',
+              ),
+              _ => colors.get(id),
+            }
+          : colors.get,
+    );
+    final background = embedded ? none : colors['editor.background'];
     final type = getThemeTypeSelector(_themes.colorTheme.type);
-    final style = AppFonts.codeStyle(13)
-        .copyWith(color: colors['editor.foreground'], height: 1.45);
+    final style = IdeCodeDiff._style(_themes);
     final editable = widget.onEdit != null;
     final overlay = editable || widget.checks != null || widget.onAsk != null;
     return DiffEditor(
@@ -531,24 +666,32 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       dark:
           type == ThemeTypeSelector.vsDark || type == ThemeTypeSelector.hcBlack,
       originalStyledLines: _diff.textMate?.styledLines,
-      background: colors['editor.background'],
+      background: background,
       border: colors.get('diffEditor.border'),
       sashHover: colors.get('sash.hoverBorder'),
-      sideBySide: _options.sideBySide,
-      highlight: _options.highlight,
-      hideUnchanged: _options.collapseUnchanged,
+      sideBySide: widget.sideBySide ?? _options.sideBySide,
+      // Embedded, small: whole lines alone, the words' colors too many.
+      highlight: embedded ? DiffHighlight.lines : _options.highlight,
+      hideUnchanged: !embedded && _options.collapseUnchanged,
+      originalLineNumberOf: widget.originalLineNumberOf,
+      modifiedLineNumberOf: widget.modifiedLineNumberOf,
+      overview: !embedded,
+      // The split's sash reaches across the modified's line numbers.
+      modifiedNumbersEnd: () => _view?.lineNumbersArea?.right,
       unchangedLabel: context.l10n.diffUnchangedLines,
       keepVisible: widget.line,
       overlay: overlay ? _overlay : null,
       original: (context, side) {
         final controller = _diff.controller;
         if (controller == null) return const SizedBox.expand();
+        _originalScroll = side.scrollPosition;
+        _horizontalAfterLayout();
         return EditorSurface(
           // Found by it for its lines' check boxes.
           key: GlobalObjectKey(controller),
           controller: controller,
           readOnly: true,
-          backgroundColor: colors['editor.background'],
+          backgroundColor: background,
           selectionColor: colors['editor.selectionBackground'],
           caretColor: colors['editorCursor.foreground'],
           theme: theme,
@@ -558,6 +701,9 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
           scrollPosition: side.scrollPosition,
           lineNumbers: side.lineNumbers,
           lineNumbersMinChars: side.lineNumbersMinChars,
+          lineNumberOf: side.lineNumberOf,
+          scrollBeyondLastLine: !embedded,
+          alwaysConsumeMouseWheel: !embedded,
           // Room for its lines' check boxes.
           glyphMargin: widget.checks != null,
           lineDecorationsWidth: _lineChecksWidth,
@@ -565,38 +711,56 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
           hiddenLines: side.hiddenLines,
           showMinimap: false,
           verticalScrollbar: false,
+          horizontalScrollbar: widget.horizontal == null,
+          indentGuides: !embedded,
           style: style,
         );
       },
-      modified: (context, side) => EditorSurface(
-        key: _modifiedKey,
-        controller: _modified,
-        readOnly: !editable,
-        backgroundColor: colors['editor.background'],
-        selectionColor: colors['editor.selectionBackground'],
-        caretColor: colors['editorCursor.foreground'],
-        theme: theme,
-        styledLines: _highlight?.styledLines,
-        decorations: side.decorations,
-        viewZones: side.zones,
-        scrollPosition: side.scrollPosition,
-        // Side by side, the line numbers are by the split; inline, the
-        // margin has the arrows and check boxes.
-        glyphMargin: !side.sideBySide || widget.checks != null,
-        // Inline, a change's check box and its arrow side by side there.
-        glyphMarginWidth: !side.sideBySide && widget.checks != null && editable
-            ? _checkAndArrowWidth
-            : null,
-        lineNumbersMinChars: side.lineNumbersMinChars,
-        // Its lines' check boxes between the line numbers and the text.
-        lineDecorationsWidth: _lineChecksWidth,
-        folding: false,
-        hiddenLines: side.hiddenLines,
-        showMinimap: false,
-        verticalScrollbar: false,
-        onViewChanged: _viewChanged,
-        style: style,
-      ),
+      modified: (context, side) {
+        _modifiedScroll = side.scrollPosition;
+        _horizontalAfterLayout();
+        return EditorSurface(
+          key: _modifiedKey,
+          controller: _modified,
+          readOnly: !editable,
+          backgroundColor: background,
+          selectionColor: colors['editor.selectionBackground'],
+          caretColor: colors['editorCursor.foreground'],
+          theme: theme,
+          styledLines: _highlight?.styledLines,
+          decorations: side.decorations,
+          viewZones: side.zones,
+          scrollPosition: side.scrollPosition,
+          // Side by side, the line numbers are by the split; inline, the
+          // margin has the arrows and check boxes (embedded, none of them:
+          // only a little room before the numbers).
+          glyphMargin: !side.sideBySide || widget.checks != null,
+          // Inline, a change's check box and its arrow side by side there.
+          glyphMarginWidth:
+              !side.sideBySide && widget.checks != null && editable
+              ? _checkAndArrowWidth
+              : embedded && !side.sideBySide
+              ? 8
+              : null,
+          // Embedded, no wider than the numbers it shows.
+          lineNumbersMinChars: embedded
+              ? math.min(side.lineNumbersMinChars, _numberDigits(side))
+              : side.lineNumbersMinChars,
+          lineNumberOf: side.lineNumberOf,
+          scrollBeyondLastLine: !embedded,
+          alwaysConsumeMouseWheel: !embedded,
+          // Its lines' check boxes between the line numbers and the text.
+          lineDecorationsWidth: _lineChecksWidth,
+          folding: false,
+          hiddenLines: side.hiddenLines,
+          showMinimap: false,
+          verticalScrollbar: false,
+          horizontalScrollbar: widget.horizontal == null,
+          indentGuides: !embedded,
+          onViewChanged: _viewChanged,
+          style: style,
+        );
+      },
     );
   }
 

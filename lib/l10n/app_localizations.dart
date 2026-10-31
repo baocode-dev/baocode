@@ -12363,6 +12363,36 @@ abstract class AppLocalizations {
   /// **'Your messages: {style}'**
   String appearanceSettingsUserMessageStyleLabel(String style);
 
+  /// No description provided for @appearanceSettingsEditDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'File Edits'**
+  String get appearanceSettingsEditDetail;
+
+  /// No description provided for @appearanceSettingsEditDetailDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'How the agent\'s edits to files show in the conversation: as a card of the changes, always open; or as one line that opens to them.'**
+  String get appearanceSettingsEditDetailDescription;
+
+  /// No description provided for @appearanceSettingsEditDetailCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Card with changes'**
+  String get appearanceSettingsEditDetailCard;
+
+  /// No description provided for @appearanceSettingsEditDetailCompact.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact'**
+  String get appearanceSettingsEditDetailCompact;
+
+  /// No description provided for @appearanceSettingsEditDetailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'File edits: {detail}'**
+  String appearanceSettingsEditDetailLabel(String detail);
+
   /// No description provided for @appearanceSettingsReplyScroll.
   ///
   /// In en, this message translates to:

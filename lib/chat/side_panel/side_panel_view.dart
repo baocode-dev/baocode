@@ -14,7 +14,7 @@ import '../../ide/git/git_model.dart';
 import '../../ide/git/commit_message.dart';
 import '../../ide/git/git_repository.dart';
 import '../../ide/git/ide_git_log_view.dart'
-    show IdeGitLogView, IdeGitWorktreeChoice;
+    show IdeGitLogView, IdeGitWorktreeChoice, ideLocalDiffFile;
 import '../../ide/git/ide_git_commit_panel.dart';
 import '../../ide/git/scm_host.dart';
 import '../../ide/ide_button.dart';
@@ -770,17 +770,8 @@ class AgentSidePanelView extends StatelessWidget {
         background: AppColors.code,
         border: AppColors.partBorder,
         onOpen: (path) => panel.open(session, FileOpenRequest(path)),
-        // A commit's file: its changes in a tab, as the local ones'.
-        onOpenDiff: (file) => panel.open(
-          session,
-          FileOpenRequest(
-            file.path,
-            diff: true,
-            original: file.original,
-            modified: file.modified,
-            readOnly: true,
-          ),
-        ),
+        // A commit's files, the local changes and a stash's in the table's
+        // place, one at a time, as the IDE's Source Control shows them.
         // A file shown once read, compared and colored: what was before
         // until then.
         overlay: active == null
@@ -799,11 +790,30 @@ class AgentSidePanelView extends StatelessWidget {
           onOpen: (path, {focusEditor = false}) async =>
               panel.open(session, FileOpenRequest(path)),
           // Its diff; its HEAD side is the diff's left.
-          onOpenChange: (resource, {head = false, focusEditor = false}) async {
-            final of = _gitOf(resource.path);
-            if (of?.state case final state?) {
-              panel.open(session, gitChangeRequest(of!, state, resource));
-            }
+          onOpenChange:
+              (
+                resource, {
+                head = false,
+                focusEditor = false,
+                List<IdeGitResource>? among,
+              }) async {
+                final of = _gitOf(resource.path);
+                final state = of?.state;
+                if (of == null || state == null) return;
+                if (focusEditor) {
+                  return panel.open(session, FileOpenRequest(resource.path));
+                }
+                if (head) {
+                  return panel.open(
+                    session,
+                    gitChangeRequest(of, state, resource),
+                  );
+                }
+                _showLocalDiff(context, of, state, resource, among);
+              },
+          onShowDiff: (files, index) {
+            panel.showLog(session);
+            panel.scmOf(git).log.showDiff(files, index);
           },
           onRevealInExplorer: _revealInFiles,
           revealInExplorerLabel: context.l10n.sidePanelRevealInFiles,
@@ -816,6 +826,51 @@ class AgentSidePanelView extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// [resource]'s change in the log's table's place, the other local
+  /// changes ([among], as Source Control lists them) a step away; the keys
+  /// still the list's.
+  void _showLocalDiff(
+    BuildContext context,
+    IdeGitRepository git,
+    IdeGitState state,
+    IdeGitResource resource,
+    List<IdeGitResource>? among,
+  ) {
+    final l10n = context.l10n;
+    final resources =
+        among ??
+        [for (final group in IdeGitGroup.values) ...state.group(group)];
+    // In front of a change opened from the conversation.
+    panel.showLog(session);
+    panel
+        .scmOf(git)
+        .log
+        .showDiff(
+          [
+            for (final change in resources)
+              ideLocalDiffFile(
+                git,
+                state,
+                change,
+                files.read,
+                l10n,
+                onOpenInEditor: () =>
+                    panel.open(session, FileOpenRequest(change.path)),
+                write: (path, text, {expectedText}) async {
+                  try {
+                    await files.write(path, text, expectedText: expectedText);
+                  } on Object catch (error) {
+                    notifications.notify(IdeSeverity.error, '$error');
+                    rethrow;
+                  }
+                },
+              ),
+          ],
+          resources.indexWhere((change) => change.path == resource.path),
+          focus: false,
+        );
   }
 
   /// The repository [path] is in: the one of [_gits] whose folder holds it

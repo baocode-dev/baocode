@@ -23,6 +23,7 @@ import 'package:baocode/chat/side_panel/side_panel_controller.dart';
 import 'package:baocode/chat/chat_column.dart';
 import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/chat/widgets/edit_step.dart';
+import 'package:baocode/chat/widgets/step_header.dart' show StepBody;
 import 'package:baocode/chat/widgets/fold_line.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/chat/widgets/tool_call_row.dart';
@@ -799,7 +800,7 @@ void main() {
     expect(tabs.active, isNotNull);
   });
 
-  testWidgets('a changes tab in front again is where it was scrolled; asked '
+  testWidgets('one change shows at a time: another takes its place; asked '
       'for again, at its change', (tester) async {
     String lines(String name) =>
         [for (var i = 1; i <= 300; i++) '$name $i'].join('\n');
@@ -830,12 +831,11 @@ void main() {
     panel.open(session, diff('/p/b.dart', 'b'));
     await tester.pumpAndSettle();
     final tabs = panel.tabsOf(session);
-    panel.activate(session, tabs.diffs.first);
-    await tester.pumpAndSettle();
-    expect(modified().scrollOffset, scrolled);
+    expect(tabs.diffs.single.path, '/p/b.dart');
 
     panel.open(session, diff('/p/a.dart', 'a'));
     await tester.pumpAndSettle();
+    expect(tabs.diffs.single.path, '/p/a.dart');
     expect(modified().scrollOffset.dy, lessThan(scrolled.dy));
   });
 
@@ -1213,11 +1213,9 @@ void main() {
       find.descendant(of: list, matching: find.text('main.dart')),
     );
     await tester.pumpAndSettle();
-    final preview = find.byType(FilePreview);
+    // In the log's place, as the IDE's Source Control shows it: no tab.
     (String, String) compared() {
-      final diff = tester.widget<IdeCodeDiff>(
-        find.descendant(of: preview, matching: find.byType(IdeCodeDiff)),
-      );
+      final diff = tester.widget<IdeCodeDiff>(find.byType(IdeCodeDiff).last);
       return (diff.original, diff.modified);
     }
 
@@ -1231,7 +1229,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(compared(), ('before staging\n', 'staged text\n'));
-    expect(panel.tabsOf(session).diffs, hasLength(2));
+    expect(panel.tabsOf(session).diffs, isEmpty);
 
     // Not grouped by directory: each file with its folder, and the panel
     // remembers it.
@@ -1249,22 +1247,6 @@ void main() {
       ),
     );
     expect(main.description, 'lib');
-
-    // A tab's menu closes the others.
-    await tester.tap(
-      find.descendant(
-        of: find.byType(TabStripScroll),
-        matching: find.text('staged.dart'),
-      ),
-      buttons: kSecondaryButton,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Close Others'));
-    await tester.pumpAndSettle();
-    expect(
-      [for (final tab in panel.tabsOf(session).diffs) tab.path],
-      ['/p/lib/staged.dart'],
-    );
 
     // An unversioned file's menu adds it to Git.
     await tester.tap(row('notes.md'), buttons: kSecondaryButton);
@@ -1386,22 +1368,15 @@ void main() {
     );
     await tester.tap(file.last);
     await tester.pumpAndSettle();
-    final tab = panel.tabsOf(session).activeDiff!;
-    expect(tab.path, '/p/lib/main.dart');
-    expect(tab.request.readOnly, isTrue);
-    final diff = tester.widget<IdeCodeDiff>(
-      find.descendant(
-        of: find.byType(FilePreview),
-        matching: find.byType(IdeCodeDiff),
-      ),
-    );
+    // In the log's place, as the IDE's Source Control shows it: no tab.
+    expect(panel.tabsOf(session).diffs, isEmpty);
+    final diff = tester.widget<IdeCodeDiff>(find.byType(IdeCodeDiff).last);
     expect((diff.original, diff.modified), ('first\n', 'second\n'));
+    expect(diff.onEdit, isNull);
 
-    // Back to the log, the change's tab kept.
-    await tester.tap(find.byTooltip('Back to Log'));
+    // Back to the log.
+    await tester.tap(find.byTooltip('Back to Log (Esc)'));
     await tester.pumpAndSettle();
-    expect(panel.tabsOf(session).activeDiff, isNull);
-    expect(panel.tabsOf(session).diffs, hasLength(1));
     // In the table, and as the message of the commit still selected.
     expect(find.text('Second'), findsNWidgets(2));
   });
@@ -1475,10 +1450,13 @@ void main() {
     expect(find.byType(IdeGitCommitPanel), findsOneWidget);
     // The panel's own title, not the view's.
     expect(find.text('Source Control'), findsNothing);
-    final commit = find.descendant(
-      of: find.byType(IdeGitCommitPanel),
-      matching: find.text('Commit'),
-    );
+    // The button, after the Commit and Stash tabs (as the IDE's).
+    final commit = find
+        .descendant(
+          of: find.byType(IdeGitCommitPanel),
+          matching: find.text('Commit'),
+        )
+        .last;
 
     // No message: said so, nothing committed.
     await tester.tap(commit);
@@ -1964,15 +1942,14 @@ void main() {
     expect(_edited(tester).text, _main);
   });
 
-  testWidgets('an edit opens to its diff in place; the file\'s name over it '
+  testWidgets('an edit shows its diff in place; the file\'s name over it '
       'shows its changes in the side panel', (tester) async {
     final (:panel, :session, files: _) = await _pumpChat(tester);
     final edit = find.byType(EditStep).last;
-    await tester.tap(
-      find.descendant(of: edit, matching: find.byType(RichText)).first,
+    expect(
+      find.descendant(of: edit, matching: find.byType(StepBody)),
+      findsOne,
     );
-    await tester.pumpAndSettle();
-    expect(tester.widget<EditStep>(edit).expanded, isTrue);
     expect(_active(panel, session), isNull);
 
     await tester.tap(
@@ -1988,7 +1965,10 @@ void main() {
     // The text before the agent's edit is not known here: the file.
     expect(find.textContaining('not known'), findsOneWidget);
     expect(find.text('main line 1'), findsOneWidget);
-    expect(tester.widget<EditStep>(edit).expanded, isTrue);
+    expect(
+      find.descendant(of: edit, matching: find.byType(StepBody)),
+      findsOne,
+    );
   });
 
   testWidgets('a search\'s match opens its file at its line', (tester) async {

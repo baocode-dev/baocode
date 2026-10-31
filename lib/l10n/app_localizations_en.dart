@@ -7615,6 +7615,24 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get appearanceSettingsEditDetail => 'File Edits';
+
+  @override
+  String get appearanceSettingsEditDetailDescription =>
+      'How the agent\'s edits to files show in the conversation: as a card of the changes, always open; or as one line that opens to them.';
+
+  @override
+  String get appearanceSettingsEditDetailCard => 'Card with changes';
+
+  @override
+  String get appearanceSettingsEditDetailCompact => 'Compact';
+
+  @override
+  String appearanceSettingsEditDetailLabel(String detail) {
+    return 'File edits: $detail';
+  }
+
+  @override
   String get appearanceSettingsReplyScroll => 'As a Reply Comes';
 
   @override

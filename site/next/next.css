@@ -1,0 +1,243 @@
+/* The new home page: the 24 points. Its colours are the app's theme's
+   (next.js sets them from themes.json); Bao Dark until then. */
+
+:root {
+  --bg: #22211e;
+  --surface: #292925;
+  --raised: #33322c;
+  --fg: #e5e2d6;
+  --fg-strong: #e0ddd0;
+  --muted: #b5b2a1;
+  --border: #393832;
+  --accent: #e5ba7d;
+  --accent-fg: #23221e;
+  --link: #edc994;
+  --hover: rgba(243, 241, 231, 0.08);
+  --sel: rgba(229, 186, 125, 0.17);
+  --sel-fg: #f3f1e7;
+  --focus: rgba(229, 186, 125, 0.7);
+  --green: #9dc08b;
+  --blue: #8fa9c2;
+
+  --gap: 10px;
+  --radius: 12px;
+  --top: 56px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .35s ease, color .35s ease;
+}
+
+a { color: inherit; text-decoration: none; }
+
+code {
+  font: .9em/1 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: .12em .38em;
+  border-radius: 5px;
+  background: var(--hover);
+  color: var(--fg-strong);
+}
+
+.sprite { display: none; }
+.ic { width: 1em; height: 1em; flex: none; }
+
+/* --- The bar ------------------------------------------------------------------------ */
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: var(--top);
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 0 max(24px, calc((100vw - 1280px) / 2));
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 650;
+  font-size: 16px;
+  color: var(--fg-strong);
+}
+.brand img { width: 24px; height: 24px; border-radius: 6px; }
+
+.links { display: flex; gap: 22px; }
+.links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  transition: color .15s;
+}
+.links a:hover { color: var(--fg-strong); }
+
+/* The theme picker: the app's themes, the page following. */
+.theme { position: relative; margin-left: auto; }
+.theme-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.theme-button:hover { background: var(--raised); }
+.theme-button .ic { width: 14px; height: 14px; color: var(--muted); }
+.swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, var(--surface) 50%, var(--accent) 50%);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.theme-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  min-width: 220px;
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .28);
+}
+.theme-menu li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.theme-menu li:hover { background: var(--hover); }
+.theme-menu li[aria-selected="true"] { background: var(--sel); color: var(--sel-fg); }
+.theme-menu li .ic { margin-left: auto; width: 14px; height: 14px; visibility: hidden; }
+.theme-menu li[aria-selected="true"] .ic { visibility: visible; }
+.theme-menu .swatch { background: linear-gradient(135deg, var(--s-bg) 50%, var(--s-accent) 50%); }
+
+/* --- The intro ---------------------------------------------------------------------- */
+
+main {
+  width: min(1280px, calc(100vw - 48px));
+  margin: 0 auto;
+}
+
+.intro { padding: 56px 0 36px; text-align: center; }
+
+h1 {
+  margin: 0;
+  font-size: 40px;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+  color: var(--fg-strong);
+}
+
+.tagline {
+  margin: 14px auto 0;
+  color: var(--muted);
+  font-size: 17px;
+}
+
+/* --- The points: each as it is ---------------------------------------------------- */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 48px;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: background-color .2s, border-color .2s, transform .2s;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.card-head .ic { width: 16px; height: 16px; }
+.card-no {
+  margin-left: auto;
+  font: 11px/1 "JetBrains Mono", ui-monospace, monospace;
+  color: var(--muted);
+  opacity: .6;
+  font-weight: 400;
+}
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 16.5px;
+  line-height: 1.4;
+  color: var(--fg-strong);
+}
+.card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+}
+.foot {
+  display: flex;
+  justify-content: space-between;
+  width: min(1280px, calc(100vw - 48px));
+  margin: 0 auto;
+  padding: 18px 0 30px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+.foot a:hover { color: var(--fg-strong); }
+
+/* --- Narrower: fewer columns ---------------------------------------------------------- */
+
+@media (max-width: 1100px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 820px) {
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .links { display: none; }
+  h1 { font-size: 30px; }
+}
+@media (max-width: 540px) { .cards { grid-template-columns: 1fr; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
