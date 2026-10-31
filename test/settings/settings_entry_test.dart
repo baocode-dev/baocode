@@ -209,7 +209,7 @@ void main() {
   testWidgets('the settings fill the window, find and switch pages', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(800, 600);
+    tester.view.physicalSize = const Size(800, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -227,7 +227,7 @@ void main() {
     );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
-    expect(tester.getSize(find.byType(SettingsDialog)), const Size(800, 600));
+    expect(tester.getSize(find.byType(SettingsDialog)), const Size(800, 700));
     expect(find.text('page general'), findsOneWidget);
     // The pages listed in their groups' order.
     expect(

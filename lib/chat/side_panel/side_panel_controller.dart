@@ -65,8 +65,9 @@ class SidePanelTab {
 /// at the right: the project's files, the agent's changes, its background
 /// commands; and the plan the agent wrote, alone, while there is one.
 /// The browser's page is there once a browser of the user's has connected
-/// (see lib/browser/browser_bridge.dart).
-enum SidePanelSection { files, changes, terminal, browser, plan }
+/// (see lib/browser/browser_bridge.dart). The usage page: what the
+/// conversation took of its upstream (see lib/usage/).
+enum SidePanelSection { files, changes, terminal, usage, browser, plan }
 
 /// The pages there whether or not there is anything on them: not the
 /// plan's, there only once the agent wrote one.
@@ -74,6 +75,7 @@ const alwaysShownSections = [
   SidePanelSection.files,
   SidePanelSection.changes,
   SidePanelSection.terminal,
+  SidePanelSection.usage,
 ];
 
 /// Each conversation keeps its page, and the tabs open on each.
@@ -108,7 +110,9 @@ class SidePanelTabs {
   SidePanelTab? get current => switch (section) {
     SidePanelSection.files => active,
     SidePanelSection.changes => activeDiff,
-    SidePanelSection.terminal || SidePanelSection.browser => null,
+    SidePanelSection.terminal ||
+    SidePanelSection.usage ||
+    SidePanelSection.browser => null,
     SidePanelSection.plan => plan,
   };
 }
@@ -697,7 +701,9 @@ class AgentSidePanel extends ChangeNotifier {
           SidePanelSection.plan:
         if (tabs.current case final tab?) return close(conversation, tab);
       // Its tabs are the terminals themselves, killed by their own Close.
-      case SidePanelSection.terminal || SidePanelSection.browser:
+      case SidePanelSection.terminal ||
+          SidePanelSection.usage ||
+          SidePanelSection.browser:
         break;
     }
     hide();

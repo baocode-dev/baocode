@@ -2918,6 +2918,12 @@ abstract class AppLocalizations {
   /// **'Show Agent Files'**
   String get cmdSidePanelFiles;
 
+  /// No description provided for @cmdSidePanelUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Conversation Usage'**
+  String get cmdSidePanelUsage;
+
   /// No description provided for @cmdSidePanelTerminal.
   ///
   /// In en, this message translates to:
@@ -20432,6 +20438,870 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{original} ↔ {modified}'**
   String compareFilesLabel(String original, String modified);
+
+  /// No description provided for @settingsSectionUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage'**
+  String get settingsSectionUsage;
+
+  /// No description provided for @sidePanelUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage'**
+  String get sidePanelUsage;
+
+  /// No description provided for @ustatKeywords.
+  ///
+  /// In en, this message translates to:
+  /// **'usage statistics tokens cache calls cost dashboard upstream model'**
+  String get ustatKeywords;
+
+  /// No description provided for @ustatDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Every request to your custom upstreams, as BaoCode\'s model proxy passed it on: tokens, the cache, time, by conversation, subagent and tool. Claude\'s official service does not go through the proxy and is not counted. Kept on this computer only.'**
+  String get ustatDescription;
+
+  /// No description provided for @ustatAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get ustatAll;
+
+  /// No description provided for @ustatAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent'**
+  String get ustatAgent;
+
+  /// No description provided for @ustatKind.
+  ///
+  /// In en, this message translates to:
+  /// **'Kind'**
+  String get ustatKind;
+
+  /// No description provided for @ustatModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get ustatModel;
+
+  /// No description provided for @ustatUpstream.
+  ///
+  /// In en, this message translates to:
+  /// **'Upstream'**
+  String get ustatUpstream;
+
+  /// No description provided for @ustatConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation'**
+  String get ustatConversation;
+
+  /// No description provided for @ustatFailedOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed only'**
+  String get ustatFailedOnly;
+
+  /// No description provided for @ustatResetFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset filters'**
+  String get ustatResetFilters;
+
+  /// No description provided for @ustatRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get ustatRefresh;
+
+  /// No description provided for @ustatUnpin.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to the whole range'**
+  String get ustatUnpin;
+
+  /// No description provided for @ustatRangeHour.
+  ///
+  /// In en, this message translates to:
+  /// **'Last hour'**
+  String get ustatRangeHour;
+
+  /// No description provided for @ustatRangeToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get ustatRangeToday;
+
+  /// No description provided for @ustatRangeDay.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 24 hours'**
+  String get ustatRangeDay;
+
+  /// No description provided for @ustatRangeWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 7 days'**
+  String get ustatRangeWeek;
+
+  /// No description provided for @ustatRangeMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 30 days'**
+  String get ustatRangeMonth;
+
+  /// No description provided for @ustatRangeQuarter.
+  ///
+  /// In en, this message translates to:
+  /// **'Last 90 days'**
+  String get ustatRangeQuarter;
+
+  /// No description provided for @ustatRangeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All time'**
+  String get ustatRangeAll;
+
+  /// No description provided for @ustatClassMain.
+  ///
+  /// In en, this message translates to:
+  /// **'Main agent'**
+  String get ustatClassMain;
+
+  /// No description provided for @ustatClassSubagent.
+  ///
+  /// In en, this message translates to:
+  /// **'Subagent'**
+  String get ustatClassSubagent;
+
+  /// No description provided for @ustatClassWorkflow.
+  ///
+  /// In en, this message translates to:
+  /// **'Workflow'**
+  String get ustatClassWorkflow;
+
+  /// No description provided for @ustatClassCompaction.
+  ///
+  /// In en, this message translates to:
+  /// **'Compaction'**
+  String get ustatClassCompaction;
+
+  /// No description provided for @ustatClassAuxiliary.
+  ///
+  /// In en, this message translates to:
+  /// **'Auxiliary'**
+  String get ustatClassAuxiliary;
+
+  /// No description provided for @ustatClassSideReply.
+  ///
+  /// In en, this message translates to:
+  /// **'Side reply'**
+  String get ustatClassSideReply;
+
+  /// No description provided for @ustatMainAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Main agent'**
+  String get ustatMainAgent;
+
+  /// No description provided for @ustatPartSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System prompt'**
+  String get ustatPartSystem;
+
+  /// No description provided for @ustatPartTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool definitions'**
+  String get ustatPartTools;
+
+  /// No description provided for @ustatPartUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User messages'**
+  String get ustatPartUser;
+
+  /// No description provided for @ustatPartAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Replies'**
+  String get ustatPartAssistant;
+
+  /// No description provided for @ustatPartThinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Thinking'**
+  String get ustatPartThinking;
+
+  /// No description provided for @ustatPartToolUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool calls'**
+  String get ustatPartToolUse;
+
+  /// No description provided for @ustatPartToolResult.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool results'**
+  String get ustatPartToolResult;
+
+  /// No description provided for @ustatPartMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Images & files'**
+  String get ustatPartMedia;
+
+  /// No description provided for @ustatTokenInput.
+  ///
+  /// In en, this message translates to:
+  /// **'Input'**
+  String get ustatTokenInput;
+
+  /// No description provided for @ustatTokenOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Output'**
+  String get ustatTokenOutput;
+
+  /// No description provided for @ustatTokenCacheRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache read'**
+  String get ustatTokenCacheRead;
+
+  /// No description provided for @ustatTokenCacheWrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache write'**
+  String get ustatTokenCacheWrite;
+
+  /// No description provided for @ustatTokenReasoning.
+  ///
+  /// In en, this message translates to:
+  /// **'Reasoning'**
+  String get ustatTokenReasoning;
+
+  /// No description provided for @ustatTotalTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Tokens'**
+  String get ustatTotalTokens;
+
+  /// No description provided for @ustatTokensDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'{input} in · {output} out'**
+  String ustatTokensDetail(String input, String output);
+
+  /// No description provided for @ustatCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls'**
+  String get ustatCalls;
+
+  /// No description provided for @ustatCallsDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} tool calls asked'**
+  String ustatCallsDetail(String count);
+
+  /// No description provided for @ustatCallsOk.
+  ///
+  /// In en, this message translates to:
+  /// **'Succeeded'**
+  String get ustatCallsOk;
+
+  /// No description provided for @ustatCallsShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} calls'**
+  String ustatCallsShort(int count);
+
+  /// No description provided for @ustatCacheHit.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache hit rate'**
+  String get ustatCacheHit;
+
+  /// No description provided for @ustatCacheDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'{read} read · {written} written'**
+  String ustatCacheDetail(String read, String written);
+
+  /// No description provided for @ustatFirstToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Time to first token'**
+  String get ustatFirstToken;
+
+  /// No description provided for @ustatDurationDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'{duration} per call on average'**
+  String ustatDurationDetail(String duration);
+
+  /// No description provided for @ustatSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Output speed'**
+  String get ustatSpeed;
+
+  /// No description provided for @ustatOutputDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'{tokens} output in all'**
+  String ustatOutputDetail(String tokens);
+
+  /// No description provided for @ustatReasoningDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'{tokens} of it reasoning'**
+  String ustatReasoningDetail(String tokens);
+
+  /// No description provided for @ustatErrors.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed'**
+  String get ustatErrors;
+
+  /// No description provided for @ustatErrorRate.
+  ///
+  /// In en, this message translates to:
+  /// **'{rate} of calls'**
+  String ustatErrorRate(String rate);
+
+  /// No description provided for @ustatOverTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Over time'**
+  String get ustatOverTime;
+
+  /// No description provided for @ustatMetricTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Tokens'**
+  String get ustatMetricTokens;
+
+  /// No description provided for @ustatMetricCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls'**
+  String get ustatMetricCalls;
+
+  /// No description provided for @ustatMetricLatency.
+  ///
+  /// In en, this message translates to:
+  /// **'Latency'**
+  String get ustatMetricLatency;
+
+  /// No description provided for @ustatMetricSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed'**
+  String get ustatMetricSpeed;
+
+  /// No description provided for @ustatByClass.
+  ///
+  /// In en, this message translates to:
+  /// **'By kind of request'**
+  String get ustatByClass;
+
+  /// No description provided for @ustatByUpstream.
+  ///
+  /// In en, this message translates to:
+  /// **'By upstream'**
+  String get ustatByUpstream;
+
+  /// No description provided for @ustatByModel.
+  ///
+  /// In en, this message translates to:
+  /// **'By model'**
+  String get ustatByModel;
+
+  /// No description provided for @ustatByConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'By conversation'**
+  String get ustatByConversation;
+
+  /// No description provided for @ustatByAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Main agent and subagents'**
+  String get ustatByAgent;
+
+  /// No description provided for @ustatByAgentDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'What each agent of the conversation sent and got back'**
+  String get ustatByAgentDetail;
+
+  /// No description provided for @ustatByTurn.
+  ///
+  /// In en, this message translates to:
+  /// **'By turn'**
+  String get ustatByTurn;
+
+  /// No description provided for @ustatByTurnDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Each of your messages and all the requests that answered it'**
+  String get ustatByTurnDetail;
+
+  /// No description provided for @ustatTurnDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'{duration} · context up to {peak}'**
+  String ustatTurnDetail(String duration, String peak);
+
+  /// No description provided for @ustatNoConversations.
+  ///
+  /// In en, this message translates to:
+  /// **'No conversation named its session'**
+  String get ustatNoConversations;
+
+  /// No description provided for @ustatTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools'**
+  String get ustatTools;
+
+  /// No description provided for @ustatToolsDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'What their results brought into the context (estimated), how often they were called, how long they ran'**
+  String get ustatToolsDetail;
+
+  /// No description provided for @ustatToolSortTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'Context'**
+  String get ustatToolSortTokens;
+
+  /// No description provided for @ustatToolSortCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls'**
+  String get ustatToolSortCalls;
+
+  /// No description provided for @ustatToolSortTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get ustatToolSortTime;
+
+  /// No description provided for @ustatNoTools.
+  ///
+  /// In en, this message translates to:
+  /// **'No tools were used'**
+  String get ustatNoTools;
+
+  /// No description provided for @ustatToolCalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Called'**
+  String get ustatToolCalled;
+
+  /// No description provided for @ustatToolResult.
+  ///
+  /// In en, this message translates to:
+  /// **'result'**
+  String get ustatToolResult;
+
+  /// No description provided for @ustatShowAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all {count}'**
+  String ustatShowAll(int count);
+
+  /// No description provided for @ustatShowLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get ustatShowLess;
+
+  /// No description provided for @ustatContextGrowth.
+  ///
+  /// In en, this message translates to:
+  /// **'Context growth'**
+  String get ustatContextGrowth;
+
+  /// No description provided for @ustatContextNow.
+  ///
+  /// In en, this message translates to:
+  /// **'{tokens} now'**
+  String ustatContextNow(String tokens);
+
+  /// No description provided for @ustatContextPeak.
+  ///
+  /// In en, this message translates to:
+  /// **'peak {tokens}'**
+  String ustatContextPeak(String tokens);
+
+  /// No description provided for @ustatCompactions.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 compaction} other{{count} compactions}}'**
+  String ustatCompactions(int count);
+
+  /// No description provided for @ustatCompactedFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'Compacted at {tokens}'**
+  String ustatCompactedFrom(String tokens);
+
+  /// No description provided for @ustatContextMakeup.
+  ///
+  /// In en, this message translates to:
+  /// **'What fills the context'**
+  String get ustatContextMakeup;
+
+  /// No description provided for @ustatContextMakeupDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The main agent\'s last request: {tokens}, {time}. Parts estimated from its text.'**
+  String ustatContextMakeupDetail(String tokens, String time);
+
+  /// No description provided for @ustatRecentCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent calls'**
+  String get ustatRecentCalls;
+
+  /// No description provided for @ustatCallsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls'**
+  String get ustatCallsTitle;
+
+  /// No description provided for @ustatRecentCallsDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} in all, newest first'**
+  String ustatRecentCallsDetail(int count);
+
+  /// No description provided for @ustatShowMoreCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more ({count} left)'**
+  String ustatShowMoreCalls(int count);
+
+  /// No description provided for @ustatNoCalls.
+  ///
+  /// In en, this message translates to:
+  /// **'No calls'**
+  String get ustatNoCalls;
+
+  /// No description provided for @ustatCopyJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy the call as JSON'**
+  String get ustatCopyJson;
+
+  /// No description provided for @ustatFieldTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get ustatFieldTime;
+
+  /// No description provided for @ustatFieldStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get ustatFieldStatus;
+
+  /// No description provided for @ustatFieldUpstream.
+  ///
+  /// In en, this message translates to:
+  /// **'Upstream'**
+  String get ustatFieldUpstream;
+
+  /// No description provided for @ustatFieldModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get ustatFieldModel;
+
+  /// No description provided for @ustatFieldEffort.
+  ///
+  /// In en, this message translates to:
+  /// **'Effort'**
+  String get ustatFieldEffort;
+
+  /// No description provided for @ustatFieldClass.
+  ///
+  /// In en, this message translates to:
+  /// **'Kind'**
+  String get ustatFieldClass;
+
+  /// No description provided for @ustatFieldSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Session'**
+  String get ustatFieldSession;
+
+  /// No description provided for @ustatFieldAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent'**
+  String get ustatFieldAgent;
+
+  /// No description provided for @ustatFieldTask.
+  ///
+  /// In en, this message translates to:
+  /// **'Task'**
+  String get ustatFieldTask;
+
+  /// No description provided for @ustatFieldAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get ustatFieldAccount;
+
+  /// No description provided for @ustatFieldUpstreamLatency.
+  ///
+  /// In en, this message translates to:
+  /// **'Upstream answered'**
+  String get ustatFieldUpstreamLatency;
+
+  /// No description provided for @ustatFieldFirstToken.
+  ///
+  /// In en, this message translates to:
+  /// **'First token'**
+  String get ustatFieldFirstToken;
+
+  /// No description provided for @ustatFieldDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get ustatFieldDuration;
+
+  /// No description provided for @ustatFieldSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Speed'**
+  String get ustatFieldSpeed;
+
+  /// No description provided for @ustatFieldMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get ustatFieldMessages;
+
+  /// No description provided for @ustatFieldTools.
+  ///
+  /// In en, this message translates to:
+  /// **'tools'**
+  String get ustatFieldTools;
+
+  /// No description provided for @ustatFieldBytes.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get ustatFieldBytes;
+
+  /// No description provided for @ustatFieldCompacted.
+  ///
+  /// In en, this message translates to:
+  /// **'After compaction'**
+  String get ustatFieldCompacted;
+
+  /// No description provided for @ustatFieldError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get ustatFieldError;
+
+  /// No description provided for @ustatEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No calls yet'**
+  String get ustatEmptyTitle;
+
+  /// No description provided for @ustatEmptyDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Calls show here once a conversation runs on a custom upstream (Settings → Models).'**
+  String get ustatEmptyDetail;
+
+  /// No description provided for @ustatEmptyFiltered.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing matches these filters'**
+  String get ustatEmptyFiltered;
+
+  /// No description provided for @ustatConversationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation usage'**
+  String get ustatConversationTitle;
+
+  /// No description provided for @ustatConversationNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage shows once the conversation starts'**
+  String get ustatConversationNew;
+
+  /// No description provided for @ustatConversationEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No calls kept for this conversation'**
+  String get ustatConversationEmpty;
+
+  /// No description provided for @ustatConversationEmptyDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Only conversations on a custom upstream are counted: Claude\'s official service does not go through BaoCode\'s proxy.'**
+  String get ustatConversationEmptyDetail;
+
+  /// No description provided for @ustatRecordOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage is not being recorded'**
+  String get ustatRecordOff;
+
+  /// No description provided for @ustatTurnOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on'**
+  String get ustatTurnOn;
+
+  /// No description provided for @ustatDataTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Data'**
+  String get ustatDataTitle;
+
+  /// No description provided for @ustatDataDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Detailed records take room: keep them as long as you like, and clear what you no longer need.'**
+  String get ustatDataDescription;
+
+  /// No description provided for @ustatRecord.
+  ///
+  /// In en, this message translates to:
+  /// **'Record usage'**
+  String get ustatRecord;
+
+  /// No description provided for @ustatRecordDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Sessions on a custom upstream go through BaoCode\'s local proxy, which keeps each call. Applies to agents started from now on.'**
+  String get ustatRecordDescription;
+
+  /// No description provided for @ustatRecordOffDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn it on to keep each call to your custom upstreams: tokens, the cache, time, by conversation, subagent and tool.'**
+  String get ustatRecordOffDescription;
+
+  /// No description provided for @ustatDetailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Detailed records'**
+  String get ustatDetailed;
+
+  /// No description provided for @ustatDetailedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Also keeps what filled each request\'s context and the tools\' share. Takes more room.'**
+  String get ustatDetailedDescription;
+
+  /// No description provided for @ustatRetention.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep records for'**
+  String get ustatRetention;
+
+  /// No description provided for @ustatRetentionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Older days are deleted as they pass.'**
+  String get ustatRetentionDescription;
+
+  /// No description provided for @ustatKeepDays.
+  ///
+  /// In en, this message translates to:
+  /// **'{days} days'**
+  String ustatKeepDays(int days);
+
+  /// No description provided for @ustatKeepForever.
+  ///
+  /// In en, this message translates to:
+  /// **'Forever'**
+  String get ustatKeepForever;
+
+  /// No description provided for @ustatSpace.
+  ///
+  /// In en, this message translates to:
+  /// **'Using {size}'**
+  String ustatSpace(String size);
+
+  /// No description provided for @ustatSpaceDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'{days} days kept, since {oldest}'**
+  String ustatSpaceDetail(int days, String oldest);
+
+  /// No description provided for @ustatSpaceEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing kept yet'**
+  String get ustatSpaceEmpty;
+
+  /// No description provided for @ustatClearEllipsis.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear…'**
+  String get ustatClearEllipsis;
+
+  /// No description provided for @ustatClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get ustatClear;
+
+  /// No description provided for @ustatClearOlderThan.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all but the last {days} days'**
+  String ustatClearOlderThan(int days);
+
+  /// No description provided for @ustatClearShown.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear the time shown'**
+  String get ustatClearShown;
+
+  /// No description provided for @ustatClearShownFiltered.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear what the filters show'**
+  String get ustatClearShownFiltered;
+
+  /// No description provided for @ustatClearAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear everything'**
+  String get ustatClearAll;
+
+  /// No description provided for @ustatClearConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'{what}?'**
+  String ustatClearConfirm(String what);
+
+  /// No description provided for @ustatClearDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The calls are deleted from this computer. This cannot be undone.'**
+  String get ustatClearDetail;
 }
 
 class _AppLocalizationsDelegate

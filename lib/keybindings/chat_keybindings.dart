@@ -94,6 +94,7 @@ abstract final class ChatCommandIds {
   static const sidePanelChanges = 'baocode.chat.sidePanel.changes';
   static const sidePanelFiles = 'baocode.chat.sidePanel.files';
   static const sidePanelTerminal = 'baocode.chat.sidePanel.terminal';
+  static const sidePanelUsage = 'baocode.chat.sidePanel.usage';
 
   /// Closes the side panel's tab in front, on its page shown; hides the
   /// panel where the page has none.
@@ -230,6 +231,7 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.sidePanelChanges, 'Show Agent Changes'),
     (ChatCommandIds.sidePanelFiles, 'Show Agent Files'),
     (ChatCommandIds.sidePanelTerminal, 'Show Agent Terminals'),
+    (ChatCommandIds.sidePanelUsage, 'Show Conversation Usage'),
     (ChatCommandIds.sidePanelCloseTab, 'Close Side Panel Tab'),
     (ChatCommandIds.closeTab, 'Close Chat'),
     (ChatCommandIds.focusInput, 'Focus Chat Input'),

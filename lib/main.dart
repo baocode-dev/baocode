@@ -124,6 +124,8 @@ import 'update/update_service.dart';
 import 'update/update_settings.dart';
 import 'update/update_store.dart';
 import 'update/version.dart';
+import 'usage/usage_ledger.dart';
+import 'usage/usage_storage.dart';
 import 'window/app_windows.dart';
 import 'window/code_args.dart';
 import 'window/window_host.dart';
@@ -223,6 +225,16 @@ Future<void> main(List<String> arguments) async {
     l10n: () =>
         lookupAppLocalizations(locale.locale ?? AppLocale.systemLocale()),
   )..load();
+  // The conversations' titles and projects, kept with their calls.
+  UsageLedger.titleOf = (session) => workspace.threads
+      .where((thread) => thread.id == session)
+      .firstOrNull
+      ?.title;
+  UsageLedger.projectOf = (session) => workspace.threads
+      .where((thread) => thread.id == session)
+      .firstOrNull
+      ?.project
+      .name;
   // Claude Code's skills, agents, commands, rules, servers, hooks and
   // plugins: the Customize view beside the chat, and Settings → Customize.
   final customizations = CustomizationStore();
@@ -521,6 +533,13 @@ void followSettingsFiles(SettingsFiles files) {
   ClaudeCodeKernel.turnStats = turnStatsIn(
     p.join(DataDirectory.current.path, 'turn-stats'),
   );
+  // The calls to custom upstreams (Settings → Usage, the side panel's
+  // Usage page): in the data folder, a file a day, kept as long as the
+  // user says.
+  UsageLedger.current = UsageLedger(
+    usageStorageIn(p.join(DataDirectory.current.path, 'usage')),
+  )..follow(files.settings);
+  unawaited(UsageLedger.current.prune());
   // The upstreams' sites' icons, for those that show no other: in the
   // cache, fetched as soon as one is added.
   SiteIcons.current = SiteIcons(

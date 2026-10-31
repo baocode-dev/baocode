@@ -879,7 +879,7 @@ class AgentSession {
             info.canDisableThinking &&
             info.thinking != ThinkingStyle.none)
           'thinking': {'type': 'disabled'},
-      }),
+      }, headers: requestHints(environment, requestClass: 'auxiliary')),
       cancel: cancel,
     )) {
       if (event['type'] == 'stream_restart') {

@@ -1618,7 +1618,10 @@ void main() {
   testWidgets('at the window\'s top left, its tabs clear of the traffic '
       'lights, the sidebar\'s toggle by them (#227)', (tester) async {
     final (:panel, :session, files: _) = await _pumpChat(tester);
+    // Wide enough for the pages' names beside the traffic lights, in the
+    // tests' font (each letter a square).
     panel
+      ..width = 760
       ..atLeft = true
       ..open(session, const FileOpenRequest('/p/lib/main.dart'));
     await tester.pumpAndSettle();
@@ -1632,6 +1635,7 @@ void main() {
       leading: const SizedBox(key: toggle, width: 22, height: 22),
     );
     inset
+      ..width = 760
       ..atLeft = true
       ..open(insetSession, const FileOpenRequest('/p/lib/main.dart'));
     await tester.pumpAndSettle();

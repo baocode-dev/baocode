@@ -4752,6 +4752,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         null => null,
       },
       SidePanelSection.terminal ||
+      SidePanelSection.usage ||
       SidePanelSection.browser ||
       SidePanelSection.plan => null,
     };
