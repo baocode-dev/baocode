@@ -14190,13 +14190,13 @@ abstract class AppLocalizations {
   /// No description provided for @mobileRelay.
   ///
   /// In en, this message translates to:
-  /// **'Relay'**
+  /// **'Relays'**
   String get mobileRelay;
 
   /// No description provided for @mobileRelayDescription.
   ///
   /// In en, this message translates to:
-  /// **'Phones that cannot reach this computer directly go through it. It only passes along what is sealed between the two.'**
+  /// **'Phones that cannot reach this computer directly go through one. It only passes along what is sealed between the two. Nothing to set on the phone: it learns them when paired, and again each time it connects.'**
   String get mobileRelayDescription;
 
   /// No description provided for @mobilePair.
@@ -14373,23 +14373,113 @@ abstract class AppLocalizations {
   /// **'On, but the relay turned this computer away: {reason}'**
   String mobileStatusDenied(String reason);
 
-  /// No description provided for @mobileRelayNone.
+  /// No description provided for @mobileRelayBaoCode.
   ///
   /// In en, this message translates to:
-  /// **'None reached'**
-  String get mobileRelayNone;
+  /// **'BaoCode\'s'**
+  String get mobileRelayBaoCode;
 
-  /// No description provided for @mobileRelayCustom.
+  /// No description provided for @mobileRelayOwn.
   ///
   /// In en, this message translates to:
-  /// **'Your Own Relays'**
-  String get mobileRelayCustom;
+  /// **'Your own'**
+  String get mobileRelayOwn;
 
-  /// No description provided for @mobileRelayCustomDescription.
+  /// No description provided for @mobileRelayInUse.
   ///
   /// In en, this message translates to:
-  /// **'Relays you run yourself (baocode-relay), used besides BaoCode\'s; several separated by commas, as https://relay.example.com. Phones paired after the change learn them.'**
-  String get mobileRelayCustomDescription;
+  /// **'In use'**
+  String get mobileRelayInUse;
+
+  /// No description provided for @mobileRelayRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get mobileRelayRemove;
+
+  /// No description provided for @mobileRelayAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Your Own Relay'**
+  String get mobileRelayAdd;
+
+  /// No description provided for @mobileRelayAddDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The address of one you run yourself (baocode-relay).'**
+  String get mobileRelayAddDescription;
+
+  /// No description provided for @mobileRelayAddButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get mobileRelayAddButton;
+
+  /// No description provided for @mobileRelayInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Not a relay address; one looks like https://relay.example.com'**
+  String get mobileRelayInvalid;
+
+  /// No description provided for @mobileRelayDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Already in the list'**
+  String get mobileRelayDuplicate;
+
+  /// No description provided for @mobileRelayMode.
+  ///
+  /// In en, this message translates to:
+  /// **'How'**
+  String get mobileRelayMode;
+
+  /// No description provided for @mobileRelayModeAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get mobileRelayModeAuto;
+
+  /// No description provided for @mobileRelayModeAutoDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode\'s relays, the nearest that answers.'**
+  String get mobileRelayModeAutoDescription;
+
+  /// No description provided for @mobileRelayModeAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Your Own'**
+  String get mobileRelayModeAdded;
+
+  /// No description provided for @mobileRelayModeAddedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode\'s relays, and ones you run yourself.'**
+  String get mobileRelayModeAddedDescription;
+
+  /// No description provided for @mobileRelayModePinned.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick One'**
+  String get mobileRelayModePinned;
+
+  /// No description provided for @mobileRelayModePinnedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the one picked: one of BaoCode\'s, or of your own.'**
+  String get mobileRelayModePinnedDescription;
+
+  /// No description provided for @mobileRelayPicked.
+  ///
+  /// In en, this message translates to:
+  /// **'Picked'**
+  String get mobileRelayPicked;
+
+  /// No description provided for @mobileRelayPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Use This One'**
+  String get mobileRelayPick;
 
   /// No description provided for @mobilePathLan.
   ///

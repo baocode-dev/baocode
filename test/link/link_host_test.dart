@@ -119,6 +119,9 @@ void main() {
   test('relays of one\'s own are kept, told, and bound to', () async {
     await host.setEnabled(true);
     expect(platform.boundRelays, defaultLinkRelays);
+    // The same relays so far: not bound again.
+    await host.setRelayMode(LinkRelayMode.added);
+    expect(platform.binds, 1);
     await host.setCustomRelays([
       ' relay.example.com ',
       'https://relay-hk1.baocode.dev',
@@ -131,6 +134,46 @@ void main() {
     expect(platform.kept['relays'], ['https://relay.example.com']);
     final offer = (await host.beginPairing())!;
     expect(offer.relays, contains('https://relay.example.com'));
+  });
+
+  test('one relay picked: kept to and told alone; one\'s own picked and '
+      'removed, BaoCode\'s first instead', () async {
+    await host.setEnabled(true);
+    // The one in use picked at first.
+    await host.setRelayMode(LinkRelayMode.pinned);
+    expect(host.relays, [defaultLinkRelays.first]);
+    expect(platform.boundRelays, host.relays);
+
+    await host.pinRelay(defaultLinkRelays.last);
+    expect(platform.boundRelays, [defaultLinkRelays.last]);
+    expect(host.customRelays, isEmpty);
+
+    await host.pinRelay('https://relay.example.com');
+    expect(host.customRelays, ['https://relay.example.com']);
+    expect(platform.boundRelays, ['https://relay.example.com']);
+    expect(platform.kept['relayMode'], 'pinned');
+    expect(platform.kept['pinnedRelay'], 'https://relay.example.com');
+    final offer = (await host.beginPairing())!;
+    expect(offer.relays, ['https://relay.example.com']);
+
+    await host.setCustomRelays([]);
+    expect(host.pinnedRelay, isNull);
+    expect(platform.boundRelays, [defaultLinkRelays.first]);
+
+    // Automatic again: all of BaoCode's.
+    await host.setRelayMode(LinkRelayMode.auto);
+    expect(platform.boundRelays, defaultLinkRelays);
+  });
+
+  test('relays of one\'s own kept before there was a choice: added', () async {
+    host.dispose();
+    platform.kept = {
+      'relays': ['https://relay.example.com'],
+    };
+    host = LinkHost(workspace: workspace, platform: platform);
+    await host.load();
+    expect(host.relayMode, LinkRelayMode.added);
+    expect(host.relays, [...defaultLinkRelays, 'https://relay.example.com']);
   });
 
   test(

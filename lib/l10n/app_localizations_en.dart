@@ -8753,11 +8753,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get mobileRelay => 'Relay';
+  String get mobileRelay => 'Relays';
 
   @override
   String get mobileRelayDescription =>
-      'Phones that cannot reach this computer directly go through it. It only passes along what is sealed between the two.';
+      'Phones that cannot reach this computer directly go through one. It only passes along what is sealed between the two. Nothing to set on the phone: it learns them when paired, and again each time it connects.';
 
   @override
   String get mobilePair => 'Pair a Phone';
@@ -8868,14 +8868,63 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get mobileRelayNone => 'None reached';
+  String get mobileRelayBaoCode => 'BaoCode\'s';
 
   @override
-  String get mobileRelayCustom => 'Your Own Relays';
+  String get mobileRelayOwn => 'Your own';
 
   @override
-  String get mobileRelayCustomDescription =>
-      'Relays you run yourself (baocode-relay), used besides BaoCode\'s; several separated by commas, as https://relay.example.com. Phones paired after the change learn them.';
+  String get mobileRelayInUse => 'In use';
+
+  @override
+  String get mobileRelayRemove => 'Remove';
+
+  @override
+  String get mobileRelayAdd => 'Add Your Own Relay';
+
+  @override
+  String get mobileRelayAddDescription =>
+      'The address of one you run yourself (baocode-relay).';
+
+  @override
+  String get mobileRelayAddButton => 'Add';
+
+  @override
+  String get mobileRelayInvalid =>
+      'Not a relay address; one looks like https://relay.example.com';
+
+  @override
+  String get mobileRelayDuplicate => 'Already in the list';
+
+  @override
+  String get mobileRelayMode => 'How';
+
+  @override
+  String get mobileRelayModeAuto => 'Automatic';
+
+  @override
+  String get mobileRelayModeAutoDescription =>
+      'BaoCode\'s relays, the nearest that answers.';
+
+  @override
+  String get mobileRelayModeAdded => 'Add Your Own';
+
+  @override
+  String get mobileRelayModeAddedDescription =>
+      'BaoCode\'s relays, and ones you run yourself.';
+
+  @override
+  String get mobileRelayModePinned => 'Pick One';
+
+  @override
+  String get mobileRelayModePinnedDescription =>
+      'Only the one picked: one of BaoCode\'s, or of your own.';
+
+  @override
+  String get mobileRelayPicked => 'Picked';
+
+  @override
+  String get mobileRelayPick => 'Use This One';
 
   @override
   String get mobilePathLan => 'Same network';

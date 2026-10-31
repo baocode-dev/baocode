@@ -927,7 +927,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
         const SizedBox(height: 16),
         _models(context),
         const SizedBox(height: 16),
-        _Folding(
+        SettingsFolding(
           title: l10n.modelsRoles,
           description: l10n.modelsRolesDescription,
           open: _rolesOpen,
@@ -935,7 +935,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           children: _roles(context),
         ),
         const SizedBox(height: 16),
-        _Folding(
+        SettingsFolding(
           title: l10n.modelsAdvanced,
           open: _advancedOpen,
           onToggle: () => setState(() => _advancedOpen = !_advancedOpen),
@@ -2141,70 +2141,6 @@ class _IconButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Folding extends StatelessWidget {
-  const _Folding({
-    required this.title,
-    required this.open,
-    required this.onToggle,
-    required this.children,
-    this.description,
-  });
-
-  final String title;
-  final String? description;
-  final bool open;
-  final VoidCallback onToggle;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Semantics(
-        button: true,
-        expanded: open,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8, top: 8, bottom: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        open ? Codicons.chevronDown : Codicons.chevronRight,
-                        size: 13,
-                        color: SettingsColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(title, style: SettingsText.heading),
-                    ],
-                  ),
-                  if (description case final description? when open) ...[
-                    const SizedBox(height: 2),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 17),
-                      child: Text(
-                        description,
-                        style: SettingsText.headingDescription,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-      if (open) SettingsCard(children: children),
-    ],
-  );
 }
 
 /// A text setting, written when it loses focus or Enter is pressed (not

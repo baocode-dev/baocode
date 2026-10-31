@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../ide/ide_button.dart';
+import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
 import '../../link/link_host.dart';
 import '../../link/qr_view.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
+import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 
 /// Settings → Mobile: whether phones may connect, how this computer stands
@@ -26,6 +29,14 @@ class MobileSettingsPage extends StatefulWidget {
 class _MobileSettingsPageState extends State<MobileSettingsPage> {
   bool _copied = false;
   Timer? _copiedTimer;
+
+  /// The relays' settings shown: folded at first, as few change them.
+  bool _relaysOpen = false;
+
+  /// A relay of one's own being typed in, and what is wrong with it.
+  bool _adding = false;
+  String? _addError;
+  final _addText = TextEditingController();
 
   /// Ticks while a code shows, for it to say when it expired, and while
   /// phones are connected, for their round trips.
@@ -50,6 +61,7 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
     _host.removeListener(_changed);
     _copiedTimer?.cancel();
     _ticker?.cancel();
+    _addText.dispose();
     super.dispose();
   }
 
@@ -103,10 +115,6 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final host = _host;
-    final home = [
-      for (final status in host.info?.home ?? const <LinkRelayStatus>[])
-        if (status.connected) _relayName(status.url),
-    ];
     return SettingsPage(
       title: l10n.settingsSectionMobile,
       description: l10n.mobileSettingsDescription,
@@ -126,25 +134,18 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
               onChanged: host.setDiscoverable,
             ),
             SettingsRow(label: l10n.mobileStatus, description: _status(l10n)),
-            SettingsRow(
-              label: l10n.mobileRelay,
-              description: l10n.mobileRelayDescription,
-              trailing: Text(
-                home.isEmpty ? l10n.mobileRelayNone : home.join(', '),
-                style: SettingsText.description,
-              ),
-            ),
-            SettingsRow(
-              label: l10n.mobileRelayCustom,
-              description: l10n.mobileRelayCustomDescription,
-              trailing: SettingsTextField(
-                value: host.customRelays.join(', '),
-                hint: 'https://relay.example.com',
-                semanticLabel: l10n.mobileRelayCustom,
-                onSubmitted: (text) =>
-                    unawaited(host.setCustomRelays(text.split(','))),
-              ),
-            ),
+          ],
+        ),
+        SettingsFolding(
+          title: l10n.mobileRelay,
+          description: l10n.mobileRelayDescription,
+          summary: _relaysSummary(l10n),
+          open: _relaysOpen,
+          onToggle: () => setState(() => _relaysOpen = !_relaysOpen),
+          children: [
+            _relayMode(l10n),
+            for (final url in _listed) _relay(l10n, url),
+            if (host.relayMode != LinkRelayMode.auto) _addRelay(l10n),
           ],
         ),
         SettingsGroup(title: l10n.mobilePair, children: [_pairing(context)]),
@@ -210,6 +211,183 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
       ],
     );
   }
+
+  static String _modeName(AppLocalizations l10n, LinkRelayMode mode) =>
+      switch (mode) {
+        LinkRelayMode.auto => l10n.mobileRelayModeAuto,
+        LinkRelayMode.added => l10n.mobileRelayModeAdded,
+        LinkRelayMode.pinned => l10n.mobileRelayModePinned,
+      };
+
+  /// Folded, beside the heading: how they are chosen, and the one picked
+  /// when one is.
+  String _relaysSummary(AppLocalizations l10n) {
+    final host = _host;
+    return [
+      _modeName(l10n, host.relayMode),
+      if (host.relayMode == LinkRelayMode.pinned)
+        _relayName(host.relays.single),
+    ].join(' · ');
+  }
+
+  /// The relays listed: BaoCode's, and one's own where they can be used.
+  List<String> get _listed => _host.relayMode == LinkRelayMode.auto
+      ? defaultLinkRelays
+      : linkRelays(_host.customRelays);
+
+  Widget _relayMode(AppLocalizations l10n) {
+    final host = _host;
+    final current = host.relayMode;
+    return SettingsRow(
+      label: l10n.mobileRelayMode,
+      description: switch (current) {
+        LinkRelayMode.auto => l10n.mobileRelayModeAutoDescription,
+        LinkRelayMode.added => l10n.mobileRelayModeAddedDescription,
+        LinkRelayMode.pinned => l10n.mobileRelayModePinnedDescription,
+      },
+      trailing: SettingsDropdown(
+        current: _modeName(l10n, current),
+        semanticLabel: '${l10n.mobileRelayMode}: ${_modeName(l10n, current)}',
+        entries: () => [
+          for (final mode in LinkRelayMode.values)
+            IdeMenuAction(
+              _modeName(l10n, mode),
+              checked: mode == current,
+              onSelected: () {
+                _endAdding();
+                unawaited(host.setRelayMode(mode));
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// A relay: whose it is, whether it is the one in use; picked or to be
+  /// picked when one is; one's own to be removed.
+  Widget _relay(AppLocalizations l10n, String url) {
+    final host = _host;
+    final own = host.customRelays.contains(url);
+    final inUse =
+        host.info?.home.any((s) => s.connected && s.url == url) ?? false;
+    final pinning = host.relayMode == LinkRelayMode.pinned;
+    final picked = pinning && host.relays.single == url;
+    return SettingsRow(
+      label: _relayName(url),
+      description: own ? l10n.mobileRelayOwn : l10n.mobileRelayBaoCode,
+      trailing: SettingsButtons(
+        children: [
+          if (inUse) _InUse(label: l10n.mobileRelayInUse),
+          if (picked)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(l10n.mobileRelayPicked, style: SettingsText.label),
+            )
+          else if (pinning)
+            IdeButton(
+              label: l10n.mobileRelayPick,
+              secondary: true,
+              onPressed: () => unawaited(host.pinRelay(url)),
+            ),
+          if (own)
+            IdeButton(
+              label: l10n.mobileRelayRemove,
+              icon: Codicons.trash,
+              secondary: true,
+              onPressed: () => unawaited(
+                host.setCustomRelays([
+                  for (final relay in host.customRelays)
+                    if (relay != url) relay,
+                ]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// The last row: a button to add a relay of one's own, then a field for
+  /// its address.
+  Widget _addRelay(AppLocalizations l10n) {
+    if (!_adding) {
+      return SettingsRow(
+        label: l10n.mobileRelayAdd,
+        description: l10n.mobileRelayAddDescription,
+        trailing: IdeButton(
+          label: l10n.mobileRelayAddButton,
+          icon: Codicons.add,
+          secondary: true,
+          onPressed: () => setState(() => _adding = true),
+        ),
+      );
+    }
+    return SettingsRow(
+      label: l10n.mobileRelayAdd,
+      description: _addError ?? l10n.mobileRelayAddDescription,
+      below: [
+        CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.escape): _endAdding,
+          },
+          child: Row(
+            children: [
+              Expanded(
+                child: SettingsTextField(
+                  value: '',
+                  controller: _addText,
+                  autofocus: true,
+                  submitOnBlur: false,
+                  width: double.infinity,
+                  hint: 'https://relay.example.com',
+                  semanticLabel: l10n.mobileRelayAdd,
+                  onSubmitted: (_) => _add(l10n),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SettingsButtons(
+                children: [
+                  IdeButton(
+                    label: l10n.mobileRelayAddButton,
+                    onPressed: () => _add(l10n),
+                  ),
+                  IdeButton(
+                    label: l10n.commonCancel,
+                    secondary: true,
+                    onPressed: _endAdding,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _add(AppLocalizations l10n) {
+    final url = parseRelayUrl(_addText.text);
+    if (url == null) {
+      setState(() => _addError = l10n.mobileRelayInvalid);
+      return;
+    }
+    if (_listed.contains(url)) {
+      setState(() => _addError = l10n.mobileRelayDuplicate);
+      return;
+    }
+    // Picking one, the one added is the one picked.
+    unawaited(
+      _host.relayMode == LinkRelayMode.pinned
+          ? _host.pinRelay(url)
+          : _host.setCustomRelays([..._host.customRelays, url]),
+    );
+    _endAdding();
+  }
+
+  void _endAdding() => setState(() {
+    _adding = false;
+    _addError = null;
+    _addText.clear();
+  });
 
   /// The pairing card's row: a button to show a code; the code; the
   /// safety code to compare once a phone scanned it; who was paired.
@@ -335,4 +513,32 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
     return '${time.year}-${two(time.month)}-${two(time.day)} '
         '${two(time.hour)}:${two(time.minute)}';
   }
+}
+
+/// What marks the relay in use: a dot and a word, in the color of what was
+/// added.
+class _InUse extends StatelessWidget {
+  const _InUse({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 6,
+        height: 6,
+        decoration: BoxDecoration(
+          color: AppColors.added,
+          shape: BoxShape.circle,
+        ),
+      ),
+      const SizedBox(width: 6),
+      Text(
+        label,
+        style: SettingsText.description.copyWith(color: AppColors.added),
+      ),
+    ],
+  );
 }
