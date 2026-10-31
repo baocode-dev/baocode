@@ -1,4 +1,5 @@
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/chat/edit_detail.dart';
 import 'package:baocode/chat/reply_scroll.dart';
 import 'package:baocode/chat/user_message_style.dart';
 import 'package:baocode/chat/widgets/chat_minimap.dart';
@@ -63,7 +64,7 @@ void main() {
     final settings = await pumpPage(tester);
     // The color theme's dropdown comes first, then the user messages', the
     // reply's scroll, the two loaders', then the code font's.
-    final dropdown = find.byType(SettingsDropdown).at(5);
+    final dropdown = find.byType(SettingsDropdown).at(6);
     Future<void> choose(String label) async {
       await tester.tap(dropdown);
       await tester.pumpAndSettle();
@@ -109,10 +110,33 @@ void main() {
     await leave(tester);
   });
 
+  testWidgets('how a file edit shows is kept in settings.json; the default '
+      'is removed from it', (tester) async {
+    final settings = await pumpPage(tester);
+    final dropdown = find.byType(SettingsDropdown).at(2);
+    Future<void> choose(String label) async {
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    expect(find.text('Card with changes'), findsOneWidget);
+    await choose('Compact');
+    expect(EditDetail.current.value, EditDetail.compact);
+    expect(settings.written[EditDetail.settingKey], 'compact');
+
+    await choose('Card with changes');
+    expect(EditDetail.current.value, EditDetail.card);
+    expect(settings.written.containsKey(EditDetail.settingKey), isTrue);
+    expect(settings.written[EditDetail.settingKey], isNull);
+    await leave(tester);
+  });
+
   testWidgets('where a conversation stays as a reply comes is kept in '
       'settings.json; the default is removed from it', (tester) async {
     final settings = await pumpPage(tester);
-    final dropdown = find.byType(SettingsDropdown).at(2);
+    final dropdown = find.byType(SettingsDropdown).at(3);
     Future<void> choose(String label) async {
       await tester.tap(dropdown);
       await tester.pumpAndSettle();
@@ -191,7 +215,8 @@ void main() {
     tester,
   ) async {
     final settings = await pumpPage(tester);
-    // After the color theme's, the user messages' and the reply's scroll:
+    // After the color theme's, the user messages', the edits' and the
+    // reply's scroll:
     // the agent's, then the subagent's.
     Future<void> choose(int dropdown, String label) async {
       await tester.tap(find.byType(SettingsDropdown).at(dropdown));
@@ -201,7 +226,7 @@ void main() {
     }
 
     expect(find.text('Fill and empty'), findsNWidgets(2));
-    await choose(3, 'Pixel rain');
+    await choose(4, 'Pixel rain');
     expect(PixelLoaderRole.agent.style.value, PixelLoaderStyle.rain);
     expect(PixelLoaderRole.subagent.style.value, PixelLoaderStyle.fill);
     expect(settings.written['chat.agentLoadingStyle'], 'rain');
@@ -225,7 +250,7 @@ void main() {
     expect(settings.written['chat.subagentLoadingSpeed'], isNull);
 
     // The ring keeps its own pace: no slider for it.
-    await choose(3, 'Ring (classic)');
+    await choose(4, 'Ring (classic)');
     expect(settings.written['chat.agentLoadingStyle'], 'circle');
     expect(
       find.byWidgetPredicate(
@@ -235,7 +260,7 @@ void main() {
       ),
       findsNothing,
     );
-    await choose(3, 'Fill and empty');
+    await choose(4, 'Fill and empty');
     expect(settings.written.containsKey('chat.agentLoadingStyle'), isTrue);
     expect(settings.written['chat.agentLoadingStyle'], isNull);
     await leave(tester);

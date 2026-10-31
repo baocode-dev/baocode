@@ -47,13 +47,20 @@ void main() {
     scroll.dispose();
   });
 
+  final modifiedKey = GlobalKey();
+
   Future<void> pump(WidgetTester tester, {required bool sideBySide}) async {
     tester.view.physicalSize = const Size(1200, 400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    Widget surface(EditorSurfaceController controller, DiffEditorSide side) {
+    Widget surface(
+      EditorSurfaceController controller,
+      DiffEditorSide side, {
+      Key? key,
+    }) {
       sides.add(side);
       return EditorSurface(
+        key: key,
         controller: controller,
         readOnly: true,
         decorations: side.decorations,
@@ -78,7 +85,12 @@ void main() {
           colors: DiffEditorColors.from((_) => null),
           dark: true,
           original: (context, side) => surface(originalController, side),
-          modified: (context, side) => surface(modifiedController, side),
+          modified: (context, side) =>
+              surface(modifiedController, side, key: modifiedKey),
+          modifiedNumbersEnd: () => switch (modifiedKey.currentState) {
+            final EditorSurfaceView view => view.lineNumbersArea?.right,
+            _ => null,
+          },
         ),
       ),
     );
@@ -129,5 +141,25 @@ void main() {
     );
     expect(zone.firstLineNumber, 10);
     expect(zone.afterLineNumber, 9);
+  });
+
+  testWidgets('side by side, the split drags from either side\'s line '
+      'numbers', (tester) async {
+    await pump(tester, sideBySide: true);
+    final modified = find.byKey(modifiedKey);
+    final left = tester.getTopLeft(modified).dx;
+    final numbers =
+        (tester.state(modified) as EditorSurfaceView).lineNumbersArea!;
+    expect(numbers.width, greaterThan(0));
+    // On the modified's line numbers: the sash, not the editor.
+    final at = Offset(left + numbers.center.dx, 100);
+    final drag = await tester.startGesture(at);
+    await drag.moveBy(const Offset(30, 0));
+    await drag.moveBy(const Offset(30, 0));
+    await drag.up();
+    // Past the double tap that puts it back in the middle.
+    await tester.pump(const Duration(seconds: 1));
+    // Moved with the pointer, but for the drag's start.
+    expect(tester.getTopLeft(modified).dx, greaterThan(left + 20));
   });
 }

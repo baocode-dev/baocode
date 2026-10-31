@@ -23,6 +23,7 @@ import 'package:baocode/chat/side_panel/side_panel_controller.dart';
 import 'package:baocode/chat/chat_column.dart';
 import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/chat/widgets/edit_step.dart';
+import 'package:baocode/chat/widgets/step_header.dart' show StepBody;
 import 'package:baocode/chat/widgets/fold_line.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/chat/widgets/tool_call_row.dart';
@@ -1941,15 +1942,14 @@ void main() {
     expect(_edited(tester).text, _main);
   });
 
-  testWidgets('an edit opens to its diff in place; the file\'s name over it '
+  testWidgets('an edit shows its diff in place; the file\'s name over it '
       'shows its changes in the side panel', (tester) async {
     final (:panel, :session, files: _) = await _pumpChat(tester);
     final edit = find.byType(EditStep).last;
-    await tester.tap(
-      find.descendant(of: edit, matching: find.byType(RichText)).first,
+    expect(
+      find.descendant(of: edit, matching: find.byType(StepBody)),
+      findsOne,
     );
-    await tester.pumpAndSettle();
-    expect(tester.widget<EditStep>(edit).expanded, isTrue);
     expect(_active(panel, session), isNull);
 
     await tester.tap(
@@ -1965,7 +1965,10 @@ void main() {
     // The text before the agent's edit is not known here: the file.
     expect(find.textContaining('not known'), findsOneWidget);
     expect(find.text('main line 1'), findsOneWidget);
-    expect(tester.widget<EditStep>(edit).expanded, isTrue);
+    expect(
+      find.descendant(of: edit, matching: find.byType(StepBody)),
+      findsOne,
+    );
   });
 
   testWidgets('a search\'s match opens its file at its line', (tester) async {

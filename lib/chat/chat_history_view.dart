@@ -33,6 +33,7 @@ import 'user_message_style.dart';
 import 'widgets/chat_item_view.dart';
 import 'widgets/chat_minimap.dart';
 import 'widgets/edge_fade_mask.dart';
+import 'widgets/own_selection.dart';
 import 'widgets/content_image.dart' show ChatImage, ChatImages;
 import 'widgets/fold_line.dart';
 import 'widgets/hover_builder.dart';
@@ -1276,13 +1277,17 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (list != null && list.hasSize) {
       final right = list.localToGlobal(Offset(list.size.width, 0)).dx;
       onBar = !_minimapShown && event.position.dx >= right - _scrollbarGutter;
-      _selectionDelegate.suspended = onBar;
     }
+    // Nor one in what selects on its own (an edit card's editor): the two
+    // selections are apart, and the focus is its.
+    final own = OwnSelection.pressedIn(event);
+    _selectionDelegate.suspended = onBar || own;
     if ((_pressOnMinimap || onBar) && event.buttons == kPrimaryMouseButton) {
       _scrub(true);
     }
     _dragFrom =
         _pressInEditor ||
+            own ||
             _pressOnSticky ||
             _pressOnMinimap ||
             event.kind != PointerDeviceKind.mouse ||
@@ -1293,7 +1298,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _pressOnMinimap = false;
     if (_pressInEditor) {
       _pressInEditor = false;
-    } else {
+    } else if (!own) {
       _selectionFocusNode.requestFocus();
     }
     _pressFocused = false;

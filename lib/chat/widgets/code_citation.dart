@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bao_editor/textmate/textmate_syntax.dart' show TextMateSyntax;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -149,6 +150,7 @@ class CodeCitationScope extends InheritedWidget {
     this.onOpen,
     this.colorize,
     this.colorizeBlock,
+    this.syntax,
     required super.child,
   });
 
@@ -165,6 +167,10 @@ class CodeCitationScope extends InheritedWidget {
   /// Colors a [MarkdownCodeBlock]'s code by its language.
   final CodeBlockColorizer? colorizeBlock;
 
+  /// The TextMate worker [colorize] colors with, started as it is first
+  /// asked for: an edit's diff (an editor's) colored by it too.
+  final TextMateSyntax Function()? syntax;
+
   static CodeCitationScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<CodeCitationScope>();
 
@@ -173,7 +179,8 @@ class CodeCitationScope extends InheritedWidget {
       root != oldWidget.root ||
       onOpen != oldWidget.onOpen ||
       colorize != oldWidget.colorize ||
-      colorizeBlock != oldWidget.colorizeBlock;
+      colorizeBlock != oldWidget.colorizeBlock ||
+      syntax != oldWidget.syntax;
 }
 
 /// A [CodeCitation] as a card: the file's icon, name and lines, which open

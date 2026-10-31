@@ -32,6 +32,7 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../vs/editor/common/core/range.dart';
 import '../vs/editor/common/diff/range_mapping.dart';
 import 'diff_editor_model.dart';
 import 'document_snapshot.dart';
@@ -53,6 +54,7 @@ class DiffEditorSide {
     this.hiddenLines,
     this.lineNumbers = true,
     this.lineNumbersMinChars = EditorViewGeometry.lineNumbersMinChars,
+    this.lineNumberOf,
   });
 
   final List<EditorViewZone> zones;
@@ -77,6 +79,10 @@ class DiffEditorSide {
   /// (`EditorSurface.lineNumbersMinChars`): side by side, the modified's
   /// no wider than they are, close by the split.
   final int lineNumbersMinChars;
+
+  /// The numbers its lines show, for `EditorSurface.lineNumberOf`
+  /// ([DiffEditor.originalLineNumberOf], [DiffEditor.modifiedLineNumberOf]).
+  final int Function(int line)? lineNumberOf;
 }
 
 /// Where a diff editor's parts are, for what is laid over them
@@ -120,7 +126,26 @@ class DiffEditor extends StatefulWidget {
     this.unchangedLabel,
     this.keepVisible,
     this.scrollPosition,
+    this.originalLineNumberOf,
+    this.modifiedLineNumberOf,
+    this.overview = true,
+    this.modifiedNumbersEnd,
   });
+
+  /// How far into the modified editor its line numbers go, once laid out:
+  /// side by side, the split's sash reaches to there, both sides' line
+  /// numbers dragging the split (not what is past them: lines' check boxes).
+  final double? Function()? modifiedNumbersEnd;
+
+  /// Whether the overview is at the right ([overviewWidth]); without it,
+  /// the editors scroll as the embedder has them.
+  final bool overview;
+
+  /// The numbers the original's and the modified's lines (from 1) show,
+  /// where the texts are parts of longer ones (an edit's hunks), rising
+  /// with the lines; their own when null.
+  final int Function(int line)? originalLineNumberOf;
+  final int Function(int line)? modifiedLineNumberOf;
 
   /// A modified line to show, its unchanged run not hidden.
   final int? keepVisible;
@@ -207,6 +232,19 @@ class _DiffEditorState extends State<DiffEditor> {
   double? _ratio;
   double? _dragStartLeft;
   bool _sashHover = false;
+
+  /// [DiffEditor.modifiedNumbersEnd] as last laid out.
+  double _modifiedNumbersEnd = 0;
+
+  /// Once the editors are laid out: [_modifiedNumbersEnd] again, the sash
+  /// moved if it changed.
+  void _measureGutter() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final end = widget.modifiedNumbersEnd?.call() ?? 0;
+      if (end != _modifiedNumbersEnd) setState(() => _modifiedNumbersEnd = end);
+    });
+  }
 
   @override
   void initState() {
@@ -380,6 +418,10 @@ class _DiffEditorState extends State<DiffEditor> {
     );
     if (_diff == null || diffKey != _diffKey) {
       _diffKey = diffKey;
+      // No text before (a file made): nothing was taken out of it, though
+      // the diff has its one empty line replaced.
+      final created =
+          original != null && original.lineCount == 1 && original.text.isEmpty;
       if (original != null && mappings != null) {
         final decorations = computeDiffDecorations(
           mappings,
@@ -390,8 +432,8 @@ class _DiffEditorState extends State<DiffEditor> {
           gutterBars: !sideBySide,
         );
         _diff = (
-          zones: sideBySide ? const [] : computeDiffZones(mappings),
-          originalDecorations: decorations.original,
+          zones: sideBySide || created ? const [] : computeDiffZones(mappings),
+          originalDecorations: created ? const [] : decorations.original,
           modifiedDecorations: decorations.modified,
         );
       } else {
@@ -412,6 +454,8 @@ class _DiffEditorState extends State<DiffEditor> {
       widget.hideUnchanged,
       widget.unchangedLabel != null,
       widget.keepVisible,
+      widget.originalLineNumberOf,
+      widget.modifiedLineNumberOf,
       _shownVersion,
     );
     if (_sides case final sides? when key == _key) return sides;
@@ -431,6 +475,7 @@ class _DiffEditorState extends State<DiffEditor> {
             textScaler: scaler,
             styledLines: widget.originalStyledLines,
             highlight: widget.highlight,
+            numberOf: widget.originalLineNumberOf,
           ),
       ];
       if (widget.hideUnchanged && mappings != null) {
@@ -472,6 +517,12 @@ class _DiffEditorState extends State<DiffEditor> {
         sideBySide: sideBySide,
         hiddenLines: originalHidden,
         lineNumbers: !sideBySide,
+        lineNumbersMinChars: _numberChars(
+          EditorViewGeometry.lineNumbersMinChars,
+          original?.lineCount ?? 1,
+          widget.originalLineNumberOf,
+        ),
+        lineNumberOf: widget.originalLineNumberOf,
       ),
       modified: DiffEditorSide(
         zones: modifiedZones,
@@ -479,9 +530,12 @@ class _DiffEditorState extends State<DiffEditor> {
         scrollPosition: _scroll,
         sideBySide: sideBySide,
         hiddenLines: modifiedHidden,
-        lineNumbersMinChars: sideBySide
-            ? _minNumberChars
-            : EditorViewGeometry.lineNumbersMinChars,
+        lineNumbersMinChars: _numberChars(
+          sideBySide ? _minNumberChars : EditorViewGeometry.lineNumbersMinChars,
+          modified.lineCount,
+          widget.modifiedLineNumberOf,
+        ),
+        lineNumberOf: widget.modifiedLineNumberOf,
       ),
     );
   }
@@ -540,11 +594,30 @@ class _DiffEditorState extends State<DiffEditor> {
 
   /// The original's line numbers at the split: as many digits as its last
   /// line's, and room either side.
-  static double _numbersWidth(EditorGutterGlyphs glyphs, int lineCount) =>
+  static double _numbersWidth(
+    EditorGutterGlyphs glyphs,
+    int lineCount,
+    int Function(int line)? numberOf,
+  ) =>
       _SplitPainter.numbersLeftPadding +
-      (math.max(_minNumberChars, '$lineCount'.length) * glyphs.digitWidth)
+      (math.max(
+                _minNumberChars,
+                '${numberOf?.call(lineCount) ?? lineCount}'.length,
+              ) *
+              glyphs.digitWidth)
           .roundToDouble() +
       _SplitPainter.numbersRightPadding;
+
+  /// The fewest digits for line numbers: [fewest], or as many as the
+  /// number [numberOf] gives the last of [lineCount] lines has where it
+  /// gives more than the line's own.
+  static int _numberChars(
+    int fewest,
+    int lineCount,
+    int Function(int line)? numberOf,
+  ) => numberOf == null
+      ? fewest
+      : math.max(fewest, '${numberOf(lineCount)}'.length);
 
   /// The fewest digits the line numbers by the split have room for.
   static const _minNumberChars = 2;
@@ -569,9 +642,14 @@ class _DiffEditorState extends State<DiffEditor> {
         final glyphs = _glyphsFor(scaler);
         final lineHeight = glyphs.lineHeight;
         final sides = _sidesFor(sideBySide, lineHeight, scaler);
-        final content = math.max(0.0, width - DiffEditor.overviewWidth);
+        final content = math.max(
+          0.0,
+          width - (widget.overview ? DiffEditor.overviewWidth : 0),
+        );
         final originalLines = widget.model.originalSnapshot?.lineCount ?? 1;
-        final numbers = sideBySide ? _numbersWidth(glyphs, originalLines) : 0.0;
+        final numbers = sideBySide
+            ? _numbersWidth(glyphs, originalLines, widget.originalLineNumberOf)
+            : 0.0;
         final split = numbers + DiffEditor.bandWidth;
         final splitLeft = sideBySide
             ? _splitLeft(math.max(0.0, content - split))
@@ -593,6 +671,9 @@ class _DiffEditorState extends State<DiffEditor> {
           });
         }
         _sideBySide = sideBySide;
+        if (sideBySide && widget.modifiedNumbersEnd != null) _measureGutter();
+        final sashRight = modifiedLeft + (sideBySide ? _modifiedNumbersEnd : 0);
+        final hovered = _sashHover || _dragStartLeft != null;
         // Not compared yet, unchanged lines to hide: not the whole text
         // first, then hidden (a long text is compared on another isolate).
         final waiting = widget.hideUnchanged && widget.model.mappings == null;
@@ -641,31 +722,35 @@ class _DiffEditorState extends State<DiffEditor> {
                         modifiedLeft: modifiedLeft,
                         contentWidth: content,
                         glyphs: glyphs,
+                        numberOf: widget.originalLineNumberOf,
                         colors: widget.colors,
                         background: widget.background,
-                        edge: _sashHover || _dragStartLeft != null
+                        edge: hovered
                             ? widget.sashHover ?? widget.border
                             : widget.border,
+                        // Hovered, the edges are the sash's.
+                        edgeRight: hovered ? sashRight : modifiedLeft,
                       ),
                     ),
                   ),
                 ),
-                _sash(bandLeft, splitLeft, content - split, height),
+                _sash(splitLeft, sashRight, content - split, height),
               ],
-              Positioned(
-                left: content,
-                top: 0,
-                width: DiffEditor.overviewWidth,
-                height: height,
-                child: _DiffOverview(
-                  scroll: _scroll,
-                  rows: rows,
-                  inline: !sideBySide,
-                  colors: widget.colors,
-                  theme: widget.theme,
-                  background: widget.background,
+              if (widget.overview)
+                Positioned(
+                  left: content,
+                  top: 0,
+                  width: DiffEditor.overviewWidth,
+                  height: height,
+                  child: _DiffOverview(
+                    scroll: _scroll,
+                    rows: rows,
+                    inline: !sideBySide,
+                    colors: widget.colors,
+                    theme: widget.theme,
+                    background: widget.background,
+                  ),
                 ),
-              ),
               if (widget.overlay case final overlay?)
                 Positioned.fill(
                   child: sideBySide
@@ -684,12 +769,13 @@ class _DiffEditorState extends State<DiffEditor> {
     );
   }
 
-  /// The band's width of the split, which drags it.
-  Widget _sash(double bandLeft, double left, double available, double height) {
+  /// The split across both sides' line numbers and the band between them,
+  /// which drags it.
+  Widget _sash(double left, double right, double available, double height) {
     return Positioned(
-      left: bandLeft,
+      left: left,
       top: 0,
-      width: DiffEditor.bandWidth,
+      width: math.max(0, right - left),
       height: height,
       child: MouseRegion(
         cursor: SystemMouseCursors.resizeColumn,
@@ -921,9 +1007,11 @@ class _SplitPainter extends CustomPainter {
     required this.modifiedLeft,
     required this.contentWidth,
     required this.glyphs,
+    this.numberOf,
     required this.colors,
     required this.background,
     required this.edge,
+    required this.edgeRight,
   }) : super(repaint: Listenable.merge([originalScroll, modifiedScroll]));
 
   final _DiffRows rows;
@@ -934,9 +1022,15 @@ class _SplitPainter extends CustomPainter {
   final double modifiedLeft;
   final double contentWidth;
   final EditorGutterGlyphs glyphs;
+
+  /// The number the original's line shows; its own when null.
+  final int Function(int line)? numberOf;
   final DiffEditorColors colors;
   final Color? background;
   final Color? edge;
+
+  /// Where the split's right edge is drawn (its left, [splitLeft]).
+  final double edgeRight;
 
   static const numbersLeftPadding = 10.0;
   static const numbersRightPadding = 8.0;
@@ -1096,7 +1190,7 @@ class _SplitPainter extends CustomPainter {
       if (top >= height) break;
       glyphs.paintNumber(
         canvas,
-        line,
+        numberOf?.call(line) ?? line,
         numbersRight,
         top + (lineHeight - glyphs.lineHeight) / 2,
       );
@@ -1107,7 +1201,7 @@ class _SplitPainter extends CustomPainter {
     if (edge case final color?) {
       paint.color = color;
       canvas.drawRect(Rect.fromLTWH(splitLeft, 0, 1, height), paint);
-      canvas.drawRect(Rect.fromLTWH(modifiedLeft - 1, 0, 1, height), paint);
+      canvas.drawRect(Rect.fromLTWH(edgeRight - 1, 0, 1, height), paint);
     }
   }
 
@@ -1121,9 +1215,11 @@ class _SplitPainter extends CustomPainter {
       old.modifiedLeft != modifiedLeft ||
       old.contentWidth != contentWidth ||
       old.glyphs != glyphs ||
+      old.numberOf != numberOf ||
       old.colors != colors ||
       old.background != background ||
-      old.edge != edge;
+      old.edge != edge ||
+      old.edgeRight != edgeRight;
 }
 
 /// The overview, at the right: a mark by each change of the modified side
@@ -1420,10 +1516,14 @@ EditorViewZone _deletedCodeZone(
   required TextScaler textScaler,
   Map<int, List<TextSpan>>? styledLines,
   DiffHighlight highlight = DiffHighlight.characters,
+  int Function(int line)? numberOf,
 }) => EditorViewZone(
   afterLineNumber: zone.afterLineNumber,
   heightInLines: zone.heightInLines,
-  firstLineNumber: zone.deleted.startLineNumber,
+  // Numbered on by one from there.
+  firstLineNumber:
+      numberOf?.call(zone.deleted.startLineNumber) ??
+      zone.deleted.startLineNumber,
   content: CustomPaint(
     painter: _DeletedCodePainter(
       original: original,
@@ -1486,6 +1586,25 @@ class _DeletedCodePainter extends CustomPainter {
     if (lineBackground case final color?) {
       canvas.drawRect(Offset.zero & size, Paint()..color = color);
     }
+    // The lines deleted whole (none put in their place, or an inner change
+    // that is all of them) have their line's background alone, as the
+    // editors' are (`computeDiffDecorations`).
+    final last = math.min(lines.endLineNumberExclusive - 1, original.lineCount);
+    bool whole(Range range) =>
+        (range.startLineNumber < lines.startLineNumber ||
+            (range.startLineNumber == lines.startLineNumber &&
+                range.startColumn == 1)) &&
+        (range.endLineNumber > last ||
+            (range.endLineNumber == last &&
+                range.endColumn - 1 >=
+                    original.contentEnds[last - 1] -
+                        original.lineStarts[last - 1]));
+    final changes = diff == null || diff!.modified.isEmpty
+        ? const <RangeMapping>[]
+        : [
+            for (final change in diff!.innerChanges ?? const <RangeMapping>[])
+              if (!whole(change.originalRange)) change,
+          ];
     final strut = StrutStyle.fromTextStyle(style, forceStrutHeight: true);
     for (var i = 0; i < count; i++) {
       final line = lines.startLineNumber + i;
@@ -1511,7 +1630,7 @@ class _DeletedCodePainter extends CustomPainter {
       final top = i * lineHeight;
       final background = textBackground;
       if (background != null) {
-        for (final change in diff?.innerChanges ?? const <RangeMapping>[]) {
+        for (final change in changes) {
           final range = change.originalRange;
           if (line < range.startLineNumber || line > range.endLineNumber) {
             continue;

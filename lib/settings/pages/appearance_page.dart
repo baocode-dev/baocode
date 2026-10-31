@@ -8,6 +8,7 @@ import 'package:flutter/material.dart' hide ColorScheme;
 
 import '../../chat/chat_keys.dart';
 import '../../chat/chat_width.dart';
+import '../../chat/edit_detail.dart';
 import '../../chat/reply_scroll.dart';
 import '../../chat/user_message_style.dart';
 import '../../chat/widgets/chat_minimap.dart';
@@ -35,7 +36,8 @@ import 'settings_widgets.dart';
 /// Settings → Appearance: the color theme (`workbench.colorTheme`, as
 /// Preferences: Color Theme picks it), the chat's, the IDE's and the
 /// terminal's alike, and how wide the conversation grows
-/// (`chat.maxWidth`, see [ChatWidth]); what an agent and a subagent show
+/// (`chat.maxWidth`, see [ChatWidth]); how a file edit shows
+/// ([EditDetail]); what an agent and a subagent show
 /// running (see [PixelLoaderRole]); whether the sidebar's agents show
 /// their times ([SidebarTimes]), whether the windows are blurred
 /// underneath ([WindowBlur]); then the code's font, size and
@@ -169,6 +171,17 @@ class AppearanceSettingsPage extends StatelessWidget {
   void _selectStyle(UserMessageStyle style) {
     UserMessageStyle.current.value = style;
     _keep(UserMessageStyle.settingKey, style.setting);
+  }
+
+  static String _editDetailName(BuildContext context, EditDetail detail) =>
+      switch (detail) {
+        EditDetail.card => context.l10n.appearanceSettingsEditDetailCard,
+        EditDetail.compact => context.l10n.appearanceSettingsEditDetailCompact,
+      };
+
+  void _selectEditDetail(EditDetail detail) {
+    EditDetail.current.value = detail;
+    _keep(EditDetail.settingKey, detail.setting);
   }
 
   static String _replyScrollName(BuildContext context, ReplyScroll choice) =>
@@ -369,6 +382,7 @@ class AppearanceSettingsPage extends StatelessWidget {
         changes,
         ChatWidth.current,
         UserMessageStyle.current,
+        EditDetail.current,
         ReplyScroll.current,
         ChatMinimap.enabled,
         ChatMinimap.glass,
@@ -388,6 +402,10 @@ class AppearanceSettingsPage extends StatelessWidget {
         final widthStep = ChatWidth.stepOf(ChatWidth.current.value);
         final widthShown = widthName(context, ChatWidth.steps[widthStep]);
         final styleShown = _styleName(context, UserMessageStyle.current.value);
+        final editDetailShown = _editDetailName(
+          context,
+          EditDetail.current.value,
+        );
         final replyScrollShown = _replyScrollName(
           context,
           ReplyScroll.current.value,
@@ -477,6 +495,27 @@ class AppearanceSettingsPage extends StatelessWidget {
                             _styleName(context, style),
                             checked: style == UserMessageStyle.current.value,
                             onSelected: () => _selectStyle(style),
+                          ),
+                      ],
+                    ]),
+                  ),
+                ),
+                SettingsRow(
+                  label: l10n.appearanceSettingsEditDetail,
+                  description: l10n.appearanceSettingsEditDetailDescription,
+                  trailing: SettingsDropdown(
+                    current: editDetailShown,
+                    width: 220,
+                    semanticLabel: l10n.appearanceSettingsEditDetailLabel(
+                      editDetailShown,
+                    ),
+                    entries: () => ideMenuGroups([
+                      [
+                        for (final detail in EditDetail.values)
+                          IdeMenuAction(
+                            _editDetailName(context, detail),
+                            checked: detail == EditDetail.current.value,
+                            onSelected: () => _selectEditDetail(detail),
                           ),
                       ],
                     ]),
