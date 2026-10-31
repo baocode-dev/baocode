@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../base/give_way_row.dart';
 import '../base/smooth_scroll.dart';
 import '../chat/chat_keys.dart';
+import '../chat/composer/composer_mock_data.dart' show fuzzyMatch;
 import '../chat/floating/floating_placement.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/inline_rename_field.dart';
@@ -21,6 +22,7 @@ import '../ide/ide_button.dart' show IdeButtonColors;
 import '../ide/ide_commands.dart' show ideUsesMacKeys;
 import '../ide/ide_hover.dart';
 import '../ide/ide_list.dart';
+import '../ide/ide_speed_search.dart';
 import '../ide/ide_spinning.dart';
 import '../kernel/agent_kernel.dart' show KernelChoiceKind;
 import '../keybindings/chat_keybindings.dart';
@@ -311,6 +313,9 @@ class _SidebarState extends State<Sidebar>
   AgentThread? _listedCurrent;
   List<Project> _listProjects = const [];
   List<_ListRow> _listRows = const [];
+
+  /// The groups listed, those the speed search hides too.
+  List<_Group> _listGroups = const [];
   List<double> _rowOffsets = const [0];
   Map<Key, int> _rowIndices = const {};
   Map<AgentThread, int> _threadIndices = const {};
@@ -318,6 +323,21 @@ class _SidebarState extends State<Sidebar>
   Offset? _dragPosition;
   Offset? _projectDragPosition;
   List<Project> _projectDragProjects = const [];
+
+  /// Speed search, as IntelliJ's trees have: typed with the list focused (a
+  /// row or a project clicked), the project whose name matches best is
+  /// scrolled to; its characters matched stand out. Only the list's keys:
+  /// what is typed elsewhere (the chat's input, wherever the pointer is)
+  /// stays there.
+  String _speedQuery = '';
+
+  /// The project headers the search matches, top to bottom, by their
+  /// groups' ids: the characters of their names matched.
+  Map<String, List<int>> _speedHits = const {};
+
+  /// The project found, among [_speedHits] (or found before, while none
+  /// matches).
+  String? _speedFound;
 
   /// Shows the archived agents or hides them; shown, they are scrolled to,
   /// at the bottom of the list.
@@ -365,7 +385,11 @@ class _SidebarState extends State<Sidebar>
   void _timesChanged() => setState(_markRowsDirty);
 
   void _focusChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {
+      // The keys taken elsewhere: the search is done.
+      if (!_listFocus.hasFocus) _speedClear();
+    });
   }
 
   @override
@@ -558,6 +582,10 @@ class _SidebarState extends State<Sidebar>
     if (event is KeyUpEvent || _renaming != null) {
       return KeyEventResult.ignored;
     }
+    // Searching, its keys come first; else a key bound is the binding's.
+    if (_speedQuery.isNotEmpty && _speedKey(event)) {
+      return KeyEventResult.handled;
+    }
     int rows(Object? args) => args is num ? args.toInt() : 1;
     final commands = <String, void Function(Object?)>{
       'list.focusDown': (args) => listFocusNext(rows(args)),
@@ -588,6 +616,7 @@ class _SidebarState extends State<Sidebar>
       commands[command]!(item.entry.args);
       return KeyEventResult.handled;
     }
+    if (_speedKey(event)) return KeyEventResult.handled;
     return ideListNavigationKeys.contains(event.logicalKey)
         ? KeyEventResult.handled
         : KeyEventResult.ignored;
@@ -651,6 +680,144 @@ class _SidebarState extends State<Sidebar>
         curve: Curves.easeOutCubic,
       ),
     );
+  }
+
+  /// Speed search's keys, the list's own: a character typed searches;
+  /// while it does, Backspace, Escape, Enter and the arrows are its.
+  bool _speedKey(KeyEvent event) {
+    if (event is KeyUpEvent || _renaming != null || _renamingHost) {
+      return false;
+    }
+    if (_speedQuery.isNotEmpty) {
+      switch (event.logicalKey) {
+        case LogicalKeyboardKey.escape:
+          _speedEnd();
+          return true;
+        case LogicalKeyboardKey.backspace:
+          final query = _speedQuery.characters.skipLast(1).toString();
+          query.isEmpty ? _speedEnd() : _speedSearch(query);
+          return true;
+        case LogicalKeyboardKey.enter || LogicalKeyboardKey.numpadEnter:
+          _speedEnter();
+          return true;
+        case LogicalKeyboardKey.arrowDown:
+          _speedStep(1);
+          return true;
+        case LogicalKeyboardKey.arrowUp:
+          _speedStep(-1);
+          return true;
+      }
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return false;
+    }
+    final char = event.character;
+    if (char == null ||
+        char.isEmpty ||
+        char.codeUnitAt(0) < 0x20 ||
+        char.codeUnitAt(0) == 0x7f) {
+      return false;
+    }
+    // Space is the list's (toggles a group); no projects, nothing to find.
+    if (_speedQuery.isEmpty && (char == ' ' || _listProjects.isEmpty)) {
+      return false;
+    }
+    _speedSearch(_speedQuery + char);
+    return true;
+  }
+
+  void _speedClear() {
+    if (_speedQuery.isNotEmpty) _rowsDirty = true;
+    _speedQuery = '';
+    _speedHits = const {};
+    _speedFound = null;
+  }
+
+  /// Ends the search, every project listed again: the agent picked among
+  /// those it showed kept in view, else the project found.
+  void _speedEnd() {
+    if (_speedQuery.isEmpty) return;
+    final found = _speedHits.containsKey(_speedFound) ? _speedFound : null;
+    final shown = {for (final row in _listRows) ?row.thread};
+    setState(_speedClear);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_listSelection.focused case final thread?
+          when shown.contains(thread)) {
+        _revealRow(thread);
+      } else if (found != null) {
+        _revealHeader(found);
+      }
+    });
+  }
+
+  /// Finds [query] among the projects' names, listing only those it
+  /// matches: the best match, the one found before while it is as good.
+  void _speedSearch(String query) {
+    final hits = <String, ({List<int> indexes, int score})>{};
+    for (final group in _listGroups) {
+      if (group.project == null) continue;
+      if (fuzzyMatch(group.label, query) case final hit?) {
+        hits[group.id] = hit;
+      }
+    }
+    String? best;
+    for (final MapEntry(:key, :value) in hits.entries) {
+      final bestScore = best == null ? null : hits[best]!.score;
+      if (bestScore == null ||
+          value.score > bestScore ||
+          (value.score == bestScore && key == _speedFound)) {
+        best = key;
+      }
+    }
+    setState(() {
+      _speedQuery = query;
+      _speedHits = {
+        for (final MapEntry(:key, :value) in hits.entries) key: value.indexes,
+      };
+      if (best != null) _speedFound = best;
+      _rowsDirty = true;
+    });
+    if (best == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _revealHeader(best!);
+    });
+  }
+
+  /// The next match below (or above) the one found.
+  void _speedStep(int delta) {
+    final ids = _speedHits.keys.toList();
+    if (ids.isEmpty) return;
+    final at = ids.indexOf(_speedFound ?? '');
+    final next = ids[(at + delta).clamp(0, ids.length - 1)];
+    setState(() => _speedFound = next);
+    _revealHeader(next);
+  }
+
+  /// Into the project found: unfolded, its first agent focused.
+  void _speedEnter() {
+    final id = _speedFound;
+    final group = _speedHits.containsKey(id)
+        ? _listGroups.where((group) => group.id == id).firstOrNull
+        : null;
+    setState(_speedClear);
+    if (group == null) return;
+    if (_collapsed(group)) _workspace.toggleCollapsed(group.id);
+    final first = _rows(group).threads.firstOrNull;
+    if (first != null) setState(() => _listSelection.select(first));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      first == null ? _revealHeader(group.id) : _revealRow(first);
+    });
+  }
+
+  void _revealHeader(String id) {
+    final index = _rowIndices[ValueKey(id)];
+    if (index == null) return;
+    ideRevealRange(_listScroll, _rowOffsets[index], _rowOffsets[index + 1]);
   }
 
   void _create([Project? project]) {
@@ -773,92 +940,101 @@ class _SidebarState extends State<Sidebar>
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.sidebarSurface,
-      child: ListenableBuilder(
-        listenable: _workspace,
-        builder: (context, _) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // The toggle lives in the window's header on Windows (see
-            // window_header/), which is where this row would have been.
-            if (!WindowControls.drawsHeader) _buildTopBar(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                8,
-                AppMetrics.contentInset,
-                8,
-                6,
-              ),
-              // A new chat picks its folder over its input (see
-              // NewChatFolderBar): a folder first only without any.
-              child: _NewAgentButton(
-                onTap: switch (_workspace.sidebarHost) {
-                  final host? when _workspace.sidebarProjectsOn(host).isEmpty =>
-                    () => widget.onOpenFolderOn?.call(host),
-                  null when _workspace.sidebarProjectsHere.isEmpty =>
-                    widget.onOpenFolder ?? () {},
-                  _ => _create,
-                },
-              ),
+      child: Listener(
+        // On the way up, so a click lands on the row it went down on
+        // before every project is listed again.
+        onPointerUp: (_) => _speedEnd(),
+        child: _buildContent(),
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    return ListenableBuilder(
+      listenable: _workspace,
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // The toggle lives in the window's header on Windows (see
+          // window_header/), which is where this row would have been.
+          if (!WindowControls.drawsHeader) _buildTopBar(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              8,
+              AppMetrics.contentInset,
+              8,
+              6,
             ),
-            if (switch (_workspace.sidebarHost) {
-                  final host? when widget.onOpenFolderOn != null =>
-                    () => widget.onOpenFolderOn!(host),
-                  null => widget.onOpenFolder,
-                  _ => null,
-                }
-                case final open?)
-              _NavRow(
-                icon: Codicons.folderOpened,
-                label: context.l10n.sidebarOpenProject,
-                onTap: open,
+            // A new chat picks its folder over its input (see
+            // NewChatFolderBar): a folder first only without any.
+            child: _NewAgentButton(
+              onTap: switch (_workspace.sidebarHost) {
+                final host? when _workspace.sidebarProjectsOn(host).isEmpty =>
+                  () => widget.onOpenFolderOn?.call(host),
+                null when _workspace.sidebarProjectsHere.isEmpty =>
+                  widget.onOpenFolder ?? () {},
+                _ => _create,
+              },
+            ),
+          ),
+          if (switch (_workspace.sidebarHost) {
+                final host? when widget.onOpenFolderOn != null =>
+                  () => widget.onOpenFolderOn!(host),
+                null => widget.onOpenFolder,
+                _ => null,
+              }
+              case final open?)
+            _NavRow(
+              icon: Codicons.folderOpened,
+              label: context.l10n.sidebarOpenProject,
+              onTap: open,
+            ),
+          if (widget.onSearch case final search?)
+            _NavRow(
+              icon: Codicons.search,
+              label: context.l10n.sidebarSearch,
+              hover: ChatKeys.titleWithKey(
+                context.l10n.cmdChatSearch,
+                ChatCommandIds.search,
+                ChatKeys.chatLayout,
               ),
-            if (widget.onSearch case final search?)
-              _NavRow(
-                icon: Codicons.search,
-                label: context.l10n.sidebarSearch,
-                hover: ChatKeys.titleWithKey(
-                  context.l10n.cmdChatSearch,
-                  ChatCommandIds.search,
-                  ChatKeys.chatLayout,
-                ),
-                onTap: search,
-              ),
-            if (widget.onCustomize case final customize?)
-              _NavRow(
-                icon: Codicons.plug,
-                label: context.l10n.sidebarCustomize,
-                selected: widget.customizing,
-                onTap: customize,
-              ),
-            if (widget.onStash case final stash?)
-              switch (widget.stashes) {
-                final stashes? => ListenableBuilder(
-                  listenable: stashes.changes,
-                  builder: (context, _) => _NavRow(
-                    icon: Codicons.note,
-                    label: context.l10n.stashTitle,
-                    selected: widget.stashing,
-                    badge: stashes.news(),
-                    badgeHover: context.l10n.stashNewsSidebar(stashes.news()),
-                    onTap: stash,
-                  ),
-                ),
-                null => _NavRow(
+              onTap: search,
+            ),
+          if (widget.onCustomize case final customize?)
+            _NavRow(
+              icon: Codicons.plug,
+              label: context.l10n.sidebarCustomize,
+              selected: widget.customizing,
+              onTap: customize,
+            ),
+          if (widget.onStash case final stash?)
+            switch (widget.stashes) {
+              final stashes? => ListenableBuilder(
+                listenable: stashes.changes,
+                builder: (context, _) => _NavRow(
                   icon: Codicons.note,
                   label: context.l10n.stashTitle,
                   selected: widget.stashing,
+                  badge: stashes.news(),
+                  badgeHover: context.l10n.stashNewsSidebar(stashes.news()),
                   onTap: stash,
                 ),
-              },
-            if (widget.onSearch != null ||
-                widget.onCustomize != null ||
-                widget.onStash != null)
-              const SizedBox(height: 4),
-            _buildGroupingBar(),
-            Expanded(child: _buildList()),
-            _buildFooter(),
-          ],
-        ),
+              ),
+              null => _NavRow(
+                icon: Codicons.note,
+                label: context.l10n.stashTitle,
+                selected: widget.stashing,
+                onTap: stash,
+              ),
+            },
+          if (widget.onSearch != null ||
+              widget.onCustomize != null ||
+              widget.onStash != null)
+            const SizedBox(height: 4),
+          _buildGroupingBar(),
+          Expanded(child: _buildList()),
+          _buildFooter(),
+        ],
       ),
     );
   }
@@ -885,6 +1061,13 @@ class _SidebarState extends State<Sidebar>
   }
 
   Widget _buildGroupingBar() {
+    // Searching, the filter is the whole row.
+    if (_speedQuery.isNotEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(8, 5, 8, 1),
+        child: _buildSpeedHeading(),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 6, 6, 2),
       child: Row(
@@ -955,6 +1138,15 @@ class _SidebarState extends State<Sidebar>
       ),
     );
   }
+
+  /// What the speed search has been typed, in place of the heading, as a
+  /// filter on: how many projects it leaves of all.
+  Widget _buildSpeedHeading() => IdeSpeedSearchField(
+    query: _speedQuery,
+    found: _speedHits.length,
+    total: _listProjects.length,
+    onClear: _speedEnd,
+  );
 
   /// Folds every group that folds, or, all folded, unfolds them (#300):
   /// shown where there are several to fold.
@@ -1311,13 +1503,21 @@ class _SidebarState extends State<Sidebar>
     if (switched) _rowsDirty = true;
     if (_rowsDirty) {
       _listedCurrent = _current;
-      final groups = [
+      final all = [
         for (final group in _groups())
           // Empty projects stay to start an agent in; other empty groups go.
           if (group.threads.isNotEmpty || group.project != null || group.pinned)
             group,
       ];
-      _listProjects = [for (final group in groups) ?group.project];
+      _listGroups = all;
+      _listProjects = [for (final group in all) ?group.project];
+      // Searching, only the projects it matches.
+      final groups = _speedQuery.isEmpty
+          ? all
+          : [
+              for (final group in all)
+                if (_speedHits.containsKey(group.id)) group,
+            ];
       final rows = <_ListRow>[];
       for (final group in groups) {
         rows.add(_ListRow(_ListRowKind.header, group, ValueKey(group.id), 32));
@@ -1373,18 +1573,21 @@ class _SidebarState extends State<Sidebar>
           if (mounted) _revealCurrent();
         });
       }
-      _listSelection.values.retainWhere(_threadIndices.containsKey);
-      if (!_threadIndices.containsKey(_listSelection.focused)) {
-        _listSelection.focused = null;
-      }
-      if (!_threadIndices.containsKey(_listSelection.anchor)) {
-        _listSelection.anchor = null;
+      // The rows picked stay while the search hides them.
+      if (_speedQuery.isEmpty) {
+        _listSelection.values.retainWhere(_threadIndices.containsKey);
+        if (!_threadIndices.containsKey(_listSelection.focused)) {
+          _listSelection.focused = null;
+        }
+        if (!_threadIndices.containsKey(_listSelection.anchor)) {
+          _listSelection.anchor = null;
+        }
       }
       _rowsDirty = false;
     }
     final rows = _listRows;
     final projects = _listProjects;
-    if (rows.isEmpty) {
+    if (rows.isEmpty && _speedQuery.isEmpty) {
       if (_workspace.sidebarHost case final host?) {
         return _buildNoProjectsOn(host);
       }
@@ -1486,7 +1689,13 @@ class _SidebarState extends State<Sidebar>
       group: group,
       collapsed: _collapsed(group),
       light: !collapsible,
-      onToggle: collapsible ? () => _workspace.toggleCollapsed(group.id) : null,
+      // As a row clicked: the list has the keys then (its speed search).
+      onToggle: collapsible
+          ? () {
+              _listFocus.requestFocus();
+              _workspace.toggleCollapsed(group.id);
+            }
+          : null,
       onCreate: project == null ? null : () => _create(project),
       // Dragged onto the panes, beside them; not in an agent's window,
       // which has its one conversation.
@@ -1509,6 +1718,8 @@ class _SidebarState extends State<Sidebar>
           ? null
           : _workspace.workspaceOf(project)?.folders,
       dragged: project != null && identical(project, _draggedProject),
+      speedMatch: _speedHits[group.id],
+      located: group.id == _speedFound && _speedHits.containsKey(group.id),
       pinned: project != null && _workspace.isPinnedProject(project),
       icon: project == null
           ? null
@@ -2324,6 +2535,8 @@ class _GroupHeader extends StatelessWidget {
     this.dragNew,
     this.menu,
     this.dragged = false,
+    this.speedMatch,
+    this.located = false,
     this.pinned = false,
     this.icon,
     this.folders,
@@ -2331,6 +2544,12 @@ class _GroupHeader extends StatelessWidget {
 
   final _Group group;
   final bool collapsed;
+
+  /// The characters of its name the speed search matches.
+  final List<int>? speedMatch;
+
+  /// The project the speed search found.
+  final bool located;
 
   /// Null where the group does not fold.
   final VoidCallback? onToggle;
@@ -2404,7 +2623,7 @@ class _GroupHeader extends StatelessWidget {
             margin: const EdgeInsets.only(top: 6),
             padding: EdgeInsets.only(left: light ? 6 : 4, right: 2),
             decoration: BoxDecoration(
-              color: (active || dragged) && project != null
+              color: (active || dragged || located) && project != null
                   ? AppColors.hover
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(5),
@@ -2503,8 +2722,8 @@ class _GroupHeader extends StatelessWidget {
   }
 
   Widget _label(Project? project) {
-    final label = Text(
-      group.label,
+    final label = Text.rich(
+      ideSpeedSpan(group.label, speedMatch ?? const []),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: TextStyle(
