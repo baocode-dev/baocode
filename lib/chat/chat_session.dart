@@ -1210,6 +1210,12 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     if (_kernel case final QueuesMessages kernel) kernel.sendQueuedNow(id);
   }
 
+  /// Puts the queued message [id] at [index] among those queued: the next
+  /// first.
+  void moveQueued(String id, int index) {
+    if (_kernel case final QueuesMessages kernel) kernel.moveQueued(id, index);
+  }
+
   /// Resends the user message at [index] as [message]: everything after it
   /// is discarded and the turn runs again from there.
   @override

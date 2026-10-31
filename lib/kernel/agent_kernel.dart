@@ -275,6 +275,10 @@ abstract interface class QueuesMessages {
   /// Takes up the queued message [turnId] at once, before any queued ahead
   /// of it: the turn running is stopped for it.
   void sendQueuedNow(String turnId);
+
+  /// Puts the queued message [turnId] at [index] among those queued, the
+  /// next first: the ones before it wait for it.
+  void moveQueued(String turnId, int index);
 }
 
 abstract interface class RevertsChanges {
