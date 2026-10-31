@@ -160,6 +160,25 @@ void main() {
     expect(theirs.isClosed, isTrue);
   });
 
+  test('no longer listening to what comes: let go at once, none waited for', () async {
+    final accepted = server.incoming.first;
+    final connection = await client.connect(serverAddr);
+    final theirs = await accepted;
+    // Nothing more comes: cancelling does not wait for a stream, nor for
+    // another connection.
+    final streams = theirs.incoming.listen((_) {});
+    await streams.cancel().timeout(const Duration(seconds: 2));
+    final other = await IrohEndpoint.bind(
+      secret: secret(),
+      alpn: alpn,
+      accept: true,
+    );
+    final connections = other.incoming.listen((_) {});
+    await connections.cancel().timeout(const Duration(seconds: 2));
+    await other.close();
+    connection.close();
+  });
+
   test('a wrong key is not reached', () async {
     final other = await IrohEndpoint.bind(secret: secret(), alpn: alpn);
     final wrong = IrohAddr(other.id, addrs: serverAddr.addrs);

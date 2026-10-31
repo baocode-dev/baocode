@@ -107,6 +107,46 @@ abstract final class Iroh {
     }
   }
 
+  /// What [take] takes, one after another while [open], until what it
+  /// waits on is gone. Unlike an `async*` loop, a listener cancelling is
+  /// let go at once, not once the [take] under way returns (it may never:
+  /// nothing more comes until closed); what that takes after is [drop]ped.
+  static Stream<T> _taking<T>(
+    bool Function() open,
+    Future<T> Function() take,
+    void Function(T) drop,
+  ) {
+    var cancelled = false;
+    late final StreamController<T> controller;
+    controller = StreamController<T>(
+      // Given at once: one cancelling on the first (`first`) stops the next.
+      sync: true,
+      onListen: () async {
+        while (!cancelled && open()) {
+          final T taken;
+          try {
+            taken = await take();
+          } on IrohClosedException {
+            break;
+          } on Object catch (error, stack) {
+            if (!cancelled) controller.addError(error, stack);
+            break;
+          }
+          if (cancelled) {
+            drop(taken);
+            return;
+          }
+          controller.add(taken);
+        }
+        if (!cancelled) unawaited(controller.close());
+      },
+      onCancel: () {
+        cancelled = true;
+      },
+    );
+    return controller.stream;
+  }
+
   /// Handles let go of when their objects are: what was not released is.
   static final Finalizer<int> _handles = Finalizer(biRelease);
 }
@@ -288,20 +328,16 @@ class IrohEndpoint {
 
   /// The connections taken, as they come; done once it closes. Only for
   /// one bound with `accept`; listened to once.
-  late final Stream<IrohConnection> incoming = () async* {
-    while (!_closed) {
-      final int handle;
-      final Uint8List data;
-      try {
-        (handle, data) = await Iroh._done(
-          (req) => biEndpointAccept(req, _handle),
-        );
-      } on IrohClosedException {
-        return;
-      }
-      yield IrohConnection._(handle, _remoteOf(data));
-    }
-  }();
+  late final Stream<IrohConnection> incoming = Iroh._taking(
+    () => !_closed,
+    () async {
+      final (handle, data) = await Iroh._done(
+        (req) => biEndpointAccept(req, _handle),
+      );
+      return IrohConnection._(handle, _remoteOf(data));
+    },
+    (connection) => connection.close(),
+  );
 
   /// The network changed (Wi-Fi and cellular, back from the background):
   /// looked at again at once.
@@ -420,19 +456,18 @@ class IrohConnection {
   }
 
   /// The streams the other end opens; done once closed. Listened to once.
-  late final Stream<IrohStream> incoming = () async* {
-    while (!_isClosed) {
-      final int handle;
-      try {
-        (handle, _) = await Iroh._done(
-          (req) => biConnectionAccept(req, _handle),
-        );
-      } on IrohClosedException {
-        return;
-      }
-      yield IrohStream._(handle);
-    }
-  }();
+  late final Stream<IrohStream> incoming = Iroh._taking(
+    () => !_isClosed,
+    () async {
+      final (handle, _) = await Iroh._done(
+        (req) => biConnectionAccept(req, _handle),
+      );
+      return IrohStream._(handle);
+    },
+    (stream) => stream
+      ..reset()
+      ..release(),
+  );
 
   Future<IrohPathInfo> info() async => IrohPathInfo.fromJson(
     await Iroh._json((req) => biConnectionInfo(req, _handle)),
