@@ -72,6 +72,7 @@ class ChatScreen extends StatefulWidget {
     this.onRename,
     this.onSummarizeTitle,
     this.subtitle,
+    this.titleTabs,
     this.titleDragBuilder,
     this.onTitleDragStart,
     this.autofocus = false,
@@ -119,6 +120,10 @@ class ChatScreen extends StatefulWidget {
   /// After the title, fainter: e.g. a pane's project, and the host it is
   /// on.
   final Widget? subtitle;
+
+  /// In the title bar in place of the title (and [subtitle]), but while
+  /// it is renamed: e.g. a pane's tabs.
+  final Widget? titleTabs;
 
   /// Wraps the title as a drag source, when not renaming. Its double click
   /// still renames; the title bar's controls are never part of the source.
@@ -570,6 +575,8 @@ class _ChatScreenState extends State<ChatScreen>
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: switch (widget.subtitle) {
+                      _ when !_renaming && widget.titleTabs != null =>
+                        widget.titleTabs!,
                       final subtitle? when !_renaming => LayoutBuilder(
                         builder: (context, constraints) => Row(
                           children: [

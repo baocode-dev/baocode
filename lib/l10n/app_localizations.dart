@@ -350,6 +350,54 @@ abstract class AppLocalizations {
   /// **'Focus Previous Pane'**
   String get cmdChatFocusPreviousPane;
 
+  /// No description provided for @cmdChatFocusPaneLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus Left Pane'**
+  String get cmdChatFocusPaneLeft;
+
+  /// No description provided for @cmdChatFocusPaneRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus Right Pane'**
+  String get cmdChatFocusPaneRight;
+
+  /// No description provided for @cmdChatFocusPaneUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus Above Pane'**
+  String get cmdChatFocusPaneUp;
+
+  /// No description provided for @cmdChatFocusPaneDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus Below Pane'**
+  String get cmdChatFocusPaneDown;
+
+  /// No description provided for @cmdChatNextPaneTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Next Tab in Pane'**
+  String get cmdChatNextPaneTab;
+
+  /// No description provided for @cmdChatPreviousPaneTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Previous Tab in Pane'**
+  String get cmdChatPreviousPaneTab;
+
+  /// No description provided for @cmdChatTogglePaneTabs.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Pane Tabs'**
+  String get cmdChatTogglePaneTabs;
+
+  /// No description provided for @workspacePaneTabs.
+  ///
+  /// In en, this message translates to:
+  /// **'Show as Tabs'**
+  String get workspacePaneTabs;
+
   /// No description provided for @cmdChatSearch.
   ///
   /// In en, this message translates to:

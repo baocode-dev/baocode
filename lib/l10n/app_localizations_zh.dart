@@ -150,6 +150,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdChatFocusPreviousPane => '聚焦上一个窗格';
 
   @override
+  String get cmdChatFocusPaneLeft => '聚焦左侧窗格';
+
+  @override
+  String get cmdChatFocusPaneRight => '聚焦右侧窗格';
+
+  @override
+  String get cmdChatFocusPaneUp => '聚焦上方窗格';
+
+  @override
+  String get cmdChatFocusPaneDown => '聚焦下方窗格';
+
+  @override
+  String get cmdChatNextPaneTab => '窗格中的下一个标签页';
+
+  @override
+  String get cmdChatPreviousPaneTab => '窗格中的上一个标签页';
+
+  @override
+  String get cmdChatTogglePaneTabs => '切换窗格标签页';
+
+  @override
+  String get workspacePaneTabs => '以标签页显示';
+
+  @override
   String get cmdChatSearch => '搜索';
 
   @override

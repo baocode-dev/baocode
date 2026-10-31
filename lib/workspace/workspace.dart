@@ -2375,6 +2375,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         case final editor?) {
       _preferredEditor = editor;
     }
+    _paneTabs = kept['paneTabs'] == true;
     if (kept['layout'] == WorkspaceLayout.ide.name) {
       _layout = WorkspaceLayout.ide;
     }
@@ -2501,6 +2502,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'kernel': _preferredKernel.id,
       'editor': _preferredEditor.name,
       'layout': _layout.name,
+      if (_paneTabs) 'paneTabs': true,
       'settings': _settings,
       'agents': _agentSettings,
       'ignoredRecommendations': [..._ignoredRecommendations],
@@ -2903,13 +2905,35 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _snapshots[thread] = thread._snapshot;
     if (!_grid.contains(thread)) {
       final focused = _selected;
-      if (focused != null && _grid.contains(focused)) {
-        _showInPlaceOf(focused, thread);
+      // Under a pane: shown there again. Else in its project's pane, the
+      // focused one first; else in the focused pane.
+      final covering = _grid.panes
+          .where((pane) => _grid.under(pane).contains(thread))
+          .firstOrNull;
+      final target =
+          _paneOf(thread.project) ??
+          (focused != null && _grid.contains(focused) ? focused : null);
+      if (covering != null) {
+        _grid.raise(covering, thread);
+      } else if (target != null) {
+        _showInPlaceOf(target, thread);
       } else {
         _grid.show(thread);
       }
     }
     _selected = thread;
+  }
+
+  /// The pane showing an agent of [project]: the focused one if it does,
+  /// else the first; null where none does.
+  AgentThread? _paneOf(Project project) {
+    final focused = _selected;
+    if (focused != null &&
+        _grid.contains(focused) &&
+        focused.project == project) {
+      return focused;
+    }
+    return _grid.panes.where((pane) => pane.project == project).firstOrNull;
   }
 
   /// [thread] in [target]'s pane: of several, over it, to show again once
@@ -2957,6 +2981,25 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (!_grid.under(pane).contains(covered)) return;
     _grid.raise(pane, covered);
     select(covered);
+  }
+
+  /// Takes [covered] from under [pane]: its tab closed, the agent goes on
+  /// in the sidebar.
+  void closeCovered(AgentThread pane, AgentThread covered) {
+    if (!_grid.under(pane).contains(covered)) return;
+    _grid.forget(covered);
+    notifyListeners();
+  }
+
+  /// Whether a pane shows the agents under it as tabs above its
+  /// conversation, rather than behind a layers button.
+  bool get paneTabs => _paneTabs;
+  bool _paneTabs = false;
+  set paneTabs(bool tabs) {
+    if (tabs == _paneTabs) return;
+    _paneTabs = tabs;
+    _save();
+    notifyListeners();
   }
 
   /// Whether [thread]'s pane can close: another shows beside it.

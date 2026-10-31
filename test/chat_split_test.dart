@@ -20,11 +20,13 @@ import 'package:baocode/workspace/chat_grid_view.dart';
 import 'package:baocode/workspace/editor_launcher.dart';
 import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/workspace/open_in_editor_button.dart';
+import 'package:baocode/workspace/pane_tabs.dart';
 import 'package:baocode/workspace/title_bar_double_click.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:baocode/workspace/chat_terminal.dart';
 import 'package:baocode/workspace/pin_window_button.dart';
 import 'package:baocode/workspace/window_header/window_header.dart';
+import 'package:baocode/l10n/app_localizations_en.dart';
 
 const first = 'Optimize virtual list scrolling';
 const second = 'Rate limit per API key';
@@ -1055,6 +1057,130 @@ void main() {
     expect(list.position.pixels, at);
   });
 
+  testWidgets('an agent of a project a pane shows, or a new one there, goes '
+      'over that pane, whichever is focused', (tester) async {
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    final firstThread = workspace.threads.firstWhere((t) => t.title == first);
+    final secondThread = workspace.threads.firstWhere((t) => t.title == second);
+    expect(workspace.current, secondThread);
+    final sibling = workspace.threads.firstWhere(
+      (t) => t.project == firstThread.project && t != firstThread,
+    );
+
+    workspace.select(sibling);
+    await tester.pumpAndSettle();
+    expect(workspace.grid.panes, unorderedEquals([sibling, secondThread]));
+    expect(workspace.grid.under(sibling), [firstThread]);
+
+    workspace.select(secondThread);
+    final created = workspace.create(project: firstThread.project);
+    await tester.pumpAndSettle();
+    expect(workspace.grid.panes, unorderedEquals([created, secondThread]));
+    expect(workspace.grid.under(created), [firstThread, sibling]);
+  });
+
+  testWidgets('shown as tabs, a pane\'s agents switch by a click or the '
+      'keys, and the arrows go to the pane that way', (tester) async {
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    AgentThread agent(String title) =>
+        workspace.threads.firstWhere((thread) => thread.title == title);
+    workspace.select(agent(third));
+    await tester.pumpAndSettle();
+    expect(workspace.grid.tabs(agent(third)), [agent(second), agent(third)]);
+    // Behind the layers button until shown as tabs.
+    Finder tab(String title) =>
+        find.descendant(of: find.byType(PaneTabs), matching: find.text(title));
+    expect(tab(second), findsNothing);
+    workspace.paneTabs = true;
+    await tester.pumpAndSettle();
+    expect(tab(second), findsOneWidget);
+    expect(tab(third), findsOneWidget);
+    // In place of the title.
+    expect(
+      find.descendant(of: pane(third), matching: find.byType(PaneTabs)),
+      findsOneWidget,
+    );
+
+    await tester.tap(tab(second));
+    await tester.pumpAndSettle();
+    expect(workspace.current, agent(second));
+    expect(paneTitles(tester), unorderedEquals([first, second]));
+    // Its order stays as the tabs switch.
+    expect(workspace.grid.tabs(agent(second)), [agent(second), agent(third)]);
+
+    Future<void> press(LogicalKeyboardKey arrow, {bool shift = false}) async {
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(arrow);
+      if (shift) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+    }
+
+    await press(LogicalKeyboardKey.arrowRight, shift: true);
+    expect(workspace.current, agent(third));
+    await press(LogicalKeyboardKey.arrowRight, shift: true);
+    expect(workspace.current, agent(second));
+    await press(LogicalKeyboardKey.arrowLeft);
+    expect(workspace.current, agent(first));
+    await press(LogicalKeyboardKey.arrowLeft);
+    expect(workspace.current, agent(first));
+    await press(LogicalKeyboardKey.arrowRight);
+    expect(workspace.current, agent(second));
+
+    // Closed from its tab, one under the pane goes; the pane stays.
+    await tester.tap(tab(third));
+    await tester.pumpAndSettle();
+    workspace.closeCovered(agent(third), agent(second));
+    await tester.pumpAndSettle();
+    expect(workspace.grid.tabs(agent(third)), [agent(third)]);
+    expect(tab(third), findsNothing);
+
+    // Turned off from the layers button's menu, where it was turned on.
+    workspace.select(agent(second));
+    await tester.pumpAndSettle();
+    expect(tab(second), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('1 conversation under this one'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Show as Tabs'));
+    await tester.pumpAndSettle();
+    expect(workspace.paneTabs, isFalse);
+    expect(find.byType(PaneTabs), findsNothing);
+  });
+
+  testWidgets('a tab\'s Close Others leaves it alone in its pane, whichever '
+      'tab showed', (tester) async {
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    AgentThread agent(String title) =>
+        workspace.threads.firstWhere((thread) => thread.title == title);
+    workspace.select(agent(third));
+    await tester.pumpAndSettle();
+    final created = workspace.create(project: agent(second).project);
+    workspace.paneTabs = true;
+    await tester.pumpAndSettle();
+    Finder tab(AgentThread thread) => find.descendant(
+      of: find.byType(PaneTabs),
+      matching: find.text(thread.localizedTitle(AppLocalizationsEn())),
+    );
+    // The first tab shown, the one kept under it.
+    await tester.tap(tab(agent(second)));
+    await tester.pumpAndSettle();
+    expect(workspace.grid.under(agent(second)), [agent(third), created]);
+
+    await tester.ensureVisible(tab(created));
+    await tester.pumpAndSettle();
+    await tester.tap(tab(created), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Close Others'));
+    await tester.pumpAndSettle();
+    expect(workspace.grid.panes, unorderedEquals([agent(first), created]));
+    expect(workspace.grid.under(created), isEmpty);
+    expect(find.byType(PaneTabs), findsNothing);
+  });
+
   testWidgets('the sidebar shows an agent over the focused pane: not built '
       'while covered, back where it was once the other closes', (tester) async {
     final workspace = await pumpApp(tester);
@@ -1117,7 +1243,8 @@ void main() {
     // Another pane's close leaves the focus where it was.
     expect(workspace.current!.title, first);
 
-    // Shown in the other pane meanwhile, it is not given back.
+    // Covered, picked from another pane, it shows again in its own, over
+    // the one that covered it.
     AgentThread agent(String title) =>
         workspace.threads.firstWhere((thread) => thread.title == title);
     workspace.select(agent(second));
@@ -1125,10 +1252,11 @@ void main() {
     workspace.select(agent(first));
     workspace.select(agent(second));
     await tester.pumpAndSettle();
-    expect(paneTitles(tester), unorderedEquals([second, third]));
-    workspace.closePane(agent(third));
+    expect(paneTitles(tester), unorderedEquals([first, second]));
+    expect(workspace.grid.under(agent(second)), [agent(third)]);
+    workspace.closePane(agent(second));
     await tester.pumpAndSettle();
-    expect(paneTitles(tester), [second]);
+    expect(paneTitles(tester), unorderedEquals([first, third]));
   });
 
   testWidgets('the lines drag, each shared by the panes either side of it', (
