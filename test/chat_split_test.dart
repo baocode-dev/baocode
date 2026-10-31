@@ -26,6 +26,7 @@ import 'package:baocode/workspace/workspace.dart';
 import 'package:baocode/workspace/chat_terminal.dart';
 import 'package:baocode/workspace/pin_window_button.dart';
 import 'package:baocode/workspace/window_header/window_header.dart';
+import 'package:baocode/l10n/app_localizations_en.dart';
 
 const first = 'Optimize virtual list scrolling';
 const second = 'Rate limit per API key';
@@ -1146,6 +1147,37 @@ void main() {
     await tester.tap(find.text('Show as Tabs'));
     await tester.pumpAndSettle();
     expect(workspace.paneTabs, isFalse);
+    expect(find.byType(PaneTabs), findsNothing);
+  });
+
+  testWidgets('a tab\'s Close Others leaves it alone in its pane, whichever '
+      'tab showed', (tester) async {
+    final workspace = await pumpApp(tester);
+    await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+    AgentThread agent(String title) =>
+        workspace.threads.firstWhere((thread) => thread.title == title);
+    workspace.select(agent(third));
+    await tester.pumpAndSettle();
+    final created = workspace.create(project: agent(second).project);
+    workspace.paneTabs = true;
+    await tester.pumpAndSettle();
+    Finder tab(AgentThread thread) => find.descendant(
+      of: find.byType(PaneTabs),
+      matching: find.text(thread.localizedTitle(AppLocalizationsEn())),
+    );
+    // The first tab shown, the one kept under it.
+    await tester.tap(tab(agent(second)));
+    await tester.pumpAndSettle();
+    expect(workspace.grid.under(agent(second)), [agent(third), created]);
+
+    await tester.ensureVisible(tab(created));
+    await tester.pumpAndSettle();
+    await tester.tap(tab(created), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Close Others'));
+    await tester.pumpAndSettle();
+    expect(workspace.grid.panes, unorderedEquals([agent(first), created]));
+    expect(workspace.grid.under(created), isEmpty);
     expect(find.byType(PaneTabs), findsNothing);
   });
 

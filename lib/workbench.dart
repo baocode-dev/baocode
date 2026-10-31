@@ -1198,7 +1198,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _openAgent(threads[next]);
   }
 
-  /// The pane [step] away from the focused one, row by row, round.
   /// The panes beside [current] each way, and its tabs: only those there
   /// are to go to.
   Map<String, VoidCallback> _paneArrowCommands(AgentThread? current) {
@@ -1229,6 +1228,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _focusChat(next);
   }
 
+  /// The pane [step] away from the focused one, row by row, round.
   void _focusPaneBy(int step) {
     final panes = _workspace.grid.panes;
     if (panes.length < 2) return;
@@ -4364,9 +4364,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
   }
 
-  /// The conversations under [thread]'s pane ([under], the next to show
-  /// again last), as a layers button with their count: its menu lists them,
-  /// the next first, and shows the one picked in the pane.
   /// [pane] and the conversations under it, as tabs in the order they came
   /// to it (see [PaneTabs]): a click shows one in the pane, its close
   /// button closes it; its menu closes others too.
@@ -4394,8 +4391,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               IdeMenuAction(
                 l10n.tabCloseOthers,
                 onSelected: () {
+                  // The one kept shown first, the others then taken from
+                  // under it: closing the pane shown first would bring up
+                  // another in its place, out of [pane]'s reach.
+                  if (!identical(tab, pane)) {
+                    _workspace.raiseCovered(pane, tab);
+                  }
                   for (final other in tabs) {
-                    if (!identical(other, tab)) close(other);
+                    if (!identical(other, tab)) {
+                      _workspace.closeCovered(tab, other);
+                    }
                   }
                 },
               ),
@@ -4406,6 +4411,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
+  /// The conversations under [thread]'s pane ([under], the next to show
+  /// again last), as a layers button with their count: its menu lists them,
+  /// the next first, and shows the one picked in the pane.
   Widget _coveredButton(AgentThread thread, List<AgentThread> under) {
     final l10n = context.l10n;
     return Builder(
