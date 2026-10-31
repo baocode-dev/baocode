@@ -98,6 +98,14 @@ final class ItemRemoved extends KernelEvent {
   final String id;
 }
 
+/// The queued messages, in the order [ids] gives: the next first. Those
+/// not named keep their places after them.
+final class QueueReordered extends KernelEvent {
+  const QueueReordered(super.seq, this.ids);
+
+  final List<String> ids;
+}
+
 final class InteractionRequested extends KernelEvent {
   const InteractionRequested(super.seq, this.request);
 

@@ -118,6 +118,34 @@ class Transcript {
     for (final MapEntry(:key, :value) in _queued.entries) (key, value),
   ];
 
+  /// Puts the queued messages in the order [ids] gives; returns whether
+  /// that changed it.
+  bool _reorderQueued(List<String> ids) {
+    final order = <String, UserMessageItem>{
+      for (final id in ids) id: ?_queued[id],
+    };
+    // Those not named keep their places after them.
+    for (final MapEntry(:key, :value) in _queued.entries) {
+      order.putIfAbsent(key, () => value);
+    }
+    if (_sameOrder(order.keys, _queued.keys)) return false;
+    _queued
+      ..clear()
+      ..addAll(order);
+    return true;
+  }
+
+  static bool _sameOrder(Iterable<String> a, Iterable<String> b) {
+    final left = a.iterator;
+    final right = b.iterator;
+    while (true) {
+      final hasLeft = left.moveNext();
+      if (hasLeft != right.moveNext()) return false;
+      if (!hasLeft) return true;
+      if (left.current != right.current) return false;
+    }
+  }
+
   /// The items of this session (not the earlier history), with their ids.
   Iterable<(String, ChatItem)> get liveItems sync* {
     for (var i = 0; i < _items.length; i++) {
@@ -165,6 +193,8 @@ class Transcript {
         if (!_streaming.remove(id) && item == null) return false;
       case ItemRemoved(:final id):
         if (!_remove(id)) return false;
+      case QueueReordered(:final ids):
+        if (!_reorderQueued(ids)) return false;
       case HistoryPrepended(:final items):
         if (!_prepend(items)) return false;
       case InteractionRequested(:final request):

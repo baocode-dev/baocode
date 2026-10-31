@@ -2383,6 +2383,89 @@ void main() {
       kernel.dispose();
     });
 
+    test('a queued message moved among those held here is reordered there, '
+        'the CLI left as it is', () async {
+      final cli = FakeCli(
+        answers: {
+          'cancel_async_message': {'cancelled': true},
+        },
+      );
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel
+        ..send(const KernelTurn(id: 'u1', text: 'first'))
+        ..send(const KernelTurn(id: 'u2', text: 'second'))
+        ..send(const KernelTurn(id: 'u3', text: 'third'))
+        ..send(const KernelTurn(id: 'u4', text: 'fourth'));
+      await pumpEventQueue();
+      // One waits in the CLI at a time: the rest are held here.
+      expect(cli.users.map((m) => m['uuid']), ['u1', 'u2']);
+      List<String> queued() => [for (final (id, _) in transcript.queued) id];
+      expect(queued(), ['u2', 'u3', 'u4']);
+
+      kernel.moveQueued('u4', 1);
+      await pumpEventQueue();
+      expect(queued(), ['u2', 'u4', 'u3']);
+      // Nothing taken back or sent again: it waits here either way.
+      expect(cli.requests('cancel_async_message'), isEmpty);
+      expect(cli.requests('interrupt'), isEmpty);
+      expect(cli.users.map((m) => m['uuid']), ['u1', 'u2']);
+      kernel.dispose();
+    });
+
+    test('a queued message moved before the one given the CLI is sent '
+        'before it, the turn running not stopped', () async {
+      final cli = FakeCli(
+        answers: {
+          'cancel_async_message': {'cancelled': true},
+        },
+      );
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel
+        ..send(const KernelTurn(id: 'u1', text: 'first'))
+        ..send(const KernelTurn(id: 'u2', text: 'second'))
+        ..send(const KernelTurn(id: 'u3', text: 'third'))
+        ..send(const KernelTurn(id: 'u4', text: 'fourth'));
+      await pumpEventQueue();
+
+      kernel.moveQueued('u4', 0);
+      await pumpEventQueue();
+      // The one in the CLI taken back; all sent again in the new order,
+      // the first waiting in the CLI, the rest held here.
+      expect(
+        cli.requests('cancel_async_message').map((r) => r['message_uuid']),
+        ['u2'],
+      );
+      expect(cli.requests('interrupt'), isEmpty);
+      expect(
+        [for (final m in cli.users.skip(2)) (m['message'] as Map)['content']],
+        [
+          [
+            {'type': 'text', 'text': 'fourth'},
+          ],
+        ],
+      );
+      expect(
+        [for (final (_, item) in transcript.queued) item.text],
+        ['fourth', 'second', 'third'],
+      );
+
+      cli.push({
+        'type': 'command_lifecycle',
+        'command_uuid': cli.users.last['uuid'],
+        'state': 'started',
+      });
+      await pumpEventQueue();
+      // The next held given the CLI once the one before it is taken up.
+      expect((cli.users.last['message'] as Map)['content'], [
+        {'type': 'text', 'text': 'second'},
+      ]);
+      expect(
+        [for (final (_, item) in transcript.queued) item.text],
+        ['second', 'third'],
+      );
+      kernel.dispose();
+    });
+
     test('a queued message sent now with a task in the background does not '
         'interrupt, which would end the task too: the CLI takes it up '
         'next', () async {
