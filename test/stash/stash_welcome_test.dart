@@ -61,6 +61,9 @@ void main() {
     await tester.pump();
     // In, the cards then the lines.
     await tester.pump(const Duration(milliseconds: 1500));
+    // In, what goes on moves on the shared clock's frames, not every vsync.
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.hasRunningAnimations, isFalse);
     return (closed: closed);
   }
 

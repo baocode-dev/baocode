@@ -8,7 +8,8 @@
 //   and, the engine's clock being the timeline's, to that frame's raster
 //   finishing (`toRaster`);
 // - the process's CPU time and memory: its physical footprint, the GPU's
-//   part in it (see perf_memory.dart).
+//   part in it (see perf_memory.dart);
+// - the GPU's time, the process's and WindowServer's, compositing it.
 
 import 'dart:async';
 import 'dart:developer' show Timeline;
@@ -97,6 +98,10 @@ class PerfProbe {
   /// [kind] happened now: the next frame shows it.
   void mark(PerfMark kind) => _recording?._mark(kind);
 
+  /// The scenario asked for frames itself (to let the app settle): the
+  /// phase's frames say nothing of what the app asks for at rest.
+  void forceFrames() => _recording?.forced = true;
+
   /// Something outside the scenario happened ([why]): another app came to
   /// the front, say. The phase under way is marked: its figures may say
   /// more about that than about the app.
@@ -140,7 +145,8 @@ class PerfProbe {
 
 class PerfRecording {
   PerfRecording._(this._probe, this.label)
-    : _startUs = Timeline.now,
+    : _startGpu = PerfProcess.gpuNs(),
+      _startUs = Timeline.now,
       _startCpu = PerfProcess.cpuMs(),
       _startFootprint = PerfProcess.footprint() {
     _watch.start();
@@ -152,6 +158,7 @@ class PerfRecording {
   final int _startUs;
   int? _stopUs;
   final double? _startCpu;
+  final ({int own, int windowServer})? _startGpu;
   final int _startFootprint;
   int _peakFootprint = 0;
   final Stopwatch _watch = Stopwatch();
@@ -174,6 +181,10 @@ class PerfRecording {
 
   /// What disturbed it (see [PerfProbe.disturb]).
   final Set<String> disturbed = {};
+
+  /// Whether the scenario asked for frames itself (see
+  /// [PerfProbe.forceFrames]).
+  bool forced = false;
 
   void _beat() {
     final due = _watch.elapsedMicroseconds + _beatInterval.inMicroseconds;
@@ -216,6 +227,7 @@ class PerfRecording {
     _heartbeat?.cancel();
     final cpu = PerfProcess.cpuMs();
     final wall = _watch.elapsedMicroseconds;
+    final gpu = PerfProcess.gpuNs();
     final footprint = PerfProcess.footprint();
     if (footprint > _peakFootprint) _peakFootprint = footprint;
     final parts = await PerfProcess.parts();
@@ -233,6 +245,7 @@ class PerfRecording {
     return _report(
       wallUs: wall,
       cpu: cpu,
+      gpu: gpu,
       frames: frames,
       toScene: toScene,
       footprint: footprint,
@@ -243,6 +256,7 @@ class PerfRecording {
   Map<String, Object> _report({
     required int wallUs,
     required double? cpu,
+    required ({int own, int windowServer})? gpu,
     required int frames,
     required Map<String, Object> toScene,
     required int footprint,
@@ -332,11 +346,22 @@ class PerfRecording {
       if (toRaster.isNotEmpty) 'toRasterMs': toRaster,
       if (_unseen > 0) 'unseenMarks': _unseen,
       if (disturbed.isNotEmpty) 'disturbed': disturbed.toList(),
+      if (forced) 'forcedFrames': true,
       if (cpu != null && _startCpu != null)
         'cpu': {
           'ms': (cpu - _startCpu).round(),
           // Of one core, all the process's threads: UI, raster, workers.
           'pctOfCore': ((cpu - _startCpu) / wallMs * 100).round(),
+        },
+      if ((gpu, _startGpu) case (final end?, final start?))
+        'gpu': {
+          // Of the GPU's time: busy for the app's frames, and for
+          // WindowServer's (the app's window and all others, composited).
+          'pct': ((end.own - start.own) / 1000 / wallUs * 1000).round() / 10,
+          'windowServerPct':
+              ((end.windowServer - start.windowServer) / 1000 / wallUs * 1000)
+                  .round() /
+              10,
         },
       // The physical footprint: at the start, its peak (sampled every
       // 64ms), at the end, and the end's parts.
