@@ -70,6 +70,45 @@ abstract final class PerfProcess {
     return null;
   }
 
+  /// The GPU time the system has counted, in nanoseconds: for this
+  /// process, and for WindowServer, which composites its window with the
+  /// others (on a HiDPI screen, at its full pixels). From the GPU driver's
+  /// clients in the I/O registry, as Activity Monitor's GPU column; macOS
+  /// on Apple's GPUs only, null elsewhere.
+  static ({int own, int windowServer})? gpuNs() {
+    if (!Platform.isMacOS) return null;
+    try {
+      final result = Process.runSync('ioreg', [
+        '-l',
+        '-w0',
+        '-r',
+        '-c',
+        'AGXDeviceUserClient',
+      ]);
+      final creator = RegExp(r'"IOUserClientCreator" = "pid (\d+), ([^"]*)"');
+      final time = RegExp(r'"accumulatedGPUTime"=(\d+)');
+      var own = 0, windowServer = 0, found = false;
+      for (final client in (result.stdout as String).split(
+        '+-o AGXDeviceUserClient',
+      )) {
+        final by = creator.firstMatch(client);
+        if (by == null) continue;
+        final ns = [
+          for (final match in time.allMatches(client)) int.parse(match[1]!),
+        ].fold(0, (a, b) => a + b);
+        if (int.parse(by[1]!) == pid) {
+          own += ns;
+          found = true;
+        } else if (by[2] == 'WindowServer') {
+          windowServer += ns;
+        }
+      }
+      return found ? (own: own, windowServer: windowServer) : null;
+    } on Object {
+      return null;
+    }
+  }
+
   /// Its physical footprint, in bytes (see above).
   static int footprint() => _darwin?.footprint() ?? ProcessInfo.currentRss;
 

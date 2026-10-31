@@ -4,6 +4,7 @@ import '../../browser/browser_steps.dart';
 import '../../images/image_steps.dart';
 import '../../l10n/l10n.dart';
 import '../chat_models.dart';
+import '../edit_detail.dart';
 import 'activity_row.dart';
 import 'agent_step.dart';
 import 'assistant_text.dart';
@@ -258,11 +259,15 @@ String chatItemPlainText(
       ].join('\n'),
     CodeDiffItem(:final fileName, :final lines) => [
       [
-        StepHeader.text(strings.toolEdited, fileName),
+        // A card shows only the file's name over its lines, always open.
+        if (EditDetail.current.value == EditDetail.compact)
+          StepHeader.text(strings.toolEdited, fileName)
+        else
+          fileName,
         if (item.added > 0) '+${item.added}',
         if (item.removed > 0) '-${item.removed}',
       ].join(' '),
-      if (expanded)
+      if (expanded || EditDetail.current.value == EditDetail.card)
         for (final line in lines)
           '${line.lineNumber} ${switch (line.type) {
             DiffLineType.added => '+',

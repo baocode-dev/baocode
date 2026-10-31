@@ -494,6 +494,19 @@ class TerminalRenderer {
   /// The theme's background, which the host fills the terminal with.
   ui.Color get backgroundColor => ui.Color(_backgroundArgb);
 
+  ui.Color? _background;
+
+  /// The background where the terminal is shown, over the theme's: the
+  /// fill, and what the default background stands for (an inverted cell's
+  /// text, a glyph's edges). Contrast is still worked out on the theme's.
+  set background(ui.Color? value) {
+    if (value == _background) return;
+    _background = value;
+    _clearPictures();
+    _updateColors();
+    _refreshAll();
+  }
+
   void _updateColors() {
     _colors = source.themeService.colors;
     final ansi = _colors.ansi;
@@ -501,7 +514,10 @@ class TerminalRenderer {
       _ansiArgb[i] = _opaqueArgb(ansi[i].rgba);
     }
     _foregroundArgb = _opaqueArgb(_colors.foreground.rgba);
-    _backgroundArgb = _opaqueArgb(_colors.background.rgba);
+    _backgroundArgb = switch (_background) {
+      final background? => background.withValues(alpha: 1).toARGB32(),
+      null => _opaqueArgb(_colors.background.rgba),
+    };
     _cursorArgb = argbOfRgba(_colors.cursor.rgba);
   }
 

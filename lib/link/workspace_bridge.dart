@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:bao_link/bao_link.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../bots/bot.dart';
@@ -44,6 +45,7 @@ class WorkspaceBridge {
     this.customizations,
     this.bots,
     this.throttle = const Duration(milliseconds: 150),
+    this.outputEvery = const Duration(milliseconds: 500),
   });
 
   final Workspace workspace;
@@ -68,10 +70,16 @@ class WorkspaceBridge {
   /// many more times than that.
   final Duration throttle;
 
+  /// How often a watched task's output is looked at.
+  final Duration outputEvery;
+
   /// How many agents the phone gets listed, the most recent first.
   static const maxSessions = 300;
 
   final Map<String, _Follow> _follows = {};
+
+  /// Task outputs the phone watches, by session and task.
+  final Map<String, OutputWatch> _watches = {};
   Timer? _stateTimer;
   String? _stateSent;
   bool _disposed = false;
@@ -93,7 +101,27 @@ class WorkspaceBridge {
       follow.dispose();
     }
     _follows.clear();
+    for (final watch in _watches.values) {
+      watch.dispose();
+    }
+    _watches.clear();
   }
+
+  /// A command task's output as it is now; null when there is none.
+  Future<String?> _outputOf(Object? session, Object? task) async {
+    final thread = _thread(session);
+    final path = _task(thread.session, task)?.outputFile;
+    if (path == null) return null;
+    try {
+      return await _filesOf(thread.project).files.read(path, force: true);
+    } on Object {
+      return null;
+    }
+  }
+
+  static String _tail(String text) => text.length <= LinkLimits.output
+      ? text
+      : text.substring(text.length - LinkLimits.output);
 
   // --- Ids ------------------------------------------------------------------
 
@@ -425,20 +453,30 @@ class WorkspaceBridge {
         if (task != null) session.stopTask(task);
         return null;
       case LinkMethods.output:
-        final thread = _thread(params['session']);
-        final path = _task(thread.session, params['task'])?.outputFile;
-        if (path == null) return {'text': ''};
-        try {
-          final text = await _filesOf(thread.project).files
-              .read(path, force: true);
-          return {
-            'text': text.length <= LinkLimits.output
-                ? text
-                : text.substring(text.length - LinkLimits.output),
-          };
-        } on Object {
-          return {'text': ''};
+        final text = await _outputOf(params['session'], params['task']);
+        return {'text': _tail(text ?? '')};
+      case LinkMethods.watchOutput:
+        final session = params['session'];
+        final task = params['task'];
+        if (session is! String || task is! String) {
+          throw const LinkRemoteException('bad', 'No session or task');
         }
+        final key = '$session\n$task';
+        _watches.remove(key)?.dispose();
+        final text = await _outputOf(session, task) ?? '';
+        if (_disposed) return {'text': '', 'offset': 0};
+        _watches[key] = OutputWatch(
+          session: session,
+          task: task,
+          text: text,
+          read: () => _outputOf(session, task),
+          emit: (output) => peer.emit(LinkEvents.output, output.toJson()),
+          every: outputEvery,
+        );
+        return {'text': _tail(text), 'offset': text.length};
+      case LinkMethods.unwatchOutput:
+        _watches.remove('${params['session']}\n${params['task']}')?.dispose();
+        return null;
       case LinkMethods.files:
         return _listFiles(_project(params['project']));
       case LinkMethods.read:
@@ -938,6 +976,14 @@ class _Follow {
   Timer? _timer;
   bool _disposed = false;
 
+  /// Slims what follows the first update against what was sent (see
+  /// [LinkSessionWire]).
+  final _slimmer = LinkSessionSlimmer();
+
+  /// The JSON of the first item an update changes, as sent before; set by
+  /// [_update] when it was sent.
+  Object? _before;
+
   Map<String, Object?> start() {
     _prependedSeen = session.prependedCount;
     if (window case final window?) {
@@ -946,7 +992,7 @@ class _Follow {
     session
       ..attach()
       ..addListener(_changed);
-    return _update(full: true)!.toJson();
+    return _slimmer.encode(_update(full: true)!, full: true);
   }
 
   void _changed() {
@@ -955,9 +1001,17 @@ class _Follow {
       _timer = null;
       if (_disposed) return;
       final update = _update();
-      if (update != null) peer.emit(LinkEvents.session, update.toJson());
+      if (update == null) return;
+      final full = update.start == 0 && _wasFull;
+      peer.emit(
+        LinkEvents.session,
+        _slimmer.encode(update, full: full, before: full ? null : _before),
+      );
     });
   }
+
+  /// The last [_update] was a whole one (rewound before the window).
+  bool _wasFull = false;
 
   /// What changed since last sent; everything when [full]. Null when
   /// nothing did.
@@ -1014,6 +1068,10 @@ class _Follow {
       for (var i = start; i < count; i++)
         encoded[i] ?? ChatCodec.encode(items[i]),
     ];
+    _wasFull = full;
+    _before = !full && start < count && start < _sentJson.length
+        ? jsonDecode(_sentJson[start])
+        : null;
     _sentJson = [
       ..._sentJson.take(start),
       for (final item in json) jsonEncode(item),
@@ -1156,5 +1214,79 @@ class _Follow {
     _timer?.cancel();
     session.removeListener(_changed);
     session.detach();
+  }
+}
+
+/// A task's output the phone watches: looked at every so often, and what
+/// was added sent ([LinkEvents.output]); all of its tail again when it was
+/// cut, or more came at once than the phone keeps.
+@visibleForTesting
+class OutputWatch {
+  OutputWatch({
+    required this.session,
+    required this.task,
+    required String text,
+    required this.read,
+    required this.emit,
+    required Duration every,
+  }) : _length = text.length,
+       _end = text.substring(math.max(0, text.length - 64)) {
+    _timer = Timer.periodic(every, (_) => unawaited(_look()));
+  }
+
+  final String session;
+  final String task;
+  final Future<String?> Function() read;
+  final void Function(LinkOutput output) emit;
+  late final Timer _timer;
+
+  /// How much of it the phone has.
+  int _length;
+
+  /// The end of what the phone has, to tell more added from it rewritten.
+  String _end;
+  bool _looking = false;
+  bool _disposed = false;
+
+  Future<void> _look() async {
+    if (_looking || _disposed) return;
+    _looking = true;
+    try {
+      final text = await read();
+      if (text == null || _disposed || text.length == _length) return;
+      final follows =
+          text.length > _length &&
+          text.substring(_length - _end.length, _length) == _end;
+      final added = follows ? text.length - _length : null;
+      if (added != null && added <= LinkLimits.output) {
+        emit(
+          LinkOutput(
+            session: session,
+            task: task,
+            offset: text.length,
+            text: text.substring(_length),
+          ),
+        );
+      } else {
+        emit(
+          LinkOutput(
+            session: session,
+            task: task,
+            offset: text.length,
+            text: WorkspaceBridge._tail(text),
+            reset: true,
+          ),
+        );
+      }
+      _length = text.length;
+      _end = text.substring(math.max(0, text.length - 64));
+    } finally {
+      _looking = false;
+    }
+  }
+
+  void dispose() {
+    _disposed = true;
+    _timer.cancel();
   }
 }

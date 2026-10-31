@@ -33,6 +33,10 @@ class SidePanelTab {
   /// the lines asked for once more.
   int reveal = 0;
 
+  /// Where its changes were scrolled, for them to show there again when
+  /// it is in front once more; none once it is asked for again.
+  Offset? diffScroll;
+
   /// Its file's text as edited, once read: kept while the tab is open (see
   /// [AgentSidePanel.keepEdit]); none for changes.
   SidePanelFileEdit? edit;
@@ -498,6 +502,15 @@ class AgentSidePanel extends ChangeNotifier {
     if (request.plan) return _openPlan(conversation, tabs, request);
     if (listAway && !request.diff) _listAway = true;
     final list = request.diff ? tabs.diffs : tabs.files;
+    if (request.diff) {
+      // One change at a time, as the log shows them: the one before goes,
+      // but for edits not saved.
+      list.removeWhere((tab) {
+        final other = tab.path != request.path && !tab.dirty;
+        if (other) tab._dropEdit(highlights);
+        return other;
+      });
+    }
     var tab = list.where((tab) => tab.path == request.path).firstOrNull;
     if (tab == null) {
       tab = SidePanelTab(request);
@@ -522,7 +535,8 @@ class AgentSidePanel extends ChangeNotifier {
       if (!request.preview) tab._preview = false;
       tab
         ..request = request
-        ..reveal += 1;
+        ..reveal += 1
+        ..diffScroll = null;
     }
     if (request.diff) {
       tabs

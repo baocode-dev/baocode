@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../base/step_clock.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../icons/brand_logos.dart' show BaoCodeLogo;
 import '../ide/ide_button.dart';
@@ -52,10 +53,9 @@ class _ChannelSetupWelcomeState extends State<ChannelSetupWelcome>
 
   /// The dot going from BaoCode to the browser, again and again, while it
   /// waits.
-  late final AnimationController _travel = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1500),
-  );
+  // On the shared clock's frames, not every vsync: it goes on for as
+  // long as the page shows.
+  final StepLoop _travel = StepLoop(const Duration(milliseconds: 1500));
 
   /// The channel's welcome coming in, once there is one.
   late final AnimationController _hello = AnimationController(
@@ -64,9 +64,11 @@ class _ChannelSetupWelcomeState extends State<ChannelSetupWelcome>
   );
 
   /// The windows afloat once in.
-  late final AnimationController _float = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 3600),
+  // On the shared clock's frames, not every vsync: it goes on for as
+  // long as the page shows.
+  final StepLoop _float = StepLoop(
+    const Duration(milliseconds: 3600),
+    reverse: true,
   );
 
   final _link = TextEditingController();
@@ -94,7 +96,7 @@ class _ChannelSetupWelcomeState extends State<ChannelSetupWelcome>
     _gate.addListener(_changed);
     _intro.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
-        unawaited(_float.repeat(reverse: true));
+        _float.start(context);
       }
     });
     if (_setup case final setup? when !setup.done) unawaited(setup.check());
@@ -106,6 +108,13 @@ class _ChannelSetupWelcomeState extends State<ChannelSetupWelcome>
       }
       _changed();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _float.keepTo(context);
+    _travel.keepTo(context);
   }
 
   @override
@@ -123,9 +132,9 @@ class _ChannelSetupWelcomeState extends State<ChannelSetupWelcome>
     if (!mounted) return;
     final waiting =
         (_setup?.waiting ?? false) && !(_setup?.openFailed ?? false);
-    if (waiting && !_travel.isAnimating) {
-      unawaited(_travel.repeat());
-    } else if (!waiting && _travel.isAnimating) {
+    if (waiting && !_travel.isGoing) {
+      _travel.start(context);
+    } else if (!waiting && _travel.isGoing) {
       _travel.stop();
     }
     if (_gate.stage != ChannelStage.setup && _gate.channel == null) {

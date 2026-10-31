@@ -1012,6 +1012,7 @@ class StashForge extends ChangeNotifier {
         ..title = title
         ..issue = url
         ..local = false
+        ..letGo = null
         ..synced = StashNote.syncHash(title, note.issueText)
         ..syncedRemote = _remoteHash(item);
       note.issues.removeWhere((link) => link.url == url);
@@ -1084,6 +1085,7 @@ class StashForge extends ChangeNotifier {
       note
         ..issue = null
         ..local = true
+        ..letGo = null
         ..synced = null
         ..syncedRemote = null;
       if (own != null) note.issues.removeWhere((link) => link.url == own);
@@ -1093,6 +1095,75 @@ class StashForge extends ChangeNotifier {
   /// [id]'s stash may be made an issue again (see [keepLocal]).
   Future<void> allowIssue(int id) =>
       store.update(id, (note) => note.local = false, touch: false);
+
+  /// [id]'s stash's project changed. Its issue is let go where the project
+  /// is of none of the issue's repository (or the stash is of no project
+  /// any more): neither shown nor kept in step, and not made a stash again,
+  /// as [keepLocal] has it; but kept as it was ([StashNote.letGo]), and the
+  /// stash's again once its project is one of the issue's. A project
+  /// picked by mistake and put back loses nothing.
+  Future<void> projectChanged(int id) async {
+    final note = store.byId(id);
+    final url = note?.ownIssue ?? note?.letGo?.link.url;
+    if (note == null || url == null) return;
+    final project = note.project;
+    final repo = refOf(url)?.repo;
+    final fits =
+        project != null &&
+        (repo == null || (await reposOf(project)).contains(repo));
+    final now = store.byId(id);
+    // Changed again meanwhile: that change's to tell.
+    if (now == null || now.project != project) return;
+    if (now.ownIssue != null) {
+      if (!fits) await _letGo(id);
+    } else if (fits && now.letGo != null) {
+      await _takeBack(id);
+    }
+  }
+
+  Future<void> _letGo(int id) async {
+    final own = store.byId(id)?.ownIssue;
+    if (own == null) return;
+    await store.ignoreIssue(own);
+    await store.reload();
+    await store.update(id, (note) {
+      note
+        ..letGo = StashLetGo(
+          link: note.issueOf(own) ?? StashIssueLink(url: own),
+          synced: note.synced,
+          syncedRemote: note.syncedRemote,
+        )
+        ..issue = null
+        ..local = true
+        ..synced = null
+        ..syncedRemote = null;
+      note.issues.removeWhere((link) => link.url == own);
+    }, touch: false);
+  }
+
+  Future<void> _takeBack(int id) async {
+    final letGo = store.byId(id)?.letGo;
+    if (letGo == null) return;
+    final url = letGo.link.url;
+    // Made a stash again meanwhile (picked by hand): that one's now.
+    if (store.notes.any((note) => note.ownIssue == url)) {
+      await store.update(id, (note) => note.letGo = null, touch: false);
+      return;
+    }
+    await store.unignoreIssue(url);
+    await store.reload();
+    await store.update(id, (note) {
+      note
+        ..issue = url
+        ..local = false
+        ..letGo = null
+        ..synced = letGo.synced
+        ..syncedRemote = letGo.syncedRemote;
+      note.issues
+        ..removeWhere((link) => link.url == url)
+        ..insert(0, letGo.link);
+    }, touch: false);
+  }
 
   /// [text] as it goes to [repo]'s issue: its pictures (in the stash's
   /// folder) put there and linked by their address, its other files'

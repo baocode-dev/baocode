@@ -150,6 +150,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdChatFocusPreviousPane => '聚焦上一个窗格';
 
   @override
+  String get cmdChatFocusPaneLeft => '聚焦左侧窗格';
+
+  @override
+  String get cmdChatFocusPaneRight => '聚焦右侧窗格';
+
+  @override
+  String get cmdChatFocusPaneUp => '聚焦上方窗格';
+
+  @override
+  String get cmdChatFocusPaneDown => '聚焦下方窗格';
+
+  @override
+  String get cmdChatNextPaneTab => '窗格中的下一个标签页';
+
+  @override
+  String get cmdChatPreviousPaneTab => '窗格中的上一个标签页';
+
+  @override
+  String get cmdChatTogglePaneTabs => '切换窗格标签页';
+
+  @override
+  String get workspacePaneTabs => '以标签页显示';
+
+  @override
   String get cmdChatSearch => '搜索';
 
   @override
@@ -1054,6 +1078,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuWordWrap => '自动换行';
 
   @override
+  String get cmdToggleMinimap => '切换缩略图';
+
+  @override
+  String get menuMinimap => '缩略图';
+
+  @override
   String get cmdTogglePanel => '切换面板可见性';
 
   @override
@@ -1716,6 +1746,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get agentImageUntitled => '图片';
+
+  @override
+  String get chatTitleSummarize => '总结新标题';
+
+  @override
+  String get chatTitleSummarizing => '正在总结…';
+
+  @override
+  String get chatTitleSummarizeFailed => '未能生成标题，再试一次';
 
   @override
   String get sidebarNewAgent => '新对话';
@@ -4529,6 +4568,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get langNavigationUnavailable => '此文件没有可用于代码跳转的语言服务器。';
+
+  @override
+  String langNavigationInstall(String id) {
+    return '安装“$id”语言服务器后，即可在此文件中跳转到定义和引用。';
+  }
+
+  @override
   String get langReferences => '引用';
 
   @override
@@ -4665,6 +4712,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get termKillTerminal => '终止终端';
+
+  @override
+  String get termKillOtherTerminals => '终止其他终端';
+
+  @override
+  String get termKillAllTerminals => '终止所有终端';
+
+  @override
+  String get termStopAllTasks => '停止所有运行中的任务';
+
+  @override
+  String get termRunInNewTerminal => '在新终端中运行';
 
   @override
   String get termNoTerminals => '没有终端';
@@ -4888,6 +4947,26 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get workspaceClosePane => '关闭窗格';
+
+  @override
+  String workspaceCloseBackTo(String title) {
+    return '关闭窗格，回到「$title」';
+  }
+
+  @override
+  String workspaceCovers(String title) {
+    return '覆盖在「$title」之上，关闭后恢复';
+  }
+
+  @override
+  String workspaceCovered(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '下面还有 $count 个会话',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get workspaceLoadingProjects => '正在加载项目…';
@@ -7130,6 +7209,24 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get appearanceSettingsEditDetail => '文件编辑';
+
+  @override
+  String get appearanceSettingsEditDetailDescription =>
+      'Agent 编辑文件时在对话中的样子：直接显示为改动卡片；或者省略为一行，点开才看到改动。';
+
+  @override
+  String get appearanceSettingsEditDetailCard => '显示改动';
+
+  @override
+  String get appearanceSettingsEditDetailCompact => '省略';
+
+  @override
+  String appearanceSettingsEditDetailLabel(String detail) {
+    return '文件编辑：$detail';
+  }
+
+  @override
   String get appearanceSettingsReplyScroll => '回复时滚动';
 
   @override
@@ -7247,6 +7344,13 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get appearanceSettingsWordWrapDescription =>
       '长行在编辑器宽度处折行，所有编辑器共用。编辑器右键菜单和命令面板（切换自动换行）也能切换。超过 5000 行的文件不折行。';
+
+  @override
+  String get appearanceSettingsCodeMinimap => '代码缩略图';
+
+  @override
+  String get appearanceSettingsCodeMinimapDescription =>
+      '代码编辑器右侧显示整个文件的缩略图，所有编辑器共用；编辑器太窄时不显示。编辑器标签页右键菜单和命令面板（切换缩略图）也能切换。';
 
   @override
   String get appearanceSettingsUiScale => '界面大小';
@@ -8214,13 +8318,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileSettingsDescription =>
-      '在手机上的 BaoCode 里查看并操作这台电脑的智能体，经由局域网或公网直连。两端之间的内容端到端加密。';
+      '在手机上的 BaoCode 里查看并操作这台电脑的智能体：同一网络里直接连；跨网时自动打洞直连；都不行时经 BaoCode 中继。两端之间的内容端到端加密，中继也看不到。';
 
   @override
   String get mobileAllow => '允许手机连接';
 
   @override
-  String get mobileAllowDescription => '与这台电脑配对过的手机可以直接连接它。';
+  String get mobileAllowDescription => '与这台电脑配对过的手机，无论在哪里都可以连接它。';
 
   @override
   String get mobileStatus => '状态';
@@ -8232,53 +8336,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileStatusStarting => '正在启动…';
 
   @override
-  String mobileStatusListening(int port) {
-    return '正在监听端口 $port';
-  }
-
-  @override
   String mobileStatusFailed(String error) {
-    return '无法监听：$error';
+    return '无法启动：$error';
   }
 
   @override
-  String get mobileAddresses => '地址';
+  String get mobileRelay => '中继';
 
   @override
-  String get mobileAddressesDescription => '手机按此顺序尝试连接这台电脑：先局域网，再公网。';
-
-  @override
-  String get mobileAddressesNone => '未找到可用的网络。';
-
-  @override
-  String get mobileAddressesRefresh => '刷新';
-
-  @override
-  String get mobilePort => '端口';
-
-  @override
-  String get mobilePortDescription => '手机连接的端口。在路由器上转发此端口，即可从公网访问这台电脑。';
-
-  @override
-  String mobilePortInvalid(String text) {
-    return '不是有效端口：$text。请填写 1 到 65535 之间的数字。';
-  }
-
-  @override
-  String get mobilePublicAddress => '公网地址';
-
-  @override
-  String get mobilePublicAddressDescription =>
-      '可从公网访问这台电脑的域名或 IP（需转发端口），会写入二维码；多个用逗号分隔。经只收 HTTPS 的代理（如 Cloudflare Tunnel）访问时，写成 wss://域名。公网 IPv6 地址会自动加入。';
-
-  @override
-  String get mobileRelay => '中转';
-
-  @override
-  String get mobileRelayDescription => '当这台电脑的地址都无法直连时，经由 BaoCode 中转服务连接。即将推出。';
-
-  @override
-  String get mobileRelayUnavailable => '暂不可用';
+  String get mobileRelayDescription =>
+      '手机无法直连这台电脑时经中继连接，中继只转发两端加密后的内容。手机上不用设置：配对时、以及之后每次连接时，它会从这里得知。';
 
   @override
   String get mobilePair => '配对手机';
@@ -8369,6 +8436,70 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobilePairAllow => '允许';
+
+  @override
+  String mobileStatusOnline(String relay) {
+    return '已开启，可经 $relay 连接';
+  }
+
+  @override
+  String get mobileStatusNoRelay => '已开启；还没连上中继，暂时只有同一网络里的手机能连';
+
+  @override
+  String mobileStatusDenied(String reason) {
+    return '已开启，但中继拒绝了这台电脑：$reason';
+  }
+
+  @override
+  String get mobileRelayInvalid => '不是中继地址，应形如 https://relay.example.com';
+
+  @override
+  String get mobileRelayPinned => '指定的中继';
+
+  @override
+  String get mobileRelayCustom => '自定义';
+
+  @override
+  String get mobileRelayCustomAddress => '自定义地址';
+
+  @override
+  String get mobileRelayCustomDescription => '你自己部署的中继（baocode-relay）的地址。';
+
+  @override
+  String get mobileRelayMode => '方式';
+
+  @override
+  String get mobileRelayModeAuto => '自动';
+
+  @override
+  String get mobileRelayModeAutoDescription => '使用 BaoCode 的中继，自动选最近的一台。';
+
+  @override
+  String get mobileRelayModePinned => '手动指定';
+
+  @override
+  String get mobileRelayModePinnedDescription =>
+      '只用你指定的一台：BaoCode 的某一台，或自定义地址。';
+
+  @override
+  String get mobilePathLan => '局域网直连';
+
+  @override
+  String get mobilePathDirect => '打洞直连';
+
+  @override
+  String get mobilePathRelay => '经中继';
+
+  @override
+  String mobilePathRtt(int ms) {
+    return '$ms 毫秒';
+  }
+
+  @override
+  String get mobileLegacyPhone => '需要重新配对：连接方式升级前配对的';
+
+  @override
+  String get mobileLegacyRepair => '重新配对';
 
   @override
   String get settingsSectionStash => 'Stash';
@@ -9011,9 +9142,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get branchBarDetached => '分离的 HEAD';
-
-  @override
-  String get branchBarRunning => 'Agent 运行时不能切换分支';
 
   @override
   String branchBarFailed(String branch) {
@@ -10728,10 +10856,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get diffRevertChange => '回滚';
+  String get diffRevertChange => '撤销这处改动（改回左边的样子）';
 
   @override
-  String get diffRemoveChange => '删除';
+  String get diffRemoveChange => '撤销这处改动（删掉新加的这几行）';
 
   @override
   String get diffPreviousDifference => '上一处差异';
@@ -10792,9 +10920,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get diffHighlightLines => '按行高亮';
-
-  @override
-  String get diffHighlightNone => '不高亮';
 
   @override
   String get diffGoToFile => '转到改动的文件';
@@ -11353,11 +11478,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get gitChangelistDelete => '删除变更列表';
-
-  @override
-  String gitChangelistTurn(String request) {
-    return 'AI：$request';
-  }
 
   @override
   String get gitStashChangesTitle => '暂存改动（Stash）';

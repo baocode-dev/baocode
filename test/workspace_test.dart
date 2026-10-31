@@ -428,6 +428,34 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
+  testWidgets('a title summed up on request is from all that was asked, '
+      'and left to the user to keep', (tester) async {
+    final renames = <String>[];
+    final asked = <String>[];
+    final workspace = await pumpLoaded(
+      tester,
+      kernel: titledClaude(renames),
+      titler: (message, {model, location}) async {
+        asked.add(message);
+        return 'Generated ${asked.length}';
+      },
+    );
+    final thread = workspace.selected;
+    thread.session.send(const ComposerMessage(text: 'Fix the login test'));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    expect(thread.title, 'Generated 1');
+
+    expect(askedTitles(thread.session), ['Fix the login test']);
+    final summary = await workspace.summarizeTitle(thread);
+    expect(summary, 'Generated 2');
+    expect(asked.last, 'Fix the login test');
+    expect(thread.title, 'Generated 1');
+    thread.session.stop();
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   testWidgets('renamed in Claude Code (/rename), it is named so here too '
       '(#171)', (tester) async {
     final renames = <String>[];
@@ -1002,7 +1030,7 @@ void main() {
         (thread) => thread.record?.id == FakeCatalog.kept.id,
       );
       workspace.openBeside(kept, draft, PaneSide.right);
-      workspace.grid.columnRatio = .3;
+      workspace.grid.setColumnRatioIn(0, .3);
       workspace.keepGridLines();
 
       // The next run.
@@ -1017,7 +1045,7 @@ void main() {
       expect(workspace.grid.at(0), same(panes.first));
       expect(workspace.grid.at(1), same(panes.last));
       expect(workspace.selected, same(panes.last));
-      expect(workspace.grid.columnRatio, .3);
+      expect(workspace.grid.columnRatios, [.3, .3]);
     });
 
     testWidgets("an agent that is no more leaves its pane to the others", (

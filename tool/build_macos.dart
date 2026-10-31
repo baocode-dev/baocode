@@ -95,6 +95,8 @@ const _required = [
   'Contents/Frameworks/App.framework/Resources/flutter_assets',
   // The terminal's native half (bao_pty's hook/build.dart builds it).
   'Contents/Frameworks/bao_pty.framework',
+  // The phones' link: iroh (bao_iroh's hook/build.dart builds it).
+  'Contents/Frameworks/bao_iroh.framework',
   // Finder's context menu (macos/FinderExtension), which Settings → General
   // turns on.
   'Contents/PlugIns/FinderExtension.appex',

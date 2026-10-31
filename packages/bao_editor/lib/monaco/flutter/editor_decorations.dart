@@ -392,6 +392,7 @@ class EditorDecoration {
     this.underlineStyle,
     this.overlayColor,
     this.marginColor,
+    this.gutterBarColor,
     this.lineDecorationIcon,
     this.lineDecorationColor,
     this.fillsLineOnLineBreak = false,
@@ -450,6 +451,10 @@ class EditorDecoration {
   /// The gutter's background on each line (`marginClassName`, e.g. a diff's
   /// `gutter-insert`).
   final Color? marginColor;
+
+  /// A bar at the gutter's left edge by each line (a unified diff's
+  /// inserted lines).
+  final Color? gutterBarColor;
 
   /// An icon on each line between the line numbers and the text
   /// (`linesDecorationsClassName`, e.g. a diff's `insert-sign`), in
@@ -534,6 +539,7 @@ class EditorDecoration {
           underlineStyle: underlineStyle,
           overlayColor: overlayColor,
           marginColor: marginColor,
+          gutterBarColor: gutterBarColor,
           lineDecorationIcon: lineDecorationIcon,
           lineDecorationColor: lineDecorationColor,
           fillsLineOnLineBreak: fillsLineOnLineBreak,
@@ -631,6 +637,7 @@ class EditorDecoration {
       other.underlineStyle == underlineStyle &&
       other.overlayColor == overlayColor &&
       other.marginColor == marginColor &&
+      other.gutterBarColor == gutterBarColor &&
       other.lineDecorationIcon == lineDecorationIcon &&
       other.lineDecorationColor == lineDecorationColor &&
       other.fillsLineOnLineBreak == fillsLineOnLineBreak &&
@@ -668,6 +675,7 @@ class EditorDecoration {
     underlineStyle,
     overlayColor,
     marginColor,
+    gutterBarColor,
     lineDecorationIcon,
     lineDecorationColor,
     fillsLineOnLineBreak,

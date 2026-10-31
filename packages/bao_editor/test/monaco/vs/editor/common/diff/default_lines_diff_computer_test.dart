@@ -190,6 +190,32 @@ void main() {
       expect(changes.single.modified.startLineNumber, 2);
     });
 
+    test('ignore all whitespace: lines joined into one with a real change, '
+        'the sides still lined up', () {
+      final changes = diff(
+        [
+          "import 'a.dart';",
+          '',
+          "import 'stub.dart'",
+          "    if (dart.library.io) 'io.dart'",
+          '    as platform;',
+          '',
+          'void main() {}',
+        ],
+        [
+          "import 'a.dart';",
+          '',
+          "import 'io.dart' as platform;",
+          '',
+          'void main() {}',
+        ],
+        ignoreAll: true,
+      ).changes;
+      expect(changes, hasLength(1));
+      expect(changes.single.original.toString(), '[3,6)');
+      expect(changes.single.modified.toString(), '[3,4)');
+    });
+
     test('simple three-line move is detected, not removed from changes', () {
       const moved = ['long first line', 'long second line', 'long third line'];
       const stationary = [

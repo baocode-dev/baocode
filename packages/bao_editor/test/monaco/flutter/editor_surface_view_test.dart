@@ -38,6 +38,8 @@ Future<FocusNode> _mount(
   FoldingRules? foldingRules,
   void Function(int lineNumber, Offset globalPosition)? onChangeBarTap,
   EditorLineAnnotations? lineAnnotations,
+  bool alwaysConsumeMouseWheel = true,
+  bool scrollBeyondLastLine = true,
 }) async {
   final focus = FocusNode();
   addTearDown(focus.dispose);
@@ -55,6 +57,8 @@ Future<FocusNode> _mount(
             foldingRules: foldingRules,
             onChangeBarTap: onChangeBarTap,
             lineAnnotations: lineAnnotations,
+            alwaysConsumeMouseWheel: alwaysConsumeMouseWheel,
+            scrollBeyondLastLine: scrollBeyondLastLine,
           ),
         ),
       ),
@@ -797,6 +801,28 @@ void main() {
     await trackpad.panZoomEnd();
   });
 
+  testWidgets('one that gives the wheel up where it cannot move still takes '
+      'shift+wheel across', (tester) async {
+    // All of its lines in view: it cannot move down, only across.
+    final controller = _controller('line 0\n${'x' * 400}');
+    controller.select(0, 0);
+    await _mount(
+      tester,
+      controller,
+      alwaysConsumeMouseWheel: false,
+      scrollBeyondLastLine: false,
+    );
+    final center = tester.getCenter(find.byType(EditorSurface));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendEventToBinding(
+      PointerScrollEvent(position: center, scrollDelta: const Offset(0, 120)),
+    );
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+    await tester.pump(WheelGlide.duration);
+    expect(_painter<EditorTextPainter>(tester).scrollLeft, 120);
+  });
+
   testWidgets('a wheel notch taken up mid-way goes on from where the view '
       'is, adding to what the last had left; a trackpad stops it', (
     tester,
@@ -1095,8 +1121,10 @@ void main() {
     expect(offset, inExclusiveRange(0, long.length));
 
     final big = _controller(
-      [long, for (var i = 0; i < EditorSurface.maxWrappedLines; i++) 'x']
-          .join('\n'),
+      [
+        long,
+        for (var i = 0; i < EditorSurface.maxWrappedLines; i++) 'x',
+      ].join('\n'),
     );
     await _mount(tester, big, wrap: true);
     layout = _gutter(tester).layout;

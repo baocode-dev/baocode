@@ -115,29 +115,30 @@ void main() {
       contains('show --textconv HEAD:lib/a.dart'),
     );
     expect(find.byType(DiffEditor), findsOneWidget);
-    expect(find.byType(EditorSurface), findsNWidgets(2));
+    // Unified: the file's editor alone.
+    expect(find.byType(EditorSurface), findsOneWidget);
 
     // `two` became `TWO`: the deleted line shows above it in the file's
-    // editor; beside the inserted lines, the original makes room.
-    final modified = surface(tester, original: false);
+    // editor, numbered as HEAD numbers it.
+    final modified = tester.widget<EditorSurface>(find.byType(EditorSurface));
     expect(modified.viewZones, hasLength(1));
     expect(modified.viewZones.single.afterLineNumber, 1);
     expect(modified.viewZones.single.heightInLines, 1);
-    final original = surface(tester, original: true);
-    expect(original.glyphMargin, isFalse);
-    expect(original.viewZones.map((zone) => zone.afterLineNumber), [2, 3]);
+    expect(modified.viewZones.single.firstLineNumber, 2);
+    expect(modified.verticalScrollbar, isFalse);
   });
 
   testWidgets('side by side in a wide editor', (tester) async {
     await pumpScm(tester, size: const Size(2400, 800));
     await open(tester, 'a.dart');
     expect(find.byType(DiffEditor), findsOneWidget);
+    // Not aligned with zones: each scrolls on its own, the original's line
+    // numbers at the split.
     expect(surface(tester, original: false).viewZones, isEmpty);
     final original = surface(tester, original: true);
-    expect(original.glyphMargin, isTrue);
-    // `four`, which the original has not, is filled in after `three`.
-    expect(original.viewZones.single.afterLineNumber, 3);
-    expect(original.viewZones.single.heightInLines, 1);
+    expect(original.viewZones, isEmpty);
+    expect(original.lineNumbers, isFalse);
+    expect(original.glyphMargin, isFalse);
   });
 
   testWidgets('the diff tab and the file\'s share the text; the diff tab '

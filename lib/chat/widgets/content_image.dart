@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show SynchronousFuture;
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../../base/step_clock.dart';
 import '../../theme/app_theme.dart';
 import '../chat_models.dart';
 import '../side_panel/file_link.dart';
@@ -387,24 +388,32 @@ class ImageShimmer extends StatefulWidget {
   State<ImageShimmer> createState() => _ImageShimmerState();
 }
 
-class _ImageShimmerState extends State<ImageShimmer>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: ImageShimmer.period,
-  );
+class _ImageShimmerState extends State<ImageShimmer> {
+  // A step each of the shared clock's frames, not every vsync: a band of
+  // light that smooth is all it needs.
+  final StepClock _clock = StepClock(StepClock.frame);
   late final Timer _start;
+  bool _started = false;
 
   @override
   void initState() {
     super.initState();
-    _start = Timer(widget.startAfter, _controller.repeat);
+    _start = Timer(widget.startAfter, () {
+      _started = true;
+      _clock.keepTo(context);
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) _clock.keepTo(context);
   }
 
   @override
   void dispose() {
     _start.cancel();
-    _controller.dispose();
+    _clock.dispose();
     super.dispose();
   }
 
@@ -420,9 +429,11 @@ class _ImageShimmerState extends State<ImageShimmer>
     return ColoredBox(
       color: base,
       child: AnimatedBuilder(
-        animation: _controller,
+        animation: _clock,
         builder: (context, _) {
-          if (!_controller.isAnimating) return const SizedBox.expand();
+          if (!_clock.isRunning) return const SizedBox.expand();
+          final period = ImageShimmer.period.inMicroseconds;
+          final swept = _clock.time.inMicroseconds % period / period;
           return SizedBox.expand(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -436,7 +447,7 @@ class _ImageShimmerState extends State<ImageShimmer>
                   ],
                   stops: const [.3, .5, .7],
                   // From wholly before it to wholly past it.
-                  transform: _Sliding(_controller.value * 2 - 1),
+                  transform: _Sliding(swept * 2 - 1),
                 ),
               ),
             ),

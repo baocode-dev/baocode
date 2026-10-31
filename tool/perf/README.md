@@ -41,7 +41,10 @@ when others were not.
 - `chat.*`: an agent streaming at a model's usual pace, a fast one's and
   more (`stream`, `stream_fast`, `stream_flood`), below a long conversation
   (`long_history`), at work with many tools (`tools`), four side by side
-  (`grid`) or out of sight (`background`); scrolling (`scroll`).
+  (`grid`) or out of sight (`background`); scrolling (`scroll`); at work
+  with nothing to stream (`working`: waiting on the model, a tool running,
+  four agents at once), where only the shared clock's frames should be
+  drawn.
 - `ide.*`: Fast Ide on a 9,000-line TypeScript file: opening it and
   switching files (`open`), typing (`typing`), scrolling (`scroll`).
 - `mix.*`: the two at once: typing while agents stream
@@ -77,6 +80,9 @@ when others were not.
     (`composer`); both then left alone, to see the app at rest.
   - `idle.app`: the app left alone, nothing focused, on the chat and on
     the IDE: it should draw nothing.
+  - `ui.working`: an agent at work (a subagent running) looked at from all
+    over the app: the conversation, the side panel, the IDE, the stashes'
+    page; no more than the shared clock's 30 frames a second, wherever.
   - `scroll.*`: a sidebar of 60 agents (`sidebar`), the stashes' cards
     (`stash`).
   - `memory.soak`: six rounds of a session's work (an agent answering, the
@@ -144,6 +150,9 @@ For each phase of each scenario:
 | `toSceneMs.<mark>` | From something happening to the end of the next frame on the UI isolate (the scene handed to the raster thread). |
 | `toRasterMs.<mark>` | From it to that frame's raster finishing: on screen at the next refresh. Only where the engine's clock is the timeline's (`app.clockShared`), as it is. |
 | `cpu.pctOfCore` | The process's CPU time (all threads) over the phase, in % of one core. |
+| `frames.perSecond` | Frames drawn a second. Each draws the whole window again (macOS's engine hands over the whole surface), however little changed: what the GPU does is about this many times the window. |
+| `gpu.pct` | The GPU's time for the app's frames, in % of the phase (macOS on Apple's GPUs: the GPU driver's count in the I/O registry, as Activity Monitor's GPU column). |
+| `gpu.windowServerPct` | The same for WindowServer, which composites the app's window with all others: the machine's, so only to compare runs made alike (other apps at rest, the installed BaoCode hidden). |
 | `memoryMb` | The physical footprint (Activity Monitor's memory, the GPU's for the app in it): at the start, its peak, at the end; and, on macOS, the end's parts, by `footprint`: `gpu` (Metal textures, IOSurfaces), `malloc` (the engine, Skia, fonts), `vmAllocate` (mostly the Dart heap). |
 
 The marks: `delta` (streamed text read from the CLI), `key` (a key typed),
@@ -170,6 +179,16 @@ executable does not give it by itself. `BAOCODE_PERF_FOOTPRINT=1` logs the
 footprint's every part after each phase, and `BAOCODE_PERF_HEAP=1` the Dart
 heaps and their largest classes (with the VM service's own 30MB in the
 footprint).
+
+## Drawing with nothing to show
+
+A phase with no input, no text streamed and no frames the scenario asked
+for (`c.settle`) that still draws more than 40 frames a second (the shared
+clock's 30, and some) is listed under `Drawing with nothing to show`:
+something moving at every vsync, 144 times a second and more, where the
+shared clock's frames would do (see `StepClock`, `StepLoop`). `--trace`
+then says what: under the report, each phase's widgets built anew and in
+how many of its frames, those that ask for the frames first.
 
 ## Finding where the time goes
 

@@ -1,20 +1,20 @@
 import 'dart:typed_data';
 
 import 'identity.dart';
-import 'pairing.dart';
 
 /// How a desktop makes itself known on its LAN, by DNS-SD (Bonjour,
 /// mDNS): for the phones paired with it to find it again wherever its
 /// address moves to, and for new ones to list it among those nearby.
 ///
 /// What it tells is public: its name and key, and whether it pairs now. A
-/// phone still checks the key in the handshake, so one pretending to be
-/// it gets nowhere.
+/// phone dials the key, which the desktop has to prove, so one pretending
+/// to be it gets nowhere.
 abstract final class LinkDiscovery {
-  /// The DNS-SD service type.
+  /// The DNS-SD service type. The port is the desktop's UDP one (QUIC);
+  /// the type keeps its old name, as the phones' app manifests list it.
   static const type = '_baocode._tcp';
 
-  static const version = '1';
+  static const version = '2';
 }
 
 /// A desktop as it advertises itself, and as a phone finds it: the TXT
@@ -72,9 +72,9 @@ class LinkAdvert {
     'p': pairing ? '1' : '0',
   };
 
-  /// Where to connect: IPv4 first; not link-local IPv6 addresses, which
-  /// need an interface named.
-  List<DirectEndpoint> get endpoints {
+  /// Where to dial (`ip:port`): IPv4 first; not link-local IPv6 addresses,
+  /// which need an interface named.
+  List<String> get addrs {
     final usable = [
       for (final address in addresses)
         if (!address.toLowerCase().startsWith('fe80') && !address.contains('%'))
@@ -82,9 +82,9 @@ class LinkAdvert {
     ];
     return [
       for (final address in usable)
-        if (!address.contains(':')) DirectEndpoint(address, port),
+        if (!address.contains(':')) '$address:$port',
       for (final address in usable)
-        if (address.contains(':')) DirectEndpoint(address, port),
+        if (address.contains(':')) '[$address]:$port',
     ];
   }
 

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/ide/lsp_ui/language_widgets.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';
@@ -212,6 +215,139 @@ void main() {
     await settle(tester);
     await settle(tester);
     expect(workspace.active!.path, inRoot(_b));
+  });
+
+  testWidgets('F12 waits for a starting server instead of dropping the '
+      'request', (tester) async {
+    final ready = Completer<void>();
+    final languages = FakeLanguageFeatures(supported: {})
+      ..statuses[inRoot(_a)] = const [
+        LanguageServerStatus(
+          serverId: 'dart',
+          state: LanguageServerState.starting,
+        ),
+      ]
+      ..onDefinition = (path, position) async {
+        await ready.future;
+        return [LspLocation(uriOf(_b), lspRange(0, 4, 7))];
+      };
+    final workspace = await pumpLanguageWorkbench(
+      tester,
+      _files,
+      languages,
+      open: [_a],
+    );
+    await caretAt(tester, offsetOf(tester, 'foo') + 1);
+    await press(tester, LogicalKeyboardKey.f12);
+    expect(languages.count('definition'), 1);
+    expect(workspace.active!.path, inRoot(_a));
+
+    languages.supported.add(LanguageRequest.definition);
+    languages.setStatus(inRoot(_a), const [
+      LanguageServerStatus(
+        serverId: 'dart',
+        state: LanguageServerState.running,
+      ),
+    ]);
+    ready.complete();
+    await settle(tester);
+    await settle(tester);
+    expect(workspace.active!.path, inRoot(_b));
+    expect(surfaceController(tester).value.selection.extentOffset, 4);
+  });
+
+  testWidgets('Ctrl/Cmd+click offers installation when the server is missing', (
+    tester,
+  ) async {
+    final languages = FakeLanguageFeatures(supported: {})
+      ..statuses[inRoot(_a)] = const [
+        LanguageServerStatus(
+          serverId: 'dart-analyzer',
+          state: LanguageServerState.missing,
+          installable: true,
+        ),
+      ];
+    await pumpLanguageWorkbench(tester, _files, languages, open: [_a]);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await mouse.down(globalAt(tester, offsetOf(tester, 'foo') + 1));
+    await mouse.up();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        "Install the 'dart-analyzer' language server to enable "
+        'code navigation in this file.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Install'));
+    await settle(tester);
+    expect(languages.installed, ['dart-analyzer']);
+  });
+
+  testWidgets('Shift+F12 offers retry when the language server failed', (
+    tester,
+  ) async {
+    final languages = FakeLanguageFeatures(supported: {})
+      ..statuses[inRoot(_a)] = const [
+        LanguageServerStatus(
+          serverId: 'dart',
+          state: LanguageServerState.failed,
+          message: 'Could not start dart',
+        ),
+      ];
+    await pumpLanguageWorkbench(tester, _files, languages, open: [_a]);
+    await caretAt(tester, offsetOf(tester, 'foo'));
+    await press(tester, LogicalKeyboardKey.f12, shift: true);
+    await settle(tester, const Duration(milliseconds: 300));
+    expect(find.text('dart failed\nCould not start dart'), findsOneWidget);
+    await tester.tap(find.text('Retry Language Services'));
+    await settle(tester);
+    expect(languages.retried, ['dart']);
+  });
+
+  testWidgets('missing runtime is explained instead of offering an install', (
+    tester,
+  ) async {
+    final languages = FakeLanguageFeatures(supported: {})
+      ..statuses[inRoot(_a)] = const [
+        LanguageServerStatus(
+          serverId: 'typescript-language-server',
+          state: LanguageServerState.missing,
+          installable: true,
+          missingRuntime: 'node',
+        ),
+      ];
+    await pumpLanguageWorkbench(tester, _files, languages, open: [_a]);
+    await press(tester, LogicalKeyboardKey.f12);
+    await settle(tester, const Duration(milliseconds: 300));
+    expect(
+      find.text(
+        "Installing 'typescript-language-server' needs node, "
+        'which was not found. Install node, then try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Install'), findsNothing);
+    expect(languages.installed, isEmpty);
+  });
+
+  testWidgets('no navigation provider is distinct from no matching symbol', (
+    tester,
+  ) async {
+    final languages = FakeLanguageFeatures(supported: {});
+    await pumpLanguageWorkbench(tester, _files, languages, open: [_a]);
+    await press(tester, LogicalKeyboardKey.f12);
+    expect(
+      find.text(
+        'No language server is available for code navigation '
+        'in this file.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('F12 centers a definition already in view', (tester) async {

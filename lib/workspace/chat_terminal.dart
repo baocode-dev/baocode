@@ -18,7 +18,6 @@ import '../l10n/l10n.dart';
 import '../sidebar/sidebar.dart' show SidebarIconButton;
 import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
-import '../theme/workbench_theme.dart' show themeColors;
 import 'terminal_deck.dart';
 
 /// Toggle Terminal (⌃`): the chat window's panel, as the IDE's.
@@ -281,9 +280,9 @@ class ChatTerminalArea extends StatefulWidget {
   /// Opens a link ⌘-clicked (Ctrl-clicked off macOS) in a terminal.
   final ValueChanged<TerminalLink>? onOpenLink;
 
-  /// The strip at the panel's top edge that takes the drag; its line is
-  /// at the bottom of it, against the panel.
-  static const sashHeight = 5.0;
+  /// The line between the conversation and the panel; the drag is taken
+  /// over a strip about it ([_ChatTerminalAreaState._grip]), above both.
+  static const sashHeight = 1.0;
 
   @override
   State<ChatTerminalArea> createState() => _ChatTerminalAreaState();
@@ -297,6 +296,9 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
 
   ChatTerminals get _terminals => widget.terminals;
   String get _root => widget.root;
+
+  /// How much more than the line the sash takes, half on each side.
+  static const _grip = 4.0;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -313,29 +315,49 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
               : null,
           minAbove: IdeRows.minChat,
         );
+        final panel = shown && service != null && rows.panel > 0;
         // The conversations stay the first child, whether the panel shows
         // or not, so they are never built anew for it.
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        return Stack(
+          fit: StackFit.expand,
           children: [
-            Expanded(child: widget.child),
-            if (shown && service != null && rows.panel > 0) ...[
-              _sash(rows, room),
-              SizedBox(
-                height: rows.panel,
-                child: _ChatTerminalPanel(
-                  // The shared panel can move to another pane of the same
-                  // project without remounting its focused terminal.
-                  key: GlobalObjectKey(service),
-                  terminals: _terminals,
-                  root: _root,
-                  service: service,
-                  tasks: widget.tasks,
-                  files: widget.files,
-                  onOpenLink: widget.onOpenLink,
-                ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: widget.child),
+                if (panel) ...[
+                  // The line where the conversation ends, the panel's tabs
+                  // right under it.
+                  ColoredBox(
+                    color: AppColors.partBorder,
+                    child: const SizedBox(height: ChatTerminalArea.sashHeight),
+                  ),
+                  SizedBox(
+                    height: rows.panel,
+                    child: _ChatTerminalPanel(
+                      // The shared panel can move to another pane of the
+                      // same project without remounting its focused
+                      // terminal.
+                      key: GlobalObjectKey(service),
+                      terminals: _terminals,
+                      root: _root,
+                      service: service,
+                      tasks: widget.tasks,
+                      files: widget.files,
+                      onOpenLink: widget.onOpenLink,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            if (panel)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: rows.panel - _grip / 2,
+                height: _grip + ChatTerminalArea.sashHeight,
+                child: _sash(rows, room),
               ),
-            ],
           ],
         );
       },
@@ -372,18 +394,13 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
       onVerticalDragEnd: (_) => _endDrag(),
       onVerticalDragCancel: _endDrag,
       onDoubleTap: () => setState(() => _terminals.setHeight(_root, null)),
-      child: Container(
-        height: ChatTerminalArea.sashHeight,
-        // The panel's own top, nothing under it showing through; the line
-        // where the conversation ends.
-        color: themeColors.get('terminal.background') ?? AppColors.code,
-        alignment: Alignment.topCenter,
-        // At rest the line between the two; dragged, as thick as the IDE's
-        // sashes, in their `sash.hoverBorder`.
+      // At rest the line under it shows; dragged, as thick as the IDE's
+      // sashes, in their `sash.hoverBorder`.
+      child: Center(
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
-          height: _dragging ? IdeModernUI.gap : 1,
-          color: _dragging ? IdeModernUI.sashHover : AppColors.partBorder,
+          height: _dragging ? IdeModernUI.gap : ChatTerminalArea.sashHeight,
+          color: _dragging ? IdeModernUI.sashHover : Colors.transparent,
         ),
       ),
     ),

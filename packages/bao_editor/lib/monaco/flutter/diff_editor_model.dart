@@ -5,23 +5,22 @@
 // 6a598d4a13031703d483d103c1d934a36ad27971:
 // src/vs/editor/browser/widget/diffEditor/diffEditorViewModel.ts (the diff,
 // computed again 200ms after either side changes),
-// components/diffEditorViewZones/diffEditorViewZones.ts (`computeRangeAlignment`
-// and the view zones each editor gets from it) and
 // components/diffEditorDecorations.ts with registrations.contribution.ts (the
 // decorations).
 //
 // Deviations: until the diff is computed again, an edit does not move it
 // (upstream's `applyModifiedEdits`); the diff is computed on this isolate
 // for a few thousand characters ([isSmallLinesDiff]), one at a time on
-// another past them; no moved code, hidden unchanged regions, word wrap, or
-// other view zones to align with.
+// another past them; no moved code. The two sides are not aligned with
+// zones (JetBrains' diff, joined across the split instead), and the inline
+// view's deleted code is the only zone; changed lines have no signs, the
+// inline view a bar at the gutter's edge.
 
 import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
-import 'package:flutter/widgets.dart' show IconData;
 
 import '../vs/editor/common/core/position.dart';
 import '../vs/editor/common/core/range.dart';
@@ -123,22 +122,24 @@ class DiffEditorModel extends ChangeNotifier {
       maxComputationTimeMs: maxComputationTimeMs,
     );
     LinesDiff diff;
-    if (isSmallLinesDiff(originalLines, modifiedLines)) {
-      diff = DefaultLinesDiffComputer().computeDiff(
-        originalLines,
-        modifiedLines,
-        options,
-      );
-    } else {
-      _computing = true;
+    try {
+      final result = _diff(originalLines, modifiedLines, options);
+      diff = result is Future<LinesDiff> ? await result : result;
+    } on Object catch (error, stack) {
+      // A diff with a fault of its own (one of the whitespace options', say)
+      // still shown: compared plainly, else as all of it changed.
+      _report(error, stack);
       try {
-        diff = await computeLinesDiffOnIsolate(
+        if (!ignoreTrimWhitespace && !ignoreAllWhitespace) rethrow;
+        final result = _diff(
           originalLines,
           modifiedLines,
-          options,
+          LinesDiffComputerOptions(maxComputationTimeMs: maxComputationTimeMs),
         );
-      } finally {
-        _computing = false;
+        diff = result is Future<LinesDiff> ? await result : result;
+      } on Object catch (error, stack) {
+        if (!identical(error, _reported)) _report(error, stack);
+        diff = _allChanged(originalLines, modifiedLines);
       }
     }
     if (_disposed) return;
@@ -156,6 +157,85 @@ class DiffEditorModel extends ChangeNotifier {
     }
   }
 
+  /// [original] against [modified]: here (at once) for a few thousand
+  /// characters, else on another isolate.
+  FutureOr<LinesDiff> _diff(
+    List<String> original,
+    List<String> modified,
+    LinesDiffComputerOptions options,
+  ) {
+    if (debugComputeDiff case final compute?) {
+      return compute(original, modified, options);
+    }
+    if (isSmallLinesDiff(original, modified)) {
+      return DefaultLinesDiffComputer().computeDiff(
+        original,
+        modified,
+        options,
+      );
+    }
+    return _offIsolate(original, modified, options);
+  }
+
+  Future<LinesDiff> _offIsolate(
+    List<String> original,
+    List<String> modified,
+    LinesDiffComputerOptions options,
+  ) async {
+    _computing = true;
+    try {
+      return await computeLinesDiffOnIsolate(original, modified, options);
+    } finally {
+      _computing = false;
+    }
+  }
+
+  /// Compares the texts in place of the diff computer, for tests.
+  @visibleForTesting
+  static LinesDiff Function(
+    List<String> original,
+    List<String> modified,
+    LinesDiffComputerOptions options,
+  )?
+  debugComputeDiff;
+
+  /// The last fault reported, not reported again as it is rethrown.
+  Object? _reported;
+
+  void _report(Object error, StackTrace stack) {
+    _reported = error;
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'diff editor',
+        context: ErrorDescription('while comparing the two texts'),
+      ),
+    );
+  }
+
+  /// Every line of [original] replaced by every line of [modified]; no
+  /// change where they are the same.
+  static LinesDiff _allChanged(List<String> original, List<String> modified) {
+    if (listEquals(original, modified)) return const LinesDiff([], [], false);
+    return LinesDiff(
+      [
+        DetailedLineRangeMapping(
+          LineRange(1, original.length + 1),
+          LineRange(1, modified.length + 1),
+          [
+            RangeMapping(
+              Range(1, 1, original.length, original.last.length + 1),
+              Range(1, 1, modified.length, modified.last.length + 1),
+            ),
+          ],
+        ),
+      ],
+      [],
+      false,
+    );
+  }
+
   static List<String> _lines(DocumentSnapshot snapshot) => [
     for (var i = 0; i < snapshot.lineCount; i++)
       snapshot.text.substring(snapshot.lineStarts[i], snapshot.contentEnds[i]),
@@ -171,188 +251,36 @@ class DiffEditorModel extends ChangeNotifier {
   }
 }
 
-/// Lines of the two sides shown beside each other (`ILineRangeAlignment`):
-/// the one with fewer lines gets a zone to make up the rest.
-class DiffAlignment {
-  DiffAlignment(this.originalRange, this.modifiedRange, this.diff);
-
-  final LineRange originalRange;
-  final LineRange modifiedRange;
-
-  /// The change this alignment is part of.
-  final DetailedLineRangeMapping? diff;
-}
-
-/// `computeRangeAlignment` without line heights of its own (no word wrap or
-/// other view zones): per change, or, [innerHunkAlignment], also at each
-/// inner change with unchanged text before or after it on its line.
-List<DiffAlignment> computeDiffAlignments(
-  List<DetailedLineRangeMapping> diffs,
-  DocumentSnapshot original, {
-  required bool innerHunkAlignment,
-}) {
-  final result = <DiffAlignment>[];
-  for (final c in diffs) {
-    var first = true;
-    var lastModLineNumber = c.modified.startLineNumber;
-    var lastOrigLineNumber = c.original.startLineNumber;
-
-    void emitAlignment(
-      int origLineNumberExclusive,
-      int modLineNumberExclusive, {
-      bool forceAlignment = false,
-    }) {
-      if (origLineNumberExclusive < lastOrigLineNumber ||
-          modLineNumberExclusive < lastModLineNumber) {
-        return;
-      }
-      if (first) {
-        first = false;
-      } else if (!forceAlignment &&
-          (origLineNumberExclusive == lastOrigLineNumber ||
-              modLineNumberExclusive == lastModLineNumber)) {
-        // This causes a re-alignment of an already aligned line. However, we
-        // don't care for the final alignment.
-        return;
-      }
-      final originalRange = LineRange(
-        lastOrigLineNumber,
-        origLineNumberExclusive,
-      );
-      final modifiedRange = LineRange(
-        lastModLineNumber,
-        modLineNumberExclusive,
-      );
-      if (originalRange.isEmpty && modifiedRange.isEmpty) return;
-      result.add(DiffAlignment(originalRange, modifiedRange, c));
-      lastOrigLineNumber = origLineNumberExclusive;
-      lastModLineNumber = modLineNumberExclusive;
-    }
-
-    if (innerHunkAlignment) {
-      for (final i in c.innerChanges ?? const <RangeMapping>[]) {
-        if (i.originalRange.startColumn > 1 &&
-            i.modifiedRange.startColumn > 1) {
-          // There is some unmodified text on this line before the diff.
-          emitAlignment(
-            i.originalRange.startLineNumber,
-            i.modifiedRange.startLineNumber,
-          );
-        }
-        // When the diff is invalid, the ranges might be out of bounds.
-        final end = i.originalRange.endLineNumber;
-        final maxColumn = end <= original.lineCount
-            ? original.contentEnds[end - 1] - original.lineStarts[end - 1] + 1
-            : 1 << 53;
-        if (i.originalRange.endColumn < maxColumn) {
-          // There is some unmodified text on this line after the diff.
-          emitAlignment(
-            i.originalRange.endLineNumber,
-            i.modifiedRange.endLineNumber,
-          );
-        }
-      }
-    }
-    emitAlignment(
-      c.original.endLineNumberExclusive,
-      c.modified.endLineNumberExclusive,
-      forceAlignment: true,
-    );
-  }
-  return result;
-}
-
-/// What a zone of a diff editor shows.
-enum DiffZoneKind {
-  /// `diagonal-fill`: lines the other side has.
-  fill,
-
-  /// The inline view's deleted code, from the original.
-  deletedCode,
-}
-
-/// A zone for one of a diff editor's editors, in lines.
+/// The inline view's deleted code: [deleted], the original's lines a
+/// change took out, shown above the modified's lines it put in.
 class DiffZone {
   const DiffZone({
     required this.afterLineNumber,
-    required this.heightInLines,
-    required this.kind,
-    this.deleted,
-    this.diff,
-    this.gutterDelete = false,
+    required this.deleted,
+    required this.diff,
   });
 
+  /// The modified's line the zone goes after (0 for the top).
   final int afterLineNumber;
-  final double heightInLines;
-  final DiffZoneKind kind;
-
-  /// The original's lines a [DiffZoneKind.deletedCode] zone shows.
-  final LineRange? deleted;
+  final LineRange deleted;
 
   /// The change the zone is for.
-  final DetailedLineRangeMapping? diff;
+  final DetailedLineRangeMapping diff;
 
-  /// The margin is `gutter-delete` (the inline view's original editor).
-  final bool gutterDelete;
+  double get heightInLines => deleted.length.toDouble();
 }
 
-/// The zones of `DiffEditorViewZones.viewZones`: side by side, the side
-/// with fewer lines is filled up; inline, the modified editor shows the
-/// deleted code above the change, and the original editor, only its line
-/// numbers showing, makes room beside the inserted lines.
-({List<DiffZone> original, List<DiffZone> modified}) computeDiffZones(
-  List<DiffAlignment> alignments, {
-  required bool sideBySide,
-}) {
-  final original = <DiffZone>[];
-  final modified = <DiffZone>[];
-  for (final a in alignments) {
-    if (a.diff != null && !sideBySide) {
-      if (!a.originalRange.isEmpty) {
-        modified.add(
-          DiffZone(
-            afterLineNumber: a.modifiedRange.startLineNumber - 1,
-            heightInLines: a.originalRange.length.toDouble(),
-            kind: DiffZoneKind.deletedCode,
-            deleted: a.originalRange,
-            diff: a.diff,
-          ),
-        );
-      }
-      original.add(
-        DiffZone(
-          afterLineNumber: a.originalRange.endLineNumberExclusive - 1,
-          heightInLines: a.modifiedRange.length.toDouble(),
-          kind: DiffZoneKind.fill,
-          diff: a.diff,
-          gutterDelete: true,
-        ),
-      );
-      continue;
-    }
-    final delta = a.modifiedRange.length - a.originalRange.length;
-    if (delta > 0) {
-      original.add(
-        DiffZone(
-          afterLineNumber: a.originalRange.endLineNumberExclusive - 1,
-          heightInLines: delta.toDouble(),
-          kind: DiffZoneKind.fill,
-          diff: a.diff,
-        ),
-      );
-    } else if (delta < 0) {
-      modified.add(
-        DiffZone(
-          afterLineNumber: a.modifiedRange.endLineNumberExclusive - 1,
-          heightInLines: -delta.toDouble(),
-          kind: DiffZoneKind.fill,
-          diff: a.diff,
-        ),
-      );
-    }
-  }
-  return (original: original, modified: modified);
-}
+/// A zone for each change that took lines out of the original, above the
+/// lines it put in the modified.
+List<DiffZone> computeDiffZones(List<DetailedLineRangeMapping> diffs) => [
+  for (final diff in diffs)
+    if (!diff.original.isEmpty)
+      DiffZone(
+        afterLineNumber: diff.modified.startLineNumber - 1,
+        deleted: diff.original,
+        diff: diff,
+      ),
+];
 
 /// The colors of a diff, from the color theme (`diffEditor.*`).
 class DiffEditorColors {
@@ -363,10 +291,11 @@ class DiffEditorColors {
     required this.removedText,
     required this.insertedGutter,
     required this.removedGutter,
-    required this.diagonalFill,
     required this.overviewInserted,
     required this.overviewRemoved,
-    required this.signForeground,
+    this.overviewModified,
+    this.insertedBar,
+    this.removedBar,
     this.insertedTextBorder,
     this.removedTextBorder,
     this.unchangedBackground,
@@ -390,15 +319,27 @@ class DiffEditorColors {
           color('diffEditorGutter.insertedLineBackground') ?? insertedLine,
       removedGutter:
           color('diffEditorGutter.removedLineBackground') ?? removedLine,
-      diagonalFill: color('diffEditor.diagonalFill'),
-      // `diffOverviewRulerInserted`, else the inserted text's at double.
+      // `diffOverviewRulerInserted`, else the editor's change marks', else
+      // the inserted text's at double.
       overviewInserted:
           color('diffEditorOverview.insertedForeground') ??
+          color('editorOverviewRuler.addedForeground') ??
           _doubled(insertedText),
       overviewRemoved:
           color('diffEditorOverview.removedForeground') ??
+          color('editorOverviewRuler.deletedForeground') ??
           _doubled(removedText),
-      signForeground: color('editor.foreground'),
+      overviewModified:
+          color('editorOverviewRuler.modifiedForeground') ??
+          color('editorGutter.modifiedBackground'),
+      insertedBar:
+          color('editorGutter.addedBackground') ??
+          color('editorOverviewRuler.addedForeground') ??
+          _doubled(insertedText),
+      removedBar:
+          color('editorGutter.deletedBackground') ??
+          color('editorOverviewRuler.deletedForeground') ??
+          _doubled(removedText),
       insertedTextBorder: color('diffEditor.insertedTextBorder'),
       removedTextBorder: color('diffEditor.removedTextBorder'),
       unchangedBackground:
@@ -420,12 +361,17 @@ class DiffEditorColors {
   final Color? removedText;
   final Color? insertedGutter;
   final Color? removedGutter;
-  final Color? diagonalFill;
   final Color? overviewInserted;
   final Color? overviewRemoved;
 
-  /// The insert and delete signs' (`.insert-sign`, the editor's color).
-  final Color? signForeground;
+  /// The overview's mark for a change that both took lines out and put
+  /// some in; [overviewInserted]'s without it.
+  final Color? overviewModified;
+
+  /// The bars at the gutter's edge by inserted and deleted lines (the
+  /// inline view's), and the lines across the split where a side has none.
+  final Color? insertedBar;
+  final Color? removedBar;
   final Color? insertedTextBorder;
   final Color? removedTextBorder;
 
@@ -443,10 +389,11 @@ class DiffEditorColors {
       other.removedText == removedText &&
       other.insertedGutter == insertedGutter &&
       other.removedGutter == removedGutter &&
-      other.diagonalFill == diagonalFill &&
       other.overviewInserted == overviewInserted &&
       other.overviewRemoved == overviewRemoved &&
-      other.signForeground == signForeground &&
+      other.overviewModified == overviewModified &&
+      other.insertedBar == insertedBar &&
+      other.removedBar == removedBar &&
       other.insertedTextBorder == insertedTextBorder &&
       other.removedTextBorder == removedTextBorder &&
       other.unchangedBackground == unchangedBackground &&
@@ -460,10 +407,11 @@ class DiffEditorColors {
     removedText,
     insertedGutter,
     removedGutter,
-    diagonalFill,
     overviewInserted,
     overviewRemoved,
-    signForeground,
+    overviewModified,
+    insertedBar,
+    removedBar,
     insertedTextBorder,
     removedTextBorder,
     unchangedBackground,
@@ -503,14 +451,11 @@ enum DiffHighlight { characters, words, lines, none }
   return (start, end);
 }
 
-/// `diff-insert` and `diff-remove`: the codicons `add` and `remove`.
-const IconData diffInsertIcon = IconData(0xea60, fontFamily: 'codicon');
-const IconData diffRemoveIcon = IconData(0xeb3b, fontFamily: 'codicon');
-
-/// `DiffEditorDecorations`, with `renderIndicators` and
-/// `experimental.showEmptyDecorations`: each changed line's background,
-/// margin and sign, and each inner change's text background (the whole
-/// line's, where the other side has no lines).
+/// `DiffEditorDecorations`, with `experimental.showEmptyDecorations`: each
+/// changed line's background and margin ([gutterBars], the modified's with
+/// a bar at its edge as well), and each inner change's text background.
+/// Lines changed whole (the other side has none, or an inner change is all
+/// of them) have their line's background alone, not the text's over it.
 ({List<EditorDecoration> original, List<EditorDecoration> modified})
 computeDiffDecorations(
   List<DetailedLineRangeMapping> diffs,
@@ -518,6 +463,7 @@ computeDiffDecorations(
   DocumentSnapshot modified,
   DiffEditorColors colors, {
   DiffHighlight highlight = DiffHighlight.characters,
+  bool gutterBars = false,
 }) {
   final background = highlight != DiffHighlight.none;
   final originalDecorations = <EditorDecoration>[];
@@ -551,8 +497,6 @@ computeDiffDecorations(
           isWholeLine: true,
           backgroundColor: background ? colors.removedLine : null,
           marginColor: colors.removedGutter,
-          lineDecorationIcon: diffRemoveIcon,
-          lineDecorationColor: colors.signForeground,
           overviewRulerColor: colors.overviewRemoved,
         ),
       );
@@ -565,38 +509,12 @@ computeDiffDecorations(
           isWholeLine: true,
           backgroundColor: background ? colors.insertedLine : null,
           marginColor: colors.insertedGutter,
-          lineDecorationIcon: diffInsertIcon,
-          lineDecorationColor: colors.signForeground,
+          gutterBarColor: gutterBars ? colors.insertedBar : null,
           overviewRulerColor: colors.overviewInserted,
         ),
       );
     }
-    if (!background) continue;
-    if (m.modified.isEmpty || m.original.isEmpty) {
-      if (originalLines case (final start, final end)) {
-        originalDecorations.add(
-          EditorDecoration(
-            start: start,
-            end: end,
-            isWholeLine: true,
-            backgroundColor: colors.removedText,
-            borderColor: colors.removedTextBorder,
-          ),
-        );
-      }
-      if (modifiedLines case (final start, final end)) {
-        modifiedDecorations.add(
-          EditorDecoration(
-            start: start,
-            end: end,
-            isWholeLine: true,
-            backgroundColor: colors.insertedText,
-            borderColor: colors.insertedTextBorder,
-          ),
-        );
-      }
-      continue;
-    }
+    if (!background || m.modified.isEmpty || m.original.isEmpty) continue;
     if (highlight == DiffHighlight.lines) continue;
     final words = highlight == DiffHighlight.words;
     (int, int) span(DocumentSnapshot snapshot, Range range) {
@@ -605,35 +523,43 @@ computeDiffDecorations(
       return words ? diffWordRange(snapshot.text, start, end) : (start, end);
     }
 
+    // An inner change that is all of the lines on a side: they are marked
+    // whole already.
+    bool whole((int, int)? lines, int start, int end) =>
+        lines != null && start <= lines.$1 && end >= lines.$2;
     for (final i in m.innerChanges ?? const <RangeMapping>[]) {
       // Don't show empty markers outside the line range.
       if (_contains(m.original, i.originalRange.startLineNumber) &&
           i.originalRange.endLineNumber <= original.lineCount) {
         final (start, end) = span(original, i.originalRange);
-        originalDecorations.add(
-          EditorDecoration(
-            start: start,
-            end: end,
-            backgroundColor: colors.removedText,
-            borderColor: colors.removedTextBorder,
-            fillsLineOnLineBreak: true,
-            marksEmpty: true,
-          ),
-        );
+        if (!whole(originalLines, start, end)) {
+          originalDecorations.add(
+            EditorDecoration(
+              start: start,
+              end: end,
+              backgroundColor: colors.removedText,
+              borderColor: colors.removedTextBorder,
+              fillsLineOnLineBreak: true,
+              marksEmpty: true,
+            ),
+          );
+        }
       }
       if (_contains(m.modified, i.modifiedRange.startLineNumber) &&
           i.modifiedRange.endLineNumber <= modified.lineCount) {
         final (start, end) = span(modified, i.modifiedRange);
-        modifiedDecorations.add(
-          EditorDecoration(
-            start: start,
-            end: end,
-            backgroundColor: colors.insertedText,
-            borderColor: colors.insertedTextBorder,
-            fillsLineOnLineBreak: true,
-            marksEmpty: true,
-          ),
-        );
+        if (!whole(modifiedLines, start, end)) {
+          modifiedDecorations.add(
+            EditorDecoration(
+              start: start,
+              end: end,
+              backgroundColor: colors.insertedText,
+              borderColor: colors.insertedTextBorder,
+              fillsLineOnLineBreak: true,
+              marksEmpty: true,
+            ),
+          );
+        }
       }
     }
   }

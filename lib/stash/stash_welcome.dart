@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../base/step_clock.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../icons/brand_logos.dart' show BaoCodeLogo;
 import '../ide/ide_button.dart';
@@ -47,9 +48,11 @@ class _StashWelcomeState extends State<StashWelcome>
   )..forward();
 
   /// The cards afloat once in.
-  late final AnimationController _float = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 3600),
+  // On the shared clock's frames, not every vsync: it goes on for as
+  // long as the page shows.
+  final StepLoop _float = StepLoop(
+    const Duration(milliseconds: 3600),
+    reverse: true,
   );
 
   @override
@@ -57,9 +60,15 @@ class _StashWelcomeState extends State<StashWelcome>
     super.initState();
     _intro.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
-        unawaited(_float.repeat(reverse: true));
+        _float.start(context);
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _float.keepTo(context);
   }
 
   @override

@@ -6,6 +6,7 @@
 //
 //   flutter test tool/live/bots_live_host.dart \
 //     [--dart-define=BAOCODE_LIVE_DIR=/tmp/bots] [--dart-define=LIVE_MINUTES=2]
+//     [--dart-define=BAOCODE_LIVE_RELAY=http://127.0.0.1:3340]
 //
 // It writes <dir>/offer.txt (a temporary folder unless set), its log in
 // <dir>/live.log, and listens until LIVE_MINUTES have passed.
@@ -77,10 +78,12 @@ void main() {
       bots: bots,
     );
     await host.load();
-    await host.setPort(47199);
+    // A relay of one's own (a baocode-relay --dev, say) besides BaoCode's.
+    const relay = String.fromEnvironment('BAOCODE_LIVE_RELAY');
+    if (relay.isNotEmpty) await host.setCustomRelays([relay]);
     final offer = (await host.beginPairing())!;
     File('${dir.path}/offer.txt').writeAsStringSync(offer.uri);
-    say('offer ${offer.endpoints}');
+    say('offer ${offer.id} relays ${offer.relays} addrs ${offer.addrs}');
     host.addListener(() {
       if (host.pending case final pending?) {
         say('pairing ${pending.code}');

@@ -6,7 +6,9 @@ import '../../base/smooth_scroll.dart';
 import '../../theme/app_theme.dart';
 import 'finite_selection_edges.dart';
 import 'hover_builder.dart';
+import 'hover_scrollbar.dart';
 import 'image_thumbnails.dart' show PreviewClick, PreviewPressScope;
+import 'scroll_edge_fade.dart';
 import 'shimmer_text.dart';
 import 'wheel_latch.dart';
 
@@ -251,6 +253,11 @@ class StepBody extends StatefulWidget {
     this.followEnd = false,
     this.overlay,
     this.header,
+    this.fadeEdges = false,
+    this.scrollbar = false,
+    this.codeBlock = false,
+    this.keepWheel = false,
+    this.bottom,
   });
 
   final Widget child;
@@ -265,6 +272,25 @@ class StepBody extends StatefulWidget {
 
   /// Above [child], a line under it, staying while [child] scrolls.
   final Widget? header;
+
+  /// No background of its own: a frame on the conversation; else a dark
+  /// box.
+  final bool codeBlock;
+
+  /// Whether [child] fades out towards an edge more of it is scrolled past
+  /// ([ScrollEdgeFade]), as the conversation does; not with [followEnd].
+  final bool fadeEdges;
+
+  /// Whether a scrollbar shows while the mouse is over it ([HoverScrollbar]).
+  final bool scrollbar;
+
+  /// Whether a wheel over it, once it scrolls at all, is its own at its ends
+  /// too ([WheelLatch.keep]).
+  final bool keepWheel;
+
+  /// Along the bottom of what scrolls, over [child]: scrollbars across it,
+  /// say, shown while the mouse is over it ([hovered]).
+  final Widget Function(BuildContext context, bool hovered)? bottom;
 
   @override
   State<StepBody> createState() => _StepBodyState();
@@ -309,32 +335,56 @@ class _StepBodyState extends State<StepBody> {
   @override
   Widget build(BuildContext context) {
     final StepBody(:child, :maxHeight, :padding, :overlay, :header) = widget;
-    Widget body = Stack(
+    // The line between the sidebar and the conversation.
+    final line = AppColors.partBorder;
+    Widget scroll = SingleChildScrollView(
+      controller: _controller,
+      reverse: widget.followEnd,
+      padding: padding,
+      child: FiniteSelectionEdges(
+        child: WheelLatch(
+          keep: widget.keepWheel,
+          child: SizedBox(width: double.infinity, child: child),
+        ),
+      ),
+    );
+    if (widget.fadeEdges) {
+      scroll = ScrollEdgeFade(fadeLength: 12, child: scroll);
+    }
+    Widget stack(bool hovered) => Stack(
       children: [
         ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxHeight),
-          child: SingleChildScrollView(
-            controller: _controller,
-            reverse: widget.followEnd,
-            padding: padding,
-            child: FiniteSelectionEdges(
-              child: WheelLatch(
-                child: SizedBox(width: double.infinity, child: child),
-              ),
-            ),
-          ),
+          child: widget.scrollbar
+              ? Scrollbar(
+                  controller: _controller,
+                  thumbVisibility: hovered,
+                  child: scroll,
+                )
+              : scroll,
         ),
+        if (widget.bottom case final bottom?)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: bottom(context, hovered),
+          ),
         if (overlay case final overlay?)
           Positioned(top: 6, right: 6, child: overlay),
       ],
     );
+    // Its scrollbars show while the mouse is over it ([HoverScrollbar]).
+    Widget body = widget.scrollbar || widget.bottom != null
+        ? HoverBuilder(builder: (context, hovered) => stack(hovered))
+        : stack(false);
     if (header case final header?) {
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           header,
-          Divider(height: 1, thickness: 1, color: AppColors.partBorder),
+          Divider(height: 1, thickness: 1, color: line),
           body,
         ],
       );
@@ -343,9 +393,10 @@ class _StepBodyState extends State<StepBody> {
       width: double.infinity,
       margin: const EdgeInsets.only(top: 2, bottom: 6),
       decoration: BoxDecoration(
-        color: AppColors.code,
+        // A code block's lies on the conversation itself.
+        color: widget.codeBlock ? null : AppColors.code,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.partBorder),
+        border: Border.all(color: line),
       ),
       clipBehavior: Clip.antiAlias,
       child: body,

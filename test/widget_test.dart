@@ -300,9 +300,7 @@ void main() {
   });
 
   testWidgets('a mouse wheel scrolls the history as far as it says, as '
-      'Chrome does', (
-    tester,
-  ) async {
+      'Chrome does', (tester) async {
     await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
     for (var i = 0; i < 3; i++) {
       await tester.pump();
@@ -538,10 +536,7 @@ void main() {
     expect(thoughts, greaterThanOrEqualTo(3));
     // Whole turns, except that the first may start partway (after its
     // folded steps, before its edit and command).
-    expect(
-      'Edited main.dart'.allMatches(text).length - thoughts,
-      inInclusiveRange(0, 1),
-    );
+    expect(_edits.allMatches(text).length - thoughts, inInclusiveRange(0, 1));
     expect(
       'Ran flutter test'.allMatches(text).length - thoughts,
       inInclusiveRange(0, 1),
@@ -654,7 +649,7 @@ void main() {
         final thoughts = _foldedSteps.allMatches(text).length;
         expect(thoughts, greaterThanOrEqualTo(3));
         expect('flutter test'.allMatches(text).length, thoughts + 1);
-        expect('Edited main.dart'.allMatches(text).length, thoughts);
+        expect(_edits.allMatches(text).length, thoughts);
       }
 
       final first = await scrollAndShiftClick();
@@ -790,6 +785,9 @@ void main() {
 
 /// A mock turn's thought, read and search, folded into one line.
 final _foldedSteps = RegExp(r'Read 1 file, searched 1 pattern');
+
+/// An edit's card, as it copies: its file's name and counts.
+final _edits = RegExp(r'^main\.dart \+', multiLine: true);
 
 /// The scrollbar, not the minimap that stands in for it where there is room.
 void _scrollbarOnly() {

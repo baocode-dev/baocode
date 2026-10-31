@@ -40,7 +40,7 @@ jobs:
       commit: ${{ steps.version.outputs.commit }}
       publish: ${{ steps.version.outputs.publish }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: baocode-dev/mobile
           ssh-key: ${{ secrets.MOBILE_DEPLOY_KEY }}
@@ -80,16 +80,16 @@ jobs:
     env:
       MARKETING: ${{ needs.check.outputs.marketing }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: monad
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: baocode-dev/mobile
           ref: ${{ needs.check.outputs.commit }}
           ssh-key: ${{ secrets.MOBILE_DEPLOY_KEY }}
           path: mobile
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -98,6 +98,11 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+      # bao_iroh's Rust (the link), built by its build hook for the
+      # phone's targets.
+      - uses: ./monad/.github/actions/setup-rust
+        with:
+          dir: monad/packages/bao_iroh/rust
       - name: Put the release key in a file
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
@@ -114,7 +119,7 @@ jobs:
           flutter build apk --release
           mkdir -p ../out
           cp build/app/outputs/flutter-apk/app-release.apk "../out/BaoCode-$MARKETING-android.apk"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: android
           if-no-files-found: error
@@ -144,10 +149,10 @@ jobs:
       ASC_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
       ASC_ISSUER: ${{ secrets.NOTARY_ISSUER }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           path: monad
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: baocode-dev/mobile
           ref: ${{ needs.check.outputs.commit }}
@@ -158,6 +163,11 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+      # bao_iroh's Rust (the link), built by its build hook for the
+      # phone's targets.
+      - uses: ./monad/.github/actions/setup-rust
+        with:
+          dir: monad/packages/bao_iroh/rust
       - name: Put the certificate in a keychain, and the profile where Xcode finds it
         run: |
           keychain="$RUNNER_TEMP/signing.keychain-db"
@@ -257,7 +267,7 @@ jobs:
       AWS_REQUEST_CHECKSUM_CALCULATION: when_required
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
@@ -304,7 +314,7 @@ jobs:
       AWS_REQUEST_CHECKSUM_CALCULATION: when_required
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true

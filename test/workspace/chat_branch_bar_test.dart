@@ -1,7 +1,7 @@
 // Under the chat input, the Git branch the agent works on: switched from
-// its menu, not while the agent works; a workspace's folders each with
-// theirs; only the name without a repository. Worktrees made and switched
-// to from it.
+// its menu, while the agent works too; a workspace's folders' branch, or
+// each one's; only the name without a repository. Worktrees made and
+// switched to from it.
 
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/ide/git/git_repository.dart';
@@ -236,8 +236,9 @@ void main() {
     );
   });
 
-  testWidgets('nothing to switch while the agent works', (tester) async {
-    final git = _git('/work/monad').repository();
+  testWidgets('switches while the agent works too', (tester) async {
+    final fake = _git('/work/monad');
+    final git = fake.repository();
     addTearDown(git.dispose);
     await _pump(
       tester,
@@ -246,7 +247,11 @@ void main() {
     );
     await tester.tap(find.text('main'));
     await tester.pumpAndSettle();
-    expect(find.text('feature'), findsNothing);
+    await tester.tap(find.text('feature'));
+    await tester.pumpAndSettle();
+    expect(fake.callsTo('checkout'), [
+      ['checkout', '-q', 'feature'],
+    ]);
   });
 
   testWidgets('a folder without Git shows its name only', (tester) async {
@@ -261,8 +266,8 @@ void main() {
   });
 
   testWidgets("a workspace's folder worked on in another worktree: its "
-      "branch and worktree after the workspace's name, while the agent "
-      'works too', (tester) async {
+      'branch and worktree, the workspace\'s name and the worktree on '
+      'hover, while the agent works too', (tester) async {
     final monad =
         (_git('/work/monad-wt', branch: 'feature')
               ..worktrees =
@@ -281,9 +286,10 @@ void main() {
       workspace: true,
       repositories: [('/work/monad', monad), ('/work/relay', relay)],
     );
-    expect(find.text('BaoCode · feature · monad-wt'), findsOneWidget);
+    const label = 'monad: feature · monad-wt, relay: main';
+    expect(find.text(label), findsOneWidget);
     expect(
-      find.byTooltip('In worktree monad-wt\n/work/monad-wt'),
+      find.byTooltip('BaoCode\n\nIn worktree monad-wt\n/work/monad-wt'),
       findsOneWidget,
     );
     await _pump(
@@ -293,7 +299,27 @@ void main() {
       workspace: true,
       repositories: [('/work/monad', monad), ('/work/relay', relay)],
     );
-    expect(find.text('BaoCode · feature · monad-wt'), findsOneWidget);
+    expect(find.text(label), findsOneWidget);
+    await tester.tap(find.text(label));
+    await tester.pumpAndSettle();
+    expect(find.text('relay'), findsOneWidget);
+  });
+
+  testWidgets("a workspace's folders all on one branch: that branch, `*` "
+      'when any has changes', (tester) async {
+    final monad = _git('/work/monad', changes: ' M a.dart\x00').repository();
+    final relay = _git('/work/relay').repository();
+    for (final git in [monad, relay]) {
+      addTearDown(git.dispose);
+    }
+    await _pump(
+      tester,
+      name: 'BaoCode',
+      workspace: true,
+      repositories: [('/work/monad', monad), ('/work/relay', relay)],
+    );
+    expect(find.text('main*'), findsOneWidget);
+    expect(find.text('BaoCode'), findsNothing);
   });
 
   testWidgets("a workspace's folders, each with its branch", (tester) async {
@@ -313,8 +339,9 @@ void main() {
         ('/work/notes', notes),
       ],
     );
-    expect(find.text('BaoCode'), findsOneWidget);
-    await tester.tap(find.text('BaoCode'));
+    const label = 'monad: main, relay: feature';
+    expect(find.text(label), findsOneWidget);
+    await tester.tap(find.text(label));
     await tester.pumpAndSettle();
     expect(find.text('monad'), findsOneWidget);
     expect(find.text('main'), findsOneWidget);

@@ -316,11 +316,16 @@ void main() {
     // In the table's place, the editor left as it was.
     expect(find.byType(IdeCodeDiff), findsOneWidget);
     expect(workspace.active, isNull);
-    // A step to the next change, and back to the log.
-    expect(find.text('2 / 3'), findsOneWidget);
+    // Back to the log after.
+    // As the list has them: a step to the next, selected there too.
+    expect(find.text('1 / 3'), findsOneWidget);
+    IdeGitCommitPanelState panel() =>
+        tester.state(find.byType(IdeGitCommitPanel));
+    expect(panel().selectedFile, endsWith('a.dart'));
     await tester.tap(find.byTooltip(RegExp('^Next File')));
     await tester.pumpAndSettle();
-    expect(find.text('3 / 3'), findsOneWidget);
+    expect(find.text('2 / 3'), findsOneWidget);
+    expect(panel().selectedFile, endsWith('staged.dart'));
     await tester.tap(find.byTooltip(RegExp('^Back to Log')));
     await tester.pumpAndSettle();
     expect(find.byType(IdeCodeDiff), findsNothing);

@@ -30,6 +30,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../chat/chat_models.dart' show CommandStatus;
+import '../../keybindings/keybinding_service.dart';
 import '../../kernel/kernel_types.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
@@ -65,29 +66,62 @@ String? terminalKeyLabel(List<IdeKeybinding> bindings) {
   return null;
 }
 
-/// A tab's context menu: Rename..., then Kill Terminal ([onKill] where
-/// given); in [l10n]'s language (English when null).
+/// A tab's context menu: New Terminal ([onNew] where given); Rename...
+/// ([onRename], else in place); Clear; then Kill Terminal, the others and
+/// all of them ([onKill] each, where given); in [l10n]'s language
+/// (English when null).
 List<IdeMenuEntry> terminalTabMenu(
   TerminalService terminals,
   TerminalInstance instance, {
   AppLocalizations? l10n,
   ValueChanged<TerminalInstance>? onKill,
-}) => ideMenuGroups([
-  [
-    IdeMenuAction(
-      (l10n ?? englishLocalizations).termRename,
-      keybinding: terminalKeyLabel(TerminalTabKeys.rename),
-      onSelected: () => terminals.startRename(instance),
-    ),
-  ],
-  [
-    IdeMenuAction(
-      (l10n ?? englishLocalizations).termKillTerminal,
-      keybinding: terminalKeyLabel(TerminalTabKeys.kill),
-      onSelected: () => (onKill ?? terminals.kill)(instance),
-    ),
-  ],
-]);
+  VoidCallback? onNew,
+  VoidCallback? onRename,
+}) {
+  final strings = l10n ?? englishLocalizations;
+  final kill = onKill ?? (each) => terminals.kill(each);
+  final others = [
+    for (final each in terminals.instances)
+      if (each != instance) each,
+  ];
+  return ideMenuGroups([
+    [
+      if (onNew != null)
+        IdeMenuAction(
+          strings.termNewTerminal,
+          keybinding: KeybindingService.instance.labelFor(
+            'workbench.action.terminal.new',
+          ),
+          onSelected: onNew,
+        ),
+    ],
+    [
+      IdeMenuAction(
+        strings.termRename,
+        keybinding: terminalKeyLabel(TerminalTabKeys.rename),
+        onSelected: onRename ?? () => terminals.startRename(instance),
+      ),
+      IdeMenuAction(strings.termClear, onSelected: instance.clearBuffer),
+    ],
+    [
+      IdeMenuAction(
+        strings.termKillTerminal,
+        keybinding: terminalKeyLabel(TerminalTabKeys.kill),
+        onSelected: () => kill(instance),
+      ),
+      IdeMenuAction(
+        strings.termKillOtherTerminals,
+        enabled: others.isNotEmpty,
+        onSelected: () => others.forEach(kill),
+      ),
+      IdeMenuAction(
+        strings.termKillAllTerminals,
+        enabled: others.isNotEmpty,
+        onSelected: () => [...others, instance].forEach(kill),
+      ),
+    ],
+  ]);
+}
 
 /// The marker of a terminal whose process ended and that stays to say why:
 /// VS Code's error status, as a failed task's tab has it.

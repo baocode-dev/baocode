@@ -211,6 +211,43 @@ void main() {
     expect(describe(transcript), startsWith('user:one\ntext:answer\nuser:two'));
   });
 
+  test('the queued messages are put in the order told, the next first', () {
+    final transcript = Transcript()
+      ..apply(const ItemUpserted(1, 'u1', UserMessageItem(text: 'one')))
+      ..apply(
+        const ItemUpserted(2, 'u2', UserMessageItem(text: 'two', queued: true)),
+      )
+      ..apply(
+        const ItemUpserted(
+          3,
+          'u3',
+          UserMessageItem(text: 'three', queued: true),
+        ),
+      )
+      ..apply(
+        const ItemUpserted(
+          4,
+          'u4',
+          UserMessageItem(text: 'four', queued: true),
+        ),
+      );
+    List<String> queued() => [for (final (id, _) in transcript.queued) id];
+    expect(queued(), ['u2', 'u3', 'u4']);
+
+    expect(
+      transcript.apply(const QueueReordered(5, ['u4', 'u2', 'u3'])),
+      isTrue,
+    );
+    expect(queued(), ['u4', 'u2', 'u3']);
+    expect(
+      transcript.apply(const QueueReordered(6, ['u4', 'u2', 'u3'])),
+      isFalse,
+    );
+    // One not queued is left out, and one not named keeps its place.
+    expect(transcript.apply(const QueueReordered(7, ['u3', 'gone'])), isTrue);
+    expect(queued(), ['u3', 'u4', 'u2']);
+  });
+
   test('in place, a queued message is where it was sent, and stays there '
       'taken up, timed as it was sent', () {
     final sent = DateTime(2026, 10, 29, 14);

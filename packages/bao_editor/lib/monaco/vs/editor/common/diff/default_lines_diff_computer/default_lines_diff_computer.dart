@@ -161,18 +161,36 @@ class DefaultLinesDiffComputer {
       hitTimeout |= refined.hitTimeout;
     }
     scanEqualLines(originalLines.length - previousOriginal);
-    if (ignoreAll) {
-      alignments.removeWhere(
-        (alignment) =>
-            _withoutWhitespace(_text(originalLines, alignment.originalRange)) ==
-            _withoutWhitespace(_text(modifiedLines, alignment.modifiedRange)),
-      );
-    }
-    final changes = lineRangeMappingFromRangeMappings(
+    var changes = lineRangeMappingFromRangeMappings(
       alignments,
       originalLines,
       modifiedLines,
     );
+    if (ignoreAll) {
+      // Whole line changes only whitespace apart dropped, not character
+      // edits one by one: those left would no longer line the two sides up
+      // (lines joined, say, by edits of their breaks alone).
+      bool same(String a, String b) =>
+          _withoutWhitespace(a) == _withoutWhitespace(b);
+      String lines(List<String> text, LineRange range) => text
+          .sublist(range.startLineNumber - 1, range.endLineNumberExclusive - 1)
+          .join('\n');
+      changes = [
+        for (final change in changes)
+          if (!same(
+            lines(originalLines, change.original),
+            lines(modifiedLines, change.modified),
+          ))
+            DetailedLineRangeMapping(change.original, change.modified, [
+              for (final inner in change.innerChanges!)
+                if (!same(
+                  _text(originalLines, inner.originalRange),
+                  _text(modifiedLines, inner.modifiedRange),
+                ))
+                  inner,
+            ]),
+      ];
+    }
     final moves = options.computeMoves && timeout.isValid
         ? _computeMoves(
             changes,

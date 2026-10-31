@@ -153,6 +153,7 @@ class EditorLanguageSession extends ChangeNotifier
     required this.onApplyWorkspaceEdit,
     required this.onFocusEditor,
     this.onFormatterMissing,
+    this.onNavigationUnavailable,
     this.paths,
     this._semanticTokenStyler,
     this._languageId = 'plaintext',
@@ -206,6 +207,10 @@ class EditorLanguageSession extends ChangeNotifier
   /// No server formats the file at [path], but [serverId], not installed
   /// yet, would: offered to install (else it just says so).
   final void Function(String path, String serverId)? onFormatterMissing;
+
+  /// Offers installation or retry when navigation has no available server.
+  /// True when the host showed an explanation and any recovery actions.
+  final bool Function(String path)? onNavigationUnavailable;
 
   /// How the files' host spells paths (a remote project's); this
   /// machine's when null.
@@ -629,8 +634,7 @@ class EditorLanguageSession extends ChangeNotifier
     if (event.buttons & kPrimaryButton == 0 ||
         !_linkModifier ||
         keyboard.isAltPressed ||
-        keyboard.isShiftPressed ||
-        !supports(LanguageRequest.definition)) {
+        keyboard.isShiftPressed) {
       return false;
     }
     controller.select(offset, offset);
@@ -663,10 +667,8 @@ class EditorLanguageSession extends ChangeNotifier
     final snapshot = _snapshot;
     final (wordStart, wordEnd) = lspWordAt(snapshot, at);
     final word = snapshot.text.substring(wordStart, wordEnd);
-    if (!supports(_goToLanguage[kind]!)) {
-      showMessage(_noneFound(kind, word), offset: at);
-      return;
-    }
+    // supports() only describes running servers. The request also waits
+    // for one that is starting, so do not discard an early F12 or click.
     final request = ++_goToRequest;
     final version = document.model.version;
     final position = lspPositionAt(snapshot, at);
@@ -693,7 +695,13 @@ class EditorLanguageSession extends ChangeNotifier
       if (target != null && !targets.contains(target)) targets.add(target);
     }
     if (targets.isEmpty) {
-      showMessage(_noneFound(kind, word), offset: at);
+      if (!supports(_goToLanguage[kind]!)) {
+        if (onNavigationUnavailable?.call(path) != true) {
+          showMessage(l10n.langNavigationUnavailable, offset: at);
+        }
+      } else {
+        showMessage(_noneFound(kind, word), offset: at);
+      }
       return;
     }
     if (kind == IdeGoToKind.references) {

@@ -151,6 +151,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdChatFocusPreviousPane => 'Focus Previous Pane';
 
   @override
+  String get cmdChatFocusPaneLeft => 'Focus Left Pane';
+
+  @override
+  String get cmdChatFocusPaneRight => 'Focus Right Pane';
+
+  @override
+  String get cmdChatFocusPaneUp => 'Focus Above Pane';
+
+  @override
+  String get cmdChatFocusPaneDown => 'Focus Below Pane';
+
+  @override
+  String get cmdChatNextPaneTab => 'Open Next Tab in Pane';
+
+  @override
+  String get cmdChatPreviousPaneTab => 'Open Previous Tab in Pane';
+
+  @override
+  String get cmdChatTogglePaneTabs => 'Toggle Pane Tabs';
+
+  @override
+  String get workspacePaneTabs => 'Show as Tabs';
+
+  @override
   String get cmdChatSearch => 'Search';
 
   @override
@@ -1085,6 +1109,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get menuWordWrap => 'Word Wrap';
 
   @override
+  String get cmdToggleMinimap => 'Toggle Minimap';
+
+  @override
+  String get menuMinimap => 'Minimap';
+
+  @override
   String get cmdTogglePanel => 'Toggle Panel Visibility';
 
   @override
@@ -1757,6 +1787,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentImageUntitled => 'Image';
+
+  @override
+  String get chatTitleSummarize => 'Summarize into a new title';
+
+  @override
+  String get chatTitleSummarizing => 'Summarizing…';
+
+  @override
+  String get chatTitleSummarizeFailed => 'No title could be had. Try again';
 
   @override
   String get sidebarNewAgent => 'New Chat';
@@ -4834,6 +4873,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get langNavigationUnavailable =>
+      'No language server is available for code navigation in this file.';
+
+  @override
+  String langNavigationInstall(String id) {
+    return 'Install the \'$id\' language server to enable code navigation in this file.';
+  }
+
+  @override
   String get langReferences => 'References';
 
   @override
@@ -4988,6 +5036,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get termKillTerminal => 'Kill Terminal';
+
+  @override
+  String get termKillOtherTerminals => 'Kill Other Terminals';
+
+  @override
+  String get termKillAllTerminals => 'Kill All Terminals';
+
+  @override
+  String get termStopAllTasks => 'Stop All Running Tasks';
+
+  @override
+  String get termRunInNewTerminal => 'Run in New Terminal';
 
   @override
   String get termNoTerminals => 'No terminals';
@@ -5217,6 +5277,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workspaceClosePane => 'Close pane';
+
+  @override
+  String workspaceCloseBackTo(String title) {
+    return 'Close pane, back to $title';
+  }
+
+  @override
+  String workspaceCovers(String title) {
+    return 'Over $title, which shows again once this closes';
+  }
+
+  @override
+  String workspaceCovered(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count conversations under this one',
+      one: '1 conversation under this one',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get workspaceLoadingProjects => 'Loading projects…';
@@ -7579,6 +7660,24 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get appearanceSettingsEditDetail => 'File Edits';
+
+  @override
+  String get appearanceSettingsEditDetailDescription =>
+      'How the agent\'s edits to files show in the conversation: as a card of the changes, always open; or as one line that opens to them.';
+
+  @override
+  String get appearanceSettingsEditDetailCard => 'Card with changes';
+
+  @override
+  String get appearanceSettingsEditDetailCompact => 'Compact';
+
+  @override
+  String appearanceSettingsEditDetailLabel(String detail) {
+    return 'File edits: $detail';
+  }
+
+  @override
   String get appearanceSettingsReplyScroll => 'As a Reply Comes';
 
   @override
@@ -7696,6 +7795,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get appearanceSettingsWordWrapDescription =>
       'Wraps long lines at the editor\'s width, in every editor. An editor\'s context menu and the Command Palette (Toggle Word Wrap) switch it too. Files of more than 5,000 lines are not wrapped.';
+
+  @override
+  String get appearanceSettingsCodeMinimap => 'Code Minimap';
+
+  @override
+  String get appearanceSettingsCodeMinimapDescription =>
+      'A minimap of the file at the right of the code editor, in every editor; it is not shown in an editor too narrow for it. An editor tab\'s context menu and the Command Palette (Toggle Minimap) switch it too.';
 
   @override
   String get appearanceSettingsUiScale => 'Interface Size';
@@ -8695,14 +8801,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mobileSettingsDescription =>
-      'Follow and drive this computer\'s agents from BaoCode on your phone, over the local network or the internet. What goes between them is end-to-end encrypted.';
+      'Follow and drive this computer\'s agents from BaoCode on your phone: directly on the same network, across the internet through a hole punched in the routers between them, or through BaoCode\'s relay when neither works. What goes between them is end-to-end encrypted; a relay cannot read it.';
 
   @override
   String get mobileAllow => 'Allow Phones to Connect';
 
   @override
   String get mobileAllowDescription =>
-      'Phones paired with this computer connect to it directly.';
+      'Phones paired with this computer can connect to it, wherever they are.';
 
   @override
   String get mobileStatus => 'Status';
@@ -8714,56 +8820,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mobileStatusStarting => 'Starting…';
 
   @override
-  String mobileStatusListening(int port) {
-    return 'Listening on port $port';
-  }
-
-  @override
   String mobileStatusFailed(String error) {
-    return 'Could not listen: $error';
+    return 'Could not start: $error';
   }
 
   @override
-  String get mobileAddresses => 'Addresses';
-
-  @override
-  String get mobileAddressesDescription =>
-      'Where phones reach this computer, in the order they try them: the local network first, then the internet.';
-
-  @override
-  String get mobileAddressesNone => 'No network found.';
-
-  @override
-  String get mobileAddressesRefresh => 'Refresh';
-
-  @override
-  String get mobilePort => 'Port';
-
-  @override
-  String get mobilePortDescription =>
-      'The port phones connect to. Forward it on the router to reach this computer from the internet.';
-
-  @override
-  String mobilePortInvalid(String text) {
-    return 'Not a port: $text. Enter a number from 1 to 65535.';
-  }
-
-  @override
-  String get mobilePublicAddress => 'Public Address';
-
-  @override
-  String get mobilePublicAddressDescription =>
-      'A domain or IP this computer can be reached at from the internet (with the port forwarded), put in the QR code; several separated by commas. Behind a proxy that only takes HTTPS (such as a Cloudflare Tunnel), write it as wss://domain. Public IPv6 addresses are found by themselves.';
-
-  @override
-  String get mobileRelay => 'Relay';
+  String get mobileRelay => 'Relays';
 
   @override
   String get mobileRelayDescription =>
-      'Reach this computer through BaoCode\'s relay when none of its addresses can be reached. Coming later.';
-
-  @override
-  String get mobileRelayUnavailable => 'Not Available Yet';
+      'Phones that cannot reach this computer directly go through one. It only passes along what is sealed between the two. Nothing to set on the phone: it learns them when paired, and again each time it connects.';
 
   @override
   String get mobilePair => 'Pair a Phone';
@@ -8858,6 +8924,75 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mobilePairAllow => 'Allow';
+
+  @override
+  String mobileStatusOnline(String relay) {
+    return 'On, reachable through $relay';
+  }
+
+  @override
+  String get mobileStatusNoRelay =>
+      'On; no relay reached yet, so only phones on the same network can connect';
+
+  @override
+  String mobileStatusDenied(String reason) {
+    return 'On, but the relay turned this computer away: $reason';
+  }
+
+  @override
+  String get mobileRelayInvalid =>
+      'Not a relay address; one looks like https://relay.example.com';
+
+  @override
+  String get mobileRelayPinned => 'Relay Used';
+
+  @override
+  String get mobileRelayCustom => 'Custom';
+
+  @override
+  String get mobileRelayCustomAddress => 'Custom Address';
+
+  @override
+  String get mobileRelayCustomDescription =>
+      'The address of a relay you run yourself (baocode-relay).';
+
+  @override
+  String get mobileRelayMode => 'How';
+
+  @override
+  String get mobileRelayModeAuto => 'Automatic';
+
+  @override
+  String get mobileRelayModeAutoDescription =>
+      'BaoCode\'s relays, the nearest that answers.';
+
+  @override
+  String get mobileRelayModePinned => 'Pick One';
+
+  @override
+  String get mobileRelayModePinnedDescription =>
+      'Only the one picked: one of BaoCode\'s, or a custom address.';
+
+  @override
+  String get mobilePathLan => 'Same network';
+
+  @override
+  String get mobilePathDirect => 'Direct';
+
+  @override
+  String get mobilePathRelay => 'Through the relay';
+
+  @override
+  String mobilePathRtt(int ms) {
+    return '$ms ms';
+  }
+
+  @override
+  String get mobileLegacyPhone =>
+      'Needs pairing again: paired before the connection was rebuilt';
+
+  @override
+  String get mobileLegacyRepair => 'Pair Again';
 
   @override
   String get settingsSectionStash => 'Stash';
@@ -9519,10 +9654,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get branchBarDetached => 'Detached HEAD';
-
-  @override
-  String get branchBarRunning =>
-      'Branches can\'t be switched while the agent works';
 
   @override
   String branchBarFailed(String branch) {
@@ -11335,10 +11466,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get diffRevertChange => 'Revert';
+  String get diffRevertChange => 'Undo this change (back to the left side)';
 
   @override
-  String get diffRemoveChange => 'Remove';
+  String get diffRemoveChange => 'Undo this change (remove the added lines)';
 
   @override
   String get diffPreviousDifference => 'Previous Difference';
@@ -11406,9 +11537,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get diffHighlightLines => 'Highlight Lines';
-
-  @override
-  String get diffHighlightNone => 'Do Not Highlight';
 
   @override
   String get diffGoToFile => 'Go to Changed File';
@@ -11982,11 +12110,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get gitChangelistDelete => 'Delete Changelist';
-
-  @override
-  String gitChangelistTurn(String request) {
-    return 'AI: $request';
-  }
 
   @override
   String get gitStashChangesTitle => 'Stash Changes';

@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 /// Wheel scrolling of a scroll view inside another, as browsers do it: a
@@ -14,9 +15,14 @@ import 'package:flutter/widgets.dart';
 /// scroll view, around its content. (A trackpad pan is a drag, which the
 /// inner view keeps to itself already.)
 class WheelLatch extends StatefulWidget {
-  const WheelLatch({super.key, required this.child});
+  const WheelLatch({super.key, required this.child, this.keep = false});
 
   final Widget child;
+
+  /// A gesture started over the inner view is its own wherever it can
+  /// scroll at all, at its ends too: one that only scrolls there (an edit's
+  /// card) never moves the outer view under the pointer.
+  final bool keep;
 
   static const gap = Duration(milliseconds: 300);
 
@@ -51,10 +57,14 @@ class _WheelLatchState extends State<WheelLatch> {
     }
   }
 
-  /// The wheel's move as [view]'s offset takes it: turned round in a
-  /// reversed view (live output's), as [Scrollable] itself does.
+  /// The wheel's move as [view]'s offset takes it: across with Shift held
+  /// (a mouse's), so none of it down; turned round in a reversed view (live
+  /// output's). As [Scrollable] itself does.
   static double _deltaIn(ScrollableState view, PointerScrollEvent event) {
-    final dy = event.scrollDelta.dy;
+    final across =
+        event.kind == PointerDeviceKind.mouse &&
+        HardwareKeyboard.instance.isShiftPressed;
+    final dy = across ? event.scrollDelta.dx : event.scrollDelta.dy;
     return axisDirectionIsReversed(view.axisDirection) ? -dy : dy;
   }
 
@@ -66,7 +76,9 @@ class _WheelLatchState extends State<WheelLatch> {
     final last = _lastWheel;
     if (last == null || event.timeStamp - last >= WheelLatch.gap) {
       final position = inner.position;
-      final moves = delta > 0
+      final moves = widget.keep
+          ? position.maxScrollExtent > position.minScrollExtent
+          : delta > 0
           ? position.pixels < position.maxScrollExtent
           : delta < 0 && position.pixels > position.minScrollExtent;
       _latched = moves ? this : null;

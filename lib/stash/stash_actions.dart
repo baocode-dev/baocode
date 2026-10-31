@@ -37,6 +37,20 @@ StashReference stashReferenceOf(StashStore store, StashNote note) {
   );
 }
 
+/// [project]'s name in the menus that pick a project: with its host
+/// after it (`baocode · home-imac`) where it is another machine's and
+/// another project is called the same.
+String stashProjectLabel(Workspace workspace, Project project) {
+  final host = RemoteLocation.hostOf(project.path);
+  if (host == null) return project.name;
+  final named = workspace.projects.any(
+    (other) => other.path != project.path && other.name == project.name,
+  );
+  return named
+      ? '${project.name} · ${workspace.hostLabel(host)}'
+      : project.name;
+}
+
 /// [project]'s icon as the sidebar shows it (its own picture, emoji or
 /// glyph; else a folder), for the menus that pick a project.
 Widget stashProjectIcon(Workspace workspace, Project project) =>
@@ -149,7 +163,7 @@ Future<AgentThread?> implementStash(
       entries: [
         for (final project in projects)
           IdeMenuAction(
-            project.name,
+            stashProjectLabel(controller.workspace, project),
             icon: stashProjectIcon(controller.workspace, project),
             onSelected: () => picked.complete(project.path),
           ),

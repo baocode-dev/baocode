@@ -64,10 +64,16 @@ class EditorViewZone {
     this.content,
     this.margin,
     this.interactive = false,
+    this.firstLineNumber,
   });
 
   final int afterLineNumber;
   final double heightInLines;
+
+  /// The number in the line numbers' column by the zone's first line, and
+  /// on by one by each line after it (a unified diff's deleted lines show
+  /// the original's), over [margin].
+  final int? firstLineNumber;
 
   /// Whether [content] and [margin] receive pointer events.
   final bool interactive;
@@ -121,7 +127,10 @@ class EditorSurface extends StatefulWidget {
     this.viewZones = const [],
     this.scrollPosition,
     this.lineNumbers = true,
+    this.lineNumbersMinChars = EditorViewGeometry.lineNumbersMinChars,
+    this.lineDecorationsWidth = EditorViewGeometry.defaultLineDecorationsWidth,
     this.glyphMargin = true,
+    this.glyphMarginWidth,
     this.folding = true,
     this.hiddenLines,
     this.foldingRules,
@@ -132,7 +141,11 @@ class EditorSurface extends StatefulWidget {
     this.renderWhitespace = EditorRenderWhitespace.none,
     this.showMinimap = true,
     this.minimapWidth = 80,
+    this.verticalScrollbar = true,
+    this.horizontalScrollbar = true,
     this.scrollBeyondLastLine = true,
+    this.alwaysConsumeMouseWheel = true,
+    this.lineNumberOf,
     this.stopRenderingLineAfter = ViewportLayout.defaultStopRenderingLineAfter,
     this.onKeyEvent,
     this.keyResolver,
@@ -214,8 +227,19 @@ class EditorSurface extends StatefulWidget {
 
   final bool lineNumbers;
 
+  /// The fewest digits the line numbers' column has room for
+  /// (`lineNumbersMinChars`).
+  final int lineNumbersMinChars;
+
+  /// The room between the line numbers and the text (`lineDecorationsWidth`),
+  /// besides the folding chevrons'.
+  final double lineDecorationsWidth;
+
   /// Reserves Monaco's glyph margin (one line height) left of line numbers.
   final bool glyphMargin;
+
+  /// The glyph margin's width; a line height when null.
+  final double? glyphMarginWidth;
 
   /// Indentation-based folding with chevrons in the gutter.
   final bool folding;
@@ -241,6 +265,15 @@ class EditorSurface extends StatefulWidget {
   /// Minimap on the right; hidden automatically in narrow editors.
   final bool showMinimap;
 
+  /// The vertical scrollbar at the right, with its overview ruler; off
+  /// where something else scrolls the editor (a diff editor's overview).
+  final bool verticalScrollbar;
+
+  /// The horizontal scrollbar at the bottom; off where something else
+  /// shows one (an editor as tall as its lines, whose foot is out of view;
+  /// see [EditorSurfaceView.maxScrollLeft]).
+  final bool horizontalScrollbar;
+
   /// `editor.stopRenderingLineAfter`: longer lines are shaped and painted
   /// only this far, then end in a "Show more (…)" pill (-1 for never).
   final int stopRenderingLineAfter;
@@ -248,6 +281,15 @@ class EditorSurface extends StatefulWidget {
 
   /// Allows scrolling until the last line is at the top of the viewport.
   final bool scrollBeyondLastLine;
+
+  /// `scrollbar.alwaysConsumeMouseWheel`: a wheel's move is the editor's
+  /// even where it cannot scroll that way; when false, it goes on to what
+  /// is around the editor (a page it is in) there.
+  final bool alwaysConsumeMouseWheel;
+
+  /// The number shown by each line (from 1), where the text is part of a
+  /// longer one (lines of a diff's hunks); the line's own when null.
+  final int Function(int line)? lineNumberOf;
 
   /// Sees focused key events before the editor's own bindings; return
   /// [KeyEventResult.handled] to consume one (e.g. a suggest widget's arrows).
@@ -328,11 +370,23 @@ abstract interface class EditorSurfaceView {
   /// The caret box at [offset] (one line tall), clipped to nothing.
   Rect? caretRectAt(int offset);
 
+  /// The one-based model [lineNumber]'s rows (at a hidden line, where it
+  /// would be), across the text area: found without laying its text out,
+  /// for what follows many lines as the view scrolls.
+  Rect? lineRectAt(int lineNumber);
+
   /// The union of the boxes of `[start, end)` on the line of [start].
   Rect? rangeRectAt(int start, int end);
 
   /// The text area (right of the gutter, left of the minimap).
   Rect? get textArea;
+
+  /// How far the text scrolls left at most ([scrollOffset]'s `dx`); 0
+  /// before the first layout.
+  double get maxScrollLeft;
+
+  /// The line numbers' column, in the gutter; null before the first layout.
+  Rect? get lineNumbersArea;
 
   /// The glyph margin cell of [lineNumber], when visible.
   Rect? glyphMarginRect(int lineNumber);
@@ -1039,6 +1093,37 @@ class _EditorSurfaceState extends State<EditorSurface>
 
   @override
   Rect? get textArea => _geometry?.contentRect;
+
+  @override
+  Rect? get lineNumbersArea => switch (_geometry) {
+    final geometry? => Rect.fromLTWH(
+      geometry.lineNumbersLeft,
+      0,
+      geometry.lineNumbersWidth,
+      geometry.size.height,
+    ),
+    null => null,
+  };
+
+  @override
+  double get maxScrollLeft => switch (_layout) {
+    final layout? => _maxScrollLeft(layout),
+    null => 0,
+  };
+
+  @override
+  Rect? lineRectAt(int lineNumber) {
+    final layout = _layout;
+    final geometry = _geometry;
+    if (layout == null || geometry == null) return null;
+    final content = geometry.contentRect;
+    return Rect.fromLTWH(
+      content.left,
+      content.top + layout.lineTop(lineNumber) - layout.verticalScrollOffset,
+      content.width,
+      layout.lineRowsHeight(lineNumber),
+    );
+  }
 
   @override
   Rect? caretRectAt(int offset) {
@@ -1906,17 +1991,32 @@ class _EditorSurfaceState extends State<EditorSurface>
     }
   }
 
+  /// A wheel's move as the editor takes it: with Shift held, a vertical one
+  /// across.
+  static Offset _wheelDelta(PointerScrollEvent event) {
+    final delta = event.scrollDelta;
+    return HardwareKeyboard.instance.isShiftPressed && delta.dx == 0
+        ? Offset(delta.dy, 0)
+        : delta;
+  }
+
   void _onPointerSignal(PointerSignalEvent event) {
-    if (event is! PointerScrollEvent || _layout == null) return;
+    final layout = _layout;
+    if (event is! PointerScrollEvent || layout == null) return;
+    if (!widget.alwaysConsumeMouseWheel) {
+      // Which way it goes as taken: Shift and the wheel, across.
+      final delta = _wheelDelta(event);
+      bool moves(double by, double at, double max) =>
+          by < 0 ? at > 0 : by > 0 && at < max;
+      if (!moves(delta.dx, _scrollLeft, _maxScrollLeft(layout)) &&
+          !moves(delta.dy, _scrollTop, _maxScrollTop(layout))) {
+        return;
+      }
+    }
     GestureBinding.instance.pointerSignalResolver.register(event, (resolved) {
       final scroll = resolved as PointerScrollEvent;
-      var dx = scroll.scrollDelta.dx;
-      var dy = scroll.scrollDelta.dy;
+      var Offset(:dx, :dy) = _wheelDelta(scroll);
       final keyboard = HardwareKeyboard.instance;
-      if (keyboard.isShiftPressed && dx == 0) {
-        dx = dy;
-        dy = 0;
-      }
       if (keyboard.isAltPressed) {
         // Monaco fastScrollSensitivity.
         dx *= 5;
@@ -2442,6 +2542,7 @@ class _EditorSurfaceState extends State<EditorSurface>
     ViewportLayout layout,
     EditorViewGeometry geometry, {
     required bool content,
+    EditorGutterGlyphs? glyphs,
   }) {
     final area = content ? geometry.contentRect : geometry.gutterRect;
     if (area.isEmpty) return const [];
@@ -2451,7 +2552,20 @@ class _EditorSurfaceState extends State<EditorSurface>
         : area.width;
     final children = <Widget>[];
     for (final (index, zone) in _zones.indexed) {
-      final child = content ? zone.content : zone.margin;
+      var child = content ? zone.content : zone.margin;
+      if (!content && glyphs != null && geometry.lineNumbersWidth > 0) {
+        if (zone.firstLineNumber case final first?) {
+          child = CustomPaint(
+            foregroundPainter: _ZoneLineNumbersPainter(
+              first: first,
+              glyphs: glyphs,
+              right: geometry.annotationsLeft,
+              lineHeight: layout.lineHeight,
+            ),
+            child: child ?? const SizedBox.expand(),
+          );
+        }
+      }
       if (child == null || index >= layout.zones.length) continue;
       final top = layout.zoneTop(index) - _scrollTop;
       final height = layout.zones[index].height;
@@ -2519,6 +2633,11 @@ class _EditorSurfaceState extends State<EditorSurface>
           folding: widget.folding,
           minimapWidth: widget.showMinimap ? widget.minimapWidth : 0,
           annotationsWidth: widget.lineAnnotations?.width ?? 0,
+          verticalScrollbar: widget.verticalScrollbar,
+          horizontalScrollbar: widget.horizontalScrollbar,
+          minLineNumberChars: widget.lineNumbersMinChars,
+          glyphMarginWidth: widget.glyphMarginWidth,
+          lineDecorationsWidth: widget.lineDecorationsWidth,
         );
         _geometry = geometry;
         _zones = _computeZones(glyphs.lineHeight);
@@ -2651,6 +2770,7 @@ class _EditorSurfaceState extends State<EditorSurface>
                     theme: theme,
                     glyphs: glyphs,
                     lineNumbers: lineNumbers,
+                    lineNumberOf: widget.lineNumberOf,
                     activeLines: activeLines,
                     cursorLine: primary.isValid
                         ? snapshot
@@ -2673,7 +2793,7 @@ class _EditorSurfaceState extends State<EditorSurface>
               ),
             ),
             if (_zones.isNotEmpty)
-              ..._zoneWidgets(layout, geometry, content: false),
+              ..._zoneWidgets(layout, geometry, content: false, glyphs: glyphs),
             if (widget.gutterIconBuilder != null &&
                 widget.glyphMargin &&
                 !_decorations.isEmpty)
@@ -2830,6 +2950,43 @@ class _EditorSurfaceState extends State<EditorSurface>
     _layout?.dispose();
     super.dispose();
   }
+}
+
+/// [EditorViewZone.firstLineNumber] on: a number by each of a zone's
+/// lines, as the gutter paints its lines'.
+class _ZoneLineNumbersPainter extends CustomPainter {
+  _ZoneLineNumbersPainter({
+    required this.first,
+    required this.glyphs,
+    required this.right,
+    required this.lineHeight,
+  });
+
+  final int first;
+  final EditorGutterGlyphs glyphs;
+  final double right;
+  final double lineHeight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (lineHeight <= 0) return;
+    final lines = (size.height / lineHeight).round();
+    for (var i = 0; i < lines; i++) {
+      glyphs.paintNumber(
+        canvas,
+        first + i,
+        right,
+        i * lineHeight + (lineHeight - glyphs.lineHeight) / 2,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ZoneLineNumbersPainter old) =>
+      old.first != first ||
+      old.glyphs != glyphs ||
+      old.right != right ||
+      old.lineHeight != lineHeight;
 }
 
 class _EditorTextAction<T extends Intent> extends Action<T> {

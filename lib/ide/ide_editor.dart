@@ -21,6 +21,8 @@ import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart'
     show DetailedLineRangeMapping, LineRangeMapping;
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
+import 'package:bao_editor/monaco/flutter/editor_view_painters.dart'
+    show EditorViewGeometry;
 import 'package:bao_editor/monaco/flutter/monaco_syntax.dart';
 import 'package:bao_editor/monaco/flutter/selection_adapter.dart';
 import 'package:bao_editor/monaco/flutter/theme_assets.dart';
@@ -43,6 +45,7 @@ import '../base/uri.dart' show VsUri;
 import '../debug/base/event.dart' show DisposableStore;
 import '../debug/service/debug_service.dart';
 import 'debug_editor_glue.dart';
+import 'editor_minimap_setting.dart';
 import 'editor_word_wrap.dart';
 import 'git/git_annotations.dart';
 import 'git/git_blame.dart';
@@ -51,7 +54,11 @@ import 'git/git_model.dart' show IdeGitBlameInformation, IdeGitLogLines;
 import 'ide_agent_edits.dart';
 import 'ide_line_change_popup.dart';
 import 'ide_code_diff.dart'
-    show IdeDiffRevertArrow, ideDiffChangeTop, ideDiffRevertEdit;
+    show
+        IdeDiffRevertArrow,
+        ideDiffArrowLeft,
+        ideDiffArrowTop,
+        ideDiffRevertEdit;
 import 'ide_diff_options.dart';
 import 'ide_commands.dart';
 import 'ide_find_widget.dart';
@@ -332,6 +339,7 @@ class IdeEditorState extends State<IdeEditor> {
     widget.agentEdits?.addListener(_rebuildSoon);
     IdeDiffOptions.instance.addListener(_diffOptionsChanged);
     EditorWordWrap.on.addListener(_rebuildSoon);
+    EditorMinimap.on.addListener(_rebuildSoon);
     if (widget.nativeEditorEnabled) _activateNativeController();
     _selectionChanged();
     _updateBlame(navigated: false);
@@ -504,6 +512,7 @@ class IdeEditorState extends State<IdeEditor> {
       onApplyWorkspaceEdit: applyWorkspaceEdit,
       onFocusEditor: focus,
       onFormatterMissing: _formatterMissing,
+      onNavigationUnavailable: _navigationUnavailable,
       paths: widget.workspace.paths,
       semanticTokenStyler: _semanticTokenStyler,
       languageId: _textMateDocuments[doc]?.$2.languageId ?? 'plaintext',
@@ -532,6 +541,51 @@ class IdeEditorState extends State<IdeEditor> {
         }),
       ],
     );
+  }
+
+  bool _navigationUnavailable(String path) {
+    final languages = widget.workspace.languages;
+    if (!mounted || languages == null) return false;
+    final notifications = IdeNotificationsScope.maybeOf(context);
+    if (notifications == null) return false;
+    final l10n = context.l10n;
+    for (final status in languages.statusFor(path)) {
+      final id = status.serverId;
+      final String message;
+      final actions = <IdeNotificationAction>[];
+      switch (status.state) {
+        case LanguageServerState.missing:
+          if (status.missingRuntime case final runtime?) {
+            message = l10n.extMissingRuntime(id, runtime);
+          } else if (status.installable) {
+            message = l10n.langNavigationInstall(id);
+            actions.add(
+              IdeNotificationAction(l10n.extInstall, () async {
+                try {
+                  await languages.install(id, path: path);
+                } catch (error) {
+                  if (mounted) widget.onError(error);
+                }
+              }),
+            );
+          } else {
+            message = l10n.extUnavailable(id);
+          }
+        case LanguageServerState.failed || LanguageServerState.restarting:
+          message = [l10n.langFailed(id), ?status.message].join('\n');
+          actions.add(
+            IdeNotificationAction(
+              l10n.cmdRetryLanguageServices,
+              () => languages.retry(id, path: path),
+            ),
+          );
+        default:
+          continue;
+      }
+      notifications.notify(IdeSeverity.warning, message, primary: actions);
+      return true;
+    }
+    return false;
   }
 
   void _disposeLanguageSession() {
@@ -1877,6 +1931,7 @@ class IdeEditorState extends State<IdeEditor> {
     _themes.removeListener(_colorThemeChanged);
     IdeDiffOptions.instance.removeListener(_diffOptionsChanged);
     EditorWordWrap.on.removeListener(_rebuildSoon);
+    EditorMinimap.on.removeListener(_rebuildSoon);
     EditorLanguageOverrides.instance.removeListener(_languageModesChanged);
     widget.agentEdits?.removeListener(_rebuildSoon);
     _debugListeners?.dispose();
@@ -1987,19 +2042,19 @@ class IdeEditorState extends State<IdeEditor> {
   bool _languageCommandEnabled(String id) {
     final session = _language;
     if (session == null) return false;
-    // As upstream's `formatDocument.none`: offered with no formatter too,
-    // to say so and which server would be one.
-    if (id == 'editor.action.formatDocument' ||
+    // Explicit navigation waits for a starting server or explains how to
+    // install/retry a missing one, as formatting does without a formatter.
+    if (id == 'editor.action.revealDefinition' ||
+        id == 'editor.action.goToTypeDefinition' ||
+        id == 'editor.action.goToImplementation' ||
+        id == 'editor.action.goToReferences' ||
+        id == 'editor.action.referenceSearch.trigger' ||
+        id == 'editor.action.goToDeclaration' ||
+        id == 'editor.action.formatDocument' ||
         id == 'editor.action.formatSelection') {
       return true;
     }
     final request = switch (id) {
-      'editor.action.revealDefinition' => LanguageRequest.definition,
-      'editor.action.goToTypeDefinition' => LanguageRequest.typeDefinition,
-      'editor.action.goToImplementation' => LanguageRequest.implementation,
-      'editor.action.goToReferences' ||
-      'editor.action.referenceSearch.trigger' => LanguageRequest.references,
-      'editor.action.goToDeclaration' => LanguageRequest.definition,
       'editor.action.rename' => LanguageRequest.rename,
       'editor.action.quickFix' ||
       'editor.action.refactor' ||
@@ -2013,8 +2068,8 @@ class IdeEditorState extends State<IdeEditor> {
 
   /// The editor's context menu (`MenuId.EditorContext`): go-to commands,
   /// then modifications, then the clipboard, then the Command Palette; the
-  /// language items only while the language server has the feature, as
-  /// VS Code hides them without a provider.
+  /// navigation stays available while a server starts or needs installing;
+  /// other language items follow the server's capabilities.
   void _showContextMenu(Offset position) {
     if (_nativeController == null) return;
     final hasSelection = _nativeController!.selections.any(
@@ -2730,12 +2785,19 @@ class IdeEditorState extends State<IdeEditor> {
       ..._debugDecorations(),
       if (side == null) ..._lineChangeDecorations(colors),
     ],
-    // A diff editor's editors fold nothing and have no minimap.
+    // A diff editor's editors fold nothing and have no minimap; others
+    // have one unless it is turned off (EditorMinimap).
     viewZones: side?.zones ?? agent?.zones ?? const [],
     scrollPosition: side?.scrollPosition,
+    // Side by side, the line numbers are by the split: no margin between.
+    glyphMargin: side == null || !side.sideBySide,
+    lineNumbersMinChars:
+        side?.lineNumbersMinChars ?? EditorViewGeometry.lineNumbersMinChars,
     folding: side == null,
     hiddenLines: side?.hiddenLines,
-    showMinimap: side == null,
+    showMinimap: side == null && EditorMinimap.on.value,
+    // A diff's overview scrolls it.
+    verticalScrollbar: side == null,
     onKeyEvent: _onEditorKey,
     keyResolver: widget.keyResolver == null ? null : _resolveTextKey,
     onHover: _language == null
@@ -2820,6 +2882,7 @@ class IdeEditorState extends State<IdeEditor> {
       dark:
           type == ThemeTypeSelector.vsDark || type == ThemeTypeSelector.hcBlack,
       originalStyledLines: diff.textMate?.styledLines,
+      background: colors['editor.background'],
       border: colors.get('diffEditor.border'),
       sashHover: colors.get('sash.hoverBorder'),
       original: (context, side) {
@@ -2837,10 +2900,13 @@ class IdeEditorState extends State<IdeEditor> {
           decorations: side.decorations,
           viewZones: side.zones,
           scrollPosition: side.scrollPosition,
-          glyphMargin: side.sideBySide,
+          lineNumbers: side.lineNumbers,
+          lineNumbersMinChars: side.lineNumbersMinChars,
+          glyphMargin: false,
           folding: false,
           hiddenLines: side.hiddenLines,
           showMinimap: false,
+          verticalScrollbar: false,
           style: _editorStyle(colors),
         );
       },
@@ -2852,8 +2918,13 @@ class IdeEditorState extends State<IdeEditor> {
   }
 
   /// JetBrains' `>>` by each change of a diff tab whose file can be edited
-  /// (on the split side by side, at the file's left edge inline): the
-  /// change reverted in the file, unsaved as any edit.
+  /// (side by side, where the change's band leaves the original; at the
+  /// file's left edge inline): the change reverted in the file, unsaved as
+  /// any edit.
+  /// The revert arrows last built: for which changes, in which colors.
+  (List<LineRangeMapping>, Object, Map<LineRangeMapping, Widget>)?
+  _revertArrowWidgets;
+
   Widget _revertArrows(IdeOriginalDiff diff, DiffEditorLayout layout) =>
       ListenableBuilder(
         listenable: _viewTick,
@@ -2875,20 +2946,30 @@ class IdeEditorState extends State<IdeEditor> {
           }
           final snapshot = controller.document.snapshot;
           const size = 16.0;
+          // The same arrows as the view scrolls, moved, not built again
+          // each frame: built anew for other changes or colors.
+          final colors = _themes.colors;
+          final arrows = switch (_revertArrowWidgets) {
+            (final changes, final builtIn, final arrows)
+                when identical(changes, mappings) &&
+                    identical(builtIn, colors) =>
+              arrows,
+            _ => <LineRangeMapping, Widget>{},
+          };
+          _revertArrowWidgets = (mappings, colors, arrows);
           return Stack(
             children: [
               for (final change in mappings)
-                if (ideDiffChangeTop(view, snapshot, change) case final top?
+                if (ideDiffArrowTop(view, snapshot, change, layout, size)
+                    case final top?
                     when top >= area.top - 2 && top + size <= area.bottom)
                   Positioned(
                     key: ObjectKey(change),
-                    left: layout.sideBySide
-                        ? layout.splitLeft - size / 2
-                        : layout.modifiedLeft + 2,
-                    top: top + (view.lineHeight - size) / 2,
+                    left: ideDiffArrowLeft(layout, size),
+                    top: top,
                     width: size,
                     height: size,
-                    child: IdeDiffRevertArrow(
+                    child: arrows[change] ??= IdeDiffRevertArrow(
                       added: change.original.isEmpty,
                       onTap: () {
                         controller.applyEdits([

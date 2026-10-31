@@ -46,6 +46,7 @@ void main() {
   final asked = <String?>[];
 
   late Workspace workspace;
+  late FakeCli cli;
   late WorkspaceBridge bridge;
   late LinkPeer phone;
   late String id;
@@ -71,7 +72,7 @@ void main() {
             cwd: '/p',
           ),
         ),
-        start: (_) async => FakeCli(),
+        start: (_) async => cli = FakeCli(),
         readHistoryPage: (session, {required turns, before}) async {
           asked.add(before);
           return switch (before) {
@@ -270,6 +271,96 @@ void main() {
         throwsA(isA<LinkRemoteException>()),
       );
     });
+  });
+
+  test('streamed text goes as what was added, and adds up the same', () async {
+    final mirror = LinkSessionMirror()
+      ..opened(
+        jsonDecode(
+          jsonEncode(await bridge.handle(LinkMethods.open, {'session': id})),
+        ) as Map<String, Object?>,
+      );
+    final wire = <Map<String, Object?>>[];
+    final sub = phone.events
+        .where((e) => e.name == LinkEvents.session)
+        .listen((e) => wire.add(e.data! as Map<String, Object?>));
+    addTearDown(sub.cancel);
+    await bridge.handle(LinkMethods.send, {'session': id, 'text': 'go'});
+    await settle();
+    Future<void> stream(Map<String, Object?> event) async {
+      cli.push({'type': 'stream_event', 'event': event});
+      await settle();
+    }
+
+    await stream({
+      'type': 'message_start',
+      'message': {
+        'id': 'm-live',
+        'usage': {'input_tokens': 1},
+      },
+    });
+    await stream({
+      'type': 'content_block_start',
+      'index': 0,
+      'content_block': {'type': 'text', 'text': ''},
+    });
+    for (final words in ['Once ', 'upon ', 'a ', 'time']) {
+      await stream({
+        'type': 'content_block_delta',
+        'index': 0,
+        'delta': {'type': 'text_delta', 'text': words},
+      });
+    }
+    final whole = [for (final update in wire) mirror.apply(update)];
+    expect(whole, everyElement(isNotNull));
+    expect(wire.where((w) => w['append'] != null), isNotEmpty);
+    expect(wire.skip(1).where((w) => w['partial'] != true), isEmpty);
+
+    final fresh = await open();
+    final last = whole.last!;
+    expect(last['count'], fresh.count);
+    final items = last['items']! as List;
+    expect(
+      jsonEncode(items),
+      jsonEncode(fresh.items.sublist(fresh.count - items.length)),
+    );
+    expect(jsonEncode(fresh.items), contains('Once upon a time'));
+  });
+
+  test('a task\'s output is watched: what was added, then all again', () async {
+    var text = 'one\n';
+    final sent = <LinkOutput>[];
+    final watch = OutputWatch(
+      session: 's',
+      task: 't',
+      text: text,
+      read: () async => text,
+      emit: sent.add,
+      every: const Duration(milliseconds: 5),
+    );
+    addTearDown(watch.dispose);
+    text += 'two\n';
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(sent.single.text, 'two\n');
+    expect(sent.single.offset, text.length);
+    expect(sent.single.reset, isFalse);
+
+    // Cut and written again: the phone is sent its tail whole.
+    text = 'fresh\n';
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(sent.last.reset, isTrue);
+    expect(sent.last.text, 'fresh\n');
+
+    // More at once than the phone keeps: its tail, whole.
+    text += 'x' * (LinkLimits.output + 10);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(sent.last.reset, isTrue);
+    expect(sent.last.text.length, LinkLimits.output);
+    final count = sent.length;
+    watch.dispose();
+    text += 'more';
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(sent, hasLength(count));
   });
 
   test('a plan is not started while none awaits', () async {
@@ -474,13 +565,11 @@ void main() {
 
 /// A phone's end and a desktop's, connected.
 Future<(LinkPeer, LinkPeer)> peers() async {
-  final (a, b) = MemoryLinkSocket.pair();
-  final desktop = LinkIdentity.generate();
-  final accepted = SecureChannel.accept(b, identity: desktop);
-  final connected = await SecureChannel.connect(
-    a,
-    identity: LinkIdentity.generate(),
-    serverKey: desktop.publicKey,
+  final (a, b) = MemoryLinkConnection.pair(
+    a: LinkIdentity.generate().id,
+    b: LinkIdentity.generate().id,
   );
-  return (LinkPeer(connected), LinkPeer(await accepted));
+  final accepted = LinkPeer.accept(b);
+  final connected = await LinkPeer.connect(a);
+  return (connected, await accepted);
 }

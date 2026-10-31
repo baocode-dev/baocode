@@ -1,0 +1,21 @@
+name: bao_iroh
+description: >-
+  BaoCode's link transport: iroh 1.x (QUIC, hole punching, relays) built
+  from Rust by a native assets hook, behind a small C interface: endpoints,
+  connections, and streams of whole messages. No Flutter in the library.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  code_assets: ^1.2.1
+  ffi: ^2.1.0
+  hooks: ^2.0.2
+  native_toolchain_rust: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

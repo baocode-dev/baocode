@@ -5,15 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../ide/ide_button.dart';
+import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
 import '../../link/link_host.dart';
 import '../../link/qr_view.dart';
 import '../../theme/codicons.dart';
+import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 
-/// Settings → Mobile: whether phones may connect, where they reach this
-/// computer (its addresses, the port, public ones given), pairing one by
-/// QR code, and the phones paired. The relay is listed, not there yet.
+/// Settings → Mobile: whether phones may connect, how this computer stands
+/// with its relays (and relays of one's own), pairing one by QR code, and the
+/// phones paired, each with its path while connected.
 class MobileSettingsPage extends StatefulWidget {
   const MobileSettingsPage({super.key, required this.host});
 
@@ -24,13 +26,19 @@ class MobileSettingsPage extends StatefulWidget {
 }
 
 class _MobileSettingsPageState extends State<MobileSettingsPage> {
-  /// What was typed as the port, when it is not one.
-  String? _invalidPort;
-
   bool _copied = false;
   Timer? _copiedTimer;
 
-  /// Ticks while a code shows, for it to say when it expired.
+  /// The relays' settings shown: folded at first, as few change them.
+  bool _relaysOpen = false;
+
+  /// Custom picked, its address not yet given; and what is wrong with the
+  /// address typed.
+  bool _customPicked = false;
+  String? _customError;
+
+  /// Ticks while a code shows, for it to say when it expired, and while
+  /// phones are connected, for their round trips.
   Timer? _ticker;
 
   LinkHost get _host => widget.host;
@@ -39,11 +47,13 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
   void initState() {
     super.initState();
     _host.addListener(_changed);
-    unawaited(_host.refreshEndpoints());
+    unawaited(_host.refresh());
     _ticker = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (_host.offer != null) setState(() {});
+      if (_host.offer != null || _host.phones.any(_connected)) setState(() {});
     });
   }
+
+  bool _connected(PairedPhone phone) => _host.isConnected(phone.id);
 
   @override
   void dispose() {
@@ -57,16 +67,6 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
     if (mounted) setState(() {});
   }
 
-  void _setPort(String text) {
-    final port = int.tryParse(text);
-    if (port == null || port <= 0 || port > 65535) {
-      setState(() => _invalidPort = text);
-      return;
-    }
-    setState(() => _invalidPort = null);
-    unawaited(_host.setPort(port));
-  }
-
   void _copy(String link) {
     unawaited(Clipboard.setData(ClipboardData(text: link)));
     _copiedTimer?.cancel();
@@ -76,12 +76,43 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
     });
   }
 
+  /// A relay's URL as shown: its host.
+  static String _relayName(String url) => Uri.tryParse(url)?.host ?? url;
+
+  String _status(AppLocalizations l10n) {
+    final host = _host;
+    switch (host.status) {
+      case LinkHostStatus.off:
+        return l10n.mobileStatusOff;
+      case LinkHostStatus.starting:
+        return l10n.mobileStatusStarting;
+      case LinkHostStatus.failed:
+        return l10n.mobileStatusFailed(host.error ?? '');
+      case LinkHostStatus.listening:
+        final info = host.info;
+        if (info?.denied case final reason?) {
+          return l10n.mobileStatusDenied(reason);
+        }
+        final home = info?.home.where((s) => s.connected).firstOrNull;
+        if (home == null) return l10n.mobileStatusNoRelay;
+        return l10n.mobileStatusOnline(_relayName(home.url));
+    }
+  }
+
+  static String _path(AppLocalizations l10n, LinkPath path) => [
+    switch (path.kind) {
+      LinkPathKind.lan => l10n.mobilePathLan,
+      LinkPathKind.direct => l10n.mobilePathDirect,
+      LinkPathKind.relay => l10n.mobilePathRelay,
+      LinkPathKind.none => l10n.mobilePhoneConnected,
+    },
+    if (path.rtt case final rtt?) l10n.mobilePathRtt(rtt.inMilliseconds),
+  ].join(' · ');
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final host = _host;
-    final endpoints = host.endpoints;
-    final invalidPort = _invalidPort;
     return SettingsPage(
       title: l10n.settingsSectionMobile,
       description: l10n.mobileSettingsDescription,
@@ -100,85 +131,37 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
               value: host.discoverable,
               onChanged: host.setDiscoverable,
             ),
-            SettingsRow(
-              label: l10n.mobileStatus,
-              description: switch (host.status) {
-                LinkHostStatus.off => l10n.mobileStatusOff,
-                LinkHostStatus.starting => l10n.mobileStatusStarting,
-                LinkHostStatus.listening => l10n.mobileStatusListening(
-                  host.port,
-                ),
-                LinkHostStatus.failed => l10n.mobileStatusFailed(
-                  host.error ?? '',
-                ),
-              },
-            ),
-            SettingsRow(
-              label: l10n.mobileAddresses,
-              description: l10n.mobileAddressesDescription,
-              below: [
-                if (endpoints.isEmpty)
-                  Text(
-                    l10n.mobileAddressesNone,
-                    style: SettingsText.description,
-                  )
-                else
-                  SelectableText(
-                    endpoints.join('\n'),
-                    style: SettingsText.path,
-                  ),
-              ],
-              trailing: IdeButton(
-                label: l10n.mobileAddressesRefresh,
-                icon: Codicons.refresh,
-                secondary: true,
-                onPressed: () => unawaited(host.refreshEndpoints()),
-              ),
-            ),
-            SettingsRow(
-              label: l10n.mobilePort,
-              description: invalidPort == null
-                  ? l10n.mobilePortDescription
-                  : l10n.mobilePortInvalid(invalidPort),
-              trailing: SettingsTextField(
-                value: '${host.port}',
-                hint: '$defaultLinkPort',
-                width: 100,
-                semanticLabel: l10n.mobilePort,
-                onSubmitted: _setPort,
-              ),
-            ),
-            SettingsRow(
-              label: l10n.mobilePublicAddress,
-              description: l10n.mobilePublicAddressDescription,
-              trailing: SettingsTextField(
-                value: host.publicAddresses.join(', '),
-                hint: 'home.example.com:${host.port}',
-                semanticLabel: l10n.mobilePublicAddress,
-                onSubmitted: (text) => host.setPublicAddresses(text.split(',')),
-              ),
-            ),
-            SettingsRow(
-              label: l10n.mobileRelay,
-              description: l10n.mobileRelayDescription,
-              trailing: Text(
-                l10n.mobileRelayUnavailable,
-                style: SettingsText.description,
-              ),
-            ),
+            SettingsRow(label: l10n.mobileStatus, description: _status(l10n)),
+          ],
+        ),
+        SettingsFolding(
+          title: l10n.mobileRelay,
+          description: l10n.mobileRelayDescription,
+          summary: _relaysSummary(l10n),
+          open: _relaysOpen,
+          onToggle: () => setState(() => _relaysOpen = !_relaysOpen),
+          children: [
+            _relayMode(l10n),
+            if (host.relayMode == LinkRelayMode.pinned) ...[
+              _pinnedRelay(l10n),
+              if (_custom) _customRelay(l10n),
+            ],
           ],
         ),
         SettingsGroup(title: l10n.mobilePair, children: [_pairing(context)]),
         SettingsGroup(
           title: l10n.mobilePhones,
           children: [
-            if (host.phones.isEmpty) SettingsRow(label: l10n.mobilePhonesNone),
+            if (host.phones.isEmpty && host.legacyPhones.isEmpty)
+              SettingsRow(label: l10n.mobilePhonesNone),
             for (final phone in host.phones)
               SettingsRow(
                 label: phone.name.isEmpty ? phone.fingerprint : phone.name,
                 description: [
                   if (phone.system.isNotEmpty) phone.system,
-                  if (host.isConnected(phone.id))
+                  if (host.pathOf(phone.id) case final path?)
+                    _path(l10n, path)
+                  else if (host.isConnected(phone.id))
                     l10n.mobilePhoneConnected
                   else if (phone.lastSeen case final seen?)
                     l10n.mobilePhoneLastSeen(_time(seen)),
@@ -188,6 +171,32 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
                   icon: Codicons.trash,
                   secondary: true,
                   onPressed: () => host.unpair(phone),
+                ),
+              ),
+            for (final phone in host.legacyPhones)
+              SettingsRow(
+                label: phone.name.isEmpty ? phone.system : phone.name,
+                description: [
+                  if (phone.system.isNotEmpty && phone.name.isNotEmpty)
+                    phone.system,
+                  l10n.mobileLegacyPhone,
+                ].join(' · '),
+                trailing: SettingsButtons(
+                  children: [
+                    IdeButton(
+                      label: l10n.mobileLegacyRepair,
+                      icon: Codicons.deviceMobile,
+                      onPressed: host.supported
+                          ? () => unawaited(host.beginPairing())
+                          : null,
+                    ),
+                    IdeButton(
+                      label: l10n.mobilePhoneRemove,
+                      icon: Codicons.trash,
+                      secondary: true,
+                      onPressed: () => host.forgetLegacy(phone),
+                    ),
+                  ],
                 ),
               ),
             SettingsRow(
@@ -200,6 +209,113 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
           ],
         ),
       ],
+    );
+  }
+
+  static String _modeName(AppLocalizations l10n, LinkRelayMode mode) =>
+      switch (mode) {
+        LinkRelayMode.auto => l10n.mobileRelayModeAuto,
+        LinkRelayMode.pinned => l10n.mobileRelayModePinned,
+      };
+
+  /// Folded, beside the heading: how they are chosen, and the one picked
+  /// when one is.
+  String _relaysSummary(AppLocalizations l10n) {
+    final host = _host;
+    return [
+      _modeName(l10n, host.relayMode),
+      if (host.relayMode == LinkRelayMode.pinned)
+        _relayName(host.relays.single),
+    ].join(' · ');
+  }
+
+  /// The relay picked is one at an address given, or Custom was picked.
+  bool get _custom =>
+      _customPicked || !defaultLinkRelays.contains(_host.relays.single);
+
+  Widget _relayMode(AppLocalizations l10n) {
+    final host = _host;
+    final current = host.relayMode;
+    return SettingsRow(
+      label: l10n.mobileRelayMode,
+      description: switch (current) {
+        LinkRelayMode.auto => l10n.mobileRelayModeAutoDescription,
+        LinkRelayMode.pinned => l10n.mobileRelayModePinnedDescription,
+      },
+      trailing: SettingsDropdown(
+        current: _modeName(l10n, current),
+        semanticLabel: '${l10n.mobileRelayMode}: ${_modeName(l10n, current)}',
+        entries: () => [
+          for (final mode in LinkRelayMode.values)
+            IdeMenuAction(
+              _modeName(l10n, mode),
+              checked: mode == current,
+              onSelected: () {
+                setState(() => _customPicked = false);
+                unawaited(host.setRelayMode(mode));
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// The relay picked: one of BaoCode's, or Custom last.
+  Widget _pinnedRelay(AppLocalizations l10n) {
+    final host = _host;
+    final picked = host.relays.single;
+    final current = _custom ? l10n.mobileRelayCustom : _relayName(picked);
+    return SettingsRow(
+      label: l10n.mobileRelayPinned,
+      trailing: SettingsDropdown(
+        current: current,
+        semanticLabel: '${l10n.mobileRelayPinned}: $current',
+        entries: () => [
+          for (final url in defaultLinkRelays)
+            IdeMenuAction(
+              _relayName(url),
+              checked: !_custom && url == picked,
+              onSelected: () {
+                setState(() {
+                  _customPicked = false;
+                  _customError = null;
+                });
+                unawaited(host.pinRelay(url));
+              },
+            ),
+          const IdeMenuSeparator(),
+          IdeMenuAction(
+            l10n.mobileRelayCustom,
+            checked: _custom,
+            onSelected: () => setState(() => _customPicked = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Custom: the address of one's own relay, picked once it is entered.
+  Widget _customRelay(AppLocalizations l10n) {
+    final picked = _host.relays.single;
+    return SettingsRow(
+      label: l10n.mobileRelayCustomAddress,
+      description: _customError ?? l10n.mobileRelayCustomDescription,
+      trailing: SettingsTextField(
+        value: defaultLinkRelays.contains(picked) ? '' : picked,
+        hint: 'https://relay.example.com',
+        semanticLabel: l10n.mobileRelayCustomAddress,
+        width: 260,
+        autofocus: _customPicked,
+        onSubmitted: (text) {
+          final url = parseRelayUrl(text);
+          setState(
+            () => _customError = url == null && text.isNotEmpty
+                ? l10n.mobileRelayInvalid
+                : null,
+          );
+          if (url != null) unawaited(_host.pinRelay(url));
+        },
+      ),
     );
   }
 

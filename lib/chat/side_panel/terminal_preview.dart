@@ -34,9 +34,13 @@ class TerminalPreview extends StatefulWidget {
     this.linkStat,
     this.skipShell = const [],
     this.onOpenLink,
+    this.background,
   });
 
   final KernelTask task;
+
+  /// As [TerminalView.background].
+  final Color? background;
 
   /// The command line it runs, where its tool call is known.
   final String? command;
@@ -280,6 +284,7 @@ class _TerminalPreviewState extends State<TerminalPreview> {
             skipShell: widget.skipShell,
             onKill: _running ? widget.onStop : null,
             onOpenLink: widget.onOpenLink,
+            background: widget.background,
           ),
         ),
       ],

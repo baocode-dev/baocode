@@ -41,7 +41,7 @@ jobs:
       publish: ${{ steps.version.outputs.publish }}
       share: ${{ steps.version.outputs.share }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: version
         name: Read the version, and match the tag against it
         run: |
@@ -77,7 +77,7 @@ jobs:
               done
       - name: Pack
         run: tool/pack_browser_extension.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: extension
           if-no-files-found: error
@@ -99,7 +99,7 @@ jobs:
       AWS_REQUEST_CHECKSUM_CALCULATION: when_required
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: extension
           path: dist
@@ -142,7 +142,7 @@ jobs:
       AWS_REQUEST_CHECKSUM_CALCULATION: when_required
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: extension
           path: dist
@@ -188,7 +188,7 @@ jobs:
       CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
       REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: extension
           path: dist

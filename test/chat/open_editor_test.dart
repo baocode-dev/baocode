@@ -108,6 +108,9 @@ void main() {
       session.send(ComposerMessage(text: text), editor: () => open);
       await tester.pump(const Duration(milliseconds: 100));
       final content = cli.users.last['message']! as Map;
+      // Done, for the next to be given the CLI at once.
+      cli.push({'type': 'result', 'subtype': 'success', 'is_error': false});
+      await tester.pump(const Duration(milliseconds: 100));
       return [
         for (final block in content['content']! as List)
           (block as Map)['text']! as String,
@@ -117,13 +120,16 @@ void main() {
     // No file open, none ever was: nothing to tell.
     expect(await send('hi'), ['hi']);
     open = const OpenEditor('/p/a.conf', line: 3);
-    expect(await send('this one'), ['this one', open.note]);
+    expect(await send('this one'), [open.note, 'this one']);
     // Told already.
     expect(await send('and?'), ['and?']);
     open = const OpenEditor('/p/a.conf', line: 9);
-    expect(await send('here'), ['here', open.note]);
+    expect(await send('here'), [open.note, 'here']);
+    // A command is told by the last block: the note goes before it.
+    open = const OpenEditor('/p/a.conf', line: 12);
+    expect(await send('/compact'), [open.note, '/compact']);
     open = null;
-    expect(await send('now'), ['now', OpenEditor.closedNote]);
+    expect(await send('now'), [OpenEditor.closedNote, 'now']);
     expect(await send('still'), ['still']);
     // Sent from where there is no editor: nothing said of one.
     session.send(const ComposerMessage(text: 'elsewhere'));

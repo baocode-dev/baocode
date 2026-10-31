@@ -24,12 +24,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../chat/composer/composer_mock_data.dart' show fuzzyMatch;
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/window_controls.dart';
 import 'ide_hover.dart';
 import 'ide_motion.dart';
+import 'ide_speed_search.dart';
 
 /// A context menu's colors in the color theme (`defaultMenuStyles`).
 abstract final class IdeMenuColors {
@@ -114,12 +116,16 @@ List<IdeMenuEntry> ideMenuGroups(List<List<IdeMenuEntry>> groups) => [
 /// Shows [entries] as a context menu at [position] (global), or below
 /// [anchor] (global) as a dropdown's, right-aligned to it when
 /// [alignRight]. Completes once it closes, after the chosen action ran.
+///
+/// With [speedSearch], what is typed over it filters its actions by their
+/// labels, as the sidebar's projects are (see [IdeSpeedSearchField]).
 Future<void> showIdeMenu(
   BuildContext context, {
   Offset? position,
   Rect? anchor,
   bool alignRight = false,
   bool iconsInCheckColumn = false,
+  bool speedSearch = false,
   required List<IdeMenuEntry> entries,
 }) async {
   assert(position != null || anchor != null);
@@ -135,6 +141,7 @@ Future<void> showIdeMenu(
     origin: origin,
     alignRight: alignRight,
     iconsInCheckColumn: iconsInCheckColumn,
+    speedSearch: speedSearch,
     lively: IdeMotion.livelyOf(context),
     barrierLabel: context.l10n.menuDismissMenu,
     capturedThemes: InheritedTheme.capture(
@@ -255,11 +262,13 @@ class _IdeMenuRoute extends PopupRoute<VoidCallback> {
     required this.barrierLabel,
     this.lively = false,
     this.iconsInCheckColumn = false,
+    this.speedSearch = false,
   });
 
   final List<IdeMenuEntry> entries;
   final Rect origin;
   final bool alignRight;
+  final bool speedSearch;
   final CapturedThemes capturedThemes;
 
   /// See [_IconsInCheckColumn].
@@ -296,6 +305,7 @@ class _IdeMenuRoute extends PopupRoute<VoidCallback> {
       entries: entries,
       origin: origin,
       alignRight: alignRight,
+      speedSearch: speedSearch,
       onChosen: (action) => Navigator.pop(context, action),
     );
     return capturedThemes.wrap(
@@ -365,11 +375,13 @@ class _MenuHost extends StatefulWidget {
     required this.origin,
     required this.alignRight,
     required this.onChosen,
+    this.speedSearch = false,
   });
 
   final List<IdeMenuEntry> entries;
   final Rect origin;
   final bool alignRight;
+  final bool speedSearch;
   final ValueChanged<VoidCallback?> onChosen;
 
   @override
@@ -383,6 +395,12 @@ class _MenuHostState extends State<_MenuHost> {
   final _focus = FocusNode(debugLabel: 'ide menu');
   final _stackKey = GlobalKey();
   Timer? _submenuTimer;
+
+  /// What the speed search has been typed ([_MenuHost.speedSearch]).
+  String _query = '';
+
+  /// The root's actions it leaves: the characters of their labels matched.
+  Map<IdeMenuAction, List<int>> _matches = const {};
 
   @override
   void initState() {
@@ -469,6 +487,7 @@ class _MenuHostState extends State<_MenuHost> {
 
   int _next(_OpenMenu menu, int from, int step) {
     final count = menu.entries.length;
+    if (count == 0) return from;
     for (var i = 1; i <= count; i++) {
       final index = (from + step * i) % count;
       if (_enabled(menu.entries[index < 0 ? index + count : index])) {
@@ -478,10 +497,82 @@ class _MenuHostState extends State<_MenuHost> {
     return from;
   }
 
+  /// The root's actions the speed search looks through.
+  Iterable<IdeMenuAction> get _searched =>
+      widget.entries.whereType<IdeMenuAction>().where(_enabled);
+
+  /// Lists the root's actions [query] matches, the best one focused; all
+  /// of them again once it is empty.
+  void _search(String query) {
+    final hits = <IdeMenuAction, ({List<int> indexes, int score})>{
+      if (query.isNotEmpty)
+        for (final action in _searched)
+          action: ?fuzzyMatch(action.label, query),
+    };
+    IdeMenuAction? best;
+    for (final MapEntry(:key, :value) in hits.entries) {
+      if (best == null || value.score > hits[best]!.score) best = key;
+    }
+    final entries = query.isEmpty
+        ? widget.entries
+        : [
+            for (final entry in widget.entries)
+              if (hits.containsKey(entry)) entry,
+          ];
+    _submenuTimer?.cancel();
+    setState(() {
+      _query = query;
+      _matches = {
+        for (final MapEntry(:key, :value) in hits.entries) key: value.indexes,
+      };
+      _menus
+        ..clear()
+        ..add(
+          _OpenMenu(entries, widget.origin)
+            ..focused = best == null ? -1 : entries.indexOf(best)
+            ..keyboard = true,
+        );
+    });
+  }
+
+  /// The speed search's keys: a character typed searches; while it does,
+  /// Backspace and Escape edit it, and Space is a character.
+  bool _speedKey(KeyEvent event) {
+    if (!widget.speedSearch) return false;
+    final key = event.logicalKey;
+    if (_query.isNotEmpty) {
+      if (key == LogicalKeyboardKey.escape) {
+        _search('');
+        return true;
+      }
+      if (key == LogicalKeyboardKey.backspace) {
+        _search(_query.characters.skipLast(1).toString());
+        return true;
+      }
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return false;
+    }
+    final char = event.character;
+    if (char == null ||
+        char.isEmpty ||
+        char.codeUnitAt(0) < 0x20 ||
+        char.codeUnitAt(0) == 0x7f ||
+        (char == ' ' && _query.isEmpty)) {
+      return false;
+    }
+    _search(_query + char);
+    return true;
+  }
+
   KeyEventResult _key(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    if (_speedKey(event)) return KeyEventResult.handled;
     final level = _menus.length - 1;
     final menu = _menus[level];
     final key = event.logicalKey;
@@ -547,6 +638,18 @@ class _MenuHostState extends State<_MenuHost> {
               ),
               child: _MenuPanel(
                 menu: menu,
+                matches: _matches,
+                header: level == 0 && _query.isNotEmpty
+                    ? IdeSpeedSearchField(
+                        query: _query,
+                        found: _matches.length,
+                        total: _searched.length,
+                        onClear: () {
+                          _search('');
+                          _focus.requestFocus();
+                        },
+                      )
+                    : null,
                 onHover: (index) => _hover(level, index),
                 onTap: (index) {
                   final entry = menu.entries[index];
@@ -640,9 +743,17 @@ class _MenuPanel extends StatelessWidget {
     required this.menu,
     required this.onHover,
     required this.onTap,
+    this.matches = const {},
+    this.header,
   });
 
   final _OpenMenu menu;
+
+  /// The speed search's matches: the characters of their labels it found.
+  final Map<IdeMenuAction, List<int>> matches;
+
+  /// Above its items: the speed search's filter while it is on.
+  final Widget? header;
   final ValueChanged<int> onHover;
   final ValueChanged<int> onTap;
 
@@ -670,6 +781,16 @@ class _MenuPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (header case final header?)
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      4,
+                      0,
+                      4,
+                      menu.entries.isEmpty ? 0 : 4,
+                    ),
+                    child: header,
+                  ),
                 for (final (index, entry) in menu.entries.indexed)
                   switch (entry) {
                     IdeMenuSeparator() => Container(
@@ -680,6 +801,7 @@ class _MenuPanel extends StatelessWidget {
                     IdeMenuAction() => _MenuItem(
                       key: menu.itemKeys.putIfAbsent(index, GlobalKey.new),
                       action: entry,
+                      matched: matches[entry] ?? const [],
                       focused: menu.focused == index,
                       keyboard: menu.keyboard,
                       onHover: () => onHover(index),
@@ -720,9 +842,13 @@ class _MenuItem extends StatelessWidget {
     required this.keyboard,
     required this.onHover,
     required this.onTap,
+    this.matched = const [],
   });
 
   final IdeMenuAction action;
+
+  /// The characters of its label the speed search matched.
+  final List<int> matched;
   final bool focused;
 
   /// [focused] by the keyboard: it shows the selection border.
@@ -823,8 +949,8 @@ class _MenuItem extends StatelessWidget {
                   const SizedBox(width: 6),
                 ],
                 Expanded(
-                  child: Text(
-                    action.label,
+                  child: Text.rich(
+                    ideSpeedSpan(action.label, matched),
                     maxLines: 1,
                     softWrap: false,
                     style: TextStyle(color: color),

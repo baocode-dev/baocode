@@ -95,7 +95,11 @@ class IdeDiffOptions extends ChangeNotifier {
   };
   set collapseUnchanged(bool value) => _set(_collapseKey, value);
 
+  /// How much of a changed line the diff marks: the lines at least, their
+  /// color the one thing that tells taken out from put in (one set to
+  /// nothing before, the lines).
   DiffHighlight get highlight => switch (_value(_highlightKey)) {
+    'none' => DiffHighlight.lines,
     final String name =>
       DiffHighlight.values.asNameMap()[name] ?? DiffHighlight.characters,
     _ => DiffHighlight.characters,

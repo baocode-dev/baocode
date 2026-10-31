@@ -350,6 +350,54 @@ abstract class AppLocalizations {
   /// **'Focus Previous Pane'**
   String get cmdChatFocusPreviousPane;
 
+  /// No description provided for @cmdChatFocusPaneLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus Left Pane'**
+  String get cmdChatFocusPaneLeft;
+
+  /// No description provided for @cmdChatFocusPaneRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus Right Pane'**
+  String get cmdChatFocusPaneRight;
+
+  /// No description provided for @cmdChatFocusPaneUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus Above Pane'**
+  String get cmdChatFocusPaneUp;
+
+  /// No description provided for @cmdChatFocusPaneDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Focus Below Pane'**
+  String get cmdChatFocusPaneDown;
+
+  /// No description provided for @cmdChatNextPaneTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Next Tab in Pane'**
+  String get cmdChatNextPaneTab;
+
+  /// No description provided for @cmdChatPreviousPaneTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Previous Tab in Pane'**
+  String get cmdChatPreviousPaneTab;
+
+  /// No description provided for @cmdChatTogglePaneTabs.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Pane Tabs'**
+  String get cmdChatTogglePaneTabs;
+
+  /// No description provided for @workspacePaneTabs.
+  ///
+  /// In en, this message translates to:
+  /// **'Show as Tabs'**
+  String get workspacePaneTabs;
+
   /// No description provided for @cmdChatSearch.
   ///
   /// In en, this message translates to:
@@ -2144,6 +2192,18 @@ abstract class AppLocalizations {
   /// **'Word Wrap'**
   String get menuWordWrap;
 
+  /// No description provided for @cmdToggleMinimap.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Minimap'**
+  String get cmdToggleMinimap;
+
+  /// No description provided for @menuMinimap.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimap'**
+  String get menuMinimap;
+
   /// No description provided for @cmdTogglePanel.
   ///
   /// In en, this message translates to:
@@ -3253,6 +3313,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Image'**
   String get agentImageUntitled;
+
+  /// In the list under a chat's title being renamed: has a model title the conversation from what the user asked.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize into a new title'**
+  String get chatTitleSummarize;
+
+  /// In place of Summarize into a new title while the model writes one.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarizing…'**
+  String get chatTitleSummarizing;
+
+  /// In place of Summarize into a new title when the model gave none.
+  ///
+  /// In en, this message translates to:
+  /// **'No title could be had. Try again'**
+  String get chatTitleSummarizeFailed;
 
   /// Button that starts a new agent.
   ///
@@ -7845,6 +7923,18 @@ abstract class AppLocalizations {
   /// **'{kind, select, definition{No definition found for \'{word}\'} typeDefinition{No type definition found for \'{word}\'} implementation{No implementation found for \'{word}\'} other{No references found for \'{word}\'}}'**
   String langNoneFoundFor(String kind, String word);
 
+  /// No description provided for @langNavigationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No language server is available for code navigation in this file.'**
+  String get langNavigationUnavailable;
+
+  /// No description provided for @langNavigationInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install the \'{id}\' language server to enable code navigation in this file.'**
+  String langNavigationInstall(String id);
+
   /// No description provided for @langReferences.
   ///
   /// In en, this message translates to:
@@ -8096,6 +8186,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Kill Terminal'**
   String get termKillTerminal;
+
+  /// No description provided for @termKillOtherTerminals.
+  ///
+  /// In en, this message translates to:
+  /// **'Kill Other Terminals'**
+  String get termKillOtherTerminals;
+
+  /// No description provided for @termKillAllTerminals.
+  ///
+  /// In en, this message translates to:
+  /// **'Kill All Terminals'**
+  String get termKillAllTerminals;
+
+  /// No description provided for @termStopAllTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop All Running Tasks'**
+  String get termStopAllTasks;
+
+  /// No description provided for @termRunInNewTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Run in New Terminal'**
+  String get termRunInNewTerminal;
 
   /// No description provided for @termNoTerminals.
   ///
@@ -8474,6 +8588,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close pane'**
   String get workspaceClosePane;
+
+  /// A pane's close button, where it covers another conversation, which shows again once it closes.
+  ///
+  /// In en, this message translates to:
+  /// **'Close pane, back to {title}'**
+  String workspaceCloseBackTo(String title);
+
+  /// Shown while dropping a conversation over a pane of several.
+  ///
+  /// In en, this message translates to:
+  /// **'Over {title}, which shows again once this closes'**
+  String workspaceCovers(String title);
+
+  /// A pane's button that lists the conversations it covers, to show one again.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 conversation under this one} other{{count} conversations under this one}}'**
+  String workspaceCovered(int count);
 
   /// No description provided for @workspaceLoadingProjects.
   ///
@@ -12315,6 +12447,36 @@ abstract class AppLocalizations {
   /// **'Your messages: {style}'**
   String appearanceSettingsUserMessageStyleLabel(String style);
 
+  /// No description provided for @appearanceSettingsEditDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'File Edits'**
+  String get appearanceSettingsEditDetail;
+
+  /// No description provided for @appearanceSettingsEditDetailDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'How the agent\'s edits to files show in the conversation: as a card of the changes, always open; or as one line that opens to them.'**
+  String get appearanceSettingsEditDetailDescription;
+
+  /// No description provided for @appearanceSettingsEditDetailCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Card with changes'**
+  String get appearanceSettingsEditDetailCard;
+
+  /// No description provided for @appearanceSettingsEditDetailCompact.
+  ///
+  /// In en, this message translates to:
+  /// **'Compact'**
+  String get appearanceSettingsEditDetailCompact;
+
+  /// No description provided for @appearanceSettingsEditDetailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'File edits: {detail}'**
+  String appearanceSettingsEditDetailLabel(String detail);
+
   /// No description provided for @appearanceSettingsReplyScroll.
   ///
   /// In en, this message translates to:
@@ -12512,6 +12674,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Wraps long lines at the editor\'s width, in every editor. An editor\'s context menu and the Command Palette (Toggle Word Wrap) switch it too. Files of more than 5,000 lines are not wrapped.'**
   String get appearanceSettingsWordWrapDescription;
+
+  /// No description provided for @appearanceSettingsCodeMinimap.
+  ///
+  /// In en, this message translates to:
+  /// **'Code Minimap'**
+  String get appearanceSettingsCodeMinimap;
+
+  /// No description provided for @appearanceSettingsCodeMinimapDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'A minimap of the file at the right of the code editor, in every editor; it is not shown in an editor too narrow for it. An editor tab\'s context menu and the Command Palette (Toggle Minimap) switch it too.'**
+  String get appearanceSettingsCodeMinimapDescription;
 
   /// No description provided for @appearanceSettingsUiScale.
   ///
@@ -14106,7 +14280,7 @@ abstract class AppLocalizations {
   /// No description provided for @mobileSettingsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Follow and drive this computer\'s agents from BaoCode on your phone, over the local network or the internet. What goes between them is end-to-end encrypted.'**
+  /// **'Follow and drive this computer\'s agents from BaoCode on your phone: directly on the same network, across the internet through a hole punched in the routers between them, or through BaoCode\'s relay when neither works. What goes between them is end-to-end encrypted; a relay cannot read it.'**
   String get mobileSettingsDescription;
 
   /// No description provided for @mobileAllow.
@@ -14118,7 +14292,7 @@ abstract class AppLocalizations {
   /// No description provided for @mobileAllowDescription.
   ///
   /// In en, this message translates to:
-  /// **'Phones paired with this computer connect to it directly.'**
+  /// **'Phones paired with this computer can connect to it, wherever they are.'**
   String get mobileAllowDescription;
 
   /// No description provided for @mobileStatus.
@@ -14139,89 +14313,23 @@ abstract class AppLocalizations {
   /// **'Starting…'**
   String get mobileStatusStarting;
 
-  /// No description provided for @mobileStatusListening.
-  ///
-  /// In en, this message translates to:
-  /// **'Listening on port {port}'**
-  String mobileStatusListening(int port);
-
   /// No description provided for @mobileStatusFailed.
   ///
   /// In en, this message translates to:
-  /// **'Could not listen: {error}'**
+  /// **'Could not start: {error}'**
   String mobileStatusFailed(String error);
-
-  /// No description provided for @mobileAddresses.
-  ///
-  /// In en, this message translates to:
-  /// **'Addresses'**
-  String get mobileAddresses;
-
-  /// No description provided for @mobileAddressesDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Where phones reach this computer, in the order they try them: the local network first, then the internet.'**
-  String get mobileAddressesDescription;
-
-  /// No description provided for @mobileAddressesNone.
-  ///
-  /// In en, this message translates to:
-  /// **'No network found.'**
-  String get mobileAddressesNone;
-
-  /// No description provided for @mobileAddressesRefresh.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh'**
-  String get mobileAddressesRefresh;
-
-  /// No description provided for @mobilePort.
-  ///
-  /// In en, this message translates to:
-  /// **'Port'**
-  String get mobilePort;
-
-  /// No description provided for @mobilePortDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'The port phones connect to. Forward it on the router to reach this computer from the internet.'**
-  String get mobilePortDescription;
-
-  /// No description provided for @mobilePortInvalid.
-  ///
-  /// In en, this message translates to:
-  /// **'Not a port: {text}. Enter a number from 1 to 65535.'**
-  String mobilePortInvalid(String text);
-
-  /// No description provided for @mobilePublicAddress.
-  ///
-  /// In en, this message translates to:
-  /// **'Public Address'**
-  String get mobilePublicAddress;
-
-  /// No description provided for @mobilePublicAddressDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'A domain or IP this computer can be reached at from the internet (with the port forwarded), put in the QR code; several separated by commas. Behind a proxy that only takes HTTPS (such as a Cloudflare Tunnel), write it as wss://domain. Public IPv6 addresses are found by themselves.'**
-  String get mobilePublicAddressDescription;
 
   /// No description provided for @mobileRelay.
   ///
   /// In en, this message translates to:
-  /// **'Relay'**
+  /// **'Relays'**
   String get mobileRelay;
 
   /// No description provided for @mobileRelayDescription.
   ///
   /// In en, this message translates to:
-  /// **'Reach this computer through BaoCode\'s relay when none of its addresses can be reached. Coming later.'**
+  /// **'Phones that cannot reach this computer directly go through one. It only passes along what is sealed between the two. Nothing to set on the phone: it learns them when paired, and again each time it connects.'**
   String get mobileRelayDescription;
-
-  /// No description provided for @mobileRelayUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Not Available Yet'**
-  String get mobileRelayUnavailable;
 
   /// No description provided for @mobilePair.
   ///
@@ -14378,6 +14486,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Allow'**
   String get mobilePairAllow;
+
+  /// No description provided for @mobileStatusOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'On, reachable through {relay}'**
+  String mobileStatusOnline(String relay);
+
+  /// No description provided for @mobileStatusNoRelay.
+  ///
+  /// In en, this message translates to:
+  /// **'On; no relay reached yet, so only phones on the same network can connect'**
+  String get mobileStatusNoRelay;
+
+  /// No description provided for @mobileStatusDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'On, but the relay turned this computer away: {reason}'**
+  String mobileStatusDenied(String reason);
+
+  /// No description provided for @mobileRelayInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Not a relay address; one looks like https://relay.example.com'**
+  String get mobileRelayInvalid;
+
+  /// No description provided for @mobileRelayPinned.
+  ///
+  /// In en, this message translates to:
+  /// **'Relay Used'**
+  String get mobileRelayPinned;
+
+  /// No description provided for @mobileRelayCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get mobileRelayCustom;
+
+  /// No description provided for @mobileRelayCustomAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom Address'**
+  String get mobileRelayCustomAddress;
+
+  /// No description provided for @mobileRelayCustomDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The address of a relay you run yourself (baocode-relay).'**
+  String get mobileRelayCustomDescription;
+
+  /// No description provided for @mobileRelayMode.
+  ///
+  /// In en, this message translates to:
+  /// **'How'**
+  String get mobileRelayMode;
+
+  /// No description provided for @mobileRelayModeAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get mobileRelayModeAuto;
+
+  /// No description provided for @mobileRelayModeAutoDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode\'s relays, the nearest that answers.'**
+  String get mobileRelayModeAutoDescription;
+
+  /// No description provided for @mobileRelayModePinned.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick One'**
+  String get mobileRelayModePinned;
+
+  /// No description provided for @mobileRelayModePinnedDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the one picked: one of BaoCode\'s, or a custom address.'**
+  String get mobileRelayModePinnedDescription;
+
+  /// No description provided for @mobilePathLan.
+  ///
+  /// In en, this message translates to:
+  /// **'Same network'**
+  String get mobilePathLan;
+
+  /// No description provided for @mobilePathDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct'**
+  String get mobilePathDirect;
+
+  /// No description provided for @mobilePathRelay.
+  ///
+  /// In en, this message translates to:
+  /// **'Through the relay'**
+  String get mobilePathRelay;
+
+  /// No description provided for @mobilePathRtt.
+  ///
+  /// In en, this message translates to:
+  /// **'{ms} ms'**
+  String mobilePathRtt(int ms);
+
+  /// No description provided for @mobileLegacyPhone.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs pairing again: paired before the connection was rebuilt'**
+  String get mobileLegacyPhone;
+
+  /// No description provided for @mobileLegacyRepair.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair Again'**
+  String get mobileLegacyRepair;
 
   /// No description provided for @settingsSectionStash.
   ///
@@ -15542,12 +15764,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Detached HEAD'**
   String get branchBarDetached;
-
-  /// Tooltip of the branch under the chat input while the agent is working.
-  ///
-  /// In en, this message translates to:
-  /// **'Branches can\'t be switched while the agent works'**
-  String get branchBarRunning;
 
   /// Message of the dialog shown when Git refused to check out or create the branch {branch}; Git's own message is the detail.
   ///
@@ -18510,13 +18726,13 @@ abstract class AppLocalizations {
   /// No description provided for @diffRevertChange.
   ///
   /// In en, this message translates to:
-  /// **'Revert'**
+  /// **'Undo this change (back to the left side)'**
   String get diffRevertChange;
 
   /// No description provided for @diffRemoveChange.
   ///
   /// In en, this message translates to:
-  /// **'Remove'**
+  /// **'Undo this change (remove the added lines)'**
   String get diffRemoveChange;
 
   /// No description provided for @diffPreviousDifference.
@@ -18614,12 +18830,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Highlight Lines'**
   String get diffHighlightLines;
-
-  /// No description provided for @diffHighlightNone.
-  ///
-  /// In en, this message translates to:
-  /// **'Do Not Highlight'**
-  String get diffHighlightNone;
 
   /// No description provided for @diffGoToFile.
   ///
@@ -19568,12 +19778,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete Changelist'**
   String get gitChangelistDelete;
-
-  /// No description provided for @gitChangelistTurn.
-  ///
-  /// In en, this message translates to:
-  /// **'AI: {request}'**
-  String gitChangelistTurn(String request);
 
   /// No description provided for @gitStashChangesTitle.
   ///

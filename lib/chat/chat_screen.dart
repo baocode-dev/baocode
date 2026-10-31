@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:bao_editor/textmate/textmate_syntax.dart' show TextMateSyntax;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +20,7 @@ import '../stash/stash_actions.dart';
 import '../stash/stash_store.dart';
 import '../theme/app_theme.dart';
 import '../workspace/editor_launcher.dart';
+import '../workspace/agent_title.dart' show askedTitles;
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import 'agent_view.dart';
@@ -50,6 +52,7 @@ import 'stop_confirmation.dart';
 import 'widgets/agent_step.dart';
 import 'widgets/chat_minimap.dart';
 import 'widgets/code_citation.dart';
+import 'widgets/hover_scroll_text.dart';
 import 'widgets/inline_rename_field.dart';
 import 'widgets/pixel_loader.dart';
 import 'widgets/plan_start.dart';
@@ -67,6 +70,9 @@ class ChatScreen extends StatefulWidget {
     this.trailing,
     this.titleBarInset,
     this.onRename,
+    this.onSummarizeTitle,
+    this.subtitle,
+    this.titleTabs,
     this.titleDragBuilder,
     this.onTitleDragStart,
     this.autofocus = false,
@@ -80,6 +86,7 @@ class ChatScreen extends StatefulWidget {
     this.onOpenTerminalTask,
     this.colorizeCode,
     this.colorizeCodeBlock,
+    this.codeSyntax,
     this.start,
     this.startHint,
     this.below,
@@ -105,6 +112,18 @@ class ChatScreen extends StatefulWidget {
 
   /// Given, a double click on the title edits it.
   final ValueChanged<String>? onRename;
+
+  /// A new title summing the conversation up, offered under the title as
+  /// it is renamed; null when none could be had.
+  final Future<String?> Function()? onSummarizeTitle;
+
+  /// After the title, fainter: e.g. a pane's project, and the host it is
+  /// on.
+  final Widget? subtitle;
+
+  /// In the title bar in place of the title (and [subtitle]), but while
+  /// it is renamed: e.g. a pane's tabs.
+  final Widget? titleTabs;
 
   /// Wraps the title as a drag source, when not renaming. Its double click
   /// still renames; the title bar's controls are never part of the source.
@@ -154,6 +173,9 @@ class ChatScreen extends StatefulWidget {
 
   /// Colors code blocks by the language their fences name.
   final CodeBlockColorizer? colorizeCodeBlock;
+
+  /// See [CodeCitationScope.syntax].
+  final TextMateSyntax Function()? codeSyntax;
 
   /// Over the composer while nothing was sent, e.g. where the agent is to
   /// work: given, the composer waits in the middle of the screen until then.
@@ -513,6 +535,9 @@ class _ChatScreenState extends State<ChatScreen>
         child: InlineRenameField(
           initial: widget.title,
           style: style.copyWith(color: AppColors.textPrimary),
+          // What was asked, to title it after instead.
+          suggestions: askedTitles(_session),
+          onSummarize: widget.onSummarizeTitle,
           onDone: (text) {
             if (text != null) onRename(text);
             setState(() => _renaming = false);
@@ -524,12 +549,8 @@ class _ChatScreenState extends State<ChatScreen>
         onDoubleTap: onRename == null
             ? null
             : () => setState(() => _renaming = true),
-        child: Text(
-          widget.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: style,
-        ),
+        // Too long for the bar: scrolled to the rest while hovered.
+        child: HoverScrollText(widget.title, style: style),
       );
       // A pane's title drags the pane; the chat's alone, the window, as the
       // system's title does: a long one leaves little of the bar empty.
@@ -551,7 +572,33 @@ class _ChatScreenState extends State<ChatScreen>
                 Expanded(
                   // The title at the bar's start, as the row macOS draws
                   // has it (Windows draws none of it: see window_header/).
-                  child: Align(alignment: Alignment.centerLeft, child: title),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: switch (widget.subtitle) {
+                      _ when !_renaming && widget.titleTabs != null =>
+                        widget.titleTabs!,
+                      final subtitle? when !_renaming => LayoutBuilder(
+                        builder: (context, constraints) => Row(
+                          children: [
+                            Flexible(child: title),
+                            const SizedBox(width: 8),
+                            // Its own width, up to some of the bar's: the
+                            // title has the rest.
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: math.min(
+                                  220,
+                                  constraints.maxWidth * .4,
+                                ),
+                              ),
+                              child: subtitle,
+                            ),
+                          ],
+                        ),
+                      ),
+                      _ => title,
+                    },
+                  ),
                 ),
               ],
             ),
@@ -799,6 +846,7 @@ class _ChatScreenState extends State<ChatScreen>
           onOpen: links == null ? widget.onOpenCode : _openCode,
           colorize: widget.colorizeCode,
           colorizeBlock: widget.colorizeCodeBlock,
+          syntax: widget.codeSyntax,
           child: ComposerVocabulary(
             commands: _commandSuggestions(),
             suggestFiles: _suggestFiles(root),
@@ -1094,6 +1142,7 @@ class _ChatScreenState extends State<ChatScreen>
           child: switch (_session.queued) {
             final queued when queued.isNotEmpty => QueuePanel(
               messages: queued,
+              onMove: _session.moveQueued,
               onEdit: (id) => unawaited(_session.editQueued(id)),
               onSendNow: _session.sendQueuedNow,
               onRemove: _session.cancelQueued,

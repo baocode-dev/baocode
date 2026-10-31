@@ -28,7 +28,7 @@ import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/pin_window_button.dart';
 import '../workspace/window_controls.dart';
 import 'stash_actions.dart'
-    show implementStash, stashReferenceOf, stashProjectIcon;
+    show implementStash, stashReferenceOf, stashProjectIcon, stashProjectLabel;
 import 'stash_controller.dart';
 import 'stash_editor.dart' show StashAttachment, StashAttachmentIcon, StashRefs;
 import 'stash_note.dart';
@@ -331,7 +331,9 @@ class _StashPanelViewState extends State<StashPanelView> {
     final project = note?.project;
     if (project == null) return null;
     for (final known in _controller.workspace.projects) {
-      if (known.path == project) return known.name;
+      if (known.path == project) {
+        return stashProjectLabel(_controller.workspace, known);
+      }
     }
     return p.basename(project);
   }
@@ -347,11 +349,14 @@ class _StashPanelViewState extends State<StashPanelView> {
         note.project = project;
         note.suggestedProject = project == null ? note.suggestedProject : '';
       }, touch: false);
+      await _controller.forge?.projectChanged(id);
     }
 
     await showIdeMenu(
       context,
       anchor: anchor,
+      speedSearch: true,
+      iconsInCheckColumn: true,
       entries: [
         IdeMenuAction(
           l10n.stashNoProject,
@@ -361,7 +366,7 @@ class _StashPanelViewState extends State<StashPanelView> {
         const IdeMenuSeparator(),
         for (final project in _controller.workspace.projects)
           IdeMenuAction(
-            project.name,
+            stashProjectLabel(_controller.workspace, project),
             icon: stashProjectIcon(_controller.workspace, project),
             checked: project.path == current,
             onSelected: () => unawaited(set(project.path)),
@@ -1006,13 +1011,17 @@ class _AllStashesState extends State<_AllStashes> {
     if (mounted) _open(kept.id);
   }
 
+  /// [projectChanged]: their issues let go where no longer theirs (see
+  /// [StashForge.projectChanged]).
   Future<void> _each(
     List<int> ids,
-    void Function(StashNote note) change,
-  ) async {
+    void Function(StashNote note) change, {
+    bool projectChanged = false,
+  }) async {
     await widget.flush();
     for (final id in ids) {
       await _controller.store.update(id, change, touch: false);
+      if (projectChanged) await _controller.forge?.projectChanged(id);
     }
   }
 
@@ -1059,19 +1068,21 @@ class _AllStashesState extends State<_AllStashes> {
             IdeMenuAction(
               l10n.stashNoProject,
               checked: !several && note.project == null,
-              onSelected: () => unawaited(_each(ids, (n) => n.project = null)),
+              onSelected: () => unawaited(
+                _each(ids, (n) => n.project = null, projectChanged: true),
+              ),
             ),
             const IdeMenuSeparator(),
             for (final project in _controller.workspace.projects)
               IdeMenuAction(
-                project.name,
+                stashProjectLabel(_controller.workspace, project),
                 icon: stashProjectIcon(_controller.workspace, project),
                 checked: !several && note.project == project.path,
                 onSelected: () => unawaited(
                   _each(ids, (n) {
                     n.project = project.path;
                     n.suggestedProject = '';
-                  }),
+                  }, projectChanged: true),
                 ),
               ),
           ],
@@ -1159,7 +1170,7 @@ class _AllStashesState extends State<_AllStashes> {
         ),
         for (final project in projects)
           IdeMenuAction(
-            project.name,
+            stashProjectLabel(_controller.workspace, project),
             icon: stashProjectIcon(_controller.workspace, project),
             checked: _project == project.path,
             onSelected: () => setState(() => _project = project.path),

@@ -1,3 +1,4 @@
+import 'package:baocode/base/step_clock.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/widgets/rolling_text.dart';
 import 'package:baocode/chat/widgets/turn_footer.dart';
@@ -46,7 +47,10 @@ void main() {
     await _pump(tester, const RollingText('12', style: style));
     await tester.pump(const Duration(milliseconds: 50));
     expect(tester.takeException(), isNull);
-    await tester.pumpAndSettle();
+    // On the shared clock's frames, not every vsync.
+    expect(tester.hasRunningAnimations, isFalse);
+    await tester.pump(RollingText.duration + StepClock.frame);
+    await tester.pump(StepClock.frame);
     expect(find.text('3'), findsNothing);
     expect(find.text('2'), findsOneWidget);
     // The one unchanged never moved.

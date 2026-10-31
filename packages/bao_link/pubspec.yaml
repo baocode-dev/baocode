@@ -1,9 +1,9 @@
 name: bao_link
 description: >-
   BaoCode's link between a desktop and the phones paired with it: pairing
-  by QR code, an end-to-end encrypted channel (X25519, XSalsa20-Poly1305)
-  and the requests that go over it. Direct over the LAN or the internet for
-  now; a relay is reserved for, not there yet. No Flutter in the library.
+  by QR code, connections by device key over iroh (QUIC, direct or through
+  BaoCode's relays, end-to-end encrypted) and the requests that go over
+  them. No Flutter in the library.
 version: 0.1.0
 publish_to: none
 resolution: workspace
@@ -12,6 +12,8 @@ environment:
   sdk: ^3.13.4
 
 dependencies:
+  bao_iroh:
+    path: ../bao_iroh
   pinenacl: ^0.6.0
 
 dev_dependencies:

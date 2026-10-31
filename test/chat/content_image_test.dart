@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 
+import 'package:baocode/base/step_clock.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/composer/composer_embeds.dart' show FileImageChip;
 import 'package:baocode/chat/side_panel/file_link_menu.dart';
@@ -275,9 +276,17 @@ void main() {
         tester.getSize(find.byType(ContentImage)),
         const Size(contentImageMaxWidth, contentImageMaxWidth / 4),
       );
-      expect(tester.hasRunningAnimations, isFalse, reason: 'still at first');
+      // The band of light, gone across on the shared clock's frames.
+      final sweep = find.descendant(
+        of: find.byType(ImageShimmer),
+        matching: find.byType(DecoratedBox),
+      );
+      await tester.pump(StepClock.frame);
+      expect(sweep, findsNothing, reason: 'still at first');
       await tester.pump(ImageShimmer.delay);
-      expect(tester.hasRunningAnimations, isTrue);
+      await tester.pump(StepClock.frame);
+      expect(sweep, findsOneWidget);
+      expect(tester.hasRunningAnimations, isFalse, reason: 'not every vsync');
 
       await _decode(tester);
       await tester.pumpAndSettle();

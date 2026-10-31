@@ -208,6 +208,7 @@ class TerminalWidget extends StatefulWidget {
     this.onPanZoomUpdate,
     this.capturesWheel,
     this.mouseCursor = SystemMouseCursors.text,
+    this.background,
   });
 
   final TerminalRenderSource source;
@@ -253,6 +254,10 @@ class TerminalWidget extends StatefulWidget {
 
   /// The pointer over the grid.
   final MouseCursor mouseCursor;
+
+  /// Its background where it is shown, over the theme's
+  /// ([TerminalRenderer.background]).
+  final Color? background;
 
   @override
   State<TerminalWidget> createState() => _TerminalWidgetState();
@@ -347,6 +352,7 @@ class _TerminalWidgetState extends State<TerminalWidget>
       isFocused: widget.focusNode?.hasFocus ?? false,
     );
     _renderer
+      ..background = widget.background
       ..selection = _controller.selection
       ..linkUnderline = _controller.linkUnderline;
     _controller._state = this;
@@ -407,6 +413,8 @@ class _TerminalWidgetState extends State<TerminalWidget>
       _disposeRenderer();
       _createRenderer();
       _renderer.devicePixelRatio = _devicePixelRatio;
+    } else if (oldWidget.background != widget.background) {
+      _renderer.background = widget.background;
     }
   }
 

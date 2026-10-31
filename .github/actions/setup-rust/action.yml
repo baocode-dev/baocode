@@ -1,0 +1,54 @@
+# rustup, and the toolchain packages/bao_iroh/rust/rust-toolchain.toml
+# names, with the targets it lists: what bao_iroh's build hook (its Rust,
+# iroh) builds with, in the apps' builds and in `flutter test`.
+name: Set up Rust
+description: rustup and bao_iroh's Rust toolchain
+inputs:
+  dir:
+    description: The folder of bao_iroh's Rust crate
+    default: packages/bao_iroh/rust
+runs:
+  using: composite
+  steps:
+    # Most runner images have rustup; an Arm one may not.
+    - name: Install rustup where there is none
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        if ! command -v rustup > /dev/null && [ ! -x "$HOME/.cargo/bin/rustup" ]; then
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain none --profile minimal
+        fi
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+    - name: Install rustup where there is none
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        if (-not (Get-Command rustup -ErrorAction SilentlyContinue) -and -not (Test-Path "$env:USERPROFILE\.cargo\bin\rustup.exe")) {
+          $arch = if ($env:RUNNER_ARCH -eq 'ARM64') { 'aarch64' } else { 'x86_64' }
+          $init = "$env:RUNNER_TEMP\rustup-init.exe"
+          Invoke-WebRequest "https://static.rust-lang.org/rustup/dist/$arch-pc-windows-msvc/rustup-init.exe" -OutFile $init
+          & $init -y --default-toolchain none --profile minimal
+          if ($LASTEXITCODE -ne 0) { throw "rustup-init exited with $LASTEXITCODE" }
+        }
+        "$env:USERPROFILE\.cargo\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    # rustup 1.28 and later install the toolchain file's with no name given;
+    # earlier ones, on being asked what it is.
+    - name: Install the toolchain
+      if: runner.os != 'Windows'
+      shell: bash
+      working-directory: ${{ inputs.dir }}
+      run: |
+        rustup --version
+        rustup toolchain install --profile minimal 2> /dev/null || rustup show
+        rustc --version
+    - name: Install the toolchain
+      if: runner.os == 'Windows'
+      shell: pwsh
+      working-directory: ${{ inputs.dir }}
+      run: |
+        rustup --version
+        rustup toolchain install --profile minimal
+        if ($LASTEXITCODE -ne 0) { rustup show }
+        rustc --version
+        if ($LASTEXITCODE -ne 0) { throw 'no rustc' }
