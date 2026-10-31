@@ -1056,9 +1056,9 @@ class ClaudeTranslator {
         target: _summary(input),
         status: status,
       ),
+      // Its verb the web kind's, in the app's language.
       'WebFetch' => ToolCallItem(
         kind: ToolKind.web,
-        label: tense('Fetched', 'Fetching'),
         target: _string(input['url']) ?? '',
         status: status,
         output: output,

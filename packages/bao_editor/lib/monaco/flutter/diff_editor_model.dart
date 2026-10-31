@@ -122,22 +122,24 @@ class DiffEditorModel extends ChangeNotifier {
       maxComputationTimeMs: maxComputationTimeMs,
     );
     LinesDiff diff;
-    if (isSmallLinesDiff(originalLines, modifiedLines)) {
-      diff = DefaultLinesDiffComputer().computeDiff(
-        originalLines,
-        modifiedLines,
-        options,
-      );
-    } else {
-      _computing = true;
+    try {
+      final result = _diff(originalLines, modifiedLines, options);
+      diff = result is Future<LinesDiff> ? await result : result;
+    } on Object catch (error, stack) {
+      // A diff with a fault of its own (one of the whitespace options', say)
+      // still shown: compared plainly, else as all of it changed.
+      _report(error, stack);
       try {
-        diff = await computeLinesDiffOnIsolate(
+        if (!ignoreTrimWhitespace && !ignoreAllWhitespace) rethrow;
+        final result = _diff(
           originalLines,
           modifiedLines,
-          options,
+          LinesDiffComputerOptions(maxComputationTimeMs: maxComputationTimeMs),
         );
-      } finally {
-        _computing = false;
+        diff = result is Future<LinesDiff> ? await result : result;
+      } on Object catch (error, stack) {
+        if (!identical(error, _reported)) _report(error, stack);
+        diff = _allChanged(originalLines, modifiedLines);
       }
     }
     if (_disposed) return;
@@ -153,6 +155,85 @@ class DiffEditorModel extends ChangeNotifier {
       _again = false;
       unawaited(_compute());
     }
+  }
+
+  /// [original] against [modified]: here (at once) for a few thousand
+  /// characters, else on another isolate.
+  FutureOr<LinesDiff> _diff(
+    List<String> original,
+    List<String> modified,
+    LinesDiffComputerOptions options,
+  ) {
+    if (debugComputeDiff case final compute?) {
+      return compute(original, modified, options);
+    }
+    if (isSmallLinesDiff(original, modified)) {
+      return DefaultLinesDiffComputer().computeDiff(
+        original,
+        modified,
+        options,
+      );
+    }
+    return _offIsolate(original, modified, options);
+  }
+
+  Future<LinesDiff> _offIsolate(
+    List<String> original,
+    List<String> modified,
+    LinesDiffComputerOptions options,
+  ) async {
+    _computing = true;
+    try {
+      return await computeLinesDiffOnIsolate(original, modified, options);
+    } finally {
+      _computing = false;
+    }
+  }
+
+  /// Compares the texts in place of the diff computer, for tests.
+  @visibleForTesting
+  static LinesDiff Function(
+    List<String> original,
+    List<String> modified,
+    LinesDiffComputerOptions options,
+  )?
+  debugComputeDiff;
+
+  /// The last fault reported, not reported again as it is rethrown.
+  Object? _reported;
+
+  void _report(Object error, StackTrace stack) {
+    _reported = error;
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'diff editor',
+        context: ErrorDescription('while comparing the two texts'),
+      ),
+    );
+  }
+
+  /// Every line of [original] replaced by every line of [modified]; no
+  /// change where they are the same.
+  static LinesDiff _allChanged(List<String> original, List<String> modified) {
+    if (listEquals(original, modified)) return const LinesDiff([], [], false);
+    return LinesDiff(
+      [
+        DetailedLineRangeMapping(
+          LineRange(1, original.length + 1),
+          LineRange(1, modified.length + 1),
+          [
+            RangeMapping(
+              Range(1, 1, original.length, original.last.length + 1),
+              Range(1, 1, modified.length, modified.last.length + 1),
+            ),
+          ],
+        ),
+      ],
+      [],
+      false,
+    );
   }
 
   static List<String> _lines(DocumentSnapshot snapshot) => [
@@ -372,8 +453,9 @@ enum DiffHighlight { characters, words, lines, none }
 
 /// `DiffEditorDecorations`, with `experimental.showEmptyDecorations`: each
 /// changed line's background and margin ([gutterBars], the modified's with
-/// a bar at its edge as well), and each inner change's text background (the
-/// whole line's, where the other side has no lines).
+/// a bar at its edge as well), and each inner change's text background.
+/// Lines changed whole (the other side has none, or an inner change is all
+/// of them) have their line's background alone, not the text's over it.
 ({List<EditorDecoration> original, List<EditorDecoration> modified})
 computeDiffDecorations(
   List<DetailedLineRangeMapping> diffs,
@@ -432,32 +514,7 @@ computeDiffDecorations(
         ),
       );
     }
-    if (!background) continue;
-    if (m.modified.isEmpty || m.original.isEmpty) {
-      if (originalLines case (final start, final end)) {
-        originalDecorations.add(
-          EditorDecoration(
-            start: start,
-            end: end,
-            isWholeLine: true,
-            backgroundColor: colors.removedText,
-            borderColor: colors.removedTextBorder,
-          ),
-        );
-      }
-      if (modifiedLines case (final start, final end)) {
-        modifiedDecorations.add(
-          EditorDecoration(
-            start: start,
-            end: end,
-            isWholeLine: true,
-            backgroundColor: colors.insertedText,
-            borderColor: colors.insertedTextBorder,
-          ),
-        );
-      }
-      continue;
-    }
+    if (!background || m.modified.isEmpty || m.original.isEmpty) continue;
     if (highlight == DiffHighlight.lines) continue;
     final words = highlight == DiffHighlight.words;
     (int, int) span(DocumentSnapshot snapshot, Range range) {
@@ -466,35 +523,43 @@ computeDiffDecorations(
       return words ? diffWordRange(snapshot.text, start, end) : (start, end);
     }
 
+    // An inner change that is all of the lines on a side: they are marked
+    // whole already.
+    bool whole((int, int)? lines, int start, int end) =>
+        lines != null && start <= lines.$1 && end >= lines.$2;
     for (final i in m.innerChanges ?? const <RangeMapping>[]) {
       // Don't show empty markers outside the line range.
       if (_contains(m.original, i.originalRange.startLineNumber) &&
           i.originalRange.endLineNumber <= original.lineCount) {
         final (start, end) = span(original, i.originalRange);
-        originalDecorations.add(
-          EditorDecoration(
-            start: start,
-            end: end,
-            backgroundColor: colors.removedText,
-            borderColor: colors.removedTextBorder,
-            fillsLineOnLineBreak: true,
-            marksEmpty: true,
-          ),
-        );
+        if (!whole(originalLines, start, end)) {
+          originalDecorations.add(
+            EditorDecoration(
+              start: start,
+              end: end,
+              backgroundColor: colors.removedText,
+              borderColor: colors.removedTextBorder,
+              fillsLineOnLineBreak: true,
+              marksEmpty: true,
+            ),
+          );
+        }
       }
       if (_contains(m.modified, i.modifiedRange.startLineNumber) &&
           i.modifiedRange.endLineNumber <= modified.lineCount) {
         final (start, end) = span(modified, i.modifiedRange);
-        modifiedDecorations.add(
-          EditorDecoration(
-            start: start,
-            end: end,
-            backgroundColor: colors.insertedText,
-            borderColor: colors.insertedTextBorder,
-            fillsLineOnLineBreak: true,
-            marksEmpty: true,
-          ),
-        );
+        if (!whole(modifiedLines, start, end)) {
+          modifiedDecorations.add(
+            EditorDecoration(
+              start: start,
+              end: end,
+              backgroundColor: colors.insertedText,
+              borderColor: colors.insertedTextBorder,
+              fillsLineOnLineBreak: true,
+              marksEmpty: true,
+            ),
+          );
+        }
       }
     }
   }

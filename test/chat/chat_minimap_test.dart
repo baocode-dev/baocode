@@ -244,6 +244,31 @@ void main() {
     expect(_opacity(tester), 1);
   });
 
+  testWidgets('a long conversation shown again has it, and its room, from '
+      'its first frame', (tester) async {
+    double textLeft() => tester.getRect(find.byType(AssistantText).first).left;
+    final first = _Feed(_conversation(30));
+    final second = _Feed(_conversation(30));
+    await _pump(tester, first, width: 790, maxWidth: 1200);
+    await _pump(tester, second, width: 790, maxWidth: 1200);
+    expect(_opacity(tester), 1);
+    // Back to the first: one frame, not laid out and found long again.
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(
+          body: ChatHistoryView(
+            feed: first,
+            maxContentWidth: 1200,
+            minimap: true,
+          ),
+        ),
+      ),
+    );
+    expect(_opacity(tester), 1);
+    expect(textLeft(), greaterThanOrEqualTo(ChatMinimap.room));
+  });
+
   testWidgets('not where it is not asked for (the IDE)', (tester) async {
     await _pump(tester, _Feed(_conversation(30)), minimap: false);
     expect(find.byType(ChatMinimap), findsNothing);

@@ -109,6 +109,11 @@ typedef _LeftAt = ({
 /// Each conversation's, by its feed; none while at the end, followed.
 final Expando<_LeftAt> _leftAt = Expando('chat history left at');
 
+/// The conversations found long ([_ChatHistoryViewState._long]), by their
+/// feeds: one shown again has its minimap (and the room for it) from its
+/// first frame, not a few frames on, once it is laid out.
+final Expando<bool> _longFeeds = Expando('chat history long');
+
 class _ChatHistoryViewState extends State<ChatHistoryView>
     with TickerProviderStateMixin, ChatKeyTarget {
   final _BottomAnchoredScrollController _scrollController =
@@ -644,6 +649,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     FrameWatch.notes[this] = _frameNote;
     _wasLive = _feed.isStreaming;
     _prependedSeen = _session?.prependedCount ?? 0;
+    _long = _longFeeds[_feed] ?? false;
     _refold();
     _seeItems();
     _resumeEditing();
@@ -741,7 +747,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   void didUpdateWidget(ChatHistoryView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.feed != widget.feed) {
-      _long = false;
+      _long = _longFeeds[widget.feed] ?? false;
       _noteLeft(oldWidget.feed);
       _shownFirst = null;
       oldWidget.feed.removeListener(_handleSessionChanged);
@@ -1468,6 +1474,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         _long ||
         position.maxScrollExtent - position.minScrollExtent >=
             position.viewportDimension * ChatMinimap.longAfter;
+    if (long) _longFeeds[_feed] = true;
     if (below != _contentBelow || above != _contentAbove || long != _long) {
       setState(() {
         _contentBelow = below;
@@ -2683,6 +2690,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                 if (widget.minimap)
                   Positioned.fill(
                     child: ChatMinimap(
+                      // Another conversation's: its glass not sprung over
+                      // from where the last one's was.
+                      key: ObjectKey(_feed),
                       rowCount: _feed.itemCount,
                       rowAt: _minimapRow,
                       span: _spanInView,

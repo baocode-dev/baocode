@@ -6,6 +6,7 @@ import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_decorations.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/flutter/lines_diff.dart';
+import 'package:bao_editor/monaco/vs/editor/common/diff/default_lines_diff_computer/default_lines_diff_computer.dart';
 import 'package:bao_editor/monaco/vs/editor/common/diff/range_mapping.dart';
 
 /// A diff editor's model: the diff, and the zones and decorations each
@@ -112,6 +113,51 @@ void main() {
     },
   );
 
+  group('a fault comparing the texts', () {
+    late List<FlutterErrorDetails> reported;
+    late FlutterExceptionHandler? onError;
+
+    setUp(() {
+      reported = [];
+      onError = FlutterError.onError;
+      FlutterError.onError = reported.add;
+    });
+
+    tearDown(() {
+      FlutterError.onError = onError;
+      DiffEditorModel.debugComputeDiff = null;
+    });
+
+    test('with whitespace ignored: compared again plainly', () {
+      DiffEditorModel.debugComputeDiff = (a, b, options) {
+        if (options.ignoreTrimWhitespace || options.ignoreAllWhitespace) {
+          throw StateError('Unaligned line changes');
+        }
+        return DefaultLinesDiffComputer().computeDiff(a, b, options);
+      };
+      final diff = DiffEditorModel(
+        original: original,
+        modified: modified,
+        ignoreAllWhitespace: true,
+      );
+      addTearDown(diff.dispose);
+      expect(diff.mappings, hasLength(2));
+      expect(reported, hasLength(1));
+    });
+
+    test('plainly too: all of it changed', () {
+      DiffEditorModel.debugComputeDiff = (a, b, options) =>
+          throw StateError('Unaligned line changes');
+      final diff = DiffEditorModel(original: original, modified: modified);
+      addTearDown(diff.dispose);
+      final mappings = diff.mappings!;
+      expect(mappings, hasLength(1));
+      expect(lines(mappings.single.original), '[1,6)');
+      expect(lines(mappings.single.modified), '[1,8)');
+      expect(reported, hasLength(2));
+    });
+  });
+
   test('a few thousand characters at most are compared here', () {
     expect(isSmallLinesDiff(['a' * 999], ['b' * 999]), isTrue);
     expect(isSmallLinesDiff(['a' * 1000], ['b' * 1000]), isFalse);
@@ -135,31 +181,28 @@ void main() {
       modified.snapshot,
       colors,
     );
-    // `b`: the whole line, then its text, which fills the line break.
+    // `b`: the whole line alone; its text, all of it changed, is not lit
+    // over it again.
     final removed = decorations.original;
-    expect(removed, hasLength(2));
+    expect(removed, hasLength(1));
     expect((removed[0].start, removed[0].end), (2, 3));
     expect(removed[0].isWholeLine, isTrue);
     expect(removed[0].backgroundColor, colors.removedLine);
     expect(removed[0].marginColor, colors.removedGutter);
     expect(removed[0].lineDecorationIcon, isNull);
     expect(removed[0].overviewRulerColor, colors.overviewRemoved);
-    expect((removed[1].start, removed[1].end), (2, 3));
-    expect(removed[1].isWholeLine, isFalse);
-    expect(removed[1].backgroundColor, colors.removedText);
-    expect(removed[1].fillsLineOnLineBreak, isTrue);
 
-    // `B`, then the inserted lines, whose text is all inserted.
+    // `B`, then the inserted lines: their backgrounds alone.
     final inserted = decorations.modified;
-    expect(inserted, hasLength(4));
+    expect(inserted, hasLength(2));
     expect(inserted[0].lineDecorationIcon, isNull);
     // Side by side, no bar at the gutter's edge.
     expect(inserted[0].gutterBarColor, isNull);
-    expect((inserted[2].start, inserted[2].end), (6, 9));
-    expect(inserted[2].backgroundColor, colors.insertedLine);
-    expect((inserted[3].start, inserted[3].end), (6, 9));
-    expect(inserted[3].isWholeLine, isTrue);
-    expect(inserted[3].backgroundColor, colors.insertedText);
+    expect((inserted[1].start, inserted[1].end), (6, 9));
+    expect(inserted[1].backgroundColor, colors.insertedLine);
+    expect([
+      for (final d in inserted) d.backgroundColor,
+    ], isNot(contains(colors.insertedText)));
   });
 
   test("inline, the inserted lines' margins have a bar at the edge", () {
