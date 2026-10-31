@@ -21,13 +21,14 @@ import 'channel/channel_setup_welcome.dart';
 import 'chat/chat_keys.dart';
 import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
-import 'chat/chat_session.dart' show ChatSession;
+import 'chat/chat_session.dart' show ChatSession, ComposerMessage;
 import 'chat/composer/composer_files.dart' show CodeReference, ComposerFile;
 import 'chat/composer/composer_mock_data.dart' show Suggestion;
 import 'chat/composer/file_drop.dart';
 import 'chat/composer/file_mentions.dart';
 import 'chat/open_editor.dart';
 import 'chat/panels/interaction_panel.dart';
+import 'chat/side_chat/side_chat.dart';
 import 'chat/side_panel/file_open.dart';
 import 'chat/side_panel/file_preview.dart' show FilePreview;
 import 'chat/side_panel/side_panel_controller.dart';
@@ -2822,9 +2823,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               null => null,
             },
             // The project's terminals, the chat's: the same in both.
-            terminals: path == _noFolder
-                ? null
-                : _terminals?.terminalsOf(path),
+            terminals: path == _noFolder ? null : _terminals?.terminalsOf(path),
             terminalHosts: _terminals?.hosts,
             remote: switch (ProjectHost.of(path)) {
               final SshHost host => SshStatusIndicator(
@@ -3595,6 +3594,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   void _showSidePanelSection(SidePanelSection section) {
     final thread = _agentThread ?? _workspace.current;
     if (thread != null) _sidePanel.showSection(thread.session, section);
+  }
+
+  /// Asks [question] beside [thread]'s conversation (`/btw`): on its side
+  /// chat's page, which opens with it. An empty question only shows it.
+  void _askBeside(AgentThread thread, ComposerMessage question) {
+    final chat = _sidePanel.tabsOf(thread.session).sideChat ??= SideChat(
+      main: thread.session,
+    );
+    _sidePanel.showSection(thread.session, SidePanelSection.sideChat);
+    unawaited(chat.ask(question));
   }
 
   Map<String, VoidCallback> _sidePanelCommands() => {
@@ -4580,6 +4589,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             ? null
             : (name) => _commandFileOf(thread, name),
         openEditor: openEditor ?? () => _sidePanelEditor(thread),
+        onSideQuestion: embedded
+            ? null
+            : (ChatSession _, ComposerMessage question) =>
+                  _askBeside(thread, question),
       ),
     );
     if (place.alone || embedded) return chat;
@@ -4629,7 +4642,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
       SidePanelSection.terminal ||
       SidePanelSection.browser ||
-      SidePanelSection.plan => null,
+      SidePanelSection.plan ||
+      SidePanelSection.sideChat => null,
     };
   }
 

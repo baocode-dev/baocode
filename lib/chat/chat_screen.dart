@@ -18,6 +18,7 @@ import '../remote/remote_status.dart' show ClaudeInstallBanner, SshHostBanner;
 import '../stash/stash_actions.dart';
 import '../stash/stash_store.dart';
 import '../theme/app_theme.dart';
+import '../theme/codicons.dart';
 import '../workspace/editor_launcher.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
@@ -87,6 +88,7 @@ class ChatScreen extends StatefulWidget {
     this.fileMentions,
     this.commandFile,
     this.openEditor,
+    this.onSideQuestion,
   });
 
   final String title;
@@ -182,6 +184,12 @@ class ChatScreen extends StatefulWidget {
   /// The file open in the editor beside it, where there is one: the agent
   /// is told of it with the messages sent (see [ChatSession.send]).
   final OpenEditor? Function()? openEditor;
+
+  /// Given, a `/btw` sent here asks it (the question beside the
+  /// conversation, see lib/chat/side_chat/) rather than the agent: its
+  /// images and mentions asked with it.
+  final void Function(ChatSession session, ComposerMessage question)?
+  onSideQuestion;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -630,6 +638,15 @@ class _ChatScreenState extends State<ChatScreen>
     if (!identical(commands, _commandSource)) {
       _commandSource = commands;
       _commands = [
+        // Answered here, not by the agent: a question beside the
+        // conversation (see [ChatScreen.onSideQuestion]).
+        if (widget.onSideQuestion != null)
+          Suggestion(
+            kind: SuggestionKind.command,
+            label: 'btw',
+            detail: context.l10n.btwCommandDetail,
+            icon: Codicons.commentDiscussion,
+          ),
         for (final command in commands)
           Suggestion(
             kind: SuggestionKind.command,
@@ -642,6 +659,25 @@ class _ChatScreenState extends State<ChatScreen>
       ];
     }
     return _commands;
+  }
+
+  /// Takes `/btw …` for the side chat: true when it was one. What follows,
+  /// on this line or the next, is asked with the message's images and
+  /// mentions; `/btw` alone shows the side chat.
+  bool _interceptSideQuestion(ComposerMessage message) {
+    final handler = widget.onSideQuestion;
+    if (handler == null) return false;
+    final text = message.text.trimLeft();
+    if (!text.startsWith(RegExp(r'^/btw(\s|$)'))) return false;
+    handler(
+      _session,
+      ComposerMessage(
+        text: text.substring('/btw'.length).trim(),
+        mentions: message.mentions,
+        images: message.images,
+      ),
+    );
+    return true;
   }
 
   List<KernelCommand>? _commandSource;
@@ -1115,6 +1151,9 @@ class _ChatScreenState extends State<ChatScreen>
           },
           contextPanelOpen: _contextPanelOpen,
           onToggleContextPanel: _toggleContextPanel,
+          onIntercept: widget.onSideQuestion == null
+              ? null
+              : _interceptSideQuestion,
         ),
         ?widget.below,
       ],

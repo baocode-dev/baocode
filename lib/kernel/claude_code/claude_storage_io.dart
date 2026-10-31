@@ -4,6 +4,18 @@ import 'package:path/path.dart' as p;
 import '../../platform/data_dir.dart';
 import '../agent_kernel.dart';
 
+/// How a side chat's fork is titled (see lib/chat/side_chat/): the session
+/// it answers about, by id.
+const sideChatForkPrefix = 'btw: ';
+
+/// Whether [title] is a side chat's fork's (see [sideChatForkPrefix]): a
+/// session id follows it, as Claude Code names its sessions — no title a
+/// user gives their conversation is one.
+bool isSideChatForkTitle(String title) =>
+    title.startsWith(sideChatForkPrefix) &&
+    RegExp('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\$')
+        .hasMatch(title.substring(sideChatForkPrefix.length));
+
 /// Claude Code's own record of its sessions on this machine (see
 /// [ClaudeSessions]).
 class ClaudeStorage implements SessionCatalog, MovesSessions {
@@ -86,13 +98,16 @@ class ClaudeStorage implements SessionCatalog, MovesSessions {
     path: location?.call(project.path) ?? project.path,
     sessions: [
       for (final session in project.sessions)
-        SessionRecord(
-          id: session.id,
-          title: session.title,
-          updatedAt: session.updatedAt,
-          cwd: location?.call(session.cwd) ?? session.cwd,
-          path: session.path,
-        ),
+        // A side chat's fork (see lib/chat/side_chat/): asked beside a
+        // conversation, never listed as one of its own.
+        if (!isSideChatForkTitle(session.title))
+          SessionRecord(
+            id: session.id,
+            title: session.title,
+            updatedAt: session.updatedAt,
+            cwd: location?.call(session.cwd) ?? session.cwd,
+            path: session.path,
+          ),
     ],
   );
 }

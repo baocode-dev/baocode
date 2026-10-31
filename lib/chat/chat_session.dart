@@ -631,6 +631,21 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     return null;
   }
 
+  /// Where a fork of the conversation made now would end (see [fork]): the
+  /// id of the last item it would hold — all of it but a turn under way,
+  /// whose items follow. An item of the earlier history has its index for
+  /// its id; null with nothing to fork. Later conversation makes it another
+  /// one: how a fork's holder tells it went stale.
+  String? get forkEndsAt {
+    // A turn under way is left out of a fork: it ends before the turn's
+    // first item.
+    final at = switch (_transcript.activeTurn) {
+      final turn? => _transcript.indexOf(turn) ?? _transcript.length,
+      null => _transcript.length,
+    };
+    return at == 0 ? null : _transcript.idAt(at - 1) ?? '${at - 1}';
+  }
+
   // --- Projections ------------------------------------------------------------
 
   @override
@@ -1269,9 +1284,19 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   bool _disposed = false;
 
+  /// Told once it is disposed: what must close with it (its side chat's
+  /// agent, say).
+  void onDispose(VoidCallback callback) => _onDispose.add(callback);
+
+  final List<VoidCallback> _onDispose = [];
+
   @override
   void dispose() {
     _disposed = true;
+    for (final callback in _onDispose) {
+      callback();
+    }
+    _onDispose.clear();
     _quietTimer?.cancel();
     _lookTimer?.cancel();
     _stopScans();
