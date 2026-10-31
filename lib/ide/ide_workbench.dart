@@ -57,6 +57,7 @@ import 'extensions/ide_extensions_view.dart';
 import 'explorer_excludes.dart';
 import 'explorer_history.dart'
     show explorerRedoCommandId, explorerUndoCommandId;
+import 'explorer_line_count.dart';
 import 'file_views.dart';
 import 'file_service.dart'
     show
@@ -847,9 +848,39 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // The explorer's exclusions follow the file (a pattern added elsewhere
     // shows at once).
     _explorer.excludes = _excludes;
+    _applyLineCountSettings();
     // Auto save turned on (or its delay changed) saves what is unsaved.
     _scheduleAutoSave();
     setState(() {});
+  }
+
+  void _applyLineCountSettings() {
+    final settings = widget.settings;
+    if (settings == null) return;
+    final lineCount = _explorer.lineCount;
+    var changed = false;
+    final enabled = (settings[IdeExplorerLineCount.settingEnabled] as bool?) ?? true;
+    if (lineCount.enabled != enabled) {
+      lineCount.enabled = enabled;
+      changed = true;
+    }
+    final maxMb = settings[IdeExplorerLineCount.settingMaxFileSize];
+    if (maxMb is num) {
+      final newMax = (maxMb * 1024 * 1024).round();
+      if (lineCount.maxFileSize != newMax) {
+        lineCount.maxFileSize = newMax;
+        changed = true;
+      }
+    }
+    final minLines = settings[IdeExplorerLineCount.settingMinLineDisplay];
+    final newMin = (minLines is num) ? minLines.toInt() : 0;
+    if (lineCount.minLineDisplay != newMin) {
+      lineCount.minLineDisplay = newMin;
+      changed = true;
+    }
+    if (changed) {
+      lineCount.clear();
+    }
   }
 
   static const _sashWidth = IdeModernUI.gap;
@@ -1227,6 +1258,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           ? workspace.watchFolder
           : (_) => const Stream.empty(),
     );
+    _applyLineCountSettings();
+    workspace.onSaved = (path) {
+      _explorer.lineCount.invalidate(path);
+    };
     _fileIndex = IdeFileIndex(
       workspace.files,
       workspace.root,
@@ -1330,14 +1365,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       debug.host
         ..onOpenDebugView = (() => _showView(IdeSideView.debug))
         ..onOpenRepl = (() => _selectPanel(IdePanelTab.debugConsole));
-      workspace.onSaved = debug.saved;
+      final onSaved = debug.saved;
+      workspace.onSaved = (path) {
+        onSaved(path);
+        _explorer.lineCount.invalidate(path);
+      };
       setState(() => _ideDebug = debug);
       _syncDebugListener();
     });
   }
 
   void _detachDebug(IdeWorkspace workspace) {
-    workspace.onSaved = null;
+    workspace.onSaved = (path) {
+      _explorer.lineCount.invalidate(path);
+    };
     final debug = _ideDebug;
     _ideDebug = null;
     _syncDebugListener();

@@ -29,6 +29,7 @@ import 'package:bao_editor/monaco/vs/base/common/labels.dart';
 
 import 'explorer_excludes.dart';
 import 'explorer_history.dart';
+import 'explorer_line_count.dart';
 import 'file_service.dart';
 import 'git/git_model.dart';
 import 'git/git_repository.dart';
@@ -85,6 +86,7 @@ class IdeExplorerController extends ChangeNotifier {
     List<String> roots = const [],
     p.Context? paths,
     IdeExplorerExcludes excludes = IdeExplorerExcludes.none,
+    IdeExplorerLineCount? lineCount,
   }) : paths = paths ?? p.context,
        // A private field with a setter, so the parameter cannot be an
        // initializing formal.
@@ -97,10 +99,13 @@ class IdeExplorerController extends ChangeNotifier {
              final IdeHostFiles files => files.watchDirectory,
              _ => watchDirectory,
            } {
+    this.lineCount = lineCount ?? IdeExplorerLineCount(files: files, paths: this.paths);
     unawaited(_load(this.root));
     this.roots = roots;
     _watchExpanded();
   }
+
+  late final IdeExplorerLineCount lineCount;
 
   final IdeFileService files;
   final String root;
@@ -310,6 +315,7 @@ class IdeExplorerController extends ChangeNotifier {
         unawaited(_load(directory, force: true));
       }
     }
+    lineCount.clear();
   }
 
   Future<void> _load(String directory, {bool force = false}) {
@@ -449,6 +455,7 @@ class IdeExplorerController extends ChangeNotifier {
       _listSelection.anchor = null;
     }
     _listSelection.values.removeWhere(under);
+    lineCount.invalidate(path);
     _changed();
   }
 
@@ -460,6 +467,7 @@ class IdeExplorerController extends ChangeNotifier {
       unawaited(watch.cancel());
     }
     _watches.clear();
+    lineCount.dispose();
     super.dispose();
   }
 }
@@ -636,6 +644,7 @@ class IdeExplorerState extends State<IdeExplorer>
   void initState() {
     super.initState();
     _controller.addListener(_changed);
+    _controller.lineCount.addListener(_changed);
     widget.git?.addListener(_changed);
     for (final repository in widget.repositories) {
       repository.addListener(_changed);
@@ -649,6 +658,8 @@ class IdeExplorerState extends State<IdeExplorer>
   void didUpdateWidget(IdeExplorer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.lineCount.removeListener(_changed);
+      widget.controller.lineCount.addListener(_changed);
       oldWidget.controller.removeListener(_changed);
       widget.controller.addListener(_changed);
     }
@@ -673,6 +684,7 @@ class IdeExplorerState extends State<IdeExplorer>
   @override
   void dispose() {
     _controller.removeListener(_changed);
+    _controller.lineCount.removeListener(_changed);
     widget.git?.removeListener(_changed);
     for (final repository in widget.repositories) {
       repository.removeListener(_changed);
@@ -2126,18 +2138,25 @@ class IdeExplorerState extends State<IdeExplorer>
                     onCancel: _cancelEdit,
                   );
                 }
+                final gitDecoration = switch (decorationsOf(row.path)) {
+                  _ when row.message != null => null,
+                  null => null,
+                  final decorations when row.isDirectory =>
+                    decorations.folder(row.path),
+                  final decorations => decorations.file(row.path),
+                };
+                final lineDecoration = row.isDirectory || row.message != null
+                    ? null
+                    : _controller.lineCount.decorationFor(row.path);
+                final decoration = lineDecoration != null
+                    ? lineDecoration.merge(gitDecoration)
+                    : gitDecoration;
                 final view = _ExplorerRowView(
                   row: row,
                   selected: _controller.isSelected(row.path),
                   focusedItem: row.path == _controller.selected,
                   focused: focused,
-                  decoration: switch (decorationsOf(row.path)) {
-                    _ when row.message != null => null,
-                    null => null,
-                    final decorations when row.isDirectory =>
-                      decorations.folder(row.path),
-                    final decorations => decorations.file(row.path),
-                  },
+                  decoration: decoration,
                   onTap: () {
                     _focusNode.requestFocus();
                     _click(row);
@@ -2456,13 +2475,10 @@ class _ExplorerRowView extends StatelessWidget {
                   else if (letter != null)
                     Padding(
                       padding: const EdgeInsets.only(left: 5, right: 16),
-                      child: Text(
-                        letter,
-                        style: TextStyle(
-                          fontSize: 13 * .9,
-                          fontWeight: FontWeight.w600,
-                          color: (color ?? foreground).withValues(alpha: .75),
-                        ),
+                      child: _buildBadge(
+                        letter: letter,
+                        color: color,
+                        foreground: foreground,
                       ),
                     ),
                 ],
@@ -2471,6 +2487,58 @@ class _ExplorerRowView extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildBadge({
+    required String letter,
+    required Color? color,
+    required Color foreground,
+  }) {
+    final comma = letter.indexOf(', ');
+    if (comma == -1) {
+      final isGit = color != null;
+      return Text(
+        letter,
+        style: TextStyle(
+          fontSize: 13 * .9,
+          fontWeight: isGit ? FontWeight.w600 : FontWeight.w500,
+          color: isGit
+              ? color.withValues(alpha: .75)
+              : foreground.withValues(alpha: .5),
+        ),
+      );
+    }
+
+    final first = letter.substring(0, comma);
+    final rest = letter.substring(comma + 2);
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: first,
+            style: TextStyle(
+              color: foreground.withValues(alpha: .5),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          TextSpan(
+            text: ', ',
+            style: TextStyle(
+              color: foreground.withValues(alpha: .35),
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+          TextSpan(
+            text: rest,
+            style: TextStyle(
+              color: (color ?? foreground).withValues(alpha: .75),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+      style: const TextStyle(fontSize: 13 * .9),
     );
   }
 }
