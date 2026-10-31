@@ -45,6 +45,51 @@ void main() {
     }
   });
 
+  test('a pane shown over another gives it back once closed; one shown '
+      'elsewhere meanwhile is not given back', () {
+    final grid = ChatGrid<String>()
+      ..show('A')
+      ..split('A', PaneSide.right, 'B')
+      ..cover('A', 'C');
+    expect(cells(grid), 'CB/CB');
+    expect(grid.under('C'), ['A']);
+    expect(grid.isCovered('A'), isTrue);
+    grid.cover('C', 'D');
+    expect(grid.under('D'), ['A', 'C']);
+    expect(grid.uncover('D'), 'C');
+    expect(cells(grid), 'CB/CB');
+    expect(grid.under('C'), ['A']);
+
+    // Shown in the other pane: under C no more.
+    grid.cover('B', 'A');
+    expect(cells(grid), 'CA/CA');
+    expect(grid.isCovered('A'), isFalse);
+    expect(grid.under('A'), ['B']);
+    expect(grid.uncover('C'), isNull);
+    expect(cells(grid), 'CA/CA');
+
+    // Moved, it takes what it covers along.
+    grid.split('C', PaneSide.bottom, 'E');
+    expect(grid.rearrange('A', 'E', side: PaneSide.right), isTrue);
+    expect(cells(grid), 'CC/EA');
+    expect(grid.uncover('A'), 'B');
+    expect(cells(grid), 'CC/EB');
+
+    // Removed, those it covers go with it.
+    grid.cover('E', 'F');
+    grid.remove('F');
+    expect(grid.isCovered('E'), isFalse);
+
+    // One under it raised: in its place, it under the rest.
+    grid
+      ..cover('C', 'G')
+      ..cover('G', 'H');
+    expect(grid.under('H'), ['C', 'G']);
+    grid.raise('H', 'C');
+    expect(grid.at(0), 'C');
+    expect(grid.under('C'), ['G', 'H']);
+  });
+
   test('a line that appears starts in the middle; one that was there '
       'stays', () {
     final grid = ChatGrid<String>()

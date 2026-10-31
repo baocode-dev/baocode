@@ -183,6 +183,8 @@ class _ChatGridViewState extends State<ChatGridView> {
         side: null,
         preview: rect,
         rearrange: rearrange,
+        // Of several, over the pane (a title bar's swaps them).
+        covers: !rearrange && grid.length > 1,
       );
     }
     final next = splitGrid.copy()..split(target, side, thread);
@@ -538,10 +540,13 @@ class _DropBox extends StatelessWidget {
     final color = drop.fits
         ? themeColors['focusBorder']
         : themeColors['errorForeground'];
+    final l10n = context.l10n;
     final note = !drop.fits
-        ? context.l10n.workspaceNotEnoughRoom
+        ? l10n.workspaceNotEnoughRoom
         : drop.growth != Size.zero
-        ? context.l10n.workspaceWindowGrows
+        ? l10n.workspaceWindowGrows
+        : drop.covers
+        ? l10n.workspaceCovers(drop.target.localizedTitle(l10n))
         : null;
     return DecoratedBox(
       decoration: BoxDecoration(

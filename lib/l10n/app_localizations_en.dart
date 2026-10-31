@@ -5237,6 +5237,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get workspaceClosePane => 'Close pane';
 
   @override
+  String workspaceCloseBackTo(String title) {
+    return 'Close pane, back to $title';
+  }
+
+  @override
+  String workspaceCovers(String title) {
+    return 'Over $title, which shows again once this closes';
+  }
+
+  @override
+  String workspaceCovered(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count conversations under this one',
+      one: '1 conversation under this one',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get workspaceLoadingProjects => 'Loading projects…';
 
   @override

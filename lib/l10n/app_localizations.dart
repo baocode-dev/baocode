@@ -8511,6 +8511,24 @@ abstract class AppLocalizations {
   /// **'Close pane'**
   String get workspaceClosePane;
 
+  /// A pane's close button, where it covers another conversation, which shows again once it closes.
+  ///
+  /// In en, this message translates to:
+  /// **'Close pane, back to {title}'**
+  String workspaceCloseBackTo(String title);
+
+  /// Shown while dropping a conversation over a pane of several.
+  ///
+  /// In en, this message translates to:
+  /// **'Over {title}, which shows again once this closes'**
+  String workspaceCovers(String title);
+
+  /// A pane's button that lists the conversations it covers, to show one again.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 conversation under this one} other{{count} conversations under this one}}'**
+  String workspaceCovered(int count);
+
   /// No description provided for @workspaceLoadingProjects.
   ///
   /// In en, this message translates to:

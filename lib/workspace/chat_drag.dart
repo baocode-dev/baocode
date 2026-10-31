@@ -22,6 +22,7 @@ class ChatDrop {
     this.growth = Size.zero,
     this.fits = true,
     this.rearrange = false,
+    this.covers = false,
   });
 
   final AgentThread thread;
@@ -43,6 +44,10 @@ class ChatDrop {
   /// the sidebar: the center swaps their places, the edges move it beside.
   final bool rearrange;
 
+  /// Released, [thread] goes over [target], in its place, which shows again
+  /// once it closes (see [ChatGrid.cover]).
+  final bool covers;
+
   @override
   bool operator ==(Object other) =>
       other is ChatDrop &&
@@ -52,11 +57,20 @@ class ChatDrop {
       other.preview == preview &&
       other.growth == growth &&
       other.fits == fits &&
-      other.rearrange == rearrange;
+      other.rearrange == rearrange &&
+      other.covers == covers;
 
   @override
-  int get hashCode =>
-      Object.hash(thread, target, side, preview, growth, fits, rearrange);
+  int get hashCode => Object.hash(
+    thread,
+    target,
+    side,
+    preview,
+    growth,
+    fits,
+    rearrange,
+    covers,
+  );
 }
 
 /// Where else than the grid a dragged agent can go: the sidebar's list,

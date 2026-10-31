@@ -4908,6 +4908,26 @@ class AppLocalizationsZh extends AppLocalizations {
   String get workspaceClosePane => '关闭窗格';
 
   @override
+  String workspaceCloseBackTo(String title) {
+    return '关闭窗格，回到「$title」';
+  }
+
+  @override
+  String workspaceCovers(String title) {
+    return '覆盖在「$title」之上，关闭后恢复';
+  }
+
+  @override
+  String workspaceCovered(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '下面还有 $count 个会话',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get workspaceLoadingProjects => '正在加载项目…';
 
   @override
