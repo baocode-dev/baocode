@@ -99,3 +99,72 @@ class StepClock extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/// Round and round as long as it shows, on the shared clock's [StepClock.
+/// frame]s: from 0 to 1 over [period], then from 0 again, or back down
+/// where [reverse]; as [AnimationController.repeat] goes, but drawn 30
+/// times a second, not at every vsync (144 and more). For what moves on
+/// for as long as one looks (a welcome's cards afloat), which would else
+/// draw the whole window that often.
+class StepLoop extends Animation<double> {
+  StepLoop(this.period, {this.reverse = false});
+
+  final Duration period;
+  final bool reverse;
+
+  final StepClock _clock = StepClock(StepClock.frame);
+
+  /// The clock's time it started from.
+  Duration _from = Duration.zero;
+  bool _started = false;
+
+  /// Goes round from 0, where [context]'s tickers are on and motion is not
+  /// turned down; else stays at 0.
+  void start(BuildContext context) {
+    _started = true;
+    _clock.keepTo(context);
+    _from = _clock.time;
+  }
+
+  /// Once started, goes on or stops as [context]'s tickers and motion say.
+  /// For a state's didChangeDependencies.
+  void keepTo(BuildContext context) {
+    if (_started) _clock.keepTo(context);
+  }
+
+  /// Whether it was started, and not stopped since.
+  bool get isGoing => _started;
+
+  /// Stops it, back at 0.
+  void stop() {
+    _started = false;
+    _clock.stop();
+  }
+
+  void dispose() => _clock.dispose();
+
+  @override
+  double get value {
+    final turns = (_clock.time - _from).inMicroseconds / period.inMicroseconds;
+    if (!_started || turns <= 0) return 0;
+    if (!reverse) return turns % 1;
+    final along = turns % 2;
+    return along > 1 ? 2 - along : along;
+  }
+
+  @override
+  AnimationStatus get status => AnimationStatus.forward;
+
+  @override
+  void addListener(VoidCallback listener) => _clock.addListener(listener);
+
+  @override
+  void removeListener(VoidCallback listener) => _clock.removeListener(listener);
+
+  // Never done: always going forward.
+  @override
+  void addStatusListener(AnimationStatusListener listener) {}
+
+  @override
+  void removeStatusListener(AnimationStatusListener listener) {}
+}

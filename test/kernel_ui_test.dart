@@ -974,6 +974,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect('Planning next move', startsWith(shownStatus(tester)));
     expect(shownStatus(tester), isNotEmpty);
+    // On the shared clock's frames, opened: not a frame every vsync.
+    expect(tester.hasRunningAnimations, isFalse);
 
     await pumpUntil(tester, () => caret.evaluate().isEmpty);
     expect(shownStatus(tester), 'Planning next move');

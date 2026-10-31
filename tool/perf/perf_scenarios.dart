@@ -166,6 +166,7 @@ class PerfContext {
     Duration time = const Duration(milliseconds: 800),
   ]) async {
     final watch = Stopwatch()..start();
+    PerfProbe.instance.forceFrames();
     while (watch.elapsed < time) {
       await nextFrame();
       await Future<void>.delayed(const Duration(milliseconds: 16));
@@ -942,6 +943,80 @@ export const rateLimiter = (options: RateLimitOptions): MiddlewareHandler => {
         );
         r.extra['panes'] = c.workspace.grid.panes.length;
       });
+    },
+  ),
+  PerfScenario(
+    'chat.working',
+    'Agents at work with nothing to stream: the app at rest first, then an '
+        'agent waiting on its model, one running a tool, and four side by '
+        'side waiting at once: what the status row and the loaders cost '
+        'the GPU, as the user sees them most of a turn.',
+    (c) async {
+      // Long enough to measure in, the status row come in.
+      const wait = Duration(seconds: 6);
+      const shown = Duration(milliseconds: 1500);
+      PerfTurn waiting() => PerfTurn([
+        PerfPause(wait + shown + const Duration(seconds: 1)),
+        PerfSay(c.content.paragraph()),
+      ]);
+      Future<void> rest() => Future<void>.delayed(wait);
+      await c.history(c.agent, 2);
+      FocusManager.instance.primaryFocus?.unfocus();
+      await c.settle(const Duration(seconds: 2));
+      await c.phase('idle', (r) => rest());
+
+      await c.start(c.agent, waiting());
+      await Future<void>.delayed(shown);
+      await c.phase('waiting', (r) => rest());
+      await c.until(() => !c.agent.session.isStreaming, 'the turn to end');
+      await c.settle();
+
+      await c.start(
+        c.agent,
+        PerfTurn([
+          PerfTool(
+            'Bash',
+            const {'command': 'flutter test', 'description': 'Run the tests'},
+            result: 'All tests passed!',
+            took: wait + shown + const Duration(seconds: 1),
+          ),
+          PerfSay(c.content.paragraph()),
+        ]),
+      );
+      await Future<void>.delayed(shown);
+      await c.phase('tool', (r) => rest());
+      await c.until(() => !c.agent.session.isStreaming, 'the turn to end');
+      await c.settle();
+
+      final agents = [c.agent, ...await c.agents(3)];
+      final [a, b, d, e] = agents;
+      c.workspace
+        ..select(a)
+        ..openBeside(b, a, PaneSide.right)
+        ..openBeside(d, a, PaneSide.bottom)
+        ..openBeside(e, b, PaneSide.bottom);
+      await c.settle();
+      for (final thread in agents) {
+        await c.start(thread, waiting());
+      }
+      await Future<void>.delayed(shown);
+      await c.phase('grid', (r) async {
+        await rest();
+        r.extra['panes'] = c.workspace.grid.panes.length;
+      });
+      await c.until(
+        () => agents.every((t) => !t.session.isStreaming),
+        'the four turns',
+      );
+      // What moves while they work moves on the shared clock's frames.
+      for (final name in ['waiting', 'tool', 'grid']) {
+        final perSecond =
+            ((c.results[name] as Map?)?['frames'] as Map?)?['perSecond'];
+        c.check(
+          perSecond is! num || perSecond <= 40,
+          '$name: agents at work, the app draws $perSecond frames a second',
+        );
+      }
     },
   ),
   PerfScenario(
