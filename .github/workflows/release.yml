@@ -63,7 +63,7 @@ jobs:
       editions: ${{ steps.version.outputs.editions }}
       channel_only: ${{ steps.version.outputs.channel_only }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: version
         name: Read pubspec.yaml's version, and match the tag against it
         env:
@@ -180,7 +180,7 @@ jobs:
       NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
       SUFFIX: ${{ matrix.edition == 'channel' && '-channel' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -205,7 +205,7 @@ jobs:
         run: |
           echo "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
           echo "BAOCODE_NOTARY_KEY=$RUNNER_TEMP/notary.p8" >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: remote
           path: build/remote
@@ -241,7 +241,7 @@ jobs:
             echo "BaoCode ($arch) is running after 15 seconds"
             kill $pid
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: macos${{ env.SUFFIX }}
           if-no-files-found: error
@@ -250,7 +250,7 @@ jobs:
             build/installers/BaoCode-*-mac-*.zip
       # The Dart code's symbols, for a jank sample's `??? (in App)` frames
       # (tool/build_macos.dart). Not released: kept with the run.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: symbols-macos${{ env.SUFFIX }}
           if-no-files-found: error
@@ -284,7 +284,7 @@ jobs:
       # The x64 installer's name has no arch, as it always had.
       ARCH_SUFFIX: ${{ matrix.arch == 'arm64' && '-arm64' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         if: matrix.arch == 'x64'
         with:
@@ -315,7 +315,7 @@ jobs:
           if ((Get-FileHash $is -Algorithm SHA256).Hash -ne '9C73C3BAE7ED48D44112A0F48E66742C00090BDB5BEF71D9D3C056C66E97B732') { throw 'innosetup-6.7.3.exe: wrong SHA-256' }
           $setup = Start-Process $is -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/ALLUSERS' -Wait -PassThru
           if ($setup.ExitCode -ne 0) { throw "Inno Setup's installer exited with $($setup.ExitCode)" }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: remote
           path: build/remote
@@ -323,14 +323,14 @@ jobs:
       - uses: ./.github/actions/setup-rust
       - name: Build
         run: dart run tool/build_windows.dart --remote-built --arch ${{ matrix.arch }} ${{ matrix.edition == 'channel' && '--channel' || '' }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: windows-${{ matrix.arch }}${{ env.SUFFIX }}
           if-no-files-found: error
           path: build/installers/BaoCode-*-setup${{ env.ARCH_SUFFIX }}${{ env.SUFFIX }}.exe
       # The Dart code's symbols, for a hang report's app.so+0x… frames
       # (tool/build_windows.dart). Not released: kept with the run.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: symbols-windows-${{ matrix.arch }}${{ env.SUFFIX }}
           if-no-files-found: error
@@ -360,7 +360,7 @@ jobs:
       # (linux/runner/CMakeLists.txt).
       BAOCODE_CHANNEL: ${{ matrix.edition == 'channel' && 'true' || '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         if: matrix.arch == 'x64'
         with:
@@ -384,7 +384,7 @@ jobs:
           if [ "$BAOCODE_CHANNEL" = true ]; then
             sudo apt-get install -y libwebkit2gtk-4.1-dev
           fi
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: remote
           path: build/remote
@@ -447,7 +447,7 @@ jobs:
           host.wait()
           EOF
           pkill -x baocode || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: linux-${{ matrix.arch }}${{ env.SUFFIX }}
           if-no-files-found: error
@@ -455,7 +455,7 @@ jobs:
             build/installers/BaoCode-*.deb
             build/installers/BaoCode-*.tar.gz
       # Not released: kept with the run.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: symbols-linux-${{ matrix.arch }}${{ env.SUFFIX }}
           if-no-files-found: error
@@ -482,22 +482,22 @@ jobs:
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
       # Each edition built (macos, macos-channel…).
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: macos*
           path: dist/macos
           merge-multiple: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: windows*
           path: dist/windows
           merge-multiple: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: linux-*
           path: dist/linux
           merge-multiple: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: remote
           path: dist/remote
@@ -550,13 +550,13 @@ jobs:
       AWS_REQUEST_CHECKSUM_CALCULATION: when_required
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
       - name: Gather the files
