@@ -316,6 +316,36 @@ class StashIssueLink {
   );
 }
 
+/// The issue a stash was let go of, its project changed to one the issue
+/// is not of (see `StashForge.projectChanged`): its link and how the two
+/// were last the same, as they were, to be the stash's again once its
+/// project is one of the issue's repository's.
+class StashLetGo {
+  const StashLetGo({required this.link, this.synced, this.syncedRemote});
+
+  final StashIssueLink link;
+  final String? synced;
+  final String? syncedRemote;
+
+  Map<String, Object?> toJson() => {
+    'link': link.toJson(),
+    'synced': ?synced,
+    'syncedRemote': ?syncedRemote,
+  };
+
+  static StashLetGo? fromJson(Object? json) => switch (json) {
+    {'link': final Object link} => switch (StashIssueLink.fromJson(link)) {
+      final link? => StashLetGo(
+        link: link,
+        synced: json['synced'] as String?,
+        syncedRemote: json['syncedRemote'] as String?,
+      ),
+      null => null,
+    },
+    _ => null,
+  };
+}
+
 /// One stash: a markdown file, `<id>.md`, its pictures and files in the
 /// folder `<id>/` beside it. What is not its text is kept at its top, as
 /// front matter whose values are JSON (which YAML reads as well).
@@ -335,6 +365,7 @@ class StashNote {
     this.suggestedProject,
     this.issue,
     this.local = false,
+    this.letGo,
     this.synced,
     this.syncedRemote,
     this.news,
@@ -385,6 +416,10 @@ class StashNote {
 
   /// Kept to this machine: not made an issue, nor asked to be.
   bool local;
+
+  /// The issue it was let go of when its project changed, to be its again
+  /// once the project is one of the issue's (see [StashLetGo]).
+  StashLetGo? letGo;
 
   /// [syncHash] of its title and text, and of the issue's, as they were
   /// when last the same: which of the two changed since.
@@ -542,6 +577,7 @@ class StashNote {
     suggestedProject: suggestedProject,
     issue: issue,
     local: local,
+    letGo: letGo,
     synced: synced,
     syncedRemote: syncedRemote,
     news: news,
@@ -568,6 +604,7 @@ class StashNote {
       'suggestedProject': ?suggestedProject,
       'issue': ?issue,
       if (local) 'local': true,
+      'letGo': ?letGo?.toJson(),
       'synced': ?synced,
       'syncedRemote': ?syncedRemote,
       'news': ?news?.name,
@@ -622,6 +659,7 @@ class StashNote {
         _ => null,
       },
       local: meta['local'] == true,
+      letGo: StashLetGo.fromJson(meta['letGo']),
       synced: meta['synced'] as String?,
       syncedRemote: meta['syncedRemote'] as String?,
       news: StashNews.values.asNameMap()[meta['news']],

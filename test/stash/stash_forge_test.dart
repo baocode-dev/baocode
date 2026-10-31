@@ -633,6 +633,57 @@ void main() {
       expect(store.notes, hasLength(2));
     });
 
+    test(
+      'its project put back, the issue let go is its again, as it was',
+      () async {
+        await forge.sync();
+        final id = forge.stashOf(issueUrl)!.id;
+        final before = store.byId(id)!.copy();
+        final project = before.project;
+
+        await store.update(id, (note) => note.project = null);
+        await forge.projectChanged(id);
+        expect(store.byId(id)!.ownIssue, isNull);
+        expect(store.byId(id)!.letGo?.link.url, issueUrl);
+        // Kept across a reload: it is in the stash's file.
+        expect(
+          StashNote.decode(id, store.byId(id)!.encode()).letGo?.link,
+          before.issueOf(issueUrl),
+        );
+
+        await store.update(id, (note) => note.project = project);
+        await forge.projectChanged(id);
+        final after = store.byId(id)!;
+        expect(after.ownIssue, issueUrl);
+        expect(after.local, isFalse);
+        expect(after.letGo, isNull);
+        expect(after.issues, before.issues);
+        expect(after.synced, before.synced);
+        expect(after.syncedRemote, before.syncedRemote);
+        // Not made a stash again beside it.
+        await forge.sync();
+        expect(store.notes.where((note) => note.ownIssue == issueUrl), [
+          isA<StashNote>().having((note) => note.id, 'id', id),
+        ]);
+      },
+    );
+
+    test(
+      'kept here by hand meanwhile, the issue let go stays let go',
+      () async {
+        await forge.sync();
+        final id = forge.stashOf(issueUrl)!.id;
+        final project = store.byId(id)!.project;
+        await store.update(id, (note) => note.project = null);
+        await forge.projectChanged(id);
+        await forge.keepLocal(id);
+        await store.update(id, (note) => note.project = project);
+        await forge.projectChanged(id);
+        expect(store.byId(id)!.ownIssue, isNull);
+        expect(store.byId(id)!.letGo, isNull);
+      },
+    );
+
     test('no project, no issue', () async {
       await forge.sync();
       final id = forge.stashOf(issueUrl)!.id;
