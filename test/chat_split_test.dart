@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -937,6 +939,96 @@ void main() {
     expect(inHeader(SidePanelToggle), findsOneWidget);
     expect(inHeader(OpenInEditorButton), findsOneWidget);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+  testWidgets('a pane clicked, the sidebar goes to its agent\'s row; in a '
+      'folded project to its header, the project left folded', (tester) async {
+    final workspace = await pumpApp(tester);
+    // Too short for the whole list.
+    tester.view.physicalSize = const Size(1400, 480);
+    AgentThread agent(String title) =>
+        workspace.threads.firstWhere((thread) => thread.title == title);
+    workspace.openBeside(agent(second), agent(first), PaneSide.right);
+    await tester.pumpAndSettle();
+    final scrollable = inSidebar(find.byType(Scrollable)).last;
+    final list = tester.state<ScrollableState>(scrollable);
+    expect(list.position.maxScrollExtent, greaterThan(0));
+    bool shown(Finder finder) =>
+        tester.getRect(scrollable).contains(tester.getCenter(finder));
+    // Well within the list, not at its top or bottom edge.
+    bool seen(Finder finder) {
+      final view = tester.getRect(scrollable);
+      final at = tester.getCenter(finder).dy;
+      return at >= view.top + view.height * .15 &&
+          at <= view.top + view.height * .85;
+    }
+
+    list.position.jumpTo(0);
+    await tester.pump();
+    final row = inSidebar(find.textContaining(second));
+    await tester.tapAt(tester.getRect(pane(first)).center);
+    await tester.pump();
+    await tester.tapAt(tester.getRect(pane(second)).center);
+    await tester.pumpAndSettle();
+    expect(workspace.current!.title, second);
+    expect(list.position.pixels, greaterThan(0));
+    expect(seen(row), isTrue);
+    expect(shown(inSidebar(find.text(agent(second).project.name))), isTrue);
+
+    // Its project folded: left so, its header brought to instead.
+    final project = agent(second).project;
+    final group = Workspace.projectGroup(project.path);
+    workspace.toggleCollapsed(group);
+    // Shorter still, for the folded list to scroll too.
+    tester.view.physicalSize = const Size(1400, 340);
+    await tester.tapAt(tester.getRect(pane(first)).center);
+    await tester.pumpAndSettle();
+    expect(row, findsNothing);
+    expect(list.position.maxScrollExtent, greaterThan(0));
+    list.position.jumpTo(0);
+    await tester.pump();
+    await tester.tapAt(tester.getRect(pane(second)).center);
+    await tester.pumpAndSettle();
+    expect(workspace.isCollapsed(group), isTrue);
+    expect(row, findsNothing);
+    expect(list.position.pixels, greaterThan(0));
+    expect(shown(inSidebar(find.text(project.name))), isTrue);
+  });
+
+  testWidgets('a row clicked to open its agent stays under the pointer, '
+      'near the list\'s edge too', (tester) async {
+    final workspace = await pumpApp(tester);
+    tester.view.physicalSize = const Size(1400, 480);
+    await tester.pumpAndSettle();
+    final scrollable = inSidebar(find.byType(Scrollable)).last;
+    final list = tester.state<ScrollableState>(scrollable);
+    list.position.jumpTo(0);
+    await tester.pump();
+    final view = tester.getRect(scrollable);
+    // An agent not open whose row reaches into the list's last 15%,
+    // scrolled to be all shown there.
+    final near = workspace.threads.firstWhere((thread) {
+      if (identical(thread, workspace.current)) return false;
+      final finder = inSidebar(find.text(thread.title));
+      return finder.evaluate().length == 1 &&
+          tester.getRect(finder).bottom > view.top + view.height * .9;
+    });
+    final row = inSidebar(find.text(near.title));
+    list.position.jumpTo(
+      math.max(0, tester.getRect(row).bottom - (view.bottom - 4)),
+    );
+    await tester.pump();
+    final at = list.position.pixels;
+    expect(
+      tester.getRect(row).center.dy,
+      greaterThan(view.top + view.height * .85),
+    );
+    expect(tester.getRect(row).bottom, lessThanOrEqualTo(view.bottom));
+
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    expect(workspace.current, near);
+    expect(list.position.pixels, at);
+  });
 
   testWidgets('the sidebar shows an agent over the focused pane: not built '
       'while covered, back where it was once the other closes', (tester) async {
