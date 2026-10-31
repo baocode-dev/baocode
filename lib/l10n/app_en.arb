@@ -836,6 +836,18 @@
   "@agentImageUntitled": {
     "description": "The title of an agent first asked something with images alone, none from a file (pasted)."
   },
+  "chatTitleSummarize": "Summarize into a new title",
+  "@chatTitleSummarize": {
+    "description": "In the list under a chat's title being renamed: has a model title the conversation from what the user asked."
+  },
+  "chatTitleSummarizing": "Summarizing…",
+  "@chatTitleSummarizing": {
+    "description": "In place of Summarize into a new title while the model writes one."
+  },
+  "chatTitleSummarizeFailed": "No title could be had. Try again",
+  "@chatTitleSummarizeFailed": {
+    "description": "In place of Summarize into a new title when the model gave none."
+  },
   "sidebarNewAgent": "New Chat",
   "@sidebarNewAgent": {
     "description": "Button that starts a new agent."

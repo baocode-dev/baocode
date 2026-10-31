@@ -121,6 +121,7 @@ import 'remote/project_host.dart';
 import 'remote/remote_customization_disk.dart';
 import 'remote/remote_files.dart';
 import 'remote/remote_location.dart';
+import 'chat/widgets/hover_scroll_text.dart';
 import 'remote/remote_status.dart';
 import 'remote/ssh_host.dart';
 import 'remote/ssh_password_dialog.dart';
@@ -2822,9 +2823,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               null => null,
             },
             // The project's terminals, the chat's: the same in both.
-            terminals: path == _noFolder
-                ? null
-                : _terminals?.terminalsOf(path),
+            terminals: path == _noFolder ? null : _terminals?.terminalsOf(path),
             terminalHosts: _terminals?.hosts,
             remote: switch (ProjectHost.of(path)) {
               final SshHost host => SshStatusIndicator(
@@ -4381,6 +4380,32 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
+  /// What a pane's title bar says after its title: its project, and, on
+  /// another computer, that computer's name; scrolled to the rest while
+  /// hovered, as the title is.
+  Widget _paneSubtitle(AgentThread thread) {
+    final project = thread.project;
+    final host = project.host;
+    final color = AppColors.textFaint;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          host == null ? Codicons.folder : Codicons.remote,
+          size: 12,
+          color: color,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: HoverScrollText(
+            _workspace.projectLabel(project),
+            style: TextStyle(color: color, fontSize: 11.5),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// A pane that is the whole of the conversations.
   static const ChatPanePlace _whole = (
     topLeft: true,
@@ -4515,6 +4540,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         title: thread.localizedTitle(context.l10n),
         autofocus: thread.session.itemCount == 0,
         onRename: (title) => _workspace.rename(thread, title),
+        onSummarizeTitle: () => _workspace.summarizeTitle(thread),
+        // Side by side, which project each is, and which computer.
+        subtitle: place.alone ? null : _paneSubtitle(thread),
         titleDragBuilder: draggable
             ? (title) => MouseRegion(
                 cursor: SystemMouseCursors.grab,

@@ -3266,6 +3266,24 @@ abstract class AppLocalizations {
   /// **'Image'**
   String get agentImageUntitled;
 
+  /// In the list under a chat's title being renamed: has a model title the conversation from what the user asked.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize into a new title'**
+  String get chatTitleSummarize;
+
+  /// In place of Summarize into a new title while the model writes one.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarizing…'**
+  String get chatTitleSummarizing;
+
+  /// In place of Summarize into a new title when the model gave none.
+  ///
+  /// In en, this message translates to:
+  /// **'No title could be had. Try again'**
+  String get chatTitleSummarizeFailed;
+
   /// Button that starts a new agent.
   ///
   /// In en, this message translates to:

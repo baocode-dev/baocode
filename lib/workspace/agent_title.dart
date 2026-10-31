@@ -5,6 +5,7 @@
 // file, without the model.
 
 import '../chat/chat_models.dart';
+import '../chat/chat_session.dart';
 import '../kernel/claude_code/claude_haiku.dart';
 import '../l10n/l10n.dart';
 import '../models/model_providers.dart';
@@ -102,6 +103,51 @@ String? cleanAgentTitle(String reply) {
     title = '${String.fromCharCodes(title.runes.take(most - 1))}…';
   }
   return title.isEmpty ? null : title;
+}
+
+/// What the user asked in [session], as titles to pick from: each
+/// message's first line (its image references aside), latest first, each
+/// once.
+List<String> askedTitles(ChatSession session) {
+  final titles = <String>{};
+  for (var i = session.itemCount - 1; i >= 0; i--) {
+    if (session.itemAt(i) case UserMessageItem(:final text)) {
+      final line = text
+          .replaceAll(imageReferencePattern, '')
+          .split('\n')
+          .map((line) => line.trim())
+          .firstWhere((line) => line.isNotEmpty, orElse: () => '');
+      if (line.isEmpty) continue;
+      const most = 80;
+      titles.add(
+        line.runes.length > most
+            ? '${String.fromCharCodes(line.runes.take(most - 1))}…'
+            : line,
+      );
+    }
+  }
+  return titles.toList();
+}
+
+/// What the user asked in [session], for a model to title it after: the
+/// messages in order, the latest kept where they are too many for
+/// [agentTitleMessageBudget].
+String askedText(ChatSession session) {
+  final messages = <String>[];
+  var length = 0;
+  for (var i = session.itemCount - 1; i >= 0; i--) {
+    if (session.itemAt(i) case UserMessageItem(:final text)) {
+      final message = text.replaceAll(imageReferencePattern, '').trim();
+      if (message.isEmpty) continue;
+      if (messages.isNotEmpty &&
+          length + message.length > agentTitleMessageBudget) {
+        break;
+      }
+      messages.add(message);
+      length += message.length + 2;
+    }
+  }
+  return messages.reversed.join('\n\n');
 }
 
 /// The bounds of a model's special tokens: `<|…|>`, `<｜…｜>`.

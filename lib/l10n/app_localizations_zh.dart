@@ -1724,6 +1724,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get agentImageUntitled => '图片';
 
   @override
+  String get chatTitleSummarize => '总结新标题';
+
+  @override
+  String get chatTitleSummarizing => '正在总结…';
+
+  @override
+  String get chatTitleSummarizeFailed => '未能生成标题，再试一次';
+
+  @override
   String get sidebarNewAgent => '新对话';
 
   @override

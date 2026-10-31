@@ -1575,6 +1575,13 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   String hostLabel(String host) =>
       _hostNames[host] ?? RemoteLocation.hostName(host);
 
+  /// What a pane says [project] is: its name, and on another computer
+  /// that computer's ([hostLabel]), `api · devbox`.
+  String projectLabel(Project project) => switch (project.host) {
+    final host? => '${project.name} · ${hostLabel(host)}',
+    null => project.name,
+  };
+
   /// Calls [host] [name]; by itself again when null or empty.
   void renameHost(String host, String? name) {
     name = name?.trim();
@@ -3217,6 +3224,22 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _save();
     }
     _retitle(thread, trimmed);
+  }
+
+  /// A new title for [thread] by [titler], from what the user asked in it
+  /// (see [askedText]); null without [titler], or when it gives none.
+  /// Not given to it: the title is the user's to keep, through [rename].
+  Future<String?> summarizeTitle(AgentThread thread) async {
+    final titler = this.titler;
+    if (titler == null) return null;
+    final session = thread.session;
+    final text = askedText(session);
+    if (text.isEmpty) return null;
+    return titler(
+      text,
+      model: session.selected(KernelChoiceKind.model),
+      location: thread.project.path,
+    );
   }
 
   void _retitle(AgentThread thread, String title) {
