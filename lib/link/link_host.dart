@@ -124,6 +124,18 @@ class PendingPairing {
   Completer<Object?>? _confirmed;
 }
 
+/// How the relays to keep to are chosen (Settings → Mobile).
+enum LinkRelayMode {
+  /// BaoCode's, the nearest that answers.
+  auto,
+
+  /// BaoCode's and the user's own.
+  added,
+
+  /// Only the one picked: one of BaoCode's, or of the user's own.
+  pinned,
+}
+
 /// Where the link stands.
 enum LinkHostStatus {
   /// Not allowed (Settings → Mobile), or no link on this platform.
@@ -237,8 +249,20 @@ class LinkHost extends ChangeNotifier {
   /// Relays the user added (a self-hosted one): kept to besides BaoCode's.
   List<String> get customRelays => _customRelays;
 
+  LinkRelayMode _relayMode = LinkRelayMode.auto;
+  LinkRelayMode get relayMode => _relayMode;
+
+  String? _pinnedRelay;
+
+  /// The relay picked, kept to alone while [relayMode] is pinned.
+  String? get pinnedRelay => _pinnedRelay;
+
   /// The relays kept to.
-  List<String> get relays => linkRelays(_customRelays);
+  List<String> get relays => switch (_relayMode) {
+    LinkRelayMode.auto => linkRelays(),
+    LinkRelayMode.added => linkRelays(_customRelays),
+    LinkRelayMode.pinned => [_pinnedRelay ?? defaultLinkRelays.first],
+  };
 
   LinkHostStatus _status = LinkHostStatus.off;
   LinkHostStatus get status => _status;
@@ -314,6 +338,11 @@ class LinkHost extends ChangeNotifier {
     _enabled = json['enabled'] == true;
     _discoverable = json['discoverable'] != false;
     _customRelays = [...?(json['relays'] as List?)?.whereType<String>()];
+    _pinnedRelay = json['pinnedRelay'] as String?;
+    _relayMode =
+        LinkRelayMode.values.asNameMap()[json['relayMode']] ??
+        // Kept before there was a choice: one's own relays were added.
+        (_customRelays.isEmpty ? LinkRelayMode.auto : LinkRelayMode.added);
     _legacy = [
       for (final phone in (json['legacyPhones'] as List?) ?? const [])
         if (phone is Map<String, Object?>) LegacyPhone.fromJson(phone),
@@ -358,6 +387,8 @@ class LinkHost extends ChangeNotifier {
     'enabled': _enabled,
     'discoverable': _discoverable,
     'relays': _customRelays,
+    'relayMode': _relayMode.name,
+    'pinnedRelay': ?_pinnedRelay,
     'phones': [for (final phone in _phones.values) phone.toJson()],
     if (_legacy.isNotEmpty)
       'legacyPhones': [for (final phone in _legacy) phone.toJson()],
@@ -405,7 +436,8 @@ class LinkHost extends ChangeNotifier {
   }
 
   /// The user's own relays, as given; those that are not relay URLs, and
-  /// BaoCode's own, left out. On the network again with them.
+  /// BaoCode's own, left out. One picked and removed: BaoCode's first
+  /// picked instead.
   Future<void> setCustomRelays(List<String> relays) async {
     final cleaned = {
       for (final relay in relays)
@@ -414,10 +446,51 @@ class LinkHost extends ChangeNotifier {
           url,
     }.toList();
     if (!_loaded || listEquals(cleaned, _customRelays)) return;
-    _customRelays = cleaned;
+    await _relaysChanging(() {
+      _customRelays = cleaned;
+      if (_pinnedRelay case final pinned?
+          when !defaultLinkRelays.contains(pinned) &&
+              !cleaned.contains(pinned)) {
+        _pinnedRelay = null;
+      }
+    });
+  }
+
+  Future<void> setRelayMode(LinkRelayMode mode) async {
+    if (!_loaded || mode == _relayMode) return;
+    await _relaysChanging(() {
+      // Pinned with none picked yet: the one in use, if one is.
+      if (mode == LinkRelayMode.pinned && _pinnedRelay == null) {
+        _pinnedRelay = _info?.home
+            .where((status) => status.connected)
+            .firstOrNull
+            ?.url;
+      }
+      _relayMode = mode;
+    });
+  }
+
+  /// Keeps to [url] alone: one of BaoCode's relays, or of the user's own
+  /// (added to them if it is not yet).
+  Future<void> pinRelay(String url) async {
+    if (!_loaded) return;
+    await _relaysChanging(() {
+      if (!defaultLinkRelays.contains(url) && !_customRelays.contains(url)) {
+        _customRelays = [..._customRelays, url];
+      }
+      _pinnedRelay = url;
+      _relayMode = LinkRelayMode.pinned;
+    });
+  }
+
+  /// Makes [change] to the relays' settings, kept; on the network again
+  /// when the relays kept to changed.
+  Future<void> _relaysChanging(void Function() change) async {
+    final before = relays;
+    change();
     unawaited(_save());
     notifyListeners();
-    if (_enabled) {
+    if (_enabled && !listEquals(before, relays)) {
       await _stop();
       await _start();
     }

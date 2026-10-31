@@ -5,6 +5,7 @@ import '../../chat/chat_width.dart';
 import '../../chat/widgets/scroll_edge_fade.dart';
 import '../../ide/ide_switch.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 
 /// The settings pages' colors, as Cursor's settings have them: the editor's
@@ -223,6 +224,87 @@ class SettingsGroup extends StatelessWidget {
   );
 }
 
+/// Settings under a heading that folds: the heading a chevron before it,
+/// the card shown only while open; [summary] beside the heading while it
+/// is folded, for what is chosen to show without opening it.
+class SettingsFolding extends StatelessWidget {
+  const SettingsFolding({
+    super.key,
+    required this.title,
+    required this.open,
+    required this.onToggle,
+    required this.children,
+    this.description,
+    this.summary,
+  });
+
+  final String title;
+  final String? description;
+  final String? summary;
+  final bool open;
+  final VoidCallback onToggle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Semantics(
+        button: true,
+        expanded: open,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8, top: 8, bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        open ? Codicons.chevronDown : Codicons.chevronRight,
+                        size: 13,
+                        color: SettingsColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(title, style: SettingsText.heading),
+                      if (summary case final summary? when !open) ...[
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            summary,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: SettingsText.headingDescription,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (description case final description? when open) ...[
+                    const SizedBox(height: 2),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 17),
+                      child: Text(
+                        description,
+                        style: SettingsText.headingDescription,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      if (open) SettingsCard(children: children),
+    ],
+  );
+}
+
 /// Settings that belong together: a card a shade off the page, a line
 /// between rows (bordered in high contrast themes).
 class SettingsCard extends StatelessWidget {
@@ -359,9 +441,9 @@ class SettingsSwitch extends StatelessWidget {
     onChanged: onChanged,
     semanticLabel: semanticLabel,
     enabled: enabled,
-    height: MediaQuery.textScalerOf(
-      context,
-    ).scale(SettingsText.label.fontSize! * 1.2).roundToDouble(),
+    height: MediaQuery.textScalerOf(context)
+        .scale(SettingsText.label.fontSize! * 1.2)
+        .roundToDouble(),
   );
 }
 
@@ -481,6 +563,9 @@ class SettingsTextField extends StatefulWidget {
     required this.onSubmitted,
     this.hint,
     this.width = 220,
+    this.controller,
+    this.autofocus = false,
+    this.submitOnBlur = true,
   });
 
   final String value;
@@ -489,12 +574,21 @@ class SettingsTextField extends StatefulWidget {
   final String? hint;
   final double width;
 
+  /// The text, for a button beside the field to take it.
+  final TextEditingController? controller;
+  final bool autofocus;
+
+  /// Entered when it loses focus too; only by Enter otherwise (a field
+  /// with a Cancel beside it).
+  final bool submitOnBlur;
+
   @override
   State<SettingsTextField> createState() => _SettingsTextFieldState();
 }
 
 class _SettingsTextFieldState extends State<SettingsTextField> {
-  late final _controller = TextEditingController(text: widget.value);
+  late final _controller =
+      widget.controller ?? TextEditingController(text: widget.value);
   final _focus = FocusNode();
 
   @override
@@ -516,12 +610,12 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
   void dispose() {
     _focus.removeListener(_focusChanged);
     _focus.dispose();
-    _controller.dispose();
+    if (widget.controller == null) _controller.dispose();
     super.dispose();
   }
 
   void _focusChanged() {
-    if (!_focus.hasFocus) _submit(_controller.text);
+    if (!_focus.hasFocus && widget.submitOnBlur) _submit(_controller.text);
   }
 
   void _submit(String text) {
@@ -549,6 +643,9 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
         child: TextField(
           controller: _controller,
           focusNode: _focus,
+          autofocus: widget.autofocus,
+          // Kept focused when entered, for what was wrong to be put right.
+          onEditingComplete: widget.submitOnBlur ? null : () {},
           onSubmitted: _submit,
           style: mono.copyWith(color: AppColors.text),
           decoration: InputDecoration(
