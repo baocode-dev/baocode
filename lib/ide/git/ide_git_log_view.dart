@@ -2021,6 +2021,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
                 padding: const EdgeInsets.only(right: 8),
                 child: GiveWayRow(
                   children: [
+                    ..._labels(row, foreground),
                     GiveWay.fill(
                       _commitHover(
                         row,
@@ -2042,9 +2043,8 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
                           ),
                         ),
                       ),
-                      minWidth: 60,
+                      minWidth: 40,
                     ),
-                    ..._labels(row, foreground),
                   ],
                 ),
               ),
@@ -2169,17 +2169,17 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
           child: child,
         );
 
-  /// The references' labels at the row's end, as JetBrains IDEs align
-  /// them, the subject cut short before them: short of room the tags give
-  /// way first, to their icons alone, then gone; then the remote branches;
-  /// the branches last.
+  /// The references' labels before the subject, which is cut short first,
+  /// they mattering more: short of room still the tags give way first, to
+  /// their icons alone, then gone; then the remote branches; the branches
+  /// last.
   List<GiveWay> _labels(IdeGraphRow row, Color foreground) {
     final labels = ideGitRefLabels(row.commit.references);
     return [
       for (final (index, label) in labels.indexed)
         GiveWay(
           Padding(
-            padding: EdgeInsets.only(left: index == 0 ? 12 : 10),
+            padding: const EdgeInsets.only(right: 10),
             child: IdeGitRefLabelView(
               label,
               foreground: foreground,
@@ -2190,7 +2190,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
             ),
           ),
           compact: Padding(
-            padding: EdgeInsets.only(left: index == 0 ? 12 : 4),
+            padding: const EdgeInsets.only(right: 6),
             child: IdeGitRefLabelView(label, compact: true),
           ),
           priority:
@@ -3034,39 +3034,22 @@ class _CommitDetails extends StatelessWidget {
                               ),
                             )
                           else
+                            // Its subject alone; the whole in its hover.
                             Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxHeight: 140,
-                                    ),
-                                    child: SingleChildScrollView(
-                                      child: Text.rich(
-                                        TextSpan(
-                                          children: [
-                                            TextSpan(
-                                              text: commit.subject,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                                color: foreground,
-                                              ),
-                                            ),
-                                            if (body.isNotEmpty)
-                                              TextSpan(
-                                                text: '\n$body',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: description,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          height: 1.45,
-                                        ),
+                                  child: IdeHover(
+                                    message: body.isEmpty
+                                        ? commit.subject
+                                        : '${commit.subject}\n\n$body',
+                                    child: Text(
+                                      commit.subject,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: foreground,
                                       ),
                                     ),
                                   ),
