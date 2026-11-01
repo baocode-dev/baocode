@@ -1,5 +1,6 @@
 import 'package:bao_link/bao_link.dart';
 import 'package:baocode/link/link_host.dart';
+import 'package:baocode/link/phone_downloads.dart';
 import 'package:baocode/link/qr_view.dart';
 import 'package:baocode/settings/pages/mobile_page.dart';
 import 'package:baocode/workspace/workspace.dart';
@@ -9,7 +10,48 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../link/fake_link_platform.dart';
 
+/// The code to pair with: not the phone app's downloads beside it.
+final _pairCode = find.byWidgetPredicate(
+  (widget) => widget is QrView && !widget.data.startsWith(phoneDownloadSite),
+);
+
 void main() {
+  testWidgets('the phone app to get first: the codes of the site\'s own '
+      'downloads', (tester) async {
+    tester.view.physicalSize = const Size(900, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final host = LinkHost(
+      workspace: Workspace.mock(),
+      platform: FakeLinkPlatform(),
+    );
+    addTearDown(host.dispose);
+    await host.load();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: MobileSettingsPage(host: host)),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Get the Phone App'), findsOneWidget);
+    final codes = tester
+        .widgetList<QrView>(find.byType(QrView))
+        .map((code) => code.data);
+    // The download page's links (site/download.html), which lead to the
+    // release current when scanned.
+    expect(codes, [
+      'https://baocode.dev/dl/android',
+      'https://baocode.dev/dl/ios',
+    ]);
+    expect(find.text('Android'), findsOneWidget);
+    expect(find.text('iPhone and iPad'), findsOneWidget);
+    // Shown before the switch to let phones in: the app comes first.
+    expect(
+      tester.getTopLeft(find.byType(QrView).first).dy,
+      lessThan(tester.getTopLeft(find.text('Allow Phones to Connect')).dy),
+    );
+  });
+
   testWidgets('shows a code to pair with, then the safety code to compare', (
     tester,
   ) async {
@@ -32,11 +74,33 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(host.enabled, isTrue);
-    expect(find.byType(QrView), findsOneWidget);
+    expect(_pairCode, findsOneWidget);
     expect(
       find.text('On, reachable through relay-us1.baocode.dev'),
       findsOneWidget,
     );
+
+    // The code clicked: its link copied, for a phone that cannot scan it.
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await tester.tap(_pairCode);
+    await tester.pump();
+    expect(copied, host.offer!.uri);
+    expect(find.text('Copied'), findsOneWidget);
 
     // A phone scans it.
     final phone = LinkIdentity.generate();
@@ -63,7 +127,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 10));
     expect(host.pending, isNull);
-    expect(find.byType(QrView), findsNothing);
+    expect(_pairCode, findsNothing);
     // The phone let go, once told.
     await tester.pump(const Duration(milliseconds: 300));
   });
@@ -146,7 +210,7 @@ void main() {
     await tester.tap(find.text('Pair Again'));
     await tester.pump();
     await tester.pump();
-    expect(find.byType(QrView), findsOneWidget);
+    expect(_pairCode, findsOneWidget);
     host.endPairing();
     await tester.pump();
 

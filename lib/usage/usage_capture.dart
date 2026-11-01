@@ -16,6 +16,11 @@ abstract final class UsageHeaders {
   static const contextCompacted = 'x-claude-code-context-compacted';
   static const toolDurations = 'x-claude-code-prev-tool-durations';
 
+  /// BaoCode's own: the conversation one of the app's small jobs (a
+  /// title) is for. Its call is kept there, as an auxiliary one, whatever
+  /// session Claude Code's process gave itself.
+  static const session = 'x-baocode-session';
+
   /// Claude Code's variable that has it send them to a gateway (what the
   /// proxy is to it).
   static const gatewayHintsVariable = 'CLAUDE_CODE_GATEWAY_HINT_HEADERS';
@@ -29,6 +34,7 @@ abstract final class UsageHeaders {
     compaction,
     contextCompacted,
     toolDurations,
+    session,
   };
 }
 
@@ -176,7 +182,9 @@ UsageRequestInfo analyzeRequest(
     final List<Object?> list => list,
     _ => const <Object?>[],
   };
-  final said = UsageClass.parse(named(UsageHeaders.requestClass));
+  final said =
+      UsageClass.parse(named(UsageHeaders.requestClass)) ??
+      (named(UsageHeaders.session) != null ? UsageClass.auxiliary : null);
   final compaction =
       named(UsageHeaders.compaction) != null ||
       (said == null &&

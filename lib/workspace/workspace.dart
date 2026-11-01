@@ -3456,17 +3456,44 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       return;
     }
     if (titler == null || !session.canRename) return;
+    final model = session.selected(KernelChoiceKind.model);
     unawaited(
-      titler!(
-        text,
-        model: session.selected(KernelChoiceKind.model),
-        location: thread.project.path,
-      ).then((title) {
-        if (title == null || thread._named) return;
-        if (_disposed || !_threads.contains(thread)) return;
-        _retitle(thread, title);
-      }),
+      _idOf(thread)
+          .then(
+            (id) => titler!(
+              text,
+              model: model,
+              location: thread.project.path,
+              session: id,
+            ),
+          )
+          .then((title) {
+            if (title == null || thread._named) return;
+            if (_disposed || !_threads.contains(thread)) return;
+            _retitle(thread, title);
+          }),
     );
+  }
+
+  /// [thread]'s id, once its agent has told it (a new one's, as it
+  /// starts), or null a while on: what its title's call is kept under.
+  Future<String?> _idOf(AgentThread thread) {
+    if (thread.id case final id?) return Future.value(id);
+    if (!thread.isOpen) return Future.value();
+    final session = thread.session;
+    final told = Completer<String?>();
+    void listener() {
+      if (thread.id case final id? when !told.isCompleted) told.complete(id);
+    }
+
+    session.addListener(listener);
+    final timeout = Timer(const Duration(seconds: 5), () {
+      if (!told.isCompleted) told.complete();
+    });
+    return told.future.whenComplete(() {
+      timeout.cancel();
+      session.removeListener(listener);
+    });
   }
 
   void rename(AgentThread thread, String title) {
@@ -3496,6 +3523,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       text,
       model: session.selected(KernelChoiceKind.model),
       location: thread.project.path,
+      session: thread.id,
     );
   }
 

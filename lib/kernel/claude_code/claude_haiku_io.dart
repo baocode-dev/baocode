@@ -7,6 +7,7 @@ import 'package:bao_agent/bao_agent.dart';
 import '../../chat/chat_models.dart' show ImageAttachment;
 import '../../models/launch_environment.dart';
 import '../../network/network_proxy_io.dart';
+import '../../usage/usage_ledger.dart';
 import 'claude_core_setting.dart';
 import 'claude_environment.dart';
 import 'claude_haiku.dart';
@@ -20,6 +21,9 @@ import 'local_claude_io.dart';
 /// On a provider: [model] of it, [env] its environment, given as flag
 /// settings in a file (it holds the key), as a session's are. [images] go
 /// with the prompt, as a stream-json message, whose answer streams.
+///
+/// Claude's own (no [env]: not through the proxy) is kept here, as the
+/// proxy keeps a provider's: under [session].
 Future<String> askClaudeHaiku(
   String system,
   String prompt, {
@@ -28,7 +32,24 @@ Future<String> askClaudeHaiku(
   Map<String, String>? env,
   List<({String name, ImageAttachment image})> images = const [],
   ClaudeHaikuTools? tools,
+  String? session,
 }) async {
+  void kept(String line) {
+    if (env != null || !line.contains('"result"')) return;
+    try {
+      if (jsonDecode(line) case {'type': 'result'} && final Map result) {
+        final call = claudeHaikuCall(
+          result.cast<String, Object?>(),
+          at: DateTime.now(),
+          session: session,
+        );
+        if (call != null) UsageLedger.current.record(call);
+      }
+    } on FormatException {
+      // Not a message.
+    }
+  }
+
   if (images.isNotEmpty) {
     final timer = ClaudeAnswerTimer();
     final clock = Stopwatch()..start();
@@ -42,7 +63,10 @@ Future<String> askClaudeHaiku(
       stream: true,
       message: true,
       tools: tools,
-      onLine: (line) => timer.add(line, clock.elapsed),
+      onLine: (line) {
+        timer.add(line, clock.elapsed);
+        kept(line);
+      },
     );
     return timer.answer(stderr, code).text;
   }
@@ -55,7 +79,10 @@ Future<String> askClaudeHaiku(
     env: env,
     tools: tools,
     stream: false,
-    onLine: stdout.writeln,
+    onLine: (line) {
+      stdout.writeln(line);
+      kept(line);
+    },
   );
   return claudeHaikuAnswer(stdout.toString(), stderr, code);
 }

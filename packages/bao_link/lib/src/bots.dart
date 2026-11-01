@@ -84,6 +84,7 @@ class LinkBot {
     this.unread = 0,
     this.last,
     this.updatedAt,
+    this.chatOnly = false,
   });
 
   factory LinkBot.fromJson(Map<String, Object?> json) => LinkBot(
@@ -112,6 +113,7 @@ class LinkBot {
       final num ms => DateTime.fromMillisecondsSinceEpoch(ms.toInt()),
       _ => null,
     },
+    chatOnly: json['chatOnly'] == true,
   );
 
   final String id;
@@ -146,6 +148,10 @@ class LinkBot {
   /// The one the desktop starts with: not deleted.
   final bool assistant;
 
+  /// Only talks: no files, no commands, none of an agent's tools (the
+  /// web's and its own only). Else it has all an agent has.
+  final bool chatOnly;
+
   /// Its conversation's id ([SessionSummary.id]'s kind).
   final String? session;
   final BotStatus status;
@@ -174,6 +180,7 @@ class LinkBot {
     'proactive': proactive.toJson(),
     'model': ?model,
     if (assistant) 'assistant': true,
+    if (chatOnly) 'chatOnly': true,
     'session': ?session,
     'status': status.name,
     if (unread > 0) 'unread': unread,

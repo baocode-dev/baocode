@@ -160,7 +160,20 @@ void main() {
       final told = botAbilities(bot);
       expect(told, contains('bot_list_chats'));
       expect(told, contains('bot_stop_chat'));
-      expect(told, contains('You do not read or change files'));
+      // All an agent has, unless it only chats.
+      expect(told, contains('You can work on the computer as an agent does'));
+      expect(
+        botAbilities(
+          Bot(
+            id: bot.id,
+            name: bot.name,
+            folder: bot.folder,
+            abilities: bot.abilities,
+            chatOnly: true,
+          ),
+        ),
+        contains('You do not read or change files'),
+      );
       expect(
         botAbilities(const Bot(id: 'q', name: 'Q', folder: '/bots/q')),
         contains("You cannot see the user's agents"),
@@ -170,21 +183,38 @@ void main() {
       expect(told, contains('generate_image'));
     });
 
-    test('what of Claude Code\'s it has: the web\'s, the browser\'s by '
-        'the tool search; no files, no commands', () {
-      Bot bot(Set<BotAbility> abilities) =>
-          Bot(id: 'b1', name: 'Mia', folder: '/bots/b1', abilities: abilities);
+    test('what of Claude Code\'s it has: all of it; only chatting, the '
+        'web\'s, the browser\'s by the tool search, no files, no commands', () {
+      Bot bot(Set<BotAbility> abilities, {bool chatOnly = false}) => Bot(
+        id: 'b1',
+        name: 'Mia',
+        folder: '/bots/b1',
+        abilities: abilities,
+        chatOnly: chatOnly,
+      );
+      expect(BotPermissions.tools(bot({})), isNull);
       for (final abilities in [
         <BotAbility>{},
         {BotAbility.agents},
       ]) {
-        expect(BotPermissions.tools(bot(abilities)), ['WebSearch', 'WebFetch']);
+        expect(BotPermissions.tools(bot(abilities, chatOnly: true)), [
+          'WebSearch',
+          'WebFetch',
+        ]);
       }
-      expect(BotPermissions.tools(bot({BotAbility.browser})), [
+      expect(BotPermissions.tools(bot({BotAbility.browser}, chatOnly: true)), [
         'WebSearch',
         'WebFetch',
         'ToolSearch',
       ]);
+      // Kept on its card; not said, all of it.
+      final card = BotFiles.cardText(bot({}, chatOnly: true));
+      expect(card, contains('chat_only: true'));
+      expect(BotFiles.read('/bots/b1', card)!.chatOnly, isTrue);
+      expect(
+        BotFiles.read('/bots/b1', BotFiles.cardText(bot({})))!.chatOnly,
+        isFalse,
+      );
       // Its files not shown it: its tools keep them.
       final told = botInstructions(bot(BotAbility.values.toSet()), memory: '');
       expect(told, contains('bot_remember'));
@@ -337,7 +367,7 @@ void main() {
       expect(workspace.agentSetup!(app), isNull);
     });
 
-    test('its agent is told who it is, with its own tools only', () async {
+    test('its agent is told who it is, with all an agent has', () async {
       final bot = bots.bots.single;
       bots.threadFor(bot).session.send(const ComposerMessage(text: '在吗'));
       for (var i = 0; i < 50 && launches.isEmpty; i++) {
@@ -366,21 +396,16 @@ void main() {
         isTrue,
       );
       expect(launch.sdkServers, [ClaudeSdkTools.server]);
-      // The web's, the browser's tool search; no other.
-      expect(launch.tools, ['WebSearch', 'WebFetch', 'ToolSearch']);
-      expect(
-        launch.arguments,
-        containsAllInOrder(['--tools', 'WebSearch,WebFetch,ToolSearch']),
-      );
+      // All of Claude Code's tools, as an agent's.
+      expect(launch.tools, isNull);
+      expect(launch.arguments, isNot(contains('--tools')));
       // Nothing it is made to ask about.
       expect(
         (launch.settings['permissions'] as Map?)?.containsKey('ask'),
         isNot(true),
       );
-      // No project its to work in: the agents do.
+      // No project of its own: it works where the conversation takes it.
       expect(launch.directories, isEmpty);
-      // None of the user's MCP servers: their notices are not its to tell.
-      expect(launch.arguments, contains('--strict-mcp-config'));
     });
 
     test(
@@ -974,6 +999,18 @@ void main() {
       );
       await call(assistant, 'bot_delete_bot', {'bot': cat.id});
       expect(bots.byId(cat.id), isNull);
+      // A new one with a picture it made, set by it, not left to the user.
+      await call(assistant, 'bot_save_bot', {
+        'name': '阿狗',
+        'picture': file.path,
+      });
+      final dog = bots.bots.firstWhere((b) => b.name == '阿狗');
+      expect(isAvatarImage(dog.avatar!), isTrue);
+      expect(bots.avatarImage(dog), isNotNull);
+      expect(
+        botInstructions(self, memory: ''),
+        contains('never leave it to the user'),
+      );
       // None but the assistant does so.
       final mia = bots.save(name: 'Mia', identity: '', abilities: {});
       expect((await call(mia, 'bot_list_bots', {}))['isError'], isTrue);

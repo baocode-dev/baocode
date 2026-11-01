@@ -6453,6 +6453,18 @@
   "mobilePairCancel": "Cancel",
   "mobilePairNewCode": "New Code",
   "mobilePairCopyLink": "Copy Link",
+  "mobilePairQrHint": "Click to copy the link, to paste on the phone",
+  "mobileGetApp": "Get the Phone App",
+  "mobileGetAppDescription": "Scan with the phone's camera: the same downloads as on baocode.dev.",
+  "mobileGetAndroidDetail": "The APK; it keeps itself up to date",
+  "mobileGetIos": "iPhone and iPad",
+  "mobileGetIosDetail": "The beta, on TestFlight",
+  "mobileGetOpen": "Click to open {url}",
+  "@mobileGetOpen": {
+    "placeholders": {
+      "url": {"type": "String"}
+    }
+  },
   "mobilePairCopied": "Copied",
   "mobilePairExpires": "Good for {minutes} min, once. A phone that cannot scan it can paste the link instead.",
   "@mobilePairExpires": {

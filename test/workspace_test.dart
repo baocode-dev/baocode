@@ -333,12 +333,14 @@ void main() {
       'title is kept with its session', (tester) async {
     final renames = <String>[];
     final asked = <String>[];
+    final titledIn = <String?>[];
     final generated = Completer<String?>();
     final workspace = await pumpLoaded(
       tester,
       kernel: titledClaude(renames),
-      titler: (message, {model, location}) {
+      titler: (message, {model, location, session}) {
         asked.add(message);
+        titledIn.add(session);
         return generated.future;
       },
     );
@@ -349,7 +351,11 @@ void main() {
     session.send(const ComposerMessage(text: 'hi'));
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
+    // Once its CLI told its id, the call kept under it.
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
     expect(asked, ['hi']);
+    expect(titledIn, ['mock-claude-session']);
     expect(thread.title, 'hi');
     generated.complete('Greeting');
     await tester.pump();
@@ -373,7 +379,7 @@ void main() {
     final workspace = await pumpLoaded(
       tester,
       kernel: titledClaude(renames),
-      titler: (message, {model, location}) async {
+      titler: (message, {model, location, session}) async {
         asked.add(message);
         return 'Generated';
       },
@@ -410,7 +416,7 @@ void main() {
     final workspace = await pumpLoaded(
       tester,
       kernel: titledClaude(renames),
-      titler: (_, {model, location}) => generated.future,
+      titler: (_, {model, location, session}) => generated.future,
     );
     final thread = workspace.selected;
     thread.session.send(
@@ -435,7 +441,7 @@ void main() {
     final workspace = await pumpLoaded(
       tester,
       kernel: titledClaude(renames),
-      titler: (message, {model, location}) async {
+      titler: (message, {model, location, session}) async {
         asked.add(message);
         return 'Generated ${asked.length}';
       },
@@ -462,7 +468,7 @@ void main() {
     final workspace = await pumpLoaded(
       tester,
       kernel: titledClaude(renames),
-      titler: (_, {model, location}) async => 'Generated',
+      titler: (_, {model, location, session}) async => 'Generated',
     );
     final thread = workspace.selected;
     thread.session.send(const ComposerMessage(text: 'Fix the login test'));
@@ -493,7 +499,7 @@ void main() {
     final asked = <String>[];
     final workspace = await pumpLoaded(
       tester,
-      titler: (message, {model, location}) async {
+      titler: (message, {model, location, session}) async {
         asked.add(message);
         return 'Generated';
       },

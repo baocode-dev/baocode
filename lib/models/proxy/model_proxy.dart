@@ -281,10 +281,9 @@ class ModelProxy {
       effort: effort.isEmpty ? null : effort,
       fast: fast,
       stream: body['stream'] == true,
-      session: sessionId(
-        body,
-        header: request.headers.value(sessionHeaderName),
-      ),
+      session:
+          request.headers.value(UsageHeaders.session) ??
+          sessionId(body, header: request.headers.value(sessionHeaderName)),
       requestBytes: length,
       info: analyzeRequest(body, request.headers.value, detailed: detailed),
     );

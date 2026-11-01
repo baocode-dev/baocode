@@ -8861,6 +8861,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mobilePairCopyLink => 'Copy Link';
 
   @override
+  String get mobilePairQrHint =>
+      'Click to copy the link, to paste on the phone';
+
+  @override
+  String get mobileGetApp => 'Get the Phone App';
+
+  @override
+  String get mobileGetAppDescription =>
+      'Scan with the phone\'s camera: the same downloads as on baocode.dev.';
+
+  @override
+  String get mobileGetAndroidDetail => 'The APK; it keeps itself up to date';
+
+  @override
+  String get mobileGetIos => 'iPhone and iPad';
+
+  @override
+  String get mobileGetIosDetail => 'The beta, on TestFlight';
+
+  @override
+  String mobileGetOpen(String url) {
+    return 'Click to open $url';
+  }
+
+  @override
   String get mobilePairCopied => 'Copied';
 
   @override

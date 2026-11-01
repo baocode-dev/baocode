@@ -8365,6 +8365,29 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobilePairCopyLink => '复制链接';
 
   @override
+  String get mobilePairQrHint => '点按复制链接，在手机上粘贴';
+
+  @override
+  String get mobileGetApp => '下载手机版';
+
+  @override
+  String get mobileGetAppDescription => '用手机相机扫码下载，和官网下载页上的一样。';
+
+  @override
+  String get mobileGetAndroidDetail => '安装包，之后在应用内自动更新';
+
+  @override
+  String get mobileGetIos => 'iPhone 和 iPad';
+
+  @override
+  String get mobileGetIosDetail => 'TestFlight 测试版';
+
+  @override
+  String mobileGetOpen(String url) {
+    return '点击在浏览器中打开 $url';
+  }
+
+  @override
   String get mobilePairCopied => '已复制';
 
   @override

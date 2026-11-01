@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/proxy/model_proxy.dart';
+import 'package:baocode/usage/usage_capture.dart';
 import 'package:baocode/usage/usage_ledger.dart';
 import 'package:baocode/usage/usage_record.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -238,6 +239,34 @@ void main() {
     expect(call.stopReason, 'tool_use');
     expect(call.upstreamModel, isNull);
     expect(call.responseBytes, greaterThan(0));
+  });
+
+  test('keeps one of the app\'s own calls under the conversation it is '
+      'for, an auxiliary one, the header not passed on', () async {
+    upstream.reply = () => (
+      200,
+      [
+        'event: message_start',
+        'data: {"type":"message_start","message":{"model":"claude-x","usage":{"input_tokens":40,"output_tokens":1}}}',
+        '',
+        'event: message_delta',
+        'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":6}}',
+        '',
+        'event: message_stop',
+        'data: {"type":"message_stop"}',
+      ],
+    );
+    final status = await _post(await url('relay'), request(model: 'claude-x'), {
+      'x-api-key': 'tok',
+      UsageHeaders.session: 'conversation-1',
+    });
+    expect(status, 200);
+    expect(upstream.headers.single.containsKey(UsageHeaders.session), isFalse);
+    ledger.flush();
+    expect(await ledger.ofSession(session), isEmpty);
+    final call = (await ledger.ofSession('conversation-1')).single;
+    expect(call.requestClass, UsageClass.auxiliary);
+    expect(call.output, 6);
   });
 
   test('keeps a failed call with what the upstream said', () async {

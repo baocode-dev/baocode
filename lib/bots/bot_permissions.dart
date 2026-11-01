@@ -6,10 +6,10 @@ abstract final class BotPermissions {
   /// The web's, every bot's: searching it, reading a page.
   static const webTools = ['WebSearch', 'WebFetch'];
 
-  /// Claude Code's tools [bot] has; the tool search, for the browser's
-  /// (deferred), if it may use it.
-  static List<String> tools(Bot bot) => [
-    ...webTools,
-    if (bot.can(BotAbility.browser)) 'ToolSearch',
-  ];
+  /// Claude Code's tools [bot] has: all of them, as an agent's, unless it
+  /// only chats ([Bot.chatOnly]); then the web's, and the tool search for
+  /// the browser's (deferred) if it may use it.
+  static List<String>? tools(Bot bot) => bot.chatOnly
+      ? [...webTools, if (bot.can(BotAbility.browser)) 'ToolSearch']
+      : null;
 }
