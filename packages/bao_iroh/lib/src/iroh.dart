@@ -91,6 +91,10 @@ abstract final class Iroh {
     void Function(int req) start,
   ) async {
     final (_, data) = await _done(start);
+    return _map(data);
+  }
+
+  static Map<String, Object?> _map(Uint8List data) {
     final json = jsonDecode(utf8.decode(data));
     return json is Map<String, Object?> ? json : const {};
   }
@@ -296,13 +300,16 @@ class IrohEndpoint {
     await Iroh._json((req) => biEndpointInfo(req, _handle)),
   );
 
-  /// Its info each time it changes (and every half a minute), until closed.
+  /// Its info now, then each time it changes, until closed.
   Stream<IrohEndpointInfo> watch() async* {
+    var seen = 0;
     while (!_closed) {
       try {
-        yield IrohEndpointInfo.fromJson(
-          await Iroh._json((req) => biEndpointWatch(req, _handle)),
+        final (count, data) = await Iroh._done(
+          (req) => biEndpointWatch(req, _handle, seen),
         );
+        seen = count;
+        yield IrohEndpointInfo.fromJson(Iroh._map(data));
       } on IrohClosedException {
         return;
       }

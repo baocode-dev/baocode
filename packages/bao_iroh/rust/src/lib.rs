@@ -65,6 +65,9 @@ struct EndpointObj {
     alpn: Vec<u8>,
     /// Connections handshaken, as they come (if it takes them).
     incoming: tokio::sync::Mutex<mpsc::UnboundedReceiver<Connection>>,
+    /// What [endpoint_info] says, and how many times that changed: kept
+    /// so by [watch_info], waited on by [bi_endpoint_watch].
+    info: watch::Receiver<(i64, Value)>,
 }
 
 struct StreamObj {
@@ -348,11 +351,14 @@ pub unsafe extern "C" fn bi_endpoint_bind(
         if !config.relays.is_empty() {
             runtime().spawn(relay_watchdog(endpoint.clone()));
         }
+        let (info_sender, info) = watch::channel((1, endpoint_info(&endpoint)));
+        runtime().spawn(watch_info(endpoint.clone(), info_sender));
         let id = hex(endpoint.id().as_bytes());
         let obj = Arc::new(EndpointObj {
             endpoint,
             alpn: config.alpn.into_bytes(),
             incoming: tokio::sync::Mutex::new(receiver),
+            info,
         });
         let handle = keep(generation(), Obj::Endpoint(obj.clone())).ok_or_else(|| {
             let endpoint = obj.endpoint.clone();
@@ -492,22 +498,49 @@ pub extern "C" fn bi_endpoint_info(req: i64, handle: i64) {
     });
 }
 
-/// As [bi_endpoint_info], once something in it changed (or half a minute
-/// went by); [END] once the endpoint is closed.
-#[unsafe(no_mangle)]
-pub extern "C" fn bi_endpoint_watch(req: i64, handle: i64) {
-    spawn(req, async move {
-        let obj = endpoint_of(handle)?;
-        let endpoint = &obj.endpoint;
-        let mut addr = endpoint.watch_addr();
-        let mut home = endpoint.home_relay_status();
+/// Keeps [info] as [endpoint_info] says, counting each change, until the
+/// endpoint is closed. Its watchers are kept from one change to the next:
+/// one taken anew is a clone of iroh's own, as old as it, so says at once
+/// it changed, ever after the first change.
+async fn watch_info(endpoint: Endpoint, info: watch::Sender<(i64, Value)>) {
+    let mut addr = endpoint.watch_addr();
+    let mut home = endpoint.home_relay_status();
+    addr.update();
+    home.update();
+    loop {
         tokio::select! {
-            _ = addr.updated() => {}
-            _ = home.updated() => {}
+            changed = addr.updated() => if changed.is_err() { return },
+            changed = home.updated() => if changed.is_err() { return },
+            // For what no watcher tells: the sockets bound.
             _ = tokio::time::sleep(Duration::from_secs(30)) => {}
-            _ = endpoint.closed() => return Err(Fail::End("closed".into())),
+            _ = endpoint.closed() => return,
+            _ = info.closed() => return,
         }
-        Ok((json_bytes(endpoint_info(endpoint)), 0))
+        let now = endpoint_info(&endpoint);
+        info.send_if_modified(|(count, value)| {
+            if *value == now {
+                return false;
+            }
+            *count += 1;
+            *value = now;
+            true
+        });
+    }
+}
+
+/// As [bi_endpoint_info], once it is other than the answer [seen] (that
+/// answer's `value`; 0, none yet: at once), with `value` to give as [seen]
+/// next; [END] once the endpoint is closed.
+#[unsafe(no_mangle)]
+pub extern "C" fn bi_endpoint_watch(req: i64, handle: i64, seen: i64) {
+    spawn(req, async move {
+        let mut info = endpoint_of(handle)?.info.clone();
+        let (count, value) = info
+            .wait_for(|(count, _)| *count != seen)
+            .await
+            .map_err(|_| Fail::End("closed".into()))?
+            .clone();
+        Ok((json_bytes(value), count))
     });
 }
 
