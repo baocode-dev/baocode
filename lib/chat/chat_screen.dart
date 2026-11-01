@@ -97,6 +97,8 @@ class ChatScreen extends StatefulWidget {
     this.commandFile,
     this.openEditor,
     this.onSideQuestion,
+    this.asideAt,
+    this.back,
   });
 
   final String title;
@@ -208,11 +210,18 @@ class ChatScreen extends StatefulWidget {
   /// is told of it with the messages sent (see [ChatSession.send]).
   final OpenEditor? Function()? openEditor;
 
-  /// Given, a `/btw` sent here asks it (the question beside the
-  /// conversation, see lib/chat/side_chat/) rather than the agent: its
-  /// images and mentions asked with it.
-  final void Function(ChatSession session, ComposerMessage question)?
-  onSideQuestion;
+  /// Given, `/btw …` sent here is not the agent's: what follows it, with
+  /// the message's images and mentions, is asked in a conversation of its
+  /// own beside this one, from all of this one so far.
+  final ValueChanged<ComposerMessage>? onSideQuestion;
+
+  /// What shows under the conversation's item of the id given: the
+  /// conversations asked beside it from there (see [onSideQuestion]).
+  final Widget? Function(String itemId)? asideAt;
+
+  /// Over the conversation, as over a subagent's: the way back to the one
+  /// it was asked beside, [label] that one's title. None for most.
+  final ({String label, VoidCallback onBack})? back;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -282,7 +291,7 @@ class _ChatScreenState extends State<ChatScreen>
   _AgentLayer? get _agentShown =>
       _layers.lastOrNull?.leaving == false ? _layers.last : null;
 
-  static const _layerDuration = Duration(milliseconds: 300);
+  static const _layerDuration = ConversationLayer.duration;
 
   /// The subagents left open when this conversation last showed, as they
   /// were: no way in to play again.
@@ -386,6 +395,7 @@ class _ChatScreenState extends State<ChatScreen>
 
   @override
   void dispose() {
+    _backMinimapRoom.dispose();
     _session.removeListener(_checkStarting);
     _session.removeListener(_followPlan);
     _session.removeListener(_welcomeToModels);
@@ -685,46 +695,48 @@ class _ChatScreenState extends State<ChatScreen>
     final commands = _session.commands;
     if (!identical(commands, _commandSource)) {
       _commandSource = commands;
+      final aside = widget.onSideQuestion != null;
       _commands = [
-        // Answered here, not by the agent: a question beside the
-        // conversation (see [ChatScreen.onSideQuestion]).
-        if (widget.onSideQuestion != null)
+        // Taken here, not by the agent: a conversation beside this one
+        // (see [ChatScreen.onSideQuestion]), in place of the CLI's own.
+        if (aside)
           Suggestion(
             kind: SuggestionKind.command,
-            label: 'btw',
+            label: _asideCommand,
             detail: context.l10n.btwCommandDetail,
             icon: Codicons.commentDiscussion,
           ),
         for (final command in commands)
-          Suggestion(
-            kind: SuggestionKind.command,
-            label: command.name,
-            detail: command.argumentHint.isEmpty
-                ? command.description
-                : '${command.argumentHint}  ${command.description}',
-            icon: command.icon,
-          ),
+          if (!aside || command.name != _asideCommand)
+            Suggestion(
+              kind: SuggestionKind.command,
+              label: command.name,
+              detail: command.argumentHint.isEmpty
+                  ? command.description
+                  : '${command.argumentHint}  ${command.description}',
+              icon: command.icon,
+            ),
       ];
     }
     return _commands;
   }
 
-  /// Takes `/btw …` for the side chat: true when it was one. What follows,
-  /// on this line or the next, is asked with the message's images and
-  /// mentions; `/btw` alone shows the side chat.
+  static const _asideCommand = 'btw';
+
+  /// Takes `/btw …` for a conversation beside this one: true when it was
+  /// one. What follows, on this line or the next, is asked there with the
+  /// message's images and mentions; `/btw` alone asks nothing.
   bool _interceptSideQuestion(ComposerMessage message) {
     final handler = widget.onSideQuestion;
     if (handler == null) return false;
     final text = message.text.trimLeft();
-    if (!text.startsWith(RegExp(r'^/btw(\s|$)'))) return false;
-    handler(
-      _session,
-      ComposerMessage(
-        text: text.substring('/btw'.length).trim(),
-        mentions: message.mentions,
-        images: message.images,
-      ),
+    if (!text.startsWith(RegExp('^/$_asideCommand(\\s|\$)'))) return false;
+    final question = ComposerMessage(
+      text: text.substring(_asideCommand.length + 1).trim(),
+      mentions: message.mentions,
+      images: message.images,
     );
+    if (!question.isEmpty) handler(question);
     return true;
   }
 
@@ -973,14 +985,28 @@ class _ChatScreenState extends State<ChatScreen>
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      ChatHistoryView(
-                        key: _historyKey,
-                        feed: _session,
-                        maxContentWidth: _maxContentWidth,
-                        minimap: _minimap,
-                        onOpenAgent: _openAgent,
-                        onSetGoal: _setGoal,
-                        onFindClosed: () => _composerKey.currentState?.focus(),
+                      _withBack(
+                        ChatHistoryView(
+                          key: _historyKey,
+                          feed: _session,
+                          maxContentWidth: _maxContentWidth,
+                          minimap: _minimap,
+                          minimapRoom: widget.back == null
+                              ? null
+                              : _backMinimapRoom,
+                          onOpenAgent: _openAgent,
+                          onSetGoal: _setGoal,
+                          onFindClosed: () =>
+                              _composerKey.currentState?.focus(),
+                          after: switch (widget.asideAt) {
+                            final asideAt? => (index) => switch (_session
+                                .itemIdAt(index)) {
+                              final id? => asideAt(id),
+                              null => null,
+                            },
+                            null => null,
+                          },
+                        ),
                       ),
                       // The start hint, before the first message.
                       ListenableBuilder(
@@ -1094,6 +1120,33 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   /// The subagent [layer], [index] in: the way here, and its conversation.
+  /// Whether the history keeps the minimap's room, for the way back over
+  /// it (see [ChatScreen.back]) to be level with it.
+  final ValueNotifier<bool> _backMinimapRoom = ValueNotifier(false);
+
+  /// [history] under the way back to the conversation this one was asked
+  /// beside, as a subagent's is under its own (see [ChatScreen.back]).
+  Widget _withBack(Widget history) {
+    final back = widget.back;
+    if (back == null) return history;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ValueListenableBuilder(
+          valueListenable: _backMinimapRoom,
+          builder: (context, room, _) => SubagentHeader(
+            trail: const [],
+            backText: back.label,
+            onBack: (_) => back.onBack(),
+            maxContentWidth: _maxContentWidth,
+            minimap: room,
+          ),
+        ),
+        Expanded(child: history),
+      ],
+    );
+  }
+
   Widget _buildAgentPage(int index, _AgentLayer layer) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1384,11 +1437,7 @@ class _RenderConversationColumn extends RenderShiftedBox {
 /// An open subagent: its conversation, and its way in and out.
 class _AgentLayer {
   _AgentLayer(this.feed, this.controller)
-    : animation = CurvedAnimation(
-        parent: controller,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      );
+    : animation = ConversationLayer.curve(controller);
 
   final SubagentFeed feed;
   final AnimationController controller;

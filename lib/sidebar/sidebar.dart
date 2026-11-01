@@ -101,6 +101,10 @@ class _Group {
 
 const _pinnedGroup = 'pinned';
 
+/// How much further in an aside's row is than the one it was asked
+/// beside (see [Workspace.askBeside]).
+const _asideIndent = 16.0;
+
 /// The group of the archived agents, while they show.
 const _archivedGroup = 'archived';
 
@@ -140,6 +144,7 @@ class _ListRow {
     this.extent, {
     this.thread,
     this.more,
+    this.aside = false,
   });
 
   final _ListRowKind kind;
@@ -148,6 +153,9 @@ class _ListRow {
   final double extent;
   final AgentThread? thread;
   final _Rows? more;
+
+  /// Whether [thread] is an aside, under the one it was asked beside.
+  final bool aside;
 }
 
 /// What the window asks of its sidebar, for the chat's keybindings: the
@@ -320,6 +328,10 @@ class _SidebarState extends State<Sidebar>
 
   /// The groups listed, those the speed search hides too.
   List<_Group> _listGroups = const [];
+
+  /// The asides listed under each conversation, as [_groups] took them out
+  /// of the groups.
+  Map<AgentThread, List<AgentThread>> _asides = const {};
   List<double> _rowOffsets = const [0];
   Map<Key, int> _rowIndices = const {};
   Map<AgentThread, int> _threadIndices = const {};
@@ -446,7 +458,11 @@ class _SidebarState extends State<Sidebar>
 
   /// The agents listed, top to bottom (see [_buildList]).
   List<AgentThread> _visibleThreads() => [
-    for (final group in _groups()) ..._rows(group).threads,
+    for (final group in _groups())
+      for (final thread in _rows(group).threads) ...[
+        thread,
+        ...?_asides[thread],
+      ],
   ];
 
   /// Whether [group] folds: not the only project's, which is all there is.
@@ -850,6 +866,22 @@ class _SidebarState extends State<Sidebar>
             _workspace.listsInSidebar(thread))
           thread,
     ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    // Asides under the one each was asked beside, where that one is
+    // listed with them (both archived, or neither): not in groups of
+    // their own.
+    final listed = threads.toSet();
+    _asides = {
+      for (final MapEntry(key: parent, value: asides)
+          in _workspace.asidesByParent.entries)
+        if (listed.contains(parent))
+          parent: [
+            for (final aside in asides)
+              if (listed.contains(aside) && aside.archived == parent.archived)
+                aside,
+          ],
+    }..removeWhere((_, asides) => asides.isEmpty);
+    final nested = {for (final asides in _asides.values) ...asides};
+    threads.removeWhere(nested.contains);
     final active = [
       for (final thread in threads)
         if (!thread.archived) thread,
@@ -1540,6 +1572,18 @@ class _SidebarState extends State<Sidebar>
               thread: thread,
             ),
           );
+          for (final aside in _asides[thread] ?? const <AgentThread>[]) {
+            rows.add(
+              _ListRow(
+                _ListRowKind.thread,
+                group,
+                ObjectKey(aside),
+                _rowHeight,
+                thread: aside,
+                aside: true,
+              ),
+            );
+          }
         }
         if (shown.more > 0 || shown.less) {
           rows.add(
@@ -1635,7 +1679,11 @@ class _SidebarState extends State<Sidebar>
                   slots: _slots,
                   child: _buildHeader(row.group, projects),
                 ),
-                _ListRowKind.thread => _buildRow(row.thread!, row.group),
+                _ListRowKind.thread => _buildRow(
+                  row.thread!,
+                  row.group,
+                  aside: row.aside,
+                ),
                 _ListRowKind.pinZone => _PinZone(
                   height: _rowHeight,
                   active: _spot?.group.id == row.group.id,
@@ -1757,14 +1805,14 @@ class _SidebarState extends State<Sidebar>
     );
   }
 
-  Widget _buildRow(AgentThread thread, _Group group) =>
+  Widget _buildRow(AgentThread thread, _Group group, {bool aside = false}) =>
       switch (widget.stashes) {
         // Linked to one, or done with it, meanwhile.
         final stashes? => ListenableBuilder(
           listenable: stashes.changes,
-          builder: (context, _) => _buildThreadRow(thread, group),
+          builder: (context, _) => _buildThreadRow(thread, group, aside: aside),
         ),
-        null => _buildThreadRow(thread, group),
+        null => _buildThreadRow(thread, group, aside: aside),
       };
 
   /// The model [thread] runs on, by its upstream and name: its session's,
@@ -1787,7 +1835,11 @@ class _SidebarState extends State<Sidebar>
     return kept;
   }
 
-  Widget _buildThreadRow(AgentThread thread, _Group group) {
+  Widget _buildThreadRow(
+    AgentThread thread,
+    _Group group, {
+    bool aside = false,
+  }) {
     return _ThreadRow(
       thread: thread,
       model: () => _modelOf(thread),
@@ -1848,6 +1900,7 @@ class _SidebarState extends State<Sidebar>
           if (forked != null && mounted) _open(forked);
         }),
       ),
+      onDetach: aside ? () => _workspace.detach(thread) : null,
       onDelete: () => unawaited(_confirmDelete([thread])),
     );
   }
@@ -2358,18 +2411,25 @@ class _SidebarState extends State<Sidebar>
         final l10n = context.l10n;
         final thread = threads.first;
         final title = thread.localizedTitle(l10n);
+        // Their asides go with them.
+        final asides = {
+          for (final thread in threads) ..._workspace.asidesOf(thread),
+        }.difference(threads.toSet()).length;
         return _ConfirmDialog(
           title: threads.length == 1
               ? l10n.sidebarDeleteAgentTitle
               : l10n.sidebarDeleteAgentsTitle,
-          message: threads.length == 1
-              ? thread.kernel.catalog == null
-                    ? l10n.sidebarDeleteAgentMessage(title)
-                    : l10n.sidebarDeleteAgentMessageKernel(
-                        title,
-                        thread.kernel.label,
-                      )
-              : l10n.sidebarDeleteAgentsMessage(threads.length),
+          message: [
+            threads.length == 1
+                ? thread.kernel.catalog == null
+                      ? l10n.sidebarDeleteAgentMessage(title)
+                      : l10n.sidebarDeleteAgentMessageKernel(
+                          title,
+                          thread.kernel.label,
+                        )
+                : l10n.sidebarDeleteAgentsMessage(threads.length),
+            if (asides > 0) l10n.sidebarDeleteAsidesToo(asides),
+          ].join(' '),
           action: l10n.commonDelete,
         );
       },
@@ -3189,6 +3249,7 @@ class _ThreadRow extends StatelessWidget {
     required this.onArchive,
     required this.onFork,
     required this.onDelete,
+    this.onDetach,
     required this.menuTargets,
     required this.onContextMenu,
     required this.onPinAll,
@@ -3237,6 +3298,10 @@ class _ThreadRow extends StatelessWidget {
   /// Copies the conversation into a new agent, shown.
   final VoidCallback onFork;
   final VoidCallback onDelete;
+
+  /// Given, it is a conversation asked beside another (`/btw`), listed
+  /// under that one: makes it one of its own. Not pinned, nor dragged.
+  final VoidCallback? onDetach;
   final List<AgentThread> Function() menuTargets;
   final VoidCallback onContextMenu;
   final void Function(List<AgentThread>, bool) onPinAll;
@@ -3295,7 +3360,7 @@ class _ThreadRow extends StatelessWidget {
         icon: Icons.edit_outlined,
         onSelected: onRename,
       ),
-      if (!thread.archived)
+      if (!thread.archived && onDetach == null)
         SidebarMenuItem(
           pinned ? l10n.sidebarUnpin : l10n.sidebarPin,
           icon: pinned ? Icons.push_pin : Icons.push_pin_outlined,
@@ -3306,6 +3371,12 @@ class _ThreadRow extends StatelessWidget {
         icon: Icons.inventory_2_outlined,
         onSelected: onArchive,
       ),
+      if (onDetach case final detach?)
+        SidebarMenuItem(
+          l10n.sidebarDetachAside,
+          icon: Codicons.debugDisconnect,
+          onSelected: detach,
+        ),
       // A conversation to copy: none before the first message.
       if (thread.id != null && (!thread.isOpen || thread.session.canFork))
         SidebarMenuItem(
@@ -3359,7 +3430,11 @@ class _ThreadRow extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Padding(
-                padding: const EdgeInsets.only(left: 8, right: 4),
+                // An aside under the one it was asked beside.
+                padding: EdgeInsets.only(
+                  left: onDetach == null ? 8 : 8 + _asideIndent,
+                  right: 4,
+                ),
                 // Too narrow, what is beside the title gives way (its hover
                 // tells it), before the title is cut to nothing.
                 child: GiveWayRow(
@@ -3404,7 +3479,7 @@ class _ThreadRow extends StatelessWidget {
     );
     // Dragged out onto the conversations, it shows beside them.
     return ChatDragSource(
-      drag: renaming ? null : drag,
+      drag: renaming || onDetach != null ? null : drag,
       thread: thread,
       threads: dragThreads,
       child: Semantics(selected: selected, child: row),
@@ -3584,7 +3659,7 @@ class _ThreadRow extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (!thread.archived)
+                if (!thread.archived && onDetach == null)
                   SidebarIconButton(
                     icon: thread.pinned
                         ? Icons.push_pin

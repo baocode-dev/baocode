@@ -26,27 +26,6 @@ abstract final class KernelRegistry {
     catalog: const ClaudeCatalog(),
   );
 
-  /// A side chat's kernel (see lib/chat/side_chat/): a Claude Code session
-  /// resumed from a fork of the conversation it answers about. The CLI sees
-  /// that history; the side chat's own view starts empty, so no history
-  /// reader is given. Not on offer in the picker: the chat beside it opens
-  /// it.
-  static final KernelDescriptor claudeCodeSideChat = KernelDescriptor(
-    id: 'claude-code',
-    label: 'Claude Code',
-    icon: Icons.auto_awesome_rounded,
-    description: 'Anthropic’s coding agent',
-    create: (context) => ClaudeCodeKernel(
-      claudeCode,
-      context,
-      // On the project's host: this machine, or a remote one's.
-      start: startClaude,
-      usageOffBy: () => claudeUsageOffByAt(context.cwd),
-      rejectTooOld: rejectTooOldClaude,
-    ),
-    catalog: const ClaudeCatalog(),
-  );
-
   static List<KernelDescriptor> _all = [claudeCode];
 
   static List<KernelDescriptor> get all => _all;

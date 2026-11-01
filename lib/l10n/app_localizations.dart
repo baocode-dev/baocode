@@ -3068,60 +3068,6 @@ abstract class AppLocalizations {
   /// **'Plan'**
   String get sidePanelPlan;
 
-  /// The /btw command's menu line: it asks a question beside the conversation instead of in it.
-  ///
-  /// In en, this message translates to:
-  /// **'Ask beside this conversation'**
-  String get btwCommandDetail;
-
-  /// The side panel's page of the questions asked beside the conversation (/btw).
-  ///
-  /// In en, this message translates to:
-  /// **'Side Chat'**
-  String get sidePanelSideChat;
-
-  /// Shown in the side chat once the conversation it was asked beside has said more than its snapshot holds.
-  ///
-  /// In en, this message translates to:
-  /// **'The conversation went on since this chat opened'**
-  String get sideChatStale;
-
-  /// The side chat's button that opens it again on the conversation as it is now: what was asked before is gone with the snapshot it was asked on.
-  ///
-  /// In en, this message translates to:
-  /// **'Catch up (the questions here start over)'**
-  String get sideChatRefresh;
-
-  /// Shown in the side chat when it opened before the conversation had anything the agent could be told.
-  ///
-  /// In en, this message translates to:
-  /// **'This conversation had nothing to share yet; answers here cannot see it'**
-  String get sideChatNoContext;
-
-  /// Shown in the side chat when it could not be opened at all.
-  ///
-  /// In en, this message translates to:
-  /// **'The side chat could not open'**
-  String get sideChatFailed;
-
-  /// The side chat's button that tries opening it again.
-  ///
-  /// In en, this message translates to:
-  /// **'Try again'**
-  String get sideChatRetry;
-
-  /// Shown in an empty side chat, before the first question.
-  ///
-  /// In en, this message translates to:
-  /// **'Ask a question beside the conversation: /btw in its composer, or below.'**
-  String get sideChatEmpty;
-
-  /// The side chat's button that forgets the questions asked in it.
-  ///
-  /// In en, this message translates to:
-  /// **'Clear'**
-  String get sideChatClear;
-
   /// On the plan's tab: opens its file in a tab of the side panel's files page.
   ///
   /// In en, this message translates to:
@@ -3751,6 +3697,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Fork'**
   String get sidebarFork;
+
+  /// The menu of a conversation asked beside another with /btw, listed under it in the sidebar: makes it a conversation of its own.
+  ///
+  /// In en, this message translates to:
+  /// **'Detach from Conversation'**
+  String get sidebarDetachAside;
+
+  /// After the message asking to delete an agent that has conversations asked beside it with /btw.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Its /btw conversation is deleted with it.} other{Its {count} /btw conversations are deleted with it.}}'**
+  String sidebarDeleteAsidesToo(int count);
+
+  /// The /btw command in the composer's command list: what follows is asked in a new conversation copied from this one, listed under it.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask in a conversation of its own, beside this one'**
+  String get btwCommandDetail;
 
   /// No description provided for @sidebarShowMore.
   ///

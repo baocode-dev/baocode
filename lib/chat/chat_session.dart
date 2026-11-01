@@ -631,20 +631,21 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     return null;
   }
 
-  /// Where a fork of the conversation made now would end (see [fork]): the
-  /// id of the last item it would hold — all of it but a turn under way,
-  /// whose items follow. An item of the earlier history has its index for
-  /// its id; null with nothing to fork. Later conversation makes it another
-  /// one: how a fork's holder tells it went stale.
+  /// The id of the last item a fork made now would hold (see [fork]): all
+  /// of it but a turn under way. Null with nothing before that, or where
+  /// that item has no id of its own.
   String? get forkEndsAt {
-    // A turn under way is left out of a fork: it ends before the turn's
-    // first item.
     final at = switch (_transcript.activeTurn) {
       final turn? => _transcript.indexOf(turn) ?? _transcript.length,
       null => _transcript.length,
     };
-    return at == 0 ? null : _transcript.idAt(at - 1) ?? '${at - 1}';
+    return at == 0 ? null : _transcript.idAt(at - 1);
   }
+
+  /// The id of the item at [index], as its kernel gave it; null for one
+  /// of an earlier history read whole (see [Transcript.history]).
+  String? itemIdAt(int index) =>
+      index < _transcript.length ? _transcript.idAt(index) : null;
 
   // --- Projections ------------------------------------------------------------
 
@@ -1145,11 +1146,13 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// [awaitingPlan]), it says what should change in it.
   ///
   /// [editor] gives the file open in the editor beside the chat, where
-  /// there is one; the agent is told of it as it changes.
+  /// there is one; the agent is told of it as it changes. [notes] go to the
+  /// agent with it, not shown (each a `<system-reminder>`).
   void send(
     ComposerMessage message, {
     bool now = false,
     OpenEditor? Function()? editor,
+    List<String> notes = const [],
   }) {
     if (message.isEmpty || !canSend) return;
     final turn = KernelTurn(
@@ -1163,7 +1166,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       mentions: message.mentions,
       images: acceptsImages ? message.images : const [],
       now: now,
-      notes: editor == null ? const [] : _editorNotes(editor()),
+      notes: [...notes, if (editor != null) ..._editorNotes(editor())],
     );
     // A turn about to start, not one queued behind another: the project
     // is snapshotted, so that what the agent does is told apart. Not
@@ -1290,19 +1293,9 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   bool _disposed = false;
 
-  /// Told once it is disposed: what must close with it (its side chat's
-  /// agent, say).
-  void onDispose(VoidCallback callback) => _onDispose.add(callback);
-
-  final List<VoidCallback> _onDispose = [];
-
   @override
   void dispose() {
     _disposed = true;
-    for (final callback in _onDispose) {
-      callback();
-    }
-    _onDispose.clear();
     _quietTimer?.cancel();
     _lookTimer?.cancel();
     _stopScans();

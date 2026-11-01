@@ -1622,33 +1622,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidePanelPlan => '计划';
 
   @override
-  String get btwCommandDetail => '在当前对话旁边提问';
-
-  @override
-  String get sidePanelSideChat => '侧边提问';
-
-  @override
-  String get sideChatStale => '此对话开启后主对话又有新进展';
-
-  @override
-  String get sideChatRefresh => '读入最新进展（这里的问答重新开始）';
-
-  @override
-  String get sideChatNoContext => '主对话当时还没有可分享的内容，此处回答看不到它';
-
-  @override
-  String get sideChatFailed => '侧边提问未能开启';
-
-  @override
-  String get sideChatRetry => '重试';
-
-  @override
-  String get sideChatEmpty => '在对话旁边问点什么：在主对话输入框里输入 /btw，或直接在下方提问。';
-
-  @override
-  String get sideChatClear => '清空';
-
-  @override
   String get sidePanelOpenInFiles => '在文件中打开';
 
   @override
@@ -2001,6 +1974,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sidebarFork => 'Fork 对话';
+
+  @override
+  String get sidebarDetachAside => '从主对话分离';
+
+  @override
+  String sidebarDeleteAsidesToo(int count) {
+    return '它的 $count 个 /btw 子对话也会一并删除。';
+  }
+
+  @override
+  String get btwCommandDetail => '在旁边另开一个对话提问';
 
   @override
   String sidebarShowMore(int count) {

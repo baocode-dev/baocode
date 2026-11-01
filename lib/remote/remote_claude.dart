@@ -153,16 +153,6 @@ Future<String> forkClaudeSession(
   return client.claudeFork(id, into, before: before, title: title);
 }
 
-/// Deletes the session [session] was (a side chat's fork, say), where it
-/// was kept (see [forkClaudeSession]): there when it was asked of a remote
-/// project's host.
-Future<void> deleteClaudeSession(SessionRecord session) async {
-  final host = RemoteLocation.hostOf(session.cwd);
-  if (host == null) return const ClaudeStorage().delete(session.id);
-  final client = await SshHosts.instance[host].ready;
-  await client.claudeDelete(session.id);
-}
-
 /// The setting that keeps Claude Code from asking for the plan usage, as
 /// it runs where [cwd] is.
 Future<String?> claudeUsageOffByAt(String? cwd) async {

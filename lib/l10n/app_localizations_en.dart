@@ -1661,35 +1661,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidePanelPlan => 'Plan';
 
   @override
-  String get btwCommandDetail => 'Ask beside this conversation';
-
-  @override
-  String get sidePanelSideChat => 'Side Chat';
-
-  @override
-  String get sideChatStale => 'The conversation went on since this chat opened';
-
-  @override
-  String get sideChatRefresh => 'Catch up (the questions here start over)';
-
-  @override
-  String get sideChatNoContext =>
-      'This conversation had nothing to share yet; answers here cannot see it';
-
-  @override
-  String get sideChatFailed => 'The side chat could not open';
-
-  @override
-  String get sideChatRetry => 'Try again';
-
-  @override
-  String get sideChatEmpty =>
-      'Ask a question beside the conversation: /btw in its composer, or below.';
-
-  @override
-  String get sideChatClear => 'Clear';
-
-  @override
   String get sidePanelOpenInFiles => 'Open in Files';
 
   @override
@@ -2065,6 +2036,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sidebarFork => 'Fork';
+
+  @override
+  String get sidebarDetachAside => 'Detach from Conversation';
+
+  @override
+  String sidebarDeleteAsidesToo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Its $count /btw conversations are deleted with it.',
+      one: 'Its /btw conversation is deleted with it.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get btwCommandDetail =>
+      'Ask in a conversation of its own, beside this one';
 
   @override
   String sidebarShowMore(int count) {
