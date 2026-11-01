@@ -142,6 +142,42 @@ void main() {
       expect(none['error'], isNotNull);
     });
 
+    test("a Claude plan's limits reported with its calls", () async {
+      for (final (hour, week) in [(13, 0.2), (14, 0.25)]) {
+        ledger.record(
+          UsageCall(
+            at: DateTime(2026, 11, 1, hour),
+            duration: Duration.zero,
+            status: 200,
+            provider: 'claude-code',
+            model: 'claude-opus-5-5',
+            session: 's1',
+            input: 1000000,
+            quota: {'seven_day': week},
+          ),
+        );
+      }
+      ledger.flush();
+      final report = await UsageTools.reportOf(
+        const {},
+        current: 's1',
+        ledger: ledger,
+        prices: UsagePrices(),
+        now: now,
+      );
+      final limits = report['claudePlanLimits']! as Map;
+      expect(limits['seven_day'], {
+        'nowPercent': 25,
+        'usedPercentInPeriod': 5,
+        'peakPercent': 25,
+        'resets': 0,
+      });
+      expect(limits['tokensPerPercentOfWeek'], 200000);
+      expect(limits['apiPriceCostPerPercentOfWeek'], {
+        'USD': closeTo(0.8, 1e-9),
+      });
+    });
+
     test('prices listed with the models called, set and removed', () async {
       final prices = UsagePrices();
       final listed = await UsageTools.pricesOf(

@@ -20478,7 +20478,7 @@ abstract class AppLocalizations {
   /// No description provided for @ustatDescription.
   ///
   /// In en, this message translates to:
-  /// **'Every request to your custom upstreams, as BaoCode\'s model proxy passed it on: tokens, the cache, time, by conversation, subagent and tool. Claude\'s official service does not go through the proxy and is not counted. Kept on this computer only.'**
+  /// **'Every call to a model in BaoCode\'s conversations: Claude Code\'s own (a Claude plan or Anthropic\'s API), read from what it prints, and your custom upstreams\', as BaoCode\'s model proxy passed them on. Tokens, the cache, time, by conversation, subagent and tool. Kept on this computer only.'**
   String get ustatDescription;
 
   /// No description provided for @ustatAll.
@@ -21132,7 +21132,7 @@ abstract class AppLocalizations {
   /// No description provided for @ustatEmptyDetail.
   ///
   /// In en, this message translates to:
-  /// **'Calls show here once a conversation runs on a custom upstream (Settings → Models).'**
+  /// **'Calls show here once a conversation runs.'**
   String get ustatEmptyDetail;
 
   /// No description provided for @ustatEmptyFiltered.
@@ -21198,13 +21198,13 @@ abstract class AppLocalizations {
   /// No description provided for @ustatRecordDescription.
   ///
   /// In en, this message translates to:
-  /// **'Sessions on a custom upstream go through BaoCode\'s local proxy, which keeps each call. Applies to agents started from now on.'**
+  /// **'Claude Code\'s own calls are read from what it prints; sessions on a custom upstream go through BaoCode\'s local proxy, which keeps each call. Applies to agents started from now on.'**
   String get ustatRecordDescription;
 
   /// No description provided for @ustatRecordOffDescription.
   ///
   /// In en, this message translates to:
-  /// **'Turn it on to keep each call to your custom upstreams: tokens, the cache, time, by conversation, subagent and tool.'**
+  /// **'Turn it on to keep each call to a model: tokens, the cache, time, by conversation, subagent and tool.'**
   String get ustatRecordOffDescription;
 
   /// No description provided for @ustatDetailed.
@@ -21522,7 +21522,7 @@ abstract class AppLocalizations {
   /// No description provided for @ustatTraceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Also keep every request whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back. Keys are masked. Takes a lot of space: turn it off when done.'**
+  /// **'Also keep every request to a custom upstream whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back. Keys are masked. Takes a lot of space: turn it off when done.'**
   String get ustatTraceDescription;
 
   /// No description provided for @ustatTraceStart.
@@ -21854,6 +21854,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'An account out of any window, five hours too, uses a reset credit at once and goes on. Credits go faster.'**
   String get modelsAutoResetCreditsAnyDescription;
+
+  /// No description provided for @ustatQuota.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude Plan'**
+  String get ustatQuota;
+
+  /// No description provided for @ustatQuotaDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'How much of the plan\'s limits Claude Code\'s own models took in this time, from the limits as they stood after each call.'**
+  String get ustatQuotaDetail;
+
+  /// No description provided for @ustatQuotaFiveHour.
+  ///
+  /// In en, this message translates to:
+  /// **'5-hour limit'**
+  String get ustatQuotaFiveHour;
+
+  /// No description provided for @ustatQuotaWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly limit'**
+  String get ustatQuotaWeek;
+
+  /// No description provided for @ustatQuotaWeekOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly {model} limit'**
+  String ustatQuotaWeekOf(String model);
+
+  /// No description provided for @ustatQuotaUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent} used in this time'**
+  String ustatQuotaUsed(String percent);
+
+  /// No description provided for @ustatQuotaPeak.
+  ///
+  /// In en, this message translates to:
+  /// **'Peak {percent} in this time · reset {count, plural, =1{once} other{{count} times}}'**
+  String ustatQuotaPeak(String percent, int count);
+
+  /// No description provided for @ustatQuotaPerPercent.
+  ///
+  /// In en, this message translates to:
+  /// **'1% of the weekly limit ≈ {tokens} tokens'**
+  String ustatQuotaPerPercent(String tokens);
+
+  /// No description provided for @ustatQuotaPerPercentCost.
+  ///
+  /// In en, this message translates to:
+  /// **'≈ {cost} at API prices'**
+  String ustatQuotaPerPercentCost(String cost);
+
+  /// No description provided for @ustatPriceClaudeDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude Code\'s own models without a price of yours are priced at Anthropic\'s API prices: the grey figures.'**
+  String get ustatPriceClaudeDefault;
 }
 
 class _AppLocalizationsDelegate

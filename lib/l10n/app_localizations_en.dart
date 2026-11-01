@@ -12556,7 +12556,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ustatDescription =>
-      'Every request to your custom upstreams, as BaoCode\'s model proxy passed it on: tokens, the cache, time, by conversation, subagent and tool. Claude\'s official service does not go through the proxy and is not counted. Kept on this computer only.';
+      'Every call to a model in BaoCode\'s conversations: Claude Code\'s own (a Claude plan or Anthropic\'s API), read from what it prints, and your custom upstreams\', as BaoCode\'s model proxy passed them on. Tokens, the cache, time, by conversation, subagent and tool. Kept on this computer only.';
 
   @override
   String get ustatAll => 'All';
@@ -12923,8 +12923,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ustatEmptyTitle => 'No calls yet';
 
   @override
-  String get ustatEmptyDetail =>
-      'Calls show here once a conversation runs on a custom upstream (Settings → Models).';
+  String get ustatEmptyDetail => 'Calls show here once a conversation runs.';
 
   @override
   String get ustatEmptyFiltered => 'Nothing matches these filters';
@@ -12960,11 +12959,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ustatRecordDescription =>
-      'Sessions on a custom upstream go through BaoCode\'s local proxy, which keeps each call. Applies to agents started from now on.';
+      'Claude Code\'s own calls are read from what it prints; sessions on a custom upstream go through BaoCode\'s local proxy, which keeps each call. Applies to agents started from now on.';
 
   @override
   String get ustatRecordOffDescription =>
-      'Turn it on to keep each call to your custom upstreams: tokens, the cache, time, by conversation, subagent and tool.';
+      'Turn it on to keep each call to a model: tokens, the cache, time, by conversation, subagent and tool.';
 
   @override
   String get ustatDetailed => 'Detailed records';
@@ -13204,7 +13203,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ustatTraceDescription =>
-      'Also keep every request whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back. Keys are masked. Takes a lot of space: turn it off when done.';
+      'Also keep every request to a custom upstream whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back. Keys are masked. Takes a lot of space: turn it off when done.';
 
   @override
   String get ustatTraceStart => 'Debug capture';
@@ -13403,4 +13402,52 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get modelsAutoResetCreditsAnyDescription =>
       'An account out of any window, five hours too, uses a reset credit at once and goes on. Credits go faster.';
+
+  @override
+  String get ustatQuota => 'Claude Plan';
+
+  @override
+  String get ustatQuotaDetail =>
+      'How much of the plan\'s limits Claude Code\'s own models took in this time, from the limits as they stood after each call.';
+
+  @override
+  String get ustatQuotaFiveHour => '5-hour limit';
+
+  @override
+  String get ustatQuotaWeek => 'Weekly limit';
+
+  @override
+  String ustatQuotaWeekOf(String model) {
+    return 'Weekly $model limit';
+  }
+
+  @override
+  String ustatQuotaUsed(String percent) {
+    return '$percent used in this time';
+  }
+
+  @override
+  String ustatQuotaPeak(String percent, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count times',
+      one: 'once',
+    );
+    return 'Peak $percent in this time · reset $_temp0';
+  }
+
+  @override
+  String ustatQuotaPerPercent(String tokens) {
+    return '1% of the weekly limit ≈ $tokens tokens';
+  }
+
+  @override
+  String ustatQuotaPerPercentCost(String cost) {
+    return '≈ $cost at API prices';
+  }
+
+  @override
+  String get ustatPriceClaudeDefault =>
+      'Claude Code\'s own models without a price of yours are priced at Anthropic\'s API prices: the grey figures.';
 }
