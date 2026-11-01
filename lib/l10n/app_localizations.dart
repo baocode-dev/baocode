@@ -5126,16 +5126,10 @@ abstract class AppLocalizations {
   /// **'Changed again since the agent left it, so Undo could not take the agent\'s change out. Undo it by hand, then keep it.'**
   String get stripChangeConflict;
 
-  /// Tooltip of a changed file seen while another agent worked in the same project.
-  ///
-  /// In en, this message translates to:
-  /// **'Another agent was working in this project at the same time: some of this change may be its.'**
-  String get stripChangeShared;
-
   /// No description provided for @stripChangeUntracked.
   ///
   /// In en, this message translates to:
-  /// **'What it was before is not known (it is ignored or too large and the agent did not tell, or it is outside the project): it can be kept, not undone.'**
+  /// **'What it was before is not known (too large to keep, or the agent did not tell): it can be kept, not undone.'**
   String get stripChangeUntracked;
 
   /// Label of the diff editor comparing a file before the agent changed it with the file now.

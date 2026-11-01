@@ -286,6 +286,23 @@ abstract interface class RevertsChanges {
   void revertChanges({required String sinceTurn});
 }
 
+/// Told of each file the agent (or one of its subagents) edits as it edits
+/// it: what the review of its changes keeps.
+abstract interface class EditWatch {
+  /// The agent is about to write [path] (absolute): it writes once this
+  /// completes.
+  Future<void> beforeEdit(String path);
+
+  /// It wrote [path], or gave up writing it.
+  Future<void> afterEdit(String path);
+}
+
+/// A kernel that tells an [EditWatch] of its edits, before and after each:
+/// set before it starts.
+abstract interface class WatchesEdits {
+  set editWatch(EditWatch? watch);
+}
+
 abstract interface class RewindsConversation {
   /// Drops the conversation from the user message [itemId] (item [index],
   /// with [turns] turns after it) on, to go on from there. [lastSeen] is

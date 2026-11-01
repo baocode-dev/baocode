@@ -1822,11 +1822,7 @@
   "stripChangeModified": "Modified",
   "stripChangeDeleted": "Deleted",
   "stripChangeConflict": "Changed again since the agent left it, so Undo could not take the agent's change out. Undo it by hand, then keep it.",
-  "stripChangeShared": "Another agent was working in this project at the same time: some of this change may be its.",
-  "@stripChangeShared": {
-    "description": "Tooltip of a changed file seen while another agent worked in the same project."
-  },
-  "stripChangeUntracked": "What it was before is not known (it is ignored or too large and the agent did not tell, or it is outside the project): it can be kept, not undone.",
+  "stripChangeUntracked": "What it was before is not known (too large to keep, or the agent did not tell): it can be kept, not undone.",
   "stripChangesDiff": "Agent Changes",
   "@stripChangesDiff": {
     "description": "Label of the diff editor comparing a file before the agent changed it with the file now."

@@ -38,11 +38,6 @@ class _Files with ReadWriteOnlyFiles implements IdeFileService {
 }
 
 class _NoStore implements ReviewStore {
-  _NoStore(this.root);
-
-  @override
-  final String root;
-
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError('${invocation.memberName}');
@@ -52,7 +47,7 @@ class _NoStore implements ReviewStore {
 /// panel asks of it.
 class _Review extends ChangeReview {
   _Review(String root, this.file, this.base, {this.others = const []})
-    : super(_NoStore(root));
+    : super(_NoStore(), root: root);
 
   final String file;
   String base;
@@ -63,12 +58,6 @@ class _Review extends ChangeReview {
   final kept = <String>[];
   final keptFiles = <String>[];
   final settled = <String>[];
-
-  @override
-  Future<void> begin() async {}
-
-  @override
-  Future<void> observe({bool full = true}) async {}
 
   @override
   List<FileChange> get changes => [

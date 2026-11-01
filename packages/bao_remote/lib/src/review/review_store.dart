@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-/// A file's content as Git keeps it: its mode (`100644`, `100755`,
-/// `120000` for a symbolic link) and its blob.
+/// What a file held, kept: its mode (`100644`, `100755`, `120000` for a
+/// symbolic link) and its content's id (its SHA-256, in hex).
 class ReviewBlob {
   const ReviewBlob(this.mode, this.oid);
 
@@ -32,18 +32,7 @@ class ReviewBlob {
   String toString() => 'ReviewBlob($mode $oid)';
 }
 
-/// A path that differs between two snapshots: what it was and what it is
-/// (null where it is not there).
-class ReviewTreeChange {
-  const ReviewTreeChange(this.path, this.before, this.after);
-
-  /// Relative to the project, with `/`.
-  final String path;
-  final ReviewBlob? before;
-  final ReviewBlob? after;
-}
-
-/// Why a project's changes cannot be reviewed.
+/// Why a change cannot be reviewed.
 class ReviewUnavailable implements Exception {
   const ReviewUnavailable(this.message);
 
@@ -53,72 +42,45 @@ class ReviewUnavailable implements Exception {
   String toString() => message;
 }
 
-/// Snapshots of a project's files, kept in a Git repository of the app's
-/// own (in the data folder's `checkpoints/`, not the project's `.git`), and
-/// the file operations a review needs. Paths are relative to [root], with
-/// `/`.
+/// What files were before agents changed them, and what they left, kept
+/// on the machine the files are on (in the data folder's `checkpoints/`),
+/// with each conversation's account of them; and the file operations a
+/// review needs. Paths are absolute.
 abstract interface class ReviewStore {
-  /// The project's directory.
-  String get root;
-
-  /// A snapshot of the project's files (only [paths], the rest as in the
-  /// last one), as a tree. Ignored files and files too large are left out;
-  /// those of a repository inside the project are in it. Null where the
-  /// project is too large to snapshot (a home folder, say): only the edits
-  /// the agent reports can then be reviewed.
-  Future<String?> snapshot({Iterable<String>? paths});
-
-  /// The paths that differ from tree [from] to tree [to].
-  Future<List<ReviewTreeChange>> diff(String from, String to);
-
-  /// Lines added and removed per path from tree [from] to [to]; null for
-  /// a binary file.
-  Future<Map<String, ({int added, int removed})?>> lineCounts(
-    String from,
-    String to,
-  );
-
-  /// Tree [tree] (an empty one for '') with [entries] in place of its own
-  /// (null takes the path out).
-  Future<String> overlay(String tree, Map<String, ReviewBlob?> entries);
-
-  /// Whether tree [tree] has [path].
-  Future<bool> contains(String tree, String path);
-
-  /// Whether anything is at [path].
-  Future<bool> exists(String path);
-
-  /// What is at [path] now; null when nothing (or a folder) is. Not kept:
-  /// to tell whether it changed.
-  Future<ReviewBlob?> current(String path);
-
-  /// What is at [path] now, kept (one no snapshot has: an ignored file);
-  /// null when nothing (or a folder) is.
+  /// What is at [path] now, kept; null when nothing (or a folder) is.
   Future<ReviewBlob?> take(String path);
+
+  /// What is at [path] now, not kept: to tell whether it changed.
+  Future<ReviewBlob?> current(String path);
 
   Future<Uint8List> read(ReviewBlob blob);
 
-  /// Keeps [bytes] as a blob of [mode] (one no snapshot has, such as what
-  /// was there before with part of a change kept).
+  /// Keeps [bytes] as a blob of [mode] (one no file had, such as what was
+  /// there before with part of a change kept).
   Future<ReviewBlob> store(Uint8List bytes, {required String mode});
 
-  /// Puts [blob] at [path]; null deletes the file (and the folders it
-  /// leaves empty).
-  Future<void> restore(String path, ReviewBlob? blob);
-
-  /// The file at [path] with the change from [from] to [to] carried over
-  /// to it, merged as Git merges; null where they conflict or cannot be
-  /// merged (a binary file).
-  Future<Uint8List?> merge(String path, ReviewBlob from, ReviewBlob to);
+  /// Puts [blob] at [path]; null deletes the file, and the folders it
+  /// leaves empty up to [root] (where it is in it).
+  Future<void> restore(String path, ReviewBlob? blob, {String? root});
 
   Future<void> write(String path, Uint8List bytes);
+
+  /// [mine] with the change from [from] to [to] carried over to it; null
+  /// where they conflict or cannot be merged (a binary file).
+  Future<Uint8List?> merge(ReviewBlob mine, ReviewBlob from, ReviewBlob to);
+
+  /// Lines added and removed from [from] to [to] (null: no file); null
+  /// for a binary file.
+  Future<({int added, int removed})?> lineCounts(
+    ReviewBlob? from,
+    ReviewBlob? to,
+  );
 
   /// What [save] kept for [session]; null when nothing.
   Future<String?> load(String session);
 
   /// Keeps [data] for [session], and with it [blobs] (which would
-  /// otherwise be collected). Not the snapshots: those no session keeps
-  /// go, but for the latest.
+  /// otherwise be collected).
   Future<void> save(
     String session,
     String data, {

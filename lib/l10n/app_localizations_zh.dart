@@ -2859,11 +2859,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stripChangeConflict => '智能体改完后这个文件又被改过，无法自动撤销智能体的改动。请手动处理后再保留。';
 
   @override
-  String get stripChangeShared => '同一时间还有别的智能体在这个项目里工作，这处改动可能有一部分是它的。';
-
-  @override
-  String get stripChangeUntracked =>
-      '不知道改动前的内容（文件被忽略或过大、不在项目快照中，智能体也没有提供；或在项目之外）：只能保留，无法撤销。';
+  String get stripChangeUntracked => '不知道改动前的内容（文件过大存不下，或智能体没有提供）：只能保留，无法撤销。';
 
   @override
   String get stripChangesDiff => '智能体改动';

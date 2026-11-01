@@ -414,7 +414,6 @@ class CodexKernel
         );
       case 'commandExecution':
         emit(ItemUpserted(nextSeq, id, _commandItem(item)));
-        emit(FilesMayHaveChanged(nextSeq));
         _startedAt.remove(id);
         _commands.remove(id);
       case 'fileChange':

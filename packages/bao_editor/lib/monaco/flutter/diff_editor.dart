@@ -801,7 +801,7 @@ class _DiffEditorState extends State<DiffEditor> {
 /// What one editor shows of its text's changes against [model]'s original,
 /// with no diff editor around it (an agent's change in the editor): the
 /// original's deleted code in zones above the changes, its changed lines
-/// decorated; none while the diff is not known.
+/// decorated as much as [highlight] says; none while the diff is not known.
 ({List<EditorViewZone> zones, List<EditorDecoration> decorations})
 inlineDiffParts(
   DiffEditorModel model, {
@@ -809,6 +809,7 @@ inlineDiffParts(
   required TextStyle style,
   required TextScaler textScaler,
   Map<int, List<TextSpan>>? originalStyledLines,
+  DiffHighlight highlight = DiffHighlight.characters,
 }) {
   final original = model.originalSnapshot;
   final mappings = model.mappings;
@@ -825,6 +826,7 @@ inlineDiffParts(
           style: style,
           textScaler: textScaler,
           styledLines: originalStyledLines,
+          highlight: highlight,
         ),
     ],
     decorations: computeDiffDecorations(
@@ -832,6 +834,7 @@ inlineDiffParts(
       original,
       model.modified.snapshot,
       colors,
+      highlight: highlight,
       gutterBars: true,
     ).modified,
   );

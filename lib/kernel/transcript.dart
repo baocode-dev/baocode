@@ -227,7 +227,7 @@ class Transcript {
       case StatsReported(stats: final reported):
         stats = reported;
       // The session's, not the conversation's (see ChatSession.takeRenamed).
-      case KernelInfoChanged() || SessionRenamed() || FilesMayHaveChanged():
+      case KernelInfoChanged() || SessionRenamed():
         return false;
     }
     version++;
