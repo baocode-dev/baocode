@@ -2873,7 +2873,7 @@ class IdeEditorState extends State<IdeEditor> {
       model: diff.model,
       scrollPosition: diff.scroll,
       sideBySide: options.sideBySide,
-      highlight: options.highlight,
+      highlight: DiffHighlight.lines,
       hideUnchanged: options.collapseUnchanged,
       unchangedLabel: context.l10n.diffUnchangedLines,
       style: _editorStyle(colors),

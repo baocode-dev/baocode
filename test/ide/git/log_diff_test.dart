@@ -152,8 +152,8 @@ void main() {
     expect(aDart(), 'changed elsewhere\n');
   });
 
-  testWidgets('the gear menu: unified, how changes are highlighted and '
-      'what whitespace is ignored, kept', (tester) async {
+  testWidgets('the gear menu: unified and what whitespace is ignored, kept; '
+      'changes marked by lines alone', (tester) async {
     await showDiff(tester);
     DiffEditor editor() => tester.widget<DiffEditor>(find.byType(DiffEditor));
     expect(editor().sideBySide, isNull);
@@ -169,19 +169,14 @@ void main() {
       findsNWidgets(2),
     );
 
+    // Whole lines marked, with no choice of it.
+    expect(editor().highlight, DiffHighlight.lines);
     await tester.tap(find.byTooltip('Viewer Settings'));
     await tester.pumpAndSettle();
-    // The changed lines always colored: no "Do Not Highlight", and one
-    // chosen before is the lines.
-    expect(find.text('Highlight Lines'), findsOneWidget);
-    expect(find.text('Do Not Highlight'), findsNothing);
-    await tester.tap(find.text('Highlight Words'));
-    await tester.pumpAndSettle();
-    expect(editor().highlight, DiffHighlight.words);
-    IdeDiffOptions.instance.highlight = DiffHighlight.none;
-    await tester.pumpAndSettle();
-    expect(editor().highlight, DiffHighlight.lines);
-    IdeDiffOptions.instance.highlight = DiffHighlight.words;
+    expect(find.text('Highlight Words'), findsNothing);
+    expect(find.text('Highlight Characters'), findsNothing);
+    expect(find.text('Highlight Lines'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
 
     // Whitespace: at the line ends by default, anywhere, or none (counted
