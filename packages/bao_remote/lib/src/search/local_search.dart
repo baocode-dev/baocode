@@ -3,8 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:path/path.dart' as p;
-
+import '../files/git_ignore.dart';
 import 'text_query.dart';
 
 /// Searches in a background isolate, killed when the subscription is
@@ -98,13 +97,23 @@ Future<void> _search((SendPort, String, IdeTextQuery) arguments) async {
           unicode: true,
         );
   final accept = query.pathFilter();
-  final files = query.useExcludesAndIgnoreFiles
-      ? await _gitFiles(root) ?? _walk(root, query)
-      : _walk(root, query);
+  final excluded = [
+    ...ideSearchPathGlobs(query.excludes),
+    if (query.useExcludesAndIgnoreFiles) ...ideDefaultSearchExcludes,
+  ];
+  // Walked as ripgrep walks for upstream, `.gitignore` files at every level
+  // and in repositories inside honored, ignored folders not gone into; Git's
+  // own list would miss those inside, and fails without Git or outside a
+  // repository.
+  final files = walkUnignored(
+    root,
+    ignoreFiles: query.useExcludesAndIgnoreFiles,
+    skipDirectory: (relative, _) =>
+        excluded.any((glob) => glob.hasMatch(relative)),
+  );
   var count = 0;
-  for (final relative in files) {
+  for (final (:relative, :path) in files) {
     if (!accept(relative)) continue;
-    final path = p.joinAll([root, ...relative.split('/')]);
     final List<int> bytes;
     try {
       final file = File(path);
@@ -132,53 +141,4 @@ Future<void> _search((SendPort, String, IdeTextQuery) arguments) async {
     }
   }
   port.send(const IdeTextSearchComplete(limitHit: false));
-}
-
-/// The files Git would not ignore: tracked, and untracked outside
-/// `.gitignore`; null outside a repository.
-Future<Iterable<String>?> _gitFiles(String root) async {
-  try {
-    final result = await Process.run(
-      'git',
-      ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-      workingDirectory: root,
-      stdoutEncoding: utf8,
-    );
-    if (result.exitCode != 0) return null;
-    return {
-      for (final path in (result.stdout as String).split('\x00'))
-        if (path.isNotEmpty) path,
-    };
-  } on ProcessException {
-    return null;
-  }
-}
-
-/// Every file under [root], skipping the folders [query] excludes.
-Iterable<String> _walk(String root, IdeTextQuery query) sync* {
-  final excluded = [
-    ...ideSearchPathGlobs(query.excludes),
-    if (query.useExcludesAndIgnoreFiles) ...ideDefaultSearchExcludes,
-  ];
-  final folders = [Directory(root)];
-  while (folders.isNotEmpty) {
-    final folder = folders.removeLast();
-    final List<FileSystemEntity> entries;
-    try {
-      entries = folder.listSync(followLinks: false)
-        ..sort((a, b) => a.path.compareTo(b.path));
-    } on FileSystemException {
-      continue;
-    }
-    for (final entry in entries.reversed) {
-      final relative = p.relative(entry.path, from: root).replaceAll(r'\', '/');
-      if (entry is Directory) {
-        if (!excluded.any((glob) => glob.hasMatch(relative))) {
-          folders.add(entry);
-        }
-      } else if (entry is File) {
-        yield relative;
-      }
-    }
-  }
 }

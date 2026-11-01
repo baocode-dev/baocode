@@ -13,6 +13,7 @@ export 'src/claude/claude_runtime.dart';
 export 'src/claude/claude_sessions.dart';
 export 'src/claude/claude_settings_file.dart';
 export 'src/claude/cli_locator.dart';
+export 'src/files/git_ignore.dart';
 export 'src/files/local_files.dart';
 export 'src/files/recursive_watch.dart';
 export 'src/git/git_runner.dart';

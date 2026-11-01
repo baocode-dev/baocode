@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
+import 'git_ignore.dart';
 import 'ide_file.dart';
 
 /// The files of the project at [root] on this machine: listed, read as
@@ -539,30 +540,19 @@ bool? _gitFiles(
   return false;
 }
 
+/// Without Git, the walk honors `.gitignore` files as Git would.
 IdeFileListing _walkProjectFiles(String root, Set<String> excluded, int limit) {
   final paths = <String>[];
-  final pending = <String>[root];
   var truncated = false;
-  while (pending.isNotEmpty && !truncated) {
-    final directory = pending.removeLast();
-    final List<FileSystemEntity> entries;
-    try {
-      entries = Directory(directory).listSync(followLinks: false);
-    } on FileSystemException {
-      continue;
+  for (final file in walkUnignored(
+    root,
+    skipDirectory: (_, name) => excluded.contains(name),
+  )) {
+    if (paths.length >= limit) {
+      truncated = true;
+      break;
     }
-    for (final entry in entries) {
-      final name = p.basename(entry.path);
-      if (entry is Directory) {
-        if (!excluded.contains(name)) pending.add(p.join(directory, name));
-      } else if (entry is File) {
-        paths.add(p.join(directory, name));
-        if (paths.length >= limit) {
-          truncated = true;
-          break;
-        }
-      }
-    }
+    paths.add(file.path);
   }
   paths.sort();
   return IdeFileListing(paths, truncated: truncated);
