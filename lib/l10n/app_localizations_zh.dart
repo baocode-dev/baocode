@@ -12342,4 +12342,64 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatClearDetail => '这些调用记录会从本机删除，无法恢复。';
+
+  @override
+  String get autoResetCreditsToggle => '自动使用重置卡';
+
+  @override
+  String modelsResetCredits(int count) {
+    return '可重置 $count 次';
+  }
+
+  @override
+  String modelsResetCreditsTitle(int count) {
+    return '$count 张重置卡';
+  }
+
+  @override
+  String get modelsResetCreditsDetail => '用掉一张，这个账号的额度窗口立即重新开始。';
+
+  @override
+  String modelsResetCreditExpires(String time) {
+    return '$time 过期';
+  }
+
+  @override
+  String get modelsResetCreditUse => '立即重置';
+
+  @override
+  String modelsResetCreditConfirm(String account) {
+    return '用掉 $account 的一张重置卡？';
+  }
+
+  @override
+  String get modelsResetCreditConfirmDetail =>
+      '额度会立即重置，卡用掉后不能退回；现在还没用完的额度也就作废了。';
+
+  @override
+  String resetCreditsHint(int count) {
+    return '有 $count 张重置卡将在一周内过期。建议按这个计划用 Codex 模型，额度用满后再重置，别让它们白白过期：';
+  }
+
+  @override
+  String resetCreditsHintDay(String day, int count) {
+    return '$day：重置 $count 次';
+  }
+
+  @override
+  String resetCreditsHintBy(String time) {
+    return '$time 前';
+  }
+
+  @override
+  String get resetCreditsHintToday => '今天';
+
+  @override
+  String get resetCreditsHintTomorrow => '明天';
+
+  @override
+  String get resetCreditsHintAuto => '用尽时自动重置';
+
+  @override
+  String get resetCreditsHintLater => '知道了';
 }

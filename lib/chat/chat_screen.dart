@@ -46,6 +46,7 @@ import 'panels/limit_reset_panel.dart';
 import 'panels/context_usage_panel.dart';
 import 'panels/goal_panel.dart';
 import 'panels/queue_panel.dart';
+import 'panels/reset_credits_hint.dart';
 import 'side_panel/file_link.dart';
 import 'side_panel/file_open.dart';
 import 'stop_confirmation.dart';
@@ -1021,6 +1022,9 @@ class _ChatScreenState extends State<ChatScreen>
                   ClaudeInstallBanner(location: _session.kernelContext.cwd),
                   // BaoCode's own core picked: the CLI suggested.
                   if (_localClaudeCode) ClaudeCoreHint(onSwitched: _movedToCli),
+                  // Reset credits of the model's ChatGPT accounts about to
+                  // expire: a plan to use them.
+                  ResetCreditsHint(model: _session.models?.selected.id),
                   _PanelSlot(
                     child: switch (_session.pendingInteraction) {
                       final request? => InteractionPanel(

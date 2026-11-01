@@ -13020,4 +13020,89 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ustatClearDetail =>
       'The calls are deleted from this computer. This cannot be undone.';
+
+  @override
+  String get autoResetCreditsToggle => 'Auto-Use Reset Credits';
+
+  @override
+  String modelsResetCredits(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count resets left',
+      one: '1 reset left',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String modelsResetCreditsTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count reset credits',
+      one: '1 reset credit',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get modelsResetCreditsDetail =>
+      'Using one starts this account\'s quota windows over at once.';
+
+  @override
+  String modelsResetCreditExpires(String time) {
+    return 'Expires $time';
+  }
+
+  @override
+  String get modelsResetCreditUse => 'Reset Now';
+
+  @override
+  String modelsResetCreditConfirm(String account) {
+    return 'Use a reset credit of $account?';
+  }
+
+  @override
+  String get modelsResetCreditConfirmDetail =>
+      'Its quota starts over at once. The credit can\'t be given back, and whatever quota is left now is lost.';
+
+  @override
+  String resetCreditsHint(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count reset credits expire',
+      one: 'A reset credit expires',
+    );
+    return '$_temp0 within a week. To get their worth, use Codex models on this plan, resetting once the quota runs out:';
+  }
+
+  @override
+  String resetCreditsHintDay(String day, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count times',
+      one: 'once',
+    );
+    return '$day: reset $_temp0';
+  }
+
+  @override
+  String resetCreditsHintBy(String time) {
+    return 'by $time';
+  }
+
+  @override
+  String get resetCreditsHintToday => 'Today';
+
+  @override
+  String get resetCreditsHintTomorrow => 'Tomorrow';
+
+  @override
+  String get resetCreditsHintAuto => 'Reset Automatically';
+
+  @override
+  String get resetCreditsHintLater => 'Got It';
 }
