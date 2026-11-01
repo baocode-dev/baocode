@@ -1165,10 +1165,7 @@ class _ChatScreenState extends State<ChatScreen>
           contextPanelOpen: _contextPanelOpen,
           onToggleContextPanel: _toggleContextPanel,
         ),
-        // 新对话时文件夹栏在 start 里（NewChatFolderBar），下面的项目/分支条
-        // 不再重复；发出第 1 条消息后就只剩下面这一条。
-        if (!_starting)
-          if (widget.below case final below?) below,
+        ?widget.below,
       ],
     );
   }

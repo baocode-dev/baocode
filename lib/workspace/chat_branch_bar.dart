@@ -5,7 +5,9 @@
 // one's branches at its side. A branch checked out in another worktree is
 // switched to by working there: the conversation shows that worktree, and
 // the composer gets a line telling the agent so. Switchable while the agent
-// works too; nothing to switch without a repository: then only the name.
+// works too; nothing to switch without a repository: then a workspace's
+// name only, and nothing for a project (its name is over the input, or in
+// the title).
 
 import 'dart:async';
 
@@ -37,7 +39,8 @@ class ChatBranchBar extends StatefulWidget {
   /// to work when switched to another worktree.
   final ChatSession session;
 
-  /// The project's name, or the workspace's.
+  /// The workspace's name, shown when none of its folders has Git; a
+  /// project's is not shown.
   final String name;
 
   /// Whether it is a multi-folder workspace's, [repositories] its folders'.
@@ -374,20 +377,24 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: Listenable.merge([..._gits]),
-      builder: (context, _) => Padding(
-        padding: const EdgeInsets.only(top: 4, left: 4),
-        child: MouseRegion(
-          onEnter: (_) => _pointedAt(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [Flexible(child: _buildPill(context))],
+      builder: (context, _) => switch (_buildPill(context)) {
+        null => const SizedBox.shrink(),
+        final pill => Padding(
+          padding: const EdgeInsets.only(top: 4, left: 4),
+          child: MouseRegion(
+            onEnter: (_) => _pointedAt(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [Flexible(child: pill)],
+            ),
           ),
         ),
-      ),
+      },
     );
   }
 
-  Widget _buildPill(BuildContext context) {
+  /// None for a project without Git.
+  Widget? _buildPill(BuildContext context) {
     final l10n = context.l10n;
     if (widget.workspace) {
       if (widget.repositories.isEmpty) {
@@ -397,9 +404,7 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
     }
     final git = widget.repositories.firstOrNull?.$2;
     final state = git?.state;
-    if (git == null || state == null) {
-      return _Label(icon: Codicons.folder, label: widget.name);
-    }
+    if (git == null || state == null) return null;
     final current = state.head.branch;
     final folder = widget.repositories.first.$1;
     return ComposerPicker(
@@ -520,7 +525,7 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
   }
 }
 
-/// The pill's look with nothing to open: the name of a folder without a
+/// The pill's look with nothing to open: the name of a workspace without a
 /// repository.
 class _Label extends StatelessWidget {
   const _Label({required this.icon, required this.label});
