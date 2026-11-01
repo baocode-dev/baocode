@@ -3507,7 +3507,6 @@
   "ustatEmptyTitle": "还没有调用记录",
   "ustatEmptyDetail": "开始对话后，调用会显示在这里。",
   "ustatEmptyFiltered": "没有符合筛选条件的调用",
-  "ustatConversationTitle": "对话用量",
   "ustatConversationNew": "开始对话后显示用量",
   "ustatConversationEmpty": "这个对话还没有调用记录",
   "ustatConversationEmptyDetail": "只统计使用自定义上游的对话：官方 Claude 不经过 BaoCode 的代理。",

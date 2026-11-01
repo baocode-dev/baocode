@@ -344,27 +344,6 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
             controller: controller,
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 32),
             children: [
-              Row(
-                children: [
-                  Icon(Codicons.graph, size: 14, color: AppColors.accent),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      l10n.ustatConversationTitle,
-                      style: UsageText.heading.copyWith(fontSize: 13.5),
-                    ),
-                  ),
-                  if (_sessionId case final id?)
-                    Text(
-                      id.length > 8 ? id.substring(0, 8) : id,
-                      style: UsageText.faint.copyWith(
-                        fontFamily: AppFonts.mono,
-                        fontFamilyFallback: AppFonts.monoFallbacks,
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
               if (!hasCalls)
                 _loading ? const SizedBox(height: 120) : _empty()
               else ...[

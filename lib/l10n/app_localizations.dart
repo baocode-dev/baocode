@@ -21099,12 +21099,6 @@ abstract class AppLocalizations {
   /// **'Nothing matches these filters'**
   String get ustatEmptyFiltered;
 
-  /// No description provided for @ustatConversationTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Conversation usage'**
-  String get ustatConversationTitle;
-
   /// No description provided for @ustatConversationNew.
   ///
   /// In en, this message translates to:
