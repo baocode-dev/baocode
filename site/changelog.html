@@ -30,6 +30,39 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.8.0">
+    <h2 class="plain"><a href="#v1.8.0">1.8.0</a></h2>
+    <p>This release rebuilds how the computer and the phone connect, and adds usage tracking and /btw side questions; diffs and split panes get a large round of work too. On the phone, this needs 0.1.5, and each phone pairs again once.</p>
+    <p>Phones</p>
+    <ul>
+    <li>The computer and the phone connect a new way: directly on the same network, through a direct connection made across networks otherwise, through a relay only when neither works, end-to-end encrypted. A computer whose IP changes is still reached.</li>
+    <li>In Settings → Mobile, relays are picked automatically, or one is chosen, or your own; nothing to set on the phone.</li>
+    <li>Settings → Mobile shows the phone app's download QR codes first, the same as on the download page; the pairing code, clicked, copies its link.</li>
+    <li>On Android, the app now downloads its updates itself and installs them with a tap.</li>
+    </ul>
+    <p>New</p>
+    <ul>
+    <li>Usage: each upstream's calls, their tokens and cost, in a dashboard in Settings, and each conversation's own usage page.</li>
+    <li>/btw: ask something in a conversation of its own beside the one you're in; Esc goes back.</li>
+    <li>Diffs side by side and inline, as in JetBrains IDEs, with an overview lane; each change can be undone where it is. Review follows each conversation's own edits.</li>
+    <li>Split panes: a project's agents open in its own pane; what is stacked in a pane shows as tabs; each row and column resizes on its own.</li>
+    <li>Terminals reorder by dragging, and the chat's panel and the side panel share them.</li>
+    <li>⌘L / Ctrl+L adds the code selected in the editor to the chat's input; queued messages can be dragged into another order.</li>
+    <li>Type over the sidebar to search the projects; upstreams take custom models and endpoint URLs.</li>
+    </ul>
+    <p>Improved</p>
+    <ul>
+    <li>While an agent works, the window redraws at most 30 times a second, using less power.</li>
+    <li>Search honors .gitignore at every level, nested repositories included.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>No white strip around the window on Windows.</li>
+    <li>Stopping a background command no longer hangs.</li>
+    <li>Each tab's editor is back where it was left; going to definitions and references works while language servers start.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.7.3">
     <h2 class="plain"><a href="#v1.7.3">1.7.3</a></h2>
     <p>This release improves bots on the phone: they talk faster and more like people, with narration besides. It also fixes 1.7.2's bots running in the background without a phone. On the phone, this needs 0.1.4.</p>
