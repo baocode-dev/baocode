@@ -43,6 +43,7 @@ void main() {
           '~/code/baocode/lib/chat/chat_history_view.dart': 'class View {}',
           '~/code/baocode/assets/logo.png': null,
           '~/code/baocode/node_modules/x/index.js': '',
+          '/tmp/a.log': 'started',
         }),
         paths: p.posix,
       ),
@@ -348,6 +349,18 @@ void main() {
       workspace.threads.firstWhere((t) => t.title == first.title).pinned,
       isTrue,
     );
+
+    // Deleted from the phone, as the desktop deletes one.
+    await peer.call(LinkMethods.delete, {'session': created['session']});
+    expect(workspace.threads, isNot(contains(thread)));
+    // A project off the list, as the desktop's Remove from list.
+    await peer.call(LinkMethods.hideProject, {'project': '~/code/cursor-docs'});
+    final after = LinkState.fromJson(
+      (await peer.call(LinkMethods.state))! as Map<String, Object?>,
+    );
+    expect([
+      for (final p in after.projects) p.name,
+    ], isNot(contains('cursor-docs')));
   });
 
   test('a new agent from the phone starts as picked there', () async {
@@ -455,6 +468,55 @@ void main() {
     );
   });
 
+  test('a message sent again is not taken twice', () async {
+    final peer = await pair();
+    Future<Object?> send(String text, String id) => peer.call(
+      LinkMethods.send,
+      {'project': '~/code/baocode', 'text': text, 'id': id},
+    );
+    final first = await send('only once', 'm1');
+    // Its answer lost, sent again: answered as before.
+    expect(await send('only once', 'm1'), first);
+    expect(
+      workspace.threads.where((t) => t.title == 'only once'),
+      hasLength(1),
+    );
+    // Another message, though it says the same.
+    await send('only once', 'm2');
+    expect(
+      workspace.threads.where((t) => t.title == 'only once'),
+      hasLength(2),
+    );
+  });
+
+  test('any file of the machine opens by its full path', () async {
+    final peer = await pair();
+    final read =
+        (await peer.call(LinkMethods.read, {
+              'project': '~/code/baocode',
+              'path': '/tmp/./a.log',
+            }))!
+            as Map;
+    expect(read['text'], 'started');
+    await expectLater(
+      peer.call(LinkMethods.read, {
+        'project': '~/code/baocode',
+        'path': '/tmp/none.log',
+      }),
+      throwsA(
+        isA<LinkRemoteException>().having((e) => e.code, 'code', 'notFound'),
+      ),
+    );
+    // As it is, for an app of the phone's to open.
+    final file =
+        (await peer.call(LinkMethods.download, {
+              'project': '~/code/baocode',
+              'path': '/tmp/a.log',
+            }))!
+            as Map;
+    expect(utf8.decode(base64.decode(file['data'] as String)), 'started');
+  });
+
   test('a workspace\'s files are its folders\', each under its name', () async {
     host.dispose();
     final multi = Workspace(
@@ -488,12 +550,26 @@ void main() {
             }))!
             as Map;
     expect(read['text'], 'package main');
-    for (final path in [
-      'site/../api/main.go',
-      'web.code-workspace',
-      '/code/api/main.go',
-      'api',
-    ]) {
+    // By its full path too, as any file of the machine.
+    expect(
+      ((await peer.call(LinkMethods.read, {
+            'project': made.path,
+            'path': '/code/api/main.go',
+          }))!
+          as Map)['text'],
+      'package main',
+    );
+    // As an agent wrote it in its words: under one of the folders, not
+    // named.
+    expect(
+      ((await peer.call(LinkMethods.read, {
+            'project': made.path,
+            'path': 'main.go',
+          }))!
+          as Map)['text'],
+      'package main',
+    );
+    for (final path in ['site/../api/main.go', 'web.code-workspace', 'api']) {
       await expectLater(
         peer.call(LinkMethods.read, {'project': made.path, 'path': path}),
         throwsA(isA<LinkRemoteException>()),

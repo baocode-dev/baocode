@@ -464,9 +464,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         ),
         // Told only who it is and how it talks: no coding agent's prompt.
         ownPrompt: true,
-        // Its own tools; the web's; the tool search, for the browser's,
-        // which are deferred. All of it unasked: the user is on their
-        // phone, not at the computer.
+        // All of an agent's, and its own; only the web's and its own when
+        // it only chats (with the tool search, for the browser's, which
+        // are deferred). All of it unasked: the user is on their phone,
+        // not at the computer.
         tools: BotPermissions.tools(bot),
         approvesAll: true,
         // What the user writes while it talks, taken up as it does: as a
@@ -489,12 +490,14 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     final ability = BotTools.abilityOf(tool);
     if (bot == null) return ability == null;
     if (ability != null) return ability.allows(bot);
-    // The app's other tools: pictures made, if it may make them; the
-    // browser's, if it may use it.
+    // The app's other tools: pictures made; the browser's, if it may use
+    // it; the rest, as an agent's, unless it only chats.
     if (tool == ImageTools.name) return true;
-    return bot.can(BotAbility.browser) &&
+    final browser =
         ClaudeSdkTools.called('mcp__${ClaudeSdkTools.server}__$tool')?.kind ==
-            ToolKind.browser;
+        ToolKind.browser;
+    if (browser) return bot.can(BotAbility.browser);
+    return !bot.chatOnly;
   }
 
   /// Not a bot's: there is no one at the computer to ask, its user on the
@@ -633,6 +636,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     BotProactive proactive = const BotProactive(),
     BotAvatarImage? avatarImage,
     Bot? by,
+    bool? chatOnly,
   }) {
     final root = folders.root;
     if (root == null) throw StateError('No bots here');
@@ -654,6 +658,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         abilities: abilities,
         proactive: proactive,
         created: _clock(),
+        chatOnly: chatOnly ?? false,
       );
       _writeBot(bot);
       _bots.add(bot);
@@ -678,6 +683,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       style: style.trim(),
       abilities: abilities,
       proactive: proactive,
+      chatOnly: chatOnly,
     );
     // What it was to be told, dropped with being told of the agents.
     if (had.can(BotAbility.proactive) && !bot.can(BotAbility.proactive)) {

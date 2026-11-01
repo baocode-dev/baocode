@@ -223,15 +223,21 @@ class LinkPeer {
         final pending = _pending.remove(id);
         if (pending == null) return;
         // Kept in step here, in the order things came, whenever the
-        // caller gets to the answer.
+        // caller gets to the answer; and told the app in that order too,
+        // among the updates (which it would otherwise get to first, or
+        // after, as it happens).
         if (mirror case final mirror?) {
-          _mirrorAnswer(mirror, pending, message['r']);
+          if (_mirrorAnswer(mirror, pending, message['r']) case final event?) {
+            _events.add(event);
+          }
         }
         pending.completer.complete(message['r']);
     }
   }
 
-  void _mirrorAnswer(
+  /// [result] of [pending] kept by [mirror]; the event that tells the app
+  /// of it, if it is of a session.
+  LinkEvent? _mirrorAnswer(
     LinkSessionMirror mirror,
     _Pending pending,
     Object? result,
@@ -239,11 +245,18 @@ class LinkPeer {
     switch ((pending.method, result)) {
       case (LinkMethods.open, final Map<String, Object?> update):
         mirror.opened(update);
+        return LinkEvent(LinkEvents.session, update);
       case (LinkMethods.earlier, {'items': final List<Object?> items}):
         if (pending.params['session'] case final String session) {
           mirror.earlier(session, items);
+          return LinkEvent(LinkEvents.earlier, {
+            'session': session,
+            'items': items,
+            'earlier': (result as Map)['earlier'],
+          });
         }
     }
+    return null;
   }
 
   void _event(String name, Object? data) {
@@ -251,6 +264,7 @@ class LinkPeer {
     if (name == LinkEvents.session &&
         data is Map<String, Object?> &&
         mirror != null) {
+      if (mirror.stale(data)) return;
       final whole = mirror.apply(data);
       _events.add(
         whole == null

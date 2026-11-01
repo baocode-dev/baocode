@@ -39,6 +39,7 @@ abstract final class BotFiles {
     ('gender', bot.gender),
     ('signature', bot.signature),
     for (final ability in shownAbilities) (ability.name, '${bot.can(ability)}'),
+    if (bot.chatOnly) ('chat_only', 'true'),
     ('model', bot.model),
     if (bot.assistant) ('assistant', 'true'),
     (
@@ -88,6 +89,8 @@ abstract final class BotFiles {
       },
       model: text('model').isEmpty ? null : text('model'),
       assistant: assistant,
+      // Not said: all an agent has.
+      chatOnly: _yes(fields['chat_only']) ?? false,
       created:
           DateTime.tryParse(text('created')) ?? createdIn(p.basename(folder)),
     );

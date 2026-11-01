@@ -345,15 +345,90 @@ void main() {
           'partial': true,
         });
       await Future<void>.delayed(const Duration(milliseconds: 10));
+      // The answer first, as the app is to apply it: among the updates.
       expect(events.map((e) => e.name), [
+        LinkEvents.session,
         LinkEvents.session,
         LinkEvents.resync,
       ]);
       expect(
-        LinkSessionUpdate.fromJson(events.first.data! as Map<String, Object?>)
+        LinkSessionUpdate.fromJson(events[0].data! as Map<String, Object?>)
+            .items,
+        [message('Hel')],
+      );
+      expect(
+        LinkSessionUpdate.fromJson(events[1].data! as Map<String, Object?>)
             .items,
         [message('Hello')],
       );
+    });
+
+    test('earlier items and updates come to the app in the order sent, '
+        'what a closed session still sent let go', () async {
+      final mirror = LinkSessionMirror();
+      final slimmer = LinkSessionSlimmer();
+      late LinkPeer desktop;
+      final (phone, desktopEnd, _) = await pair(
+        mirror: mirror,
+        onRequest: (method, params) {
+          switch (method) {
+            case LinkMethods.open:
+              return slimmer.encode(update(0, [message('c')], 1), full: true);
+            case LinkMethods.earlier:
+              // An update goes out just before the answer, the earlier
+              // items not counted in it yet.
+              desktop.emit(
+                LinkEvents.session,
+                slimmer.encode(update(1, [message('d', id: 'n')], 2)),
+              );
+              return {
+                'items': [message('a', id: 'x'), message('b', id: 'y')],
+                'earlier': false,
+              };
+          }
+          return null;
+        },
+      );
+      desktop = desktopEnd;
+      final events = <LinkEvent>[];
+      phone.events.listen(events.add);
+      await phone.call(LinkMethods.open, {'session': 's'});
+      await phone.call(LinkMethods.earlier, {'session': 's', 'count': 2});
+      // And one after it, counting them.
+      desktop.emit(
+        LinkEvents.session,
+        slimmer.encode(update(3, [message('e', id: 'o')], 4)),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(events.map((e) => e.name), [
+        LinkEvents.session,
+        LinkEvents.session,
+        LinkEvents.earlier,
+        LinkEvents.session,
+      ]);
+      expect(
+        LinkSessionUpdate.fromJson(events[1].data! as Map<String, Object?>)
+            .start,
+        1,
+      );
+      expect(events[2].data, {
+        'session': 's',
+        'items': [message('a', id: 'x'), message('b', id: 'y')],
+        'earlier': false,
+      });
+      final last = LinkSessionUpdate.fromJson(
+        events[3].data! as Map<String, Object?>,
+      );
+      expect((last.start, last.count), (3, 4));
+
+      // Closed: what was on its way is not asked for again.
+      unawaited(phone.call(LinkMethods.close, {'session': 's'}));
+      desktop.emit(
+        LinkEvents.session,
+        slimmer.encode(update(4, [message('f', id: 'p')], 5)),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(events, hasLength(4));
     });
   });
 

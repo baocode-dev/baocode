@@ -40,9 +40,10 @@ abstract final class LinkMethods {
   static const close = 'close';
 
   /// `{"session"?, "project"?, "bot"?, "text", "images"?, "mentions"?,
-  /// "now"?}`: a message to the bot's conversation ([LinkBot.id]), started
-  /// if it has none; else to the session; with neither, to a new one in the
-  /// project.
+  /// "now"?, "id"?}`: a message to the bot's conversation ([LinkBot.id]),
+  /// started if it has none; else to the session; with neither, to a new
+  /// one in the project. With `id` (the phone's for it), one sent again
+  /// (its answer lost) is answered as before, not taken twice.
   /// Images are `{"data" (base64), "type", "name"?}`; mentions, the
   /// project's files the text names (`@path`), from its root. With `now`,
   /// taken up at once, the turn running stopped for it, rather than queued
@@ -81,6 +82,14 @@ abstract final class LinkMethods {
 
   /// `{"session"}`: off the list (archived on the desktop).
   static const archive = 'archive';
+
+  /// `{"session"}`: deleted, with its conversation, as the desktop's
+  /// Delete.
+  static const delete = 'delete';
+
+  /// `{"project"}`: off the list, as the desktop's Remove from list: its
+  /// folder and its agents stay.
+  static const hideProject = 'hideProject';
 
   /// `{"session", "paths"?}`: keeps the changes to those files (all of
   /// them, with no paths), as the desktop's Keep.
@@ -138,8 +147,15 @@ abstract final class LinkMethods {
   /// `bad` for a file that is not a picture.
   static const image = 'image';
 
+  /// `{"project", "path"}`: any file of the machine, its bytes, for the
+  /// phone to open in an app of its own (a video, a PDF, an archive):
+  /// `{"data"}` (base64), or `{"tooLarge": true, "size"}` past
+  /// [LinkLimits.download].
+  static const download = 'download';
+
   /// `{"bot"?, "name", "avatar"?, "avatarImage"?, "identity", "abilities",
-  /// "proactive"}` (as [LinkBot]'s JSON): the bot changed, or a new one (no
+  /// "proactive", "chatOnly"?}` (as [LinkBot]'s JSON; `chatOnly` not said,
+  /// as it was): the bot changed, or a new one (no
   /// `bot`): `{"bot": LinkBot}`. `avatarImage`, `{"data" (base64), "type"}`
   /// (at most [LinkLimits.avatar]), is a new picture for it; else `avatar`
   /// is an emoji, or the picture it has, kept.
@@ -199,6 +215,10 @@ abstract final class LinkLimits {
 
   /// A bot's picture's bytes.
   static const avatar = 1024 * 1024;
+
+  /// A file's bytes, opened in another app: base64, under the relay's
+  /// burst (16 MiB).
+  static const download = 8 * 1024 * 1024;
 }
 
 /// A task an agent left running beside the conversation: a command, a
@@ -328,6 +348,12 @@ abstract final class LinkEvents {
   /// a session's update does not fit what it has (see
   /// [LinkSessionMirror]). The session should be opened again.
   static const resync = 'resync';
+
+  /// `{"session", "items", "earlier"}`: not sent: the phone's [LinkPeer]
+  /// tells its app of the items an `earlier` answer put before the first,
+  /// in step with the session's updates (as an `open` answer is told as
+  /// [session]): each lands on the items as they were when it was sent.
+  static const earlier = 'earlier';
 }
 
 /// What a watched task wrote ([LinkEvents.output]): [text], ending at

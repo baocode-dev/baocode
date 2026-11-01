@@ -9,6 +9,10 @@ import '../../models/model_runtime.dart';
 import '../../remote/remote_claude.dart';
 import '../../remote/remote_location.dart';
 import '../../remote/ssh_host.dart';
+import '../../models/launch_environment.dart';
+import '../../usage/usage_capture.dart';
+import '../../usage/usage_ledger.dart';
+import '../../usage/usage_record.dart';
 import 'claude_code_transport.dart' show ClaudeLaunch;
 import 'claude_core_setting.dart';
 import 'claude_haiku_stub.dart'
@@ -33,6 +37,9 @@ import 'claude_haiku_stub.dart'
 /// (see [claudeHaikuMessage]): the model sees them without tools. With
 /// [tools], it may look at files (see [ClaudeHaikuTools]). Both only on
 /// this machine; a remote host is asked the prompt alone.
+///
+/// Its call is kept (Settings → Usage) as an auxiliary one, under the
+/// conversation [session] when it is for one (a title).
 Future<String> askClaudeHaiku(
   String system,
   String prompt, {
@@ -42,6 +49,7 @@ Future<String> askClaudeHaiku(
   String? location,
   List<({String name, ImageAttachment image})> images = const [],
   ClaudeHaikuTools? tools,
+  String? session,
 }) async {
   final host = location == null ? null : RemoteLocation.hostOf(location);
   final providers = ModelProviders.current;
@@ -66,15 +74,20 @@ Future<String> askClaudeHaiku(
       cancel: cancel,
       images: images,
       tools: tools,
+      session: session,
     );
   }
   final (provider, info) = custom;
   final name = exact ? info.id : provider.roles.haiku ?? info.id;
-  final Map<String, String> env;
+  Map<String, String> env;
   try {
     env = await providerLaunchEnvironment(provider, name);
   } on Object catch (error) {
     throw ClaudeHaikuException('${provider.name}: $error');
+  }
+  // Through the proxy, which keeps it under [session].
+  if (session != null && UsageLedger.current.enabled) {
+    env = withUsageSession(env, session);
   }
   if (host != null) {
     return askRemoteHaiku(
@@ -94,6 +107,66 @@ Future<String> askClaudeHaiku(
     env: env,
     images: images,
     tools: tools,
+  );
+}
+
+/// [env] with a header naming the conversation [session] a call is for
+/// ([UsageHeaders.session]), after the provider's own.
+Map<String, String> withUsageSession(Map<String, String> env, String session) {
+  const name = ClaudeModelVariables.customHeadersVariable;
+  final own = env[name]?.trim() ?? '';
+  return {
+    ...env,
+    name: [
+      if (own.isNotEmpty) own,
+      '${UsageHeaders.session}: $session',
+    ].join('\n'),
+  };
+}
+
+/// The call Claude Code's [result] (its `result` message) tells of, as
+/// the [UsageLedger] keeps it: an auxiliary one, under [session]. Null
+/// when it tells of no tokens.
+UsageCall? claudeHaikuCall(
+  Map<String, Object?> result, {
+  required DateTime at,
+  String? session,
+}) {
+  int count(Object? value) => value is num ? value.toInt() : 0;
+  final usage = switch (result['usage']) {
+    final Map<Object?, Object?> usage => usage,
+    _ => const <Object?, Object?>{},
+  };
+  final input = count(usage['input_tokens']);
+  final output = count(usage['output_tokens']);
+  final cacheRead = count(usage['cache_read_input_tokens']);
+  final cacheWrite = count(usage['cache_creation_input_tokens']);
+  if (input + output + cacheRead + cacheWrite == 0) return null;
+  final models = switch (result['modelUsage']) {
+    final Map<Object?, Object?> models => models.keys.whereType<String>(),
+    _ => const <String>[],
+  };
+  final model =
+      models.where((model) => model.contains('haiku')).firstOrNull ??
+      models.firstOrNull ??
+      'haiku';
+  final duration = Duration(milliseconds: count(result['duration_ms']));
+  return UsageCall(
+    at: at.subtract(duration),
+    duration: duration,
+    status: result['is_error'] == true ? 500 : 200,
+    provider: 'claude-code',
+    protocol: 'anthropic',
+    model: model
+        .replaceFirst(RegExp(r'\[[^\]]*\]$'), '')
+        .replaceFirst(RegExp(r'-\d{8}$'), ''),
+    stream: false,
+    session: session,
+    requestClass: UsageClass.auxiliary,
+    input: input,
+    output: output,
+    cacheRead: cacheRead,
+    cacheWrite: cacheWrite,
   );
 }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:bao_link/bao_link.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -233,6 +234,7 @@ class WorkspaceBridge {
       proactive: bot.proactive,
       model: bots.modelOf(bot),
       assistant: bot.assistant,
+      chatOnly: bot.chatOnly,
       session: session,
       status: bots.typing(bot) ? BotStatus.typing : BotStatus.idle,
       unread: bots.unread(bot),
@@ -266,6 +268,39 @@ class WorkspaceBridge {
   }
 
   // --- Requests -------------------------------------------------------------
+
+  /// The phones' messages taken, by phone and message id, with what they
+  /// were answered: for the last [_takenKept], whatever the connection.
+  static final Map<String, Future<Object?>> _taken = {};
+  static const _takenKept = 200;
+
+  /// Sends [params]' message ([LinkMethods.send]).
+  Future<Object?> _send(Map<String, Object?> params) async {
+    final text = (params['text'] as String? ?? '').trim();
+    if (text.isEmpty && _images(params['images']).isEmpty) return null;
+    final AgentThread thread;
+    if (params['bot'] case final Object id) {
+      // Its conversation, whichever it is now: the last run's, once
+      // listed, not another started.
+      if (workspace.loading) await workspace.loaded;
+      thread = _bots().threadFor(_bot(id));
+    } else if (params['session'] case final Object id) {
+      thread = _thread(id);
+    } else if (params['project'] case final String path) {
+      thread = workspace.startAgent(_project(path));
+    } else {
+      throw const LinkRemoteException(
+        LinkErrors.notFound,
+        'No agent nor project',
+      );
+    }
+    final session = thread.session;
+    if (!session.canSend) {
+      throw const LinkRemoteException('busy', 'The agent is at work');
+    }
+    session.send(_message(thread, params), now: params['now'] == true);
+    return {'session': idOf(thread)};
+  }
 
   Future<Object?> handle(String method, Map<String, Object?> params) async {
     switch (method) {
@@ -304,30 +339,23 @@ class WorkspaceBridge {
         }
         return null;
       case LinkMethods.send:
-        final text = (params['text'] as String? ?? '').trim();
-        if (text.isEmpty && _images(params['images']).isEmpty) return null;
-        final AgentThread thread;
-        if (params['bot'] case final Object id) {
-          // Its conversation, whichever it is now: the last run's, once
-          // listed, not another started.
-          if (workspace.loading) await workspace.loaded;
-          thread = _bots().threadFor(_bot(id));
-        } else if (params['session'] case final Object id) {
-          thread = _thread(id);
-        } else if (params['project'] case final String path) {
-          thread = workspace.startAgent(_project(path));
-        } else {
-          throw const LinkRemoteException(
-            LinkErrors.notFound,
-            'No agent nor project',
-          );
+        // Sent again (its answer lost on the way, the connection dropped):
+        // answered as it was, not taken twice.
+        final key = switch (params['id']) {
+          final String id => '${peer.remote}/$id',
+          _ => null,
+        };
+        if (key == null) return _send(params);
+        if (_taken[key] case final taken?) return taken;
+        final taking = _taken[key] = _send(params);
+        if (_taken.length > _takenKept) _taken.remove(_taken.keys.first);
+        try {
+          return await taking;
+        } on Object {
+          // Not taken (the agent busy…): it may be sent again.
+          _taken.remove(key);
+          rethrow;
         }
-        final session = thread.session;
-        if (!session.canSend) {
-          throw const LinkRemoteException('busy', 'The agent is at work');
-        }
-        session.send(_message(thread, params), now: params['now'] == true);
-        return {'session': idOf(thread)};
       case LinkMethods.edit:
         final thread = _thread(params['session']);
         final session = thread.session;
@@ -419,6 +447,12 @@ class WorkspaceBridge {
       case LinkMethods.archive:
         workspace.setArchived(_thread(params['session']), true);
         return null;
+      case LinkMethods.delete:
+        workspace.delete(_thread(params['session']));
+        return null;
+      case LinkMethods.hideProject:
+        workspace.hideProject(_project(params['project']));
+        return null;
       case LinkMethods.keep:
         final session = _thread(params['session']).session;
         switch (_paths(params, session)) {
@@ -489,6 +523,11 @@ class WorkspaceBridge {
           _project(params['project']),
           params['path'] as String? ?? '',
         );
+      case LinkMethods.download:
+        return _download(
+          _project(params['project']),
+          params['path'] as String? ?? '',
+        );
       case LinkMethods.extensions:
         return {
           'items': [for (final item in await _extensions()) item.toJson()],
@@ -516,6 +555,8 @@ class WorkspaceBridge {
             _ => const BotProactive(),
           },
           avatarImage: _avatarImage(params['avatarImage']),
+          // Not said (a phone from before): as it was.
+          chatOnly: params['chatOnly'] as bool?,
         );
         return {'bot': _linkBot(bots, saved).toJson()};
       case LinkMethods.botAvatar:
@@ -628,11 +669,7 @@ class WorkspaceBridge {
   /// A picture of [project] the phone shows, as a reply names it.
   Future<Map<String, Object?>> _readImage(Project project, String path) async {
     final (:files, :paths) = _filesOf(project);
-    final full =
-        _fullPath(project, path) ??
-        _changesIn(project).keys
-            .where((c) => paths.equals(c, path))
-            .firstOrNull;
+    final candidates = _candidates(project, path);
     final type = switch (paths.extension(path).toLowerCase()) {
       '.png' => 'image/png',
       '.jpg' || '.jpeg' => 'image/jpeg',
@@ -640,21 +677,41 @@ class WorkspaceBridge {
       '.webp' => 'image/webp',
       _ => null,
     };
-    if (full == null) {
-      throw LinkRemoteException(LinkErrors.notFound, 'No file $path');
-    }
     if (type == null) {
       throw LinkRemoteException('bad', 'Not a picture: $path');
     }
-    try {
-      final bytes = await readBytesThrough(files, full);
+    for (final full in candidates) {
+      final Uint8List bytes;
+      try {
+        bytes = await readBytesThrough(files, full);
+      } on Object {
+        continue; // Not there: the next place it may be.
+      }
       if (bytes.length > LinkLimits.image) {
         return {'tooLarge': true, 'size': bytes.length};
       }
       return {'type': type, 'data': base64Encode(bytes)};
-    } on Object {
-      throw LinkRemoteException(LinkErrors.notFound, 'No file $path');
     }
+    throw LinkRemoteException(LinkErrors.notFound, 'No file $path');
+  }
+
+  /// A file of [project], or any of its machine, as it is: for the phone
+  /// to open in an app of its own.
+  Future<Map<String, Object?>> _download(Project project, String path) async {
+    final (:files, paths: _) = _filesOf(project);
+    for (final full in _candidates(project, path)) {
+      final Uint8List bytes;
+      try {
+        bytes = await readBytesThrough(files, full);
+      } on Object {
+        continue; // Not there: the next place it may be.
+      }
+      if (bytes.length > LinkLimits.download) {
+        return {'tooLarge': true, 'size': bytes.length};
+      }
+      return {'data': base64Encode(bytes)};
+    }
+    throw LinkRemoteException(LinkErrors.notFound, 'No file $path');
   }
 
   static const _imageTypes = {
@@ -704,6 +761,37 @@ class WorkspaceBridge {
       if (thread.project == project && thread.isOpen)
         for (final change in thread.session.fileChanges) change.path: change,
   };
+
+  /// Where the file the phone names [path] in [project] may be, the likeliest
+  /// first: in one of its folders, as the phone names them; one its agents
+  /// changed; any by its full path. Then, a path as an agent wrote it in its
+  /// words (`lib/main.dart`, of a workspace's folder, not named): under each
+  /// of the project's folders, the first there the one.
+  List<String> _candidates(Project project, String path) {
+    final paths = _filesOf(project).paths;
+    final found = <String>[
+      ?_fullPath(project, path),
+      ..._changesIn(project).keys.where((c) => paths.equals(c, path)),
+      ?_anywhere(project, path),
+      if (!paths.isAbsolute(path) && path.isNotEmpty)
+        for (final (_, root) in _rootsOf(project))
+          if (paths.normalize(paths.join(root, path)) case final full
+              when paths.isWithin(root, full))
+            full,
+    ];
+    return [
+      for (final (i, full) in found.indexed)
+        if (found.indexWhere((f) => paths.equals(f, full)) == i) full,
+    ];
+  }
+
+  /// [path] anywhere on [project]'s machine, by its full path (a log in
+  /// /tmp, what an agent or its subagent read elsewhere): the phone is the
+  /// user's own, and opens what they would here. Null for one not full.
+  String? _anywhere(Project project, String path) {
+    final paths = _filesOf(project).paths;
+    return paths.isAbsolute(path) ? paths.normalize(path) : null;
+  }
 
   /// The folders [project]'s files are in, each with the name the phone
   /// gives it: a folder's project, its own, unnamed; a workspace's, each of
@@ -792,26 +880,25 @@ class WorkspaceBridge {
 
   Future<Map<String, Object?>> _readFile(Project project, String path) async {
     final (:files, :paths) = _filesOf(project);
-    // In its folders; else one its agents changed elsewhere, as the
-    // phone is told of it (by its full path).
-    final full =
-        _fullPath(project, path) ??
-        _changesIn(project).keys
-            .where((c) => paths.equals(c, path))
-            .firstOrNull;
-    if (full == null) {
+    String? full;
+    String? text;
+    for (final candidate in _candidates(project, path)) {
+      try {
+        text = await files.read(candidate);
+        full = candidate;
+        break;
+      } on IdeBinaryFileException {
+        return {'binary': true};
+      } on IdeFileTooLargeException catch (error) {
+        return {'tooLarge': true, 'size': error.size};
+      } on Object {
+        continue; // Not there: the next place it may be.
+      }
+    }
+    if (full == null || text == null) {
       throw LinkRemoteException(LinkErrors.notFound, 'No file $path');
     }
-    final String text;
-    try {
-      text = await files.read(full);
-    } on IdeBinaryFileException {
-      return {'binary': true};
-    } on IdeFileTooLargeException catch (error) {
-      return {'tooLarge': true, 'size': error.size};
-    } on Object {
-      throw LinkRemoteException(LinkErrors.notFound, 'No file $path');
-    }
+    final file = full;
     if (text.length > LinkLimits.file) {
       return {'tooLarge': true, 'size': text.length};
     }
@@ -820,7 +907,7 @@ class WorkspaceBridge {
       if (thread.project != project || !thread.isOpen) continue;
       final session = thread.session;
       final change = session.fileChanges
-          .where((c) => paths.equals(c.path, full))
+          .where((c) => paths.equals(c.path, file))
           .firstOrNull;
       if (change == null) continue;
       if (change.kind == FileChangeKind.added) {
