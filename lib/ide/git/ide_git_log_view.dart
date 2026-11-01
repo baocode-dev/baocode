@@ -15,8 +15,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:bao_editor/monaco/flutter/diff_editor_model.dart'
-    show DiffHighlight;
 
 import '../../base/give_way_row.dart';
 import '../../base/smooth_scroll.dart';
@@ -278,25 +276,6 @@ class IdeGitLogController extends ChangeNotifier {
   set filesAsTree(bool value) {
     if (value == _filesAsTree) return;
     _filesAsTree = value;
-    notifyListeners();
-  }
-
-  /// Each file's added and deleted lines beside it.
-  bool _sizesShown = false;
-  bool get sizesShown => _sizesShown;
-  set sizesShown(bool value) {
-    if (value == _sizesShown) return;
-    _sizesShown = value;
-    notifyListeners();
-  }
-
-  /// The branches that have the commit selected, under its references:
-  /// shown until hidden, for every commit.
-  bool _branchesShown = true;
-  bool get branchesShown => _branchesShown;
-  set branchesShown(bool value) {
-    if (value == _branchesShown) return;
-    _branchesShown = value;
     notifyListeners();
   }
 
@@ -3012,7 +2991,7 @@ class _CommitDetails extends StatelessWidget {
           slivers: [
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -3020,36 +2999,7 @@ class _CommitDetails extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Center(
-                            child: _Offers(
-                              entries: [
-                                _copyItem(l10n.scmCopyCommitHash, commit.id),
-                              ],
-                              child: IdeHover(
-                                message: '${l10n.gitLogCopyHash}\n${commit.id}',
-                                child: MouseRegion(
-                                  cursor: SystemMouseCursors.click,
-                                  child: GestureDetector(
-                                    onTap: () => unawaited(
-                                      Clipboard.setData(
-                                        ClipboardData(text: commit.id),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'commit: ${commit.shortId}',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: foreground,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          // The message, in a box of its own; edited in place.
+                          // The message; edited in place.
                           if (log.editingMessage == commit.id)
                             SelectionContainer.disabled(
                               child: _MessageEditor(
@@ -3060,17 +3010,14 @@ class _CommitDetails extends StatelessWidget {
                               ),
                             )
                           else
-                            Container(
-                              constraints: const BoxConstraints(maxHeight: 140),
-                              padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: border),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                      maxHeight: 140,
+                                    ),
                                     child: SingleChildScrollView(
                                       child: Text.rich(
                                         TextSpan(
@@ -3078,6 +3025,7 @@ class _CommitDetails extends StatelessWidget {
                                             TextSpan(
                                               text: commit.subject,
                                               style: TextStyle(
+                                                fontWeight: FontWeight.w600,
                                                 color: foreground,
                                               ),
                                             ),
@@ -3098,39 +3046,38 @@ class _CommitDetails extends StatelessWidget {
                                       ),
                                     ),
                                   ),
-                                  IdeActionButton(
-                                    icon: Codicons.copy,
-                                    tooltip: l10n.scmCopyCommitMessage,
-                                    size: 20,
-                                    iconSize: 14,
-                                    onPressed: () => unawaited(
-                                      Clipboard.setData(
-                                        ClipboardData(text: commit.message),
-                                      ),
+                                ),
+                                IdeActionButton(
+                                  icon: Codicons.copy,
+                                  tooltip: l10n.scmCopyCommitMessage,
+                                  size: 20,
+                                  iconSize: 14,
+                                  onPressed: () => unawaited(
+                                    Clipboard.setData(
+                                      ClipboardData(text: commit.message),
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          const SizedBox(height: 10),
-                          Text(
-                            l10n.gitLogAuthor,
-                            style: TextStyle(fontSize: 12, color: description),
-                          ),
                           const SizedBox(height: 6),
-                          Row(
+                          // Who, when and which, on one line where it fits.
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              _Avatar(
-                                commit.author,
-                                commit.authorEmail,
-                                size: 36,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _Offers(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _Avatar(
+                                    commit.author,
+                                    commit.authorEmail,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Flexible(
+                                    child: _Offers(
                                       entries: [
                                         _copyItem(
                                           l10n.gitLogCopyName(commit.author),
@@ -3151,58 +3098,82 @@ class _CommitDetails extends StatelessWidget {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            fontSize: 14,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w600,
                                             color: foreground,
                                           ),
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _formatDate(commit.date, seconds: true),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: description,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (commit.parentIds.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            Text.rich(
-                              TextSpan(
-                                children: [
-                                  TextSpan(text: l10n.gitLogParents),
-                                  for (final (index, parent)
-                                      in commit.parentIds.indexed) ...[
-                                    if (index > 0) const TextSpan(text: ', '),
-                                    TextSpan(
-                                      text: _short(parent),
-                                      style: TextStyle(
-                                        color:
-                                            themeColors['textLink.foreground'],
-                                      ),
-                                      recognizer: TapGestureRecognizer()
-                                        ..onTap = () => onSelect(parent),
-                                      mouseCursor: SystemMouseCursors.click,
-                                    ),
-                                  ],
+                                  ),
                                 ],
                               ),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: description,
+                              Text(
+                                _formatDate(commit.date, seconds: true),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: description,
+                                ),
                               ),
-                            ),
-                          ],
-                          const SizedBox(height: 8),
+                              _Offers(
+                                entries: [
+                                  _copyItem(l10n.scmCopyCommitHash, commit.id),
+                                ],
+                                child: IdeHover(
+                                  message:
+                                      '${l10n.gitLogCopyHash}\n${commit.id}',
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    child: GestureDetector(
+                                      onTap: () => unawaited(
+                                        Clipboard.setData(
+                                          ClipboardData(text: commit.id),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'commit: ${commit.shortId}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: description,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (commit.parentIds.isNotEmpty)
+                                Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(text: l10n.gitLogParents),
+                                      for (final (index, parent)
+                                          in commit.parentIds.indexed) ...[
+                                        if (index > 0)
+                                          const TextSpan(text: ', '),
+                                        TextSpan(
+                                          text: _short(parent),
+                                          style: TextStyle(
+                                            color:
+                                                themeColors['textLink.foreground'],
+                                          ),
+                                          recognizer: TapGestureRecognizer()
+                                            ..onTap = () => onSelect(parent),
+                                          mouseCursor: SystemMouseCursors.click,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: description,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
                           _summary(context, files),
                           if (commit.references.isNotEmpty) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 4),
                             Wrap(
                               spacing: 12,
                               runSpacing: 4,
@@ -3214,39 +3185,12 @@ class _CommitDetails extends StatelessWidget {
                               ],
                             ),
                           ],
-                          const SizedBox(height: 8),
-                          SelectionContainer.disabled(
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: [
-                                IdeButton(
-                                  label: log.branchesShown
-                                      ? l10n.gitLogHideBranches
-                                      : l10n.gitLogShowBranches,
-                                  secondary: true,
-                                  onPressed: () =>
-                                      log.branchesShown = !log.branchesShown,
-                                ),
-                                IdeButton(
-                                  label: log.sizesShown
-                                      ? l10n.gitLogHideSizes
-                                      : l10n.gitLogShowSizes,
-                                  secondary: true,
-                                  onPressed: () =>
-                                      log.sizesShown = !log.sizesShown,
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (log.branchesShown) ...[
-                            const SizedBox(height: 8),
-                            _branches(context),
-                          ],
+                          const SizedBox(height: 4),
+                          _branches(context),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     _filesBar(context),
                     const SizedBox(height: 4),
                   ],
@@ -3264,7 +3208,7 @@ class _CommitDetails extends StatelessWidget {
               )
             else
               FutureBuilder<Map<String, ({int? added, int? deleted})>>(
-                future: log.sizesShown ? log.statsOf(git, commit.id) : null,
+                future: log.statsOf(git, commit.id),
                 builder: (context, stats) => SliverFixedExtentList(
                   itemExtent: 24,
                   delegate: SliverChildBuilderDelegate(
@@ -3320,7 +3264,7 @@ class _CommitDetails extends StatelessWidget {
     );
   }
 
-  /// The branches that have the commit, under their count: the current
+  /// The branches that have the commit, after their count: the current
   /// one's as the log draws it, a local branch and its remote's as one.
   Widget _branches(BuildContext context) => FutureBuilder<List<IdeGitRef>>(
     future: log.branchesOf(git, commit.id),
@@ -3352,19 +3296,16 @@ class _CommitDetails extends StatelessWidget {
               ? IdeGitRef(ref.id, ref.name, IdeGitRefKind.head)
               : ref,
       ]);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      return Wrap(
+        spacing: 12,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Text(
             context.l10n.gitLogInBranches(labels.length),
             style: TextStyle(fontSize: 12, color: description),
           ),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 12,
-            runSpacing: 4,
-            children: [for (final label in labels) _refLabel(label)],
-          ),
+          for (final label in labels) _refLabel(label),
         ],
       );
     },
@@ -3543,7 +3484,7 @@ class _CommitDetails extends StatelessWidget {
               letterColor: status.color,
             ),
           ),
-          if (log.sizesShown && stat != null) ...[
+          if (stat != null) ...[
             const SizedBox(width: 6),
             if (stat.added == null)
               Text(
@@ -3720,7 +3661,7 @@ class _DiffAreaState extends State<_DiffArea> {
     );
   }
 
-  /// Viewer Settings: side by side or unified, whitespace, highlighting.
+  /// Viewer Settings: side by side or unified, whitespace, unchanged lines.
   List<IdeMenuEntry> _settings() {
     final l10n = context.l10n;
     final options = IdeDiffOptions.instance;
@@ -3735,11 +3676,6 @@ class _DiffAreaState extends State<_DiffArea> {
           checked: options.whitespace == value,
           onSelected: () => options.whitespace = value,
         );
-    IdeMenuAction highlight(String label, DiffHighlight value) => IdeMenuAction(
-      label,
-      checked: options.highlight == value,
-      onSelected: () => options.highlight = value,
-    );
     return ideMenuGroups([
       [
         layout(l10n.diffLayoutAuto, IdeDiffLayout.auto),
@@ -3758,11 +3694,6 @@ class _DiffAreaState extends State<_DiffArea> {
           onSelected: () =>
               options.collapseUnchanged = !options.collapseUnchanged,
         ),
-      ],
-      [
-        highlight(l10n.diffHighlightWords, DiffHighlight.words),
-        highlight(l10n.diffHighlightCharacters, DiffHighlight.characters),
-        highlight(l10n.diffHighlightLines, DiffHighlight.lines),
       ],
     ]);
   }

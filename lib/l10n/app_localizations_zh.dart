@@ -10611,22 +10611,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gitLogSelectCommit => '选择一个提交以查看详情。';
 
   @override
-  String get gitLogAuthor => '作者';
-
-  @override
   String get gitLogParents => '父提交：';
-
-  @override
-  String get gitLogShowBranches => '显示分支';
-
-  @override
-  String get gitLogHideBranches => '隐藏分支';
-
-  @override
-  String get gitLogShowSizes => '显示大小';
-
-  @override
-  String get gitLogHideSizes => '隐藏大小';
 
   @override
   String gitLogFileCount(int count) {
@@ -10909,15 +10894,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String diffUnchangedLines(int count) {
     return '$count 行未改动';
   }
-
-  @override
-  String get diffHighlightCharacters => '按字符高亮';
-
-  @override
-  String get diffHighlightWords => '按词高亮';
-
-  @override
-  String get diffHighlightLines => '按行高亮';
 
   @override
   String get diffGoToFile => '转到改动的文件';

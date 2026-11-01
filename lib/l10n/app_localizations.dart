@@ -18297,41 +18297,11 @@ abstract class AppLocalizations {
   /// **'Select a commit to see its details.'**
   String get gitLogSelectCommit;
 
-  /// No description provided for @gitLogAuthor.
-  ///
-  /// In en, this message translates to:
-  /// **'Author'**
-  String get gitLogAuthor;
-
   /// No description provided for @gitLogParents.
   ///
   /// In en, this message translates to:
   /// **'Parent: '**
   String get gitLogParents;
-
-  /// No description provided for @gitLogShowBranches.
-  ///
-  /// In en, this message translates to:
-  /// **'Show Branches'**
-  String get gitLogShowBranches;
-
-  /// No description provided for @gitLogHideBranches.
-  ///
-  /// In en, this message translates to:
-  /// **'Hide Branches'**
-  String get gitLogHideBranches;
-
-  /// No description provided for @gitLogShowSizes.
-  ///
-  /// In en, this message translates to:
-  /// **'Show Sizes'**
-  String get gitLogShowSizes;
-
-  /// No description provided for @gitLogHideSizes.
-  ///
-  /// In en, this message translates to:
-  /// **'Hide Sizes'**
-  String get gitLogHideSizes;
 
   /// No description provided for @gitLogFileCount.
   ///
@@ -18806,24 +18776,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 unchanged line} other{{count} unchanged lines}}'**
   String diffUnchangedLines(int count);
-
-  /// No description provided for @diffHighlightCharacters.
-  ///
-  /// In en, this message translates to:
-  /// **'Highlight Characters'**
-  String get diffHighlightCharacters;
-
-  /// No description provided for @diffHighlightWords.
-  ///
-  /// In en, this message translates to:
-  /// **'Highlight Words'**
-  String get diffHighlightWords;
-
-  /// No description provided for @diffHighlightLines.
-  ///
-  /// In en, this message translates to:
-  /// **'Highlight Lines'**
-  String get diffHighlightLines;
 
   /// No description provided for @diffGoToFile.
   ///

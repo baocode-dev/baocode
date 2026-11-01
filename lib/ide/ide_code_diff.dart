@@ -670,8 +670,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       border: colors.get('diffEditor.border'),
       sashHover: colors.get('sash.hoverBorder'),
       sideBySide: widget.sideBySide ?? _options.sideBySide,
-      // Embedded, small: whole lines alone, the words' colors too many.
-      highlight: embedded ? DiffHighlight.lines : _options.highlight,
+      highlight: DiffHighlight.lines,
       hideUnchanged: !embedded && _options.collapseUnchanged,
       originalLineNumberOf: widget.originalLineNumberOf,
       modifiedLineNumberOf: widget.modifiedLineNumberOf,

@@ -7822,12 +7822,7 @@
     }
   },
   "gitLogSelectCommit": "Select a commit to see its details.",
-  "gitLogAuthor": "Author",
   "gitLogParents": "Parent: ",
-  "gitLogShowBranches": "Show Branches",
-  "gitLogHideBranches": "Hide Branches",
-  "gitLogShowSizes": "Show Sizes",
-  "gitLogHideSizes": "Hide Sizes",
   "gitLogFileCount": "{count, plural, =1{1 file} other{{count} files}}",
   "@gitLogFileCount": {
     "placeholders": {
@@ -7938,9 +7933,6 @@
       }
     }
   },
-  "diffHighlightCharacters": "Highlight Characters",
-  "diffHighlightWords": "Highlight Words",
-  "diffHighlightLines": "Highlight Lines",
   "diffGoToFile": "Go to Changed File",
   "lineChangePrevious": "Previous Change",
   "lineChangeNext": "Next Change",

@@ -1,12 +1,10 @@
 // How diffs show, as JetBrains IDEs' diff viewer offers it from its
 // toolbar: side by side, unified or by the width; whitespace not ignored,
-// at the ends of lines or anywhere; the changes highlighted by character, word, line or
-// not at all. One choice for every diff (the Git log's, the side panel's,
-// the editor's diff tabs), kept in settings.json.
+// at the ends of lines or anywhere. One choice for every diff (the Git
+// log's, the side panel's, the editor's diff tabs), kept in settings.json.
+// The changes are marked by whole lines alone, with no choice of it.
 
 import 'package:flutter/foundation.dart';
-
-import 'package:bao_editor/monaco/flutter/diff_editor_model.dart';
 
 import '../settings/user_settings.dart';
 
@@ -24,7 +22,6 @@ class IdeDiffOptions extends ChangeNotifier {
   static const _layoutKey = 'diffEditor.layout';
   static const _whitespaceKey = 'diffEditor.ignoreTrimWhitespace';
   static const _allWhitespaceKey = 'baocode.diff.ignoreAllWhitespace';
-  static const _highlightKey = 'diffEditor.highlight';
   static const _collapseKey = 'diffEditor.hideUnchangedRegions.enabled';
 
   UserSettings? _settings;
@@ -94,17 +91,6 @@ class IdeDiffOptions extends ChangeNotifier {
     _ => true,
   };
   set collapseUnchanged(bool value) => _set(_collapseKey, value);
-
-  /// How much of a changed line the diff marks: the lines at least, their
-  /// color the one thing that tells taken out from put in (one set to
-  /// nothing before, the lines).
-  DiffHighlight get highlight => switch (_value(_highlightKey)) {
-    'none' => DiffHighlight.lines,
-    final String name =>
-      DiffHighlight.values.asNameMap()[name] ?? DiffHighlight.characters,
-    _ => DiffHighlight.characters,
-  };
-  set highlight(DiffHighlight value) => _set(_highlightKey, value.name);
 
   /// Back to the defaults (tests).
   @visibleForTesting

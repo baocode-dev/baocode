@@ -77,7 +77,7 @@ void main() {
     await pump(tester);
     expect(inDetails('commit: c2'), findsOneWidget);
     expect(inDetails('Second'), findsOneWidget);
-    expect(find.text('Hide Branches'), findsOneWidget);
+    expect(find.text('Hide Branches'), findsNothing);
     // A local branch of a slashed name and its remote's, as one; the
     // remote's HEAD left out.
     expect(inDetails('In 2 branches'), findsOneWidget);

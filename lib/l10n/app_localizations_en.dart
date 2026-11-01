@@ -11213,22 +11213,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gitLogSelectCommit => 'Select a commit to see its details.';
 
   @override
-  String get gitLogAuthor => 'Author';
-
-  @override
   String get gitLogParents => 'Parent: ';
-
-  @override
-  String get gitLogShowBranches => 'Show Branches';
-
-  @override
-  String get gitLogHideBranches => 'Hide Branches';
-
-  @override
-  String get gitLogShowSizes => 'Show Sizes';
-
-  @override
-  String get gitLogHideSizes => 'Hide Sizes';
 
   @override
   String gitLogFileCount(int count) {
@@ -11538,15 +11523,6 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get diffHighlightCharacters => 'Highlight Characters';
-
-  @override
-  String get diffHighlightWords => 'Highlight Words';
-
-  @override
-  String get diffHighlightLines => 'Highlight Lines';
 
   @override
   String get diffGoToFile => 'Go to Changed File';
