@@ -18,6 +18,7 @@ import '../ide/file_service.dart';
 import '../kernel/agent_kernel.dart' show KernelChoiceKind;
 import '../kernel/kernel_types.dart';
 import '../remote/project_host.dart';
+import '../remote/ssh_host.dart';
 import '../workspace/workspace.dart';
 import 'chat_codec.dart';
 import 'interaction_codec.dart';
@@ -29,6 +30,19 @@ typedef ProjectFiles = ({IdeFileService files, p.Context paths});
 ProjectFiles hostFilesOf(Project project) {
   final host = ProjectHost.of(project.path);
   return (files: host.files(host.pathOf(project.path)), paths: host.paths);
+}
+
+/// [project]'s host connected, if it is one over SSH: as a window opened on
+/// it would, one that failed tried again (the phone asking is the user
+/// asking). Throws what connecting failed with.
+Future<void> reachProjectHost(Project project) async {
+  if (ProjectHost.of(project.path) case final SshHost host) {
+    try {
+      await host.ready;
+    } on Object {
+      await host.reconnect();
+    }
+  }
 }
 
 /// A paired phone's view of the [Workspace], over its [LinkPeer]: the
@@ -43,6 +57,7 @@ class WorkspaceBridge {
     required this.device,
     this.branchOf,
     this.filesOf = hostFilesOf,
+    this.reachHost = reachProjectHost,
     this.customizations,
     this.bots,
     this.throttle = const Duration(milliseconds: 150),
@@ -60,6 +75,19 @@ class WorkspaceBridge {
 
   /// A project's files: none but the projects listed are given out.
   final ProjectFiles Function(Project project) filesOf;
+
+  /// A project's host connected before its files are asked of it.
+  final Future<void> Function(Project project) reachHost;
+
+  /// [project]'s host reached ([reachHost]); one that cannot be, said to
+  /// the phone as such ([LinkErrors.unreachable]), not as files missing.
+  Future<void> _reach(Project project) async {
+    try {
+      await reachHost(project);
+    } on Object catch (error) {
+      throw LinkRemoteException(LinkErrors.unreachable, '$error');
+    }
+  }
 
   /// Claude Code's customizations on this machine; none told without.
   final CustomizationStore? customizations;
@@ -668,6 +696,7 @@ class WorkspaceBridge {
 
   /// A picture of [project] the phone shows, as a reply names it.
   Future<Map<String, Object?>> _readImage(Project project, String path) async {
+    await _reach(project);
     final (:files, :paths) = _filesOf(project);
     final candidates = _candidates(project, path);
     final type = switch (paths.extension(path).toLowerCase()) {
@@ -698,6 +727,7 @@ class WorkspaceBridge {
   /// A file of [project], or any of its machine, as it is: for the phone
   /// to open in an app of its own.
   Future<Map<String, Object?>> _download(Project project, String path) async {
+    await _reach(project);
     final (:files, paths: _) = _filesOf(project);
     for (final full in _candidates(project, path)) {
       final Uint8List bytes;
@@ -846,6 +876,7 @@ class WorkspaceBridge {
   }
 
   Future<Map<String, Object?>> _listFiles(Project project) async {
+    await _reach(project);
     final (:files, :paths) = _filesOf(project);
     final listed = <String>[];
     var truncated = false;
@@ -879,6 +910,7 @@ class WorkspaceBridge {
   }
 
   Future<Map<String, Object?>> _readFile(Project project, String path) async {
+    await _reach(project);
     final (:files, :paths) = _filesOf(project);
     String? full;
     String? text;

@@ -5,11 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../ide/ide_button.dart';
+import '../../ide/ide_hover.dart';
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
 import '../../link/link_host.dart';
+import '../../link/phone_downloads.dart';
 import '../../link/qr_view.dart';
 import '../../theme/codicons.dart';
+import '../../workspace/editor_launcher.dart' show openExternal;
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 
@@ -117,6 +120,12 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
       title: l10n.settingsSectionMobile,
       description: l10n.mobileSettingsDescription,
       children: [
+        // The app first: no phone pairs without it.
+        SettingsGroup(
+          title: l10n.mobileGetApp,
+          description: l10n.mobileGetAppDescription,
+          children: const [_PhoneDownloads()],
+        ),
         SettingsCard(
           children: [
             SettingsSwitchRow(
@@ -395,7 +404,20 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
           if (!expired)
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: QrView(data: link),
+              // Clicked, its link copied: for a phone that cannot scan
+              // it (the same as Copy Link under it).
+              child: IdeHover(
+                message: _copied
+                    ? l10n.mobilePairCopied
+                    : l10n.mobilePairQrHint,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () => _copy(link),
+                    child: QrView(data: link),
+                  ),
+                ),
+              ),
             ),
           SettingsButtons(
             children: [
@@ -442,5 +464,70 @@ class _MobileSettingsPageState extends State<MobileSettingsPage> {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${time.year}-${two(time.month)}-${two(time.day)} '
         '${two(time.hour)}:${two(time.minute)}';
+  }
+}
+
+/// The phone app's downloads, as codes to scan: the site's own links
+/// ([phoneDownloadTargets]), the same as its download page's, which lead to
+/// the release current when scanned. Clicked, opened in the browser.
+class _PhoneDownloads extends StatelessWidget {
+  const _PhoneDownloads();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _PhoneDownload(
+            os: 'android',
+            name: 'Android',
+            detail: l10n.mobileGetAndroidDetail,
+          ),
+          _PhoneDownload(
+            os: 'ios',
+            name: l10n.mobileGetIos,
+            detail: l10n.mobileGetIosDetail,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhoneDownload extends StatelessWidget {
+  const _PhoneDownload({
+    required this.os,
+    required this.name,
+    required this.detail,
+  });
+
+  final String os;
+  final String name;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = phoneDownloadUrl(os);
+    return Column(
+      children: [
+        IdeHover(
+          message: context.l10n.mobileGetOpen(url),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => unawaited(openExternal(url)),
+              child: QrView(data: url, size: 148),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(name, style: SettingsText.label),
+        Text(detail, style: SettingsText.description),
+      ],
+    );
   }
 }

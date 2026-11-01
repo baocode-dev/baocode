@@ -421,6 +421,10 @@ abstract final class LinkErrors {
 
   /// The request was not one the desktop knows: one from before it could.
   static const unknown = 'unknown';
+
+  /// The project is on a machine the desktop cannot reach now (a server
+  /// over SSH): what is asked of its files could not be.
+  static const unreachable = 'unreachable';
 }
 
 /// The desktop, as the phone lists it.

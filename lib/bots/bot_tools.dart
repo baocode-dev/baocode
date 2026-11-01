@@ -607,8 +607,9 @@ abstract final class BotTools {
           'bot_save_bot',
           "Adds a new contact for the user (no bot), or changes one of the "
               "others: what you give changes, the rest stays. Their picture "
-              'is an emoji, or a picture file (one generate_image saved, '
-              'say), cut square. Yourself, with bot_edit_me.',
+              'is set here, by you: an emoji, or a picture file (the one '
+              'generate_image saved, say), cut square. Yourself, with '
+              'bot_edit_me.',
           {
             'bot': {
               'type': 'string',
@@ -622,7 +623,8 @@ abstract final class BotTools {
             'picture': {
               'type': 'string',
               'description':
-                  'A picture file: by its full path, or from your folder '
+                  'A picture file as its picture: by its full path (the '
+                  'one generate_image saved), or from your folder '
                   '(received/image-3.png, one the user sent).',
             },
             'gender': {'type': 'string'},

@@ -517,6 +517,35 @@ void main() {
     expect(utf8.decode(base64.decode(file['data'] as String)), 'started');
   });
 
+  test('a project whose server cannot be reached says so, not that it has '
+      'no files', () async {
+    host.dispose();
+    host = LinkHost(
+      workspace: workspace,
+      platform: platform,
+      filesOf: (project) => (
+        files: _MemoryFiles({'~/code/baocode/README.md': '#'}),
+        paths: p.posix,
+      ),
+      reachHost: (project) async => throw StateError('ssh: timed out'),
+    );
+    await host.load();
+    final peer = await pair();
+    for (final (method, params) in [
+      (LinkMethods.files, {'project': '~/code/baocode'}),
+      (LinkMethods.read, {'project': '~/code/baocode', 'path': 'README.md'}),
+    ]) {
+      await expectLater(
+        peer.call(method, params),
+        throwsA(
+          isA<LinkRemoteException>()
+              .having((e) => e.code, 'code', LinkErrors.unreachable)
+              .having((e) => e.message, 'message', contains('timed out')),
+        ),
+      );
+    }
+  });
+
   test('a workspace\'s files are its folders\', each under its name', () async {
     host.dispose();
     final multi = Workspace(

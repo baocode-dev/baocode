@@ -999,6 +999,18 @@ void main() {
       );
       await call(assistant, 'bot_delete_bot', {'bot': cat.id});
       expect(bots.byId(cat.id), isNull);
+      // A new one with a picture it made, set by it, not left to the user.
+      await call(assistant, 'bot_save_bot', {
+        'name': '阿狗',
+        'picture': file.path,
+      });
+      final dog = bots.bots.firstWhere((b) => b.name == '阿狗');
+      expect(isAvatarImage(dog.avatar!), isTrue);
+      expect(bots.avatarImage(dog), isNotNull);
+      expect(
+        botInstructions(self, memory: ''),
+        contains('never leave it to the user'),
+      );
       // None but the assistant does so.
       final mia = bots.save(name: 'Mia', identity: '', abilities: {});
       expect((await call(mia, 'bot_list_bots', {}))['isError'], isTrue);

@@ -192,6 +192,7 @@ class LinkHost extends ChangeNotifier {
     this.customizations,
     this.bots,
     this.filesOf = hostFilesOf,
+    this.reachHost = reachProjectHost,
     this.pathSettle = const Duration(seconds: 15),
   }) : platform = platform ?? LinkPlatform.current();
 
@@ -205,6 +206,9 @@ class LinkHost extends ChangeNotifier {
 
   /// A project's files, for the phones to browse.
   final ProjectFiles Function(Project project) filesOf;
+
+  /// A project's host connected, before its files are asked of it.
+  final Future<void> Function(Project project) reachHost;
 
   /// None on the web: the link is not there.
   final LinkPlatform? platform;
@@ -835,6 +839,7 @@ class LinkHost extends ChangeNotifier {
         branchOf: (project) =>
             project.host == null ? platform?.branchOf(project.root) : null,
         filesOf: filesOf,
+        reachHost: reachHost,
         customizations: customizations,
         bots: bots,
       )..start());

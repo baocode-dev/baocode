@@ -107,23 +107,47 @@ jobs:
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
         run: |
+          # Never another key: an APK signed otherwise does not install over
+          # the last, nor update itself (lib/update/ in the phone app).
+          if [ -z "$ANDROID_KEYSTORE" ]; then
+            echo "::error::The ANDROID_KEYSTORE secret is not set"
+            exit 1
+          fi
           echo "$ANDROID_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "BAOCODE_ANDROID_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-      - name: Build the APK
+      - name: Build the APKs
         working-directory: mobile
         env:
           # One key for every APK published, so that each installs over the
           # last (android/app/build.gradle.kts).
           BAOCODE_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          flutter build apk --release
           mkdir -p ../out
+          # The one of all kinds, the website's; and the arm64 one alone,
+          # the one nearly every phone updates itself with (a smaller
+          # download). Both of the same versionCode: not --split-per-abi,
+          # whose codes the next one of all kinds would not install over.
+          flutter build apk --release
           cp build/app/outputs/flutter-apk/app-release.apk "../out/BaoCode-$MARKETING-android.apk"
+          flutter build apk --release --target-platform android-arm64
+          cp build/app/outputs/flutter-apk/app-release.apk "../out/BaoCode-$MARKETING-android-arm64.apk"
+      - name: Check they are signed with the release key
+        run: |
+          # The release certificate's SHA-256: every APK ever published.
+          expected=5A:6F:94:13:EA:ED:B4:5A:17:7C:43:D8:17:40:B4:C5:7C:24:92:70:16:86:CB:76:9F:D3:66:D3:11:C2:D0:24
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          for apk in out/*.apk; do
+            "$apksigner" verify "$apk"
+            signed=$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1 \
+              | tr a-f A-F | sed 's/../&:/g; s/:$//')
+            echo "$apk: $signed"
+            [ "$signed" = "$expected" ] || { echo "::error::$apk is not signed with the release key"; exit 1; }
+          done
       - uses: actions/upload-artifact@v6
         with:
           name: android
           if-no-files-found: error
-          path: out/BaoCode-*-android.apk
+          path: out/BaoCode-*-android*.apk
       - name: Forget the key
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
@@ -344,9 +368,19 @@ jobs:
             jq -n --arg url "https://dl.baocode.dev/releases/mobile/$MARKETING/$(basename "$file")?sha256=${sha:0:16}" \
               --arg sha "$sha" --argjson size "$size" '{url: $url, size: $size, sha256: $sha}'
           }
-          jq -n --arg version "$VERSION" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson beta "$beta" \
+          # The phone app looks here for its updates (lib/update/): the
+          # build, to tell one from another of a version; the arm64 APK,
+          # the smaller one most phones fetch; and, set as the repository's
+          # MOBILE_MIN_BUILD, the oldest build the desktops still talk to,
+          # the update pressed on any older.
+          jq -n --arg version "$MARKETING" --argjson build "${VERSION##*+}" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson beta "$beta" \
+            --arg minBuild "$MIN_BUILD" \
             --argjson android "$(entry dist/BaoCode-$MARKETING-android.apk)" \
-            '{version: $version, pubDate: $date, beta: $beta, downloads: {android: $android}}' > latest.json
+            --argjson arm64 "$(entry dist/BaoCode-$MARKETING-android-arm64.apk)" \
+            '{version: $version, build: $build, pubDate: $date, beta: $beta}
+             + (if $minBuild == "" then {} else {minBuild: ($minBuild | tonumber)} end)
+             + {downloads: {android: $android, androidArm64: $arm64}}' > latest.json
           cat latest.json
           jq -r '.downloads[] | "\(.url) \(.size)"' latest.json | while read -r url expected; do
             served=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')

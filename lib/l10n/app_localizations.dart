@@ -14361,6 +14361,48 @@ abstract class AppLocalizations {
   /// **'Copy Link'**
   String get mobilePairCopyLink;
 
+  /// No description provided for @mobilePairQrHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to copy the link, to paste on the phone'**
+  String get mobilePairQrHint;
+
+  /// No description provided for @mobileGetApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Get the Phone App'**
+  String get mobileGetApp;
+
+  /// No description provided for @mobileGetAppDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan with the phone\'s camera: the same downloads as on baocode.dev.'**
+  String get mobileGetAppDescription;
+
+  /// No description provided for @mobileGetAndroidDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The APK; it keeps itself up to date'**
+  String get mobileGetAndroidDetail;
+
+  /// No description provided for @mobileGetIos.
+  ///
+  /// In en, this message translates to:
+  /// **'iPhone and iPad'**
+  String get mobileGetIos;
+
+  /// No description provided for @mobileGetIosDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The beta, on TestFlight'**
+  String get mobileGetIosDetail;
+
+  /// No description provided for @mobileGetOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to open {url}'**
+  String mobileGetOpen(String url);
+
   /// No description provided for @mobilePairCopied.
   ///
   /// In en, this message translates to:
