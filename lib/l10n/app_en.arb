@@ -8557,5 +8557,6 @@
   "@ustatQuotaPerPercent": {"placeholders": {"tokens": {"type": "String"}}},
   "ustatQuotaPerPercentCost": "≈ {cost} at API prices",
   "@ustatQuotaPerPercentCost": {"placeholders": {"cost": {"type": "String"}}},
-  "ustatPriceClaudeDefault": "Claude Code's own models without a price of yours are priced at Anthropic's API prices: the grey figures."
+  "ustatPriceClaudeDefault": "Claude Code's own models without a price of yours are priced at Anthropic's API prices: the grey figures.",
+  "ustatContextUnpickHint": "Click again to unpick: back to the context as it is now"
 }

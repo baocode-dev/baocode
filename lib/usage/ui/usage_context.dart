@@ -86,6 +86,7 @@ class _UsageContextSectionState extends State<UsageContextSection> {
       });
     final agent = byAgent.containsKey(_agent) ? _agent : agents.first;
     final requests = byAgent[agent]!;
+    // None picked: the latest, the context as it is now.
     final picked = (_picked ?? requests.length - 1).clamp(
       0,
       requests.length - 1,
@@ -150,10 +151,13 @@ class _UsageContextSectionState extends State<UsageContextSection> {
             height: widget.height,
             series: series,
             format: UsageFormat.tokens,
-            selected: picked,
+            selected: _picked == null ? null : picked,
             marks: compactions,
             hint: l10n.ustatContextPickHint,
-            onTapColumn: (i) => setState(() => _picked = i),
+            selectedHint: l10n.ustatContextUnpickHint,
+            // The one picked, again: none picked.
+            onTapColumn: (i) =>
+                setState(() => _picked = _picked == i ? null : i),
             columns: [
               for (final (i, c) in requests.indexed)
                 (

@@ -52,6 +52,7 @@ import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../usage/ui/conversation_usage_view.dart';
+import '../../usage/usage_ledger.dart';
 import '../chat_session.dart';
 import '../widgets/code_citation.dart' show CodeColorizer;
 import '../widgets/plan_start.dart';
@@ -562,6 +563,8 @@ class AgentSidePanelView extends StatelessWidget {
       ..._gits,
       ?terminals,
       BrowserBridge.instance,
+      // Its first call kept: its usage page offered.
+      UsageLedger.current,
     ]),
     builder: (context, _) {
       final tabs = panel.tabsOf(session);
@@ -1357,6 +1360,14 @@ extension SidePanelSectionUi on SidePanelSection {
   };
 }
 
+/// Whether [session]'s usage page is offered: once a call of it is kept,
+/// or while it is the page [picked] (by its command, say).
+bool _usageOffered(ChatSession? session, {SidePanelSection? picked}) {
+  if (picked == SidePanelSection.usage) return true;
+  final id = session?.sessionId;
+  return id != null && UsageLedger.current.hasCalls(id);
+}
+
 /// The window's quick entries, just below the conversation title bar.
 class SidePanelRail extends StatelessWidget {
   const SidePanelRail({
@@ -1402,7 +1413,7 @@ class SidePanelRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([?session, ...gits]),
+    listenable: Listenable.merge([?session, ...gits, UsageLedger.current]),
     builder: (context, _) => Container(
       key: const ValueKey('side-panel-rail'),
       width: width,
@@ -1415,7 +1426,11 @@ class SidePanelRail extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final (i, section) in alwaysShownSections.indexed) ...[
+          for (final (i, section) in [
+            for (final section in alwaysShownSections)
+              if (section != SidePanelSection.usage || _usageOffered(session))
+                section,
+          ].indexed) ...[
             if (i > 0) const SizedBox(height: _gap),
             Stack(
               clipBehavior: Clip.none,
@@ -1485,10 +1500,14 @@ class _SectionBar extends StatelessWidget {
   /// Moving the panel and the close button, at the right.
   static const _actionsWidth = 2 * 22.0 + 2 + 6;
 
-  /// The pages there: the browser's once one of the user's has connected,
-  /// the plan's once there is one.
+  /// The pages there: the usage's once a call of the conversation is kept,
+  /// the browser's once one of the user's has connected, the plan's once
+  /// there is one.
   List<SidePanelSection> get _sections => [
-    ...alwaysShownSections,
+    for (final section in alwaysShownSections)
+      if (section != SidePanelSection.usage ||
+          _usageOffered(session, picked: tabs.section))
+        section,
     if (BrowserBridge.instance.used) SidePanelSection.browser,
     if (tabs.plan != null) SidePanelSection.plan,
   ];
