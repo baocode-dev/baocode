@@ -702,6 +702,24 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     await _codex.removeAccount(_provider.id, account.id);
   }
 
+  Future<void> _useResetCredit(ProviderAccount account) async {
+    final l10n = context.l10n;
+    final choice = await showIdeDialog(
+      context,
+      message: l10n.modelsResetCreditConfirm(account.displayName),
+      detail: l10n.modelsResetCreditConfirmDetail,
+      buttons: [l10n.modelsResetCreditUse],
+      type: IdeDialogType.question,
+    );
+    if (choice != 0) return;
+    try {
+      await _codex.useResetCredit(_providerNow, account.id);
+    } on CodexException catch (error) {
+      // Shown under the account, as its error.
+      debugPrint('$error');
+    }
+  }
+
   Future<void> _readKey() async {
     final key = await _providers.key(_provider.id);
     if (mounted) {
@@ -927,7 +945,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
         const SizedBox(height: 16),
         _models(context),
         const SizedBox(height: 16),
-        _Folding(
+        SettingsFolding(
           title: l10n.modelsRoles,
           description: l10n.modelsRolesDescription,
           open: _rolesOpen,
@@ -935,7 +953,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           children: _roles(context),
         ),
         const SizedBox(height: 16),
-        _Folding(
+        SettingsFolding(
           title: l10n.modelsAdvanced,
           open: _advancedOpen,
           onToggle: () => setState(() => _advancedOpen = !_advancedOpen),
@@ -954,6 +972,66 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
       provider = provider.copyWith(name: 'ChatGPT');
     }
     return _save(provider);
+  }
+
+  /// Whether an account out of quota uses a reset credit by itself, and
+  /// for which windows: as the model picker's switch, with its reach.
+  Widget _autoResetCredits(BuildContext context) {
+    final l10n = context.l10n;
+    final provider = _provider;
+    final choices = [
+      (
+        on: false,
+        fiveHours: provider.resetCreditsFiveHours,
+        label: l10n.modelsAutoResetCreditsOff,
+        description: l10n.modelsAutoResetCreditsOffDescription,
+      ),
+      (
+        on: true,
+        fiveHours: false,
+        label: l10n.modelsAutoResetCreditsLong,
+        description: l10n.modelsAutoResetCreditsLongDescription,
+      ),
+      (
+        on: true,
+        fiveHours: true,
+        label: l10n.modelsAutoResetCreditsAny,
+        description: l10n.modelsAutoResetCreditsAnyDescription,
+      ),
+    ];
+    final current = choices.firstWhere(
+      (choice) =>
+          choice.on == provider.autoResetCredits &&
+          (!choice.on || choice.fiveHours == provider.resetCreditsFiveHours),
+    );
+    return SettingsRow(
+      label: l10n.autoResetCreditsToggle,
+      description: current.description,
+      trailing: SettingsDropdown(
+        current: current.label,
+        semanticLabel: l10n.modelsChoiceLabel(
+          l10n.autoResetCreditsToggle,
+          current.label,
+        ),
+        entries: () => [
+          for (final choice in choices)
+            IdeMenuAction(
+              choice.label,
+              checked: identical(choice, current),
+              onSelected: () => unawaited(() async {
+                await _save(
+                  _providerNow.copyWith(
+                    autoResetCredits: choice.on,
+                    resetCreditsFiveHours: choice.fiveHours,
+                  ),
+                );
+                // Turned on: one out of quota already uses its credit now.
+                if (choice.on) await _codex.refreshUsage(_providerNow);
+              }()),
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _accounts(BuildContext context) {
@@ -979,6 +1057,9 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               usage: _codex.usage(provider.id, account.id),
               error: _codex.error(provider.id, account.id),
               limitedUntil: _codex.limitedUntil(provider.id, account.id),
+              resetCredits: _codex.resetCredits(provider.id, account.id),
+              resetting: _codex.resetting(provider.id, account.id),
+              onReset: () => unawaited(_useResetCredit(account)),
               onEnabled: (value) => unawaited(
                 _save(
                   _providerNow.withAccount(account.copyWith(enabled: value)),
@@ -1014,6 +1095,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               ],
             ),
           ),
+        if (provider.accounts.isNotEmpty) _autoResetCredits(context),
         SettingsRow(
           label: login != null
               ? l10n.modelsAccountSigningIn
@@ -1912,6 +1994,9 @@ class _AccountRow extends StatelessWidget {
     required this.limitedUntil,
     required this.onEnabled,
     required this.onRemove,
+    this.resetCredits,
+    this.resetting = false,
+    this.onReset,
   });
 
   final ProviderAccount account;
@@ -1920,6 +2005,11 @@ class _AccountRow extends StatelessWidget {
   final DateTime? limitedUntil;
   final ValueChanged<bool> onEnabled;
   final VoidCallback onRemove;
+
+  /// Its reset credits, as listed; [onReset] uses one up.
+  final List<CodexResetCredit>? resetCredits;
+  final bool resetting;
+  final VoidCallback? onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -1992,18 +2082,121 @@ class _AccountRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          SettingsSwitch(
-            value: account.enabled,
-            semanticLabel: l10n.modelsAccountEnable(account.displayName),
-            onChanged: onEnabled,
-          ),
-          const SizedBox(width: 8),
-          IdeActionButton(
-            icon: Codicons.trash,
-            tooltip: l10n.modelsAccountRemove,
-            onPressed: onRemove,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SettingsSwitch(
+                    value: account.enabled,
+                    semanticLabel: l10n.modelsAccountEnable(
+                      account.displayName,
+                    ),
+                    onChanged: onEnabled,
+                  ),
+                  const SizedBox(width: 8),
+                  IdeActionButton(
+                    icon: Codicons.trash,
+                    tooltip: l10n.modelsAccountRemove,
+                    onPressed: onRemove,
+                  ),
+                ],
+              ),
+              if (usage?.resetCredits case final count? when count > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: _ResetCredits(
+                    count: count,
+                    credits: resetCredits,
+                    resetting: resetting,
+                    onReset: onReset,
+                  ),
+                ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// How many reset credits an account has, in small text; hovered, each
+/// one's expiry, and a button that uses one up.
+class _ResetCredits extends StatelessWidget {
+  const _ResetCredits({
+    required this.count,
+    required this.credits,
+    required this.resetting,
+    required this.onReset,
+  });
+
+  final int count;
+  final List<CodexResetCredit>? credits;
+  final bool resetting;
+  final VoidCallback? onReset;
+
+  static String _time(DateTime at) {
+    final local = at.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${local.month}/${local.day} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final faint = SettingsText.description.copyWith(
+      color: SettingsColors.textSecondary,
+    );
+    return IdeHover(
+      interactive: true,
+      compact: false,
+      message: l10n.modelsResetCredits(count),
+      content: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 180, maxWidth: 280),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.modelsResetCreditsTitle(count),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(l10n.modelsResetCreditsDetail, style: faint),
+              if (credits case final credits? when credits.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                for (final (i, credit) in credits.indexed)
+                  Text(
+                    '${i + 1}. ${switch (credit.expiresAt) {
+                      final at? => l10n.modelsResetCreditExpires(_time(at)),
+                      null => '—',
+                    }}',
+                    style: SettingsText.description,
+                  ),
+              ],
+              const SizedBox(height: 8),
+              IdeButton(
+                label: l10n.modelsResetCreditUse,
+                icon: Codicons.debugRestart,
+                spinning: resetting,
+                onPressed: resetting ? null : onReset,
+              ),
+            ],
+          ),
+        ),
+      ),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.help,
+        child: Text(
+          l10n.modelsResetCredits(count),
+          style: SettingsText.description.copyWith(
+            decoration: TextDecoration.underline,
+            decorationStyle: TextDecorationStyle.dotted,
+            decorationColor: SettingsColors.textSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -2141,70 +2334,6 @@ class _IconButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Folding extends StatelessWidget {
-  const _Folding({
-    required this.title,
-    required this.open,
-    required this.onToggle,
-    required this.children,
-    this.description,
-  });
-
-  final String title;
-  final String? description;
-  final bool open;
-  final VoidCallback onToggle;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Semantics(
-        button: true,
-        expanded: open,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onToggle,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8, top: 8, bottom: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        open ? Codicons.chevronDown : Codicons.chevronRight,
-                        size: 13,
-                        color: SettingsColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(title, style: SettingsText.heading),
-                    ],
-                  ),
-                  if (description case final description? when open) ...[
-                    const SizedBox(height: 2),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 17),
-                      child: Text(
-                        description,
-                        style: SettingsText.headingDescription,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-      if (open) SettingsCard(children: children),
-    ],
-  );
 }
 
 /// A text setting, written when it loses focus or Enter is pressed (not

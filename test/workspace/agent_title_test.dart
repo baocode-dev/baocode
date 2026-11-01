@@ -36,4 +36,26 @@ void main() {
     expect(long.runes.length, 80);
     expect(long, endsWith('…'));
   });
+
+  test('a title is summed up from the last 5 messages, in order', () {
+    expect(
+      summaryText(['1', '2', '[Image #1]', '3', '4', '5', '6', '7']),
+      '3\n\n4\n\n5\n\n6\n\n7',
+    );
+    expect(summaryText(['Fix [Image #1] login']), 'Fix  login');
+    expect(summaryText(['[Image #1]']), isEmpty);
+    // A long one is cut to its share, the others kept.
+    final long = summaryText(['a' * 1000, 'short']);
+    expect(long, '${'a' * 400}…\n\nshort');
+  });
+
+  test('a tool call written out as text is no title', () {
+    expect(cleanAgentTitle('<｜DSML｜function_calls>\n<｜DSML｜invoke>'), isNull);
+    expect(cleanAgentTitle('<｜DSML｜ calls>'), isNull);
+    expect(cleanAgentTitle('<tool_call>\n{"name": "WebFetch"}'), isNull);
+    expect(cleanAgentTitle('<|tool_calls_begin|>fetch'), isNull);
+    // Angle brackets inside words are kept.
+    expect(cleanAgentTitle('重构 <Button> 组件'), '重构 <Button> 组件');
+    expect(cleanAgentTitle('Fix a < b || c check'), 'Fix a < b || c check');
+  });
 }

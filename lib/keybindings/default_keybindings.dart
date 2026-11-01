@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:bao_editor/monaco/flutter/editor_keybindings.dart';
 
+import '../ide/editor_minimap_setting.dart';
 import '../ide/editor_word_wrap.dart';
 import '../ide/explorer_history.dart'
     show explorerRedoCommandId, explorerUndoCommandId;
@@ -117,6 +118,11 @@ final Map<String, CommandInfo> commandCatalog = {
     const CommandInfo(
       EditorWordWrap.commandId,
       'Toggle Word Wrap',
+      category: 'View',
+    ),
+    const CommandInfo(
+      EditorMinimap.commandId,
+      'Toggle Minimap',
       category: 'View',
     ),
     const CommandInfo(
@@ -527,6 +533,12 @@ final List<KeybindingEntry> defaultKeybindings = List.unmodifiable([
   const KeybindingEntry(
     key: 'alt+z',
     command: EditorWordWrap.commandId,
+    when: 'editorTextFocus',
+  ),
+  // VS Code binds none; Alt+M beside Alt+Z, in an editor only too.
+  const KeybindingEntry(
+    key: 'alt+m',
+    command: EditorMinimap.commandId,
     when: 'editorTextFocus',
   ),
   // A markdown tab's preview and source, one key toggling them: each

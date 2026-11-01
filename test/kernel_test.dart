@@ -8,6 +8,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_remote/claude.dart'
     show ClaudeHistoryPage, ClaudeNotInstalled;
 import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/widgets/agent_step.dart' show AgentStep;
+import 'package:baocode/models/model_provider.dart' show ModelProvider;
+import 'package:baocode/models/model_providers.dart' show ModelProviders;
 import 'package:baocode/chat/widgets/tool_call_row.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
@@ -574,6 +577,100 @@ void main() {
         object: 'List empty',
         detail: null,
       ));
+    });
+
+    test('a subagent shows the model its messages ran on, as it runs; '
+        'the one the CLI resolved only without them', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      )..turnId = '11111111-1111-4111-8111-111111111111';
+      void start(String id) => translator.translate({
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'msg-$id',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': id,
+              'name': 'Agent',
+              'input': {'description': 'Look $id', 'prompt': 'look'},
+            },
+          ],
+        },
+      });
+      void said(String parent, String model) => translator.translate({
+        'type': 'assistant',
+        'parent_tool_use_id': parent,
+        'message': {
+          'id': 'msg-$parent-$model',
+          'role': 'assistant',
+          'model': model,
+          'content': [
+            {'type': 'text', 'text': 'looking'},
+          ],
+        },
+      });
+      void done(String id) => translator.translate({
+        'type': 'user',
+        'parent_tool_use_id': null,
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'tool_result', 'tool_use_id': id, 'content': 'ok'},
+          ],
+        },
+        'tool_use_result': {'resolvedModel': 'claude-sonnet-5-5'},
+      });
+      String? model(String id) => [
+        for (final (key, item) in transcript.liveItems)
+          if (key == id && item is AgentItem) item.model,
+      ].single;
+
+      start('a1');
+      expect(model('a1'), isNull);
+      said('a1', 'claude-haiku-5-5');
+      expect(model('a1'), 'claude-haiku-5-5');
+      // A synthetic message (an error) is no model's.
+      said('a1', '<synthetic>');
+      done('a1');
+      expect(model('a1'), 'claude-haiku-5-5');
+
+      start('a2');
+      done('a2');
+      expect(model('a2'), 'claude-sonnet-5-5');
+    });
+
+    test('a subagent\'s model reads as people read it', () {
+      final providers = ModelProviders.memory(
+        providers: [
+          ModelProvider.fromJson({
+            'id': 'od',
+            'name': 'open-design',
+            'protocol': 'openai',
+            'baseUrl': 'https://example.com/v1',
+            'models': [
+              {'id': 'deepseek-v4.1-flash', 'label': 'DeepSeek V4.1 Flash'},
+            ],
+          })!,
+        ],
+      );
+      ({String label, String? upstream}) name(String model) =>
+          AgentStep.modelName(model, providers: providers);
+      expect(name('deepseek-v4.1-flash'), (
+        label: 'DeepSeek V4.1 Flash',
+        upstream: 'open-design',
+      ));
+      expect(name('@od/deepseek-v4.1-flash').label, 'DeepSeek V4.1 Flash');
+      expect(name('claude-opus-5-5'), (label: 'Opus 5.5', upstream: null));
+      expect(name('claude-haiku-4-5-20251001').label, 'Haiku 4.5');
+      expect(name('claude-3-5-sonnet-20241022').label, 'Sonnet 3.5');
+      expect(name('claude-sonnet-4-20250514[1m]').label, 'Sonnet 4');
+      expect(name('glm-5.3').label, 'glm-5.3');
     });
 
     test('a notebook edit shows its cell changed, line by line', () {
@@ -1578,8 +1675,8 @@ void main() {
         await pumpEventQueue();
         final content = (cli.users.last['message'] as Map)['content'] as List;
         expect(content, [
-          {'type': 'text', 'text': 'Carry out the plan'},
           {'type': 'text', 'text': ClaudeTranslator.planStartedNote(planFile)},
+          {'type': 'text', 'text': 'Carry out the plan'},
         ]);
         // Only the message that starts it says so.
         kernel.send(const KernelTurn(id: 'u3', text: 'And test it'));
@@ -1652,7 +1749,7 @@ void main() {
       await pumpEventQueue();
       final content = (cli.users.last['message'] as Map)['content'] as List;
       expect(
-        (content.last as Map)['text'],
+        (content.first as Map)['text'],
         ClaudeTranslator.planStartedNote(''),
       );
       expect(
@@ -2283,6 +2380,89 @@ void main() {
         ],
       ]);
       expect([for (final (_, item) in transcript.queued) item.text], ['third']);
+      kernel.dispose();
+    });
+
+    test('a queued message moved among those held here is reordered there, '
+        'the CLI left as it is', () async {
+      final cli = FakeCli(
+        answers: {
+          'cancel_async_message': {'cancelled': true},
+        },
+      );
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel
+        ..send(const KernelTurn(id: 'u1', text: 'first'))
+        ..send(const KernelTurn(id: 'u2', text: 'second'))
+        ..send(const KernelTurn(id: 'u3', text: 'third'))
+        ..send(const KernelTurn(id: 'u4', text: 'fourth'));
+      await pumpEventQueue();
+      // One waits in the CLI at a time: the rest are held here.
+      expect(cli.users.map((m) => m['uuid']), ['u1', 'u2']);
+      List<String> queued() => [for (final (id, _) in transcript.queued) id];
+      expect(queued(), ['u2', 'u3', 'u4']);
+
+      kernel.moveQueued('u4', 1);
+      await pumpEventQueue();
+      expect(queued(), ['u2', 'u4', 'u3']);
+      // Nothing taken back or sent again: it waits here either way.
+      expect(cli.requests('cancel_async_message'), isEmpty);
+      expect(cli.requests('interrupt'), isEmpty);
+      expect(cli.users.map((m) => m['uuid']), ['u1', 'u2']);
+      kernel.dispose();
+    });
+
+    test('a queued message moved before the one given the CLI is sent '
+        'before it, the turn running not stopped', () async {
+      final cli = FakeCli(
+        answers: {
+          'cancel_async_message': {'cancelled': true},
+        },
+      );
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel
+        ..send(const KernelTurn(id: 'u1', text: 'first'))
+        ..send(const KernelTurn(id: 'u2', text: 'second'))
+        ..send(const KernelTurn(id: 'u3', text: 'third'))
+        ..send(const KernelTurn(id: 'u4', text: 'fourth'));
+      await pumpEventQueue();
+
+      kernel.moveQueued('u4', 0);
+      await pumpEventQueue();
+      // The one in the CLI taken back; all sent again in the new order,
+      // the first waiting in the CLI, the rest held here.
+      expect(
+        cli.requests('cancel_async_message').map((r) => r['message_uuid']),
+        ['u2'],
+      );
+      expect(cli.requests('interrupt'), isEmpty);
+      expect(
+        [for (final m in cli.users.skip(2)) (m['message'] as Map)['content']],
+        [
+          [
+            {'type': 'text', 'text': 'fourth'},
+          ],
+        ],
+      );
+      expect(
+        [for (final (_, item) in transcript.queued) item.text],
+        ['fourth', 'second', 'third'],
+      );
+
+      cli.push({
+        'type': 'command_lifecycle',
+        'command_uuid': cli.users.last['uuid'],
+        'state': 'started',
+      });
+      await pumpEventQueue();
+      // The next held given the CLI once the one before it is taken up.
+      expect((cli.users.last['message'] as Map)['content'], [
+        {'type': 'text', 'text': 'second'},
+      ]);
+      expect(
+        [for (final (_, item) in transcript.queued) item.text],
+        ['second', 'third'],
+      );
       kernel.dispose();
     });
 
@@ -3917,6 +4097,8 @@ void main() {
         for (final part
             in ((cli.users[i]['message'] as Map)['content'] as List)
                 .cast<Map<Object?, Object?>>()
+                .toList()
+                .reversed
                 .skip(1))
           part['text'],
       ];
@@ -3935,7 +4117,7 @@ void main() {
       await pumpEventQueue();
       final content = ((cli.users.single['message'] as Map)['content'] as List)
           .cast<Map<Object?, Object?>>();
-      expect(content.first['text'], 'why is it slow?');
+      expect(content.last['text'], 'why is it slow?');
       expect(notes(0), [contains('in Ask mode')]);
       cli.push({...cli.users.single, 'isReplay': true});
       await pumpEventQueue();

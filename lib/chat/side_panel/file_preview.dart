@@ -71,6 +71,8 @@ class FilePreview extends StatefulWidget {
     this.formatter,
     this.agentEdit,
     this.onOpenAgentChange,
+    this.diffScroll,
+    this.onDiffScrolled,
   });
 
   final FileOpenRequest request;
@@ -82,6 +84,11 @@ class FilePreview extends StatefulWidget {
   /// Opens the next file whose agent change is pending, at it, once this
   /// one's is all kept or undone (see [IdeAgentHunks.open]).
   final ValueChanged<String>? onOpenAgentChange;
+
+  /// Where its changes were scrolled when shown before, for them to show
+  /// there again; told [onDiffScrolled] as they scroll.
+  final Offset? diffScroll;
+  final ValueChanged<Offset>? onDiffScrolled;
 
   /// The file's text as edited already (its tab's), to go on with: read
   /// anew in it where it is not changed.
@@ -625,6 +632,8 @@ class _FilePreviewState extends State<FilePreview> {
           original: original,
           modified: modified,
           line: _request.range?.start,
+          scrolled: widget.diffScroll,
+          onScrolled: widget.onDiffScrolled,
           highlights: widget.highlights,
           // Lines of the file as it is now.
           onCopy: deleted

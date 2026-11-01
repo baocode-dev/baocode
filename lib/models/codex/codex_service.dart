@@ -34,6 +34,19 @@ abstract class CodexService extends ChangeNotifier {
   /// Account [accountId]'s quota, as last known.
   CodexUsage? usage(String providerId, String accountId);
 
+  /// Account [accountId]'s reset credits that can be used, those expiring
+  /// first first; null until listed.
+  List<CodexResetCredit>? resetCredits(String providerId, String accountId) =>
+      null;
+
+  /// Whether a reset credit of account [accountId]'s is being used.
+  bool resetting(String providerId, String accountId) => false;
+
+  /// Uses up a reset credit of account [accountId]'s: its quota windows
+  /// start over at once. Throws [CodexException].
+  Future<void> useResetCredit(ModelProvider provider, String accountId) async =>
+      throw const CodexException('Reset credits are not available here.');
+
   /// Why account [accountId] last failed, while it is not known to work.
   String? error(String providerId, String accountId);
 

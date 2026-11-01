@@ -387,7 +387,7 @@ final List<PerfScenario> interactionScenarios = [
       }
 
       Rect rows() {
-        final line = c.rectKeyed('row sash')!;
+        final line = c.rectKeyed('row sash 0')!;
         return Rect.fromCenter(
           center: Offset(line.left + line.width / 4, line.center.dy),
           width: 20,
@@ -399,10 +399,10 @@ final List<PerfScenario> interactionScenarios = [
       // the lines move 20px (columns) and 45px (rows) either way.
       const across = Offset(15, 0), down = Offset(0, 40);
       c.check(
-        c.rectKeyed('column sash') != null && c.rectKeyed('row sash') != null,
+        c.rectKeyed('column sash') != null && c.rectKeyed('row sash 0') != null,
         'the grid has its lines',
       );
-      if (c.rectKeyed('row sash') == null) return;
+      if (c.rectKeyed('row sash 0') == null) return;
       await c.phase('columns', (r) async {
         await _sweep(c, 'the columns\' line', columns, across);
       });
@@ -1324,6 +1324,59 @@ final List<PerfScenario> interactionScenarios = [
       });
       await c.phase('idle_after', (r) => _rest(const Duration(seconds: 4)));
       _checkIdle(c, 'idle_after');
+    },
+  ),
+
+  // --- At work ------------------------------------------------------------------
+  PerfScenario(
+    'ui.working',
+    'An agent at work out of sight of its model (a subagent it started, '
+        'running), looked at from all over the app: its conversation (the '
+        'subagent\'s step, edits\' cards), with the side panel open, the '
+        'IDE, the stashes\' page. Whatever shows, it should draw no more '
+        'than the shared clock\'s frames, not at every vsync.',
+    (c) async {
+      const look = Duration(seconds: 5);
+      await c.history(c.agent, 3);
+      await c.start(
+        c.agent,
+        PerfTurn([
+          PerfTool(
+            'Task',
+            const {
+              'description': 'Explore the rate limiter',
+              'prompt': 'Find where requests are counted.',
+              'subagent_type': 'Explore',
+            },
+            result: 'Requests are counted in the middleware.',
+            took: const Duration(seconds: 60),
+          ),
+          PerfSay(c.content.paragraph()),
+        ]),
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      Future<void> phase(String name) async {
+        await c.settle(const Duration(milliseconds: 1500));
+        await c.phase(name, (r) => _rest(look));
+        final perSecond = _figure(c, name, 'frames.perSecond');
+        c.check(
+          perSecond is! num || perSecond <= 40,
+          '$name: an agent at work, the app draws $perSecond frames a second',
+        );
+      }
+
+      await phase('chat');
+      final area = c.find<AgentSidePanelArea>();
+      c.check(area != null, 'the side panel is there');
+      if (area != null) {
+        (area.widget as AgentSidePanelArea).panel.show();
+        await phase('side_panel');
+      }
+      await c.openIde();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await phase('ide');
+      await _showStash(c);
+      await phase('stash');
     },
   ),
 

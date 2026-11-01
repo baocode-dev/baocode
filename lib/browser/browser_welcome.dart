@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../base/step_clock.dart';
 import '../ide/ide_button.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
@@ -58,19 +59,24 @@ class _BrowserWelcomeState extends State<BrowserWelcome>
   )..forward();
 
   /// The agent's pointer going to the button and clicking it, over again.
-  late final AnimationController _pointer = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 3600),
-  );
+  // On the shared clock's frames, not every vsync: it goes on for as
+  // long as the page shows.
+  final StepLoop _pointer = StepLoop(const Duration(milliseconds: 3600));
 
   @override
   void initState() {
     super.initState();
     _intro.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
-        unawaited(_pointer.repeat());
+        _pointer.start(context);
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _pointer.keepTo(context);
   }
 
   @override

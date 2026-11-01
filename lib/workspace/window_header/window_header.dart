@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 import '../../chat/chat_keys.dart';
 import '../../chat/side_panel/side_panel_view.dart' show SidePanelToggle;
 import '../../icons/project_icon_view.dart';
+import '../../ide/editor_minimap_setting.dart';
 import '../../ide/editor_word_wrap.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_layout.dart';
@@ -686,6 +687,13 @@ class _WindowHeaderState extends State<WindowHeader> {
             checked: EditorWordWrap.on.value,
             shortcut: _shortcut(EditorWordWrap.commandId, ChatKeys.ideLayout),
             onSelected: EditorWordWrap.toggle,
+          ),
+        if (ide)
+          HeaderMenuItem(
+            l10n.menuMinimap,
+            checked: EditorMinimap.on.value,
+            shortcut: _shortcut(EditorMinimap.commandId, ChatKeys.ideLayout),
+            onSelected: EditorMinimap.toggle,
           ),
         HeaderMenuItem(
           l10n.menuKeepOnTop,

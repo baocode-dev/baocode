@@ -75,9 +75,14 @@ class TerminalView extends StatefulWidget {
     this.onOpenLink,
     this.mirror = false,
     this.onActivate,
+    this.background,
   });
 
   final TerminalInstance instance;
+
+  /// Its background here, over its colors' ([TerminalWidget.background]):
+  /// the place's surface, where it is not the panel's.
+  final Color? background;
 
   /// A second view of a terminal shown in another (as tmux shows a window
   /// in two clients): it draws the screen at the size the other gave it,
@@ -966,6 +971,7 @@ class _TerminalViewState extends State<TerminalView> with TextInputClient {
         onPanZoomUpdate: instance.mouse.handlePointerPanZoomUpdate,
         capturesWheel: _capturesWheel,
         mouseCursor: _cursor,
+        background: widget.background,
       ),
     );
     // A mirror without the terminal's node (it is in its view's), the same

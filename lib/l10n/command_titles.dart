@@ -1,6 +1,7 @@
 // Command titles in the display language, by command id, as VS Code's
 // `localize2` titles: the palette lists the localized `Category: Title` and
 // also matches the English one (upstream `commandAlias`).
+import '../ide/editor_minimap_setting.dart';
 import '../ide/editor_word_wrap.dart';
 import '../ide/explorer_history.dart'
     show explorerRedoCommandId, explorerUndoCommandId;
@@ -30,6 +31,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'workbench.action.files.saveAs' => l10n.cmdSaveAs,
     toggleAutoSaveCommandId => l10n.cmdToggleAutoSave,
     EditorWordWrap.commandId => l10n.cmdToggleWordWrap,
+    EditorMinimap.commandId => l10n.cmdToggleMinimap,
     'markdown.showPreview' => l10n.cmdMarkdownShowPreview,
     'markdown.showSource' => l10n.cmdMarkdownShowSource,
     'workbench.action.files.newUntitledFile' => l10n.cmdNewUntitledFile,
@@ -141,6 +143,13 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
       ),
     ChatCommandIds.focusNextPane => l10n.cmdChatFocusNextPane,
     ChatCommandIds.focusPreviousPane => l10n.cmdChatFocusPreviousPane,
+    ChatCommandIds.focusPaneLeft => l10n.cmdChatFocusPaneLeft,
+    ChatCommandIds.focusPaneRight => l10n.cmdChatFocusPaneRight,
+    ChatCommandIds.focusPaneUp => l10n.cmdChatFocusPaneUp,
+    ChatCommandIds.focusPaneDown => l10n.cmdChatFocusPaneDown,
+    ChatCommandIds.nextPaneTab => l10n.cmdChatNextPaneTab,
+    ChatCommandIds.previousPaneTab => l10n.cmdChatPreviousPaneTab,
+    ChatCommandIds.togglePaneTabs => l10n.cmdChatTogglePaneTabs,
     ChatCommandIds.search => l10n.cmdChatSearch,
     ChatCommandIds.searchAgents => l10n.cmdChatSearchAgents,
     ChatCommandIds.openIde => l10n.cmdChatOpenIde,
@@ -149,6 +158,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     ChatCommandIds.sidePanelChanges => l10n.cmdSidePanelChanges,
     ChatCommandIds.sidePanelFiles => l10n.cmdSidePanelFiles,
     ChatCommandIds.sidePanelTerminal => l10n.cmdSidePanelTerminal,
+    ChatCommandIds.sidePanelUsage => l10n.cmdSidePanelUsage,
     ChatCommandIds.sidePanelCloseTab => l10n.cmdSidePanelCloseTab,
     ChatCommandIds.closeTab => l10n.cmdChatCloseTab,
     ChatCommandIds.focusInput => l10n.cmdChatFocusInput,

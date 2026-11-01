@@ -42,11 +42,11 @@ class BaoWindow: NSWindow {
     isMovable = false
     // One window a folder: no system tabs (the IDE has its own).
     tabbingMode = .disallowed
-    // See-through, for the sidebar's material (see VibrantContent); light
-    // or dark as the app's color theme is, whatever the system's appearance.
-    // The last theme's until Flutter says (setAppearance).
-    isOpaque = false
-    backgroundColor = .clear
+    // See-through, for the sidebar's material (see VibrantContent), where it
+    // blurs (see keepOpaque); light or dark as the app's color theme is,
+    // whatever the system's appearance. The last theme's until Flutter says
+    // (setAppearance).
+    keepOpaque(!Self.keptWindowBlur)
     appearance = NSAppearance(named: Self.keptDarkAppearance ? .darkAqua : .aqua)
     flutterViewController.backgroundColor = .clear
 
@@ -430,6 +430,15 @@ class BaoWindow: NSWindow {
   /// window, or not (Flutter then paints the window opaque).
   func setBlurred(_ blurred: Bool) {
     (contentViewController as? VibrantContent)?.blurred = blurred
+    keepOpaque(!blurred)
+  }
+
+  /// Opaque where nothing behind the window shows through it: the Window
+  /// Server, drawing each of the app's frames, then neither blends the
+  /// window over what is behind it nor draws that first.
+  private func keepOpaque(_ opaque: Bool) {
+    isOpaque = opaque
+    backgroundColor = opaque ? .windowBackgroundColor : .clear
   }
 
   /// Whether the last color theme was dark; dark the first time.

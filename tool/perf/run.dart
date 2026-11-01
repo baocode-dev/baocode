@@ -167,7 +167,13 @@ Future<void> main(List<String> arguments) async {
   );
   print('');
   print(report.table());
-  File('$out/report.md').writeAsStringSync(report.markdown());
+  final built = options.trace ? _whatWasBuilt('$out/traces') : '';
+  if (built.isNotEmpty) print(built);
+  File('$out/report.md').writeAsStringSync(
+    built.isEmpty
+        ? report.markdown()
+        : '${report.markdown()}\n```\n$built```\n',
+  );
   if (options.saveBaseline) {
     File(baselinePath)
       ..parent.createSync(recursive: true)
@@ -478,6 +484,9 @@ const List<_Figure> _figures = [
   (label: 'action→frame p90', path: 'toSceneMs.action.p90', floor: 4),
   (label: 'drag→frame p90', path: 'toSceneMs.drag.p90', floor: 2),
   (label: 'cpu %', path: 'cpu.pctOfCore', floor: 5),
+  (label: 'frames/s', path: 'frames.perSecond', floor: 5),
+  (label: 'gpu %', path: 'gpu.pct', floor: 1),
+  (label: 'WindowServer gpu %', path: 'gpu.windowServerPct', floor: 3),
   (label: 'mem peak MB', path: 'memoryMb.peak', floor: 20),
   (label: 'gpu MB', path: 'memoryMb.gpu', floor: 20),
   (label: 'colored ms', path: 'coloredMs', floor: 30),
@@ -509,6 +518,19 @@ class _Report {
       }
     }
     for (final (scenario, phase, results) in _phases(summary)) {
+      // Nothing to show (no input, no text streamed, no frames the
+      // scenario asked for), and still drawing more than the shared
+      // clock's 30 a second: something moves at every vsync.
+      final perSecond = _at(results, 'frames.perSecond');
+      if (perSecond != null &&
+          perSecond > restlessFrames &&
+          results['toSceneMs'] == null &&
+          results['forcedFrames'] != true) {
+        restless.add(
+          '$scenario.$phase: ${perSecond.round()} frames a second, with '
+          'nothing to show for them',
+        );
+      }
       final base = baseline == null ? null : _phase(baseline!, scenario, phase);
       for (final figure in _figures) {
         final now = _at(results, figure.path);
@@ -534,6 +556,13 @@ class _Report {
   final overBudget = <String>[];
   final failedChecks = <String>[];
   final improvements = <String>[];
+
+  /// Phases drawing with nothing to show for it (see [restlessFrames]).
+  final restless = <String>[];
+
+  /// Frames a second a phase with nothing to show may draw: the shared
+  /// clock's 30 (see StepClock), and some.
+  static const restlessFrames = 40;
 
   static Iterable<(String, String, Map<String, Object?>)> _phases(
     Map<String, Object?> summary,
@@ -629,6 +658,12 @@ class _Report {
         '\nOver the ${memoryBudget}MB memory budget:\n  ${overBudget.join('\n  ')}',
       );
     }
+    if (restless.isNotEmpty) {
+      out.writeln(
+        '\nDrawing with nothing to show (--trace says what):\n  '
+        '${restless.join('\n  ')}',
+      );
+    }
     if (regressions.isNotEmpty) {
       out.writeln('\nRegressed:\n  ${regressions.join('\n  ')}');
     }
@@ -675,6 +710,12 @@ class _Report {
         '${overBudget.map((r) => '- $r').join('\n')}',
       );
     }
+    if (restless.isNotEmpty) {
+      out.writeln(
+        '\n**Drawing with nothing to show**\n\n'
+        '${restless.map((r) => '- $r').join('\n')}',
+      );
+    }
     if (regressions.isNotEmpty) {
       out.writeln(
         '\n**Regressed**\n\n${regressions.map((r) => '- $r').join('\n')}',
@@ -687,4 +728,80 @@ class _Report {
     }
     return out.toString();
   }
+}
+
+/// For each phase's timeline in [directory], what was built anew frame by
+/// frame: the outermost of the app's widgets built in each frame (each a
+/// widget something changed, or under one), and in how many frames. What
+/// asks for frames heads the list: a frame a vsync and a widget in nearly
+/// all of them is something moving at every vsync.
+String _whatWasBuilt(String directory) {
+  final out = StringBuffer();
+  final files =
+      Directory(directory).existsSync()
+            ? Directory(directory).listSync().whereType<File>().toList()
+            : <File>[]
+        ..sort((a, b) => a.path.compareTo(b.path));
+  for (final file in files) {
+    if (!file.path.endsWith('.json')) continue;
+    final events =
+        ((jsonDecode(file.readAsStringSync()) as Map)['traceEvents'] as List)
+            .cast<Map<String, Object?>>();
+    // The UI thread: the one that builds.
+    final builds = <Object?, int>{};
+    for (final e in events) {
+      if (e['name'] == 'BUILD') builds[e['tid']] = (builds[e['tid']] ?? 0) + 1;
+    }
+    if (builds.isEmpty) continue;
+    final ui = builds.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    final spans =
+        [
+          for (final e in events)
+            if (e['tid'] == ui && (e['ph'] == 'B' || e['ph'] == 'E')) e,
+        ]..sort((a, b) {
+          final at = (a['ts'] as num).compareTo(b['ts'] as num);
+          return at != 0
+              ? at
+              : (a['ph'] == 'B' ? 0 : 1) - (b['ph'] == 'B' ? 0 : 1);
+        });
+    final frames = events
+        .where((e) => e['name'] == 'Animator::BeginFrame' && e['ph'] != 'E')
+        .length;
+    final inFrames = <String, int>{};
+    final stack = <String>[];
+    int? build;
+    // A frame's, over all its builds (a layout may build too).
+    final roots = <String>{};
+    void counted() {
+      for (final root in roots) {
+        inFrames[root] = (inFrames[root] ?? 0) + 1;
+      }
+      roots.clear();
+    }
+
+    for (final e in spans) {
+      final name = e['name'] as String? ?? '?';
+      if (e['ph'] == 'B') {
+        if (name == 'Animator::BeginFrame') {
+          counted();
+        } else if (name == 'BUILD') {
+          build = stack.length;
+        } else if (build != null && stack.length == build + 1) {
+          roots.add(name);
+        }
+        stack.add(name);
+      } else if (stack.isNotEmpty && stack.removeLast() == 'BUILD') {
+        build = null;
+      }
+    }
+    counted();
+    final name = file.uri.pathSegments.last.replaceAll('.json', '');
+    out.writeln('$name: $frames frames, built anew in them:');
+    final top = inFrames.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final MapEntry(:key, :value) in top.take(8)) {
+      out.writeln('  ${value.toString().padLeft(6)}  $key');
+    }
+  }
+  return out.toString();
 }

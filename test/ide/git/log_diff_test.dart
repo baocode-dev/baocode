@@ -78,7 +78,8 @@ void main() {
   testWidgets('F7 steps change by change, on into the next file; Shift+F7 '
       'back to its last', (tester) async {
     await showDiff(tester);
-    expect(find.text('2 / 3'), findsOneWidget);
+    // The files as Source Control lists them.
+    expect(find.text('1 / 3'), findsOneWidget);
     expect(find.text('1 of 2'), findsOneWidget);
     // In the diff, its keys.
     await tester.tap(find.byType(DiffEditor));
@@ -87,10 +88,10 @@ void main() {
     expect(find.text('2 of 2'), findsOneWidget);
     // Past the last: the next file's first.
     await key(tester, LogicalKeyboardKey.f7);
-    expect(find.text('3 / 3'), findsOneWidget);
+    expect(find.text('2 / 3'), findsOneWidget);
     expect(find.text('1 of 1'), findsOneWidget);
     await key(tester, LogicalKeyboardKey.f7, shift: true);
-    expect(find.text('2 / 3'), findsOneWidget);
+    expect(find.text('1 / 3'), findsOneWidget);
     expect(find.text('2 of 2'), findsOneWidget);
 
     // The toolbar's buttons do the same.
@@ -101,14 +102,24 @@ void main() {
 
   testWidgets("a change's arrow reverts it in the file", (tester) async {
     await showDiff(tester);
-    expect(find.byTooltip('Revert'), findsNWidgets(2));
-    await tester.tap(find.byTooltip('Revert').first);
+    expect(
+      find.byTooltip('Undo this change (back to the left side)'),
+      findsNWidgets(2),
+    );
+    await tester.tap(
+      find.byTooltip('Undo this change (back to the left side)').first,
+    );
     await tester.pumpAndSettle();
     expect(aDart(), 'one\ntwo\nthree\nfour\nfive\nSIX\n');
-    expect(find.byTooltip('Revert'), findsOneWidget);
+    expect(
+      find.byTooltip('Undo this change (back to the left side)'),
+      findsOneWidget,
+    );
     expect(find.text('1 of 1'), findsOneWidget);
     // Written again over what was written.
-    await tester.tap(find.byTooltip('Revert'));
+    await tester.tap(
+      find.byTooltip('Undo this change (back to the left side)'),
+    );
     await tester.pumpAndSettle();
     expect(aDart(), _head);
     expect(find.text('No differences'), findsOneWidget);
@@ -134,7 +145,9 @@ void main() {
   testWidgets('a file changed meanwhile is not written over', (tester) async {
     await showDiff(tester);
     files.contents[inRoot('lib/a.dart')] = 'changed elsewhere\n';
-    await tester.tap(find.byTooltip('Revert').first);
+    await tester.tap(
+      find.byTooltip('Undo this change (back to the left side)').first,
+    );
     await tester.pumpAndSettle();
     expect(aDart(), 'changed elsewhere\n');
   });
@@ -151,13 +164,25 @@ void main() {
     expect(IdeDiffOptions.instance.layout, IdeDiffLayout.unified);
     expect(editor().sideBySide, isFalse);
     // Its arrows at the left then.
-    expect(find.byTooltip('Revert'), findsNWidgets(2));
+    expect(
+      find.byTooltip('Undo this change (back to the left side)'),
+      findsNWidgets(2),
+    );
 
     await tester.tap(find.byTooltip('Viewer Settings'));
     await tester.pumpAndSettle();
+    // The changed lines always colored: no "Do Not Highlight", and one
+    // chosen before is the lines.
+    expect(find.text('Highlight Lines'), findsOneWidget);
+    expect(find.text('Do Not Highlight'), findsNothing);
     await tester.tap(find.text('Highlight Words'));
     await tester.pumpAndSettle();
     expect(editor().highlight, DiffHighlight.words);
+    IdeDiffOptions.instance.highlight = DiffHighlight.none;
+    await tester.pumpAndSettle();
+    expect(editor().highlight, DiffHighlight.lines);
+    IdeDiffOptions.instance.highlight = DiffHighlight.words;
+    await tester.pumpAndSettle();
 
     // Whitespace: at the line ends by default, anywhere, or none (counted
     // here all the same, where changes are checked for the commit).
@@ -228,15 +253,23 @@ void main() {
       original: () async => _head,
     );
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Revert'), findsNWidgets(2));
-    await tester.tap(find.byTooltip('Revert').first);
+    expect(
+      find.byTooltip('Undo this change (back to the left side)'),
+      findsNWidgets(2),
+    );
+    await tester.tap(
+      find.byTooltip('Undo this change (back to the left side)').first,
+    );
     await tester.pumpAndSettle();
     final doc = workspace.documents.singleWhere(
       (doc) => doc.path == inRoot('lib/a.dart'),
     );
     expect(doc.model.text, 'one\ntwo\nthree\nfour\nfive\nSIX\n');
     expect(doc.dirty, isTrue);
-    expect(find.byTooltip('Revert'), findsOneWidget);
+    expect(
+      find.byTooltip('Undo this change (back to the left side)'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('unchanged lines collapse behind a bar that shows them', (
@@ -314,7 +347,8 @@ void main() {
       }
     }
 
-    await tester.tap(find.byTooltip(RegExp('^Previous File')));
+    // staged.dart, after a.dart as Source Control lists them.
+    await tester.tap(find.byTooltip(RegExp('^Next File')));
     for (var i = 0; i < 40; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 5)),
@@ -324,7 +358,7 @@ void main() {
     }
     await tester.pumpAndSettle();
     look();
-    expect(find.text('1 / 3'), findsOneWidget);
+    expect(find.text('2 / 3'), findsOneWidget);
     expect(seen, isNotEmpty);
     expect(seen, everyElement('collapsed'));
   });

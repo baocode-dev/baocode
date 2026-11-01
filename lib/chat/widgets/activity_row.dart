@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../base/step_clock.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../chat_models.dart';
@@ -240,7 +241,7 @@ class _Musing extends StatefulWidget {
   State<_Musing> createState() => _MusingState();
 }
 
-class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
+class _MusingState extends State<_Musing> {
   // Times in milliseconds.
 
   /// The caret alone at the start, before the first letter.
@@ -280,8 +281,23 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   /// phrase that stays.
   List<int> _typed = const [];
   bool _still = false;
-  late final AnimationController _controller = AnimationController(vsync: this)
-    ..addStatusListener(_advance);
+
+  // A step each of the shared clock's frames, not every vsync: on a 170Hz
+  // screen that would draw the window 170 times a second, all the while
+  // the agent works.
+  final StepClock _clock = StepClock(StepClock.frame);
+
+  /// The clock's time when the phrase began.
+  Duration _from = Duration.zero;
+
+  /// Told when what shows changes: of the clock's frames, only those (a
+  /// dot or the caret at rest is drawn once, not 30 times a second).
+  final _Redraw _redraw = _Redraw();
+
+  /// What showed when last drawn, coarsely (see [_lookAt]); the time it
+  /// was drawn at.
+  List<int>? _look;
+  double _drawnAt = 0;
 
   bool get _rolls => _phrases.length + _cued.length > 1;
   bool get _typing => _typed.isNotEmpty;
@@ -294,6 +310,7 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _clock.addListener(_tick);
     _pick(_draw());
   }
 
@@ -310,7 +327,8 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
     // Said on to its end while it still holds.
     if (_phrases.contains(_phrase) || _cued.contains(_phrase)) return;
     _pick(_draw());
-    if (_controller.isAnimating) _start();
+    _start();
+    _drawnAt = 0;
   }
 
   /// A phrase to say: from [_Musing.cued] as often as it says, if any; not
@@ -338,38 +356,47 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
     _typed = typed;
   }
 
+  /// The time into the phrase, in milliseconds.
+  double get _t => (_clock.time - _from).inMicroseconds / 1000;
+
   void _start() {
-    _controller
-      ..duration = Duration(milliseconds: _cycle)
-      ..forward(from: 0);
+    _from = _clock.time;
+    _look = null;
   }
 
-  void _advance(AnimationStatus status) {
-    if (status != AnimationStatus.completed) return;
-    setState(() {
-      if (_rolls) {
-        _pick(_draw(not: _phrase));
-      } else {
-        _typed = const [];
-      }
-    });
-    _start();
+  void _tick() {
+    final t = _t;
+    if (t >= _cycle) {
+      setState(() {
+        if (_rolls) {
+          _pick(_draw(not: _phrase));
+        } else {
+          _typed = const [];
+        }
+        _start();
+        _drawnAt = 0;
+      });
+      return;
+    }
+    final look = _lookAt(t);
+    if (listEquals(look, _look)) return;
+    _look = look;
+    _drawnAt = t;
+    _redraw.ping();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _still = MediaQuery.disableAnimationsOf(context);
-    if (_still) {
-      _controller.stop();
-    } else if (!_controller.isAnimating) {
-      _start();
-    }
+    final running = _clock.isRunning;
+    _still = _clock.keepTo(context);
+    if (_clock.isRunning && !running) _start();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _clock.dispose();
+    _redraw.dispose();
     super.dispose();
   }
 
@@ -403,6 +430,66 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
 
   static double _unit(num value) => value.clamp(0, 1).toDouble();
 
+  // What shows [t] ms into the phrase.
+
+  /// The phrase's opacity: fading for the next at the end.
+  double _fadeAt(double t) => _rolls ? 1 - _unit((t - _clearAt) / _clear) : 1;
+
+  /// Letter [i]'s opacity, fading in as it is typed.
+  double _letterAt(int i, double t) =>
+      _typing ? _unit((t - _typed[i]) / _fadeIn) : 1;
+
+  /// Dot [k]'s opacity: in the round under way; none before, and gone
+  /// after.
+  double _dotAt(int k, double t) {
+    final round = t - _dotsAt;
+    if (round < 0 || round >= _round * _rounds) return 0;
+    final inRound = round % _round;
+    return _unit((inRound - (k + 1) * _dotStep) / _dotFade) *
+        _unit((_round - inRound) / 100);
+  }
+
+  bool _caretShown(double t) => _typing && t < _dotsAt;
+
+  /// The caret after the last letter typed, gliding on from the one before.
+  double _caretX(double t) {
+    if (_carets.isEmpty) return 0;
+    final last = _typed.lastIndexWhere((at) => at <= t);
+    return last < 0
+        ? _carets.first
+        : _carets[last] +
+              (_carets[last + 1] - _carets[last]) *
+                  Curves.easeOutCubic.transform(
+                    _unit((t - _typed[last]) / _glide),
+                  );
+  }
+
+  /// Fading in at the start, then steady while it types, then blinking at
+  /// its rest, on for half of each blink, its edges soft.
+  double _caretOpacity(double t) {
+    final resting = t - (_dotsAt - _rest);
+    final blink = resting % _blink;
+    return _unit(t / 80) *
+        (resting < 0
+            ? 1
+            : blink < _blink / 2
+            ? _unit((_blink / 2 - blink) / 60)
+            : _unit((blink - (_blink - 60)) / 60));
+  }
+
+  /// What shows [t] ms in, as finely as the eye tells: opacities in 64ths,
+  /// the caret's place in half pixels. A frame that shows the same as the
+  /// last is not drawn.
+  List<int> _lookAt(double t) {
+    int seen(double opacity) => (opacity * 64).round();
+    final fade = _fadeAt(t);
+    return [
+      for (var i = 0; i < _phrase.length; i++) seen(fade * _letterAt(i, t)),
+      for (var k = 0; k < _dots.length; k++) seen(fade * _dotAt(k, t)),
+      if (_caretShown(t)) ...[(_caretX(t) * 2).round(), seen(_caretOpacity(t))],
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final style = DefaultTextStyle.of(context).style.merge(_style);
@@ -421,29 +508,17 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
         final text = '$_phrase$_dots';
         _layOut(text, style, scaler, constraints.maxWidth);
         return AnimatedBuilder(
-          animation: _controller,
+          animation: _redraw,
           builder: (context, _) {
-            final t = _controller.value * _cycle;
-            final fade = _rolls ? 1 - _unit((t - _clearAt) / _clear) : 1.0;
-            // The dots in the round under way; none before, and gone after.
-            final round = t - _dotsAt;
-            final inRound = round < 0 || round >= _round * _rounds
-                ? -1.0
-                : round % _round;
-            double dot(int k) => inRound < 0
-                ? 0
-                : _unit((inRound - (k + 1) * _dotStep) / _dotFade) *
-                      _unit((_round - inRound) / 100);
+            final t = math.min(_drawnAt, _cycle.toDouble());
+            final fade = _fadeAt(t);
             final spans = [
               for (var i = 0; i < _phrase.length; i++)
                 TextSpan(
                   text: _phrase[i],
                   style: TextStyle(
                     color: color.withValues(
-                      alpha:
-                          color.a *
-                          fade *
-                          (_typing ? _unit((t - _typed[i]) / _fadeIn) : 1),
+                      alpha: color.a * fade * _letterAt(i, t),
                     ),
                   ),
                 ),
@@ -451,7 +526,9 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
                 TextSpan(
                   text: _dots[k],
                   style: TextStyle(
-                    color: color.withValues(alpha: color.a * fade * dot(k)),
+                    color: color.withValues(
+                      alpha: color.a * fade * _dotAt(k, t),
+                    ),
                   ),
                 ),
             ];
@@ -465,7 +542,7 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (_typing && t < _dotsAt) _caret(t),
+                if (_caretShown(t)) _caret(t),
               ],
             );
           },
@@ -474,37 +551,17 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
     );
   }
 
-  /// The caret after the last letter typed, gliding on from the one before;
-  /// fading in at the start, then steady while it types, then blinking at
-  /// its rest. As tall as the letters and centered on them, from the
-  /// baseline: the line's box has room below them (and more, falling back
-  /// on a font for Han).
+  /// The caret at [_caretX], as tall as the letters and centered on them,
+  /// from the baseline: the line's box has room below them (and more,
+  /// falling back on a font for Han).
   Widget _caret(double t) {
-    final last = _typed.lastIndexWhere((at) => at <= t);
-    final x = last < 0
-        ? _carets.first
-        : _carets[last] +
-              (_carets[last + 1] - _carets[last]) *
-                  Curves.easeOutCubic.transform(
-                    _unit((t - _typed[last]) / _glide),
-                  );
-    // On for half of each blink, its edges soft.
-    final resting = t - (_dotsAt - _rest);
-    final blink = resting % _blink;
-    final opacity =
-        _unit(t / 80) *
-        (resting < 0
-            ? 1
-            : blink < _blink / 2
-            ? _unit((_blink / 2 - blink) / 60)
-            : _unit((blink - (_blink - 60)) / 60));
     final height = _fontSize;
     return Positioned(
       key: const ValueKey('cursor'),
-      left: x + 3,
+      left: _caretX(t) + 3,
       top: _baseline - _fontSize * 0.35 - height / 2,
       child: Opacity(
-        opacity: opacity,
+        opacity: _caretOpacity(t),
         child: Container(
           width: 2,
           height: height,
@@ -516,6 +573,11 @@ class _MusingState extends State<_Musing> with SingleTickerProviderStateMixin {
       ),
     );
   }
+}
+
+/// Tells its listeners when pinged.
+class _Redraw extends ChangeNotifier {
+  void ping() => notifyListeners();
 }
 
 /// A session's activity label (chat_session.dart names them in English) in

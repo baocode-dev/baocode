@@ -150,6 +150,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdChatFocusPreviousPane => '聚焦上一个窗格';
 
   @override
+  String get cmdChatFocusPaneLeft => '聚焦左侧窗格';
+
+  @override
+  String get cmdChatFocusPaneRight => '聚焦右侧窗格';
+
+  @override
+  String get cmdChatFocusPaneUp => '聚焦上方窗格';
+
+  @override
+  String get cmdChatFocusPaneDown => '聚焦下方窗格';
+
+  @override
+  String get cmdChatNextPaneTab => '窗格中的下一个标签页';
+
+  @override
+  String get cmdChatPreviousPaneTab => '窗格中的上一个标签页';
+
+  @override
+  String get cmdChatTogglePaneTabs => '切换窗格标签页';
+
+  @override
+  String get workspacePaneTabs => '以标签页显示';
+
+  @override
   String get cmdChatSearch => '搜索';
 
   @override
@@ -1054,6 +1078,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get menuWordWrap => '自动换行';
 
   @override
+  String get cmdToggleMinimap => '切换缩略图';
+
+  @override
+  String get menuMinimap => '缩略图';
+
+  @override
   String get cmdTogglePanel => '切换面板可见性';
 
   @override
@@ -1417,6 +1447,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdSidePanelFiles => '显示智能体文件';
 
   @override
+  String get cmdSidePanelUsage => '显示对话用量';
+
+  @override
   String get cmdSidePanelTerminal => '显示智能体终端';
 
   @override
@@ -1743,6 +1776,15 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get agentImageUntitled => '图片';
+
+  @override
+  String get chatTitleSummarize => '总结新标题';
+
+  @override
+  String get chatTitleSummarizing => '正在总结…';
+
+  @override
+  String get chatTitleSummarizeFailed => '未能生成标题，再试一次';
 
   @override
   String get sidebarNewAgent => '新对话';
@@ -4556,6 +4598,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get langNavigationUnavailable => '此文件没有可用于代码跳转的语言服务器。';
+
+  @override
+  String langNavigationInstall(String id) {
+    return '安装“$id”语言服务器后，即可在此文件中跳转到定义和引用。';
+  }
+
+  @override
   String get langReferences => '引用';
 
   @override
@@ -4692,6 +4742,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get termKillTerminal => '终止终端';
+
+  @override
+  String get termKillOtherTerminals => '终止其他终端';
+
+  @override
+  String get termKillAllTerminals => '终止所有终端';
+
+  @override
+  String get termStopAllTasks => '停止所有运行中的任务';
+
+  @override
+  String get termRunInNewTerminal => '在新终端中运行';
 
   @override
   String get termNoTerminals => '没有终端';
@@ -4915,6 +4977,26 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get workspaceClosePane => '关闭窗格';
+
+  @override
+  String workspaceCloseBackTo(String title) {
+    return '关闭窗格，回到「$title」';
+  }
+
+  @override
+  String workspaceCovers(String title) {
+    return '覆盖在「$title」之上，关闭后恢复';
+  }
+
+  @override
+  String workspaceCovered(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '下面还有 $count 个会话',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get workspaceLoadingProjects => '正在加载项目…';
@@ -7137,6 +7219,24 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get appearanceSettingsEditDetail => '文件编辑';
+
+  @override
+  String get appearanceSettingsEditDetailDescription =>
+      'Agent 编辑文件时在对话中的样子：直接显示为改动卡片；或者省略为一行，点开才看到改动。';
+
+  @override
+  String get appearanceSettingsEditDetailCard => '显示改动';
+
+  @override
+  String get appearanceSettingsEditDetailCompact => '省略';
+
+  @override
+  String appearanceSettingsEditDetailLabel(String detail) {
+    return '文件编辑：$detail';
+  }
+
+  @override
   String get appearanceSettingsReplyScroll => '回复时滚动';
 
   @override
@@ -7254,6 +7354,13 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get appearanceSettingsWordWrapDescription =>
       '长行在编辑器宽度处折行，所有编辑器共用。编辑器右键菜单和命令面板（切换自动换行）也能切换。超过 5000 行的文件不折行。';
+
+  @override
+  String get appearanceSettingsCodeMinimap => '代码缩略图';
+
+  @override
+  String get appearanceSettingsCodeMinimapDescription =>
+      '代码编辑器右侧显示整个文件的缩略图，所有编辑器共用；编辑器太窄时不显示。编辑器标签页右键菜单和命令面板（切换缩略图）也能切换。';
 
   @override
   String get appearanceSettingsUiScale => '界面大小';
@@ -8221,13 +8328,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileSettingsDescription =>
-      '在手机上的 BaoCode 里查看并操作这台电脑的智能体，经由局域网或公网直连。两端之间的内容端到端加密。';
+      '在手机上的 BaoCode 里查看并操作这台电脑的智能体：同一网络里直接连；跨网时自动打洞直连；都不行时经 BaoCode 中继。两端之间的内容端到端加密，中继也看不到。';
 
   @override
   String get mobileAllow => '允许手机连接';
 
   @override
-  String get mobileAllowDescription => '与这台电脑配对过的手机可以直接连接它。';
+  String get mobileAllowDescription => '与这台电脑配对过的手机，无论在哪里都可以连接它。';
 
   @override
   String get mobileStatus => '状态';
@@ -8239,53 +8346,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileStatusStarting => '正在启动…';
 
   @override
-  String mobileStatusListening(int port) {
-    return '正在监听端口 $port';
-  }
-
-  @override
   String mobileStatusFailed(String error) {
-    return '无法监听：$error';
+    return '无法启动：$error';
   }
 
   @override
-  String get mobileAddresses => '地址';
+  String get mobileRelay => '中继';
 
   @override
-  String get mobileAddressesDescription => '手机按此顺序尝试连接这台电脑：先局域网，再公网。';
-
-  @override
-  String get mobileAddressesNone => '未找到可用的网络。';
-
-  @override
-  String get mobileAddressesRefresh => '刷新';
-
-  @override
-  String get mobilePort => '端口';
-
-  @override
-  String get mobilePortDescription => '手机连接的端口。在路由器上转发此端口，即可从公网访问这台电脑。';
-
-  @override
-  String mobilePortInvalid(String text) {
-    return '不是有效端口：$text。请填写 1 到 65535 之间的数字。';
-  }
-
-  @override
-  String get mobilePublicAddress => '公网地址';
-
-  @override
-  String get mobilePublicAddressDescription =>
-      '可从公网访问这台电脑的域名或 IP（需转发端口），会写入二维码；多个用逗号分隔。经只收 HTTPS 的代理（如 Cloudflare Tunnel）访问时，写成 wss://域名。公网 IPv6 地址会自动加入。';
-
-  @override
-  String get mobileRelay => '中转';
-
-  @override
-  String get mobileRelayDescription => '当这台电脑的地址都无法直连时，经由 BaoCode 中转服务连接。即将推出。';
-
-  @override
-  String get mobileRelayUnavailable => '暂不可用';
+  String get mobileRelayDescription =>
+      '手机无法直连这台电脑时经中继连接，中继只转发两端加密后的内容。手机上不用设置：配对时、以及之后每次连接时，它会从这里得知。';
 
   @override
   String get mobilePair => '配对手机';
@@ -8376,6 +8446,70 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobilePairAllow => '允许';
+
+  @override
+  String mobileStatusOnline(String relay) {
+    return '已开启，可经 $relay 连接';
+  }
+
+  @override
+  String get mobileStatusNoRelay => '已开启；还没连上中继，暂时只有同一网络里的手机能连';
+
+  @override
+  String mobileStatusDenied(String reason) {
+    return '已开启，但中继拒绝了这台电脑：$reason';
+  }
+
+  @override
+  String get mobileRelayInvalid => '不是中继地址，应形如 https://relay.example.com';
+
+  @override
+  String get mobileRelayPinned => '指定的中继';
+
+  @override
+  String get mobileRelayCustom => '自定义';
+
+  @override
+  String get mobileRelayCustomAddress => '自定义地址';
+
+  @override
+  String get mobileRelayCustomDescription => '你自己部署的中继（baocode-relay）的地址。';
+
+  @override
+  String get mobileRelayMode => '方式';
+
+  @override
+  String get mobileRelayModeAuto => '自动';
+
+  @override
+  String get mobileRelayModeAutoDescription => '使用 BaoCode 的中继，自动选最近的一台。';
+
+  @override
+  String get mobileRelayModePinned => '手动指定';
+
+  @override
+  String get mobileRelayModePinnedDescription =>
+      '只用你指定的一台：BaoCode 的某一台，或自定义地址。';
+
+  @override
+  String get mobilePathLan => '局域网直连';
+
+  @override
+  String get mobilePathDirect => '打洞直连';
+
+  @override
+  String get mobilePathRelay => '经中继';
+
+  @override
+  String mobilePathRtt(int ms) {
+    return '$ms 毫秒';
+  }
+
+  @override
+  String get mobileLegacyPhone => '需要重新配对：连接方式升级前配对的';
+
+  @override
+  String get mobileLegacyRepair => '重新配对';
 
   @override
   String get settingsSectionStash => 'Stash';
@@ -9018,9 +9152,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get branchBarDetached => '分离的 HEAD';
-
-  @override
-  String get branchBarRunning => 'Agent 运行时不能切换分支';
 
   @override
   String branchBarFailed(String branch) {
@@ -10735,10 +10866,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get diffRevertChange => '回滚';
+  String get diffRevertChange => '撤销这处改动（改回左边的样子）';
 
   @override
-  String get diffRemoveChange => '删除';
+  String get diffRemoveChange => '撤销这处改动（删掉新加的这几行）';
 
   @override
   String get diffPreviousDifference => '上一处差异';
@@ -10799,9 +10930,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get diffHighlightLines => '按行高亮';
-
-  @override
-  String get diffHighlightNone => '不高亮';
 
   @override
   String get diffGoToFile => '转到改动的文件';
@@ -11362,11 +11490,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gitChangelistDelete => '删除变更列表';
 
   @override
-  String gitChangelistTurn(String request) {
-    return 'AI：$request';
-  }
-
-  @override
   String get gitStashChangesTitle => '暂存改动（Stash）';
 
   @override
@@ -11766,4 +11889,802 @@ class AppLocalizationsZh extends AppLocalizations {
   String compareFilesLabel(String original, String modified) {
     return '$original ↔ $modified';
   }
+
+  @override
+  String get settingsSectionUsage => '调用统计';
+
+  @override
+  String get sidePanelUsage => '用量';
+
+  @override
+  String get ustatKeywords => '用量 统计 调用 令牌 token 缓存 看板 上游 模型';
+
+  @override
+  String get ustatDescription =>
+      '经 BaoCode 模型代理发往自定义上游的每一次请求：令牌、缓存、耗时，按对话、子代理、工具细分。官方 Claude 不经过代理，不在统计内。数据只保存在本机。';
+
+  @override
+  String get ustatAll => '全部';
+
+  @override
+  String get ustatAgent => '代理';
+
+  @override
+  String get ustatKind => '类型';
+
+  @override
+  String get ustatModel => '模型';
+
+  @override
+  String get ustatUpstream => '上游';
+
+  @override
+  String get ustatConversation => '对话';
+
+  @override
+  String get ustatFailedOnly => '仅失败';
+
+  @override
+  String get ustatResetFilters => '重置筛选';
+
+  @override
+  String get ustatRefresh => '刷新';
+
+  @override
+  String get ustatUnpin => '回到完整时间范围';
+
+  @override
+  String get ustatRangeHour => '最近 1 小时';
+
+  @override
+  String get ustatRangeToday => '今天';
+
+  @override
+  String get ustatRangeDay => '最近 24 小时';
+
+  @override
+  String get ustatRangeWeek => '最近 7 天';
+
+  @override
+  String get ustatRangeMonth => '最近 30 天';
+
+  @override
+  String get ustatRangeQuarter => '最近 90 天';
+
+  @override
+  String get ustatRangeAll => '全部时间';
+
+  @override
+  String get ustatClassMain => '主代理';
+
+  @override
+  String get ustatClassSubagent => '子代理';
+
+  @override
+  String get ustatClassWorkflow => '工作流';
+
+  @override
+  String get ustatClassCompaction => '压缩';
+
+  @override
+  String get ustatClassAuxiliary => '辅助';
+
+  @override
+  String get ustatClassSideReply => '旁路回复';
+
+  @override
+  String get ustatMainAgent => '主代理';
+
+  @override
+  String get ustatPartSystem => '系统提示词';
+
+  @override
+  String get ustatPartTools => '工具定义';
+
+  @override
+  String get ustatPartUser => '用户消息';
+
+  @override
+  String get ustatPartAssistant => '模型回复';
+
+  @override
+  String get ustatPartThinking => '思考';
+
+  @override
+  String get ustatPartToolUse => '工具调用参数';
+
+  @override
+  String get ustatPartToolResult => '工具结果';
+
+  @override
+  String get ustatPartMedia => '图片与文件';
+
+  @override
+  String get ustatTokenInput => '输入';
+
+  @override
+  String get ustatTokenOutput => '输出';
+
+  @override
+  String get ustatTokenCacheRead => '缓存读取';
+
+  @override
+  String get ustatTokenCacheWrite => '缓存写入';
+
+  @override
+  String get ustatTokenReasoning => '推理';
+
+  @override
+  String get ustatTotalTokens => '总令牌';
+
+  @override
+  String ustatTokensDetail(String input, String output) {
+    return '输入 $input · 输出 $output';
+  }
+
+  @override
+  String get ustatCalls => '调用次数';
+
+  @override
+  String ustatCallsDetail(String count) {
+    return '发起工具调用 $count 次';
+  }
+
+  @override
+  String get ustatCallsOk => '成功';
+
+  @override
+  String ustatCallsShort(int count) {
+    return '$count 次';
+  }
+
+  @override
+  String get ustatCacheHit => '缓存命中率';
+
+  @override
+  String ustatCacheDetail(String read, String written) {
+    return '读 $read · 写 $written';
+  }
+
+  @override
+  String get ustatFirstToken => '首字耗时';
+
+  @override
+  String ustatDurationDetail(String duration) {
+    return '平均每次 $duration';
+  }
+
+  @override
+  String get ustatSpeed => '输出速度';
+
+  @override
+  String ustatOutputDetail(String tokens) {
+    return '共输出 $tokens';
+  }
+
+  @override
+  String ustatReasoningDetail(String tokens) {
+    return '其中推理 $tokens';
+  }
+
+  @override
+  String get ustatErrors => '失败';
+
+  @override
+  String ustatErrorRate(String rate) {
+    return '占 $rate';
+  }
+
+  @override
+  String get ustatOverTime => '趋势';
+
+  @override
+  String get ustatMetricTokens => '令牌';
+
+  @override
+  String get ustatMetricCalls => '调用';
+
+  @override
+  String get ustatMetricLatency => '延迟';
+
+  @override
+  String get ustatMetricSpeed => '速度';
+
+  @override
+  String get ustatByClass => '按请求类型';
+
+  @override
+  String get ustatByUpstream => '按上游';
+
+  @override
+  String get ustatByModel => '按模型';
+
+  @override
+  String get ustatByConversation => '按对话';
+
+  @override
+  String get ustatByAgent => '主代理与子代理';
+
+  @override
+  String get ustatByTurn => '按轮次';
+
+  @override
+  String get ustatByTurnDetail => '你的每条消息及回答它的全部请求';
+
+  @override
+  String ustatTurnDetail(String duration, String peak) {
+    return '$duration · 上下文最高 $peak';
+  }
+
+  @override
+  String get ustatNoConversations => '没有可识别会话的请求';
+
+  @override
+  String get ustatTools => '工具占用';
+
+  @override
+  String get ustatToolsDetail => '工具结果带入上下文的令牌（估算）、调用次数与运行时长';
+
+  @override
+  String get ustatToolSortTokens => '上下文';
+
+  @override
+  String get ustatToolSortCalls => '次数';
+
+  @override
+  String get ustatToolSortTime => '时长';
+
+  @override
+  String get ustatNoTools => '没有使用工具';
+
+  @override
+  String get ustatToolCalled => '调用';
+
+  @override
+  String get ustatToolResult => '结果';
+
+  @override
+  String ustatShowAll(int count) {
+    return '显示全部 $count 项';
+  }
+
+  @override
+  String get ustatShowLess => '收起';
+
+  @override
+  String get ustatContextGrowth => '上下文增长';
+
+  @override
+  String ustatContextNow(String tokens) {
+    return '当前 $tokens';
+  }
+
+  @override
+  String ustatContextPeak(String tokens) {
+    return '峰值 $tokens';
+  }
+
+  @override
+  String ustatCompactions(int count) {
+    return '压缩 $count 次';
+  }
+
+  @override
+  String ustatCompactedFrom(String tokens) {
+    return '在 $tokens 时压缩';
+  }
+
+  @override
+  String get ustatContextMakeup => '上下文组成';
+
+  @override
+  String get ustatRecentCalls => '最近调用';
+
+  @override
+  String get ustatCallsTitle => '调用记录';
+
+  @override
+  String ustatRecentCallsDetail(int count) {
+    return '共 $count 次，最新在前';
+  }
+
+  @override
+  String ustatShowMoreCalls(int count) {
+    return '显示更多（还有 $count 条）';
+  }
+
+  @override
+  String get ustatNoCalls => '没有调用';
+
+  @override
+  String get ustatCopyJson => '复制该调用的 JSON';
+
+  @override
+  String get ustatFieldTime => '时间';
+
+  @override
+  String get ustatFieldStatus => '状态';
+
+  @override
+  String get ustatFieldUpstream => '上游';
+
+  @override
+  String get ustatFieldModel => '模型';
+
+  @override
+  String get ustatFieldEffort => '推理强度';
+
+  @override
+  String get ustatFieldClass => '类型';
+
+  @override
+  String get ustatFieldSession => '会话';
+
+  @override
+  String get ustatFieldAgent => '代理';
+
+  @override
+  String get ustatFieldTask => '任务';
+
+  @override
+  String get ustatFieldAccount => '账号';
+
+  @override
+  String get ustatFieldUpstreamLatency => '上游响应';
+
+  @override
+  String get ustatFieldFirstToken => '首字';
+
+  @override
+  String get ustatFieldDuration => '总耗时';
+
+  @override
+  String get ustatFieldSpeed => '速度';
+
+  @override
+  String get ustatFieldMessages => '消息数';
+
+  @override
+  String get ustatFieldTools => '工具';
+
+  @override
+  String get ustatFieldBytes => '体积';
+
+  @override
+  String get ustatFieldCompacted => '压缩后首个请求';
+
+  @override
+  String get ustatFieldError => '错误';
+
+  @override
+  String get ustatEmptyTitle => '还没有调用记录';
+
+  @override
+  String get ustatEmptyDetail => '在自定义上游（设置 → 模型）上开始对话后，调用会显示在这里。';
+
+  @override
+  String get ustatEmptyFiltered => '没有符合筛选条件的调用';
+
+  @override
+  String get ustatConversationTitle => '对话用量';
+
+  @override
+  String get ustatConversationNew => '开始对话后显示用量';
+
+  @override
+  String get ustatConversationEmpty => '这个对话还没有调用记录';
+
+  @override
+  String get ustatConversationEmptyDetail =>
+      '只统计使用自定义上游的对话：官方 Claude 不经过 BaoCode 的代理。';
+
+  @override
+  String get ustatRecordOff => '未开启调用统计';
+
+  @override
+  String get ustatTurnOn => '开启';
+
+  @override
+  String get ustatDataTitle => '数据';
+
+  @override
+  String get ustatDataDescription => '详细记录会占用空间：可以按需设置保留时长，随时清理不再需要的数据。';
+
+  @override
+  String get ustatRecord => '记录调用统计';
+
+  @override
+  String get ustatRecordDescription =>
+      '使用自定义上游的会话会经过 BaoCode 的本地代理并记录每次调用。对之后启动的代理生效。';
+
+  @override
+  String get ustatRecordOffDescription =>
+      '开启后会记录每一次发往自定义上游的调用：令牌、缓存、耗时，按对话、子代理、工具细分。';
+
+  @override
+  String get ustatDetailed => '详细记录';
+
+  @override
+  String get ustatDetailedDescription => '同时记录每次请求的上下文组成和工具占用，占用更多空间。';
+
+  @override
+  String get ustatRetention => '保留时长';
+
+  @override
+  String get ustatRetentionDescription => '超过时长的数据会自动删除。';
+
+  @override
+  String ustatKeepDays(int days) {
+    return '$days 天';
+  }
+
+  @override
+  String get ustatKeepForever => '永久';
+
+  @override
+  String ustatSpace(String size) {
+    return '已占用 $size';
+  }
+
+  @override
+  String ustatSpaceDetail(int days, String oldest) {
+    return '保存了 $days 天，最早 $oldest';
+  }
+
+  @override
+  String get ustatSpaceEmpty => '暂无数据';
+
+  @override
+  String get ustatClearEllipsis => '清理…';
+
+  @override
+  String get ustatClear => '清理';
+
+  @override
+  String ustatClearOlderThan(int days) {
+    return '只保留最近 $days 天';
+  }
+
+  @override
+  String get ustatClearShown => '清理当前时间范围';
+
+  @override
+  String get ustatClearShownFiltered => '清理当前筛选出的数据';
+
+  @override
+  String get ustatClearAll => '全部清理';
+
+  @override
+  String ustatClearConfirm(String what) {
+    return '$what？';
+  }
+
+  @override
+  String get ustatClearDetail => '这些调用记录会从本机删除，无法恢复。';
+
+  @override
+  String get autoResetCreditsToggle => '自动使用重置卡';
+
+  @override
+  String modelsResetCredits(int count) {
+    return '可重置 $count 次';
+  }
+
+  @override
+  String modelsResetCreditsTitle(int count) {
+    return '$count 张重置卡';
+  }
+
+  @override
+  String get modelsResetCreditsDetail => '用掉一张，这个账号的额度窗口立即重新开始。';
+
+  @override
+  String modelsResetCreditExpires(String time) {
+    return '$time 过期';
+  }
+
+  @override
+  String get modelsResetCreditUse => '立即重置';
+
+  @override
+  String modelsResetCreditConfirm(String account) {
+    return '用掉 $account 的一张重置卡？';
+  }
+
+  @override
+  String get modelsResetCreditConfirmDetail =>
+      '额度会立即重置，卡用掉后不能退回；现在还没用完的额度也就作废了。';
+
+  @override
+  String resetCreditsHint(int count) {
+    return '有 $count 张重置卡将在一周内过期。建议按这个计划用 Codex 模型，额度用满后再重置，别让它们白白过期：';
+  }
+
+  @override
+  String resetCreditsHintDay(String day, int count) {
+    return '$day：重置 $count 次';
+  }
+
+  @override
+  String resetCreditsHintBy(String time) {
+    return '$time 前';
+  }
+
+  @override
+  String get resetCreditsHintToday => '今天';
+
+  @override
+  String get resetCreditsHintTomorrow => '明天';
+
+  @override
+  String get resetCreditsHintAuto => '用尽时自动重置';
+
+  @override
+  String get resetCreditsHintLater => '知道了';
+
+  @override
+  String get ustatPartMemory => 'CLAUDE.md 与规则';
+
+  @override
+  String get ustatPartSkills => '技能';
+
+  @override
+  String get ustatPartMcp => 'MCP';
+
+  @override
+  String get ustatPartMessages => '对话消息';
+
+  @override
+  String ustatCacheHitShort(String rate) {
+    return '缓存命中 $rate';
+  }
+
+  @override
+  String get ustatCompactedAfter => '压缩后的第一次请求';
+
+  @override
+  String get ustatContextPickHint => '点击查看这次的上下文构成';
+
+  @override
+  String ustatRequests(int count) {
+    return '$count 次请求';
+  }
+
+  @override
+  String ustatRequestOf(int index, int count) {
+    return '第 $index/$count 次';
+  }
+
+  @override
+  String get ustatPreviousRequest => '上一次请求';
+
+  @override
+  String get ustatNextRequest => '下一次请求';
+
+  @override
+  String get ustatNoMakeup => '这次请求没有记录上下文构成（需要开启“详细记录”）。';
+
+  @override
+  String get ustatMakeupNoDetail => '这次请求记录于按工具、MCP、技能细分之前，之后的新请求才有细分。';
+
+  @override
+  String get ustatMakeupShapeMissing => '没有找到这次请求的工具与技能细分记录。';
+
+  @override
+  String ustatMcpTools(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个工具',
+      zero: '仅说明',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ustatMcpInstructions => '服务器说明';
+
+  @override
+  String get ustatSkillPlugin => '插件';
+
+  @override
+  String ustatToolInputs(String tokens) {
+    return '参数 $tokens';
+  }
+
+  @override
+  String get ustatSwitchedHint => '已同步到“设置 → 自定义”，之后的请求不再带上关闭的项。';
+
+  @override
+  String get ustatTrace => '调试抓包';
+
+  @override
+  String get ustatTraceDescription =>
+      '同时完整保存每次请求：Claude Code 发来的原文、发给上游的请求、上游的原始返回、返回给 Claude Code 的内容。密钥会打码。占用空间很大，用完请关闭。';
+
+  @override
+  String get ustatTraceStart => '调试抓包';
+
+  @override
+  String get ustatTraceStartHint => '开始完整记录之后每次调用的原始请求与返回';
+
+  @override
+  String get ustatTraceStop => '停止抓包';
+
+  @override
+  String ustatTraceOn(int count) {
+    return '抓包中 · $count';
+  }
+
+  @override
+  String get ustatTraceKept => '已保存原始报文';
+
+  @override
+  String get ustatTraceTitle => '原始报文';
+
+  @override
+  String get ustatTraceLoading => '读取中…';
+
+  @override
+  String get ustatTraceGone => '原始报文已被清理。';
+
+  @override
+  String get ustatTraceNone => '这一段没有内容（请求在此之前已结束）。';
+
+  @override
+  String get ustatTraceRequest => 'Claude Code → 代理';
+
+  @override
+  String get ustatTraceSent => '代理 → 上游';
+
+  @override
+  String get ustatTraceReceived => '上游 → 代理';
+
+  @override
+  String get ustatTraceAnswer => '代理 → Claude Code';
+
+  @override
+  String ustatTraceTry(int n) {
+    return '第 $n 次';
+  }
+
+  @override
+  String get ustatTraceCopyAll => '复制全部';
+
+  @override
+  String get ustatTraceCopyBody => '复制';
+
+  @override
+  String ustatTraceHeaders(int count) {
+    return '请求头 · $count';
+  }
+
+  @override
+  String get ustatTraceBody => '正文';
+
+  @override
+  String get ustatTraceRaw => '原文';
+
+  @override
+  String get ustatTraceFormatted => '格式化';
+
+  @override
+  String get ustatTraceEmpty => '空';
+
+  @override
+  String ustatTraceMore(String size) {
+    return '显示更多（还有 $size）';
+  }
+
+  @override
+  String get ustatTraceTruncated => '超过 2400 万字符的部分未保存';
+
+  @override
+  String get ustatTracePassedOn => '与上游返回相同';
+
+  @override
+  String ustatSpaceTraces(String size, int count) {
+    return '；其中调试报文 $size（$count 条）';
+  }
+
+  @override
+  String get ustatClearTraces => '仅清理调试报文';
+
+  @override
+  String get ustatClearTracesDetail => '调用记录保留，只删除本机保存的原始请求与返回。';
+
+  @override
+  String get ustatMakeupUnfold => '按工具、MCP、技能、文件细分';
+
+  @override
+  String get ustatColumnTotal => '合计';
+
+  @override
+  String get ustatColumnMix => '构成';
+
+  @override
+  String ustatDeferred(String size) {
+    return '未加载，$size';
+  }
+
+  @override
+  String get ustatSwitchedOff => '已关闭';
+
+  @override
+  String usageUntilCompaction(String tokens) {
+    return '距自动压缩 $tokens';
+  }
+
+  @override
+  String get usageAgentDefinition => '子代理';
+
+  @override
+  String get usageAttachments => '提醒与附件';
+
+  @override
+  String get ustatCost => '费用';
+
+  @override
+  String get ustatCostEstimated => '按当前价格估算';
+
+  @override
+  String ustatCostUnpriced(int count) {
+    return '$count 次调用未定价';
+  }
+
+  @override
+  String get ustatCostNoPrices => '未设置价格';
+
+  @override
+  String get ustatPrices => '模型价格';
+
+  @override
+  String get ustatPricesDetail => '每百万 token 的价格。费用按当前价格计算，改价后之前的调用也按新价格算。';
+
+  @override
+  String get ustatPricesAgentHint =>
+      '可以让 BaoCode 帮你维护：在对话里说「查一下这些模型的最新价格并更新」，它会去上游官网的价格页核对后写到这里。';
+
+  @override
+  String get ustatPriceCurrency => '币种';
+
+  @override
+  String get ustatPriceAnyUpstream => '所有上游';
+
+  @override
+  String get ustatPriceSource => '价格来源';
+
+  @override
+  String ustatPriceUpdated(String when) {
+    return '$when 更新';
+  }
+
+  @override
+  String get ustatPriceClear => '清除价格';
+
+  @override
+  String get ustatPriceIncomplete => '输入和输出价格都要填';
+
+  @override
+  String get ustatPriceSpent => '这段时间';
+
+  @override
+  String get modelsAutoResetCreditsOff => '关闭';
+
+  @override
+  String get modelsAutoResetCreditsLong => '周 / 月额度用尽时';
+
+  @override
+  String get modelsAutoResetCreditsAny => '任一额度用尽时';
+
+  @override
+  String get modelsAutoResetCreditsOffDescription => '账号额度用尽后，等它自己重置。';
+
+  @override
+  String get modelsAutoResetCreditsLongDescription =>
+      '周（或月）额度用尽时自动用一张重置卡接着用；5 小时额度用尽不用卡，几小时内会自己恢复。';
+
+  @override
+  String get modelsAutoResetCreditsAnyDescription =>
+      '包括 5 小时额度在内，任一额度用尽就立即用卡接着用，卡会用得更快。';
 }

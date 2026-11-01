@@ -1,11 +1,13 @@
 // Under the chat input: the Git branch the agent works on. A project's
 // branch (`*` after it with changes not committed), a menu of its branches
-// to switch to, Create Branch… and New Worktree…; a workspace's name, a
-// menu of its folders with each one's branches at its side. A branch
-// checked out in another worktree is switched to by working there: the
-// conversation shows that worktree, and the composer gets a line telling
-// the agent so. Nothing to switch while the agent works (the files would
-// change under it), nor without a repository: then only the name.
+// to switch to, Create Branch… and New Worktree…; a workspace's folders'
+// branch (each one's when they differ), a menu of its folders with each
+// one's branches at its side. A branch checked out in another worktree is
+// switched to by working there: the conversation shows that worktree, and
+// the composer gets a line telling the agent so. Switchable while the agent
+// works too; nothing to switch without a repository: then a workspace's
+// name only, and nothing for a project (its name is over the input, or in
+// the title).
 
 import 'dart:async';
 
@@ -18,7 +20,6 @@ import '../ide/git/git_checkout.dart' show ideSanitizeBranchName;
 import '../ide/git/git_model.dart';
 import '../ide/git/git_repository.dart';
 import '../ide/ide_dialog.dart';
-import '../ide/ide_hover.dart';
 import '../kernel/kernel_types.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
@@ -34,11 +35,12 @@ class ChatBranchBar extends StatefulWidget {
     this.onSwitchWorktree,
   });
 
-  /// The conversation whose input it is under: nothing is switched while
-  /// it works.
+  /// The conversation whose input it is under: told in its composer where
+  /// to work when switched to another worktree.
   final ChatSession session;
 
-  /// The project's name, or the workspace's.
+  /// The workspace's name, shown when none of its folders has Git; a
+  /// project's is not shown.
   final String name;
 
   /// Whether it is a multi-folder workspace's, [repositories] its folders'.
@@ -154,10 +156,11 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
   }
 
   /// [git]'s branch, as the pill reads it: in a worktree of its
-  /// repository's other than its own, that worktree's name after it.
-  String _branchLabel(IdeGitRepository git, IdeGitState state) {
+  /// repository's other than its own, that worktree's name after it; `*`
+  /// with changes not committed, or as [dirty] says.
+  String _branchLabel(IdeGitRepository git, IdeGitState state, {bool? dirty}) {
     var branch = state.head.branch ?? context.l10n.branchBarDetached;
-    if (state.resources.isNotEmpty) branch = '$branch*';
+    if (dirty ?? state.resources.isNotEmpty) branch = '$branch*';
     return switch (_worktreeOf(git)) {
       final worktree? =>
         '$branch · ${git.service.pathContext.basename(worktree.path)}',
@@ -180,15 +183,42 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
   Iterable<IdeGitRepository> get _inWorktrees =>
       _gits.where((git) => git.state != null && _worktreeOf(git) != null);
 
-  /// The workspace's name, and the branch and worktree of each folder
-  /// worked on in another worktree: where the agent works.
-  String get _workspaceLabel => [
-    widget.name,
-    for (final git in _inWorktrees) _branchLabel(git, git.state!),
-  ].join(' · ');
+  /// The workspace's folders with Git, each with its state.
+  Iterable<(String, IdeGitRepository, IdeGitState)> get _workspaceGits => [
+    for (final (folder, git) in widget.repositories)
+      if (git.state case final state?) (folder, git, state),
+  ];
 
-  IconData get _workspaceIcon =>
-      _inWorktrees.isEmpty ? Codicons.folderLibrary : Codicons.worktree;
+  /// Where the agent works: the branch (and worktree) its folders are all
+  /// on, `*` when any has changes; each folder's when they differ; the
+  /// workspace's name without Git.
+  String get _workspaceLabel {
+    final folders = _workspaceGits.toList();
+    if (folders.isEmpty) return widget.name;
+    final (_, git, state) = folders.first;
+    final same = folders.every(
+      (folder) =>
+          _branchLabel(folder.$2, folder.$3, dirty: false) ==
+          _branchLabel(git, state, dirty: false),
+    );
+    if (same) {
+      return _branchLabel(
+        git,
+        state,
+        dirty: folders.any((folder) => folder.$3.resources.isNotEmpty),
+      );
+    }
+    return [
+      for (final (folder, git, state) in folders)
+        '${p.basename(folder)}: ${_branchLabel(git, state)}',
+    ].join(', ');
+  }
+
+  IconData get _workspaceIcon => _inWorktrees.isNotEmpty
+      ? Codicons.worktree
+      : _workspaceGits.isEmpty
+      ? Codicons.folderLibrary
+      : Codicons.gitBranch;
 
   String? get _workspaceTooltip =>
       switch ([for (final git in _inWorktrees) ?_worktreeTooltip(git)]) {
@@ -246,10 +276,9 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
 
   // --- Actions ----------------------------------------------------------------
 
-  /// Runs [operation] on [branch] unless the agent has started meanwhile;
-  /// what Git said when it refused, in a dialog. Whether it ran.
+  /// Runs [operation] on [branch]; what Git said when it refused, in a
+  /// dialog. Whether it ran.
   Future<bool> _run(String branch, Future<void> Function() operation) async {
-    if (widget.session.isStreaming) return false;
     try {
       await operation();
       return true;
@@ -285,7 +314,6 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
   /// The conversation on the worktree at [path], and a line in the
   /// composer telling the agent to work there.
   void _workIn(String folder, String path, String branch) {
-    if (widget.session.isStreaming) return;
     widget.onSwitchWorktree?.call(folder, path);
     widget.session.draft.restore(
       context.l10n.branchBarWorkIn(path, branch),
@@ -348,47 +376,35 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([widget.session, ..._gits]),
-      builder: (context, _) => Padding(
-        padding: const EdgeInsets.only(top: 4, left: 4),
-        child: MouseRegion(
-          onEnter: (_) => _pointedAt(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [Flexible(child: _buildPill(context))],
+      listenable: Listenable.merge([..._gits]),
+      builder: (context, _) => switch (_buildPill(context)) {
+        null => const SizedBox.shrink(),
+        final pill => Padding(
+          padding: const EdgeInsets.only(top: 4, left: 4),
+          child: MouseRegion(
+            onEnter: (_) => _pointedAt(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [Flexible(child: pill)],
+            ),
           ),
         ),
-      ),
+      },
     );
   }
 
-  Widget _buildPill(BuildContext context) {
+  /// None for a project without Git.
+  Widget? _buildPill(BuildContext context) {
     final l10n = context.l10n;
-    final running = widget.session.isStreaming;
     if (widget.workspace) {
-      if (running || widget.repositories.isEmpty) {
-        return _Label(
-          icon: _workspaceIcon,
-          label: _workspaceLabel,
-          tooltip: running
-              ? [l10n.branchBarRunning, ?_workspaceTooltip].join('\n\n')
-              : _workspaceTooltip,
-        );
+      if (widget.repositories.isEmpty) {
+        return _Label(icon: Codicons.folderLibrary, label: widget.name);
       }
       return _buildWorkspacePicker(context);
     }
     final git = widget.repositories.firstOrNull?.$2;
     final state = git?.state;
-    if (git == null || state == null) {
-      return _Label(icon: Codicons.folder, label: widget.name);
-    }
-    if (running) {
-      return _Label(
-        icon: _worktreeOf(git) == null ? Codicons.gitBranch : Codicons.worktree,
-        label: _branchLabel(git, state),
-        tooltip: [l10n.branchBarRunning, ?_worktreeTooltip(git)].join('\n\n'),
-      );
-    }
+    if (git == null || state == null) return null;
     final current = state.head.branch;
     final folder = widget.repositories.first.$1;
     return ComposerPicker(
@@ -456,7 +472,7 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
       // A line each, its branch at its end.
       descriptionAside: true,
       title: l10n.branchBarWorkspace,
-      tooltip: _workspaceTooltip ?? l10n.branchBarWorkspace,
+      tooltip: [widget.name, ?_workspaceTooltip].join('\n\n'),
       menuWidth: 290,
       submenuOf: (option) => switch (gits[option.id]) {
         final git? when git.isRepository => [
@@ -509,19 +525,18 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
   }
 }
 
-/// The pill's look with nothing to open: the name of a folder without a
-/// repository, or the branch while the agent works ([tooltip] says so).
+/// The pill's look with nothing to open: the name of a workspace without a
+/// repository.
 class _Label extends StatelessWidget {
-  const _Label({required this.icon, required this.label, this.tooltip});
+  const _Label({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
-  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
-    final color = tooltip == null ? AppColors.textMuted : AppColors.textFaint;
-    Widget label = Container(
+    final color = AppColors.textMuted;
+    return Container(
       height: 22,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Row(
@@ -531,7 +546,7 @@ class _Label extends StatelessWidget {
           const SizedBox(width: 4),
           Flexible(
             child: Text(
-              this.label,
+              label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: color, fontSize: 12),
@@ -540,10 +555,6 @@ class _Label extends StatelessWidget {
         ],
       ),
     );
-    if (tooltip case final tooltip?) {
-      label = IdeHover(message: tooltip, child: label);
-    }
-    return label;
   }
 }
 

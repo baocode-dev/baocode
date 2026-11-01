@@ -5,6 +5,9 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../../usage/usage_capture.dart';
+import '../../usage/usage_ledger.dart';
+import '../../usage/usage_trace.dart';
 import '../codex/codex_accounts_io.dart';
 import '../codex/codex_api.dart';
 import '../codex/codex_service.dart';
@@ -48,6 +51,7 @@ class ModelProxy {
     this._onError,
     this._findProxy,
     this._codex,
+    this._usage,
     @visibleForTesting String? token,
   }) : token = token ?? _newToken();
 
@@ -57,6 +61,10 @@ class ModelProxy {
   final CodexAccounts? _codex;
   final Future<String?> Function(String id) _key;
   final void Function(String id, String? error)? _onError;
+
+  /// Where each request to an upstream is kept (see [UsageLedger]); none
+  /// kept without it.
+  final UsageLedger Function()? _usage;
 
   /// The HTTP proxy to reach the upstreams through, a connection each
   /// (the app's `NetworkProxy`); straight to them without one.
@@ -129,8 +137,19 @@ class ModelProxy {
     return difference == 0;
   }
 
-  Future<void> _handle(HttpRequest request) async {
+  /// The trace of the request being answered, where it is followed
+  /// whole: what [_json] answers goes in it too.
+  static const _traceSlot = #usageTrace;
+
+  static UsageTrace? get _trace => (Zone.current[_traceSlot] as _Slot?)?.trace;
+
+  Future<void> _handle(HttpRequest request) =>
+      runZoned(() => _answer(request), zoneValues: {_traceSlot: _Slot()});
+
+  Future<void> _answer(HttpRequest request) async {
     final response = request.response;
+    UsageMeter? meter;
+    UsageLedger? ledger;
     try {
       if (!_authorized(request)) {
         return await _fail(response, 401, 'Not this proxy\'s token');
@@ -148,7 +167,8 @@ class ModelProxy {
         );
       }
       final providerId = segments[1];
-      final body = jsonDecode(await utf8.decodeStream(request));
+      final text = await utf8.decodeStream(request);
+      final body = jsonDecode(text);
       if (body is! Map<String, Object?>) {
         return await _fail(response, 400, 'The request is not a JSON object');
       }
@@ -179,6 +199,23 @@ class ModelProxy {
       final provider = found.speakingFor(
         parseSuffix('${body['model'] ?? ''}').modelName.trim(),
       );
+      if (!countTokens) {
+        ledger = _usage?.call();
+        if (ledger != null && ledger.enabled) {
+          meter = _meter(provider, body, request, text.length, ledger.detailed);
+          if (ledger.trace) {
+            final trace = UsageTrace(UsageTrace.newId(DateTime.now()))
+              ..asked(
+                method: request.method,
+                url: request.uri.toString(),
+                headers: UsageTraceMessage.headersOf(request.headers.forEach),
+                body: text,
+              );
+            meter.trace = trace;
+            (Zone.current[_traceSlot] as _Slot?)?.trace = trace;
+          }
+        }
+      }
       if (provider.protocol == ProviderProtocol.anthropic) {
         return await _passThrough(
           provider,
@@ -186,6 +223,7 @@ class ModelProxy {
           request,
           response,
           countTokens: countTokens,
+          meter: meter,
         );
       }
       if (countTokens) {
@@ -198,13 +236,58 @@ class ModelProxy {
         body,
         response,
         sessionHeader: request.headers.value(sessionHeaderName),
+        meter: meter,
       );
     } on FormatException catch (error) {
+      meter?.fail('The request is not JSON: ${error.message}');
       await _fail(response, 400, 'The request is not JSON: ${error.message}');
     } on Object catch (error) {
       debugPrint('Model proxy: $error');
+      meter?.fail('$error');
       await _fail(response, 502, '$error');
+    } finally {
+      final trace = meter?.trace;
+      trace?.finish(
+        response.statusCode,
+        UsageTraceMessage.headersOf(response.headers.forEach),
+      );
+      if (meter?.finish(response.statusCode) case final call?) {
+        ledger?.record(call, trace: trace);
+      }
     }
+  }
+
+  /// Follows [body]'s request to [provider] for the [UsageLedger].
+  UsageMeter _meter(
+    ModelProvider provider,
+    Map<String, Object?> body,
+    HttpRequest request,
+    int length,
+    bool detailed,
+  ) {
+    final requested = parseSuffix('${body['model'] ?? ''}');
+    final suffix = requested.hasSuffix ? requested.rawSuffix.trim() : '';
+    final fast = suffix.endsWith(fastModelSuffix);
+    final effort =
+        (fast
+                ? suffix.substring(0, suffix.length - fastModelSuffix.length)
+                : suffix)
+            .trim();
+    return UsageMeter(
+      provider: provider.id,
+      providerName: provider.name,
+      protocol: provider.protocol.name,
+      model: requested.modelName.trim(),
+      effort: effort.isEmpty ? null : effort,
+      fast: fast,
+      stream: body['stream'] == true,
+      session: sessionId(
+        body,
+        header: request.headers.value(sessionHeaderName),
+      ),
+      requestBytes: length,
+      info: analyzeRequest(body, request.headers.value, detailed: detailed),
+    );
   }
 
   Future<void> _forward(
@@ -212,6 +295,7 @@ class ModelProxy {
     Map<String, Object?> body,
     HttpResponse response, {
     String? sessionHeader,
+    UsageMeter? meter,
   }) async {
     // Claude Code's session id, for the custom headers' variables
     // ({{CLAUDE_SESSION_ID}}): the same its `metadata.user_id` carries.
@@ -278,6 +362,7 @@ class ModelProxy {
         modelId,
         session,
         sessionHeader,
+        meter,
       );
       if (opened == null) return;
       lines = opened;
@@ -305,7 +390,14 @@ class ModelProxy {
               ? 'text/event-stream'
               : 'application/json',
         );
-      upstreamRequest.add(utf8.encode(jsonEncode(outgoing)));
+      final payload = jsonEncode(outgoing);
+      meter?.trace?.sending(
+        method: 'POST',
+        url: url,
+        headers: UsageTraceMessage.headersOf(upstreamRequest.headers.forEach),
+        body: payload,
+      );
+      upstreamRequest.add(utf8.encode(payload));
       // The client gone: so is the upstream's request.
       unawaited(
         response.done.then<void>(
@@ -314,9 +406,16 @@ class ModelProxy {
         ),
       );
       final answer = upstream = await upstreamRequest.close();
+      meter?.answered();
+      meter?.trace?.answered(
+        answer.statusCode,
+        UsageTraceMessage.headersOf(answer.headers.forEach),
+      );
       if (answer.statusCode >= 400) {
         final text = await utf8.decodeStream(answer);
+        meter?.trace?.upstreamText(text);
         final message = upstreamErrorMessage(answer.statusCode, text);
+        meter?.fail(message);
         _onError?.call(provider.id, message);
         return _json(
           response,
@@ -329,48 +428,70 @@ class ModelProxy {
           .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter());
     }
+    // The upstream's own lines, as they came, while debugging.
+    final trace = meter?.trace;
+    final upstreamLines = trace == null
+        ? lines
+        : lines.map((line) {
+            trace.upstreamText('$line\n');
+            return line;
+          });
 
     if (provider.protocol == ProviderProtocol.openaiChat) {
       if (!stream) {
         final text = await utf8.decodeStream(upstream!);
-        return _json(
-          response,
-          200,
-          convertOpenAIResponseToClaudeNonStream(body, text),
-        );
+        trace?.upstreamText(text);
+        meter?.upstreamLine(text);
+        final message = convertOpenAIResponseToClaudeNonStream(body, text);
+        meter?.message(message);
+        return _json(response, 200, message);
       }
       _startEvents(response);
       final translator = OpenAIChatResponseTranslator(body);
       var done = false;
-      await for (final line in lines) {
+      await for (final line in upstreamLines) {
         if (line.trim() == 'data: [DONE]') done = true;
+        meter?.upstreamLine(line);
         for (final frame in translator.convert(line)) {
           response.write(frame);
+          meter?.events(frame);
         }
         await response.flush();
       }
-      if (!done) translator.convert('data: [DONE]').forEach(response.write);
+      if (!done) {
+        for (final frame in translator.convert('data: [DONE]')) {
+          response.write(frame);
+          meter?.events(frame);
+        }
+      }
       return response.close();
     }
 
     // Responses: the upstream streams either way.
     if (!stream) {
-      await for (final line in lines) {
+      await for (final line in upstreamLines) {
         if (!line.startsWith('data:')) continue;
+        meter?.upstreamLine(line);
         final message = convertResponsesResponseToClaudeNonStream(
           body,
           line.substring(5).trim(),
         );
-        if (message != null) return _json(response, 200, message);
+        if (message != null) {
+          meter?.message(message);
+          return _json(response, 200, message);
+        }
       }
+      meter?.fail('${provider.name} ended without a reply');
       return _fail(response, 502, '${provider.name} ended without a reply');
     }
     _startEvents(response);
     final translator = ResponsesResponseTranslator(body);
-    await for (final line in lines) {
+    await for (final line in upstreamLines) {
+      meter?.upstreamLine(line);
       final events = translator.convert(line);
       if (events.isEmpty) continue;
       response.write(events);
+      meter?.events(events);
       await response.flush();
     }
     return response.close();
@@ -407,6 +528,7 @@ class ModelProxy {
     HttpRequest request,
     HttpResponse response, {
     required bool countTokens,
+    UsageMeter? meter,
   }) async {
     final messages = UpstreamUrls.messages(provider);
     if (messages == null) {
@@ -426,7 +548,10 @@ class ModelProxy {
     final key = await _key(provider.id);
     upstreamHeaders(provider, key).forEach(upstreamRequest.headers.set);
     request.headers.forEach((name, values) {
-      if (!_notPassed.contains(name)) upstreamRequest.headers.set(name, values);
+      if (!_notPassed.contains(name) &&
+          !UsageHeaders.hintsOnly.contains(name)) {
+        upstreamRequest.headers.set(name, values);
+      }
     });
     customUpstreamHeaders(
       provider,
@@ -437,22 +562,36 @@ class ModelProxy {
       model: '${body['model'] ?? ''}',
     ).forEach(upstreamRequest.headers.set);
     upstreamRequest.headers.contentType = ContentType.json;
-    upstreamRequest.add(utf8.encode(jsonEncode(body)));
+    final payload = jsonEncode(body);
+    meter?.trace?.sending(
+      method: 'POST',
+      url: url,
+      headers: UsageTraceMessage.headersOf(upstreamRequest.headers.forEach),
+      body: payload,
+    );
+    upstreamRequest.add(utf8.encode(payload));
     unawaited(
       response.done.then<void>((_) {}, onError: (_) => upstreamRequest.abort()),
     );
     final answer = await upstreamRequest.close();
+    meter?.answered();
+    meter?.trace?.answered(
+      answer.statusCode,
+      UsageTraceMessage.headersOf(answer.headers.forEach),
+    );
     if (answer.statusCode >= 400) {
       final text = await utf8.decodeStream(answer);
+      meter?.trace
+        ?..upstreamText(text)
+        ..passedOn = true;
       if (countTokens) {
         return _json(response, 200, {
           'input_tokens': estimateInputTokens(body),
         });
       }
-      _onError?.call(
-        provider.id,
-        upstreamErrorMessage(answer.statusCode, text),
-      );
+      final message = upstreamErrorMessage(answer.statusCode, text);
+      meter?.fail(message);
+      _onError?.call(provider.id, message);
       _answerAs(response, answer);
       response.write(text);
       return response.close();
@@ -462,6 +601,7 @@ class ModelProxy {
     response.bufferOutput = false;
     await for (final chunk in answer) {
       response.add(chunk);
+      meter?.bytes(chunk);
       await response.flush();
     }
     return response.close();
@@ -492,6 +632,7 @@ class ModelProxy {
     String modelId,
     String? session,
     String? sessionHeader,
+    UsageMeter? meter,
   ) async {
     final codex = _codex;
     if (codex == null) {
@@ -529,6 +670,7 @@ class ModelProxy {
                             'now');
         // Not asked again and again by Claude Code till then, hours on.
         if (back != null) response.headers.set('x-should-retry', 'false');
+        meter?.fail(message);
         _onError?.call(provider.id, message);
         await _json(response, lastStatus, anthropicError(lastStatus, message));
         return null;
@@ -558,15 +700,27 @@ class ModelProxy {
         ).forEach(request.headers.set);
         custom.forEach(request.headers.set);
         request.headers.contentType = ContentType.json;
-        request.add(utf8.encode(jsonEncode(outgoing)));
+        final payload = jsonEncode(outgoing);
+        meter?.trace?.sending(
+          method: 'POST',
+          url: codex.endpoints.responses,
+          headers: UsageTraceMessage.headersOf(request.headers.forEach),
+          body: payload,
+        );
+        request.add(utf8.encode(payload));
         unawaited(
           response.done.then<void>((_) {}, onError: (_) => request.abort()),
         );
         final upstream = await request.close();
         codex.record(provider, account, upstream.headers.value);
         final status = upstream.statusCode;
+        meter?.trace?.answered(
+          status,
+          UsageTraceMessage.headersOf(upstream.headers.forEach),
+        );
         if (status >= 400) {
           final text = await utf8.decodeStream(upstream);
+          meter?.trace?.upstreamText(text);
           if (status == 401 && rejected == null) {
             rejected = token;
             continue;
@@ -589,6 +743,7 @@ class ModelProxy {
             tried.add(account.id);
             break;
           }
+          meter?.fail(message);
           _onError?.call(provider.id, message);
           await _json(response, status, anthropicError(status, message));
           return null;
@@ -628,6 +783,9 @@ class ModelProxy {
         }
         codex.markError(provider, account, null);
         _onError?.call(provider.id, null);
+        meter
+          ?..answered()
+          ..account = account.displayName;
         return _rest(head, iterator);
       }
       tried.add(account.id);
@@ -661,10 +819,12 @@ class ModelProxy {
     int status,
     Object? body,
   ) async {
+    final text = jsonEncode(body);
+    _trace?.answerText(text);
     response
       ..statusCode = status
       ..headers.contentType = ContentType.json
-      ..write(jsonEncode(body));
+      ..write(text);
     await response.close();
   }
 
@@ -680,6 +840,11 @@ class ModelProxy {
       await response.close().catchError((_) {});
     }
   }
+}
+
+/// Where a request's trace is, for what answers it.
+class _Slot {
+  UsageTrace? trace;
 }
 
 /// About how many tokens [request]'s input comes to: a quarter of its

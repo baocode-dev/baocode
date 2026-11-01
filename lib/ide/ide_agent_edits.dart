@@ -681,10 +681,8 @@ class IdeAgentHunkActions extends StatelessWidget {
     LineRangeMapping change,
   ) {
     final after = change.modified.endLineNumberExclusive;
-    if (after <= text.lineCount) {
-      return view.caretRectAt(text.lineStarts[after - 1])?.top;
-    }
-    return view.caretRectAt(text.text.length)?.bottom;
+    if (after <= text.lineCount) return view.lineRectAt(after)?.top;
+    return view.lineRectAt(text.lineCount)?.bottom;
   }
 }
 

@@ -3763,7 +3763,6 @@ class _DiffAreaState extends State<_DiffArea> {
         highlight(l10n.diffHighlightWords, DiffHighlight.words),
         highlight(l10n.diffHighlightCharacters, DiffHighlight.characters),
         highlight(l10n.diffHighlightLines, DiffHighlight.lines),
-        highlight(l10n.diffHighlightNone, DiffHighlight.none),
       ],
     ]);
   }

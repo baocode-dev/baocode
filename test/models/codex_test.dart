@@ -246,6 +246,74 @@ void main() {
       expect(usage.credits, '12.5');
       // The week used up: until it starts over.
       expect(usage.limitedUntil, now.add(const Duration(days: 2)));
+      expect(usage.resetCredits, isNull);
+      // Worth a reset credit: not five hours, which start over soon.
+      expect(usage.usedUp(now), isTrue);
+    });
+
+    test('reset credits: their count, those that can be used', () {
+      CodexUsage usage(int minutes) => CodexUsage.fromJson({
+        'rate_limit': {
+          'primary_window': {
+            'used_percent': 100,
+            'limit_window_seconds': minutes * 60,
+            'reset_after_seconds': 600,
+          },
+        },
+        'rate_limit_reset_credits': {
+          'available_count': 2,
+          'applicable_available_count': 0,
+        },
+      }, now);
+      expect(usage(300).resetCredits, 2);
+      expect(usage(300).usedUp(now), isFalse);
+      expect(usage(300).usedUp(now, fiveHours: true), isTrue);
+      expect(usage(43200).usedUp(now), isTrue);
+      expect(usage(300).withResetCredits(1).resetCredits, 1);
+
+      final later = now.add(const Duration(days: 3)).toUtc();
+      final sooner = now.add(const Duration(days: 1)).toUtc();
+      final credits = CodexResetCredit.listFromJson({
+        'available_count': 2,
+        'credits': [
+          {
+            'id': 'c1',
+            'reset_type': 'codex_rate_limits',
+            'status': 'available',
+            'granted_at': '2026-10-01T00:00:00Z',
+            'consumable_until': later.toIso8601String(),
+          },
+          {
+            'id': 'c2',
+            'reset_type': 'codex_rate_limits',
+            'status': 'available',
+            'expires_at': sooner.toIso8601String(),
+          },
+          {
+            'id': 'used',
+            'reset_type': 'codex_rate_limits',
+            'status': 'redeemed',
+            'expires_at': later.toIso8601String(),
+          },
+          {
+            'id': 'other',
+            'reset_type': 'something_else',
+            'status': 'available',
+          },
+          {
+            'id': 'expired',
+            'reset_type': 'codex_rate_limits',
+            'status': 'available',
+            'expires_at': now
+                .subtract(const Duration(hours: 1))
+                .toUtc()
+                .toIso8601String(),
+          },
+        ],
+      }, now);
+      expect(credits.map((c) => c.id), ['c2', 'c1']);
+      expect(credits.last.expiresAt, later);
+      expect(credits.last.grantedAt, DateTime.utc(2026, 10));
     });
 
     test('as a reply\'s headers tell, over what was known', () {
@@ -630,6 +698,188 @@ void main() {
       final newer = openai.to('/backend-api/codex/models').last;
       expect(newer.query['client_version'], '0.170.0');
       expect(newer.headers['user-agent'], codexUserAgent('0.170.0'));
+    });
+
+    group('reset credits', () {
+      const usagePath = '/backend-api/wham/usage';
+      const listPath = '/backend-api/wham/rate-limit-reset-credits';
+      const consumePath = '/backend-api/wham/rate-limit-reset-credits/consume';
+      late int credits;
+      late bool weekUsedUp;
+      late bool fiveHoursUsedUp;
+      var consumeStatus = 200;
+
+      String usage() => jsonEncode({
+        'rate_limit': {
+          'limit_reached': weekUsedUp || fiveHoursUsedUp,
+          'primary_window': {
+            'used_percent': fiveHoursUsedUp ? 100 : 10,
+            'limit_window_seconds': 18000,
+            'reset_after_seconds': 600,
+          },
+          'secondary_window': {
+            'used_percent': weekUsedUp ? 100 : 0,
+            'limit_window_seconds': 604800,
+            'reset_after_seconds': 3 * 86400,
+          },
+        },
+        'rate_limit_reset_credits': {'available_count': credits},
+      });
+
+      String list() => jsonEncode({
+        'available_count': credits,
+        'credits': [
+          for (var i = 0; i < credits; i++)
+            {
+              'id': 'c$i',
+              'reset_type': 'codex_rate_limits',
+              'status': 'available',
+              'consumable_until': DateTime.now()
+                  .add(Duration(days: i + 1))
+                  .toUtc()
+                  .toIso8601String(),
+            },
+        ],
+      });
+
+      Answer? backend(String path) => switch (path) {
+        '/oauth/token' => tokens('access'),
+        usagePath => (200, const {}, [usage()]),
+        listPath => (200, const {}, [list()]),
+        consumePath when consumeStatus != 200 => (
+          consumeStatus,
+          const {},
+          ['{"error":{"message":"no credit"}}'],
+        ),
+        consumePath => () {
+          credits--;
+          weekUsedUp = false;
+          fiveHoursUsedUp = false;
+          return (
+            200,
+            const <String, String>{},
+            ['{"code":"ok","windows_reset":2}'],
+          );
+        }(),
+        _ => null,
+      };
+
+      setUp(() {
+        credits = 2;
+        weekUsedUp = true;
+        fiveHoursUsedUp = false;
+        consumeStatus = 200;
+        openai.reply = (path, _, _) =>
+            backend(path) ?? (404, const {}, const []);
+      });
+
+      Future<void> settle() async {
+        for (var i = 0; i < 20; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      }
+
+      test('listed as their count is learned; one used by hand', () async {
+        await accounts.refreshUsage(provider());
+        await settle();
+        expect(accounts.usage('cx', 'a')!.resetCredits, 2);
+        expect(accounts.resetCredits('cx', 'a')!.map((c) => c.id), [
+          'c0',
+          'c1',
+        ]);
+        // Off: none used by itself.
+        expect(openai.to(consumePath), isEmpty);
+        expect(accounts.limitedUntil('cx', 'a'), isNotNull);
+
+        await accounts.useResetCredit(provider(), 'a');
+        final sent = openai.to(consumePath).single;
+        expect(sent.headers['authorization'], 'Bearer access');
+        expect(sent.headers['chatgpt-account-id'], 'ws-a');
+        expect(
+          (jsonDecode(sent.body) as Map)['redeem_request_id'],
+          matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-')),
+        );
+        await settle();
+        expect(accounts.limitedUntil('cx', 'a'), isNull);
+        expect(accounts.usage('cx', 'a')!.resetCredits, 1);
+        expect(accounts.resetCredits('cx', 'a'), hasLength(1));
+        expect(accounts.resetting('cx', 'a'), isFalse);
+      });
+
+      test('one that could not be used says why', () async {
+        consumeStatus = 400;
+        await expectLater(
+          accounts.useResetCredit(provider(), 'a'),
+          throwsA(isA<CodexException>()),
+        );
+        expect(accounts.error('cx', 'a'), contains('no credit'));
+      });
+
+      test('on: one used by itself once the week is used up', () async {
+        await providers.save(provider().copyWith(autoResetCredits: true));
+        await accounts.refreshUsage(provider());
+        await settle();
+        // Once each: the next not till its quota shows started over.
+        expect(openai.to(consumePath), hasLength(2));
+        expect(accounts.limitedUntil('cx', 'a'), isNull);
+        expect(accounts.usage('cx', 'a')!.resetCredits, 0);
+      });
+
+      test('five hours used up: one used only if they are to be', () async {
+        weekUsedUp = false;
+        fiveHoursUsedUp = true;
+        await providers.save(provider().copyWith(autoResetCredits: true));
+        await accounts.refreshUsage(provider());
+        await settle();
+        expect(openai.to(consumePath), isEmpty);
+
+        await providers.save(provider().copyWith(resetCreditsFiveHours: true));
+        await accounts.refreshUsage(provider());
+        await settle();
+        expect(openai.to(consumePath), hasLength(2));
+        expect(accounts.limitedUntil('cx', 'a'), isNull);
+      });
+
+      test('on: a request out of quota goes on, a credit used', () async {
+        await providers.save(provider().copyWith(autoResetCredits: true));
+        openai.reply = (path, headers, _) {
+          if (backend(path) case final answer?) return answer;
+          return weekUsedUp
+              ? (
+                  429,
+                  const {},
+                  [
+                    jsonEncode({
+                      'error': {
+                        'type': 'usage_limit_reached',
+                        'resets_in_seconds': 3 * 86400,
+                      },
+                    }),
+                  ],
+                )
+              : (200, const {}, _stream);
+        };
+        final (status, _) = await accounts.post(
+          provider(),
+          const CodexEndpoints().responses.replace(
+            scheme: 'http',
+            host: '127.0.0.1',
+            port: Uri.parse(openai.base).port,
+            path: '/backend-api/codex/responses',
+          ),
+          utf8.encode('{}'),
+          contentType: ContentType.json,
+        );
+        expect(status, 200);
+        expect(openai.to(consumePath), hasLength(1));
+        // Went on the account the credit was used for.
+        expect(
+          openai
+              .to('/backend-api/codex/responses')
+              .map((r) => r.headers['chatgpt-account-id']),
+          ['ws-a', 'ws-a'],
+        );
+      });
     });
 
     group('usage refresh', () {

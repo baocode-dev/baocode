@@ -62,6 +62,21 @@ abstract final class ChatCommandIds {
   static const focusPane = 'baocode.chat.focusPane';
   static const focusNextPane = 'baocode.chat.focusNextPane';
   static const focusPreviousPane = 'baocode.chat.focusPreviousPane';
+
+  /// The pane beside the focused one, that way.
+  static const focusPaneLeft = 'baocode.chat.focusPaneLeft';
+  static const focusPaneRight = 'baocode.chat.focusPaneRight';
+  static const focusPaneUp = 'baocode.chat.focusPaneUp';
+  static const focusPaneDown = 'baocode.chat.focusPaneDown';
+
+  /// Among the focused pane's agents (it and those under it), the next or
+  /// previous tab.
+  static const nextPaneTab = 'baocode.chat.nextPaneTab';
+  static const previousPaneTab = 'baocode.chat.previousPaneTab';
+
+  /// The agents under a pane as tabs above it, or behind its layers
+  /// button.
+  static const togglePaneTabs = 'baocode.chat.togglePaneTabs';
   static const searchAgents = 'baocode.chat.searchAgents';
 
   /// The search palette, on everything: agents, what was said in them,
@@ -79,6 +94,7 @@ abstract final class ChatCommandIds {
   static const sidePanelChanges = 'baocode.chat.sidePanel.changes';
   static const sidePanelFiles = 'baocode.chat.sidePanel.files';
   static const sidePanelTerminal = 'baocode.chat.sidePanel.terminal';
+  static const sidePanelUsage = 'baocode.chat.sidePanel.usage';
 
   /// Closes the side panel's tab in front, on its page shown; hides the
   /// panel where the page has none.
@@ -200,6 +216,13 @@ final List<CommandInfo> chatExtraCommands = [
       ('${ChatCommandIds.focusPane}$i', 'Focus Pane $i'),
     (ChatCommandIds.focusNextPane, 'Focus Next Pane'),
     (ChatCommandIds.focusPreviousPane, 'Focus Previous Pane'),
+    (ChatCommandIds.focusPaneLeft, 'Focus Left Pane'),
+    (ChatCommandIds.focusPaneRight, 'Focus Right Pane'),
+    (ChatCommandIds.focusPaneUp, 'Focus Above Pane'),
+    (ChatCommandIds.focusPaneDown, 'Focus Below Pane'),
+    (ChatCommandIds.nextPaneTab, 'Open Next Tab in Pane'),
+    (ChatCommandIds.previousPaneTab, 'Open Previous Tab in Pane'),
+    (ChatCommandIds.togglePaneTabs, 'Toggle Pane Tabs'),
     (ChatCommandIds.search, 'Search'),
     (ChatCommandIds.searchAgents, 'Search Agents'),
     (ChatCommandIds.openIde, 'Open in Fast Ide'),
@@ -208,6 +231,7 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.sidePanelChanges, 'Show Agent Changes'),
     (ChatCommandIds.sidePanelFiles, 'Show Agent Files'),
     (ChatCommandIds.sidePanelTerminal, 'Show Agent Terminals'),
+    (ChatCommandIds.sidePanelUsage, 'Show Conversation Usage'),
     (ChatCommandIds.sidePanelCloseTab, 'Close Side Panel Tab'),
     (ChatCommandIds.closeTab, 'Close Chat'),
     (ChatCommandIds.focusInput, 'Focus Chat Input'),
@@ -258,6 +282,13 @@ const _nextPrompt =
     '$_input && ${ChatContextKeys.cursorAtBottom} && '
     '!${ChatContextKeys.suggestWidgetVisible}';
 const _interaction = ChatContextKeys.inInteraction;
+
+/// The panes' and their tabs' arrow keys: not while typing, where they move
+/// by words, unless in the chat's empty input; on macOS, which moves by
+/// words with ⌥, anywhere.
+const _paneArrows =
+    '$_window && !textInputFocus || '
+    '$_window && $_input && !${ChatContextKeys.inputHasText}';
 
 /// Not while typing elsewhere than the chat's input (a denial's reason).
 const _tool =
@@ -345,6 +376,24 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     command: ChatCommandIds.previousAgent,
     when: _window,
   ),
+  // As IntelliJ's: the arrows go to the pane that way, with Shift through
+  // the focused pane's tabs. Registered only where there is one to go to.
+  for (final (arrow, command) in [
+    ('left', ChatCommandIds.focusPaneLeft),
+    ('right', ChatCommandIds.focusPaneRight),
+    ('up', ChatCommandIds.focusPaneUp),
+    ('down', ChatCommandIds.focusPaneDown),
+    ('shift+left', ChatCommandIds.previousPaneTab),
+    ('shift+right', ChatCommandIds.nextPaneTab),
+  ]) ...[
+    KeybindingEntry(
+      win: 'ctrl+$arrow',
+      linux: 'ctrl+$arrow',
+      command: command,
+      when: _paneArrows,
+    ),
+    KeybindingEntry(mac: 'ctrl+$arrow', command: command, when: _window),
+  ],
   // As Open Editor at Index; the panes as the editor groups (⌘1…).
   for (var i = 1; i <= ChatCommandIds.agentIndexes; i++)
     KeybindingEntry(

@@ -36,17 +36,19 @@ class AboutSettingsPage extends StatelessWidget {
     return SettingsPage(
       title: l10n.settingsSectionAbout,
       lead: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 16, 8, 0),
+        padding: const EdgeInsets.fromLTRB(8, 18, 8, 0),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          // 图标与右侧三行文字整体垂直居中
           children: [
+            // 与标题栏、任务栏同一张应用图标，保留原始配色；
+            // 图片自带约 10% 透明边，放大到 72 才能与右侧文字块相称
             Image.asset(
               aboutIconAsset,
-              width: 44,
-              height: 44,
-              filterQuality: FilterQuality.medium,
+              width: 72,
+              height: 72,
+              filterQuality: FilterQuality.high,
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

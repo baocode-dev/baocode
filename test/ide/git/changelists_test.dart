@@ -1,6 +1,6 @@
 // JetBrains IDEs' changelists: changes sorted into named lists, one
 // active, where a change first goes; a list's changes left unchecked while
-// it is not active; an agent's turn's changes in a list of that turn's.
+// it is not active.
 
 import 'package:baocode/ide/git/git_changelists.dart';
 import 'package:baocode/ide/git/ide_git_commit_panel.dart';
@@ -27,22 +27,21 @@ void main() {
     expect(lists.listOf('/a'), IdeGitChangelists.defaultId);
   });
 
-  test("a turn's changes: in its list unless in one already; the list goes "
-      'with its changes', () {
-    final lists = IdeGitChangelists();
-    final mine = lists.create('Mine', paths: ['/a']);
-    lists.assignTurn('t1', 'AI: fix it', ['/a', '/b']);
-    expect(lists.listOf('/a'), mine.id);
-    expect(lists.listOf('/b'), 'turn:t1');
-    expect(lists.byId('turn:t1')!.turn, isTrue);
-
-    final restored = IdeGitChangelists()..restore(lists.toJson());
-    expect(restored.listOf('/b'), 'turn:t1');
-    expect(restored.byId('turn:t1')!.name, 'AI: fix it');
-
-    lists.prune({'/a'});
-    expect(lists.byId('turn:t1'), isNull);
-    expect(lists.byId(mine.id), isNotNull);
+  test('restored: an agent turn\'s list there once was is not, its files '
+      'the active list\'s', () {
+    final lists = IdeGitChangelists()
+      ..restore({
+        'active': 'default',
+        'lists': [
+          {'id': 'list1', 'name': 'Mine'},
+          {'id': 'turn:t1', 'name': 'AI: fix it', 'turn': true},
+        ],
+        'assigned': {'/a': 'list1', '/b': 'turn:t1'},
+      });
+    expect([for (final list in lists.lists) list.id], ['default', 'list1']);
+    expect(lists.listOf('/a'), 'list1');
+    expect(lists.listOf('/b'), IdeGitChangelists.defaultId);
+    expect(lists.toJson()['assigned'], {'/a': 'list1'});
   });
 
   group('the Commit panel', () {

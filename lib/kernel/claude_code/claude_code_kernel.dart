@@ -1018,12 +1018,14 @@ class ClaudeCodeKernel
                 },
               },
             ],
-            if (turn.text.isNotEmpty) {'type': 'text', 'text': turn.text},
             for (final note in turn.notes) {'type': 'text', 'text': note},
             if (ask)
               {'type': 'text', 'text': _askNote}
             else if (askEnded)
               {'type': 'text', 'text': _askEndedNote},
+            // Last: the CLI takes a message for a command (`/compact`)
+            // only by its last block.
+            if (turn.text.isNotEmpty) {'type': 'text', 'text': turn.text},
           ],
         },
       });
@@ -1156,7 +1158,63 @@ class ClaudeCodeKernel
     // The CLI takes up all it queued as one turn, in the order sent: the
     // others are taken back too, and sent again after it, held until it is
     // taken up. Those held first, for none to be given the CLI meanwhile.
-    final order = [turnId, ...others];
+    _resendQueued([turnId, ...others], now: turnId);
+  }
+
+  @override
+  void moveQueued(String turnId, int index) {
+    final order = [..._queued];
+    if (!order.remove(turnId)) return;
+    order.insert(index.clamp(0, order.length), turnId);
+    if (_reorderHere(order)) return;
+    if (!_running) {
+      // The queue is shown before the process finishes starting. Keep the
+      // request behind its pending writes, then check the queue again.
+      _whenReady((_) {
+        if (_running) moveQueued(turnId, index);
+      });
+      return;
+    }
+    // Those given the CLI go in the order sent: it takes them back, and is
+    // sent all again in this one, none taken up at once.
+    _resendQueued(order);
+  }
+
+  /// Puts the queued messages in [order] here, if the CLI's part is left as
+  /// it is; returns whether it could.
+  bool _reorderHere(List<String> order) {
+    final given = [
+      for (final id in _queued)
+        if (!_held.containsKey(id)) id,
+    ];
+    final nowGiven = [
+      for (final id in order)
+        if (!_held.containsKey(id)) id,
+    ];
+    // The ones held here may go in any order among themselves, but none
+    // may go before those given the CLI, which take their turn first.
+    if (!listEquals(given, nowGiven)) return false;
+    if (!order.take(nowGiven.length).every((id) => !_held.containsKey(id))) {
+      return false;
+    }
+    _queued
+      ..clear()
+      ..addAll(order);
+    final held = {
+      for (final id in order)
+        if (_held.containsKey(id)) id: _held[id]!,
+    };
+    _held
+      ..clear()
+      ..addAll(held);
+    emit(QueueReordered(nextSeq, order));
+    return true;
+  }
+
+  /// Takes back what is queued and sends it again in [order]: the one [now]
+  /// (if any) to be taken up at once, the turn running stopped for it.
+  /// Those held here first, for none to be given the CLI meanwhile.
+  void _resendQueued(List<String> order, {String? now}) {
     unawaited(() async {
       final taken = {
         for (final id in [
@@ -1174,7 +1232,7 @@ class ClaudeCodeKernel
             mentions: turn.mentions,
             images: turn.images,
             notes: turn.notes,
-            now: id == turnId,
+            now: id == now,
           ),
         );
       }
@@ -2404,8 +2462,10 @@ class ClaudeCodeKernel
     final control = _control;
     if (control == null) return;
     try {
+      // In full: each part's things too (the system prompt's sections,
+      // the built-in tools, the messages by tool), counted where it runs.
       final usage = await control.request('get_context_usage', {
-        'detail': 'summary',
+        'detail': 'full',
       }, const Duration(seconds: 20));
       final max = usage['maxTokens'] as int? ?? _contextWindow;
       _contextWindow = max;
@@ -2438,6 +2498,7 @@ class ClaudeCodeKernel
                     },
                   ),
             ],
+            detail: ContextDetail.parse(usage),
           ),
         ),
       );

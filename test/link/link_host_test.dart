@@ -54,18 +54,12 @@ void main() {
 
   tearDown(() => host.dispose());
 
-  /// A phone's connection to the host, its handshake done.
+  /// A phone's connection to the host, over the memory network.
   Future<LinkPeer> connect(LinkIdentity identity) async {
-    final (a, b) = MemoryLinkSocket.pair();
-    platform.incoming.add(b);
-    final channel = await SecureChannel.connect(
-      a,
-      identity: identity,
-      serverKey: decodeKey(
-        (platform.kept['identity']! as Map)['privateKey'] as String,
-      ).let((private) => LinkIdentity.fromPrivateKey(private).publicKey),
-    );
-    return LinkPeer(channel);
+    final connection = await platform
+        .phone(identity)
+        .connect(LinkAddress(host.id));
+    return LinkPeer.connect(connection);
   }
 
   Future<LinkPeer> pair() async {
@@ -105,10 +99,139 @@ void main() {
     final hello =
         await peer2.call(LinkMethods.hello, {'name': 'iPhone'}) as Map;
     expect((hello['device'] as Map)['name'], 'Test Mac');
-    expect(
-      ((hello['device'] as Map)['endpoints'] as List).first,
-      '192.168.1.5:47100',
+    final device = DeviceInfo.fromJson(
+      hello['device']! as Map<String, Object?>,
     );
+    expect(device.addrs.first, '192.168.1.5:47100');
+    expect(device.relays, contains(defaultLinkRelays.first));
+  });
+
+  test('the offer tells where the desktop is: relays, addresses', () async {
+    final offer = (await host.beginPairing())!;
+    expect(offer.id, host.id);
+    expect(offer.relays, defaultLinkRelays);
+    expect(offer.addrs, ['192.168.1.5:47100']);
+    final parsed = PairingOffer.parse(offer.uri);
+    expect(parsed.address.id, host.id);
+    expect(parsed.address.relays, offer.relays);
+  });
+
+  test('one relay picked: kept to, told and bound to alone; automatic '
+      'again, all of BaoCode\'s', () async {
+    await host.setEnabled(true);
+    expect(platform.boundRelays, defaultLinkRelays);
+    // The one in use picked at first.
+    await host.setRelayMode(LinkRelayMode.pinned);
+    expect(host.relays, [defaultLinkRelays.first]);
+    expect(platform.boundRelays, host.relays);
+
+    await host.pinRelay(defaultLinkRelays.last);
+    expect(platform.boundRelays, [defaultLinkRelays.last]);
+
+    // One at an address of one's own.
+    await host.pinRelay('https://relay.example.com');
+    expect(platform.boundRelays, ['https://relay.example.com']);
+    expect(platform.kept['relayMode'], 'pinned');
+    expect(platform.kept['pinnedRelay'], 'https://relay.example.com');
+    final offer = (await host.beginPairing())!;
+    expect(offer.relays, ['https://relay.example.com']);
+
+    await host.setRelayMode(LinkRelayMode.auto);
+    expect(platform.boundRelays, defaultLinkRelays);
+  });
+
+  test('relays of one\'s own kept before there was a choice: the first '
+      'picked', () async {
+    host.dispose();
+    platform.kept = {
+      'relays': ['https://relay.example.com', 'https://relay.other.com'],
+    };
+    host = LinkHost(workspace: workspace, platform: platform);
+    await host.load();
+    expect(host.relayMode, LinkRelayMode.pinned);
+    expect(host.relays, ['https://relay.example.com']);
+  });
+
+  test(
+    'a connected phone\'s path is shown, and counted once settled',
+    () async {
+      platform.network.path = const LinkPath(
+        LinkPathKind.direct,
+        rtt: Duration(milliseconds: 42),
+      );
+      host.dispose();
+      host = LinkHost(
+        workspace: workspace,
+        platform: platform,
+        pathSettle: const Duration(milliseconds: 50),
+      );
+      await host.load();
+      final peer = await pair();
+      final id = deviceIdOf(phone.publicKey);
+      expect(host.pathOf(id)?.kind, LinkPathKind.direct);
+      expect(host.pathOf(id)?.rtt, const Duration(milliseconds: 42));
+      await _until(() => host.pathCounts.pending != null);
+      expect(host.pathCounts.pending, {'direct': 1});
+      host.pathCountsSent({'direct': 1});
+      expect(host.pathCounts.pending, isNull);
+      await peer.close();
+      await _until(() => host.pathOf(id) == null);
+    },
+  );
+
+  test('phones paired over the old link are kept to pair again', () async {
+    platform.kept = {
+      'version': 1,
+      'identity': {
+        'privateKey': encodeKey(Uint8List(32)),
+        'publicKey': encodeKey(Uint8List(32)),
+      },
+      'enabled': true,
+      'port': 47100,
+      'phones': [
+        {
+          'key': encodeKey(Uint8List(32)),
+          'name': 'Old iPhone',
+          'system': 'iOS 18',
+          'pairedAt': 1700000000000,
+        },
+      ],
+    };
+    host.dispose();
+    host = LinkHost(workspace: workspace, platform: platform);
+    await host.load();
+    expect(host.phones, isEmpty);
+    expect(host.legacyPhones.single.name, 'Old iPhone');
+    expect(host.id, hasLength(64));
+    expect(host.enabled, isTrue);
+    expect(platform.kept['version'], 2);
+    expect((platform.kept['identity']! as Map)['kind'], 'ed25519');
+    expect(platform.kept['legacyPhones'], hasLength(1));
+
+    // Paired again under the same name: no longer listed as old.
+    final offer = (await host.beginPairing())!;
+    final again = await connect(phone);
+    await again.call(LinkMethods.hello, {
+      'name': 'Old iPhone',
+      'token': encodeKey(offer.token),
+    });
+    await again.call(LinkMethods.confirm);
+    expect(host.phones.single.name, 'Old iPhone');
+    expect(host.legacyPhones, isEmpty);
+
+    // Or let go.
+    host.dispose();
+    platform.kept = {
+      ...platform.kept,
+      'legacyPhones': [
+        {'name': 'iPad', 'system': 'iPadOS', 'pairedAt': 1700000000000},
+      ],
+    };
+    host = LinkHost(workspace: workspace, platform: platform);
+    await host.load();
+    host.forgetLegacy(host.legacyPhones.single);
+    expect(host.legacyPhones, isEmpty);
+    expect(platform.kept['legacyPhones'], isNull);
   });
 
   test(
@@ -491,7 +614,7 @@ void main() {
     expect(advert.pairing, isFalse);
     expect(
       advert.key,
-      LinkIdentity.fromJson(platform.kept['identity']! as Map<String, Object?>)
+      LinkIdentity.fromJson(platform.kept['identity']! as Map<String, Object?>)!
           .publicKey,
     );
 
@@ -597,10 +720,6 @@ Future<void> _until(bool Function() done) async {
     await Future<void>.delayed(const Duration(milliseconds: 20));
   }
   expect(done(), isTrue);
-}
-
-extension<T> on T {
-  R let<R>(R Function(T) f) => f(this);
 }
 
 /// Files kept in memory, by absolute path; null for a binary one.

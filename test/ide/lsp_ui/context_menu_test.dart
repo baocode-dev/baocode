@@ -55,7 +55,8 @@ void main() {
     await _rightClick(tester, greet + 2);
     // The caret moved to the click.
     expect(surfaceController(tester).value.selection.baseOffset, greet + 2);
-    expect(find.text('Go to Definition'), findsNothing);
+    expect(find.text('Go to Definition'), findsOneWidget);
+    expect(find.text('Go to References'), findsOneWidget);
     expect(find.text('Rename Symbol'), findsNothing);
     for (final label in [
       'Change All Occurrences',
@@ -132,6 +133,9 @@ void main() {
     expect(_menuLabels(tester), [
       'Go to Definition',
       'F12',
+      'Go to Type Definition',
+      'Go to Implementations',
+      isNotEmpty,
       'Go to References',
       isNotEmpty,
       'Rename Symbol',

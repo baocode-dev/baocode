@@ -6,6 +6,8 @@ import 'package:baocode/chat/widgets/tool_call_row.dart'
     show todoDoingIcon, todoDoneIcon, todoOpenIcon;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/edit_detail.dart';
+import 'package:baocode/ide/ide_code_diff.dart';
 import 'package:baocode/chat/panels/activity_strip.dart';
 import 'package:baocode/chat/widgets/agent_step.dart';
 import 'package:baocode/chat/widgets/chat_item_view.dart';
@@ -200,28 +202,46 @@ void main() {
       expect(text.style, stepMono);
     });
 
-    testWidgets('an edit: one line with its counts, opening to the diff', (
-      tester,
-    ) async {
-      await pumpStep(
-        tester,
-        const CodeDiffItem(
-          fileName: 'main.dart',
-          directory: 'lib',
-          lines: [
-            DiffLine(DiffLineType.removed, 3, 'old line'),
-            DiffLine(DiffLineType.added, 3, 'new line'),
-          ],
-          added: 12,
-          removed: 1,
-        ),
+    const edit = CodeDiffItem(
+      fileName: 'main.dart',
+      directory: 'lib',
+      lines: [
+        DiffLine(DiffLineType.removed, 3, 'old line'),
+        DiffLine(DiffLineType.added, 3, 'new line'),
+      ],
+      added: 12,
+      removed: 1,
+    );
+
+    testWidgets('an edit: a card of its file and counts over the diff, '
+        'always open', (tester) async {
+      await pumpStep(tester, edit);
+      expect(find.byType(StepHeader), findsNothing);
+      expect(header('Edited main.dart'), findsNothing);
+      expect(find.text('main.dart'), findsOneWidget);
+      expect(find.text('+12 -1', findRichText: true), findsOneWidget);
+      expect(
+        tester.widget<IdeCodeDiff>(find.byType(IdeCodeDiff)).modified,
+        'new line',
       );
+      expect(
+        chatItemPlainText(edit),
+        'main.dart +12 -1\n3 - old line\n3 + new line',
+      );
+    });
+
+    testWidgets('an edit, compact: one line with its counts, opening to '
+        'the diff', (tester) async {
+      EditDetail.current.value = EditDetail.compact;
+      addTearDown(() => EditDetail.current.value = EditDetail.card);
+      await pumpStep(tester, edit);
       expect(header('Edited main.dart'), findsOneWidget);
       expect(find.text('+12 -1', findRichText: true), findsOneWidget);
-      expect(find.text('new line'), findsNothing);
+      expect(find.byType(IdeCodeDiff), findsNothing);
+      expect(chatItemPlainText(edit), 'Edited main.dart +12 -1');
       await tester.tap(header('Edited main.dart'));
       await tester.pump();
-      expect(find.text('new line'), findsOneWidget);
+      expect(find.byType(IdeCodeDiff), findsOneWidget);
     });
 
     testWidgets('an edit leaves out a count of none', (tester) async {

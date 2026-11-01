@@ -188,6 +188,50 @@ void main() {
     expect(lsp.allDiagnostics, isEmpty);
   });
 
+  test(
+    'navigation waits for remote root markers before starting a server',
+    () async {
+      final marker = Completer<bool>();
+      final lsp = LspManager(
+        root,
+        FakeCatalog([fakeServer('fake')], rootMarkers: ['project.fake']),
+        FakeProvider(),
+        pathExists: (_) => marker.future,
+        shutdownTimeout: const Duration(seconds: 2),
+      );
+      managers.add(lsp);
+      final (_, doc) = await open(lsp, 'a.fake', 'class Foo\nFoo\n');
+      expect(lsp.statusFor(doc.path), isEmpty);
+      final definition = lsp.definition(doc.path, const LspPosition(1, 1));
+      final references = lsp.references(doc.path, const LspPosition(1, 1));
+      marker.complete(true);
+
+      expect((await definition).single.range.start, const LspPosition(0, 6));
+      expect((await references).map((l) => l.range.start.line), [0, 1]);
+    },
+  );
+
+  test(
+    'closing a document while its remote root is pending cancels navigation',
+    () async {
+      final marker = Completer<bool>();
+      final provider = FakeProvider();
+      final lsp = LspManager(
+        root,
+        FakeCatalog([fakeServer('fake')], rootMarkers: ['project.fake']),
+        provider,
+        pathExists: (_) => marker.future,
+      );
+      managers.add(lsp);
+      final (_, doc) = await open(lsp, 'a.fake', 'class Foo\nFoo\n');
+      final definition = lsp.definition(doc.path, const LspPosition(1, 1));
+      lsp.closeDocument(doc.path);
+      marker.complete(true);
+      expect(await definition, isEmpty);
+      expect(lsp.statusFor(doc.path), isEmpty);
+    },
+  );
+
   test('answers: hover, navigation, completion, rename, format, symbols, '
       'code actions, commands, semantic tokens', () async {
     final lsp = manager([fakeServer('fake')]);
@@ -381,6 +425,53 @@ void main() {
     expect((capabilities['general']! as Map)['positionEncodings'], ['utf-16']);
     expect(lsp.logFor('fake'), contains('[info] fake ready'));
   });
+
+  test(
+    'first navigation waits for capabilities registered after initialized',
+    () async {
+      final lsp = manager([
+        fakeServer(
+          'fake',
+          options: {
+            'capabilities': {
+              'definitionProvider': null,
+              'referencesProvider': null,
+            },
+            'registerNavigationAfterMs': 250,
+          },
+        ),
+      ]);
+      final (_, doc) = await open(lsp, 'a.fake', 'class Foo\nFoo\n');
+      // Issue the same requests as an early F12/Shift+F12 in the real app.
+      final definition = lsp.definition(doc.path, const LspPosition(1, 1));
+      final references = lsp.references(doc.path, const LspPosition(1, 1));
+      expect((await definition).single.range.start, const LspPosition(0, 6));
+      expect((await references).map((l) => l.range.start.line), [0, 1]);
+    },
+  );
+
+  test(
+    'closing a document cancels a wait for navigation registration',
+    () async {
+      final lsp = manager([
+        fakeServer(
+          'fake',
+          options: {
+            'capabilities': {'definitionProvider': null},
+          },
+        ),
+      ]);
+      final (_, doc) = await open(lsp, 'a.fake', 'class Foo\nFoo\n');
+      await running(lsp, doc.path);
+      final definition = lsp.definition(doc.path, const LspPosition(1, 1));
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      lsp.closeDocument(doc.path);
+      expect(
+        await definition.timeout(const Duration(milliseconds: 500)),
+        isEmpty,
+      );
+    },
+  );
 
   test('dynamic registration, and watched files by glob', () async {
     final events = StreamController<LspFileEvent>.broadcast();
