@@ -10,6 +10,7 @@ import '../../theme/codicons.dart';
 import '../../workspace/editor_launcher.dart' show openExternal;
 import '../usage_prices.dart';
 import '../usage_query.dart';
+import '../usage_record.dart';
 import 'usage_charts.dart';
 import 'usage_filters.dart';
 import 'usage_style.dart';
@@ -35,25 +36,43 @@ class UsagePricesCard extends StatelessWidget {
       builder: (context, _) {
         final rows = <_Row>[];
         final seen = <String>{};
-        for (final group in UsageSummary.ranked(summary.byModel)) {
-          final upstream = group.provider ?? '';
+        // By upstream and model: the same model on two is priced apart.
+        final called = <(String, String), List<UsageCall>>{};
+        for (final call in summary.calls) {
+          (called[(call.provider, call.model)] ??= []).add(call);
+        }
+        final ranked = called.entries.toList()
+          ..sort(
+            (a, b) => b.value
+                .fold(0, (sum, call) => sum + call.total)
+                .compareTo(a.value.fold(0, (sum, call) => sum + call.total)),
+          );
+        for (final MapEntry(key: (upstream, model), value: calls) in ranked) {
           // Its own price, else any upstream's, else one to be its own.
-          final own = UsagePrices.key(upstream, group.key);
-          final any = UsagePrices.key(null, group.key);
+          final own = UsagePrices.key(upstream, model);
+          final any = UsagePrices.key(null, model);
           final key =
               prices.all.containsKey(own) || !prices.all.containsKey(any)
               ? own
               : any;
-          seen.add(key);
+          if (!seen.add(key)) continue;
           rows.add(
             _Row(
               key: key,
               upstream: upstream,
-              model: group.key,
+              model: model,
               upstreamName: key == any
                   ? l10n.ustatPriceAnyUpstream
-                  : group.detail ?? upstream,
-              spent: group.totals.cost,
+                  : calls.last.providerName ?? upstream,
+              spent: prices.costOf([
+                for (final MapEntry(key: (u, m), value: calls) in ranked)
+                  // Any upstream's: those it prices, none of their own.
+                  if (m == model &&
+                      (u == upstream ||
+                          (key == any &&
+                              !prices.all.containsKey(UsagePrices.key(u, m)))))
+                    ...calls,
+              ]),
             ),
           );
         }
@@ -79,6 +98,21 @@ class UsagePricesCard extends StatelessWidget {
               for (final row in rows)
                 _PriceRow(key: ValueKey(row.key), row: row, prices: prices),
               const SizedBox(height: 10),
+              if (rows.any(
+                (row) =>
+                    row.upstream == ClaudePrices.upstream &&
+                    !prices.all.containsKey(row.key) &&
+                    ClaudePrices.of(row.model) != null,
+              )) ...[
+                Padding(
+                  padding: const EdgeInsets.only(left: 18),
+                  child: Text(
+                    l10n.ustatPriceClaudeDefault,
+                    style: UsageText.faint,
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -213,16 +247,15 @@ class _PriceRowState extends State<_PriceRow> {
     if (_price != _shown) _fill();
   }
 
+  static String _number(double? value) {
+    if (value == null) return '';
+    final text = value.toStringAsFixed(4);
+    return text.contains('.') ? text.replaceFirst(RegExp(r'\.?0+$'), '') : text;
+  }
+
   void _fill() {
     final price = _shown = _price;
-    String number(double? value) {
-      if (value == null) return '';
-      final text = value.toStringAsFixed(4);
-      return text.contains('.')
-          ? text.replaceFirst(RegExp(r'\.?0+$'), '')
-          : text;
-    }
-
+    String number(double? value) => _number(value);
     _input.text = number(price?.input);
     _cacheRead.text = number(price?.cacheRead);
     _cacheWrite.text = number(price?.cacheWrite);
@@ -261,6 +294,7 @@ class _PriceRowState extends State<_PriceRow> {
       output: output,
       cacheRead: number(_cacheRead),
       cacheWrite: number(_cacheWrite),
+      cacheWriteLong: old?.cacheWriteLong,
       currency: currency.isEmpty ? old?.currency ?? 'USD' : currency,
       source: old?.source,
       updated: old?.updated,
@@ -272,6 +306,7 @@ class _PriceRowState extends State<_PriceRow> {
       output: next.output,
       cacheRead: next.cacheRead,
       cacheWrite: next.cacheWrite,
+      cacheWriteLong: next.cacheWriteLong,
       currency: next.currency,
       source: next.source,
       updated: DateTime.now(),
@@ -285,6 +320,12 @@ class _PriceRowState extends State<_PriceRow> {
     final row = widget.row;
     final price = _price;
     final spent = row.spent?.text;
+    // Claude Code's own, unset: priced at Anthropic's, shown in its place.
+    final fallback = price == null && row.upstream == ClaudePrices.upstream
+        ? ClaudePrices.of(row.model)
+        : null;
+    String shown(double? value, String text) =>
+        fallback == null ? text : _number(value);
     Widget field(TextEditingController controller, double width, String hint) =>
         SizedBox(
           width: width,
@@ -330,10 +371,26 @@ class _PriceRowState extends State<_PriceRow> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              field(_input, _Columns.price, l10n.ustatTokenInput),
-              field(_cacheRead, _Columns.price, '='),
-              field(_cacheWrite, _Columns.price, '='),
-              field(_output, _Columns.price, l10n.ustatTokenOutput),
+              field(
+                _input,
+                _Columns.price,
+                shown(fallback?.input, l10n.ustatTokenInput),
+              ),
+              field(
+                _cacheRead,
+                _Columns.price,
+                shown(fallback?.cacheRead, '='),
+              ),
+              field(
+                _cacheWrite,
+                _Columns.price,
+                shown(fallback?.cacheWrite, '='),
+              ),
+              field(
+                _output,
+                _Columns.price,
+                shown(fallback?.output, l10n.ustatTokenOutput),
+              ),
               field(_currency, _Columns.currency, 'USD'),
               SizedBox(
                 width: _Columns.spent,

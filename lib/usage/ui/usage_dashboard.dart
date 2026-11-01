@@ -20,6 +20,7 @@ import 'usage_charts.dart';
 import 'usage_context.dart';
 import 'usage_filters.dart';
 import 'usage_prices_card.dart';
+import 'usage_quota_section.dart';
 import 'usage_sections.dart';
 import 'usage_style.dart';
 
@@ -435,6 +436,8 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
     return [
       UsageOverview(summary: summary),
       UsageTimeSection(summary: summary, height: 160, onPickBucket: _pin),
+      if (UsageQuotaSection.of(summary) case final quota?)
+        UsageQuotaSection(quota: quota),
       UsageColumns(
         children: [
           UsageClassSection(

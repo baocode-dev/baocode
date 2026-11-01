@@ -17,6 +17,8 @@ import '../../models/model_providers.dart';
 import '../../models/model_runtime.dart';
 import '../../remote/remote_location.dart';
 import '../../settings/user_settings.dart';
+import '../../usage/claude_usage_meter.dart';
+import '../../usage/usage_ledger.dart';
 import '../../workspace/editor_launcher.dart' show openExternal;
 import '../agent_kernel.dart';
 import '../commit_attribution.dart';
@@ -222,6 +224,11 @@ class ClaudeCodeKernel
   ClaudeCodeTransport? _transport;
   ControlChannel? _control;
   StreamSubscription<Map<String, Object?>>? _subscription;
+
+  /// Keeps the calls of a process on Claude Code's own models (Settings →
+  /// Usage): those to a provider of the user's go through the model proxy,
+  /// which keeps them.
+  ClaudeUsageMeter? _usage;
   Future<void>? _starting;
 
   /// The build that exited too old as it started, and what it printed:
@@ -615,6 +622,14 @@ class ClaudeCodeKernel
         return;
       }
       _transport = transport;
+      _usage = custom == null
+          ? ClaudeUsageMeter(
+              record: (call) => UsageLedger.current.record(call),
+              session: () => _sessionId,
+              providerName: 'Claude Code',
+              quota: () => _quota,
+            )
+          : null;
       final control = _control = ControlChannel(transport.write);
       _subscription = transport.messages.listen(_receive);
       _applyInitialize(
@@ -712,6 +727,8 @@ class ClaudeCodeKernel
   }
 
   void _teardown() {
+    _usage?.close();
+    _usage = null;
     unawaited(_subscription?.cancel());
     _subscription = null;
     _control?.failAll('Claude Code stopped');
@@ -1041,6 +1058,7 @@ class ClaudeCodeKernel
     _turn = id;
     _limitHit(null);
     _turnStarted = DateTime.now();
+    _usage?.requested();
     _translator.turnId = id;
     emit(TurnStarted(nextSeq, id, unprompted: unprompted));
     _translator.begin();
@@ -1756,6 +1774,7 @@ class ClaudeCodeKernel
 
   void _receive(Map<String, Object?> message) {
     if (_control?.receive(message) ?? false) return;
+    _usage?.receive(message);
     switch (message['type']) {
       case ClaudeExit.type:
         _exited(
@@ -2170,6 +2189,36 @@ class ClaudeCodeKernel
       return null;
     }
   }
+
+  /// What the account it is logged in as is called, for its calls kept:
+  /// its Claude plan's, else Anthropic's API.
+  static String? _planName(Object? account) {
+    if (account is! Map) return null;
+    if (account['subscriptionType'] case final String plan
+        when plan.trim().isNotEmpty) {
+      final name = plan.trim();
+      return 'Claude ${name[0].toUpperCase()}${name.substring(1)}';
+    }
+    return account['apiKeySource'] != null ? 'Anthropic API' : null;
+  }
+
+  /// The plan's limits as last told, by their type (`five_hour`…), for the
+  /// calls kept.
+  static Map<String, double> get _quota => {
+    for (final limit in _limits)
+      _limitTypes[limit.label] ?? limit.label: limit.utilization,
+  };
+
+  static final _limitTypes = {
+    for (final type in const [
+      'five_hour',
+      'seven_day',
+      'seven_day_opus',
+      'seven_day_sonnet',
+      'seven_day_overage_included',
+    ])
+      _limitLabel(type): type,
+  };
 
   static String _limitLabel(Object? type) => switch (type) {
     'five_hour' => '5-hour limit',
@@ -2769,6 +2818,9 @@ class ClaudeCodeKernel
     // Claude Code's own models are those it lists set up as the user has
     // it: one on a provider lists what the provider's names stand in for.
     final own = _launchedProvider.isEmpty;
+    if (_planName(response['account']) case final plan?) {
+      _usage?.providerName = plan;
+    }
     final listed = [
       for (final raw in response['models'] as List? ?? const [])
         if (raw is Map) raw.cast<Object?, Object?>(),

@@ -149,6 +149,10 @@ UsageLedger _ledger(DateTime now) {
         key: _shape.tools[key]!,
     },
   );
+  // The first conversation's on a Claude plan: its limits as they stood
+  // after each call, the five hours' starting over.
+  var five = 0.0, week = 0.18;
+  DateTime? fiveFrom;
   for (var h = 47; h >= 0; h--) {
     final hour = now.subtract(Duration(hours: h));
     final busy = h % 24 < 14 ? 1 + random.nextInt(4) : random.nextInt(2);
@@ -172,6 +176,15 @@ UsageLedger _ledger(DateTime now) {
           results[s][tool] = (results[s][tool] ?? 0) + brought;
         }
         final read = (context * (0.6 + random.nextDouble() * 0.35)).round();
+        final plan = s == 0;
+        if (plan) {
+          if (fiveFrom == null || at.difference(fiveFrom).inHours >= 5) {
+            fiveFrom = at;
+            five = 0;
+          }
+          five = math.min(1, five + 0.006 + random.nextDouble() * 0.008);
+          week = math.min(1, week + 0.0009 + random.nextDouble() * 0.0012);
+        }
         ledger.record(
           UsageCall(
             at: at,
@@ -180,8 +193,17 @@ UsageLedger _ledger(DateTime now) {
             headers: Duration(milliseconds: 120 + random.nextInt(300)),
             status: random.nextInt(40) == 0 ? 429 : 200,
             error: null,
-            provider: s == 2 ? 'glm' : 'relay',
-            providerName: s == 2 ? '智谱 GLM' : 'AnyRouter',
+            provider: switch (s) {
+              0 => 'claude-code',
+              1 => 'relay',
+              _ => 'glm',
+            },
+            providerName: switch (s) {
+              0 => 'Claude Max',
+              1 => 'AnyRouter',
+              _ => '智谱 GLM',
+            },
+            quota: plan ? {'five_hour': five, 'seven_day': week} : const {},
             protocol: s == 2 ? 'openaiChat' : 'anthropic',
             model: s == 2
                 ? 'glm-5'
@@ -360,9 +382,10 @@ void main() {
     );
     ExtensionSwitches.current = () => switches;
     ExtensionSwitches.save = (next) async => switches = next;
-    // Some models priced: an upstream's own, any upstream's.
+    // Some models priced on their upstreams; Claude Code's own at
+    // Anthropic's.
     UsagePrices.current = UsagePrices({
-      '*/claude-opus-5-5': ModelPrice(
+      'relay/claude-opus-5-5': ModelPrice(
         input: 5,
         output: 25,
         cacheRead: 0.5,
