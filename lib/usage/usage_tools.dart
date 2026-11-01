@@ -11,6 +11,7 @@ import '../models/model_providers.dart';
 import 'usage_ledger.dart';
 import 'usage_prices.dart';
 import 'usage_query.dart';
+import 'usage_quota.dart';
 import 'usage_record.dart';
 import 'usage_skill.dart';
 
@@ -86,15 +87,15 @@ abstract final class UsageTools {
   }
 
   static const _reportDescription =
-      "Reports the model calls BaoCode kept for the user's conversations on "
-      'their custom upstreams: tokens (input, cache read, cache write, '
+      "Reports the model calls BaoCode kept for the user's conversations, "
+      "on Claude Code's own models (a Claude plan, with its limits as they "
+      'stood after each call) and on custom upstreams: tokens (input, cache read, cache write, '
       'output), cache hit rate, time to first token, duration, output speed '
       '(tok/s), failures and cost (at the prices in Settings → Usage), by '
       'model and by agent, what filled the latest context, and the latest '
       'calls one by one. Without `session` it reports this conversation; '
       'give another conversation\'s id, or `"all"` for every conversation '
-      'over the last `days`. Calls to Claude Code\'s own models are not '
-      'kept.';
+      'over the last `days`.';
 
   static const _reportSchema = <String, Object?>{
     'type': 'object',
@@ -251,9 +252,8 @@ abstract final class UsageTools {
         'scope': all ? 'all, last $days days' : 'conversation $session',
         'calls': 0,
         'note':
-            'No calls kept: BaoCode keeps the calls to custom upstreams '
-            '(not to Claude Code\'s own models), while Settings → Usage '
-            'keeps them.',
+            'No calls kept: Settings → Usage keeps them while it is on, '
+            'from the sessions started since.',
       };
     }
     final summary = UsageSummary.of(
@@ -305,6 +305,20 @@ abstract final class UsageTools {
             for (final (key, value) in context.parts)
               if (value > 0) key: value,
           },
+        },
+      if (UsageQuota.of(summary.calls, prices: prices) case final quota
+          when !quota.isEmpty)
+        'claudePlanLimits': {
+          for (final window in quota.windows)
+            window.type: {
+              'nowPercent': (window.now * 100).round(),
+              'usedPercentInPeriod': (window.used * 100).round(),
+              'peakPercent': (window.peak * 100).round(),
+              'resets': window.resets,
+            },
+          if (quota.tokensPerPercent case final tokens?)
+            'tokensPerPercentOfWeek': tokens.round(),
+          'apiPriceCostPerPercentOfWeek': ?quota.costPerPercent?.byCurrency,
         },
       'latestCalls': [
         for (final call in summary.calls.reversed.take(listed))
@@ -374,6 +388,14 @@ abstract final class UsageTools {
       );
     }
     Map<String, Object?> upstreamOf(String id) {
+      // Claude Code's own: Anthropic's, its prices known here.
+      if (id == ClaudePrices.upstream) {
+        return {
+          'upstream': id,
+          'upstreamName': "Claude Code's own (Anthropic)",
+          'pricingPage': ClaudePrices.source,
+        };
+      }
       final upstream = upstreams?.provider(id);
       return {
         'upstream': id,
@@ -392,6 +414,11 @@ abstract final class UsageTools {
             ...upstreamOf(entry.upstream),
             'calls': entry.calls,
             'price': ?prices.of(entry.upstream, entry.model)?.toJson(),
+            if (entry.upstream == ClaudePrices.upstream &&
+                prices.all[UsagePrices.key(entry.upstream, entry.model)] ==
+                    null &&
+                prices.all[UsagePrices.key(null, entry.model)] == null)
+              'priceIsBuiltInDefault': true,
           },
       ],
       'prices': {

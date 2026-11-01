@@ -32,6 +32,8 @@ import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/kernel/queued_messages.dart';
 import 'package:baocode/kernel/transcript.dart';
+import 'package:baocode/usage/usage_ledger.dart';
+import 'package:baocode/usage/usage_prices.dart';
 
 /// Lines Claude Code 2.1.281 printed (recorded, with paths and account
 /// details replaced).
@@ -3112,6 +3114,47 @@ void main() {
       expect(
         usage.segments.map((s) => s.kind).toSet(),
         containsAll([ContextKind.used, ContextKind.free, ContextKind.buffer]),
+      );
+      kernel.dispose();
+    });
+
+    test("keeps the calls on Claude Code's own models, timed, and priced "
+        "at Anthropic's as the CLI prices them", () async {
+      final ledger = UsageLedger.current = UsageLedger(MemoryUsageStorage());
+      addTearDown(
+        () => UsageLedger.current = UsageLedger(MemoryUsageStorage()),
+      );
+      final cli = FakeCli();
+      final (:kernel, transcript: _, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      final messages = recorded('question');
+      final result = messages.indexWhere((m) => m['type'] == 'result');
+      for (final message in messages.take(result + 1)) {
+        if (message['type'] case 'control_response' || 'control_request') {
+          continue;
+        }
+        cli.push(message);
+      }
+      await pumpEventQueue();
+      ledger.flush();
+      final calls = await ledger.range();
+      // Its two requests; the CLI's totals no more than theirs.
+      expect(calls, hasLength(2));
+      expect(calls.map((c) => (c.provider, c.model)).toSet(), {
+        ('claude-code', 'claude-sonnet-5'),
+      });
+      expect(calls.map((c) => c.output), [122, 5]);
+      expect(calls.first.cacheWriteLong, 6455);
+      expect(calls.first.stopReason, 'tool_use');
+      expect(calls.first.firstToken, isNotNull);
+      expect(calls.first.toolCalls, isNotEmpty);
+      // The plan's limits, told between them.
+      expect(calls.last.quota, isNotEmpty);
+      // What the CLI said they cost (its modelUsage's costUSD).
+      expect(
+        UsagePrices().costOf(calls).byCurrency['USD'],
+        closeTo(0.0425954, 1e-9),
       );
       kernel.dispose();
     });

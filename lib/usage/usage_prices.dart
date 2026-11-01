@@ -14,15 +14,28 @@ class ModelPrice {
     required this.output,
     this.cacheRead,
     this.cacheWrite,
+    this.cacheWriteLong,
     this.currency = 'USD',
     this.source,
     this.updated,
+    this.fast = 1,
+    this.longPrompt,
   });
 
   final double input;
   final double output;
   final double? cacheRead;
   final double? cacheWrite;
+
+  /// Of the cache written, that kept an hour's; [cacheWrite]'s where not
+  /// given.
+  final double? cacheWriteLong;
+
+  /// What a call in fast mode costs, times its price.
+  final double fast;
+
+  /// Its price for prompts of more than so many tokens, where it has one.
+  final ({int over, ModelPrice price})? longPrompt;
 
   /// ISO 4217: USD, CNY…
   final String currency;
@@ -32,18 +45,27 @@ class ModelPrice {
   final DateTime? updated;
 
   /// What [call] cost.
-  double cost(UsageCall call) =>
-      (call.input * input +
-          call.cacheRead * (cacheRead ?? input) +
-          call.cacheWrite * (cacheWrite ?? input) +
-          call.output * output) /
-      1e6;
+  double cost(UsageCall call) {
+    if (longPrompt case (:final over, :final price) when call.prompt > over) {
+      return price.cost(call);
+    }
+    final long = call.cacheWriteLong.clamp(0, call.cacheWrite);
+    final written = cacheWrite ?? input;
+    return (call.input * input +
+            call.cacheRead * (cacheRead ?? input) +
+            (call.cacheWrite - long) * written +
+            long * (cacheWriteLong ?? written) +
+            call.output * output) /
+        1e6 *
+        (call.fast ? fast : 1);
+  }
 
   Map<String, Object?> toJson() => {
     'input': input,
     'output': output,
     'cacheRead': ?cacheRead,
     'cacheWrite': ?cacheWrite,
+    'cacheWriteLong': ?cacheWriteLong,
     'currency': currency,
     'source': ?source,
     'updated': ?updated?.toIso8601String(),
@@ -65,6 +87,7 @@ class ModelPrice {
       output: output,
       cacheRead: number(json['cacheRead']),
       cacheWrite: number(json['cacheWrite']),
+      cacheWriteLong: number(json['cacheWriteLong']),
       currency: currency is String && currency.trim().isNotEmpty
           ? currency.trim().toUpperCase()
           : 'USD',
@@ -86,6 +109,8 @@ class ModelPrice {
       other.output == output &&
       other.cacheRead == cacheRead &&
       other.cacheWrite == cacheWrite &&
+      other.cacheWriteLong == cacheWriteLong &&
+      other.fast == fast &&
       other.currency == currency &&
       other.source == source &&
       other.updated == updated;
@@ -96,6 +121,8 @@ class ModelPrice {
     output,
     cacheRead,
     cacheWrite,
+    cacheWriteLong,
+    fast,
     currency,
     source,
     updated,
@@ -164,9 +191,12 @@ class UsagePrices extends ChangeNotifier {
     );
   }
 
-  /// [model]'s price on [upstream]: its own, else any upstream's.
+  /// [model]'s price on [upstream]: its own, else any upstream's; Claude
+  /// Code's own models at Anthropic's ([ClaudePrices]) where not set.
   ModelPrice? of(String upstream, String model) =>
-      _prices[key(upstream, model)] ?? _prices[key(null, model)];
+      _prices[key(upstream, model)] ??
+      _prices[key(null, model)] ??
+      (upstream == ClaudePrices.upstream ? ClaudePrices.of(model) : null);
 
   ModelPrice? priceOf(UsageCall call) => of(call.provider, call.model);
 
@@ -254,4 +284,63 @@ class UsagePrices extends ChangeNotifier {
       _ => '$number $currency',
     };
   }
+}
+
+/// What Anthropic's API asks for Claude's models, a million tokens: Claude
+/// Code's own calls priced at it where the user set no price of theirs
+/// (what a Claude plan's use would have cost on the API). As listed on
+/// [source] in October 2026; the cache written five minutes at 1.25 times
+/// the input, an hour at twice.
+abstract final class ClaudePrices {
+  /// Claude Code's own (builtinProviderId).
+  static const upstream = 'claude-code';
+
+  static const source =
+      'https://platform.claude.com/docs/en/about-claude/pricing';
+
+  static ModelPrice _price(
+    double input,
+    double output,
+    double cacheRead, {
+    double fast = 1,
+    ({int over, ModelPrice price})? longPrompt,
+  }) => ModelPrice(
+    input: input,
+    output: output,
+    cacheRead: cacheRead,
+    cacheWrite: input * 1.25,
+    cacheWriteLong: input * 2,
+    source: source,
+    fast: fast,
+    longPrompt: longPrompt,
+  );
+
+  /// By the model's name as Anthropic gives it, without a date.
+  static final Map<String, ModelPrice> prices = {
+    'claude-fable-5-1': _price(10, 50, 0.25),
+    'claude-mythos-5-1': _price(10, 50, 0.25),
+    'claude-fable-5': _price(10, 50, 1),
+    'claude-mythos-5': _price(10, 50, 1),
+    'claude-opus-5-5': _price(4, 20, 0.2, fast: 2),
+    'claude-opus-5': _price(5, 25, 0.5, fast: 2),
+    'claude-opus-4-8': _price(5, 25, 0.5, fast: 2),
+    'claude-opus-4-7': _price(5, 25, 0.5),
+    'claude-opus-4-6': _price(5, 25, 0.5),
+    'claude-sonnet-5-5': _price(2, 10, 0.2),
+    'claude-sonnet-5': _price(2, 10, 0.2),
+    'claude-sonnet-4-6': _price(3, 15, 0.3),
+    'claude-haiku-5-5': _price(
+      0.1,
+      0.5,
+      0.01,
+      longPrompt: (over: 100000, price: _price(0.5, 2.5, 0.05)),
+    ),
+    'claude-haiku-4-5': _price(1, 5, 0.1),
+  };
+
+  /// [model]'s, by its name without what may follow it (`[1m]`, a date).
+  static ModelPrice? of(String model) =>
+      prices[model
+          .replaceFirst(RegExp(r'\[[^\]]*\]$'), '')
+          .replaceFirst(RegExp(r'-\d{8}$'), '')];
 }

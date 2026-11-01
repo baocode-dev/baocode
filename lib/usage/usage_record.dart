@@ -304,10 +304,11 @@ List<UsageCall> decodeUsageLines(Iterable<String> lines) {
   return [for (final json in calls) ?UsageCall.fromJson(json, shapes: shapes)];
 }
 
-/// One request through the model proxy to a custom upstream, as it was
-/// asked and answered: who asked (the conversation, its agent), of what
-/// (the upstream, the model), what it took (tokens, the cache, time) and
-/// how it ended.
+/// One request to a model, through the model proxy to a custom upstream or
+/// Claude Code's own ([provider] `claude-code`, see ClaudeUsageMeter), as
+/// it was asked and answered: who asked (the conversation, its agent), of
+/// what (the upstream, the model), what it took (tokens, the cache, time)
+/// and how it ended.
 ///
 /// Kept a line of JSON each, its keys short: there are many.
 class UsageCall {
@@ -337,6 +338,7 @@ class UsageCall {
     this.output = 0,
     this.cacheRead = 0,
     this.cacheWrite = 0,
+    this.cacheWriteLong = 0,
     this.reasoning = 0,
     this.stopReason,
     this.context,
@@ -352,6 +354,7 @@ class UsageCall {
     this.requestBytes = 0,
     this.responseBytes = 0,
     this.traceId,
+    this.quota = const {},
   });
 
   /// When it was asked.
@@ -410,6 +413,9 @@ class UsageCall {
   final int cacheRead;
   final int cacheWrite;
 
+  /// Of [cacheWrite], those kept an hour (priced above the five minutes').
+  final int cacheWriteLong;
+
   /// Of [output], the reasoning (where the upstream tells it).
   final int reasoning;
   final String? stopReason;
@@ -447,6 +453,10 @@ class UsageCall {
 
   /// Its exchange as it went, kept whole while debugging (UsageTrace).
   final String? traceId;
+
+  /// A Claude plan's limits as they stood after it, by window
+  /// (`five_hour`, `seven_day`…), 0 to 1.
+  final Map<String, double> quota;
 
   /// All of its input: read, written and neither.
   int get prompt => input + cacheRead + cacheWrite;
@@ -497,6 +507,7 @@ class UsageCall {
     if (output > 0) 'o': output,
     if (cacheRead > 0) 'cr': cacheRead,
     if (cacheWrite > 0) 'cw': cacheWrite,
+    if (cacheWriteLong > 0) 'cw1': cacheWriteLong,
     if (reasoning > 0) 'rt': reasoning,
     'sr': ?stopReason,
     if (context?.toJson() case final context? when context.isNotEmpty)
@@ -516,6 +527,11 @@ class UsageCall {
     if (requestBytes > 0) 'qb': requestBytes,
     if (responseBytes > 0) 'ab': responseBytes,
     'tid': ?traceId,
+    if (quota.isNotEmpty)
+      'q': {
+        for (final MapEntry(:key, :value) in quota.entries)
+          key: (value * 1000).round() / 1000,
+      },
   };
 
   String encode() => jsonEncode(toJson());
@@ -575,6 +591,7 @@ class UsageCall {
       output: count('o'),
       cacheRead: count('cr'),
       cacheWrite: count('cw'),
+      cacheWriteLong: count('cw1'),
       reasoning: count('rt'),
       stopReason: text('sr'),
       context: UsageContext.fromJson(json['cx'], shapes: shapes),
@@ -590,6 +607,13 @@ class UsageCall {
       requestBytes: count('qb'),
       responseBytes: count('ab'),
       traceId: text('tid'),
+      quota: switch (json['q']) {
+        final Map<Object?, Object?> quota => {
+          for (final MapEntry(:key, :value) in quota.entries)
+            if (value is num) '$key': value.toDouble(),
+        },
+        _ => const {},
+      },
     );
   }
 
@@ -620,6 +644,7 @@ class UsageCall {
     output: output,
     cacheRead: cacheRead,
     cacheWrite: cacheWrite,
+    cacheWriteLong: cacheWriteLong,
     reasoning: reasoning,
     stopReason: stopReason,
     messages: messages,
@@ -628,6 +653,7 @@ class UsageCall {
     project: project,
     account: account,
     traceId: traceId,
+    quota: quota,
   );
 
   UsageCall labeled({String? sessionTitle, String? project, String? task}) =>
@@ -657,6 +683,7 @@ class UsageCall {
         output: output,
         cacheRead: cacheRead,
         cacheWrite: cacheWrite,
+        cacheWriteLong: cacheWriteLong,
         reasoning: reasoning,
         stopReason: stopReason,
         context: context,
@@ -672,5 +699,51 @@ class UsageCall {
         requestBytes: requestBytes,
         responseBytes: responseBytes,
         traceId: traceId,
+        quota: quota,
       );
+
+  UsageCall withQuota(Map<String, double> quota) => UsageCall(
+    at: at,
+    duration: duration,
+    headers: headers,
+    firstToken: firstToken,
+    status: status,
+    error: error,
+    provider: provider,
+    providerName: providerName,
+    protocol: protocol,
+    model: model,
+    upstreamModel: upstreamModel,
+    effort: effort,
+    fast: fast,
+    stream: stream,
+    session: session,
+    requestClass: requestClass,
+    agentId: agentId,
+    parentAgentId: parentAgentId,
+    agentType: agentType,
+    promptId: promptId,
+    compacted: compacted,
+    input: input,
+    output: output,
+    cacheRead: cacheRead,
+    cacheWrite: cacheWrite,
+    cacheWriteLong: cacheWriteLong,
+    reasoning: reasoning,
+    stopReason: stopReason,
+    context: context,
+    messages: messages,
+    toolCount: toolCount,
+    toolResults: toolResults,
+    toolCalls: toolCalls,
+    toolTimes: toolTimes,
+    sessionTitle: sessionTitle,
+    project: project,
+    task: task,
+    account: account,
+    requestBytes: requestBytes,
+    responseBytes: responseBytes,
+    traceId: traceId,
+    quota: quota,
+  );
 }
