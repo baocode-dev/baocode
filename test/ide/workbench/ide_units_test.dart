@@ -277,11 +277,18 @@ void main() {
     await write('node_modules/m/index.js', '');
     await write('.dart_tool/cache', '');
     await write('.git/HEAD', 'ref: refs/heads/topic\n');
+    // Without Git's list, `.gitignore` files are read as Git would.
+    await write('.gitignore', 'generated/\n');
+    await write('lib/.gitignore', '*.g.dart\n');
+    await write('generated/a.dart', '');
+    await write('lib/src/b.g.dart', '');
     final listing = await listProjectFiles(IdeFileService(root), root);
     expect(
       [for (final path in listing.paths) p.relative(path, from: root)],
       [
+        '.gitignore',
         'README.md',
+        p.join('lib', '.gitignore'),
         p.join('lib', 'main.dart'),
         p.join('lib', 'src', 'deep', 'x.dart'),
       ],
