@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show precisionErrorTolerance;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, precisionErrorTolerance;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -1813,6 +1814,26 @@ class MarkdownEditorState extends State<MarkdownEditor>
       }
       return KeyEventResult.handled;
     }
+    // The numpad's 7 and 1 are Home and End with NumLock off. Windows maps
+    // them by scan code to numpad7 and numpad1, so the line-break shortcuts
+    // never see them; with NumLock on they are digits, and stay digits.
+    if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux) {
+      final forward = switch (key) {
+        LogicalKeyboardKey.numpad7 => false,
+        LogicalKeyboardKey.numpad1 => true,
+        _ => null,
+      };
+      if (forward != null &&
+          !keyboard.lockModesEnabled.contains(KeyboardLockMode.numLock)) {
+        final selection = controller.selection;
+        if (selection.isValid) {
+          final (start, end) = _visualLine(selection.extentOffset);
+          _moveTo(forward ? end : start, extend: keyboard.isShiftPressed);
+        }
+        return KeyEventResult.handled;
+      }
+    }
     return KeyEventResult.ignored;
   }
 
@@ -2190,6 +2211,17 @@ class MarkdownEditorState extends State<MarkdownEditor>
       if (!selection.isValid) return;
       final (start, end) = _visualLine(selection.extentOffset);
       _moveTo(intent.forward ? end : start, extend: !intent.collapseSelection);
+    }, () => _movable),
+    // Home and End: on macOS the platform's defaults map them here (they
+    // scroll the document, which an editor of text does not), so move the
+    // caret to the line's ends as on the other platforms.
+    ScrollToDocumentBoundaryIntent: _Act<ScrollToDocumentBoundaryIntent>((
+      intent,
+    ) {
+      final selection = controller.selection;
+      if (!selection.isValid) return;
+      final (start, end) = _visualLine(selection.extentOffset);
+      _moveTo(intent.forward ? end : start, extend: false);
     }, () => _movable),
     ExpandSelectionToLineBreakIntent: _Act<ExpandSelectionToLineBreakIntent>((
       intent,
