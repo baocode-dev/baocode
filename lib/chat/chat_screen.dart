@@ -517,6 +517,7 @@ class _ChatScreenState extends State<ChatScreen>
     ChatContextKeys.hasToolConfirmation =>
       _session.pendingInteraction is ApprovalRequest,
     ChatContextKeys.subagentVisible => _agentShown != null,
+    ChatContextKeys.asideVisible => widget.back != null && _agentShown == null,
     _ => null,
   };
 
@@ -536,7 +537,10 @@ class _ChatScreenState extends State<ChatScreen>
     ChatCommandIds.toggleContextPanel: _toggleContextPanel,
     if (_renames)
       ChatCommandIds.renameAgent: () => setState(() => _renaming = true),
-    if (_agentShown != null) ChatCommandIds.closeSubagent: _back,
+    if (_agentShown != null)
+      ChatCommandIds.closeSubagent: _back
+    else if (widget.back case final back?)
+      ChatCommandIds.closeSubagent: back.onBack,
   };
 
   Widget _buildTitleBar() {

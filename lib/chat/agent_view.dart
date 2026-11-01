@@ -96,7 +96,7 @@ class SubagentHeader extends StatelessWidget {
   final List<String> trail;
 
   /// What the back button says, where it goes back to another
-  /// conversation than this one's own: that one's title. Esc is not it.
+  /// conversation than this one's own: that one's title.
   final String? backText;
 
   /// Goes back to [depth] subagents in: 0 for the session's own.
@@ -131,6 +131,12 @@ class SubagentHeader extends StatelessWidget {
                   child: IdeBackButton.compact(
                     label: context.l10n.chatBack,
                     text: text,
+                    // Esc too (see ChatContextKeys.asideVisible).
+                    hover: ChatKeys.titleWithKey(
+                      context.l10n.chatBack,
+                      ChatCommandIds.closeSubagent,
+                      const {ChatContextKeys.asideVisible: true},
+                    ),
                     focusNode: backFocusNode,
                     onTap: () => onBack(trail.length - 1),
                   ),

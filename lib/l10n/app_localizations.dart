@@ -3716,6 +3716,18 @@ abstract class AppLocalizations {
   /// **'Ask in a conversation of its own, beside this one'**
   String get btwCommandDetail;
 
+  /// The arrow on a sidebar row with conversations asked beside it (/btw) listed under it: no longer lists them.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide /btw Conversations'**
+  String get sidebarFoldAsides;
+
+  /// The arrow, or the tag, on a sidebar row whose conversations asked beside it (/btw) are hidden: lists them under it again.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Show its /btw conversation} other{Show its {count} /btw conversations}}'**
+  String sidebarUnfoldAsides(int count);
+
   /// No description provided for @sidebarShowMore.
   ///
   /// In en, this message translates to:

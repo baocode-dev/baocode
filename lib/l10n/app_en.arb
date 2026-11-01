@@ -1096,6 +1096,19 @@
   "@btwCommandDetail": {
     "description": "The /btw command in the composer's command list: what follows is asked in a new conversation copied from this one, listed under it."
   },
+  "sidebarFoldAsides": "Hide /btw Conversations",
+  "@sidebarFoldAsides": {
+    "description": "The arrow on a sidebar row with conversations asked beside it (/btw) listed under it: no longer lists them."
+  },
+  "sidebarUnfoldAsides": "{count, plural, =1{Show its /btw conversation} other{Show its {count} /btw conversations}}",
+  "@sidebarUnfoldAsides": {
+    "description": "The arrow, or the tag, on a sidebar row whose conversations asked beside it (/btw) are hidden: lists them under it again.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sidebarShowMore": "Show more ({count})",
   "@sidebarShowMore": {
     "placeholders": {

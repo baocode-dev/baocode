@@ -1987,6 +1987,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get btwCommandDetail => '在旁边另开一个对话提问';
 
   @override
+  String get sidebarFoldAsides => '收起 /btw 子对话';
+
+  @override
+  String sidebarUnfoldAsides(int count) {
+    return '展开 $count 个 /btw 子对话';
+  }
+
+  @override
   String sidebarShowMore(int count) {
     return '显示更多（$count）';
   }

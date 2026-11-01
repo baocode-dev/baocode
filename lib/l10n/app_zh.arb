@@ -603,6 +603,8 @@
   "sidebarDetachAside": "从主对话分离",
   "sidebarDeleteAsidesToo": "它的 {count} 个 /btw 子对话也会一并删除。",
   "btwCommandDetail": "在旁边另开一个对话提问",
+  "sidebarFoldAsides": "收起 /btw 子对话",
+  "sidebarUnfoldAsides": "展开 {count} 个 /btw 子对话",
   "sidebarShowMore": "显示更多（{count}）",
   "sidebarShowLess": "收起",
   "sidebarNewAgentHere": "在此新建对话",

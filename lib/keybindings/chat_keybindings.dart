@@ -195,6 +195,10 @@ abstract final class ChatContextKeys {
   /// A subagent's conversation shows over the chat's.
   static const subagentVisible = 'chatSubagentVisible';
 
+  /// The chat is a conversation asked beside another (`/btw`), shown in
+  /// its place, and no subagent's shows over it.
+  static const asideVisible = 'chatAsideVisible';
+
   /// The focus is on a prompt's options (a question, an approval, a plan).
   static const inInteraction = 'inChatInteraction';
 
@@ -537,6 +541,25 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     command: ChatCommandIds.closeSubagent,
     when: '${ChatContextKeys.subagentVisible} && !inputFocus',
   ),
+  // From a /btw conversation back to the one it was asked beside, as from
+  // a subagent; in its input too while it has nothing to take the key.
+  const KeybindingEntry(
+    key: 'escape',
+    command: ChatCommandIds.closeSubagent,
+    when:
+        '${ChatContextKeys.asideVisible} && !inputFocus && '
+        '!${ChatContextKeys.inInteraction}',
+  ),
+  const KeybindingEntry(
+    key: 'escape',
+    command: ChatCommandIds.closeSubagent,
+    when:
+        '${ChatContextKeys.asideVisible} && $_input && '
+        '!${ChatContextKeys.inputHasText} && '
+        '!${ChatContextKeys.requestInProgress} && '
+        '!${ChatContextKeys.currentlyEditing} && '
+        '!${ChatContextKeys.suggestWidgetVisible}',
+  ),
   // Its input's.
   const KeybindingEntry(
     key: 'enter',
@@ -708,6 +731,7 @@ const Set<String> chatContextKeys = {
   ChatContextKeys.currentlyEditing,
   ChatContextKeys.hasToolConfirmation,
   ChatContextKeys.subagentVisible,
+  ChatContextKeys.asideVisible,
   ChatContextKeys.inInteraction,
   ChatContextKeys.sidePanelFocus,
 };

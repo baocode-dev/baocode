@@ -461,9 +461,19 @@ class _SidebarState extends State<Sidebar>
     for (final group in _groups())
       for (final thread in _rows(group).threads) ...[
         thread,
-        ...?_asides[thread],
+        ..._asidesListed(thread),
       ],
   ];
+
+  /// The asides listed under [thread]: folded, none but the one shown.
+  List<AgentThread> _asidesListed(AgentThread thread) {
+    final asides = _asides[thread] ?? const <AgentThread>[];
+    if (!_workspace.asidesFolded(thread)) return asides;
+    return [
+      for (final aside in asides)
+        if (identical(aside, _current)) aside,
+    ];
+  }
 
   /// Whether [group] folds: not the only project's, which is all there is.
   bool _collapsible(_Group group) => group.project == null || _projectsShown;
@@ -1572,7 +1582,7 @@ class _SidebarState extends State<Sidebar>
               thread: thread,
             ),
           );
-          for (final aside in _asides[thread] ?? const <AgentThread>[]) {
+          for (final aside in _asidesListed(thread)) {
             rows.add(
               _ListRow(
                 _ListRowKind.thread,
@@ -1901,6 +1911,14 @@ class _SidebarState extends State<Sidebar>
         }),
       ),
       onDetach: aside ? () => _workspace.detach(thread) : null,
+      asides: switch (_asides[thread]?.length) {
+        final count? when !aside => (
+          count: count,
+          folded: _workspace.asidesFolded(thread),
+          onToggle: () => _workspace.toggleAsidesFolded(thread),
+        ),
+        _ => null,
+      },
       onDelete: () => unawaited(_confirmDelete([thread])),
     );
   }
@@ -3250,6 +3268,7 @@ class _ThreadRow extends StatelessWidget {
     required this.onFork,
     required this.onDelete,
     this.onDetach,
+    this.asides,
     required this.menuTargets,
     required this.onContextMenu,
     required this.onPinAll,
@@ -3302,6 +3321,11 @@ class _ThreadRow extends StatelessWidget {
   /// Given, it is a conversation asked beside another (`/btw`), listed
   /// under that one: makes it one of its own. Not pinned, nor dragged.
   final VoidCallback? onDetach;
+
+  /// Given, it has [count] asides listed under it: while hovered, an
+  /// arrow in its status's place folds them, or unfolds them; folded, a
+  /// tag at its end says how many and unfolds them too.
+  final ({int count, bool folded, VoidCallback onToggle})? asides;
   final List<AgentThread> Function() menuTargets;
   final VoidCallback onContextMenu;
   final void Function(List<AgentThread>, bool) onPinAll;
@@ -3445,7 +3469,18 @@ class _ThreadRow extends StatelessWidget {
                         child: SizedBox(
                           width: 14,
                           child: Center(
-                            child: StatusIndicator(thread.shownStatus),
+                            child: switch (asides) {
+                              final asides? when active => _AsidesArrow(
+                                folded: asides.folded,
+                                tooltip: asides.folded
+                                    ? context.l10n.sidebarUnfoldAsides(
+                                        asides.count,
+                                      )
+                                    : context.l10n.sidebarFoldAsides,
+                                onTap: asides.onToggle,
+                              ),
+                              _ => StatusIndicator(thread.shownStatus),
+                            },
                           ),
                         ),
                       ),
@@ -3600,6 +3635,28 @@ class _ThreadRow extends StatelessWidget {
     Widget gap(Widget child) =>
         Padding(padding: const EdgeInsets.only(left: 6), child: child);
     return [
+      // The last to give way: what is not listed under it.
+      if (asides case (:final count, folded: true, :final onToggle))
+        GiveWay(
+          priority: 4,
+          gap(
+            IdeHover(
+              message: l10n.sidebarUnfoldAsides(count),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onToggle,
+                  child: _TagPill(
+                    color: selected ? foreground : AppColors.textMuted,
+                    icon: Codicons.commentDiscussion,
+                    label: '$count',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       if (stashes.isNotEmpty)
         GiveWay(
           priority: 3,
@@ -3839,6 +3896,49 @@ class _StashTag extends StatelessWidget {
       },
     );
   }
+}
+
+/// On a conversation's row, hovered: the arrow that folds the asides
+/// listed under it, as a group's folds its rows (see [_GroupHeader]).
+class _AsidesArrow extends StatelessWidget {
+  const _AsidesArrow({
+    required this.folded,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final bool folded;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => IdeHover(
+    message: tooltip,
+    child: Semantics(
+      button: true,
+      expanded: !folded,
+      label: tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: SizedBox.square(
+            dimension: 14,
+            child: AnimatedRotation(
+              turns: folded ? 0 : 0.25,
+              duration: const Duration(milliseconds: 150),
+              child: Icon(
+                Icons.chevron_right_rounded,
+                size: 15,
+                color: AppColors.textMuted,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// A conversation's row's tag: [label] in [color], on a pill of it, faint.

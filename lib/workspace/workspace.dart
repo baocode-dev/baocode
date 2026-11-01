@@ -2466,6 +2466,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
           }
         }
       }
+      if (sidebar['foldedAsides'] case final List<Object?> folded) {
+        _foldedAsides.addAll(folded.whereType<String>());
+      }
     }
     if (kept['workspaces'] case final List<Object?> workspaces) {
       final root = workspaceDirectories.root;
@@ -2573,6 +2576,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
           for (final MapEntry(key: id, value: aside) in _asides.entries)
             id: {'parent': aside.parent, 'from': aside.from, 'at': ?aside.at},
         },
+        'foldedAsides': [..._foldedAsides],
       },
       'ide': {
         'folder': ?_ideFolder,
@@ -3292,6 +3296,20 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     return aside;
   }
 
+  /// Whether the sidebar folds the asides listed under [thread].
+  bool asidesFolded(AgentThread thread) => _foldedAsides.contains(thread.id);
+
+  /// The conversations whose asides the sidebar folds, by session id.
+  final Set<String> _foldedAsides = {};
+
+  void toggleAsidesFolded(AgentThread thread) {
+    final id = thread.id;
+    if (id == null) return;
+    if (!_foldedAsides.remove(id)) _foldedAsides.add(id);
+    _save();
+    notifyListeners();
+  }
+
   /// Makes [aside] a conversation of its own, no longer listed under the
   /// one it was asked beside, nor shown from it.
   void detach(AgentThread aside) {
@@ -3316,11 +3334,12 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// Forgets the asides of sessions gone, and those whose parent is.
   bool _forgetGoneAsides(Set<String> ids) {
-    final count = _asides.length;
+    final count = _asides.length + _foldedAsides.length;
     _asides.removeWhere(
       (id, aside) => !ids.contains(id) || !ids.contains(aside.parent),
     );
-    return _asides.length != count;
+    _foldedAsides.retainAll(ids);
+    return _asides.length + _foldedAsides.length != count;
   }
 
   static bool _isUntouched(AgentThread thread) => thread.untouched;

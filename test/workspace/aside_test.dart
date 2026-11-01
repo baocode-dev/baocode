@@ -7,9 +7,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bao_markdown/bao_markdown.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/composer/composer_controller.dart';
 import 'package:baocode/chat/widgets/agent_step.dart';
+import 'package:baocode/ide/ide_list.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
@@ -19,7 +22,9 @@ import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _history = 'test/fixtures/claude_code/history.jsonl';
@@ -269,6 +274,94 @@ void main() {
     expect(workspace.current, same(kept));
     expect(workspace.grid.contains(kept), isTrue);
     expect(workspace.grid.contains(aside), isFalse);
+    await _stopAll(tester, workspace);
+  });
+
+  testWidgets('Esc goes back from an aside, from its input while it has '
+      'nothing typed', (tester) async {
+    final workspace = await _pumpLoaded(tester);
+    final kept = await _showKept(tester, workspace);
+    final aside = await _askBeside(tester, workspace, kept, 'Esc aside');
+    await _stopAll(tester, workspace);
+    await tester.tap(find.widgetWithText(AgentStep, 'Esc aside'));
+    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+    expect(workspace.current, same(aside));
+
+    // Something typed: the key is the input's.
+    final editor = tester.widget<MarkdownEditor>(
+      find.byType(MarkdownEditor).last,
+    );
+    final controller = editor.controller as ComposerController;
+    void type(String text) => controller.replace(
+      0,
+      controller.length,
+      text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+    type('half a question');
+    editor.focusNode!.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+    expect(workspace.current, same(aside));
+
+    type('');
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+    expect(workspace.current, same(kept));
+    expect(workspace.grid.contains(kept), isTrue);
+    await _stopAll(tester, workspace);
+  });
+
+  testWidgets('a conversation folds its asides in the sidebar, but the one '
+      'shown; kept folded between runs', (tester) async {
+    final store = MemoryPreferenceStore();
+    var workspace = await _pumpLoaded(tester, preferences: store);
+    final kept = await _showKept(tester, workspace);
+    final first = await _askBeside(tester, workspace, kept, 'Folded first');
+    await _askBeside(tester, workspace, kept, 'Folded second');
+    await _stopAll(tester, workspace);
+    final title = kept.localizedTitle(englishLocalizations);
+    final parentRow = _inSidebar(
+      find.ancestor(of: find.text(title), matching: find.byType(IdeListRow)),
+    ).first;
+
+    // Its arrow, hovered.
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: tester.getCenter(parentRow));
+    await tester.pump();
+    await tester.tap(
+      find.descendant(
+        of: parentRow,
+        matching: find.byIcon(Icons.chevron_right_rounded),
+      ),
+    );
+    await tester.pump();
+    expect(workspace.asidesFolded(kept), isTrue);
+    expect(_inSidebar(find.text('Folded first')), findsNothing);
+    expect(_inSidebar(find.text('Folded second')), findsNothing);
+
+    // The one shown is listed still.
+    workspace.select(first);
+    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+    expect(_inSidebar(find.text('Folded first')), findsOneWidget);
+    expect(_inSidebar(find.text('Folded second')), findsNothing);
+    await _stopAll(tester, workspace);
+
+    // The next run, unfolded by its tag.
+    await mouse.moveTo(const Offset(900, 450));
+    await tester.pumpWidget(const SizedBox());
+    workspace = await _pumpLoaded(tester, preferences: store);
+    final again = workspace.threads.firstWhere(
+      (thread) => thread.id == kept.id,
+    );
+    expect(workspace.asidesFolded(again), isTrue);
+    await tester.tap(_inSidebar(find.text('2')));
+    await tester.pump();
+    expect(workspace.asidesFolded(again), isFalse);
+    expect(_inSidebar(find.text('Folded second')), findsOneWidget);
     await _stopAll(tester, workspace);
   });
 
