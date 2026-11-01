@@ -57,14 +57,17 @@ abstract final class UsagePalette {
   /// The cards the charts are on.
   static Color get surface => AppColors.code;
 
-  /// What filled the context, by part (see UsageContext.parts).
+  /// What filled the context, by part (see UsageContext.parts): those
+  /// the same request after request in the colors, the conversation's own
+  /// words in ink, the tools' results after them. (Validated in this
+  /// order too; its one pair in the 6–8 band has the ink between it.)
   static Color part(String key) => switch (key) {
     'system' => _slots[4],
-    'tools' => _slots[2],
-    'user' => _slots[1],
-    'assistant' => _slots[3],
-    'thinking' => _slots[5],
-    'toolUse' => AppColors.textMuted,
+    'memory' => _slots[3],
+    'skills' => _slots[2],
+    'tools' => _slots[1],
+    'mcp' => _slots[5],
+    'messages' => AppColors.textMuted,
     'toolResult' => _slots[0],
     _ => other,
   };
@@ -109,6 +112,13 @@ abstract final class UsageFormat {
 
   /// A count in full, grouped: 12,840.
   static String count(int n) => _grouped(n);
+
+  /// Output tokens a second: 48.2 tok/s; [unit] false, the number alone.
+  static String speed(double? speed, {bool unit = true}) {
+    if (speed == null) return '—';
+    final text = speed.toStringAsFixed(speed >= 100 ? 0 : 1);
+    return unit ? '$text tok/s' : text;
+  }
 
   static String percent(double ratio, {int digits = 0}) =>
       '${(ratio * 100).toStringAsFixed(digits)}%';
@@ -176,7 +186,11 @@ abstract final class UsageFormat {
     final l10n = context.l10n;
     return switch (key) {
       'system' => l10n.ustatPartSystem,
+      'memory' => l10n.ustatPartMemory,
+      'skills' => l10n.ustatPartSkills,
       'tools' => l10n.ustatPartTools,
+      'mcp' => l10n.ustatPartMcp,
+      'messages' => l10n.ustatPartMessages,
       'user' => l10n.ustatPartUser,
       'assistant' => l10n.ustatPartAssistant,
       'thinking' => l10n.ustatPartThinking,

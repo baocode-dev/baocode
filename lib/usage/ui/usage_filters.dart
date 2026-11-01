@@ -431,3 +431,198 @@ class UsageIconButton extends StatelessWidget {
     ),
   );
 }
+
+/// One of a [UsageTabs]': its value, its name, a count after it, a mark
+/// before it.
+typedef UsageTab<T> = ({T value, String label, String? count, Color? color});
+
+/// Views of one thing side by side, the one looked at raised: the main
+/// agent's and each subagent's, as a conversation switches between them.
+/// Wraps where there are more than fit.
+class UsageTabs<T> extends StatelessWidget {
+  const UsageTabs({
+    super.key,
+    required this.tabs,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final List<UsageTab<T>> tabs;
+  final T value;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 4,
+    runSpacing: 4,
+    children: [
+      for (final tab in tabs)
+        _Tab(
+          tab: tab,
+          selected: tab.value == value,
+          onTap: () => onChanged(tab.value),
+        ),
+    ],
+  );
+}
+
+class _Tab<T> extends StatelessWidget {
+  const _Tab({required this.tab, required this.selected, required this.onTap});
+
+  final UsageTab<T> tab;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    child: HoverBuilder(
+      cursor: SystemMouseCursors.click,
+      builder: (context, hovered) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          height: 24,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.accent.withValues(alpha: 0.14)
+                : hovered
+                ? AppColors.hover
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: selected
+                  ? AppColors.accent.withValues(alpha: 0.5)
+                  : AppColors.border.withValues(alpha: 0.6),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (tab.color case final color?) ...[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: Text(
+                  tab.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected || hovered
+                        ? AppColors.text
+                        : AppColors.textMuted,
+                    fontSize: 11.5,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+              ),
+              if (tab.count case final count?) ...[
+                const SizedBox(width: 5),
+                Text(
+                  count,
+                  style: TextStyle(
+                    color: AppColors.textFaint,
+                    fontSize: 10.5,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Debugging's switch, in a filter bar: off, a chip that starts it; on,
+/// a live dot and how many requests were kept whole, a click stops it.
+class UsageTraceToggle extends StatelessWidget {
+  const UsageTraceToggle({
+    super.key,
+    required this.on,
+    required this.count,
+    required this.onChanged,
+  });
+
+  final bool on;
+
+  /// The requests kept whole since it was turned on.
+  final int count;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    // A dot that stays: not one that pulses, which would draw a frame
+    // after another for as long as it is on.
+    return IdeHover(
+      message: on ? l10n.ustatTraceStop : l10n.ustatTraceStartHint,
+      child: HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onChanged(!on),
+          child: Container(
+            height: 26,
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            decoration: BoxDecoration(
+              color: on
+                  ? AppColors.accent.withValues(alpha: 0.12)
+                  : hovered
+                  ? AppColors.hover
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: on
+                    ? AppColors.accent.withValues(alpha: 0.55)
+                    : AppColors.border,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (on)
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: AppColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                  )
+                else
+                  Icon(Codicons.debugAlt, size: 12, color: AppColors.textMuted),
+                const SizedBox(width: 6),
+                Text(
+                  on ? l10n.ustatTraceOn(count) : l10n.ustatTraceStart,
+                  style: TextStyle(
+                    color: on ? AppColors.text : AppColors.textMuted,
+                    fontSize: 12,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                if (on && hovered) ...[
+                  const SizedBox(width: 6),
+                  Icon(Codicons.debugStop, size: 12, color: AppColors.text),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

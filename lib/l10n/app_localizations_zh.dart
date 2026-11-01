@@ -12079,9 +12079,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatByAgent => '主代理与子代理';
 
   @override
-  String get ustatByAgentDetail => '对话中每个代理的收发令牌';
-
-  @override
   String get ustatByTurn => '按轮次';
 
   @override
@@ -12152,11 +12149,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatContextMakeup => '上下文组成';
-
-  @override
-  String ustatContextMakeupDetail(String tokens, String time) {
-    return '主代理最近一次请求：$tokens，$time。各部分按文本估算。';
-  }
 
   @override
   String get ustatRecentCalls => '最近调用';
@@ -12402,4 +12394,250 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get resetCreditsHintLater => '知道了';
+
+  @override
+  String get ustatPartMemory => 'CLAUDE.md 与规则';
+
+  @override
+  String get ustatPartSkills => '技能';
+
+  @override
+  String get ustatPartMcp => 'MCP';
+
+  @override
+  String get ustatPartMessages => '对话消息';
+
+  @override
+  String ustatCacheHitShort(String rate) {
+    return '缓存命中 $rate';
+  }
+
+  @override
+  String get ustatCompactedAfter => '压缩后的第一次请求';
+
+  @override
+  String get ustatContextPickHint => '点击查看这次的上下文构成';
+
+  @override
+  String ustatRequests(int count) {
+    return '$count 次请求';
+  }
+
+  @override
+  String ustatRequestOf(int index, int count) {
+    return '第 $index/$count 次';
+  }
+
+  @override
+  String get ustatPreviousRequest => '上一次请求';
+
+  @override
+  String get ustatNextRequest => '下一次请求';
+
+  @override
+  String get ustatNoMakeup => '这次请求没有记录上下文构成（需要开启“详细记录”）。';
+
+  @override
+  String get ustatMakeupNoDetail => '这次请求记录于按工具、MCP、技能细分之前，之后的新请求才有细分。';
+
+  @override
+  String get ustatMakeupShapeMissing => '没有找到这次请求的工具与技能细分记录。';
+
+  @override
+  String ustatMcpTools(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个工具',
+      zero: '仅说明',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ustatMcpInstructions => '服务器说明';
+
+  @override
+  String get ustatSkillPlugin => '插件';
+
+  @override
+  String ustatToolInputs(String tokens) {
+    return '参数 $tokens';
+  }
+
+  @override
+  String get ustatSwitchedHint => '已同步到“设置 → 自定义”，之后的请求不再带上关闭的项。';
+
+  @override
+  String get ustatTrace => '调试抓包';
+
+  @override
+  String get ustatTraceDescription =>
+      '同时完整保存每次请求：Claude Code 发来的原文、发给上游的请求、上游的原始返回、返回给 Claude Code 的内容。密钥会打码。占用空间很大，用完请关闭。';
+
+  @override
+  String get ustatTraceStart => '调试抓包';
+
+  @override
+  String get ustatTraceStartHint => '开始完整记录之后每次调用的原始请求与返回';
+
+  @override
+  String get ustatTraceStop => '停止抓包';
+
+  @override
+  String ustatTraceOn(int count) {
+    return '抓包中 · $count';
+  }
+
+  @override
+  String get ustatTraceKept => '已保存原始报文';
+
+  @override
+  String get ustatTraceTitle => '原始报文';
+
+  @override
+  String get ustatTraceLoading => '读取中…';
+
+  @override
+  String get ustatTraceGone => '原始报文已被清理。';
+
+  @override
+  String get ustatTraceNone => '这一段没有内容（请求在此之前已结束）。';
+
+  @override
+  String get ustatTraceRequest => 'Claude Code → 代理';
+
+  @override
+  String get ustatTraceSent => '代理 → 上游';
+
+  @override
+  String get ustatTraceReceived => '上游 → 代理';
+
+  @override
+  String get ustatTraceAnswer => '代理 → Claude Code';
+
+  @override
+  String ustatTraceTry(int n) {
+    return '第 $n 次';
+  }
+
+  @override
+  String get ustatTraceCopyAll => '复制全部';
+
+  @override
+  String get ustatTraceCopyBody => '复制';
+
+  @override
+  String ustatTraceHeaders(int count) {
+    return '请求头 · $count';
+  }
+
+  @override
+  String get ustatTraceBody => '正文';
+
+  @override
+  String get ustatTraceRaw => '原文';
+
+  @override
+  String get ustatTraceFormatted => '格式化';
+
+  @override
+  String get ustatTraceEmpty => '空';
+
+  @override
+  String ustatTraceMore(String size) {
+    return '显示更多（还有 $size）';
+  }
+
+  @override
+  String get ustatTraceTruncated => '超过 2400 万字符的部分未保存';
+
+  @override
+  String get ustatTracePassedOn => '与上游返回相同';
+
+  @override
+  String ustatSpaceTraces(String size, int count) {
+    return '；其中调试报文 $size（$count 条）';
+  }
+
+  @override
+  String get ustatClearTraces => '仅清理调试报文';
+
+  @override
+  String get ustatClearTracesDetail => '调用记录保留，只删除本机保存的原始请求与返回。';
+
+  @override
+  String get ustatMakeupUnfold => '按工具、MCP、技能、文件细分';
+
+  @override
+  String get ustatColumnTotal => '合计';
+
+  @override
+  String get ustatColumnMix => '构成';
+
+  @override
+  String ustatDeferred(String size) {
+    return '未加载，$size';
+  }
+
+  @override
+  String get ustatSwitchedOff => '已关闭';
+
+  @override
+  String usageUntilCompaction(String tokens) {
+    return '距自动压缩 $tokens';
+  }
+
+  @override
+  String get usageAgentDefinition => '子代理';
+
+  @override
+  String get usageAttachments => '提醒与附件';
+
+  @override
+  String get ustatCost => '费用';
+
+  @override
+  String get ustatCostEstimated => '按当前价格估算';
+
+  @override
+  String ustatCostUnpriced(int count) {
+    return '$count 次调用未定价';
+  }
+
+  @override
+  String get ustatCostNoPrices => '未设置价格';
+
+  @override
+  String get ustatPrices => '模型价格';
+
+  @override
+  String get ustatPricesDetail => '每百万 token 的价格。费用按当前价格计算，改价后之前的调用也按新价格算。';
+
+  @override
+  String get ustatPricesAgentHint =>
+      '可以让 BaoCode 帮你维护：在对话里说「查一下这些模型的最新价格并更新」，它会去上游官网的价格页核对后写到这里。';
+
+  @override
+  String get ustatPriceCurrency => '币种';
+
+  @override
+  String get ustatPriceAnyUpstream => '所有上游';
+
+  @override
+  String get ustatPriceSource => '价格来源';
+
+  @override
+  String ustatPriceUpdated(String when) {
+    return '$when 更新';
+  }
+
+  @override
+  String get ustatPriceClear => '清除价格';
+
+  @override
+  String get ustatPriceIncomplete => '输入和输出价格都要填';
+
+  @override
+  String get ustatPriceSpent => '这段时间';
 }

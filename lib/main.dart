@@ -125,6 +125,7 @@ import 'update/update_settings.dart';
 import 'update/update_store.dart';
 import 'update/version.dart';
 import 'usage/usage_ledger.dart';
+import 'usage/usage_prices.dart';
 import 'usage/usage_storage.dart';
 import 'window/app_windows.dart';
 import 'window/code_args.dart';
@@ -226,10 +227,12 @@ Future<void> main(List<String> arguments) async {
         lookupAppLocalizations(locale.locale ?? AppLocale.systemLocale()),
   )..load();
   // The conversations' titles and projects, kept with their calls.
-  UsageLedger.titleOf = (session) => workspace.threads
+  UsageLedger.titleOf = (session) => switch (workspace.threads
       .where((thread) => thread.id == session)
-      .firstOrNull
-      ?.title;
+      .firstOrNull) {
+    final thread? when thread.titled => thread.title,
+    _ => null,
+  };
   UsageLedger.projectOf = (session) => workspace.threads
       .where((thread) => thread.id == session)
       .firstOrNull
@@ -540,6 +543,8 @@ void followSettingsFiles(SettingsFiles files) {
     usageStorageIn(p.join(DataDirectory.current.path, 'usage')),
   )..follow(files.settings);
   unawaited(UsageLedger.current.prune());
+  // The models' prices, the calls' costs worked out from them.
+  UsagePrices.current = UsagePrices()..follow(files.settings);
   // The upstreams' sites' icons, for those that show no other: in the
   // cache, fetched as soon as one is added.
   SiteIcons.current = SiteIcons(

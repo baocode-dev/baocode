@@ -166,6 +166,9 @@ class AgentThread {
   String _title;
   String get title => _title.isEmpty ? 'New Chat' : _title;
 
+  /// Named yet: by its first message, or by the user.
+  bool get titled => _title.isNotEmpty;
+
   /// [title] as shown: an untitled agent's in [l10n]'s language.
   String localizedTitle(AppLocalizations l10n) =>
       _title.isEmpty ? l10n.agentUntitled : _title;

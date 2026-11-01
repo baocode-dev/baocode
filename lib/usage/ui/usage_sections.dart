@@ -1,9 +1,8 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
+import '../usage_prices.dart';
 import '../usage_query.dart';
 import '../usage_record.dart';
 import 'usage_charts.dart';
@@ -57,6 +56,21 @@ class UsageOverview extends StatelessWidget {
           ),
           trend: trend((t) => t.total.toDouble()),
         ),
+        // In the currency most is in, its trend; the others after it.
+        if (t.cost.byCurrency.entries.firstOrNull case final first?)
+          UsageStatTile(
+            icon: Codicons.creditCard,
+            label: l10n.ustatCost,
+            value: UsagePrices.money(first.value, first.key),
+            detail: [
+              for (final MapEntry(:key, :value) in t.cost.byCurrency.entries)
+                if (key != first.key) '+ ${UsagePrices.money(value, key)}',
+              t.cost.unpriced > 0
+                  ? l10n.ustatCostUnpriced(t.cost.unpriced)
+                  : l10n.ustatCostEstimated,
+            ].join('  ·  '),
+            trend: trend((t) => t.cost.byCurrency[first.key] ?? 0),
+          ),
         UsageStatTile(
           icon: Codicons.pulse,
           label: l10n.ustatCalls,
@@ -88,13 +102,11 @@ class UsageOverview extends StatelessWidget {
         UsageStatTile(
           icon: Codicons.flame,
           label: l10n.ustatSpeed,
-          value: switch (t.averageSpeed) {
-            final speed? => '${speed.toStringAsFixed(1)} tok/s',
-            null => '—',
-          },
-          detail: t.reasoning > 0
-              ? l10n.ustatReasoningDetail(UsageFormat.tokens(t.reasoning))
-              : l10n.ustatOutputDetail(UsageFormat.tokens(t.output)),
+          // The unit under it: the number as large as the others.
+          value: UsageFormat.speed(t.averageSpeed, unit: false),
+          detail:
+              'tok/s  ·  '
+              '${t.reasoning > 0 ? l10n.ustatReasoningDetail(UsageFormat.tokens(t.reasoning)) : l10n.ustatOutputDetail(UsageFormat.tokens(t.output))}',
           trend: trend((t) => t.averageSpeed ?? 0),
         ),
         UsageStatTile(
@@ -301,172 +313,22 @@ UsageRankItem rankOf(
   String? label,
   String? detail,
   Color? color,
+  Widget? leading,
 }) => UsageRankItem(
   key: group.key,
+  leading: leading,
   label: label ?? group.label ?? group.key,
   detail: detail ?? group.detail,
   value: group.totals.total.toDouble(),
   valueText: UsageFormat.tokens(group.totals.total),
-  secondary: context.l10n.ustatCallsShort(group.totals.calls),
+  secondary: [
+    ?group.totals.cost.text,
+    if (group.totals.averageSpeed case final speed?) UsageFormat.speed(speed),
+    context.l10n.ustatCallsShort(group.totals.calls),
+  ].join(' · '),
   color: color,
   segments: color == null ? tokenSegments(group.totals) : null,
 );
-
-/// A conversation's context over its requests: the main agent's (washed
-/// under) and its subagents', each a line of how much each request sent;
-/// a mark where it was compacted.
-class UsageContextSection extends StatelessWidget {
-  const UsageContextSection({
-    super.key,
-    required this.summary,
-    this.agentLabel,
-    this.height = 210,
-    this.maxAgents = 4,
-  });
-
-  final UsageSummary summary;
-  final String Function(String agent)? agentLabel;
-  final double height;
-  final int maxAgents;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final points = summary.context;
-    final byAgent = <String, List<UsageContextPoint>>{};
-    final markers = <UsageMarker>[];
-    for (final point in points) {
-      if (point.requestClass == UsageClass.compaction) {
-        markers.add((
-          x: point.at.millisecondsSinceEpoch.toDouble(),
-          label: l10n.ustatCompactedFrom(UsageFormat.tokens(point.prompt)),
-          color: UsagePalette.marker,
-        ));
-        continue;
-      }
-      if (point.requestClass == UsageClass.auxiliary ||
-          point.requestClass == UsageClass.sideReply) {
-        continue;
-      }
-      (byAgent[point.agent] ??= []).add(point);
-    }
-    // The main agent first, then the subagents that sent the most.
-    final agents = byAgent.keys.toList()
-      ..sort((a, b) {
-        if (a.isEmpty) return -1;
-        if (b.isEmpty) return 1;
-        int sum(String k) => byAgent[k]!.fold(0, (s, p) => s + p.prompt);
-        return sum(b).compareTo(sum(a));
-      });
-    final shown = agents.take(maxAgents + 1).toList();
-    var slot = 0;
-    final lines = [
-      for (final agent in shown)
-        UsageLine(
-          label: agent.isEmpty
-              ? l10n.ustatMainAgent
-              : (agentLabel?.call(agent) ?? agent),
-          color: agent.isEmpty
-              ? UsagePalette.input
-              : UsagePalette.series([0, 2, 3, 4, 5][math.min(slot++, 4)]),
-          area: agent.isEmpty,
-          points: [
-            for (final point in byAgent[agent]!)
-              (
-                x: point.at.millisecondsSinceEpoch.toDouble(),
-                y: point.prompt.toDouble(),
-              ),
-          ],
-        ),
-    ];
-    final main = byAgent[''] ?? const [];
-    final peak = main.fold(0, (top, p) => math.max(top, p.prompt));
-    final last = main.lastOrNull?.prompt;
-    return UsageCard(
-      title: l10n.ustatContextGrowth,
-      subtitle: [
-        if (last != null) l10n.ustatContextNow(UsageFormat.tokens(last)),
-        if (peak > 0) l10n.ustatContextPeak(UsageFormat.tokens(peak)),
-        if (markers.isNotEmpty) l10n.ustatCompactions(markers.length),
-      ].join('  ·  '),
-      child: lines.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text(l10n.ustatNoCalls, style: UsageText.faint),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                UsageLegend(
-                  lines: true,
-                  series: [
-                    for (final line in lines)
-                      (label: line.label, color: line.color),
-                    if (markers.isNotEmpty)
-                      (
-                        label: l10n.ustatClassCompaction,
-                        color: UsagePalette.marker,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                UsageLineChart(
-                  height: height,
-                  lines: lines,
-                  markers: markers,
-                  format: UsageFormat.tokens,
-                  xLabel: (x) => UsageFormat.clock(
-                    DateTime.fromMillisecondsSinceEpoch(x.round()),
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-}
-
-/// What the latest request of the main agent had in its context, by
-/// part (estimated, scaled to what the upstream counted).
-class UsageMakeupSection extends StatelessWidget {
-  const UsageMakeupSection({super.key, required this.summary});
-
-  final UsageSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final latest = summary.calls.reversed
-        .where(
-          (call) =>
-              call.agentId == null &&
-              call.requestClass == UsageClass.main &&
-              (call.context?.total ?? 0) > 0,
-        )
-        .firstOrNull;
-    final makeup = latest?.context;
-    if (latest == null || makeup == null) return const SizedBox.shrink();
-    // The estimate's parts, in the upstream's count where it gave one.
-    final scale = latest.prompt > 0 ? latest.prompt / makeup.total : 1.0;
-    return UsageCard(
-      title: l10n.ustatContextMakeup,
-      subtitle: l10n.ustatContextMakeupDetail(
-        UsageFormat.tokens(latest.prompt > 0 ? latest.prompt : makeup.total),
-        UsageFormat.when(latest.at),
-      ),
-      child: UsageStackBar(
-        parts: [
-          for (final (key, value) in makeup.parts)
-            (
-              label: UsageFormat.part(context, key),
-              value: value * scale,
-              color: UsagePalette.part(key),
-              text: UsageFormat.tokens(value * scale),
-            ),
-        ],
-      ),
-    );
-  }
-}
 
 /// The tools: what their results brought into the context, how many
 /// times each was called, how long they ran.
@@ -571,7 +433,8 @@ class UsageClassSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           UsageStackBar(
-            columns: 1,
+            columns: 2,
+            minColumnWidth: 140,
             selected: {
               for (final (i, entry) in entries.indexed)
                 if (selected.contains(entry.key)) i,

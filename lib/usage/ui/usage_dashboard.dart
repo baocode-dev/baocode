@@ -6,16 +6,20 @@ import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
 import '../../ide/ide_menu.dart';
 import '../../l10n/l10n.dart';
+import '../../models/model_icons.dart';
 import '../../settings/pages/settings_dropdown.dart';
 import '../../settings/pages/settings_widgets.dart';
 import '../../theme/codicons.dart';
 import '../../workspace/workspace.dart';
 import '../usage_ledger.dart';
+import '../usage_prices.dart';
 import '../usage_query.dart';
 import '../usage_record.dart';
 import 'usage_calls.dart';
 import 'usage_charts.dart';
+import 'usage_context.dart';
 import 'usage_filters.dart';
+import 'usage_prices_card.dart';
 import 'usage_sections.dart';
 import 'usage_style.dart';
 
@@ -75,6 +79,7 @@ String usageSessionLabel(
 }) {
   final thread = workspace?.threads.where((t) => t.id == session).firstOrNull;
   if (thread != null) return thread.localizedTitle(context.l10n);
+  if (kept == 'New Chat') return context.l10n.agentUntitled;
   if (kept != null && kept.isNotEmpty) return kept;
   return session.length > 8 ? session.substring(0, 8) : session;
 }
@@ -115,6 +120,7 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
   void initState() {
     super.initState();
     _ledger.addListener(_changed);
+    UsagePrices.current.addListener(_repriced);
     unawaited(_load());
   }
 
@@ -132,8 +138,12 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
   void dispose() {
     _reload?.cancel();
     _ledger.removeListener(_changed);
+    UsagePrices.current.removeListener(_repriced);
     super.dispose();
   }
+
+  /// The costs, at the prices as they are now.
+  void _repriced() => setState(_summarize);
 
   void _changed() {
     if (_ledger.version == _loadedVersion) {
@@ -219,6 +229,19 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
     await _load();
   }
 
+  Future<void> _clearTraces() async {
+    final l10n = context.l10n;
+    final chosen = await showIdeDialog(
+      context,
+      message: l10n.ustatClearConfirm(l10n.ustatClearTraces),
+      detail: l10n.ustatClearTracesDetail,
+      buttons: [l10n.ustatClear],
+    );
+    if (chosen != 0) return;
+    await _ledger.clearTraces();
+    await _load();
+  }
+
   void _clearMenu(Rect anchor) {
     final l10n = context.l10n;
     final now = DateTime.now();
@@ -273,6 +296,13 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
           ],
           [
             IdeMenuAction(
+              l10n.ustatClearTraces,
+              enabled: (_space?.traces ?? 0) > 0,
+              onSelected: () => unawaited(_clearTraces()),
+            ),
+          ],
+          [
+            IdeMenuAction(
               l10n.ustatClearAll,
               onSelected: () =>
                   unawaited(_clear(const UsageClearSpec(), l10n.ustatClearAll)),
@@ -303,6 +333,13 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
     final models = summary.models.toList()..sort();
     return UsageFilterBar(
       trailing: [
+        UsageTraceToggle(
+          on: _ledger.trace,
+          count: _ledger.traced,
+          onChanged: (on) =>
+              unawaited(_ledger.save(UsageLedger.traceKey, on ? true : null)),
+        ),
+        const SizedBox(width: 4),
         if (filter.narrowed || filter.session != null)
           UsageIconButton(
             icon: Codicons.clearAll,
@@ -397,7 +434,7 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
     final sessionSummary = session == null ? null : summary;
     return [
       UsageOverview(summary: summary),
-      UsageTimeSection(summary: summary, onPickBucket: _pin),
+      UsageTimeSection(summary: summary, height: 160, onPickBucket: _pin),
       UsageColumns(
         children: [
           UsageClassSection(
@@ -422,7 +459,11 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
               lessLabel: l10n.ustatShowLess,
               items: [
                 for (final group in UsageSummary.ranked(summary.byProvider))
-                  rankOf(context, group),
+                  rankOf(
+                    context,
+                    group,
+                    leading: ProviderIcon(group.key, size: 13),
+                  ),
               ],
             ),
           ),
@@ -443,7 +484,15 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
               lessLabel: l10n.ustatShowLess,
               items: [
                 for (final group in UsageSummary.ranked(summary.byModel))
-                  rankOf(context, group),
+                  rankOf(
+                    context,
+                    group,
+                    leading: ModelIcon(
+                      provider: group.provider ?? '',
+                      model: group.key,
+                      size: 13,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -472,13 +521,15 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
           ),
         ],
       ),
-      if (sessionSummary != null) ...[
+      if (sessionSummary != null)
         UsageContextSection(
           summary: sessionSummary,
-          agentLabel: (agent) => sessionSummary.byAgent[agent]?.label ?? agent,
+          agentLabel: (agent) {
+            final type = sessionSummary.byAgent[agent]?.label;
+            final short = agent.length > 6 ? agent.substring(0, 6) : agent;
+            return type == null ? short : '$type · $short';
+          },
         ),
-        UsageMakeupSection(summary: sessionSummary),
-      ],
       UsageToolsSection(summary: summary),
       UsageCard(
         title: l10n.ustatRecentCalls,
@@ -486,12 +537,19 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
         child: UsageCallsList(
           calls: summary.calls,
           showSession: session == null,
+          ledger: _ledger,
           sessionLabel: (call) => switch (call.session) {
-            final id? => _sessionLabel(id, kept: call.sessionTitle),
+            // Its conversation's title, as last kept: a call's own is
+            // only on its first of the day.
+            final id? => _sessionLabel(
+              id,
+              kept: summary.bySession[id]?.label ?? call.sessionTitle,
+            ),
             null => '',
           },
         ),
       ),
+      UsagePricesCard(summary: summary),
     ];
   }
 
@@ -568,6 +626,14 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
                 ledger.save(UsageLedger.detailedKey, on ? null : false),
               ),
             ),
+            SettingsSwitchRow(
+              label: l10n.ustatTrace,
+              description: l10n.ustatTraceDescription,
+              value: ledger.trace,
+              onChanged: (on) => unawaited(
+                ledger.save(UsageLedger.traceKey, on ? true : null),
+              ),
+            ),
             SettingsRow(
               label: l10n.ustatRetention,
               description: l10n.ustatRetentionDescription,
@@ -593,7 +659,14 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
               label: l10n.ustatSpace(UsageFormat.bytes(space?.bytes ?? 0)),
               description: space == null || space.days == 0
                   ? l10n.ustatSpaceEmpty
-                  : l10n.ustatSpaceDetail(space.days, space.oldest ?? ''),
+                  : [
+                      l10n.ustatSpaceDetail(space.days, space.oldest ?? ''),
+                      if (space.traces > 0)
+                        l10n.ustatSpaceTraces(
+                          UsageFormat.bytes(space.traceBytes),
+                          space.traces,
+                        ),
+                    ].join(),
               trailing: Builder(
                 builder: (context) => IdeButton(
                   label: l10n.ustatClearEllipsis,

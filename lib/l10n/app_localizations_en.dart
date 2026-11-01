@@ -12743,10 +12743,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ustatByAgent => 'Main agent and subagents';
 
   @override
-  String get ustatByAgentDetail =>
-      'What each agent of the conversation sent and got back';
-
-  @override
   String get ustatByTurn => 'By turn';
 
   @override
@@ -12825,11 +12821,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ustatContextMakeup => 'What fills the context';
-
-  @override
-  String ustatContextMakeupDetail(String tokens, String time) {
-    return 'The main agent\'s last request: $tokens, $time. Parts estimated from its text.';
-  }
 
   @override
   String get ustatRecentCalls => 'Recent calls';
@@ -13105,4 +13096,272 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get resetCreditsHintLater => 'Got It';
+
+  @override
+  String get ustatPartMemory => 'CLAUDE.md & rules';
+
+  @override
+  String get ustatPartSkills => 'Skills';
+
+  @override
+  String get ustatPartMcp => 'MCP';
+
+  @override
+  String get ustatPartMessages => 'Conversation';
+
+  @override
+  String ustatCacheHitShort(String rate) {
+    return '$rate cached';
+  }
+
+  @override
+  String get ustatCompactedAfter => 'First after compacting';
+
+  @override
+  String get ustatContextPickHint => 'Click to see what filled it';
+
+  @override
+  String ustatRequests(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count requests',
+      one: '1 request',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ustatRequestOf(int index, int count) {
+    return '#$index of $count';
+  }
+
+  @override
+  String get ustatPreviousRequest => 'Previous request';
+
+  @override
+  String get ustatNextRequest => 'Next request';
+
+  @override
+  String get ustatNoMakeup =>
+      'What filled this request\'s context was not recorded (turn on Detailed recording).';
+
+  @override
+  String get ustatMakeupNoDetail =>
+      'Recorded before the breakdown by tool, MCP server and skill: requests from now on have it.';
+
+  @override
+  String get ustatMakeupShapeMissing =>
+      'The breakdown of this request\'s tools and skills was not found.';
+
+  @override
+  String ustatMcpTools(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tools',
+      one: '1 tool',
+      zero: 'instructions only',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ustatMcpInstructions => 'Instructions';
+
+  @override
+  String get ustatSkillPlugin => 'plugin';
+
+  @override
+  String ustatToolInputs(String tokens) {
+    return 'inputs $tokens';
+  }
+
+  @override
+  String get ustatSwitchedHint =>
+      'Saved to Settings → Customize. The agent\'s next requests go without what was turned off.';
+
+  @override
+  String get ustatTrace => 'Debug capture';
+
+  @override
+  String get ustatTraceDescription =>
+      'Also keep every request whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back. Keys are masked. Takes a lot of space: turn it off when done.';
+
+  @override
+  String get ustatTraceStart => 'Debug capture';
+
+  @override
+  String get ustatTraceStartHint =>
+      'Keep the raw requests and answers of the calls from now on';
+
+  @override
+  String get ustatTraceStop => 'Stop capturing';
+
+  @override
+  String ustatTraceOn(int count) {
+    return 'Capturing · $count';
+  }
+
+  @override
+  String get ustatTraceKept => 'Raw request and answer kept';
+
+  @override
+  String get ustatTraceTitle => 'Raw exchange';
+
+  @override
+  String get ustatTraceLoading => 'Reading…';
+
+  @override
+  String get ustatTraceGone => 'The raw exchange was cleared.';
+
+  @override
+  String get ustatTraceNone =>
+      'Nothing went this way (it was answered before).';
+
+  @override
+  String get ustatTraceRequest => 'Claude Code → proxy';
+
+  @override
+  String get ustatTraceSent => 'Proxy → upstream';
+
+  @override
+  String get ustatTraceReceived => 'Upstream → proxy';
+
+  @override
+  String get ustatTraceAnswer => 'Proxy → Claude Code';
+
+  @override
+  String ustatTraceTry(int n) {
+    return 'Try $n';
+  }
+
+  @override
+  String get ustatTraceCopyAll => 'Copy all';
+
+  @override
+  String get ustatTraceCopyBody => 'Copy';
+
+  @override
+  String ustatTraceHeaders(int count) {
+    return 'Headers · $count';
+  }
+
+  @override
+  String get ustatTraceBody => 'Body';
+
+  @override
+  String get ustatTraceRaw => 'As sent';
+
+  @override
+  String get ustatTraceFormatted => 'Formatted';
+
+  @override
+  String get ustatTraceEmpty => 'Empty';
+
+  @override
+  String ustatTraceMore(String size) {
+    return 'Show more ($size left)';
+  }
+
+  @override
+  String get ustatTraceTruncated => 'cut at 24M characters';
+
+  @override
+  String get ustatTracePassedOn => 'passed on as the upstream answered';
+
+  @override
+  String ustatSpaceTraces(String size, int count) {
+    return '; raw exchanges $size ($count)';
+  }
+
+  @override
+  String get ustatClearTraces => 'Clear the raw exchanges only';
+
+  @override
+  String get ustatClearTracesDetail =>
+      'The calls stay; their raw requests and answers are deleted from this computer.';
+
+  @override
+  String get ustatMakeupUnfold => 'By tool, MCP server, skill and file';
+
+  @override
+  String get ustatColumnTotal => 'Total';
+
+  @override
+  String get ustatColumnMix => 'Breakdown';
+
+  @override
+  String ustatDeferred(String size) {
+    return 'deferred, $size';
+  }
+
+  @override
+  String get ustatSwitchedOff => 'turned off';
+
+  @override
+  String usageUntilCompaction(String tokens) {
+    return '$tokens to auto-compact';
+  }
+
+  @override
+  String get usageAgentDefinition => 'agent';
+
+  @override
+  String get usageAttachments => 'Reminders & attachments';
+
+  @override
+  String get ustatCost => 'Cost';
+
+  @override
+  String get ustatCostEstimated => 'At the prices as they are now';
+
+  @override
+  String ustatCostUnpriced(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count calls unpriced',
+      one: '1 call unpriced',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ustatCostNoPrices => 'No prices set';
+
+  @override
+  String get ustatPrices => 'Model prices';
+
+  @override
+  String get ustatPricesDetail =>
+      'A million tokens each. Costs are worked out at the prices as they are now, the calls before a change included.';
+
+  @override
+  String get ustatPricesAgentHint =>
+      'BaoCode can keep these for you: ask it in a chat to look up the current prices of these models and update them. It checks the upstream\'s own pricing page and writes them here.';
+
+  @override
+  String get ustatPriceCurrency => 'Currency';
+
+  @override
+  String get ustatPriceAnyUpstream => 'any upstream';
+
+  @override
+  String get ustatPriceSource => 'Where the price was read';
+
+  @override
+  String ustatPriceUpdated(String when) {
+    return 'updated $when';
+  }
+
+  @override
+  String get ustatPriceClear => 'Clear the price';
+
+  @override
+  String get ustatPriceIncomplete =>
+      'Fill in both the input and the output price';
+
+  @override
+  String get ustatPriceSpent => 'In this time';
 }

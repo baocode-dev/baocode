@@ -1,3 +1,4 @@
+import 'usage_prices.dart';
 import 'usage_record.dart';
 
 /// Which calls a view counts: those of a time, and of the upstreams,
@@ -86,8 +87,17 @@ class UsageTotals {
   DateTime? first;
   DateTime? last;
 
-  void add(UsageCall call) {
+  /// What they cost, at their models' prices.
+  final UsageCost cost = UsageCost();
+
+  /// Counts [call], at [price] (none: unpriced).
+  void add(UsageCall call, [ModelPrice? price]) {
     calls++;
+    if (price != null) {
+      cost.add(price.currency, price.cost(call));
+    } else if (call.total > 0) {
+      cost.unpriced++;
+    }
     if (call.failed) failed++;
     input += call.input;
     output += call.output;
@@ -143,11 +153,15 @@ enum UsageStep { minute, hour, day, week }
 
 /// One group of calls (a model, an upstream, a conversation…), its totals.
 class UsageGroup {
-  UsageGroup(this.key, {this.label, this.detail});
+  UsageGroup(this.key, {this.label, this.detail, this.provider});
 
   final String key;
   String? label;
   String? detail;
+
+  /// A model's upstream (its first call's): whose icon it shows where its
+  /// maker is not known.
+  final String? provider;
   final UsageTotals totals = UsageTotals();
 }
 
@@ -263,13 +277,16 @@ class UsageSummary {
   };
 
   /// [all] counted as [filter] picks, bucketed from [filter]'s start (or
-  /// the first call) to its end (or [now]).
+  /// the first call) to its end (or [now]); their costs at [prices] (the
+  /// app's by default).
   static UsageSummary of(
     List<UsageCall> all,
     UsageFilter filter, {
     DateTime? now,
     UsageStep? step,
+    UsagePrices? prices,
   }) {
+    final priced = prices ?? UsagePrices.current;
     final calls = [
       for (final call in all)
         if (filter.matches(call)) call,
@@ -302,7 +319,8 @@ class UsageSummary {
     }
     var bucket = 0;
     for (final call in calls) {
-      summary.totals.add(call);
+      final price = priced.priceOf(call);
+      summary.totals.add(call, price);
       while (bucket < buckets.length - 1 &&
           !call.at.isBefore(buckets[bucket].end)) {
         bucket++;
@@ -310,31 +328,38 @@ class UsageSummary {
       if (buckets.isNotEmpty &&
           !call.at.isBefore(buckets[bucket].start) &&
           call.at.isBefore(buckets[bucket].end)) {
-        buckets[bucket].totals.add(call);
+        buckets[bucket].totals.add(call, price);
       }
       (summary.byModel[call.model] ??= UsageGroup(
         call.model,
         detail: call.providerName ?? call.provider,
-      )).totals.add(call);
+        provider: call.provider,
+      )).totals.add(call, price);
       (summary.byProvider[call.provider] ??= UsageGroup(
         call.provider,
         label: call.providerName,
-      )).totals.add(call);
-      (summary.byClass[call.requestClass] ??= UsageTotals()).add(call);
+      )).totals.add(call, price);
+      (summary.byClass[call.requestClass] ??= UsageTotals()).add(call, price);
       if (call.session case final session?) {
         final group = summary.bySession[session] ??= UsageGroup(session);
-        group.label ??= call.sessionTitle;
+        // As last named: it may have been renamed, or named only after
+        // its first requests (kept as 'New Chat' by older versions).
+        if (call.sessionTitle case final title? when title != 'New Chat') {
+          group.label = title;
+        }
         group.detail ??= call.project;
-        group.totals.add(call);
+        group.totals.add(call, price);
       }
       final agent = summary.byAgent[call.agentKey] ??= UsageGroup(
         call.agentKey,
       );
       agent.label ??= call.agentType;
       agent.detail ??= call.task;
-      agent.totals.add(call);
+      agent.totals.add(call, price);
       if (call.promptId case final prompt?) {
-        (summary.byPrompt[prompt] ??= UsageGroup(prompt)).totals.add(call);
+        (summary.byPrompt[prompt] ??= UsageGroup(
+          prompt,
+        )).totals.add(call, price);
       }
       for (final MapEntry(:key, :value) in call.toolCalls.entries) {
         (summary.byTool[key] ??= UsageToolTotals(key)).calls += value;

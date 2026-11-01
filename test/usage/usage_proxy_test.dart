@@ -252,6 +252,57 @@ void main() {
     expect(call.output, 0);
   });
 
+  test('debugging, keeps each request whole: as asked, sent, answered and '
+      'answered back, the keys cut down', () async {
+    ledger.trace = true;
+    upstream.reply = () => (
+      200,
+      [
+        'data: {"id":"c1","object":"chat.completion.chunk","created":1,"model":"gpt-5","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":"stop"}]}',
+        '',
+        'data: [DONE]',
+      ],
+    );
+    await _post(await url('gw'), request(), {'authorization': 'Bearer tok'});
+    ledger.flush();
+    final call = (await ledger.ofSession(session)).single;
+    final trace = (await ledger.traceOf(call))!;
+    expect(trace.request!.body, contains('Find where the proxy keeps usage'));
+    expect(trace.request!.headers['authorization'], 'Bearer ••••');
+    final sent = trace.sent.single;
+    expect(sent.url, '${upstream.base}/chat/completions');
+    expect(sent.headers['authorization'], 'Bearer ••••');
+    expect(jsonDecode(sent.body), containsPair('model', 'gpt-5'));
+    expect(trace.received.single.status, 200);
+    expect(trace.received.single.body, contains('"content":"Hi"'));
+    expect(trace.answer!.status, 200);
+    expect(trace.answer!.body, contains('content_block_delta'));
+    expect(trace.passedOn, isFalse);
+
+    // Passed through: the answer is the upstream's own.
+    upstream.reply = () => (
+      200,
+      [
+        'event: message_start',
+        'data: {"type":"message_start","message":{"usage":{"input_tokens":3}}}',
+      ],
+    );
+    await _post(await url('relay'), request(model: 'claude-x'), {
+      'x-api-key': 'tok',
+    });
+    ledger.flush();
+    final passed = (await ledger.ofSession(session)).last;
+    final through = (await ledger.traceOf(passed))!;
+    expect(through.passedOn, isTrue);
+    expect(through.received.single.body, contains('message_start'));
+    // The upstream's key, however it goes, only by its ends.
+    expect(
+      through.sent.single.headers.values.where((v) => v.contains('sk-test')),
+      isEmpty,
+    );
+    expect(through.sent.single.headers.values.join(), contains('••••'));
+  });
+
   test('keeps no count of tokens, and nothing while turned off', () async {
     await _post(await url('gw', '/count_tokens'), request(), {
       'authorization': 'Bearer tok',

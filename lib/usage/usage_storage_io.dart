@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -7,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import 'usage_ledger.dart';
 import 'usage_record.dart';
+import 'usage_trace.dart';
 
 /// The calls in [directory]: `<yyyy-MM-dd>.jsonl` a day, and `index.json`.
 ///
@@ -56,11 +58,13 @@ class UsageFiles implements UsageStorage {
       final file = File(path);
       if (!file.existsSync()) continue;
       try {
-        for (final line in const LineSplitter().convert(
-          utf8.decode(file.readAsBytesSync(), allowMalformed: true),
-        )) {
-          if (UsageCall.decode(line) case final call?) calls.add(call);
-        }
+        calls.addAll(
+          decodeUsageLines(
+            const LineSplitter().convert(
+              utf8.decode(file.readAsBytesSync(), allowMalformed: true),
+            ),
+          ),
+        );
       } on FileSystemException {
         continue;
       }
@@ -108,7 +112,7 @@ class UsageFiles implements UsageStorage {
       await open.setPosition(0);
       final bytes = await open.read(await open.length());
       final kept = StringBuffer();
-      var dropped = 0;
+      var dropped = 0, calls = 0;
       for (final line in const LineSplitter().convert(
         utf8.decode(bytes, allowMalformed: true),
       )) {
@@ -117,12 +121,14 @@ class UsageFiles implements UsageStorage {
           dropped++;
         } else if (line.isNotEmpty) {
           kept.writeln(line);
+          if (call != null) calls++;
         }
       }
       if (dropped == 0) return 0;
       await open.truncate(0);
       await open.setPosition(0);
-      await open.writeString(kept.toString());
+      // The shapes alone are nothing to keep.
+      if (calls > 0) await open.writeString(kept.toString());
       await open.flush();
       return dropped;
     } finally {
@@ -130,6 +136,87 @@ class UsageFiles implements UsageStorage {
       if (await file.exists() && await file.length() == 0) {
         await file.delete().catchError((Object _) => file);
       }
+    }
+  }
+
+  // --- Traces -------------------------------------------------------------
+
+  Directory get _traces => Directory(p.join(directory, 'traces'));
+
+  File _trace(String day, String id) =>
+      File(p.join(_traces.path, day, '$id.json.gz'));
+
+  static final _traceFile = RegExp(r'^([0-9a-z]+)\.json\.gz$');
+
+  @override
+  void writeTrace(String day, String id, Map<String, Object?> trace) {
+    final path = _trace(day, id).path;
+    // Encoded and squeezed off the UI isolate: a request's whole context
+    // is megabytes.
+    unawaited(
+      Isolate.run(() {
+        final file = File(path);
+        file.parent.createSync(recursive: true);
+        file.writeAsBytesSync(gzip.encode(utf8.encode(jsonEncode(trace))));
+      }).catchError((Object error) => debugPrint('Trace not kept: $error')),
+    );
+  }
+
+  @override
+  Future<UsageTrace?> readTrace(String day, String id) {
+    final path = _trace(day, id).path;
+    return Isolate.run(() {
+      final file = File(path);
+      if (!file.existsSync()) return null;
+      try {
+        return UsageTrace.fromJson(
+          jsonDecode(utf8.decode(gzip.decode(file.readAsBytesSync()))),
+        );
+      } on Object {
+        return null;
+      }
+    });
+  }
+
+  @override
+  Future<Map<String, ({int bytes, int count})>> traceSizes() async {
+    final sizes = <String, ({int bytes, int count})>{};
+    try {
+      if (!await _traces.exists()) return sizes;
+      await for (final folder in _traces.list()) {
+        if (folder is! Directory) continue;
+        final day = p.basename(folder.path);
+        if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(day)) continue;
+        var bytes = 0, count = 0;
+        await for (final entry in folder.list()) {
+          if (entry is! File || !_traceFile.hasMatch(p.basename(entry.path))) {
+            continue;
+          }
+          bytes += await entry.length();
+          count++;
+        }
+        sizes[day] = (bytes: bytes, count: count);
+      }
+    } on FileSystemException {
+      // What was read.
+    }
+    return sizes;
+  }
+
+  @override
+  Future<void> deleteTraces(String day, [Set<String>? ids]) async {
+    try {
+      if (ids == null) {
+        final folder = Directory(p.join(_traces.path, day));
+        if (await folder.exists()) await folder.delete(recursive: true);
+        return;
+      }
+      for (final id in ids) {
+        final file = _trace(day, id);
+        if (await file.exists()) await file.delete();
+      }
+    } on FileSystemException {
+      // Gone already.
     }
   }
 

@@ -121,6 +121,212 @@ class ContextSegment {
   final ContextKind kind;
 }
 
+/// A thing in the context by name (a tool, a server's tool, a skill, a
+/// file…), what it takes.
+class ContextItem {
+  const ContextItem(
+    this.name,
+    this.tokens, {
+    this.group,
+    this.source,
+    this.loaded = true,
+    this.results = 0,
+  });
+
+  final String name;
+  final int tokens;
+
+  /// What it is of: an MCP tool's server, a skill's plugin.
+  final String? group;
+
+  /// Where it is from: a skill's or an agent's source, a memory file's
+  /// type.
+  final String? source;
+
+  /// Its schema in the window; else deferred, out of it until needed.
+  final bool loaded;
+
+  /// A tool's results in the messages ([tokens] its calls').
+  final int results;
+}
+
+/// The things in each part of the context, as Claude Code counts them
+/// (`get_context_usage`).
+class ContextDetail {
+  const ContextDetail({
+    this.systemPrompt = const [],
+    this.systemTools = const [],
+    this.deferredTools = const [],
+    this.mcpTools = const [],
+    this.agents = const [],
+    this.memoryFiles = const [],
+    this.skills = const [],
+    this.toolUses = const [],
+    this.attachments = const [],
+    this.userMessages = 0,
+    this.assistantMessages = 0,
+    this.toolCalls = 0,
+    this.toolResults = 0,
+    this.attachmentTokens = 0,
+    this.autoCompactAt,
+  });
+
+  final List<ContextItem> systemPrompt;
+  final List<ContextItem> systemTools;
+
+  /// Built-in tools out of the window until used.
+  final List<ContextItem> deferredTools;
+
+  /// [ContextItem.group] the server, by the name it is configured by.
+  final List<ContextItem> mcpTools;
+  final List<ContextItem> agents;
+  final List<ContextItem> memoryFiles;
+
+  /// [ContextItem.group] a plugin's skill's plugin.
+  final List<ContextItem> skills;
+
+  /// The messages' tool calls by tool, [ContextItem.results] their
+  /// results.
+  final List<ContextItem> toolUses;
+  final List<ContextItem> attachments;
+
+  /// The messages by kind, estimated.
+  final int userMessages;
+  final int assistantMessages;
+  final int toolCalls;
+  final int toolResults;
+  final int attachmentTokens;
+
+  /// Where the conversation is compacted, in tokens; null when it is not.
+  final int? autoCompactAt;
+
+  int get messages =>
+      userMessages +
+      assistantMessages +
+      toolCalls +
+      toolResults +
+      attachmentTokens;
+
+  /// From Claude Code's `get_context_usage` answer; null without one
+  /// thing in it.
+  static ContextDetail? parse(Map<Object?, Object?> usage) {
+    int tokens(Object? raw) => raw is num ? raw.toInt() : 0;
+    String? text(Object? raw) => raw is String && raw.isNotEmpty ? raw : null;
+    List<ContextItem> items(
+      Object? raw,
+      ContextItem? Function(Map<Object?, Object?> item) read,
+    ) => [
+      if (raw is List)
+        for (final item in raw)
+          if (item is Map) ?read(item),
+    ];
+    ContextItem? named(Map<Object?, Object?> item) =>
+        switch (text(item['name'])) {
+          final name? => ContextItem(
+            name,
+            tokens(item['tokens']),
+            loaded: item['isLoaded'] != false,
+          ),
+          null => null,
+        };
+    final skills = usage['skills'];
+    final messages = usage['messageBreakdown'];
+    final breakdown = messages is Map ? messages : const {};
+    final detail = ContextDetail(
+      systemPrompt: items(usage['systemPromptSections'], named),
+      systemTools: items(usage['systemTools'], named),
+      deferredTools: items(usage['deferredBuiltinTools'], named),
+      mcpTools: items(usage['mcpTools'], (item) {
+        final name = text(item['name']);
+        if (name == null) return null;
+        final server = text(item['serverName']);
+        // As Claude Code names it to the model: `mcp__server__tool`.
+        final prefix = server == null ? null : 'mcp__';
+        var tool = name;
+        if (prefix != null && name.startsWith(prefix)) {
+          final rest = name.substring(prefix.length);
+          final at = rest.indexOf('__');
+          if (at >= 0) tool = rest.substring(at + 2);
+        }
+        return ContextItem(
+          tool,
+          tokens(item['tokens']),
+          group: server,
+          loaded: item['isLoaded'] != false,
+        );
+      }),
+      agents: items(
+        usage['agents'],
+        (item) => switch (text(item['agentType'])) {
+          final name? => ContextItem(
+            name,
+            tokens(item['tokens']),
+            source: text(item['source']),
+          ),
+          null => null,
+        },
+      ),
+      memoryFiles: items(
+        usage['memoryFiles'],
+        (item) => switch (text(item['path'])) {
+          final path? => ContextItem(
+            path,
+            tokens(item['tokens']),
+            source: text(item['type']),
+          ),
+          null => null,
+        },
+      ),
+      skills: items(
+        skills is Map ? skills['skillFrontmatter'] : null,
+        (item) => switch (text(item['name'])) {
+          final name? => ContextItem(
+            name,
+            tokens(item['tokens']),
+            group: text(item['pluginName']),
+            source: text(item['source']),
+          ),
+          null => null,
+        },
+      ),
+      toolUses: items(
+        breakdown['toolCallsByType'],
+        (item) => switch (text(item['name'])) {
+          final name? => ContextItem(
+            name,
+            tokens(item['callTokens']),
+            results: tokens(item['resultTokens']),
+          ),
+          null => null,
+        },
+      ),
+      attachments: items(breakdown['attachmentsByType'], named),
+      userMessages: tokens(breakdown['userMessageTokens']),
+      assistantMessages: tokens(breakdown['assistantMessageTokens']),
+      toolCalls: tokens(breakdown['toolCallTokens']),
+      toolResults: tokens(breakdown['toolResultTokens']),
+      attachmentTokens: tokens(breakdown['attachmentTokens']),
+      autoCompactAt: usage['isAutoCompactEnabled'] == false
+          ? null
+          : switch (usage['autoCompactThreshold']) {
+              final num at => at.toInt(),
+              _ => null,
+            },
+    );
+    final empty =
+        detail.systemPrompt.isEmpty &&
+        detail.systemTools.isEmpty &&
+        detail.mcpTools.isEmpty &&
+        detail.agents.isEmpty &&
+        detail.memoryFiles.isEmpty &&
+        detail.skills.isEmpty &&
+        detail.toolUses.isEmpty &&
+        detail.messages == 0 &&
+        detail.autoCompactAt == null;
+    return empty ? null : detail;
+  }
+}
+
 /// How full the context window is, as last reported: a snapshot that
 /// replaces the one before.
 class ContextUsage {
@@ -128,6 +334,7 @@ class ContextUsage {
     required this.window,
     required this.used,
     this.segments = const [],
+    this.detail,
   });
 
   final int window;
@@ -135,6 +342,9 @@ class ContextUsage {
 
   /// What the tokens are spent on, when the kernel says; else empty.
   final List<ContextSegment> segments;
+
+  /// Each part's things by name, where the kernel tells them.
+  final ContextDetail? detail;
 
   double get fraction => window == 0 ? 0 : used / window;
 }
