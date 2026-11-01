@@ -702,6 +702,24 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     await _codex.removeAccount(_provider.id, account.id);
   }
 
+  Future<void> _useResetCredit(ProviderAccount account) async {
+    final l10n = context.l10n;
+    final choice = await showIdeDialog(
+      context,
+      message: l10n.modelsResetCreditConfirm(account.displayName),
+      detail: l10n.modelsResetCreditConfirmDetail,
+      buttons: [l10n.modelsResetCreditUse],
+      type: IdeDialogType.question,
+    );
+    if (choice != 0) return;
+    try {
+      await _codex.useResetCredit(_providerNow, account.id);
+    } on CodexException catch (error) {
+      // Shown under the account, as its error.
+      debugPrint('$error');
+    }
+  }
+
   Future<void> _readKey() async {
     final key = await _providers.key(_provider.id);
     if (mounted) {
@@ -979,6 +997,9 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               usage: _codex.usage(provider.id, account.id),
               error: _codex.error(provider.id, account.id),
               limitedUntil: _codex.limitedUntil(provider.id, account.id),
+              resetCredits: _codex.resetCredits(provider.id, account.id),
+              resetting: _codex.resetting(provider.id, account.id),
+              onReset: () => unawaited(_useResetCredit(account)),
               onEnabled: (value) => unawaited(
                 _save(
                   _providerNow.withAccount(account.copyWith(enabled: value)),
@@ -1912,6 +1933,9 @@ class _AccountRow extends StatelessWidget {
     required this.limitedUntil,
     required this.onEnabled,
     required this.onRemove,
+    this.resetCredits,
+    this.resetting = false,
+    this.onReset,
   });
 
   final ProviderAccount account;
@@ -1920,6 +1944,11 @@ class _AccountRow extends StatelessWidget {
   final DateTime? limitedUntil;
   final ValueChanged<bool> onEnabled;
   final VoidCallback onRemove;
+
+  /// Its reset credits, as listed; [onReset] uses one up.
+  final List<CodexResetCredit>? resetCredits;
+  final bool resetting;
+  final VoidCallback? onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -1992,18 +2021,121 @@ class _AccountRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          SettingsSwitch(
-            value: account.enabled,
-            semanticLabel: l10n.modelsAccountEnable(account.displayName),
-            onChanged: onEnabled,
-          ),
-          const SizedBox(width: 8),
-          IdeActionButton(
-            icon: Codicons.trash,
-            tooltip: l10n.modelsAccountRemove,
-            onPressed: onRemove,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SettingsSwitch(
+                    value: account.enabled,
+                    semanticLabel: l10n.modelsAccountEnable(
+                      account.displayName,
+                    ),
+                    onChanged: onEnabled,
+                  ),
+                  const SizedBox(width: 8),
+                  IdeActionButton(
+                    icon: Codicons.trash,
+                    tooltip: l10n.modelsAccountRemove,
+                    onPressed: onRemove,
+                  ),
+                ],
+              ),
+              if (usage?.resetCredits case final count? when count > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: _ResetCredits(
+                    count: count,
+                    credits: resetCredits,
+                    resetting: resetting,
+                    onReset: onReset,
+                  ),
+                ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// How many reset credits an account has, in small text; hovered, each
+/// one's expiry, and a button that uses one up.
+class _ResetCredits extends StatelessWidget {
+  const _ResetCredits({
+    required this.count,
+    required this.credits,
+    required this.resetting,
+    required this.onReset,
+  });
+
+  final int count;
+  final List<CodexResetCredit>? credits;
+  final bool resetting;
+  final VoidCallback? onReset;
+
+  static String _time(DateTime at) {
+    final local = at.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${local.month}/${local.day} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final faint = SettingsText.description.copyWith(
+      color: SettingsColors.textSecondary,
+    );
+    return IdeHover(
+      interactive: true,
+      compact: false,
+      message: l10n.modelsResetCredits(count),
+      content: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 180, maxWidth: 280),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.modelsResetCreditsTitle(count),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(l10n.modelsResetCreditsDetail, style: faint),
+              if (credits case final credits? when credits.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                for (final (i, credit) in credits.indexed)
+                  Text(
+                    '${i + 1}. ${switch (credit.expiresAt) {
+                      final at? => l10n.modelsResetCreditExpires(_time(at)),
+                      null => '—',
+                    }}',
+                    style: SettingsText.description,
+                  ),
+              ],
+              const SizedBox(height: 8),
+              IdeButton(
+                label: l10n.modelsResetCreditUse,
+                icon: Codicons.debugRestart,
+                spinning: resetting,
+                onPressed: resetting ? null : onReset,
+              ),
+            ],
+          ),
+        ),
+      ),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.help,
+        child: Text(
+          l10n.modelsResetCredits(count),
+          style: SettingsText.description.copyWith(
+            decoration: TextDecoration.underline,
+            decorationStyle: TextDecorationStyle.dotted,
+            decorationColor: SettingsColors.textSecondary,
+          ),
+        ),
       ),
     );
   }

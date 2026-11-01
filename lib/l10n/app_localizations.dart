@@ -21302,6 +21302,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The calls are deleted from this computer. This cannot be undone.'**
   String get ustatClearDetail;
+
+  /// No description provided for @autoResetCreditsToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-Use Reset Credits'**
+  String get autoResetCreditsToggle;
+
+  /// No description provided for @modelsResetCredits.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 reset left} other{{count} resets left}}'**
+  String modelsResetCredits(int count);
+
+  /// No description provided for @modelsResetCreditsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 reset credit} other{{count} reset credits}}'**
+  String modelsResetCreditsTitle(int count);
+
+  /// No description provided for @modelsResetCreditsDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Using one starts this account\'s quota windows over at once.'**
+  String get modelsResetCreditsDetail;
+
+  /// No description provided for @modelsResetCreditExpires.
+  ///
+  /// In en, this message translates to:
+  /// **'Expires {time}'**
+  String modelsResetCreditExpires(String time);
+
+  /// No description provided for @modelsResetCreditUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Now'**
+  String get modelsResetCreditUse;
+
+  /// No description provided for @modelsResetCreditConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a reset credit of {account}?'**
+  String modelsResetCreditConfirm(String account);
+
+  /// No description provided for @modelsResetCreditConfirmDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Its quota starts over at once. The credit can\'t be given back, and whatever quota is left now is lost.'**
+  String get modelsResetCreditConfirmDetail;
+
+  /// No description provided for @resetCreditsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{A reset credit expires} other{{count} reset credits expire}} within a week. To get their worth, use Codex models on this plan, resetting once the quota runs out:'**
+  String resetCreditsHint(int count);
+
+  /// No description provided for @resetCreditsHintDay.
+  ///
+  /// In en, this message translates to:
+  /// **'{day}: reset {count, plural, =1{once} other{{count} times}}'**
+  String resetCreditsHintDay(String day, int count);
+
+  /// No description provided for @resetCreditsHintBy.
+  ///
+  /// In en, this message translates to:
+  /// **'by {time}'**
+  String resetCreditsHintBy(String time);
+
+  /// No description provided for @resetCreditsHintToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get resetCreditsHintToday;
+
+  /// No description provided for @resetCreditsHintTomorrow.
+  ///
+  /// In en, this message translates to:
+  /// **'Tomorrow'**
+  String get resetCreditsHintTomorrow;
+
+  /// No description provided for @resetCreditsHintAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Automatically'**
+  String get resetCreditsHintAuto;
+
+  /// No description provided for @resetCreditsHintLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Got It'**
+  String get resetCreditsHintLater;
 }
 
 class _AppLocalizationsDelegate

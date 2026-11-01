@@ -621,6 +621,7 @@ class ModelProvider {
     this.headers = const {},
     this.accounts = const [],
     this.balance = AccountBalance.roundRobin,
+    this.autoResetCredits = false,
     this.clientVersion,
     this.icon,
   });
@@ -681,6 +682,10 @@ class ModelProvider {
 
   /// Which of [accounts] a request goes to.
   final AccountBalance balance;
+
+  /// Codex: an account whose quota is used up for longer than five hours
+  /// uses up a reset credit of its own, if it has one, and goes on.
+  final bool autoResetCredits;
 
   /// Codex: the Codex CLI's version it speaks as (`0.159.0`), for models
   /// the backend offers only to a newer one; the app's when null.
@@ -824,6 +829,7 @@ class ModelProvider {
     Map<String, String>? headers,
     List<ProviderAccount>? accounts,
     AccountBalance? balance,
+    bool? autoResetCredits,
     String? Function()? clientVersion,
     ProjectIcon? Function()? icon,
   }) => ModelProvider(
@@ -845,6 +851,7 @@ class ModelProvider {
     headers: headers ?? this.headers,
     accounts: accounts ?? this.accounts,
     balance: balance ?? this.balance,
+    autoResetCredits: autoResetCredits ?? this.autoResetCredits,
     clientVersion: clientVersion == null ? this.clientVersion : clientVersion(),
     icon: icon == null ? this.icon : icon(),
   );
@@ -888,6 +895,7 @@ class ModelProvider {
     if (accounts.isNotEmpty)
       'accounts': [for (final account in accounts) account.toJson()],
     if (balance != AccountBalance.roundRobin) 'balance': balance.id,
+    if (autoResetCredits) 'autoResetCredits': true,
     'clientVersion': ?clientVersion,
     'icon': ?icon?.toJson(),
   };
@@ -931,6 +939,7 @@ class ModelProvider {
           ?ProviderAccount.fromJson(account),
       ],
       balance: AccountBalance.parse(json['balance']),
+      autoResetCredits: json['autoResetCredits'] == true,
       clientVersion: switch (json['clientVersion']) {
         final String version when isClientVersion(version.trim()) =>
           version.trim(),

@@ -3540,5 +3540,20 @@
   "ustatClearShownFiltered": "清理当前筛选出的数据",
   "ustatClearAll": "全部清理",
   "ustatClearConfirm": "{what}？",
-  "ustatClearDetail": "这些调用记录会从本机删除，无法恢复。"
+  "ustatClearDetail": "这些调用记录会从本机删除，无法恢复。",
+  "autoResetCreditsToggle": "自动使用重置卡",
+  "modelsResetCredits": "可重置 {count} 次",
+  "modelsResetCreditsTitle": "{count} 张重置卡",
+  "modelsResetCreditsDetail": "用掉一张，这个账号的额度窗口立即重新开始。",
+  "modelsResetCreditExpires": "{time} 过期",
+  "modelsResetCreditUse": "立即重置",
+  "modelsResetCreditConfirm": "用掉 {account} 的一张重置卡？",
+  "modelsResetCreditConfirmDetail": "额度会立即重置，卡用掉后不能退回；现在还没用完的额度也就作废了。",
+  "resetCreditsHint": "有 {count} 张重置卡将在一周内过期。建议按这个计划用 Codex 模型，额度用满后再重置，别让它们白白过期：",
+  "resetCreditsHintDay": "{day}：重置 {count} 次",
+  "resetCreditsHintBy": "{time} 前",
+  "resetCreditsHintToday": "今天",
+  "resetCreditsHintTomorrow": "明天",
+  "resetCreditsHintAuto": "用尽时自动重置",
+  "resetCreditsHintLater": "知道了"
 }
