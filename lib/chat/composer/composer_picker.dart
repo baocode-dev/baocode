@@ -276,6 +276,9 @@ class ComposerPickerState extends State<ComposerPicker> {
 
   final ScrollController _list = ScrollController();
 
+  /// The settings' (or submenu's), scrolled when the window is too low.
+  final ScrollController _settingsScroll = ScrollController();
+
   /// The list's viewport.
   final GlobalKey _listKey = GlobalKey();
 
@@ -396,6 +399,7 @@ class ComposerPickerState extends State<ComposerPicker> {
     _highlight.dispose();
     _shown.dispose();
     _list.dispose();
+    _settingsScroll.dispose();
     _settingHighlight.dispose();
     super.dispose();
   }
@@ -874,7 +878,9 @@ class ComposerPickerState extends State<ComposerPicker> {
     );
   }
 
-  Widget _buildSettings(List<ModelSettingChoice> settings) {
+  /// Option [index]'s [settings] (or submenu), scrolling when taller than
+  /// the window lets them be; from their top for each option.
+  Widget _buildSettings(int index, List<ModelSettingChoice> settings) {
     // Where each setting's options start, counting across them.
     final starts = <int>[];
     var count = 0;
@@ -882,68 +888,92 @@ class ComposerPickerState extends State<ComposerPicker> {
       starts.add(count);
       count += setting.options.length;
     }
-    // A submenu: options as the menu's, as wide.
+    // A submenu: options as the menu's, as wide. Settings: as wide as
+    // their longest label, between [_settingsMinWidth] and
+    // [_settingsMaxWidth].
     final submenu = widget.submenuOf != null;
-    return Container(
-      width: submenu ? widget.menuWidth : 148,
-      padding: const EdgeInsets.all(_menuPadding),
-      decoration: _panel,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final (i, setting) in settings.indexed) ...[
-            if (i > 0)
-              Container(
-                height: 1,
-                margin: const EdgeInsets.symmetric(
-                  vertical: (_settingGap - 1) / 2,
-                  horizontal: 4,
-                ),
-                color: IdeMenuColors.separator,
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, setting) in settings.indexed) ...[
+          if (i > 0)
+            Container(
+              height: 1,
+              margin: const EdgeInsets.symmetric(
+                vertical: (_settingGap - 1) / 2,
+                horizontal: 4,
               ),
-            if (switch (setting.kind) {
-                  KernelChoiceKind.context =>
-                    context.l10n.composerSettingContext,
-                  KernelChoiceKind.effort => context.l10n.composerSettingEffort,
-                  _ => null,
-                }
-                case final heading?)
-              SizedBox(
-                height: _settingHeaderHeight,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      heading,
-                      style: TextStyle(
-                        color: AppColors.textFaint,
-                        fontSize: 11,
-                      ),
-                    ),
+              color: IdeMenuColors.separator,
+            ),
+          if (switch (setting.kind) {
+                KernelChoiceKind.context => context.l10n.composerSettingContext,
+                KernelChoiceKind.effort => context.l10n.composerSettingEffort,
+                _ => null,
+              }
+              case final heading?)
+            SizedBox(
+              height: _settingHeaderHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    heading,
+                    style: TextStyle(color: AppColors.textFaint, fontSize: 11),
                   ),
                 ),
               ),
-            for (final (j, option) in setting.options.indexed)
-              _SettingRow(
-                option: option,
-                full: submenu,
-                describes:
-                    submenu && widget.describes && !widget.descriptionAside,
-                height: submenu ? _rowHeight : _settingRowHeight,
-                selected: option == setting.selected,
-                toggle: setting.toggle,
-                index: starts[i] + j,
-                highlight: _settingHighlight,
-                onHover: () => _setting = starts[i] + j,
-                onTap: () => _selectSetting(setting, option),
-              ),
-          ],
+            ),
+          for (final (j, option) in setting.options.indexed)
+            _SettingRow(
+              option: option,
+              full: submenu,
+              describes:
+                  submenu && widget.describes && !widget.descriptionAside,
+              height: submenu ? _rowHeight : _settingRowHeight,
+              selected: option == setting.selected,
+              toggle: setting.toggle,
+              index: starts[i] + j,
+              highlight: _settingHighlight,
+              onHover: () => _setting = starts[i] + j,
+              onTap: () => _selectSetting(setting, option),
+            ),
         ],
+      ],
+    );
+    final panel = Container(
+      width: submenu ? widget.menuWidth : null,
+      decoration: _panel,
+      child: Scrollbar(
+        controller: _settingsScroll,
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: ScrollEdgeFade(
+            fadeLength: 16,
+            repaint: _settingsScroll,
+            child: SingleChildScrollView(
+              key: ValueKey(index),
+              controller: _settingsScroll,
+              padding: const EdgeInsets.all(_menuPadding),
+              child: column,
+            ),
+          ),
+        ),
       ),
     );
+    if (submenu) return panel;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: _settingsMinWidth,
+        maxWidth: _settingsMaxWidth,
+      ),
+      child: IntrinsicWidth(child: panel),
+    );
   }
+
+  static const _settingsMinWidth = 148.0;
+  static const _settingsMaxWidth = 240.0;
 
   /// [rows] scrolling, the heading of the group scrolled into stuck over
   /// them. What is scrolled past fades out under the search line and the
@@ -1142,7 +1172,10 @@ class ComposerPickerState extends State<ComposerPicker> {
           key: _settingsKey,
           onEnter: (_) => _enterSettings(),
           // Hidden, those last shown, as they fade out.
-          child: _buildSettings(_settingsFor(shown ?? _settingsAt)),
+          child: _buildSettings(
+            shown ?? _settingsAt,
+            _settingsFor(shown ?? _settingsAt),
+          ),
         ),
         child: menu!,
       ),
@@ -1625,60 +1658,128 @@ class _SettingRow extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: _Highlighted(
+        child: _KeptInView(
           index: index,
           highlight: highlight,
-          height: height,
-          child: Row(
-            children: [
-              if (full) ...[
-                option.iconBuilder?.call(15, AppColors.textMuted) ??
-                    Icon(option.icon, size: 15, color: AppColors.textMuted),
-                const SizedBox(width: 10),
-              ],
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      option.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: IdeMenuColors.foreground,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                    if (describes)
+          child: _Highlighted(
+            index: index,
+            highlight: highlight,
+            height: height,
+            child: Row(
+              children: [
+                if (full) ...[
+                  option.iconBuilder?.call(15, AppColors.textMuted) ??
+                      Icon(option.icon, size: 15, color: AppColors.textMuted),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        option.description,
+                        option.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: AppColors.textFaint,
-                          fontSize: 11,
+                          color: IdeMenuColors.foreground,
+                          fontSize: 12.5,
                         ),
                       ),
-                  ],
+                      if (describes)
+                        Text(
+                          option.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.textFaint,
+                            fontSize: 11,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              if (toggle)
-                IdeSwitch(
-                  value: selected,
-                  semanticLabel: option.label,
-                  onChanged: (_) => onTap(),
-                )
-              else if (selected)
-                Icon(
-                  Icons.check_rounded,
-                  size: 15,
-                  color: IdeMenuColors.foreground,
-                ),
-            ],
+                if (toggle) ...[
+                  const SizedBox(width: 12),
+                  IdeSwitch(
+                    value: selected,
+                    semanticLabel: option.label,
+                    onChanged: (_) => onTap(),
+                  ),
+                ] else if (selected)
+                  Icon(
+                    Icons.check_rounded,
+                    size: 15,
+                    color: IdeMenuColors.foreground,
+                  ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// [child] scrolled into view as it is highlighted (from the keyboard):
+/// settings taller than the window.
+class _KeptInView extends StatefulWidget {
+  const _KeptInView({
+    required this.index,
+    required this.highlight,
+    required this.child,
+  });
+
+  final int index;
+  final ValueListenable<int?> highlight;
+  final Widget child;
+
+  @override
+  State<_KeptInView> createState() => _KeptInViewState();
+}
+
+class _KeptInViewState extends State<_KeptInView> {
+  int? _last;
+
+  @override
+  void initState() {
+    super.initState();
+    _last = widget.highlight.value;
+    widget.highlight.addListener(_highlighted);
+  }
+
+  @override
+  void didUpdateWidget(_KeptInView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.highlight != widget.highlight) {
+      oldWidget.highlight.removeListener(_highlighted);
+      widget.highlight.addListener(_highlighted);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.highlight.removeListener(_highlighted);
+    super.dispose();
+  }
+
+  void _highlighted() {
+    final now = widget.highlight.value;
+    final before = _last;
+    _last = now;
+    if (now != widget.index || before == now) return;
+    unawaited(
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 80),
+        // Coming up from below: to the top; else to the bottom.
+        alignmentPolicy: before != null && before > widget.index
+            ? ScrollPositionAlignmentPolicy.keepVisibleAtStart
+            : ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

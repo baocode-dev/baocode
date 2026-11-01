@@ -974,6 +974,66 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     return _save(provider);
   }
 
+  /// Whether an account out of quota uses a reset credit by itself, and
+  /// for which windows: as the model picker's switch, with its reach.
+  Widget _autoResetCredits(BuildContext context) {
+    final l10n = context.l10n;
+    final provider = _provider;
+    final choices = [
+      (
+        on: false,
+        fiveHours: provider.resetCreditsFiveHours,
+        label: l10n.modelsAutoResetCreditsOff,
+        description: l10n.modelsAutoResetCreditsOffDescription,
+      ),
+      (
+        on: true,
+        fiveHours: false,
+        label: l10n.modelsAutoResetCreditsLong,
+        description: l10n.modelsAutoResetCreditsLongDescription,
+      ),
+      (
+        on: true,
+        fiveHours: true,
+        label: l10n.modelsAutoResetCreditsAny,
+        description: l10n.modelsAutoResetCreditsAnyDescription,
+      ),
+    ];
+    final current = choices.firstWhere(
+      (choice) =>
+          choice.on == provider.autoResetCredits &&
+          (!choice.on || choice.fiveHours == provider.resetCreditsFiveHours),
+    );
+    return SettingsRow(
+      label: l10n.autoResetCreditsToggle,
+      description: current.description,
+      trailing: SettingsDropdown(
+        current: current.label,
+        semanticLabel: l10n.modelsChoiceLabel(
+          l10n.autoResetCreditsToggle,
+          current.label,
+        ),
+        entries: () => [
+          for (final choice in choices)
+            IdeMenuAction(
+              choice.label,
+              checked: identical(choice, current),
+              onSelected: () => unawaited(() async {
+                await _save(
+                  _providerNow.copyWith(
+                    autoResetCredits: choice.on,
+                    resetCreditsFiveHours: choice.fiveHours,
+                  ),
+                );
+                // Turned on: one out of quota already uses its credit now.
+                if (choice.on) await _codex.refreshUsage(_providerNow);
+              }()),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _accounts(BuildContext context) {
     final l10n = context.l10n;
     final provider = _provider;
@@ -1035,6 +1095,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               ],
             ),
           ),
+        if (provider.accounts.isNotEmpty) _autoResetCredits(context),
         SettingsRow(
           label: login != null
               ? l10n.modelsAccountSigningIn

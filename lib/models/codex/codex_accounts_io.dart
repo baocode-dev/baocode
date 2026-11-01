@@ -582,7 +582,8 @@ class CodexAccounts extends CodexService {
   }
 
   /// Uses up a reset credit of [account]'s, if [providerId] is to by itself
-  /// and its quota is used up for longer than five hours; whether one was.
+  /// and its quota is used up (for longer than five hours, unless its
+  /// five hours are to be reset too); whether one was.
   /// After one, the next waits [autoResetBackoff].
   Future<bool> _autoReset(String providerId, ProviderAccount account) async {
     final key = _key(providerId, account.id);
@@ -604,7 +605,7 @@ class CodexAccounts extends CodexService {
         signedOut(providerId, account.id) ||
         usage == null ||
         (usage.resetCredits ?? 0) <= 0 ||
-        !usage.longWindowUsedUp(now)) {
+        !usage.usedUp(now, fiveHours: provider.resetCreditsFiveHours)) {
       return false;
     }
     if (requests?.resetTriedAt case final tried?

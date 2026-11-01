@@ -142,13 +142,14 @@ class CodexUsage {
     );
   }
 
-  /// Whether a window that lasts longer than five hours is used up, and
-  /// starts over later than [now]: one worth a reset credit (a used-up
-  /// five hours starts over soon enough by itself).
-  bool longWindowUsedUp(DateTime now) => windows.any((window) {
+  /// Whether a window is used up, and starts over later than [now]: one
+  /// worth a reset credit. With [fiveHours] false, only one that lasts
+  /// longer (a used-up five hours starts over soon enough by itself).
+  bool usedUp(DateTime now, {bool fiveHours = false}) => windows.any((window) {
     final resetsAt = window.resetsAt;
     if (window.usedPercent < 100 || resetsAt == null) return false;
     if (!resetsAt.isAfter(now)) return false;
+    if (fiveHours) return true;
     return switch (window.minutes) {
       final minutes? => minutes > 300,
       null => resetsAt.difference(now) > const Duration(hours: 5),

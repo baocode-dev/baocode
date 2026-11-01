@@ -622,6 +622,7 @@ class ModelProvider {
     this.accounts = const [],
     this.balance = AccountBalance.roundRobin,
     this.autoResetCredits = false,
+    this.resetCreditsFiveHours = false,
     this.clientVersion,
     this.icon,
   });
@@ -684,8 +685,10 @@ class ModelProvider {
   final AccountBalance balance;
 
   /// Codex: an account whose quota is used up for longer than five hours
-  /// uses up a reset credit of its own, if it has one, and goes on.
+  /// (or for five, with [resetCreditsFiveHours]) uses up a reset credit
+  /// of its own, if it has one, and goes on.
   final bool autoResetCredits;
+  final bool resetCreditsFiveHours;
 
   /// Codex: the Codex CLI's version it speaks as (`0.159.0`), for models
   /// the backend offers only to a newer one; the app's when null.
@@ -830,6 +833,7 @@ class ModelProvider {
     List<ProviderAccount>? accounts,
     AccountBalance? balance,
     bool? autoResetCredits,
+    bool? resetCreditsFiveHours,
     String? Function()? clientVersion,
     ProjectIcon? Function()? icon,
   }) => ModelProvider(
@@ -852,6 +856,7 @@ class ModelProvider {
     accounts: accounts ?? this.accounts,
     balance: balance ?? this.balance,
     autoResetCredits: autoResetCredits ?? this.autoResetCredits,
+    resetCreditsFiveHours: resetCreditsFiveHours ?? this.resetCreditsFiveHours,
     clientVersion: clientVersion == null ? this.clientVersion : clientVersion(),
     icon: icon == null ? this.icon : icon(),
   );
@@ -896,6 +901,7 @@ class ModelProvider {
       'accounts': [for (final account in accounts) account.toJson()],
     if (balance != AccountBalance.roundRobin) 'balance': balance.id,
     if (autoResetCredits) 'autoResetCredits': true,
+    if (resetCreditsFiveHours) 'resetCreditsFiveHours': true,
     'clientVersion': ?clientVersion,
     'icon': ?icon?.toJson(),
   };
@@ -940,6 +946,7 @@ class ModelProvider {
       ],
       balance: AccountBalance.parse(json['balance']),
       autoResetCredits: json['autoResetCredits'] == true,
+      resetCreditsFiveHours: json['resetCreditsFiveHours'] == true,
       clientVersion: switch (json['clientVersion']) {
         final String version when isClientVersion(version.trim()) =>
           version.trim(),

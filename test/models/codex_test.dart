@@ -248,7 +248,7 @@ void main() {
       expect(usage.limitedUntil, now.add(const Duration(days: 2)));
       expect(usage.resetCredits, isNull);
       // Worth a reset credit: not five hours, which start over soon.
-      expect(usage.longWindowUsedUp(now), isTrue);
+      expect(usage.usedUp(now), isTrue);
     });
 
     test('reset credits: their count, those that can be used', () {
@@ -266,8 +266,9 @@ void main() {
         },
       }, now);
       expect(usage(300).resetCredits, 2);
-      expect(usage(300).longWindowUsedUp(now), isFalse);
-      expect(usage(43200).longWindowUsedUp(now), isTrue);
+      expect(usage(300).usedUp(now), isFalse);
+      expect(usage(300).usedUp(now, fiveHours: true), isTrue);
+      expect(usage(43200).usedUp(now), isTrue);
       expect(usage(300).withResetCredits(1).resetCredits, 1);
 
       final later = now.add(const Duration(days: 3)).toUtc();
@@ -705,13 +706,14 @@ void main() {
       const consumePath = '/backend-api/wham/rate-limit-reset-credits/consume';
       late int credits;
       late bool weekUsedUp;
+      late bool fiveHoursUsedUp;
       var consumeStatus = 200;
 
       String usage() => jsonEncode({
         'rate_limit': {
-          'limit_reached': weekUsedUp,
+          'limit_reached': weekUsedUp || fiveHoursUsedUp,
           'primary_window': {
-            'used_percent': 10,
+            'used_percent': fiveHoursUsedUp ? 100 : 10,
             'limit_window_seconds': 18000,
             'reset_after_seconds': 600,
           },
@@ -752,6 +754,7 @@ void main() {
         consumePath => () {
           credits--;
           weekUsedUp = false;
+          fiveHoursUsedUp = false;
           return (
             200,
             const <String, String>{},
@@ -764,6 +767,7 @@ void main() {
       setUp(() {
         credits = 2;
         weekUsedUp = true;
+        fiveHoursUsedUp = false;
         consumeStatus = 200;
         openai.reply = (path, _, _) =>
             backend(path) ?? (404, const {}, const []);
@@ -819,13 +823,21 @@ void main() {
         expect(openai.to(consumePath), hasLength(2));
         expect(accounts.limitedUntil('cx', 'a'), isNull);
         expect(accounts.usage('cx', 'a')!.resetCredits, 0);
+      });
 
-        // Five hours used up only: not worth one.
-        credits = 2;
+      test('five hours used up: one used only if they are to be', () async {
         weekUsedUp = false;
+        fiveHoursUsedUp = true;
+        await providers.save(provider().copyWith(autoResetCredits: true));
+        await accounts.refreshUsage(provider());
+        await settle();
+        expect(openai.to(consumePath), isEmpty);
+
+        await providers.save(provider().copyWith(resetCreditsFiveHours: true));
         await accounts.refreshUsage(provider());
         await settle();
         expect(openai.to(consumePath), hasLength(2));
+        expect(accounts.limitedUntil('cx', 'a'), isNull);
       });
 
       test('on: a request out of quota goes on, a credit used', () async {
