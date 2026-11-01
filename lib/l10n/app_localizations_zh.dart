@@ -1976,6 +1976,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarFork => 'Fork 对话';
 
   @override
+  String get sidebarDetachAside => '从主对话分离';
+
+  @override
+  String sidebarDeleteAsidesToo(int count) {
+    return '它的 $count 个 /btw 子对话也会一并删除。';
+  }
+
+  @override
+  String get btwCommandDetail => '在旁边另开一个对话提问';
+
+  @override
+  String get sidebarFoldAsides => '收起 /btw 子对话';
+
+  @override
+  String sidebarUnfoldAsides(int count) {
+    return '展开 $count 个 /btw 子对话';
+  }
+
+  @override
   String sidebarShowMore(int count) {
     return '显示更多（$count）';
   }

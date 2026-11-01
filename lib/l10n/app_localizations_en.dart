@@ -2038,6 +2038,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarFork => 'Fork';
 
   @override
+  String get sidebarDetachAside => 'Detach from Conversation';
+
+  @override
+  String sidebarDeleteAsidesToo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Its $count /btw conversations are deleted with it.',
+      one: 'Its /btw conversation is deleted with it.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get btwCommandDetail =>
+      'Ask in a conversation of its own, beside this one';
+
+  @override
+  String get sidebarFoldAsides => 'Hide /btw Conversations';
+
+  @override
+  String sidebarUnfoldAsides(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Show its $count /btw conversations',
+      one: 'Show its /btw conversation',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String sidebarShowMore(int count) {
     return 'Show more ($count)';
   }

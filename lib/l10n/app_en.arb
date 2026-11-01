@@ -1079,6 +1079,36 @@
   "@sidebarFork": {
     "description": "An agent's menu in the sidebar: copies its conversation into a new agent, which opens."
   },
+  "sidebarDetachAside": "Detach from Conversation",
+  "@sidebarDetachAside": {
+    "description": "The menu of a conversation asked beside another with /btw, listed under it in the sidebar: makes it a conversation of its own."
+  },
+  "sidebarDeleteAsidesToo": "{count, plural, =1{Its /btw conversation is deleted with it.} other{Its {count} /btw conversations are deleted with it.}}",
+  "@sidebarDeleteAsidesToo": {
+    "description": "After the message asking to delete an agent that has conversations asked beside it with /btw.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "btwCommandDetail": "Ask in a conversation of its own, beside this one",
+  "@btwCommandDetail": {
+    "description": "The /btw command in the composer's command list: what follows is asked in a new conversation copied from this one, listed under it."
+  },
+  "sidebarFoldAsides": "Hide /btw Conversations",
+  "@sidebarFoldAsides": {
+    "description": "The arrow on a sidebar row with conversations asked beside it (/btw) listed under it: no longer lists them."
+  },
+  "sidebarUnfoldAsides": "{count, plural, =1{Show its /btw conversation} other{Show its {count} /btw conversations}}",
+  "@sidebarUnfoldAsides": {
+    "description": "The arrow, or the tag, on a sidebar row whose conversations asked beside it (/btw) are hidden: lists them under it again.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sidebarShowMore": "Show more ({count})",
   "@sidebarShowMore": {
     "placeholders": {
