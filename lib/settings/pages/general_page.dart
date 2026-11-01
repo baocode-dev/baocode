@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../ide/explorer_excludes.dart';
+import '../../ide/explorer_line_count.dart';
 import '../../ide/ide_button.dart';
 import '../../ide/ide_menu.dart';
 import '../../ide/ide_notifications.dart' show IdeSeverity;
@@ -443,6 +444,49 @@ class GeneralSettingsPage extends StatelessWidget {
                           IdeExplorerExcludes.settingKey,
                           excludePatterns(value),
                         ),
+                      ),
+                    ),
+                    SettingsSwitchRow(
+                      label: l10n.explorerLineCountSetting,
+                      description: l10n.explorerLineCountSettingDescription,
+                      value: (settings?[IdeExplorerLineCount.settingEnabled] as bool?) ?? true,
+                      onChanged: (on) => _write(
+                        IdeExplorerLineCount.settingEnabled,
+                        on ? null : false,
+                      ),
+                    ),
+                    SettingsRow(
+                      label: l10n.explorerLineCountMinLinesSetting,
+                      description: l10n.explorerLineCountMinLinesSettingDescription,
+                      trailing: SettingsTextField(
+                        value: (settings?[IdeExplorerLineCount.settingMinLineDisplay] ?? 0).toString(),
+                        width: 120,
+                        hint: '0',
+                        semanticLabel: l10n.explorerLineCountMinLinesSetting,
+                        onSubmitted: (value) {
+                          final count = int.tryParse(value.trim());
+                          _write(
+                            IdeExplorerLineCount.settingMinLineDisplay,
+                            (count == null || count <= 0) ? null : count,
+                          );
+                        },
+                      ),
+                    ),
+                    SettingsRow(
+                      label: l10n.explorerLineCountMaxFileSizeSetting,
+                      description: l10n.explorerLineCountMaxFileSizeSettingDescription,
+                      trailing: SettingsTextField(
+                        value: (settings?[IdeExplorerLineCount.settingMaxFileSize] ?? 2).toString(),
+                        width: 120,
+                        hint: '2',
+                        semanticLabel: l10n.explorerLineCountMaxFileSizeSetting,
+                        onSubmitted: (value) {
+                          final mb = num.tryParse(value.trim());
+                          _write(
+                            IdeExplorerLineCount.settingMaxFileSize,
+                            (mb == null || mb == 2) ? null : mb,
+                          );
+                        },
                       ),
                     ),
                   ],

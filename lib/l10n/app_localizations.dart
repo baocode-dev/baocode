@@ -9681,6 +9681,42 @@ abstract class AppLocalizations {
   /// **'e.g. .git, node_modules, *.log'**
   String get explorerExcludeSettingPlaceholder;
 
+  /// No description provided for @explorerLineCountSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Explorer line count'**
+  String get explorerLineCountSetting;
+
+  /// No description provided for @explorerLineCountSettingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Display compact line counts on files in the Explorer tree.'**
+  String get explorerLineCountSettingDescription;
+
+  /// No description provided for @explorerLineCountMinLinesSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimum lines to display'**
+  String get explorerLineCountMinLinesSetting;
+
+  /// No description provided for @explorerLineCountMinLinesSettingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Only show line count badges for files with at least this many lines (0 shows for all).'**
+  String get explorerLineCountMinLinesSettingDescription;
+
+  /// No description provided for @explorerLineCountMaxFileSizeSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum file size (MB)'**
+  String get explorerLineCountMaxFileSizeSetting;
+
+  /// No description provided for @explorerLineCountMaxFileSizeSettingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip line counting for files larger than this to preserve performance.'**
+  String get explorerLineCountMaxFileSizeSettingDescription;
+
   /// No description provided for @claudePathSetting.
   ///
   /// In en, this message translates to:

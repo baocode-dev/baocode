@@ -5623,6 +5623,26 @@ class AppLocalizationsZh extends AppLocalizations {
       '例如 .git, node_modules, *.log';
 
   @override
+  String get explorerLineCountSetting => '资源管理器行数显示';
+
+  @override
+  String get explorerLineCountSettingDescription => '在资源管理器文件旁显示紧凑的代码行数徽章。';
+
+  @override
+  String get explorerLineCountMinLinesSetting => '显示行数阈值';
+
+  @override
+  String get explorerLineCountMinLinesSettingDescription =>
+      '仅对行数大于或等于该数值的文件显示徽章（0 表示全部显示）。';
+
+  @override
+  String get explorerLineCountMaxFileSizeSetting => '最大文件大小 (MB)';
+
+  @override
+  String get explorerLineCountMaxFileSizeSettingDescription =>
+      '超过此大小的文件将跳过统计行数以保持性能。';
+
+  @override
   String get claudePathSetting => '路径';
 
   @override
