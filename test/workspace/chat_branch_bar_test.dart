@@ -1,6 +1,7 @@
 // Under the chat input, the Git branch the agent works on: switched from
 // its menu, while the agent works too; a workspace's folders' branch, or
-// each one's; only the name without a repository. Worktrees made and
+// each one's; a workspace's name only, and a project's nothing, without a
+// repository. Worktrees made and
 // switched to from it.
 
 import 'package:baocode/chat/chat_session.dart';
@@ -254,13 +255,21 @@ void main() {
     ]);
   });
 
-  testWidgets('a folder without Git shows its name only', (tester) async {
+  testWidgets('a project without Git shows nothing: its name is elsewhere', (
+    tester,
+  ) async {
     final fake = _git('/work/notes')..isRepository = false;
     final git = fake.repository();
     addTearDown(git.dispose);
     await _pump(tester, name: 'notes', repositories: [('/work/notes', git)]);
-    expect(find.text('notes'), findsOneWidget);
-    await tester.tap(find.text('notes'));
+    expect(find.text('notes'), findsNothing);
+    expect(tester.getSize(find.byType(ChatBranchBar)).height, 0);
+  });
+
+  testWidgets('a workspace without Git shows its name only', (tester) async {
+    await _pump(tester, name: 'BaoCode', workspace: true);
+    expect(find.text('BaoCode'), findsOneWidget);
+    await tester.tap(find.text('BaoCode'));
     await tester.pumpAndSettle();
     expect(find.text('Switch Branch'), findsNothing);
   });
