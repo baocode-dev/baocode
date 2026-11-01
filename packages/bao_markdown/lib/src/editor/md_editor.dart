@@ -2191,6 +2191,17 @@ class MarkdownEditorState extends State<MarkdownEditor>
       final (start, end) = _visualLine(selection.extentOffset);
       _moveTo(intent.forward ? end : start, extend: !intent.collapseSelection);
     }, () => _movable),
+    // Home and End: on macOS the platform's defaults map them here (they
+    // scroll the document, which an editor of text does not), so move the
+    // caret to the line's ends as on the other platforms.
+    ScrollToDocumentBoundaryIntent: _Act<ScrollToDocumentBoundaryIntent>((
+      intent,
+    ) {
+      final selection = controller.selection;
+      if (!selection.isValid) return;
+      final (start, end) = _visualLine(selection.extentOffset);
+      _moveTo(intent.forward ? end : start, extend: false);
+    }, () => _movable),
     ExpandSelectionToLineBreakIntent: _Act<ExpandSelectionToLineBreakIntent>((
       intent,
     ) {
