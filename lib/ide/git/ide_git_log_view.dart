@@ -2941,6 +2941,28 @@ class _Offers extends StatelessWidget {
   );
 }
 
+/// A commit message's [body] with its lines broken at ~72 columns joined
+/// again, to wrap at the panel's width: a line goes on the one before
+/// unless either is empty, or it starts indented, as a list's item or a
+/// quote, or as a trailer (`Co-Authored-By: …`).
+String ideGitUnwrapBody(String body) {
+  final own = RegExp(r'^(\s|[-*+>|]\s|\d+[.)]\s|[\w-]+: )');
+  final out = StringBuffer();
+  var previous = '';
+  for (final (index, line) in body.split('\n').indexed) {
+    if (index > 0) {
+      final join =
+          previous.trim().isNotEmpty &&
+          line.trim().isNotEmpty &&
+          !own.hasMatch(line);
+      out.write(join ? ' ' : '\n');
+    }
+    out.write(line);
+    previous = line;
+  }
+  return out.toString();
+}
+
 class _CommitDetails extends StatelessWidget {
   const _CommitDetails({
     super.key,
@@ -2978,7 +3000,9 @@ class _CommitDetails extends StatelessWidget {
     final foreground = IdeListColors.foreground;
     final message = commit.message.trim();
     final newline = message.indexOf('\n');
-    final body = newline < 0 ? '' : message.substring(newline + 1).trim();
+    final body = newline < 0
+        ? ''
+        : ideGitUnwrapBody(message.substring(newline + 1).trim());
     return FutureBuilder<List<IdeGitCommitChange>>(
       future: log.changesOf(git, commit.id),
       builder: (context, changes) {
@@ -3172,15 +3196,20 @@ class _CommitDetails extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           _summary(context, files),
-                          if (commit.references.isNotEmpty) ...[
+                          // Its tags; its branches are among those that
+                          // have it, below.
+                          if (commit.references.any(
+                            (ref) => ref.kind == IdeGitRefKind.tag,
+                          )) ...[
                             const SizedBox(height: 4),
                             Wrap(
                               spacing: 12,
                               runSpacing: 4,
                               children: [
-                                for (final label in ideGitRefLabels(
-                                  commit.references,
-                                ))
+                                for (final label in ideGitRefLabels([
+                                  for (final ref in commit.references)
+                                    if (ref.kind == IdeGitRefKind.tag) ref,
+                                ]))
                                   _refLabel(label),
                               ],
                             ),
