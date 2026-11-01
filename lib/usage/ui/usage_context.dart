@@ -7,6 +7,7 @@ import '../../kernel/extension_switches.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
+import '../usage_prices.dart';
 import '../usage_query.dart';
 import '../usage_record.dart';
 import 'usage_breakdown.dart';
@@ -103,6 +104,11 @@ class _UsageContextSectionState extends State<UsageContextSection> {
     String label(String agent) => agent.isEmpty
         ? l10n.ustatMainAgent
         : (widget.agentLabel?.call(agent) ?? agent);
+    final prices = UsagePrices.current;
+    String? costOf(UsageCall c) => switch (prices.priceOf(c)) {
+      final price? => UsagePrices.money(price.cost(c), price.currency),
+      null => null,
+    };
     final series = [
       (label: l10n.ustatTokenCacheRead, color: UsagePalette.cacheRead),
       (label: l10n.ustatTokenInput, color: UsagePalette.input),
@@ -121,6 +127,8 @@ class _UsageContextSectionState extends State<UsageContextSection> {
                 .where((c) => c.requestClass == UsageClass.compaction)
                 .length,
           ),
+        if (prices.costOf(requests).text case final cost?)
+          '${l10n.ustatCost} $cost',
       ].join('  ·  '),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -165,6 +173,7 @@ class _UsageContextSectionState extends State<UsageContextSection> {
                   title: [
                     '#${i + 1}  ${UsageFormat.when(c.at)}',
                     c.model,
+                    ?costOf(c),
                     if (c.speed case final speed?) UsageFormat.speed(speed),
                   ].join('  ·  '),
                   values: _stack(c),
@@ -268,6 +277,8 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
               if (call.requestClass != UsageClass.main)
                 UsageFormat.ofClass(context, call.requestClass),
               call.model,
+              if (UsagePrices.current.priceOf(call) case final price?)
+                UsagePrices.money(price.cost(call), price.currency),
               l10n.ustatCacheHitShort(
                 UsageFormat.percent(
                   call.prompt == 0 ? 0 : call.cacheRead / call.prompt,

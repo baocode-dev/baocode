@@ -244,9 +244,10 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
           _setFilter(filter.copyWith(classes: classes));
         },
       ),
-      UsageCard(
+      UsageRankCard(
+        summary: summary,
         title: l10n.ustatByAgent,
-        child: UsageRankList(
+        builder: (context, byCost) => UsageRankList(
           selected: filter.agents,
           onTap: (item) {
             final picked = {...filter.agents};
@@ -255,42 +256,44 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
           },
           moreLabel: (n) => l10n.ustatShowAll(n),
           lessLabel: l10n.ustatShowLess,
-          items: [
-            for (final group in UsageSummary.ranked(summary.byAgent))
-              rankOf(
-                context,
-                group,
-                label: _agentLabel(group.key),
-                detail: group.key.isEmpty ? null : group.detail,
-              ),
-          ],
+          items: UsageRanking(summary.byAgent.values, byCost: byCost).items(
+            (group, rank) => rankOf(
+              context,
+              group,
+              rank: rank,
+              label: _agentLabel(group.key),
+              detail: group.key.isEmpty ? null : group.detail,
+            ),
+          ),
         ),
       ),
       UsageToolsSection(summary: summary),
       if (prompts.isNotEmpty)
-        UsageCard(
+        UsageRankCard(
+          summary: summary,
           title: l10n.ustatByTurn,
           subtitle: l10n.ustatByTurnDetail,
-          child: UsageRankList(
+          builder: (context, byCost) => UsageRankList(
             limit: 5,
             moreLabel: (n) => l10n.ustatShowAll(n),
             lessLabel: l10n.ustatShowLess,
-            items: [
-              for (final group in prompts)
-                rankOf(
-                  context,
-                  group,
-                  label: UsageFormat.when(group.totals.first!),
-                  detail: l10n.ustatTurnDetail(
-                    UsageFormat.duration(
-                      group.totals.last!.difference(group.totals.first!),
-                    ),
-                    group.totals.maxPrompt == 0
-                        ? '—'
-                        : UsageFormat.tokens(group.totals.maxPrompt),
+            // As they came, not ranked.
+            items: UsageRanking(prompts, byCost: byCost, sort: false).items(
+              (group, rank) => rankOf(
+                context,
+                group,
+                rank: rank,
+                label: UsageFormat.when(group.totals.first!),
+                detail: l10n.ustatTurnDetail(
+                  UsageFormat.duration(
+                    group.totals.last!.difference(group.totals.first!),
                   ),
+                  group.totals.maxPrompt == 0
+                      ? '—'
+                      : UsageFormat.tokens(group.totals.maxPrompt),
                 ),
-            ],
+              ),
+            ),
           ),
         ),
       UsageTimeSection(summary: summary, height: 140),

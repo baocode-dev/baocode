@@ -84,6 +84,33 @@ void main() {
     expect(summary.byModel['kimi']!.totals.cost.text, isNull);
   });
 
+  test('a cost in parts by the kind of token, and what the cache saved', () {
+    UsagePrices.current = UsagePrices({
+      'gw/glm-5': const ModelPrice(input: 2, output: 8, cacheRead: 0.5),
+    });
+    final summary = UsageSummary.of([
+      _call(now),
+      _call(now, cacheWrite: 1000000),
+    ], const UsageFilter());
+    final parts = summary.totals.cost.parts['USD']!;
+    expect(parts.input, closeTo(4, 1e-9));
+    expect(parts.cacheRead, closeTo(2, 1e-9));
+    // Written at the input's: no price of its own.
+    expect(parts.cacheWrite, closeTo(2, 1e-9));
+    expect(parts.output, closeTo(1.6, 1e-9));
+    expect(parts.total, closeTo(summary.totals.cost.byCurrency['USD']!, 1e-9));
+    // 4M read at 0.5 in place of 2.
+    expect(parts.saved, closeTo(6, 1e-9));
+    expect(summary.totals.cost.savedText, r'$6.00');
+    expect(
+      summary.buckets.fold(
+        0.0,
+        (sum, b) => sum + (b.totals.cost.parts['USD']?.output ?? 0),
+      ),
+      closeTo(1.6, 1e-9),
+    );
+  });
+
   group('the agents\' tools', () {
     late UsageLedger ledger;
 

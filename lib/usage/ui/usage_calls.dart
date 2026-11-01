@@ -200,6 +200,7 @@ abstract final class _Columns {
   static const time2 = 44.0;
   static const speed = 40.0;
   static const total = 52.0;
+  static const cost = 56.0;
 }
 
 class _CallHeader extends StatelessWidget {
@@ -247,11 +248,14 @@ class _CallHeader extends StatelessWidget {
           number(l10n.ustatTokenCacheRead),
           number(l10n.ustatTokenCacheWrite),
           number(l10n.ustatTokenOutput),
-          number(l10n.ustatFieldFirstToken, _Columns.time2),
+          // Its time to first token in its detail where narrower: room
+          // for the cost.
+          if (barColumn) number(l10n.ustatFieldFirstToken, _Columns.time2),
           number(l10n.ustatFieldDuration, _Columns.time2),
           number(l10n.ustatFieldSpeed, _Columns.speed),
           const SizedBox(width: 18),
           number(l10n.ustatColumnTotal, _Columns.total),
+          number(l10n.ustatCost, _Columns.cost),
         ],
       ),
     );
@@ -280,6 +284,12 @@ class _CallRow extends StatelessWidget {
   final String? session;
   final VoidCallback onTap;
   final UsageLedger? ledger;
+
+  /// What it cost, at its model's price; null unpriced.
+  String? get _cost => switch (UsagePrices.current.priceOf(call)) {
+    final price? => UsagePrices.money(price.cost(call), price.currency),
+    null => null,
+  };
 
   Widget _tag(BuildContext context) => UsageClassTag(
     call.requestClass,
@@ -414,7 +424,8 @@ class _CallRow extends StatelessWidget {
           cell(count(call.cacheRead)),
           cell(count(call.cacheWrite)),
           cell(count(call.output)),
-          cell(UsageFormat.duration(call.firstToken), _Columns.time2),
+          if (barColumn)
+            cell(UsageFormat.duration(call.firstToken), _Columns.time2),
           cell(UsageFormat.duration(call.duration), _Columns.time2),
           cell(UsageFormat.speed(call.speed, unit: false), _Columns.speed),
           SizedBox(
@@ -429,6 +440,16 @@ class _CallRow extends StatelessWidget {
             child: Text(
               UsageFormat.tokens(call.total),
               textAlign: TextAlign.right,
+              style: UsageText.tabular.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          SizedBox(
+            width: _Columns.cost,
+            child: Text(
+              _cost ?? '—',
+              textAlign: TextAlign.right,
+              maxLines: 1,
+              overflow: TextOverflow.clip,
               style: UsageText.tabular.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
@@ -468,6 +489,7 @@ class _CallRow extends StatelessWidget {
         'TTFT ${UsageFormat.duration(first)}',
       UsageFormat.duration(call.duration),
       if (call.speed case final speed?) UsageFormat.speed(speed),
+      ?_cost,
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

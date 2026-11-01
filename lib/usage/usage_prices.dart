@@ -45,19 +45,26 @@ class ModelPrice {
   final DateTime? updated;
 
   /// What [call] cost.
-  double cost(UsageCall call) {
+  double cost(UsageCall call) => parts(call).total;
+
+  /// What [call]'s tokens of each kind cost; and what its cache reads
+  /// saved, against paying the input's price for them.
+  UsageCostParts parts(UsageCall call) {
     if (longPrompt case (:final over, :final price) when call.prompt > over) {
-      return price.cost(call);
+      return price.parts(call);
     }
     final long = call.cacheWriteLong.clamp(0, call.cacheWrite);
     final written = cacheWrite ?? input;
-    return (call.input * input +
-            call.cacheRead * (cacheRead ?? input) +
-            (call.cacheWrite - long) * written +
-            long * (cacheWriteLong ?? written) +
-            call.output * output) /
-        1e6 *
-        (call.fast ? fast : 1);
+    final times = (call.fast ? fast : 1) / 1e6;
+    return UsageCostParts()
+      ..input = call.input * input * times
+      ..cacheRead = call.cacheRead * (cacheRead ?? input) * times
+      ..cacheWrite =
+          ((call.cacheWrite - long) * written +
+              long * (cacheWriteLong ?? written)) *
+          times
+      ..output = call.output * output * times
+      ..saved = call.cacheRead * (input - (cacheRead ?? input)) * times;
   }
 
   Map<String, Object?> toJson() => {
@@ -129,23 +136,71 @@ class ModelPrice {
   );
 }
 
+/// What tokens of each kind cost, in one currency.
+class UsageCostParts {
+  double input = 0;
+  double cacheRead = 0;
+  double cacheWrite = 0;
+  double output = 0;
+
+  /// What reading from the cache saved, against the input's price: not in
+  /// [total].
+  double saved = 0;
+
+  double get total => input + cacheRead + cacheWrite + output;
+
+  void addAll(UsageCostParts other) {
+    input += other.input;
+    cacheRead += other.cacheRead;
+    cacheWrite += other.cacheWrite;
+    output += other.output;
+    saved += other.saved;
+  }
+}
+
 /// Amounts by currency: what calls priced in more than one came to.
 class UsageCost {
   final Map<String, double> byCurrency = {};
+
+  /// Each currency's, by the kind of token: those of the calls added with
+  /// [addCall].
+  final Map<String, UsageCostParts> parts = {};
 
   /// Calls without a price, not in it.
   int unpriced = 0;
 
   bool get isEmpty => byCurrency.isEmpty;
 
+  /// The currency it leads with: the first priced in.
+  String? get currency => byCurrency.keys.firstOrNull;
+
   void add(String currency, double amount) =>
       byCurrency[currency] = (byCurrency[currency] ?? 0) + amount;
+
+  /// Adds [call], at [price].
+  void addCall(UsageCall call, ModelPrice price) {
+    final of = price.parts(call);
+    add(price.currency, of.total);
+    (parts[price.currency] ??= UsageCostParts()).addAll(of);
+  }
 
   void addAll(UsageCost other) {
     for (final MapEntry(:key, :value) in other.byCurrency.entries) {
       add(key, value);
     }
+    for (final MapEntry(:key, :value) in other.parts.entries) {
+      (parts[key] ??= UsageCostParts()).addAll(value);
+    }
     unpriced += other.unpriced;
+  }
+
+  /// What reading from the cache saved, by currency; null when nothing.
+  String? get savedText {
+    final saved = [
+      for (final MapEntry(:key, :value) in parts.entries)
+        if (value.saved > 0) UsagePrices.money(value.saved, key),
+    ];
+    return saved.isEmpty ? null : saved.join(' + ');
   }
 
   /// $1.23 · ¥4.56; null when nothing was priced.
@@ -205,7 +260,7 @@ class UsagePrices extends ChangeNotifier {
     final cost = UsageCost();
     for (final call in calls) {
       if (priceOf(call) case final price?) {
-        cost.add(price.currency, price.cost(call));
+        cost.addCall(call, price);
       } else if (call.total > 0) {
         cost.unpriced++;
       }
