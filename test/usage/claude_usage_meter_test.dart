@@ -120,7 +120,8 @@ void main() {
   });
 
   test("a subagent's calls, seen whole, counted as its kind's and task's, "
-      'not timed', () {
+      'not timed; kept at the turn\'s end, the output its messages did not '
+      'tell spread over them', () {
     meter.receive(
       assistant(
         'msg_main',
@@ -136,31 +137,41 @@ void main() {
       ),
     );
     at(3000);
-    meter.receive(
-      assistant(
-        'msg_sub',
-        {'input_tokens': 800, 'output_tokens': 20},
-        parent: 'toolu_agent',
-        model: 'claude-haiku-5-5',
-      ),
-    );
+    for (final id in ['msg_sub1', 'msg_sub2']) {
+      meter
+        ..receive(
+          assistant(
+            id,
+            {'input_tokens': 800, 'output_tokens': 1},
+            parent: 'toolu_agent',
+            model: 'claude-haiku-5-5',
+          ),
+        )
+        // Its calls answered: the call is done.
+        ..receive({'type': 'user', 'parent_tool_use_id': 'toolu_agent'});
+    }
     expect(kept, isEmpty);
-    // Its calls answered: the call is done.
-    meter.receive({'type': 'user', 'parent_tool_use_id': 'toolu_agent'});
-    expect(kept, hasLength(1));
-    final sub = kept.single;
-    expect(sub.requestClass, UsageClass.subagent);
+    // The CLI's totals: 41 more output than told, and no more input: the
+    // calls seen whole (the main agent's here too) share it.
+    meter.receive({
+      'type': 'result',
+      'modelUsage': {
+        'claude-haiku-5-5': {'inputTokens': 1605, 'outputTokens': 83},
+      },
+    });
+    expect(kept.map((c) => c.requestClass), [
+      UsageClass.subagent,
+      UsageClass.subagent,
+      UsageClass.main,
+    ]);
+    final sub = kept.first;
     expect(sub.agentId, 'toolu_agent');
     expect(sub.agentType, 'Explore');
     expect(sub.task, 'Find it');
     expect(sub.firstToken, isNull);
     expect(sub.duration, Duration.zero);
-    // The turn over: the main agent's, still open, kept too.
-    meter.receive({'type': 'result'});
-    expect(kept.map((c) => c.requestClass), [
-      UsageClass.subagent,
-      UsageClass.main,
-    ]);
+    expect(kept.map((c) => c.output), [15, 15, 53]);
+    expect(kept.fold(0, (sum, c) => sum + c.output), 83);
   });
 
   test("the CLI's totals past the calls seen kept as its own call, once; "

@@ -8,10 +8,12 @@ import 'usage_record.dart';
 /// A streamed one (`stream_event`s) is timed from when the CLI said it was
 /// asking (`status: requesting`, else the turn's start or the last tool
 /// results) to its `message_stop`; one only seen whole (an `assistant`
-/// message, a subagent's) is counted, not timed. Calls the CLI makes
-/// beside the conversation (a title, a check) are not printed: what its
-/// running totals (`modelUsage`) have past those seen is kept as one
-/// auxiliary call at each `result`.
+/// message, a subagent's) is counted, not timed, and kept at the turn's
+/// `result`: its message tells its output only as it began, so the output
+/// the CLI's running totals (`modelUsage`) have past those seen is theirs.
+/// Calls the CLI makes beside the conversation (a title, a check) are not
+/// printed: what else its totals have past those seen (input with it) is
+/// kept as one auxiliary call.
 ///
 /// One a process: the CLI's totals start over with it.
 class ClaudeUsageMeter {
@@ -49,6 +51,11 @@ class ClaudeUsageMeter {
   /// Those kept, not to be kept twice (their messages' ids, the last few).
   final List<String> _kept = [];
 
+  /// Those done but seen only whole, kept at the turn's end, their output
+  /// made up then; with what they were then.
+  final List<({_Call call, bool compacted, Map<String, double>? quota})> _held =
+      [];
+
   /// The subagents started (the Agent tool's calls), by the call's id.
   final Map<String, ({String? type, String? task})> _agents = {};
 
@@ -75,15 +82,30 @@ class ClaudeUsageMeter {
         if (parent == null) _requestedAt = _clock();
       // The turn is over: what is open is done (cut off, if streaming).
       case 'result':
-        close();
+        _closeAll();
         _reconcile(_map(message['modelUsage']));
     }
   }
 
   /// Keeps what is still open: the process ends.
   void close() {
+    _closeAll();
+    _keepHeld();
+  }
+
+  void _closeAll() {
     for (final key in [..._open.keys]) {
       _close(key);
+    }
+  }
+
+  /// Keeps the calls [_held], [output] more spread over them.
+  void _keepHeld([int output = 0]) {
+    final held = [..._held];
+    _held.clear();
+    for (final (i, (:call, :compacted, :quota)) in held.indexed) {
+      final share = output ~/ held.length + (i < output % held.length ? 1 : 0);
+      record(_build(call, compacted: compacted, quota: quota, more: share));
     }
   }
 
@@ -219,39 +241,49 @@ class ClaudeUsageMeter {
     final tokens = call.usage;
     if (tokens.total == 0) return;
     _seen.add(tokens);
-    final agent = call.parent == null ? null : _agents[call.parent];
     final compacted = call.parent == null && _compacted;
     if (call.parent == null) _compacted = false;
-    record(
-      _stamp(
-        UsageCall(
-          at: call.at,
-          duration: call.timed ? _clock().difference(call.at) : Duration.zero,
-          headers: call.headers,
-          firstToken: call.firstToken,
-          status: 200,
-          provider: provider,
-          providerName: providerName,
-          protocol: 'anthropic',
-          model: _clean(call.model ?? ''),
-          fast: tokens.fast,
-          session: session(),
-          requestClass: call.parent == null
-              ? UsageClass.main
-              : UsageClass.subagent,
-          agentId: call.parent,
-          agentType: agent?.type,
-          task: agent?.task,
-          compacted: compacted,
-          input: tokens.input,
-          output: tokens.output,
-          cacheRead: tokens.cacheRead,
-          cacheWrite: tokens.cacheWrite,
-          cacheWriteLong: tokens.cacheWriteLong,
-          stopReason: call.stopReason,
-          toolCalls: call.tools,
-        ),
-      ),
+    if (call.streamed) {
+      record(_build(call, compacted: compacted, quota: quota?.call()));
+    } else {
+      _held.add((call: call, compacted: compacted, quota: quota?.call()));
+    }
+  }
+
+  /// [call] as kept, [more] output on it.
+  UsageCall _build(
+    _Call call, {
+    required bool compacted,
+    Map<String, double>? quota,
+    int more = 0,
+  }) {
+    final tokens = call.usage;
+    final agent = call.parent == null ? null : _agents[call.parent];
+    return UsageCall(
+      at: call.at,
+      duration: call.timed ? _clock().difference(call.at) : Duration.zero,
+      headers: call.headers,
+      firstToken: call.firstToken,
+      status: 200,
+      provider: provider,
+      providerName: providerName,
+      protocol: 'anthropic',
+      model: _clean(call.model ?? ''),
+      fast: tokens.fast,
+      session: session(),
+      requestClass: call.parent == null ? UsageClass.main : UsageClass.subagent,
+      agentId: call.parent,
+      agentType: agent?.type,
+      task: agent?.task,
+      compacted: compacted,
+      input: tokens.input,
+      output: tokens.output + more,
+      cacheRead: tokens.cacheRead,
+      cacheWrite: tokens.cacheWrite,
+      cacheWriteLong: tokens.cacheWriteLong,
+      stopReason: call.stopReason,
+      toolCalls: call.tools,
+      quota: quota ?? const {},
     );
   }
 
@@ -261,7 +293,7 @@ class ClaudeUsageMeter {
   /// down to its Haiku where it used one, else its most used model.
   /// Totals that fell (a `/clear`) are taken as they are.
   void _reconcile(Map<String, Object?> usage) {
-    if (usage.isEmpty) return;
+    if (usage.isEmpty) return _keepHeld();
     final total = _Tokens();
     String? most;
     var mostTokens = 0;
@@ -278,10 +310,21 @@ class ClaudeUsageMeter {
       _seen
         ..clear()
         ..add(total);
+      _keepHeld();
       return;
     }
-    if (past.total == 0) return;
     _seen.add(past);
+    // Output alone, no request's input with it: the output of the calls
+    // seen only whole, not told in full.
+    if (past.input == 0 &&
+        past.cacheRead == 0 &&
+        past.cacheWrite == 0 &&
+        _held.isNotEmpty) {
+      _keepHeld(past.output);
+      return;
+    }
+    _keepHeld();
+    if (past.total == 0) return;
     final now = _clock();
     record(
       _stamp(
