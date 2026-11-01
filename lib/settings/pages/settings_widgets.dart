@@ -94,6 +94,7 @@ class SettingsPage extends StatelessWidget {
     required this.title,
     this.description,
     this.lead,
+    this.pinned,
     required this.children,
   });
 
@@ -110,29 +111,48 @@ class SettingsPage extends StatelessWidget {
   /// Under the title, as far out as the cards: in place of [description].
   /// Its own space above it, so that it takes none while it shows nothing.
   final Widget? lead;
+
+  /// Under the title (a toolbar: the usage page's filters): it and the
+  /// title stay at the top as the rest scrolls under them.
+  final Widget? pinned;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final lead = this.lead;
-    return SettingsColumn(
-      children: [
-        // Its title and description in as far as the groups' headings.
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: SettingsText.title),
-              if (description case final description?) ...[
-                const SizedBox(height: 4),
-                Text(description, style: SettingsText.lead),
-              ],
+    final pinned = this.pinned;
+    final top = [
+      // Its title and description in as far as the groups' headings.
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: SettingsText.title),
+            if (description case final description?) ...[
+              const SizedBox(height: 4),
+              Text(description, style: SettingsText.lead),
             ],
-          ),
+          ],
         ),
-        ?lead,
-        for (final child in children) ...[const SizedBox(height: 20), child],
+      ),
+      ?lead,
+    ];
+    if (pinned == null) {
+      return SettingsColumn(
+        children: [
+          ...top,
+          for (final child in children) ...[const SizedBox(height: 20), child],
+        ],
+      );
+    }
+    return SettingsColumn(
+      header: [...top, const SizedBox(height: 20), pinned],
+      children: [
+        for (final (i, child) in children.indexed) ...[
+          if (i > 0) const SizedBox(height: 20),
+          child,
+        ],
       ],
     );
   }
@@ -141,9 +161,15 @@ class SettingsPage extends StatelessWidget {
 /// A page's scrolling column, as wide at most as the conversation's
 /// ([ChatWidth]), in the middle of what is left of the window.
 class SettingsColumn extends StatelessWidget {
-  const SettingsColumn({super.key, required this.children});
+  const SettingsColumn({super.key, this.header, required this.children});
 
+  /// Over the column, as wide, not scrolled: what scrolls fades out under
+  /// it.
+  final List<Widget>? header;
   final List<Widget> children;
+
+  /// Between [header] and the column, at rest.
+  static const _headerGap = 12.0;
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<double>(
@@ -159,22 +185,42 @@ class SettingsColumn extends StatelessWidget {
                 inset,
                 double.infinity,
               );
+        final header = this.header;
         // Fading out towards an edge it is scrolled past, over about two
         // lines of a description.
-        return ScrollEdgeFade(
-          fadeLength: 56,
-          child: SmoothScrolling(
-            builder: (context, controller) => ListView(
-              controller: controller,
-              // Under the window's draggable strip already: the title near
-              // the nav's back button.
-              padding: EdgeInsets.fromLTRB(side, 16, side, 48),
-              // A section expanded or collapsed fades as it now ends.
-              children: [
-                for (final child in children)
-                  ScrollEdgeFadeContent(child: child),
-              ],
-            ),
+        Widget list(ScrollController controller, {required double top}) =>
+            ScrollEdgeFade(
+              fadeLength: header == null ? 56 : 32,
+              child: ListView(
+                controller: controller,
+                padding: EdgeInsets.fromLTRB(side, top, side, 48),
+                // A section expanded or collapsed fades as it now ends.
+                children: [
+                  for (final child in children)
+                    ScrollEdgeFadeContent(child: child),
+                ],
+              ),
+            );
+        // Under the window's draggable strip already: the title near the
+        // nav's back button.
+        if (header == null) {
+          return SmoothScrolling(
+            builder: (context, controller) => list(controller, top: 16),
+          );
+        }
+        return SmoothScrolling(
+          builder: (context, controller) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(side, 16, side, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: header,
+                ),
+              ),
+              Expanded(child: list(controller, top: _headerGap)),
+            ],
           ),
         );
       },

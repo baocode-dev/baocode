@@ -97,7 +97,15 @@ class UsageCallsList extends StatefulWidget {
 
 class _UsageCallsListState extends State<UsageCallsList> {
   late int _shown = widget.pageSize;
-  UsageCall? _open;
+
+  /// The call open, by [_keyOf]: the calls are read again each time one is
+  /// kept (in any conversation), the same calls as new objects.
+  Object? _open;
+
+  /// [call] as the same whether read again or not, and where it moves to
+  /// as newer ones come above it.
+  static Object _keyOf(UsageCall call) =>
+      (call.at.millisecondsSinceEpoch, call.session, call.agentId, call.model);
 
   @override
   Widget build(BuildContext context) {
@@ -144,20 +152,21 @@ class _UsageCallsListState extends State<UsageCallsList> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (wide) _CallHeader(barColumn: barColumn),
-        for (var i = 0; i < count; i++)
+        for (final call in calls.reversed.take(count))
           _CallRow(
+            key: ValueKey(_keyOf(call)),
             wide: wide,
             barColumn: barColumn,
             scale: scale,
-            call: calls[calls.length - 1 - i],
-            open: identical(_open, calls[calls.length - 1 - i]),
+            call: call,
+            open: _open == _keyOf(call),
             session: widget.showSession
-                ? widget.sessionLabel?.call(calls[calls.length - 1 - i])
+                ? widget.sessionLabel?.call(call)
                 : null,
             ledger: widget.ledger,
             onTap: () => setState(() {
-              final call = calls[calls.length - 1 - i];
-              _open = identical(_open, call) ? null : call;
+              final key = _keyOf(call);
+              _open = _open == key ? null : key;
             }),
           ),
         if (count < calls.length)
@@ -246,13 +255,13 @@ class _CallHeader extends StatelessWidget {
             ),
           number(l10n.ustatTokenInput),
           number(l10n.ustatTokenCacheRead),
-          number(l10n.ustatTokenCacheWrite),
+          // Its cache written, first token and speed in its detail where
+          // narrower (as in its bar): room for its model and conversation.
+          if (barColumn) number(l10n.ustatTokenCacheWrite),
           number(l10n.ustatTokenOutput),
-          // Its time to first token in its detail where narrower: room
-          // for the cost.
           if (barColumn) number(l10n.ustatFieldFirstToken, _Columns.time2),
           number(l10n.ustatFieldDuration, _Columns.time2),
-          number(l10n.ustatFieldSpeed, _Columns.speed),
+          if (barColumn) number(l10n.ustatFieldSpeed, _Columns.speed),
           const SizedBox(width: 18),
           number(l10n.ustatColumnTotal, _Columns.total),
           number(l10n.ustatCost, _Columns.cost),
@@ -264,6 +273,7 @@ class _CallHeader extends StatelessWidget {
 
 class _CallRow extends StatelessWidget {
   const _CallRow({
+    super.key,
     required this.wide,
     required this.barColumn,
     required this.scale,
@@ -299,19 +309,9 @@ class _CallRow extends StatelessWidget {
   );
 
   Widget _marks(BuildContext context) {
-    final l10n = context.l10n;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (call.traceId != null)
-          IdeHover(
-            message: l10n.ustatTraceKept,
-            child: Icon(
-              Codicons.debugAlt,
-              size: 12,
-              color: AppColors.textFaint,
-            ),
-          ),
         if (call.failed)
           IdeHover(
             message: '${call.status} · ${call.error ?? ''}',
@@ -422,12 +422,13 @@ class _CallRow extends StatelessWidget {
             ),
           cell(count(call.input)),
           cell(count(call.cacheRead)),
-          cell(count(call.cacheWrite)),
+          if (barColumn) cell(count(call.cacheWrite)),
           cell(count(call.output)),
           if (barColumn)
             cell(UsageFormat.duration(call.firstToken), _Columns.time2),
           cell(UsageFormat.duration(call.duration), _Columns.time2),
-          cell(UsageFormat.speed(call.speed, unit: false), _Columns.speed),
+          if (barColumn)
+            cell(UsageFormat.speed(call.speed, unit: false), _Columns.speed),
           SizedBox(
             width: 18,
             child: Align(
@@ -474,7 +475,8 @@ class _CallRow extends StatelessWidget {
               child: _wide(context, hovered),
             ),
           ),
-          if (open) UsageCallDetail(call: call, ledger: ledger),
+          if (open)
+            UsageCallDetail(call: call, ledger: ledger, session: session),
         ],
       );
     }
@@ -486,7 +488,7 @@ class _CallRow extends StatelessWidget {
         '${l10n.ustatTokenCacheWrite} ${UsageFormat.tokens(call.cacheWrite)}',
       '${l10n.ustatTokenOutput} ${UsageFormat.tokens(call.output)}',
       if (call.firstToken case final first?)
-        'TTFT ${UsageFormat.duration(first)}',
+        '${l10n.ustatFieldFirstToken} ${UsageFormat.duration(first)}',
       UsageFormat.duration(call.duration),
       if (call.speed case final speed?) UsageFormat.speed(speed),
       ?_cost,
@@ -560,18 +562,6 @@ class _CallRow extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (call.traceId != null)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 6),
-                          child: IdeHover(
-                            message: l10n.ustatTraceKept,
-                            child: Icon(
-                              Codicons.debugAlt,
-                              size: 12,
-                              color: AppColors.textFaint,
-                            ),
-                          ),
-                        ),
                       if (failed)
                         Padding(
                           padding: const EdgeInsets.only(right: 6),
@@ -617,7 +607,7 @@ class _CallRow extends StatelessWidget {
             ),
           ),
         ),
-        if (open) UsageCallDetail(call: call, ledger: ledger),
+        if (open) UsageCallDetail(call: call, ledger: ledger, session: session),
       ],
     );
   }
@@ -626,10 +616,19 @@ class _CallRow extends StatelessWidget {
 /// All that is kept of a call: when and what it asked, who asked, how it
 /// was answered; what filled its context; the tools'.
 class UsageCallDetail extends StatelessWidget {
-  const UsageCallDetail({super.key, required this.call, this.ledger});
+  const UsageCallDetail({
+    super.key,
+    required this.call,
+    this.ledger,
+    this.session,
+  });
 
   final UsageCall call;
   final UsageLedger? ledger;
+
+  /// Its conversation as named in the list; none on the conversation's own
+  /// page, where it goes without saying.
+  final String? session;
 
   @override
   Widget build(BuildContext context) {
@@ -657,7 +656,15 @@ class UsageCallDetail extends StatelessWidget {
         [?call.effort, if (call.fast) 'fast'].join(' · '),
       ),
       (l10n.ustatFieldClass, UsageFormat.ofClass(context, call.requestClass)),
-      (l10n.ustatFieldSession, call.session),
+      (
+        l10n.ustatFieldSession,
+        switch ((session, call.session)) {
+          (final name?, final id?) when !id.startsWith(name) =>
+            '$name  ·  ${id.length > 8 ? id.substring(0, 8) : id}',
+          (final name?, _) => name,
+          _ => null,
+        },
+      ),
       (l10n.ustatFieldAgent, [?call.agentType, ?call.agentId].join(' · ')),
       (l10n.ustatFieldTask, call.task),
       (l10n.ustatFieldAccount, call.account),
@@ -681,14 +688,17 @@ class UsageCallDetail extends StatelessWidget {
       (l10n.ustatTokenOutput, UsageFormat.count(call.output)),
       if (call.reasoning > 0)
         (l10n.ustatTokenReasoning, UsageFormat.count(call.reasoning)),
-      (
-        l10n.ustatFieldMessages,
-        '${call.messages} · ${l10n.ustatFieldTools} ${call.toolCount}',
-      ),
-      (
-        l10n.ustatFieldBytes,
-        '${UsageFormat.bytes(call.requestBytes)} ↑  ${UsageFormat.bytes(call.responseBytes)} ↓',
-      ),
+      // Not known of Claude Code's own calls: their requests are not seen.
+      if (call.messages > 0 || call.toolCount > 0)
+        (
+          l10n.ustatFieldMessages,
+          '${call.messages} · ${l10n.ustatFieldTools} ${call.toolCount}',
+        ),
+      if (call.requestBytes > 0 || call.responseBytes > 0)
+        (
+          l10n.ustatFieldBytes,
+          '${UsageFormat.bytes(call.requestBytes)} ↑  ${UsageFormat.bytes(call.responseBytes)} ↓',
+        ),
       if (call.compacted) (l10n.ustatFieldCompacted, '✓'),
       (l10n.ustatFieldError, call.error),
     ];
@@ -742,7 +752,7 @@ class UsageCallDetail extends StatelessWidget {
             const SizedBox(height: 12),
             Text(l10n.ustatContextMakeup, style: UsageText.label),
             const SizedBox(height: 6),
-            UsageContextBreakdown(call: call, folded: true),
+            UsageContextBreakdown(call: call),
           ],
           if (call.traceId != null) ...[
             const SizedBox(height: 12),

@@ -87,6 +87,9 @@ class UsageTotals {
   DateTime? first;
   DateTime? last;
 
+  /// When the last of them to end ended.
+  DateTime? ended;
+
   /// What they cost, at their models' prices.
   final UsageCost cost = UsageCost();
 
@@ -119,6 +122,8 @@ class UsageTotals {
     if (call.prompt > maxPrompt) maxPrompt = call.prompt;
     if (first == null || call.at.isBefore(first!)) first = call.at;
     if (last == null || call.at.isAfter(last!)) last = call.at;
+    final end = call.at.add(call.duration);
+    if (ended == null || end.isAfter(ended!)) ended = end;
   }
 
   int get prompt => input + cacheRead + cacheWrite;
@@ -330,11 +335,21 @@ class UsageSummary {
           call.at.isBefore(buckets[bucket].end)) {
         buckets[bucket].totals.add(call, price);
       }
-      (summary.byModel[call.model] ??= UsageGroup(
+      final upstream = call.providerName ?? call.provider;
+      final model = summary.byModel[call.model] ??= UsageGroup(
         call.model,
-        detail: call.providerName ?? call.provider,
+        detail: upstream,
         provider: call.provider,
-      )).totals.add(call, price);
+      );
+      // Through each of its upstreams, named in turn.
+      final named = model.detail ?? '';
+      if (named.isEmpty) {
+        model.detail = upstream;
+      } else if (upstream.isNotEmpty &&
+          !named.split(' · ').contains(upstream)) {
+        model.detail = '$named · $upstream';
+      }
+      model.totals.add(call, price);
       (summary.byProvider[call.provider] ??= UsageGroup(
         call.provider,
         label: call.providerName,

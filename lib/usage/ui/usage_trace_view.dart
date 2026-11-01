@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart';
@@ -19,10 +20,10 @@ import '../usage_trace.dart';
 import 'usage_filters.dart';
 import 'usage_style.dart';
 
-/// A request's way, as it was kept while debugging: as Claude Code sent
-/// it, as it went to the upstream, as the upstream answered and as Claude
-/// Code was answered; each its line, its headers (their secrets cut down)
-/// and its body.
+/// A request as it was kept while debugging: its headers (their secrets
+/// cut down) and its body as Claude Code sent it, the upstream's answer as
+/// it came; as it went to the upstream too where the proxy translated it
+/// (another protocol). Claude Code's own calls: their answer alone.
 class UsageTraceView extends StatefulWidget {
   const UsageTraceView({super.key, required this.call, this.ledger});
 
@@ -35,11 +36,11 @@ class UsageTraceView extends StatefulWidget {
   State<UsageTraceView> createState() => _UsageTraceViewState();
 }
 
-enum _Leg { request, sent, received, answer }
+enum _Tab { headers, body, upstream, response }
 
 class _UsageTraceViewState extends State<UsageTraceView> {
   late Future<UsageTrace?> _trace = _read();
-  _Leg _leg = _Leg.request;
+  _Tab _tab = _Tab.body;
   int? _try;
 
   Future<UsageTrace?> _read() =>
@@ -70,23 +71,40 @@ class _UsageTraceViewState extends State<UsageTraceView> {
         if (trace == null) {
           return Text(l10n.ustatTraceGone, style: UsageText.faint);
         }
-        final tries = switch (_leg) {
-          _Leg.sent => trace.sent.length,
-          _Leg.received => trace.received.length,
+        // Claude Code's own call: its answer alone was seen.
+        final only = trace.answerOnly;
+        final request = trace.request ?? trace.sent.firstOrNull;
+        final protocol = widget.call.protocol;
+        final translated =
+            !only &&
+            trace.sent.isNotEmpty &&
+            protocol != null &&
+            protocol != 'anthropic';
+        final tabs = [
+          if (!only && request != null) ...[
+            (
+              value: _Tab.headers,
+              label: l10n.ustatTraceHeaders(request.headers.length),
+            ),
+            (value: _Tab.body, label: l10n.ustatTraceRequestBody),
+          ],
+          if (translated)
+            (value: _Tab.upstream, label: l10n.ustatTraceToUpstream),
+          (value: _Tab.response, label: l10n.ustatTraceRawResponse),
+        ];
+        final tab = tabs.any((t) => t.value == _tab) ? _tab : tabs.first.value;
+        final tries = switch (tab) {
+          _Tab.upstream => trace.sent.length,
+          _Tab.response => trace.received.length,
           _ => 1,
         };
-        final at = (_try ?? tries - 1).clamp(0, tries - 1);
-        final message = switch (_leg) {
-          _Leg.request => trace.request,
-          _Leg.sent => trace.sent.elementAtOrNull(at),
-          _Leg.received => trace.received.elementAtOrNull(at),
-          _Leg.answer => trace.answer,
+        final at = (_try ?? tries - 1).clamp(0, math.max(0, tries - 1)).toInt();
+        final message = switch (tab) {
+          _Tab.headers || _Tab.body => request,
+          _Tab.upstream => trace.sent.elementAtOrNull(at),
+          // The proxy's own answer where the upstream gave none.
+          _Tab.response => trace.received.elementAtOrNull(at) ?? trace.answer,
         };
-        // Passed on as it came: the upstream's own answer.
-        final same =
-            _leg == _Leg.answer &&
-            trace.passedOn &&
-            (message?.body.isEmpty ?? true);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -95,19 +113,14 @@ class _UsageTraceViewState extends State<UsageTraceView> {
               runSpacing: 6,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                UsageSegmented<_Leg>(
+                UsageSegmented<_Tab>(
                   dense: true,
-                  value: _leg,
-                  onChanged: (leg) => setState(() {
-                    _leg = leg;
+                  value: tab,
+                  onChanged: (tab) => setState(() {
+                    _tab = tab;
                     _try = null;
                   }),
-                  segments: [
-                    (value: _Leg.request, label: l10n.ustatTraceRequest),
-                    (value: _Leg.sent, label: l10n.ustatTraceSent),
-                    (value: _Leg.received, label: l10n.ustatTraceReceived),
-                    (value: _Leg.answer, label: l10n.ustatTraceAnswer),
-                  ],
+                  segments: tabs,
                 ),
                 if (tries > 1)
                   UsageSegmented<int>(
@@ -138,12 +151,12 @@ class _UsageTraceViewState extends State<UsageTraceView> {
               Text(l10n.ustatTraceNone, style: UsageText.faint)
             else
               _MessageView(
-                key: ValueKey('${_leg.name}/$at'),
+                key: ValueKey('${tab.name}/$at'),
                 message: message,
-                body: same
-                    ? (trace.received.lastOrNull?.body ?? '')
-                    : message.body,
-                note: same ? l10n.ustatTracePassedOn : null,
+                headersOnly: tab == _Tab.headers,
+                // An answer's own headers, folded under it.
+                headers: tab == _Tab.response,
+                note: only ? l10n.ustatTraceAnswerOnly : null,
               ),
           ],
         );
@@ -152,18 +165,23 @@ class _UsageTraceViewState extends State<UsageTraceView> {
   }
 }
 
-/// A leg's line, headers and body.
+/// A message's line, then its headers (alone, or folded above its body)
+/// or its body.
 class _MessageView extends StatefulWidget {
   const _MessageView({
     super.key,
     required this.message,
-    required this.body,
+    this.headersOnly = false,
+    this.headers = false,
     this.note,
   });
 
   final UsageTraceMessage message;
-  final String body;
+  final bool headersOnly;
+  final bool headers;
   final String? note;
+
+  String get body => message.body;
 
   @override
   State<_MessageView> createState() => _MessageViewState();
@@ -207,9 +225,27 @@ class _MessageViewState extends State<_MessageView> {
       ?message.url,
       if (message.status case final status?) 'HTTP $status',
     ].join(' ');
+    final headerList = Padding(
+      padding: EdgeInsets.fromLTRB(widget.headersOnly ? 0 : 16, 4, 0, 4),
+      child: SelectableText.rich(
+        TextSpan(
+          children: [
+            for (final MapEntry(:key, :value) in message.headers.entries) ...[
+              TextSpan(
+                text: '$key: ',
+                style: _mono.copyWith(color: AppColors.textMuted),
+              ),
+              TextSpan(text: '$value\n', style: _mono),
+            ],
+          ],
+        ),
+      ),
+    );
     final facts = [
-      UsageFormat.bytes(utf8.encode(widget.body).length),
-      if (message.at case final at?) '+${UsageFormat.duration(at)}',
+      if (!widget.headersOnly)
+        UsageFormat.bytes(utf8.encode(widget.body).length),
+      if (message.at case final at? when at > Duration.zero)
+        '+${UsageFormat.duration(at)}',
       if (message.truncated) l10n.ustatTraceTruncated,
       ?widget.note,
     ];
@@ -229,84 +265,74 @@ class _MessageViewState extends State<_MessageView> {
             Text(facts.join('  ·  '), style: UsageText.faint),
           ],
         ),
-        if (message.headers.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          _TextButton(
-            icon: _headers ? Codicons.chevronDown : Codicons.chevronRight,
-            label: l10n.ustatTraceHeaders(message.headers.length),
-            onTap: () => setState(() => _headers = !_headers),
-          ),
-          if (_headers)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 0, 4),
-              child: SelectableText.rich(
-                TextSpan(
-                  children: [
-                    for (final MapEntry(:key, :value)
-                        in message.headers.entries) ...[
-                      TextSpan(
-                        text: '$key: ',
-                        style: _mono.copyWith(color: AppColors.textMuted),
-                      ),
-                      TextSpan(text: '$value\n', style: _mono),
-                    ],
-                  ],
-                ),
-              ),
+        if (widget.headersOnly) ...[
+          const SizedBox(height: 6),
+          if (message.headers.isEmpty)
+            Text(l10n.ustatTraceEmpty, style: UsageText.faint)
+          else
+            headerList,
+        ] else ...[
+          if (widget.headers && message.headers.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            _TextButton(
+              icon: _headers ? Codicons.chevronDown : Codicons.chevronRight,
+              label: l10n.ustatTraceResponseHeaders(message.headers.length),
+              onTap: () => setState(() => _headers = !_headers),
             ),
+            if (_headers) headerList,
+          ],
+          const SizedBox(height: 6),
+          _body(l10n),
         ],
-        const SizedBox(height: 6),
-        FutureBuilder<String?>(
-          future: _pretty,
-          builder: (context, snapshot) {
-            final pretty = snapshot.data;
-            final formatted = !_raw && pretty != null;
-            final text = formatted ? pretty : widget.body;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Text(l10n.ustatTraceBody, style: UsageText.label),
-                    const Spacer(),
-                    if (pretty != null)
-                      _TextButton(
-                        icon: Codicons.json,
-                        label: _raw
-                            ? l10n.ustatTraceFormatted
-                            : l10n.ustatTraceRaw,
-                        onTap: () => setState(() => _raw = !_raw),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                if (text.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.code,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: UsagePalette.grid),
-                    ),
-                    child: Text(l10n.ustatTraceEmpty, style: UsageText.faint),
-                  )
-                else
-                  _BodyEditor(
-                    key: ValueKey(formatted),
-                    text: text,
-                    // Highlighted as what it is: JSON, else an event
-                    // stream's lines as they came.
-                    path: formatted || _isJson(widget.body)
-                        ? 'body.json'
-                        : 'body.txt',
-                  ),
-              ],
-            );
-          },
-        ),
       ],
     );
   }
+
+  Widget _body(AppLocalizations l10n) => FutureBuilder<String?>(
+    future: _pretty,
+    builder: (context, snapshot) {
+      final pretty = snapshot.data;
+      final formatted = !_raw && pretty != null;
+      final text = formatted ? pretty : widget.body;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Spacer(),
+              if (pretty != null)
+                _TextButton(
+                  icon: Codicons.json,
+                  label: _raw ? l10n.ustatTraceFormatted : l10n.ustatTraceRaw,
+                  onTap: () => setState(() => _raw = !_raw),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (text.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.code,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: UsagePalette.grid),
+              ),
+              child: Text(l10n.ustatTraceEmpty, style: UsageText.faint),
+            )
+          else
+            _BodyEditor(
+              key: ValueKey(formatted),
+              text: text,
+              // Highlighted as what it is: JSON, else an event
+              // stream's lines as they came.
+              path: formatted || _isJson(widget.body)
+                  ? 'body.json'
+                  : 'body.txt',
+            ),
+        ],
+      );
+    },
+  );
 
   static bool _isJson(String body) {
     final text = body.trimLeft();

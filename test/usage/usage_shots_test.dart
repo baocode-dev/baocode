@@ -21,6 +21,7 @@ import 'package:baocode/usage/ui/usage_calls.dart';
 import 'package:baocode/usage/ui/usage_dashboard.dart';
 import 'package:baocode/usage/usage_ledger.dart';
 import 'package:baocode/usage/usage_prices.dart';
+import 'package:baocode/usage/usage_query.dart';
 import 'package:baocode/usage/usage_record.dart';
 import 'package:baocode/usage/usage_trace.dart';
 import 'package:flutter/material.dart';
@@ -312,6 +313,59 @@ UsageLedger _ledger(DateTime now) {
   return ledger;
 }
 
+/// One conversation of [turns] turns, each of one to three calls, its
+/// context grown and compacted as it would be: no model asked.
+UsageLedger _longLedger(DateTime now, {required int turns}) {
+  final ledger = UsageLedger(MemoryUsageStorage(), clock: () => now);
+  final random = math.Random(11);
+  const tools = ['Read', 'Edit', 'Bash', 'Grep', 'WebFetch'];
+  final results = <String, int>{};
+  var context = 20000;
+  var at = now.subtract(Duration(minutes: turns * 2));
+  for (var turn = 0; turn < turns; turn++) {
+    final calls = 1 + random.nextInt(3);
+    for (var i = 0; i < calls; i++) {
+      at = at.add(Duration(seconds: 20 + random.nextInt(40)));
+      context += 400 + random.nextInt(1600);
+      final compact = context > 160000;
+      if (compact) {
+        context = 22000;
+        results.clear();
+      }
+      final tool = tools[random.nextInt(tools.length)];
+      results[tool] = (results[tool] ?? 0) + 200 + random.nextInt(900);
+      final read = (context * 0.92).round();
+      ledger.record(
+        UsageCall(
+          at: at,
+          duration: Duration(milliseconds: 1500 + random.nextInt(6000)),
+          firstToken: Duration(milliseconds: 300 + random.nextInt(1500)),
+          status: random.nextInt(200) == 0 ? 529 : 200,
+          provider: 'claude-code',
+          providerName: 'Claude Max',
+          protocol: 'anthropic',
+          model: 'claude-opus-5-5',
+          session: 's-long',
+          sessionTitle: '一万轮的长对话',
+          project: 'monad',
+          requestClass: compact ? UsageClass.compaction : UsageClass.main,
+          promptId: 'p$turn',
+          input: context - read,
+          cacheRead: read,
+          cacheWrite: random.nextInt(2000),
+          output: 100 + random.nextInt(1500),
+          stopReason: i == calls - 1 ? 'end_turn' : 'tool_use',
+          context: _makeup(context, _shape, {...results}),
+          toolCalls: {tool: 1},
+          toolResults: {tool: results[tool]!},
+        ),
+      );
+    }
+  }
+  ledger.flush();
+  return ledger;
+}
+
 Future<void> _shoot(
   WidgetTester tester,
   Widget child,
@@ -439,6 +493,27 @@ void main() {
     );
   }, skip: _out == null);
 
+  testWidgets('Settings → Usage, scrolled under its pinned filters', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await _loadFonts(tester);
+    final ledger = _ledger(DateTime.now());
+    addTearDown(ledger.dispose);
+    await _shoot(
+      tester,
+      UsageSettingsPage(ledger: ledger),
+      'settings_usage_scrolled',
+      const Size(1000, 900),
+      then: () async {
+        await tester.drag(find.byType(ListView).first, const Offset(0, -380));
+        await tester.pump(const Duration(milliseconds: 600));
+      },
+    );
+  }, skip: _out == null);
+
   testWidgets('Settings → Usage, a conversation picked', (tester) async {
     tester.view.physicalSize = const Size(1000, 3600);
     tester.view.devicePixelRatio = 1;
@@ -462,6 +537,36 @@ void main() {
         await tester.pump();
         // Its context: a subagent's.
         await tester.tap(find.textContaining('Explore').first);
+        await tester.pump();
+      },
+    );
+  }, skip: _out == null);
+
+  testWidgets('a conversation\'s Usage page, scrolled under its filters', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await _loadFonts(tester);
+    final ledger = _ledger(DateTime.now());
+    addTearDown(ledger.dispose);
+    final session = ChatSession(historyCount: 0);
+    addTearDown(session.dispose);
+    await _shoot(
+      tester,
+      ConversationUsageView(
+        session: session,
+        ledger: ledger,
+        sessionId: 's-usage',
+      ),
+      'conversation_usage_scrolled',
+      const Size(640, 900),
+      then: () async {
+        await tester.drag(find.byType(ListView).first, const Offset(0, -420));
+        await tester.pump(const Duration(milliseconds: 600));
+        // A part's things: the MCP servers'.
+        await tester.tap(find.text('MCP').first);
         await tester.pump();
       },
     );
@@ -501,9 +606,93 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 200)),
         );
         await tester.pump();
-        // Its upstream's answer.
-        await tap(find.text('上游 → 代理'));
+        // Its upstream's answer, raw.
+        await tap(find.text('原始响应'));
       },
+    );
+  }, skip: _out == null);
+
+  for (final tab in ['请求头', '请求体', '原始响应']) {
+    testWidgets('a call kept whole, its $tab', (tester) async {
+      tester.view.physicalSize = const Size(1000, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await _loadFonts(tester);
+      final ledger = _ledger(DateTime.now());
+      addTearDown(ledger.dispose);
+      final calls = await tester.runAsync(() => ledger.ofSession('s-usage'));
+      final traced = calls!.where((call) => call.traceId != null).toList();
+      await _shoot(
+        tester,
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: UsageCallsList(
+            calls: traced,
+            ledger: ledger,
+            sessionLabel: (_) => '实现调用统计看板',
+          ),
+        ),
+        'call_trace_$tab',
+        const Size(1000, 1400),
+        then: () async {
+          await tester.tap(find.byType(UsageClassTag).first);
+          await tester.pump();
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 200)),
+          );
+          await tester.pump();
+          await tester.tap(find.textContaining(tab).last);
+          await tester.pump();
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 200)),
+          );
+          await tester.pump();
+        },
+      );
+    }, skip: _out == null);
+  }
+
+  testWidgets('a conversation of 10,000 turns', (tester) async {
+    tester.view.physicalSize = const Size(640, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await _loadFonts(tester);
+    final watch = Stopwatch()..start();
+    final ledger = _longLedger(DateTime.now(), turns: 10000);
+    addTearDown(ledger.dispose);
+    final made = watch.elapsedMilliseconds;
+    final calls = await tester.runAsync(() => ledger.ofSession('s-long'));
+    final read = watch.elapsedMilliseconds - made;
+    final summing = Stopwatch()..start();
+    UsageSummary.of(calls!, const UsageFilter());
+    final summed = summing.elapsedMilliseconds;
+    final session = ChatSession(historyCount: 0);
+    addTearDown(session.dispose);
+    final building = Stopwatch()..start();
+    await _shoot(
+      tester,
+      ConversationUsageView(
+        session: session,
+        ledger: ledger,
+        sessionId: 's-long',
+      ),
+      'conversation_usage_10k',
+      const Size(640, 2400),
+      // The turns a page more: not all ten thousand at once.
+      then: () async {
+        final more = find.textContaining('还有 9995');
+        expect(more, findsOneWidget);
+        final paging = Stopwatch()..start();
+        await tester.tap(more);
+        await tester.pump();
+        debugPrint('a page more of turns in ${paging.elapsedMilliseconds}ms');
+        expect(find.textContaining('还有 9945'), findsOneWidget);
+      },
+    );
+    debugPrint(
+      '10,000 turns: ${calls.length} calls; made in ${made}ms, read in '
+      '${read}ms, summed in ${summed}ms, shown and shot in '
+      '${building.elapsedMilliseconds}ms',
     );
   }, skip: _out == null);
 
