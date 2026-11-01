@@ -12230,9 +12230,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatEmptyFiltered => '没有符合筛选条件的调用';
 
   @override
-  String get ustatConversationTitle => '对话用量';
-
-  @override
   String get ustatConversationNew => '开始对话后显示用量';
 
   @override

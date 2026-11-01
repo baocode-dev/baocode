@@ -8399,7 +8399,6 @@
   "ustatEmptyTitle": "No calls yet",
   "ustatEmptyDetail": "Calls show here once a conversation runs.",
   "ustatEmptyFiltered": "Nothing matches these filters",
-  "ustatConversationTitle": "Conversation usage",
   "ustatConversationNew": "Usage shows once the conversation starts",
   "ustatConversationEmpty": "No calls kept for this conversation",
   "ustatConversationEmptyDetail": "Only conversations on a custom upstream are counted: Claude's official service does not go through BaoCode's proxy.",

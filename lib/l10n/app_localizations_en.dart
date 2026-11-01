@@ -12915,9 +12915,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ustatEmptyFiltered => 'Nothing matches these filters';
 
   @override
-  String get ustatConversationTitle => 'Conversation usage';
-
-  @override
   String get ustatConversationNew => 'Usage shows once the conversation starts';
 
   @override
