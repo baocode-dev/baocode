@@ -49,6 +49,8 @@ import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/code_font.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/material_file_icons.dart';
+import 'package:baocode/usage/usage_ledger.dart';
+import 'package:baocode/usage/usage_record.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -953,6 +955,52 @@ void main() {
       find.byKey(const ValueKey(('rail', SidePanelSection.changes))),
       findsNothing,
     );
+  });
+
+  testWidgets('the rail offers the usage page once the conversation has '
+      'calls kept', (tester) async {
+    final session = _NamedSession('s-usage');
+    addTearDown(session.dispose);
+    final before = UsageLedger.current;
+    final ledger = UsageLedger.current = UsageLedger(MemoryUsageStorage());
+    addTearDown(() {
+      ledger.dispose();
+      UsageLedger.current = before;
+    });
+    await tester.pumpWidget(
+      _app(
+        Align(
+          alignment: Alignment.topLeft,
+          child: SidePanelRail(onSelect: (_) {}, session: session),
+        ),
+      ),
+    );
+    await tester.pump();
+    final rail = find.byKey(const ValueKey('side-panel-rail'));
+    Finder usage() =>
+        find.descendant(of: rail, matching: find.byIcon(Codicons.graph));
+    expect(usage(), findsNothing);
+    expect(
+      find.descendant(of: rail, matching: find.byIcon(Codicons.terminal)),
+      findsOneWidget,
+    );
+
+    ledger.record(
+      UsageCall(
+        at: DateTime.now(),
+        duration: const Duration(seconds: 1),
+        status: 200,
+        provider: 'gw',
+        providerName: 'GW',
+        model: 'gpt-5',
+        session: session.sessionId,
+        requestClass: UsageClass.main,
+      ),
+    );
+    ledger.flush();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    expect(usage(), findsOneWidget);
   });
 
   testWidgets('the terminal rail badge counts running background commands', (
@@ -2716,4 +2764,14 @@ void main() {
     await dragFrom(tester.getCenter(find.byType(IdeEditorTab).first));
     expect(drags, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+}
+
+/// A conversation the kernel has given its id.
+class _NamedSession extends ChatSession {
+  _NamedSession(this._id) : super(historyCount: 0);
+
+  final String _id;
+
+  @override
+  String? get sessionId => _id;
 }

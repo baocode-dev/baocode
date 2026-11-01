@@ -13433,4 +13433,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ustatPriceClaudeDefault =>
       'Claude Code\'s own models without a price of yours are priced at Anthropic\'s API prices: the grey figures.';
+
+  @override
+  String get ustatContextUnpickHint =>
+      'Click again to unpick: back to the context as it is now';
 }

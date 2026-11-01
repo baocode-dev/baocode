@@ -360,8 +360,11 @@ void main() {
         ledger.record(_call(DateTime(2026, 10, 26 + day, 9)));
         ledger.record(_call(DateTime(2026, 10, 26 + day, 10), provider: 'b'));
       }
+      expect(ledger.hasCalls('s9'), isFalse);
       ledger.record(_call(now, session: 's9'));
       ledger.flush();
+      // Whether a conversation has any: its usage page offered.
+      expect(ledger.hasCalls('s9'), isTrue);
       await ledger.clear(UsageClearSpec(until: DateTime(2026, 10, 29)));
       expect(await storage.days(), [
         '2026-10-29',
@@ -375,8 +378,11 @@ void main() {
       expect(left, hasLength(4));
       await ledger.clear(const UsageClearSpec(session: 's9'));
       expect(await ledger.ofSession('s9'), isEmpty);
+      expect(ledger.hasCalls('s9'), isFalse);
+      expect(ledger.hasCalls('s1'), isTrue);
       await ledger.clear(const UsageClearSpec());
       expect(await ledger.range(), isEmpty);
+      expect(ledger.hasCalls('s1'), isFalse);
     });
 
     test('deletes what is kept longer than the retention', () async {

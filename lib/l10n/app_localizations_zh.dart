@@ -12689,4 +12689,7 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get ustatPriceClaudeDefault =>
       'Claude Code 自带模型没填价格时按 Anthropic API 价折算，即输入框里的灰色数字。';
+
+  @override
+  String get ustatContextUnpickHint => '再次点击取消选中，回到当前上下文';
 }

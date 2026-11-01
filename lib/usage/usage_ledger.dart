@@ -403,6 +403,22 @@ class UsageLedger extends ChangeNotifier {
   }
 
   bool _indexRead = false;
+  bool _indexReading = false;
+
+  /// Whether [session] has calls kept, as far as known now: the index is
+  /// read (and listeners told) the first time it is asked.
+  bool hasCalls(String session) {
+    if (!_indexRead && !_indexReading) {
+      _indexReading = true;
+      unawaited(
+        _sessions().then((_) {
+          _indexReading = false;
+          notifyListeners();
+        }),
+      );
+    }
+    return _index?[session]?.isNotEmpty ?? false;
+  }
 
   Future<void> _mergeIndex(Map<String, Set<String>> into) async {
     _indexRead = true;
@@ -472,7 +488,7 @@ class UsageLedger extends ChangeNotifier {
 
   /// [session]'s calls.
   Future<List<UsageCall>> ofSession(String session) async {
-    final days = (await _sessions())[session]?.toList() ?? const <String>[];
+    final days = (await _sessions())[session]?.toList() ?? <String>[];
     final calls = await _readDays(days..sort());
     return [
       for (final call in calls)
@@ -507,6 +523,8 @@ class UsageLedger extends ChangeNotifier {
   /// Deletes the calls [spec] picks; how many days' files changed.
   Future<int> clear(UsageClearSpec spec) async {
     flush();
+    // The index whole, as it is kept again without what goes.
+    await _sessions();
     final first = spec.from == null ? null : dayOf(spec.from!);
     final last = spec.until == null ? null : dayOf(spec.until!);
     var changed = 0;
@@ -541,12 +559,33 @@ class UsageLedger extends ChangeNotifier {
       }
       _decoded.remove(day);
       _live.remove(day);
+      if (whole) _forgetDay(day);
     }
+    // A conversation's own calls all gone: none of it is kept.
+    if (spec.session case final session?
+        when spec.providers.isEmpty &&
+            spec.models.isEmpty &&
+            spec.from == null &&
+            spec.until == null &&
+            _index?.remove(session) != null) {
+      _indexChanged = true;
+    }
+    flush();
     _labeled.clear();
     _titles.clear();
     _changed();
     notifyListeners();
     return changed;
+  }
+
+  /// The index without [day]: its file deleted.
+  void _forgetDay(String day) {
+    final index = _index;
+    if (index == null) return;
+    for (final days in index.values) {
+      if (days.remove(day)) _indexChanged = true;
+    }
+    index.removeWhere((_, days) => days.isEmpty);
   }
 
   /// Deletes the traces alone, the calls kept: all, or those before

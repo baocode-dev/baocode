@@ -477,6 +477,7 @@ class UsageColumnChart extends StatefulWidget {
     this.selected,
     this.marks = const {},
     this.hint,
+    this.selectedHint,
   });
 
   final List<UsageColumn> columns;
@@ -492,8 +493,10 @@ class UsageColumnChart extends StatefulWidget {
   /// each, what it was in its readout.
   final Map<int, String> marks;
 
-  /// Under a column's readout: what a click on it does.
+  /// Under a column's readout: what a click on it does; on the one
+  /// [selected], [selectedHint] (a click there unpicks it).
   final String? hint;
+  final String? selectedHint;
 
   @override
   State<UsageColumnChart> createState() => _UsageColumnChartState();
@@ -572,7 +575,9 @@ class _UsageColumnChartState extends State<UsageColumnChart> {
                         width: constraints.maxWidth,
                         tooltip: UsageTooltip(
                           title: columns[hovered].title,
-                          footer: widget.hint,
+                          footer: hovered == widget.selected
+                              ? widget.selectedHint ?? widget.hint
+                              : widget.hint,
                           rows: [
                             if (widget.marks[hovered] case final mark?)
                               (
@@ -703,25 +708,20 @@ class _ColumnsPainter extends CustomPainter {
     final width = math.min(24.0, math.max(1.5, slot * 0.64));
     if (selected case final i? when i < columns.length) {
       final band = math.max(slot, 6.0);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-            plot.left + slot * (i + 0.5) - band / 2,
-            plot.top,
-            band,
-            plot.height,
-          ),
-          const Radius.circular(4),
+      // Square, as the columns' sides are.
+      canvas.drawRect(
+        Rect.fromLTWH(
+          plot.left + slot * (i + 0.5) - band / 2,
+          plot.top,
+          band,
+          plot.height,
         ),
         Paint()..color = (selection ?? hover).withValues(alpha: 0.16),
       );
     }
     if (hovered case final i? when i != selected) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(plot.left + slot * i, plot.top, slot, plot.height),
-          const Radius.circular(4),
-        ),
+      canvas.drawRect(
+        Rect.fromLTWH(plot.left + slot * i, plot.top, slot, plot.height),
         Paint()..color = hover,
       );
     }

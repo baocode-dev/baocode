@@ -21866,6 +21866,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Claude Code\'s own models without a price of yours are priced at Anthropic\'s API prices: the grey figures.'**
   String get ustatPriceClaudeDefault;
+
+  /// No description provided for @ustatContextUnpickHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Click again to unpick: back to the context as it is now'**
+  String get ustatContextUnpickHint;
 }
 
 class _AppLocalizationsDelegate

@@ -3634,5 +3634,6 @@
   "ustatQuotaPeak": "这段时间最高 {percent} · 重置 {count} 次",
   "ustatQuotaPerPercent": "每 1% 周额度 ≈ {tokens} token",
   "ustatQuotaPerPercentCost": "按 API 价约 {cost}",
-  "ustatPriceClaudeDefault": "Claude Code 自带模型没填价格时按 Anthropic API 价折算，即输入框里的灰色数字。"
+  "ustatPriceClaudeDefault": "Claude Code 自带模型没填价格时按 Anthropic API 价折算，即输入框里的灰色数字。",
+  "ustatContextUnpickHint": "再次点击取消选中，回到当前上下文"
 }
