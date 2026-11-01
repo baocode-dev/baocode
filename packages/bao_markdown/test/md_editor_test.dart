@@ -373,6 +373,37 @@ void main() {
     });
   }
 
+  testWidgets('the numpad\'s 7 and 1 reach the line\'s ends on Windows', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final controller = MarkdownController(text: 'ab\ncd');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    controller.selection = const TextSelection.collapsed(offset: 4);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad7);
+    await tester.pump();
+    expect(controller.selection.extentOffset, 3);
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad1);
+    await tester.pump();
+    expect(controller.selection.extentOffset, 5);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('the numpad\'s 7 and 1 stay digits elsewhere', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    final controller = MarkdownController(text: 'ab\ncd');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    controller.selection = const TextSelection.collapsed(offset: 4);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad7);
+    await tester.pump();
+    expect(controller.selection.extentOffset, 4);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('composed text is typed in as it is composed', (tester) async {
     final controller = MarkdownController(text: 'ab');
     final state = await _pump(tester, controller);
