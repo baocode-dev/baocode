@@ -4,7 +4,6 @@ import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../usage_prices.dart';
 import '../usage_query.dart';
-import '../usage_record.dart';
 import 'usage_charts.dart';
 import 'usage_filters.dart';
 import 'usage_style.dart';
@@ -577,60 +576,6 @@ class _UsageToolsSectionState extends State<UsageToolsSection> {
                 _ToolSort.time => '×${tool.calls}',
               },
             ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The kinds of request, side by side: the main agent's, the subagents',
-/// compactions, the rest; picked, they filter.
-class UsageClassSection extends StatelessWidget {
-  const UsageClassSection({
-    super.key,
-    required this.summary,
-    this.selected = const {},
-    this.onToggle,
-  });
-
-  final UsageSummary summary;
-  final Set<UsageClass> selected;
-  final ValueChanged<UsageClass>? onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final entries = summary.byClass.entries.toList()
-      ..sort((a, b) => b.value.total.compareTo(a.value.total));
-    return UsageCard(
-      title: l10n.ustatByClass,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          UsageStackBar(
-            columns: 2,
-            // Its costs after its tokens: wider.
-            minColumnWidth: summary.totals.cost.isEmpty ? 140 : 230,
-            selected: {
-              for (final (i, entry) in entries.indexed)
-                if (selected.contains(entry.key)) i,
-            },
-            onTap: onToggle == null || entries.length < 2
-                ? null
-                : (i) => onToggle!(entries[i].key),
-            parts: [
-              for (final MapEntry(:key, :value) in entries)
-                (
-                  label: UsageFormat.ofClass(context, key),
-                  value: value.total.toDouble(),
-                  color: UsagePalette.ofClass(key),
-                  text: [
-                    UsageFormat.tokens(value.total),
-                    ?value.cost.text,
-                  ].join(' · '),
-                ),
-            ],
-          ),
         ],
       ),
     );

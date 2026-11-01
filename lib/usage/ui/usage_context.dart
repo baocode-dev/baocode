@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../chat/widgets/hover_builder.dart';
 import '../../kernel/extension_switches.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
@@ -109,6 +108,15 @@ class _UsageContextSectionState extends State<UsageContextSection> {
       final price? => UsagePrices.money(price.cost(c), price.currency),
       null => null,
     };
+    // Over more than a day: each time its day.
+    final first = requests.first.at, last = requests.last.at;
+    final days =
+        first.year != last.year ||
+        first.month != last.month ||
+        first.day != last.day;
+    String time(DateTime at) => days
+        ? '${UsageFormat.day(at)} ${UsageFormat.clock(at)}'
+        : UsageFormat.clock(at);
     final series = [
       (label: l10n.ustatTokenCacheRead, color: UsagePalette.cacheRead),
       (label: l10n.ustatTokenInput, color: UsagePalette.input),
@@ -169,7 +177,7 @@ class _UsageContextSectionState extends State<UsageContextSection> {
             columns: [
               for (final (i, c) in requests.indexed)
                 (
-                  label: UsageFormat.clock(c.at),
+                  label: time(c.at),
                   title: [
                     '#${i + 1}  ${UsageFormat.when(c.at)}',
                     c.model,
@@ -198,9 +206,10 @@ class _UsageContextSectionState extends State<UsageContextSection> {
   }
 }
 
-/// What filled [call]'s context: its parts along a bar, then each part by
-/// name: the MCP servers and their tools, the skills, the built-in tools,
-/// the tools' results, CLAUDE.md and the rules, the conversation's own.
+/// What filled [call]'s context: its parts along a bar; a part's name
+/// clicked, its things by name under them (one part at a time): the MCP
+/// servers and their tools, the skills, the built-in tools, the tools'
+/// results, CLAUDE.md and the rules, the conversation's own.
 /// The MCP servers, their tools and the skills each a switch, as in
 /// Settings → Customize: off, the requests after go without them.
 ///
@@ -214,14 +223,9 @@ class UsageContextBreakdown extends StatefulWidget {
     this.index,
     this.count,
     this.onStep,
-    this.folded = false,
   });
 
   final UsageCall call;
-
-  /// Its parts by name shown only once asked for: under a call's details,
-  /// where the context's own view has them already.
-  final bool folded;
 
   /// The agent's request before it, for what it grew by.
   final UsageCall? previous;
@@ -239,7 +243,9 @@ class UsageContextBreakdown extends StatefulWidget {
 class _UsageContextBreakdownState extends State<UsageContextBreakdown>
     with UsageSwitching {
   final Set<String> _open = {};
-  late bool _folded = widget.folded;
+
+  /// The part whose things show under the parts (by its key), picked.
+  String? _picked;
 
   Widget _header() {
     final l10n = context.l10n;
@@ -332,27 +338,15 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
     final whole = call.prompt > 0 ? call.prompt : makeup.total;
     final scale = whole / makeup.total;
     double scaled(int tokens) => tokens * scale;
-    children.add(
-      UsageStackBar(
-        columns: 3,
-        parts: [
-          for (final (key, value) in makeup.parts)
-            (
-              label: UsageFormat.part(context, key),
-              value: scaled(value),
-              color: UsagePalette.part(key),
-              text: UsageFormat.tokens(scaled(value)),
-            ),
-        ],
-      ),
-    );
     final detail = makeup.detail;
     final shape = detail?.shape;
-    final groups = <Widget>[
-      if (shape != null) ...[
-        _mcp(shape, makeup, scaled, whole),
-        _skills(shape, makeup, scaled, whole),
-        _named(
+    // Each part's things, where they are known: one shown at a time, its
+    // name clicked.
+    final groups = <String, Widget>{
+      if (shape != null) ...{
+        'mcp': ?_mcp(shape, makeup, scaled, whole),
+        'skills': ?_skills(shape, makeup, scaled, whole),
+        'tools': ?_named(
           title: l10n.ustatPartTools,
           color: UsagePalette.part('tools'),
           total: scaled(makeup.tools),
@@ -363,9 +357,24 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
                 UsageBreakdownItem(label: key, tokens: scaled(value)),
           ],
         ),
-      ],
+        if (shape.memory.isNotEmpty)
+          'memory': ?_named(
+            title: l10n.ustatPartMemory,
+            color: UsagePalette.part('memory'),
+            total: scaled(makeup.memory),
+            whole: whole,
+            rows: [
+              for (final MapEntry(:key, :value) in shape.memory.entries)
+                UsageBreakdownItem(
+                  label: usageShortPath(key),
+                  tooltip: key,
+                  tokens: scaled(value),
+                ),
+            ],
+          ),
+      },
       if (detail != null && detail.results.isNotEmpty)
-        _named(
+        'toolResult': ?_named(
           title: l10n.ustatPartToolResult,
           color: UsagePalette.part('toolResult'),
           total: scaled(makeup.toolResult),
@@ -384,22 +393,7 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
               ),
           ],
         ),
-      if (shape != null && shape.memory.isNotEmpty)
-        _named(
-          title: l10n.ustatPartMemory,
-          color: UsagePalette.part('memory'),
-          total: scaled(makeup.memory),
-          whole: whole,
-          rows: [
-            for (final MapEntry(:key, :value) in shape.memory.entries)
-              UsageBreakdownItem(
-                label: usageShortPath(key),
-                tooltip: key,
-                tokens: scaled(value),
-              ),
-          ],
-        ),
-      _named(
+      'messages': ?_named(
         title: l10n.ustatPartMessages,
         color: UsagePalette.part('messages'),
         total: scaled(makeup.messages),
@@ -414,97 +408,69 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
               ),
         ],
       ),
-    ];
-    if (_folded) {
+    };
+    final parts = makeup.parts;
+    final picked = groups[_picked];
+    children.add(
+      UsageStackBar(
+        columns: 3,
+        parts: [
+          for (final (key, value) in parts)
+            (
+              label: UsageFormat.part(context, key),
+              value: scaled(value),
+              color: UsagePalette.part(key),
+              text: UsageFormat.tokens(scaled(value)),
+            ),
+        ],
+        openable: {
+          for (final (i, (key, _)) in parts.indexed)
+            if (groups.containsKey(key)) i,
+        },
+        selected: {
+          for (final (i, (key, _)) in parts.indexed)
+            if (picked != null && key == _picked) i,
+        },
+        onTap: (i) => setState(() {
+          final key = parts[i].$1;
+          _picked = _picked == key ? null : key;
+        }),
+      ),
+    );
+    if (shape == null) {
+      children.addAll([
+        const SizedBox(height: 10),
+        Text(
+          detail?.shapeId != null
+              ? l10n.ustatMakeupShapeMissing
+              : l10n.ustatMakeupNoDetail,
+          style: UsageText.faint,
+        ),
+      ]);
+    }
+    if (picked != null) {
       children.addAll([
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: HoverBuilder(
-            cursor: SystemMouseCursors.click,
-            builder: (context, hovered) => GestureDetector(
-              onTap: () => setState(() => _folded = false),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Codicons.chevronRight,
-                    size: 12,
-                    color: hovered ? AppColors.text : AppColors.textFaint,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    l10n.ustatMakeupUnfold,
-                    style: UsageText.muted.copyWith(
-                      color: hovered ? AppColors.text : null,
-                    ),
-                  ),
-                ],
-              ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(2, 10, 2, 8),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: AppColors.partBorder),
+              bottom: BorderSide(color: AppColors.partBorder),
             ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              picked,
+              if (switched) ...[
+                const SizedBox(height: 8),
+                const UsageSwitchedHint(),
+              ],
+            ],
           ),
         ),
       ]);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
-      );
-    }
-    children.add(const SizedBox(height: 12));
-    if (shape == null) {
-      children
-        ..add(
-          Text(
-            detail?.shapeId != null
-                ? l10n.ustatMakeupShapeMissing
-                : l10n.ustatMakeupNoDetail,
-            style: UsageText.faint,
-          ),
-        )
-        ..add(const SizedBox(height: 10));
-    }
-    children.add(
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = constraints.maxWidth >= 680 ? 2 : 1;
-          final width = (constraints.maxWidth - 16 * (columns - 1)) / columns;
-          if (columns == 1) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final (i, group) in groups.indexed) ...[
-                  if (i > 0) const SizedBox(height: 10),
-                  group,
-                ],
-              ],
-            );
-          }
-          // Two columns, each group in the shorter: as many in each.
-          final left = <Widget>[], right = <Widget>[];
-          for (final (i, group) in groups.indexed) {
-            (i.isEven ? left : right).add(group);
-          }
-          Widget column(List<Widget> groups) => SizedBox(
-            width: width,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final (i, group) in groups.indexed) ...[
-                  if (i > 0) const SizedBox(height: 10),
-                  group,
-                ],
-              ],
-            ),
-          );
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [column(left), const SizedBox(width: 16), column(right)],
-          );
-        },
-      ),
-    );
-    if (switched) {
-      children.addAll([const SizedBox(height: 10), const UsageSwitchedHint()]);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -514,7 +480,7 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
 
   /// The MCP servers: each its tools' definitions and its instructions,
   /// a switch; opened, its tools, each a switch.
-  Widget _mcp(
+  Widget? _mcp(
     UsageShape shape,
     UsageContext makeup,
     double Function(int) scaled,
@@ -546,7 +512,7 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
         notes: server.notes + value,
       );
     }
-    if (servers.isEmpty) return const SizedBox.shrink();
+    if (servers.isEmpty) return null;
     return _named(
       title: l10n.ustatPartMcp,
       color: UsagePalette.part('mcp'),
@@ -558,14 +524,14 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
 
   /// The skills as listed, each a switch but a plugin's (`plugin:skill`),
   /// which Claude Code keeps on.
-  Widget _skills(
+  Widget? _skills(
     UsageShape shape,
     UsageContext makeup,
     double Function(int) scaled,
     int whole,
   ) {
     final l10n = context.l10n;
-    if (shape.skills.isEmpty) return const SizedBox.shrink();
+    if (shape.skills.isEmpty) return null;
     return _named(
       title: l10n.ustatPartSkills,
       color: UsagePalette.part('skills'),
@@ -578,7 +544,8 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
     );
   }
 
-  Widget _named({
+  /// Null with no things to show.
+  Widget? _named({
     required String title,
     required Color color,
     required double total,
@@ -586,7 +553,7 @@ class _UsageContextBreakdownState extends State<UsageContextBreakdown>
     required List<UsageBreakdownItem> rows,
     int limit = 6,
   }) {
-    if (rows.isEmpty && total <= 0) return const SizedBox.shrink();
+    if (rows.isEmpty) return null;
     return UsageBreakdownGroup(
       key: ValueKey(title),
       title: title,

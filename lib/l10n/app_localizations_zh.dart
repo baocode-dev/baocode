@@ -11864,10 +11864,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatKeywords => '用量 统计 调用 令牌 token 缓存 看板 上游 模型';
 
   @override
-  String get ustatDescription =>
-      'BaoCode 对话里的每一次模型调用：Claude Code 自带模型（Claude 订阅或 Anthropic API）从它的输出读取，自定义上游经 BaoCode 模型代理记录。令牌、缓存、耗时，按对话、子代理、工具细分。数据只保存在本机。';
-
-  @override
   String get ustatAll => '全部';
 
   @override
@@ -12055,9 +12051,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatMetricSpeed => '速度';
 
   @override
-  String get ustatByClass => '按请求类型';
-
-  @override
   String get ustatByUpstream => '按上游';
 
   @override
@@ -12065,9 +12058,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatByConversation => '按对话';
-
-  @override
-  String get ustatByAgent => '主代理与子代理';
 
   @override
   String get ustatByTurn => '按轮次';
@@ -12457,28 +12447,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatSwitchedHint => '已同步到“设置 → 自定义”，之后的请求不再带上关闭的项。';
 
   @override
+  String get ustatShowAuxiliary => '显示辅助请求';
+
+  @override
+  String get ustatShowAuxiliaryDescription =>
+      '把 Claude Code 在对话之外发的请求（建议下一条提示、起标题、总结网页等）也算进图表和合计。不显示时照样记录。';
+
+  @override
   String get ustatTrace => '调试抓包';
 
   @override
   String get ustatTraceDescription =>
-      '同时完整保存每次发往自定义上游的请求：Claude Code 发来的原文、发给上游的请求、上游的原始返回、返回给 Claude Code 的内容。密钥会打码。占用空间很大，用完请关闭。';
-
-  @override
-  String get ustatTraceStart => '调试抓包';
-
-  @override
-  String get ustatTraceStartHint => '开始完整记录之后每次调用的原始请求与返回';
-
-  @override
-  String get ustatTraceStop => '停止抓包';
-
-  @override
-  String ustatTraceOn(int count) {
-    return '抓包中 · $count';
-  }
-
-  @override
-  String get ustatTraceKept => '已保存原始报文';
+      '同时完整保存每次发往自定义上游的请求：Claude Code 发来的原文、发给上游的请求、上游的原始返回、返回给 Claude Code 的内容；Claude Code 自带模型只能保存它的返回。密钥会打码。占用空间很大，用完请关闭。';
 
   @override
   String get ustatTraceTitle => '原始报文';
@@ -12493,16 +12473,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatTraceNone => '这一段没有内容（请求在此之前已结束）。';
 
   @override
-  String get ustatTraceRequest => 'Claude Code → 代理';
+  String get ustatTraceRequestBody => '请求体';
 
   @override
-  String get ustatTraceSent => '代理 → 上游';
+  String get ustatTraceRawResponse => '原始响应';
 
   @override
-  String get ustatTraceReceived => '上游 → 代理';
+  String get ustatTraceToUpstream => '发往上游';
 
   @override
-  String get ustatTraceAnswer => '代理 → Claude Code';
+  String ustatTraceResponseHeaders(int count) {
+    return '响应头 · $count';
+  }
+
+  @override
+  String get ustatTraceAnswerOnly => 'Claude Code 输出的原样内容；发给官方的请求看不到';
 
   @override
   String ustatTraceTry(int n) {
@@ -12519,9 +12504,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String ustatTraceHeaders(int count) {
     return '请求头 · $count';
   }
-
-  @override
-  String get ustatTraceBody => '正文';
 
   @override
   String get ustatTraceRaw => '原文';
@@ -12541,9 +12523,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatTraceTruncated => '超过 2400 万字符的部分未保存';
 
   @override
-  String get ustatTracePassedOn => '与上游返回相同';
-
-  @override
   String ustatSpaceTraces(String size, int count) {
     return '；其中调试报文 $size（$count 条）';
   }
@@ -12553,9 +12532,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatClearTracesDetail => '调用记录保留，只删除本机保存的原始请求与返回。';
-
-  @override
-  String get ustatMakeupUnfold => '按工具、MCP、技能、文件细分';
 
   @override
   String get ustatColumnTotal => '合计';

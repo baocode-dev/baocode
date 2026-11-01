@@ -190,6 +190,7 @@ class UsageLedger extends ChangeNotifier {
   static const detailedKey = 'usage.detailed';
   static const retentionKey = 'usage.retentionDays';
   static const traceKey = 'usage.trace';
+  static const auxiliaryKey = 'usage.showAuxiliary';
 
   /// The choices of how long to keep them, in days (0: always).
   static const retentionChoices = [7, 30, 90, 180, 365, 0];
@@ -209,6 +210,20 @@ class UsageLedger extends ChangeNotifier {
   /// Code sent it, as it went to the upstream and as each answered. Off
   /// unless turned on: they are large.
   bool trace = false;
+
+  /// Whether the calls beside the conversation ([UsageClass.auxiliary]:
+  /// Claude Code's suggestions of the next prompt, titles, pages summed
+  /// up) show where calls are counted; kept either way.
+  bool showAuxiliary = false;
+
+  /// [calls] as shown: without those beside the conversation, unless
+  /// [showAuxiliary].
+  List<UsageCall> shown(List<UsageCall> calls) => showAuxiliary
+      ? calls
+      : [
+          for (final call in calls)
+            if (call.requestClass != UsageClass.auxiliary) call,
+        ];
 
   UserSettings? _settings;
 
@@ -230,10 +245,12 @@ class UsageLedger extends ChangeNotifier {
       _ => defaultRetention,
     };
     final tracing = settings[traceKey] == true;
+    final auxiliary = settings[auxiliaryKey] == true;
     if (on == enabled &&
         detail == detailed &&
         days == retentionDays &&
-        tracing == trace) {
+        tracing == trace &&
+        auxiliary == showAuxiliary) {
       return;
     }
     final shorter = retentionDays == 0 || (days != 0 && days < retentionDays);
@@ -241,6 +258,7 @@ class UsageLedger extends ChangeNotifier {
     detailed = detail;
     retentionDays = days;
     trace = tracing;
+    showAuxiliary = auxiliary;
     if (shorter) unawaited(prune());
     notifyListeners();
   }
@@ -258,6 +276,8 @@ class UsageLedger extends ChangeNotifier {
           retentionDays = (value as int?) ?? defaultRetention;
         case traceKey:
           trace = value == true;
+        case auxiliaryKey:
+          showAuxiliary = value == true;
       }
       notifyListeners();
       return;

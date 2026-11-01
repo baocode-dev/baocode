@@ -122,6 +122,19 @@ class UsageTrace {
     _watch.start();
   }
 
+  /// One of Claude Code's own calls (a Claude plan's, Anthropic's API),
+  /// which go to Anthropic without the proxy: only its answer is seen, as
+  /// the CLI printed it ([body]: its events, else its message).
+  UsageTrace.answerOnly(
+    this.id, {
+    required this.at,
+    required Duration duration,
+    required String body,
+  }) {
+    _duration = duration;
+    received.add(UsageTraceMessage(at: Duration.zero)..write(body));
+  }
+
   final String id;
   final DateTime at;
   final Stopwatch _watch = Stopwatch();
@@ -263,6 +276,10 @@ class UsageTrace {
   }
 
   Duration? _duration;
+
+  /// Only its answer kept (see [UsageTrace.answerOnly]).
+  bool get answerOnly =>
+      request == null && sent.isEmpty && answer == null && received.isNotEmpty;
 
   /// How long it took, as kept.
   Duration get duration => _duration ?? elapsed;

@@ -452,6 +452,10 @@ class ClaudeCodeKernel
   int _contextWindow = 200000;
   bool _contextReported = false;
 
+  /// What filled the context as last counted (`get_context_usage`): the
+  /// Claude plan's calls' makeup, which no proxy sees.
+  ContextDetail? _contextDetail;
+
   /// The models' own windows, by the model the CLI resolved them to, as
   /// reported while they were in use.
   static final Map<String, int> _modelWindows = {};
@@ -624,7 +628,10 @@ class ClaudeCodeKernel
       _transport = transport;
       _usage = custom == null
           ? ClaudeUsageMeter(
-              record: (call) => UsageLedger.current.record(call),
+              record: (call, {trace}) =>
+                  UsageLedger.current.record(call, trace: trace),
+              tracing: () => UsageLedger.current.trace,
+              makeup: () => _contextDetail,
               session: () => _sessionId,
               providerName: 'Claude Code',
               quota: () => _quota,
@@ -2197,6 +2204,8 @@ class ClaudeCodeKernel
     if (account['subscriptionType'] case final String plan
         when plan.trim().isNotEmpty) {
       final name = plan.trim();
+      // Told as `max`, or already as `Claude Max`.
+      if (name.toLowerCase().startsWith('claude')) return name;
       return 'Claude ${name[0].toUpperCase()}${name.substring(1)}';
     }
     return account['apiKeySource'] != null ? 'Anthropic API' : null;
@@ -2613,7 +2622,7 @@ class ClaudeCodeKernel
                     },
                   ),
             ],
-            detail: ContextDetail.parse(usage),
+            detail: _contextDetail = ContextDetail.parse(usage),
           ),
         ),
       );

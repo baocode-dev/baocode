@@ -231,6 +231,22 @@ void main() {
       expect(space.oldest, '2026-10-30');
     });
 
+    test('keeps the calls beside the conversation, shown only when asked '
+        'for', () async {
+      ledger
+        ..record(_call(DateTime(2026, 11, 1, 10)))
+        ..record(_call(DateTime(2026, 11, 1, 11), kind: UsageClass.auxiliary))
+        ..flush();
+      final calls = await ledger.ofSession('s1');
+      expect(calls, hasLength(2));
+      expect(ledger.showAuxiliary, isFalse);
+      expect(ledger.shown(calls).map((call) => call.requestClass), [
+        UsageClass.main,
+      ]);
+      await ledger.save(UsageLedger.auxiliaryKey, true);
+      expect(ledger.shown(calls), hasLength(2));
+    });
+
     test('labels a conversation once it is named, and again as renamed; '
         'its group by its last name', () async {
       String? title;

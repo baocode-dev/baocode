@@ -20433,12 +20433,6 @@ abstract class AppLocalizations {
   /// **'usage statistics tokens cache calls cost dashboard upstream model'**
   String get ustatKeywords;
 
-  /// No description provided for @ustatDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Every call to a model in BaoCode\'s conversations: Claude Code\'s own (a Claude plan or Anthropic\'s API), read from what it prints, and your custom upstreams\', as BaoCode\'s model proxy passed them on. Tokens, the cache, time, by conversation, subagent and tool. Kept on this computer only.'**
-  String get ustatDescription;
-
   /// No description provided for @ustatAll.
   ///
   /// In en, this message translates to:
@@ -20781,12 +20775,6 @@ abstract class AppLocalizations {
   /// **'Speed'**
   String get ustatMetricSpeed;
 
-  /// No description provided for @ustatByClass.
-  ///
-  /// In en, this message translates to:
-  /// **'By kind of request'**
-  String get ustatByClass;
-
   /// No description provided for @ustatByUpstream.
   ///
   /// In en, this message translates to:
@@ -20804,12 +20792,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'By conversation'**
   String get ustatByConversation;
-
-  /// No description provided for @ustatByAgent.
-  ///
-  /// In en, this message translates to:
-  /// **'Main agent and subagents'**
-  String get ustatByAgent;
 
   /// No description provided for @ustatByTurn.
   ///
@@ -21465,6 +21447,18 @@ abstract class AppLocalizations {
   /// **'Saved to Settings → Customize. The agent\'s next requests go without what was turned off.'**
   String get ustatSwitchedHint;
 
+  /// No description provided for @ustatShowAuxiliary.
+  ///
+  /// In en, this message translates to:
+  /// **'Show auxiliary requests'**
+  String get ustatShowAuxiliary;
+
+  /// No description provided for @ustatShowAuxiliaryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Count Claude Code\'s requests beside the conversation (suggesting the next prompt, naming the conversation, summing up a web page) in the charts and totals. They are kept either way.'**
+  String get ustatShowAuxiliaryDescription;
+
   /// No description provided for @ustatTrace.
   ///
   /// In en, this message translates to:
@@ -21474,38 +21468,8 @@ abstract class AppLocalizations {
   /// No description provided for @ustatTraceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Also keep every request to a custom upstream whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back. Keys are masked. Takes a lot of space: turn it off when done.'**
+  /// **'Also keep every request to a custom upstream whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back; of Claude Code\'s own models, only their answers. Keys are masked. Takes a lot of space: turn it off when done.'**
   String get ustatTraceDescription;
-
-  /// No description provided for @ustatTraceStart.
-  ///
-  /// In en, this message translates to:
-  /// **'Debug capture'**
-  String get ustatTraceStart;
-
-  /// No description provided for @ustatTraceStartHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Keep the raw requests and answers of the calls from now on'**
-  String get ustatTraceStartHint;
-
-  /// No description provided for @ustatTraceStop.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop capturing'**
-  String get ustatTraceStop;
-
-  /// No description provided for @ustatTraceOn.
-  ///
-  /// In en, this message translates to:
-  /// **'Capturing · {count}'**
-  String ustatTraceOn(int count);
-
-  /// No description provided for @ustatTraceKept.
-  ///
-  /// In en, this message translates to:
-  /// **'Raw request and answer kept'**
-  String get ustatTraceKept;
 
   /// No description provided for @ustatTraceTitle.
   ///
@@ -21531,29 +21495,35 @@ abstract class AppLocalizations {
   /// **'Nothing went this way (it was answered before).'**
   String get ustatTraceNone;
 
-  /// No description provided for @ustatTraceRequest.
+  /// No description provided for @ustatTraceRequestBody.
   ///
   /// In en, this message translates to:
-  /// **'Claude Code → proxy'**
-  String get ustatTraceRequest;
+  /// **'Request body'**
+  String get ustatTraceRequestBody;
 
-  /// No description provided for @ustatTraceSent.
+  /// No description provided for @ustatTraceRawResponse.
   ///
   /// In en, this message translates to:
-  /// **'Proxy → upstream'**
-  String get ustatTraceSent;
+  /// **'Raw response'**
+  String get ustatTraceRawResponse;
 
-  /// No description provided for @ustatTraceReceived.
+  /// No description provided for @ustatTraceToUpstream.
   ///
   /// In en, this message translates to:
-  /// **'Upstream → proxy'**
-  String get ustatTraceReceived;
+  /// **'Sent upstream'**
+  String get ustatTraceToUpstream;
 
-  /// No description provided for @ustatTraceAnswer.
+  /// No description provided for @ustatTraceResponseHeaders.
   ///
   /// In en, this message translates to:
-  /// **'Proxy → Claude Code'**
-  String get ustatTraceAnswer;
+  /// **'Response headers · {count}'**
+  String ustatTraceResponseHeaders(int count);
+
+  /// No description provided for @ustatTraceAnswerOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'As Claude Code printed it; the request to Anthropic is not seen'**
+  String get ustatTraceAnswerOnly;
 
   /// No description provided for @ustatTraceTry.
   ///
@@ -21576,14 +21546,8 @@ abstract class AppLocalizations {
   /// No description provided for @ustatTraceHeaders.
   ///
   /// In en, this message translates to:
-  /// **'Headers · {count}'**
+  /// **'Request headers · {count}'**
   String ustatTraceHeaders(int count);
-
-  /// No description provided for @ustatTraceBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Body'**
-  String get ustatTraceBody;
 
   /// No description provided for @ustatTraceRaw.
   ///
@@ -21615,12 +21579,6 @@ abstract class AppLocalizations {
   /// **'cut at 24M characters'**
   String get ustatTraceTruncated;
 
-  /// No description provided for @ustatTracePassedOn.
-  ///
-  /// In en, this message translates to:
-  /// **'passed on as the upstream answered'**
-  String get ustatTracePassedOn;
-
   /// No description provided for @ustatSpaceTraces.
   ///
   /// In en, this message translates to:
@@ -21638,12 +21596,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The calls stay; their raw requests and answers are deleted from this computer.'**
   String get ustatClearTracesDetail;
-
-  /// No description provided for @ustatMakeupUnfold.
-  ///
-  /// In en, this message translates to:
-  /// **'By tool, MCP server, skill and file'**
-  String get ustatMakeupUnfold;
 
   /// No description provided for @ustatColumnTotal.
   ///

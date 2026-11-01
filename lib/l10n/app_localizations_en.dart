@@ -12541,10 +12541,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'usage statistics tokens cache calls cost dashboard upstream model';
 
   @override
-  String get ustatDescription =>
-      'Every call to a model in BaoCode\'s conversations: Claude Code\'s own (a Claude plan or Anthropic\'s API), read from what it prints, and your custom upstreams\', as BaoCode\'s model proxy passed them on. Tokens, the cache, time, by conversation, subagent and tool. Kept on this computer only.';
-
-  @override
   String get ustatAll => 'All';
 
   @override
@@ -12732,9 +12728,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ustatMetricSpeed => 'Speed';
 
   @override
-  String get ustatByClass => 'By kind of request';
-
-  @override
   String get ustatByUpstream => 'By upstream';
 
   @override
@@ -12742,9 +12735,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ustatByConversation => 'By conversation';
-
-  @override
-  String get ustatByAgent => 'Main agent and subagents';
 
   @override
   String get ustatByTurn => 'By turn';
@@ -13182,29 +13172,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Saved to Settings → Customize. The agent\'s next requests go without what was turned off.';
 
   @override
+  String get ustatShowAuxiliary => 'Show auxiliary requests';
+
+  @override
+  String get ustatShowAuxiliaryDescription =>
+      'Count Claude Code\'s requests beside the conversation (suggesting the next prompt, naming the conversation, summing up a web page) in the charts and totals. They are kept either way.';
+
+  @override
   String get ustatTrace => 'Debug capture';
 
   @override
   String get ustatTraceDescription =>
-      'Also keep every request to a custom upstream whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back. Keys are masked. Takes a lot of space: turn it off when done.';
-
-  @override
-  String get ustatTraceStart => 'Debug capture';
-
-  @override
-  String get ustatTraceStartHint =>
-      'Keep the raw requests and answers of the calls from now on';
-
-  @override
-  String get ustatTraceStop => 'Stop capturing';
-
-  @override
-  String ustatTraceOn(int count) {
-    return 'Capturing · $count';
-  }
-
-  @override
-  String get ustatTraceKept => 'Raw request and answer kept';
+      'Also keep every request to a custom upstream whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back; of Claude Code\'s own models, only their answers. Keys are masked. Takes a lot of space: turn it off when done.';
 
   @override
   String get ustatTraceTitle => 'Raw exchange';
@@ -13220,16 +13199,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Nothing went this way (it was answered before).';
 
   @override
-  String get ustatTraceRequest => 'Claude Code → proxy';
+  String get ustatTraceRequestBody => 'Request body';
 
   @override
-  String get ustatTraceSent => 'Proxy → upstream';
+  String get ustatTraceRawResponse => 'Raw response';
 
   @override
-  String get ustatTraceReceived => 'Upstream → proxy';
+  String get ustatTraceToUpstream => 'Sent upstream';
 
   @override
-  String get ustatTraceAnswer => 'Proxy → Claude Code';
+  String ustatTraceResponseHeaders(int count) {
+    return 'Response headers · $count';
+  }
+
+  @override
+  String get ustatTraceAnswerOnly =>
+      'As Claude Code printed it; the request to Anthropic is not seen';
 
   @override
   String ustatTraceTry(int n) {
@@ -13244,11 +13229,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String ustatTraceHeaders(int count) {
-    return 'Headers · $count';
+    return 'Request headers · $count';
   }
-
-  @override
-  String get ustatTraceBody => 'Body';
 
   @override
   String get ustatTraceRaw => 'As sent';
@@ -13268,9 +13250,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ustatTraceTruncated => 'cut at 24M characters';
 
   @override
-  String get ustatTracePassedOn => 'passed on as the upstream answered';
-
-  @override
   String ustatSpaceTraces(String size, int count) {
     return '; raw exchanges $size ($count)';
   }
@@ -13281,9 +13260,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ustatClearTracesDetail =>
       'The calls stay; their raw requests and answers are deleted from this computer.';
-
-  @override
-  String get ustatMakeupUnfold => 'By tool, MCP server, skill and file';
 
   @override
   String get ustatColumnTotal => 'Total';

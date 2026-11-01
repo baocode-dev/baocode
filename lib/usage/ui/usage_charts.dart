@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import '../../chat/widgets/hover_builder.dart';
+import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'usage_style.dart';
 
@@ -678,13 +680,16 @@ class _ColumnsPainter extends CustomPainter {
   final TextStyle textStyle;
   final String Function(double value) format;
 
-  void _text(
+  /// Where it ends, at the right; not painted (null) where it would
+  /// start before [after].
+  double? _text(
     Canvas canvas,
     String text,
     Offset at, {
     TextAlign? align,
     double? left,
     double? right,
+    double? after,
   }) {
     final painter = TextPainter(
       text: TextSpan(text: text, style: textStyle),
@@ -699,8 +704,14 @@ class _ColumnsPainter extends CustomPainter {
     // Kept within the plot, off the values' axis.
     if (right != null) dx = math.min(dx, right - painter.width);
     if (left != null) dx = math.max(dx, left);
+    if (after != null && dx < after) {
+      painter.dispose();
+      return null;
+    }
     painter.paint(canvas, Offset(dx, at.dy - painter.height / 2));
+    final end = dx + painter.width;
     painter.dispose();
+    return end;
   }
 
   @override
@@ -743,13 +754,63 @@ class _ColumnsPainter extends CustomPainter {
       );
     }
     if (hovered case final i? when i != selected) {
+      final band = math.max(slot, 2.0);
       canvas.drawRect(
-        Rect.fromLTWH(plot.left + slot * i, plot.top, slot, plot.height),
+        Rect.fromLTWH(
+          plot.left + slot * (i + 0.5) - band / 2,
+          plot.top,
+          band,
+          plot.height,
+        ),
         Paint()..color = hover,
       );
     }
+    // Spaced apart: those close to the one before left out, not heaped.
+    final markAt = <double>[];
+    for (final i in marks.toList()..sort()) {
+      if (i >= columns.length) continue;
+      final cx = plot.left + slot * (i + 0.5);
+      if (markAt.isEmpty || cx - markAt.last >= 12) markAt.add(cx);
+    }
     final gap = width >= 6 ? 2.0 : 0.0;
+    // More columns than pixels: a pixel's tallest a pixel wide, edge to
+    // edge, the run's outline (thinner columns side by side shimmer).
+    final dense = slot < 2;
+    if (dense) {
+      final pixels = plot.width.floor();
+      final paints = [
+        for (final color in colors)
+          Paint()
+            ..color = color
+            ..isAntiAlias = false,
+      ];
+      for (var b = 0; b < pixels; b++) {
+        final from = b * columns.length ~/ pixels;
+        final to = math.max(from + 1, (b + 1) * columns.length ~/ pixels);
+        UsageColumn? tallest;
+        var most = -1.0;
+        for (var i = from; i < to && i < columns.length; i++) {
+          final total = columns[i].values.fold(0.0, (sum, v) => sum + v);
+          if (total > most) {
+            most = total;
+            tallest = columns[i];
+          }
+        }
+        if (tallest == null) continue;
+        var y = plot.bottom;
+        for (final (s, value) in tallest.values.indexed) {
+          if (value <= 0) continue;
+          final h = value / scale.top * plot.height;
+          canvas.drawRect(
+            Rect.fromLTRB(plot.left + b, y - h, plot.left + b + 1, y),
+            paints[s % paints.length],
+          );
+          y -= h;
+        }
+      }
+    }
     for (final (i, column) in columns.indexed) {
+      if (dense) break;
       final x = plot.left + slot * i + (slot - width) / 2;
       var y = plot.bottom;
       final shown = [
@@ -777,32 +838,50 @@ class _ColumnsPainter extends CustomPainter {
         }
         y -= h;
       }
-      // Something happened here: a diamond over it, at the plot's top.
-      if (marks.contains(i)) {
-        final cx = x + width / 2;
-        final top = plot.top - 7;
-        canvas.drawPath(
-          Path()
-            ..moveTo(cx, top - 4)
-            ..lineTo(cx + 4, top)
-            ..lineTo(cx, top + 4)
-            ..lineTo(cx - 4, top)
-            ..close(),
-          Paint()..color = mark ?? hover,
-        );
-      }
     }
-    // The time under the columns: as many labels as fit.
-    final every = math.max(1, (64 / slot).ceil());
-    for (var i = 0; i < columns.length; i += every) {
-      _text(
-        canvas,
-        columns[i].label,
-        Offset(plot.left + slot * (i + 0.5), size.height - labelsHeight / 2),
-        align: TextAlign.center,
-        left: plot.left + 4,
-        right: plot.right,
+    // Something happened there: a diamond over it, at the plot's top.
+    for (final cx in markAt) {
+      final top = plot.top - 7;
+      canvas.drawPath(
+        Path()
+          ..moveTo(cx, top - 4)
+          ..lineTo(cx + 4, top)
+          ..lineTo(cx, top + 4)
+          ..lineTo(cx - 4, top)
+          ..close(),
+        Paint()..color = mark ?? hover,
       );
+    }
+    // The time under the columns: as many labels as fit, by the widest.
+    final widest = TextPainter(
+      text: TextSpan(
+        text: columns
+            .map((c) => c.label)
+            .reduce((a, b) => a.length >= b.length ? a : b),
+        style: textStyle,
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final every = math.max(1, ((widest.width + 20) / slot).ceil());
+    widest.dispose();
+    // One pushed in off an edge may meet the next: that one left out.
+    double? end;
+    for (var i = 0; i < columns.length; i += every) {
+      end =
+          _text(
+            canvas,
+            columns[i].label,
+            Offset(
+              plot.left + slot * (i + 0.5),
+              size.height - labelsHeight / 2,
+            ),
+            align: TextAlign.center,
+            left: plot.left + 4,
+            right: plot.right,
+            after: end == null ? null : end + 12,
+          ) ??
+          end;
     }
   }
 
@@ -1206,7 +1285,8 @@ class UsageRankItem {
 }
 
 /// The largest first, each a bar of its share of the largest under its
-/// name; [limit] shown till Show All. A click picks one ([onTap]).
+/// name; [limit] shown till Show All (a page more at a time, of many). A
+/// click picks one ([onTap]).
 class UsageRankList extends StatefulWidget {
   const UsageRankList({
     super.key,
@@ -1234,7 +1314,10 @@ class UsageRankList extends StatefulWidget {
 }
 
 class _UsageRankListState extends State<UsageRankList> {
-  bool _all = false;
+  late int _shown = widget.limit;
+
+  /// Shown more at a time, where there are many more.
+  static const _page = 50;
 
   @override
   Widget build(BuildContext context) {
@@ -1246,7 +1329,23 @@ class _UsageRankListState extends State<UsageRankList> {
       );
     }
     final top = items.fold(0.0, (top, item) => math.max(top, item.value));
-    final shown = _all ? items : items.take(widget.limit).toList();
+    final shown = items.take(_shown).toList();
+    final left = items.length - shown.length;
+    Widget link(String label, VoidCallback onTap) => HoverBuilder(
+      cursor: SystemMouseCursors.click,
+      builder: (context, hovered) => GestureDetector(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6, left: 2, right: 12),
+          child: Text(
+            label,
+            style: UsageText.muted.copyWith(
+              color: hovered ? AppColors.text : null,
+            ),
+          ),
+        ),
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1259,26 +1358,24 @@ class _UsageRankListState extends State<UsageRankList> {
             onTap: widget.onTap == null ? null : () => widget.onTap!(item),
           ),
         if (items.length > widget.limit)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: HoverBuilder(
-              cursor: SystemMouseCursors.click,
-              builder: (context, hovered) => GestureDetector(
-                onTap: () => setState(() => _all = !_all),
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 6, left: 2),
-                  child: Text(
-                    _all
-                        ? (widget.lessLabel ?? '−')
-                        : (widget.moreLabel?.call(items.length) ??
-                              '+${items.length - widget.limit}'),
-                    style: UsageText.muted.copyWith(
-                      color: hovered ? AppColors.text : null,
-                    ),
-                  ),
+          Row(
+            children: [
+              if (left > _page)
+                link(
+                  context.l10n.ustatShowMoreCalls(left),
+                  () => setState(() => _shown += _page),
+                )
+              else if (left > 0)
+                link(
+                  widget.moreLabel?.call(items.length) ?? '+$left',
+                  () => setState(() => _shown = items.length),
                 ),
-              ),
-            ),
+              if (shown.length > widget.limit)
+                link(
+                  widget.lessLabel ?? '−',
+                  () => setState(() => _shown = widget.limit),
+                ),
+            ],
           ),
       ],
     );
@@ -1523,6 +1620,7 @@ class UsageStackBar extends StatefulWidget {
     this.columns = 2,
     this.selected = const {},
     this.onTap,
+    this.openable,
     this.minColumnWidth = 200,
   });
 
@@ -1538,6 +1636,12 @@ class UsageStackBar extends StatefulWidget {
   /// when [onTap] is given.
   final Set<int> selected;
   final ValueChanged<int>? onTap;
+
+  /// The parts a click opens (their things shown under it), by index, a
+  /// chevron each: only those clicked. Null: all clicked, to pick them.
+  final Set<int>? openable;
+
+  bool _taps(int i) => onTap != null && (openable?.contains(i) ?? true);
 
   @override
   State<UsageStackBar> createState() => _UsageStackBarState();
@@ -1609,16 +1713,14 @@ class _UsageStackBarState extends State<UsageStackBar> {
                 for (final (i, part) in parts.indexed)
                   if (part.value > 0)
                     MouseRegion(
-                      cursor: widget.onTap == null
-                          ? MouseCursor.defer
-                          : SystemMouseCursors.click,
+                      cursor: widget._taps(i)
+                          ? SystemMouseCursors.click
+                          : MouseCursor.defer,
                       onEnter: (_) => setState(() => _hovered = i),
                       onExit: (_) => setState(() => _hovered = null),
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: widget.onTap == null
-                            ? null
-                            : () => widget.onTap!(i),
+                        onTap: widget._taps(i) ? () => widget.onTap!(i) : null,
                         child: Container(
                           width: width,
                           padding: const EdgeInsets.symmetric(
@@ -1628,7 +1730,7 @@ class _UsageStackBarState extends State<UsageStackBar> {
                           decoration: BoxDecoration(
                             color: widget.selected.contains(i)
                                 ? AppColors.accent.withValues(alpha: 0.14)
-                                : _hovered == i
+                                : _hovered == i && widget._taps(i)
                                 ? AppColors.hover
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(4),
@@ -1672,6 +1774,19 @@ class _UsageStackBarState extends State<UsageStackBar> {
                                   ),
                                 ),
                               ),
+                              if (widget.openable case final openable?)
+                                SizedBox(
+                                  width: 16,
+                                  child: openable.contains(i)
+                                      ? Icon(
+                                          widget.selected.contains(i)
+                                              ? Codicons.chevronUp
+                                              : Codicons.chevronDown,
+                                          size: 11,
+                                          color: AppColors.textFaint,
+                                        )
+                                      : null,
+                                ),
                             ],
                           ),
                         ),

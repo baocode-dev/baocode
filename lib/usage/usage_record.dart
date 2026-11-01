@@ -573,7 +573,9 @@ class UsageCall {
       status: count('st'),
       error: text('er'),
       provider: provider,
-      providerName: text('pn'),
+      // Kept twice named by an earlier build ("Claude Claude Max").
+      providerName: text('pn')
+          ?.replaceFirst(RegExp(r'^Claude (?=Claude )'), ''),
       protocol: text('pr'),
       model: text('m') ?? '',
       upstreamModel: text('um'),
