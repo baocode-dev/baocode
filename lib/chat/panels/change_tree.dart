@@ -285,8 +285,6 @@ class _ChangeTreeState extends State<ChangeTree> {
         ? l10n.stripChangeConflict
         : !change.tracked
         ? l10n.stripChangeUntracked
-        : change.shared
-        ? l10n.stripChangeShared
         : null;
     final relative = _paths.isWithin(widget.root, change.path)
         ? _paths.relative(change.path, from: widget.root)

@@ -840,8 +840,7 @@ void main() {
     });
 
     test("a subagent's edits, sent without their patches, are told from "
-        'their input; its commands and its end, as files that may have '
-        'changed', () {
+        'their input', () {
       final events = <KernelEvent>[];
       var seq = 0;
       final translator = ClaudeTranslator(
@@ -920,25 +919,12 @@ void main() {
       expect((originals.last! as OriginalByEdits).edits, [
         (before: 'x', after: 'y\nz'),
       ]);
-      expect(events.whereType<FilesMayHaveChanged>(), isEmpty);
 
-      call('b1', 'Bash', {'command': 'echo c > c.txt'}, parent: 'agent-1');
-      expect(events.whereType<FilesMayHaveChanged>(), hasLength(1));
-      call(
-        'agent-1',
-        'Agent',
-        {'description': 'Make files', 'prompt': 'make them'},
-        result: {'status': 'completed', 'content': []},
-      );
-      expect(events.whereType<FilesMayHaveChanged>(), hasLength(2));
-
-      // A kept session's, replayed: nothing to look at.
+      // A kept session's, replayed: nothing to review.
       events.clear();
       translator.replaying = true;
       call('w2', 'Write', {'file_path': '/p/d.txt', 'content': 'd'});
-      call('b2', 'Bash', {'command': 'true'});
       expect(events.whereType<FileEdited>(), isEmpty);
-      expect(events.whereType<FilesMayHaveChanged>(), isEmpty);
     });
 
     test('each round of planning is one card; a plan sent back gives way '

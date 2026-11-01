@@ -1,7 +1,7 @@
 import 'package:bao_remote/review.dart';
 
-/// No Git in the browser.
-Future<ReviewStore?> openReviewStore(String root) async => null;
+/// No files of its own in the browser.
+Future<ReviewStore?> openReviewStore() async => null;
 
 const reviewSupported = false;
 

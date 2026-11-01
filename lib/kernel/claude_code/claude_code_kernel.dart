@@ -116,6 +116,7 @@ class ClaudeCodeKernel
         SuggestsPrompts,
         ManagesMcpServers,
         ConfirmsModelSwitch,
+        WatchesEdits,
         LoadsHistory {
   ClaudeCodeKernel(
     this.descriptor,
@@ -635,6 +636,7 @@ class ClaudeCodeKernel
         await control.request('initialize', {
           'promptSuggestions': _launchedSuggestions,
           if (sdkServers.isNotEmpty) 'sdkMcpServers': sdkServers,
+          if (_editWatch != null) 'hooks': _editHooks,
         }),
       );
       if (_mode != _cliMode) {
@@ -1892,9 +1894,73 @@ class ClaudeCodeKernel
         _elicitation(id, request);
       case 'mcp_message':
         unawaited(_mcpMessage(id, request));
+      case 'hook_callback':
+        unawaited(_hookCallback(id, request));
       default:
         control.refuse(id, 'Not supported by this client');
     }
+  }
+
+  // --- Edits, as they are made ------------------------------------------------
+
+  @override
+  set editWatch(EditWatch? watch) => _editWatch = watch;
+  EditWatch? _editWatch;
+
+  /// The hooks it has the CLI call back, around each edit of the agent's or
+  /// a subagent's, for an [EditWatch].
+  static const _beforeEdit = 'baocode-before-edit';
+  static const _afterEdit = 'baocode-after-edit';
+  static const _editTools = 'Edit|Write|MultiEdit|NotebookEdit';
+
+  static final Map<String, Object?> _editHooks = {
+    'PreToolUse': [
+      {
+        'matcher': _editTools,
+        'hookCallbackIds': [_beforeEdit],
+      },
+    ],
+    // Done, failed, or not let do.
+    for (final event in const [
+      'PostToolUse',
+      'PostToolUseFailure',
+      'PermissionDenied',
+    ])
+      event: [
+        {
+          'matcher': _editTools,
+          'hookCallbackIds': [_afterEdit],
+        },
+      ],
+  };
+
+  /// How long an edit waits on the watch at most.
+  static const _editWait = Duration(seconds: 10);
+
+  /// One of [_editHooks] called back: the watch told of the edit, and the
+  /// CLI answered once it is done with it (the edit waits on that).
+  Future<void> _hookCallback(String id, Map<String, Object?> request) async {
+    final input = (request['input'] as Map?)?.cast<String, Object?>();
+    final tool = (input?['tool_input'] as Map?)?.cast<String, Object?>();
+    final path = tool?['file_path'] ?? tool?['notebook_path'];
+    final watch = _editWatch;
+    // A plan is not a change to review.
+    if (watch != null &&
+        path is String &&
+        path.isNotEmpty &&
+        !ClaudeTranslator.isPlanPath(path)) {
+      final told = switch (request['callback_id']) {
+        _beforeEdit => watch.beforeEdit(path),
+        _afterEdit => watch.afterEdit(path),
+        _ => null,
+      };
+      try {
+        await told?.timeout(_editWait);
+      } on Object {
+        // The edit goes on all the same.
+      }
+    }
+    _control?.respond(id, const {});
   }
 
   /// What the agent says to one of the app's own MCP servers (see

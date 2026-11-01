@@ -129,18 +129,21 @@ class Hook {
 
   final String event;
 
-  /// `command`, `prompt`, `agent`, `http` or `mcp_tool`.
+  /// `command`, `prompt`, `agent`, `http`, `mcp_tool`, or `callback` (the
+  /// host's, called back over the control protocol).
   final String type;
 
   /// The command run, the prompt asked (of a model or an agent), the URL
-  /// posted to, or the MCP tool called (`server:tool`).
+  /// posted to, the MCP tool called (`server:tool`), or the host's id for
+  /// its callback.
   final String text;
 
   /// The hook as set: the fields of its type (`headers`, `input`…).
   final Map<String, Object?> spec;
 
   /// `userSettings`, `projectSettings`, `localSettings`,
-  /// `policySettings`, `flagSettings`, `pluginHook`, `sessionHook`.
+  /// `policySettings`, `flagSettings`, `pluginHook`, `sessionHook`,
+  /// `sdkHook`.
   final String source;
   final String? matcher;
   final Duration? timeout;

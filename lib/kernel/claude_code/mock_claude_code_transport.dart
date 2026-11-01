@@ -125,6 +125,7 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
   void _control(String id, Map<String, Object?> request) {
     switch (request['subtype']) {
       case 'initialize':
+        _hooks = (request['hooks'] as Map? ?? const {}).cast<String, Object?>();
         _respond(id, {
           'commands': [
             {
@@ -475,6 +476,47 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
     return true;
   }
 
+  /// The hooks the host has called back, as `initialize` gave them.
+  Map<String, Object?> _hooks = const {};
+
+  /// Calls back the host's hooks of [event] for the call [id] of [name],
+  /// as Claude Code does, each once the one before is answered.
+  Future<void> _hook(
+    String event,
+    String name,
+    String id,
+    Map<String, Object?> input,
+  ) async {
+    for (final raw in _hooks[event] as List? ?? const []) {
+      final matcher = (raw as Map).cast<String, Object?>();
+      final pattern = matcher['matcher'] as String? ?? '';
+      if (pattern.isNotEmpty && !RegExp('^(?:$pattern)\$').hasMatch(name)) {
+        continue;
+      }
+      for (final callback in matcher['hookCallbackIds'] as List? ?? const []) {
+        final requestId = 'hook_${++_requests}';
+        final done = Completer<Map<String, Object?>>();
+        _permissions[requestId] = done;
+        _emit({
+          'type': 'control_request',
+          'request_id': requestId,
+          'request': {
+            'subtype': 'hook_callback',
+            'callback_id': callback,
+            'input': {
+              'hook_event_name': event,
+              'tool_name': name,
+              'tool_input': input,
+              'tool_use_id': id,
+            },
+            'tool_use_id': id,
+          },
+        });
+        await done.future;
+      }
+    }
+  }
+
   /// A tool call and its result. [permission] tools first wait on
   /// `can_use_tool`, and return what the host answered (null when the run
   /// was stopped meanwhile).
@@ -491,6 +533,8 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
     _assistant('msg_${++_messages}', [
       {'type': 'tool_use', 'id': id, 'name': name, 'input': input},
     ]);
+    await _hook('PreToolUse', name, id, input);
+    if (!identical(_run, run)) return null;
     var answer = const <String, Object?>{'behavior': 'allow'};
     if (permission) {
       final requestId = 'perm_${++_requests}';
@@ -511,6 +555,7 @@ class MockClaudeCodeTransport implements ClaudeCodeTransport {
       if (!identical(_run, run)) return null;
     }
     final denied = answer['behavior'] != 'allow';
+    await _hook(denied ? 'PermissionDenied' : 'PostToolUse', name, id, input);
     _emit({
       'type': 'user',
       'message': {

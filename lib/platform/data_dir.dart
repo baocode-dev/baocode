@@ -30,7 +30,7 @@ enum DataDirectorySource {
 /// <path>/keymaps/
 /// <path>/state/{state.json,storage.json,*-processes.json}
 /// <path>/servers/  <path>/language-packs/
-/// <path>/checkpoints/             snapshots of the projects agents change
+/// <path>/checkpoints/             what files were before agents changed them
 /// <path>/workspaces/              the folders of multi-folder workspaces
 /// <path>/cache/                   what can be made again, to start faster
 /// <path>/pastes/                  pastes too long to send, which agents read

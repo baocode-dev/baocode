@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
 import 'package:bao_remote/client.dart';
@@ -867,42 +868,44 @@ printf '%s\n' "$line"
   });
 
   group('review', () {
-    test('snapshots, diffs and restores a project there', () async {
-      File(at('a.txt')).writeAsStringSync('one\n');
-      final store = (await client().openReview(root))!;
-      expect(store.root, root);
-      final before = (await store.snapshot())!;
-      File(at('a.txt')).writeAsStringSync('one\ntwo\n');
-      File(at('b.txt')).writeAsStringSync('new\n');
-      final after = (await store.snapshot())!;
-      final changes = await store.diff(before, after);
-      expect([for (final c in changes) c.path], ['a.txt', 'b.txt']);
-      final counts = await store.lineCounts(before, after);
-      expect(counts['a.txt'], (added: 1, removed: 0));
-      final old = changes.first.before!;
-      expect(utf8.decode(await store.read(old)), 'one\n');
-      final taken = (await store.take('b.txt'))!;
-      expect(utf8.decode(await store.read(taken)), 'new\n');
-      await store.restore('a.txt', old);
-      expect(File(at('a.txt')).readAsStringSync(), 'one\n');
-      await store.restore('b.txt', null);
-      expect(File(at('b.txt')).existsSync(), isFalse);
-      expect(await store.exists('a.txt'), isTrue);
-      expect(await store.contains(after, 'b.txt'), isTrue);
+    test('keeps, merges and restores the files there', () async {
+      File(at('a.txt')).writeAsStringSync('1\n2\n3\n');
+      final store = (await client().openReview())!;
+      final old = (await store.take(at('a.txt')))!;
+      expect(utf8.decode(await store.read(old)), '1\n2\n3\n');
+      expect(await store.take(at('missing.txt')), isNull);
+      File(at('a.txt')).writeAsStringSync('1\ntwo\n3\n');
+      final agent = (await store.take(at('a.txt')))!;
+      expect((await store.current(at('a.txt')))!.oid, agent.oid);
+      expect(await store.lineCounts(old, agent), (added: 1, removed: 1));
+      expect(await store.lineCounts(null, agent), (added: 3, removed: 0));
+      // Changed since, by someone else: the agent's change taken out.
+      File(at('a.txt')).writeAsStringSync('1\ntwo\nTHREE\n');
+      final now = (await store.take(at('a.txt')))!;
+      final merged = (await store.merge(now, agent, old))!;
+      expect(utf8.decode(merged), '1\n2\nTHREE\n');
+      await store.write(at('a.txt'), merged);
+      expect(File(at('a.txt')).readAsStringSync(), '1\n2\nTHREE\n');
+      await store.restore(at('a.txt'), old);
+      expect(File(at('a.txt')).readAsStringSync(), '1\n2\n3\n');
+      final added = await store.store(
+        Uint8List.fromList(utf8.encode('new\n')),
+        mode: '100644',
+      );
+      await store.restore(at('sub/b.txt'), added);
+      expect(File(at('sub/b.txt')).readAsStringSync(), 'new\n');
+      await store.restore(at('sub/b.txt'), null, root: root);
+      expect(Directory(at('sub')).existsSync(), isFalse);
       await store.save('s1', 'data', blobs: [old]);
       expect(await store.load('s1'), 'data');
       await store.forget('s1');
       expect(await store.load('s1'), isNull);
-      // Its repository is the server's, not the project's.
+      // Kept in the server's folder, not the project's.
       expect(Directory(at('.git')).existsSync(), isFalse);
       expect(
         Directory(p.join(remote.dataDir.path, 'checkpoints')).existsSync(),
         isTrue,
       );
-    });
-
-    test('no store for a folder that is not there', () async {
-      expect(await client().openReview(at('missing')), isNull);
     });
   });
 
