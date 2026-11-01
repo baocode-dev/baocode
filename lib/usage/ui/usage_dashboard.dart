@@ -449,9 +449,10 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
               _setFilter(filter.copyWith(classes: classes));
             },
           ),
-          UsageCard(
+          UsageRankCard(
+            summary: summary,
             title: l10n.ustatByUpstream,
-            child: UsageRankList(
+            builder: (context, byCost) => UsageRankList(
               selected: filter.providers,
               onTap: (item) {
                 final picked = {...filter.providers};
@@ -460,23 +461,25 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
               },
               moreLabel: (n) => l10n.ustatShowAll(n),
               lessLabel: l10n.ustatShowLess,
-              items: [
-                for (final group in UsageSummary.ranked(summary.byProvider))
-                  rankOf(
-                    context,
-                    group,
-                    leading: ProviderIcon(group.key, size: 13),
+              items: UsageRanking(summary.byProvider.values, byCost: byCost)
+                  .items(
+                    (group, rank) => rankOf(
+                      context,
+                      group,
+                      rank: rank,
+                      leading: ProviderIcon(group.key, size: 13),
+                    ),
                   ),
-              ],
             ),
           ),
         ],
       ),
       UsageColumns(
         children: [
-          UsageCard(
+          UsageRankCard(
+            summary: summary,
             title: l10n.ustatByModel,
-            child: UsageRankList(
+            builder: (context, byCost) => UsageRankList(
               selected: filter.models,
               onTap: (item) {
                 final picked = {...filter.models};
@@ -485,23 +488,24 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
               },
               moreLabel: (n) => l10n.ustatShowAll(n),
               lessLabel: l10n.ustatShowLess,
-              items: [
-                for (final group in UsageSummary.ranked(summary.byModel))
-                  rankOf(
-                    context,
-                    group,
-                    leading: ModelIcon(
-                      provider: group.provider ?? '',
-                      model: group.key,
-                      size: 13,
-                    ),
+              items: UsageRanking(summary.byModel.values, byCost: byCost).items(
+                (group, rank) => rankOf(
+                  context,
+                  group,
+                  rank: rank,
+                  leading: ModelIcon(
+                    provider: group.provider ?? '',
+                    model: group.key,
+                    size: 13,
                   ),
-              ],
+                ),
+              ),
             ),
           ),
-          UsageCard(
+          UsageRankCard(
+            summary: summary,
             title: l10n.ustatByConversation,
-            child: UsageRankList(
+            builder: (context, byCost) => UsageRankList(
               selected: {?session},
               onTap: (item) => _setFilter(
                 filter.copyWith(
@@ -512,14 +516,15 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
               empty: l10n.ustatNoConversations,
               moreLabel: (n) => l10n.ustatShowAll(n),
               lessLabel: l10n.ustatShowLess,
-              items: [
-                for (final group in UsageSummary.ranked(summary.bySession))
-                  rankOf(
-                    context,
-                    group,
-                    label: _sessionLabel(group.key, kept: group.label),
+              items: UsageRanking(summary.bySession.values, byCost: byCost)
+                  .items(
+                    (group, rank) => rankOf(
+                      context,
+                      group,
+                      rank: rank,
+                      label: _sessionLabel(group.key, kept: group.label),
+                    ),
                   ),
-              ],
             ),
           ),
         ],

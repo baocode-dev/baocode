@@ -13431,6 +13431,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String ustatCacheSaved(String amount) {
+    return '$amount saved';
+  }
+
+  @override
+  String ustatCostIn(String currency) {
+    return 'In $currency only; the other currencies are in the totals';
+  }
+
+  @override
   String get ustatPriceClaudeDefault =>
       'Claude Code\'s own models without a price of yours are priced at Anthropic\'s API prices: the grey figures.';
 

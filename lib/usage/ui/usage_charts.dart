@@ -130,32 +130,55 @@ class UsageStatTile extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: UsageText.value,
+        // The value whole, the sparkline in what room is left: narrower,
+        // or none.
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final text = TextPainter(
+              text: TextSpan(
+                text: value,
+                style: DefaultTextStyle.of(context).style
+                    .merge(UsageText.value),
               ),
-            ),
-            if (trend case final trend? when trend.length > 1)
-              Padding(
-                padding: const EdgeInsets.only(left: 8, bottom: 2),
-                child: SizedBox(
-                  width: 60,
-                  height: 26,
-                  child: CustomPaint(
-                    painter: _SparklinePainter(
-                      trend,
-                      color: tone ?? AppColors.accent,
-                    ),
+              textDirection: TextDirection.ltr,
+              maxLines: 1,
+              textScaler: MediaQuery.textScalerOf(context),
+            )..layout();
+            final room = constraints.maxWidth - text.width - 8;
+            text.dispose();
+            final sparkline = math.min(60.0, room);
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: UsageText.value,
                   ),
                 ),
-              ),
-          ],
+                if (trend case final trend?
+                    when trend.length > 1 && sparkline >= 28)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8, bottom: 2),
+                    child: SizedBox(
+                      width: sparkline,
+                      height: 26,
+                      child: CustomPaint(
+                        painter: _SparklinePainter(
+                          trend,
+                          color: tone ?? AppColors.accent,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  // As tall as with one.
+                  const SizedBox(height: 28),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 2),
         Text(

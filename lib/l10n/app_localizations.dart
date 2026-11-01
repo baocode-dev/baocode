@@ -21861,6 +21861,18 @@ abstract class AppLocalizations {
   /// **'≈ {cost} at API prices'**
   String ustatQuotaPerPercentCost(String cost);
 
+  /// No description provided for @ustatCacheSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} saved'**
+  String ustatCacheSaved(String amount);
+
+  /// No description provided for @ustatCostIn.
+  ///
+  /// In en, this message translates to:
+  /// **'In {currency} only; the other currencies are in the totals'**
+  String ustatCostIn(String currency);
+
   /// No description provided for @ustatPriceClaudeDefault.
   ///
   /// In en, this message translates to:

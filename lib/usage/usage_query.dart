@@ -94,7 +94,7 @@ class UsageTotals {
   void add(UsageCall call, [ModelPrice? price]) {
     calls++;
     if (price != null) {
-      cost.add(price.currency, price.cost(call));
+      cost.addCall(call, price);
     } else if (call.total > 0) {
       cost.unpriced++;
     }

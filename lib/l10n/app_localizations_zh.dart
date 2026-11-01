@@ -12687,6 +12687,16 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String ustatCacheSaved(String amount) {
+    return '省 $amount';
+  }
+
+  @override
+  String ustatCostIn(String currency) {
+    return '只计 $currency，其他币种见总计';
+  }
+
+  @override
   String get ustatPriceClaudeDefault =>
       'Claude Code 自带模型没填价格时按 Anthropic API 价折算，即输入框里的灰色数字。';
 
