@@ -13364,4 +13364,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ustatPriceSpent => 'In this time';
+
+  @override
+  String get modelsAutoResetCreditsOff => 'Off';
+
+  @override
+  String get modelsAutoResetCreditsLong => 'When the Week or Month Runs Out';
+
+  @override
+  String get modelsAutoResetCreditsAny => 'When Any Window Runs Out';
+
+  @override
+  String get modelsAutoResetCreditsOffDescription =>
+      'An account out of quota waits for it to start over.';
+
+  @override
+  String get modelsAutoResetCreditsLongDescription =>
+      'An account out of its week (or month) uses a reset credit and goes on. Five hours running out is waited for: they start over soon.';
+
+  @override
+  String get modelsAutoResetCreditsAnyDescription =>
+      'An account out of any window, five hours too, uses a reset credit at once and goes on. Credits go faster.';
 }

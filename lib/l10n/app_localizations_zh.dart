@@ -12640,4 +12640,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatPriceSpent => '这段时间';
+
+  @override
+  String get modelsAutoResetCreditsOff => '关闭';
+
+  @override
+  String get modelsAutoResetCreditsLong => '周 / 月额度用尽时';
+
+  @override
+  String get modelsAutoResetCreditsAny => '任一额度用尽时';
+
+  @override
+  String get modelsAutoResetCreditsOffDescription => '账号额度用尽后，等它自己重置。';
+
+  @override
+  String get modelsAutoResetCreditsLongDescription =>
+      '周（或月）额度用尽时自动用一张重置卡接着用；5 小时额度用尽不用卡，几小时内会自己恢复。';
+
+  @override
+  String get modelsAutoResetCreditsAnyDescription =>
+      '包括 5 小时额度在内，任一额度用尽就立即用卡接着用，卡会用得更快。';
 }

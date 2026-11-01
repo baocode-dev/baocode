@@ -3623,5 +3623,11 @@
   "ustatPriceUpdated": "{when} 更新",
   "ustatPriceClear": "清除价格",
   "ustatPriceIncomplete": "输入和输出价格都要填",
-  "ustatPriceSpent": "这段时间"
+  "ustatPriceSpent": "这段时间",
+  "modelsAutoResetCreditsOff": "关闭",
+  "modelsAutoResetCreditsLong": "周 / 月额度用尽时",
+  "modelsAutoResetCreditsAny": "任一额度用尽时",
+  "modelsAutoResetCreditsOffDescription": "账号额度用尽后，等它自己重置。",
+  "modelsAutoResetCreditsLongDescription": "周（或月）额度用尽时自动用一张重置卡接着用；5 小时额度用尽不用卡，几小时内会自己恢复。",
+  "modelsAutoResetCreditsAnyDescription": "包括 5 小时额度在内，任一额度用尽就立即用卡接着用，卡会用得更快。"
 }

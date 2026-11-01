@@ -21800,6 +21800,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'In this time'**
   String get ustatPriceSpent;
+
+  /// No description provided for @modelsAutoResetCreditsOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get modelsAutoResetCreditsOff;
+
+  /// No description provided for @modelsAutoResetCreditsLong.
+  ///
+  /// In en, this message translates to:
+  /// **'When the Week or Month Runs Out'**
+  String get modelsAutoResetCreditsLong;
+
+  /// No description provided for @modelsAutoResetCreditsAny.
+  ///
+  /// In en, this message translates to:
+  /// **'When Any Window Runs Out'**
+  String get modelsAutoResetCreditsAny;
+
+  /// No description provided for @modelsAutoResetCreditsOffDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'An account out of quota waits for it to start over.'**
+  String get modelsAutoResetCreditsOffDescription;
+
+  /// No description provided for @modelsAutoResetCreditsLongDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'An account out of its week (or month) uses a reset credit and goes on. Five hours running out is waited for: they start over soon.'**
+  String get modelsAutoResetCreditsLongDescription;
+
+  /// No description provided for @modelsAutoResetCreditsAnyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'An account out of any window, five hours too, uses a reset credit at once and goes on. Credits go faster.'**
+  String get modelsAutoResetCreditsAnyDescription;
 }
 
 class _AppLocalizationsDelegate
