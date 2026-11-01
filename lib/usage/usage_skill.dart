@@ -34,7 +34,7 @@ $marker
 
 # Usage and prices in BaoCode
 
-BaoCode keeps every call to the user's custom upstreams (not to Claude Code's own models) and works out what they cost from the prices in Settings → Usage → Model prices.
+BaoCode keeps every call to a model in the user's conversations: to Claude Code's own models (a Claude plan or Anthropic's API, with the plan's limits as they stood after each call) and to custom upstreams. It works out what they cost from the prices in Settings → Usage → Model prices; Claude Code's own models are at Anthropic's API prices unless set (for a plan, what its use would have cost on the API).
 
 ## Looking at usage
 

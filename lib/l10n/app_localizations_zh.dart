@@ -11874,7 +11874,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatDescription =>
-      '经 BaoCode 模型代理发往自定义上游的每一次请求：令牌、缓存、耗时，按对话、子代理、工具细分。官方 Claude 不经过代理，不在统计内。数据只保存在本机。';
+      'BaoCode 对话里的每一次模型调用：Claude Code 自带模型（Claude 订阅或 Anthropic API）从它的输出读取，自定义上游经 BaoCode 模型代理记录。令牌、缓存、耗时，按对话、子代理、工具细分。数据只保存在本机。';
 
   @override
   String get ustatAll => '全部';
@@ -12233,7 +12233,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatEmptyTitle => '还没有调用记录';
 
   @override
-  String get ustatEmptyDetail => '在自定义上游（设置 → 模型）上开始对话后，调用会显示在这里。';
+  String get ustatEmptyDetail => '开始对话后，调用会显示在这里。';
 
   @override
   String get ustatEmptyFiltered => '没有符合筛选条件的调用';
@@ -12268,11 +12268,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatRecordDescription =>
-      '使用自定义上游的会话会经过 BaoCode 的本地代理并记录每次调用。对之后启动的代理生效。';
+      'Claude Code 自带模型的调用从它的输出读取；使用自定义上游的会话经过 BaoCode 的本地代理记录。对之后启动的会话生效。';
 
   @override
   String get ustatRecordOffDescription =>
-      '开启后会记录每一次发往自定义上游的调用：令牌、缓存、耗时，按对话、子代理、工具细分。';
+      '开启后会记录每一次模型调用：令牌、缓存、耗时，按对话、子代理、工具细分。';
 
   @override
   String get ustatDetailed => '详细记录';
@@ -12473,7 +12473,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatTraceDescription =>
-      '同时完整保存每次请求：Claude Code 发来的原文、发给上游的请求、上游的原始返回、返回给 Claude Code 的内容。密钥会打码。占用空间很大，用完请关闭。';
+      '同时完整保存每次发往自定义上游的请求：Claude Code 发来的原文、发给上游的请求、上游的原始返回、返回给 Claude Code 的内容。密钥会打码。占用空间很大，用完请关闭。';
 
   @override
   String get ustatTraceStart => '调试抓包';
@@ -12660,4 +12660,45 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get modelsAutoResetCreditsAnyDescription =>
       '包括 5 小时额度在内，任一额度用尽就立即用卡接着用，卡会用得更快。';
+
+  @override
+  String get ustatQuota => 'Claude 订阅额度';
+
+  @override
+  String get ustatQuotaDetail => 'Claude Code 自带模型这段时间用掉了多少订阅额度，按每次调用后记下的额度计算。';
+
+  @override
+  String get ustatQuotaFiveHour => '5 小时额度';
+
+  @override
+  String get ustatQuotaWeek => '每周额度';
+
+  @override
+  String ustatQuotaWeekOf(String model) {
+    return '每周 $model 额度';
+  }
+
+  @override
+  String ustatQuotaUsed(String percent) {
+    return '这段时间用掉 $percent';
+  }
+
+  @override
+  String ustatQuotaPeak(String percent, int count) {
+    return '这段时间最高 $percent · 重置 $count 次';
+  }
+
+  @override
+  String ustatQuotaPerPercent(String tokens) {
+    return '每 1% 周额度 ≈ $tokens token';
+  }
+
+  @override
+  String ustatQuotaPerPercentCost(String cost) {
+    return '按 API 价约 $cost';
+  }
+
+  @override
+  String get ustatPriceClaudeDefault =>
+      'Claude Code 自带模型没填价格时按 Anthropic API 价折算，即输入框里的灰色数字。';
 }
