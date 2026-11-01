@@ -5,6 +5,7 @@ import 'package:baocode/usage/usage_ledger.dart';
 import 'package:baocode/usage/usage_query.dart';
 import 'package:baocode/usage/usage_record.dart';
 import 'package:baocode/usage/usage_storage_io.dart';
+import 'package:baocode/usage/usage_trace.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 UsageCall _call(
@@ -90,6 +91,108 @@ void main() {
     expect(agent.task, 'Look around');
   });
 
+  test('a context is told apart: CLAUDE.md, the skills, MCP servers and '
+      'each tool', () {
+    final info = analyzeRequest({
+      'system': [
+        {'type': 'text', 'text': 'You are Claude Code.'},
+        {
+          'type': 'text',
+          'text':
+              'Rules.\n\n# MCP Server Instructions\n\nThe following MCP '
+              'servers have provided instructions:\n\n## claude.ai Docs\n'
+              '${'Use the docs. ' * 40}\n\n## baocode\nDo not scrape.\n\n'
+              '# Environment\nYou run on macOS.',
+        },
+      ],
+      'tools': [
+        {
+          'name': 'Read',
+          'description': 'Reads a file. ' * 20,
+          'input_schema': {'type': 'object'},
+        },
+        {
+          'name': 'mcp__claude_ai_Docs__batch',
+          'description': 'Many docs at once. ' * 30,
+          'input_schema': {'type': 'object'},
+        },
+      ],
+      'messages': [
+        {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'text',
+              'text':
+                  '<system-reminder>\nAs you answer, use this context:\n'
+                  '# claudeMd\nContents of /a/CLAUDE.md (project):\n\n'
+                  '${'Run the tests. ' * 30}\n\nContents of /b/rules.md:\n\n'
+                  'Speak Chinese.\n</system-reminder>',
+            },
+            {
+              'type': 'text',
+              'text':
+                  '<system-reminder>\nThe following skills are available '
+                  'for use with the Skill tool:\n\n- dataviz: Charts. '
+                  '${'More. ' * 30}\n- plugin:deploy: Deploys.\n'
+                  '</system-reminder>',
+            },
+            {
+              'type': 'text',
+              'text':
+                  '<system-reminder>\nThe following deferred tools are now '
+                  'available via ToolSearch:\nCronCreate\n'
+                  'mcp__github__search\n</system-reminder>',
+            },
+            {'type': 'text', 'text': 'Make the chart stacked.'},
+          ],
+        },
+        {
+          'role': 'assistant',
+          'content': [
+            {'type': 'tool_use', 'id': 't1', 'name': 'Read', 'input': {}},
+          ],
+        },
+        {
+          'role': 'user',
+          'content': [
+            {'type': 'tool_result', 'tool_use_id': 't1', 'content': 'x' * 800},
+          ],
+        },
+      ],
+    }, (_) => null);
+    final context = info.context!;
+    final shape = context.detail!.shape!;
+    expect(shape.memory.keys, ['/a/CLAUDE.md', '/b/rules.md']);
+    expect(
+      shape.memory['/a/CLAUDE.md'],
+      greaterThan(shape.memory['/b/rules.md']!),
+    );
+    expect(shape.skills.keys, ['dataviz', 'plugin:deploy']);
+    expect(shape.mcpNotes.keys, ['claude.ai Docs', 'baocode']);
+    expect(shape.tools.keys, [
+      'CronCreate',
+      'mcp__github__search',
+      'Read',
+      'mcp__claude_ai_Docs__batch',
+    ]);
+    expect(UsageShape.mcpTool('mcp__claude_ai_Docs__batch'), (
+      server: 'claude_ai_Docs',
+      tool: 'batch',
+    ));
+    expect(context.memory, greaterThan(100));
+    expect(context.skills, greaterThan(40));
+    expect(
+      context.mcp,
+      greaterThan(shape.tools['mcp__claude_ai_Docs__batch']!),
+    );
+    // What was left of the user's own words, and the system's.
+    expect(context.user, lessThan(20));
+    expect(context.system, lessThan(40));
+    expect(context.detail!.results, {'Read': 200});
+    expect(context.detail!.uses.keys, ['Read']);
+  });
+
   group('ledger', () {
     late DateTime now;
     late MemoryUsageStorage storage;
@@ -126,6 +229,117 @@ void main() {
       final space = await ledger.space();
       expect(space.days, 2);
       expect(space.oldest, '2026-10-30');
+    });
+
+    test('labels a conversation once it is named, and again as renamed; '
+        'its group by its last name', () async {
+      String? title;
+      UsageLedger.titleOf = (_) => title;
+      ledger.record(_call(DateTime(2026, 11, 1, 10)));
+      title = 'Fix the parser';
+      ledger
+        ..record(_call(DateTime(2026, 11, 1, 11)))
+        ..record(_call(DateTime(2026, 11, 1, 12)));
+      title = 'Parser rewrite';
+      ledger
+        ..record(_call(DateTime(2026, 11, 1, 13)))
+        ..flush();
+      final today = await ledger.range(from: DateTime(2026, 11, 1));
+      expect(
+        [for (final call in today) call.sessionTitle],
+        [null, 'Fix the parser', null, 'Parser rewrite'],
+      );
+      final summary = UsageSummary.of(
+        today,
+        UsageFilter(from: DateTime(2026, 11, 1)),
+        now: now,
+      );
+      expect(summary.bySession['s1']?.label, 'Parser rewrite');
+    });
+
+    test('keeps what stays of a context once a day, read back with each '
+        'call', () async {
+      final shape = UsageShape(
+        tools: {'Read': 300, 'mcp__gh__search': 120},
+        skills: {'dataviz': 80},
+      );
+      UsageCall withShape(DateTime at) => UsageCall(
+        at: at,
+        duration: Duration.zero,
+        status: 200,
+        provider: 'gw',
+        model: 'm',
+        session: 's1',
+        input: 900,
+        context: UsageContext(
+          tools: 300,
+          mcp: 120,
+          skills: 80,
+          user: 400,
+          detail: UsageContextDetail(shape: shape, results: {'Read': 50}),
+        ),
+      );
+      ledger
+        ..record(withShape(DateTime(2026, 11, 1, 9)))
+        ..record(withShape(DateTime(2026, 11, 1, 10)))
+        ..flush();
+      final lines = storage.lines['2026-11-01']!;
+      expect(lines, hasLength(3));
+      expect(
+        lines.where((line) => line.contains('"sh":"${shape.id}","td"')),
+        hasLength(1),
+      );
+      // Read again, from the lines.
+      final again = UsageLedger(storage, clock: () => now);
+      addTearDown(again.dispose);
+      final calls = await again.range();
+      expect(calls, hasLength(2));
+      for (final call in calls) {
+        expect(call.context!.detail!.shape!.tools, shape.tools);
+        expect(call.context!.detail!.shape!.skills, shape.skills);
+        expect(call.context!.detail!.results, {'Read': 50});
+      }
+      // Its calls gone, the shape goes with them.
+      await again.clear(UsageClearSpec(session: 's1'));
+      expect(storage.lines, isEmpty);
+    });
+
+    test('keeps a trace apart from its call, and deletes it with it', () async {
+      final trace = UsageTrace('tr1', at: now)
+        ..asked(
+          method: 'POST',
+          url: '/p/gw/v1/messages',
+          headers: {'authorization': 'Bearer ••••'},
+          body: '{"model":"m"}',
+        );
+      UsageCall traced(String session, String? id) => UsageCall(
+        at: now,
+        duration: Duration.zero,
+        status: 200,
+        provider: 'gw',
+        model: 'm',
+        session: session,
+        traceId: id,
+      );
+      ledger
+        ..record(traced('s1', 'tr1'), trace: trace)
+        ..record(traced('s2', null))
+        ..flush();
+      final call = (await ledger.ofSession('s1')).single;
+      expect(call.traceId, 'tr1');
+      final back = await ledger.traceOf(call);
+      expect(back!.request!.body, '{"model":"m"}');
+      expect((await ledger.space()).traces, 1);
+      await ledger.clear(const UsageClearSpec(session: 's1'));
+      expect(storage.traces['2026-11-01'], isEmpty);
+      expect(await ledger.traceOf(call), isNull);
+      // The traces alone.
+      ledger
+        ..record(traced('s3', 'tr1'), trace: trace)
+        ..flush();
+      await ledger.clearTraces();
+      expect((await ledger.space()).traces, 0);
+      expect(await ledger.ofSession('s3'), hasLength(1));
     });
 
     test('keeps only the brief of a call without details, nothing when '
@@ -243,5 +457,39 @@ void main() {
     await again.clear(const UsageClearSpec(session: 's2'));
     expect(File('${folder.path}/2026-11-01.jsonl').existsSync(), isFalse);
     expect((await again.space()).days, 1);
+  });
+
+  test('the files keep a trace squeezed, a file each', () async {
+    final folder = await Directory.systemTemp.createTemp('usage');
+    addTearDown(() => folder.delete(recursive: true));
+    final files = UsageFiles(folder.path);
+    files.writeTrace('2026-11-01', 'abc', {
+      'id': 'abc',
+      't': 0,
+      'request': {'body': 'x' * 10000},
+    });
+    // Written off the UI isolate.
+    final file = File('${folder.path}/traces/2026-11-01/abc.json.gz');
+    for (var i = 0; i < 50 && !file.existsSync(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(file.lengthSync(), lessThan(1000));
+    final trace = await files.readTrace('2026-11-01', 'abc');
+    expect(trace!.request!.body, hasLength(10000));
+    expect((await files.traceSizes())['2026-11-01']!.count, 1);
+    await files.deleteTraces('2026-11-01', {'abc'});
+    expect(file.existsSync(), isFalse);
+  });
+
+  test('a header\'s secret is kept by its ends only', () {
+    expect(
+      UsageTraceMessage.redact('authorization', 'Bearer sk-abcdefghijklmnop'),
+      'Bearer sk-a••••mnop',
+    );
+    expect(UsageTraceMessage.redact('x-api-key', 'short'), '••••');
+    expect(
+      UsageTraceMessage.redact('content-type', 'text/plain'),
+      'text/plain',
+    );
   });
 }

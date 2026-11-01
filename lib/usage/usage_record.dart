@@ -43,19 +43,34 @@ enum UsageClass {
 class UsageContext {
   const UsageContext({
     this.system = 0,
+    this.memory = 0,
+    this.skills = 0,
     this.tools = 0,
+    this.mcp = 0,
     this.user = 0,
     this.assistant = 0,
     this.thinking = 0,
     this.toolUse = 0,
     this.toolResult = 0,
     this.media = 0,
+    this.detail,
   });
 
+  /// The system prompt, but the MCP servers' instructions in it.
   final int system;
 
-  /// The tools' definitions.
+  /// CLAUDE.md and the rules: the instructions Claude Code puts in the
+  /// first message.
+  final int memory;
+
+  /// The skills' list, as Claude Code tells the model of them.
+  final int skills;
+
+  /// The built-in tools' definitions.
   final int tools;
+
+  /// The MCP servers': their tools' definitions and their instructions.
+  final int mcp;
   final int user;
   final int assistant;
   final int thinking;
@@ -69,53 +84,224 @@ class UsageContext {
   /// Images and documents.
   final int media;
 
-  int get total =>
-      system +
-      tools +
-      user +
-      assistant +
-      thinking +
-      toolUse +
-      toolResult +
-      media;
+  /// Each tool's, server's, skill's and file's share.
+  final UsageContextDetail? detail;
 
-  /// Each part with its key, in order.
+  /// The conversation's own: what the user and the agent said, and the
+  /// calls' inputs.
+  int get messages => user + assistant + thinking + toolUse + media;
+
+  int get total =>
+      system + memory + skills + tools + mcp + messages + toolResult;
+
+  /// Each part with its key, in order: what is the same request after
+  /// request first, then the conversation's.
   List<(String, int)> get parts => [
     ('system', system),
+    ('memory', memory),
+    ('skills', skills),
     ('tools', tools),
+    ('mcp', mcp),
+    ('messages', messages),
+    ('toolResult', toolResult),
+  ];
+
+  /// The conversation's own ([messages]), by part.
+  List<(String, int)> get messageParts => [
     ('user', user),
     ('assistant', assistant),
     ('thinking', thinking),
     ('toolUse', toolUse),
-    ('toolResult', toolResult),
     ('media', media),
   ];
 
-  Map<String, int> toJson() => {
+  Map<String, Object> toJson() => {
     if (system > 0) 'sy': system,
+    if (memory > 0) 'mm': memory,
+    if (skills > 0) 'sk': skills,
     if (tools > 0) 'tl': tools,
+    if (mcp > 0) 'mc': mcp,
     if (user > 0) 'u': user,
     if (assistant > 0) 'a': assistant,
     if (thinking > 0) 'th': thinking,
     if (toolUse > 0) 'tu': toolUse,
     if (toolResult > 0) 'tr': toolResult,
     if (media > 0) 'im': media,
+    ...?detail?.toJson(),
   };
 
-  static UsageContext? fromJson(Object? json) {
+  static UsageContext? fromJson(
+    Object? json, {
+    Map<String, UsageShape> shapes = const {},
+  }) {
     if (json is! Map) return null;
     int at(String key) => (json[key] as num?)?.toInt() ?? 0;
     return UsageContext(
       system: at('sy'),
+      memory: at('mm'),
+      skills: at('sk'),
       tools: at('tl'),
+      mcp: at('mc'),
       user: at('u'),
       assistant: at('a'),
       thinking: at('th'),
       toolUse: at('tu'),
       toolResult: at('tr'),
       media: at('im'),
+      detail: UsageContextDetail.fromJson(json, shapes),
     );
   }
+}
+
+/// The counts by name of a map kept: tokens by tool, by skill…
+Map<String, int> usageCounts(Object? json) => json is Map
+    ? {
+        for (final MapEntry(:key, :value) in json.entries)
+          if (value is num) '$key': value.toInt(),
+      }
+    : const {};
+
+/// What stays the same request after request of an agent: its tools'
+/// definitions, its MCP servers' instructions, its skills, its CLAUDE.md;
+/// each by name, in tokens. Kept once a day, by [id], not with each call.
+class UsageShape {
+  UsageShape({
+    this.tools = const {},
+    this.mcpNotes = const {},
+    this.skills = const {},
+    this.memory = const {},
+  });
+
+  /// The tools' definitions by the tool's name (`mcp__server__tool` an MCP
+  /// server's); those deferred (ToolSearch) by their name as listed.
+  final Map<String, int> tools;
+
+  /// The MCP servers' instructions, by the server's name.
+  final Map<String, int> mcpNotes;
+
+  /// The skills as listed, by the skill's name.
+  final Map<String, int> skills;
+
+  /// CLAUDE.md and the rules, by the file's path.
+  final Map<String, int> memory;
+
+  bool get isEmpty =>
+      tools.isEmpty && mcpNotes.isEmpty && skills.isEmpty && memory.isEmpty;
+
+  Map<String, Object> _maps() => {
+    if (tools.isNotEmpty) 'td': tools,
+    if (mcpNotes.isNotEmpty) 'mi': mcpNotes,
+    if (skills.isNotEmpty) 'sl': skills,
+    if (memory.isNotEmpty) 'mf': memory,
+  };
+
+  /// Its contents' hash: the same for the same.
+  late final String id = () {
+    final text = jsonEncode({
+      for (final MapEntry(:key, :value) in _maps().entries)
+        key: [
+          for (final e
+              in (value as Map<String, int>).entries.toList()
+                ..sort((a, b) => a.key.compareTo(b.key)))
+            '${e.key}=${e.value}',
+        ],
+    });
+    // FNV-1a, 32 bits, and the length: enough apart for a day's few.
+    var hash = 0x811c9dc5;
+    for (final unit in text.codeUnits) {
+      hash = ((hash ^ unit) * 0x01000193) & 0xFFFFFFFF;
+    }
+    return '${hash.toRadixString(36)}${text.length.toRadixString(36)}';
+  }();
+
+  /// Its line in a day's file.
+  String encode() => jsonEncode({'sh': id, ..._maps()});
+
+  static UsageShape fromJson(Map<Object?, Object?> json) => UsageShape(
+    tools: usageCounts(json['td']),
+    mcpNotes: usageCounts(json['mi']),
+    skills: usageCounts(json['sl']),
+    memory: usageCounts(json['mf']),
+  );
+
+  /// The server of an MCP tool's name (`mcp__server__tool`), as Claude
+  /// Code wrote it; null for another tool.
+  static ({String server, String tool})? mcpTool(String name) {
+    if (!name.startsWith('mcp__')) return null;
+    final rest = name.substring(5);
+    final split = rest.indexOf('__');
+    if (split <= 0) return (server: rest, tool: '');
+    return (server: rest.substring(0, split), tool: rest.substring(split + 2));
+  }
+}
+
+/// A request's context by name: what stays ([shape]), and what its
+/// conversation has gathered by then: the results of each tool's calls,
+/// and their inputs.
+class UsageContextDetail {
+  const UsageContextDetail({
+    this.shape,
+    this.shapeId,
+    this.results = const {},
+    this.uses = const {},
+  });
+
+  /// Null where it was not kept (or not read yet): [shapeId] still says
+  /// which it was.
+  final UsageShape? shape;
+  final String? shapeId;
+
+  /// Tokens of the calls' results in the context, by tool.
+  final Map<String, int> results;
+
+  /// Tokens of the calls' inputs in the context, by tool.
+  final Map<String, int> uses;
+
+  Map<String, Object> toJson() => {
+    if ((shape != null && !shape!.isEmpty) || shapeId != null)
+      'sh': shape?.id ?? shapeId!,
+    if (results.isNotEmpty) 'rs': results,
+    if (uses.isNotEmpty) 'us': uses,
+  };
+
+  static UsageContextDetail? fromJson(
+    Map<Object?, Object?> json,
+    Map<String, UsageShape> shapes,
+  ) {
+    final id = json['sh'] is String ? json['sh'] as String : null;
+    final results = usageCounts(json['rs']);
+    final uses = usageCounts(json['us']);
+    if (id == null && results.isEmpty && uses.isEmpty) return null;
+    return UsageContextDetail(
+      shape: id == null ? null : shapes[id],
+      shapeId: id,
+      results: results,
+      uses: uses,
+    );
+  }
+}
+
+/// The calls of a day's lines, the shapes among them given to those that
+/// name them; lines that do not read are left out.
+List<UsageCall> decodeUsageLines(Iterable<String> lines) {
+  final shapes = <String, UsageShape>{};
+  final calls = <Map<Object?, Object?>>[];
+  for (final line in lines) {
+    if (line.isEmpty) continue;
+    final Object? json;
+    try {
+      json = jsonDecode(line);
+    } on FormatException {
+      continue;
+    }
+    if (json is! Map) continue;
+    if (json['sh'] case final String id when json['t'] == null) {
+      shapes[id] = UsageShape.fromJson(json);
+    } else {
+      calls.add(json);
+    }
+  }
+  return [for (final json in calls) ?UsageCall.fromJson(json, shapes: shapes)];
 }
 
 /// One request through the model proxy to a custom upstream, as it was
@@ -165,6 +351,7 @@ class UsageCall {
     this.account,
     this.requestBytes = 0,
     this.responseBytes = 0,
+    this.traceId,
   });
 
   /// When it was asked.
@@ -258,6 +445,9 @@ class UsageCall {
   final int requestBytes;
   final int responseBytes;
 
+  /// Its exchange as it went, kept whole while debugging (UsageTrace).
+  final String? traceId;
+
   /// All of its input: read, written and neither.
   int get prompt => input + cacheRead + cacheWrite;
   int get total => prompt + output;
@@ -325,16 +515,10 @@ class UsageCall {
     'ac': ?account,
     if (requestBytes > 0) 'qb': requestBytes,
     if (responseBytes > 0) 'ab': responseBytes,
+    'tid': ?traceId,
   };
 
   String encode() => jsonEncode(toJson());
-
-  static Map<String, int> _counts(Object? json) => json is Map
-      ? {
-          for (final MapEntry(:key, :value) in json.entries)
-            if (value is num) '$key': value.toInt(),
-        }
-      : const {};
 
   /// A kept line; null for one that does not read (cut off as the app
   /// ended, or not ours).
@@ -347,7 +531,11 @@ class UsageCall {
     }
   }
 
-  static UsageCall? fromJson(Object? json) {
+  /// [shapes]: those of its day, for its context's ([UsageShape]).
+  static UsageCall? fromJson(
+    Object? json, {
+    Map<String, UsageShape> shapes = const {},
+  }) {
     if (json is! Map) return null;
     final t = json['t'];
     final provider = json['p'];
@@ -389,18 +577,19 @@ class UsageCall {
       cacheWrite: count('cw'),
       reasoning: count('rt'),
       stopReason: text('sr'),
-      context: UsageContext.fromJson(json['cx']),
+      context: UsageContext.fromJson(json['cx'], shapes: shapes),
       messages: count('nm'),
       toolCount: count('nt'),
-      toolResults: _counts(json['trs']),
-      toolCalls: _counts(json['tc']),
-      toolTimes: _counts(json['td']),
+      toolResults: usageCounts(json['trs']),
+      toolCalls: usageCounts(json['tc']),
+      toolTimes: usageCounts(json['td']),
       sessionTitle: text('sl'),
       project: text('sp'),
       task: text('tk'),
       account: text('ac'),
       requestBytes: count('qb'),
       responseBytes: count('ab'),
+      traceId: text('tid'),
     );
   }
 
@@ -438,6 +627,7 @@ class UsageCall {
     sessionTitle: sessionTitle,
     project: project,
     account: account,
+    traceId: traceId,
   );
 
   UsageCall labeled({String? sessionTitle, String? project, String? task}) =>
@@ -481,5 +671,6 @@ class UsageCall {
         account: account,
         requestBytes: requestBytes,
         responseBytes: responseBytes,
+        traceId: traceId,
       );
 }

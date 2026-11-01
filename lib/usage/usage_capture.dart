@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'usage_record.dart';
+import 'usage_trace.dart';
 
 /// Claude Code's headers that tell what a request is for, sent where
 /// [gatewayHintsVariable] is set (agent ids always, for a subagent's).
@@ -227,8 +229,7 @@ UsageRequestInfo analyzeRequest(
     );
   }
 
-  var user = 0, assistant = 0, thinking = 0, toolUse = 0;
-  var toolResult = 0, media = 0;
+  final tally = _Tally();
   final names = <String, String>{};
   final fresh = <String, int>{};
   // The results after the agent's last answer: what this request brings.
@@ -241,11 +242,10 @@ UsageRequestInfo analyzeRequest(
     final assistantRole = message['role'] == 'assistant';
     final content = message['content'];
     if (content is String) {
-      final tokens = estimateTokens(content);
       if (assistantRole) {
-        assistant += tokens;
+        tally.assistant += estimateTokens(content);
       } else {
-        user += tokens;
+        tally.userText(content);
       }
       continue;
     }
@@ -254,20 +254,22 @@ UsageRequestInfo analyzeRequest(
       if (block is! Map) continue;
       switch (block['type']) {
         case 'text':
-          final tokens = estimateTokens('${block['text'] ?? ''}');
+          final text = '${block['text'] ?? ''}';
           if (assistantRole) {
-            assistant += tokens;
+            tally.assistant += estimateTokens(text);
           } else {
-            user += tokens;
+            tally.userText(text);
           }
         case 'thinking':
-          thinking += estimateTokens('${block['thinking'] ?? ''}');
+          tally.thinking += estimateTokens('${block['thinking'] ?? ''}');
         case 'redacted_thinking':
-          thinking += estimateTokens('${block['data'] ?? ''}') ~/ 2;
+          tally.thinking += estimateTokens('${block['data'] ?? ''}') ~/ 2;
         case 'tool_use' || 'server_tool_use':
           final name = '${block['name'] ?? 'tool'}';
           if (block['id'] case final String id) names[id] = name;
-          toolUse += _jsonTokens(block['input']) + estimateTokens(name);
+          final tokens = _jsonTokens(block['input']) + estimateTokens(name);
+          tally.toolUse += tokens;
+          tally.uses[name] = (tally.uses[name] ?? 0) + tokens;
         case 'tool_result' || 'web_search_tool_result':
           var tokens = 0;
           switch (block['content']) {
@@ -286,31 +288,36 @@ UsageRequestInfo analyzeRequest(
             case final Object other:
               tokens = _jsonTokens(other);
           }
-          toolResult += tokens;
-          if (i > lastAssistant) {
-            final name = names['${block['tool_use_id']}'] ?? 'tool';
-            fresh[name] = (fresh[name] ?? 0) + tokens;
-          }
+          tally.toolResult += tokens;
+          final name = names['${block['tool_use_id']}'] ?? 'tool';
+          tally.results[name] = (tally.results[name] ?? 0) + tokens;
+          if (i > lastAssistant) fresh[name] = (fresh[name] ?? 0) + tokens;
         case 'image' || 'document':
-          media += _mediaTokens;
+          tally.media += _mediaTokens;
         default:
           final tokens = _jsonTokens(block);
           if (assistantRole) {
-            assistant += tokens;
+            tally.assistant += tokens;
           } else {
-            user += tokens;
+            tally.user += tokens;
           }
       }
     }
   }
-  final system = switch (body['system']) {
-    final String text => estimateTokens(text),
-    final List<Object?> blocks => [
-      for (final block in blocks)
-        if (block case {'text': final String text}) estimateTokens(text),
-    ].fold(0, (sum, tokens) => sum + tokens),
-    _ => 0,
-  };
+  switch (body['system']) {
+    case final String text:
+      tally.systemText(text);
+    case final List<Object?> blocks:
+      for (final block in blocks) {
+        if (block case {'text': final String text}) tally.systemText(text);
+      }
+  }
+  for (final tool in tools) {
+    if (tool is! Map) continue;
+    final name = '${tool['name'] ?? tool['type'] ?? 'tool'}';
+    final tokens = _jsonTokens(tool);
+    tally.tool(name, tokens);
+  }
   return UsageRequestInfo(
     requestClass: requestClass,
     agentId: base.agentId,
@@ -319,14 +326,27 @@ UsageRequestInfo analyzeRequest(
     promptId: base.prompt,
     compacted: compacted,
     context: UsageContext(
-      system: system,
-      tools: _jsonTokens(tools),
-      user: user,
-      assistant: assistant,
-      thinking: thinking,
-      toolUse: toolUse,
-      toolResult: toolResult,
-      media: media,
+      system: tally.system,
+      memory: tally.memory,
+      skills: tally.skills,
+      tools: tally.tools,
+      mcp: tally.mcp,
+      user: tally.user,
+      assistant: tally.assistant,
+      thinking: tally.thinking,
+      toolUse: tally.toolUse,
+      toolResult: tally.toolResult,
+      media: tally.media,
+      detail: UsageContextDetail(
+        shape: UsageShape(
+          tools: tally.toolDefs,
+          mcpNotes: tally.mcpNotes,
+          skills: tally.skillList,
+          memory: tally.memoryFiles,
+        ),
+        results: tally.results,
+        uses: tally.uses,
+      ),
     ),
     messages: messages.length,
     toolCount: tools.length,
@@ -334,6 +354,125 @@ UsageRequestInfo analyzeRequest(
     toolTimes: parseToolDurations(named(UsageHeaders.toolDurations)),
     task: task,
   );
+}
+
+/// A request's context as it is counted, part by part and name by name;
+/// what Claude Code puts in the messages of its own (CLAUDE.md, the
+/// skills, the tools deferred, the MCP servers' instructions) taken out of
+/// what the user said.
+class _Tally {
+  var system = 0, memory = 0, skills = 0, tools = 0, mcp = 0;
+  var user = 0, assistant = 0, thinking = 0, toolUse = 0, toolResult = 0;
+  var media = 0;
+  final toolDefs = <String, int>{};
+  final mcpNotes = <String, int>{};
+  final skillList = <String, int>{};
+  final memoryFiles = <String, int>{};
+  final results = <String, int>{};
+  final uses = <String, int>{};
+
+  static final _reminder = RegExp(
+    r'<system-reminder>([\s\S]*?)</system-reminder>',
+  );
+  static const _skillsMark =
+      'The following skills are available for use with the Skill tool';
+  static const _deferredMark = 'deferred tools are now available';
+  static const _mcpMark = '# MCP Server Instructions';
+  static final _memoryFile = RegExp(
+    r'^Contents of (.+?)(?: \([^\n]*\))?:$',
+    multiLine: true,
+  );
+  static final _skillItem = RegExp(r'^- (\S[^\n]*?): ', multiLine: true);
+  static final _mcpServer = RegExp(r'^## (.+)$', multiLine: true);
+  static final _heading = RegExp(r'^# ', multiLine: true);
+
+  void tool(String name, int tokens) {
+    toolDefs[name] = (toolDefs[name] ?? 0) + tokens;
+    if (name.startsWith('mcp__')) {
+      mcp += tokens;
+    } else {
+      tools += tokens;
+    }
+  }
+
+  void systemText(String text) => system += _instructions(text);
+
+  /// [text]'s tokens but its MCP servers' instructions, which go to them.
+  int _instructions(String text) {
+    final at = text.indexOf(_mcpMark);
+    if (at < 0) return estimateTokens(text);
+    final after = at + _mcpMark.length;
+    final next = _heading.allMatches(text, after).firstOrNull?.start;
+    final section = text.substring(at, next ?? text.length);
+    final servers = _mcpServer.allMatches(section).toList();
+    for (final (i, match) in servers.indexed) {
+      final end = i + 1 < servers.length
+          ? servers[i + 1].start
+          : section.length;
+      final tokens = estimateTokens(section.substring(match.start, end));
+      final name = match.group(1)!.trim();
+      mcpNotes[name] = (mcpNotes[name] ?? 0) + tokens;
+    }
+    final whole = estimateTokens(section);
+    mcp += whole;
+    return math.max(0, estimateTokens(text) - whole);
+  }
+
+  void userText(String text) {
+    var rest = text;
+    if (text.contains('<system-reminder>')) {
+      final kept = StringBuffer();
+      var from = 0;
+      for (final match in _reminder.allMatches(text)) {
+        kept.write(text.substring(from, match.start));
+        from = match.end;
+        final inner = match.group(1)!;
+        final whole = estimateTokens(match.group(0)!);
+        if (inner.contains(_skillsMark)) {
+          skills += whole;
+          _items(inner, _skillItem, skillList);
+        } else if (_memoryFile.hasMatch(inner)) {
+          memory += whole;
+          _items(inner, _memoryFile, memoryFiles);
+        } else if (inner.contains(_deferredMark)) {
+          _deferred(inner, whole);
+        } else if (inner.contains(_mcpMark)) {
+          user += _instructions(match.group(0)!);
+        } else {
+          kept.write(match.group(0));
+        }
+      }
+      kept.write(text.substring(from));
+      rest = kept.toString();
+    }
+    if (rest.isNotEmpty) user += estimateTokens(rest);
+  }
+
+  /// Each of [pattern]'s matches in [text], to the next: its tokens, by
+  /// its first group.
+  static void _items(String text, RegExp pattern, Map<String, int> into) {
+    final matches = pattern.allMatches(text).toList();
+    for (final (i, match) in matches.indexed) {
+      final end = i + 1 < matches.length ? matches[i + 1].start : text.length;
+      final name = match.group(1)!.trim();
+      into[name] =
+          (into[name] ?? 0) + estimateTokens(text.substring(match.start, end));
+    }
+  }
+
+  /// The tools deferred (ToolSearch's), a name a line: each its name's
+  /// tokens, an MCP server's to it.
+  void _deferred(String text, int whole) {
+    var named = 0;
+    for (final line in const LineSplitter().convert(text)) {
+      final name = line.trim();
+      if (name.isEmpty || name.contains(' ')) continue;
+      final tokens = estimateTokens(name) + 1;
+      named += tokens;
+      tool(name, tokens);
+    }
+    tools += math.max(0, whole - named);
+  }
 }
 
 /// Follows one request through the proxy, from asked to answered: reads
@@ -379,6 +518,9 @@ class UsageMeter {
   String? _upstreamModel;
   String? _stopReason;
   String? account;
+
+  /// The request followed whole, while debugging.
+  UsageTrace? trace;
   var _input = 0, _output = 0, _cacheRead = 0, _cacheWrite = 0;
   var _reasoning = 0;
   var _responseBytes = 0;
@@ -402,6 +544,7 @@ class UsageMeter {
   /// they come, not always whole lines.
   void events(String text) {
     _responseBytes += text.length;
+    trace?.answerText(text);
     _feed(text);
   }
 
@@ -424,6 +567,9 @@ class UsageMeter {
   /// Bytes of the answer, as passed on from an upstream of Anthropic's API.
   void bytes(List<int> chunk) {
     _responseBytes += chunk.length;
+    trace
+      ?..passedOn = true
+      ..upstreamBytes(chunk);
     _bytes ??= _utf8.startChunkedConversion(_StringSink(_feed));
     _bytes!.add(chunk);
   }
@@ -572,6 +718,7 @@ class UsageMeter {
       account: account,
       requestBytes: requestBytes,
       responseBytes: _responseBytes,
+      traceId: trace?.id,
     );
   }
 }

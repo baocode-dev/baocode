@@ -2462,8 +2462,10 @@ class ClaudeCodeKernel
     final control = _control;
     if (control == null) return;
     try {
+      // In full: each part's things too (the system prompt's sections,
+      // the built-in tools, the messages by tool), counted where it runs.
       final usage = await control.request('get_context_usage', {
-        'detail': 'summary',
+        'detail': 'full',
       }, const Duration(seconds: 20));
       final max = usage['maxTokens'] as int? ?? _contextWindow;
       _contextWindow = max;
@@ -2496,6 +2498,7 @@ class ClaudeCodeKernel
                     },
                   ),
             ],
+            detail: ContextDetail.parse(usage),
           ),
         ),
       );

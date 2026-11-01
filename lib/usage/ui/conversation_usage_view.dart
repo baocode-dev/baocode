@@ -10,10 +10,12 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../usage_ledger.dart';
+import '../usage_prices.dart';
 import '../usage_query.dart';
 import '../usage_record.dart';
 import 'usage_calls.dart';
 import 'usage_charts.dart';
+import 'usage_context.dart';
 import 'usage_filters.dart';
 import 'usage_sections.dart';
 import 'usage_style.dart';
@@ -59,6 +61,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
   void initState() {
     super.initState();
     _ledger.addListener(_ledgerChanged);
+    UsagePrices.current.addListener(_repriced);
     widget.session.addListener(_sessionChanged);
     _sessionId = _idOf(widget);
     unawaited(_load());
@@ -90,9 +93,13 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
   void dispose() {
     _reload?.cancel();
     _ledger.removeListener(_ledgerChanged);
+    UsagePrices.current.removeListener(_repriced);
     widget.session.removeListener(_sessionChanged);
     super.dispose();
   }
+
+  /// The costs, at the prices as they are now.
+  void _repriced() => setState(_summarize);
 
   void _sessionChanged() {
     final id = _idOf(widget);
@@ -152,6 +159,13 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
     final models = all.models.toList()..sort();
     return UsageFilterBar(
       trailing: [
+        UsageTraceToggle(
+          on: _ledger.trace,
+          count: _ledger.traced,
+          onChanged: (on) =>
+              unawaited(_ledger.save(UsageLedger.traceKey, on ? true : null)),
+        ),
+        const SizedBox(width: 4),
         if (filter.narrowed)
           UsageIconButton(
             icon: Codicons.clearAll,
@@ -220,12 +234,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
       ..sort((a, b) => b.totals.first!.compareTo(a.totals.first!));
     return [
       UsageOverview(summary: summary, minWidth: 128),
-      UsageContextSection(
-        summary: summary,
-        agentLabel: _agentLabel,
-        height: 200,
-      ),
-      UsageMakeupSection(summary: summary),
+      UsageContextSection(summary: summary, agentLabel: _agentLabel),
       UsageClassSection(
         summary: summary,
         selected: filter.classes,
@@ -237,7 +246,6 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
       ),
       UsageCard(
         title: l10n.ustatByAgent,
-        subtitle: l10n.ustatByAgentDetail,
         child: UsageRankList(
           selected: filter.agents,
           onTap: (item) {
@@ -285,11 +293,15 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
             ],
           ),
         ),
-      UsageTimeSection(summary: summary, height: 160),
+      UsageTimeSection(summary: summary, height: 140),
       UsageCard(
         title: l10n.ustatCallsTitle,
         subtitle: l10n.ustatRecentCallsDetail(summary.calls.length),
-        child: UsageCallsList(calls: summary.calls, showSession: false),
+        child: UsageCallsList(
+          calls: summary.calls,
+          showSession: false,
+          ledger: _ledger,
+        ),
       ),
     ];
   }

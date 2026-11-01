@@ -20835,12 +20835,6 @@ abstract class AppLocalizations {
   /// **'Main agent and subagents'**
   String get ustatByAgent;
 
-  /// No description provided for @ustatByAgentDetail.
-  ///
-  /// In en, this message translates to:
-  /// **'What each agent of the conversation sent and got back'**
-  String get ustatByAgentDetail;
-
   /// No description provided for @ustatByTurn.
   ///
   /// In en, this message translates to:
@@ -20960,12 +20954,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'What fills the context'**
   String get ustatContextMakeup;
-
-  /// No description provided for @ustatContextMakeupDetail.
-  ///
-  /// In en, this message translates to:
-  /// **'The main agent\'s last request: {tokens}, {time}. Parts estimated from its text.'**
-  String ustatContextMakeupDetail(String tokens, String time);
 
   /// No description provided for @ustatRecentCalls.
   ///
@@ -21392,6 +21380,426 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Got It'**
   String get resetCreditsHintLater;
+
+  /// No description provided for @ustatPartMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'CLAUDE.md & rules'**
+  String get ustatPartMemory;
+
+  /// No description provided for @ustatPartSkills.
+  ///
+  /// In en, this message translates to:
+  /// **'Skills'**
+  String get ustatPartSkills;
+
+  /// No description provided for @ustatPartMcp.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP'**
+  String get ustatPartMcp;
+
+  /// No description provided for @ustatPartMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation'**
+  String get ustatPartMessages;
+
+  /// No description provided for @ustatCacheHitShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{rate} cached'**
+  String ustatCacheHitShort(String rate);
+
+  /// No description provided for @ustatCompactedAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'First after compacting'**
+  String get ustatCompactedAfter;
+
+  /// No description provided for @ustatContextPickHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to see what filled it'**
+  String get ustatContextPickHint;
+
+  /// No description provided for @ustatRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 request} other{{count} requests}}'**
+  String ustatRequests(int count);
+
+  /// No description provided for @ustatRequestOf.
+  ///
+  /// In en, this message translates to:
+  /// **'#{index} of {count}'**
+  String ustatRequestOf(int index, int count);
+
+  /// No description provided for @ustatPreviousRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous request'**
+  String get ustatPreviousRequest;
+
+  /// No description provided for @ustatNextRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Next request'**
+  String get ustatNextRequest;
+
+  /// No description provided for @ustatNoMakeup.
+  ///
+  /// In en, this message translates to:
+  /// **'What filled this request\'s context was not recorded (turn on Detailed recording).'**
+  String get ustatNoMakeup;
+
+  /// No description provided for @ustatMakeupNoDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Recorded before the breakdown by tool, MCP server and skill: requests from now on have it.'**
+  String get ustatMakeupNoDetail;
+
+  /// No description provided for @ustatMakeupShapeMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'The breakdown of this request\'s tools and skills was not found.'**
+  String get ustatMakeupShapeMissing;
+
+  /// No description provided for @ustatMcpTools.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{instructions only} =1{1 tool} other{{count} tools}}'**
+  String ustatMcpTools(int count);
+
+  /// No description provided for @ustatMcpInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Instructions'**
+  String get ustatMcpInstructions;
+
+  /// No description provided for @ustatSkillPlugin.
+  ///
+  /// In en, this message translates to:
+  /// **'plugin'**
+  String get ustatSkillPlugin;
+
+  /// No description provided for @ustatToolInputs.
+  ///
+  /// In en, this message translates to:
+  /// **'inputs {tokens}'**
+  String ustatToolInputs(String tokens);
+
+  /// No description provided for @ustatSwitchedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to Settings → Customize. The agent\'s next requests go without what was turned off.'**
+  String get ustatSwitchedHint;
+
+  /// No description provided for @ustatTrace.
+  ///
+  /// In en, this message translates to:
+  /// **'Debug capture'**
+  String get ustatTrace;
+
+  /// No description provided for @ustatTraceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Also keep every request whole: as Claude Code sent it, as it went to the upstream, the upstream\'s raw answer and what went back. Keys are masked. Takes a lot of space: turn it off when done.'**
+  String get ustatTraceDescription;
+
+  /// No description provided for @ustatTraceStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Debug capture'**
+  String get ustatTraceStart;
+
+  /// No description provided for @ustatTraceStartHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the raw requests and answers of the calls from now on'**
+  String get ustatTraceStartHint;
+
+  /// No description provided for @ustatTraceStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop capturing'**
+  String get ustatTraceStop;
+
+  /// No description provided for @ustatTraceOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Capturing · {count}'**
+  String ustatTraceOn(int count);
+
+  /// No description provided for @ustatTraceKept.
+  ///
+  /// In en, this message translates to:
+  /// **'Raw request and answer kept'**
+  String get ustatTraceKept;
+
+  /// No description provided for @ustatTraceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Raw exchange'**
+  String get ustatTraceTitle;
+
+  /// No description provided for @ustatTraceLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading…'**
+  String get ustatTraceLoading;
+
+  /// No description provided for @ustatTraceGone.
+  ///
+  /// In en, this message translates to:
+  /// **'The raw exchange was cleared.'**
+  String get ustatTraceGone;
+
+  /// No description provided for @ustatTraceNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing went this way (it was answered before).'**
+  String get ustatTraceNone;
+
+  /// No description provided for @ustatTraceRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude Code → proxy'**
+  String get ustatTraceRequest;
+
+  /// No description provided for @ustatTraceSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy → upstream'**
+  String get ustatTraceSent;
+
+  /// No description provided for @ustatTraceReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'Upstream → proxy'**
+  String get ustatTraceReceived;
+
+  /// No description provided for @ustatTraceAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy → Claude Code'**
+  String get ustatTraceAnswer;
+
+  /// No description provided for @ustatTraceTry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try {n}'**
+  String ustatTraceTry(int n);
+
+  /// No description provided for @ustatTraceCopyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all'**
+  String get ustatTraceCopyAll;
+
+  /// No description provided for @ustatTraceCopyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get ustatTraceCopyBody;
+
+  /// No description provided for @ustatTraceHeaders.
+  ///
+  /// In en, this message translates to:
+  /// **'Headers · {count}'**
+  String ustatTraceHeaders(int count);
+
+  /// No description provided for @ustatTraceBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Body'**
+  String get ustatTraceBody;
+
+  /// No description provided for @ustatTraceRaw.
+  ///
+  /// In en, this message translates to:
+  /// **'As sent'**
+  String get ustatTraceRaw;
+
+  /// No description provided for @ustatTraceFormatted.
+  ///
+  /// In en, this message translates to:
+  /// **'Formatted'**
+  String get ustatTraceFormatted;
+
+  /// No description provided for @ustatTraceEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Empty'**
+  String get ustatTraceEmpty;
+
+  /// No description provided for @ustatTraceMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more ({size} left)'**
+  String ustatTraceMore(String size);
+
+  /// No description provided for @ustatTraceTruncated.
+  ///
+  /// In en, this message translates to:
+  /// **'cut at 24M characters'**
+  String get ustatTraceTruncated;
+
+  /// No description provided for @ustatTracePassedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'passed on as the upstream answered'**
+  String get ustatTracePassedOn;
+
+  /// No description provided for @ustatSpaceTraces.
+  ///
+  /// In en, this message translates to:
+  /// **'; raw exchanges {size} ({count})'**
+  String ustatSpaceTraces(String size, int count);
+
+  /// No description provided for @ustatClearTraces.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear the raw exchanges only'**
+  String get ustatClearTraces;
+
+  /// No description provided for @ustatClearTracesDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'The calls stay; their raw requests and answers are deleted from this computer.'**
+  String get ustatClearTracesDetail;
+
+  /// No description provided for @ustatMakeupUnfold.
+  ///
+  /// In en, this message translates to:
+  /// **'By tool, MCP server, skill and file'**
+  String get ustatMakeupUnfold;
+
+  /// No description provided for @ustatColumnTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get ustatColumnTotal;
+
+  /// No description provided for @ustatColumnMix.
+  ///
+  /// In en, this message translates to:
+  /// **'Breakdown'**
+  String get ustatColumnMix;
+
+  /// No description provided for @ustatDeferred.
+  ///
+  /// In en, this message translates to:
+  /// **'deferred, {size}'**
+  String ustatDeferred(String size);
+
+  /// No description provided for @ustatSwitchedOff.
+  ///
+  /// In en, this message translates to:
+  /// **'turned off'**
+  String get ustatSwitchedOff;
+
+  /// No description provided for @usageUntilCompaction.
+  ///
+  /// In en, this message translates to:
+  /// **'{tokens} to auto-compact'**
+  String usageUntilCompaction(String tokens);
+
+  /// No description provided for @usageAgentDefinition.
+  ///
+  /// In en, this message translates to:
+  /// **'agent'**
+  String get usageAgentDefinition;
+
+  /// No description provided for @usageAttachments.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminders & attachments'**
+  String get usageAttachments;
+
+  /// No description provided for @ustatCost.
+  ///
+  /// In en, this message translates to:
+  /// **'Cost'**
+  String get ustatCost;
+
+  /// No description provided for @ustatCostEstimated.
+  ///
+  /// In en, this message translates to:
+  /// **'At the prices as they are now'**
+  String get ustatCostEstimated;
+
+  /// No description provided for @ustatCostUnpriced.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 call unpriced} other{{count} calls unpriced}}'**
+  String ustatCostUnpriced(int count);
+
+  /// No description provided for @ustatCostNoPrices.
+  ///
+  /// In en, this message translates to:
+  /// **'No prices set'**
+  String get ustatCostNoPrices;
+
+  /// No description provided for @ustatPrices.
+  ///
+  /// In en, this message translates to:
+  /// **'Model prices'**
+  String get ustatPrices;
+
+  /// No description provided for @ustatPricesDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'A million tokens each. Costs are worked out at the prices as they are now, the calls before a change included.'**
+  String get ustatPricesDetail;
+
+  /// No description provided for @ustatPricesAgentHint.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode can keep these for you: ask it in a chat to look up the current prices of these models and update them. It checks the upstream\'s own pricing page and writes them here.'**
+  String get ustatPricesAgentHint;
+
+  /// No description provided for @ustatPriceCurrency.
+  ///
+  /// In en, this message translates to:
+  /// **'Currency'**
+  String get ustatPriceCurrency;
+
+  /// No description provided for @ustatPriceAnyUpstream.
+  ///
+  /// In en, this message translates to:
+  /// **'any upstream'**
+  String get ustatPriceAnyUpstream;
+
+  /// No description provided for @ustatPriceSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Where the price was read'**
+  String get ustatPriceSource;
+
+  /// No description provided for @ustatPriceUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'updated {when}'**
+  String ustatPriceUpdated(String when);
+
+  /// No description provided for @ustatPriceClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear the price'**
+  String get ustatPriceClear;
+
+  /// No description provided for @ustatPriceIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Fill in both the input and the output price'**
+  String get ustatPriceIncomplete;
+
+  /// No description provided for @ustatPriceSpent.
+  ///
+  /// In en, this message translates to:
+  /// **'In this time'**
+  String get ustatPriceSpent;
 }
 
 class _AppLocalizationsDelegate
