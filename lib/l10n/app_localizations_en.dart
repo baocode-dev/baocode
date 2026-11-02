@@ -9009,6 +9009,37 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only the one picked: one of BaoCode\'s, or a custom address.';
 
   @override
+  String get mobileRelayModeDirect => 'Direct Only';
+
+  @override
+  String get mobileRelayModeDirectDescription =>
+      'No relay: phones connect straight to this computer. It needs a public address, or the port below forwarded to it.';
+
+  @override
+  String get mobileDirectPort => 'Direct Port';
+
+  @override
+  String get mobileDirectPortDescription =>
+      'The UDP port phones connect to. Forward it to this computer at the router, and allow it in the firewall.';
+
+  @override
+  String get mobileDirectPortInvalid => 'A port from 1024 to 65535.';
+
+  @override
+  String get mobileDirectAddress => 'Direct Address';
+
+  @override
+  String get mobileDirectAddressDescription =>
+      'It goes in the pairing code and in every connection after.';
+
+  @override
+  String get mobileDirectAddressNone =>
+      'No public address yet: check again once this computer is online, or forward the port to it if it is behind a router.';
+
+  @override
+  String get mobileStatusDirect => 'On, direct only';
+
+  @override
   String get mobilePathLan => 'Same network';
 
   @override

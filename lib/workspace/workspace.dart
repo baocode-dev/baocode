@@ -1401,8 +1401,16 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
+  /// The folder the app keeps its own things in (the bots'), whose every
+  /// folder is its own: never listed, even one whose bot is gone.
+  String? appFolderRoot;
+
   /// Whether [path] is a folder the app keeps for itself: never listed.
-  bool isAppFolder(String path) => agentSetup?.call(path) != null;
+  bool isAppFolder(String path) {
+    if (agentSetup?.call(path) != null) return true;
+    final root = appFolderRoot;
+    return root != null && (path == root || p.isWithin(root, path));
+  }
 
   /// [settings] with those of the app's folder [cwd] over them.
   Map<String, String> _setUp(String? cwd, Map<String, String> settings) =>

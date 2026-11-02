@@ -436,6 +436,7 @@ class DeviceInfo {
     this.laptop = true,
     this.relays = const [],
     this.addrs = const [],
+    this.direct = false,
   });
 
   factory DeviceInfo.fromJson(Map<String, Object?> json) => DeviceInfo(
@@ -445,6 +446,7 @@ class DeviceInfo {
     laptop: json['laptop'] as bool? ?? true,
     relays: [...?(json['relays'] as List?)?.whereType<String>()],
     addrs: [...?(json['addrs'] as List?)?.whereType<String>()],
+    direct: json['direct'] == true,
   );
 
   final String name;
@@ -461,15 +463,23 @@ class DeviceInfo {
   final List<String> relays;
   final List<String> addrs;
 
-  DeviceInfo copyWith({List<String>? relays, List<String>? addrs}) =>
-      DeviceInfo(
-        name: name,
-        kind: kind,
-        system: system,
-        laptop: laptop,
-        relays: relays ?? this.relays,
-        addrs: addrs ?? this.addrs,
-      );
+  /// It keeps to no relay: phones reach it at [addrs] alone. Its relays
+  /// are then empty on purpose, not because it has none yet.
+  final bool direct;
+
+  DeviceInfo copyWith({
+    List<String>? relays,
+    List<String>? addrs,
+    bool? direct,
+  }) => DeviceInfo(
+    name: name,
+    kind: kind,
+    system: system,
+    laptop: laptop,
+    relays: relays ?? this.relays,
+    addrs: addrs ?? this.addrs,
+    direct: direct ?? this.direct,
+  );
 
   Map<String, Object?> toJson() => {
     'name': name,
@@ -478,6 +488,7 @@ class DeviceInfo {
     'laptop': laptop,
     'relays': relays,
     'addrs': addrs,
+    if (direct) 'direct': true,
   };
 }
 

@@ -141,6 +141,52 @@ void main() {
     expect(platform.boundRelays, defaultLinkRelays);
   });
 
+  test('direct only: no relay kept, told or bound to; its own port alone',
+      () async {
+    await host.setEnabled(true);
+    await host.setRelayMode(LinkRelayMode.direct);
+    expect(host.relays, isEmpty);
+    expect(platform.boundRelays, isEmpty);
+    expect(platform.boundStrictPort, isTrue);
+    expect(platform.kept['relayMode'], 'direct');
+
+    final offer = (await host.beginPairing())!;
+    expect(offer.relays, isEmpty);
+    expect(offer.direct, isTrue);
+    final parsed = PairingOffer.parse(offer.uri);
+    expect(parsed.direct, isTrue);
+    expect(parsed.relays, isEmpty);
+
+    final peer = await connect(phone);
+    final hello =
+        await peer.call(LinkMethods.hello, {
+              'name': 'iPhone',
+              'token': encodeKey(offer.token),
+            })
+            as Map;
+    final device = DeviceInfo.fromJson(
+      hello['device']! as Map<String, Object?>,
+    );
+    expect(device.direct, isTrue);
+    expect(device.relays, isEmpty);
+    await peer.close();
+  });
+
+  test('the direct port: kept, and bound to alone', () async {
+    await host.setEnabled(true);
+    await host.setRelayMode(LinkRelayMode.direct);
+    expect(host.linkPort, defaultLinkPort);
+    expect(platform.boundPort, defaultLinkPort);
+
+    expect(await host.setLinkPort(51000), isTrue);
+    expect(host.linkPort, 51000);
+    expect(platform.boundPort, 51000);
+    expect(platform.kept['linkPort'], 51000);
+
+    expect(await host.setLinkPort(80), isFalse);
+    expect(host.linkPort, 51000);
+  });
+
   test('relays of one\'s own kept before there was a choice: the first '
       'picked', () async {
     host.dispose();

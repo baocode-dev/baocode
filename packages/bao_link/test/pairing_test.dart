@@ -16,12 +16,14 @@ void main() {
       expires: DateTime.fromMillisecondsSinceEpoch(1800000000 * 1000),
       relays: const ['https://relay-hk1.baocode.dev/'],
       addrs: const ['192.168.1.5:47100', '[2408:8207::1]:47100'],
+      direct: true,
     );
     final parsed = PairingOffer.parse(offer.uri);
     expect(parsed.name, offer.name);
     expect(parsed.key, offer.key);
     expect(parsed.token, offer.token);
     expect(parsed.expires, offer.expires);
+    expect(parsed.direct, isTrue);
     expect(parsed.address, offer.address);
     expect(parsed.address.id, desktop.id);
     expect(

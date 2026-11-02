@@ -295,4 +295,59 @@ void main() {
     expect(host.relays, [defaultLinkRelays.first]);
     expect(find.byType(TextField), findsNothing);
   });
+
+  testWidgets('direct only: no relay kept, its port typed and kept alone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final platform = FakeLinkPlatform();
+    final host = LinkHost(workspace: Workspace.mock(), platform: platform);
+    addTearDown(host.dispose);
+    await host.load();
+    await host.setEnabled(true);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: MobileSettingsPage(host: host)),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Relays'));
+    await tester.pump();
+
+    Future<void> pick(String now, String label) async {
+      await tester.tap(find.text(now));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> typeIn(String text) async {
+      await tester.enterText(find.byType(TextField), text);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      await tester.pump();
+    }
+
+    await pick('Automatic', 'Direct Only');
+    expect(host.relayMode, LinkRelayMode.direct);
+    expect(host.relays, isEmpty);
+    expect(find.text('On, direct only'), findsOneWidget);
+    // The port, and where it can be reached: none yet, its address is the
+    // LAN's alone.
+    expect(find.text('Direct Port'), findsOneWidget);
+    expect(find.text('Direct Address'), findsOneWidget);
+    expect(find.textContaining('No public address yet'), findsOneWidget);
+
+    await typeIn('51000');
+    expect(host.linkPort, 51000);
+    await typeIn('80');
+    expect(host.linkPort, 51000);
+    expect(find.textContaining('1024 to 65535'), findsOneWidget);
+
+    await pick('Direct Only', 'Automatic');
+    expect(host.relays, defaultLinkRelays);
+    expect(find.text('Direct Port'), findsNothing);
+  });
 }
