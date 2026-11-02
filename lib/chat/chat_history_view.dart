@@ -2131,7 +2131,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _foldOpen.removeWhere((key, _) => key.$2 > index);
       _unfoldedTurns.clear();
     });
-    _feed.editMessage(index, message);
+    _feed.editMessage(index, message, from: UserPlace.computer);
   }
 
   /// Row [index] of the list: [child] in the column, [gap] below the row

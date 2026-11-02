@@ -1488,7 +1488,11 @@ class ChatComposerState extends State<ChatComposer>
       onSubmit(message);
       return;
     }
-    widget.session.send(message, editor: widget.openEditor);
+    widget.session.send(
+      message,
+      editor: widget.openEditor,
+      from: UserPlace.computer,
+    );
     _pool = {};
     _controller.clear();
     _leaveHistory();
