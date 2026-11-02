@@ -891,8 +891,9 @@ export const rateLimiter = (options: RateLimitOptions): MiddlewareHandler => {
         await c.settle();
       });
       // macOS' sample of it, begun 4 s in, written before the app goes.
-      if (Platform.isMacOS)
+      if (Platform.isMacOS) {
         await Future<void>.delayed(const Duration(seconds: 8));
+      }
     },
   ),
   PerfScenario(

@@ -1,0 +1,117 @@
+# Keeps the code analyzable and its tests passing.
+#
+#   A pull request, a push to main   flutter analyze (infos too), and the
+#                                    Dart files changed formatted
+#   Each night, Actions → Checks →   the tests: the app's in shards, each
+#   Run workflow                     package's on its own
+#
+# On Linux, the cheapest runner and the one least queued: the tests whose
+# platform matters run under TargetPlatformVariant anyway. The whole suite
+# is too slow for every pull request; a night's failure mails whoever last
+# changed the schedule.
+name: Checks
+
+on:
+  pull_request:
+    paths-ignore: &docs
+      - '**.md'
+      - docs/**
+      - release-notes/**
+      - site/**
+      - site-worker/**
+  push:
+    branches: [main]
+    paths-ignore: *docs
+  schedule:
+    - cron: '47 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A pull request's run gives way to its next push.
+concurrency:
+  group: checks-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  FLUTTER_VERSION: 3.47.5
+
+jobs:
+  analyze:
+    name: Analyze
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          pub-cache: true
+      - run: flutter pub get
+      - run: flutter analyze --fatal-infos
+      # The files changed alone: many older ones are not formatted yet.
+      - name: Format the Dart files changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE"
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$BASE" HEAD -- '*.dart')
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No Dart file changed"
+            exit 0
+          fi
+          if ! dart format --output=none --set-exit-if-changed "${files[@]}"; then
+            echo "::error::Not formatted: run dart format on the files above"
+            exit 1
+          fi
+
+  test:
+    name: Test ${{ matrix.dir }}${{ matrix.shard != '' && format(' ({0}/4)', matrix.shard) || '' }}
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { dir: ., shard: '0' }
+          - { dir: ., shard: '1' }
+          - { dir: ., shard: '2' }
+          - { dir: ., shard: '3' }
+          - { dir: packages/bao_agent }
+          - { dir: packages/bao_editor }
+          - { dir: packages/bao_iroh }
+          - { dir: packages/bao_link }
+          - { dir: packages/bao_markdown }
+          - { dir: packages/bao_pty }
+          - { dir: packages/bao_xterm }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          pub-cache: true
+      # The tests run bao_iroh's build hook: main's build of it, or Rust to
+      # build it with.
+      - id: iroh
+        uses: ./.github/actions/bao-iroh-prebuilt
+      - if: steps.iroh.outputs.hit != 'true'
+        uses: ./.github/actions/setup-rust
+      - run: flutter pub get
+      - name: flutter test
+        working-directory: ${{ matrix.dir }}
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          if [ -n "$SHARD" ]; then
+            flutter test --total-shards 4 --shard-index "$SHARD"
+          else
+            flutter test
+          fi
