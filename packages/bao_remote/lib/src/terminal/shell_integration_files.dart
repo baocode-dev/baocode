@@ -15,8 +15,9 @@
 //
 // VS Code keeps zsh's startup files in `<tmp>/<user>-<app>-zsh`, a fixed
 // name it guards with the sticky bit and 0700. Dart cannot chmod, so the
-// folder is made like mkdtemp instead (a new name, 0700, the user's own):
-// no one else can put scripts in it for a shell to run.
+// folder is made with a new name instead, writable by the user alone (0700
+// on macOS, 0755 on Linux): no one else can put scripts in it for a shell
+// to run.
 
 import 'dart:io';
 
