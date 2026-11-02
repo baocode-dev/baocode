@@ -56,6 +56,11 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
   UsageSummary? _all;
   UsageSummary? _summary;
 
+  /// Its calls under way, as last read: read again each second while
+  /// there are any.
+  List<UsageCall> _underway = const [];
+  Timer? _tick;
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +83,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
       _filter = const UsageFilter();
       _sessionId = _idOf(widget);
       _calls = const [];
+      _underway = const [];
       _loading = true;
       unawaited(_load());
     }
@@ -91,6 +97,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
   @override
   void dispose() {
     _reload?.cancel();
+    _tick?.cancel();
     _ledger.removeListener(_ledgerChanged);
     UsagePrices.current.removeListener(_repriced);
     widget.session.removeListener(_sessionChanged);
@@ -109,8 +116,12 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
 
   void _ledgerChanged() {
     if (_ledger.version == _loadedVersion) {
-      // Its choices: those beside the conversation shown or not.
-      setState(_summarize);
+      // A call begun or over (and not kept), or its choices: those beside
+      // the conversation shown or not.
+      setState(() {
+        _readUnderway();
+        _summarize();
+      });
       return;
     }
     _reload?.cancel();
@@ -128,15 +139,54 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
     _loadedVersion = version;
     // Another conversation's call: this one's page left as it is.
     if (!force && !_loading && calls.isNotEmpty && _same(calls, _calls)) {
+      setState(_readUnderway);
       return;
     }
     setState(() {
       _loadedVersion = version;
       _calls = calls;
       _loading = false;
+      _readUnderway();
       _summarize();
     });
   }
+
+  /// [call] as the same as it goes on, and once kept.
+  static Object _keyOf(UsageCall call) =>
+      (call.at.millisecondsSinceEpoch, call.agentId, call.model);
+
+  /// Reads its calls under way again. [keepGone]: those over kept as they
+  /// were last read, till its calls are read again with them kept (they
+  /// would blink out first).
+  void _readUnderway({bool keepGone = false}) {
+    final id = _sessionId;
+    final now = id == null ? const <UsageCall>[] : _ledger.underway(id);
+    if (keepGone && _underway.isNotEmpty) {
+      final still = {for (final call in now) _keyOf(call)};
+      _underway = [
+        for (final call in _underway)
+          if (!still.contains(_keyOf(call))) call,
+        ...now,
+      ]..sort((a, b) => a.at.compareTo(b.at));
+    } else {
+      _underway = now;
+    }
+    if (_underway.isEmpty) {
+      _tick?.cancel();
+      _tick = null;
+    } else {
+      _tick ??= Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => setState(() => _readUnderway(keepGone: true)),
+      );
+    }
+  }
+
+  /// Its calls under way, as filtered.
+  List<UsageCall> get _shownUnderway => [
+    for (final call in _ledger.shown(_underway))
+      if (_filter.matches(call)) call,
+  ];
 
   /// Whether [a] and [b] are the same calls, though read again.
   static bool _same(List<UsageCall> a, List<UsageCall> b) {
@@ -274,17 +324,20 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
           ),
         ),
       UsageTimeSection(summary: summary, height: 140),
-      UsageCard(
-        title: l10n.ustatCallsTitle,
-        subtitle: l10n.ustatRecentCallsDetail(summary.calls.length),
-        child: UsageCallsList(
-          calls: summary.calls,
-          showSession: false,
-          ledger: _ledger,
-        ),
-      ),
+      _callsCard(summary.calls),
     ];
   }
+
+  Widget _callsCard(List<UsageCall> calls) => UsageCard(
+    title: context.l10n.ustatCallsTitle,
+    subtitle: context.l10n.ustatRecentCallsDetail(calls.length),
+    child: UsageCallsList(
+      calls: calls,
+      underway: _shownUnderway,
+      showSession: false,
+      ledger: _ledger,
+    ),
+  );
 
   Widget _empty() {
     final l10n = context.l10n;
@@ -334,7 +387,10 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
                   controller: controller,
                   padding: EdgeInsets.fromLTRB(16, hasCalls ? 12 : 14, 16, 32),
                   children: [
-                    if (!hasCalls)
+                    // Its first call, under way.
+                    if (!hasCalls && !_loading && _shownUnderway.isNotEmpty)
+                      _callsCard(const [])
+                    else if (!hasCalls)
                       _loading ? const SizedBox(height: 120) : _empty()
                     else if (summary.calls.isEmpty)
                       UsageEmpty(

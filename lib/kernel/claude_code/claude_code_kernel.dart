@@ -631,6 +631,9 @@ class ClaudeCodeKernel
               record: (call, {trace}) =>
                   UsageLedger.current.record(call, trace: trace),
               tracing: () => UsageLedger.current.trace,
+              underway: (key, progress) => progress == null
+                  ? UsageLedger.current.end(key)
+                  : UsageLedger.current.begin(key, progress),
               makeup: () => _contextDetail,
               session: () => _sessionId,
               providerName: 'Claude Code',
