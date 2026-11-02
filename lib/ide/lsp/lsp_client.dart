@@ -79,6 +79,7 @@ class LspClient {
     this.onProgress,
     this.onApplyEdit,
     this.onExit,
+    this.notifications = const {},
     this.logLimit = 200,
     this.processId,
     this.windowsPaths,
@@ -136,6 +137,10 @@ class LspClient {
 
   /// The process ended; [crashed] unless it was asked to stop.
   final void Function(int exitCode, {required bool crashed})? onExit;
+
+  /// Server notifications outside the protocol, by method (e.g.
+  /// vue-language-server's `tsserver/request`).
+  final Map<String, void Function(Object? params)> notifications;
 
   /// How many log lines ([log]) are kept.
   final int logLimit;
@@ -767,6 +772,9 @@ class LspClient {
         onChanged?.call();
         return null;
       });
+    }
+    for (final MapEntry(key: method, value: handler) in notifications.entries) {
+      _rpc.onNotification(method, handler);
     }
   }
 

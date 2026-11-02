@@ -15,6 +15,12 @@
 //   crashAfterInitialized  exits (code 5) once initialized
 //   crashOnInitialize      exits (code 4) instead of answering initialize
 //   stubborn               ignores shutdown, exit, stdin's end and SIGTERM
+//   noRename               answers no prepareRename or rename
+//   tsserverHost           runs `typescript.tsserverRequest`, answering
+//                          `{body: {host, command, args, docs}}`
+//
+// `fake/tsserver` ({command, args}) asks the client as Vue's server does:
+// a `tsserver/request` notification, answered by a `tsserver/response`.
 //
 // A didChange inserting `CRASH` makes it exit with code 3. Lines holding
 // `ERROR` get an error diagnostic. `fake/state` answers what it knows.
@@ -33,6 +39,8 @@ Map<String, Object?> _clientCapabilities = {};
 Map<String, Object?> _initializeParams = {};
 var _nextId = 0;
 final _pending = <int, Completer<Object?>>{};
+var _nextTsserverId = 0;
+final _tsserverPending = <int, Completer<Object?>>{};
 
 String get _name => _options['name'] as String? ?? 'fake';
 bool get _stubborn => _options['stubborn'] == true;
@@ -101,6 +109,14 @@ Future<void> _handle(Map<String, Object?> message) async {
     _pending.remove(key)?.complete(message['result'] ?? message['error']);
     return;
   }
+  if (method == 'tsserver/response') {
+    _notifications.add(method);
+    for (final response in message['params']! as List) {
+      final [id as int, body] = response as List;
+      _tsserverPending.remove(id)?.complete(body);
+    }
+    return;
+  }
   final params = (message['params'] as Map?)?.cast<String, Object?>() ?? {};
   if (id == null) {
     _notifications.add(method);
@@ -145,7 +161,10 @@ Map<String, Object?> _capabilities() {
     'documentSymbolProvider': true,
     'codeActionProvider': {'resolveProvider': true},
     'executeCommandProvider': {
-      'commands': ['fake.insertHeader'],
+      'commands': [
+        'fake.insertHeader',
+        if (_options['tsserverHost'] == true) 'typescript.tsserverRequest',
+      ],
     },
     'semanticTokensProvider': {
       'legend': {
@@ -281,6 +300,9 @@ Future<Object?> _answer(String method, Map<String, Object?> params) async {
         'activeSignature': 0,
         'activeParameter': ','.allMatches(before.substring(open)).length,
       };
+    case 'textDocument/prepareRename' || 'textDocument/rename'
+        when _options['noRename'] == true:
+      return null;
     case 'textDocument/prepareRename':
       final (text, word, _) = _wordAt(params);
       if (word == null) return null;
@@ -399,6 +421,25 @@ Future<Object?> _answer(String method, Map<String, Object?> params) async {
           },
         },
       };
+    case 'workspace/executeCommand'
+        when params['command'] == 'typescript.tsserverRequest' &&
+            _options['tsserverHost'] == true:
+      final [command, args, ...] = params['arguments']! as List;
+      return {
+        'body': {
+          'host': _name,
+          'command': command,
+          'args': args,
+          'docs': _docs.keys.toList(),
+        },
+      };
+    case 'fake/tsserver':
+      final id = ++_nextTsserverId;
+      final answer = _tsserverPending[id] = Completer<Object?>();
+      _notify('tsserver/request', [
+        [id, params['command'], params['args']],
+      ]);
+      return answer.future;
     case 'workspace/executeCommand':
       if (params['command'] != 'fake.insertHeader') throw _MethodNotFound();
       final uri = (params['arguments'] as List).first as String;
