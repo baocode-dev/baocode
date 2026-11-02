@@ -149,6 +149,9 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     for (final bot in _bots) {
       folders.make(bot.folder);
     }
+    // Every folder under it is the app's own, listed nowhere: even one
+    // whose bot is gone (a stale folder left behind).
+    workspace.appFolderRoot = root;
     workspace.agentSetup = _setup;
     ClaudeSdkTools.gate = this;
     BotTools.register(this);
@@ -174,6 +177,9 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       if (identical(ClaudeSdkTools.gate, this)) ClaudeSdkTools.gate = null;
       BotTools.unregister();
       workspace.agentSetup = null;
+      if (workspace.appFolderRoot == folders.root) {
+        workspace.appFolderRoot = null;
+      }
     }
     for (final MapEntry(key: session, value: listener) in _followed.entries) {
       session.removeListener(listener);

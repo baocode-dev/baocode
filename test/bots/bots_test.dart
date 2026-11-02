@@ -344,10 +344,15 @@ void main() {
       expect(workspace.current, shown);
       // Shown before the bots were (kept from the last run): no longer.
       final setup = workspace.agentSetup;
-      workspace.agentSetup = null;
+      final root = workspace.appFolderRoot;
+      workspace
+        ..agentSetup = null
+        ..appFolderRoot = null;
       workspace.select(thread);
       expect(workspace.current, thread);
-      workspace.agentSetup = setup;
+      workspace
+        ..appFolderRoot = root
+        ..agentSetup = setup;
       expect(workspace.grid.contains(thread), isFalse);
       expect(workspace.current, isNot(thread));
       expect(workspace.current!.project.path, app);
@@ -360,6 +365,14 @@ void main() {
       expect(workspace.listsInSidebar(thread), isFalse);
       expect(bots.threadFor(bot), same(thread));
       expect(workspace.agentSetup!(bot.folder)!.settings, Bots.settings);
+      // A folder left behind, its bot gone: still the app's own, no
+      // project of the sidebar's (nor of the phone's).
+      expect(workspace.isAppFolder('/bots/left-behind'), isTrue);
+      expect(workspace.isAppFolder('/elsewhere'), isFalse);
+      expect(
+        workspace.sidebarProjects.map((project) => project.path),
+        isNot(contains('/bots/left-behind')),
+      );
       // Named by none of what it is told.
       thread.session.send(const ComposerMessage(text: '<bao-event>x'));
       workspace.notifyListeners();
