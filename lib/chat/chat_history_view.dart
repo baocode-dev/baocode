@@ -579,9 +579,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   bool _contentBelow = false;
   bool _contentAbove = false;
 
-  /// Pointer held down in the list (drag, scrollbar) or a wheel event just
-  /// arrived: only then does a scroll change whether we stick to the bottom.
-  int _pointersDown = 0;
+  /// The devices with a button held down in the list (drag, scrollbar), by
+  /// [PointerEvent.device]. Held, or a wheel event just arrived: only then
+  /// does a scroll change whether we stick to the bottom.
+  final Set<int> _pressedDevices = {};
+  int get _pointersDown => _pressedDevices.length;
 
   late final _ChatSelectionDelegate _selectionDelegate = _ChatSelectionDelegate(
     locate: _locateItemPoint,
@@ -1262,7 +1264,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   static const _scrollbarGutter = 24.0;
 
   void _handlePointerDown(PointerDownEvent event) {
-    _pointersDown++;
+    _pressedDevices.add(event.device);
     // What a right click is on, found as it presses: the selection's menu
     // builds as it comes up, when nothing may be hit tested.
     _linkMenu = event.buttons & kSecondaryMouseButton != 0
@@ -1329,7 +1331,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   }
 
   void _handlePointerUp(PointerEvent event) {
-    _pointersDown--;
+    if (!_pressedDevices.remove(event.device)) return;
     final from = _dragFrom;
     _dragFrom = null;
     if (from != null &&
@@ -1359,6 +1361,15 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         ..extending = false
         ..suspended = false;
     }
+  }
+
+  /// A device moving with no button down, though its release never came
+  /// here (let go outside the window, or as another window took the
+  /// focus): released now. Held on, its drag's end went on being put back
+  /// under the pointer at each wheel step (see [_scheduleDragReselect]), and
+  /// scrolling selected text.
+  void _handlePointerHover(PointerHoverEvent event) {
+    if (_pressedDevices.contains(event.device)) _handlePointerUp(event);
   }
 
   /// Scrolls while a drag selection is held near or past an edge, as the
@@ -2554,6 +2565,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         onPointerDown: _handlePointerDown,
         onPointerUp: _handlePointerUp,
         onPointerCancel: _handlePointerUp,
+        onPointerHover: _handlePointerHover,
         // Runs before the list handles the signal (that is resolved after
         // every target has seen it).
         onPointerSignal: (event) {
