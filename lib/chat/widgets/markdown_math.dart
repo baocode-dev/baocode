@@ -4,6 +4,7 @@ import 'package:markdown/markdown.dart' as md;
 
 import '../../theme/app_theme.dart';
 import 'finite_selection_edges.dart';
+import 'selectable_token.dart';
 import 'will_change_paint.dart';
 
 /// TeX in markdown, as `math` elements (their `display` attribute `block`
@@ -76,15 +77,30 @@ class MathView extends StatelessWidget {
   static TextStyle get _style =>
       TextStyle(color: AppColors.textPrimary, fontSize: 14.5);
 
+  /// What a selection of it copies: its source, between its delimiters
+  /// (#587).
+  @visibleForTesting
+  static String source(String tex, {required bool display}) {
+    if (!display) return '\$$tex\$';
+    return tex.contains('\n') ? '\$\$\n$tex\n\$\$' : '\$\$$tex\$\$';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final math = Math.tex(
-      tex,
-      mathStyle: display ? MathStyle.display : MathStyle.text,
-      textStyle: _style,
-      onErrorFallback: (_) => Text(
-        display ? tex : '\$$tex\$',
-        style: AppFonts.uiCodeStyle(12.5).copyWith(color: AppColors.inlineCode),
+    // Selected whole, as a tag is: the typeset glyphs are no text to select.
+    final math = SelectableToken(
+      text: source(tex, display: display),
+      child: SelectionContainer.disabled(
+        child: Math.tex(
+          tex,
+          mathStyle: display ? MathStyle.display : MathStyle.text,
+          textStyle: _style,
+          onErrorFallback: (_) => Text(
+            display ? tex : '\$$tex\$',
+            style: AppFonts.uiCodeStyle(12.5)
+                .copyWith(color: AppColors.inlineCode),
+          ),
+        ),
       ),
     );
     if (!display) return math;

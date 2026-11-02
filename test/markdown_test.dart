@@ -291,6 +291,71 @@ void main() {
       await pumpMarkdown(tester, r'$$\frac{1}{$$');
       expect(find.textContaining(r'\frac{1}{'), findsOneWidget);
     });
+
+    group('selected', () {
+      /// What a drag from [from]'s start to [to]'s end selects, [data]
+      /// shown in a selection area.
+      Future<String?> dragged(
+        WidgetTester tester,
+        String data, {
+        required Finder from,
+        required Finder to,
+      }) async {
+        String? selected;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SelectionArea(
+                onSelectionChanged: (content) => selected = content?.plainText,
+                child: MarkdownView(data),
+              ),
+            ),
+          ),
+        );
+        final gesture = await tester.startGesture(
+          tester.getTopLeft(from) + const Offset(1, 4),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        await gesture.moveTo(tester.getBottomRight(to) - const Offset(1, 4));
+        await tester.pump();
+        await gesture.up();
+        await tester.pump();
+        return selected;
+      }
+
+      testWidgets('copies the TeX of the formulas in it (#587)', (
+        tester,
+      ) async {
+        final copied = await dragged(
+          tester,
+          r'It decays to $1/e$ of it:'
+          '\n\n'
+          r'$$I(t) = I_0 e^{-t/\tau}$$'
+          '\n\n'
+          'when fitted.',
+          from: find.textContaining('It decays', findRichText: true),
+          to: find.textContaining('when fitted.', findRichText: true),
+        );
+        expect(copied, contains(r'It decays to $1/e$ of it:'));
+        expect(copied, contains(r'$$I(t) = I_0 e^{-t/\tau}$$'));
+        expect(copied, endsWith('when fitted.'));
+        expect(
+          copied!.indexOf(r'$$I(t)'),
+          lessThan(copied.indexOf('when fitted.')),
+        );
+      });
+
+      testWidgets('a formula alone is copied as its source', (tester) async {
+        final copied = await dragged(
+          tester,
+          r'Euler: $e^{i\pi} + 1 = 0$',
+          from: find.byType(Math),
+          to: find.byType(Math),
+        );
+        expect(copied, r'$e^{i\pi} + 1 = 0$');
+      });
+    });
   });
 
   group('CJK emphasis', () {
