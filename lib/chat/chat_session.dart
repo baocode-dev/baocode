@@ -66,6 +66,13 @@ enum UserPlace {
           'desktop app: reply as you normally would there, Markdown and '
           'all.</system-reminder>',
   };
+
+  /// What the agent is told with each message after the first from the
+  /// phone: a word, that the way it replies there holds however long
+  /// the conversation, whatever the model.
+  static const stillOnPhone =
+      '<system-reminder>Still on their phone: reply as in a chat, short, '
+      'little formatting.</system-reminder>';
 }
 
 /// A choice a kernel offers (its model, its mode, the kernel itself): the
@@ -1083,10 +1090,14 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// [_placeNotes]).
   UserPlace? _toldPlace;
 
-  /// What the agent is told of where the user writes [from]: nothing
-  /// where it was told so already, nor of the computer before any other
-  /// (as its system prompt has it); nothing for a message the app sent.
+  /// What the agent is told of where the user writes [from]: on the phone
+  /// still, a word ([UserPlace.stillOnPhone]); at the computer still,
+  /// nothing, nor of the computer before any other (as its system prompt
+  /// has it); nothing for a message the app sent.
   List<String> _placeNotes(UserPlace? from) {
+    if (from == UserPlace.phone && _toldPlace == UserPlace.phone) {
+      return const [UserPlace.stillOnPhone];
+    }
     if (from == null || from == _toldPlace) return const [];
     final before = _toldPlace;
     _toldPlace = from;
