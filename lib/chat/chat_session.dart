@@ -40,6 +40,34 @@ class ComposerMessage {
   bool get isEmpty => text.trim().isEmpty && mentions.isEmpty && images.isEmpty;
 }
 
+/// Where the user writes to an agent from: told it, unseen, as that
+/// changes (see [ChatSession.send]), for its replies to suit the screen
+/// they are read on. Not its system prompt, which would break its cache.
+enum UserPlace {
+  /// The BaoCode app on their phone: replies read as chat bubbles.
+  phone,
+
+  /// The desktop app's composer.
+  computer;
+
+  /// What the agent is told when the user comes to write from here.
+  String get note => switch (this) {
+    phone =>
+      '<system-reminder>The user is now writing to you from the BaoCode '
+          'app on their phone, and reads your replies there as chat bubbles '
+          'on a small screen. Reply as in a chat: plain, conversational text '
+          'in short paragraphs, the outcome first. A little formatting is '
+          'fine (bold, links, inline code, a short list); no headings, '
+          'tables, long code blocks or wide layouts unless they ask for '
+          'them. This holds until you are told they are back at their '
+          'computer.</system-reminder>',
+    computer =>
+      '<system-reminder>The user is back at their computer, in the BaoCode '
+          'desktop app: reply as you normally would there, Markdown and '
+          'all.</system-reminder>',
+  };
+}
+
 /// A choice a kernel offers (its model, its mode, the kernel itself): the
 /// options, the one in effect, and how to pick another.
 class KernelChoice {
@@ -1051,6 +1079,21 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   OpenEditor? _toldEditor;
   bool _toldOfEditor = false;
 
+  /// Where the user was last said to write from, once said (see
+  /// [_placeNotes]).
+  UserPlace? _toldPlace;
+
+  /// What the agent is told of where the user writes [from]: nothing
+  /// where it was told so already, nor of the computer before any other
+  /// (as its system prompt has it); nothing for a message the app sent.
+  List<String> _placeNotes(UserPlace? from) {
+    if (from == null || from == _toldPlace) return const [];
+    final before = _toldPlace;
+    _toldPlace = from;
+    if (before == null && from == UserPlace.computer) return const [];
+    return [from.note];
+  }
+
   /// What the agent is told of [editor], the file open beside the chat now:
   /// nothing where it was told so already, nor of no file before any.
   List<String> _editorNotes(OpenEditor? editor) {
@@ -1067,12 +1110,15 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// [awaitingPlan]), it says what should change in it.
   ///
   /// [editor] gives the file open in the editor beside the chat, where
-  /// there is one; the agent is told of it as it changes. [notes] go to the
-  /// agent with it, not shown (each a `<system-reminder>`).
+  /// there is one; the agent is told of it as it changes. [from], where
+  /// the user wrote it (null for what the app sends): the agent is told as
+  /// that changes ([UserPlace]). [notes] go to the agent with it, not
+  /// shown (each a `<system-reminder>`).
   void send(
     ComposerMessage message, {
     bool now = false,
     OpenEditor? Function()? editor,
+    UserPlace? from,
     List<String> notes = const [],
   }) {
     if (message.isEmpty || !canSend) return;
@@ -1087,7 +1133,11 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       mentions: message.mentions,
       images: acceptsImages ? message.images : const [],
       now: now,
-      notes: [...notes, if (editor != null) ..._editorNotes(editor())],
+      notes: [
+        ...notes,
+        ..._placeNotes(from),
+        if (editor != null) ..._editorNotes(editor()),
+      ],
     );
     _kernel.send(turn);
   }
@@ -1142,7 +1192,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// Resends the user message at [index] as [message]: everything after it
   /// is discarded and the turn runs again from there.
   @override
-  void editMessage(int index, ComposerMessage message) {
+  void editMessage(int index, ComposerMessage message, {UserPlace? from}) {
     if (_kernel case final RewindsConversation kernel
         when !message.isEmpty && itemAt(index) is UserMessageItem) {
       stop();
@@ -1165,7 +1215,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
               lastSeen: lastSeen,
             )
             .then((rewound) {
-              if (rewound && !_disposed) send(message);
+              if (rewound && !_disposed) send(message, from: from);
             }),
       );
     }
