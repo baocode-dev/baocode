@@ -9200,7 +9200,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accountsGitHubHosts => 'github.com，或公司的 GitHub Enterprise';
 
   @override
-  String get accountsGitLabHosts => 'gitlab.com，或自建的 GitLab';
+  String get accountsGitLabHosts =>
+      'gitlab.com，或自建的 GitLab（http:// 或 https://，可带端口）';
 
   @override
   String get accountsSignInBrowser => '在浏览器中登录';
@@ -9260,6 +9261,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountsTokenRefused => '令牌无效，请检查是否完整、是否已过期。';
+
+  @override
+  String get accountsCertificateTitle => '证书不受信任';
+
+  @override
+  String accountsCertificateDetail(
+    String host,
+    String issuer,
+    String fingerprint,
+  ) {
+    return '$host 的证书无法验证（签发者：$issuer）。\n\nSHA-256 指纹：\n$fingerprint\n\n信任后 BaoCode 会连接这台服务器，并且只接受这个指纹的证书；证书更换后会再次询问。';
+  }
+
+  @override
+  String get accountsCertificateTrust => '信任并继续';
 
   @override
   String accountsBrowserTitle(String forge) {

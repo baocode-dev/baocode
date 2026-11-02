@@ -15864,7 +15864,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountsGitLabHosts.
   ///
   /// In en, this message translates to:
-  /// **'gitlab.com, or a self-managed GitLab'**
+  /// **'gitlab.com, or a self-managed GitLab (http:// or https://, with its port)'**
   String get accountsGitLabHosts;
 
   /// No description provided for @accountsSignInBrowser.
@@ -15930,7 +15930,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountsHost.
   ///
   /// In en, this message translates to:
-  /// **'Host'**
+  /// **'Server'**
   String get accountsHost;
 
   /// No description provided for @accountsToken.
@@ -15962,6 +15962,28 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The token was not accepted. Check that it is complete and has not expired.'**
   String get accountsTokenRefused;
+
+  /// Title of the dialog asking whether to trust a forge server's certificate.
+  ///
+  /// In en, this message translates to:
+  /// **'Untrusted Certificate'**
+  String get accountsCertificateTitle;
+
+  /// What a self-signed or privately issued forge certificate is, before the user confirms it.
+  ///
+  /// In en, this message translates to:
+  /// **'The certificate of {host} cannot be verified ({issuer}).\n\nSHA-256 fingerprint:\n{fingerprint}\n\nTrusting it lets BaoCode reach this server, and only the certificate with this fingerprint is accepted. You are asked again if the certificate changes.'**
+  String accountsCertificateDetail(
+    String host,
+    String issuer,
+    String fingerprint,
+  );
+
+  /// Button that trusts the certificate shown, and only that one.
+  ///
+  /// In en, this message translates to:
+  /// **'Trust and Continue'**
+  String get accountsCertificateTrust;
 
   /// No description provided for @accountsBrowserTitle.
   ///

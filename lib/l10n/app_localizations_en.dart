@@ -9727,7 +9727,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'github.com, or your company\'s GitHub Enterprise';
 
   @override
-  String get accountsGitLabHosts => 'gitlab.com, or a self-managed GitLab';
+  String get accountsGitLabHosts =>
+      'gitlab.com, or a self-managed GitLab (http:// or https://, with its port)';
 
   @override
   String get accountsSignInBrowser => 'Sign in with Browser';
@@ -9768,7 +9769,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountsSignIn => 'Sign In';
 
   @override
-  String get accountsHost => 'Host';
+  String get accountsHost => 'Server';
 
   @override
   String get accountsToken => 'Token';
@@ -9789,6 +9790,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get accountsTokenRefused =>
       'The token was not accepted. Check that it is complete and has not expired.';
+
+  @override
+  String get accountsCertificateTitle => 'Untrusted Certificate';
+
+  @override
+  String accountsCertificateDetail(
+    String host,
+    String issuer,
+    String fingerprint,
+  ) {
+    return 'The certificate of $host cannot be verified ($issuer).\n\nSHA-256 fingerprint:\n$fingerprint\n\nTrusting it lets BaoCode reach this server, and only the certificate with this fingerprint is accepted. You are asked again if the certificate changes.';
+  }
+
+  @override
+  String get accountsCertificateTrust => 'Trust and Continue';
 
   @override
   String accountsBrowserTitle(String forge) {
