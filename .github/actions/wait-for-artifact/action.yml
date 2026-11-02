@@ -1,0 +1,43 @@
+# An artifact another job of this run uploads, downloaded once it is there:
+# for a job that starts before that one ends (it needs the artifact only
+# late), rather than waiting for it with `needs`. The workflow has to let
+# its token read actions (permissions: actions: read).
+name: Wait for an artifact
+description: Waits for an artifact of this run, then downloads it
+inputs:
+  name:
+    description: The artifact
+    required: true
+  path:
+    description: Where it goes
+    required: true
+  minutes:
+    description: How long to wait for it
+    default: '20'
+runs:
+  using: composite
+  steps:
+    - name: Wait for ${{ inputs.name }}
+      shell: bash
+      env:
+        TOKEN: ${{ github.token }}
+        NAME: ${{ inputs.name }}
+        MINUTES: ${{ inputs.minutes }}
+      run: |
+        url="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$NAME"
+        deadline=$(( $(date +%s) + MINUTES * 60 ))
+        while :; do
+          if curl -fsS -H "Authorization: Bearer $TOKEN" "$url" | grep -Eq '"total_count": *[1-9]'; then
+            echo "$NAME is there"
+            break
+          fi
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "::error::$NAME was not uploaded within $MINUTES minutes: did the job making it fail?"
+            exit 1
+          fi
+          sleep 10
+        done
+    - uses: actions/download-artifact@v7
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}

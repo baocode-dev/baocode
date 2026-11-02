@@ -3,6 +3,9 @@
 //
 //   dart run tool/build_windows.dart                build, then package
 //   dart run tool/build_windows.dart --skip-build   package what is built
+//   dart run tool/build_windows.dart --build-only   build, not package (CI,
+//                                                  while the remote server
+//                                                  is still building)
 //   dart run tool/build_windows.dart --remote-built take the remote server
 //                                                  already in build\remote\
 //                                                  (CI builds it once, for
@@ -126,6 +129,10 @@ Future<void> main(List<String> arguments) async {
     );
   }
   final skipBuild = arguments.contains('--skip-build');
+  final buildOnly = arguments.contains('--build-only');
+  if (skipBuild && buildOnly) {
+    _fail('--skip-build and --build-only leave nothing to do.');
+  }
   final remoteBuilt = arguments.contains('--remote-built');
   final releaseAt = arguments.indexOf('--remote-release');
   final remoteRelease = releaseAt < 0
@@ -179,6 +186,10 @@ Future<void> main(List<String> arguments) async {
 
   _step('Checking the bundle');
   _checkBundle(bundle, _required);
+  if (buildOnly) {
+    _step('Built: --skip-build packages it');
+    return;
+  }
 
   if (patchedEngine) {
     _step('Putting in the patched engine');

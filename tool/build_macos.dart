@@ -7,6 +7,9 @@
 //
 //   dart run tool/build_macos.dart                build, then package
 //   dart run tool/build_macos.dart --skip-build   package what is built
+//   dart run tool/build_macos.dart --build-only   build, not package (CI,
+//                                                while the remote server is
+//                                                still building)
 //   dart run tool/build_macos.dart --remote-built build the app, take the
 //                                                remote server already in
 //                                                build/remote/ (CI builds
@@ -117,6 +120,10 @@ Future<void> main(List<String> arguments) async {
     );
   }
   final skipBuild = arguments.contains('--skip-build');
+  final buildOnly = arguments.contains('--build-only');
+  if (skipBuild && buildOnly) {
+    _fail('--skip-build and --build-only leave nothing to do.');
+  }
   final channel = arguments.contains('--channel');
   final edition = channel ? '-channel' : '';
   final releaseAt = arguments.indexOf('--remote-release');
@@ -157,6 +164,10 @@ Future<void> main(List<String> arguments) async {
     app.copySync('${symbols.path}/App.macos.symbols');
     // -x: the local symbols, the Dart code's (as flutter strips it).
     await _run('strip', ['-x', app.path, '-o', app.path], root.path);
+    if (buildOnly) {
+      _step('Built: --skip-build packages it');
+      return;
+    }
   } else {
     _step('Using the app already built');
   }

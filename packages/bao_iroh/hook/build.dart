@@ -9,9 +9,9 @@ import 'package:native_toolchain_rust/native_toolchain_rust.dart';
 /// be there: it fetches the version rust/rust-toolchain.toml names. The
 /// web has none.
 ///
-/// A desktop library already built, at `build/prebuilt/<target>/`, is taken
-/// as it is: CI's, from the cache bao_iroh.yml fills for the sources as they
-/// are (release.yml restores it). Nowhere else is there one.
+/// A library already built, at `build/prebuilt/<target>/`, is taken as it
+/// is: CI's, from the cache bao_iroh.yml fills for the sources as they are
+/// (release.yml and mobile.yml restore it). Nowhere else is there one.
 void main(List<String> arguments) async {
   await build(arguments, (input, output) async {
     if (!input.config.buildCodeAssets) return;
@@ -40,6 +40,15 @@ File? _prebuilt(BuildInput input) {
     return null;
   }
   final triple = switch ((code.targetOS, code.targetArchitecture)) {
+    (OS.android, Architecture.arm64) => 'aarch64-linux-android',
+    (OS.android, Architecture.arm) => 'armv7-linux-androideabi',
+    (OS.android, Architecture.x64) => 'x86_64-linux-android',
+    (OS.iOS, Architecture.arm64) when code.iOS.targetSdk == IOSSdk.iPhoneOS =>
+      'aarch64-apple-ios',
+    (OS.iOS, Architecture.arm64)
+        when code.iOS.targetSdk == IOSSdk.iPhoneSimulator =>
+      'aarch64-apple-ios-sim',
+    (OS.iOS, Architecture.x64) => 'x86_64-apple-ios',
     (OS.macOS, Architecture.arm64) => 'aarch64-apple-darwin',
     (OS.macOS, Architecture.x64) => 'x86_64-apple-darwin',
     (OS.windows, Architecture.arm64) => 'aarch64-pc-windows-msvc',
