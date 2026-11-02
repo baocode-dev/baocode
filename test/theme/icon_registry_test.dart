@@ -70,7 +70,11 @@ void main() {
         registry.lookup('gitlens-graph'),
       );
       expect(registry.lookup('add'), Codicons.add);
-      // The font loads once, and its icons repaint when it has.
+      // The font loads once (read from disk), and its icons repaint when it
+      // has.
+      for (var i = 0; loaded.isEmpty && i < 100; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
       await pumpEventQueue();
       expect(loaded, ['eamodio.gitlens/dist/glicons.woff2']);
       expect(notified, 2);

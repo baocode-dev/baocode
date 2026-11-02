@@ -1,6 +1,9 @@
 // Renders the editor features extensions drive (decoration types, inlay
 // hints, CodeLens, ghost text) offscreen with real fonts and writes PNGs to
-// build/exthost-screens/ at the repository root, for a visual check.
+// build/exthost-screens/ at the repository root, for a visual check. On
+// macOS alone: its monospace font is the Mac's Monaco.
+@TestOn('mac-os')
+library;
 
 import 'dart:io';
 import 'dart:ui' as ui;

@@ -89,16 +89,13 @@ void main() {
       onOpen: opened.add,
       focused: () => focused,
     )..start();
+    addTearDown(service.dispose);
   }
 
   setUp(() {
     settings = const AttentionSettings();
     focused = true;
     opened.clear();
-  });
-
-  tearDown(() {
-    service.dispose();
   });
 
   testWidgets('notifies of a background agent that asks, then finishes', (

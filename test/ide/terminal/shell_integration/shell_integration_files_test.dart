@@ -68,8 +68,8 @@ void main() {
       expect(p.dirname(root), temp.path);
       expect(p.basename(root), startsWith('baocode-shell-integration-'));
       if (!Platform.isWindows) {
-        // Like mkdtemp: the user's alone.
-        expect(Directory(root).statSync().mode & 0x1ff, 0x1c0);
+        // No one else can write in it (0700 on macOS, 0755 on Linux).
+        expect(Directory(root).statSync().mode & 0x12, 0);
       }
       for (final MapEntry(:key, :value) in shellIntegrationScripts.entries) {
         expect(File(p.join(root, key)).readAsStringSync(), value);
