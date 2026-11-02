@@ -1619,6 +1619,16 @@ class ClaudeCodeKernel
       });
       return;
     }
+    // Where no one is there to answer a question either (a bot's,
+    // KernelWorkspace.approvesAll: the user reads its messages alone, on
+    // their phone), it would wait for ever: asked in its words instead.
+    if (tool == 'AskUserQuestion' && (_workspace?.approvesAll ?? false)) {
+      _control!.respond(requestId, {
+        'behavior': 'deny',
+        'message': _askInWords,
+      });
+      return;
+    }
     // Answered here, with nothing shown: in Don't ask nothing that is not
     // pre-approved is asked about (the CLI asks in Plan all the same). A
     // question is always the user's to answer, in any mode: the approvals
@@ -3408,6 +3418,12 @@ class ClaudeCodeKernel
   static const _askEndedNote =
       '<system-reminder>The user has left Ask mode: you may now edit files '
       'and run commands as the task needs.</system-reminder>';
+
+  /// The answer to a question where no one can answer it.
+  static const _askInWords =
+      'The user cannot see or answer this tool here: they only read your '
+      'messages. Ask them in your reply instead, briefly, and wait for '
+      'their answer.';
 
   /// The answer to what would be asked in Don't ask.
   static const _notAsked =

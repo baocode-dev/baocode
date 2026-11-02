@@ -1788,6 +1788,34 @@ void main() {
           'updatedInput': command,
         });
       }
+      // A question no one would answer: asked in its words instead.
+      cli.push({
+        'type': 'control_request',
+        'request_id': 'q',
+        'request': {
+          'subtype': 'can_use_tool',
+          'tool_name': 'AskUserQuestion',
+          'input': {
+            'questions': [
+              {
+                'question': 'Which language?',
+                'header': 'Language',
+                'options': [
+                  {'label': 'English'},
+                  {'label': 'Chinese'},
+                ],
+              },
+            ],
+          },
+        },
+      });
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isNull);
+      expect(cli.responses.last['behavior'], 'deny');
+      expect(
+        cli.responses.last['message'],
+        contains('Ask them in your reply instead'),
+      );
       kernel.dispose();
     });
 
