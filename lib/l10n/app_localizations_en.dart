@@ -12944,6 +12944,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ustatFieldUpstreamLatency => 'Upstream answered';
 
   @override
+  String get ustatCallAsking => 'Requesting';
+
+  @override
+  String get ustatCallAnswering => 'Answering';
+
+  @override
   String get ustatFieldFirstToken => 'First token';
 
   @override

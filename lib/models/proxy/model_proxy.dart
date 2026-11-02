@@ -202,7 +202,14 @@ class ModelProxy {
       if (!countTokens) {
         ledger = _usage?.call();
         if (ledger != null && ledger.enabled) {
-          meter = _meter(provider, body, request, text.length, ledger.detailed);
+          final followed = meter = _meter(
+            provider,
+            body,
+            request,
+            text.length,
+            ledger.detailed,
+          );
+          ledger.begin(followed, () => followed.progress);
           if (ledger.trace) {
             final trace = UsageTrace(UsageTrace.newId(DateTime.now()))
               ..asked(
@@ -254,6 +261,7 @@ class ModelProxy {
       if (meter?.finish(response.statusCode) case final call?) {
         ledger?.record(call, trace: trace);
       }
+      if (meter != null) ledger?.end(meter);
     }
   }
 

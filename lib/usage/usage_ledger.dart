@@ -402,6 +402,33 @@ class UsageLedger extends ChangeNotifier {
     }
   }
 
+  // --- Under way ------------------------------------------------------------
+
+  /// The calls asked but not yet answered in full, by whoever follows
+  /// them: what each is so far. Not kept: only shown, till it is.
+  final Map<Object, UsageCall Function()> _underway = {};
+
+  /// [key]'s call is under way, [progress] telling what it is so far.
+  void begin(Object key, UsageCall Function() progress) {
+    if (!enabled) return;
+    _underway[key] = progress;
+    notifyListeners();
+  }
+
+  /// [key]'s call is over: kept ([record]) first, where it is.
+  void end(Object key) {
+    if (_underway.remove(key) != null) notifyListeners();
+  }
+
+  /// The calls under way, as they are now: [session]'s (all, without it),
+  /// oldest first.
+  List<UsageCall> underway([String? session]) => [
+    for (final progress in _underway.values)
+      if (progress() case final call
+          when session == null || call.session == session)
+        call,
+  ]..sort((a, b) => a.at.compareTo(b.at));
+
   @override
   void dispose() {
     flush();

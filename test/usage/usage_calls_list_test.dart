@@ -17,7 +17,11 @@ UsageCall _call(DateTime at, String model) => UsageCall(
   output: 50,
 );
 
-Widget _app(List<UsageCall> calls, UsageLedger ledger) => MaterialApp(
+Widget _app(
+  List<UsageCall> calls,
+  UsageLedger ledger, {
+  List<UsageCall> underway = const [],
+}) => MaterialApp(
   locale: const Locale('zh'),
   localizationsDelegates: const [
     AppLocalizations.delegate,
@@ -28,7 +32,12 @@ Widget _app(List<UsageCall> calls, UsageLedger ledger) => MaterialApp(
   supportedLocales: AppLocalizations.supportedLocales,
   home: Material(
     child: SingleChildScrollView(
-      child: UsageCallsList(calls: calls, ledger: ledger, showSession: false),
+      child: UsageCallsList(
+        calls: calls,
+        underway: underway,
+        ledger: ledger,
+        showSession: false,
+      ),
     ),
   ),
 );
@@ -63,5 +72,53 @@ void main() {
     expect(tester.element(find.byType(UsageCallDetail)), same(opened));
     // The ledger's telling and writing.
     await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('a call under way shows above the rest, how far it is, and '
+      'does not open', (tester) async {
+    // As narrow as the side panel's.
+    tester.view
+      ..physicalSize = const Size(480, 800)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final now = DateTime(2026, 11, 1, 16);
+    final ledger = UsageLedger(MemoryUsageStorage(), clock: () => now);
+    addTearDown(ledger.dispose);
+    UsageCall underway({Duration? firstToken}) => UsageCall(
+      at: now.add(const Duration(seconds: 30)),
+      duration: const Duration(minutes: 5, seconds: 10),
+      firstToken: firstToken,
+      status: 0,
+      provider: 'relay',
+      model: 'model-live',
+      session: 's1',
+    );
+    await tester.pumpWidget(
+      _app([_call(now, 'model-a')], ledger, underway: [underway()]),
+    );
+    expect(find.textContaining('请求中'), findsOneWidget);
+    expect(find.textContaining('5m 10s'), findsOneWidget);
+    // Above the call kept.
+    expect(
+      tester.getTopLeft(find.textContaining('model-live')).dy,
+      lessThan(tester.getTopLeft(find.textContaining('model-a')).dy),
+    );
+    await tester.tap(find.byType(UsageClassTag).first);
+    await tester.pump();
+    expect(find.byType(UsageCallDetail), findsNothing);
+
+    await tester.pumpWidget(
+      _app(
+        [_call(now, 'model-a')],
+        ledger,
+        underway: [underway(firstToken: const Duration(seconds: 23))],
+      ),
+    );
+    expect(find.textContaining('输出中'), findsOneWidget);
+    expect(find.textContaining('首字 23s'), findsOneWidget);
+
+    // Its first, alone.
+    await tester.pumpWidget(_app(const [], ledger, underway: [underway()]));
+    expect(find.textContaining('请求中'), findsOneWidget);
   });
 }

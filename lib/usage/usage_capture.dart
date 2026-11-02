@@ -483,6 +483,31 @@ class _Tally {
   }
 }
 
+/// Whether [event] (one of the Messages API's stream) brings some of the
+/// answer itself: text, reasoning, a call (its name, its input). Not a
+/// block opened empty, a signature, a keep-alive: the first that does is
+/// the time to first token.
+bool bringsAnswer(Object? event) => switch (event) {
+  {'type': 'content_block_delta', 'delta': final Map<Object?, Object?> delta} =>
+    switch (delta) {
+      {'text': final String text} ||
+      {'thinking': final String text} ||
+      {'partial_json': final String text} => text.trim().isNotEmpty,
+      _ => false,
+    },
+  {
+    'type': 'content_block_start',
+    'content_block': final Map<Object?, Object?> block,
+  } =>
+    switch (block) {
+      {'type': 'tool_use' || 'server_tool_use'} => true,
+      {'text': final String text} ||
+      {'thinking': final String text} => text.trim().isNotEmpty,
+      _ => false,
+    },
+  _ => false,
+};
+
 /// Follows one request through the proxy, from asked to answered: reads
 /// the answer as it goes to Claude Code (the Messages API's events, or its
 /// message whole), whichever upstream gave it, for the tokens, the time to
@@ -613,12 +638,8 @@ class UsageMeter {
   void _line(String line) {
     if (!line.startsWith('data:')) return;
     _sawEvent = true;
-    // A piece of the answer: the first is the time to first token; the
-    // rest only count their bytes.
-    if (line.contains('"content_block_delta"')) {
-      _firstToken ??= _watch.elapsed;
-      return;
-    }
+    // A piece of the answer once the first is in: only its bytes count.
+    if (_firstToken != null && line.contains('"content_block_delta"')) return;
     final Object? event;
     try {
       event = jsonDecode(line.substring(5).trim());
@@ -626,6 +647,7 @@ class UsageMeter {
       return;
     }
     if (event is! Map) return;
+    if (bringsAnswer(event)) _firstToken ??= _watch.elapsed;
     switch (event['type']) {
       case 'message_start':
         if (event['message'] case final Map<Object?, Object?> message) {
@@ -635,7 +657,6 @@ class UsageMeter {
           }
         }
       case 'content_block_start':
-        _firstToken ??= _watch.elapsed;
         if (event['content_block'] case {
           'type': 'tool_use' || 'server_tool_use',
           'name': final String name,
@@ -688,6 +709,14 @@ class UsageMeter {
       _whole.clear();
     }
     _watch.stop();
+    return _call(status);
+  }
+
+  /// What it is so far, while under way ([UsageLedger.underway]): its
+  /// status 0.
+  UsageCall get progress => _call(0);
+
+  UsageCall _call(int status) {
     return UsageCall(
       at: _started,
       duration: _watch.elapsed,
