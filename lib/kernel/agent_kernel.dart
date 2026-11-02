@@ -85,6 +85,7 @@ class KernelWorkspace {
     this.instructions = '',
     this.ownPrompt = false,
     this.tools,
+    this.userServers = false,
     this.allowedTools = const [],
     this.approvesAll = false,
     this.reaches = const [],
@@ -107,8 +108,12 @@ class KernelWorkspace {
 
   /// The only built-in tools it has (none for an empty list), the app's
   /// own aside; all when null. Set, the app's MCP servers are its only
-  /// ones: none of the user's.
+  /// ones: none of the user's, but with [userServers].
   final List<String>? tools;
+
+  /// Whether, with [tools] set, the user's own MCP servers are its all the
+  /// same: [tools] there only to keep some of Claude Code's own from it.
+  final bool userServers;
 
   /// Built-in tools it uses without asking, whatever its permission mode
   /// (permission rules: `WebFetch`, say).

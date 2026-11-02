@@ -614,6 +614,7 @@ class ClaudeCodeKernel
           instructions: workspace?.instructions,
           ownPrompt: workspace?.ownPrompt ?? false,
           tools: workspace?.tools,
+          userServers: workspace?.userServers ?? false,
           allowed: workspace?.allowedTools ?? const [],
           models: switch (custom) {
             (final provider, _) => _requestedModels(provider),

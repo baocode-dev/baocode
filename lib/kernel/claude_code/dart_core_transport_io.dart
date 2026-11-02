@@ -81,7 +81,7 @@ class DartCoreTransport implements ClaudeCodeTransport {
         null => null,
       },
       // Only the app's servers then, as the CLI's --strict-mcp-config.
-      strictMcpConfig: launch.tools != null,
+      strictMcpConfig: launch.tools != null && !launch.userServers,
       systemPrompt: launch.ownPrompt ? instructions ?? '' : null,
       appendSystemPrompt: launch.ownPrompt
           ? null
