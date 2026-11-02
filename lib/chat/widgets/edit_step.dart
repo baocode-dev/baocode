@@ -315,7 +315,7 @@ class _FileHeader extends StatelessWidget {
   /// How tall it is: its name's line and room round it, as tall as a code
   /// block's title.
   static double heightOf(BuildContext context) =>
-      (MediaQuery.textScalerOf(context).scale(12.5) * 1.3 + 16).roundToDouble();
+      (MediaQuery.textScalerOf(context).scale(12.5) * 1.3 + 10).roundToDouble();
 
   @override
   Widget build(BuildContext context) {
