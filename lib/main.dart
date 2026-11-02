@@ -337,6 +337,10 @@ Future<void> main(List<String> arguments) async {
         http: IoForgeHttp(),
         read: () => files.storage.get<List<Object?>>(forgeAccountsKey),
         write: (json) => files.storage.set(forgeAccountsKey, json),
+        readCertificates: () =>
+            files.storage.get<Map<Object?, Object?>>(forgeCertificatesKey),
+        writeCertificates: (json) =>
+            files.storage.set(forgeCertificatesKey, json),
       ),
     );
     StashForge.current = stash.forge;

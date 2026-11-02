@@ -4,6 +4,8 @@
 
 import 'package:flutter/foundation.dart';
 
+import 'forge_address.dart';
+
 enum ForgeKind {
   github,
   gitlab;
@@ -40,14 +42,26 @@ ForgeKind? publicForgeKind(String host) => switch (host.toLowerCase()) {
 /// groups before its name, `group/sub/name`).
 @immutable
 class ForgeRepo {
-  const ForgeRepo({required this.kind, required this.host, required this.path});
+  const ForgeRepo({
+    required this.kind,
+    required this.host,
+    required this.path,
+    this.scheme = 'https',
+  });
 
   final ForgeKind kind;
+
+  /// The server's authority: its host, with the port when not [scheme]'s
+  /// default (`gitlab.corp:8080`).
   final String host;
+
   final String path;
 
+  /// `http`, for a self-hosted forge served so; `https` otherwise.
+  final String scheme;
+
   /// Its page.
-  Uri get url => Uri.https(host, '/$path');
+  Uri get url => forgeUri(scheme, host, '/$path');
 
   @override
   String toString() => path;
@@ -67,18 +81,25 @@ class ForgeRepo {
   /// [kindOf] (or [publicForgeKind]) knows; null for none.
   static ForgeRepo? fromRemote(String remote, {ForgeKindOf? kindOf}) {
     final text = remote.trim();
+    final String scheme;
     final String host;
     String path;
     // scp-like: user@host:path.
     final scp = RegExp(r'^(?:[^@/\s]+@)?([^:/\s]+):(?!//)(.+)$')
         .firstMatch(text);
     if (scp != null && !text.contains('://')) {
+      // Git over SSH; its pages are https unless its account says otherwise.
+      scheme = 'https';
       host = scp[1]!;
       path = scp[2]!;
     } else {
       final uri = Uri.tryParse(text);
       if (uri == null || uri.host.isEmpty) return null;
-      host = uri.host;
+      // The web (and API) scheme the remote is served with; a remote over
+      // SSH's pages are https, and its port is not the web's.
+      final web = uri.scheme == 'http' || uri.scheme == 'https';
+      scheme = uri.scheme == 'http' ? 'http' : 'https';
+      host = web ? forgeAuthority(uri) : uri.host;
       path = uri.path;
     }
     path = path.replaceAll(RegExp(r'^/+|/+$'), '');
@@ -90,7 +111,12 @@ class ForgeRepo {
     if (kind == null) return null;
     // GitHub's are owner/name, no more.
     if (kind == ForgeKind.github && path.split('/').length != 2) return null;
-    return ForgeRepo(kind: kind, host: host.toLowerCase(), path: path);
+    return ForgeRepo(
+      kind: kind,
+      host: host.toLowerCase(),
+      path: path,
+      scheme: scheme,
+    );
   }
 }
 
@@ -156,7 +182,8 @@ class ForgeRef {
       return null;
     }
     if (uri.host.isEmpty) return null;
-    final host = uri.host.toLowerCase();
+    final host = forgeAuthority(uri);
+    final scheme = uri.isScheme('http') ? 'http' : 'https';
     final parts = uri.pathSegments.where((part) => part.isNotEmpty).toList();
     // GitLab: <path>/-/(issues|merge_requests)/<n>, on any host.
     final dash = parts.indexOf('-');
@@ -174,6 +201,7 @@ class ForgeRef {
             kind: ForgeKind.gitlab,
             host: host,
             path: parts.sublist(0, dash).join('/'),
+            scheme: scheme,
           ),
           kind: kind,
           number: number,
@@ -196,6 +224,7 @@ class ForgeRef {
             kind: ForgeKind.github,
             host: host,
             path: '${parts[0]}/${parts[1]}',
+            scheme: scheme,
           ),
           kind: kind,
           number: number,

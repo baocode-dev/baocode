@@ -45,6 +45,15 @@ class FakeForgeHttp implements ForgeHttp {
   }
 }
 
+/// A [FakeForgeHttp] that takes certificates, as the app's client does.
+class TrustingFakeForgeHttp extends FakeForgeHttp
+    implements ForgeCertificateTrust {
+  final Map<String, String> trusted = {};
+
+  @override
+  void trustCertificate(String host, String sha256) => trusted[host] = sha256;
+}
+
 /// A [SecretStore] that counts the reads: on Windows each read of the real
 /// one runs a program (PowerShell, DPAPI), so how many a burst of requests
 /// starts is what the hang was made of.
@@ -163,6 +172,23 @@ void main() {
         'git.corp',
       );
       expect(ForgeRepo.fromRemote('git@unknown.host:o/r.git'), isNull);
+    });
+
+    test('a self-hosted forge over http, with its port', () {
+      final repo = ForgeRepo.fromRemote(
+        'http://gitlab.corp:8080/team/app.git',
+        kindOf: (host) => host == 'gitlab.corp:8080' ? ForgeKind.gitlab : null,
+      )!;
+      expect(repo.host, 'gitlab.corp:8080');
+      expect(repo.scheme, 'http');
+      expect(repo.url.toString(), 'http://gitlab.corp:8080/team/app');
+
+      final ref = ForgeRef.parse(
+        'http://gitlab.corp:8080/team/app/-/issues/5',
+      )!;
+      expect(ref.repo.host, 'gitlab.corp:8080');
+      expect(ref.repo.scheme, 'http');
+      expect(ref.url.toString(), 'http://gitlab.corp:8080/team/app/-/issues/5');
     });
   });
 
@@ -338,6 +364,21 @@ void main() {
       api = GitLabApi(host: 'gitlab.com', http: http, token: () async => 't');
     });
 
+    test('a self-hosted GitLab over http, with its port', () async {
+      final api = GitLabApi(
+        host: 'gitlab.corp:8080',
+        scheme: 'http',
+        http: http,
+        token: () async => 't',
+      );
+      http.on(
+        'GET',
+        'http://gitlab.corp:8080/api/v4/user',
+        (_) => {'username': 'leo'},
+      );
+      expect((await api.me()).login, 'leo');
+    });
+
     test('a merge request: its pipeline, by the project\'s path', () async {
       http.on(
         'GET',
@@ -435,6 +476,63 @@ void main() {
       expect(accounts.accounts, isEmpty);
       expect(await secrets.read('forge.gitlab.corp'), isNull);
       expect(kept, isEmpty);
+    });
+
+    test('a self-hosted GitLab over http: its address kept, and spoken to '
+        'so', () async {
+      final http = FakeForgeHttp()
+        ..on(
+          'GET',
+          'http://gitlab.corp:8080/api/v4/user',
+          (_) => {'username': 'leo'},
+        );
+      final secrets = MemorySecretStore();
+      Object? kept;
+      final accounts = ForgeAccounts(
+        http: http,
+        secrets: secrets,
+        write: (json) async => kept = json,
+      );
+      final account = await accounts.signInWithToken(
+        ForgeKind.gitlab,
+        'http://gitlab.corp:8080/',
+        'glpat-x',
+      );
+      expect(account.host, 'gitlab.corp:8080');
+      expect(account.scheme, 'http');
+      expect(await secrets.read('forge.gitlab.corp:8080'), contains('glpat-x'));
+      expect(kept, [
+        {
+          'kind': 'gitlab',
+          'host': 'gitlab.corp:8080',
+          'login': 'leo',
+          'via': 'token',
+          'scheme': 'http',
+        },
+      ]);
+      expect(accounts.apiFor('gitlab.corp:8080'), isA<GitLabApi>());
+    });
+
+    test('a certificate the user trusts is kept, and taken again on start', () {
+      final http = TrustingFakeForgeHttp();
+      Object? kept;
+      final accounts = ForgeAccounts(
+        http: http,
+        secrets: MemorySecretStore(),
+        readCertificates: () => kept,
+        writeCertificates: (json) async => kept = json,
+      );
+      accounts.trustCertificate('GitLab.Corp:8080', 'AB');
+      expect(http.trusted['gitlab.corp:8080'], 'ab');
+      expect(kept, {'gitlab.corp:8080': 'ab'});
+
+      final again = TrustingFakeForgeHttp();
+      ForgeAccounts(
+        http: again,
+        secrets: MemorySecretStore(),
+        readCertificates: () => kept,
+      );
+      expect(again.trusted['gitlab.corp:8080'], 'ab');
     });
 
     test('a token that is not taken is not kept', () async {

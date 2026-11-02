@@ -8,6 +8,7 @@ import 'dart:math' as math;
 import 'package:crypto/crypto.dart' show sha1;
 import 'package:flutter/foundation.dart';
 
+import 'forge_address.dart';
 import 'forge_ref.dart';
 
 /// A response: its status and its body, as text.
@@ -37,6 +38,13 @@ abstract interface class ForgeHttp {
   });
 }
 
+/// Takes a server's certificate the user confirmed, by its SHA-256, for
+/// the host it is served from: a self-signed one, or a private CA's. Every
+/// other certificate is checked as usual.
+abstract interface class ForgeCertificateTrust {
+  void trustCertificate(String host, String sha256);
+}
+
 /// A forge did not do what was asked: no answer ([status] null), a token
 /// it does not take (401), something not there or not to be seen (404).
 class ForgeException implements Exception {
@@ -49,6 +57,28 @@ class ForgeException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// A forge's certificate cannot be verified: the one it presents, for the
+/// user to confirm (it is then trusted by [sha256], and only it).
+class ForgeCertificateException extends ForgeException {
+  const ForgeCertificateException(
+    super.message, {
+    required this.host,
+    required this.sha256,
+    this.subject = '',
+    this.issuer = '',
+  });
+
+  /// The server's authority (`gitlab.corp:8080`).
+  final String host;
+
+  /// The fingerprint of the certificate it presented, in hex.
+  final String sha256;
+
+  /// Whom the certificate is for, and who issued it, as it says.
+  final String subject;
+  final String issuer;
 }
 
 /// The message in a forge's error response, if it has one.
@@ -191,11 +221,24 @@ class ForgeUser {
 
 /// A forge's API, signed in.
 abstract class ForgeApi {
-  ForgeApi({required this.host, required this.http, required this.token});
+  ForgeApi({
+    required this.host,
+    this.scheme = 'https',
+    required this.http,
+    required this.token,
+  });
 
-  /// The forge's host (`github.com`, `gitlab.example.com`).
+  /// The forge's authority (`github.com`, `gitlab.example.com:8080`).
   final String host;
+
+  /// `http`, for a self-hosted forge served so; `https` otherwise.
+  final String scheme;
+
   final ForgeHttp http;
+
+  /// The API at [path] on the forge.
+  Uri _at(String path, {Map<String, String>? query}) =>
+      forgeUri(scheme, host, path, query: query);
 
   /// Its token, asked for when needed (it may be refreshed meanwhile).
   final Future<String> Function() token;
@@ -312,15 +355,19 @@ abstract class ForgeApi {
 
 /// GitHub's REST API.
 class GitHubApi extends ForgeApi {
-  GitHubApi({required super.host, required super.http, required super.token});
+  GitHubApi({
+    required super.host,
+    super.scheme,
+    required super.http,
+    required super.token,
+  });
 
   @override
   ForgeKind get kind => ForgeKind.github;
 
   @override
-  Uri get _base => host == 'github.com'
-      ? Uri.https('api.github.com', '')
-      : Uri.https(host, '/api/v3');
+  Uri get _base =>
+      host == 'github.com' ? Uri.https('api.github.com', '') : _at('/api/v3');
 
   @override
   Map<String, String> _headers(String token) => {
@@ -632,9 +679,12 @@ class GitHubApi extends ForgeApi {
       // There already: put there before.
       if (error.status != 422) rethrow;
     }
-    return Uri.https(repo.host, '/${repo.path}/blob/$assetsBranch/$path', {
-      'raw': 'true',
-    }).toString();
+    return repo.url
+        .replace(
+          path: '/${repo.path}/blob/$assetsBranch/$path',
+          queryParameters: {'raw': 'true'},
+        )
+        .toString();
   }
 
   final Set<ForgeRepo> _branched = {};
@@ -683,13 +733,18 @@ class GitHubApi extends ForgeApi {
 
 /// GitLab's REST API (v4).
 class GitLabApi extends ForgeApi {
-  GitLabApi({required super.host, required super.http, required super.token});
+  GitLabApi({
+    required super.host,
+    super.scheme,
+    required super.http,
+    required super.token,
+  });
 
   @override
   ForgeKind get kind => ForgeKind.gitlab;
 
   @override
-  Uri get _base => Uri.https(host, '/api/v4');
+  Uri get _base => _at('/api/v4');
 
   @override
   Map<String, String> _headers(String token) => {

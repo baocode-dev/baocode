@@ -6979,7 +6979,7 @@
   "accountsAdd": "Add an account",
   "accountsKeptLocally": "Tokens are kept in this computer's keychain and are sent only to the GitHub or GitLab they are for. Nothing is posted without your confirmation.",
   "accountsGitHubHosts": "github.com, or your company's GitHub Enterprise",
-  "accountsGitLabHosts": "gitlab.com, or a self-managed GitLab",
+  "accountsGitLabHosts": "gitlab.com, or a self-managed GitLab (http:// or https://, with its port)",
   "accountsSignInBrowser": "Sign in with Browser",
   "accountsSignInToken": "Use a Token…",
   "accountsViaBrowser": "signed in with browser",
@@ -7021,7 +7021,7 @@
     }
   },
   "accountsSignIn": "Sign In",
-  "accountsHost": "Host",
+  "accountsHost": "Server",
   "accountsToken": "Token",
   "accountsTokenGitHubScopes": "A classic token with the repo and read:user scopes, or a fine-grained token with read and write access to issues and pull requests.",
   "accountsTokenGitLabScopes": "A personal access token with the api scope.",
@@ -7034,6 +7034,29 @@
     }
   },
   "accountsTokenRefused": "The token was not accepted. Check that it is complete and has not expired.",
+  "accountsCertificateTitle": "Untrusted Certificate",
+  "@accountsCertificateTitle": {
+    "description": "Title of the dialog asking whether to trust a forge server's certificate."
+  },
+  "accountsCertificateDetail": "The certificate of {host} cannot be verified ({issuer}).\n\nSHA-256 fingerprint:\n{fingerprint}\n\nTrusting it lets BaoCode reach this server, and only the certificate with this fingerprint is accepted. You are asked again if the certificate changes.",
+  "@accountsCertificateDetail": {
+    "description": "What a self-signed or privately issued forge certificate is, before the user confirms it.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "issuer": {
+        "type": "String"
+      },
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "accountsCertificateTrust": "Trust and Continue",
+  "@accountsCertificateTrust": {
+    "description": "Button that trusts the certificate shown, and only that one."
+  },
   "accountsBrowserTitle": "Sign in to {forge}",
   "@accountsBrowserTitle": {
     "placeholders": {
