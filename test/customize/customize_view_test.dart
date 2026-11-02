@@ -21,6 +21,7 @@ import 'package:baocode/ide/markdown/markdown_preview.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/workspace/workspace.dart';
 
 /// Skills kept in memory, by file.
@@ -519,5 +520,35 @@ void main() {
     await tester.tap(find.text('pdf'));
     await tester.pumpAndSettle();
     expect(_markdown(tester).controller.text, contains('Body'));
+  });
+
+  testWidgets("a remote host's Customize keeps its close button at the "
+      'title bar\'s end', (tester) async {
+    tester.view.physicalSize = const Size(1400, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = _MemoryStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CustomizeView(
+            store: store,
+            projects: const [],
+            onClose: () {},
+            host: 'bandwagonhost',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('bandwagonhost'), findsOneWidget);
+    final close = tester.getRect(
+      find.ancestor(
+        of: find.byIcon(Codicons.close),
+        matching: find.byType(SidebarIconButton),
+      ),
+    );
+    // As far right as on this machine's: 8 off the edge.
+    expect(close.right, 1400 - 8);
   });
 }
