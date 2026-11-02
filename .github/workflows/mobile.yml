@@ -98,8 +98,14 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
       # bao_iroh's Rust (the link), built by its build hook for the
-      # phone's targets.
-      - uses: ./monad/.github/actions/setup-rust
+      # phone's targets where main's build of it is not in the cache.
+      - id: iroh
+        uses: ./monad/.github/actions/bao-iroh-prebuilt
+        with:
+          kind: android
+          root: monad
+      - if: steps.iroh.outputs.hit != 'true'
+        uses: ./monad/.github/actions/setup-rust
         with:
           dir: monad/packages/bao_iroh/rust
       - name: Put the release key in a file
@@ -195,8 +201,14 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
       # bao_iroh's Rust (the link), built by its build hook for the
-      # phone's targets.
-      - uses: ./monad/.github/actions/setup-rust
+      # phone's targets where main's build of it is not in the cache.
+      - id: iroh
+        uses: ./monad/.github/actions/bao-iroh-prebuilt
+        with:
+          kind: ios
+          root: monad
+      - if: steps.iroh.outputs.hit != 'true'
+        uses: ./monad/.github/actions/setup-rust
         with:
           dir: monad/packages/bao_iroh/rust
       - name: Put the certificate in a keychain, and the profile where Xcode finds it
