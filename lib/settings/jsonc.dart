@@ -212,21 +212,20 @@ String applyJsoncEdits(String text, List<JsoncEdit> edits) {
       final byLength = a.$2.length - b.$2.length;
       return byLength != 0 ? byLength : a.$1 - b.$1;
     });
-  var lastModifiedOffset = text.length;
-  for (final (_, edit) in sorted.reversed) {
-    if (edit.offset + edit.length > lastModifiedOffset) {
-      throw ArgumentError('Overlapping edit');
-    }
-    text = _applyEdit(text, edit);
-    lastModifiedOffset = edit.offset;
+  // Written front to back in one go: a copy of the text for each edit was
+  // quadratic, seconds for a laying out of a long list (models.providers).
+  final result = StringBuffer();
+  var copied = 0;
+  for (final (_, edit) in sorted) {
+    if (edit.offset < copied) throw ArgumentError('Overlapping edit');
+    result
+      ..write(text.substring(copied, edit.offset))
+      ..write(edit.content);
+    copied = edit.offset + edit.length;
   }
-  return text;
+  result.write(text.substring(copied));
+  return result.toString();
 }
-
-String _applyEdit(String text, JsoncEdit edit) =>
-    text.substring(0, edit.offset) +
-    edit.content +
-    text.substring(edit.offset + edit.length);
 
 // --- The syntax tree ------------------------------------------------------
 
