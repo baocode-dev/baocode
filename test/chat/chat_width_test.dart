@@ -6,6 +6,7 @@ import 'package:baocode/chat/chat_width.dart';
 import 'package:baocode/chat/widgets/chat_minimap.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/ide/ide_color_theme_picker.dart';
+import 'package:baocode/ide/ide_step_slider.dart';
 import 'package:baocode/settings/pages/appearance_page.dart';
 import 'package:baocode/settings/pages/settings_widgets.dart';
 import 'package:baocode/settings/user_settings.dart';
@@ -143,7 +144,7 @@ void main() {
     // size's come after it.
     final slider = find.descendant(
       of: find.byType(SettingsSlider).first,
-      matching: find.byType(Slider),
+      matching: find.byType(IdeStepSlider),
     );
     await tester.tapAt(tester.getTopRight(slider) + const Offset(-4, 10));
     await tester.pump();

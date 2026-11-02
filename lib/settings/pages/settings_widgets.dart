@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../base/smooth_scroll.dart';
 import '../../chat/chat_width.dart';
 import '../../chat/widgets/scroll_edge_fade.dart';
+import '../../ide/ide_step_slider.dart';
 import '../../ide/ide_switch.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
@@ -552,45 +553,20 @@ class SettingsSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = AppColors.accent;
-    // One semantics node per slider: several in a card otherwise fail the
-    // engine's semantics check.
+    // One semantics node per slider, its label with it: several in a card
+    // otherwise fail the engine's semantics check.
     return MergeSemantics(
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label, style: SettingsText.description),
           const SizedBox(width: 8),
-          SizedBox(
-            width: 180,
-            child: SliderTheme(
-              data: SliderThemeData(
-                trackHeight: 3,
-                activeTrackColor: accent,
-                inactiveTrackColor: AppColors.textFaint.withValues(alpha: 0.35),
-                activeTickMarkColor: Colors.white.withValues(alpha: 0.7),
-                inactiveTickMarkColor: AppColors.textMuted,
-                thumbColor: Colors.white,
-                overlayColor: accent.withValues(alpha: 0.12),
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                tickMarkShape: const RoundSliderTickMarkShape(
-                  tickMarkRadius: 1.5,
-                ),
-                showValueIndicator: ShowValueIndicator.never,
-              ),
-              child: Slider(
-                value: step.toDouble(),
-                max: (count - 1).toDouble(),
-                divisions: count - 1,
-                allowedInteraction: tapOnly ? SliderInteraction.tapOnly : null,
-                semanticFormatterCallback: (_) => semanticLabel,
-                onChanged: (value) {
-                  final picked = value.round();
-                  if (picked != step) onChanged(picked);
-                },
-              ),
-            ),
+          IdeStepSlider(
+            step: step,
+            count: count,
+            semanticLabel: semanticLabel,
+            tapOnly: tapOnly,
+            onChanged: onChanged,
           ),
         ],
       ),

@@ -669,7 +669,8 @@ void main() {
         ],
       },
     });
-    await tester.pump();
+    // Shown with the next of the turn's rebuilds (at most every 66 ms).
+    await tester.pump(const Duration(milliseconds: 100));
     expect(tester.widget<PlanCard>(card).item.status, PlanStatus.awaiting);
     expect(session.awaitingPlan?.path, plan);
     // Not started while the turn that put it goes on.

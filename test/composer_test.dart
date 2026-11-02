@@ -1419,21 +1419,38 @@ void main() {
     );
     // The history opens at the bottom; bring the message into view.
     Future<void> reveal(WidgetTester tester, String text) async {
-      // Mid-view: at the top, the message's copy stuck there would cover it.
-      await Scrollable.ensureVisible(
-        tester.element(
-          find.descendant(
-            of: find.byType(SuperListView),
-            matching: find.textContaining(
-              text,
-              findRichText: true,
-              skipOffstage: false,
-            ),
-            skipOffstage: false,
-          ),
+      final message = find.descendant(
+        of: find.byType(SuperListView),
+        matching: find.textContaining(
+          text,
+          findRichText: true,
+          skipOffstage: false,
         ),
-        alignment: 0.5,
+        skipOffstage: false,
       );
+      // Up the list until it is built: the list builds what is near the view.
+      final position = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(SuperListView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      while (message.evaluate().isEmpty &&
+          position.pixels > position.minScrollExtent) {
+        position.jumpTo(
+          (position.pixels - 400).clamp(
+            position.minScrollExtent,
+            position.maxScrollExtent,
+          ),
+        );
+        await tester.pump();
+      }
+      // Mid-view: at the top, the message's copy stuck there would cover it.
+      await Scrollable.ensureVisible(tester.element(message), alignment: 0.5);
       await tester.pump();
     }
 

@@ -1702,8 +1702,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           layer.localToGlobal(Offset.zero).dy;
       return _sticks ? math.max(top, inset) : top;
     }
+    // Not findRenderObject: painted in the frame whose layout dropped the
+    // placeholder's item, its element is inactive (and its box detached)
+    // until the frame ends.
     final placeholder =
-        _editorPlaceholderKey.currentContext?.findRenderObject() as RenderBox?;
+        (_editorPlaceholderKey.currentContext as Element?)?.renderObject
+            as RenderBox?;
     if (placeholder != null && placeholder.attached && placeholder.hasSize) {
       final top =
           placeholder.localToGlobal(Offset.zero).dy -
