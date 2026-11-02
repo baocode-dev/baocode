@@ -67,6 +67,7 @@ class ClaudeLaunch {
     this.models = const [],
     this.sdkServers = const [],
     this.tools,
+    this.userServers = false,
     this.allowed = const [],
     this.promptSuggestions = true,
     this.switches = ExtensionSwitches.none,
@@ -93,8 +94,11 @@ class ClaudeLaunch {
   /// The only built-in tools it has (`--tools`; none for an empty list),
   /// [sdkServers]' tools aside; all when null. Set, [sdkServers] are its
   /// only MCP servers too (`--strict-mcp-config`): not the user's own,
-  /// configured for Claude Code.
+  /// configured for Claude Code, but with [userServers].
   final List<String>? tools;
+
+  /// Whether, with [tools] set, the user's own MCP servers are kept.
+  final bool userServers;
 
   /// Built-in tools it uses without asking (permission rules: `WebFetch`,
   /// say), as the flag settings allow them.
@@ -339,7 +343,7 @@ class ClaudeLaunch {
     if (tools case final tools?) ...[
       '--tools',
       tools.join(','),
-      '--strict-mcp-config',
+      if (!userServers) '--strict-mcp-config',
     ],
     if (sdkServers.isNotEmpty) ...[
       '--mcp-config',

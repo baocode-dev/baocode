@@ -472,11 +472,14 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         ),
         // Told only who it is and how it talks: no coding agent's prompt.
         ownPrompt: true,
-        // All of an agent's, and its own; only the web's and its own when
+        // An agent's, but for what waits on someone at the computer
+        // (BotPermissions), and its own; only the web's and its own when
         // it only chats (with the tool search, for the browser's, which
         // are deferred). All of it unasked: the user is on their phone,
         // not at the computer.
         tools: BotPermissions.tools(bot),
+        // An agent's has the user's MCP servers, as an agent does.
+        userServers: !bot.chatOnly,
         approvesAll: true,
         // What the user writes while it talks, taken up as it does: as a
         // person hears what is said meanwhile; and shown where they wrote
