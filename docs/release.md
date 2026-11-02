@@ -181,7 +181,7 @@ dart run tool/build_macos.dart --remote-release              # macOS 同理
 
 - **`latest.json` 最后传**：应用一读到新清单就会去下载，安装包必须先就位。
 - **远程服务端只编译一次**：`remote` 任务编译，macOS 和 Windows 两个应用带的是同一份 `servers.json`（四个平台都有），R2 上一个版本只有一个 `releases/remote/<版本>-<二进制哈希>/`。
-- **应用和远程服务端同时编**：`macos`、`windows`、`linux` 不 `needs` `remote`，应用编完、打包前才用 `.github/actions/wait-for-artifact` 等 `remote` 产物（最多 20 分钟）；`share`、`publish` 仍然等 `remote` 整个跑完（含 Linux 上的测试）。
+- **应用和远程服务端同时编**：`macos`、`windows`、`linux` 不 `needs` `remote`，应用编完、打包前才用 `.github/actions/wait-for-artifact` 等 `remote` 产物（远程服务端的 job 失败或被取消——macOS 机器可能 15 分钟都分不到——就立刻跟着失败，像 `needs` 一样；最多等 20 分钟）；`share`、`publish` 仍然等 `remote` 整个跑完（含 Linux 上的测试）。
 - **bao_iroh 的 Rust 不在发版时编**：`bao_iroh.yml` 在 main 上按 `packages/bao_iroh/rust/` 的哈希给每个目标编一次，存进 main 的缓存（标签上的运行只能读 main 的缓存，标签自己存的别的标签读不到，所以发版任务只读不存，flutter-action 也不开缓存）；各构建任务用 `.github/actions/bao-iroh-prebuilt` 取到 `packages/bao_iroh/build/prebuilt/<target>/`，构建钩子直接用。没取到（Rust 只在标签上改了、或 `bao_iroh.yml` 还没跑完）就照旧现编。
 - **下载链接带哈希**：`latest.json` 里每个链接末尾是 `?sha256=<文件哈希前 16 位>`。CDN 按完整地址缓存，文件换了地址就换了，不会给出旧文件；应用取文件名时只看路径。
 - **`downloads`**：`latest.json` 里多了这一项，是给网站用的（两个 dmg 和 Windows 安装包的链接、大小，键是 `macos-arm64`、`macos-x64`、`windows`、`windows-arm64`、`linux-x64`、`linux-arm64`），应用不读它。Windows on Arm 的应用按 `windows-arm64` 更新；x64 版在 Arm 上（模拟运行）继续按 `windows-x64` 更新，不自动换。

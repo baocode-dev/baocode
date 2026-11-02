@@ -225,6 +225,7 @@ jobs:
         with:
           name: remote
           path: build/remote
+          job: Remote server / Build the remote server
       - name: Sign, notarise and package
         env:
           BAOCODE_MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
@@ -340,6 +341,7 @@ jobs:
         with:
           name: remote
           path: build/remote
+          job: Remote server / Build the remote server
       - name: Package
         run: dart run tool/build_windows.dart --skip-build --remote-built --arch ${{ matrix.arch }} ${{ matrix.edition == 'channel' && '--channel' || '' }}
       - uses: actions/upload-artifact@v6
@@ -423,6 +425,7 @@ jobs:
         with:
           name: remote
           path: build/remote
+          job: Remote server / Build the remote server
       - name: Package the .deb and the tarball
         run: |
           sh tool/package_linux_deb.sh ${{ matrix.edition == 'channel' && '--channel' || '' }}
