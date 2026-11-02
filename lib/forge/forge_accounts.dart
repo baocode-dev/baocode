@@ -252,6 +252,8 @@ class ForgeAccounts extends ChangeNotifier {
       switch (kind) {
         ForgeKind.github => githubClient.isNotEmpty,
         ForgeKind.gitlab => gitlabClient.isNotEmpty,
+        // No device flow: a token only.
+        ForgeKind.gitee => false,
       };
 
   static String _secretId(String host) => 'forge.$host';
@@ -260,22 +262,39 @@ class ForgeAccounts extends ChangeNotifier {
   ForgeApi? apiFor(String host) {
     final account = accountFor(host);
     if (account == null) return null;
-    Future<String> token() => _accessToken(account);
-    return switch (account.kind) {
-      ForgeKind.github => GitHubApi(
-        host: account.host,
-        scheme: account.scheme,
-        http: http,
-        token: token,
-      ),
-      ForgeKind.gitlab => GitLabApi(
-        host: account.host,
-        scheme: account.scheme,
-        http: http,
-        token: token,
-      ),
-    };
+    return _api(
+      account.kind,
+      account.scheme,
+      account.host,
+      () => _accessToken(account),
+    );
   }
+
+  ForgeApi _api(
+    ForgeKind kind,
+    String scheme,
+    String host,
+    Future<String> Function() token,
+  ) => switch (kind) {
+    ForgeKind.github => GitHubApi(
+      host: host,
+      scheme: scheme,
+      http: http,
+      token: token,
+    ),
+    ForgeKind.gitlab => GitLabApi(
+      host: host,
+      scheme: scheme,
+      http: http,
+      token: token,
+    ),
+    ForgeKind.gitee => GiteeApi(
+      host: host,
+      scheme: scheme,
+      http: http,
+      token: token,
+    ),
+  };
 
   /// [ref]'s API: its host's, signed in; null without an account there.
   ForgeApi? apiOf(ForgeRef ref) => apiFor(ref.repo.host);
@@ -379,21 +398,7 @@ class ForgeAccounts extends ChangeNotifier {
     _Token token,
     ForgeSignIn via,
   ) async {
-    Future<String> access() async => token.access;
-    final api = switch (kind) {
-      ForgeKind.github => GitHubApi(
-        host: host,
-        scheme: scheme,
-        http: http,
-        token: access,
-      ),
-      ForgeKind.gitlab => GitLabApi(
-        host: host,
-        scheme: scheme,
-        http: http,
-        token: access,
-      ),
-    };
+    final api = _api(kind, scheme, host, () async => token.access);
     final me = await api.me();
     await _secrets.write(_secretId(host), token.encode());
     _tokens.remove(host);
@@ -432,22 +437,26 @@ class ForgeAccounts extends ChangeNotifier {
   /// Starts signing in to [kind]'s public service from the browser: the
   /// code the user enters there. Throws [ForgeException].
   Future<ForgeDeviceCode> startDeviceFlow(ForgeKind kind) async {
+    if (kind == ForgeKind.gitee) {
+      throw const ForgeException('Gitee signs in with a token only.');
+    }
     final host = kind.publicHost;
     final response = await http.send(
       'POST',
       switch (kind) {
         ForgeKind.github => Uri.https(host, '/login/device/code'),
-        ForgeKind.gitlab => Uri.https(host, '/oauth/authorize_device'),
+        ForgeKind.gitlab ||
+        ForgeKind.gitee => Uri.https(host, '/oauth/authorize_device'),
       },
       headers: const {'Accept': 'application/json'},
       form: {
         'client_id': switch (kind) {
           ForgeKind.github => githubClient,
-          ForgeKind.gitlab => gitlabClient,
+          ForgeKind.gitlab || ForgeKind.gitee => gitlabClient,
         },
         'scope': switch (kind) {
           ForgeKind.github => _githubScopes,
-          ForgeKind.gitlab => _gitlabScopes,
+          ForgeKind.gitlab || ForgeKind.gitee => _gitlabScopes,
         },
       },
     );
@@ -500,13 +509,14 @@ class ForgeAccounts extends ChangeNotifier {
         'POST',
         switch (code.kind) {
           ForgeKind.github => Uri.https(code.host, '/login/oauth/access_token'),
-          ForgeKind.gitlab => Uri.https(code.host, '/oauth/token'),
+          ForgeKind.gitlab ||
+          ForgeKind.gitee => Uri.https(code.host, '/oauth/token'),
         },
         headers: const {'Accept': 'application/json'},
         form: {
           'client_id': switch (code.kind) {
             ForgeKind.github => githubClient,
-            ForgeKind.gitlab => gitlabClient,
+            ForgeKind.gitlab || ForgeKind.gitee => gitlabClient,
           },
           'device_code': code.deviceCode,
           'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',

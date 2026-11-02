@@ -15888,7 +15888,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Sign in to GitHub or GitLab to see the state of the issues and pull requests linked in Stash, import issues as stashes, and reply to them once you confirm.'**
+  /// **'Sign in to GitHub, GitLab or Gitee to see the state of the issues and pull requests linked in Stash, import issues as stashes, and reply to them once you confirm.'**
   String get accountsDescription;
 
   /// No description provided for @accountsSignedIn.
@@ -15906,7 +15906,7 @@ abstract class AppLocalizations {
   /// No description provided for @accountsKeptLocally.
   ///
   /// In en, this message translates to:
-  /// **'Tokens are kept in this computer\'s keychain and are sent only to the GitHub or GitLab they are for. Nothing is posted without your confirmation.'**
+  /// **'Tokens are kept in this computer\'s keychain and are sent only to the GitHub, GitLab or Gitee they are for. Nothing is posted without your confirmation.'**
   String get accountsKeptLocally;
 
   /// No description provided for @accountsGitHubHosts.
@@ -15920,6 +15920,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'gitlab.com, or a self-managed GitLab (http:// or https://, with its port)'**
   String get accountsGitLabHosts;
+
+  /// No description provided for @accountsGiteeHosts.
+  ///
+  /// In en, this message translates to:
+  /// **'gitee.com, with a personal access token'**
+  String get accountsGiteeHosts;
 
   /// No description provided for @accountsSignInBrowser.
   ///
@@ -16004,6 +16010,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'A personal access token with the api scope.'**
   String get accountsTokenGitLabScopes;
+
+  /// No description provided for @accountsTokenGiteeScopes.
+  ///
+  /// In en, this message translates to:
+  /// **'A personal access token with the user_info, projects, pull_requests, issues and notes scopes.'**
+  String get accountsTokenGiteeScopes;
 
   /// No description provided for @accountsTokenCreate.
   ///
@@ -16306,7 +16318,7 @@ abstract class AppLocalizations {
   /// No description provided for @stashImportNotALink.
   ///
   /// In en, this message translates to:
-  /// **'Not a GitHub or GitLab issue or pull request link.'**
+  /// **'Not a GitHub, GitLab or Gitee issue or pull request link.'**
   String get stashImportNotALink;
 
   /// No description provided for @stashImportSignIn.
@@ -16354,7 +16366,7 @@ abstract class AppLocalizations {
   /// No description provided for @stashImportNoRepos.
   ///
   /// In en, this message translates to:
-  /// **'No project has a GitHub or GitLab remote. Paste an issue link above.'**
+  /// **'No project has a GitHub, GitLab or Gitee remote. Paste an issue link above.'**
   String get stashImportNoRepos;
 
   /// No description provided for @stashImportNone.
@@ -16432,7 +16444,7 @@ abstract class AppLocalizations {
   /// No description provided for @stashWelcomeTrack.
   ///
   /// In en, this message translates to:
-  /// **'Cards show their conversations live, and the GitHub and GitLab issues and pull requests they link to stay in sync.'**
+  /// **'Cards show their conversations live, and the GitHub, GitLab and Gitee issues and pull requests they link to stay in sync.'**
   String get stashWelcomeTrack;
 
   /// No description provided for @stashWelcomeStart.
@@ -17728,7 +17740,7 @@ abstract class AppLocalizations {
   /// No description provided for @stashSettingsIssueSyncDescription.
   ///
   /// In en, this message translates to:
-  /// **'A project that is a Git repository on GitHub or GitLab (signed in under Accounts): its open issues are stashes, each once, kept in step both ways. A stash deleted, or unlinked from its issue, does not come back.'**
+  /// **'A project that is a Git repository on GitHub, GitLab or Gitee (signed in under Accounts): its open issues are stashes, each once, kept in step both ways. A stash deleted, or unlinked from its issue, does not come back.'**
   String get stashSettingsIssueSyncDescription;
 
   /// No description provided for @stashIssueSyncMine.

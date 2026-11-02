@@ -85,7 +85,7 @@ The front matter is between the two `---` lines: one `key: value` a line, every 
 | `project` | the absolute path of the project it is about | optional |
 | `source` | `{"project": "…", "branch": "…", "thread": "<session id>"}`: where it was noted | set when you make one |
 | `threads` | the conversations it is carried out in | BaoCode's: keep it as it is |
-| `issues` | the GitHub/GitLab issues and pull requests it is linked to, with their state as last seen | BaoCode's: keep it as it is |
+| `issues` | the GitHub/GitLab/Gitee issues and pull requests it is linked to, with their state as last seen | BaoCode's: keep it as it is |
 | `suggestedProject` | BaoCode's suggestion | keep it as it is |
 | `issue`, `local`, `synced`, `syncedRemote` | the issue it is (kept in step with it by BaoCode, which asks the user before anything is sent there), or that it is kept here alone | BaoCode's: keep them as they are |
 
@@ -96,7 +96,7 @@ The text is Markdown, each line of the editor a line of the file:
 - Headings, lists, task lists (`- [ ]`), quotes, fenced code with its language, GitHub tables, `---` rules, `\$…\$` and `\$\$…\$\$` math.
 - Underlined: `<u>…</u>`. Colored: `<span style="color:#e5534b;background-color:#fff3b0">…</span>`.
 - A picture, on a line of its own: `![](12/name.png)`, or `<img src="12/name.png" width="320">` to size it. A file: `[name.pdf](12/name.pdf)`. Paths are relative to the Stash folder (absolute for a file left where it is).
-- A link shown as a card, on a line of its own: `[Its title](https://… "card")`. A GitHub or GitLab issue or pull request linked anywhere in the text is linked to the stash (BaoCode shows its state): as a card, `[owner/repo#3 Its title](https://github.com/owner/repo/issues/3 "card")`.
+- A link shown as a card, on a line of its own: `[Its title](https://… "card")`. A GitHub, GitLab or Gitee issue or pull request linked anywhere in the text is linked to the stash (BaoCode shows its state): as a card, `[owner/repo#3 Its title](https://github.com/owner/repo/issues/3 "card")`.
 - Another stash: `[#5 Its title](stash:5)`. A project: `[app](project:<its path, URI-encoded>)`.
 - A `$requirement` section at its end is the requirement spelled out from the text before it.
 

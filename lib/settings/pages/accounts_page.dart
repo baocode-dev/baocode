@@ -18,7 +18,7 @@ import '../../workspace/editor_launcher.dart' show openExternal;
 import 'model_dialogs.dart';
 import 'settings_widgets.dart';
 
-/// Settings → Accounts: the GitHub and GitLab accounts the stashes' issues
+/// Settings → Accounts: the GitHub, GitLab and Gitee accounts the stashes' issues
 /// and pull requests are asked of (docs/stash.md), signed in from the
 /// browser or with a token; signed out here.
 class AccountsSettingsPage extends StatelessWidget {
@@ -62,6 +62,7 @@ class AccountsSettingsPage extends StatelessWidget {
                   description: switch (kind) {
                     ForgeKind.github => l10n.accountsGitHubHosts,
                     ForgeKind.gitlab => l10n.accountsGitLabHosts,
+                    ForgeKind.gitee => l10n.accountsGiteeHosts,
                   },
                   trailing: SettingsButtons(
                     children: [
@@ -150,6 +151,7 @@ Uri forgeRevokePage(ForgeAccount account) => account.base.replace(
     (ForgeKind.gitlab, ForgeSignIn.browser) => '/-/user_settings/applications',
     (ForgeKind.gitlab, ForgeSignIn.token) =>
       '/-/user_settings/personal_access_tokens',
+    (ForgeKind.gitee, _) => '/profile/personal_access_tokens',
   },
 );
 
@@ -163,6 +165,7 @@ Uri forgeNewTokenPage(ForgeKind kind, Uri site) => switch (kind) {
     path: '/-/user_settings/personal_access_tokens',
     queryParameters: {'name': 'BaoCode', 'scopes': 'api'},
   ),
+  ForgeKind.gitee => site.replace(path: '/profile/personal_access_tokens/new'),
 };
 
 TextStyle _text({Color? color, double size = 13}) => TextStyle(
@@ -331,6 +334,7 @@ class _ForgeTokenDialogState extends State<ForgeTokenDialog> {
             Text(switch (kind) {
               ForgeKind.github => l10n.accountsTokenGitHubScopes,
               ForgeKind.gitlab => l10n.accountsTokenGitLabScopes,
+              ForgeKind.gitee => l10n.accountsTokenGiteeScopes,
             }, style: _muted()),
             const SizedBox(height: 8),
             Align(

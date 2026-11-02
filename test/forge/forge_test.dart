@@ -190,6 +190,43 @@ void main() {
       expect(ref.repo.scheme, 'http');
       expect(ref.url.toString(), 'http://gitlab.corp:8080/team/app/-/issues/5');
     });
+
+    test('Gitee issues (their numbers letters) and pull requests', () {
+      final issue = ForgeRef.parse(
+        'https://gitee.com/baocode/app/issues/I8ABCD?from=project-issue',
+      )!;
+      expect(issue.repo.kind, ForgeKind.gitee);
+      expect(issue.repo.path, 'baocode/app');
+      expect(issue.kind, ForgeItemKind.issue);
+      expect(issue.code, 'I8ABCD');
+      expect(issue.fullTag, 'baocode/app#I8ABCD');
+      expect(
+        issue.url.toString(),
+        'https://gitee.com/baocode/app/issues/I8ABCD',
+      );
+      // Its case matters.
+      expect(
+        issue,
+        isNot(ForgeRef.parse('https://gitee.com/baocode/app/issues/i8abcd')),
+      );
+
+      final pull = ForgeRef.parse('https://gitee.com/o/r/pulls/12/files')!;
+      expect(pull.kind, ForgeItemKind.pull);
+      expect(pull.number, 12);
+      expect(pull.tag, '#12');
+      expect(pull.url.toString(), 'https://gitee.com/o/r/pulls/12');
+
+      expect(ForgeRef.parse('https://gitee.com/o/r/tree/master'), isNull);
+      expect(
+        ForgeRepo.fromRemote('git@gitee.com:baocode/app.git'),
+        const ForgeRepo(
+          kind: ForgeKind.gitee,
+          host: 'gitee.com',
+          path: 'baocode/app',
+        ),
+      );
+      expect(ForgeRepo.fromRemote('https://gitee.com/a/b/c.git'), isNull);
+    });
   });
 
   group('GitHubApi', () {
@@ -438,7 +475,191 @@ void main() {
     });
   });
 
+  group('GiteeApi', () {
+    late FakeForgeHttp http;
+    late GiteeApi api;
+    const repo = ForgeRepo(
+      kind: ForgeKind.gitee,
+      host: 'gitee.com',
+      path: 'o/r',
+    );
+    const base = 'https://gitee.com/api/v5';
+
+    setUp(() {
+      http = FakeForgeHttp();
+      api = GiteeApi(host: 'gitee.com', http: http, token: () async => 't');
+    });
+
+    test('an issue by its letters, the token in the query', () async {
+      http.on(
+        'GET',
+        '$base/repos/o/r/issues/I8ABCD',
+        (_) => {
+          'number': 'I8ABCD',
+          'title': 'Uploads fail',
+          'state': 'progressing',
+          'body': 'On 503',
+          'user': {'login': 'ann'},
+          'labels': [
+            {'name': 'bug', 'color': 'd73a4a'},
+          ],
+          'assignee': {'login': 'leo'},
+          'comments': 2,
+          'updated_at': '2026-10-15T10:00:00+08:00',
+        },
+      );
+      final item = await api.item(
+        const ForgeRef(repo: repo, kind: ForgeItemKind.issue, code: 'I8ABCD'),
+      );
+      expect(item.ref.code, 'I8ABCD');
+      expect(item.title, 'Uploads fail');
+      expect(item.state, ForgeState.open);
+      expect(item.labels, [const ForgeLabel('bug', color: '#d73a4a')]);
+      expect(item.assignees, ['leo']);
+      expect(item.comments, 2);
+      final request = http.requests.single;
+      expect(request.url.queryParameters['access_token'], 't');
+      expect(request.headers.containsKey('Authorization'), isFalse);
+    });
+
+    test('a pull request: merged, its checks', () async {
+      http
+        ..on(
+          'GET',
+          '$base/repos/o/r/pulls/7',
+          (_) => {
+            'number': 7,
+            'title': 'Retry uploads',
+            'state': 'merged',
+            'head': {'sha': 'abc', 'ref': 'retry-uploads'},
+          },
+        )
+        ..on(
+          'GET',
+          '$base/repos/o/r/commits/abc/check-runs',
+          (_) => [
+            {'status': 'completed', 'conclusion': 'success'},
+          ],
+        );
+      final item = await api.item(
+        const ForgeRef(repo: repo, kind: ForgeItemKind.pull, number: 7),
+      );
+      expect(item.state, ForgeState.merged);
+      expect(item.checks, ForgeChecks.success);
+      expect(item.branch, 'retry-uploads');
+    });
+
+    test(
+      'my open issues; comments, closes, opens and edits as forms',
+      () async {
+        http
+          ..on('GET', '$base/user', (_) => {'login': 'leo', 'name': 'Leo'})
+          ..on(
+            'GET',
+            '$base/repos/o/r/issues',
+            (_) => [
+              {'number': 'I1', 'title': 'Uploads fail', 'state': 'open'},
+            ],
+          )
+          ..on('POST', '$base/repos/o/r/issues/I1/comments', (_) => {})
+          ..on('PATCH', '$base/repos/o/issues/I1', (request) {
+            return {'number': 'I1', 'title': request.form?['title'] ?? 'x'};
+          })
+          ..on(
+            'POST',
+            '$base/repos/o/issues',
+            (_) => {'number': 'I2', 'title': 'New', 'state': 'open'},
+          );
+        final issues = await api.issues(repo, query: 'upload');
+        final query = http.requests.last.url.queryParameters;
+        expect(query['assignee'], 'leo');
+        expect(query['q'], 'upload');
+        expect(query['state'], 'open');
+        final ref = issues.single.ref;
+        expect(ref.url.toString(), 'https://gitee.com/o/r/issues/I1');
+
+        await api.comment(ref, 'Fixed in #7');
+        expect(http.requests.last.form, {'body': 'Fixed in #7'});
+        await api.close(ref);
+        expect(http.requests.last.form, {'repo': 'r', 'state': 'closed'});
+        final created = await api.createIssue(repo, title: 'New', body: 'b');
+        expect(created.ref.code, 'I2');
+        expect(http.requests.last.form, {
+          'repo': 'r',
+          'title': 'New',
+          'body': 'b',
+        });
+        final edited = await api.editIssue(ref, title: 'Renamed', body: 'b');
+        expect(edited.title, 'Renamed');
+      },
+    );
+
+    test('an issue\'s last comments, the oldest first', () async {
+      http.on(
+        'GET',
+        '$base/repos/o/r/issues/I1/comments',
+        (_) => [
+          {
+            'user': {'login': 'b'},
+            'body': 'second',
+          },
+          {
+            'user': {'login': 'a'},
+            'body': 'first',
+          },
+        ],
+      );
+      final comments = await api.comments(
+        const ForgeRef(repo: repo, kind: ForgeItemKind.issue, code: 'I1'),
+        most: 2,
+      );
+      expect(comments.map((comment) => comment.body), ['first', 'second']);
+      expect(http.requests.single.url.queryParameters['order'], 'desc');
+    });
+
+    test('a picture put on a branch of its own, made the first time', () async {
+      http
+        ..on('GET', '$base/repos/o/r', (_) => {'default_branch': 'main'})
+        ..on('POST', '$base/repos/o/r/branches', (_) => {})
+        ..fallback = (request) =>
+            request.method == 'POST' && request.url.path.contains('/contents/')
+            ? {}
+            : const ForgeResponse(404, '{"message":"Not Found"}');
+      final url = await api.uploadImage(repo, 'shot.png', [1, 2, 3]);
+      expect(
+        http.requests
+            .firstWhere((request) => request.url.path.endsWith('/branches'))
+            .form,
+        {'refs': 'main', 'branch_name': GitHubApi.assetsBranch},
+      );
+      expect(
+        url,
+        startsWith(
+          'https://gitee.com/o/r/raw/${GitHubApi.assetsBranch}/stash/',
+        ),
+      );
+      expect(url, endsWith('.png'));
+    });
+  });
+
   group('ForgeAccounts', () {
+    test('signed in to Gitee with a token, sent in the query', () async {
+      final http = FakeForgeHttp()
+        ..on('GET', 'https://gitee.com/api/v5/user', (request) {
+          expect(request.url.queryParameters['access_token'], 'abc');
+          return {'login': 'leo', 'name': 'Leo'};
+        });
+      final accounts = ForgeAccounts(http: http, secrets: MemorySecretStore());
+      final account = await accounts.signInWithToken(
+        ForgeKind.gitee,
+        'gitee.com',
+        'abc',
+      );
+      expect(account.login, 'leo');
+      expect(accounts.kindOf('gitee.com'), ForgeKind.gitee);
+      expect(accounts.apiFor('gitee.com'), isA<GiteeApi>());
+    });
+
     test('signed in with a token: who it is of, kept in the keychain, the '
         'account in storage; signed out, both gone', () async {
       final http = FakeForgeHttp()
@@ -589,6 +810,10 @@ void main() {
       );
       expect(
         accounts.canSignInFromBrowser(ForgeKind.gitlab, 'gitlab.com'),
+        isFalse,
+      );
+      expect(
+        accounts.canSignInFromBrowser(ForgeKind.gitee, 'gitee.com'),
         isFalse,
       );
       final code = await accounts.startDeviceFlow(ForgeKind.github);
