@@ -41,7 +41,6 @@ jobs:
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
       - name: Get the x64 Dart SDK of Flutter's version
         run: |
           softwareupdate --install-rosetta --agree-to-license > /dev/null 2>&1 || true
@@ -52,6 +51,9 @@ jobs:
             "https://storage.googleapis.com/dart-archive/channels/$channel/release/$dart/sdk/dartsdk-macos-x64-release.zip"
           unzip -q "$RUNNER_TEMP/dart-x64.zip" -d "$RUNNER_TEMP/dart-x64"
           "$RUNNER_TEMP/dart-x64/dart-sdk/bin/dart" --version
+      # `dart run tool/…` runs bao_iroh's build hook, which would build iroh
+      # for this Mac where main's build of it is not in the cache.
+      - uses: ./.github/actions/bao-iroh-prebuilt
       # Once, for both apps: they carry its servers.json, and download the
       # build a host needs from dl.baocode.dev (docs/ssh-remote.md, 9.3).
       - name: Build for Linux and macOS, x64 and arm64

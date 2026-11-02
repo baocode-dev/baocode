@@ -97,7 +97,6 @@ jobs:
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
       # bao_iroh's Rust (the link), built by its build hook for the
       # phone's targets.
       - uses: ./monad/.github/actions/setup-rust
@@ -195,7 +194,6 @@ jobs:
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
       # bao_iroh's Rust (the link), built by its build hook for the
       # phone's targets.
       - uses: ./monad/.github/actions/setup-rust

@@ -51,6 +51,9 @@ concurrency:
 env:
   FLUTTER_VERSION: 3.47.5
 
+# flutter-action caches nothing here: a tag's run restores only main's
+# caches, so each one missed and saved its own Flutter (2 GB, minutes on
+# Windows) for no other run. bao_iroh's library is main's (bao_iroh.yml).
 jobs:
   check:
     name: Check the version
@@ -185,7 +188,6 @@ jobs:
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
       - name: Put the Developer ID certificate in a keychain
         if: env.MACOS_CERTIFICATE != ''
         run: |
@@ -211,7 +213,9 @@ jobs:
           path: build/remote
       - name: Install create-dmg
         run: brew install create-dmg
-      # bao_iroh's Rust (the phones' link), built by its build hook.
+      # bao_iroh's Rust (the phones' link), built by its build hook where
+      # main's build of it is not in the cache.
+      - uses: ./.github/actions/bao-iroh-prebuilt
       - uses: ./.github/actions/setup-rust
       - name: Build, sign and notarise
         env:
@@ -290,7 +294,6 @@ jobs:
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
       # Flutter's Windows SDK archive carries an x64 Dart; cloned at the
       # release's tag, it downloads the Arm one for this machine.
       - name: Clone Flutter
@@ -319,7 +322,9 @@ jobs:
         with:
           name: remote
           path: build/remote
-      # bao_iroh's Rust (the phones' link), built by its build hook.
+      # bao_iroh's Rust (the phones' link), built by its build hook where
+      # main's build of it is not in the cache.
+      - uses: ./.github/actions/bao-iroh-prebuilt
       - uses: ./.github/actions/setup-rust
       - name: Build
         run: dart run tool/build_windows.dart --remote-built --arch ${{ matrix.arch }} ${{ matrix.edition == 'channel' && '--channel' || '' }}
@@ -366,7 +371,6 @@ jobs:
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
       # Flutter publishes no SDK archive for Linux on arm64, so there it is
       # cloned at the release's tag; the engine it downloads has arm64 builds.
       - name: Clone Flutter
@@ -388,7 +392,9 @@ jobs:
         with:
           name: remote
           path: build/remote
-      # bao_iroh's Rust (the phones' link), built by its build hook.
+      # bao_iroh's Rust (the phones' link), built by its build hook where
+      # main's build of it is not in the cache.
+      - uses: ./.github/actions/bao-iroh-prebuilt
       - uses: ./.github/actions/setup-rust
       # The Dart code's symbols are saved beside it, for a jank sample's
       # libapp.so+0x… frames (tool/symbolize_jank_sample.dart). Only saved:
@@ -555,7 +561,9 @@ jobs:
         with:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
+      # For `dart run tool/release_manifest.dart`: bao_iroh's build hook
+      # runs for it too.
+      - uses: ./.github/actions/bao-iroh-prebuilt
       - uses: actions/download-artifact@v7
         with:
           path: dist
