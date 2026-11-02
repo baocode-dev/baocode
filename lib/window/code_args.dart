@@ -103,9 +103,11 @@ class CodeArgs {
   /// hands it over as a request ([agentRequestMarker]).
   static const windowsAgentFlag = '--baocode-agent';
 
-  /// The marker of a site's one-click import of an upstream (a
-  /// `baocode://provider/import?…` link, see UpstreamImport), the link
-  /// next: asked about in the main window, which comes in front for it.
+  /// The marker of a `baocode://` link, the link next: a site's one-click
+  /// import of an upstream (`baocode://provider/import?…`, see
+  /// UpstreamImport), asked about in the main window, which comes in front
+  /// for it; the channel build's setup (`baocode://activate?…`); a file to
+  /// open in the IDE (`baocode://file/…`, see [FileLink]).
   static const importRequestMarker = '\u0000import';
 
   /// The flag Windows starts the app with for a `baocode://` link (the URL
@@ -242,6 +244,66 @@ class CodeTarget {
   String toString() => [path, ?line, ?column].join(':');
 }
 
+/// A link to a file, as VS Code's `vscode://file/…`, for pages, reports
+/// and tools outside the app to open one in the IDE (#383):
+///
+///   `baocode://file/{absolute path}[:line[:col]][?windowId=_blank]`
+///
+/// `baocode://file/Users/me/app/src/main.ts:12:5` on macOS,
+/// `baocode://file/C:/Users/me/app/src/main.ts:12` on Windows (a UNC path
+/// after two slashes: `baocode://file//server/share/a.ts`). Percent-encoded
+/// as URLs are. The IDE opens it as `code -g` does (see
+/// AppWindows.handleCode): a file in the window whose folder has it, else
+/// the last used, at the line and column; a folder in its window;
+/// `windowId=_blank`, in a new window.
+///
+/// It comes as other `baocode://` links do ([CodeArgs.importRequestMarker]),
+/// and goes to the IDE, never the chat.
+abstract final class FileLink {
+  /// [link] as the `code` command would ask it; null if it is not a file
+  /// link, or names no absolute path.
+  static CodeArgs? parse(String link) {
+    final uri = Uri.tryParse(link.trim());
+    if (uri == null || uri.scheme != 'baocode' || uri.host != 'file') {
+      return null;
+    }
+    final String path;
+    try {
+      path = _local(Uri.decodeComponent(uri.path));
+    } on FormatException {
+      // Not UTF-8 once decoded.
+      return null;
+    } on ArgumentError {
+      return null;
+    }
+    if (path.isEmpty) return null;
+    return CodeArgs(
+      // Absolute, so read from itself: only how it is spelled is taken.
+      paths: [CodeTarget.parse(path, path, goto: true)],
+      newWindow: uri.queryParameters['windowId'] == '_blank',
+      goto: true,
+    );
+  }
+
+  /// Whether [link] is one.
+  static bool isLink(String link) => parse(link) != null;
+
+  /// The URL's path as this machine's: `/C:/a` is `C:/a` (Dart's URLs
+  /// turn a Windows path's backslashes to slashes), `//server/share/…` a
+  /// UNC path; any other `/…` a POSIX one. Empty for none.
+  static String _local(String path) {
+    if (RegExp(r'^/[A-Za-z]:([\\/]|$)').hasMatch(path)) {
+      final drive = path.substring(1);
+      return drive.length == 2 ? '$drive\\' : drive;
+    }
+    if (path.startsWith('//') && path.length > 2) {
+      // As a UNC path only with backslashes.
+      return p.windows.normalize(path.replaceAll('/', r'\'));
+    }
+    return path.length > 1 ? path : '';
+  }
+}
+
 /// What the app was started for, by its command line (the Windows app's,
 /// which Flutter is given as `main`'s arguments; the macOS app's comes as
 /// paths handed over as it starts: see `OpenRequests.launchRequest`): it
@@ -261,8 +323,12 @@ enum LaunchRequest {
     final first = arguments.firstOrNull;
     if (first == CodeArgs.windowsAgentFlag) return agent;
     if (first == CodeArgs.windowsRequestFlag) return ide;
-    // A link asks in the main window, as the app shows at any launch.
-    if (first == CodeArgs.windowsLinkFlag) return none;
+    // A file link opens in the IDE alone; any other link asks in the main
+    // window, as the app shows at any launch.
+    if (first == CodeArgs.windowsLinkFlag) {
+      final link = arguments.elementAtOrNull(1);
+      return link != null && FileLink.isLink(link) ? ide : none;
+    }
     final paths = arguments.where((a) => a.isNotEmpty && !a.startsWith('-'));
     return paths.isEmpty ? none : ide;
   }

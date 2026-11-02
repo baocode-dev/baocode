@@ -2191,10 +2191,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// the File menu's Open Recent): folders and files alike in the IDE,
   /// whichever the main window is; the chat is left as it was. With the
   /// app's windows, as they open them (see [AppWindows.openRequested]).
+  /// A `baocode://file/…` link, in the IDE as `code -g` opens it.
   Future<void> _openPaths(List<String> paths) async {
     if (paths.firstOrNull == CodeArgs.importRequestMarker) {
       for (final link in paths.skip(1)) {
-        if (ChannelSetup.isLink(link)) {
+        if (FileLink.parse(link) case final args?) {
+          await _windows?.handleCode(args);
+        } else if (ChannelSetup.isLink(link)) {
           await _acceptChannelLink(link);
         } else {
           await _importUpstream(link);

@@ -154,5 +154,97 @@ void main() {
       ]),
       LaunchRequest.none,
     );
+    // A file link opens in the IDE alone.
+    expect(
+      LaunchRequest.of(const [
+        CodeArgs.windowsLinkFlag,
+        'baocode://file/C:/w/a.dart:3',
+      ]),
+      LaunchRequest.ide,
+    );
+  });
+
+  group('FileLink', () {
+    CodeTarget? target(String link) => FileLink.parse(link)?.paths.single;
+
+    test('a POSIX path, with a line and a column, as vscode://file/', () {
+      expect(
+        target('baocode://file/Users/me/app/src/main.ts:12:5'),
+        const CodeTarget('/Users/me/app/src/main.ts', line: 12, column: 5),
+      );
+      expect(
+        target('baocode://file/Users/me/app/src/main.ts:12'),
+        const CodeTarget('/Users/me/app/src/main.ts', line: 12),
+      );
+      expect(
+        target('baocode://file/Users/me/app/src'),
+        const CodeTarget('/Users/me/app/src'),
+      );
+      final args = FileLink.parse('baocode://file/a/b.ts:1')!;
+      expect(args.goto, isTrue);
+      expect(args.newWindow, isFalse);
+      expect(args.reuseWindow, isFalse);
+    });
+
+    test('percent-encoded, as URLs are; the scheme in any case', () {
+      expect(
+        target('baocode://file/Users/me/my%20app/%E4%B8%AD%E6%96%87.ts:7'),
+        const CodeTarget('/Users/me/my app/中文.ts', line: 7),
+      );
+      expect(
+        target(' BaoCode://File/Users/me/a.ts:2\n'),
+        const CodeTarget('/Users/me/a.ts', line: 2),
+      );
+      // `..` left as a path has it.
+      expect(target('baocode://file/a/../b.ts'), const CodeTarget('/b.ts'));
+    });
+
+    test('a Windows path, by its drive or a UNC path', () {
+      expect(
+        target('baocode://file/C:/Users/me/a.ts:12:5'),
+        const CodeTarget(r'C:\Users\me\a.ts', line: 12, column: 5),
+      );
+      expect(
+        target(r'baocode://file/c:\Users\me\a b.ts:3'),
+        const CodeTarget(r'c:\Users\me\a b.ts', line: 3),
+      );
+      expect(
+        target('baocode://file/c%3A/Users/me/a.ts'),
+        const CodeTarget(r'c:\Users\me\a.ts'),
+      );
+      expect(target('baocode://file/D:'), const CodeTarget('D:\\'));
+      expect(
+        target('baocode://file//server/share/a.ts:4'),
+        const CodeTarget(r'\\server\share\a.ts', line: 4),
+      );
+    });
+
+    test('windowId=_blank: in a new window', () {
+      expect(
+        FileLink.parse('baocode://file/a/b.ts:1?windowId=_blank')!.newWindow,
+        isTrue,
+      );
+      expect(
+        FileLink.parse('baocode://file/a/b.ts?windowId=1')!.newWindow,
+        isFalse,
+      );
+    });
+
+    test('nothing else is one', () {
+      for (final link in [
+        'baocode://file',
+        'baocode://file/',
+        'baocode://provider/import?v=1',
+        'baocode://activate?i=x',
+        'baocode://ide?path=/a',
+        'vscode://file/a/b.ts:1',
+        'file:///a/b.ts',
+        'baocode://file/%E4',
+        '',
+      ]) {
+        expect(FileLink.parse(link), isNull, reason: link);
+        expect(FileLink.isLink(link), isFalse, reason: link);
+      }
+    });
   });
 }
