@@ -36,6 +36,9 @@ class UsagePricesCard extends StatelessWidget {
       builder: (context, _) {
         final rows = <_Row>[];
         final seen = <String>{};
+        final names = {
+          for (final call in summary.calls) call.provider: ?call.providerName,
+        };
         // By upstream and model: the same model on two is priced apart.
         final called = <(String, String), List<UsageCall>>{};
         for (final call in summary.calls) {
@@ -97,6 +100,28 @@ class UsagePricesCard extends StatelessWidget {
               const _Header(),
               for (final row in rows)
                 _PriceRow(key: ValueKey(row.key), row: row, prices: prices),
+              if (prices.rates.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(l10n.ustatUpstreamRates, style: UsageText.body),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 2, 4, 4),
+                  child: Text(
+                    l10n.ustatUpstreamRatesDetail,
+                    style: UsageText.faint,
+                  ),
+                ),
+                for (final MapEntry(key: upstream, value: rate)
+                    in prices.rates.entries)
+                  _RateRow(
+                    upstream: upstream,
+                    name: names[upstream] ?? upstream,
+                    rate: rate,
+                    prices: prices,
+                  ),
+              ],
               const SizedBox(height: 10),
               if (rows.any(
                 (row) =>
@@ -215,6 +240,40 @@ class _PriceRow extends StatefulWidget {
   State<_PriceRow> createState() => _PriceRowState();
 }
 
+/// What prices [price]'s calls besides its tokens' prices, in a line:
+/// its tiers, hours, factors and fees, the [rate] it is at, its [versions]
+/// by date ([builtIn]: Anthropic's, its region and tool fees not told);
+/// null for none.
+String? _rules(
+  BuildContext context,
+  ModelPrice? price, {
+  UpstreamRate? rate,
+  int versions = 1,
+  bool builtIn = false,
+}) {
+  if (price == null) return null;
+  final l10n = context.l10n;
+  String factor(double value) => _PriceRowState._number(value);
+  final rules = [
+    if (price.tiers.isNotEmpty)
+      l10n.ustatPriceRuleTiers(price.tiers.length + 1),
+    if (price.schedule != null) l10n.ustatPriceRuleSchedule,
+    if (price.fast != 1) l10n.ustatPriceRuleFast(factor(price.fast)),
+    if (price.serviceTiers.isNotEmpty) l10n.ustatPriceRuleServiceTiers,
+    // Anthropic's, built in: every Claude model's, not told each row.
+    if (price.geo.isNotEmpty && !builtIn) l10n.ustatPriceRuleGeo,
+    if (price.multiplier != 1) '×${factor(price.multiplier)}',
+    if (rate != null) l10n.ustatPriceRuleRate(factor(rate.multiplier)),
+    if (price.perCall > 0)
+      l10n.ustatPriceRulePerCall(
+        UsagePrices.money(price.perCall, price.currency),
+      ),
+    if (price.tools.isNotEmpty && !builtIn) l10n.ustatPriceRuleTools,
+    if (versions > 1) l10n.ustatPriceRuleVersions(versions),
+  ];
+  return rules.isEmpty ? null : rules.join(' · ');
+}
+
 class _PriceRowState extends State<_PriceRow> {
   late final _input = TextEditingController();
   late final _cacheRead = TextEditingController();
@@ -289,29 +348,27 @@ class _PriceRowState extends State<_PriceRow> {
       return;
     }
     final currency = _currency.text.trim().toUpperCase();
-    final next = ModelPrice(
+    // Its rules (tiers, hours, fees) kept as they are: only the prices
+    // typed in change.
+    final template = old ?? const ModelPrice(input: 0, output: 0);
+    ModelPrice priced({DateTime? updated}) => template.withPrices(
       input: input,
       output: output,
       cacheRead: number(_cacheRead),
       cacheWrite: number(_cacheWrite),
-      cacheWriteLong: old?.cacheWriteLong,
       currency: currency.isEmpty ? old?.currency ?? 'USD' : currency,
-      source: old?.source,
-      updated: old?.updated,
+      updated: updated,
     );
     setState(() => _incomplete = false);
-    if (next == old) return;
-    _shown = ModelPrice(
-      input: next.input,
-      output: next.output,
-      cacheRead: next.cacheRead,
-      cacheWrite: next.cacheWrite,
-      cacheWriteLong: next.cacheWriteLong,
-      currency: next.currency,
-      source: next.source,
-      updated: DateTime.now(),
+    if (priced() == old) return;
+    final next = _shown = priced(updated: DateTime.now());
+    // The price now, in place of the one from its date: those of other
+    // dates kept.
+    unawaited(
+      old == null
+          ? widget.prices.update({widget.row.key: next})
+          : widget.prices.put(widget.row.key, next),
     );
-    unawaited(widget.prices.update({widget.row.key: _shown}));
   }
 
   @override
@@ -320,10 +377,19 @@ class _PriceRowState extends State<_PriceRow> {
     final row = widget.row;
     final price = _price;
     final spent = row.spent?.text;
-    // Claude Code's own, unset: priced at Anthropic's, shown in its place.
-    final fallback = price == null && row.upstream == ClaudePrices.upstream
-        ? ClaudePrices.of(row.model)
+    // Unset: priced as another's (Anthropic's for Claude Code's own, any
+    // upstream's at the upstream's rate), shown in its place.
+    final basis = price == null && row.upstream.isNotEmpty
+        ? widget.prices.basisOf(row.upstream, row.model)
         : null;
+    final fallback = basis?.price;
+    final rules = _rules(
+      context,
+      price ?? fallback,
+      rate: basis?.rate,
+      versions: widget.prices.versions(row.key).length,
+      builtIn: price == null && basis != null && basis.key == null,
+    );
     String shown(double? value, String text) =>
         fallback == null ? text : _number(value);
     Widget field(TextEditingController controller, double width, String hint) =>
@@ -391,7 +457,11 @@ class _PriceRowState extends State<_PriceRow> {
                 _Columns.price,
                 shown(fallback?.output, l10n.ustatTokenOutput),
               ),
-              field(_currency, _Columns.currency, 'USD'),
+              field(
+                _currency,
+                _Columns.currency,
+                basis?.rate?.currency ?? fallback?.currency ?? 'USD',
+              ),
               SizedBox(
                 width: _Columns.spent,
                 child: Text(
@@ -433,6 +503,16 @@ class _PriceRowState extends State<_PriceRow> {
               ),
             ],
           ),
+          if (rules != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 18, top: 1, bottom: 2),
+              child: Text(
+                rules,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: UsageText.faint,
+              ),
+            ),
           if (_incomplete)
             Padding(
               padding: const EdgeInsets.only(left: 18, top: 2),
@@ -441,6 +521,82 @@ class _PriceRowState extends State<_PriceRow> {
                 style: UsageText.faint.copyWith(color: UsagePalette.error),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// An upstream's rate ([UpstreamRate]): its multiplier, the currency it
+/// charges in and its fee a call, where it was read; cleared in place.
+class _RateRow extends StatelessWidget {
+  const _RateRow({
+    required this.upstream,
+    required this.name,
+    required this.rate,
+    required this.prices,
+  });
+
+  final String upstream;
+  final String name;
+  final UpstreamRate rate;
+  final UsagePrices prices;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final currency = rate.currency;
+    final detail = [
+      '×${_PriceRowState._number(rate.multiplier)}',
+      ?currency,
+      if (rate.perCall > 0)
+        l10n.ustatPriceRulePerCall(
+          currency == null
+              ? _PriceRowState._number(rate.perCall)
+              : UsagePrices.money(rate.perCall, currency),
+        ),
+    ].join(' · ');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Row(
+        children: [
+          ModelIcon(provider: upstream, model: '', size: 12),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: UsageText.body,
+            ),
+          ),
+          Text(detail, style: UsageText.tabular),
+          SizedBox(
+            width: _Columns.actions,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (rate.source case final source?)
+                  UsageIconButton(
+                    icon: Codicons.linkExternal,
+                    tooltip: [
+                      '${l10n.ustatPriceSource}: $source',
+                      if (rate.updated case final updated?)
+                        l10n.ustatPriceUpdated(
+                          UsageFormat.when(updated.toLocal()),
+                        ),
+                    ].join('\n'),
+                    onPressed: () => unawaited(openExternal(source)),
+                  ),
+                UsageIconButton(
+                  icon: Codicons.close,
+                  tooltip: l10n.ustatUpstreamRateClear,
+                  onPressed: () =>
+                      unawaited(prices.updateRates({upstream: null})),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

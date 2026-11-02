@@ -447,13 +447,29 @@ void main() {
         source: 'https://www.anthropic.com/pricing',
         updated: DateTime(2026, 10, 30, 9),
       ),
-      'glm/glm-5': const ModelPrice(
+      // By the prompt's length and the hours, as Chinese upstreams price.
+      'glm/glm-5': ModelPrice(
         input: 4,
         output: 16,
         cacheRead: 1,
         currency: 'CNY',
+        tiers: const [
+          PriceTier(over: 32000, upTo: 128000, input: 6, output: 24),
+          PriceTier(over: 128000, input: 8, output: 32),
+        ],
+        schedule: PriceSchedule.fromJson(const {
+          'timezone': 'UTC+8',
+          'windows': [
+            {
+              'days': [1, 2, 3, 4, 5],
+              'from': '14:00',
+              'to': '18:00',
+              'factor': 2,
+            },
+          ],
+        }),
       ),
-    });
+    }, {'relay': const UpstreamRate(multiplier: 0.3, currency: 'CNY')});
   });
   tearDown(() {
     UsagePrices.current = UsagePrices();
