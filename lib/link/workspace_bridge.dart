@@ -210,6 +210,7 @@ class WorkspaceBridge {
             path: project.root,
             branch: branchOf?.call(project),
             icon: workspace.iconOf(project)?.toJson(),
+            pinned: workspace.isPinnedProject(project),
           ),
       ],
       sessions: [
@@ -470,6 +471,12 @@ class WorkspaceBridge {
       case LinkMethods.pin:
         workspace.setPinned(
           _thread(params['session']),
+          params['pinned'] == true,
+        );
+        return null;
+      case LinkMethods.pinProject:
+        workspace.setPinnedProject(
+          _project(params['project']),
           params['pinned'] == true,
         );
         return null;
