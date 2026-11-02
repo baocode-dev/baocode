@@ -80,6 +80,10 @@ abstract final class LinkMethods {
   /// `{"session", "pinned"}`.
   static const pin = 'pin';
 
+  /// `{"project", "pinned"}`: on top of the projects (see
+  /// [ProjectInfo.pinned]), as the desktop's Pin.
+  static const pinProject = 'pinProject';
+
   /// `{"session"}`: off the list (archived on the desktop).
   static const archive = 'archive';
 
@@ -500,6 +504,7 @@ class ProjectInfo {
     required this.path,
     this.branch,
     this.icon,
+    this.pinned,
   });
 
   factory ProjectInfo.fromJson(Map<String, Object?> json) => ProjectInfo(
@@ -511,6 +516,7 @@ class ProjectInfo {
       final Map<String, Object?> icon => icon,
       _ => null,
     },
+    pinned: json['pinned'] as bool?,
   );
 
   final String id;
@@ -525,12 +531,18 @@ class ProjectInfo {
   /// model maker's logo). Null for its folder.
   final Map<String, Object?>? icon;
 
+  /// Pinned on top of the projects, as the desktop's sidebar has it
+  /// (changed by [LinkMethods.pinProject]); null from a desktop from
+  /// before it said.
+  final bool? pinned;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
     'path': path,
     'branch': ?branch,
     'icon': ?icon,
+    'pinned': ?pinned,
   };
 }
 

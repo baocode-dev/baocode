@@ -396,6 +396,18 @@ void main() {
       isTrue,
     );
 
+    // A project pinned from the phone, on top as the desktop's.
+    await peer.call(LinkMethods.pinProject, {
+      'project': '~/code/cursor-docs',
+      'pinned': true,
+    });
+    final pinned = LinkState.fromJson(
+      (await peer.call(LinkMethods.state))! as Map<String, Object?>,
+    );
+    expect(pinned.projects.first.id, '~/code/cursor-docs');
+    expect(pinned.projects.first.pinned, isTrue);
+    expect(pinned.projects.skip(1).map((p) => p.pinned), everyElement(false));
+
     // Deleted from the phone, as the desktop deletes one.
     await peer.call(LinkMethods.delete, {'session': created['session']});
     expect(workspace.threads, isNot(contains(thread)));
