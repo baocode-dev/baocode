@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:bao_link/bao_link.dart' show LinkBotNotice;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -25,6 +26,7 @@ import 'bot_pacer.dart';
 import 'bot_permissions.dart';
 import 'bot_prompt.dart';
 import 'bot_tools.dart';
+import 'bot_watch.dart';
 
 /// A bot's picture: its bytes, and their media type.
 typedef BotAvatarImage = ({Uint8List bytes, String type});
@@ -593,8 +595,33 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     _ => ChatCodec.botSent(item) ? 1 : 0,
   };
 
-  /// Whether [bot] is writing to the user: at work.
-  bool typing(Bot bot) => threadOf(bot)?.status == ThreadStatus.running;
+  /// Whether [bot] is writing to the user: at work; not while it was woken
+  /// by the app and has not said a word yet, which may come to nothing.
+  bool typing(Bot bot) {
+    final thread = threadOf(bot);
+    if (thread == null || thread.status != ThreadStatus.running) return false;
+    return !thread.isOpen || !_wokenSilent(thread.session);
+  }
+
+  /// Whether [session]'s turn under way is the app's waking it (none of
+  /// the user's words), with nothing said to the user yet.
+  static bool _wokenSilent(ChatSession session) {
+    for (var i = session.itemCount - 1; i >= 0; i--) {
+      switch (session.itemAt(i)) {
+        case AssistantTextItem(:final text)
+            when ChatCodec.botParts(text)
+                .any((part) => part.$1 != ChatCodec.botNarrateTag):
+          return false;
+        case final ToolCallItem item when ChatCodec.botSent(item):
+          return false;
+        case final UserMessageItem item:
+          return ChatCodec.botEvent(item) != null &&
+              ChatCodec.withoutBotEvents(item.text).isEmpty;
+        default:
+      }
+    }
+    return false;
+  }
 
   /// The last [bot] said: its first line; a picture or a sticker, as a
   /// chat app's list says it.
@@ -996,6 +1023,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         chat: BotTools.idOf(thread),
         title: thread.title,
         project: thread.project.name,
+        projectPath: thread.project.path,
         kind: kind,
         at: _clock(),
         detail: detail,
@@ -1066,18 +1094,91 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   }
 
   /// [events] for the bots the user lets be told of the agents
-  /// ([BotAbility.proactive], off at first: a turn of the model's each),
-  /// to tell when it is time; none for the others, not even of the agents
-  /// they started or wrote to (off is off), nor without a phone to write
-  /// to.
+  /// ([BotAbility.proactive]), as each one's rules say (its WATCH.md): told
+  /// when it is time, those to tell of; notified of on the phone in its
+  /// name, those to notify of; and each kept in its EVENTS.md, for it to
+  /// look at. None for the others, not even of the agents they started or
+  /// wrote to (off is off), nor without a phone to write to.
   void _tell(List<BotEvent> events) {
     if (events.isEmpty || !_hasPhone) return;
+    var notified = false;
     for (final bot in _bots) {
       if (!bot.can(BotAbility.proactive)) continue;
-      final pacer = _pacers[bot.id] ??= BotPacer();
-      events.forEach(pacer.add);
+      final rules = watchRules(bot);
+      final mine = {...?_watching[bot.id]};
+      final kept = <(BotEvent, BotWatchAction)>[];
+      for (final event in events) {
+        final action = BotWatch.actionFor(
+          rules,
+          event,
+          mine: mine.contains(event.chat),
+        );
+        kept.add((event, action));
+        switch (action) {
+          case BotWatchAction.tell:
+            (_pacers[bot.id] ??= BotPacer()).add(event);
+          case BotWatchAction.notify:
+            _notice(bot, event);
+            notified = true;
+          case BotWatchAction.ignore:
+        }
+      }
+      final path = p.join(bot.folder, BotFiles.events);
+      _writeText(path, BotEvents.withEvents(_readText(path), kept, _clock()));
     }
     _schedule();
+    if (notified) notifyListeners();
+  }
+
+  /// What [bot] is told of: its WATCH.md's rules; [BotWatch.defaults]
+  /// while it has none.
+  List<BotWatchRule> watchRules(Bot bot) {
+    final text = _readText(p.join(bot.folder, BotFiles.watch));
+    return text.trim().isEmpty ? BotWatch.defaults : BotWatch.read(text);
+  }
+
+  /// [bot] told of what [rules] say from now; its own lines in WATCH.md
+  /// kept.
+  void setWatchRules(Bot bot, List<BotWatchRule> rules) {
+    final path = p.join(bot.folder, BotFiles.watch);
+    _writeText(path, BotWatch.withRules(_readText(path), rules));
+  }
+
+  /// What happened to the agents lately, as [bot]'s EVENTS.md keeps it:
+  /// the latest [count], oldest first, and what came of each.
+  List<String> recentEvents(Bot bot, {int count = 20}) =>
+      BotEvents.latest(_readText(p.join(bot.folder, BotFiles.events)), count);
+
+  /// What each bot had the phone tell the user lately, by its id.
+  final Map<String, List<LinkBotNotice>> _notices = {};
+
+  /// The most notices a bot's are kept, for a phone that missed a few.
+  static const maxNotices = 5;
+
+  int _lastNotice = 0;
+
+  /// What [bot] had the phone tell the user lately, the latest last.
+  List<LinkBotNotice> notices(Bot bot) =>
+      List.unmodifiable(_notices[bot.id] ?? const <LinkBotNotice>[]);
+
+  /// [event], for the phone to notify of in [bot]'s name: [bot] not woken.
+  void _notice(Bot bot, BotEvent event) {
+    // Rising across runs: by the time, past the last if that is not.
+    _lastNotice = math.max(_lastNotice + 1, _clock().microsecondsSinceEpoch);
+    final notices = _notices[bot.id] ??= [];
+    notices.add(
+      LinkBotNotice(
+        id: _lastNotice,
+        kind: event.kind.name,
+        chat: event.chat,
+        title: event.title,
+        project: event.project,
+        detail: event.detail,
+      ),
+    );
+    if (notices.length > maxNotices) {
+      notices.removeRange(0, notices.length - maxNotices);
+    }
   }
 
   /// [bot] started [thread], or wrote to it: told what becomes of it.

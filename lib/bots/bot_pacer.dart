@@ -23,12 +23,16 @@ class BotEvent {
     required this.kind,
     required this.at,
     this.detail,
+    this.projectPath,
   });
 
   /// The agent's id, as the bot's tools take it.
   final String chat;
   final String title;
   final String project;
+
+  /// Its project's path, for a rule to name it by.
+  final String? projectPath;
   final BotEventKind kind;
   final DateTime at;
 

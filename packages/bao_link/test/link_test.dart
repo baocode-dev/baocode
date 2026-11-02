@@ -95,6 +95,16 @@ void main() {
                 unread: 2,
                 last: 'Done.',
                 updatedAt: DateTime.fromMillisecondsSinceEpoch(1000),
+                notices: const [
+                  LinkBotNotice(
+                    id: 7,
+                    kind: 'failed',
+                    chat: 'c-1',
+                    title: 'Fix the build',
+                    project: 'monad',
+                    detail: 'exit 1',
+                  ),
+                ],
               ),
               const LinkBot(
                 id: 'b1',
@@ -131,6 +141,13 @@ void main() {
       ('', '', '', null),
     );
     expect(mia.proactive, const BotProactive(perDay: 0));
+    final notice = bao.notices.single;
+    expect(
+      (notice.id, notice.kind, notice.chat, notice.title, notice.project),
+      (7, 'failed', 'c-1', 'Fix the build', 'monad'),
+    );
+    expect(notice.detail, 'exit 1');
+    expect(mia.notices, isEmpty);
     // None, from a desktop before them.
     expect(
       LinkState.fromJson(const {'device': <String, Object?>{}}).bots,
