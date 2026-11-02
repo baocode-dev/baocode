@@ -519,7 +519,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       IdeWorkspace(hasFolder: true) => widget.textSearch(root, query),
       _ => _searchOpenFiles(query),
     },
+    // The results follow their files: an open one's text in the editor,
+    // unsaved edits and all, as upstream's; others' on disk.
+    read: (path) async =>
+        _openFileDocument(path)?.text ?? widget.workspace.files.read(path),
+    watch: (directory) => widget.workspace.watchFolder(directory),
   );
+
+  IdeDocument? _openFileDocument(String path) => widget.workspace.documents
+      .where((doc) => doc.isFile && doc.path == path)
+      .firstOrNull;
   final _searchKey = GlobalKey<IdeSearchViewState>();
 
   /// Whether the project's files are this machine's (not a remote host's):
@@ -1631,7 +1640,22 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _documentEdited() {
     _symbols?.update(widget.workspace.active);
     _scheduleAutoSave();
+    _refreshSearchOfOpenFiles();
   }
+
+  /// The Search view's results of the open files matched again, after
+  /// they were edited or read again; and of those just closed, their
+  /// unsaved edits perhaps discarded.
+  void _refreshSearchOfOpenFiles() {
+    final open = {
+      for (final doc in widget.workspace.documents)
+        if (doc.isFile) doc.path,
+    };
+    _search.refresh({...open, ..._searchedOpen});
+    _searchedOpen = open;
+  }
+
+  Set<String> _searchedOpen = const {};
 
   /// Follows the active editor: remembers it for Quick Open and reveals it
   /// in the explorer, as VS Code's `explorer.autoReveal` does.
@@ -1641,6 +1665,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _symbols?.update(widget.workspace.active);
     _forgetClosedNavigation();
     _watchEdits();
+    _refreshSearchOfOpenFiles();
     final documents = widget.workspace.documents;
     _autoSaveFailed.removeWhere(
       (doc) => !doc.dirty || !documents.contains(doc),
