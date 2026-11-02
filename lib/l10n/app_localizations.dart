@@ -14601,6 +14601,60 @@ abstract class AppLocalizations {
   /// **'Only the one picked: one of BaoCode\'s, or a custom address.'**
   String get mobileRelayModePinnedDescription;
 
+  /// No description provided for @mobileRelayModeDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct Only'**
+  String get mobileRelayModeDirect;
+
+  /// No description provided for @mobileRelayModeDirectDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'No relay: phones connect straight to this computer. It needs a public address, or the port below forwarded to it.'**
+  String get mobileRelayModeDirectDescription;
+
+  /// No description provided for @mobileDirectPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct Port'**
+  String get mobileDirectPort;
+
+  /// No description provided for @mobileDirectPortDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The UDP port phones connect to. Forward it to this computer at the router, and allow it in the firewall.'**
+  String get mobileDirectPortDescription;
+
+  /// No description provided for @mobileDirectPortInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'A port from 1024 to 65535.'**
+  String get mobileDirectPortInvalid;
+
+  /// No description provided for @mobileDirectAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct Address'**
+  String get mobileDirectAddress;
+
+  /// No description provided for @mobileDirectAddressDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'It goes in the pairing code and in every connection after.'**
+  String get mobileDirectAddressDescription;
+
+  /// No description provided for @mobileDirectAddressNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No public address yet: check again once this computer is online, or forward the port to it if it is behind a router.'**
+  String get mobileDirectAddressNone;
+
+  /// No description provided for @mobileStatusDirect.
+  ///
+  /// In en, this message translates to:
+  /// **'On, direct only'**
+  String get mobileStatusDirect;
+
   /// No description provided for @mobilePathLan.
   ///
   /// In en, this message translates to:

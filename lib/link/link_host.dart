@@ -131,6 +131,10 @@ enum LinkRelayMode {
 
   /// Only the one picked: one of BaoCode's, or one at an address given.
   pinned,
+
+  /// None: phones reach this computer directly, at [LinkHost.linkPort].
+  /// It needs a public address, or that port forwarded to it.
+  direct,
 }
 
 /// Where the link stands.
@@ -253,10 +257,20 @@ class LinkHost extends ChangeNotifier {
   /// The relay picked, kept to alone while [relayMode] is pinned.
   String? get pinnedRelay => _pinnedRelay;
 
+  int _linkPort = defaultLinkPort;
+
+  /// The UDP port this computer takes for the link, told to phones while
+  /// [relayMode] is direct.
+  int get linkPort => _linkPort;
+
+  /// A port a phone may be told: not one of the well-known ones.
+  static bool validLinkPort(int port) => port >= 1024 && port <= 65535;
+
   /// The relays kept to.
   List<String> get relays => switch (_relayMode) {
     LinkRelayMode.auto => linkRelays(),
     LinkRelayMode.pinned => [_pinnedRelay ?? defaultLinkRelays.first],
+    LinkRelayMode.direct => const [],
   };
 
   LinkHostStatus _status = LinkHostStatus.off;
@@ -333,6 +347,9 @@ class LinkHost extends ChangeNotifier {
     _enabled = json['enabled'] == true;
     _discoverable = json['discoverable'] != false;
     _pinnedRelay = json['pinnedRelay'] as String?;
+    if (json['linkPort'] case final int port when validLinkPort(port)) {
+      _linkPort = port;
+    }
     _relayMode =
         LinkRelayMode.values.asNameMap()[json['relayMode']] ??
         LinkRelayMode.auto;
@@ -387,6 +404,7 @@ class LinkHost extends ChangeNotifier {
     'discoverable': _discoverable,
     'relayMode': _relayMode.name,
     'pinnedRelay': ?_pinnedRelay,
+    'linkPort': _linkPort,
     'phones': [for (final phone in _phones.values) phone.toJson()],
     if (_legacy.isNotEmpty)
       'legacyPhones': [for (final phone in _legacy) phone.toJson()],
@@ -457,14 +475,26 @@ class LinkHost extends ChangeNotifier {
     });
   }
 
-  /// Makes [change] to the relays' settings, kept; on the network again
-  /// when the relays kept to changed.
-  Future<void> _relaysChanging(void Function() change) async {
+  /// Takes [port] for the link from now on (one a phone can be told).
+  /// Answers false, changing nothing, for a port that is not one.
+  Future<bool> setLinkPort(int port) async {
+    if (!validLinkPort(port)) return false;
+    if (!_loaded || port == _linkPort) return true;
+    await _relaysChanging(() => _linkPort = port, always: true);
+    return true;
+  }
+
+  /// Makes [change] to the link's settings, kept; on the network again
+  /// when the relays kept to changed, or with [always].
+  Future<void> _relaysChanging(
+    void Function() change, {
+    bool always = false,
+  }) async {
     final before = relays;
     change();
     unawaited(_save());
     notifyListeners();
-    if (_enabled && !listEquals(before, relays)) {
+    if (_enabled && (always || !listEquals(before, relays))) {
       await _stop();
       await _start();
     }
@@ -489,7 +519,9 @@ class LinkHost extends ChangeNotifier {
       final node = await platform.bind(
         _identity,
         relays: relays,
-        port: defaultLinkPort,
+        port: _linkPort,
+        // Direct-only: phones were told this port, so there is no other.
+        strictPort: _relayMode == LinkRelayMode.direct,
       );
       if (!_enabled || _disposed) {
         await node.close();
@@ -541,7 +573,10 @@ class LinkHost extends ChangeNotifier {
   }
 
   /// The relays to tell a phone: the one kept to now first, then the rest.
-  List<String> get _tellRelays => {...?_info?.relays, ...relays}.toList();
+  /// None, on purpose, in direct-only mode.
+  List<String> get _tellRelays => _relayMode == LinkRelayMode.direct
+      ? const []
+      : {...?_info?.relays, ...relays}.toList();
 
   /// The addresses to tell a phone: on the LAN first, a few at most (the
   /// QR code stays easy to scan).
@@ -556,6 +591,7 @@ class LinkHost extends ChangeNotifier {
       (_device ?? const DeviceInfo(name: '', kind: '', system: '')).copyWith(
         relays: _tellRelays,
         addrs: _tellAddrs,
+        direct: _relayMode == LinkRelayMode.direct,
       );
 
   // --- Pairing ----------------------------------------------------------------
@@ -575,6 +611,7 @@ class LinkHost extends ChangeNotifier {
       expires: DateTime.now().add(offerLifetime),
       relays: _tellRelays,
       addrs: _tellAddrs,
+      direct: _relayMode == LinkRelayMode.direct,
     );
     // Expired: no longer advertised as pairing.
     _expiry?.cancel();

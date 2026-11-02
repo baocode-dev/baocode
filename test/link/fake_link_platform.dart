@@ -14,6 +14,8 @@ class FakeLinkPlatform implements LinkPlatform {
 
   /// What it was bound with last.
   List<String> boundRelays = const [];
+  int boundPort = 0;
+  bool boundStrictPort = false;
   int binds = 0;
 
   /// Advertised now, the latest last.
@@ -30,9 +32,12 @@ class FakeLinkPlatform implements LinkPlatform {
     LinkIdentity identity, {
     required List<String> relays,
     required int port,
+    bool strictPort = false,
   }) async {
     binds++;
     boundRelays = relays;
+    boundPort = port;
+    boundStrictPort = strictPort;
     return node = network.node(identity.id, relays: relays);
   }
 

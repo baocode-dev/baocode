@@ -301,6 +301,10 @@ struct BindConfig {
     /// The UDP port wanted (both IPv4 and IPv6); any free one if taken, or 0.
     #[serde(default)]
     port: u16,
+    /// [port] alone: fail when it is taken, rather than take any other.
+    /// A direct-only desktop needs the port it told its phones.
+    #[serde(default)]
+    strict_port: bool,
     /// Direct connections (UDP); off, only relays (under test).
     #[serde(default = "yes")]
     ip: bool,
@@ -340,8 +344,8 @@ pub unsafe extern "C" fn bi_endpoint_bind(
         let config: BindConfig = serde_json::from_slice(&config).map_err(err)?;
         let endpoint = match bind(&secret, &config, config.port).await {
             Ok(endpoint) => endpoint,
-            // The port wanted is taken: any other.
-            Err(_) if config.port != 0 => bind(&secret, &config, 0).await?,
+            // The port wanted is taken: any other, unless it was insisted on.
+            Err(_) if config.port != 0 && !config.strict_port => bind(&secret, &config, 0).await?,
             Err(e) => return Err(e),
         };
         let (sender, receiver) = mpsc::unbounded_channel();

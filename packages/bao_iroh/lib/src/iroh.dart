@@ -81,7 +81,9 @@ abstract final class Iroh {
       case biOk:
         return (reply.value, reply.data);
       case biEnd:
-        throw IrohClosedException(utf8.decode(reply.data, allowMalformed: true));
+        throw IrohClosedException(
+          utf8.decode(reply.data, allowMalformed: true),
+        );
       default:
         throw IrohException(utf8.decode(reply.data, allowMalformed: true));
     }
@@ -172,11 +174,7 @@ class IrohAddr {
   final List<String> relays;
   final List<String> addrs;
 
-  Map<String, Object?> toJson() => {
-    'id': id,
-    'relays': relays,
-    'addrs': addrs,
-  };
+  Map<String, Object?> toJson() => {'id': id, 'relays': relays, 'addrs': addrs};
 }
 
 /// A home relay, as the endpoint stands with it.
@@ -259,13 +257,15 @@ class IrohEndpoint {
 
   /// Binds an endpoint as [secret] (an ed25519 key's 32-byte seed) for
   /// [alpn]. [relays] are its relays' URLs (none: direct only). [port], the
-  /// UDP port wanted (any other if taken; 0, any). [accept]: takes
-  /// connections ([incoming]). [ip] false: relays only (under test).
+  /// UDP port wanted (any other if taken, unless [strictPort]; 0, any).
+  /// [accept]: takes connections ([incoming]). [ip] false: relays only
+  /// (under test).
   static Future<IrohEndpoint> bind({
     required Uint8List secret,
     required String alpn,
     List<String> relays = const [],
     int port = 0,
+    bool strictPort = false,
     bool accept = false,
     bool ip = true,
     Duration keepAlive = const Duration(seconds: 5),
@@ -277,6 +277,7 @@ class IrohEndpoint {
         'alpn': alpn,
         'relays': relays,
         'port': port,
+        'strictPort': strictPort,
         'accept': accept,
         'ip': ip,
         'keepAliveMs': keepAlive.inMilliseconds,
@@ -570,10 +571,7 @@ class IrohStream {
       }
     }
 
-    controller = StreamController<Uint8List>(
-      onListen: pump,
-      onResume: pump,
-    );
+    controller = StreamController<Uint8List>(onListen: pump, onResume: pump);
     return controller.stream;
   }();
 
