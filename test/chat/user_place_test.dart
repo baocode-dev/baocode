@@ -45,8 +45,12 @@ void main() {
       UserPlace.phone.note,
       'from the phone',
     ]);
-    // Told already; and what the app sends tells nothing.
-    expect(await send('again', UserPlace.phone), ['again']);
+    // On the phone still: a word, each message.
+    expect(await send('again', UserPlace.phone), [
+      UserPlace.stillOnPhone,
+      'again',
+    ]);
+    // What the app sends tells nothing.
     expect(await send('a goal goes on', null), ['a goal goes on']);
     expect(await send('back', UserPlace.computer), [
       UserPlace.computer.note,
