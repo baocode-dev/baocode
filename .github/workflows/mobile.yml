@@ -1,6 +1,7 @@
 # Builds the phone app: Android (APK), put on dl.baocode.dev, where
 # baocode.dev/download links to it (/dl/android); iOS, uploaded to
-# TestFlight. docs/release.md, 10.
+# TestFlight, and a release's given to its public testers (/dl/ios).
+# docs/release.md, 10.
 #
 #   git tag mobile-v0.1.0 && git push origin mobile-v0.1.0
 #                           build and publish 0.1.0 (the version of the
@@ -391,15 +392,20 @@ jobs:
           # build, to tell one from another of a version; the arm64 APK,
           # the smaller one most phones fetch; and, set as the repository's
           # MOBILE_MIN_BUILD, the oldest build the desktops still talk to,
-          # the update pressed on any older.
+          # the update pressed on any older. The iPhone's in TestFlight as
+          # it was (the testflight job's), until its public testers have
+          # this one.
+          ios=$(curl -fsS "https://dl.baocode.dev/releases/mobile/latest.json?$GITHUB_RUN_ID" | jq -c '.ios // null' || echo null)
           jq -n --arg version "$MARKETING" --argjson build "${VERSION##*+}" \
             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson beta "$beta" \
             --arg minBuild "$MIN_BUILD" \
             --argjson android "$(entry dist/BaoCode-$MARKETING-android.apk)" \
             --argjson arm64 "$(entry dist/BaoCode-$MARKETING-android-arm64.apk)" \
+            --argjson ios "${ios:-null}" \
             '{version: $version, build: $build, pubDate: $date, beta: $beta}
              + (if $minBuild == "" then {} else {minBuild: ($minBuild | tonumber)} end)
-             + {downloads: {android: $android, androidArm64: $arm64}}' > latest.json
+             + {downloads: {android: $android, androidArm64: $arm64}}
+             + (if $ios == null then {} else {ios: $ios} end)' > latest.json
           cat latest.json
           jq -r '.downloads[] | "\(.url) \(.size)"' latest.json | while read -r url expected; do
             served=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')
@@ -411,3 +417,69 @@ jobs:
           aws s3 cp latest.json "s3://$R2_BUCKET/releases/mobile/latest.json" \
             --cache-control 'public, max-age=300' --content-type application/json
           curl -fsS "https://dl.baocode.dev/releases/mobile/latest.json?$GITHUB_RUN_ID" | jq .
+
+  # A release's iPhone build to TestFlight's public testers (the public
+  # link, /dl/ios), as internal ones have each build at once: once Apple
+  # has processed it, what to test is written for it (the phone app's
+  # release-notes/<version>.<zh|en>.md), it joins the Public beta group
+  # and goes to Beta App Review (tool/testflight.mjs). Once the testers
+  # have it, latest.json tells the iPhones of it (lib/update/ in the phone
+  # app: a line over the chats, a tap opening TestFlight). Review takes
+  # hours at worst: waited for here, on a runner that costs nothing; run
+  # again to look again if it took longer.
+  testflight:
+    name: Give the iPhone's to TestFlight's public testers
+    needs: [check, ios, publish]
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment: release
+    env:
+      MARKETING: ${{ needs.check.outputs.marketing }}
+      # The ios job's build number.
+      IOS_BUILD: ${{ github.run_number }}
+      # As site-worker/index.js's TESTFLIGHT.
+      TESTFLIGHT: https://testflight.apple.com/join/KWwGgyhv
+      ASC_KEY: ${{ secrets.NOTARY_KEY }}
+      ASC_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+      ASC_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: monad
+      - uses: actions/checkout@v5
+        with:
+          repository: baocode-dev/mobile
+          ref: ${{ needs.check.outputs.commit }}
+          ssh-key: ${{ secrets.MOBILE_DEPLOY_KEY }}
+          path: mobile
+      - name: To the public testers, and wait until they have it
+        run: |
+          notes=()
+          for lang in zh en; do
+            file="mobile/release-notes/$MARKETING.$lang.md"
+            [ -f "$file" ] && notes+=("--notes-$lang" "$file")
+          done
+          node monad/tool/testflight.mjs --version "$MARKETING" --build "$IOS_BUILD" \
+            "${notes[@]}" --wait --out ios.json
+      - name: Tell the iPhones in latest.json
+        run: |
+          aws s3 cp "s3://$R2_BUCKET/releases/mobile/latest.json" latest.json
+          jq --slurpfile ios ios.json --arg url "$TESTFLIGHT" \
+            '.ios = ($ios[0] + {url: $url})' latest.json > next.json
+          cat next.json
+          aws s3 cp next.json "s3://$R2_BUCKET/releases/mobile/latest.json" \
+            --cache-control 'public, max-age=300' --content-type application/json
+          curl -fsS "https://dl.baocode.dev/releases/mobile/latest.json?$GITHUB_RUN_ID" | jq -e '.ios'
+          {
+            echo "## iOS: $MARKETING ($IOS_BUILD) with TestFlight's public testers"
+            echo
+            echo "latest.json tells the iPhones of it."
+          } >> "$GITHUB_STEP_SUMMARY"
