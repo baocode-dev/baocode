@@ -4,6 +4,7 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/ide/ide_quick_input.dart';
@@ -145,6 +146,10 @@ void main() {
     // The mock's reply played out.
     await tester.pump(const Duration(seconds: 30));
     await tester.pumpAndSettle(const Duration(seconds: 1));
+    // Closed, its kernel keeps the conversation's calls in the ledger, which
+    // writes them a moment later.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
   }, variant: _mac);
 
   test(

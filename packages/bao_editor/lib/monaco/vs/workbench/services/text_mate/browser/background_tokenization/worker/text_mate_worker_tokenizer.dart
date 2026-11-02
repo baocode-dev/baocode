@@ -61,7 +61,8 @@ class TextMateWorkerTokenizer implements ITokenizedLines {
   TokenizerWithStateStore? _tokenizerWithStateStore;
   bool _isDisposed = false;
   Timer? _tokenizeDebouncer;
-  bool _tokenizing = false;
+  // The pass yielded to the event loop, to go on after it (or cancelled).
+  Timer? _tokenizeResume;
   (int, int)? _viewport;
 
   int get versionId => _versionId;
@@ -75,6 +76,7 @@ class TextMateWorkerTokenizer implements ITokenizedLines {
   void dispose() {
     _isDisposed = true;
     _tokenizeDebouncer?.cancel();
+    _tokenizeResume?.cancel();
   }
 
   void onLanguageId(String languageId, int encodedLanguageId) {
@@ -177,7 +179,7 @@ class TextMateWorkerTokenizer implements ITokenizedLines {
   }
 
   void _tokenize() {
-    if (_tokenizing) return;
+    if (_tokenizeResume?.isActive ?? false) return;
     final tokenizer = _tokenizerWithStateStore;
     if (_isDisposed || tokenizer == null) return;
 
@@ -216,11 +218,7 @@ class TextMateWorkerTokenizer implements ITokenizedLines {
 
       if (watch.elapsedMilliseconds > 20) {
         // yield to check for changes
-        _tokenizing = true;
-        Timer.run(() {
-          _tokenizing = false;
-          _tokenize();
-        });
+        _tokenizeResume = Timer(Duration.zero, _tokenize);
         return;
       }
     }
