@@ -21157,6 +21157,12 @@ abstract class AppLocalizations {
   /// **'Answering'**
   String get ustatCallAnswering;
 
+  /// A call Claude Code gave up on before it was answered in full (it timed out, or was interrupted)
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get ustatCallCancelled;
+
   /// No description provided for @ustatFieldFirstToken.
   ///
   /// In en, this message translates to:

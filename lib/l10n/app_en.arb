@@ -8435,6 +8435,8 @@
   "@ustatCallAsking": {"description": "A call under way, nothing of its answer yet"},
   "ustatCallAnswering": "Answering",
   "@ustatCallAnswering": {"description": "A call under way, its answer coming"},
+  "ustatCallCancelled": "Cancelled",
+  "@ustatCallCancelled": {"description": "A call Claude Code gave up on before it was answered in full (it timed out, or was interrupted)"},
   "ustatFieldFirstToken": "First token",
   "ustatFieldDuration": "Duration",
   "ustatFieldSpeed": "Speed",

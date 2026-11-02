@@ -401,7 +401,7 @@ class ModelPrice {
     }
     final window = schedule?.windowAt(call.at);
     var fees = 0.0;
-    if (!call.failed) {
+    if (!call.failed && !call.cancelled) {
       fees = perCall;
       for (final MapEntry(:key, :value) in call.serverTools.entries) {
         fees += (tools[key] ?? 0) * value;

@@ -584,6 +584,11 @@ class UsageMeter {
   /// Why it failed.
   void fail(String message) => _error ??= message;
 
+  /// Claude Code gave up on it (it closed the connection): kept as
+  /// cancelled ([UsageCall.cancelled]), with what came of it till then.
+  void cancel() => _cancelled = true;
+  bool _cancelled = false;
+
   /// Events of the answer, as sent to Claude Code: text, in pieces as
   /// they come, not always whole lines.
   void events(String text) {
@@ -768,7 +773,7 @@ class UsageMeter {
       _whole.clear();
     }
     _watch.stop();
-    return _call(status);
+    return _call(_cancelled ? UsageCall.cancelledStatus : status);
   }
 
   /// What it is so far, while under way ([UsageLedger.underway]): its
@@ -782,7 +787,11 @@ class UsageMeter {
       headers: _headers,
       firstToken: _firstToken,
       status: status,
-      error: status >= 400 ? (_error ?? 'HTTP $status') : _error,
+      error: status == UsageCall.cancelledStatus
+          ? null
+          : status >= 400
+          ? (_error ?? 'HTTP $status')
+          : _error,
       provider: provider,
       providerName: providerName,
       protocol: protocol,

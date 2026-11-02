@@ -121,4 +121,28 @@ void main() {
     await tester.pumpWidget(_app(const [], ledger, underway: [underway()]));
     expect(find.textContaining('请求中'), findsOneWidget);
   });
+
+  testWidgets('a call Claude Code gave up on shows as cancelled, not as '
+      'failed', (tester) async {
+    tester.view
+      ..physicalSize = const Size(480, 800)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final now = DateTime(2026, 11, 1, 16);
+    final ledger = UsageLedger(MemoryUsageStorage(), clock: () => now);
+    addTearDown(ledger.dispose);
+    final cancelled = UsageCall(
+      at: now,
+      duration: const Duration(minutes: 10),
+      status: UsageCall.cancelledStatus,
+      provider: 'relay',
+      model: 'model-gone',
+      session: 's1',
+    );
+    expect(cancelled.cancelled, isTrue);
+    expect(cancelled.failed, isFalse);
+    await tester.pumpWidget(_app([cancelled], ledger));
+    expect(find.textContaining('已取消'), findsOneWidget);
+    expect(find.textContaining('499'), findsNothing);
+  });
 }

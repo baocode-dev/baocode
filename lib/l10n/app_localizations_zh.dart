@@ -12268,6 +12268,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatCallAnswering => '输出中';
 
   @override
+  String get ustatCallCancelled => '已取消';
+
+  @override
   String get ustatFieldFirstToken => '首字';
 
   @override
