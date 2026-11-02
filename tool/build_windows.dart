@@ -72,6 +72,8 @@ const _required = [
   // installer's keys point the browsers to (windows/BrowserBridge).
   'baocode-browser-host.exe',
   'dev.baocode.browser.json',
+  // What writes down a fast fail (windows/wer), which the app registers.
+  'baocode_wer.dll',
   // The VC++ runtime, carried rather than taken from System32, which may
   // be older than the build's (see windows/CMakeLists.txt).
   'msvcp140.dll',
