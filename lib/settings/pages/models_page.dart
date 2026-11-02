@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../base/mouse_navigation.dart';
 import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
 import '../../ide/ide_hover.dart';
@@ -918,7 +919,16 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => MouseNavigation(
+    // The mouse's back button: back to the models, as the arrow.
+    onBack: () {
+      widget.onBack();
+      return true;
+    },
+    child: _page(context),
+  );
+
+  Widget _page(BuildContext context) {
     final l10n = context.l10n;
     final provider = _provider;
     return SettingsColumn(

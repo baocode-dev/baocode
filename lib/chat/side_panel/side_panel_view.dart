@@ -792,6 +792,7 @@ class AgentSidePanelView extends StatelessWidget {
             : ShownWhenReady(child: _preview(context, active)),
         overlayTabs: _fileTabs(context, tabs, tabs.diffs, active),
         onCloseOverlay: () => panel.showLog(session),
+        onReopenOverlay: () => panel.reopenDiff(session),
         onAddToChat: session.draft.insertFiles,
         worktrees: worktreesOf?.call(git) ?? const IdeGitWorktreeChoice(),
         changes: IdeGitCommitPanel(

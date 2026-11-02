@@ -9,6 +9,7 @@ import '../../chat/side_panel/side_panel_view.dart' show SidePanelToggle;
 import '../../icons/project_icon_view.dart';
 import '../../ide/editor_minimap_setting.dart';
 import '../../ide/editor_word_wrap.dart';
+import '../../ide/ide_command_center.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_layout.dart';
 import '../../ide/ide_modern_ui.dart';
@@ -63,6 +64,7 @@ class WindowHeader extends StatefulWidget {
     this.autoSave = false,
     this.project,
     this.ideLayout,
+    this.ideNavigation,
     this.ide,
     this.hasFolder,
     this.onBack,
@@ -89,6 +91,12 @@ class WindowHeader extends StatefulWidget {
 
   /// Over the IDE, which of its parts show, for its layout toggles.
   final IdeLayout? ideLayout;
+
+  /// Over the IDE, whether its Go Back and Go Forward have somewhere to
+  /// go: its command center's arrows, beside its search box, in the middle
+  /// of the strip as on its own title bar (#539). They run through
+  /// [onFileCommand].
+  final ValueListenable<({bool back, bool forward})>? ideNavigation;
 
   /// Whether it is over the IDE; by default, whether the workspace shows
   /// it ([Workspace.layout]). An IDE window's always is.
@@ -196,6 +204,7 @@ class _WindowHeaderState extends State<WindowHeader> {
   final _sidePanel = GlobalKey(debugLabel: 'header side panel');
   final _open = GlobalKey(debugLabel: 'header open in editor');
   final _back = GlobalKey(debugLabel: 'header back to chat');
+  final _center = GlobalKey(debugLabel: 'header command center');
   final _minimize = GlobalKey(debugLabel: 'window minimize');
   final _maximize = GlobalKey(debugLabel: 'window maximize');
   final _close = GlobalKey(debugLabel: 'window close');
@@ -329,6 +338,12 @@ class _WindowHeaderState extends State<WindowHeader> {
                     ),
                   ),
                 )
+              else if (_commandCenter(ide && !settings) case final center?)
+                Expanded(
+                  child: Center(
+                    child: KeyedSubtree(key: _center, child: center),
+                  ),
+                )
               else
                 const Spacer(),
               // Under the settings, whose barrier takes their clicks, the
@@ -347,6 +362,34 @@ class _WindowHeaderState extends State<WindowHeader> {
       ),
     );
   }
+
+  /// Over the IDE, its command center: Go Back, Go Forward and the search
+  /// box, run as the IDE's commands.
+  Widget? _commandCenter(bool shown) {
+    final navigation = widget.ideNavigation;
+    final run = widget.onFileCommand;
+    if (!shown || navigation == null || run == null) return null;
+    final l10n = context.l10n;
+    final hasFolder = widget.hasFolder ?? widget.workspace.ideFolder != null;
+    final project = hasFolder ? widget.project : null;
+    return IdeCommandCenter(
+      label: project?.name ?? l10n.ideSearchOpenFiles,
+      tooltip: ChatKeys.titleWithKey(
+        project == null
+            ? l10n.ideSearchOpenFiles
+            : l10n.ideSearchProject(project.name),
+        _quickOpenCommand,
+        ChatKeys.ideLayout,
+      ),
+      onSearch: () => run(_quickOpenCommand),
+      navigation: navigation,
+      onNavigate: (back) => run(
+        back ? IdeCommandCenter.backCommand : IdeCommandCenter.forwardCommand,
+      ),
+    );
+  }
+
+  static const _quickOpenCommand = 'workbench.action.quickOpen';
 
   /// The tools on the right of the strip, before the window's buttons.
   List<Widget> _tools(IdeLayout? layout, bool ide) => [
@@ -441,6 +484,7 @@ class _WindowHeaderState extends State<WindowHeader> {
         _pin,
         _open,
         _back,
+        _center,
       ])
         ?_rect(key),
     ];

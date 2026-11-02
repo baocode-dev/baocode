@@ -132,6 +132,47 @@ Offset near(Rect rect, PaneSide side) => switch (side) {
 };
 
 void main() {
+  testWidgets("the mouse's back and forward buttons go through the agents "
+      'selected, as a browser through its pages (#516)', (tester) async {
+    final workspace = await pumpApp(tester);
+    final start = workspace.current!;
+    final others = workspace.threads
+        .where((thread) => thread != start && !thread.archived)
+        .take(2)
+        .toList();
+    Future<void> side(int buttons) async {
+      await tester.tapAt(
+        gridRect(tester).center,
+        buttons: buttons,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    workspace.select(others[0]);
+    await tester.pumpAndSettle();
+    workspace.select(others[1]);
+    await tester.pumpAndSettle();
+
+    await side(kBackMouseButton);
+    expect(workspace.current, others[0]);
+    await side(kBackMouseButton);
+    expect(workspace.current, start);
+    // Nothing further back.
+    await side(kBackMouseButton);
+    expect(workspace.current, start);
+
+    await side(kForwardMouseButton);
+    expect(workspace.current, others[0]);
+    // Another picked: nothing ahead any more.
+    workspace.select(start);
+    await tester.pumpAndSettle();
+    await side(kForwardMouseButton);
+    expect(workspace.current, start);
+    await side(kBackMouseButton);
+    expect(workspace.current, others[0]);
+  });
+
   testWidgets('an agent dragged to the right of the chat opens beside it', (
     tester,
   ) async {

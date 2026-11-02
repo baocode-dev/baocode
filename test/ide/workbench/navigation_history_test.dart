@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_editor.dart';
+import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_tab_bar.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
+import 'package:baocode/theme/codicons.dart';
 
 import 'fake_files.dart';
 
@@ -39,6 +41,16 @@ String _status(WidgetTester tester) {
 
 Finder _tab(String name) =>
     find.descendant(of: find.byType(IdeTabBar), matching: find.text(name));
+
+/// The title bar's arrow (#539): Go Back's, or Go Forward's.
+IdeActionButton _arrow(WidgetTester tester, {required bool back}) =>
+    tester.widget<IdeActionButton>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is IdeActionButton &&
+            widget.icon == (back ? Codicons.arrowLeft : Codicons.arrowRight),
+      ),
+    );
 
 Object? _context(WidgetTester tester, String key) =>
     tester.state<IdeWorkbenchState>(find.byType(IdeWorkbench)).keyContext(key);
@@ -168,5 +180,34 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(workspace.active!.path, inRoot('a.dart'));
+  });
+
+  testWidgets("the title bar's arrows go back and forward as they can (#539)", (
+    tester,
+  ) async {
+    final workspace = await pumpWorkbench(
+      tester,
+      files,
+      open: ['a.dart', 'c.dart'],
+      nativeEditor: true,
+    );
+    await tester.pumpAndSettle();
+    expect(_arrow(tester, back: true).onPressed, isNull);
+    expect(_arrow(tester, back: false).onPressed, isNull);
+
+    await chord(tester, LogicalKeyboardKey.digit1, alt: true);
+    await tester.pumpAndSettle();
+    expect(workspace.navigation.value, (back: true, forward: false));
+    expect(_arrow(tester, back: false).onPressed, isNull);
+
+    _arrow(tester, back: true).onPressed!();
+    await tester.pumpAndSettle();
+    expect(workspace.active!.path, inRoot('c.dart'));
+    expect(_arrow(tester, back: true).onPressed, isNull);
+
+    _arrow(tester, back: false).onPressed!();
+    await tester.pumpAndSettle();
+    expect(workspace.active!.path, inRoot('a.dart'));
+    expect(workspace.navigation.value, (back: true, forward: false));
   });
 }
