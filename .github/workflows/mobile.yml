@@ -138,6 +138,15 @@ jobs:
           apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
           for apk in out/*.apk; do
             "$apksigner" verify "$apk"
+            # As an Android without v2 (23) would: v1 has to verify too.
+            schemes=$("$apksigner" verify -v --min-sdk-version 23 "$apk")
+            # v2 alone is a signed APK to Android, but some phones'
+            # installers (MIUI's among them) want the JAR signature too,
+            # and call one without it unsigned.
+            grep -q "Verified using v1 scheme (JAR signing): true" <<< "$schemes" \
+              || { echo "::error::$apk has no v1 (JAR) signature: some phones' installers call it unsigned"; exit 1; }
+            grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" <<< "$schemes" \
+              || { echo "::error::$apk has no v2 signature"; exit 1; }
             signed=$("$apksigner" verify --print-certs "$apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1 \
               | tr a-f A-F | sed 's/../&:/g; s/:$//')
             echo "$apk: $signed"
