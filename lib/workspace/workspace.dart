@@ -171,7 +171,13 @@ class AgentThread {
 
   ThreadStatus get status {
     final session = _session;
-    if (session?.pendingInteraction != null) return ThreadStatus.needsInput;
+    // A plan awaiting and a pending request both wait on the user, and
+    // are told of the same way: a turn that ended on its own (what the
+    // agent did about a background subagent's report) still needs their
+    // say-so to go on.
+    if (session?.pendingInteraction != null || session?.awaitingPlan != null) {
+      return ThreadStatus.needsInput;
+    }
     if (session?.isStreaming ?? false) return ThreadStatus.running;
     if (unread) return ThreadStatus.unread;
     return ThreadStatus.idle;
