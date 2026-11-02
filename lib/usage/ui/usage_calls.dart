@@ -367,6 +367,15 @@ class _CallRow extends StatelessWidget {
             message: '${call.status} · ${call.error ?? ''}',
             child: Icon(Codicons.error, size: 12, color: UsagePalette.error),
           ),
+        if (call.cancelled)
+          IdeHover(
+            message: context.l10n.ustatCallCancelled,
+            child: Icon(
+              Codicons.circleSlash,
+              size: 12,
+              color: AppColors.textFaint,
+            ),
+          ),
       ],
     );
   }
@@ -410,6 +419,11 @@ class _CallRow extends StatelessWidget {
             TextSpan(
               text: '  ${_stage(context)}',
               style: UsageText.faint.copyWith(color: AppColors.accent),
+            ),
+          if (call.cancelled)
+            TextSpan(
+              text: '  ${context.l10n.ustatCallCancelled}',
+              style: UsageText.faint,
             ),
         ],
       ),
@@ -541,6 +555,7 @@ class _CallRow extends StatelessWidget {
             UsageFormat.duration(call.duration),
           ]
         : [
+            if (call.cancelled) l10n.ustatCallCancelled,
             '${l10n.ustatTokenInput} ${UsageFormat.tokens(call.input)}',
             if (call.cacheRead > 0)
               '${l10n.ustatTokenCacheRead} ${UsageFormat.tokens(call.cacheRead)}',
@@ -618,13 +633,15 @@ class _CallRow extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (failed)
+                      if (failed || call.cancelled)
                         Padding(
                           padding: const EdgeInsets.only(right: 6),
                           child: Icon(
-                            Codicons.error,
+                            failed ? Codicons.error : Codicons.circleSlash,
                             size: 12,
-                            color: UsagePalette.error,
+                            color: failed
+                                ? UsagePalette.error
+                                : AppColors.textFaint,
                           ),
                         ),
                       Text(
@@ -695,7 +712,11 @@ class UsageCallDetail extends StatelessWidget {
       (l10n.ustatFieldTime, call.at.toLocal().toString().substring(0, 23)),
       (
         l10n.ustatFieldStatus,
-        '${call.status}${call.stopReason == null ? '' : ' · ${call.stopReason}'}',
+        [
+          '${call.status}',
+          if (call.cancelled) l10n.ustatCallCancelled,
+          ?call.stopReason,
+        ].join(' · '),
       ),
       (
         l10n.ustatFieldUpstream,

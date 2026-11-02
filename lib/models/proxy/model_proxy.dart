@@ -20,6 +20,7 @@ import 'translate/openai_chat_response.dart';
 import 'translate/responses_request.dart';
 import 'translate/responses_response.dart';
 import 'translate/thinking.dart';
+import 'watched_socket.dart';
 
 /// Anthropic's Messages API on this machine, in front of the upstreams
 /// that speak OpenAI's: Claude Code is pointed at it
@@ -44,6 +45,10 @@ import 'translate/thinking.dart';
 ///
 /// `/p/<provider>/v1/messages` and `/p/<provider>/v1/messages/count_tokens`
 /// (an estimate: the upstreams have none).
+///
+/// A request Claude Code gives up on (it closes the connection: it timed
+/// out, or was interrupted) is given up on upstream too, at once, and kept
+/// as cancelled ([UsageCall.cancelled]).
 class ModelProxy {
   ModelProxy({
     required this._provider,
@@ -82,6 +87,7 @@ class ModelProxy {
   }
 
   Future<HttpServer>? _server;
+  WatchedServerSocket? _sockets;
   HttpClient? _client;
 
   /// Where [providerId]'s requests go, the proxy started if not yet.
@@ -95,7 +101,11 @@ class ModelProxy {
   }
 
   Future<HttpServer> _bind() async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final sockets = _sockets = await WatchedServerSocket.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    final server = HttpServer.listenOn(sockets);
     server.listen((request) => unawaited(_handle(request)));
     return server;
   }
@@ -112,6 +122,8 @@ class ModelProxy {
     final server = await _server;
     _server = null;
     await server?.close(force: true);
+    await _sockets?.close();
+    _sockets = null;
     _client?.close(force: true);
     _client = null;
   }
@@ -137,16 +149,65 @@ class ModelProxy {
     return difference == 0;
   }
 
-  /// The trace of the request being answered, where it is followed
-  /// whole: what [_json] answers goes in it too.
-  static const _traceSlot = #usageTrace;
+  /// The request being answered: its trace, where it is followed whole
+  /// (what [_json] answers goes in it too), and whether Claude Code is
+  /// still there.
+  static const _slotKey = #proxyRequest;
 
-  static UsageTrace? get _trace => (Zone.current[_traceSlot] as _Slot?)?.trace;
+  static _Slot? get _slot => Zone.current[_slotKey] as _Slot?;
 
-  Future<void> _handle(HttpRequest request) =>
-      runZoned(() => _answer(request), zoneValues: {_traceSlot: _Slot()});
+  static UsageTrace? get _trace => _slot?.trace;
+
+  Future<void> _handle(HttpRequest request) => runZoned(
+    () => _answer(request),
+    zoneValues: {_slotKey: _Slot(_sockets?.endOf(request))},
+  );
+
+  /// [upstream] given up on when Claude Code is (its connection to
+  /// [response] closed) before it is answered: after, see [_whileClient].
+  static void _dropWithClient(
+    HttpResponse response,
+    HttpClientRequest upstream,
+  ) {
+    void drop([Object? _]) => upstream.abort(const _ClientGone());
+    unawaited(response.done.then<void>((_) {}, onError: drop));
+    unawaited(_slot?.gone?.then(drop));
+  }
+
+  /// An upstream's [answer], ended in error when Claude Code gives up on
+  /// the request: let go of then, its connection closed (an answer under
+  /// way is not ended by aborting its request).
+  static Stream<List<int>> _whileClient(Stream<List<int>> answer) {
+    final gone = _slot?.gone;
+    if (gone == null) return answer;
+    StreamSubscription<List<int>>? reading;
+    late final StreamController<List<int>> out;
+    out = StreamController(
+      onListen: () {
+        reading = answer.listen(
+          out.add,
+          onError: out.addError,
+          onDone: out.close,
+        );
+        unawaited(
+          gone.then((_) {
+            if (out.isClosed) return;
+            unawaited(reading?.cancel());
+            out
+              ..addError(const _ClientGone())
+              ..close();
+          }),
+        );
+      },
+      onPause: () => reading?.pause(),
+      onResume: () => reading?.resume(),
+      onCancel: () => reading?.cancel(),
+    );
+    return out.stream;
+  }
 
   Future<void> _answer(HttpRequest request) async {
+    final slot = _slot!;
     final response = request.response;
     UsageMeter? meter;
     UsageLedger? ledger;
@@ -219,7 +280,7 @@ class ModelProxy {
                 body: text,
               );
             meter.trace = trace;
-            (Zone.current[_traceSlot] as _Slot?)?.trace = trace;
+            slot.trace = trace;
           }
         }
       }
@@ -249,9 +310,16 @@ class ModelProxy {
       meter?.fail('The request is not JSON: ${error.message}');
       await _fail(response, 400, 'The request is not JSON: ${error.message}');
     } on Object catch (error) {
-      debugPrint('Model proxy: $error');
-      meter?.fail('$error');
-      await _fail(response, 502, '$error');
+      if (slot.left) {
+        // Given up on by Claude Code, its upstream request with it; closed
+        // for the server to let its connection go.
+        meter?.cancel();
+        await response.close().catchError((_) {});
+      } else {
+        debugPrint('Model proxy: $error');
+        meter?.fail('$error');
+        await _fail(response, 502, '$error');
+      }
     } finally {
       final trace = meter?.trace;
       trace?.finish(
@@ -405,13 +473,7 @@ class ModelProxy {
         body: payload,
       );
       upstreamRequest.add(utf8.encode(payload));
-      // The client gone: so is the upstream's request.
-      unawaited(
-        response.done.then<void>(
-          (_) {},
-          onError: (_) => upstreamRequest.abort(),
-        ),
-      );
+      _dropWithClient(response, upstreamRequest);
       final answer = upstream = await upstreamRequest.close();
       meter?.answered();
       meter?.trace?.answered(
@@ -431,7 +493,7 @@ class ModelProxy {
         );
       }
       _onError?.call(provider.id, null);
-      lines = answer
+      lines = _whileClient(answer)
           .transform(const Utf8Decoder(allowMalformed: true))
           .transform(const LineSplitter());
     }
@@ -446,7 +508,7 @@ class ModelProxy {
 
     if (provider.protocol == ProviderProtocol.openaiChat) {
       if (!stream) {
-        final text = await utf8.decodeStream(upstream!);
+        final text = await utf8.decodeStream(_whileClient(upstream!));
         trace?.upstreamText(text);
         meter?.upstreamLine(text);
         final message = convertOpenAIResponseToClaudeNonStream(body, text);
@@ -577,9 +639,7 @@ class ModelProxy {
       body: payload,
     );
     upstreamRequest.add(utf8.encode(payload));
-    unawaited(
-      response.done.then<void>((_) {}, onError: (_) => upstreamRequest.abort()),
-    );
+    _dropWithClient(response, upstreamRequest);
     final answer = await upstreamRequest.close();
     meter?.answered();
     meter?.trace?.answered(
@@ -606,7 +666,7 @@ class ModelProxy {
     if (!countTokens) _onError?.call(provider.id, null);
     _answerAs(response, answer);
     response.bufferOutput = false;
-    await for (final chunk in answer) {
+    await for (final chunk in _whileClient(answer)) {
       response.add(chunk);
       meter?.bytes(chunk);
       await response.flush();
@@ -715,9 +775,7 @@ class ModelProxy {
           body: payload,
         );
         request.add(utf8.encode(payload));
-        unawaited(
-          response.done.then<void>((_) {}, onError: (_) => request.abort()),
-        );
+        _dropWithClient(response, request);
         final upstream = await request.close();
         codex.record(provider, account, upstream.headers.value);
         final status = upstream.statusCode;
@@ -757,7 +815,7 @@ class ModelProxy {
         }
         // A limit reached may come as the stream's first event.
         final iterator = StreamIterator(
-          upstream
+          _whileClient(upstream)
               .transform(const Utf8Decoder(allowMalformed: true))
               .transform(const LineSplitter()),
         );
@@ -849,9 +907,28 @@ class ModelProxy {
   }
 }
 
-/// Where a request's trace is, for what answers it.
+/// A request being answered, for what answers it: its trace, and whether
+/// Claude Code is still there.
 class _Slot {
+  _Slot(this.gone) {
+    unawaited(gone?.then((_) => left = true));
+  }
+
   UsageTrace? trace;
+
+  /// When Claude Code's connection is closed: it gave up on the request.
+  final Future<void>? gone;
+
+  /// Claude Code gave up on it.
+  bool left = false;
+}
+
+/// Why an upstream request was given up on: Claude Code gave up on it.
+class _ClientGone implements Exception {
+  const _ClientGone();
+
+  @override
+  String toString() => 'Claude Code closed the connection';
 }
 
 /// About how many tokens [request]'s input comes to: a quarter of its

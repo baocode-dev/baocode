@@ -238,7 +238,7 @@ class UsageSummary {
   /// chart; compactions among them.
   List<UsageContextPoint> get context => [
     for (final call in calls)
-      if (!call.failed && call.prompt > 0)
+      if (!call.failed && !call.cancelled && call.prompt > 0)
         (
           at: call.at,
           prompt: call.prompt,

@@ -369,6 +369,7 @@ abstract final class UsageTools {
       'kind': call.requestClass.name,
       'agent': ?call.agentType,
       if (call.failed) 'status': call.status,
+      if (call.cancelled) 'cancelled': true,
       'error': ?call.error,
       'input': call.input,
       'cacheRead': call.cacheRead,

@@ -3516,6 +3516,7 @@
   "ustatFieldUpstreamLatency": "上游响应",
   "ustatCallAsking": "请求中",
   "ustatCallAnswering": "输出中",
+  "ustatCallCancelled": "已取消",
   "ustatFieldFirstToken": "首字",
   "ustatFieldDuration": "总耗时",
   "ustatFieldSpeed": "速度",

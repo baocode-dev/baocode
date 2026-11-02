@@ -476,7 +476,15 @@ class UsageCall {
   /// All of its input: read, written and neither.
   int get prompt => input + cacheRead + cacheWrite;
   int get total => prompt + output;
-  bool get failed => status >= 400 || error != null;
+  bool get failed => !cancelled && (status >= 400 || error != null);
+
+  /// Given up on by Claude Code before it was answered in full (it closed
+  /// the connection: it timed out, or was interrupted).
+  bool get cancelled => status == cancelledStatus;
+
+  /// [status] of a call [cancelled]: nginx's for a client that closed the
+  /// connection.
+  static const cancelledStatus = 499;
 
   /// Output tokens a second, from the first of them.
   double? get speed {

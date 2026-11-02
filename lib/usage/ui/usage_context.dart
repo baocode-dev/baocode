@@ -55,7 +55,7 @@ class _UsageContextSectionState extends State<UsageContextSection> {
   Map<String, List<UsageCall>> get _byAgent {
     final byAgent = <String, List<UsageCall>>{};
     for (final call in widget.summary.calls) {
-      if (call.failed || call.prompt <= 0) continue;
+      if (call.failed || call.cancelled || call.prompt <= 0) continue;
       final agent = call.agentKey;
       if (agent.isEmpty &&
           call.requestClass != UsageClass.main &&

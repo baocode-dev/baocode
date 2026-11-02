@@ -12957,6 +12957,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ustatCallAnswering => 'Answering';
 
   @override
+  String get ustatCallCancelled => 'Cancelled';
+
+  @override
   String get ustatFieldFirstToken => 'First token';
 
   @override
