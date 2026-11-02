@@ -455,12 +455,15 @@ class CustomizeViewState extends State<CustomizeView> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            // Whose: a remote host's, named as the sidebar names it.
+            // Whose: a remote host's, named as the sidebar names it. It
+            // takes the rest of the row, the close button at its end: a
+            // Flexible beside a Spacer would keep half of it empty, the
+            // button short of the edge.
             if (widget.host case final host?) ...[
               const SizedBox(width: 10),
               Icon(Codicons.remote, size: 13, color: AppColors.textFaint),
               const SizedBox(width: 4),
-              Flexible(
+              Expanded(
                 child: Text(
                   host,
                   maxLines: 1,
@@ -468,8 +471,8 @@ class CustomizeViewState extends State<CustomizeView> {
                   style: TextStyle(color: AppColors.textFaint, fontSize: 12.5),
                 ),
               ),
-            ],
-            const Spacer(),
+            ] else
+              const Spacer(),
             SidebarIconButton(
               icon: Codicons.close,
               tooltip: l10n.customizeClose,
