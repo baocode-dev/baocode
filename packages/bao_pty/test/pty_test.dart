@@ -144,8 +144,7 @@ void main() {
     expect(whilePaused, lessThan(3000000));
 
     pty.resume();
-    // 3 MB through a pty, slower on a CI runner's Linux than on a Mac.
-    expect(await pty.exitCode.timeout(const Duration(seconds: 60)), 0);
+    expect(await pty.exitCode.timeout(timeout), 0);
     expect('x'.allMatches(printed.toString()).length, 3000000);
     expect(printed.toString(), endsWith('done\r\n'));
   });

@@ -65,14 +65,15 @@ void main() {
   testWidgets('goes as the limit resets', (tester) async {
     await pump(
       tester,
-      resetsAt: DateTime.now().add(const Duration(milliseconds: 300)),
+      // Far enough off for a slow runner to show it first.
+      resetsAt: DateTime.now().add(const Duration(seconds: 2)),
     );
     expect(find.textContaining('Usage limit reached'), findsOneWidget);
     // The clock read is the real one: past it, then the timer.
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 400)),
+      () => Future<void>.delayed(const Duration(milliseconds: 2100)),
     );
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 3));
     expect(find.textContaining('Usage limit reached'), findsNothing);
   });
 
