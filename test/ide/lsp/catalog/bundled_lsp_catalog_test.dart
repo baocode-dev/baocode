@@ -44,6 +44,14 @@ void main() {
         expect(servers(file), contains('typescript-language-server'));
       }
       expect(catalog.languageFor('a.tsx')?.languageId, 'typescriptreact');
+      // Vue's server, and tsserver (with Vue's plugin) where `.ts` files'
+      // is.
+      expect(servers('src/App.vue'), ['vuels', 'typescript-language-server']);
+      expect(catalog.languageFor('src/App.vue')?.rootMarkers, [
+        'package.json',
+        'tsconfig.json',
+      ]);
+      expect(catalog.server('vuels')?.masonPackage, 'vue-language-server');
       expect(servers('app/main.py'), ['ty', 'ruff', 'jedi', 'pylsp', 'zuban']);
       expect(catalog.languageFor('app/main.py')?.rootMarkers, [
         'pyproject.toml',

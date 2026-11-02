@@ -333,6 +333,21 @@ function masonPackageFor(id, command, registry) {
   return undefined;
 }
 
+/** Where Helix's table lags its servers, by language: the fields replaced.
+ *
+ * Vue's language server (3.x) answers for templates and styles only;
+ * TypeScript, in the script and the template's expressions alike, is
+ * tsserver's with `@vue/typescript-plugin` (the app adds the plugin and
+ * carries vue-language-server's `tsserver/request`s to it). So `.vue` files
+ * are typescript-language-server's too, rooted where `.ts` files are so one
+ * tsserver serves both. */
+const LANGUAGE_FIXES = {
+  vue: {
+    roots: ['package.json', 'tsconfig.json'],
+    servers: ['vuels', 'typescript-language-server'],
+  },
+};
+
 export function convert(toml, registry) {
   const problems = [];
   const servers = {};
@@ -368,6 +383,7 @@ export function convert(toml, registry) {
         servers: used.filter((entry) =>
           servers[typeof entry === 'string' ? entry : entry.name],
         ),
+        ...LANGUAGE_FIXES[raw.name],
       }),
     );
   }

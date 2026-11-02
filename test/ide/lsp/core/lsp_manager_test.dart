@@ -609,6 +609,94 @@ void main() {
     ], containsAll(['a:Add header (a)', 'b:Add header (b)']));
   });
 
+  test('rename: the first server in order that renames there', () async {
+    final lsp = manager([
+      fakeServer('a', options: {'noRename': true}),
+      fakeServer('b'),
+    ]);
+    final (_, doc) = await open(lsp, 'a.fake', 'Foo bar Foo\n');
+    await running(lsp, doc.path, 0);
+    await running(lsp, doc.path, 1);
+    final prepared = await lsp.prepareRename(doc.path, const LspPosition(0, 1));
+    expect(prepared?.placeholder, 'Foo');
+    final edit = await lsp.rename(doc.path, const LspPosition(0, 1), 'Baz');
+    expect(edit!.changes[uri(doc.path)], hasLength(2));
+  });
+
+  test('Vue: tsserver requests go to the TypeScript server of the '
+      'document', () async {
+    final lsp = manager([
+      fakeServer('vue'),
+      fakeServer('ts', options: {'tsserverHost': true}),
+    ]);
+    final (_, doc) = await open(lsp, 'a.fake', 'x\n');
+    await running(lsp, doc.path, 0);
+    await running(lsp, doc.path, 1);
+    final answer = await lsp.clientFor('vue')!.request('fake/tsserver', {
+      'command': '_vue:projectInfo',
+      'args': {'file': doc.path},
+    });
+    expect(answer, {
+      'host': 'ts',
+      'command': '_vue:projectInfo',
+      'args': {'file': doc.path},
+      'docs': [uri(doc.path)],
+    });
+  });
+
+  test('Vue: a tsserver request with no TypeScript server is answered '
+      'null', () async {
+    final lsp = manager([fakeServer('vue')]);
+    final (_, doc) = await open(lsp, 'a.fake', 'x\n');
+    await running(lsp, doc.path);
+    final answer = await lsp.clientFor('vue')!.request('fake/tsserver', {
+      'command': '_vue:projectInfo',
+      'args': {'file': doc.path},
+    });
+    expect(answer, isNull);
+  });
+
+  test(
+    'Vue: a TypeScript server starts with the project\'s Vue plugin',
+    () async {
+      File(
+        p.join(
+          root,
+          'node_modules',
+          '@vue',
+          'typescript-plugin',
+          'package.json',
+        ),
+      ).createSync(recursive: true);
+      final ts = fakeServer('ts');
+      final lsp = manager([
+        LspServerDefinition(
+          id: 'ts',
+          command: 'typescript-language-server',
+          args: ts.args,
+          initializationOptions: {
+            ...?ts.initializationOptions,
+            'plugins': [
+              {'name': 'other', 'location': '/other'},
+            ],
+          },
+        ),
+      ]);
+      final (_, doc) = await open(lsp, 'a.fake', 'x\n');
+      await running(lsp, doc.path);
+      final initialize =
+          (await state(lsp, 'ts', doc.path))['initializeParams']! as Map;
+      expect((initialize['initializationOptions'] as Map)['plugins'], [
+        {'name': 'other', 'location': '/other'},
+        {
+          'name': '@vue/typescript-plugin',
+          'location': root,
+          'languages': ['vue'],
+        },
+      ]);
+    },
+  );
+
   test('workspace folders by root markers share one server each', () async {
     final lsp = manager([
       fakeServer('fake', rootMarkers: ['fake.toml']),
