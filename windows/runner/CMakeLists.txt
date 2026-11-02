@@ -12,6 +12,7 @@ add_executable(${BINARY_NAME} WIN32
   "caption_areas.cpp"
   "clipboard_images.cpp"
   "context_menu.cpp"
+  "crash_report.cpp"
   "drag_source.cpp"
   "drop_target.cpp"
   "flutter_window.cpp"
@@ -59,7 +60,7 @@ target_compile_definitions(${BINARY_NAME} PRIVATE "NOMINMAX")
 target_link_libraries(${BINARY_NAME} PRIVATE flutter flutter_wrapper_app)
 target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib" "ole32.lib"
   "shell32.lib" "uuid.lib" "windowscodecs.lib" "winmm.lib" "dbghelp.lib"
-  "runtimeobject.lib")
+  "runtimeobject.lib" "wer.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # The WebView2 SDK, for the channel build's login window (login_window.cpp):

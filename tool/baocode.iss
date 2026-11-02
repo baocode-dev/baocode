@@ -143,6 +143,14 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
   ValueData: "{olddata};{app}"; Tasks: addtopath; \
   Check: (not IsAdminInstallMode) and NeedsAddPath(ExpandConstant('{app}'), False)
 
+; baocode_wer.dll listed for Windows Error Reporting (windows/wer), as the
+; app lists it for the user who runs it (hang_watchdog.cpp's
+; RegisterFastFailModule): written here so that uninstalling removes it.
+; The user's own, so a per-user install's only.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\Windows Error Reporting\RuntimeExceptionHelperModules"; \
+  ValueType: dword; ValueName: "{app}\baocode_wer.dll"; ValueData: 0; \
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode
+
 ; Explorer's context menu, on a file, a folder and a folder's background,
 ; each in a new window: Open with BaoCode, a new agent in a narrow window of
 ; its own (a file in its composer; see AppWindows.openAgent), and Open with

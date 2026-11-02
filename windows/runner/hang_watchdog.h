@@ -3,6 +3,8 @@
 
 #include <windows.h>
 
+#include <string>
+
 // Watches, from a thread of its own, the thread the app's windows run on —
 // Flutter's too, its platform and UI threads being one. When that thread
 // stops answering for a while, or the app is still there a while after its
@@ -44,7 +46,17 @@ void LoopEnded();
 // the thread it came on first and the exception in the minidump. Then on
 // to the filter there was (Windows Error Reporting's). After the engine
 // starts, which may set a filter of its own.
+//
+// And one that no filter sees, a fast fail (abort() in flutter_windows.dll,
+// a broken stack cookie): baocode_wer.dll (windows/wer), registered with
+// Windows Error Reporting, writes the same from its process (a line in the
+// event log: "crashed: fast fail N (…) at module+0x…"), and Windows goes on
+// as before. Nothing of it runs until such a crash.
 void InstallCrashHandler();
+
+// Flutter named |logs| the logs folder (see log_folder.h): where
+// baocode_wer.dll writes.
+void LogsFolderNamed(const std::wstring& logs);
 
 // From another copy of the app, started while this one runs (Explorer's
 // Open with BaoCode, the `code` command): the copy running did not take
