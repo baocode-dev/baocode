@@ -268,6 +268,7 @@ class WorkspaceBridge {
       unread: bots.unread(bot),
       last: bots.lastLine(bot),
       updatedAt: thread?.updatedAt,
+      notices: bots.notices(bot),
     );
   }
 

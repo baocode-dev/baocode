@@ -85,6 +85,7 @@ class LinkBot {
     this.last,
     this.updatedAt,
     this.chatOnly = false,
+    this.notices = const [],
   });
 
   factory LinkBot.fromJson(Map<String, Object?> json) => LinkBot(
@@ -114,6 +115,10 @@ class LinkBot {
       _ => null,
     },
     chatOnly: json['chatOnly'] == true,
+    notices: [
+      for (final notice in (json['notices'] as List?) ?? const [])
+        if (notice is Map<String, Object?>) LinkBotNotice.fromJson(notice),
+    ],
   );
 
   final String id;
@@ -163,6 +168,10 @@ class LinkBot {
   final String? last;
   final DateTime? updatedAt;
 
+  /// What it had the phone tell the user lately, without writing (a
+  /// `notify` rule of its WATCH.md): the latest last.
+  final List<LinkBotNotice> notices;
+
   bool can(BotAbility ability) => abilities.contains(ability);
 
   Map<String, Object?> toJson() => {
@@ -186,6 +195,55 @@ class LinkBot {
     if (unread > 0) 'unread': unread,
     'last': ?last,
     'updated': ?updatedAt?.millisecondsSinceEpoch,
+    if (notices.isNotEmpty)
+      'notices': [for (final notice in notices) notice.toJson()],
+  };
+}
+
+/// What happened to one of the user's agents, which a bot had the phone
+/// tell the user of without being woken: the phone notifies of it in the
+/// bot's name, once ([id] rising).
+class LinkBotNotice {
+  const LinkBotNotice({
+    required this.id,
+    required this.kind,
+    required this.chat,
+    required this.title,
+    required this.project,
+    this.detail,
+  });
+
+  factory LinkBotNotice.fromJson(Map<String, Object?> json) => LinkBotNotice(
+    id: (json['id'] as num?)?.toInt() ?? 0,
+    kind: json['kind'] as String? ?? '',
+    chat: json['chat'] as String? ?? '',
+    title: json['title'] as String? ?? '',
+    project: json['project'] as String? ?? '',
+    detail: json['detail'] as String?,
+  );
+
+  /// Rising: one the phone has not notified of yet is one past the last
+  /// it did.
+  final int id;
+
+  /// What happened: `waiting`, `failed`, `done`, `running`.
+  final String kind;
+
+  /// The agent's conversation ([SessionSummary.id]).
+  final String chat;
+  final String title;
+  final String project;
+
+  /// A line more: the error, how long it has run.
+  final String? detail;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'kind': kind,
+    'chat': chat,
+    'title': title,
+    'project': project,
+    'detail': ?detail,
   };
 }
 

@@ -10,6 +10,7 @@ import 'package:baocode/bots/bot_pacer.dart';
 import 'package:baocode/bots/bot_permissions.dart';
 import 'package:baocode/bots/bot_prompt.dart';
 import 'package:baocode/bots/bot_tools.dart';
+import 'package:baocode/bots/bot_watch.dart';
 import 'package:baocode/bots/bots.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
@@ -861,23 +862,39 @@ void main() {
       expect(folders.files, isNot(contains('${bot.folder}/MEMORY.md')));
     });
 
-    test('it writes first of an agent done, in a note of the app\'s', () async {
+    test('it writes first of an agent of its own done, in a note of the '
+        'app\'s; of another, it is only kept', () async {
       final bot = toldOfAll();
-      final agent = workspace.startAgent(workspace.projectAt(app));
-      agent.session.send(const ComposerMessage(text: 'build it'));
-      for (var i = 0; i < 300 && !agent.session.isStreaming; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+      Future<AgentThread> finished({bool its = false}) async {
+        final agent = workspace.startAgent(workspace.projectAt(app));
+        agent.session.send(const ComposerMessage(text: 'build it'));
+        for (var i = 0; i < 300 && !agent.session.isStreaming; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        if (its) bots.watch(bot, agent);
+        workspace.notifyListeners();
+        // Its turn over (stopped, not to wait for the mock's whole script).
+        agent.session.stop();
+        for (var i = 0; i < 300 && agent.session.isStreaming; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        workspace.notifyListeners();
+        now = now.add(const Duration(minutes: 2));
+        bots.deliver();
+        return agent;
       }
-      workspace.notifyListeners();
-      // Its turn over (stopped, not to wait for the mock's whole script).
-      agent.session.stop();
-      for (var i = 0; i < 300 && agent.session.isStreaming; i++) {
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-      }
-      workspace.notifyListeners();
-      now = now.add(const Duration(minutes: 2));
-      bots.deliver();
-      expect(notes(bot).single, contains('done: "${agent.title}"'));
+
+      // Not one it started: not woken, a line of its events.
+      final other = await finished();
+      expect(notes(bot), isEmpty);
+      expect(
+        bots.recentEvents(bot).single,
+        allOf(contains('done: "${other.title}"'), endsWith('-> ignore')),
+      );
+      // One it started.
+      final its = await finished(its: true);
+      expect(notes(bot).single, contains('done: "${its.title}"'));
+      expect(bots.recentEvents(bot).last, endsWith('-> tell'));
     });
 
     test('only a bot let be is told of the agents; another, not even of '
@@ -908,6 +925,10 @@ void main() {
         bots.deliver();
       }
 
+      // Told of every agent done, as the user asked it.
+      bots.setWatchRules(assistant, const [
+        BotWatchRule(kinds: {BotEventKind.done}, action: BotWatchAction.tell),
+      ]);
       final first = await run();
       await finish(first);
       expect(notes(assistant), hasLength(1));
@@ -1321,6 +1342,8 @@ void main() {
       for (var i = 0; i < 300 && !agent.session.isStreaming; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
+      // One it started: told of, as its rules have it at first.
+      bots.watch(bot, agent);
       workspace.notifyListeners();
       addTearDown(agent.session.stop);
       now = now.add(const Duration(minutes: 29));
@@ -1399,8 +1422,197 @@ void main() {
       );
       expect(
         botAbilities(bot.copyWith(abilities: {BotAbility.proactive})),
-        contains('when any of the user'),
+        contains('as your rules say (bot_watch'),
       );
+      // Woken by the app: a word, or nothing; no narration.
+      expect(botEvents, contains('Woken by the app, never narrate'));
+    });
+
+    test('its rules: what fits one with notify, the phone tells of, it not '
+        'woken; what fits none, only kept', () async {
+      final bot = toldOfAll();
+      bots.setWatchRules(bot, const [
+        BotWatchRule(
+          kinds: {BotEventKind.done},
+          project: 'app',
+          action: BotWatchAction.notify,
+        ),
+      ]);
+      expect(
+        utf8.decode(folders.files['${bot.folder}/WATCH.md']!),
+        contains('- done project:app -> notify'),
+      );
+      var changed = 0;
+      bots.addListener(() => changed++);
+      final agent = await runAndFinish();
+      bots.deliver();
+      expect(notes(bot), isEmpty);
+      final notice = bots.notices(bot).single;
+      expect(notice.kind, 'done');
+      expect(notice.chat, BotTools.idOf(agent));
+      expect(notice.title, agent.title);
+      expect(changed, greaterThan(0));
+      expect(bots.recentEvents(bot).single, endsWith('-> notify'));
+      // Another, later: a notice past it.
+      await runAndFinish();
+      expect(bots.notices(bot).last.id, greaterThan(notice.id));
+      // No rules at all: told of nothing, kept still.
+      bots.setWatchRules(bot, const []);
+      await runAndFinish();
+      bots.deliver();
+      expect(notes(bot), isEmpty);
+      expect(bots.notices(bot), hasLength(2));
+      expect(bots.recentEvents(bot), hasLength(3));
+    });
+
+    test('its rules, changed with its tool: listed, added first, removed, '
+        'as at first again', () async {
+      final bot = toldOfAll();
+      String text(Map result) =>
+          ((result['content'] as List).first as Map)['text'] as String;
+      expect(
+        text(await call(bot, 'bot_watch', {'action': 'list'})),
+        allOf(
+          contains('1. waiting,failed -> tell'),
+          contains('2. any mine -> tell'),
+        ),
+      );
+      final added = text(
+        await call(bot, 'bot_watch', {
+          'action': 'add',
+          'when': ['done'],
+          'project': 'my app',
+          'then': 'notify',
+        }),
+      );
+      expect(added, contains('1. done project:"my app" -> notify'));
+      expect(bots.watchRules(bot).first.project, 'my app');
+      expect(
+        text(await call(bot, 'bot_watch', {'action': 'remove', 'number': 1})),
+        isNot(contains('my app')),
+      );
+      bots.setWatchRules(bot, const []);
+      await call(bot, 'bot_watch', {'action': 'reset'});
+      expect(bots.watchRules(bot), BotWatch.defaults);
+      // Not a bot's that is told of nothing.
+      final mia = bots.save(name: 'Mia', identity: '', abilities: {});
+      expect(await offered(mia.folder), isNot(contains('bot_watch')));
+      expect(await offered(bot.folder), contains('bot_recent_events'));
+    });
+
+    test('woken by the app, not writing until it says a word', () async {
+      final bot = toldOfAll();
+      final session = bots.threadFor(bot).session;
+      bots.later(bot, const Duration(minutes: 1), 'Ask how it went');
+      now = now.add(const Duration(minutes: 2));
+      bots.deliver();
+      for (var i = 0; i < 300 && !session.isStreaming; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(bots.threadOf(bot)!.status, ThreadStatus.running);
+      expect(bots.typing(bot), isFalse);
+      session.stop();
+      for (var i = 0; i < 300 && session.isStreaming; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      // The user's words: writing back.
+      session.send(const ComposerMessage(text: 'hi'));
+      for (var i = 0; i < 300 && !session.isStreaming; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(bots.typing(bot), isTrue);
+      session.stop();
+    });
+  });
+
+  group('WATCH.md', () {
+    test('its lines read back as written; another line, its own', () {
+      const text =
+          '# mine\n'
+          '- waiting,failed -> tell\n'
+          '- done project:"my app" mine → notify\n'
+          '- any chat:3f2a -> ignore\n'
+          '- sometimes -> tell\n'
+          'a note\n';
+      final rules = BotWatch.read(text);
+      expect(rules.map((rule) => rule.line), [
+        '- waiting,failed -> tell',
+        '- done project:"my app" mine -> notify',
+        '- any chat:3f2a -> ignore',
+      ]);
+      expect(BotWatch.withRules(text, rules.reversed.toList()), '''
+# mine
+- sometimes -> tell
+a note
+
+- any chat:3f2a -> ignore
+- done project:"my app" mine -> notify
+- waiting,failed -> tell''');
+    });
+
+    test('the first rule that fits decides; none, ignored', () {
+      BotEvent event(BotEventKind kind, {String project = 'app'}) => BotEvent(
+        chat: 'c1',
+        title: 'Fix it',
+        project: project,
+        projectPath: '/code/$project',
+        kind: kind,
+        at: DateTime(2026, 11, 2),
+      );
+      final rules = BotWatch.read(
+        '- done project:scratch -> ignore\n'
+        '- done project:/code/api -> notify\n'
+        '- done -> tell\n',
+      );
+      BotWatchAction of(BotEvent e, {bool mine = false}) =>
+          BotWatch.actionFor(rules, e, mine: mine);
+      expect(
+        of(event(BotEventKind.done, project: 'scratch')),
+        BotWatchAction.ignore,
+      );
+      expect(
+        of(event(BotEventKind.done, project: 'api')),
+        BotWatchAction.notify,
+      );
+      expect(of(event(BotEventKind.done)), BotWatchAction.tell);
+      expect(of(event(BotEventKind.running)), BotWatchAction.ignore);
+      // At first: any agent asking or failing, and the bot's own.
+      BotWatchAction first(BotEventKind kind, {bool mine = false}) =>
+          BotWatch.actionFor(BotWatch.defaults, event(kind), mine: mine);
+      expect(first(BotEventKind.waiting), BotWatchAction.tell);
+      expect(first(BotEventKind.failed), BotWatchAction.tell);
+      expect(first(BotEventKind.done), BotWatchAction.ignore);
+      expect(first(BotEventKind.done, mine: true), BotWatchAction.tell);
+    });
+
+    test('EVENTS.md keeps the last day, the latest fifty', () {
+      final start = DateTime(2026, 11, 2, 9);
+      var text = '';
+      for (var i = 0; i < 60; i++) {
+        final at = start.add(Duration(minutes: i));
+        text = BotEvents.withEvents(text, [
+          (
+            BotEvent(
+              chat: 'c$i',
+              title: 'Run $i',
+              project: 'app',
+              kind: BotEventKind.done,
+              at: at,
+            ),
+            BotWatchAction.ignore,
+          ),
+        ], at);
+      }
+      final lines = BotEvents.latest(text, 100);
+      expect(lines, hasLength(BotEvents.most));
+      expect(
+        lines.first,
+        '- 2026-11-02 09:10 done: "Run 10" in app (chat c10) -> ignore',
+      );
+      // A day on: the old gone.
+      final later = start.add(const Duration(hours: 25));
+      text = BotEvents.withEvents(text, const [], later);
+      expect(BotEvents.latest(text, 100), isEmpty);
     });
   });
 }

@@ -17,6 +17,8 @@ import 'bot_pacer.dart' show BotLater;
 //       MEMORY.md        what it remembers of the user
 //       SELF.md          what it noted of itself
 //       LATER.md         what it means to come back to, a line each
+//       WATCH.md         what it is told of, a rule a line (bot_watch.dart)
+//       EVENTS.md        what happened to the agents lately, told or not
 //       avatar-….png     its picture, if it has one
 //
 // A bot that works on the computer keeps these itself, with Claude Code's
@@ -28,6 +30,8 @@ abstract final class BotFiles {
   static const memory = 'MEMORY.md';
   static const self = 'SELF.md';
   static const later = 'LATER.md';
+  static const watch = 'WATCH.md';
+  static const events = 'EVENTS.md';
 
   /// The user's, in the bots' folder.
   static const user = 'USER.md';

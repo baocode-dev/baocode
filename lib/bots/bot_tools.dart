@@ -15,7 +15,8 @@ import '../link/workspace_bridge.dart' show WorkspaceBridge;
 import '../models/image_api.dart' show imageMediaType;
 import '../workspace/workspace.dart';
 import 'bot.dart';
-import 'bot_pacer.dart' show botTime;
+import 'bot_pacer.dart' show BotEventKind, botTime;
+import 'bot_watch.dart';
 import 'bots.dart';
 
 /// Which bots a tool of theirs is for: those trusted with [level]; only
@@ -211,6 +212,131 @@ abstract final class BotTools {
           summary: (input, _) => clip(input, 'note'),
         ),
         const BotToolAccess(),
+      ),
+      (
+        tool(
+          'bot_watch',
+          "What you are told of the user's agents: your rules (WATCH.md in "
+              'your folder), a line each, the first that fits deciding. '
+              '"tell" wakes you with it, to write to the user or not; '
+              '"notify" has the phone tell the user for you, without waking '
+              'you (for what they only want to know of, a turn done, say); '
+              '"ignore" only keeps it (bot_recent_events). What fits no rule '
+              'is ignored. Change them when the user asks you to keep an eye '
+              'on something, or to stop telling them of it. "list" them; '
+              '"add" one (first, unless last: true); "remove" one by its '
+              'number; "reset" to how they were at first.',
+          {
+            'action': {
+              'type': 'string',
+              'enum': ['list', 'add', 'remove', 'reset'],
+            },
+            'when': {
+              'type': 'array',
+              'items': {
+                'type': 'string',
+                'enum': [for (final kind in BotEventKind.values) kind.name],
+              },
+              'description':
+                  'What happened (waiting: it asks the user; failed; done: '
+                  'its turn ended; running: for a long while). None for any.',
+            },
+            'project': {
+              'type': 'string',
+              'description': 'Only this project\'s agents: its name.',
+            },
+            'chat': {
+              'type': 'string',
+              'description': 'Only this agent: its id.',
+            },
+            'mine': {
+              'type': 'boolean',
+              'description': 'Only the agents you started or wrote to.',
+            },
+            'then': {
+              'type': 'string',
+              'enum': [for (final action in BotWatchAction.values) action.name],
+            },
+            'last': {
+              'type': 'boolean',
+              'description': 'Add it after the others, not first.',
+            },
+            'number': {
+              'type': 'integer',
+              'description': 'The rule to remove, as "list" numbers them.',
+            },
+          },
+          (input, call) async {
+            final bot = botOf(call);
+            var rules = bots.watchRules(bot);
+            switch (input['action']) {
+              case 'add':
+                final then =
+                    BotWatchAction.values.asNameMap()[input['then']] ??
+                    (throw ArgumentError('then is tell, notify or ignore'));
+                final project = (input['project'] as String?)?.trim();
+                final chat = (input['chat'] as String?)?.trim();
+                final rule = BotWatchRule(
+                  kinds: {
+                    for (final name in (input['when'] as List?) ?? const [])
+                      ?BotEventKind.values.asNameMap()[name],
+                  },
+                  project: project == null || project.isEmpty ? null : project,
+                  chat: chat == null || chat.isEmpty ? null : chat,
+                  mine: input['mine'] == true,
+                  action: then,
+                );
+                rules = [
+                  for (final had in rules)
+                    if (had != rule) had,
+                ];
+                rules = input['last'] == true
+                    ? [...rules, rule]
+                    : [rule, ...rules];
+                bots.setWatchRules(bot, rules);
+              case 'remove':
+                final number = (input['number'] as num?)?.toInt() ?? 0;
+                if (number < 1 || number > rules.length) {
+                  throw ArgumentError('No rule $number');
+                }
+                rules = [...rules]..removeAt(number - 1);
+                bots.setWatchRules(bot, rules);
+              case 'reset':
+                rules = BotWatch.defaults;
+                bots.setWatchRules(bot, rules);
+            }
+            if (rules.isEmpty) return 'No rules: you are told of nothing.';
+            return [
+              'Your rules, the first that fits deciding:',
+              for (final (i, rule) in rules.indexed)
+                '${i + 1}. ${rule.line.substring(2)}',
+            ].join('\n');
+          },
+          required: ['action'],
+          summary: (input, _) => '${input['action'] ?? ''}',
+        ),
+        const BotToolAccess(ability: BotAbility.proactive),
+      ),
+      (
+        tool(
+          'bot_recent_events',
+          "What happened to the user's agents lately (the last day), "
+              'oldest first, and what your rules made of each: those you '
+              'were not woken for too. Look when the user asks how things '
+              'went.',
+          {
+            'count': {'type': 'integer', 'description': 'At most; 20 if none.'},
+          },
+          (input, call) async {
+            final count = ((input['count'] as num?)?.toInt() ?? 20).clamp(
+              1,
+              50,
+            );
+            final lines = bots.recentEvents(botOf(call), count: count);
+            return lines.isEmpty ? 'Nothing lately.' : lines.join('\n');
+          },
+        ),
+        const BotToolAccess(ability: BotAbility.proactive),
       ),
       (
         tool(
