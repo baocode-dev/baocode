@@ -12,6 +12,7 @@ import 'package:bao_editor/monaco/flutter/viewport_layout.dart'
 import 'package:baocode/ide/ide_code_diff.dart';
 import 'package:baocode/ide/ide_diff_options.dart';
 import 'package:baocode/ide/ide_list.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show Opacity;
 import 'package:flutter_test/flutter_test.dart';
@@ -98,6 +99,23 @@ void main() {
     await tester.tap(find.byTooltip(RegExp('^Previous Difference')));
     await tester.pumpAndSettle();
     expect(find.text('1 of 2'), findsOneWidget);
+  });
+
+  testWidgets("the mouse's back button goes back to the log, its forward "
+      'button to the changes again (#516)', (tester) async {
+    await showDiff(tester);
+    // Where the diff was, the log's table once it goes.
+    final at = tester.getCenter(find.byType(DiffEditor));
+    Future<void> side(int buttons) async {
+      await tester.tapAt(at, buttons: buttons, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+    }
+
+    await side(kBackMouseButton);
+    expect(find.byType(IdeCodeDiff), findsNothing);
+    await side(kForwardMouseButton);
+    expect(find.byType(IdeCodeDiff), findsOneWidget);
+    expect(find.text('1 / 3'), findsOneWidget);
   });
 
   testWidgets("a change's arrow reverts it in the file", (tester) async {

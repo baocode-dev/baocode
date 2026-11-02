@@ -17,6 +17,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../../base/give_way_row.dart';
+import '../../base/mouse_navigation.dart';
 import '../../base/smooth_scroll.dart';
 import '../../base/shown_when_ready.dart';
 import '../../chat/composer/composer_files.dart';
@@ -578,6 +579,7 @@ class IdeGitLogView extends StatefulWidget {
     this.overlay,
     this.overlayTabs,
     this.onCloseOverlay,
+    this.onReopenOverlay,
     this.onAddToChat,
     this.worktrees = const IdeGitWorktreeChoice(),
     this.background,
@@ -626,6 +628,10 @@ class IdeGitLogView extends StatefulWidget {
   final Widget? overlayTabs;
   final VoidCallback? onCloseOverlay;
 
+  /// The mouse's forward button, the overlay closed: shows it again, and
+  /// says whether there was one.
+  final bool Function()? onReopenOverlay;
+
   /// Puts files in the chat's composer; not offered when null.
   final ValueChanged<List<ComposerFile>>? onAddToChat;
 
@@ -672,6 +678,52 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
   void didUpdateWidget(IdeGitLogView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(_emailOf, _git)) _readEmail();
+    if (oldWidget.overlay != null && widget.overlay == null) {
+      _closed = _overlayClosed;
+    }
+  }
+
+  /// What the mouse's forward button shows again: the changes closed last,
+  /// the overlay's ([_overlayClosed]) or the log's own (with the row they
+  /// were of); none once others show.
+  Object? _closed;
+  String? _closedOf;
+  static const _overlayClosed = #overlay;
+
+  /// The mouse's back button: the changes shown close.
+  bool _mouseBack() {
+    if (widget.overlay != null) {
+      if (widget.onCloseOverlay case final close?) {
+        close();
+        return true;
+      }
+    }
+    if (_log.diff case final diff?) {
+      _closeDiff(diff);
+      return true;
+    }
+    return false;
+  }
+
+  void _closeDiff(IdeGitLogDiff diff) {
+    _closed = diff;
+    _closedOf = _log.selected;
+    _log.closeDiff();
+  }
+
+  /// The mouse's forward button: the changes closed last show again.
+  bool _mouseForward() {
+    if (widget.overlay != null || _log.diff != null) return false;
+    switch (_closed) {
+      case _overlayClosed:
+        _closed = null;
+        return widget.onReopenOverlay?.call() ?? false;
+      case final IdeGitLogDiff diff when _closedOf == _log.selected:
+        _closed = null;
+        _log.showDiff(diff.files, diff.index, focus: diff.focus);
+        return true;
+    }
+    return false;
   }
 
   @override
@@ -708,7 +760,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
   @override
   Widget build(BuildContext context) {
     final git = _git;
-    return ColoredBox(
+    final view = ColoredBox(
       color: _background,
       child: git == null
           ? _overlay() ?? widget.changes
@@ -731,6 +783,11 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
                     : _page(git, git.state!);
               },
             ),
+    );
+    return MouseNavigation(
+      onBack: _mouseBack,
+      onForward: _mouseForward,
+      child: view,
     );
   }
 
@@ -1746,7 +1803,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
         onAsk: widget.onAsk,
         onClose: () {
           final focused = diff.focus;
-          _log.closeDiff();
+          _closeDiff(diff);
           // Back to the table, where the keys were.
           if (!focused) return;
           WidgetsBinding.instance.addPostFrameCallback((_) {

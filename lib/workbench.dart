@@ -11,6 +11,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
+import 'base/mouse_navigation.dart';
 import 'browser/browser_bridge.dart';
 import 'browser/browser_tools.dart';
 import 'browser/browser_welcome.dart';
@@ -2800,7 +2801,20 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       children: [
         for (final MapEntry(key: path, value: space) in _ideSpaces.entries)
           _buildIde(path, space, shown: ide && path == folder),
-        if (!ide) narrow ? _buildNarrow() : _buildWide(),
+        if (!ide)
+          // The mouse's back and forward buttons: from Customize or the
+          // stashes back to the conversations, else from one agent to
+          // the one before (where a subagent shown or a file's changes
+          // do not go back first).
+          MouseNavigation(
+            onBack: () {
+              if (!_replacingChat) return _workspace.navigate(back: true);
+              _closeCustomize();
+              return true;
+            },
+            onForward: () => _workspace.navigate(back: false),
+            child: narrow ? _buildNarrow() : _buildWide(),
+          ),
       ],
     );
   }
@@ -3297,6 +3311,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       sidebarShown: _narrow ? _drawerOpen : _sidebarDocked,
       onToggleSidebar: _toggle,
       ideLayout: ide ? _ideSpace(_ideFolder).layout : null,
+      ideNavigation: ide ? _ideSpace(_ideFolder).navigation : null,
       pinned: _pinned,
       onTogglePin: _setPinned,
       terminalShown: _terminals?.shown ?? false,

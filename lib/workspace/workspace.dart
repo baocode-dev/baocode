@@ -2947,9 +2947,43 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   void select(AgentThread thread) {
     // A bot's: the phone's, never shown here.
     if (isAppFolder(thread.project.path)) return;
+    if (_selected case final before? when !identical(before, thread)) {
+      if (!identical(_agentsBack.lastOrNull, before)) _agentsBack.add(before);
+      if (_agentsBack.length > _agentsKept) _agentsBack.removeAt(0);
+      _agentsForward.clear();
+    }
     _focus(thread);
     _followInSidebar(thread);
     notifyListeners();
+  }
+
+  /// The agents selected before the one in front, the latest last, and
+  /// those gone back from: where the mouse's back and forward buttons go
+  /// (#516), as a browser's history.
+  final List<AgentThread> _agentsBack = [];
+  final List<AgentThread> _agentsForward = [];
+  static const _agentsKept = 50;
+
+  /// Selects the agent before, or (not [back]) the one gone back from; not
+  /// those archived or deleted since. Whether there was one.
+  bool navigate({required bool back}) {
+    final from = back ? _agentsBack : _agentsForward;
+    final to = back ? _agentsForward : _agentsBack;
+    while (from.isNotEmpty) {
+      final thread = from.removeLast();
+      if (identical(thread, _selected) ||
+          thread.archived ||
+          !_threads.contains(thread) ||
+          !_projects.contains(thread.project)) {
+        continue;
+      }
+      if (_selected case final here?) to.add(here);
+      _focus(thread);
+      _followInSidebar(thread);
+      notifyListeners();
+      return true;
+    }
+    return false;
   }
 
   void _focus(AgentThread thread) {

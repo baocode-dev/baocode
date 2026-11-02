@@ -8,7 +8,10 @@ import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
+import 'package:baocode/ide/ide_command_center.dart';
+import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_layout.dart';
+import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
@@ -203,6 +206,51 @@ void main() {
     expect(workspace.layout, WorkspaceLayout.chat);
     await tester.pump();
     expect(back, findsNothing);
+  }, variant: _windows);
+
+  testWidgets('over the IDE, its search box and Go Back and Go Forward are '
+      'in the middle, as on its own title bar (#539)', (tester) async {
+    final (workspace, calls) = await pumpWindowsApp(tester);
+    final center = find.descendant(
+      of: find.byType(WindowHeader),
+      matching: find.byType(IdeCommandCenter),
+    );
+    expect(center, findsNothing);
+
+    workspace.layout = WorkspaceLayout.ide;
+    await tester.pump();
+    await tester.pump();
+    expect(center, findsOneWidget);
+    // The IDE draws no title bar of its own under it.
+    expect(find.byType(IdeCommandCenter), findsOneWidget);
+    final strip = tester.getRect(find.byType(WindowHeader));
+    expect(tester.getCenter(center).dx, closeTo(strip.center.dx, 60));
+    // Nowhere to go yet.
+    final arrows = tester.widgetList<IdeActionButton>(
+      find.descendant(of: center, matching: find.byType(IdeActionButton)),
+    );
+    expect(arrows.map((arrow) => arrow.onPressed), everyElement(isNull));
+    // The window leaves it to Flutter, rather than dragging by it.
+    final rect = tester.getRect(center);
+    final report = calls.lastWhere((call) => call.method == 'setHitTestAreas');
+    expect(
+      (report.arguments as Map)['controls'],
+      contains(
+        equals({
+          'left': rect.left,
+          'top': rect.top,
+          'width': rect.width,
+          'height': rect.height,
+        }),
+      ),
+    );
+
+    await tester.tap(
+      find.descendant(of: center, matching: find.byIcon(Codicons.search)),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(IdeQuickInput), findsOneWidget);
   }, variant: _windows);
 
   testWidgets('narrow, the session\'s title is in the header, as macOS\'s '

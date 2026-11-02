@@ -102,6 +102,10 @@ class SidePanelTabs {
   final List<SidePanelTab> diffs = [];
   SidePanelTab? activeDiff;
 
+  /// The changes in front when the log came back over them ([AgentSidePanel
+  /// .showLog]): what the mouse's forward button shows again.
+  SidePanelTab? _leftDiff;
+
   /// What the terminal page shows: a terminal (its instance), or a
   /// background command's output (its id); none: its first terminal.
   Object? terminal;
@@ -673,8 +677,22 @@ class AgentSidePanel extends ChangeNotifier {
   void showLog(Object conversation) {
     final tabs = tabsOf(conversation);
     if (tabs.activeDiff == null) return;
+    tabs._leftDiff = tabs.activeDiff;
     tabs.activeDiff = null;
     notifyListeners();
+  }
+
+  /// The changes [showLog] left for [conversation], in front again if
+  /// still open and nothing came in front since; whether they were.
+  bool reopenDiff(Object conversation) {
+    final tabs = tabsOf(conversation);
+    final tab = tabs._leftDiff;
+    tabs._leftDiff = null;
+    if (tab == null || tabs.activeDiff != null || !tabs.diffs.contains(tab)) {
+      return false;
+    }
+    activate(conversation, tab);
+    return true;
   }
 
   /// Keeps [edit], its file's text as edited, with [tab] until it closes;

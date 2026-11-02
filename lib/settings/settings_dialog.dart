@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../base/mouse_navigation.dart';
 import '../base/smooth_scroll.dart';
 import '../channel/channel_setup.dart' show ChannelSetup;
 import '../ide/ide_color_theme_picker.dart' show ideSelectColorThemeCommandId;
@@ -393,9 +394,17 @@ class SettingsDialogState extends State<SettingsDialog> {
             }
             final dialog = Padding(
               padding: EdgeInsets.only(top: top),
-              child: Material(
-                color: AppColors.code,
-                child: narrow ? _buildNarrow() : _buildWide(),
+              // The mouse's back button: as its Back, where a page in it
+              // (a provider's) does not go back first.
+              child: MouseNavigation(
+                onBack: () {
+                  _close();
+                  return true;
+                },
+                child: Material(
+                  color: AppColors.code,
+                  child: narrow ? _buildNarrow() : _buildWide(),
+                ),
               ),
             );
             // On Windows the list's toggle is in the header, where the

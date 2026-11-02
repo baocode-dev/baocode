@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../base/mouse_navigation.dart';
 import '../channel/channel_setup.dart';
 import '../ide/ide_menu.dart';
 import '../kernel/kernel_types.dart';
@@ -327,8 +328,15 @@ class _ChatScreenState extends State<ChatScreen>
   void _openAgent(AgentItem agent, {List<String>? path}) {
     final id = agent.id;
     if (id == null) return;
+    path ??= [...?_agentShown?.feed.path, id];
+    // Elsewhere than the way back came from: forward goes nowhere.
+    if (!_startsWith(_leftAgents ?? const [], path)) _leftAgents = null;
+    _enter(SubagentFeed(_session, path));
+  }
+
+  void _enter(SubagentFeed feed) {
     final layer = _AgentLayer(
-      SubagentFeed(_session, path ?? [...?_agentShown?.feed.path, id]),
+      feed,
       AnimationController(vsync: this, duration: _layerDuration),
     );
     setState(() => _layers.add(layer));
@@ -347,6 +355,9 @@ class _ChatScreenState extends State<ChatScreen>
     if (keep < 0 || keep >= shown) return;
     final top = _layers.last;
     final between = _layers.sublist(keep, _layers.length - 1);
+    if (!_startsWith(_leftAgents ?? const [], top.feed.path)) {
+      _leftAgents = top.feed.path;
+    }
     setState(() {
       _layers.removeRange(keep, _layers.length - 1);
       top.leaving = true;
@@ -367,6 +378,49 @@ class _ChatScreenState extends State<ChatScreen>
     } else {
       _layers[keep - 1].backFocus.requestFocus();
     }
+  }
+
+  /// The subagent gone back from, the innermost of those since: where the
+  /// mouse's forward button goes in again, a level at a time.
+  List<String>? _leftAgents;
+
+  static bool _startsWith(List<String> path, List<String> start) {
+    if (path.length < start.length) return false;
+    for (var i = 0; i < start.length; i++) {
+      if (path[i] != start[i]) return false;
+    }
+    return true;
+  }
+
+  /// The mouse's back button: out of the subagent shown, or of the
+  /// conversation asked beside another ([ChatScreen.back]).
+  bool _mouseBack() {
+    if (_agentShown != null) {
+      _back();
+      return true;
+    }
+    if (widget.back case final back?) {
+      back.onBack();
+      return true;
+    }
+    return false;
+  }
+
+  /// The mouse's forward button: into the subagent gone back from.
+  bool _mouseForward() {
+    final left = _leftAgents;
+    final shown = _agentShown?.feed.path ?? const <String>[];
+    if (left == null || left.length <= shown.length) return false;
+    if (!_startsWith(left, shown)) return false;
+    final feed = SubagentFeed(_session, left.sublist(0, shown.length + 1));
+    // Gone since (its turn rewound).
+    if (feed.agent == null) {
+      feed.dispose();
+      _leftAgents = null;
+      return false;
+    }
+    _enter(feed);
+    return true;
   }
 
   @override
@@ -958,13 +1012,17 @@ class _ChatScreenState extends State<ChatScreen>
 
   Widget _buildBody() {
     // The keys the focus in it lets through: the chat's keybindings.
-    return Focus(
-      focusNode: _keyScope,
-      // Never focused itself: nothing for assistive technologies.
-      includeSemantics: false,
-      onKeyEvent: (node, event) =>
-          ChatKeys.dispatch(event) ?? KeyEventResult.ignored,
-      child: _buildScaffold(),
+    return MouseNavigation(
+      onBack: _mouseBack,
+      onForward: _mouseForward,
+      child: Focus(
+        focusNode: _keyScope,
+        // Never focused itself: nothing for assistive technologies.
+        includeSemantics: false,
+        onKeyEvent: (node, event) =>
+            ChatKeys.dispatch(event) ?? KeyEventResult.ignored,
+        child: _buildScaffold(),
+      ),
     );
   }
 
