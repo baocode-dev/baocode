@@ -394,11 +394,19 @@ CI 从 `baocode-dev/mobile` 的 main 取代码（放在本仓库旁边，`../mon
 
 APK 上传时用 `--content-type` 说明类型（`application/vnd.android.package-archive`）。
 
-发布时 APK 传到 `releases/mobile/<版本>/`，最后写 `releases/mobile/latest.json`（`version`、`pubDate`、`beta`、`downloads.android` 的 `url / size / sha256`）。桌面版的 `latest.json` 不受影响。
+发布时 APK 传到 `releases/mobile/<版本>/`，最后写 `releases/mobile/latest.json`（`version`、`pubDate`、`beta`、`downloads.android` 的 `url / size / sha256`；还有 `ios`，见下文）。桌面版的 `latest.json` 不受影响。
 
 iOS 在 App Store Connect 上的 App 是 **BaoCode**（Apple ID `6825371537`，Bundle ID `dev.baocode.mobile`，Team `77SLP2NCVR`）。证书和描述文件一年一换：到期前用 App Store Connect API（或开发者网站）新建 Apple Distribution 证书、用它重做 App Store 描述文件，换掉下面三个密钥。
 
 TestFlight 上每个 build 都要回答出口合规（加密）问题，否则停在「缺少合规证明」；在手机版的 `Info.plist` 里加 `ITSAppUsesNonExemptEncryption` 就不用每次回答。
+
+内部测试组（Internal）自动拿到每个 build；公开测试组（Public beta，就是 `/dl/ios` 跳去的公开链接）要把 build 加进组、过 Beta 审核才拿得到。`mobile-v*` 发版时 `testflight` 任务（Ubuntu，等多久都不花钱）跑 `tool/testflight.mjs`：等苹果处理完 → 用手机版仓库的 `release-notes/<版本>.zh.md`、`.en.md` 写「测试内容」→ 加进 Public beta → 提交 Beta 审核 → 等公开测试员拿到（最多等约 5.5 小时，超时就重跑这个任务再看）→ 在 `releases/mobile/latest.json` 里写 `ios`（`version`、`build`、`url` 为公开链接）。手机端据此在对话列表顶部提示 iOS 新版，点一下打开 TestFlight；`publish` 任务写 `latest.json` 时保留原来的 `ios`。本机手动提交某个 build：
+
+```bash
+KEY_ID=… ISSUER=…  # App Store Connect API Key（同 NOTARY_KEY_ID、NOTARY_ISSUER）
+ASC_KEY="$(cat AuthKey_$KEY_ID.p8)" ASC_KEY_ID=$KEY_ID ASC_ISSUER=$ISSUER \
+  node tool/testflight.mjs --version 0.1.7 --build 31 --notes-zh notes.zh.md --notes-en notes.en.md
+```
 
 **`release` 环境里要有的**（7.2 那些之外）：
 
