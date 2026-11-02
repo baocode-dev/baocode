@@ -465,13 +465,29 @@ ProxyRoute parseWindowsInternetSettings(String output) {
     final match = _regValue.firstMatch(line);
     if (match != null) values[match.group(1)!] = match.group(3)!.trim();
   }
-  final autoConfig = (values['AutoConfigURL'] ?? '').isNotEmpty;
-  final enabled = switch (values['ProxyEnable']) {
-    final value? =>
-      (int.tryParse(value.replaceFirst('0x', ''), radix: 16) ?? 0) != 0,
-    null => false,
-  };
-  final setting = values['ProxyServer'] ?? '';
+  return windowsInternetSettingsRoute(
+    enabled: switch (values['ProxyEnable']) {
+      final value? =>
+        (int.tryParse(value.replaceFirst('0x', ''), radix: 16) ?? 0) != 0,
+      null => false,
+    },
+    server: values['ProxyServer'] ?? '',
+    override: values['ProxyOverride'] ?? '',
+    autoConfigUrl: values['AutoConfigURL'] ?? '',
+  );
+}
+
+/// The system proxy from Windows' Internet Settings' values (see
+/// [parseWindowsInternetSettings]): `ProxyEnable` not 0, `ProxyServer`,
+/// `ProxyOverride` and `AutoConfigURL`, empty where there is none.
+ProxyRoute windowsInternetSettingsRoute({
+  required bool enabled,
+  required String server,
+  required String override,
+  required String autoConfigUrl,
+}) {
+  final autoConfig = autoConfigUrl.isNotEmpty;
+  final setting = server;
   if (!enabled || setting.isEmpty) {
     return ProxyRoute.direct(ProxySource.none, autoConfig);
   }
@@ -492,7 +508,7 @@ ProxyRoute parseWindowsInternetSettings(String output) {
   if (http == null && https == null) {
     return ProxyRoute.direct(ProxySource.none, autoConfig);
   }
-  final overrides = (values['ProxyOverride'] ?? '')
+  final overrides = override
       .split(';')
       .map((entry) => entry.trim())
       .where((entry) => entry.isNotEmpty)

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../kernel/claude_code/claude_environment.dart';
 import 'connection_test.dart';
 import 'proxy_settings.dart';
+import 'windows_internet_settings.dart';
 
 /// The proxy the app's requests and the Claude Code it starts go through,
 /// as settings.json's [ProxyMode] says: the system's by default, read
@@ -233,14 +234,7 @@ Future<ProxyRoute> readSystemProxy() async {
     if (result.exitCode != 0) return const ProxyRoute.direct();
     return parseScutilProxy('${result.stdout}');
   }
-  if (Platform.isWindows) {
-    final result = await Process.run('reg.exe', const [
-      'query',
-      r'HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings',
-    ]).timeout(const Duration(seconds: 3));
-    if (result.exitCode != 0) return const ProxyRoute.direct();
-    return parseWindowsInternetSettings('${result.stdout}');
-  }
+  if (Platform.isWindows) return readWindowsInternetSettings();
   return const ProxyRoute.direct();
 }
 
