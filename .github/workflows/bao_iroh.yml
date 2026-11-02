@@ -1,0 +1,80 @@
+# Builds bao_iroh's Rust (iroh) for each desktop target, on the runners the
+# release builds on, and keeps it in main's cache for rust/ as it is. The
+# release's builds (release.yml, remote.yml) restore it, through
+# .github/actions/bao-iroh-prebuilt, and bao_iroh's build hook takes it
+# rather than build iroh again, several minutes each time.
+#
+# On main, as a tag's run can restore only main's caches. Each day too, as
+# GitHub drops a cache a week unused; one already there is not built again.
+#
+#   Actions → bao_iroh → Run workflow   build it for main as it is
+name: bao_iroh
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/bao_iroh/rust/**
+      - .github/workflows/bao_iroh.yml
+      - .github/actions/bao-iroh-prebuilt/**
+      - .github/actions/setup-rust/**
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build for ${{ matrix.targets }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The runners release.yml's builds run on: each key names its OS
+          # and arch. The Mac builds both its apps.
+          - runner: macos-15
+            targets: aarch64-apple-darwin x86_64-apple-darwin
+            lib: libbao_iroh.dylib
+          - runner: windows-latest
+            targets: x86_64-pc-windows-msvc
+            lib: bao_iroh.dll
+          - runner: windows-11-arm
+            targets: aarch64-pc-windows-msvc
+            lib: bao_iroh.dll
+          # The oldest Ubuntu built on, for its glibc (release.yml).
+          - runner: ubuntu-22.04
+            targets: x86_64-unknown-linux-gnu
+            lib: libbao_iroh.so
+          - runner: ubuntu-22.04-arm
+            targets: aarch64-unknown-linux-gnu
+            lib: libbao_iroh.so
+    steps:
+      - uses: actions/checkout@v5
+      - id: cached
+        uses: ./.github/actions/bao-iroh-prebuilt
+      - if: steps.cached.outputs.hit != 'true'
+        uses: ./.github/actions/setup-rust
+      # As native_toolchain_rust builds it (the hook, with none here), into
+      # build/prebuilt/<target>/, where the hook looks.
+      - name: Build
+        if: steps.cached.outputs.hit != 'true'
+        shell: bash
+        working-directory: packages/bao_iroh/rust
+        env:
+          TARGETS: ${{ matrix.targets }}
+          LIB: ${{ matrix.lib }}
+        run: |
+          for target in $TARGETS; do
+            cargo build --release --locked --package bao_iroh --target "$target" \
+              --target-dir "$RUNNER_TEMP/target"
+            mkdir -p "../build/prebuilt/$target"
+            cp "$RUNNER_TEMP/target/$target/release/$LIB" "../build/prebuilt/$target/"
+          done
+          ls -lR ../build/prebuilt
+      - if: steps.cached.outputs.hit != 'true'
+        uses: ./.github/actions/bao-iroh-prebuilt
+        with:
+          save: true
