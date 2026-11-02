@@ -9,6 +9,7 @@ import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/window_blur.dart';
 import 'package:baocode/workspace/workspace.dart';
 
 import 'first_frame_test.dart' show LongTurnFeed;
@@ -19,6 +20,9 @@ Future<void> pumpMacApp(WidgetTester tester, {double width = 1400}) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  // The material is a setting, off by default (Settings → Appearance).
+  WindowBlur.enabled.value = true;
+  addTearDown(() => WindowBlur.enabled.value = false);
   await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
   await tester.pump();
 }

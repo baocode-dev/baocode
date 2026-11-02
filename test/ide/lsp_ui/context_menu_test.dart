@@ -43,7 +43,7 @@ List<String> _menuLabels(WidgetTester tester) => [
       matching: find.byType(Text),
     ),
   ))
-    text.data!,
+    text.data ?? text.textSpan!.toPlainText(),
 ];
 
 void main() {
