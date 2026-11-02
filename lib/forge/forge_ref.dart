@@ -1,5 +1,5 @@
-// Where code is hosted ("forges": GitHub, GitLab, theirs or one of their
-// own), told from links and Git remotes: a repository, and an issue or a
+// Where code is hosted ("forges": GitHub, GitLab, Gitee, theirs or one of
+// their own), told from links and Git remotes: a repository, and an issue or a
 // pull (merge) request in it. Nothing here asks the network.
 
 import 'package:flutter/foundation.dart';
@@ -8,7 +8,8 @@ import 'forge_address.dart';
 
 enum ForgeKind {
   github,
-  gitlab;
+  gitlab,
+  gitee;
 
   static ForgeKind? parse(Object? value) =>
       values.where((kind) => kind.name == value).firstOrNull;
@@ -17,6 +18,7 @@ enum ForgeKind {
   String get label => switch (this) {
     github => 'GitHub',
     gitlab => 'GitLab',
+    gitee => 'Gitee',
   };
 
   /// Its hosted service's host: the one a token or a sign-in is for when
@@ -24,17 +26,19 @@ enum ForgeKind {
   String get publicHost => switch (this) {
     github => 'github.com',
     gitlab => 'gitlab.com',
+    gitee => 'gitee.com',
   };
 }
 
 /// What a host is: [ForgeKind.github] for github.com, [ForgeKind.gitlab]
-/// for gitlab.com, else as [known] says (an account's on it); null when
+/// for gitlab.com, [ForgeKind.gitee] for gitee.com, else as [known] says (an account's on it); null when
 /// it cannot be told.
 typedef ForgeKindOf = ForgeKind? Function(String host);
 
 ForgeKind? publicForgeKind(String host) => switch (host.toLowerCase()) {
   'github.com' || 'www.github.com' => ForgeKind.github,
   'gitlab.com' || 'www.gitlab.com' => ForgeKind.gitlab,
+  'gitee.com' || 'www.gitee.com' => ForgeKind.gitee,
   _ => null,
 };
 
@@ -109,8 +113,8 @@ class ForgeRepo {
     }
     final kind = kindOf?.call(host) ?? publicForgeKind(host);
     if (kind == null) return null;
-    // GitHub's are owner/name, no more.
-    if (kind == ForgeKind.github && path.split('/').length != 2) return null;
+    // GitHub's and Gitee's are owner/name, no more.
+    if (kind != ForgeKind.gitlab && path.split('/').length != 2) return null;
     return ForgeRepo(
       kind: kind,
       host: host.toLowerCase(),
@@ -129,12 +133,19 @@ class ForgeRef {
   const ForgeRef({
     required this.repo,
     required this.kind,
-    required this.number,
+    this.number = 0,
+    this.code,
   });
 
   final ForgeRepo repo;
   final ForgeItemKind kind;
   final int number;
+
+  /// A Gitee issue's number, which is not one: `I8ABCD` (its case matters).
+  final String? code;
+
+  /// Its number as the forge's paths and links write it.
+  String get key => code ?? '$number';
 
   /// Its page.
   Uri get url => switch ((repo.kind, kind)) {
@@ -150,12 +161,19 @@ class ForgeRef {
     (ForgeKind.gitlab, ForgeItemKind.pull) => repo.url.replace(
       path: '/${repo.path}/-/merge_requests/$number',
     ),
+    (ForgeKind.gitee, ForgeItemKind.issue) => repo.url.replace(
+      path: '/${repo.path}/issues/$key',
+    ),
+    (ForgeKind.gitee, ForgeItemKind.pull) => repo.url.replace(
+      path: '/${repo.path}/pulls/$number',
+    ),
   };
 
-  /// `#12`; a merge request's `!12`, as GitLab writes it.
+  /// `#12`; a merge request's `!12`, as GitLab writes it; a Gitee issue's
+  /// `#I8ABCD`.
   String get tag => repo.kind == ForgeKind.gitlab && kind == ForgeItemKind.pull
       ? '!$number'
-      : '#$number';
+      : '#$key';
 
   /// `owner/name#12`.
   String get fullTag => '${repo.path}$tag';
@@ -168,10 +186,10 @@ class ForgeRef {
       other is ForgeRef &&
       other.repo == repo &&
       other.kind == kind &&
-      other.number == number;
+      other.key == key;
 
   @override
-  int get hashCode => Object.hash(repo, kind, number);
+  int get hashCode => Object.hash(repo, kind, key);
 
   /// The issue or pull request [url] is the page of (its comments', its
   /// files' too), on a host [kindOf] (or [publicForgeKind]) knows; a
@@ -185,7 +203,9 @@ class ForgeRef {
     final host = forgeAuthority(uri);
     final scheme = uri.isScheme('http') ? 'http' : 'https';
     final parts = uri.pathSegments.where((part) => part.isNotEmpty).toList();
-    // GitLab: <path>/-/(issues|merge_requests)/<n>, on any host.
+    final known = kindOf?.call(host) ?? publicForgeKind(host);
+    // GitLab: <path>/-/(issues|merge_requests)/<n>, on any host but
+    // GitHub's and Gitee's.
     final dash = parts.indexOf('-');
     if (dash >= 2 && parts.length > dash + 2) {
       final kind = switch (parts[dash + 1]) {
@@ -194,8 +214,9 @@ class ForgeRef {
         _ => null,
       };
       final number = int.tryParse(parts[dash + 2]);
-      final known = kindOf?.call(host) ?? publicForgeKind(host);
-      if (kind != null && number != null && known != ForgeKind.github) {
+      if (kind != null &&
+          number != null &&
+          (known == null || known == ForgeKind.gitlab)) {
         return ForgeRef(
           repo: ForgeRepo(
             kind: ForgeKind.gitlab,
@@ -209,9 +230,26 @@ class ForgeRef {
       }
       return null;
     }
+    // Gitee: <owner>/<name>/issues/<I8ABCD>, <owner>/<name>/pulls/<n>.
+    if (parts.length >= 4 && known == ForgeKind.gitee) {
+      final repo = ForgeRepo(
+        kind: ForgeKind.gitee,
+        host: host,
+        path: '${parts[0]}/${parts[1]}',
+        scheme: scheme,
+      );
+      final key = parts[3];
+      if (parts[2] == 'issues' && RegExp(r'^[0-9A-Za-z]+$').hasMatch(key)) {
+        return ForgeRef(repo: repo, kind: ForgeItemKind.issue, code: key);
+      }
+      final number = int.tryParse(key);
+      if (parts[2] == 'pulls' && number != null) {
+        return ForgeRef(repo: repo, kind: ForgeItemKind.pull, number: number);
+      }
+      return null;
+    }
     // GitHub: <owner>/<name>/(issues|pull)/<n>, on its hosts.
-    if (parts.length >= 4 &&
-        (kindOf?.call(host) ?? publicForgeKind(host)) == ForgeKind.github) {
+    if (parts.length >= 4 && known == ForgeKind.github) {
       final kind = switch (parts[2]) {
         'issues' => ForgeItemKind.issue,
         'pull' || 'pulls' => ForgeItemKind.pull,

@@ -9741,7 +9741,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountsDescription =>
-      'Sign in to GitHub or GitLab to see the state of the issues and pull requests linked in Stash, import issues as stashes, and reply to them once you confirm.';
+      'Sign in to GitHub, GitLab or Gitee to see the state of the issues and pull requests linked in Stash, import issues as stashes, and reply to them once you confirm.';
 
   @override
   String get accountsSignedIn => 'Signed in';
@@ -9751,7 +9751,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get accountsKeptLocally =>
-      'Tokens are kept in this computer\'s keychain and are sent only to the GitHub or GitLab they are for. Nothing is posted without your confirmation.';
+      'Tokens are kept in this computer\'s keychain and are sent only to the GitHub, GitLab or Gitee they are for. Nothing is posted without your confirmation.';
 
   @override
   String get accountsGitHubHosts =>
@@ -9760,6 +9760,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get accountsGitLabHosts =>
       'gitlab.com, or a self-managed GitLab (http:// or https://, with its port)';
+
+  @override
+  String get accountsGiteeHosts => 'gitee.com, with a personal access token';
 
   @override
   String get accountsSignInBrowser => 'Sign in with Browser';
@@ -9812,6 +9815,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get accountsTokenGitLabScopes =>
       'A personal access token with the api scope.';
+
+  @override
+  String get accountsTokenGiteeScopes =>
+      'A personal access token with the user_info, projects, pull_requests, issues and notes scopes.';
 
   @override
   String accountsTokenCreate(String host) {
@@ -9995,7 +10002,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get stashImportNotALink =>
-      'Not a GitHub or GitLab issue or pull request link.';
+      'Not a GitHub, GitLab or Gitee issue or pull request link.';
 
   @override
   String stashImportSignIn(String forge) {
@@ -10022,7 +10029,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get stashImportNoRepos =>
-      'No project has a GitHub or GitLab remote. Paste an issue link above.';
+      'No project has a GitHub, GitLab or Gitee remote. Paste an issue link above.';
 
   @override
   String get stashImportNone => 'No open issues here.';
@@ -10070,7 +10077,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get stashWelcomeTrack =>
-      'Cards show their conversations live, and the GitHub and GitLab issues and pull requests they link to stay in sync.';
+      'Cards show their conversations live, and the GitHub, GitLab and Gitee issues and pull requests they link to stay in sync.';
 
   @override
   String get stashWelcomeStart => 'Get Started';
@@ -10832,7 +10839,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get stashSettingsIssueSyncDescription =>
-      'A project that is a Git repository on GitHub or GitLab (signed in under Accounts): its open issues are stashes, each once, kept in step both ways. A stash deleted, or unlinked from its issue, does not come back.';
+      'A project that is a Git repository on GitHub, GitLab or Gitee (signed in under Accounts): its open issues are stashes, each once, kept in step both ways. A stash deleted, or unlinked from its issue, does not come back.';
 
   @override
   String get stashIssueSyncMine => 'Only those assigned to or opened by me';
