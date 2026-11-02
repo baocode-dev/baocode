@@ -890,6 +890,12 @@ class UsageCallBar extends StatelessWidget {
                 style: number,
               ),
             ),
+          if (price != null)
+            if (usagePricedBy(context, price, call) case final rules?)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text('${l10n.ustatPricedBy}  $rules', style: faint),
+              ),
           for (final (value, color, label) in parts)
             if (value > 0)
               Row(
@@ -948,4 +954,27 @@ class UsageCallBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// What priced [call] at [price] besides its tokens' prices, in a line:
+/// the tier its prompt is in, the factors not 1, its fees; null for none.
+String? usagePricedBy(BuildContext context, ModelPrice price, UsageCall call) {
+  final l10n = context.l10n;
+  final applied = price.applied(call);
+  String factor(double value) {
+    final text = value.toStringAsFixed(4);
+    return text.contains('.') ? text.replaceFirst(RegExp(r'\.?0+$'), '') : text;
+  }
+
+  final rules = [
+    ?applied.tier?.label,
+    if (applied.time != 1) l10n.ustatPriceRuleTime(factor(applied.time)),
+    if (applied.fast != 1) l10n.ustatPriceRuleFast(factor(applied.fast)),
+    if (applied.service != 1) '${call.serviceTier} ×${factor(applied.service)}',
+    if (applied.geo != 1) '${call.geo} ×${factor(applied.geo)}',
+    if (applied.multiplier != 1) '×${factor(applied.multiplier)}',
+    if (applied.fees > 0)
+      l10n.ustatPriceRuleFees(UsagePrices.money(applied.fees, price.currency)),
+  ];
+  return rules.isEmpty ? null : rules.join(' · ');
 }

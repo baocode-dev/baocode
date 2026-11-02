@@ -532,7 +532,18 @@ class UsageMeter {
   var _input = 0, _output = 0, _cacheRead = 0, _cacheWrite = 0;
   var _reasoning = 0;
   var _responseBytes = 0;
+  String? _serviceTier;
+  String? _geo;
   final Map<String, int> _toolCalls = {};
+
+  /// The upstream's own tools run, by name: as its usage counts them, and
+  /// as its answer shows them run (the larger is kept).
+  final Map<String, int> _serverTools = {};
+  final Map<String, int> _serverToolsSeen = {};
+
+  /// An OpenAI upstream's web searches: one an item done, or those of its
+  /// response whole.
+  var _searchesDone = 0, _searchesWhole = 0;
   final StringBuffer _pending = StringBuffer();
 
   /// A message's answer as it came, not events: read whole once it ends.
@@ -591,8 +602,14 @@ class UsageMeter {
     if (json['stop_reason'] case final String reason) _stopReason = reason;
     if (json['content'] case final List<Object?> blocks) {
       for (final block in blocks) {
-        if (block case {'type': 'tool_use', 'name': final String name}) {
+        if (block case {
+          'type': 'tool_use' || 'server_tool_use',
+          'name': final String name,
+        }) {
           _toolCalls[name] = (_toolCalls[name] ?? 0) + 1;
+        }
+        if (block case {'type': 'server_tool_use', 'name': final String name}) {
+          _serverToolsSeen[name] = (_serverToolsSeen[name] ?? 0) + 1;
         }
       }
     }
@@ -600,13 +617,30 @@ class UsageMeter {
   }
 
   /// A line of the upstream's own stream (one not of Anthropic's API):
-  /// what it says of the reasoning, which is not passed on.
+  /// what it says of the reasoning, the service tier it answered at and
+  /// the web searches it ran, which are not passed on.
   void upstreamLine(String line) {
-    if (!line.contains('reasoning_tokens')) return;
-    final match = RegExp(r'"reasoning_tokens"\s*:\s*(\d+)').firstMatch(line);
-    if (match != null) {
-      final tokens = int.parse(match.group(1)!);
-      if (tokens > _reasoning) _reasoning = tokens;
+    if (line.contains('reasoning_tokens')) {
+      final match = RegExp(r'"reasoning_tokens"\s*:\s*(\d+)').firstMatch(line);
+      if (match != null) {
+        final tokens = int.parse(match.group(1)!);
+        if (tokens > _reasoning) _reasoning = tokens;
+      }
+    }
+    if (line.contains('"service_tier"')) {
+      final match = RegExp(r'"service_tier"\s*:\s*"([A-Za-z_-]+)"')
+          .firstMatch(line);
+      if (match != null) _serviceTier = match.group(1);
+    }
+    if (line.contains('web_search_call')) {
+      if (line.contains('"response.output_item.done"')) {
+        _searchesDone++;
+      } else if (!line.contains('"response.output_item.added"')) {
+        final whole = RegExp(r'"type"\s*:\s*"web_search_call"')
+            .allMatches(line)
+            .length;
+        if (whole > _searchesWhole) _searchesWhole = whole;
+      }
     }
   }
 
@@ -637,10 +671,13 @@ class UsageMeter {
       case 'content_block_start':
         _firstToken ??= _watch.elapsed;
         if (event['content_block'] case {
-          'type': 'tool_use' || 'server_tool_use',
+          'type': final String type && ('tool_use' || 'server_tool_use'),
           'name': final String name,
         }) {
           _toolCalls[name] = (_toolCalls[name] ?? 0) + 1;
+          if (type == 'server_tool_use') {
+            _serverToolsSeen[name] = (_serverToolsSeen[name] ?? 0) + 1;
+          }
         }
       case 'message_delta':
         _usage(event['usage']);
@@ -667,6 +704,28 @@ class UsageMeter {
     if (at('cache_creation_input_tokens') case final n? when n > 0) {
       _cacheWrite = n;
     }
+    if (usage['service_tier'] case final String tier when tier.isNotEmpty) {
+      _serviceTier = tier;
+    }
+    if (usage['inference_geo'] case final String geo when geo.isNotEmpty) {
+      _geo = geo;
+    }
+    _serverTools.addAll(usageServerTools(usage));
+  }
+
+  /// The upstream's tools run, the larger of each count kept.
+  Map<String, int> get _serverToolsRun {
+    final run = {..._serverToolsSeen};
+    void atLeast(String name, int count) {
+      if (count > (run[name] ?? 0)) run[name] = count;
+    }
+
+    for (final MapEntry(:key, :value) in _serverTools.entries) {
+      atLeast(key, value);
+    }
+    atLeast('web_search', math.max(_searchesDone, _searchesWhole));
+    run.removeWhere((_, count) => count <= 0);
+    return Map.unmodifiable(run);
   }
 
   /// What it came to, answered with [status]; null once given.
@@ -702,6 +761,9 @@ class UsageMeter {
       upstreamModel: _upstreamModel == model ? null : _upstreamModel,
       effort: effort,
       fast: fast,
+      serviceTier: _serviceTier,
+      geo: _geo,
+      serverTools: _serverToolsRun,
       stream: stream,
       session: session,
       requestClass: info.requestClass,
@@ -730,6 +792,15 @@ class UsageMeter {
     );
   }
 }
+
+/// Anthropic's `usage.server_tool_use` (`web_search_requests`…): the
+/// upstream's tools run, by name (`web_search`).
+Map<String, int> usageServerTools(Map<Object?, Object?> usage) => {
+  if (usage['server_tool_use'] case final Map<Object?, Object?> tools)
+    for (final MapEntry(:key, :value) in tools.entries)
+      if (key is String && value is num && value > 0)
+        key.replaceFirst(RegExp(r'_requests$'), ''): value.toInt(),
+};
 
 class _StringSink implements Sink<String> {
   _StringSink(this._add);

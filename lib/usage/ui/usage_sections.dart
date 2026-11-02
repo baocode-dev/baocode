@@ -17,7 +17,7 @@ List<(double, Color)> tokenSegments(UsageTotals totals) => [
 ];
 
 /// What a total's tokens of each kind cost in [currency], in the order and
-/// colors of [tokenSegments].
+/// colors of [tokenSegments]; then its fees, as [costSeries] names them.
 List<(double, Color)> costSegments(UsageTotals totals, String currency) {
   final parts = totals.cost.parts[currency] ?? UsageCostParts();
   return [
@@ -25,6 +25,7 @@ List<(double, Color)> costSegments(UsageTotals totals, String currency) {
     (parts.input, UsagePalette.input),
     (parts.cacheWrite, UsagePalette.cacheWrite),
     (parts.output, UsagePalette.output),
+    (parts.fees, UsagePalette.fees),
   ];
 }
 
@@ -46,6 +47,13 @@ List<UsageSeries> tokenSeries(BuildContext context) {
     (label: l10n.ustatTokenOutput, color: UsagePalette.output),
   ];
 }
+
+/// What a cost is of, as a legend names them: [tokenSeries], then the
+/// fees.
+List<UsageSeries> costSeries(BuildContext context) => [
+  ...tokenSeries(context),
+  (label: context.l10n.ustatFees, color: UsagePalette.fees),
+];
 
 /// The numbers a view leads with: tokens, calls, the cache, time, speed
 /// and failures, each its sparkline over [summary]'s buckets.
@@ -203,7 +211,10 @@ class _UsageTimeSectionState extends State<UsageTimeSection> {
     final Widget? legend;
     switch (metric) {
       case UsageMetric.cost:
-        final series = tokenSeries(context);
+        // The fees in the legend only where there are any.
+        final fees =
+            (widget.summary.totals.cost.parts[currency]?.fees ?? 0) > 0;
+        final series = fees ? costSeries(context) : tokenSeries(context);
         legend = UsageLegend(series: series);
         chart = UsageColumnChart(
           height: widget.height,
@@ -221,7 +232,7 @@ class _UsageTimeSectionState extends State<UsageTimeSection> {
                   for (final (value, _) in costSegments(
                     bucket.totals,
                     currency,
-                  ))
+                  ).take(series.length))
                     value,
                 ],
               ),

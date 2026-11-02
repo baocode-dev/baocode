@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../kernel/kernel_types.dart';
+import 'usage_capture.dart' show usageServerTools;
 import 'usage_record.dart';
 import 'usage_trace.dart';
 
@@ -329,6 +330,9 @@ class ClaudeUsageMeter {
       protocol: 'anthropic',
       model: _clean(call.model ?? ''),
       fast: tokens.fast,
+      serviceTier: tokens.serviceTier,
+      geo: tokens.geo,
+      serverTools: tokens.serverTools,
       session: session(),
       requestClass: call.parent == null ? UsageClass.main : UsageClass.subagent,
       context: switch (call.parent == null ? makeup?.call() : null) {
@@ -549,6 +553,11 @@ class _Tokens {
   /// Of [cacheWrite], those kept an hour.
   int cacheWriteLong = 0;
   bool fast = false;
+  String? serviceTier;
+  String? geo;
+
+  /// Anthropic's tools run (`web_search`…), by name.
+  Map<String, int> serverTools = const {};
 
   int get total => input + output + cacheRead + cacheWrite;
 
@@ -578,6 +587,20 @@ class _Tokens {
       if (long != null && long > cacheWriteLong) cacheWriteLong = long;
     }
     if (usage['speed'] == 'fast') fast = true;
+    if (usage['service_tier'] case final String tier when tier.isNotEmpty) {
+      serviceTier = tier;
+    }
+    if (usage['inference_geo'] case final String where when where.isNotEmpty) {
+      geo = where;
+    }
+    final tools = usageServerTools(usage);
+    if (tools.isNotEmpty) {
+      serverTools = {
+        ...serverTools,
+        for (final MapEntry(:key, :value) in tools.entries)
+          if (value > (serverTools[key] ?? 0)) key: value,
+      };
+    }
   }
 
   void add(_Tokens other) {

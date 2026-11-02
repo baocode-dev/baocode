@@ -44,6 +44,9 @@ abstract final class UsagePalette {
   static Color get cacheWrite => _slots[2];
   static Color get output => _slots[3];
 
+  /// A cost's fees ([UsageCostParts.fees]), after its tokens'.
+  static Color get fees => _slots[4];
+
   /// Failures: the theme's error color (a status, not a series).
   static Color get error => themeColors['errorForeground'];
 

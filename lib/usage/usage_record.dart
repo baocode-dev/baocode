@@ -326,6 +326,9 @@ class UsageCall {
     this.upstreamModel,
     this.effort,
     this.fast = false,
+    this.serviceTier,
+    this.geo,
+    this.serverTools = const {},
     this.stream = true,
     this.session,
     this.requestClass = UsageClass.main,
@@ -388,6 +391,18 @@ class UsageCall {
   final String? upstreamModel;
   final String? effort;
   final bool fast;
+
+  /// The service tier the upstream says it answered at (`priority`,
+  /// `flex`, `standard`…), priced apart where the upstream does.
+  final String? serviceTier;
+
+  /// Where it was answered, as the upstream says (Anthropic's
+  /// `inference_geo`: `us`, `global`).
+  final String? geo;
+
+  /// The upstream's own tools it ran for it, by name (`web_search`,
+  /// `web_fetch`…): how many times, each priced apart where it is.
+  final Map<String, int> serverTools;
   final bool stream;
 
   /// Claude Code's session: the conversation's.
@@ -495,6 +510,9 @@ class UsageCall {
     'um': ?upstreamModel,
     'ef': ?effort,
     if (fast) 'fa': true,
+    'tr': ?serviceTier,
+    'geo': ?geo,
+    if (serverTools.isNotEmpty) 'sv': serverTools,
     if (!stream) 's': false,
     'sid': ?session,
     if (requestClass != UsageClass.main) 'c': requestClass.key,
@@ -581,6 +599,9 @@ class UsageCall {
       upstreamModel: text('um'),
       effort: text('ef'),
       fast: json['fa'] == true,
+      serviceTier: text('tr'),
+      geo: text('geo'),
+      serverTools: usageCounts(json['sv']),
       stream: json['s'] != false,
       session: text('sid'),
       requestClass: UsageClass.parse(text('c')) ?? UsageClass.main,
@@ -635,6 +656,9 @@ class UsageCall {
     upstreamModel: upstreamModel,
     effort: effort,
     fast: fast,
+    serviceTier: serviceTier,
+    geo: geo,
+    serverTools: serverTools,
     stream: stream,
     session: session,
     requestClass: requestClass,
@@ -673,6 +697,9 @@ class UsageCall {
         upstreamModel: upstreamModel,
         effort: effort,
         fast: fast,
+        serviceTier: serviceTier,
+        geo: geo,
+        serverTools: serverTools,
         stream: stream,
         session: session,
         requestClass: requestClass,
@@ -718,6 +745,9 @@ class UsageCall {
     upstreamModel: upstreamModel,
     effort: effort,
     fast: fast,
+    serviceTier: serviceTier,
+    geo: geo,
+    serverTools: serverTools,
     stream: stream,
     session: session,
     requestClass: requestClass,
