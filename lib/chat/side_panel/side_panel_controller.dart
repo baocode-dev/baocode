@@ -315,9 +315,31 @@ class AgentSidePanel extends ChangeNotifier {
   final Map<String, IdeSearchSession> _searches = {};
 
   /// The search of the project in [root], run by [engine]; made once per
-  /// project (its results then still there on coming back).
-  IdeSearchSession searchOf(String root, IdeTextSearch engine) =>
-      _searches[root] ??= _keptSearch(root, IdeSearchSession(engine: engine));
+  /// project (its results then still there on coming back). Given
+  /// [files], its results follow their files (an agent's edits), read
+  /// with them and watched with [watch] (as the tree's own when null).
+  IdeSearchSession searchOf(
+    String root,
+    IdeTextSearch engine, {
+    IdeFileService? files,
+    Stream<void> Function(String directory)? watch,
+  }) {
+    final search = _searches[root] ??= _keptSearch(
+      root,
+      IdeSearchSession(engine: engine),
+    );
+    if (files != null) {
+      search
+        ..read = files.read
+        ..watch =
+            watch ??
+            switch (files) {
+              final IdeHostFiles files => files.watchDirectory,
+              _ => watchDirectory,
+            };
+    }
+    return search;
+  }
 
   /// Each project's search as it was left ([IdeSearchSession.kept]), its
   /// files to include and exclude and its options, kept between runs.

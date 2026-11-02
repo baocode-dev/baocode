@@ -504,7 +504,7 @@ class _CodeCardState extends State<_CodeCard> {
             color: hovered
                 ? hover.withValues(alpha: hover.a * 0.6)
                 : Colors.transparent,
-            padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+            padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
             child: Row(
               children: [
                 CodeBlockIconButton(

@@ -33,7 +33,8 @@ import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
-import '../file_service.dart' show IdeFileService;
+import '../file_service.dart'
+    show IdeBinaryFileException, IdeFileNotFoundException, IdeFileService;
 import '../ide_commands.dart' show ideWithKeybinding;
 import '../ide_dialog.dart';
 import '../ide_hover.dart';
@@ -62,9 +63,20 @@ class IdeSearchFileResult {
 /// The Search view's inputs and results, kept by the workbench while other
 /// views show; it runs the searches.
 class IdeSearchSession extends ChangeNotifier {
-  IdeSearchSession({this.engine = ideSearchText});
+  IdeSearchSession({this.engine = ideSearchText, this.read, this.watch});
 
   final IdeTextSearch engine;
+
+  /// A file's text as the results match it again after it changes: an
+  /// open document's own, unsaved edits and all, as upstream's
+  /// `FileMatch.updateMatchesForModel` follows the editor. None: the
+  /// results stay as searched.
+  Future<String> Function(String path)? read;
+
+  /// Changes to a folder's entries: the folders of the results' files are
+  /// watched, and the files matched again (see [refresh]) as they change,
+  /// an agent's edit or another program's.
+  Stream<void> Function(String directory)? watch;
 
   final query = TextEditingController();
   final replace = TextEditingController();
@@ -109,6 +121,28 @@ class IdeSearchSession extends ChangeNotifier {
   StreamSubscription<Object>? _search;
   Timer? _debounce;
   bool _disposed = false;
+
+  /// The files the last search found, still followed (see [refresh]) when
+  /// a change leaves them without matches: they show again once they
+  /// match again.
+  final Set<String> _followed = {};
+
+  /// Those to match again, once the changes settle.
+  final Set<String> _stale = {};
+  Timer? _refreshTimer;
+
+  /// Counts the searches and clears, for a refresh read during one to be
+  /// dropped after it.
+  int _generation = 0;
+
+  /// The folders of [_followed] watched, by folder.
+  final Map<String, StreamSubscription<void>> _watches = {};
+  bool _watchesScheduled = false;
+
+  static const _refreshDelay = Duration(milliseconds: 250);
+
+  /// The most folders watched for one search's results.
+  static const _maxWatched = 100;
 
   int get matchCount =>
       results.fold(0, (count, file) => count + file.matches.length);
@@ -269,6 +303,7 @@ class IdeSearchSession extends ChangeNotifier {
     _debounce?.cancel();
     unawaited(_search?.cancel());
     _search = null;
+    _forget();
     results.clear();
     collapsed.clear();
     limitHit = false;
@@ -297,15 +332,9 @@ class IdeSearchSession extends ChangeNotifier {
       (event) {
         switch (event) {
           case IdeFileMatches(:final path, :final matches):
-            final index = results.indexWhere(
-              (file) => _comparePaths(file.path, path) > 0,
-            );
-            final result = IdeSearchFileResult(path, [...matches]);
-            if (index < 0) {
-              results.add(result);
-            } else {
-              results.insert(index, result);
-            }
+            _followed.add(path);
+            _insert(IdeSearchFileResult(path, [...matches]));
+            _watchSoon();
           case IdeTextSearchComplete(:final limitHit):
             this.limitHit = limitHit;
             searching = false;
@@ -323,6 +352,174 @@ class IdeSearchSession extends ChangeNotifier {
       },
     );
   }
+
+  /// Adds [result] among [results] in their order.
+  void _insert(IdeSearchFileResult result) {
+    final index = results.indexWhere(
+      (file) => _comparePaths(file.path, result.path) > 0,
+    );
+    if (index < 0) {
+      results.add(result);
+    } else {
+      results.insert(index, result);
+    }
+  }
+
+  /// Stops following the last search's files.
+  void _forget() {
+    _generation++;
+    _followed.clear();
+    _stale.clear();
+    _refreshTimer?.cancel();
+    for (final watch in _watches.values) {
+      unawaited(watch.cancel());
+    }
+    _watches.clear();
+  }
+
+  /// Matches the files at [paths] again soon, those of the last search's
+  /// results among them: what they match now replaces their matches, a
+  /// file left without any drops out of the results (and comes back when
+  /// it matches again), one gone or binary now too.
+  void refresh(Iterable<String> paths) {
+    if (read == null || searched == null || _disposed) return;
+    final before = _stale.length;
+    _stale.addAll(paths.where(_followed.contains));
+    if (_stale.length == before) return;
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(_refreshDelay, () => unawaited(_refreshStale()));
+  }
+
+  Future<void> _refreshStale() async {
+    final read = this.read;
+    final query = searched;
+    if (read == null || query == null) return;
+    final generation = _generation;
+    final paths = [..._stale];
+    _stale.clear();
+    final RegExp regExp;
+    try {
+      regExp = query.toRegExp();
+    } on FormatException {
+      return;
+    }
+    var changed = false;
+    for (final path in paths) {
+      List<IdeTextMatch> matches;
+      try {
+        final text = await read(path);
+        matches = ideMatchLines(
+          text,
+          regExp,
+          limit: query.maxResults,
+          multiline: query.isMultiline,
+        );
+      } on IdeFileNotFoundException {
+        matches = const [];
+      } on IdeBinaryFileException {
+        matches = const [];
+      } catch (_) {
+        // Not read this time (too large, a host away): left as it was.
+        continue;
+      }
+      if (_disposed || generation != _generation) return;
+      if (!_followed.contains(path)) continue;
+      changed = _rematched(path, matches) || changed;
+    }
+    if (changed) _changed();
+  }
+
+  /// [path]'s results now [matches]; whether anything changed.
+  bool _rematched(String path, List<IdeTextMatch> matches) {
+    final file = results.where((file) => file.path == path).firstOrNull;
+    if (file != null && _sameMatches(file.matches, matches)) return false;
+    if (file == null && matches.isEmpty) return false;
+    final selected = this.selected;
+    if (matches.isEmpty) {
+      results.remove(file);
+      collapsed.remove(path);
+    } else if (file == null) {
+      _insert(IdeSearchFileResult(path, [...matches]));
+    } else {
+      file.matches
+        ..clear()
+        ..addAll(matches);
+    }
+    // The selected match, where its line still has it; else its file's
+    // row, while it shows.
+    if (selected case (final selectedPath, final match)
+        when selectedPath == path) {
+      final same = match == null
+          ? null
+          : matches
+                .where((m) => m.line == match.line && m.start == match.start)
+                .firstOrNull;
+      this.selected = same != null
+          ? (path, same)
+          : matches.isEmpty
+          ? null
+          : (path, null);
+    }
+    return true;
+  }
+
+  static bool _sameMatches(List<IdeTextMatch> a, List<IdeTextMatch> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      final (x, y) = (a[i], b[i]);
+      if (x.line != y.line ||
+          x.endLine != y.endLine ||
+          x.start != y.start ||
+          x.end != y.end ||
+          x.text != y.text) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Watches the folders of [_followed], once the results coming in
+  /// settle.
+  void _watchSoon() {
+    if (watch == null || _watchesScheduled) return;
+    _watchesScheduled = true;
+    final generation = _generation;
+    Timer.run(() {
+      _watchesScheduled = false;
+      if (!_disposed && generation == _generation) _watchFollowed();
+    });
+  }
+
+  void _watchFollowed() {
+    final watch = this.watch;
+    if (watch == null) return;
+    final folders = <String, List<String>>{};
+    for (final path in _followed) {
+      final folder = _dirname(path);
+      final files = folders[folder];
+      if (files != null) {
+        files.add(path);
+      } else if (folders.length < _maxWatched) {
+        folders[folder] = [path];
+      }
+    }
+    for (final folder in _watches.keys.toList()) {
+      if (!folders.containsKey(folder)) {
+        unawaited(_watches.remove(folder)!.cancel());
+      }
+    }
+    for (final folder in folders.keys) {
+      _watches[folder] ??= watch(folder).listen(
+        (_) => refresh(_followed.where((path) => _dirname(path) == folder)),
+        onError: (Object _) {},
+      );
+    }
+  }
+
+  /// A remote host's paths may be Windows' or POSIX, whatever this one's.
+  static String _dirname(String path) =>
+      (path.contains(r'\') && !path.startsWith('/') ? p.windows : p.posix)
+          .dirname(path);
 
   /// Folders before the files beside them, then by name.
   static int _comparePaths(String a, String b) {
@@ -343,6 +540,7 @@ class IdeSearchSession extends ChangeNotifier {
     _debounce?.cancel();
     unawaited(_search?.cancel());
     _search = null;
+    _forget();
     query.clear();
     replace.clear();
     results.clear();
@@ -357,7 +555,11 @@ class IdeSearchSession extends ChangeNotifier {
   }
 
   void dismiss(IdeSearchFileResult file, [IdeTextMatch? match]) {
-    if (match == null || file.matches.length == 1) {
+    if (match == null) {
+      // Dismissed: not to come back as the file changes.
+      _followed.remove(file.path);
+      results.remove(file);
+    } else if (file.matches.length == 1) {
       results.remove(file);
     } else {
       file.matches.remove(match);
@@ -405,6 +607,7 @@ class IdeSearchSession extends ChangeNotifier {
     _disposed = true;
     _debounce?.cancel();
     unawaited(_search?.cancel());
+    _forget();
     query.dispose();
     replace.dispose();
     includes.dispose();

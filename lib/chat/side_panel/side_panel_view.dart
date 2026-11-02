@@ -630,7 +630,12 @@ class AgentSidePanelView extends StatelessWidget {
           // The IDE's Search view, under its own title: the way back to the
           // tree first among its actions.
           ? IdeSearchView(
-              session: panel.searchOf(explorer.root, searchEngine),
+              session: panel.searchOf(
+                explorer.root,
+                searchEngine,
+                files: files,
+                watch: watchDirectory,
+              ),
               root: explorer.root,
               titleBorder: _titleBorder,
               background: AppColors.code,
