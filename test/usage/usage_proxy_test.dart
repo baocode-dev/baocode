@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -25,6 +26,11 @@ class _Upstream {
   final List<Map<String, String>> headers = [];
   (int, List<String>) Function() reply = () => (200, const []);
 
+  /// Where a reply's line is [holdLine], what is before it is sent and
+  /// the rest waits for this.
+  Completer<void>? held;
+  static const holdLine = '<hold>';
+
   String get base => 'http://127.0.0.1:${_server.port}/v1';
 
   Future<void> _handle(HttpRequest request) async {
@@ -35,6 +41,11 @@ class _Upstream {
     final (status, lines) = reply();
     request.response.statusCode = status;
     for (final line in lines) {
+      if (line == holdLine) {
+        await request.response.flush();
+        await held?.future;
+        continue;
+      }
       request.response.write('$line\n');
     }
     await request.response.close();
@@ -239,6 +250,69 @@ void main() {
     expect(call.stopReason, 'tool_use');
     expect(call.upstreamModel, isNull);
     expect(call.responseBytes, greaterThan(0));
+  });
+
+  test('shows a call while it is under way; its first token the first of '
+      'its answer itself, not an empty block, a signature or a ping', () async {
+    upstream
+      ..held = Completer<void>()
+      ..reply = () => (
+        200,
+        [
+          'event: message_start',
+          'data: {"type":"message_start","message":{"model":"claude-x","usage":{"input_tokens":12,"output_tokens":1}}}',
+          '',
+          'event: ping',
+          'data: {"type":"ping"}',
+          '',
+          'event: content_block_start',
+          'data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}',
+          '',
+          'event: content_block_delta',
+          'data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":""}}',
+          '',
+          'event: content_block_delta',
+          'data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"abc"}}',
+          '',
+          _Upstream.holdLine,
+          'event: content_block_delta',
+          'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}',
+          '',
+          'event: message_delta',
+          'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":6}}',
+          '',
+          'event: message_stop',
+          'data: {"type":"message_stop"}',
+        ],
+      );
+    var told = 0;
+    ledger.addListener(() => told++);
+    final posted = _post(await url('relay'), request(model: 'claude-x'), {
+      'x-api-key': 'tok',
+    });
+    // Its answer so far through the proxy, the rest held.
+    UsageCall? progress;
+    for (var i = 0; i < 200; i++) {
+      progress = ledger.underway(session).firstOrNull;
+      if (progress != null && progress.responseBytes > 0) break;
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(progress, isNotNull);
+    expect(progress!.status, 0);
+    expect(progress.model, 'claude-x');
+    expect(progress.firstToken, isNull);
+    expect(ledger.underway('another'), isEmpty);
+    expect(await ledger.ofSession(session), isEmpty);
+    expect(told, greaterThan(0));
+    upstream.held!.complete();
+    expect(await posted, 200);
+    expect(ledger.underway(session), isEmpty);
+    ledger.flush();
+    final call = (await ledger.ofSession(session)).single;
+    // The same call: kept to the millisecond.
+    expect(call.at.millisecondsSinceEpoch, progress.at.millisecondsSinceEpoch);
+    expect(call.firstToken, isNotNull);
+    expect(call.firstToken! >= progress.duration, isTrue);
   });
 
   test('keeps one of the app\'s own calls under the conversation it is '

@@ -12255,6 +12255,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatFieldUpstreamLatency => '上游响应';
 
   @override
+  String get ustatCallAsking => '请求中';
+
+  @override
+  String get ustatCallAnswering => '输出中';
+
+  @override
   String get ustatFieldFirstToken => '首字';
 
   @override

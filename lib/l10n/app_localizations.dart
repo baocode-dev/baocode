@@ -21133,6 +21133,18 @@ abstract class AppLocalizations {
   /// **'Upstream answered'**
   String get ustatFieldUpstreamLatency;
 
+  /// A call under way, nothing of its answer yet
+  ///
+  /// In en, this message translates to:
+  /// **'Requesting'**
+  String get ustatCallAsking;
+
+  /// A call under way, its answer coming
+  ///
+  /// In en, this message translates to:
+  /// **'Answering'**
+  String get ustatCallAnswering;
+
   /// No description provided for @ustatFieldFirstToken.
   ///
   /// In en, this message translates to:

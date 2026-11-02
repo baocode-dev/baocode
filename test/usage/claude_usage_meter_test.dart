@@ -68,10 +68,31 @@ void main() {
         },
       }),
     );
-    at(1500);
+    // A block opened empty, its signature: not yet the answer.
+    at(1200);
     meter
-      ..receive(event({'type': 'content_block_start', 'index': 0}))
-      ..receive(event({'type': 'content_block_delta', 'index': 0}));
+      ..receive(
+        event({
+          'type': 'content_block_start',
+          'index': 0,
+          'content_block': {'type': 'thinking', 'thinking': ''},
+        }),
+      )
+      ..receive(
+        event({
+          'type': 'content_block_delta',
+          'index': 0,
+          'delta': {'type': 'signature_delta', 'signature': 'sig'},
+        }),
+      );
+    at(1500);
+    meter.receive(
+      event({
+        'type': 'content_block_delta',
+        'index': 0,
+        'delta': {'type': 'text_delta', 'text': 'Reading'},
+      }),
+    );
     at(2000);
     final read = {'type': 'tool_use', 'id': 'toolu_1', 'name': 'Read'};
     meter
@@ -211,6 +232,70 @@ void main() {
       },
     });
     expect(kept.last.input, 50);
+  });
+
+  test('the main agent\'s request shown while under way: asked, then '
+      'streaming; none once it is kept or the turn is over', () {
+    final shown = <Object, UsageCall Function()>{};
+    meter = ClaudeUsageMeter(
+      record: (call, {trace}) => kept.add(call),
+      session: () => 's1',
+      underway: (key, progress) =>
+          progress == null ? shown.remove(key) : shown[key] = progress,
+      clock: () => now,
+    );
+    meter.receive({'type': 'system', 'subtype': 'init', 'model': 'opus'});
+    expect(shown, isEmpty);
+    meter.requested();
+    at(2000);
+    var progress = shown.values.single();
+    expect(
+      (progress.at, progress.duration),
+      (start, const Duration(seconds: 2)),
+    );
+    expect(progress.status, 0);
+    expect(progress.session, 's1');
+    expect(progress.firstToken, isNull);
+    meter.receive(
+      event({
+        'type': 'message_start',
+        'message': {
+          'id': 'msg_1',
+          'model': 'claude-opus-5-5',
+          'usage': {'input_tokens': 10, 'output_tokens': 1},
+        },
+      }),
+    );
+    at(3000);
+    meter.receive(
+      event({
+        'type': 'content_block_delta',
+        'index': 0,
+        'delta': {'type': 'text_delta', 'text': 'Hi'},
+      }),
+    );
+    progress = shown.values.single();
+    // The same call, from its asking.
+    expect(progress.at, start);
+    expect(progress.model, 'claude-opus-5-5');
+    expect(progress.input, 10);
+    expect(progress.firstToken, const Duration(seconds: 3));
+    at(4000);
+    meter.receive(
+      event({
+        'type': 'message_delta',
+        'delta': {'stop_reason': 'tool_use'},
+        'usage': {'output_tokens': 20},
+      }),
+    );
+    meter.receive(event({'type': 'message_stop'}));
+    expect(kept, hasLength(1));
+    expect(shown, isEmpty);
+    // Its tools' results: the next is asked, till the turn is over.
+    meter.receive({'type': 'user', 'parent_tool_use_id': null});
+    expect(shown, hasLength(1));
+    meter.receive({'type': 'result', 'modelUsage': <String, Object?>{}});
+    expect(shown, isEmpty);
   });
 
   test('a request tried again kept as failed', () {

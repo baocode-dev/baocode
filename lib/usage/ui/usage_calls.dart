@@ -74,6 +74,7 @@ class UsageCallsList extends StatefulWidget {
   const UsageCallsList({
     super.key,
     required this.calls,
+    this.underway = const [],
     this.pageSize = 40,
     this.sessionLabel,
     this.showSession = true,
@@ -82,6 +83,10 @@ class UsageCallsList extends StatefulWidget {
 
   /// Oldest first, as counted.
   final List<UsageCall> calls;
+
+  /// Those asked but not yet answered, as they are so far (oldest first):
+  /// above the rest, not to be opened.
+  final List<UsageCall> underway;
   final int pageSize;
 
   /// Where their traces are: the app's by default.
@@ -111,7 +116,7 @@ class _UsageCallsListState extends State<UsageCallsList> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final calls = widget.calls;
-    if (calls.isEmpty) {
+    if (calls.isEmpty && widget.underway.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Text(l10n.ustatNoCalls, style: UsageText.faint),
@@ -145,13 +150,27 @@ class _UsageCallsListState extends State<UsageCallsList> {
     // The bars' scale: the largest of them all, not only of those shown,
     // so that showing more keeps them as they were.
     var scale = 0;
-    for (final call in calls) {
+    for (final call in [...calls, ...widget.underway]) {
       if (call.total > scale) scale = call.total;
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (wide) _CallHeader(barColumn: barColumn),
+        for (final call in widget.underway.reversed)
+          _CallRow(
+            key: ValueKey(_keyOf(call)),
+            wide: wide,
+            barColumn: barColumn,
+            scale: scale,
+            call: call,
+            open: false,
+            underway: true,
+            session: widget.showSession
+                ? widget.sessionLabel?.call(call)
+                : null,
+            ledger: widget.ledger,
+          ),
         for (final call in calls.reversed.take(count))
           _CallRow(
             key: ValueKey(_keyOf(call)),
@@ -279,7 +298,8 @@ class _CallRow extends StatelessWidget {
     required this.scale,
     required this.call,
     required this.open,
-    required this.onTap,
+    this.onTap,
+    this.underway = false,
     this.session,
     this.ledger,
   });
@@ -292,8 +312,38 @@ class _CallRow extends StatelessWidget {
   final UsageCall call;
   final bool open;
   final String? session;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final UsageLedger? ledger;
+
+  /// Asked but not yet answered: what it is so far, its time still
+  /// running.
+  final bool underway;
+
+  /// Under way, how far: asked, or its answer coming.
+  String _stage(BuildContext context) => call.firstToken == null
+      ? context.l10n.ustatCallAsking
+      : context.l10n.ustatCallAnswering;
+
+  /// Where its chevron is: a dot in place of it while under way.
+  Widget _lead() => underway
+      ? SizedBox(
+          width: 12,
+          child: Center(
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: AppColors.accent,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        )
+      : Icon(
+          open ? Codicons.chevronDown : Codicons.chevronRight,
+          size: 12,
+          color: AppColors.textFaint,
+        );
 
   /// What it cost, at its model's price; null unpriced.
   String? get _cost => switch (UsagePrices.current.priceOf(call)) {
@@ -356,6 +406,11 @@ class _CallRow extends StatelessWidget {
                 '${session == null ? '' : ' · $session'}',
             style: UsageText.faint,
           ),
+          if (underway)
+            TextSpan(
+              text: '  ${_stage(context)}',
+              style: UsageText.faint.copyWith(color: AppColors.accent),
+            ),
         ],
       ),
       maxLines: 1,
@@ -370,11 +425,7 @@ class _CallRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            open ? Codicons.chevronDown : Codicons.chevronRight,
-            size: 12,
-            color: AppColors.textFaint,
-          ),
+          _lead(),
           const SizedBox(width: 4),
           SizedBox(
             width: _Columns.time,
@@ -447,7 +498,7 @@ class _CallRow extends StatelessWidget {
           SizedBox(
             width: _Columns.cost,
             child: Text(
-              _cost ?? '—',
+              (underway ? null : _cost) ?? '—',
               textAlign: TextAlign.right,
               maxLines: 1,
               overflow: TextOverflow.clip,
@@ -468,7 +519,7 @@ class _CallRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           HoverBuilder(
-            cursor: SystemMouseCursors.click,
+            cursor: underway ? MouseCursor.defer : SystemMouseCursors.click,
             builder: (context, hovered) => GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: onTap,
@@ -480,24 +531,33 @@ class _CallRow extends StatelessWidget {
         ],
       );
     }
-    final facts = [
-      '${l10n.ustatTokenInput} ${UsageFormat.tokens(call.input)}',
-      if (call.cacheRead > 0)
-        '${l10n.ustatTokenCacheRead} ${UsageFormat.tokens(call.cacheRead)}',
-      if (call.cacheWrite > 0)
-        '${l10n.ustatTokenCacheWrite} ${UsageFormat.tokens(call.cacheWrite)}',
-      '${l10n.ustatTokenOutput} ${UsageFormat.tokens(call.output)}',
-      if (call.firstToken case final first?)
-        '${l10n.ustatFieldFirstToken} ${UsageFormat.duration(first)}',
-      UsageFormat.duration(call.duration),
-      if (call.speed case final speed?) UsageFormat.speed(speed),
-      ?_cost,
-    ];
+    final facts = underway
+        ? [
+            _stage(context),
+            if (call.prompt > 0)
+              '${l10n.ustatTokenInput} ${UsageFormat.tokens(call.prompt)}',
+            if (call.firstToken case final first?)
+              '${l10n.ustatFieldFirstToken} ${UsageFormat.duration(first)}',
+            UsageFormat.duration(call.duration),
+          ]
+        : [
+            '${l10n.ustatTokenInput} ${UsageFormat.tokens(call.input)}',
+            if (call.cacheRead > 0)
+              '${l10n.ustatTokenCacheRead} ${UsageFormat.tokens(call.cacheRead)}',
+            if (call.cacheWrite > 0)
+              '${l10n.ustatTokenCacheWrite} ${UsageFormat.tokens(call.cacheWrite)}',
+            '${l10n.ustatTokenOutput} ${UsageFormat.tokens(call.output)}',
+            if (call.firstToken case final first?)
+              '${l10n.ustatFieldFirstToken} ${UsageFormat.duration(first)}',
+            UsageFormat.duration(call.duration),
+            if (call.speed case final speed?) UsageFormat.speed(speed),
+            ?_cost,
+          ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         HoverBuilder(
-          cursor: SystemMouseCursors.click,
+          cursor: underway ? MouseCursor.defer : SystemMouseCursors.click,
           builder: (context, hovered) => GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onTap,
@@ -512,11 +572,7 @@ class _CallRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        open ? Codicons.chevronDown : Codicons.chevronRight,
-                        size: 12,
-                        color: AppColors.textFaint,
-                      ),
+                      _lead(),
                       const SizedBox(width: 4),
                       SizedBox(
                         width: 78,

@@ -3512,6 +3512,8 @@
   "ustatFieldTask": "任务",
   "ustatFieldAccount": "账号",
   "ustatFieldUpstreamLatency": "上游响应",
+  "ustatCallAsking": "请求中",
+  "ustatCallAnswering": "输出中",
   "ustatFieldFirstToken": "首字",
   "ustatFieldDuration": "总耗时",
   "ustatFieldSpeed": "速度",
