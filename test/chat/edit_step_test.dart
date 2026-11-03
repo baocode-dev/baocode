@@ -62,6 +62,8 @@ void main() {
     final diff = tester.widget<IdeCodeDiff>(find.byType(IdeCodeDiff));
     expect(diff.sideBySide, isFalse);
     expect(diff.embedded, isTrue);
+    // Its lines' colors alone, no bars by them.
+    expect(diff.bars, isFalse);
     expect(diff.original, 'final a = 1;\nfinal b = 2;');
     expect(diff.modified, 'final a = 1;\nfinal b = 3;');
     expect(diff.originalLineNumberOf!(2), 11);
