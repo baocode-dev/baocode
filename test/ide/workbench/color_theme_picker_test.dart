@@ -99,12 +99,27 @@ class _Storage implements ColorThemeStorage {
   @override
   String? get colorThemeSetting => kept.lastOrNull;
 
-  @override
-  String? get colorThemeData => null;
+  String? _data;
 
   @override
-  void storeColorTheme({required String setting, String? data}) =>
+  String? get colorThemeData => _data;
+
+  @override
+  bool autoDetectColorScheme = false;
+
+  @override
+  Future<void> storeColorTheme({
+    required String setting,
+    String? data,
+    bool autoDetectColorScheme = false,
+    bool cacheOnly = false,
+  }) async {
+    _data = data;
+    if (!cacheOnly) {
       kept.add(setting);
+      this.autoDetectColorScheme = autoDetectColorScheme;
+    }
+  }
 }
 
 const _files = {'lib/main.dart': 'void main() {}\n'};

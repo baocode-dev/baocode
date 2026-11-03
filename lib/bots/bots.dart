@@ -193,12 +193,16 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   }
 
   void _save() => unawaited(
-    store?.write({
-      'watching': {
-        for (final MapEntry(:key, :value) in _watching.entries)
-          if (value.isNotEmpty) key: value,
-      },
-    }),
+    store
+        ?.write({
+          'watching': {
+            for (final MapEntry(:key, :value) in _watching.entries)
+              if (value.isNotEmpty) key: value,
+          },
+        })
+        .catchError((Object error) {
+          debugPrint('Bot preferences not kept: $error');
+        }),
   );
 
   // --- Their files ------------------------------------------------------
