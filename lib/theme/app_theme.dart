@@ -111,23 +111,17 @@ abstract final class AppColors {
     return foreground.withValues(alpha: foreground.a * 0.1);
   }
 
-  /// The chat's message bubbles and its input: outlined as the cards'
-  /// raised controls are, in [border] (see [bubbleFill]), where that stands
-  /// out from them and is of their hue; else a step from their fill towards
-  /// the editor's text, tinged with [accent]. Typed into, a step on towards
-  /// [accent].
+  /// The chat's message bubbles and its input: their fill ([bubbleFill]) a
+  /// step towards the editor's text, so it stands out from them however far
+  /// they are from the page, tinged with [accent]; the input's when typed
+  /// into, a step on towards [accent]. Not the theme's border, which may be
+  /// of another hue (Solarized Dark's violet around its teal).
   static Color bubbleBorder({bool focused = false}) {
-    final fill = bubbleFill;
-    final line =
-        _stands(border, fill) &&
-            _stands(border, code) &&
-            _ofHue(Color.alphaBlend(border, fill), fill)
-        ? Color.alphaBlend(border, fill)
-        : Color.lerp(
-            _towardsText(fill, 0.12),
-            accent.withValues(alpha: 1),
-            0.03,
-          )!;
+    final line = Color.lerp(
+      _towardsText(bubbleFill, 0.12),
+      accent.withValues(alpha: 1),
+      0.03,
+    )!;
     return focused ? Color.lerp(line, accent.withValues(alpha: 1), 0.2)! : line;
   }
 
@@ -147,17 +141,6 @@ abstract final class AppColors {
 
   static Color _towardsText(Color color, double t) =>
       Color.lerp(color, _colors['editor.foreground'].withValues(alpha: 1), t)!;
-
-  /// Whether [line] is a gray, or of [fill]'s hue: not another color's
-  /// (Solarized Dark's violet `panel.border` around its teal).
-  static bool _ofHue(Color line, Color fill) {
-    final of = HSVColor.fromColor(line);
-    if (of.saturation * of.value < 0.06) return true;
-    final under = HSVColor.fromColor(fill);
-    if (under.saturation * under.value < 0.06) return false;
-    final apart = (of.hue - under.hue).abs();
-    return (apart > 180 ? 360 - apart : apart) < 30;
-  }
 
   /// Whether [line] over [background] can be told from it.
   static bool _stands(Color line, Color background) {
