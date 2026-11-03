@@ -18,6 +18,7 @@ import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 import 'conversation_search.dart';
+import '../theme/svg_icons.dart';
 
 /// What the palette lists: everything, or one kind.
 enum SearchFilter {
@@ -533,7 +534,7 @@ class _SearchPaletteState extends State<SearchPalette> {
       _Entry(
         title: action.label,
         titleMatches: matches,
-        leading: Icon(action.icon, size: 15),
+        leading: AppIcon(action.icon, size: 15),
         keybinding: action.keybinding,
         run: () => widget.onRunAction(action),
       );

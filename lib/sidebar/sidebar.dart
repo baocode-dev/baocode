@@ -47,6 +47,7 @@ import '../workspace/workspace.dart';
 import '../workspace/workspace_dialog.dart';
 import 'sidebar_menu.dart';
 import 'sidebar_times.dart';
+import '../theme/svg_icons.dart';
 
 enum SidebarGrouping {
   project('Project', Icons.folder_outlined),
@@ -4092,7 +4093,7 @@ class SidebarIconButton extends StatelessWidget {
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(5),
               ),
-              child: switch (Icon(
+              child: switch (AppIcon(
                 icon,
                 size: size * 0.65,
                 color: hovered ? AppColors.text : AppColors.textMuted,

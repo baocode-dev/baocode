@@ -66,6 +66,8 @@ import '../../workspace/chat_window_keys_test.dart' show press;
 import '../../workspace_test.dart' show pumpLoaded;
 import '../../kernel_ui_test.dart' show pumpScripted;
 
+import 'package:baocode/theme/svg_icons.dart';
+
 /// A project's files, in memory.
 class _Files implements IdeFileService {
   _Files(this.texts);
@@ -977,8 +979,12 @@ void main() {
     );
     await tester.pump();
     final rail = find.byKey(const ValueKey('side-panel-rail'));
-    Finder usage() =>
-        find.descendant(of: rail, matching: find.byIcon(Codicons.graph));
+    Finder usage() => find.descendant(
+      of: rail,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == SvgIcons.usage,
+      ),
+    );
     expect(usage(), findsNothing);
     expect(
       find.descendant(of: rail, matching: find.byIcon(Codicons.terminal)),

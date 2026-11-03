@@ -19,6 +19,7 @@ import 'usage_context.dart';
 import 'usage_filters.dart';
 import 'usage_sections.dart';
 import 'usage_style.dart';
+import '../../theme/svg_icons.dart';
 
 /// The side panel's Usage page: what [session]'s conversation took of
 /// its custom upstream, request by request, as the model proxy kept it:
@@ -343,7 +344,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
     final l10n = context.l10n;
     if (!_ledger.enabled) {
       return UsageEmpty(
-        icon: Codicons.graph,
+        icon: SvgIcons.usage,
         title: l10n.ustatRecordOff,
         detail: l10n.ustatRecordOffDescription,
         action: IdeButton(
@@ -354,7 +355,7 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
       );
     }
     return UsageEmpty(
-      icon: Codicons.graph,
+      icon: SvgIcons.usage,
       title: _sessionId == null
           ? l10n.ustatConversationNew
           : l10n.ustatConversationEmpty,

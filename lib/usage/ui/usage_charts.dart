@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import 'usage_style.dart';
+import '../../theme/svg_icons.dart';
 
 /// A part of a dashboard: a card with its title, what it says under it,
 /// and controls at its right ([trailing]).
@@ -1830,7 +1831,7 @@ class UsageEmpty extends StatelessWidget {
             color: AppColors.accent.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, size: 20, color: AppColors.accent),
+          child: AppIcon(icon, size: 20, color: AppColors.accent),
         ),
         const SizedBox(height: 12),
         Text(title, textAlign: TextAlign.center, style: UsageText.heading),
