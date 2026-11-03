@@ -113,11 +113,15 @@ abstract final class AppColors {
 
   /// The chat's message bubbles and its input: outlined as the cards'
   /// raised controls are, in [border] (see [bubbleFill]), where that stands
-  /// out from them; else a step from their fill towards the editor's text,
-  /// tinged with [accent]. Typed into, a step on towards [accent].
+  /// out from them and is of their hue; else a step from their fill towards
+  /// the editor's text, tinged with [accent]. Typed into, a step on towards
+  /// [accent].
   static Color bubbleBorder({bool focused = false}) {
     final fill = bubbleFill;
-    final line = _stands(border, fill) && _stands(border, code)
+    final line =
+        _stands(border, fill) &&
+            _stands(border, code) &&
+            _ofHue(Color.alphaBlend(border, fill), fill)
         ? Color.alphaBlend(border, fill)
         : Color.lerp(
             _towardsText(fill, 0.12),
@@ -143,6 +147,17 @@ abstract final class AppColors {
 
   static Color _towardsText(Color color, double t) =>
       Color.lerp(color, _colors['editor.foreground'].withValues(alpha: 1), t)!;
+
+  /// Whether [line] is a gray, or of [fill]'s hue: not another color's
+  /// (Solarized Dark's violet `panel.border` around its teal).
+  static bool _ofHue(Color line, Color fill) {
+    final of = HSVColor.fromColor(line);
+    if (of.saturation * of.value < 0.06) return true;
+    final under = HSVColor.fromColor(fill);
+    if (under.saturation * under.value < 0.06) return false;
+    final apart = (of.hue - under.hue).abs();
+    return (apart > 180 ? 360 - apart : apart) < 30;
+  }
 
   /// Whether [line] over [background] can be told from it.
   static bool _stands(Color line, Color background) {
