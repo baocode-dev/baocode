@@ -863,21 +863,16 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
 
   /// The card along the top, under a strip's tabs: its top left corner
   /// square while their first is in front (see [IslandCorner]).
-  Widget _firstCard(Widget child) {
-    Widget card(bool square) => Island(
+  Widget _firstCard(Widget child) => IslandCornerRadius(
+    square: IslandCorner.of(context),
+    builder: (context, topLeft, child) => Island(
       color: _background,
       borderColor: _border,
-      squareTopLeft: square,
-      child: child,
-    );
-    return switch (IslandCorner.of(context)) {
-      final corner? => ValueListenableBuilder(
-        valueListenable: corner,
-        builder: (context, square, _) => card(square),
-      ),
-      null => card(false),
-    };
-  }
+      topLeft: topLeft,
+      child: child!,
+    ),
+    child: child,
+  );
 
   Widget _layout(IdeGitRepository git, IdeGitState state) =>
       widget.islands ? _islandLayout(git, state) : _flatLayout(git, state);
