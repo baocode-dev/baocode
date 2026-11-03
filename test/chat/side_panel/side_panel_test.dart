@@ -40,6 +40,7 @@ import 'package:baocode/ide/ide_list.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/ide/terminal/terminal_service.dart';
 import 'package:baocode/ide/terminal/terminal_view.dart';
+import 'package:baocode/ide/tab_reorder.dart';
 import 'package:baocode/ide/tab_strip_scroll.dart';
 import 'package:baocode/chat/side_panel/terminal_preview.dart';
 import 'package:baocode/chat/panels/activity_strip.dart';
@@ -1837,6 +1838,40 @@ void main() {
       await mouse.removePointer();
     },
   );
+
+  testWidgets('a file tab dragged along the tabs goes where it is let go', (
+    tester,
+  ) async {
+    final (:panel, :session, files: _) = await _pumpChat(tester);
+    for (final name in ['a', 'b', 'c']) {
+      panel.open(session, FileOpenRequest('/p/$name.dart'));
+    }
+    await tester.pumpAndSettle();
+    Finder tab(String name) => find.descendant(
+      of: find.byType(TabStripScroll),
+      matching: find.text(name),
+    );
+    List<String> names() => [
+      for (final tab in panel.tabsOf(session).files) p.basename(tab.path),
+    ];
+    expect(names(), ['a.dart', 'b.dart', 'c.dart']);
+
+    final start = tester.getCenter(tab('a.dart'));
+    final end = tester.getCenter(tab('c.dart')) + const Offset(30, 0);
+    final gesture = await tester.startGesture(
+      start,
+      kind: PointerDeviceKind.mouse,
+    );
+    for (var i = 1; i <= 8; i++) {
+      await gesture.moveTo(Offset.lerp(start, end, i / 8)!);
+      await tester.pump();
+    }
+    expect(find.byType(TabDropLine), findsOneWidget);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(names(), ['b.dart', 'c.dart', 'a.dart']);
+    expect(find.byType(TabDropLine), findsNothing);
+  });
 
   testWidgets(
     'background rows open multiple terminal tabs, poll output and stop through the kernel',

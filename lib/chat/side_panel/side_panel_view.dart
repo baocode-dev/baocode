@@ -33,6 +33,7 @@ import '../../ide/ide_panes.dart';
 import '../../ide/ide_tab_bar.dart'
     show IdeEditorTab, IdeTabStrip, ideTabDescriptions;
 import '../../ide/save_copy.dart';
+import '../../ide/tab_reorder.dart';
 import '../../ide/tab_strip_scroll.dart';
 import '../../ide/terminal/links/terminal_links.dart' show TerminalLink;
 import '../../ide/terminal/terminal_hosts.dart';
@@ -1135,6 +1136,8 @@ class AgentSidePanelView extends StatelessWidget {
       key: ValueKey((tabs.section, session)),
       selected: active,
       leading: leading,
+      onMove: (tab, index) =>
+          panel.moveTab(session, tab as SidePanelTab, index),
       entries: [
         for (final (i, tab) in list.indexed)
           (
@@ -1880,9 +1883,13 @@ class _TabStrip extends StatefulWidget {
     required this.selected,
     required this.entries,
     this.leading,
+    this.onMove,
   });
   final Object? selected;
   final List<({Object id, Widget child})> entries;
+
+  /// A tab dragged to [index] among the others; none: they stay in order.
+  final void Function(Object id, int index)? onMove;
 
   /// Before the tabs, not scrolled with them.
   final Widget? leading;
@@ -1891,9 +1898,24 @@ class _TabStrip extends StatefulWidget {
   State<_TabStrip> createState() => _TabStripState();
 }
 
-class _TabStripState extends State<_TabStrip> {
+class _TabStripState extends State<_TabStrip>
+    with TabReorder<_TabStrip, Object> {
   final _scroll = ScrollController();
   final Map<Object, GlobalKey> _keys = {};
+
+  @override
+  ScrollController get tabScroll => _scroll;
+
+  @override
+  List<Object> get reorderedTabs => [
+    for (final entry in widget.entries) entry.id,
+  ];
+
+  @override
+  BuildContext? tabContext(Object id) => _keys[id]?.currentContext;
+
+  @override
+  void moveTab(Object id, int index) => widget.onMove?.call(id, index);
 
   @override
   void initState() {
@@ -1940,11 +1962,23 @@ class _TabStripState extends State<_TabStrip> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final entry in widget.entries)
+          for (final (i, entry) in widget.entries.indexed) ...[
+            if (dropSpot == i) const TabDropLine(),
             KeyedSubtree(
               key: _keys.putIfAbsent(entry.id, GlobalKey.new),
-              child: entry.child,
+              child: switch (widget.onMove) {
+                null => entry.child,
+                _ => reorderable(
+                  entry.id,
+                  Opacity(
+                    opacity: identical(entry.id, draggedTab) ? .5 : 1,
+                    child: entry.child,
+                  ),
+                ),
+              },
             ),
+          ],
+          if (dropSpot == widget.entries.length) const TabDropLine(),
         ],
       ),
     );

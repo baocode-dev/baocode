@@ -4605,6 +4605,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 onSelect: (doc) => unawaited(_select(doc)),
                 onClose: (doc) => unawaited(_close(doc)),
                 onAction: _tabAction,
+                onMove: widget.workspace.moveDocument,
                 local: _local,
                 markdownPreview:
                     !pageShown && active != null && _hasPreview(active)

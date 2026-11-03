@@ -17,6 +17,7 @@ import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_workspace.dart';
 import 'save_copy.dart';
+import 'tab_reorder.dart';
 import 'tab_strip_scroll.dart';
 
 /// The actions of a tab's context menu.
@@ -103,9 +104,13 @@ class IdeTabBar extends StatefulWidget {
     this.onMarkdownPreview,
     this.page,
     this.actions,
+    this.onMove,
   });
 
   final List<IdeDocument> documents;
+
+  /// A tab dragged to [index] among the others; none: they stay in order.
+  final void Function(IdeDocument doc, int index)? onMove;
 
   /// A tab after the files' that is not a file's (an extension's page):
   /// the one in front while [active] is null.
@@ -137,10 +142,23 @@ class IdeTabBar extends StatefulWidget {
   State<IdeTabBar> createState() => _IdeTabBarState();
 }
 
-class _IdeTabBarState extends State<IdeTabBar> {
+class _IdeTabBarState extends State<IdeTabBar>
+    with TabReorder<IdeTabBar, IdeDocument> {
   final ScrollController _scroll = ScrollController();
   final Map<IdeDocument, GlobalKey> _keys = {};
   final GlobalKey _pageKey = GlobalKey();
+
+  @override
+  ScrollController get tabScroll => _scroll;
+
+  @override
+  List<IdeDocument> get reorderedTabs => widget.documents;
+
+  @override
+  BuildContext? tabContext(IdeDocument doc) => _keys[doc]?.currentContext;
+
+  @override
+  void moveTab(IdeDocument doc, int index) => widget.onMove?.call(doc, index);
 
   @override
   void initState() {
@@ -274,14 +292,18 @@ class _IdeTabBarState extends State<IdeTabBar> {
   }
 
   /// [tab], dragged onto the chat's composer, puts its file in; not a
-  /// revision's tab, whose text is not the file's.
-  Widget _draggable(IdeDocument doc, Widget tab) => doc.readRevision != null
-      ? KeyedSubtree(key: ObjectKey(doc), child: tab)
-      : FileDraggable(
-          key: ObjectKey(doc),
-          files: [ComposerFile(doc.path)],
-          child: tab,
-        );
+  /// revision's tab, whose text is not the file's. Dragged along the
+  /// tabs, it goes among them.
+  Widget _draggable(IdeDocument doc, Widget tab) {
+    if (widget.onMove != null) tab = reorderable(doc, tab);
+    return doc.readRevision != null
+        ? KeyedSubtree(key: ObjectKey(doc), child: tab)
+        : FileDraggable(
+            key: ObjectKey(doc),
+            files: [ComposerFile(doc.path)],
+            child: tab,
+          );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -308,23 +330,28 @@ class _IdeTabBarState extends State<IdeTabBar> {
                             !identical(docs[i - 1], widget.active) &&
                             !identical(doc, widget.active),
                       ),
+                    if (dropSpot == i) const TabDropLine(),
                     _draggable(
                       doc,
-                      IslandTabStart(
-                        atStart: i == 0,
-                        child: _Tab(
-                          key: _keys.putIfAbsent(doc, GlobalKey.new),
-                          doc: doc,
-                          description: descriptions[i],
-                          active: identical(doc, widget.active),
-                          onSelect: () => widget.onSelect(doc),
-                          onClose: () => widget.onClose(doc),
-                          onMenu: (position) =>
-                              _showMenu(doc, position: position),
+                      Opacity(
+                        opacity: identical(doc, draggedTab) ? .5 : 1,
+                        child: IslandTabStart(
+                          atStart: i == 0,
+                          child: _Tab(
+                            key: _keys.putIfAbsent(doc, GlobalKey.new),
+                            doc: doc,
+                            description: descriptions[i],
+                            active: identical(doc, widget.active),
+                            onSelect: () => widget.onSelect(doc),
+                            onClose: () => widget.onClose(doc),
+                            onMenu: (position) =>
+                                _showMenu(doc, position: position),
+                          ),
                         ),
                       ),
                     ),
                   ],
+                  if (dropSpot == docs.length) const TabDropLine(),
                   if (widget.page case final page?)
                     KeyedSubtree(key: _pageKey, child: page),
                   // Over a card, the last clear of its rounded corner, its
