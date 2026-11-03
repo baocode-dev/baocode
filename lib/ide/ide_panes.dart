@@ -519,6 +519,10 @@ class IdeViewTitle extends StatelessWidget {
 
   static const height = 34.0;
 
+  /// After the last action: its glyph (16 in 22) as far in from the edge
+  /// as the title's text is at the other.
+  static const _actionsEnd = 9.0;
+
   static Color get foreground => themeColors['sideBarTitle.foreground'];
 
   @override
@@ -562,7 +566,7 @@ class IdeViewTitle extends StatelessWidget {
               ),
             ),
             ...actions,
-            const SizedBox(width: 4),
+            const SizedBox(width: _actionsEnd),
           ],
         ),
       );
@@ -576,7 +580,7 @@ class IdeViewTitle extends StatelessWidget {
         null => null,
       },
       child: Padding(
-        padding: const EdgeInsets.only(left: 12, right: 4),
+        padding: const EdgeInsets.only(left: 12, right: _actionsEnd),
         child: Row(
           children: [
             Expanded(child: text),

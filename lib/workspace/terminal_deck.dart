@@ -271,6 +271,8 @@ class _TerminalDeckState extends State<TerminalDeck> {
               ),
             ),
           ),
+          // Clear of the tabs scrolled under the actions.
+          const SizedBox(width: 4),
           if (terminals != null) ...[
             IdeActionButton(
               key: const ValueKey('terminal-deck-new'),

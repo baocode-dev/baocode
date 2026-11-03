@@ -1797,16 +1797,16 @@ class _PageState extends State<_Page> {
                   SizedBox(
                     key: const ValueKey('side-panel-list'),
                     width: listWidth,
+                    // The line over the list's edge, as the card's outline
+                    // is over its other: its rows as far in from either.
                     child: DecoratedBox(
+                      position: DecorationPosition.foreground,
                       decoration: BoxDecoration(
                         border: Border(
                           right: BorderSide(color: AppColors.partBorder),
                         ),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 1),
-                        child: widget.list,
-                      ),
+                      child: widget.list,
                     ),
                   ),
                 Expanded(
