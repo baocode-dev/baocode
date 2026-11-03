@@ -1814,25 +1814,37 @@ class MarkdownEditorState extends State<MarkdownEditor>
       }
       return KeyEventResult.handled;
     }
-    // The numpad's 7 and 1 are Home and End with NumLock off. Windows maps
-    // them by scan code to numpad7 and numpad1, so the line-break shortcuts
-    // never see them; with NumLock on they are digits, and stay digits.
-    if (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux) {
-      final forward = switch (key) {
-        LogicalKeyboardKey.numpad7 => false,
-        LogicalKeyboardKey.numpad1 => true,
-        _ => null,
-      };
-      if (forward != null &&
-          !keyboard.lockModesEnabled.contains(KeyboardLockMode.numLock)) {
-        final selection = controller.selection;
-        if (selection.isValid) {
-          final (start, end) = _visualLine(selection.extentOffset);
-          _moveTo(forward ? end : start, extend: keyboard.isShiftPressed);
-        }
-        return KeyEventResult.handled;
+    // Home and End to the line's ends, Shift selecting to them, as an
+    // editor has them: macOS's defaults scroll the document instead, and
+    // select to its ends with Shift. The numpad's 7 and 1 are Home and End
+    // with NumLock off, which Windows tells as numpad7 and numpad1 and the
+    // defaults don't map; with NumLock on they are digits, and stay digits.
+    final mac = defaultTargetPlatform == TargetPlatform.macOS;
+    final numpad =
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux) &&
+        !keyboard.lockModesEnabled.contains(KeyboardLockMode.numLock);
+    final forward = switch (key) {
+      LogicalKeyboardKey.home when mac => false,
+      LogicalKeyboardKey.end when mac => true,
+      LogicalKeyboardKey.numpad7 when numpad => false,
+      LogicalKeyboardKey.numpad1 when numpad => true,
+      _ => null,
+    };
+    if (forward != null &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed &&
+        !(mac && keyboard.isControlPressed)) {
+      final selection = controller.selection;
+      if (selection.isValid) {
+        final (start, end) = _visualLine(selection.extentOffset);
+        // Ctrl with the numpad's, as with Home and End: the document's ends.
+        final to = keyboard.isControlPressed
+            ? (forward ? controller.length : 0)
+            : (forward ? end : start);
+        _moveTo(to, extend: keyboard.isShiftPressed);
       }
+      return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }
@@ -2211,17 +2223,6 @@ class MarkdownEditorState extends State<MarkdownEditor>
       if (!selection.isValid) return;
       final (start, end) = _visualLine(selection.extentOffset);
       _moveTo(intent.forward ? end : start, extend: !intent.collapseSelection);
-    }, () => _movable),
-    // Home and End: on macOS the platform's defaults map them here (they
-    // scroll the document, which an editor of text does not), so move the
-    // caret to the line's ends as on the other platforms.
-    ScrollToDocumentBoundaryIntent: _Act<ScrollToDocumentBoundaryIntent>((
-      intent,
-    ) {
-      final selection = controller.selection;
-      if (!selection.isValid) return;
-      final (start, end) = _visualLine(selection.extentOffset);
-      _moveTo(intent.forward ? end : start, extend: false);
     }, () => _movable),
     ExpandSelectionToLineBreakIntent: _Act<ExpandSelectionToLineBreakIntent>((
       intent,
