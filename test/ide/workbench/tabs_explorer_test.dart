@@ -76,6 +76,48 @@ void main() {
     expect(_tabNames(tester), ['a.dart']);
   });
 
+  testWidgets('a tab dragged along the tabs goes where it is let go', (
+    tester,
+  ) async {
+    final workspace = await pumpWorkbench(
+      tester,
+      files,
+      open: ['a.dart', 'b.dart', 'c.dart'],
+    );
+    Future<void> drag(String name, Offset to) async {
+      final gesture = await tester.startGesture(
+        tester.getCenter(_tab(name)),
+        kind: PointerDeviceKind.mouse,
+      );
+      for (var i = 1; i <= 8; i++) {
+        await gesture.moveTo(
+          Offset.lerp(tester.getCenter(_tab(name)), to, i / 8)!,
+        );
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    // Past c.dart's middle: after it.
+    await drag(
+      'a.dart',
+      tester.getCenter(_tab('c.dart')) + const Offset(30, 0),
+    );
+    expect(_tabNames(tester), ['b.dart', 'c.dart', 'a.dart']);
+    expect(
+      [for (final doc in workspace.documents) doc.title],
+      ['b.dart', 'c.dart', 'a.dart'],
+    );
+
+    // Off the tabs (onto the editor): nowhere among them.
+    await drag(
+      'c.dart',
+      tester.getCenter(_tab('b.dart')) + const Offset(0, 200),
+    );
+    expect(_tabNames(tester), ['b.dart', 'c.dart', 'a.dart']);
+  });
+
   testWidgets('a tab whose file was deleted says so, struck through', (
     tester,
   ) async {

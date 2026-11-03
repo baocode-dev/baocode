@@ -706,6 +706,16 @@ class AgentSidePanel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Puts [tab] at [index] among [conversation]'s others on its page (a
+  /// tab dragged).
+  void moveTab(Object conversation, SidePanelTab tab, int index) {
+    final tabs = tabsOf(conversation);
+    final list = tab.diff ? tabs.diffs : tabs.files;
+    if (!list.remove(tab)) return;
+    list.insert(index.clamp(0, list.length), tab);
+    notifyListeners();
+  }
+
   /// Brings [tab] to the front for [conversation], on its page.
   void activate(Object conversation, SidePanelTab tab) {
     final tabs = tabsOf(conversation);

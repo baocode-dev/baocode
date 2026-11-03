@@ -719,6 +719,16 @@ class IdeWorkspace extends ChangeNotifier
     notifyListeners();
   }
 
+  /// Puts [doc]'s tab at [index] among the others (a tab dragged).
+  void moveDocument(IdeDocument doc, int index) {
+    final from = _documents.indexOf(doc);
+    if (from < 0) return;
+    _documents
+      ..removeAt(from)
+      ..insert(index.clamp(0, _documents.length), doc);
+    notifyListeners();
+  }
+
   /// Opens a diff tab, or selects it: the text [original] reads against
   /// [path]'s file, or against the text [modified] reads (read-only);
   /// titled with [label]. VS Code's diff editor of a Git change.

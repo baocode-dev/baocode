@@ -14,13 +14,13 @@ import '../keybindings/chat_keybindings.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
-import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/thread_status_mark.dart';
 import '../workspace/workspace.dart';
 import 'ide_chat_history.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_tab_bar.dart';
+import 'tab_reorder.dart';
 import 'tab_strip_scroll.dart';
 import '../workspace/islands.dart';
 
@@ -434,27 +434,6 @@ class _TabDragRecognizer extends HorizontalDragGestureRecognizer {
     PointerDeviceKind pointerDeviceKind,
     double? deviceTouchSlop,
   ) => globalDistanceMoved.abs() > 4;
-}
-
-/// Where a dragged tab would go: a line between tabs, taking no room.
-class TabDropLine extends StatelessWidget {
-  const TabDropLine({super.key});
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 0,
-    height: 22,
-    child: OverflowBox(
-      maxWidth: 2,
-      child: Container(
-        width: 2,
-        decoration: BoxDecoration(
-          color: themeColors['focusBorder'],
-          borderRadius: BorderRadius.circular(1),
-        ),
-      ),
-    ),
-  );
 }
 
 /// One chat's tab, as an editor's: its icon (a spinner while its agent
