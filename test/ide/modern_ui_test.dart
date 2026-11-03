@@ -76,7 +76,8 @@ void main() {
           .color,
       isNull,
     );
-    expect(sidebar.left, activityBar.right + Islands.gap / 2);
+    // Against the activity bar, its items as far from either side.
+    expect(sidebar.left, activityBar.right);
     expect(editor.left - sidebar.right, Islands.gap);
     expect(chat.left - editor.right, Islands.gap);
     expect(chat.right, 1400 - Islands.gap);

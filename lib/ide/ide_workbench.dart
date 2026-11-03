@@ -4899,7 +4899,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// With the editor hidden ([IdeLayout.editorHidden]), the chat has its
   /// place, beside the side bar if that shows, the panel below the two.
   Widget _split(Size size, List<IdeCommand> commands, Widget statusBar) {
-    const bar = IdeModernUI.activityBarWidth;
+    // The activity bar's room: its lane at the right the half gap the card
+    // after it keeps, so the card is against it, its items as far from
+    // either side.
+    const bar = IdeModernUI.activityBarWidth - Islands.gap / 2;
     // The editor hidden, the chat is sized as though it were there: dragged
     // back, the editor comes out where the pointer is.
     final room = size.width - bar;
@@ -4981,9 +4984,19 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          KeyedSubtree(
-                            key: const ValueKey('ide-activity-bar'),
-                            child: _activityBar(sidebarShowing: sidebarVisible),
+                          SizedBox(
+                            width: bar,
+                            child: OverflowBox(
+                              alignment: Alignment.centerLeft,
+                              minWidth: IdeModernUI.activityBarWidth,
+                              maxWidth: IdeModernUI.activityBarWidth,
+                              child: KeyedSubtree(
+                                key: const ValueKey('ide-activity-bar'),
+                                child: _activityBar(
+                                  sidebarShowing: sidebarVisible,
+                                ),
+                              ),
+                            ),
                           ),
                           if (!editorHidden && sidebarVisible && !gitLog)
                             sidebar,

@@ -31,12 +31,12 @@ void main() {
     final drag = await tester.startGesture(
       tester.getCenter(_part('ide-sidebar-sash')),
     );
-    // As far as the side bar goes: 672 of 1352 (the window less the
-    // activity bar, and half a gap at its right; see Islands).
+    // As far as the side bar goes: 676 of 1356 (the window less the
+    // activity bar's room, and half a gap at its right; see Islands).
     await drag.moveBy(const Offset(20, 0));
-    await drag.moveBy(const Offset(412, 0));
+    await drag.moveBy(const Offset(416, 0));
     await tester.pump();
-    expect(_width(tester, 'ide-sidebar'), 672);
+    expect(_width(tester, 'ide-sidebar'), 676);
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
     expect(_width(tester, 'ide-chat'), IdeColumns.minChat);
 
@@ -48,9 +48,9 @@ void main() {
     await tester.pump();
     expect(_width(tester, 'ide-chat'), 0);
     expect(find.byKey(chatKey), findsNothing);
-    expect(_width(tester, 'ide-sidebar'), 732);
+    expect(_width(tester, 'ide-sidebar'), 736);
 
-    await drag.moveBy(const Offset(-492, 0));
+    await drag.moveBy(const Offset(-496, 0));
     await tester.pump();
     expect(_width(tester, 'ide-sidebar'), IdeColumns.defaultSidebar);
     expect(_width(tester, 'ide-chat'), IdeColumns.defaultChat);
@@ -61,7 +61,7 @@ void main() {
     await tester.drag(_part('ide-chat-sash'), const Offset(-400, 0));
     await tester.pump();
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
-    expect(_width(tester, 'ide-sidebar'), 212);
+    expect(_width(tester, 'ide-sidebar'), 216);
     await tester.drag(_part('ide-chat-sash'), const Offset(-200, 0));
     await tester.pump();
     expect(_part('ide-sidebar'), findsNothing);
@@ -69,7 +69,7 @@ void main() {
     // Opened again, as wide as it was; the chat gives way to it.
     await tester.tap(find.byIcon(Codicons.files));
     await tester.pump();
-    expect(_width(tester, 'ide-sidebar'), 212);
+    expect(_width(tester, 'ide-sidebar'), 216);
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
     await tester.pump(kDoubleTapTimeout);
   });

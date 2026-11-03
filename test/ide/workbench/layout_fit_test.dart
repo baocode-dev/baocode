@@ -46,7 +46,7 @@ void main() {
     expect(workspace.layout.editorVisible, isFalse);
     final sidebar = tester.getRect(_part('ide-sidebar'));
     final beside = tester.getRect(_part('ide-chat'));
-    expect(sidebar.left, IdeModernUI.activityBarWidth);
+    expect(sidebar.left, IdeModernUI.activityBarWidth - Islands.gap / 2);
     expect(beside.left, sidebar.right);
     expect(beside.right, 740 - Islands.gap / 2);
     expect(tester.element(find.byKey(chatKey)), same(chat));
@@ -250,11 +250,11 @@ void main() {
     final drag = await tester.startGesture(
       tester.getCenter(_part('ide-chat-sash')),
     );
-    // Of 1352 (the window less the activity bar, and half a gap at its
-    // right), the side bar snaps shut at a chat of 890⅓, and the editor at
-    // 1085⅓.
+    // Of 1356 (the window less the activity bar's room, and half a gap at
+    // its right), the side bar snaps shut at a chat of 894⅓, and the editor
+    // at 1089⅓.
     await drag.moveBy(const Offset(-20, 0));
-    await drag.moveBy(const Offset(-645, 0));
+    await drag.moveBy(const Offset(-649, 0));
     await tester.pump();
     expect(_part('ide-sidebar'), findsNothing);
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
@@ -262,8 +262,9 @@ void main() {
     await tester.pump();
     expect(workspace.layout.chatMaximized, isTrue);
     expect(_part('ide-editor'), findsNothing);
-    // Its sash over the activity bar's edge.
-    const left = IdeModernUI.activityBarWidth;
+    // Its sash over the activity bar's edge (its room's, the card against
+    // it).
+    const left = IdeModernUI.activityBarWidth - Islands.gap / 2;
     expect(tester.getCenter(_part('ide-chat-sash')).dx, left);
     final maximized = tester.getRect(_part('ide-chat'));
     expect(maximized.left, left);
@@ -283,7 +284,7 @@ void main() {
     await tester.pump();
     expect(workspace.layout.chatMaximized, isFalse);
     expect(_width(tester, 'ide-editor'), IdeColumns.minEditor);
-    expect(_width(tester, 'ide-chat'), 1032);
+    expect(_width(tester, 'ide-chat'), 1036);
     expect(tester.getRect(_part('ide-panel')).left, left);
     expect(tester.element(find.byKey(chatKey)), same(chat));
     await drag.up();
