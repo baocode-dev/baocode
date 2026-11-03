@@ -491,6 +491,36 @@ void main() {
       listed['changes'],
       containsPair('lib/chat/chat_history_view.dart', 'modified'),
     );
+    // A folder as it is on disk: what the list leaves out too.
+    expect(
+      await peer.call(LinkMethods.folder, {
+        'project': '~/code/baocode',
+        'path': '',
+      }),
+      {
+        'folders': ['lib', 'assets', 'node_modules'],
+        'files': ['README.md'],
+      },
+    );
+    expect(
+      await peer.call(LinkMethods.folder, {
+        'project': '~/code/baocode',
+        'path': 'node_modules/x',
+      }),
+      {
+        'folders': <String>[],
+        'files': ['index.js'],
+      },
+    );
+    await expectLater(
+      peer.call(LinkMethods.folder, {
+        'project': '~/code/baocode',
+        'path': '../..',
+      }),
+      throwsA(
+        isA<LinkRemoteException>().having((e) => e.code, 'code', 'notFound'),
+      ),
+    );
 
     final read =
         (await peer.call(LinkMethods.read, {
@@ -630,6 +660,20 @@ void main() {
     final listed =
         (await peer.call(LinkMethods.files, {'project': made.path}))! as Map;
     expect(listed['paths'], ['site/index.html', 'api/go.mod', 'api/main.go']);
+    expect(await peer.call(LinkMethods.folder, {'project': made.path}), {
+      'folders': ['site', 'api'],
+      'files': <String>[],
+    });
+    expect(
+      await peer.call(LinkMethods.folder, {
+        'project': made.path,
+        'path': 'api',
+      }),
+      {
+        'folders': <String>[],
+        'files': ['main.go', 'go.mod'],
+      },
+    );
     final read =
         (await peer.call(LinkMethods.read, {
               'project': made.path,

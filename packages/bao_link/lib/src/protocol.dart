@@ -124,6 +124,12 @@ abstract final class LinkMethods {
   /// changes being its agents' not kept yet.
   static const files = 'files';
 
+  /// `{"project", "path"}`: what is in a folder of the project (`""` its
+  /// root), as it is on disk, what [files] leaves out with it (what Git
+  /// ignores, build outputs): `{"folders", "files"}`, their names.
+  /// `unknown` from a desktop before it.
+  static const folder = 'folder';
+
   /// `{"project", "path"}`: a file of the project: `{"text", "original"?}`
   /// (`original`, what it was before its agents changed it: empty when they
   /// added it), or `{"binary": true}`, or `{"tooLarge": true, "size"}`.
@@ -200,7 +206,7 @@ abstract final class LinkMethods {
 
   /// Those whose answers can be large: each goes on a stream of its own
   /// (see [LinkPeer]), holding up nothing else.
-  static const bulk = {read, image, icon, files, botAvatar, extensions};
+  static const bulk = {read, image, icon, files, folder, botAvatar, extensions};
 }
 
 /// How much of what a phone asks for it gets, at most.
