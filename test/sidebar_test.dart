@@ -31,6 +31,7 @@ import 'package:baocode/workspace/open_in_editor_button.dart';
 import 'package:baocode/workspace/pin_window_button.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
+import 'package:baocode/chat/side_panel/side_panel_controller.dart';
 
 Future<Workspace> pumpApp(WidgetTester tester, {double width = 1400}) async {
   tester.view.physicalSize = Size(width, 900);
@@ -969,6 +970,46 @@ void main() {
     expect(workspace.selected.title, 'Sticky user message on scroll');
     expect(chatTitle(tester), 'Sticky user message on scroll');
   });
+
+  testWidgets('the sidebar at the window\'s right, as the layout has it: '
+      'the conversations at its left, under the traffic lights; hidden, its '
+      'toggle at their title bar\'s right', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final workspace = Workspace.mock()
+      ..keepSidePanelView({'layout': ChatLayout.chatPanelSidebar.name});
+    await tester.pumpWidget(BaoCodeApp(workspace: workspace));
+    await tester.pump();
+    final sidebar = tester.getRect(find.byType(Sidebar));
+    final chat = tester.getRect(find.byType(ChatScreen));
+    expect(sidebar.right, 1400);
+    expect(sidebar.width, 260);
+    expect(chat.right, sidebar.left);
+    expect(chat.left, Islands.gap);
+    IconData icon(String tooltip) => tester
+        .widget<SidebarIconButton>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is SidebarIconButton && widget.tooltip == tooltip,
+          ),
+        )
+        .icon;
+    expect(icon('Hide sidebar'), Codicons.layoutSidebarRight);
+
+    await tester.tap(find.bySemanticsLabel('Hide sidebar'));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(ChatScreen)).right, 1400 - Islands.gap);
+    expect(icon('Show sidebar'), Codicons.layoutSidebarRightOff);
+    // At the right of the title bar.
+    expect(
+      tester.getCenter(find.bySemanticsLabel('Show sidebar')).dx,
+      greaterThan(1400 - 100),
+    );
+    await tester.tap(find.bySemanticsLabel('Show sidebar'));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(Sidebar)).right, 1400);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('⌘B hides and shows the sidebar', (tester) async {
     await pumpApp(tester);

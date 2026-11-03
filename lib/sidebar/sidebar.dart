@@ -202,11 +202,16 @@ class Sidebar extends StatefulWidget {
     this.onUpdate,
     this.setup,
     this.surface,
+    this.atRight = false,
   });
 
   /// Under it: [AppColors.sidebarSurface] by default; none where the
   /// window's own color is under it already.
   final Color? surface;
+
+  /// At the window's right (see ChatLayout): its collapse button at its
+  /// left, by the conversations.
+  final bool atRight;
 
   /// Over the foot's row: the setup checklist folded ("Setup n/m"), which
   /// shows nothing when the checklist does not fold there.
@@ -1091,16 +1096,21 @@ class _SidebarState extends State<Sidebar>
     );
   }
 
-  /// Under the window's traffic lights; the collapse button on the right.
+  /// Under the window's traffic lights; the collapse button on the side
+  /// by the conversations.
   Widget _buildTopBar() {
+    final right = widget.atRight;
     return TitleBarDoubleClick(
       child: SizedBox(
         height: AppMetrics.titleBarHeight,
         child: Row(
+          textDirection: right ? TextDirection.rtl : TextDirection.ltr,
           children: [
             const Spacer(),
             SidebarIconButton(
-              icon: Codicons.layoutSidebarLeft,
+              icon: right
+                  ? Codicons.layoutSidebarRight
+                  : Codicons.layoutSidebarLeft,
               tooltip: context.l10n.windowHideSidebar,
               command: 'workbench.action.toggleSidebarVisibility',
               onTap: widget.onCollapse,

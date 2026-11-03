@@ -1617,10 +1617,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidePanelHide => '隐藏侧栏';
 
   @override
-  String get sidePanelMoveLeft => '移到对话左侧';
+  String get chatLayout => '布局';
 
   @override
-  String get sidePanelMoveRight => '移到对话右侧';
+  String get chatLayoutSidebarChatPanel => '侧栏 · 对话 · 面板';
+
+  @override
+  String get chatLayoutSidebarPanelChat => '侧栏 · 面板 · 对话';
+
+  @override
+  String get chatLayoutPanelChatSidebar => '面板 · 对话 · 侧栏';
+
+  @override
+  String get chatLayoutChatPanelSidebar => '对话 · 面板 · 侧栏';
 
   @override
   String get sidePanelChanges => '变更';

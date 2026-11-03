@@ -1655,10 +1655,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidePanelHide => 'Hide side panel';
 
   @override
-  String get sidePanelMoveLeft => 'Move to the Left of the Conversation';
+  String get chatLayout => 'Layout';
 
   @override
-  String get sidePanelMoveRight => 'Move to the Right of the Conversation';
+  String get chatLayoutSidebarChatPanel => 'Sidebar · Chat · Panel';
+
+  @override
+  String get chatLayoutSidebarPanelChat => 'Sidebar · Panel · Chat';
+
+  @override
+  String get chatLayoutPanelChatSidebar => 'Panel · Chat · Sidebar';
+
+  @override
+  String get chatLayoutChatPanelSidebar => 'Chat · Panel · Sidebar';
 
   @override
   String get sidePanelChanges => 'Changes';

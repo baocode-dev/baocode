@@ -3062,17 +3062,35 @@ abstract class AppLocalizations {
   /// **'Hide side panel'**
   String get sidePanelHide;
 
-  /// No description provided for @sidePanelMoveLeft.
+  /// No description provided for @chatLayout.
   ///
   /// In en, this message translates to:
-  /// **'Move to the Left of the Conversation'**
-  String get sidePanelMoveLeft;
+  /// **'Layout'**
+  String get chatLayout;
 
-  /// No description provided for @sidePanelMoveRight.
+  /// No description provided for @chatLayoutSidebarChatPanel.
   ///
   /// In en, this message translates to:
-  /// **'Move to the Right of the Conversation'**
-  String get sidePanelMoveRight;
+  /// **'Sidebar · Chat · Panel'**
+  String get chatLayoutSidebarChatPanel;
+
+  /// No description provided for @chatLayoutSidebarPanelChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Sidebar · Panel · Chat'**
+  String get chatLayoutSidebarPanelChat;
+
+  /// No description provided for @chatLayoutPanelChatSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Panel · Chat · Sidebar'**
+  String get chatLayoutPanelChatSidebar;
+
+  /// No description provided for @chatLayoutChatPanelSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat · Panel · Sidebar'**
+  String get chatLayoutChatPanelSidebar;
 
   /// The side panel's tab listing the files the agent changed.
   ///

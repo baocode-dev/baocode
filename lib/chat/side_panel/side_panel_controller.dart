@@ -68,6 +68,40 @@ class SidePanelTab {
 /// lib/usage/).
 enum SidePanelSection { files, changes, terminal, usage, plan }
 
+/// How the agent window lays out, from its left: the sidebar (the
+/// conversations' list), the conversations, the side panel. Each of the
+/// window's conversations alike; kept between runs.
+enum ChatLayout {
+  /// Sidebar, conversations, side panel.
+  sidebarChatPanel(sidebarAtRight: false, panelAtLeft: false),
+
+  /// Sidebar, side panel, conversations.
+  sidebarPanelChat(sidebarAtRight: false, panelAtLeft: true),
+
+  /// Side panel, conversations, sidebar: the first, mirrored.
+  panelChatSidebar(sidebarAtRight: true, panelAtLeft: true),
+
+  /// Conversations, side panel, sidebar: the second, mirrored.
+  chatPanelSidebar(sidebarAtRight: true, panelAtLeft: false);
+
+  const ChatLayout({required this.sidebarAtRight, required this.panelAtLeft});
+
+  /// The sidebar at the window's right, not its left.
+  final bool sidebarAtRight;
+
+  /// The side panel at the conversations' left, not their right.
+  final bool panelAtLeft;
+
+  static ChatLayout of({
+    required bool sidebarAtRight,
+    required bool panelAtLeft,
+  }) => values.firstWhere(
+    (layout) =>
+        layout.sidebarAtRight == sidebarAtRight &&
+        layout.panelAtLeft == panelAtLeft,
+  );
+}
+
 /// The pages there whether or not there is anything on them: not the
 /// plan's, there only once the agent wrote one.
 const alwaysShownSections = [
@@ -149,7 +183,12 @@ class AgentSidePanel extends ChangeNotifier {
     }
     if (state?['listShown'] case final bool shown) _listShown = shown;
     if (state?['changesAsTree'] case final bool tree) _changesAsTree = tree;
-    if (state?['atLeft'] case final bool left) _atLeft = left;
+    if (state?['atLeft'] case final bool left) {
+      _layout = ChatLayout.of(sidebarAtRight: false, panelAtLeft: left);
+    }
+    if (state?['layout'] case final String name) {
+      _layout = ChatLayout.values.asNameMap()[name] ?? _layout;
+    }
     if (state?['searches'] case final Map<Object?, Object?> searches) {
       for (final MapEntry(:key, :value) in searches.entries) {
         if (value is Map) _keptSearches['$key'] = value.cast<String, Object?>();
@@ -221,18 +260,27 @@ class AgentSidePanel extends ChangeNotifier {
   bool get changesAsTree => _changesAsTree;
   bool _changesAsTree = true;
 
-  /// Whether it is at the conversations' left, not their right (Move Side
-  /// Panel Left / Right): it keeps its width and pages there.
-  bool get atLeft => _atLeft;
-  bool _atLeft = false;
+  /// Where it, the sidebar and the conversations are in the window.
+  ChatLayout get layout => _layout;
+  ChatLayout _layout = ChatLayout.sidebarChatPanel;
 
-  set atLeft(bool left) {
-    if (left == _atLeft) return;
-    _atLeft = left;
+  set layout(ChatLayout layout) {
+    if (layout == _layout) return;
+    _layout = layout;
     _changed = true;
     notifyListeners();
     onSave?.call();
   }
+
+  /// Whether it is at the conversations' left, not their right (Move Side
+  /// Panel Left / Right): it keeps its width and pages there, the sidebar
+  /// where it is.
+  bool get atLeft => _layout.panelAtLeft;
+
+  set atLeft(bool left) => layout = ChatLayout.of(
+    sidebarAtRight: _layout.sidebarAtRight,
+    panelAtLeft: left,
+  );
 
   final Expando<SidePanelTabs> _tabs = Expando();
 
@@ -755,7 +803,7 @@ class AgentSidePanel extends ChangeNotifier {
     'listWidth': _listWidth,
     'listShown': _listShown,
     'changesAsTree': _changesAsTree,
-    if (_atLeft) 'atLeft': true,
+    if (_layout != ChatLayout.sidebarChatPanel) 'layout': _layout.name,
     if (_keptSearches.isNotEmpty) 'searches': {..._keptSearches},
   };
 
