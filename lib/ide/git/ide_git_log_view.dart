@@ -27,6 +27,7 @@ import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
 import '../../workspace/islands.dart';
+import 'ide_git_commit_panel.dart' show IdeGitCommitPanel;
 import '../file_service.dart';
 import '../ide_button.dart';
 import '../ide_code_diff.dart';
@@ -270,6 +271,16 @@ class IdeGitLogController extends ChangeNotifier {
   void resizeDetails({double? width, double? height}) {
     if (width != null) detailsWidth = math.max(minDetails, width);
     if (height != null) detailsHeight = math.max(120, height);
+    notifyListeners();
+  }
+
+  /// The local changes' details, under the table, folded to their tabs'
+  /// row (see [IdeGitDetailsFold]).
+  bool _detailsFolded = false;
+  bool get detailsFolded => _detailsFolded;
+  set detailsFolded(bool value) {
+    if (value == _detailsFolded) return;
+    _detailsFolded = value;
     notifyListeners();
   }
 
@@ -567,6 +578,30 @@ IdeGitDiffFile ideLocalDiffFile(
 }
 
 String _short(String id) => id.length > 7 ? id.substring(0, 7) : id;
+
+/// Over the details where they are under the table: whether the local
+/// changes' are folded to their tabs' row, [IdeGitCommitPanel.foldedHeight]
+/// high, and the way to fold or unfold them.
+class IdeGitDetailsFold extends InheritedWidget {
+  const IdeGitDetailsFold({
+    super.key,
+    required this.log,
+    required this.folded,
+    required super.child,
+  });
+
+  final IdeGitLogController log;
+  final bool folded;
+
+  void toggle() => log.detailsFolded = !folded;
+
+  static IdeGitDetailsFold? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<IdeGitDetailsFold>();
+
+  @override
+  bool updateShouldNotify(IdeGitDetailsFold old) =>
+      old.folded != folded || !identical(old.log, log);
+}
 
 class IdeGitLogView extends StatefulWidget {
   const IdeGitLogView({
@@ -879,98 +914,109 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
 
   /// [_flatLayout]'s parts on cards: the toolbar and the log on one, the
   /// details on another, beside it once wide, else under it.
-  Widget _islandLayout(IdeGitRepository git, IdeGitState state) =>
-      LayoutBuilder(
-        builder: (context, constraints) {
-          final wide = constraints.maxWidth >= IdeGitLogView.wideWidth;
-          final tree = wide && _branchTreeFits(constraints.maxWidth)
-              ? math.min(_log.branchTreeWidth, constraints.maxWidth * .3)
-              : null;
-          final main = _main(git, state);
-          Widget card(Widget child, {bool first = false}) => first
-              ? _firstCard(child)
-              : Island(color: _background, borderColor: _border, child: child);
-          final log = card(
-            first: true,
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _toolbar(git, state, width: constraints.maxWidth),
-                Container(height: 1, color: _border),
-                if (git.busy)
-                  SizedBox(
-                    height: 2,
-                    child: LinearProgressIndicator(
-                      minHeight: 2,
-                      backgroundColor: Colors.transparent,
-                      color: themeColors['progressBar.background'],
-                    ),
-                  ),
-                Expanded(
-                  child: tree == null
-                      ? main
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SizedBox(width: tree, child: _branchPane(git)),
-                            _Sash(
-                              vertical: false,
-                              color: _border,
-                              size: tree,
-                              onResize: _log.resizeBranchTree,
-                            ),
-                            Expanded(child: main),
-                          ],
-                        ),
+  Widget _islandLayout(
+    IdeGitRepository git,
+    IdeGitState state,
+  ) => LayoutBuilder(
+    builder: (context, constraints) {
+      final wide = constraints.maxWidth >= IdeGitLogView.wideWidth;
+      final tree = wide && _branchTreeFits(constraints.maxWidth)
+          ? math.min(_log.branchTreeWidth, constraints.maxWidth * .3)
+          : null;
+      final main = _main(git, state);
+      Widget card(Widget child, {bool first = false}) => first
+          ? _firstCard(child)
+          : Island(color: _background, borderColor: _border, child: child);
+      final log = card(
+        first: true,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _toolbar(git, state, width: constraints.maxWidth),
+            Container(height: 1, color: _border),
+            if (git.busy)
+              SizedBox(
+                height: 2,
+                child: LinearProgressIndicator(
+                  minHeight: 2,
+                  backgroundColor: Colors.transparent,
+                  color: themeColors['progressBar.background'],
                 ),
-              ],
-            ),
-          );
-          final details = card(_details(git, state));
-          if (wide) {
-            final width = math.min(
-              _log.detailsWidth,
-              constraints.maxWidth - 360 - (tree ?? 0),
-            );
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: log),
-                _Sash(
-                  vertical: false,
-                  color: Colors.transparent,
-                  size: width,
-                  after: true,
-                  gap: true,
-                  onResize: (width) => _log.resizeDetails(width: width),
-                ),
-                SizedBox(width: width, child: details),
-              ],
-            );
-          }
-          // Half, or room for the commit panel's message and buttons under
-          // its files.
-          final height = math.min(
-            _log.detailsHeight ?? math.max(constraints.maxHeight / 2, 340),
-            constraints.maxHeight * .75,
-          );
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: log),
-              _Sash(
-                vertical: true,
-                color: Colors.transparent,
-                size: height,
-                after: true,
-                gap: true,
-                onResize: (height) => _log.resizeDetails(height: height),
               ),
-              SizedBox(height: height, child: details),
-            ],
-          );
-        },
+            Expanded(
+              child: tree == null
+                  ? main
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(width: tree, child: _branchPane(git)),
+                        _Sash(
+                          vertical: false,
+                          color: _border,
+                          size: tree,
+                          onResize: _log.resizeBranchTree,
+                        ),
+                        Expanded(child: main),
+                      ],
+                    ),
+            ),
+          ],
+        ),
       );
+      final details = card(_details(git, state));
+      if (wide) {
+        final width = math.min(
+          _log.detailsWidth,
+          constraints.maxWidth - 360 - (tree ?? 0),
+        );
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: log),
+            _Sash(
+              vertical: false,
+              color: Colors.transparent,
+              size: width,
+              after: true,
+              gap: true,
+              onResize: (width) => _log.resizeDetails(width: width),
+            ),
+            SizedBox(width: width, child: details),
+          ],
+        );
+      }
+      final folded = _detailsFolded(git, state);
+      // Half, or room for the commit panel's message and buttons under
+      // its files.
+      final height = folded
+          ? IdeGitCommitPanel.foldedHeight
+          : math.min(
+              _log.detailsHeight ?? math.max(constraints.maxHeight / 2, 340),
+              constraints.maxHeight * .75,
+            );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: log),
+          if (folded)
+            const SizedBox(height: Islands.gap)
+          else
+            _Sash(
+              vertical: true,
+              color: Colors.transparent,
+              size: height,
+              after: true,
+              gap: true,
+              onResize: (height) => _log.resizeDetails(height: height),
+            ),
+          SizedBox(
+            height: height,
+            child: IdeGitDetailsFold(log: _log, folded: folded, child: details),
+          ),
+        ],
+      );
+    },
+  );
 
   Widget _flatLayout(IdeGitRepository git, IdeGitState state) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1024,22 +1070,35 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
                 ],
               );
             }
-            final height = math.min(
-              _log.detailsHeight ?? constraints.maxHeight / 2,
-              constraints.maxHeight * .75,
-            );
+            final folded = _detailsFolded(git, state);
+            final height = folded
+                ? IdeGitCommitPanel.foldedHeight
+                : math.min(
+                    _log.detailsHeight ?? constraints.maxHeight / 2,
+                    constraints.maxHeight * .75,
+                  );
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(child: main),
-                _Sash(
-                  vertical: true,
-                  color: _border,
-                  size: height,
-                  after: true,
-                  onResize: (height) => _log.resizeDetails(height: height),
+                if (folded)
+                  Container(height: 1, color: _border)
+                else
+                  _Sash(
+                    vertical: true,
+                    color: _border,
+                    size: height,
+                    after: true,
+                    onResize: (height) => _log.resizeDetails(height: height),
+                  ),
+                SizedBox(
+                  height: height,
+                  child: IdeGitDetailsFold(
+                    log: _log,
+                    folded: folded,
+                    child: details,
+                  ),
                 ),
-                SizedBox(height: height, child: details),
               ],
             );
           },
@@ -1769,6 +1828,13 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
     ideGitWorkingTreeId,
     for (final row in git.graph ?? const <IdeGraphRow>[]) row.commit.id,
   ];
+
+  /// Whether the details under the table are folded: the local changes'
+  /// alone, a commit's not.
+  bool _detailsFolded(IdeGitRepository git, IdeGitState state) =>
+      _log.detailsFolded &&
+      _selectedOf(git, state) == ideGitWorkingTreeId &&
+      _log.moreSelected.isEmpty;
 
   /// The row selected: the one picked, else the local changes.
   String _selectedOf(IdeGitRepository git, IdeGitState state) =>

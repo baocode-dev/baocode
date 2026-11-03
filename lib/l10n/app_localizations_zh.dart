@@ -11596,6 +11596,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get gitCommitTab => '提交';
 
   @override
+  String get gitCommitPanelFold => '折叠';
+
+  @override
+  String get gitCommitPanelUnfold => '展开';
+
+  @override
   String get gitStashSelected => '暂存选中的文件…';
 
   @override

@@ -1521,7 +1521,7 @@ void main() {
       fake.callsTo('diff').single,
       containsAllInOrder(['HEAD', '--', 'lib/main.dart', 'lib/staged.dart']),
     );
-    expect(panel.scmOf(git).message.text, 'Stage the staged file');
+    expect(panel.scmOf(session, git).message.text, 'Stage the staged file');
 
     await tester.tap(commit);
     await tester.pumpAndSettle();
@@ -1535,7 +1535,54 @@ void main() {
       'lib/main.dart',
       'lib/staged.dart',
     ]);
-    expect(panel.scmOf(git).message.text, isEmpty);
+    expect(panel.scmOf(session, git).message.text, isEmpty);
+  });
+
+  test('each conversation has its own Git log and changes of a repository, '
+      'the favorite branches the same', () {
+    final git = FakeGit('/p').repository();
+    addTearDown(git.dispose);
+    final panel = AgentSidePanel();
+    addTearDown(panel.dispose);
+    final one = Object();
+    final other = Object();
+    final scm = panel.scmOf(one, git);
+    expect(panel.scmOf(one, git), same(scm));
+    expect(panel.scmOf(other, git), isNot(same(scm)));
+    scm.log.selected = 'c1';
+    expect(panel.scmOf(other, git).log.selected, isNull);
+    scm.log.toggleFavorite(git, 'refs/heads/main');
+    expect(
+      panel.scmOf(other, git).log.isFavorite(git, 'refs/heads/main'),
+      isTrue,
+    );
+  });
+
+  testWidgets('under the log, the changes fold to their tabs\' row, and '
+      'unfold from it', (tester) async {
+    final fake = FakeGit('/p')
+      ..status = '## main\x00 M lib/main.dart\x00'
+      ..log = '';
+    final git = fake.repository();
+    addTearDown(git.dispose);
+    final (:panel, :session, files: _) = await _pumpChat(tester, git: git);
+    panel.showSection(session, SidePanelSection.changes);
+    await tester.pumpAndSettle();
+    final changes = find.byType(IdeGitCommitPanel);
+    final open = tester.getSize(changes).height;
+    expect(find.text('Commit and Push'), findsOneWidget);
+
+    await tester.tap(find.text('Fold'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(changes).height, IdeGitCommitPanel.foldedHeight);
+    expect(find.text('Commit and Push'), findsNothing);
+    expect(panel.scmOf(session, git).log.detailsFolded, isTrue);
+
+    // Anywhere on the row.
+    await tester.tapAt(tester.getCenter(changes));
+    await tester.pumpAndSettle();
+    expect(find.text('Fold'), findsOneWidget);
+    expect(tester.getSize(changes).height, open);
   });
 
   testWidgets('dragging the panel\'s edge past where it goes over the '

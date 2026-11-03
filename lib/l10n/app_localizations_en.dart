@@ -12251,6 +12251,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get gitCommitTab => 'Commit';
 
   @override
+  String get gitCommitPanelFold => 'Fold';
+
+  @override
+  String get gitCommitPanelUnfold => 'Unfold';
+
+  @override
   String get gitStashSelected => 'Stash Selected Files…';
 
   @override

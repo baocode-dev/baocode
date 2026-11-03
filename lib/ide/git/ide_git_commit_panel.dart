@@ -43,7 +43,7 @@ import 'git_review.dart';
 import 'git_repository.dart';
 import 'git_service.dart';
 import 'ide_git_list_tree_switch.dart';
-import 'ide_git_log_view.dart' show IdeGitDiffFile;
+import 'ide_git_log_view.dart' show IdeGitDetailsFold, IdeGitDiffFile;
 import '../../workspace/islands.dart';
 import 'ide_git_merge_dialog.dart';
 import 'ide_git_stash_view.dart';
@@ -136,6 +136,10 @@ class IdeGitCommitPanel extends StatefulWidget {
   final void Function(List<IdeGitDiffFile> files, int index)? onShowDiff;
 
   static const rowHeight = 22.0;
+
+  /// Folded under the Git log's table: its tabs' row alone (see
+  /// [IdeGitDetailsFold]).
+  static const foldedHeight = 38.0;
 
   @override
   State<IdeGitCommitPanel> createState() => IdeGitCommitPanelState();
@@ -1559,6 +1563,9 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
           : Builder(
               builder: (context) {
                 final rows = _rows;
+                if (_fold case final fold? when fold.folded) {
+                  return _tabs(context, folded: true);
+                }
                 if (_stashTab && widget.onShowDiff != null) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1657,24 +1664,51 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     );
   }
 
-  /// JetBrains' Commit and Stash tabs.
-  Widget _tabs(BuildContext context) {
+  /// Its fold, under the Git log's table (see [IdeGitDetailsFold]); none
+  /// beside it, or alone.
+  IdeGitDetailsFold? get _fold =>
+      widget.onShowDiff == null ? null : IdeGitDetailsFold.of(context);
+
+  /// JetBrains' Commit and Stash tabs; under the Git log's table, Fold at
+  /// their right. [folded]: all there is of it, a press on it unfolding it.
+  Widget _tabs(BuildContext context, {bool folded = false}) {
     final l10n = context.l10n;
+    final fold = _fold;
     Widget tab(String label, bool stash) => _PanelTab(
       label: label,
       selected: _stashTab == stash,
-      onTap: () => setState(() => _stashTab = stash),
+      onTap: () {
+        setState(() => _stashTab = stash);
+        if (folded) fold?.toggle();
+      },
     );
     // A segmented control, as the panel's views'.
-    return Container(
-      height: 10 + IslandSegment.height + 4,
-      padding: const EdgeInsets.fromLTRB(Islands.inset, 10, Islands.inset, 4),
+    final row = Container(
+      height: folded
+          ? IdeGitCommitPanel.foldedHeight
+          : 10 + IslandSegment.height + 4,
+      padding: folded
+          ? const EdgeInsets.symmetric(horizontal: Islands.inset)
+          : const EdgeInsets.fromLTRB(Islands.inset, 10, Islands.inset, 4),
       child: Row(
         children: [
           tab(l10n.gitCommitTab, false),
           const SizedBox(width: 2),
           tab(l10n.gitStashTab, true),
+          if (fold != null) ...[
+            const Spacer(),
+            _FoldButton(folded: folded, onTap: fold.toggle),
+          ],
         ],
+      ),
+    );
+    if (!folded) return row;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: fold?.toggle,
+        child: row,
       ),
     );
   }
@@ -2940,6 +2974,60 @@ class _DividerState extends State<_Divider> {
 }
 
 /// A tab of the panel's: Commit, Stash.
+/// Fold, or Unfold: the panel to its tabs' row, or back.
+class _FoldButton extends StatefulWidget {
+  const _FoldButton({required this.folded, required this.onTap});
+
+  final bool folded;
+  final VoidCallback onTap;
+
+  @override
+  State<_FoldButton> createState() => _FoldButtonState();
+}
+
+class _FoldButtonState extends State<_FoldButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final foreground = IdeListColors.foreground;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          height: IslandSegment.height,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: Islands.segmentFill(selected: false, hovered: _hover),
+            borderRadius: BorderRadius.circular(Islands.controlRadius),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.folded
+                    ? l10n.gitCommitPanelUnfold
+                    : l10n.gitCommitPanelFold,
+                style: TextStyle(fontSize: 12, color: foreground),
+              ),
+              const SizedBox(width: 2),
+              Icon(
+                widget.folded ? Codicons.chevronUp : Codicons.chevronDown,
+                size: 14,
+                color: foreground,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PanelTab extends StatefulWidget {
   const _PanelTab({
     required this.label,

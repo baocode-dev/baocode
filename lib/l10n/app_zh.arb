@@ -3320,6 +3320,8 @@
   "gitStashNone": "没有 Stash",
   "gitStashTab": "Stash",
   "gitCommitTab": "提交",
+  "gitCommitPanelFold": "折叠",
+  "gitCommitPanelUnfold": "展开",
   "gitStashSelected": "暂存选中的文件…",
   "gitCommitIgnored": "已忽略的文件",
   "gitCommitShowIgnored": "显示已忽略的文件",
