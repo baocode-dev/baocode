@@ -640,7 +640,7 @@ class _SearchPaletteState extends State<SearchPalette> {
             child: Focus(
               onKeyEvent: _onKey,
               child: Material(
-                color: colors['quickInput.background'],
+                color: IdeQuickInput.background,
                 elevation: 6,
                 shadowColor: colors['widget.shadow'],
                 shape: RoundedRectangleBorder(

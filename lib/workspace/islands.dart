@@ -50,6 +50,12 @@ abstract final class Islands {
   /// between them, which stands out on either color.
   static Color get border => AppColors.partBorder;
 
+  /// What a view paints behind it: nothing on a card (an [IslandSurface]
+  /// over it: the card's color under it, the window's under its title),
+  /// else [color].
+  static Color underOr(BuildContext context, Color color) =>
+      IslandSurface.colorOf(context) == null ? color : Colors.transparent;
+
   /// A sash in a gap: nothing at rest, the gap's middle the IDE's
   /// `sash.hoverBorder` while dragged.
   static Widget sashLine({

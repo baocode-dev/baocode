@@ -46,6 +46,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
         onInstalled: _startServer,
         onError: _report,
         background: background,
+        titleTab: themes == null,
       ),
     };
     if (themes == null) return body;
@@ -262,14 +263,18 @@ class _ExtensionsTabsState extends State<_ExtensionsTabs> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final (value, icon, label) in widget.tabs)
-            IdeEditorTab(
-              key: ValueKey(value),
-              icon: Icon(icon),
-              label: label,
-              active: widget.selected == value,
-              minWidth: 0,
-              onSelect: () => widget.onSelect(value),
+          // The first flush with the card's edge, as the editor's.
+          for (final (i, (value, icon, label)) in widget.tabs.indexed)
+            IslandTabStart(
+              atStart: i == 0,
+              child: IdeEditorTab(
+                key: ValueKey(value),
+                icon: Icon(icon),
+                label: label,
+                active: widget.selected == value,
+                minWidth: 0,
+                onSelect: () => widget.onSelect(value),
+              ),
             ),
         ],
       ),

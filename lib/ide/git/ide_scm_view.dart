@@ -825,7 +825,9 @@ class IdeScmViewState extends State<IdeScmView>
   Widget build(BuildContext context) {
     final git = _git;
     return ColoredBox(
-      color: widget.background ?? AppColors.sidebarSurface,
+      color:
+          widget.background ??
+          Islands.underOr(context, AppColors.sidebarSurface),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

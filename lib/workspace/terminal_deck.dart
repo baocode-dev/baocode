@@ -213,6 +213,7 @@ class _TerminalDeckState extends State<TerminalDeck> {
     return IdeTabStrip(
       line: AppColors.partBorder,
       small: true,
+      flat: true,
       child: Row(
         children: [
           Expanded(

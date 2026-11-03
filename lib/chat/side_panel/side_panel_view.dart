@@ -268,7 +268,11 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
               Positioned(
                 key: const ValueKey('panel'),
                 top: 0,
-                bottom: overlay ? 0 : widget.bottom,
+                // Over the terminals' card, which has the conversation's
+                // row under it: down to the card's foot, as it is.
+                bottom: overlay || IslandFootHosted.of(context)
+                    ? 0
+                    : widget.bottom,
                 left: atLeft ? 0 : null,
                 right: atLeft ? null : 0,
                 width: width + AgentSidePanelArea.sashWidth,
@@ -1948,6 +1952,7 @@ class _TabStripState extends State<_TabStrip> {
     );
     return IdeTabStrip(
       line: AppColors.partBorder,
+      flat: true,
       child: switch (widget.leading) {
         final leading? => Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
