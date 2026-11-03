@@ -50,6 +50,16 @@ abstract final class Islands {
   /// between them, which stands out on either color.
   static Color get border => AppColors.partBorder;
 
+  /// A segment's fill (a segmented control's, a card's flat tabs', List
+  /// and Tree's): the one selected a list's inactive selection's, a hovered
+  /// one a toolbar button's hover; no outline.
+  static Color? segmentFill({required bool selected, required bool hovered}) =>
+      selected
+      ? themeColors['list.inactiveSelectionBackground']
+      : hovered
+      ? themeColors['toolbar.hoverBackground']
+      : null;
+
   /// What a view paints behind it: nothing on a card (an [IslandSurface]
   /// over it: the card's color under it, the window's under its title),
   /// else [color].
@@ -437,7 +447,8 @@ class IslandTabShape extends CustomPainter {
 }
 
 /// A segment of a segmented control on a card (a panel's views): the one
-/// [selected] raised, outlined; the others the hover's alone.
+/// [selected] filled, the others the hover's alone (see
+/// [Islands.segmentFill]).
 class IslandSegment extends StatefulWidget {
   const IslandSegment({
     super.key,
@@ -492,15 +503,11 @@ class _IslandSegmentState extends State<IslandSegment> {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: widget.selected
-                ? themeColors['input.background']
-                : _hovered
-                ? AppColors.hover
-                : Colors.transparent,
-            border: Border.all(
-              color: widget.selected ? AppColors.border : Colors.transparent,
+            color: Islands.segmentFill(
+              selected: widget.selected,
+              hovered: _hovered,
             ),
-            borderRadius: BorderRadius.circular(7),
+            borderRadius: BorderRadius.circular(Islands.controlRadius),
           ),
           child: widget.child,
         ),

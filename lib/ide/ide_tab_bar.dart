@@ -538,12 +538,23 @@ class IdeTabStrip extends StatelessWidget {
   static const height = IslandTab.height;
   static const smallHeight = 28.0;
 
+  /// A [flat] strip's inset from the card's edges on all sides, and
+  /// between its tabs: the card's corner and its tabs' concentric.
+  static const flatInset = Islands.radius - Islands.controlRadius;
+
+  /// A [flat] strip's height: a segment's, inset.
+  static const flatHeight = IslandSegment.height + 2 * flatInset;
+
   /// `editorGroupHeader.tabsBorder`, none by default.
   static Color? get border => themeColors.get('editorGroupHeader.tabsBorder');
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: small ? smallHeight : height,
+    height: flat
+        ? flatHeight
+        : small
+        ? smallHeight
+        : height,
     // Over a card (see [HeadedIsland]): on the window's color, the card's
     // outline under it.
     child: IslandSurface.colorOf(context) != null
@@ -553,7 +564,7 @@ class IdeTabStrip extends StatelessWidget {
         // panel's views: no strip of its own, no line under it.
         : flat
         ? Padding(
-            padding: const EdgeInsets.only(left: 4),
+            padding: const EdgeInsets.all(flatInset),
             child: _FlatTabs(child: child),
           )
         : DecoratedBox(
@@ -733,17 +744,9 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
               minWidth: widget.minWidth,
               maxWidth: 260,
             ),
-            // In a card's flat strip, a segment: a gap about it.
+            // In a card's flat strip, a segment: a gap after it.
             margin: flat
-                ? EdgeInsets.symmetric(
-                    horizontal: 2,
-                    vertical:
-                        ((small
-                                ? IdeTabStrip.smallHeight
-                                : IdeTabStrip.height) -
-                            IslandSegment.height) /
-                        2,
-                  )
+                ? const EdgeInsets.only(right: IdeTabStrip.flatInset)
                 : null,
             padding: EdgeInsets.only(
               left: padding,
@@ -751,15 +754,14 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
             ),
             decoration: island != null
                 ? null
-                // As a panel's views ([IslandSegment]): the one in front
-                // raised, outlined; the others none of their own.
+                // As a panel's views ([IslandSegment]).
                 : flat
                 ? BoxDecoration(
-                    color: active ? Islands.raised : null,
-                    border: Border.all(
-                      color: active ? Islands.line : Colors.transparent,
+                    color: Islands.segmentFill(
+                      selected: active,
+                      hovered: hovered,
                     ),
-                    borderRadius: BorderRadius.circular(7),
+                    borderRadius: BorderRadius.circular(Islands.controlRadius),
                   )
                 : BoxDecoration(
                     // The active tab in the editor's own color (by default),

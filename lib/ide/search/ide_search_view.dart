@@ -662,7 +662,6 @@ class IdeSearchView extends StatefulWidget {
     this.onError,
     this.titleActions = const [],
     this.titleBorder,
-    this.titleTab = false,
     this.background,
   });
 
@@ -697,9 +696,6 @@ class IdeSearchView extends StatefulWidget {
   /// The line under the title, beside an editor's tabs (see
   /// [IdeViewTitle.border]).
   final Color? titleBorder;
-
-  /// Its title a tab over its card (see [IdeViewTitle.tab]).
-  final bool titleTab;
 
   /// Behind it, the side bar's where not given.
   final Color? background;
@@ -1210,7 +1206,6 @@ class IdeSearchViewState extends State<IdeSearchView>
           IdeViewTitle(
             context.l10n.searchTitle,
             border: widget.titleBorder,
-            tab: widget.titleTab,
             actions: [
               ...widget.titleActions,
               IdePaneAction(
