@@ -380,7 +380,7 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
       builder: (context, _) => switch (_buildPill(context)) {
         null => const SizedBox.shrink(),
         final pill => Padding(
-          padding: const EdgeInsets.only(top: 4, left: 4),
+          padding: const EdgeInsets.only(left: 4),
           child: MouseRegion(
             onEnter: (_) => _pointedAt(),
             child: Row(

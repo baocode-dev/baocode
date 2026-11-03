@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/debug/service/debug_service.dart';
 import 'package:baocode/ide/ide_columns.dart';
 import 'package:baocode/ide/ide_editor.dart';
 import 'package:baocode/ide/ide_find_widget.dart';
 import 'package:baocode/ide/ide_status_bar.dart';
 import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/workspace/back_to_chat_button.dart';
 import 'package:baocode/workspace/islands.dart';
 import 'package:baocode/workspace/pin_window_button.dart';
 
+import '../../debug/support/fake_debug_adapter.dart';
 import 'fake_files.dart';
 
 TextField _editorField(WidgetTester tester) => tester.widget<TextField>(
@@ -199,6 +202,38 @@ void main() {
     }
     final bell = tester.getRect(find.byTooltip('No Notifications'));
     expect(bell.right, closeTo(window.width - Islands.gap, 1));
+  });
+
+  testWidgets('status bar: a mark of the debugging colors while a session '
+      'is debugged, the bar on the window\'s color', (tester) async {
+    late DebugService service;
+    await tester.runAsync(() async {
+      final fake = await createFakeDebugService();
+      service = fake.service;
+      await service.startDebugging(
+        service.configurationManager.getLaunches().first,
+        {
+          'type': 'fake',
+          'request': 'launch',
+          'name': 'Launch main.js',
+          'program': r'${workspaceFolder}/main.js',
+        },
+      );
+    });
+    addTearDown(service.dispose);
+    await pumpWorkbench(tester, const {'a.dart': 'a'}, debugService: service);
+    final mark = find.descendant(
+      of: find.byType(IdeStatusBar),
+      matching: find.text('Launch main.js'),
+    );
+    expect(mark, findsOneWidget);
+    final box = tester.widget<Container>(
+      find.ancestor(of: mark, matching: find.byType(Container)).first,
+    );
+    expect(
+      (box.decoration! as BoxDecoration).color,
+      themeColors['statusBar.debuggingBackground'],
+    );
   });
 
   testWidgets('title bar: the window pin beside the way back to the chat', (
