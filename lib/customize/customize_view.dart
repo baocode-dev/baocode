@@ -27,6 +27,7 @@ import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/editor_launcher.dart';
+import '../workspace/islands.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/workspace.dart';
 import 'customization_store.dart';
@@ -83,7 +84,12 @@ class CustomizeView extends StatefulWidget {
     this.onOpenFile,
     this.host,
     this.showTitleBar = true,
+    this.island,
   });
+
+  /// Given, what is under the title bar is on a card of this color (see
+  /// [Island]), the title bar on the window's.
+  final Color? island;
 
   /// The customizations of the machine shown: this one's, or [host]'s.
   final CustomizationStore store;
@@ -409,32 +415,40 @@ class CustomizeViewState extends State<CustomizeView> {
       children: [
         if (widget.showTitleBar) _buildTitleBar(context.l10n),
         Expanded(
-          child: open != null
-              ? _CustomizationEditor(
-                  key: ObjectKey(open),
-                  item: open,
-                  store: widget.store,
-                  onBack: () {
-                    setState(() => _open = null);
-                    unawaited(_load());
-                  },
-                  onOpenFile: widget.store.isLocal ? widget.onOpenFile : null,
-                  menu: () => _menu(open, opened: true),
-                  status: switch (_statusOf(open)) {
-                    final status? => _McpStatusPanel(
-                      status: status,
-                      onTest: _probeable(open)
-                          ? () => unawaited(_probe(open))
-                          : null,
-                    ),
-                    null => null,
-                  },
-                )
-              : _buildList(context.l10n),
+          child: _onIsland(
+            open != null
+                ? _CustomizationEditor(
+                    key: ObjectKey(open),
+                    item: open,
+                    store: widget.store,
+                    onBack: () {
+                      setState(() => _open = null);
+                      unawaited(_load());
+                    },
+                    onOpenFile: widget.store.isLocal ? widget.onOpenFile : null,
+                    menu: () => _menu(open, opened: true),
+                    status: switch (_statusOf(open)) {
+                      final status? => _McpStatusPanel(
+                        status: status,
+                        onTest: _probeable(open)
+                            ? () => unawaited(_probe(open))
+                            : null,
+                      ),
+                      null => null,
+                    },
+                  )
+                : _buildList(context.l10n),
+          ),
         ),
       ],
     );
   }
+
+  /// [child] on its card, where it has one ([CustomizeView.island]).
+  Widget _onIsland(Widget child) => switch (widget.island) {
+    final color? => Island(color: color, child: child),
+    null => child,
+  };
 
   Widget _buildTitleBar(AppLocalizations l10n) {
     return TitleBarDoubleClick(

@@ -26,6 +26,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
+import '../../workspace/islands.dart';
 import '../file_service.dart';
 import '../ide_button.dart';
 import '../ide_code_diff.dart';
@@ -584,6 +585,7 @@ class IdeGitLogView extends StatefulWidget {
     this.worktrees = const IdeGitWorktreeChoice(),
     this.background,
     this.border,
+    this.islands = false,
     this.ai,
     this.onAsk,
     this.onFixup,
@@ -640,6 +642,11 @@ class IdeGitLogView extends StatefulWidget {
 
   /// Behind it, and the lines between its parts; the editor's and the
   /// panel's when null.
+  /// Whether its parts are cards of [background] on what is under it
+  /// (see [Island]): the log, with its toolbar, and the details (the
+  /// commit's, or the changes to commit), a gap between them.
+  final bool islands;
+
   final Color? background;
   final Color? border;
 
@@ -760,10 +767,13 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
   @override
   Widget build(BuildContext context) {
     final git = _git;
+    Widget card(Widget child) => widget.islands
+        ? Island(color: _background, borderColor: _border, child: child)
+        : child;
     final view = ColoredBox(
-      color: _background,
+      color: widget.islands ? Colors.transparent : _background,
       child: git == null
-          ? _overlay() ?? widget.changes
+          ? card(_overlay() ?? widget.changes)
           : ListenableBuilder(
               listenable: Listenable.merge([
                 git,
@@ -779,7 +789,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
                 return git.state == null
                     // Not a repository (yet): Source Control's welcome, but
                     // for a change opened.
-                    ? _overlay() ?? widget.changes
+                    ? card(_overlay() ?? widget.changes)
                     : _page(git, git.state!);
               },
             ),
@@ -853,7 +863,101 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
   String _worktreeName(IdeGitRepository git, IdeGitWorktree worktree) =>
       git.service.pathContext.basename(worktree.path);
 
-  Widget _layout(IdeGitRepository git, IdeGitState state) => Column(
+  Widget _layout(IdeGitRepository git, IdeGitState state) =>
+      widget.islands ? _islandLayout(git, state) : _flatLayout(git, state);
+
+  /// [_flatLayout]'s parts on cards: the toolbar and the log on one, the
+  /// details on another, beside it once wide, else under it.
+  Widget _islandLayout(IdeGitRepository git, IdeGitState state) =>
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= IdeGitLogView.wideWidth;
+          final tree = wide && _branchTreeFits(constraints.maxWidth)
+              ? math.min(_log.branchTreeWidth, constraints.maxWidth * .3)
+              : null;
+          final main = _main(git, state);
+          Widget card(Widget child) =>
+              Island(color: _background, borderColor: _border, child: child);
+          final log = card(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _toolbar(git, state, width: constraints.maxWidth),
+                Container(height: 1, color: _border),
+                if (git.busy)
+                  SizedBox(
+                    height: 2,
+                    child: LinearProgressIndicator(
+                      minHeight: 2,
+                      backgroundColor: Colors.transparent,
+                      color: themeColors['progressBar.background'],
+                    ),
+                  ),
+                Expanded(
+                  child: tree == null
+                      ? main
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(width: tree, child: _branchPane(git)),
+                            _Sash(
+                              vertical: false,
+                              color: _border,
+                              size: tree,
+                              onResize: _log.resizeBranchTree,
+                            ),
+                            Expanded(child: main),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          );
+          final details = card(_details(git, state));
+          if (wide) {
+            final width = math.min(
+              _log.detailsWidth,
+              constraints.maxWidth - 360 - (tree ?? 0),
+            );
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: log),
+                _Sash(
+                  vertical: false,
+                  color: Colors.transparent,
+                  size: width,
+                  after: true,
+                  gap: true,
+                  onResize: (width) => _log.resizeDetails(width: width),
+                ),
+                SizedBox(width: width, child: details),
+              ],
+            );
+          }
+          final height = math.min(
+            _log.detailsHeight ?? constraints.maxHeight / 2,
+            constraints.maxHeight * .75,
+          );
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: log),
+              _Sash(
+                vertical: true,
+                color: Colors.transparent,
+                size: height,
+                after: true,
+                gap: true,
+                onResize: (height) => _log.resizeDetails(height: height),
+              ),
+              SizedBox(height: height, child: details),
+            ],
+          );
+        },
+      );
+
+  Widget _flatLayout(IdeGitRepository git, IdeGitState state) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       _toolbar(git, state),
@@ -939,88 +1043,93 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
 
   // --- Toolbar -------------------------------------------------------------
 
-  Widget _toolbar(IdeGitRepository git, IdeGitState state) => LayoutBuilder(
-    builder: (context, constraints) {
-      final compact = constraints.maxWidth < _compactToolbar;
-      final filters = _filters(git);
-      if (!compact) {
-        return SizedBox(
-          height: 36,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                if (constraints.maxWidth >= _branchTreeWidth) ...[
-                  IdeActionButton(
-                    icon: _log.branchTreeShown
-                        ? Codicons.layoutSidebarLeft
-                        : Codicons.layoutSidebarLeftOff,
-                    tooltip: _log.branchTreeShown
-                        ? context.l10n.gitHideBranches
-                        : context.l10n.gitShowBranches,
-                    checked: _log.branchTreeShown,
-                    onPressed: () =>
-                        _log.branchTreeShown = !_log.branchTreeShown,
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        ...filters.take(2),
-                        SizedBox(width: 240, child: _search(git)),
-                        const SizedBox(width: 6),
-                        ...filters.skip(2),
-                      ],
+  /// [width]: the page's, where the toolbar is narrower than it (on the
+  /// log's card, beside the details'); whether the branch tree has room
+  /// goes by it.
+  Widget _toolbar(IdeGitRepository git, IdeGitState state, {double? width}) =>
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < _compactToolbar;
+          final filters = _filters(git);
+          if (!compact) {
+            return SizedBox(
+              height: 36,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    if ((width ?? constraints.maxWidth) >=
+                        _branchTreeWidth) ...[
+                      IdeActionButton(
+                        icon: _log.branchTreeShown
+                            ? Codicons.layoutSidebarLeft
+                            : Codicons.layoutSidebarLeftOff,
+                        tooltip: _log.branchTreeShown
+                            ? context.l10n.gitHideBranches
+                            : context.l10n.gitShowBranches,
+                        checked: _log.branchTreeShown,
+                        onPressed: () =>
+                            _log.branchTreeShown = !_log.branchTreeShown,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            ...filters.take(2),
+                            SizedBox(width: 240, child: _search(git)),
+                            const SizedBox(width: 6),
+                            ...filters.skip(2),
+                          ],
+                        ),
+                      ),
                     ),
+                    _clearButton(git),
+                    const SizedBox(width: 8),
+                    ..._actions(git, state, compact: false),
+                  ],
+                ),
+              ),
+            );
+          }
+          // Narrow (the side panel): the search and the actions, then the
+          // filters under them.
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 34,
+                  child: Row(
+                    children: [
+                      Expanded(child: _search(git)),
+                      const SizedBox(width: 4),
+                      ..._actions(git, state, compact: true),
+                    ],
                   ),
                 ),
-                _clearButton(git),
-                const SizedBox(width: 8),
-                ..._actions(git, state, compact: false),
+                SizedBox(
+                  height: 28,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(children: filters),
+                        ),
+                      ),
+                      _clearButton(git),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-        );
-      }
-      // Narrow (the side panel): the search and the actions, then the
-      // filters under them.
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              height: 34,
-              child: Row(
-                children: [
-                  Expanded(child: _search(git)),
-                  const SizedBox(width: 4),
-                  ..._actions(git, state, compact: true),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 28,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(children: filters),
-                    ),
-                  ),
-                  _clearButton(git),
-                ],
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       );
-    },
-  );
 
   /// The branch's button: where the branch popup opens.
   final GlobalKey _branchButton = GlobalKey();
@@ -4517,10 +4626,15 @@ class _Sash extends StatefulWidget {
     required this.size,
     required this.onResize,
     this.after = false,
+    this.gap = false,
   });
 
   final bool vertical;
   final Color color;
+
+  /// Whether it is the gap between two cards (see [Islands.gap]), not a
+  /// line between two parts.
+  final bool gap;
 
   /// The size of what it sizes, now: the part before it, or ([after]) the
   /// one after it.
@@ -4605,15 +4719,20 @@ class _SashState extends State<_Sash> {
         onHorizontalDragEnd: vertical ? null : (_) => _end(),
         onHorizontalDragCancel: vertical ? null : _end,
         child: SizedBox(
-          width: vertical ? null : 5,
-          height: vertical ? 5 : null,
-          child: Center(
-            child: Container(
-              width: vertical ? null : (active ? 3 : 1),
-              height: vertical ? (active ? 3 : 1) : null,
-              color: active ? IdeModernUI.sashHover : widget.color,
-            ),
-          ),
+          width: vertical ? null : (widget.gap ? Islands.gap : 5),
+          height: vertical ? (widget.gap ? Islands.gap : 5) : null,
+          child: widget.gap
+              ? Islands.sashLine(
+                  dragging: _dragging,
+                  axis: vertical ? Axis.vertical : Axis.horizontal,
+                )
+              : Center(
+                  child: Container(
+                    width: vertical ? null : (active ? 3 : 1),
+                    height: vertical ? (active ? 3 : 1) : null,
+                    color: active ? IdeModernUI.sashHover : widget.color,
+                  ),
+                ),
         ),
       ),
     );

@@ -28,6 +28,7 @@ import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
+import '../../workspace/islands.dart';
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 
@@ -252,7 +253,7 @@ class IdeBottomPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Container(
-              height: 30,
+              height: 36,
               decoration: titleBorder == null
                   ? null
                   : BoxDecoration(
@@ -483,57 +484,41 @@ class _Tab extends StatelessWidget {
     final colors = themeColors;
     return IdeHover(
       message: tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: selected
-                      ? colors['panelTitle.activeBorder']
-                      : Colors.transparent,
-                ),
+      // A segment of a segmented control, the panel's views'.
+      child: IslandSegment(
+        selected: selected,
+        onTap: onTap,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color:
+                    colors[selected
+                        ? 'panelTitle.activeForeground'
+                        : 'panelTitle.inactiveForeground'],
               ),
             ),
-            alignment: Alignment.center,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
+            if (badge != null) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                decoration: BoxDecoration(
+                  color: colors['panelTitleBadge.background'],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  badge!,
                   style: TextStyle(
-                    fontSize: 11,
-                    letterSpacing: 0.3,
-                    color:
-                        colors[selected
-                            ? 'panelTitle.activeForeground'
-                            : 'panelTitle.inactiveForeground'],
+                    fontSize: 10.5,
+                    color: colors['panelTitleBadge.foreground'],
                   ),
                 ),
-                if (badge != null) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    decoration: BoxDecoration(
-                      color: colors['panelTitleBadge.background'],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      badge!,
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: colors['panelTitleBadge.foreground'],
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+              ),
+            ],
+          ],
         ),
       ),
     );

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/workspace/islands.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/chat/composer/composer.dart';
@@ -753,8 +754,9 @@ void main() {
     // the IDE's panel and chat toggles, its pin and Back to Chat.
     expect(sidePanel.right, lessThan(pin.left));
     expect(pin.right, lessThan(open.left));
-    // At the window's end, not the conversation's column's.
-    expect(open.right, 1400 - 8);
+    // At the end of the conversation's card, a gap from the window's: not
+    // its column's.
+    expect(open.right, 1400 - Islands.gap - 8);
     expect(
       open.right,
       greaterThan(tester.getRect(find.byType(ChatComposer)).right),

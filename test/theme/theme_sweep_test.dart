@@ -8,7 +8,7 @@ import 'package:bao_editor/monaco/vs/workbench/services/themes/common/color_them
 import 'package:bao_editor/textmate/textmate_manifest.dart';
 import 'package:bao_editor/textmate/textmate_syntax.dart'
     show textMateWorkerLauncher;
-import 'package:baocode/ide/ide_modern_ui.dart';
+import 'package:baocode/workspace/islands.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';
 import 'package:baocode/ide/terminal/terminal_colors.dart';
 import 'package:baocode/main.dart';
@@ -92,7 +92,7 @@ void main() {
       await tester.pump();
       expect(tester.takeException(), isNull, reason: theme.settingsId);
       // The panel on TERMINAL, with two tabs: panelPart.ts paints it with
-      // `panel.background`, never the shell's.
+      // `panel.background`, never the shell's: its card's color.
       await chord(tester, LogicalKeyboardKey.backquote, control: true);
       await chord(
         tester,
@@ -101,10 +101,10 @@ void main() {
         shift: true,
       );
       expect(tester.takeException(), isNull, reason: theme.settingsId);
-      final panel = tester.widget<IdePart>(
+      final panel = tester.widget<Island>(
         find.ancestor(
           of: find.byType(IdeBottomPanel),
-          matching: find.byType(IdePart),
+          matching: find.byType(Island),
         ),
       );
       expect(
@@ -123,7 +123,13 @@ void main() {
       expect(tester.takeException(), isNull, reason: theme.settingsId);
       await _snapshot(tester, 'chat_$name');
       await tester.pumpWidget(const SizedBox());
-      await tester.pump();
+      // What the workbench had under way as it went (the editor's
+      // highlighting, the debugger's settings) sets its last timers once
+      // its work is done: let it, then run them.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
     }
   });
 }

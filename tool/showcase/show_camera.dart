@@ -15,6 +15,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:baocode/theme/app_theme.dart';
+
 /// The window's frame as the picture has it: its size, and how dark the
 /// theme is (the material under the sidebar, the window's edge).
 class ShowWindow {
@@ -237,7 +239,9 @@ class ShowCamera {
     return image;
   }
 
-  /// The close, minimize and zoom buttons, where AppKit puts them.
+  /// The close, minimize and zoom buttons, where AppKit puts them, moved
+  /// down to the middle of the title bar Flutter draws (see
+  /// MainFlutterWindow.placeTrafficLights).
   static void _trafficLights(Canvas canvas, Offset window) {
     const colors = [
       (Color(0xFFFF5F57), Color(0xFFE2463F)),
@@ -245,7 +249,8 @@ class ShowCamera {
       (Color(0xFF28C840), Color(0xFF14AE2A)),
     ];
     for (final (i, (fill, edge)) in colors.indexed) {
-      final center = window + Offset(14.0 + i * 20, 14);
+      final center =
+          window + Offset(14.0 + i * 20, AppMetrics.titleBarHeight / 2);
       canvas
         ..drawCircle(center, 6, Paint()..color = fill)
         ..drawCircle(

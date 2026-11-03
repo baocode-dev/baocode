@@ -44,6 +44,7 @@ import 'git_repository.dart';
 import 'git_service.dart';
 import 'ide_git_list_tree_switch.dart';
 import 'ide_git_log_view.dart' show IdeGitDiffFile;
+import '../../workspace/islands.dart';
 import 'ide_git_merge_dialog.dart';
 import 'ide_git_stash_view.dart';
 import 'ide_scm_view.dart' show IdeScmSession;
@@ -1664,18 +1665,16 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
       selected: _stashTab == stash,
       onTap: () => setState(() => _stashTab = stash),
     );
+    // A segmented control, as the panel's views'.
     return Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: themeColors.get('panel.border') ?? Colors.transparent,
-          ),
-        ),
-      ),
+      height: 34,
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 2),
       child: Row(
-        children: [tab(l10n.gitCommitTab, false), tab(l10n.gitStashTab, true)],
+        children: [
+          tab(l10n.gitCommitTab, false),
+          const SizedBox(width: 2),
+          tab(l10n.gitStashTab, true),
+        ],
       ),
     );
   }
@@ -2940,33 +2939,18 @@ class _PanelTabState extends State<_PanelTab> {
     final colors = themeColors;
     final selected = widget.selected;
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      child: IslandSegment(
+        selected: selected,
         onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                width: 2,
-                color: selected
-                    ? colors['panelTitle.activeBorder']
-                    : Colors.transparent,
-              ),
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 12,
-              color: selected || _hover
-                  ? colors['panelTitle.activeForeground']
-                  : colors['panelTitle.inactiveForeground'],
-            ),
+        child: Text(
+          widget.label,
+          style: TextStyle(
+            fontSize: 12,
+            color: selected || _hover
+                ? colors['panelTitle.activeForeground']
+                : colors['panelTitle.inactiveForeground'],
           ),
         ),
       ),

@@ -14,6 +14,7 @@ import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/workspace/islands.dart';
 import 'package:baocode/workspace/chat_drag.dart';
 import 'package:baocode/workspace/chat_grid.dart';
 import 'package:baocode/workspace/chat_grid_view.dart';
@@ -202,10 +203,10 @@ void main() {
     expect(right.right, grid.right);
     expect(right.left - left.right, ChatGridView.gap);
     expect(left.height, grid.height);
-    // As the sidebar's border.
-    expect(lineColor(tester), AppColors.partBorder);
+    // In the gap between their cards: nothing there at rest.
+    expect(lineColor(tester), Colors.transparent);
     final drawn = tester.getRect(line());
-    expect(drawn.width, 1);
+    expect(drawn.width, 0);
     expect(drawn.height, grid.height);
     expect(drawn.center.dx, closeTo((left.right + right.left) / 2, .5));
     // The one dropped is focused; the other is still in view.
@@ -388,36 +389,6 @@ void main() {
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
     expect(workspace.current!.title, second);
     expect(tester.widget<ChatScreen>(pane(first)).focused, isFalse);
-    // The one not focused in the sidebar's color, set apart: the whole of
-    // its place, up to the line between the two.
-    bool setApart(String title) {
-      final rect = tester.getRect(pane(title));
-      return find
-          .byWidgetPredicate(
-            (widget) =>
-                widget is ColoredBox &&
-                widget.color == AppColors.unfocusedConversationSurface,
-          )
-          .evaluate()
-          .map(
-            (element) =>
-                tester.getRect(find.byElementPredicate((e) => e == element)),
-          )
-          .any(
-            (backdrop) =>
-                backdrop.contains(rect.center) &&
-                backdrop.top <= rect.top &&
-                backdrop.bottom >= rect.bottom &&
-                (backdrop.left < rect.left || backdrop.right > rect.right),
-          );
-    }
-
-    expect(
-      AppColors.unfocusedConversationSurface,
-      isNot(AppColors.conversationSurface),
-    );
-    expect(setApart(first), isTrue);
-    expect(setApart(second), isFalse);
     // The focused one outlined in the drop preview's line.
     final frame = find.byWidgetPredicate(
       (widget) =>
@@ -426,24 +397,16 @@ void main() {
           (widget.decoration as BoxDecoration).border ==
               Border.all(color: ChatGridView.frameColor),
     );
-    // One frame, round the whole pane: on the line between the two (over
-    // it, one line, not two), at the view's edges elsewhere.
+    // One frame, its card's outline: as wide as the pane, under its title
+    // bar and over the row under it.
     bool framed(String title) {
       final shown = tester.getRect(frame);
       final rect = tester.getRect(pane(title));
-      final grid = gridRect(tester);
-      const out = ChatGridView.gap / 2 + .5;
       bool near(double a, double b) => (a - b).abs() < .5;
-      return near(
-            shown.left,
-            rect.left > grid.left ? rect.left - out : grid.left,
-          ) &&
-          near(
-            shown.right,
-            rect.right < grid.right ? rect.right + out : grid.right,
-          ) &&
-          near(shown.top, grid.top) &&
-          near(shown.bottom, grid.bottom);
+      return near(shown.left, rect.left) &&
+          near(shown.right, rect.right) &&
+          shown.top > rect.top &&
+          shown.bottom < rect.bottom;
     }
 
     expect(framed(second), isTrue);
@@ -458,8 +421,6 @@ void main() {
     expect(workspace.current!.title, first);
     expect(tester.widget<ChatScreen>(pane(first)).focused, isTrue);
     expect(tester.widget<ChatScreen>(pane(second)).focused, isFalse);
-    expect(setApart(first), isFalse);
-    expect(setApart(second), isTrue);
     expect(framed(first), isTrue);
     expect(framed(second), isFalse);
 
@@ -1328,8 +1289,8 @@ void main() {
     expect(tester.getSize(line()).width, IdeModernUI.gap);
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(lineColor(tester), AppColors.partBorder);
-    expect(tester.getSize(line()).width, 1);
+    expect(lineColor(tester), Colors.transparent);
+    expect(tester.getSize(line()).width, 0);
     expect(tester.getRect(pane(first)).width, before.width - 100);
     expect(tester.getRect(pane(third)).width, before.width - 100);
     expect(
@@ -1454,13 +1415,14 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     final needed = 2 * ChatGridView.minPane.width + ChatGridView.gap;
+    // The window's room less the gaps about the cards.
     expect(grown, [
-      {'width': needed - 700, 'height': 0.0},
+      {'width': needed - (700 - 2 * Islands.gap), 'height': 0.0},
     ]);
     expect(paneTitles(tester), unorderedEquals([first, second]));
 
     // The window grew as asked: the panes have it all.
-    tester.view.physicalSize = Size(needed, 900);
+    tester.view.physicalSize = Size(needed + 2 * Islands.gap, 900);
     await tester.pumpAndSettle();
     expect(gridRect(tester).width, needed);
     expect(tester.getRect(pane(first)).width, ChatGridView.minPane.width);

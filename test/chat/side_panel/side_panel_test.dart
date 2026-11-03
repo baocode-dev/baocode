@@ -37,7 +37,6 @@ import 'package:baocode/ide/ide_code_diff.dart';
 import 'package:baocode/ide/ide_code_editor.dart';
 import 'package:baocode/ide/ide_explorer.dart';
 import 'package:baocode/ide/ide_list.dart';
-import 'package:baocode/ide/ide_tab_bar.dart';
 import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/ide/terminal/terminal_service.dart';
 import 'package:baocode/ide/terminal/terminal_view.dart';
@@ -51,6 +50,7 @@ import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/material_file_icons.dart';
 import 'package:baocode/usage/usage_ledger.dart';
 import 'package:baocode/usage/usage_record.dart';
+import 'package:baocode/workspace/islands.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -1643,8 +1643,11 @@ void main() {
     expect(tester.getTopLeft(view).dx, 0);
     expect(tester.getSize(view).width, width);
     expect(find.byType(FilePreview), findsOneWidget);
-    // The conversations at its right, up to the sash's line.
-    expect(tester.getTopLeft(find.byType(ChatScreen)).dx, width + 1);
+    // The conversations at its right, past the gap the sash is in.
+    expect(
+      tester.getTopLeft(find.byType(ChatScreen)).dx,
+      width + AgentSidePanelArea.sashWidth,
+    );
 
     // Its right edge dragged right: wider.
     final sash = find.byKey(const ValueKey('side-panel-sash'));
@@ -1962,7 +1965,7 @@ void main() {
       await press(tester, key, meta: true, shift: shift, alt: alt);
       await tester.pumpAndSettle();
       expect(
-        tester.widget<IdeEditorTab>(find.byKey(ValueKey(section))).active,
+        tester.widget<IslandTab>(find.byKey(ValueKey(section))).active,
         isTrue,
       );
     }
@@ -2416,8 +2419,9 @@ void main() {
       final chat = tester.getRect(find.byType(ChatScreen));
       final rail = tester.getRect(find.byType(SidePanelRail));
       final composer = tester.getRect(find.byType(ChatComposer));
-      expect(chat.right, 1400);
-      expect(rail.right, 1400 - AgentSidePanelArea.railRight);
+      // A gap from the window's edge, its card's.
+      expect(chat.right, 1400 - Islands.gap);
+      expect(rail.right, chat.right - AgentSidePanelArea.railRight);
       expect(composer.right, lessThan(rail.left));
       // Room enough: the column in the middle, as without the rail.
       expect(composer.center.dx, closeTo(chat.center.dx, 0.5));
@@ -2761,7 +2765,7 @@ void main() {
     final move = find.byKey(const ValueKey('side-panel-move'));
     await dragFrom(tester.getCenter(move) - const Offset(60, 0));
     expect(drags, 1);
-    await dragFrom(tester.getCenter(find.byType(IdeEditorTab).first));
+    await dragFrom(tester.getCenter(find.byType(IslandTab).first));
     expect(drags, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 }

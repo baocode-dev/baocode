@@ -56,8 +56,8 @@ abstract final class IdeModernUI {
   /// The activity bar's width.
   static const activityBarWidth = activityItemSize + activityLane;
 
-  /// `ActivitybarPart.ICON_SIZE`.
-  static const activityIconSize = 24.0;
+  /// Smaller than `ActivitybarPart.ICON_SIZE` (24), as the cards' own.
+  static const activityIconSize = 20.0;
 
   /// `activityBar.inactiveForeground`.
   static Color get activityForeground =>
@@ -81,8 +81,9 @@ abstract final class IdeModernUI {
   static Color get activityHoverForeground =>
       _colors['modernActivityBarItem.hoverForeground'];
 
-  /// `cornerRadius.small`: the active and hovered items' box.
-  static const activityItemRadius = 4.0;
+  /// The active and hovered items' box: rounder than `cornerRadius.small`,
+  /// as the cards about it.
+  static const activityItemRadius = 8.0;
 
   /// `activityBarBadge.*`.
   static Color get activityBadgeBackground =>

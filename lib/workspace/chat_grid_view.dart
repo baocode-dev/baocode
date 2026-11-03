@@ -3,13 +3,13 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../ide/ide_modern_ui.dart';
 import '../l10n/l10n.dart';
 import '../sidebar/sidebar.dart' show StatusIndicator;
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'chat_drag.dart';
 import 'chat_grid.dart';
+import 'islands.dart';
 import 'workspace.dart';
 
 /// Where a pane is in the grid, for what the window keeps at its top
@@ -37,8 +37,6 @@ class ChatGridView extends StatefulWidget {
     required this.onFocus,
     required this.paneBuilder,
     this.onLinesMoved,
-    this.paneBackground,
-    this.focused,
   });
 
   final ChatGrid<AgentThread> grid;
@@ -57,24 +55,15 @@ class ChatGridView extends StatefulWidget {
   /// A line dragged and let go, or put back in the middle.
   final VoidCallback? onLinesMoved;
 
-  /// Behind an agent's pane, of several (none: the view's own): the whole
-  /// of its place, up to the lines either side and the view's edges, so
-  /// no gap shows between it and them.
-  final Color? Function(AgentThread thread)? paneBackground;
-
-  /// The focused agent: of several, its pane outlined in the drop
-  /// preview's line (see [frameColor]).
-  final AgentThread? focused;
-
-  /// The focused pane's outline: `focusBorder`, a little faded, as the
-  /// drop preview's (see [_DropBox]).
+  /// The focused pane's outline, of several (see [ChatScreen.islandBorder]):
+  /// `focusBorder`, a little faded, as the drop preview's (see [_DropBox]).
   static Color get frameColor {
     final color = themeColors['focusBorder'];
     return color.withValues(alpha: color.a * .8);
   }
 
-  /// Between two panes: the line in the middle, and the sash over it.
-  static const gap = 5.0;
+  /// Between two panes' cards: the sash in it.
+  static const gap = Islands.gap;
 
   /// The least a pane is, where the window has room: the composer's
   /// toolbar across; the title, a few lines and the composer down.
@@ -284,23 +273,13 @@ class _ChatGridViewState extends State<ChatGridView> {
   @override
   Widget build(BuildContext context) {
     final grid = widget.grid;
-    final background = grid.panes.length > 1 ? widget.paneBackground : null;
     return CustomMultiChildLayout(
       delegate: _GridLayout(
         grid,
         onLayout: (size) => _size = size,
-        focused: widget.focused,
         relayout: _moved,
       ),
       children: [
-        // Under the panes, and the lines over them.
-        if (background != null)
-          for (final thread in grid.panes)
-            if (background(thread) case final color?)
-              LayoutId(
-                id: _backdrop(thread),
-                child: ColoredBox(color: color),
-              ),
         for (final thread in grid.panes)
           LayoutId(
             key: ObjectKey(thread),
@@ -316,13 +295,6 @@ class _ChatGridViewState extends State<ChatGridView> {
           ),
         for (final part in _parts(grid))
           LayoutId(key: ValueKey(part.key), id: part, child: _sash(part)),
-        // The focused one outlined, over the lines about it.
-        if (widget.focused case final focused?
-            when grid.panes.length > 1 && grid.contains(focused))
-          LayoutId(
-            id: _GridPart.frame,
-            child: const _Frame(key: ValueKey('pane frame')),
-          ),
         LayoutId(
           id: _GridPart.preview,
           child: _DropPreview(drag: widget.drag),
@@ -330,22 +302,6 @@ class _ChatGridViewState extends State<ChatGridView> {
       ],
     );
   }
-}
-
-/// The focused pane's outline, as the grid places it: on the lines between
-/// it and the others (over them, one line, not two), and at the view's
-/// edges; never across what the pane shows (its side panel's tabs).
-class _Frame extends StatelessWidget {
-  const _Frame({super.key});
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: ChatGridView.frameColor),
-      ),
-    ),
-  );
 }
 
 /// Where a press does not focus the pane it is in: its title bar's tools,
@@ -367,7 +323,7 @@ class KeepPaneFocus extends StatelessWidget {
   );
 }
 
-enum _GridPart { preview, backdrop, frame }
+enum _GridPart { preview }
 
 /// A sash: on the column line ([Axis.horizontal], it moves across) or the
 /// row line; [index] the row (or column) of its part, null for the line
@@ -402,23 +358,12 @@ List<_LinePart> _parts(ChatGrid<AgentThread> grid) {
   ];
 }
 
-/// Behind [thread]'s pane (see [ChatGridView.paneBackground]).
-(_GridPart, AgentThread) _backdrop(AgentThread thread) =>
-    (_GridPart.backdrop, thread);
-
 /// The panes on [grid]'s rectangles (see [ChatGrid.layout]); the sashes on
-/// the gaps between them; [focused]'s outline on them (see [_Frame]); the
-/// drop preview over it all.
+/// the gaps between them; the drop preview over it all.
 class _GridLayout extends MultiChildLayoutDelegate {
-  _GridLayout(
-    this.grid, {
-    required this.onLayout,
-    this.focused,
-    super.relayout,
-  });
+  _GridLayout(this.grid, {required this.onLayout, super.relayout});
 
   final ChatGrid<AgentThread> grid;
-  final AgentThread? focused;
 
   /// The size laid out at.
   final ValueChanged<Size> onLayout;
@@ -437,18 +382,6 @@ class _GridLayout extends MultiChildLayoutDelegate {
     for (final MapEntry(key: pane, value: rect)
         in grid.layout(size, gap: _gap, minPane: _min).entries) {
       if (hasChild(pane)) _place(pane, rect);
-      // Out to the middle of each gap, where the line is, or to the edge.
-      if (hasChild(_backdrop(pane))) {
-        _place(
-          _backdrop(pane),
-          Rect.fromLTRB(
-            rect.left > 0 ? rect.left - _gap / 2 : 0,
-            rect.top > 0 ? rect.top - _gap / 2 : 0,
-            rect.right < size.width ? rect.right + _gap / 2 : size.width,
-            rect.bottom < size.height ? rect.bottom + _gap / 2 : size.height,
-          ),
-        );
-      }
     }
     final (:xs, :ys) = grid.lines(size, gap: _gap, minPane: _min);
     // The straight line across the whole grid; each part of the other, from
@@ -474,25 +407,6 @@ class _GridLayout extends MultiChildLayoutDelegate {
         };
         _place(part, Rect.fromLTRB(left, y - _gap / 2, right, y + _gap / 2));
       }
-    }
-    // On the lines between the focused pane and the others (the line's 1px
-    // under its 1px), at the view's edges past them: around the pane and
-    // its side panel, not through the panel's tabs.
-    if (hasChild(_GridPart.frame)) {
-      final rects = grid.layout(size, gap: _gap, minPane: _min);
-      final rect = rects[focused];
-      const out = _gap / 2 + .5;
-      _place(
-        _GridPart.frame,
-        rect == null
-            ? Rect.zero
-            : Rect.fromLTRB(
-                rect.left > 0 ? rect.left - out : 0,
-                rect.top > 0 ? rect.top - out : 0,
-                rect.right < size.width ? rect.right + out : size.width,
-                rect.bottom < size.height ? rect.bottom + out : size.height,
-              ),
-      );
     }
     _place(_GridPart.preview, Offset.zero & size);
   }
@@ -662,15 +576,10 @@ class _GridSashState extends State<_GridSash> {
         onVerticalDragEnd: _horizontal ? null : (_) => _end(),
         onVerticalDragCancel: _horizontal ? null : _end,
         onDoubleTap: widget.onReset,
-        // At rest the sidebar's border line, in the middle of the gap;
-        // dragged, as thick as the IDE's sashes, in their `sash.hoverBorder`.
-        child: Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 100),
-            width: _horizontal ? (_dragging ? IdeModernUI.gap : 1) : null,
-            height: _horizontal ? null : (_dragging ? IdeModernUI.gap : 1),
-            color: _dragging ? IdeModernUI.sashHover : AppColors.partBorder,
-          ),
+        // The gap between the cards alone at rest; dragged, the IDE's sash.
+        child: Islands.sashLine(
+          dragging: _dragging,
+          axis: _horizontal ? Axis.horizontal : Axis.vertical,
         ),
       ),
     );

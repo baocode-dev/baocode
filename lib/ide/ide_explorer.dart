@@ -23,6 +23,7 @@ import '../theme/codicons.dart';
 import 'ide_hover.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/islands.dart';
 import '../workspace/window_controls.dart';
 
 import 'package:bao_editor/monaco/vs/base/common/labels.dart';
@@ -2088,7 +2089,10 @@ class IdeExplorerState extends State<IdeExplorer>
 
     final tree = ColoredBox(
       // Modern UI: the panes are the side bar's.
-      color: widget.background ?? themeColors['sideBar.background'],
+      color:
+          widget.background ??
+          IslandSurface.colorOf(context) ??
+          themeColors['sideBar.background'],
       child: Focus(
         focusNode: _focusNode,
         onKeyEvent: _onKey,

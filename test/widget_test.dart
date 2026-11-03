@@ -485,9 +485,10 @@ void main() {
     // Start dragging in the last message, bring the pointer to the middle,
     // then wheel-scroll up (holding the button) so new messages stream in
     // under a pointer that does not move.
+    // At its end: the end of its last line, however it wraps.
     final start =
-        tester.getTopRight(find.textContaining('已完成修改').last) +
-        const Offset(-4, 6);
+        tester.getBottomRight(find.textContaining('已完成修改').last) +
+        const Offset(-4, -6);
     final drag = await tester.startGesture(
       start,
       kind: PointerDeviceKind.mouse,
