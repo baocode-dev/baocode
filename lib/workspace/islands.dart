@@ -375,10 +375,10 @@ class IslandTab extends StatefulWidget {
   final Widget Function(BuildContext context, Color foreground) builder;
 
   /// How far its foot flares out on either side, past its box.
-  static const flare = 10.0;
+  static const flare = 6.0;
 
   /// Its top corners.
-  static const radius = 10.0;
+  static const radius = 6.0;
 
   /// From the card's edge to the first tab: clear of the card's corner,
   /// its foot too.
