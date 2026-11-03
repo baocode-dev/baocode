@@ -13,10 +13,9 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 /// How a theme's colors are moved so its cards stand apart from the
-/// window. A dark theme's window raised to [_darkest] at least, its cards
-/// (and what is on them, as far above them) lifted [darkStep] over it; a
-/// light theme's cards lifted, and where they are as light as they go, the
-/// window sunk.
+/// window. A dark theme's window as it is, its cards (and what is on them,
+/// as far above them) lifted [darkStep] over it; a light theme's cards
+/// lifted, and where they are as light as they go, the window sunk.
 class IslandTones {
   IslandTones._(
     this._card,
@@ -34,9 +33,8 @@ class IslandTones {
     final baseL = lightness(base);
     if (card.a < 1 || base.a < 1 || cardL < baseL) return _asTheyAre;
     if (baseL < 0.5) {
-      final window = math.max(0.0, _darkest - baseL);
-      final lift = math.max(0.0, baseL + window + darkStep - cardL);
-      return IslandTones._(cardL, baseL, lift, window);
+      final lift = baseL + darkStep - cardL;
+      return lift <= 0 ? _asTheyAre : IslandTones._(cardL, baseL, lift, 0);
     }
     final need = lightStep - (cardL - baseL);
     if (need <= 0) return _asTheyAre;
@@ -66,10 +64,6 @@ class IslandTones {
   /// A light theme's: further, light grays being harder to tell apart.
   static const lightStep = 0.06;
 
-  /// The darkest a dark theme's window is: #212120, as Bao Dark's parts
-  /// were before they were cards; #181817 under them reads black.
-  static final _darkest = lightness(const Color(0xFF212120));
-
   /// As light as a card is lifted: the rest of [lightStep], the window
   /// sunk.
   static const _lightest = 0.97;
@@ -80,10 +74,6 @@ class IslandTones {
 
   /// How near a color is to be taken for the card's or the window's.
   static const _same = 0.004;
-
-  /// How near a dark window's a color is to be raised with it: its
-  /// shades (an unfocused title bar's), not left darker than it.
-  static const _nearWindow = 0.02;
 
   /// Popups over everything, of the window's color in some themes (Bao
   /// Light's menus): not sunk with it.
@@ -107,12 +97,11 @@ class IslandTones {
   final double _base;
   final double _lift;
 
-  /// How much lighter the window's tone is: raised (dark), or sunk (light,
-  /// negative).
+  /// How much darker a light theme's window is (negative): sunk.
   final double _window;
 
-  /// [color], read for [id], moved: lifted if it is of a card's tone, as
-  /// the window if of the window's (near it, raised; the same, sunk). Text,
+  /// [color], read for [id], moved: lifted if it is of a card's tone, sunk
+  /// with the window if of the window's. Text,
   /// popups' backgrounds when sunk, and what is see-through, as they are;
   /// [_apartOnCard], gone.
   Color apply(String id, Color color) {
@@ -122,9 +111,6 @@ class IslandTones {
     final l = lightness(color);
     if (_lift > 0 && l >= _card - _same && l <= _card + _onCard) {
       return shift(color, _lift);
-    }
-    if (_window > 0 && (l - _base).abs() <= _nearWindow) {
-      return shift(color, _window);
     }
     if (_window < 0 &&
         (l - _base).abs() <= _same &&
