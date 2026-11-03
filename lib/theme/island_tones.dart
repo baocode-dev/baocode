@@ -13,33 +13,47 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 /// How a theme's colors are moved so its cards stand apart from the
-/// window: the cards lifted (and what is on them, as far above them), and,
-/// where they are as light as they go, the window sunk.
+/// window. A dark theme's window raised to [_darkest] at least, its cards
+/// (and what is on them, as far above them) lifted [darkStep] over it; a
+/// light theme's cards lifted, and where they are as light as they go, the
+/// window sunk.
 class IslandTones {
-  IslandTones._(this._card, this._base, this._lift, this._sink);
+  IslandTones._(this._card, this._base, this._lift, this._window);
 
   /// For a theme whose cards are [card] (`editor.background`) on a window
-  /// of [base] (`sideBar.background`). Nothing moved where they are [step]
-  /// apart already, or the window is the lighter.
+  /// of [base] (`sideBar.background`). Nothing moved where the window is
+  /// the lighter.
   factory IslandTones(Color card, Color base) {
     final cardL = lightness(card);
     final baseL = lightness(base);
-    final need = step - (cardL - baseL);
-    if (card.a < 1 || base.a < 1 || cardL < baseL || need <= 0) {
-      return IslandTones._(cardL, baseL, 0, 0);
+    if (card.a < 1 || base.a < 1 || cardL < baseL) return none;
+    if (baseL < 0.5) {
+      final window = math.max(0.0, _darkest - baseL);
+      final lift = math.max(0.0, baseL + window + darkStep - cardL);
+      return IslandTones._(cardL, baseL, lift, window);
     }
+    final need = lightStep - (cardL - baseL);
+    if (need <= 0) return none;
     final lift = math.min(need, math.max(0.0, _lightest - cardL));
-    return IslandTones._(cardL, baseL, lift, need - lift);
+    return IslandTones._(cardL, baseL, lift, lift - need);
   }
 
   /// Leaves every color as it is.
   static final none = IslandTones._(0, 0, 0, 0);
 
-  /// The least lightness (OKLab L) between the cards and the window: over
-  /// the island prototype's (#222221 on #181817, 0.043).
-  static const step = 0.06;
+  /// The least lightness (OKLab L) between a dark theme's cards and its
+  /// window: about the island prototype's (#222221 on #181817, 0.043).
+  static const darkStep = 0.045;
 
-  /// As light as a card is lifted: the rest of [step], the window sunk.
+  /// A light theme's: further, light grays being harder to tell apart.
+  static const lightStep = 0.06;
+
+  /// The darkest a dark theme's window is: #212120, as Bao Dark's parts
+  /// were before they were cards; #181817 under them reads black.
+  static final _darkest = lightness(const Color(0xFF212120));
+
+  /// As light as a card is lifted: the rest of [lightStep], the window
+  /// sunk.
   static const _lightest = 0.97;
 
   /// How far above the card a color lifts with it: what is on a card
@@ -48,6 +62,10 @@ class IslandTones {
 
   /// How near a color is to be taken for the card's or the window's.
   static const _same = 0.004;
+
+  /// How near a dark window's a color is to be raised with it: its
+  /// shades (an unfocused title bar's), not left darker than it.
+  static const _nearWindow = 0.02;
 
   /// Popups over everything, of the window's color in some themes (Bao
   /// Light's menus): not sunk with it.
@@ -69,21 +87,28 @@ class IslandTones {
   final double _card;
   final double _base;
   final double _lift;
-  final double _sink;
 
-  /// [color], read for [id], moved: lifted if it is of a card's tone, sunk
-  /// if the window's. Text, and what is see-through, as it is.
+  /// How much lighter the window's tone is: raised (dark), or sunk (light,
+  /// negative).
+  final double _window;
+
+  /// [color], read for [id], moved: lifted if it is of a card's tone, as
+  /// the window if of the window's (near it, raised; the same, sunk). Text,
+  /// popups' backgrounds when sunk, and what is see-through, as they are.
   Color apply(String id, Color color) {
-    if ((_lift == 0 && _sink == 0) || color.a < 1) return color;
+    if ((_lift == 0 && _window == 0) || color.a < 1) return color;
     if (id.endsWith('oreground')) return color;
     final l = lightness(color);
     if (_lift > 0 && l >= _card - _same && l <= _card + _onCard) {
       return shift(color, _lift);
     }
-    if (_sink > 0 &&
+    if (_window > 0 && (l - _base).abs() <= _nearWindow) {
+      return shift(color, _window);
+    }
+    if (_window < 0 &&
         (l - _base).abs() <= _same &&
         !_popups.any(id.startsWith)) {
-      return shift(color, -_sink);
+      return shift(color, _window);
     }
     return color;
   }
