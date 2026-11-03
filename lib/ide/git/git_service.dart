@@ -1191,6 +1191,29 @@ class IdeGitService {
     bool keepIndex = false,
   }) async {
     final top = await _requireRoot();
+    // `stash push`, and with it a stash of some paths only, came in 2.13;
+    // the Gits before have `stash save`, of all the changes (#618).
+    if (await _gitVersion() case final version?
+        when !_atLeast(version, 2, 13)) {
+      if (paths != null) {
+        throw IdeGitException(
+          'Cannot stash some files only with Git '
+          '${version.$1}.${version.$2}: it takes Git 2.13 or newer.',
+        );
+      }
+      _check(
+        await _git([
+          'stash',
+          'save',
+          if (untracked) '--include-untracked',
+          if (keepIndex) '--keep-index',
+          '--',
+          if (message.isNotEmpty) message,
+        ]),
+        'Cannot stash the changes.',
+      );
+      return;
+    }
     _check(
       await _git([
         'stash',

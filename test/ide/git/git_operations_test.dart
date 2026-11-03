@@ -47,13 +47,22 @@ void main() {
       expect(git.callsTo('restore'), isEmpty);
     });
 
-    test('before the first commit it removes from the index either way',
-        () async {
-      git.version = 'git version 2.17.1';
-      await service.unstage(null, unborn: true);
-      expect(git.callsTo('rm').single, ['rm', '--cached', '-r', '-q', '--', '.']);
-      expect(git.callsTo('reset'), isEmpty);
-    });
+    test(
+      'before the first commit it removes from the index either way',
+      () async {
+        git.version = 'git version 2.17.1';
+        await service.unstage(null, unborn: true);
+        expect(git.callsTo('rm').single, [
+          'rm',
+          '--cached',
+          '-r',
+          '-q',
+          '--',
+          '.',
+        ]);
+        expect(git.callsTo('reset'), isEmpty);
+      },
+    );
 
     test('the version is read once', () async {
       await service.unstage(['/project/lib/a.dart']);
@@ -94,6 +103,51 @@ void main() {
     });
   });
 
+  group('#618 stashing on an old Git', () {
+    test('a Git before 2.13 stashes all the changes with save', () async {
+      git.version = 'git version 2.7.4';
+      await service.stash(message: '-wip', untracked: true, keepIndex: true);
+      expect(git.callsTo('stash').single, [
+        'stash',
+        'save',
+        '--include-untracked',
+        '--keep-index',
+        '--',
+        '-wip',
+      ]);
+    });
+
+    test(
+      'a Git before 2.13 cannot stash some files only, and runs nothing',
+      () async {
+        git.version = 'git version 2.7.4';
+        await expectLater(
+          service.stash(paths: ['/project/lib/a.dart']),
+          throwsA(
+            isA<IdeGitException>().having(
+              (e) => e.message,
+              'message',
+              contains('Git 2.13 or newer'),
+            ),
+          ),
+        );
+        expect(git.callsTo('stash'), isEmpty);
+      },
+    );
+
+    test('a newer Git stashes some files with push', () async {
+      await service.stash(message: 'wip', paths: ['/project/lib/a.dart']);
+      expect(git.callsTo('stash').single, [
+        'stash',
+        'push',
+        '-m',
+        'wip',
+        '--',
+        'lib/a.dart',
+      ]);
+    });
+  });
+
   test('a ref\'s raw date is read as its seconds', () {
     final refs = parseGitRefs(
       gitRefRecord('refs/heads/main', 'a' * 40, time: 1767225600),
@@ -114,7 +168,6 @@ void main() {
     test('fetch of one remote, and of all of them', () async {
       await service.fetch(remote: 'origin');
       expect(git.callsTo('fetch').single, ['fetch', 'origin', '--tags']);
-
 
       await service.fetch();
       expect(git.callsTo('fetch').last, ['fetch', '--all', '--tags']);
