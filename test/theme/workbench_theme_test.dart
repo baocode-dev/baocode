@@ -127,6 +127,29 @@ void main() {
     );
   });
 
+  test('the chat input\'s outline is the theme\'s border where that is of '
+      'the input\'s hue, else a step from its fill', () async {
+    final kept = WorkbenchThemeService.instance;
+    addTearDown(() => WorkbenchThemeService.instance = kept);
+    Future<void> use(String setting) async {
+      final themes = WorkbenchThemeService()..restore(setting: setting);
+      await themes.initialize();
+      WorkbenchThemeService.instance = themes;
+    }
+
+    await use('Bao Dark');
+    expect(
+      AppColors.bubbleBorder(),
+      Color.alphaBlend(AppColors.border, AppColors.bubbleFill),
+    );
+    // Its violet panel border around its teal: not that.
+    await use('Solarized Dark');
+    final line = HSVColor.fromColor(AppColors.bubbleBorder());
+    final fill = HSVColor.fromColor(AppColors.bubbleFill);
+    expect(AppColors.bubbleBorder(), isNot(AppColors.border));
+    expect((line.hue - fill.hue).abs(), lessThan(15));
+  });
+
   test('the line between the parts is the theme\'s, else where it would not '
       'show, the editor\'s foreground faintly', () async {
     final kept = WorkbenchThemeService.instance;
