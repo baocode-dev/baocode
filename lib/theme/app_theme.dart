@@ -134,6 +134,13 @@ abstract final class AppColors {
   static Color get bubbleFill =>
       Color.alphaBlend(_colors['input.background'], code);
 
+  /// A row hovered on a [bubbleFill] panel: the text's color faintly over
+  /// it, lighter on a dark one, darker on a light one, of its hue (a
+  /// theme's `list.hoverBackground` is the side bar's, maybe darker than
+  /// the panel and of another hue).
+  static Color get bubbleHover =>
+      _colors['editor.foreground'].withValues(alpha: 0.07);
+
   static Color _towardsText(Color color, double t) =>
       Color.lerp(color, _colors['editor.foreground'].withValues(alpha: 1), t)!;
 
@@ -239,7 +246,7 @@ abstract final class AppMetrics {
   /// The Flutter-drawn title bar, the native traffic lights moved down to
   /// its middle (see [nativeTitleBarHeight]): a row of the window's color
   /// over the cards (see Islands), a part's tabs at its foot.
-  static const titleBarHeight = 44.0;
+  static const titleBarHeight = 38.0;
 
   /// The title bar AppKit lays the traffic lights out in, unmoved: their
   /// middle half that down.

@@ -228,7 +228,7 @@ class _StripRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 7),
           decoration: BoxDecoration(
             color: hovered && onTap != null
-                ? AppColors.hover
+                ? AppColors.bubbleHover
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),
