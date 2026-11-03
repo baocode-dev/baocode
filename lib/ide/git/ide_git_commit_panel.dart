@@ -1667,8 +1667,8 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     );
     // A segmented control, as the panel's views'.
     return Container(
-      height: 34,
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 2),
+      height: 10 + IslandSegment.height + 4,
+      padding: const EdgeInsets.fromLTRB(Islands.inset, 10, Islands.inset, 4),
       child: Row(
         children: [
           tab(l10n.gitCommitTab, false),
@@ -1686,7 +1686,8 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     return SizedBox(
       height: 30,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        // The icons as far in as the card's other controls.
+        padding: const EdgeInsets.symmetric(horizontal: Islands.inset - 4),
         child: Row(
           children: [
             IdeActionButton(
@@ -1853,7 +1854,8 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     return SizedBox(
       height: 30,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        // The icons as far in as the card's other controls.
+        padding: const EdgeInsets.symmetric(horizontal: Islands.inset - 4),
         child: GiveWayRow(
           children: [
             GiveWay(
@@ -2487,6 +2489,12 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
   /// The commit message's lines that fit in [height].
   static int lines(double height) => math.max(1, ((height - 8) / 20).floor());
 
+  /// The buttons under the message: [Islands.controlHeight] high.
+  static const _buttonPadding = EdgeInsets.symmetric(
+    horizontal: 12,
+    vertical: (Islands.controlHeight - 16 - 2) / 2,
+  );
+
   /// Under the tree: Amend, the commit message, and the buttons.
   Widget _commitArea(BuildContext context) {
     final l10n = context.l10n;
@@ -2501,7 +2509,12 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     final busy = _committing || _repositories.any((git) => git.busy);
     final branch = git?.state?.head.branch;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+      padding: const EdgeInsets.fromLTRB(
+        Islands.inset,
+        6,
+        Islands.inset,
+        Islands.inset,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2607,6 +2620,11 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                 minLines: lines(constraints.maxHeight),
                 maxLines: lines(constraints.maxHeight),
                 lineHeight: 20,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                radius: Islands.controlRadius,
                 validation: _shownValidation,
                 floatingValidation: true,
                 shortcuts: {
@@ -2659,19 +2677,23 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                   priority: 0,
                   compact: _generateButton(context, labeled: false),
                 ),
-                const GiveWay(SizedBox(width: 6)),
+                const GiveWay(SizedBox(width: 8)),
               ],
               GiveWay(
                 IdeButton(
                   label: l10n.gitCommitButton,
+                  padding: _buttonPadding,
+                  radius: Islands.controlRadius,
                   onPressed: busy ? null : () => unawaited(_commit()),
                 ),
               ),
-              const GiveWay(SizedBox(width: 6)),
+              const GiveWay(SizedBox(width: 8)),
               GiveWay(
                 IdeButton(
                   label: l10n.gitCommitAndPush,
                   secondary: true,
+                  padding: _buttonPadding,
+                  radius: Islands.controlRadius,
                   onPressed: busy ? null : () => unawaited(_commit(push: true)),
                 ),
               ),
@@ -2708,6 +2730,8 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
       icon: generating ? Codicons.debugStop : Codicons.sparkle,
       label: labeled ? label : '',
       secondary: true,
+      padding: _buttonPadding,
+      radius: Islands.controlRadius,
       onPressed: () => unawaited(_generateMessage()),
     );
     return labeled ? button : IdeHover(message: label, child: button);

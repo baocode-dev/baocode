@@ -31,6 +31,7 @@ import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import 'ide_hover.dart';
 import 'ide_menu.dart';
+import '../workspace/islands.dart';
 
 /// One pane of a container.
 class IdePane {
@@ -68,9 +69,9 @@ abstract final class IdePaneColors {
   static Color get headerForeground =>
       themeColors['sideBarSectionHeader.foreground'];
 
-  /// The separator: the parts' line, as the side bars' other dividers and
-  /// sashes ([AppColors.partBorder]).
-  static Color get border => AppColors.partBorder;
+  /// The separator: a line on the side bar's card, as the card's others
+  /// ([AppColors.border]).
+  static Color get border => AppColors.border;
 
   /// Modern UI tints a header on hover.
   static Color get hoverBackground => themeColors['list.hoverBackground'];
@@ -78,8 +79,10 @@ abstract final class IdePaneColors {
   /// The title's description (paneviewlet.css).
   static Color get description => themeColors['panelTitle.inactiveForeground'];
 
-  /// `MODERN_UI_PANE_HEADER_SIZE`.
-  static const headerSize = 28.0;
+  /// `MODERN_UI_PANE_HEADER_SIZE`, and its hover [headerInset] in from
+  /// every side.
+  static const headerSize = 32.0;
+  static const headerInset = 4.0;
 
   /// Bodies smaller than this are not shrunk further by a sash.
   static const minimumBodySize = 44.0;
@@ -294,86 +297,90 @@ class _PaneViewState extends State<_PaneView> {
           onTap: widget.onToggle,
           child: Container(
             height: IdePaneColors.headerSize,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.only(left: 4),
-            decoration: BoxDecoration(
-              color: _hoverHeader ? IdePaneColors.hoverBackground : null,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Row(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Icon(
-                    widget.expanded
-                        ? Codicons.chevronDown
-                        : Codicons.chevronRight,
-                    size: 16,
-                    color: themeColors['icon.foreground'],
+            // Its hover as far from the lines over and under it as from the
+            // card's sides, rounded as a row is.
+            padding: const EdgeInsets.all(IdePaneColors.headerInset),
+            child: Container(
+              padding: const EdgeInsets.only(left: 4),
+              decoration: BoxDecoration(
+                color: _hoverHeader ? IdePaneColors.hoverBackground : null,
+                borderRadius: BorderRadius.circular(Islands.rowRadius),
+              ),
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Icon(
+                      widget.expanded
+                          ? Codicons.chevronDown
+                          : Codicons.chevronRight,
+                      size: 16,
+                      color: themeColors['icon.foreground'],
+                    ),
                   ),
-                ),
-                // All the space left of the actions, so they sit at the
-                // right edge; the title first, the description in what
-                // remains (`flex-shrink: 100000`).
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) => Row(
-                      children: [
-                        ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: constraints.maxWidth,
-                          ),
-                          child: Text(
-                            pane.title,
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: IdePaneColors.headerForeground,
+                  // All the space left of the actions, so they sit at the
+                  // right edge; the title first, the description in what
+                  // remains (`flex-shrink: 100000`).
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => Row(
+                        children: [
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: constraints.maxWidth,
                             ),
-                          ),
-                        ),
-                        if (pane.description case final description?)
-                          Flexible(
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 10),
-                              child: Text(
-                                description,
-                                maxLines: 1,
-                                softWrap: false,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: IdePaneColors.description,
-                                ),
+                            child: Text(
+                              pane.title,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: IdePaneColors.headerForeground,
                               ),
                             ),
                           ),
-                      ],
+                          if (pane.description case final description?)
+                            Flexible(
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 10),
+                                child: Text(
+                                  description,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: IdePaneColors.description,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                if (widget.expanded &&
-                    (_hover || _menu) &&
-                    pane.actions.isNotEmpty)
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final action in pane.actions)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: action,
-                        ),
-                    ],
-                  ),
-                if (pane.badge case final badge?)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4, right: 8),
-                    child: badge,
-                  ),
-              ],
+                  if (widget.expanded &&
+                      (_hover || _menu) &&
+                      pane.actions.isNotEmpty)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final action in pane.actions)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: action,
+                          ),
+                      ],
+                    ),
+                  if (pane.badge case final badge?)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, right: 8),
+                      child: badge,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -500,7 +507,7 @@ class IdeViewTitle extends StatelessWidget {
   final List<Widget> actions;
   final Color? border;
 
-  static const height = 35.0;
+  static const height = 34.0;
 
   static Color get foreground => themeColors['sideBarTitle.foreground'];
 

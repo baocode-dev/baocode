@@ -260,12 +260,17 @@ class ChatTerminalArea extends StatefulWidget {
     required this.terminals,
     required this.root,
     required this.child,
+    this.below,
     this.tasks,
     this.files,
     this.onOpenLink,
   });
 
   final ChatTerminals terminals;
+
+  /// The conversation's row under its card (its branch): under the
+  /// panel's card while that shows, at the window's foot.
+  final Widget? below;
 
   /// The project whose terminals the panel shows.
   final String root;
@@ -304,7 +309,8 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
       builder: (context, constraints) {
         final service = _terminals.serviceOf(_root);
         final shown = _terminals.shownFor(_root);
-        final room = constraints.maxHeight - ChatTerminalArea.sashHeight;
+        final foot = widget.below == null ? 0.0 : Islands.belowHeight;
+        final room = constraints.maxHeight - ChatTerminalArea.sashHeight - foot;
         final rows = IdeRows.fit(
           room,
           panel: shown
@@ -321,7 +327,12 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: widget.child),
+                Expanded(
+                  child: IslandFootHosted(
+                    hosted: panel && widget.below != null,
+                    child: widget.child,
+                  ),
+                ),
                 if (panel) ...[
                   const SizedBox(height: ChatTerminalArea.sashHeight),
                   SizedBox(
@@ -339,6 +350,19 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
                       onOpenLink: widget.onOpenLink,
                     ),
                   ),
+                  if (widget.below case final below?)
+                    SizedBox(
+                      height: Islands.belowHeight,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Islands.inset,
+                        ),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: below,
+                        ),
+                      ),
+                    ),
                 ],
               ],
             ),
@@ -346,7 +370,7 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: rows.panel,
+                bottom: rows.panel + foot,
                 height: ChatTerminalArea.sashHeight,
                 child: _sash(rows, room),
               ),

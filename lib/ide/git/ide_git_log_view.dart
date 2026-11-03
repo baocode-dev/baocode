@@ -767,9 +767,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
   @override
   Widget build(BuildContext context) {
     final git = _git;
-    Widget card(Widget child) => widget.islands
-        ? Island(color: _background, borderColor: _border, child: child)
-        : child;
+    Widget card(Widget child) => widget.islands ? _firstCard(child) : child;
     final view = ColoredBox(
       color: widget.islands ? Colors.transparent : _background,
       child: git == null
@@ -863,6 +861,24 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
   String _worktreeName(IdeGitRepository git, IdeGitWorktree worktree) =>
       git.service.pathContext.basename(worktree.path);
 
+  /// The card along the top, under a strip's tabs: its top left corner
+  /// square while their first is in front (see [IslandCorner]).
+  Widget _firstCard(Widget child) {
+    Widget card(bool square) => Island(
+      color: _background,
+      borderColor: _border,
+      squareTopLeft: square,
+      child: child,
+    );
+    return switch (IslandCorner.of(context)) {
+      final corner? => ValueListenableBuilder(
+        valueListenable: corner,
+        builder: (context, square, _) => card(square),
+      ),
+      null => card(false),
+    };
+  }
+
   Widget _layout(IdeGitRepository git, IdeGitState state) =>
       widget.islands ? _islandLayout(git, state) : _flatLayout(git, state);
 
@@ -876,9 +892,11 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
               ? math.min(_log.branchTreeWidth, constraints.maxWidth * .3)
               : null;
           final main = _main(git, state);
-          Widget card(Widget child) =>
-              Island(color: _background, borderColor: _border, child: child);
+          Widget card(Widget child, {bool first = false}) => first
+              ? _firstCard(child)
+              : Island(color: _background, borderColor: _border, child: child);
           final log = card(
+            first: true,
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -935,8 +953,10 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
               ],
             );
           }
+          // Half, or room for the commit panel's message and buttons under
+          // its files.
           final height = math.min(
-            _log.detailsHeight ?? constraints.maxHeight / 2,
+            _log.detailsHeight ?? math.max(constraints.maxHeight / 2, 340),
             constraints.maxHeight * .75,
           );
           return Column(
@@ -1051,11 +1071,15 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < _compactToolbar;
           final filters = _filters(git);
+          final islands = widget.islands;
           if (!compact) {
             return SizedBox(
-              height: 36,
+              height: islands ? Islands.controlHeight + 2 * 8 : 36,
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: EdgeInsets.symmetric(
+                  horizontal: islands ? Islands.inset - 2 : 8,
+                  vertical: islands ? 8 : 0,
+                ),
                 child: Row(
                   children: [
                     if ((width ?? constraints.maxWidth) >=
@@ -1097,20 +1121,33 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
           // Narrow (the side panel): the search and the actions, then the
           // filters under them.
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            // On a card: the search as far in as the card's other
+            // controls, the filters' text under its.
+            padding: islands
+                ? const EdgeInsets.fromLTRB(
+                    Islands.inset - 4,
+                    10,
+                    Islands.inset - 4,
+                    4,
+                  )
+                : const EdgeInsets.symmetric(horizontal: 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(
-                  height: 34,
-                  child: Row(
-                    children: [
-                      Expanded(child: _search(git)),
-                      const SizedBox(width: 4),
-                      ..._actions(git, state, compact: true),
-                    ],
+                  height: islands ? Islands.controlHeight : 34,
+                  child: Padding(
+                    padding: EdgeInsets.only(left: islands ? 4 : 0),
+                    child: Row(
+                      children: [
+                        Expanded(child: _search(git)),
+                        const SizedBox(width: 4),
+                        ..._actions(git, state, compact: true),
+                      ],
+                    ),
                   ),
                 ),
+                if (islands) const SizedBox(height: 4),
                 SizedBox(
                   height: 28,
                   child: Row(
@@ -1171,6 +1208,11 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
       controller: _log.search,
       focusNode: _log.searchFocus,
       placeholder: l10n.gitLogSearch,
+      // On a card: as high as its buttons, rounded as they are.
+      padding: widget.islands
+          ? const EdgeInsets.symmetric(horizontal: 10, vertical: 5)
+          : const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      radius: widget.islands ? Islands.controlRadius : 4,
       onChanged: (text) {
         _searchDebounce?.cancel();
         _searchDebounce = Timer(

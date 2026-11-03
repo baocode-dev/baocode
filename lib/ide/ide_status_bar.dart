@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import '../theme/app_theme.dart';
 import '../theme/icon_registry.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/islands.dart';
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart'
@@ -85,7 +86,7 @@ class IdeStatusBar extends StatelessWidget {
   final List<IdeStatusBarItem> left;
   final List<IdeStatusBarItem> right;
 
-  static const height = 28.0;
+  static const height = Islands.belowHeight;
 
   /// An item's, centered in it.
   static const itemHeight = 22.0;
@@ -189,7 +190,7 @@ class _StatusItemState extends State<_StatusItem> {
                 _label(item.text, color),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11.5, color: color),
+                style: TextStyle(fontSize: 12, color: color),
               ),
             ),
         ],

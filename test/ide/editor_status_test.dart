@@ -43,7 +43,8 @@ void main() {
   testWidgets('status line follows selection, typing, and active tab', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(900, 700);
+    // Wide enough for both tabs to show whole beside the chat.
+    tester.view.physicalSize = const Size(1100, 700);
     tester.view.devicePixelRatio = 1;
     final root = p.join(p.separator, 'virtual-project');
     final first = p.join(root, 'main.dart');

@@ -1600,17 +1600,18 @@ class _SectionBar extends StatelessWidget {
                 Center(child: leading),
                 const SizedBox(width: 6),
               ],
-              // Clear of the card's corner, the first tab's foot too.
-              const SizedBox(width: Islands.radius),
+              // Flush with the card's edge, unless something is before.
+              if (inset > 0 || leading != null)
+                const SizedBox(width: IslandTab.lead),
               for (final (i, section) in sections.indexed) ...[
                 if (i > 0)
                   IslandTabSeparator(
                     shown: shown != section && shown != sections[i - 1],
                     width: _SectionTab.spacing,
-                    alignment: _SectionTab.separatorAlignment,
                   ),
                 _SectionTab(
                   section: section,
+                  atStart: i == 0 && inset == 0 && leading == null,
                   selected: shown == section,
                   compact: compact,
                   count: switch (section) {
@@ -1665,6 +1666,7 @@ class _SectionBar extends StatelessWidget {
 class _SectionTab extends StatelessWidget {
   const _SectionTab({
     required this.section,
+    this.atStart = false,
     required this.selected,
     required this.compact,
     required this.count,
@@ -1672,12 +1674,15 @@ class _SectionTab extends StatelessWidget {
   });
 
   final SidePanelSection section;
+
+  /// See [IslandTab.atStart].
+  final bool atStart;
   final bool selected;
   final bool compact;
   final int count;
   final VoidCallback onTap;
 
-  static const padding = 12.0;
+  static const padding = 14.0;
   static const iconSize = 14.0;
   static const gap = 7.0;
 
@@ -1686,30 +1691,16 @@ class _SectionTab extends StatelessWidget {
   static const spacing = 2.0;
   static const labelStyle = TextStyle(fontSize: 13);
 
-  /// The line between two tabs, level with their middle at the title
-  /// bar's foot (see [IslandTabSeparator]).
-  static const separatorAlignment = Alignment(
-    0,
-    (AppMetrics.titleBarHeight -
-                IslandTab.height / 2 -
-                .2 * AppMetrics.titleBarHeight) /
-            (.3 * AppMetrics.titleBarHeight) -
-        1,
-  );
-
   @override
   Widget build(BuildContext context) {
     final label = section.label(context);
-    final colors = themeColors;
-    final foreground = selected
-        ? colors['tab.activeForeground']
-        : colors['tab.inactiveForeground'];
     final tab = IslandTab(
       key: ValueKey(section),
       active: selected,
+      atStart: atStart,
       color: AppColors.code,
       onTap: onTap,
-      child: Padding(
+      builder: (context, foreground) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: padding),
         child: Row(
           mainAxisSize: MainAxisSize.min,

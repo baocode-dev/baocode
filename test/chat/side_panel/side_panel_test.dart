@@ -1691,7 +1691,11 @@ void main() {
       ..open(insetSession, const FileOpenRequest('/p/lib/main.dart'));
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(find.byKey(toggle)).dx, 78);
-    expect(tester.getTopLeft(find.text('Files')).dx, files + 78 + 22 + 6);
+    // Not flush with the card's edge then: clear of its corner.
+    expect(
+      tester.getTopLeft(find.text('Files')).dx,
+      files + 78 + 22 + 6 + IslandTab.lead,
+    );
   });
 
   testWidgets('hidden at their left, its rail is at the conversations\' top '
