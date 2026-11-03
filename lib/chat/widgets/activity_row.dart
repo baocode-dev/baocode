@@ -454,6 +454,9 @@ class _MusingState extends State<_Musing> {
   /// The caret after the last letter typed, gliding on from the one before.
   double _caretX(double t) {
     if (_carets.isEmpty) return 0;
+    // Laid out for the phrase before until the next frame builds: none come
+    // while the window is hidden, though the clock goes on.
+    if (_carets.length != _typed.length + 1) return _carets.last;
     final last = _typed.lastIndexWhere((at) => at <= t);
     return last < 0
         ? _carets.first
