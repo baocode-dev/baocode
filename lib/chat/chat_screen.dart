@@ -1104,6 +1104,8 @@ class _ChatScreenState extends State<ChatScreen>
             if (footer > 0)
               // Under the card, at the composer's width: the row there with
               // nothing in it too, the card's foot where the side panel's is.
+              // What the place it is in has after it (the IDE's status
+              // bar's right items) is told how wide it is.
               SizedBox(
                 height: footer,
                 child: _ConversationColumn(
@@ -1113,7 +1115,11 @@ class _ChatScreenState extends State<ChatScreen>
                   bottom: 0,
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: _agentShown == null ? widget.below : null,
+                    child: IslandFootTrailing.leading(
+                      context,
+                      (_agentShown == null ? widget.below : null) ??
+                          const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),

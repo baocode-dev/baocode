@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 
 import '../ide/ide_modern_ui.dart';
 import '../theme/app_theme.dart';
@@ -708,4 +709,148 @@ class IslandTabStart extends InheritedWidget {
 
   @override
   bool updateShouldNotify(IslandTabStart old) => old.atStart != atStart;
+}
+
+/// A card's [child], [trailing] at the right of the row under it (the
+/// IDE's status bar's right items under its chat, against the window's
+/// edge), after what the card has there (see [leading]).
+class IslandFootTrailing extends StatefulWidget {
+  const IslandFootTrailing({
+    super.key,
+    required this.trailing,
+    this.onRoom,
+    required this.child,
+  });
+
+  final Widget? trailing;
+  final Widget child;
+
+  /// Told how wide [trailing] may be, as that changes: the row's width but
+  /// what the card has there and [spacing].
+  final ValueChanged<double>? onRoom;
+
+  /// Between what the card has in the row and [trailing].
+  static const spacing = 12.0;
+
+  /// [child], what the card has in the row under it from [Islands.inset]:
+  /// measured, for the room after it.
+  static Widget leading(BuildContext context, Widget child) {
+    final foot = context
+        .dependOnInheritedWidgetOfExactType<_FootLeading>()
+        ?.onWidth;
+    return foot == null ? child : WidthReport(onWidth: foot, child: child);
+  }
+
+  @override
+  State<IslandFootTrailing> createState() => _IslandFootTrailingState();
+}
+
+class _IslandFootTrailingState extends State<IslandFootTrailing> {
+  double _width = 0;
+  double _leading = 0;
+  double? _room;
+  bool _telling = false;
+
+  void _onWidth(double width) => _measured(width: width);
+  void _onLeading(double width) => _measured(leading: width);
+
+  void _measured({double? width, double? leading}) {
+    _width = width ?? _width;
+    _leading = leading ?? _leading;
+    if (_telling) return;
+    _telling = true;
+    // Told in layout: the room is told after the frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _telling = false;
+      if (!mounted) return;
+      final room = math.max(
+        0.0,
+        _width - Islands.inset - _leading - IslandFootTrailing.spacing,
+      );
+      if (room == _room) return;
+      widget.onRoom?.call(_room = room);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final trailing = widget.trailing;
+    return _FootLeading(
+      onWidth: _onLeading,
+      child: WidthReport(
+        onWidth: _onWidth,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            widget.child,
+            if (trailing != null)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: Islands.belowHeight,
+                // What does not fit, a moment as the row narrows, scrolls,
+                // its end shown.
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    child: trailing,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FootLeading extends InheritedWidget {
+  const _FootLeading({required this.onWidth, required super.child});
+
+  final ValueChanged<double> onWidth;
+
+  @override
+  bool updateShouldNotify(_FootLeading oldWidget) =>
+      oldWidget.onWidth != onWidth;
+}
+
+/// [child], telling [onWidth] its width as it is laid out: as it changes,
+/// and again as [onWidth] does.
+class WidthReport extends SingleChildRenderObjectWidget {
+  const WidthReport({super.key, required this.onWidth, super.child});
+
+  final ValueChanged<double> onWidth;
+
+  @override
+  RenderWidthReport createRenderObject(BuildContext context) =>
+      RenderWidthReport(onWidth);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderWidthReport renderObject,
+  ) => renderObject.onWidth = onWidth;
+}
+
+class RenderWidthReport extends RenderProxyBox {
+  RenderWidthReport(this._onWidth);
+
+  ValueChanged<double> _onWidth;
+  set onWidth(ValueChanged<double> value) {
+    if (value == _onWidth) return;
+    _onWidth = value;
+    _last = null;
+    markNeedsLayout();
+  }
+
+  double? _last;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    if (size.width != _last) _onWidth(_last = size.width);
+  }
 }

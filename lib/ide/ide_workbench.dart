@@ -1592,6 +1592,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     FocusManager.instance.removeEarlyKeyEventHandler(_onChordKey);
     FocusManager.instance.removeLateKeyEventHandler(_onLateKey);
+    _statusUnderChat.dispose();
     KeybindingService.instance.removeListener(_keybindingsChanged);
     widget.settings?.removeListener(_settingsChanged);
     widget.remote?.removeListener(_remoteChanged);
@@ -4817,7 +4818,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// The chat, kept mounted (and its state kept) while hidden.
-  Widget _chatSlot(double width) {
+  /// [trailing]: the status bar's right items, in the row under its card.
+  Widget _chatSlot(double width, {Widget? trailing}) {
     final shown = width > 0;
     final laidOut = shown ? width : _chatWidth;
     return SizedBox(
@@ -4831,7 +4833,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           offstage: !shown,
           child: TickerMode(
             enabled: shown,
-            child: ExcludeFocus(excluding: !shown, child: _chatPart()),
+            child: ExcludeFocus(
+              excluding: !shown,
+              child: _chatPart(trailing: trailing),
+            ),
           ),
         ),
       ),
@@ -4840,20 +4845,66 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The chat, which keeps its state as it moves to the editor's place,
   /// maximized, and back: its tabs on the window's color over its card.
-  Widget _chatPart() => Padding(
+  Widget _chatPart({Widget? trailing}) => Padding(
     key: _chatKey,
     padding: const EdgeInsets.symmetric(horizontal: Islands.gap / 2),
-    child: HeadedIsland(
-      header: IdeTabStrip.height,
-      // In its own column, down to the window's foot: its branch under
-      // its card, in the status bar's row; in the editor's place, the
-      // panel under it.
-      footer: _layout.editorVisible ? Islands.belowHeight : 0,
-      color: AppColors.code,
-      child: Focus(focusNode: _chatFocus, child: widget.chat),
+    child: IslandFootTrailing(
+      trailing: trailing,
+      onRoom: (room) {
+        _chatFootRoom = room;
+        _fitStatus();
+      },
+      child: HeadedIsland(
+        header: IdeTabStrip.height,
+        // In its own column, down to the window's foot: its branch under
+        // its card, in the status bar's row, then [trailing]; in the
+        // editor's place, the panel under it.
+        footer: _layout.editorVisible ? Islands.belowHeight : 0,
+        color: AppColors.code,
+        child: Focus(focusNode: _chatFocus, child: widget.chat),
+      ),
     ),
   );
   final _chatKey = GlobalKey(debugLabel: 'ide chat');
+
+  /// How many of the status bar's right items, from its end, are in the
+  /// row under the chat, after its branch: as many as fit there, the rest
+  /// at the end of the bar under the rest.
+  final _statusUnderChat = ValueNotifier(0);
+
+  /// The status bar's right items' widths, by index, wherever they are.
+  final _statusWidths = <int, double>{};
+
+  /// How many right items the status bar has.
+  int _statusRight = 0;
+
+  /// The room for them under the chat, after its branch.
+  double _chatFootRoom = 0;
+  bool _fittingStatus = false;
+
+  void _noteStatusWidth(int index, double width) {
+    _statusWidths[index] = width;
+    _fitStatus();
+  }
+
+  /// [_statusUnderChat] from what was measured: told in layout, set after
+  /// the frame.
+  void _fitStatus() {
+    if (_fittingStatus) return;
+    _fittingStatus = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fittingStatus = false;
+      if (!mounted) return;
+      var (width, fit) = (0.0, 0);
+      for (var i = _statusRight - 1; i >= 0; i--) {
+        final item = _statusWidths[i];
+        if (item == null || width + item > _chatFootRoom) break;
+        width += item;
+        fit++;
+      }
+      _statusUnderChat.value = fit;
+    });
+  }
 
   /// What [IdeLayout.roomForBoth] and [IdeLayout.roomForSides] are to be,
   /// from the last layout: the layout's listeners build, so it is told
@@ -4886,7 +4937,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// stays on the right however narrow the window (see [IdeColumns.fit]).
   /// With the editor hidden ([IdeLayout.editorHidden]), the chat has its
   /// place, beside the side bar if that shows, the panel below the two.
-  Widget _split(Size size, List<IdeCommand> commands, Widget statusBar) {
+  /// [statusChanges]: what changes the status bar.
+  Widget _split(
+    Size size,
+    List<IdeCommand> commands,
+    Listenable statusChanges,
+  ) {
     // The activity bar's room: its lane at the right the half gap the card
     // after it keeps, so the card is against it, its items as far from
     // either side.
@@ -4952,6 +5008,41 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         _chatWidth = IdeColumns.defaultChat;
       }),
     );
+    // The chat in its column, the status bar's right items are in the row
+    // under its card, after its branch, against the window's edge, as many
+    // as fit there; the bar under the rest has the others.
+    final underChat = !editorHidden && chatVisible;
+    final status = Listenable.merge([statusChanges, _statusUnderChat]);
+    int under(int right) {
+      _statusRight = right;
+      return underChat ? math.min(_statusUnderChat.value, right) : 0;
+    }
+
+    final statusBar = ListenableBuilder(
+      listenable: status,
+      builder: (context, _) {
+        final bar = _statusBar();
+        final right = bar.right;
+        return IdeStatusBar(
+          left: bar.left,
+          right: right.sublist(0, right.length - under(right.length)),
+          onRightWidth: _noteStatusWidth,
+        );
+      },
+    );
+    final statusTrailing = underChat
+        ? ListenableBuilder(
+            listenable: status,
+            builder: (context, _) {
+              final right = _statusBar().right;
+              final start = right.length - under(right.length);
+              return IdeStatusBarTrailing(
+                right: right.sublist(start),
+                onWidth: (i, width) => _noteStatusWidth(start + i, width),
+              );
+            },
+          )
+        : null;
     final chat = KeyedSubtree(
       key: const ValueKey('ide-chat'),
       child: _chatPart(),
@@ -4963,7 +5054,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // The status bar under all but the chat, which has its own
-              // row there (its branch), as in the agents' window.
+              // row there (its branch, then the bar's right items), as in
+              // the agents' window.
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5030,7 +5122,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   ],
                 ),
               ),
-              if (!editorHidden) _chatSlot(columns.chat),
+              if (!editorHidden)
+                _chatSlot(columns.chat, trailing: statusTrailing),
             ],
           ),
         ),
@@ -5536,14 +5629,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                               // document, and the status bar is all that
                               // shows either; as it is all that shows a
                               // language server's progress.
-                              ListenableBuilder(
-                                listenable: Listenable.merge([
-                                  _caret,
-                                  widget.workspace.edits,
-                                  _languages?.progressChanges,
-                                ]),
-                                builder: (context, _) => _statusBar(),
-                              ),
+                              Listenable.merge([
+                                _caret,
+                                widget.workspace.edits,
+                                _languages?.progressChanges,
+                              ]),
                             ),
                           ),
                         ),
