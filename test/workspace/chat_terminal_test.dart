@@ -141,6 +141,9 @@ void main() {
     final chat = find.byType(ChatScreen).first;
     Finder below() => find.byType(ChatQuotaBar);
     expect(find.descendant(of: chat, matching: below()), findsOneWidget);
+    // Its row down to the window's foot, as the IDE's status bar: no gap
+    // under it.
+    expect(tester.getRect(chat).bottom, 900);
 
     await tester.tap(_toggle);
     await _settle(tester);

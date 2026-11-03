@@ -3014,15 +3014,19 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// The conversations' cards, a gap in from the window's sides ([left]
-  /// unless something else is there) and bottom; their title bars over
-  /// them, at the top.
+  /// unless something else is there); their title bars over them, at the
+  /// top. At the bottom, the row under their cards (their branch, see
+  /// [Islands.belowHeight]) down to the window's edge, as the IDE's status
+  /// bar is; a card with none under it keeps a gap there ([_footless]).
   static Widget _islandsInset(Widget child, {bool left = true}) => Padding(
-    padding: EdgeInsets.fromLTRB(
-      left ? Islands.gap : 0,
-      0,
-      Islands.gap,
-      Islands.gap,
-    ),
+    padding: EdgeInsets.fromLTRB(left ? Islands.gap : 0, 0, Islands.gap, 0),
+    child: child,
+  );
+
+  /// A card in the conversations' place with no row under it (Customize,
+  /// the stashes): a gap from the window's bottom, as from its sides.
+  static Widget _footless(Widget child) => Padding(
+    padding: const EdgeInsets.only(bottom: Islands.gap),
     child: child,
   );
 
@@ -4317,12 +4321,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   Widget _buildGrid({required bool showToggle}) {
     if (_stashing) {
       if (StashController.current case final stash?) {
-        return _buildStash(stash, showToggle: showToggle);
+        return _footless(_buildStash(stash, showToggle: showToggle));
       }
     }
     if (_customizing) {
       if (widget.customizations case final store?) {
-        return _buildCustomize(store, showToggle: showToggle);
+        return _footless(_buildCustomize(store, showToggle: showToggle));
       }
     }
     final grid = _workspace.grid;
@@ -5364,68 +5368,75 @@ class _EmptyWorkspace extends StatelessWidget {
             ),
           ),
         Expanded(
-          child: Island(
-            color: AppColors.conversationSurface,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.folder_open_outlined,
-                    size: 26,
-                    color: AppColors.textFaint,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    title,
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 14),
-                  ),
-                  if (detail.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+          // No row under it: a gap from the window's bottom.
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: Islands.gap),
+            child: Island(
+              color: AppColors.conversationSurface,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.folder_open_outlined,
+                      size: 26,
+                      color: AppColors.textFaint,
+                    ),
+                    const SizedBox(height: 12),
                     Text(
-                      detail,
-                      textAlign: TextAlign.center,
+                      title,
                       style: TextStyle(
-                        color: AppColors.textFaint,
-                        fontSize: 12,
+                        color: AppColors.textMuted,
+                        fontSize: 14,
                       ),
                     ),
-                  ],
-                  if (onOpenFolder case final open? when !loading) ...[
-                    const SizedBox(height: 16),
-                    // As wide as its label: a centred column would stretch it.
-                    IntrinsicWidth(
-                      child: PanelButton(
-                        label: l10n.sidebarOpenFolder,
-                        primary: true,
-                        onTap: open,
-                      ),
-                    ),
-                    if (onOpenRemote case final remote?) ...[
-                      const SizedBox(height: 8),
-                      IntrinsicWidth(
-                        child: PanelButton(
-                          label: l10n.cmdOpenRemoteFolder.replaceFirst(
-                            RegExp(r'(\.\.\.|…)$'),
-                            '',
-                          ),
-                          onTap: remote,
+                    if (detail.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        detail,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textFaint,
+                          fontSize: 12,
                         ),
                       ),
                     ],
-                  ],
-                  if (tips case final tips? when !loading)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 24),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 720),
-                        child: FeatureTipsCard(
-                          controller: tips,
-                          narrow: narrow,
+                    if (onOpenFolder case final open? when !loading) ...[
+                      const SizedBox(height: 16),
+                      // As wide as its label: a centred column would stretch it.
+                      IntrinsicWidth(
+                        child: PanelButton(
+                          label: l10n.sidebarOpenFolder,
+                          primary: true,
+                          onTap: open,
                         ),
                       ),
-                    ),
-                ],
+                      if (onOpenRemote case final remote?) ...[
+                        const SizedBox(height: 8),
+                        IntrinsicWidth(
+                          child: PanelButton(
+                            label: l10n.cmdOpenRemoteFolder.replaceFirst(
+                              RegExp(r'(\.\.\.|…)$'),
+                              '',
+                            ),
+                            onTap: remote,
+                          ),
+                        ),
+                      ],
+                    ],
+                    if (tips case final tips? when !loading)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 720),
+                          child: FeatureTipsCard(
+                            controller: tips,
+                            narrow: narrow,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
