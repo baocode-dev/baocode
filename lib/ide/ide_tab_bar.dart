@@ -334,6 +334,11 @@ class _IdeTabBarState extends State<IdeTabBar> {
                   ],
                   if (widget.page case final page?)
                     KeyedSubtree(key: _pageKey, child: page),
+                  // Over a card, the last clear of its rounded corner, its
+                  // foot too, as the first is of the other (see
+                  // [IslandTab.lead]); scrolled to it, as far.
+                  if (IslandSurface.colorOf(context) != null)
+                    const SizedBox(width: IslandTab.lead),
                 ],
               ),
             ),
@@ -515,12 +520,17 @@ class IdeTabStrip extends StatelessWidget {
     required this.child,
     this.line,
     this.small = false,
+    this.flat = false,
   });
 
   final Widget child;
 
   /// The line under the tabs where the theme has none ([border]).
   final Color? line;
+
+  /// In a card (a terminal's, the side panel's): on its color, the tabs
+  /// behind the active one with none of their own (see [IdeEditorTab]).
+  final bool flat;
 
   /// [smallHeight] high, for [IdeEditorTab.small] tabs.
   final bool small;
@@ -541,13 +551,15 @@ class IdeTabStrip extends StatelessWidget {
         // Not a Container: its border would inset the tabs.
         : DecoratedBox(
             decoration: BoxDecoration(
-              color: themeColors['editorGroupHeader.tabsBackground'],
+              color: flat
+                  ? null
+                  : themeColors['editorGroupHeader.tabsBackground'],
               border: switch (border ?? line) {
                 final color? => Border(bottom: BorderSide(color: color)),
                 null => null,
               },
             ),
-            child: child,
+            child: flat ? _FlatTabs(child: child) : child,
           ),
   );
 
@@ -556,6 +568,17 @@ class IdeTabStrip extends StatelessWidget {
       IslandSurface.colorOf(context) == null
       ? null
       : IslandTabSeparator(shown: shown);
+}
+
+/// Under an [IdeTabStrip.flat]: its tabs'.
+class _FlatTabs extends InheritedWidget {
+  const _FlatTabs({required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_FlatTabs>() != null;
+
+  @override
+  bool updateShouldNotify(_FlatTabs old) => false;
 }
 
 /// A tab as the editor's (multiEditorTabsControl.ts, in the theme's
@@ -658,7 +681,9 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
     final hovered = _hover && !active;
     // Over a card: a browser's tab, the one in front of the card's color.
     final island = IslandSurface.colorOf(context);
-    final foreground = island != null
+    // In a card's flat strip: behind the active one, none of its own.
+    final flat = island == null && _FlatTabs.of(context);
+    final foreground = island != null || flat
         ? IslandTab.foreground(active: active, hovered: hovered)
         : active
         ? colors['tab.activeForeground']
@@ -714,6 +739,8 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
                     // merging with it.
                     color: active
                         ? colors['tab.activeBackground']
+                        : flat
+                        ? null
                         : (hovered
                                   ? colors.get('tab.hoverBackground')
                                   : null) ??

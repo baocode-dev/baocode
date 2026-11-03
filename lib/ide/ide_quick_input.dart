@@ -37,6 +37,7 @@ import 'package:flutter/services.dart';
 
 import '../keybindings/key_chord.dart';
 import '../l10n/l10n.dart';
+import '../theme/app_theme.dart' show AppColors;
 import '../theme/icon_registry.dart';
 import '../theme/workbench_theme.dart'
     show ThemeTypeSelector, getThemeTypeSelector, themeColors;
@@ -324,6 +325,10 @@ class IdeQuickInput extends StatefulWidget {
   /// `cornerRadius.xLarge`.
   static const cornerRadius = 12.0;
 
+  /// The cards' color (`editor.background`) rather than
+  /// `quickInput.background`: a card over them. The palettes like it too.
+  static Color get background => AppColors.code;
+
   /// The input's and the rows': `cornerRadius.medium` (upstream's rows are
   /// 3px; a deviation, so both follow the widget's corners 6px in).
   static const innerRadius = 6.0;
@@ -591,9 +596,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
           final same = previous == null
               ? -1
               : _rows.indexWhere((row) => identical(row.item, previous));
-          _selected = same >= 0
-              ? same
-              : _selected.clamp(-1, _rows.length - 1);
+          _selected = same >= 0 ? same : _selected.clamp(-1, _rows.length - 1);
         }
       });
       // Its list drops the focus as it filters, then focuses the first
@@ -818,10 +821,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
         hintStyle: TextStyle(color: IdeInputColors.placeholder, fontSize: 13),
         filled: true,
         fillColor: IdeInputColors.background,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 7,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(IdeQuickInput.innerRadius),
           borderSide: BorderSide(
@@ -840,7 +840,6 @@ class IdeQuickInputState extends State<IdeQuickInput> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = themeColors;
     final placeholder =
         widget.pick?.placeholder ??
         widget.inputBox?.placeholder ??
@@ -879,7 +878,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
                     boxShadow: IdeQuickInput.shadows,
                   ),
                   child: Material(
-                    color: colors['quickInput.background'],
+                    color: IdeQuickInput.background,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(
                         IdeQuickInput.cornerRadius,

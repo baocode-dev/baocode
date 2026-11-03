@@ -4235,20 +4235,31 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
   }
 
-  /// The side bar: its view's title on the window's color over its card;
-  /// the Git log, cards of its own.
+  /// The side bar: its view's title a tab over its card; the Git log,
+  /// cards of its own.
   Widget _sidebarPart() {
     final view = Focus(focusNode: _sidebarFocus, child: _sidePanel());
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Islands.gap / 2),
       child: _view == IdeSideView.sourceControl
-          // Its title as the other views', over the log's own cards: their
-          // tops where the editor's and the chat's are.
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          // Its title as the other views', over the log's first card (after
+          // it, over its outline): their tops where the editor's and the
+          // chat's are.
+          ? Stack(
+              fit: StackFit.expand,
               children: [
-                IdeViewTitle(context.l10n.scmTitle),
-                Expanded(child: view),
+                Positioned.fill(top: IdeViewTitle.height, child: view),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  height: IdeViewTitle.height,
+                  child: IdeViewTitle(
+                    context.l10n.scmTitle,
+                    tab: true,
+                    overhang: 1,
+                  ),
+                ),
               ],
             )
           : HeadedIsland(
@@ -4267,6 +4278,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       root: widget.workspace.root,
       // The workspace's own: replacing writes into its documents.
       replaceBackend: widget.workspace,
+      titleTab: true,
       onOpen: (path, range, {required focusEditor}) =>
           _open(path, range: range, select: true, focusEditor: focusEditor),
       onError: _report,
@@ -4394,7 +4406,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            IdeViewTitle(context.l10n.wbExplorer),
+            IdeViewTitle(
+              context.l10n.wbExplorer,
+              tab: IslandSurface.colorOf(context) != null,
+            ),
             Expanded(
               child: IdePaneContainer(
                 expanded: _explorerPanes,
@@ -5211,8 +5226,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               excluding: !shown,
               child: Focus(
                 focusNode: _panelFocus,
-                // panelPart.ts' `panel.background` (the editor's by
-                // default), on a card of its own a gap under the editor's.
+                // On a card of its own a gap under the editor's, of the
+                // cards' color (not `panel.background`: a card as the
+                // others).
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                     Islands.gap / 2,
@@ -5221,7 +5237,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     0,
                   ),
                   child: Island(
-                    color: themeColors['panel.background'],
+                    color: AppColors.code,
                     child: IdeBottomPanel(
                       tab: _panel ?? _lastPanel,
                       root: widget.workspace.root,

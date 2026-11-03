@@ -152,6 +152,10 @@ void main() {
     final row = tester.getRect(below());
     expect(row.top, greaterThanOrEqualTo(panel.bottom));
     expect(row.bottom, lessThanOrEqualTo(900));
+    // The conversation on its card still, down to the gap over the panel's.
+    final card = find.descendant(of: chat, matching: find.byType(Island));
+    expect(card, findsOneWidget);
+    expect(tester.getRect(card).bottom, lessThan(panel.top));
 
     await tester.tap(_toggle);
     await _settle(tester);

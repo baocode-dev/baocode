@@ -495,50 +495,95 @@ class IdePaneAction extends StatelessWidget {
 /// A view container's 35px title (Modern UI: 12px semibold, as cased,
 /// inset 12px) and its [actions]. Beside an editor's tabs (the chat
 /// window's side panel), a line under it in [border], as under theirs.
+/// Over its card ([tab]), the title a tab in front of it, its foot flaring
+/// into the card's edge (see [IslandTabShape]); its actions beside it, on
+/// the window's color.
 class IdeViewTitle extends StatelessWidget {
   const IdeViewTitle(
     this.title, {
     super.key,
     this.actions = const [],
     this.border,
+    this.tab = false,
+    this.overhang = 0,
   });
 
   final String title;
   final List<Widget> actions;
   final Color? border;
+  final bool tab;
+
+  /// As a [tab], how far it covers under its box: where the card under it
+  /// starts there (its outline the box's last row, none).
+  final double overhang;
 
   static const height = 34.0;
 
   static Color get foreground => themeColors['sideBarTitle.foreground'];
 
   @override
-  Widget build(BuildContext context) => Container(
-    height: height,
-    decoration: switch (border) {
-      final color? => BoxDecoration(
-        border: Border(bottom: BorderSide(color: color)),
+  Widget build(BuildContext context) {
+    final text = Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: tab
+            ? IslandTab.foreground(active: true, hovered: false)
+            : foreground,
       ),
-      null => null,
-    },
-    child: Padding(
-      padding: const EdgeInsets.only(left: 12, right: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: foreground,
+    );
+    if (tab) {
+      return SizedBox(
+        height: height,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(width: IslandTab.lead),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  height: height,
+                  child: CustomPaint(
+                    painter: IslandTabShape(
+                      fill: IslandSurface.colorOf(context) ?? AppColors.code,
+                      line: Islands.border,
+                      overhang: overhang,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Center(widthFactor: 1, child: text),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          ...actions,
-        ],
+            ...actions,
+            const SizedBox(width: 4),
+          ],
+        ),
+      );
+    }
+    return Container(
+      height: height,
+      decoration: switch (border) {
+        final color? => BoxDecoration(
+          border: Border(bottom: BorderSide(color: color)),
+        ),
+        null => null,
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(left: 12, right: 4),
+        child: Row(
+          children: [
+            Expanded(child: text),
+            ...actions,
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

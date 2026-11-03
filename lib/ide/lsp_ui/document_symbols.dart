@@ -12,6 +12,7 @@ import '../ide_quick_input.dart';
 import '../ide_workspace.dart';
 import '../lsp/language_features.dart';
 import '../lsp/lsp_protocol.dart';
+import '../../workspace/islands.dart';
 import 'language_icons.dart';
 
 /// The active document's symbols, re-requested (debounced) as it changes,
@@ -264,7 +265,7 @@ class _IdeOutlineViewState extends State<IdeOutlineView> {
       ),
     );
     return ColoredBox(
-      color: AppColors.sidebarSurface,
+      color: Islands.underOr(context, AppColors.sidebarSurface),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

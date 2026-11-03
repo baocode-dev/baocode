@@ -1088,7 +1088,8 @@ class _ChatScreenState extends State<ChatScreen>
           // (macOS draws a title bar of its own over it; see AppMetrics).
           if (!widget.embedded && (widget.titleBar || _renaming))
             _buildTitleBar(),
-          if (footer == 0)
+          // Its card even with no row under it (the terminal's then).
+          if (island == null && footer == 0)
             ...conversation
           else ...[
             Expanded(
@@ -1100,21 +1101,22 @@ class _ChatScreenState extends State<ChatScreen>
                       child: Column(children: conversation),
                     ),
             ),
-            // Under the card, at the composer's width: the row there with
-            // nothing in it too, the card's foot where the side panel's is.
-            SizedBox(
-              height: footer,
-              child: _ConversationColumn(
-                maxWidth: _maxContentWidth,
-                minimap: false,
-                inset: Islands.inset,
-                bottom: 0,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: _agentShown == null ? widget.below : null,
+            if (footer > 0)
+              // Under the card, at the composer's width: the row there with
+              // nothing in it too, the card's foot where the side panel's is.
+              SizedBox(
+                height: footer,
+                child: _ConversationColumn(
+                  maxWidth: _maxContentWidth,
+                  minimap: false,
+                  inset: Islands.inset,
+                  bottom: 0,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _agentShown == null ? widget.below : null,
+                  ),
                 ),
               ),
-            ),
           ],
         ],
       ),

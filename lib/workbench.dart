@@ -2970,13 +2970,24 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               ),
             ),
           ),
-          // The cards a gap in from the window's edges and the sidebar,
-          // the handle in that gap.
+          // The cards a gap in from the window's edges; against the
+          // sidebar, not on a card of its own, with none (its scroll bar
+          // by their side). The handle over their edge, clear of the
+          // scroll bar.
           Expanded(
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Positioned.fill(child: _islandsInset(panes)),
+                Positioned.fill(
+                  child: AnimatedPadding(
+                    duration: _dragging ? Duration.zero : _duration,
+                    curve: Curves.easeOutCubic,
+                    padding: EdgeInsets.only(
+                      left: _sidebarDocked ? 0 : Islands.gap,
+                    ),
+                    child: _islandsInset(panes, left: false),
+                  ),
+                ),
                 if (_sidebarDocked)
                   Positioned(
                     left: 0,
@@ -3002,11 +3013,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     );
   }
 
-  /// The conversations' cards, a gap in from the window's sides and
-  /// bottom; their title bars over them, at the top.
-  static Widget _islandsInset(Widget child) => Padding(
-    padding: const EdgeInsets.fromLTRB(
-      Islands.gap,
+  /// The conversations' cards, a gap in from the window's sides ([left]
+  /// unless something else is there) and bottom; their title bars over
+  /// them, at the top.
+  static Widget _islandsInset(Widget child, {bool left = true}) => Padding(
+    padding: EdgeInsets.fromLTRB(
+      left ? Islands.gap : 0,
       0,
       Islands.gap,
       Islands.gap,
@@ -3389,8 +3401,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// The border between sidebar and chat, draggable to resize.
-  /// [island]: in the gap between the sidebar and the cards, nothing
-  /// there at rest; else the sidebar's edge, a line.
+  /// [island]: over the cards' edge against the sidebar, nothing there at
+  /// rest; else the sidebar's edge, a line.
   Widget _buildResizeHandle({bool island = false}) {
     return MouseRegion(
       cursor: SystemMouseCursors.resizeColumn,
@@ -3418,7 +3430,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         // in their `sash.hoverBorder`.
         child: island
             ? SizedBox(
-                width: Islands.gap,
+                width: IdeModernUI.gap,
                 child: Islands.sashLine(
                   dragging: _dragging,
                   axis: Axis.horizontal,

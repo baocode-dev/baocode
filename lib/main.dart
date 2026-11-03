@@ -888,12 +888,14 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
   }
 
   /// The terminals take the theme's colors (`getXtermTheme`); the window's
-  /// own parts follow its type.
+  /// own parts follow its type. The panel's on a card as the editors are,
+  /// of their color: without `terminal.background`, theirs.
   void _colorThemeChanged() {
     final colors = _themes.colors;
     terminalColorTheme.value = TerminalColorTheme.resolve(
       colors.get,
       type: colors.type,
+      inEditor: true,
     );
     editorTerminalColorTheme.value = TerminalColorTheme.resolve(
       colors.get,
