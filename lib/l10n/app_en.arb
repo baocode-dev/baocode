@@ -2674,7 +2674,9 @@
   "@themeHighContrastThemes": {
     "description": "Separator in the color theme picker."
   },
-  "themeSelectPlaceholder": "Select Color Theme (detect system color mode disabled)",
+  "themeAuto": "Auto",
+  "themeFollowSystem": "Follow system",
+  "themeSelectPlaceholder": "Select Color Theme",
   "dateNow": "now",
   "@dateNow": {
     "description": "A time within half a minute of now."

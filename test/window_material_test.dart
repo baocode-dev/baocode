@@ -58,6 +58,12 @@ Color sidebarColor(WidgetTester tester) => tester
     .color!;
 
 void main() {
+  setUp(() {
+    // 本组验证开启磨砂的场景，不能依赖应用默认（默认关闭）。
+    final previous = WindowBlur.enabled.value;
+    WindowBlur.enabled.value = true;
+    addTearDown(() => WindowBlur.enabled.value = previous);
+  });
   testWidgets('on macOS nothing of the transcript shows around the stuck '
       'message, and nothing is painted over it', (tester) async {
     tester.view.physicalSize = const Size(1600, 1200);
@@ -138,10 +144,14 @@ void main() {
       'material through', (tester) async {
     await pumpMacApp(tester);
     // The window itself paints nothing over the material.
-    expect(colorsUnder(tester, find.byType(Sidebar)), [Colors.transparent]);
+    expect(colorsUnder(tester, find.byType(Sidebar)), [
+      Colors.transparent,
+      Colors.transparent,
+    ]);
     expect(sidebarColor(tester).a, lessThan(0.85));
     expect(colorsUnder(tester, find.byType(ChatScreen)), [
       AppColors.conversationSurface,
+      Colors.transparent,
       Colors.transparent,
     ]);
     expect(AppColors.conversationSurface.a, lessThan(1));
@@ -160,12 +170,16 @@ void main() {
     'material through',
     (tester) async {
       await pumpMacApp(tester);
-      expect(colorsUnder(tester, find.byType(Sidebar)), [Colors.transparent]);
+      expect(colorsUnder(tester, find.byType(Sidebar)), [
+        Colors.transparent,
+        Colors.transparent,
+      ]);
       // Acrylic is a thinner blur than macOS's sidebar material: 96% over
       // the sidebar, 98% over the conversation (see AppColors).
       expect(sidebarColor(tester).a, closeTo(0.96, 0.001));
       expect(colorsUnder(tester, find.byType(ChatScreen)), [
         AppColors.conversationSurface,
+        Colors.transparent,
         Colors.transparent,
       ]);
       expect(AppColors.conversationSurface.a, closeTo(0.98, 0.001));

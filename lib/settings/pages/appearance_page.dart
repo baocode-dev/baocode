@@ -103,9 +103,9 @@ class AppearanceSettingsPage extends StatelessWidget {
     ];
   }
 
-  void _select(IdeColorThemeEntry theme) => unawaited(
-    themes.setColorTheme(theme.id).catchError((Object error) {
-      debugPrint('${theme.id} not applied: $error');
+  void _select(String id) => unawaited(
+    themes.setColorTheme(id).catchError((Object error) {
+      debugPrint('$id not applied: $error');
     }),
   );
 
@@ -431,7 +431,9 @@ class AppearanceSettingsPage extends StatelessWidget {
             .expand((group) => group)
             .where((theme) => theme.id == currentId)
             .firstOrNull;
-        final shown = current?.label ?? currentId;
+        final shown = currentId == IdeColorThemeController.autoId
+            ? l10n.themeAuto
+            : current?.label ?? currentId;
         final key = ChatKeys.keyLabel(ideSelectColorThemeCommandId);
         return SettingsPage(
           title: l10n.appearanceSettingsTitle,
@@ -452,13 +454,22 @@ class AppearanceSettingsPage extends StatelessWidget {
                       shown,
                     ),
                     entries: () => ideMenuGroups([
+                      [
+                        IdeMenuAction(
+                          l10n.themeAuto,
+                          keybinding: l10n.themeFollowSystem,
+                          checked: currentId == IdeColorThemeController.autoId,
+                          onSelected: () =>
+                              _select(IdeColorThemeController.autoId),
+                        ),
+                      ],
                       for (final group in groups)
                         [
                           for (final theme in group)
                             IdeMenuAction(
                               theme.label,
                               checked: theme.id == currentId,
-                              onSelected: () => _select(theme),
+                              onSelected: () => _select(theme.id),
                             ),
                         ],
                     ]),
