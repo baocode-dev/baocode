@@ -56,6 +56,19 @@ abstract final class PtyProcesses {
     }
   }
 
+  /// [shell] 是已知会读取登录配置的交互启动形式时返回 true。
+  /// 特殊参数或未知 shell 保留既有解析环境，不猜测其初始化行为。
+  static bool _readsLoginFiles(TerminalShell shell) {
+    if (!const {'bash', 'zsh', 'fish'}.contains(p.basename(shell.executable))) {
+      return false;
+    }
+    final args = shell.arguments
+        .where((arg) => arg != '-i' && arg != '--interactive')
+        .toList();
+    return args.length == 1 &&
+        const {'-l', '--login', '-il', '-li'}.contains(args.single);
+  }
+
   static Future<PtyLaunch> terminalLaunch(
     String root, {
     required int columns,
@@ -65,10 +78,20 @@ abstract final class PtyProcesses {
     TerminalEnvironmentRequest? environment,
   }) async {
     final os = _os;
-    // As VS Code, whose terminals inherit the environment it resolved from
-    // the login shell.
-    final base = await ClaudeEnvironment.of();
-    shell ??= defaultTerminalShell(os, base, exists: _exists, list: _list);
+    final inherited = Platform.environment;
+    final candidate =
+        shell ??
+        defaultTerminalShell(os, inherited, exists: _exists, list: _list);
+    // 已知登录启动由新 shell 读取当前配置；其他启动仍可能依赖解析环境。
+    final login = os != TerminalOs.windows && _readsLoginFiles(candidate);
+    final resolved = login ? inherited : await ClaudeEnvironment.of();
+    shell ??= login
+        ? candidate
+        : defaultTerminalShell(os, resolved, exists: _exists, list: _list);
+    // 解析后默认 shell 可能变化，基础环境以最终选定的启动形式为准。
+    final base = os != TerminalOs.windows && _readsLoginFiles(shell)
+        ? inherited
+        : resolved;
     final launch = PtyLaunch(
       executable: shell.executable,
       arguments: shell.arguments,

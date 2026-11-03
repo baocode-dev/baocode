@@ -55,6 +55,9 @@ class TerminalEnvironmentRequest {
 /// `terminal.integrated.shellIntegration.enabled`; see
 /// shell_integration/shell_integration_files.dart); fails with
 /// [PtyException] on the web.
+///
+/// 本地已知的交互登录 shell 从应用原始继承环境读取当前配置；
+/// 非登录、特殊参数及未知 shell 保留既有解析环境，以免丢失登录配置值。
 Future<PtyLaunch> terminalLaunch(
   String root, {
   int columns = 80,
