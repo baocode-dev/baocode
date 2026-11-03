@@ -2489,19 +2489,15 @@ class _NewAgentButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The agent sessions window's New Session button, in the side panel
-    // rail's colors (its surface and line, the text; a toolbar button's
-    // hover over it): a theme's own for it can all but vanish (One Dark
-    // Pro's, see-through on a line as dark as the sidebar). Its hover
-    // with the keys of New Agent, which does the same (a folder first,
-    // without one).
-    final colors = themeColors;
+    // The agent sessions window's New Session button, as a little card on
+    // the window's base (the islands' color and outline), hovered as rows
+    // on a card are (the text's color faintly over it): a theme's widget
+    // or toolbar colors are of no part of the window, and can all but
+    // vanish or stand out of place. Its hover with the keys of New Agent,
+    // which does the same (a folder first, without one).
     final foreground = AppColors.text;
-    final surface = AppColors.surface;
-    final hover = Color.alphaBlend(colors['toolbar.hoverBackground'], surface);
-    // A see-through surface fades in as the hover's own color: a fade
-    // from another (a theme's #ff000000) would pass through it.
-    final idle = surface.a == 0 ? hover.withValues(alpha: 0) : surface;
+    final card = AppColors.code;
+    final hover = Color.alphaBlend(AppColors.bubbleHover, card);
     return IdeHover(
       message: ChatKeys.titleWithKey(
         context.l10n.sidebarNewAgent,
@@ -2518,9 +2514,9 @@ class _NewAgentButton extends StatelessWidget {
             height: 30,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              color: hovered ? hover : idle,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: AppColors.partBorder),
+              color: hovered ? hover : card,
+              borderRadius: BorderRadius.circular(Islands.controlRadius),
+              border: Border.all(color: Islands.border),
             ),
             child: Row(
               children: [
