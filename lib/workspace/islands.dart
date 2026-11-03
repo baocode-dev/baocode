@@ -168,6 +168,7 @@ class _IslandTabbedCardState extends State<IslandTabbedCard> {
   @override
   Widget build(BuildContext context) => IslandCorner(
     square: _square,
+    card: context,
     child: Stack(
       fit: StackFit.expand,
       children: [
@@ -203,12 +204,24 @@ class _IslandTabbedCardState extends State<IslandTabbedCard> {
 /// side going straight down into the card's (see [IslandTab.atStart]).
 /// That tab says so ([IslandCornerClaim]); the card listens.
 class IslandCorner extends InheritedWidget {
-  const IslandCorner({super.key, required this.square, required super.child});
+  const IslandCorner({
+    super.key,
+    required this.square,
+    required this.card,
+    required super.child,
+  });
 
   final ValueNotifier<bool> square;
 
+  /// What the card's left edge is the left of: where a tab is told from.
+  final BuildContext card;
+
   static ValueNotifier<bool>? of(BuildContext context) =>
       context.getInheritedWidgetOfExactType<IslandCorner>()?.square;
+
+  /// [card] of the [IslandCorner] over [context].
+  static BuildContext? cardOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<IslandCorner>()?.card;
 
   @override
   bool updateShouldNotify(IslandCorner old) => old.square != square;
@@ -306,7 +319,9 @@ class IslandTab extends StatefulWidget {
   final bool active;
 
   /// Flush with the card's left edge: in front, its left side goes straight
-  /// down into the card's, no foot flaring out there.
+  /// down into the card's, no foot flaring out there. Scrolled near the
+  /// card's corner (or under the strip's edge there), the corner is square
+  /// under it too, its foot not hanging past the rounding.
   final bool atStart;
   final Color color;
   final VoidCallback onTap;
@@ -339,9 +354,69 @@ class IslandTab extends StatefulWidget {
 class _IslandTabState extends State<IslandTab> {
   bool _hovered = false;
 
+  /// Whether, in front, its foot is over the card's top left corner's
+  /// rounding: scrolled there.
+  bool _inCorner = false;
+  ScrollPosition? _scrolled;
+
   @override
-  Widget build(BuildContext context) =>
-      IslandCornerClaim(claim: widget.atStart && widget.active, child: _tab());
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final position = Scrollable.maybeOf(
+      context,
+      axis: Axis.horizontal,
+    )?.position;
+    if (!identical(position, _scrolled)) {
+      _scrolled?.removeListener(_place);
+      _scrolled = position?..addListener(_place);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrolled?.removeListener(_place);
+    super.dispose();
+  }
+
+  void _place() {
+    if (!mounted) return;
+    final inCorner = widget.active && _intoCorner();
+    if (inCorner != _inCorner) setState(() => _inCorner = inCorner);
+  }
+
+  /// Whether what shows of it has its foot ([IslandTab.flare]) over the
+  /// card's corner's rounding: under the strip's edge there, or scrolled
+  /// near it.
+  bool _intoCorner() {
+    final card = IslandCorner.cardOf(context)?.findRenderObject();
+    final tab = context.findRenderObject();
+    if (card is! RenderBox || tab is! RenderBox) return false;
+    if (!card.attached || !tab.attached || !tab.hasSize) return false;
+    var left = tab.localToGlobal(Offset.zero, ancestor: card).dx;
+    final right = left + tab.size.width;
+    final view = Scrollable.maybeOf(
+      context,
+      axis: Axis.horizontal,
+    )?.context.findRenderObject();
+    if (view is RenderBox && view.attached) {
+      final viewLeft = view.localToGlobal(Offset.zero, ancestor: card).dx;
+      if (right <= viewLeft) return false;
+      left = math.max(left, viewLeft);
+    }
+    return left - IslandTab.flare < Islands.radius - 0.5;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Where it is once laid out, as it comes in front or moves.
+    if (widget.active || _inCorner) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _place());
+    }
+    return IslandCornerClaim(
+      claim: widget.active && (widget.atStart || _inCorner),
+      child: _tab(),
+    );
+  }
 
   Widget _tab() => Align(
     alignment: Alignment.bottomCenter,
@@ -610,6 +685,7 @@ class _HeadedIslandState extends State<HeadedIsland> {
   @override
   Widget build(BuildContext context) => IslandCorner(
     square: _square,
+    card: context,
     child: IslandSurface(
       color: widget.color,
       footer: widget.footer,
