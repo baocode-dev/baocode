@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:baocode/ide/ide_color_theme_picker.dart';
 import 'package:baocode/ide/ide_quick_input.dart';
+import 'package:baocode/main.dart';
 import 'package:baocode/platform/data_dir.dart';
 import 'package:baocode/settings/jsonc_file.dart';
 import 'package:baocode/settings/user_settings.dart';
@@ -10,6 +11,7 @@ import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -57,6 +59,52 @@ void main() {
     expect(workspace.colorThemeSetting, 'Bao Dark');
     expect(workspace.autoDetectColorScheme, isFalse);
   });
+
+  testWidgets('应用接收真实平台亮度事件，卸载后取消监听', (tester) async {
+    final previous = WorkbenchThemeService.instance;
+    final themes = WorkbenchThemeService();
+    WorkbenchThemeService.instance = themes;
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      WorkbenchThemeService.instance = previous;
+      themes.dispose();
+      tester.binding.platformDispatcher.clearPlatformBrightnessTestValue();
+    });
+    tester.binding.platformDispatcher.platformBrightnessTestValue =
+        Brightness.light;
+    themes.restore(
+      setting: 'Kimbie Dark',
+      autoDetectColorScheme: true,
+      brightness: Brightness.light,
+    );
+    await tester.runAsync(themes.initialize);
+    await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
+    await tester.pumpAndSettle();
+    expect(themes.colorTheme.settingsId, 'Bao Light');
+    // 平台事件及完成屏障在同一真实异步区发送，避免假时钟队列阻塞。
+    await tester.runAsync(() async {
+      tester.binding.platformDispatcher.platformBrightnessTestValue =
+          Brightness.dark;
+      await themes.initialize();
+    });
+    await tester.pumpAndSettle();
+    expect(themes.colorTheme.settingsId, 'Bao Dark');
+    expect(themes.colorThemeSetting, 'Kimbie Dark');
+    await tester.runAsync(() async {
+      tester.binding.platformDispatcher.platformBrightnessTestValue =
+          Brightness.light;
+      await themes.initialize();
+    });
+    await tester.pumpAndSettle();
+    expect(themes.colorTheme.settingsId, 'Bao Light');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.runAsync(() async {
+      tester.binding.platformDispatcher.platformBrightnessTestValue =
+          Brightness.dark;
+      await themes.initialize();
+    });
+    expect(themes.colorTheme.settingsId, 'Bao Light');
+  }, timeout: const Timeout(Duration(seconds: 30)));
 
   test('默认及固定主题不随系统变化', () async {
     final themes = WorkbenchThemeService()..restore();

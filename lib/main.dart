@@ -119,6 +119,7 @@ import 'theme/pixel_snapped_text_scaler.dart';
 import 'theme/ui_zoom.dart';
 import 'theme/window_blur.dart';
 import 'theme/workbench_theme.dart';
+import 'theme/theme_transition.dart';
 import 'update/update_controller.dart';
 import 'update/update_platform.dart';
 import 'update/update_service.dart';
@@ -377,6 +378,7 @@ Future<void> main(List<String> arguments) async {
     ..restore(
       setting: colorTheme.colorThemeSetting,
       data: colorTheme.colorThemeData,
+      autoDetectColorScheme: colorTheme.autoDetectColorScheme,
     )
     ..storage = colorTheme
     // A theme of an extension applies once they are read.
@@ -803,7 +805,8 @@ class BaoCodeApp extends StatefulWidget {
   State<BaoCodeApp> createState() => _BaoCodeAppState();
 }
 
-class _BaoCodeAppState extends State<BaoCodeApp> {
+class _BaoCodeAppState extends State<BaoCodeApp>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final Workspace _workspace =
       widget.workspace ??
       (Workspace(preferences: PreferenceStore.file())..load());
@@ -869,12 +872,43 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
   );
 
   final WorkbenchThemeService _themes = WorkbenchThemeService.instance;
+  late final _themeTransition = ColorThemeTransition(vsync: this);
   bool? _darkAppearance;
+
+  void _transitionTheme(WorkbenchColors colors, VoidCallback apply) {
+    _themeTransition.change(
+      from: AppColors.windowCanvas,
+      to: AppColors.usesSystemMaterial
+          ? Colors.transparent
+          : colors['sideBar.background'],
+      apply: apply,
+      animate:
+          !identical(colors.theme, _themes.colorTheme) &&
+          !WidgetsBinding
+              .instance
+              .platformDispatcher
+              .accessibilityFeatures
+              .disableAnimations,
+    );
+  }
+
+  @override
+  void didChangeAccessibilityFeatures() {
+    if (WidgetsBinding
+        .instance
+        .platformDispatcher
+        .accessibilityFeatures
+        .disableAnimations) {
+      _themeTransition.finish();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _lifecycle;
+    WidgetsBinding.instance.addObserver(this);
+    _themes.transition = _transitionTheme;
     _themes.addListener(_colorThemeChanged);
     _colorThemeChanged();
     _locale.addListener(_windows.relabel);
@@ -882,6 +916,19 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     // The IDE's windows of the last run, once the main one is drawn.
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => unawaited(_windows.restore()),
+    );
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    unawaited(
+      _themes
+          .setPlatformBrightness(
+            WidgetsBinding.instance.platformDispatcher.platformBrightness,
+          )
+          .catchError((Object error) {
+            debugPrint('System color theme not applied: $error');
+          }),
     );
   }
 
@@ -908,6 +955,9 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _themes.transition = null;
+    _themeTransition.dispose();
     _themes.removeListener(_colorThemeChanged);
     _locale.removeListener(_windows.relabel);
     _settings.files?.settings.removeListener(_windows.settingsChanged);
@@ -965,6 +1015,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     title: 'BaoCode',
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
+    themeAnimationDuration: Duration.zero,
     scrollBehavior: const BaoScrollBehavior(),
     builder: (context, child) => ValueListenableBuilder<int>(
       valueListenable: CodeFont.uiScale,
@@ -995,7 +1046,10 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
           ),
         );
       },
-      child: child,
+      child: _themeTransition.wrap(
+        child ?? const SizedBox.shrink(),
+        canvas: AppColors.windowCanvas,
+      ),
     ),
     locale: _locale.locale,
     supportedLocales: AppLocale.supportedLocales,
