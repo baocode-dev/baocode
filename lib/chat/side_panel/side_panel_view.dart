@@ -1686,14 +1686,14 @@ class _SectionTab extends StatelessWidget {
   final int count;
   final VoidCallback onTap;
 
-  static const padding = 14.0;
-  static const iconSize = 14.0;
-  static const gap = 7.0;
+  static const padding = 12.0;
+  static const iconSize = 13.0;
+  static const gap = 6.0;
 
   /// Between two tabs: room for the one in front's foot, and the line
   /// between two behind it.
   static const spacing = 2.0;
-  static const labelStyle = TextStyle(fontSize: 13);
+  static const labelStyle = TextStyle(fontSize: 12);
 
   @override
   Widget build(BuildContext context) {
