@@ -111,6 +111,10 @@ class MarkdownEditor extends StatefulWidget {
   /// How its lines' text is aligned (a table's cell's, as its column).
   final TextAlign textAlign;
 
+  /// Told when an editor with the keyboard found itself cut off from the
+  /// platform's input and attached again: the app writes it down.
+  static void Function(String message)? onInputLost;
+
   @override
   State<MarkdownEditor> createState() => MarkdownEditorState();
 }
@@ -1141,6 +1145,7 @@ class MarkdownEditorState extends State<MarkdownEditor>
 
   void _tapDown(TapDragDownDetails details) {
     if (!_focus.hasPrimaryFocus) _focus.requestFocus();
+    _ensureInput('a click');
     final counted = details.consecutiveTapCount;
     final last = _tapAt;
     _tapAt = details.globalPosition;
@@ -1378,6 +1383,19 @@ class MarkdownEditorState extends State<MarkdownEditor>
       ..show()
       ..setEditingState(_remote);
     _imeGeometrySoon();
+  }
+
+  /// Attaches again where the editor has the keyboard but not the
+  /// platform's input: typed letters (an input method's too) would go
+  /// nowhere, and a click, focus not changing, would not bring it back.
+  void _ensureInput(String by) {
+    if (widget.readOnly || !_focus.hasPrimaryFocus || _hasInput) return;
+    MarkdownEditor.onInputLost?.call(
+      '${_connection == null ? 'closed' : 'taken by another client'}; '
+      'attached again on $by',
+    );
+    _connection = null;
+    _openInput();
   }
 
   void _closeInput() {
@@ -1784,6 +1802,7 @@ class MarkdownEditorState extends State<MarkdownEditor>
   KeyEventResult _key(FocusNode node, KeyEvent event) {
     // Not one for a widget in it with the keyboard (a table's cell).
     if (!_focus.hasPrimaryFocus) return KeyEventResult.ignored;
+    if (event is KeyDownEvent) _ensureInput('a key');
     final own = widget.onKey?.call(event);
     if (own != null && own != KeyEventResult.ignored) return own;
     if (event is KeyUpEvent || widget.readOnly || controller.isComposing) {
@@ -2423,6 +2442,7 @@ class MarkdownEditorState extends State<MarkdownEditor>
                 () => _TouchTap(_allows),
                 (recognizer) => recognizer.onTapUp = (details) {
                   if (!_focus.hasPrimaryFocus) _focus.requestFocus();
+                  _ensureInput('a tap');
                   final at = offsetAt(details.globalPosition);
                   if (at == null || (widget.onClick?.call(at) ?? false)) {
                     return;

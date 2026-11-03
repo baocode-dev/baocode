@@ -489,6 +489,50 @@ void main() {
     expect(configuration['viewId'], tester.view.viewId);
   });
 
+  testWidgets('cut off from the input with the keyboard still its, a click '
+      'attaches it again', (tester) async {
+    final lost = <String>[];
+    MarkdownEditor.onInputLost = lost.add;
+    addTearDown(() => MarkdownEditor.onInputLost = null);
+    final controller = MarkdownController(text: 'ab');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    await tester.pump();
+    // Another client takes the input, the editor keeping the keyboard.
+    final other = TextInput.attach(_Client(), const TextInputConfiguration());
+    other.close();
+    await tester.pump();
+    expect(state.hasFocus, isTrue);
+    await tester.tapAt(
+      state.caretRect(2)!.center,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    expect(lost, ['taken by another client; attached again on a click']);
+    await _type(tester, 'c');
+    expect(controller.text, 'abc');
+  });
+
+  testWidgets('its input closed by the platform, a key attaches it again', (
+    tester,
+  ) async {
+    final lost = <String>[];
+    MarkdownEditor.onInputLost = lost.add;
+    addTearDown(() => MarkdownEditor.onInputLost = null);
+    final controller = MarkdownController(text: 'ab');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    controller.selection = const TextSelection.collapsed(offset: 2);
+    await tester.pump();
+    tester.testTextInput.closeConnection();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.pump();
+    expect(lost, ['closed; attached again on a key']);
+    await _type(tester, 'c');
+    expect(controller.text, 'abc');
+  });
+
   testWidgets('what Windows composes is not told back to it as it composes', (
     tester,
   ) async {
@@ -847,4 +891,31 @@ class _GrowingImage extends MarkdownEmbeds {
       builder: (context, height, _) => SizedBox(width: 50, height: height),
     ),
   );
+}
+
+/// A text input client that does nothing: another field taking the input.
+class _Client with TextInputClient {
+  @override
+  TextEditingValue? get currentTextEditingValue => TextEditingValue.empty;
+
+  @override
+  AutofillScope? get currentAutofillScope => null;
+
+  @override
+  void updateEditingValue(TextEditingValue value) {}
+
+  @override
+  void performAction(TextInputAction action) {}
+
+  @override
+  void performPrivateCommand(String action, Map<String, dynamic> data) {}
+
+  @override
+  void updateFloatingCursor(RawFloatingCursorPoint point) {}
+
+  @override
+  void showAutocorrectionPromptRect(int start, int end) {}
+
+  @override
+  void connectionClosed() {}
 }

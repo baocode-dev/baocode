@@ -8,7 +8,8 @@ import 'package:flutter/services.dart' show ServicesBinding;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:path/path.dart' as p;
 import 'package:bao_editor/textmate/textmate_syntax.dart';
-import 'package:bao_markdown/bao_markdown.dart' show MdClipboard;
+import 'package:bao_markdown/bao_markdown.dart'
+    show MarkdownEditor, MdClipboard;
 
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
@@ -171,6 +172,7 @@ Future<void> main(List<String> arguments) async {
   if (!kIsWeb) {
     AppEventWatch.start();
     FrameWatch.start();
+    MarkdownEditor.onInputLost = (message) => appEvent('input', message);
   }
   // The Windows app's own logs and the macOS app's hang reports go beside
   // them.
