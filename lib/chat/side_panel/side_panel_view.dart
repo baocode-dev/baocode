@@ -87,7 +87,7 @@ class AgentSidePanelArea extends StatefulWidget {
     required this.panel,
     required this.builder,
     this.rail,
-    this.railTop = AppMetrics.titleBarHeight + 4,
+    this.railTop = AppMetrics.titleBarHeight + railRight,
     this.hidden = false,
     this.conversation,
     this.bottom = 0,
@@ -132,9 +132,9 @@ class AgentSidePanelArea extends StatefulWidget {
   /// longer than the window's sidebar takes to give way.
   static const overlayDelay = Duration(milliseconds: 260);
 
-  /// How far in from the right [rail] is: clear of the history's
-  /// scrollbar.
-  static const railRight = 16.0;
+  /// How far in from the right [rail] is, and from the conversation's
+  /// card's top: its content's inset, clear of the history's scrollbar.
+  static const railRight = Islands.inset;
 
   /// How far in from the right the conversations' column keeps while [rail]
   /// shows: clear of it, by a gap.
@@ -1957,9 +1957,9 @@ class _TabStripState extends State<_TabStrip> {
         final leading? => Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(width: 6),
+            // The strip's inset before it, as after.
             Center(child: leading),
-            const SizedBox(width: 4),
+            const SizedBox(width: IdeTabStrip.flatInset),
             Expanded(child: tabs),
           ],
         ),

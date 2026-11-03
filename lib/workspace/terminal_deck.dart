@@ -303,7 +303,6 @@ class _TerminalDeckState extends State<TerminalDeck> {
             const SizedBox(width: 2),
             trailing,
           ],
-          const SizedBox(width: 6),
         ],
       ),
     );

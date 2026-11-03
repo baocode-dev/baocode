@@ -2429,13 +2429,14 @@ void main() {
       expect(composer.right, lessThan(rail.left));
       // Room enough: the column in the middle, as without the rail.
       expect(composer.center.dx, closeTo(chat.center.dx, 0.5));
-      // Just under the conversation's title bar; at the top under
-      // Windows' header.
+      // As far under the conversation's title bar as in from its right;
+      // at the top under Windows' header.
       expect(
         rail.top - chat.top,
-        defaultTargetPlatform == TargetPlatform.windows
-            ? 12
-            : AppMetrics.titleBarHeight + 4,
+        (defaultTargetPlatform == TargetPlatform.windows
+                ? 0
+                : AppMetrics.titleBarHeight) +
+            AgentSidePanelArea.railRight,
       );
 
       // A narrow window has no room to spare: no rail.

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../ide_hover.dart';
+import '../../workspace/islands.dart';
 import '../ide_list.dart';
 
 class IdeGitListTreeSwitch extends StatelessWidget {
@@ -83,12 +84,11 @@ class _SegmentState extends State<_Segment> {
           height: 24,
           padding: EdgeInsets.symmetric(horizontal: widget.showLabel ? 8 : 5),
           decoration: BoxDecoration(
-            color: widget.selected
-                ? IdeListColors.inactiveSelection
-                : _hover
-                ? IdeActionButton.hoverBackground
-                : null,
-            borderRadius: BorderRadius.circular(4),
+            color: Islands.segmentFill(
+              selected: widget.selected,
+              hovered: _hover,
+            ),
+            borderRadius: BorderRadius.circular(Islands.controlRadius),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

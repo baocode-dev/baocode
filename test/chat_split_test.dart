@@ -800,7 +800,10 @@ void main() {
         final paneRect = tester.getRect(pane(title));
         final rail = railOf(title);
         expect(rail.right, paneRect.right - AgentSidePanelArea.railRight);
-        expect(rail.top - paneRect.top, AppMetrics.titleBarHeight + 4);
+        expect(
+          rail.top - paneRect.top,
+          AppMetrics.titleBarHeight + AgentSidePanelArea.railRight,
+        );
         final close = tester.getRect(
           find.descendant(
             of: pane(title),

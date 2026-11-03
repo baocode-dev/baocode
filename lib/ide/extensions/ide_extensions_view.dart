@@ -133,14 +133,9 @@ class IdeExtensionsView extends StatefulWidget {
     this.onInstalled,
     this.onError,
     this.background,
-    this.titleTab = false,
   });
 
   final IdeExtensionsSession session;
-
-  /// Its title a tab over its card (see [IdeViewTitle.tab]): the side
-  /// bar's header, not under tabs of its own.
-  final bool titleTab;
 
   /// What it is on; the side bar's by default.
   final Color? background;
@@ -276,7 +271,6 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
         children: [
           IdeViewTitle(
             title,
-            tab: widget.titleTab,
             actions: [
               IdeMenuButton(
                 icon: Codicons.filter,

@@ -46,7 +46,6 @@ extension _ExtensionsPart on IdeWorkbenchState {
         onInstalled: _startServer,
         onError: _report,
         background: background,
-        titleTab: themes == null,
       ),
     };
     if (themes == null) return body;
