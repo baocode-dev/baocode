@@ -128,7 +128,6 @@ import 'project_tools.dart';
 import 'save_copy.dart';
 import 'search/ide_search_view.dart';
 import 'search/text_search.dart';
-import 'tab_strip_scroll.dart';
 import 'terminal/links/terminal_links.dart';
 import 'terminal/terminal_instance.dart';
 import 'terminal/terminal_panel.dart';
