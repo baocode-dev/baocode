@@ -57,11 +57,17 @@ class IdeColorThemeEntry {
 
 /// What the picker needs from the theme service (upstream IWorkbenchThemeService).
 abstract interface class IdeColorThemeController {
+  /// 跟随系统的选择 ID；不是主题资产，不加入 [colorThemes]。
+  static const autoId = '__auto__';
+
   List<IdeColorThemeEntry> get colorThemes;
   String get colorThemeId;
 
-  /// `setColorTheme(id, 'preview')` when [preview], else applied and persisted.
+  /// [preview] 为 true 时仅预览 [id]，否则应用并保存选择。
   Future<void> setColorTheme(String id, {bool preview = false});
+
+  /// 恢复已提交偏好；Auto 使用恢复时最新的系统亮度，不写入设置。
+  Future<void> restoreColorThemePreview();
 }
 
 /// The Preferences: Color Theme command.

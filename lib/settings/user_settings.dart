@@ -251,7 +251,21 @@ class ColorThemeSettings implements ColorThemeStorage {
     final id = migrateThemeSettingsId(
       colorThemeSetting ?? ThemeSettingDefaults.colorThemeDark,
     );
-    if (id != themes.colorThemeId) unawaited(themes.setColorTheme(id));
+    final automatic = autoDetectColorScheme;
+    if (_writing == (setting: id, automatic: automatic)) return;
+    if (id != themes.colorThemeSetting ||
+        automatic != themes.autoDetectColorScheme) {
+      unawaited(
+        themes
+            .applyColorThemeSettings(
+              setting: id,
+              autoDetectColorScheme: automatic,
+            )
+            .catchError((Object error) {
+              debugPrint('Color theme setting not applied: $error');
+            }),
+      );
+    }
   }
 
   void dispose() {

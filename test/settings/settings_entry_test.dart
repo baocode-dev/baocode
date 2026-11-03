@@ -440,8 +440,11 @@ void main() {
 class _FakeThemes extends ChangeNotifier implements IdeColorThemeController {
   final List<(String, bool)> applied = [];
 
+  String _committedId = 'Dark 2026';
+  String? _previewId;
+
   @override
-  String colorThemeId = 'Dark 2026';
+  String get colorThemeId => _previewId ?? _committedId;
 
   @override
   List<IdeColorThemeEntry> get colorThemes => const [
@@ -475,7 +478,18 @@ class _FakeThemes extends ChangeNotifier implements IdeColorThemeController {
   @override
   Future<void> setColorTheme(String id, {bool preview = false}) async {
     applied.add((id, preview));
-    colorThemeId = id;
+    if (preview) {
+      _previewId = id;
+    } else {
+      _committedId = id;
+      _previewId = null;
+    }
+    notifyListeners();
+  }
+
+  @override
+  Future<void> restoreColorThemePreview() async {
+    _previewId = null;
     notifyListeners();
   }
 }

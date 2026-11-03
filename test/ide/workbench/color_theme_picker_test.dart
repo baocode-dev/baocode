@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide ColorScheme;
 import 'package:flutter/services.dart';
@@ -72,23 +74,37 @@ const _themes = [
 
 /// A theme service that records `preview <id>` and `apply <id>` calls.
 class _FakeColorThemes implements IdeColorThemeController {
-  _FakeColorThemes([
-    this.colorThemeId = 'Dark Modern',
-    this.colorThemes = _themes,
-  ]);
+  _FakeColorThemes([String id = 'Dark Modern', this.colorThemes = _themes])
+    : _committedId = id;
 
   @override
   final List<IdeColorThemeEntry> colorThemes;
 
+  String _committedId;
+  String? _previewId;
+
   @override
-  String colorThemeId;
+  String get colorThemeId => _previewId ?? _committedId;
 
   final List<String> calls = [];
+  final pending = <String, Completer<void>>{};
 
   @override
   Future<void> setColorTheme(String id, {bool preview = false}) async {
     calls.add('${preview ? 'preview' : 'apply'} $id');
-    colorThemeId = id;
+    if (pending[id] case final completion?) await completion.future;
+    if (preview) {
+      _previewId = id;
+    } else {
+      _committedId = id;
+      _previewId = null;
+    }
+  }
+
+  @override
+  Future<void> restoreColorThemePreview() async {
+    calls.add('restore $_committedId');
+    _previewId = null;
   }
 }
 
