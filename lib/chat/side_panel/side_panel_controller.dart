@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 
-import '../../browser/browser_bridge.dart';
 import '../../ide/file_service.dart';
 import '../../ide/git/git_branch_tree.dart' show IdeGitFavoriteBranches;
 import '../../ide/git/git_repository.dart';
@@ -65,10 +64,9 @@ class SidePanelTab {
 /// The side panel's pages, each a list at the left and the tabs it opened
 /// at the right: the project's files, the agent's changes, its background
 /// commands; and the plan the agent wrote, alone, while there is one.
-/// The browser's page is there once a browser of the user's has connected
-/// (see lib/browser/browser_bridge.dart). The usage page: what the
-/// conversation took of its upstream (see lib/usage/).
-enum SidePanelSection { files, changes, terminal, usage, browser, plan }
+/// The usage page: what the conversation took of its upstream (see
+/// lib/usage/).
+enum SidePanelSection { files, changes, terminal, usage, plan }
 
 /// The pages there whether or not there is anything on them: not the
 /// plan's, there only once the agent wrote one.
@@ -90,8 +88,6 @@ class SidePanelTabs {
   /// without a plan.
   SidePanelSection get shown => switch (section) {
     SidePanelSection.plan when plan == null => SidePanelSection.changes,
-    SidePanelSection.browser when !BrowserBridge.instance.used =>
-      SidePanelSection.changes,
     _ => section,
   };
 
@@ -115,9 +111,7 @@ class SidePanelTabs {
   SidePanelTab? get current => switch (section) {
     SidePanelSection.files => active,
     SidePanelSection.changes => activeDiff,
-    SidePanelSection.terminal ||
-    SidePanelSection.usage ||
-    SidePanelSection.browser => null,
+    SidePanelSection.terminal || SidePanelSection.usage => null,
     SidePanelSection.plan => plan,
   };
 }
@@ -749,9 +743,7 @@ class AgentSidePanel extends ChangeNotifier {
           SidePanelSection.plan:
         if (tabs.current case final tab?) return close(conversation, tab);
       // Its tabs are the terminals themselves, killed by their own Close.
-      case SidePanelSection.terminal ||
-          SidePanelSection.usage ||
-          SidePanelSection.browser:
+      case SidePanelSection.terminal || SidePanelSection.usage:
         break;
     }
     hide();

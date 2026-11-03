@@ -8,7 +8,6 @@ import 'package:path/path.dart' as p;
 
 import '../../base/shown_when_ready.dart';
 import '../../browser/browser_bridge.dart';
-import '../../browser/browser_mirror.dart';
 import '../../ide/file_service.dart';
 import '../../ide/git/git_model.dart';
 import '../../ide/git/commit_message.dart';
@@ -597,9 +596,6 @@ class AgentSidePanelView extends StatelessWidget {
           SidePanelSection.usage => ConversationUsageView(
             key: ValueKey(('page', SidePanelSection.usage, session)),
             session: session,
-          ),
-          SidePanelSection.browser => const BrowserMirror(
-            key: ValueKey(('page', SidePanelSection.browser)),
           ),
           SidePanelSection.plan => _planPage(context, tabs.plan!),
         },
@@ -1351,7 +1347,6 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.changes => Codicons.sourceControl,
     SidePanelSection.terminal => Codicons.terminal,
     SidePanelSection.usage => SvgIcons.usage,
-    SidePanelSection.browser => Codicons.globe,
     SidePanelSection.plan => Codicons.checklist,
   };
 
@@ -1361,7 +1356,7 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.changes => ChatCommandIds.sidePanelChanges,
     SidePanelSection.terminal => ChatCommandIds.sidePanelTerminal,
     SidePanelSection.usage => ChatCommandIds.sidePanelUsage,
-    SidePanelSection.browser || SidePanelSection.plan => null,
+    SidePanelSection.plan => null,
   };
 
   String label(BuildContext context) => switch (this) {
@@ -1369,7 +1364,6 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.changes => context.l10n.sidePanelChanges,
     SidePanelSection.terminal => context.l10n.sidePanelTerminal,
     SidePanelSection.usage => context.l10n.sidePanelUsage,
-    SidePanelSection.browser => context.l10n.sidePanelBrowser,
     SidePanelSection.plan => context.l10n.sidePanelPlan,
   };
 }
@@ -1416,7 +1410,6 @@ class SidePanelRail extends StatelessWidget {
           0,
     SidePanelSection.files ||
     SidePanelSection.usage ||
-    SidePanelSection.browser ||
     SidePanelSection.plan => 0,
   };
 
@@ -1517,14 +1510,12 @@ class _SectionBar extends StatelessWidget {
   static const _actionsWidth = 2 * 22.0 + 2 + 6;
 
   /// The pages there: the usage's once a call of the conversation is kept,
-  /// the browser's once one of the user's has connected, the plan's once
-  /// there is one.
+  /// the plan's once there is one.
   List<SidePanelSection> get _sections => [
     for (final section in alwaysShownSections)
       if (section != SidePanelSection.usage ||
           _usageOffered(session, picked: tabs.section))
         section,
-    if (BrowserBridge.instance.used) SidePanelSection.browser,
     if (tabs.plan != null) SidePanelSection.plan,
   ];
 
@@ -1622,7 +1613,6 @@ class _SectionBar extends StatelessWidget {
                   count: switch (section) {
                     SidePanelSection.files ||
                     SidePanelSection.usage ||
-                    SidePanelSection.browser ||
                     SidePanelSection.plan => 0,
                     SidePanelSection.changes => changes,
                     SidePanelSection.terminal => running,

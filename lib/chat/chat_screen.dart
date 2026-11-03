@@ -1034,7 +1034,6 @@ class _ChatScreenState extends State<ChatScreen>
             sizeOf: links.sizeOf,
             inPanel: links.inPanel,
             onOpenInIde: links.openInIde,
-            onShowBrowserTab: links.showBrowserTab,
             onOpenFolder: links.openFolder,
             roots: links.roots?.call() ?? const [],
             seen: _session.filesSeen,

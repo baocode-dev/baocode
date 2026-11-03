@@ -108,7 +108,6 @@ class FileLinkTarget {
     this.roots,
     this.inPanel = false,
     this.openInIde,
-    this.showBrowserTab,
     this.openFolder,
   });
 
@@ -117,10 +116,6 @@ class FileLinkTarget {
   /// Shows a folder the chat names (absolute, on the project's host) in
   /// the side panel's tree; none where there is no such tree.
   final ValueChanged<String>? openFolder;
-
-  /// Shows a tab of the user's browser (its id, as the agents' tools have
-  /// it) beside the conversation: on the side panel's browser page.
-  final ValueChanged<int>? showBrowserTab;
 
   /// Whether [open] shows them in the side panel (the agent window's).
   final bool inPanel;
@@ -244,16 +239,12 @@ class FileOpenScope extends InheritedWidget {
     this.sizeOf,
     this.inPanel = false,
     this.onOpenInIde,
-    this.onShowBrowserTab,
     this.onOpenFolder,
     required super.child,
   });
 
   /// See [FileLinkTarget.openFolder].
   final ValueChanged<String>? onOpenFolder;
-
-  /// See [FileLinkTarget.showBrowserTab].
-  final ValueChanged<int>? onShowBrowserTab;
 
   /// See [FileLinkTarget.inPanel].
   final bool inPanel;
