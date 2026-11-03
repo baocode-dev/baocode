@@ -375,6 +375,7 @@ class DiffSides {
     for (final line in lines) {
       switch (line.type) {
         case DiffLineType.context:
+          _context++;
           // After a gap (the next hunk), the lines between moved both
           // sides alike.
           final old = newNext == null || oldNext == null
@@ -408,23 +409,21 @@ class DiffSides {
   /// A new file's: nothing on the old side.
   bool get created => originalNumbers.isEmpty;
 
+  int _context = 0;
+
   int originalNumberOf(int line) =>
       originalNumbers.elementAtOrNull(line - 1) ?? line;
   int modifiedNumberOf(int line) =>
       modifiedNumbers.elementAtOrNull(line - 1) ?? line;
 
-  /// How many lines tall the diff is: the longer side's, side by side; a
-  /// new file's alone.
-  int get rows => created
-      ? modifiedNumbers.length
-      : (originalNumbers.length > modifiedNumbers.length
-            ? originalNumbers.length
-            : modifiedNumbers.length);
+  /// How many lines tall the diff is, inline: its context lines once, its
+  /// removed and added lines each.
+  int get rows => originalNumbers.length + modifiedNumbers.length - _context;
 }
 
-/// The diff as the IDE's diff editor shows it ([IdeCodeDiff]), side by
-/// side (a new file alone), its lines numbered as in the file, as tall as
-/// they are: the card scrolls it.
+/// The diff as the IDE's diff editor shows it ([IdeCodeDiff]), inline
+/// (the removed lines over the added), its lines numbered as in the file,
+/// as tall as they are: the card scrolls it.
 class _Diff extends StatefulWidget {
   const _Diff(this.item, {required this.horizontal});
 
@@ -461,7 +460,7 @@ class _DiffState extends State<_Diff> {
           original: sides.original,
           modified: sides.modified,
           syntax: CodeCitationScope.maybeOf(context)?.syntax?.call(),
-          sideBySide: !sides.created,
+          sideBySide: false,
           originalLineNumberOf: sides.originalNumberOf,
           modifiedLineNumberOf: sides.modifiedNumberOf,
           embedded: true,

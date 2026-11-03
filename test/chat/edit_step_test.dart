@@ -26,7 +26,8 @@ void main() {
     expect(sides.originalNumberOf(4), 200);
     expect(sides.modifiedNumberOf(2), 143);
     expect(sides.created, isFalse);
-    expect(sides.rows, 6);
+    // Inline: the context once, the removed and added lines each.
+    expect(sides.rows, 8);
   });
 
   test('a new file has nothing on the old side', () {
@@ -40,7 +41,7 @@ void main() {
     expect(sides.rows, 2);
   });
 
-  testWidgets('the card shows the diff side by side, as tall as its lines', (
+  testWidgets('the card shows the diff inline, as tall as its lines', (
     tester,
   ) async {
     const item = CodeDiffItem(
@@ -59,7 +60,7 @@ void main() {
     );
     await tester.pump();
     final diff = tester.widget<IdeCodeDiff>(find.byType(IdeCodeDiff));
-    expect(diff.sideBySide, isTrue);
+    expect(diff.sideBySide, isFalse);
     expect(diff.embedded, isTrue);
     expect(diff.original, 'final a = 1;\nfinal b = 2;');
     expect(diff.modified, 'final a = 1;\nfinal b = 3;');
@@ -67,7 +68,7 @@ void main() {
     final context = tester.element(find.byType(IdeCodeDiff));
     expect(
       tester.getSize(find.byType(IdeCodeDiff)).height,
-      2 * IdeCodeDiff.lineHeight(context),
+      3 * IdeCodeDiff.lineHeight(context),
     );
   });
 
