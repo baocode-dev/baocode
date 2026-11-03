@@ -464,6 +464,7 @@ class _DiffState extends State<_Diff> {
           originalLineNumberOf: sides.originalNumberOf,
           modifiedLineNumberOf: sides.modifiedNumberOf,
           embedded: true,
+          bars: false,
           horizontal: widget.horizontal,
         ),
       ),
