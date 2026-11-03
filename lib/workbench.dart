@@ -4735,6 +4735,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             : (name) => _commandFileOf(thread, name),
         openEditor: openEditor ?? () => _sidePanelEditor(thread),
         onSideQuestion: (question) => _askBeside(thread, question),
+        onFork: (message) =>
+            unawaited(_forkFromComposer(thread, message, embedded: embedded)),
         asideAt: _asideCards(thread, embedded: embedded),
         back: switch (_workspace.parentOf(thread)) {
           final parent? => (
@@ -4774,6 +4776,29 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       return;
     }
     unawaited(_workspace.askBeside(thread, question));
+  }
+
+  /// `/fork` in [thread]: copied as the sidebar's Fork does and the copy
+  /// opened where [thread] shows (in the IDE's chat, as a tab of its own),
+  /// [message] sent there; a notice where [thread] cannot be copied.
+  Future<void> _forkFromComposer(
+    AgentThread thread,
+    ComposerMessage message, {
+    required bool embedded,
+  }) async {
+    if (thread.id == null || !thread.session.canFork) {
+      _notifications.notify(IdeSeverity.info, context.l10n.forkUnavailable);
+      return;
+    }
+    final forked = await _workspace.fork(thread, message: message);
+    if (forked == null || !mounted) return;
+    if (embedded) {
+      _openIdeChat(thread.project.path, forked);
+    } else if (_agentThread != null) {
+      _showInWindow(forked);
+    } else {
+      _workspace.select(forked);
+    }
   }
 
   /// Shows [thread], an aside or the one it was asked beside, in place of

@@ -1987,6 +1987,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get btwCommandDetail => '在旁边另开一个对话提问';
 
   @override
+  String get forkCommandDetail => 'Fork 当前对话并打开新对话';
+
+  @override
+  String get forkUnavailable => '此对话暂不能 Fork：要先发过消息，且所用的智能体支持 Fork。';
+
+  @override
   String get sidebarFoldAsides => '收起 /btw 子对话';
 
   @override

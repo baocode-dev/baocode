@@ -98,6 +98,7 @@ class ChatScreen extends StatefulWidget {
     this.commandFile,
     this.openEditor,
     this.onSideQuestion,
+    this.onFork,
     this.asideAt,
     this.back,
   });
@@ -215,6 +216,11 @@ class ChatScreen extends StatefulWidget {
   /// the message's images and mentions, is asked in a conversation of its
   /// own beside this one, from all of this one so far.
   final ValueChanged<ComposerMessage>? onSideQuestion;
+
+  /// Given, `/fork` sent here is not the agent's: the conversation is
+  /// copied into a new one, as the sidebar's Fork, and what follows the
+  /// command (empty for none) is sent there.
+  final ValueChanged<ComposerMessage>? onFork;
 
   /// What shows under the conversation's item of the id given: the
   /// conversations asked beside it from there (see [onSideQuestion]).
@@ -754,6 +760,7 @@ class _ChatScreenState extends State<ChatScreen>
     if (!identical(commands, _commandSource)) {
       _commandSource = commands;
       final aside = widget.onSideQuestion != null;
+      final fork = widget.onFork != null;
       _commands = [
         // Taken here, not by the agent: a conversation beside this one
         // (see [ChatScreen.onSideQuestion]), in place of the CLI's own.
@@ -764,8 +771,17 @@ class _ChatScreenState extends State<ChatScreen>
             detail: context.l10n.btwCommandDetail,
             icon: Codicons.commentDiscussion,
           ),
+        // And a copy of this one (see [ChatScreen.onFork]).
+        if (fork)
+          Suggestion(
+            kind: SuggestionKind.command,
+            label: _forkCommand,
+            detail: context.l10n.forkCommandDetail,
+            icon: Codicons.repoForked,
+          ),
         for (final command in commands)
-          if (!aside || command.name != _asideCommand)
+          if ((!aside || command.name != _asideCommand) &&
+              (!fork || command.name != _forkCommand))
             Suggestion(
               kind: SuggestionKind.command,
               label: command.name,
@@ -797,6 +813,28 @@ class _ChatScreenState extends State<ChatScreen>
     if (!question.isEmpty) handler(question);
     return true;
   }
+
+  static const _forkCommand = 'fork';
+
+  /// Takes `/fork …` for a copy of this conversation: true when it was one.
+  /// What follows, with the message's images and mentions, is sent there.
+  bool _interceptFork(ComposerMessage message) {
+    final handler = widget.onFork;
+    if (handler == null) return false;
+    final text = message.text.trimLeft();
+    if (!text.startsWith(RegExp('^/$_forkCommand(\\s|\$)'))) return false;
+    handler(
+      ComposerMessage(
+        text: text.substring(_forkCommand.length + 1).trim(),
+        mentions: message.mentions,
+        images: message.images,
+      ),
+    );
+    return true;
+  }
+
+  bool _intercept(ComposerMessage message) =>
+      _interceptSideQuestion(message) || _interceptFork(message);
 
   List<KernelCommand>? _commandSource;
   List<Suggestion> _commands = const [];
@@ -1319,9 +1357,9 @@ class _ChatScreenState extends State<ChatScreen>
           },
           contextPanelOpen: _contextPanelOpen,
           onToggleContextPanel: _toggleContextPanel,
-          onIntercept: widget.onSideQuestion == null
+          onIntercept: widget.onSideQuestion == null && widget.onFork == null
               ? null
-              : _interceptSideQuestion,
+              : _intercept,
         ),
         ?widget.below,
       ],

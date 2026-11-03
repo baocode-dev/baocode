@@ -3716,6 +3716,18 @@ abstract class AppLocalizations {
   /// **'Ask in a conversation of its own, beside this one'**
   String get btwCommandDetail;
 
+  /// The /fork command in the composer's command list: the conversation is copied into a new one (as the sidebar's Fork), which opens; what follows the command is sent there.
+  ///
+  /// In en, this message translates to:
+  /// **'Fork this conversation and open the copy'**
+  String get forkCommandDetail;
+
+  /// Shown when /fork is sent in a conversation that cannot be copied (nothing sent yet, or its kernel cannot fork).
+  ///
+  /// In en, this message translates to:
+  /// **'This conversation can\'t be forked: it needs a message first, and its agent has to support forking.'**
+  String get forkUnavailable;
+
   /// The arrow on a sidebar row with conversations asked beside it (/btw) listed under it: no longer lists them.
   ///
   /// In en, this message translates to:
