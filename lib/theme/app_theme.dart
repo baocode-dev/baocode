@@ -246,7 +246,7 @@ abstract final class AppMetrics {
   /// The Flutter-drawn title bar, the native traffic lights moved down to
   /// its middle (see [nativeTitleBarHeight]): a row of the window's color
   /// over the cards (see Islands), a part's tabs at its foot.
-  static const titleBarHeight = 38.0;
+  static const titleBarHeight = 30.0;
 
   /// The title bar AppKit lays the traffic lights out in, unmoved: their
   /// middle half that down.
