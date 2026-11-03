@@ -8201,6 +8201,8 @@
   "gitStashNone": "No stashes",
   "gitStashTab": "Stash",
   "gitCommitTab": "Commit",
+  "gitCommitPanelFold": "Fold",
+  "gitCommitPanelUnfold": "Unfold",
   "gitStashSelected": "Stash Selected Files…",
   "gitCommitIgnored": "Ignored Files",
   "gitCommitShowIgnored": "Show Ignored Files",

@@ -19981,6 +19981,18 @@ abstract class AppLocalizations {
   /// **'Commit'**
   String get gitCommitTab;
 
+  /// No description provided for @gitCommitPanelFold.
+  ///
+  /// In en, this message translates to:
+  /// **'Fold'**
+  String get gitCommitPanelFold;
+
+  /// No description provided for @gitCommitPanelUnfold.
+  ///
+  /// In en, this message translates to:
+  /// **'Unfold'**
+  String get gitCommitPanelUnfold;
+
   /// No description provided for @gitStashSelected.
   ///
   /// In en, this message translates to:

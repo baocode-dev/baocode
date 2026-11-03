@@ -782,9 +782,9 @@ class AgentSidePanelView extends StatelessWidget {
     return KeyedSubtree(
       key: const ValueKey(('page', SidePanelSection.changes)),
       child: IdeGitLogView(
-        key: ValueKey(('git-log', session.root)),
+        key: ValueKey(('git-log', session.root, session)),
         host: host,
-        session: panel.scmOf(git),
+        session: panel.scmOf(session, git),
         notifications: notifications,
         background: AppColors.code,
         border: AppColors.partBorder,
@@ -803,10 +803,10 @@ class AgentSidePanelView extends StatelessWidget {
         onAddToChat: session.draft.insertFiles,
         worktrees: worktreesOf?.call(git) ?? const IdeGitWorktreeChoice(),
         changes: IdeGitCommitPanel(
-          key: ValueKey(('scm', session.root)),
+          key: ValueKey(('scm', session.root, session)),
           host: host,
-          session: panel.scmOf(git),
-          sessionOf: panel.scmOf,
+          session: panel.scmOf(session, git),
+          sessionOf: (git) => panel.scmOf(session, git),
           notifications: notifications,
           onOpen: (path, {focusEditor = false}) async =>
               panel.open(session, FileOpenRequest(path)),
@@ -834,7 +834,7 @@ class AgentSidePanelView extends StatelessWidget {
               },
           onShowDiff: (files, index) {
             panel.showLog(session);
-            panel.scmOf(git).log.showDiff(files, index);
+            panel.scmOf(session, git).log.showDiff(files, index);
           },
           onRevealInExplorer: _revealInFiles,
           revealInExplorerLabel: context.l10n.sidePanelRevealInFiles,
@@ -866,7 +866,7 @@ class AgentSidePanelView extends StatelessWidget {
     // In front of a change opened from the conversation.
     panel.showLog(session);
     panel
-        .scmOf(git)
+        .scmOf(session, git)
         .log
         .showDiff(
           [

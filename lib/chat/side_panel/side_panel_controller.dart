@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../../browser/browser_bridge.dart';
 import '../../ide/file_service.dart';
+import '../../ide/git/git_branch_tree.dart' show IdeGitFavoriteBranches;
 import '../../ide/git/git_repository.dart';
 import '../../ide/git/ide_scm_view.dart' show IdeScmSession;
 import '../../ide/ide_code_editor.dart' show IdeCodeHighlights;
@@ -169,14 +170,21 @@ class AgentSidePanel extends ChangeNotifier {
   /// and Never) are kept, as the IDE keeps them; none under test.
   final UserSettings? settings;
 
-  /// Each repository's commit message, and its commit being written, kept
-  /// while the panel is (as the IDE's Source Control view keeps its own).
-  final Map<IdeGitRepository, IdeScmSession> _scm = {};
+  /// Each conversation's own of each repository: its commit message, its
+  /// commit being written, the log's row and changes selected; kept while
+  /// the panel is (as the IDE's Source Control view keeps its own).
+  final Map<Object, Map<IdeGitRepository, IdeScmSession>> _scm = Map.identity();
 
-  /// The commit message and choices of [git]; its changes as a tree or a
-  /// list as last picked ([changesAsTree]).
-  IdeScmSession scmOf(IdeGitRepository git) =>
-      _scm[git] ??= IdeScmSession(settings: settings)..treeView = changesAsTree;
+  /// The favorite branches, the same in every conversation.
+  final IdeGitFavoriteBranches _favoriteBranches = IdeGitFavoriteBranches();
+
+  /// [conversation]'s commit message, choices and log of [git]; its
+  /// changes as a tree or a list as last picked ([changesAsTree]).
+  IdeScmSession scmOf(Object conversation, IdeGitRepository git) =>
+      (_scm[conversation] ??= {})[git] ??= IdeScmSession(
+        settings: settings,
+        favoriteBranches: _favoriteBranches,
+      )..treeView = changesAsTree;
 
   /// The repositories folded under their headers on the changes page of
   /// each project (by its folder), as Source Control's.
@@ -773,9 +781,12 @@ class AgentSidePanel extends ChangeNotifier {
     for (final node in _focusNodes.values) {
       node.dispose();
     }
-    for (final scm in _scm.values) {
-      scm.dispose();
+    for (final sessions in _scm.values) {
+      for (final scm in sessions.values) {
+        scm.dispose();
+      }
     }
+    _favoriteBranches.dispose();
     for (final explorer in _explorers.values) {
       explorer.dispose();
     }
