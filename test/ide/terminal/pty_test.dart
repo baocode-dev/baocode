@@ -30,7 +30,10 @@ void main() {
       signal: (_) => false,
     );
   });
-  tearDown(() => dir.deleteSync(recursive: true));
+  tearDown(() async {
+    await PtyProcesses.registry.flush();
+    dir.deleteSync(recursive: true);
+  });
 
   const timeout = Duration(seconds: 10);
 
