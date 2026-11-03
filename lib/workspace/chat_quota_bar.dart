@@ -327,7 +327,7 @@ class _QuotaPillState extends State<_QuotaPill> {
       ].join(' · ');
       warn = (usage?.mostUsed ?? 0) >= 90;
     }
-    final color = warn ? AppColors.caution : AppColors.textMuted;
+    final color = warn ? AppColors.caution : AppColors.textFaint;
     final colors = themeColors;
     Widget pill = HoverBuilder(
       cursor: SystemMouseCursors.click,

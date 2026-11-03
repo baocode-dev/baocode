@@ -27,12 +27,12 @@ class PanelCard extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.bubbleFill,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: highlighted
               ? themeColors['focusBorder']
-              : AppColors.borderStrong,
+              : AppColors.bubbleBorder(),
         ),
       ),
       child: Column(

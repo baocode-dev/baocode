@@ -60,9 +60,9 @@ class _LimitResetPanelState extends State<LimitResetPanel> {
       margin: const EdgeInsets.symmetric(horizontal: 10),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.bubbleFill,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderStrong),
+        border: Border.all(color: AppColors.bubbleBorder()),
       ),
       child: Row(
         children: [

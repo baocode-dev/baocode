@@ -513,7 +513,9 @@ class IdeViewTitle extends StatelessWidget {
   /// as the title's text is at the other.
   static const _actionsEnd = 9.0;
 
-  static Color get foreground => themeColors['sideBarTitle.foreground'];
+  /// A step under the content's: a label over it, on the window's color
+  /// (`descriptionForeground`), not `sideBarTitle.foreground`, as bright.
+  static Color get foreground => AppColors.textMuted;
 
   @override
   Widget build(BuildContext context) {

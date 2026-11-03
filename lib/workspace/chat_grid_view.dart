@@ -56,10 +56,11 @@ class ChatGridView extends StatefulWidget {
   final VoidCallback? onLinesMoved;
 
   /// The focused pane's outline, of several (see [ChatScreen.islandBorder]):
-  /// `focusBorder`, a little faded, as the drop preview's (see [_DropBox]).
+  /// `focusBorder`, faded to half, enough to tell it from the cards' own
+  /// outline without drawing the eye from what is in it.
   static Color get frameColor {
     final color = themeColors['focusBorder'];
-    return color.withValues(alpha: color.a * .8);
+    return color.withValues(alpha: color.a * .5);
   }
 
   /// Between two panes' cards: the sash in it.

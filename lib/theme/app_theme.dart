@@ -92,30 +92,28 @@ abstract final class AppColors {
     return foreground.withValues(alpha: foreground.a * 0.1);
   }
 
-  /// The chat's message bubbles and its input: their own color
-  /// (`agentsChatInput.background`, over [code]) a step towards the
-  /// editor's text, so it stands out from them however far they are from
-  /// the page, tinged with [accent]; the input's when typed into, a step on
-  /// towards [accent].
+  /// The chat's message bubbles and its input: outlined as the cards'
+  /// raised controls are, in [border] (see [bubbleFill]), where that stands
+  /// out from them; else a step from their fill towards the editor's text,
+  /// tinged with [accent]. Typed into, a step on towards [accent].
   static Color bubbleBorder({bool focused = false}) {
-    // The theme's own `agentsChatInput.border`, where it has one.
-    final colors = _colors;
-    final line = colors.theme.defines('agentsChatInput.border')
-        ? Color.alphaBlend(colors['agentsChatInput.border'], code)
+    final fill = bubbleFill;
+    final line = _stands(border, fill) && _stands(border, code)
+        ? Color.alphaBlend(border, fill)
         : Color.lerp(
-            _towardsText(bubbleFill, 0.12),
+            _towardsText(fill, 0.12),
             accent.withValues(alpha: 1),
             0.03,
           )!;
     return focused ? Color.lerp(line, accent.withValues(alpha: 1), 0.2)! : line;
   }
 
-  /// The chat's message bubbles and its input, typed into or not:
-  /// `agentsChatInput.background` over [code].
-  static Color get bubbleFill => _bubble;
-
-  static Color get _bubble =>
-      Color.alphaBlend(_colors['agentsChatInput.background'], code);
+  /// The chat's message bubbles and its input, typed into or not: the
+  /// cards' raised controls' color (`input.background`, over [code]), half
+  /// a step off the card; not `agentsChatInput.background`, a well some
+  /// light themes sink far under it.
+  static Color get bubbleFill =>
+      Color.alphaBlend(_colors['input.background'], code);
 
   static Color _towardsText(Color color, double t) =>
       Color.lerp(color, _colors['editor.foreground'].withValues(alpha: 1), t)!;

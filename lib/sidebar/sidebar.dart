@@ -3759,11 +3759,8 @@ class _ThreadRow extends StatelessWidget {
                     : relativeTime(thread.updatedAt, DateTime.now(), l10n),
                 textAlign: TextAlign.right,
                 maxLines: 1,
-                // The color of the buttons it gives way to on hover.
-                style: TextStyle(
-                  color: selected ? foreground : AppColors.textMuted,
-                  fontSize: 11,
-                ),
+                // A step under the title's, selected or not.
+                style: TextStyle(color: AppColors.textFaint, fontSize: 11),
               ),
             ),
           ),

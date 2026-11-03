@@ -59,9 +59,11 @@ abstract final class IdeModernUI {
   /// Smaller than `ActivitybarPart.ICON_SIZE` (24), as the cards' own.
   static const activityIconSize = 20.0;
 
-  /// `activityBar.inactiveForeground`.
-  static Color get activityForeground =>
-      _colors['activityBar.inactiveForeground'];
+  /// A step under the status bar's and the titles' (see
+  /// [AppColors.textFaint]): the bar is on the window's color, its icons
+  /// not to stand out from the cards beside it; not
+  /// `activityBar.inactiveForeground`, as bright as the cards' icons.
+  static Color get activityForeground => AppColors.textFaint;
 
   /// `modernActivityBarItem.activeBackground`
   /// (`list.inactiveSelectionBackground`), behind the active item.

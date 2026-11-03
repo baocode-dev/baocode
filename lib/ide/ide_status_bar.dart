@@ -158,7 +158,7 @@ class _StatusItemState extends State<_StatusItem> {
     final hovered = _hover && tappable;
     // Its icons too (`color: inherit`); its own color stays on hover.
     final color =
-        item.color ?? (hovered ? AppColors.text : AppColors.textMuted);
+        item.color ?? (hovered ? AppColors.text : AppColors.textFaint);
     // High contrast themes outline a hovered item (dashed upstream).
     final outline = hovered ? colors.get('contrastActiveBorder') : null;
     const radius = BorderRadius.all(Radius.circular(5));
