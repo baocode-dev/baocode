@@ -302,6 +302,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// [AgentSidePanel.asks] as last seen.
   int _sidePanelAsks = 0;
 
+  /// The docked sidebar is sliding out, giving way to the side panel: the
+  /// panel's room grows meanwhile (see [AgentSidePanelArea.roomComing]).
+  bool _sidebarGivingWay = false;
+  Timer? _givingWayTimer;
+
   /// The side panel shown for a conversation, beside the docked sidebar:
   /// the window's, or (agents side by side) the focused pane's.
   bool get _sidePanelWanted =>
@@ -484,6 +489,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       if (_panesSidePanels && mounted) setState(() {});
       return;
     }
+    final sidebarDocked = _sidebarDocked;
     _layout = _sidePanel.layout;
     if (asked) {
       _sidePanelAsks = _sidePanel.asks;
@@ -493,6 +499,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       if (!shown && _sidesClash) _docked = false;
     }
     _sidePanelShown = _sidePanel.isShown;
+    if (sidebarDocked && !_sidebarDocked) {
+      _sidebarGivingWay = true;
+      _givingWayTimer?.cancel();
+      _givingWayTimer = Timer(_duration, () {
+        if (mounted) setState(() => _sidebarGivingWay = false);
+      });
+    }
     if (mounted) setState(() {});
   }
 
@@ -823,6 +836,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _chatCode?.dispose();
     _workspace.removeListener(_restoreSidePanel);
     _workspace.removeListener(_syncWorkspaceFolders);
+    _givingWayTimer?.cancel();
     _sidePanel
       ..removeListener(_sidePanelChanged)
       ..dispose();
@@ -3798,6 +3812,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         bottom: Islands.belowHeight,
         // Customize, in place of the conversations, isn't one of theirs.
         hidden: _sidePanelHidden || _replacingChat,
+        roomComing: _sidebarGivingWay,
         // Just under the conversation's title bar, whose right has the
         // window's buttons on macOS; at the top under Windows' header, already
         // a bar of its own (the title row's right is empty, the rail beside
@@ -4987,6 +5002,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         conversation: thread.session,
         bottom: Islands.belowHeight,
         hidden: _sidePanelHidden,
+        roomComing: _sidebarGivingWay,
         rail: _railFor(thread),
         builder: (context) => _buildSidePanel(thread, windowTitleBar: top),
         child: chat,
