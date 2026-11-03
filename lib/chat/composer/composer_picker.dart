@@ -43,6 +43,7 @@ class ComposerPicker extends StatefulWidget {
     this.submenuOf,
     this.checks,
     this.emphasized = false,
+    this.foreground,
     this.title,
     this.tooltip,
     this.menuWidth = 248,
@@ -83,6 +84,10 @@ class ComposerPicker extends StatefulWidget {
 
   /// Draws a filled pill, used for the mode picker.
   final bool emphasized;
+
+  /// Its label's color, where not cautioned: [AppColors.textMuted] (as the
+  /// composer's) by default; fainter in a status line under a card.
+  final Color? foreground;
 
   /// Heads the menu, e.g. the question its options answer.
   final String? title;
@@ -783,9 +788,7 @@ class ComposerPickerState extends State<ComposerPicker> {
     final emphasized = widget.emphasized;
     final color = widget.selected.caution
         ? AppColors.caution
-        : emphasized
-        ? AppColors.text
-        : AppColors.textMuted;
+        : widget.foreground ?? AppColors.textMuted;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
       height: 22,

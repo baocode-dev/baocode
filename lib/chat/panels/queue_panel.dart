@@ -35,9 +35,9 @@ class QueuePanel extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.bubbleFill,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderStrong),
+        border: Border.all(color: AppColors.bubbleBorder()),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

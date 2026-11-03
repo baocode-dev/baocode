@@ -408,6 +408,7 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
     final current = state.head.branch;
     final folder = widget.repositories.first.$1;
     return ComposerPicker(
+      foreground: AppColors.textFaint,
       options: [
         for (final branch in _branchesOf(git))
           _branchOption(git, branch, branch),
@@ -455,6 +456,7 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
     String nameOf(String folder) => p.basename(folder);
     const create = KernelOptionGroup('create', '');
     return ComposerPicker(
+      foreground: AppColors.textFaint,
       options: [
         for (final (folder, git) in widget.repositories)
           KernelOption(
@@ -535,7 +537,7 @@ class _Label extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = AppColors.textMuted;
+    final color = AppColors.textFaint;
     return Container(
       height: 22,
       padding: const EdgeInsets.symmetric(horizontal: 6),

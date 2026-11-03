@@ -91,8 +91,8 @@ void main() {
       );
       await tester.pump();
       expect(tester.takeException(), isNull, reason: theme.settingsId);
-      // The panel on TERMINAL, with two tabs: panelPart.ts paints it with
-      // `panel.background`, never the shell's: its card's color.
+      // The panel on TERMINAL, with two tabs: on a card of the editor's
+      // color (`editor.background`), as the other cards, never the shell's.
       await chord(tester, LogicalKeyboardKey.backquote, control: true);
       await chord(
         tester,
@@ -109,7 +109,7 @@ void main() {
       );
       expect(
         panel.color,
-        service.colors['panel.background'],
+        service.colors['editor.background'],
         reason: theme.settingsId,
       );
       await chord(tester, LogicalKeyboardKey.keyP, control: true, shift: true);
