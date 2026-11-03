@@ -3,17 +3,13 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_models.dart';
-import '../chat/side_panel/file_link_menu.dart';
-import '../chat/side_panel/file_open.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/content_image.dart';
 import '../chat/widgets/step_header.dart';
 import '../ide/ide_button.dart';
-import '../ide/ide_menu.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../workspace/window_controls.dart';
-import 'browser_bridge.dart';
 import 'browser_tools.dart';
 
 /// The browser's icon (Basil's chrome-solid), a browser step's.
@@ -274,23 +270,10 @@ class BrowserStep extends StatelessWidget {
   final bool expanded;
   final VoidCallback? onToggle;
 
-  int? get _tabId => item.tool == 'browser_close'
-      ? null
-      : switch (item.input['tabId']) {
-          final int id => id,
-          _ => null,
-        };
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final opens = _readable(item);
-    final tabId = _tabId;
-    final show = FileOpenScope.find(context)?.onShowBrowserTab;
-    final reveal =
-        tabId != null &&
-        show != null &&
-        BrowserBridge.instance.browsers.isNotEmpty;
     final running = item.status == ToolStatus.running;
     final shot = item.status == ToolStatus.failed
         ? null
@@ -317,11 +300,7 @@ class BrowserStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Its tab shows in the side panel from its right click.
-        FileLinkMenuRegion(
-          menu: reveal ? _TabMenu(() => show(tabId)) : null,
-          child: header,
-        ),
+        header,
         if (running && item.tool == 'browser_watch')
           const _WatchCard()
         else if (expanded && opens)
@@ -358,22 +337,6 @@ class BrowserStep extends StatelessWidget {
     }
     return StepBody(child: Text(output, style: stepMono));
   }
-}
-
-/// A browser step's right click: to show its tab in the side panel.
-class _TabMenu implements ChatItemMenu {
-  const _TabMenu(this.onShow);
-
-  final VoidCallback onShow;
-
-  @override
-  Future<void> show(BuildContext context, Offset position) => showIdeMenu(
-    context,
-    position: position,
-    entries: [
-      IdeMenuAction(context.l10n.browserShowInPanel, onSelected: onShow),
-    ],
-  );
 }
 
 /// What BaoCode watches the user do (see [BrowserWatching]): the task they

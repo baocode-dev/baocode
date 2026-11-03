@@ -2948,65 +2948,11 @@ abstract class AppLocalizations {
   /// **'Terminal'**
   String get sidePanelTerminal;
 
-  /// The side panel's browser page, there once the browser plugin is installed.
-  ///
-  /// In en, this message translates to:
-  /// **'Browser'**
-  String get sidePanelBrowser;
-
-  /// No description provided for @browserNotConnected.
-  ///
-  /// In en, this message translates to:
-  /// **'No browser is connected. Add BaoCode\'s extension to Chrome (or Edge, Brave, Arc) and agents can use the tabs you share with them.'**
-  String get browserNotConnected;
-
-  /// No description provided for @browserNoSharedTab.
-  ///
-  /// In en, this message translates to:
-  /// **'No tab is shared yet. Ask an agent to open a page, or click BaoCode in the browser toolbar to share the tab in front.'**
-  String get browserNoSharedTab;
-
   /// No description provided for @browserOtherApp.
   ///
   /// In en, this message translates to:
   /// **'Another BaoCode is connected to the browser.'**
   String get browserOtherApp;
-
-  /// No description provided for @browserSharedTabs.
-  ///
-  /// In en, this message translates to:
-  /// **'Shared Tabs'**
-  String get browserSharedTabs;
-
-  /// No description provided for @browserReload.
-  ///
-  /// In en, this message translates to:
-  /// **'Reload'**
-  String get browserReload;
-
-  /// No description provided for @browserShowInBrowser.
-  ///
-  /// In en, this message translates to:
-  /// **'Show in Browser'**
-  String get browserShowInBrowser;
-
-  /// No description provided for @browserDetached.
-  ///
-  /// In en, this message translates to:
-  /// **'The browser stopped letting BaoCode see this tab.'**
-  String get browserDetached;
-
-  /// No description provided for @browserReconnect.
-  ///
-  /// In en, this message translates to:
-  /// **'Reconnect'**
-  String get browserReconnect;
-
-  /// No description provided for @browserShowInPanel.
-  ///
-  /// In en, this message translates to:
-  /// **'Show in Side Panel'**
-  String get browserShowInPanel;
 
   /// The card in the conversation while an agent watches the user do something in their browser (browser_watch), recording it.
   ///

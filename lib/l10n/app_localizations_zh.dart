@@ -1462,36 +1462,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidePanelTerminal => '终端';
 
   @override
-  String get sidePanelBrowser => '浏览器';
-
-  @override
-  String get browserNotConnected =>
-      '没有连接浏览器。在 Chrome（或 Edge、Brave、Arc）中添加 BaoCode 扩展后，agent 就能使用你共享给它的标签页。';
-
-  @override
-  String get browserNoSharedTab =>
-      '还没有共享的标签页。让 agent 打开网页，或在浏览器工具栏点 BaoCode 按钮共享当前标签页。';
-
-  @override
   String get browserOtherApp => '另一个 BaoCode 已连接浏览器。';
-
-  @override
-  String get browserSharedTabs => '共享的标签页';
-
-  @override
-  String get browserReload => '重新加载';
-
-  @override
-  String get browserShowInBrowser => '在浏览器中显示';
-
-  @override
-  String get browserDetached => '浏览器已停止让 BaoCode 查看这个标签页。';
-
-  @override
-  String get browserReconnect => '重新连接';
-
-  @override
-  String get browserShowInPanel => '在侧边栏查看';
 
   @override
   String get browserWatchTitle => '正在看你在浏览器里操作';

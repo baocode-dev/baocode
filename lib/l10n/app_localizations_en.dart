@@ -1499,37 +1499,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidePanelTerminal => 'Terminal';
 
   @override
-  String get sidePanelBrowser => 'Browser';
-
-  @override
-  String get browserNotConnected =>
-      'No browser is connected. Add BaoCode\'s extension to Chrome (or Edge, Brave, Arc) and agents can use the tabs you share with them.';
-
-  @override
-  String get browserNoSharedTab =>
-      'No tab is shared yet. Ask an agent to open a page, or click BaoCode in the browser toolbar to share the tab in front.';
-
-  @override
   String get browserOtherApp => 'Another BaoCode is connected to the browser.';
-
-  @override
-  String get browserSharedTabs => 'Shared Tabs';
-
-  @override
-  String get browserReload => 'Reload';
-
-  @override
-  String get browserShowInBrowser => 'Show in Browser';
-
-  @override
-  String get browserDetached =>
-      'The browser stopped letting BaoCode see this tab.';
-
-  @override
-  String get browserReconnect => 'Reconnect';
-
-  @override
-  String get browserShowInPanel => 'Show in Side Panel';
 
   @override
   String get browserWatchTitle => 'Watching you in the browser';
