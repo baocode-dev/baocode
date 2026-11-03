@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show precisionErrorTolerance;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, precisionErrorTolerance;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -1810,6 +1811,38 @@ class MarkdownEditorState extends State<MarkdownEditor>
                   .kind !=
               MdLineKind.item) {
         _insert('\t');
+      }
+      return KeyEventResult.handled;
+    }
+    // Home and End to the line's ends, Shift selecting to them, as an
+    // editor has them: macOS's defaults scroll the document instead, and
+    // select to its ends with Shift. The numpad's 7 and 1 are Home and End
+    // with NumLock off, which Windows tells as numpad7 and numpad1 and the
+    // defaults don't map; with NumLock on they are digits, and stay digits.
+    final mac = defaultTargetPlatform == TargetPlatform.macOS;
+    final numpad =
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux) &&
+        !keyboard.lockModesEnabled.contains(KeyboardLockMode.numLock);
+    final forward = switch (key) {
+      LogicalKeyboardKey.home when mac => false,
+      LogicalKeyboardKey.end when mac => true,
+      LogicalKeyboardKey.numpad7 when numpad => false,
+      LogicalKeyboardKey.numpad1 when numpad => true,
+      _ => null,
+    };
+    if (forward != null &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed &&
+        !(mac && keyboard.isControlPressed)) {
+      final selection = controller.selection;
+      if (selection.isValid) {
+        final (start, end) = _visualLine(selection.extentOffset);
+        // Ctrl with the numpad's, as with Home and End: the document's ends.
+        final to = keyboard.isControlPressed
+            ? (forward ? controller.length : 0)
+            : (forward ? end : start);
+        _moveTo(to, extend: keyboard.isShiftPressed);
       }
       return KeyEventResult.handled;
     }

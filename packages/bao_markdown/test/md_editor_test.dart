@@ -353,6 +353,97 @@ void main() {
     expect(controller.selection.extentOffset, 4);
   });
 
+  for (final platform in [TargetPlatform.macOS, TargetPlatform.windows]) {
+    testWidgets('Home and End reach the line\'s ends on $platform', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = platform;
+      final controller = MarkdownController(text: 'ab\ncd');
+      final state = await _pump(tester, controller);
+      state.requestFocus();
+      controller.selection = const TextSelection.collapsed(offset: 4);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pump();
+      expect(controller.selection.extentOffset, 3);
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pump();
+      expect(controller.selection.extentOffset, 5);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('Shift with Home and End selects to the line\'s ends on '
+        '$platform', (tester) async {
+      debugDefaultTargetPlatformOverride = platform;
+      final controller = MarkdownController(text: 'ab\ncd\nef');
+      final state = await _pump(tester, controller);
+      state.requestFocus();
+      controller.selection = const TextSelection.collapsed(offset: 4);
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pump();
+      expect(controller.selection.baseOffset, 4);
+      expect(controller.selection.extentOffset, 3);
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      expect(controller.selection.baseOffset, 4);
+      expect(controller.selection.extentOffset, 5);
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
+
+  testWidgets('Ctrl with the numpad\'s 7 and 1 reaches the document\'s ends '
+      'on Windows', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final controller = MarkdownController(text: 'ab\ncd\nef');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    controller.selection = const TextSelection.collapsed(offset: 4);
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad7);
+    await tester.pump();
+    expect(controller.selection.extentOffset, 0);
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad1);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(controller.selection.extentOffset, 8);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('the numpad\'s 7 and 1 reach the line\'s ends on Windows', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final controller = MarkdownController(text: 'ab\ncd');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    controller.selection = const TextSelection.collapsed(offset: 4);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad7);
+    await tester.pump();
+    expect(controller.selection.extentOffset, 3);
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad1);
+    await tester.pump();
+    expect(controller.selection.extentOffset, 5);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('the numpad\'s 7 and 1 stay digits elsewhere', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    final controller = MarkdownController(text: 'ab\ncd');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    controller.selection = const TextSelection.collapsed(offset: 4);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad7);
+    await tester.pump();
+    expect(controller.selection.extentOffset, 4);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('composed text is typed in as it is composed', (tester) async {
     final controller = MarkdownController(text: 'ab');
     final state = await _pump(tester, controller);
