@@ -58,8 +58,9 @@ class IslandTones {
   ];
 
   /// The least lightness (OKLab L) between a dark theme's cards and its
-  /// window: about the island prototype's (#222221 on #181817, 0.043).
-  static const darkStep = 0.045;
+  /// window: further than the island prototype's (#222221 on #181817,
+  /// 0.043), the cards lighter (#2B2B2B on #181818).
+  static const darkStep = 0.08;
 
   /// A light theme's: further, light grays being harder to tell apart.
   static const lightStep = 0.06;
