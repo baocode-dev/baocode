@@ -32,15 +32,19 @@ class AppIcon extends StatelessWidget {
     final theme = IconTheme.of(context);
     final side = size ?? theme.size ?? 24;
     final tint = color ?? theme.color;
+    // As [Icon]'s glyph: its size in a box made larger (a button's), in
+    // the middle, not stretched to fill it.
     return SizedBox.square(
       dimension: side,
-      child: SvgPicture.asset(
-        asset,
-        width: side,
-        height: side,
-        colorFilter: tint == null
-            ? null
-            : ColorFilter.mode(tint, BlendMode.srcIn),
+      child: Center(
+        child: SvgPicture.asset(
+          asset,
+          width: side,
+          height: side,
+          colorFilter: tint == null
+              ? null
+              : ColorFilter.mode(tint, BlendMode.srcIn),
+        ),
       ),
     );
   }
