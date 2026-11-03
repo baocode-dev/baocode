@@ -4292,6 +4292,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           tasks: SessionTerminalTasks(thread.session),
           files: _projectFiles(thread).files,
           onOpenLink: _openTerminalLink,
+          // The branch under the terminals while they show.
+          below: _branchBar(thread),
           child: child,
         ),
         null => child,

@@ -880,7 +880,7 @@ void main() {
     expect(decoration().color, IdeListColors.activeSelection);
     expectForeground(IdeListColors.activeSelectionForeground);
     expect(tester.getSize(row).height, IdeListColors.rowHeight);
-    expect(decoration().borderRadius, BorderRadius.circular(4));
+    expect(decoration().borderRadius, BorderRadius.circular(Islands.rowRadius));
 
     listFocus.requestFocus();
     await tester.pump();

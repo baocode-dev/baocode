@@ -1077,39 +1077,40 @@ class _ChatScreenState extends State<ChatScreen>
   Widget _buildScaffold() {
     final island = widget.island;
     final conversation = _buildConversation();
+    final footer = _footer;
     return Scaffold(
-      // The window's color about the card: none of its own.
-      backgroundColor: island == null ? null : Colors.transparent,
+      // The window's color about the card, or the card's it is on (the
+      // IDE's): none of its own.
+      backgroundColor: island == null && !_onCard ? null : Colors.transparent,
       body: Column(
         children: [
           // The session's title, in the row the window's header leaves it
           // (macOS draws a title bar of its own over it; see AppMetrics).
           if (!widget.embedded && (widget.titleBar || _renaming))
             _buildTitleBar(),
-          if (island == null)
+          if (footer == 0)
             ...conversation
           else ...[
             Expanded(
-              child: Island(
-                color: island,
-                borderColor: widget.islandBorder,
-                child: Column(children: conversation),
-              ),
+              child: island == null
+                  ? Column(children: conversation)
+                  : Island(
+                      color: island,
+                      borderColor: widget.islandBorder,
+                      child: Column(children: conversation),
+                    ),
             ),
-            // Under the card, on the window's color, at the input's width:
-            // the row there with nothing in it too, the card's foot where
-            // the side panel's is.
-            _ConversationColumn(
-              maxWidth: _maxContentWidth,
-              minimap: false,
-              // The window's edge a gap away already.
-              bottom: 0,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minHeight: Islands.belowHeight,
-                ),
+            // Under the card, at the composer's width: the row there with
+            // nothing in it too, the card's foot where the side panel's is.
+            SizedBox(
+              height: footer,
+              child: _ConversationColumn(
+                maxWidth: _maxContentWidth,
+                minimap: false,
+                inset: Islands.inset,
+                bottom: 0,
                 child: Align(
-                  alignment: Alignment.topLeft,
+                  alignment: Alignment.centerLeft,
                   child: _agentShown == null ? widget.below : null,
                 ),
               ),
@@ -1119,6 +1120,20 @@ class _ChatScreenState extends State<ChatScreen>
       ),
     );
   }
+
+  /// Whether it is on a card: its own ([ChatScreen.island]), or the one
+  /// it is put on (the IDE's, see [IslandSurface]).
+  bool get _onCard =>
+      widget.island != null || IslandSurface.colorOf(context) != null;
+
+  /// The row under the card, on the window's color: its own card's, or the
+  /// one it is on's (the IDE's), if that leaves one; else 0, [ChatScreen.below]
+  /// under the input.
+  double get _footer => IslandFootHosted.of(context)
+      ? 0
+      : widget.island != null
+      ? Islands.belowHeight
+      : IslandSurface.footerOf(context);
 
   /// The history over the panels and the input, as a column's children.
   List<Widget> _buildConversation() {
@@ -1210,6 +1225,16 @@ class _ChatScreenState extends State<ChatScreen>
         builder: (context, _) => _ConversationColumn(
           maxWidth: _maxContentWidth,
           minimap: false,
+          // On a card, as far from its sides as from its foot; the row
+          // under it (the IDE's) closer.
+          inset: _onCard ? Islands.inset : null,
+          bottom: !_onCard
+              ? 12
+              : _footer == 0 &&
+                    widget.below != null &&
+                    !IslandFootHosted.of(context)
+              ? 4
+              : Islands.inset,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1410,7 +1435,7 @@ class _ChatScreenState extends State<ChatScreen>
               : _intercept,
         ),
         // On a card, it is under the card (see [_buildScaffold]).
-        if (widget.island == null) ?widget.below,
+        if (_footer == 0 && !IslandFootHosted.of(context)) ?widget.below,
       ],
     );
   }
@@ -1501,6 +1526,7 @@ class _ConversationColumn extends SingleChildRenderObjectWidget {
     required this.maxWidth,
     required this.minimap,
     this.bottom = 12,
+    this.inset,
     required super.child,
   });
 
@@ -1510,9 +1536,14 @@ class _ConversationColumn extends SingleChildRenderObjectWidget {
   /// The room under [child].
   final double bottom;
 
+  /// [child] wider than the column by as much as the column's gutter is
+  /// past this, at the most this far from the sides: the composer on a
+  /// card, as far from its edges as from its foot.
+  final double? inset;
+
   @override
   _RenderConversationColumn createRenderObject(BuildContext context) =>
-      _RenderConversationColumn(maxWidth, minimap, bottom);
+      _RenderConversationColumn(maxWidth, minimap, bottom, inset);
 
   @override
   void updateRenderObject(
@@ -1522,13 +1553,26 @@ class _ConversationColumn extends SingleChildRenderObjectWidget {
     renderObject
       ..maxWidth = maxWidth
       ..minimap = minimap
-      ..bottom = bottom;
+      ..bottom = bottom
+      ..inset = inset;
   }
 }
 
 class _RenderConversationColumn extends RenderShiftedBox {
-  _RenderConversationColumn(this._maxWidth, this._minimap, this._bottom)
-    : super(null);
+  _RenderConversationColumn(
+    this._maxWidth,
+    this._minimap,
+    this._bottom,
+    this._inset,
+  ) : super(null);
+
+  double? get inset => _inset;
+  double? _inset;
+  set inset(double? value) {
+    if (value == _inset) return;
+    _inset = value;
+    markNeedsLayout();
+  }
 
   bool get minimap => _minimap;
   bool _minimap;
@@ -1554,8 +1598,15 @@ class _RenderConversationColumn extends RenderShiftedBox {
     markNeedsLayout();
   }
 
-  double _width(double width) =>
-      _columnWidth(width, _maxWidth, minimap: _minimap);
+  double _width(double width) {
+    final column = _columnWidth(width, _maxWidth, minimap: _minimap);
+    final inset = _inset;
+    if (inset == null) return column;
+    return math.max(
+      0,
+      math.min(width - 2 * inset, column + 2 * (chatGutter(width) - inset)),
+    );
+  }
 
   BoxConstraints _childConstraints(BoxConstraints constraints) {
     return BoxConstraints.tightFor(width: _width(constraints.maxWidth))

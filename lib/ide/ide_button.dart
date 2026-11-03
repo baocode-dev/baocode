@@ -56,7 +56,11 @@ class IdeButton extends StatefulWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     this.onDropdown,
     this.dropdownTooltip,
+    this.radius = 4,
   });
+
+  /// Its corners: [Islands.controlRadius]'s on a card.
+  final double radius;
 
   /// A split button's arrow after [label] (as `.monaco-button-dropdown`),
   /// which opens a menu by the button's rect (global); it works while the
@@ -157,7 +161,7 @@ class _IdeButtonState extends State<IdeButton> {
             ? IdeButtonColors.secondaryBorder
             : IdeButtonColors.border,
       ),
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(widget.radius),
     );
     if (dropdown != null) return _split(label, foreground, decoration);
     return Semantics(

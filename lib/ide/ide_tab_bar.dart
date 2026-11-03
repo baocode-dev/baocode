@@ -7,7 +7,6 @@ import '../chat/composer/file_drag.dart';
 import '../chat/widgets/inline_rename_field.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
-import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -308,7 +307,6 @@ class _IdeTabBarState extends State<IdeTabBar> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ?IdeTabStrip.lead(context),
                   for (final (i, doc) in docs.indexed) ...[
                     if (i > 0)
                       ?IdeTabStrip.separator(
@@ -319,15 +317,18 @@ class _IdeTabBarState extends State<IdeTabBar> {
                       ),
                     _draggable(
                       doc,
-                      _Tab(
-                        key: _keys.putIfAbsent(doc, GlobalKey.new),
-                        doc: doc,
-                        description: descriptions[i],
-                        active: identical(doc, widget.active),
-                        onSelect: () => widget.onSelect(doc),
-                        onClose: () => widget.onClose(doc),
-                        onMenu: (position) =>
-                            _showMenu(doc, position: position),
+                      IslandTabStart(
+                        atStart: i == 0,
+                        child: _Tab(
+                          key: _keys.putIfAbsent(doc, GlobalKey.new),
+                          doc: doc,
+                          description: descriptions[i],
+                          active: identical(doc, widget.active),
+                          onSelect: () => widget.onSelect(doc),
+                          onClose: () => widget.onClose(doc),
+                          onMenu: (position) =>
+                              _showMenu(doc, position: position),
+                        ),
                       ),
                     ),
                   ],
@@ -524,7 +525,7 @@ class IdeTabStrip extends StatelessWidget {
   /// [smallHeight] high, for [IdeEditorTab.small] tabs.
   final bool small;
 
-  static const height = 35.0;
+  static const height = IslandTab.height;
   static const smallHeight = 28.0;
 
   /// `editorGroupHeader.tabsBorder`, none by default.
@@ -555,12 +556,6 @@ class IdeTabStrip extends StatelessWidget {
       IslandSurface.colorOf(context) == null
       ? null
       : IslandTabSeparator(shown: shown);
-
-  /// Before the first tab over a card: room for the tab in front's foot.
-  static Widget? lead(BuildContext context) =>
-      IslandSurface.colorOf(context) == null
-      ? null
-      : const SizedBox(width: IslandTab.flare);
 }
 
 /// A tab as the editor's (multiEditorTabsControl.ts, in the theme's
@@ -661,7 +656,11 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
     final colors = themeColors;
     // The active tab is selected: hovering it changes nothing.
     final hovered = _hover && !active;
-    final foreground = active
+    // Over a card: a browser's tab, the one in front of the card's color.
+    final island = IslandSurface.colorOf(context);
+    final foreground = island != null
+        ? IslandTab.foreground(active: active, hovered: hovered)
+        : active
         ? colors['tab.activeForeground']
         : (hovered ? colors.get('tab.hoverForeground') : null) ??
               colors['tab.inactiveForeground'];
@@ -683,8 +682,6 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
         ? IdeEditorTab.labelStyleBase.copyWith(fontSize: 12)
         : IdeEditorTab.labelStyleBase;
     final closeSize = small ? 18.0 : 22.0;
-    // Over a card: a browser's tab, the one in front of the card's color.
-    final island = IslandSurface.colorOf(context);
     Widget tab = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -831,20 +828,21 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
       ),
     );
     if (island != null) {
-      tab = CustomPaint(
-        painter: active
-            ? IslandTabShape(fill: island, line: Islands.border, overhang: 0)
-            : null,
-        child: Padding(
-          // The hover's, inset from the foot.
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: hovered ? AppColors.hover : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: tab,
-          ),
+      final atStart = IslandTabStart.of(context);
+      tab = IslandCornerClaim(
+        claim: atStart && active,
+        child: CustomPaint(
+          painter: active
+              ? IslandTabShape(
+                  fill: island,
+                  line: Islands.border,
+                  overhang: 0,
+                  // The first, flush with the card's edge: straight down
+                  // into it there.
+                  flareLeft: !atStart,
+                )
+              : null,
+          child: tab,
         ),
       );
     }

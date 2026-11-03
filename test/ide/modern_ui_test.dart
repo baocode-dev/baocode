@@ -58,7 +58,9 @@ void main() {
     final editor = cardIn('ide-editor');
     final chat = cardIn('ide-chat');
     // Against the window's side, 44px wide, on its color; each card a gap
-    // from the next, and from the window's right; down to the status bar.
+    // from the next, and from the window's right; down to the status bar,
+    // the chat's card to the row beside it, its branch's (as in the
+    // agents' window).
     expect(activityBar.left, 0);
     expect(activityBar.width, 44);
     expect(
@@ -78,8 +80,12 @@ void main() {
     expect(editor.left - sidebar.right, Islands.gap);
     expect(chat.left - editor.right, Islands.gap);
     expect(chat.right, 1400 - Islands.gap);
-    expect(sidebar.bottom, chat.bottom);
-    expect(tester.getRect(find.byType(IdeStatusBar)).top, chat.bottom);
+    final status = tester.getRect(find.byType(IdeStatusBar));
+    expect(sidebar.bottom, status.top);
+    expect(chat.bottom, 800);
+    expect(cardOf('ide-chat').footer, Islands.belowHeight);
+    expect(status.height, Islands.belowHeight);
+    expect(status.right, chat.left - Islands.gap / 2);
     // Their titles and tabs over them, as high as each other.
     expect(cardOf('ide-sidebar').header, cardOf('ide-chat').header);
     expect(cardOf('ide-editor').header, cardOf('ide-chat').header);

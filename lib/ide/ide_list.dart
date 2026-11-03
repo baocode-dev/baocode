@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/islands.dart';
 import 'ide_hover.dart';
 
 /// The color theme's `list.*` and `badge.*` colors, the side bar's text
@@ -312,7 +313,7 @@ class _IdeListRowState extends State<IdeListRow> {
             height: widget.height,
             margin: const EdgeInsets.symmetric(horizontal: IdeListColors.inset),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(Islands.rowRadius),
               color: selected
                   ? (widget.focused || widget.keepSelectionActive
                         ? IdeListColors.activeSelection
@@ -326,7 +327,7 @@ class _IdeListRowState extends State<IdeListRow> {
             foregroundDecoration: outline == null
                 ? null
                 : BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(Islands.rowRadius),
                     border: Border.all(color: outline),
                   ),
             child: widget.builder(context, _hover),

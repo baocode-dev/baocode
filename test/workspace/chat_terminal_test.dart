@@ -14,7 +14,9 @@ import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/workspace/chat_grid.dart';
 import 'package:baocode/workspace/chat_grid_view.dart';
+import 'package:baocode/workspace/chat_quota_bar.dart';
 import 'package:baocode/workspace/chat_terminal.dart';
+import 'package:baocode/workspace/islands.dart';
 import 'package:baocode/workspace/window_header/window_header.dart';
 import 'package:baocode/workspace/workspace.dart';
 
@@ -128,6 +130,32 @@ void main() {
     await _settle(tester);
     expect(_panel, findsOneWidget);
     expect(ptys, hasLength(1));
+  }, variant: _mac);
+
+  testWidgets('shown, the conversation\'s branch row is under the panel, '
+      'at the window\'s foot; hidden, under the conversation\'s card', (
+    tester,
+  ) async {
+    final ptys = <FakePty>[];
+    await _pumpApp(tester, terminalBackend: fakeTerminalBackend(ptys));
+    final chat = find.byType(ChatScreen).first;
+    Finder below() => find.byType(ChatQuotaBar);
+    expect(find.descendant(of: chat, matching: below()), findsOneWidget);
+
+    await tester.tap(_toggle);
+    await _settle(tester);
+    expect(find.descendant(of: chat, matching: below()), findsNothing);
+    expect(below(), findsOneWidget);
+    final panel = tester.getRect(
+      find.ancestor(of: _panel, matching: find.byType(Island)).first,
+    );
+    final row = tester.getRect(below());
+    expect(row.top, greaterThanOrEqualTo(panel.bottom));
+    expect(row.bottom, lessThanOrEqualTo(900));
+
+    await tester.tap(_toggle);
+    await _settle(tester);
+    expect(find.descendant(of: chat, matching: below()), findsOneWidget);
   }, variant: _mac);
 
   testWidgets('⌃` toggles it from the chat and from the terminal, whose '

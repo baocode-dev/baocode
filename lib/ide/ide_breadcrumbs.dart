@@ -32,7 +32,7 @@ class IdeBreadcrumbs extends StatelessWidget {
   final List<LspDocumentSymbol> symbols;
   final ValueChanged<LspDocumentSymbol>? onSymbol;
 
-  static const height = 22.0;
+  static const height = 28.0;
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +49,7 @@ class IdeBreadcrumbs extends StatelessWidget {
     return Container(
       height: height,
       color: themeColors['breadcrumb.background'],
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       alignment: Alignment.centerLeft,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,

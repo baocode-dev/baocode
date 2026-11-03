@@ -114,6 +114,10 @@ Matcher isSelection(int base, int extent) => isA<TextSelection>()
 void main() {
   testWidgets('the answers sit inset from the user\'s messages by their '
       'corner radius', (tester) async {
+    // Tall enough for a message of the user's and an answer to show.
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await pumpScreen(tester);
     final items = tester.widgetList<ChatItemView>(find.byType(ChatItemView));
     double width(bool user) => tester

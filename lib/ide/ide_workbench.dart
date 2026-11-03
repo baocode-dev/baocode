@@ -4242,7 +4242,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Islands.gap / 2),
       child: _view == IdeSideView.sourceControl
-          ? view
+          // Its title as the other views', over the log's own cards: their
+          // tops where the editor's and the chat's are.
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                IdeViewTitle(context.l10n.scmTitle),
+                Expanded(child: view),
+              ],
+            )
           : HeadedIsland(
               header: IdeViewTitle.height,
               color: AppColors.code,
@@ -4376,202 +4384,205 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // The folder's actions are the explorer's commands: their keybindings
     // in their tooltips (upstream's `MenuEntryActionViewItem.getTooltip`).
     final keys = KeybindingService.instance;
-    return ColoredBox(
-      // Over a card: its color under the tree, the title on the window's.
-      color: IslandSurface.colorOf(context) == null
-          ? themeColors['sideBar.background']
-          : Colors.transparent,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IdeViewTitle(context.l10n.wbExplorer),
-          Expanded(
-            child: IdePaneContainer(
-              expanded: _explorerPanes,
-              onToggle: (id) => setState(() {
-                if (!_explorerPanes.remove(id)) _explorerPanes.add(id);
-              }),
-              panes: [
-                if (!workspace.hasFolder)
-                  IdePane(
-                    id: 'folder',
-                    title: context.l10n.explorerNoFolderTitle,
-                    weight: 3,
-                    body: _NoFolder(
-                      onOpenFolder: _hostCommand(
-                        'workbench.action.files.openFolder',
-                      )?.run,
-                    ),
-                  )
-                else
-                  IdePane(
-                    id: 'folder',
-                    title: workspace.isMultiRoot
-                        ? context.l10n.ideWorkspaceTitle(widget.project.name)
-                        : widget.project.name,
-                    weight: 3,
-                    actions: [
-                      if (widget.onAddFolder case final add?
-                          when workspace.isMultiRoot)
-                        IdePaneAction(
-                          icon: Codicons.rootFolder,
-                          tooltip: context.l10n.ideAddFolderToWorkspace,
-                          onPressed: add,
-                        ),
-                      IdePaneAction(
-                        icon: Codicons.newFile,
-                        tooltip: keys.titleWithKeybinding(
-                          context.l10n.explorerNewFile,
-                          'explorer.newFile',
-                        ),
-                        onPressed: () => unawaited(
-                          _explorerTree.currentState?.startCreate(
-                            directory: false,
-                          ),
-                        ),
+    // Over a card (the side bar's, under this): its color under the panes,
+    // the title on the window's.
+    return Builder(
+      builder: (context) => ColoredBox(
+        color: IslandSurface.colorOf(context) == null
+            ? themeColors['sideBar.background']
+            : Colors.transparent,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            IdeViewTitle(context.l10n.wbExplorer),
+            Expanded(
+              child: IdePaneContainer(
+                expanded: _explorerPanes,
+                onToggle: (id) => setState(() {
+                  if (!_explorerPanes.remove(id)) _explorerPanes.add(id);
+                }),
+                panes: [
+                  if (!workspace.hasFolder)
+                    IdePane(
+                      id: 'folder',
+                      title: context.l10n.explorerNoFolderTitle,
+                      weight: 3,
+                      body: _NoFolder(
+                        onOpenFolder: _hostCommand(
+                          'workbench.action.files.openFolder',
+                        )?.run,
                       ),
-                      IdePaneAction(
-                        icon: Codicons.newFolder,
-                        tooltip: keys.titleWithKeybinding(
-                          context.l10n.explorerNewFolder,
-                          'explorer.newFolder',
-                        ),
-                        onPressed: () => unawaited(
-                          _explorerTree.currentState?.startCreate(
-                            directory: true,
+                    )
+                  else
+                    IdePane(
+                      id: 'folder',
+                      title: workspace.isMultiRoot
+                          ? context.l10n.ideWorkspaceTitle(widget.project.name)
+                          : widget.project.name,
+                      weight: 3,
+                      actions: [
+                        if (widget.onAddFolder case final add?
+                            when workspace.isMultiRoot)
+                          IdePaneAction(
+                            icon: Codicons.rootFolder,
+                            tooltip: context.l10n.ideAddFolderToWorkspace,
+                            onPressed: add,
+                          ),
+                        IdePaneAction(
+                          icon: Codicons.newFile,
+                          tooltip: keys.titleWithKeybinding(
+                            context.l10n.explorerNewFile,
+                            'explorer.newFile',
+                          ),
+                          onPressed: () => unawaited(
+                            _explorerTree.currentState?.startCreate(
+                              directory: false,
+                            ),
                           ),
                         ),
+                        IdePaneAction(
+                          icon: Codicons.newFolder,
+                          tooltip: keys.titleWithKeybinding(
+                            context.l10n.explorerNewFolder,
+                            'explorer.newFolder',
+                          ),
+                          onPressed: () => unawaited(
+                            _explorerTree.currentState?.startCreate(
+                              directory: true,
+                            ),
+                          ),
+                        ),
+                        IdePaneAction(
+                          icon: Codicons.refresh,
+                          tooltip: keys.titleWithKeybinding(
+                            context.l10n.cmdRefreshExplorer,
+                            'workbench.files.action.refreshFilesExplorer',
+                          ),
+                          onPressed: () => unawaited(_explorer.refresh()),
+                        ),
+                        IdePaneAction(
+                          icon: Codicons.collapseAll,
+                          tooltip: keys.titleWithKeybinding(
+                            context.l10n.cmdCollapseExplorerFolders,
+                            'workbench.files.action.collapseExplorerFolders',
+                          ),
+                          onPressed: _explorer.collapseAll,
+                        ),
+                      ],
+                      body: workspace.isMultiRoot && workspace.roots.isEmpty
+                          ? _EmptyWorkspace(onAddFolder: widget.onAddFolder)
+                          : IdeExplorer(
+                              key: _explorerTree,
+                              controller: _explorer,
+                              focusNode: _explorerFocus,
+                              isBound: (event) =>
+                                  _resolveEditorKey(event) != null,
+                              git: workspace.git,
+                              repositories: [
+                                for (final (_, git) in workspace.repositories)
+                                  git,
+                              ],
+                              onAddFolder: workspace.isMultiRoot
+                                  ? widget.onAddFolder
+                                  : null,
+                              onRemoveFolder: workspace.isMultiRoot
+                                  ? widget.onRemoveFolder
+                                  : null,
+                              onOpen: (path, focusEditor) => unawaited(
+                                _open(path, focusEditor: focusEditor),
+                              ),
+                              onMoved: workspace.moved,
+                              onDeleted: workspace.deleted,
+                              unsavedIn: (path) => workspace
+                                  .documentsIn(path)
+                                  .where((d) => d.dirty)
+                                  .length,
+                              local: _local,
+                              trash: _local && WindowControls.canMoveToTrash
+                                  ? WindowControls.moveToTrash
+                                  : null,
+                              onError: _report,
+                              onOpenInDefaultApp:
+                                  _local && WindowControls.canOpenInDefaultApp
+                                  ? (path) => unawaited(_openInDefaultApp(path))
+                                  : null,
+                              onFindInFolder: (folder) {
+                                _search.findInFolder(
+                                  _relative(folder) == '.'
+                                      ? ''
+                                      : _relative(folder),
+                                  workspace.root,
+                                );
+                                _showView(IdeSideView.search);
+                              },
+                              onOpenInTerminal: _terminals == null
+                                  ? null
+                                  : _openInTerminal,
+                              onShowHistory: _showHistory,
+                              onShowLocalHistory: (path) =>
+                                  unawaited(_showLocalHistory(path)),
+                              onCompareFiles:
+                                  (original, modified, {folders = false}) =>
+                                      unawaited(
+                                        _compareFiles(
+                                          original,
+                                          modified,
+                                          folders: folders,
+                                        ),
+                                      ),
+                            ),
+                    ),
+                  IdePane(
+                    id: 'outline',
+                    title: context.l10n.wbOutline,
+                    body: ListenableBuilder(
+                      listenable: _caret,
+                      builder: (context, _) => IdeOutlineView(
+                        symbols: _symbols,
+                        caret: workspace.active == null ? null : _caretLsp,
+                        onReveal: _revealSymbol,
+                        showHeader: false,
+                      ),
+                    ),
+                  ),
+                  IdePane(
+                    id: 'timeline',
+                    title: context.l10n.wbTimeline,
+                    description: timelinePath == null
+                        ? null
+                        : p.basename(timelinePath),
+                    actions: [
+                      IdePaneAction(
+                        icon: _timeline.pinned == null
+                            ? Codicons.pin
+                            : Codicons.pinned,
+                        tooltip: _timeline.pinned == null
+                            ? context.l10n.wbPinTimeline
+                            : context.l10n.wbUnpinTimeline,
+                        onPressed: () =>
+                            setState(() => _timeline.togglePin(activePath)),
                       ),
                       IdePaneAction(
                         icon: Codicons.refresh,
-                        tooltip: keys.titleWithKeybinding(
-                          context.l10n.cmdRefreshExplorer,
-                          'workbench.files.action.refreshFilesExplorer',
-                        ),
-                        onPressed: () => unawaited(_explorer.refresh()),
-                      ),
-                      IdePaneAction(
-                        icon: Codicons.collapseAll,
-                        tooltip: keys.titleWithKeybinding(
-                          context.l10n.cmdCollapseExplorerFolders,
-                          'workbench.files.action.collapseExplorerFolders',
-                        ),
-                        onPressed: _explorer.collapseAll,
+                        tooltip: context.l10n.commonRefresh,
+                        onPressed: _timeline.refresh,
                       ),
                     ],
-                    body: workspace.isMultiRoot && workspace.roots.isEmpty
-                        ? _EmptyWorkspace(onAddFolder: widget.onAddFolder)
-                        : IdeExplorer(
-                            key: _explorerTree,
-                            controller: _explorer,
-                            focusNode: _explorerFocus,
-                            isBound: (event) =>
-                                _resolveEditorKey(event) != null,
-                            git: workspace.git,
-                            repositories: [
-                              for (final (_, git) in workspace.repositories)
-                                git,
-                            ],
-                            onAddFolder: workspace.isMultiRoot
-                                ? widget.onAddFolder
-                                : null,
-                            onRemoveFolder: workspace.isMultiRoot
-                                ? widget.onRemoveFolder
-                                : null,
-                            onOpen: (path, focusEditor) => unawaited(
-                              _open(path, focusEditor: focusEditor),
-                            ),
-                            onMoved: workspace.moved,
-                            onDeleted: workspace.deleted,
-                            unsavedIn: (path) => workspace
-                                .documentsIn(path)
-                                .where((d) => d.dirty)
-                                .length,
-                            local: _local,
-                            trash: _local && WindowControls.canMoveToTrash
-                                ? WindowControls.moveToTrash
-                                : null,
-                            onError: _report,
-                            onOpenInDefaultApp:
-                                _local && WindowControls.canOpenInDefaultApp
-                                ? (path) => unawaited(_openInDefaultApp(path))
-                                : null,
-                            onFindInFolder: (folder) {
-                              _search.findInFolder(
-                                _relative(folder) == '.'
-                                    ? ''
-                                    : _relative(folder),
-                                workspace.root,
-                              );
-                              _showView(IdeSideView.search);
-                            },
-                            onOpenInTerminal: _terminals == null
-                                ? null
-                                : _openInTerminal,
-                            onShowHistory: _showHistory,
-                            onShowLocalHistory: (path) =>
-                                unawaited(_showLocalHistory(path)),
-                            onCompareFiles:
-                                (original, modified, {folders = false}) =>
-                                    unawaited(
-                                      _compareFiles(
-                                        original,
-                                        modified,
-                                        folders: folders,
-                                      ),
-                                    ),
-                          ),
-                  ),
-                IdePane(
-                  id: 'outline',
-                  title: context.l10n.wbOutline,
-                  body: ListenableBuilder(
-                    listenable: _caret,
-                    builder: (context, _) => IdeOutlineView(
-                      symbols: _symbols,
-                      caret: workspace.active == null ? null : _caretLsp,
-                      onReveal: _revealSymbol,
-                      showHeader: false,
+                    body: IdeTimelineView(
+                      controller: _timeline,
+                      // The file's repository: one in a subfolder, if so.
+                      git: switch (timelinePath) {
+                        final path? => workspace.gitAt(path),
+                        null => workspace.git,
+                      },
+                      activePath: activePath,
                     ),
                   ),
-                ),
-                IdePane(
-                  id: 'timeline',
-                  title: context.l10n.wbTimeline,
-                  description: timelinePath == null
-                      ? null
-                      : p.basename(timelinePath),
-                  actions: [
-                    IdePaneAction(
-                      icon: _timeline.pinned == null
-                          ? Codicons.pin
-                          : Codicons.pinned,
-                      tooltip: _timeline.pinned == null
-                          ? context.l10n.wbPinTimeline
-                          : context.l10n.wbUnpinTimeline,
-                      onPressed: () =>
-                          setState(() => _timeline.togglePin(activePath)),
-                    ),
-                    IdePaneAction(
-                      icon: Codicons.refresh,
-                      tooltip: context.l10n.commonRefresh,
-                      onPressed: _timeline.refresh,
-                    ),
-                  ],
-                  body: IdeTimelineView(
-                    controller: _timeline,
-                    // The file's repository: one in a subfolder, if so.
-                    git: switch (timelinePath) {
-                      final path? => workspace.gitAt(path),
-                      null => workspace.git,
-                    },
-                    activePath: activePath,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -4846,6 +4857,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     padding: const EdgeInsets.symmetric(horizontal: Islands.gap / 2),
     child: HeadedIsland(
       header: IdeTabStrip.height,
+      // In its own column, down to the window's foot: its branch under
+      // its card, in the status bar's row; in the editor's place, the
+      // panel under it.
+      footer: _layout.editorVisible ? Islands.belowHeight : 0,
       color: AppColors.code,
       child: Focus(focusNode: _chatFocus, child: widget.chat),
     ),
@@ -4883,7 +4898,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// stays on the right however narrow the window (see [IdeColumns.fit]).
   /// With the editor hidden ([IdeLayout.editorHidden]), the chat has its
   /// place, beside the side bar if that shows, the panel below the two.
-  Widget _split(Size size, List<IdeCommand> commands) {
+  Widget _split(Size size, List<IdeCommand> commands, Widget statusBar) {
     const bar = IdeModernUI.activityBarWidth;
     // The editor hidden, the chat is sized as though it were there: dragged
     // back, the editor comes out where the pointer is.
@@ -4956,36 +4971,62 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              KeyedSubtree(
-                key: const ValueKey('ide-activity-bar'),
-                child: _activityBar(sidebarShowing: sidebarVisible),
-              ),
-              if (!editorHidden && sidebarVisible && !gitLog) sidebar,
+              // The status bar under all but the chat, which has its own
+              // row there (its branch), as in the agents' window.
               Expanded(
-                key: const ValueKey('ide-editor-column'),
-                child: _editorColumn(
-                  size.height,
-                  commands,
-                  inPlace: gitLog
-                      ? KeyedSubtree(key: _sidebarKey, child: _sidebarPart())
-                      : !editorHidden
-                      ? null
-                      : sidebarVisible
-                      ? Stack(
-                          children: [
-                            Positioned.fill(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  sidebar,
-                                  Expanded(child: chat),
-                                ],
-                              ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          KeyedSubtree(
+                            key: const ValueKey('ide-activity-bar'),
+                            child: _activityBar(sidebarShowing: sidebarVisible),
+                          ),
+                          if (!editorHidden && sidebarVisible && !gitLog)
+                            sidebar,
+                          Expanded(
+                            key: const ValueKey('ide-editor-column'),
+                            child: _editorColumn(
+                              size.height - IdeStatusBar.height,
+                              commands,
+                              inPlace: gitLog
+                                  ? KeyedSubtree(
+                                      key: _sidebarKey,
+                                      child: _sidebarPart(),
+                                    )
+                                  : !editorHidden
+                                  ? null
+                                  : sidebarVisible
+                                  ? Stack(
+                                      children: [
+                                        Positioned.fill(
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              sidebar,
+                                              Expanded(child: chat),
+                                            ],
+                                          ),
+                                        ),
+                                        _sashAt(
+                                          columns.sidebar,
+                                          room,
+                                          sidebarSash,
+                                        ),
+                                      ],
+                                    )
+                                  : chat,
                             ),
-                            _sashAt(columns.sidebar, room, sidebarSash),
-                          ],
-                        )
-                      : chat,
+                          ),
+                        ],
+                      ),
+                    ),
+                    statusBar,
+                  ],
                 ),
               ),
               if (!editorHidden) _chatSlot(columns.chat),
@@ -5486,21 +5527,24 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                             right: Islands.gap / 2,
                           ),
                           child: LayoutBuilder(
-                            builder: (context, constraints) =>
-                                _split(constraints.biggest, commands),
+                            builder: (context, constraints) => _split(
+                              constraints.biggest,
+                              commands,
+                              // Typing moves the caret and edits the
+                              // document, and the status bar is all that
+                              // shows either; as it is all that shows a
+                              // language server's progress.
+                              ListenableBuilder(
+                                listenable: Listenable.merge([
+                                  _caret,
+                                  widget.workspace.edits,
+                                  _languages?.progressChanges,
+                                ]),
+                                builder: (context, _) => _statusBar(),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      // Typing moves the caret and edits the document, and
-                      // the status bar is all that shows either; as it is
-                      // all that shows a language server's progress.
-                      ListenableBuilder(
-                        listenable: Listenable.merge([
-                          _caret,
-                          widget.workspace.edits,
-                          _languages?.progressChanges,
-                        ]),
-                        builder: (context, _) => _statusBar(),
                       ),
                     ],
                   ),

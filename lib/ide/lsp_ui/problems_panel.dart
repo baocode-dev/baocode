@@ -262,10 +262,12 @@ class IdeBottomPanel extends StatelessWidget {
               child: Row(
                 children: [
                   const SizedBox(width: 8),
-                  // Narrow, the tabs scroll and the actions stay whole.
+                  // Narrow, the tabs scroll and the actions stay whole; the
+                  // last ones (the terminal's) shown whole first.
                   Expanded(
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
+                      reverse: true,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [

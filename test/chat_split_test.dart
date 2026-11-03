@@ -1039,7 +1039,7 @@ void main() {
       if (identical(thread, workspace.current)) return false;
       final finder = inSidebar(find.text(thread.title));
       return finder.evaluate().length == 1 &&
-          tester.getRect(finder).bottom > view.top + view.height * .9;
+          tester.getRect(finder).bottom > view.top + view.height * .85;
     });
     final row = inSidebar(find.text(near.title));
     list.position.jumpTo(
@@ -1444,7 +1444,8 @@ void main() {
         matching: find.text(title),
       );
       expect(tester.getTopLeft(text).dx, tester.getRect(pane(title)).left + 12);
-      expect(tester.getTopLeft(text).dx, lessThan(composer.left));
+      // No further in than the input (as far in, on a narrow card).
+      expect(tester.getTopLeft(text).dx, lessThanOrEqualTo(composer.left));
       expect(
         tester
             .getTopRight(find.descendant(of: pane(title), matching: rightmost))

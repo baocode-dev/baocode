@@ -188,8 +188,12 @@ void main() {
       closeTo(panel.top + Islands.gap / 2, 0.01),
     );
     expect(tester.getSize(_part('ide-panel-sash')).height, IdeModernUI.gap);
-    // The side bar and the chat keep the whole height.
-    expect(tester.getRect(_part('ide-chat')).bottom, panel.bottom);
+    // The side bar and the chat keep the whole height; the chat down to
+    // the window's foot, its branch beside the status bar.
+    expect(
+      tester.getRect(_part('ide-chat')).bottom,
+      panel.bottom + Islands.belowHeight,
+    );
     expect(tester.getRect(_part('ide-sidebar')).bottom, panel.bottom);
 
     final drag = await tester.startGesture(
@@ -241,7 +245,7 @@ void main() {
     final editor = tester.getRect(_part('ide-editor'));
     final chat = tester.getRect(_part('ide-chat'));
     expect(chat.top, editor.top);
-    expect(chat.bottom, editor.bottom);
+    expect(chat.bottom, editor.bottom + Islands.belowHeight);
     expect(chat.left, editor.right);
     expect(chat.width, IdeColumns.minChat);
     // The side bar gave way to the editor opened.
