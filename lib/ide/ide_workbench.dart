@@ -5484,6 +5484,32 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
   }
 
+  /// While a session is debugged, a mark of the debugging colors: the bar
+  /// on the window's color, not the bar of them upstream's
+  /// (statusbarColorProvider.ts).
+  IdeStatusBarItem? _debuggingItem() {
+    final debug = _debug;
+    if (debug == null || debug.state == DebugState.inactive) return null;
+    final s = DebugStrings.of(context);
+    final background = themeColors['statusBar.debuggingBackground'];
+    final foreground = themeColors['statusBar.debuggingForeground'];
+    return IdeStatusBarItem(
+      debug.viewModel.focusedSession?.getLabel() ?? s.runAndDebug,
+      icon: Codicons.debugAltSmall,
+      color: foreground,
+      background: background,
+      hoverBackground: Color.alphaBlend(
+        foreground.withValues(alpha: 0.12),
+        background,
+      ),
+      tooltip: KeybindingService.instance.titleWithKeybinding(
+        s.runAndDebug,
+        'workbench.view.debug',
+      ),
+      onTap: () => _showView(IdeSideView.debug),
+    );
+  }
+
   IdeStatusBar _statusBar() {
     final active = widget.workspace.active;
     final l10n = context.l10n;
@@ -5492,6 +5518,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final keys = KeybindingService.instance;
     final left = [
       ?widget.remote?.item(context),
+      ?_debuggingItem(),
       if (_gitBranch ?? _branch case final branch?)
         // Upstream's `CheckoutStatusBar`: Checkout to…, its tooltip the
         // repository's (`<folder> (Git) - `) before the command's.
@@ -5633,6 +5660,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                 _caret,
                                 widget.workspace.edits,
                                 _languages?.progressChanges,
+                                _debug,
                               ]),
                             ),
                           ),

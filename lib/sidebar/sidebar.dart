@@ -2320,24 +2320,29 @@ class _SidebarState extends State<Sidebar>
     VoidCallback? settings,
     Widget? update,
   ) {
-    return Row(
-      children: [
-        Expanded(
-          child: count == 0
-              ? const SizedBox.shrink()
-              : _buildArchivedToggle(count),
-        ),
-        if (update != null) ...[const SizedBox(width: 4), update],
-        if (settings != null) ...[
-          const SizedBox(width: 4),
-          SidebarIconButton(
-            icon: Codicons.settingsGear,
-            tooltip: context.l10n.settingsTitle,
-            command: openSettingsCommandId,
-            onTap: settings,
+    // As high with the archived toggle as without: the buttons where the
+    // conversation's branch is beside it.
+    return SizedBox(
+      height: _footerRowHeight,
+      child: Row(
+        children: [
+          Expanded(
+            child: count == 0
+                ? const SizedBox.shrink()
+                : _buildArchivedToggle(count),
           ),
+          if (update != null) ...[const SizedBox(width: 4), update],
+          if (settings != null) ...[
+            const SizedBox(width: 4),
+            SidebarIconButton(
+              icon: Codicons.settingsGear,
+              tooltip: context.l10n.settingsTitle,
+              command: openSettingsCommandId,
+              onTap: settings,
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
