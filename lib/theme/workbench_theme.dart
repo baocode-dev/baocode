@@ -90,7 +90,18 @@ String migrateThemeSettingsId(String settingsId) => switch (settingsId) {
 abstract interface class ColorThemeStorage {
   String? get colorThemeSetting;
   String? get colorThemeData;
-  void storeColorTheme({required String setting, String? data});
+
+  /// 已保存的跟随系统模式；未配置时为 false。
+  bool get autoDetectColorScheme;
+
+  /// 保存固定偏好 [setting]、模式与配色缓存 [data]；[cacheOnly] 只更新缓存。
+  /// 返回实际写入结果，失败时抛出错误。
+  Future<void> storeColorTheme({
+    required String setting,
+    String? data,
+    bool autoDetectColorScheme = false,
+    bool cacheOnly = false,
+  });
 }
 
 /// A color theme's colors as widgets read them: what the theme sets, else
@@ -467,9 +478,12 @@ class WorkbenchThemeService extends ChangeNotifier
 
   void _keep(ColorThemeData theme) {
     _setting = theme.settingsId;
-    storage?.storeColorTheme(
-      setting: theme.settingsId,
-      data: theme.toStorage(),
+    unawaited(
+      storage
+          ?.storeColorTheme(setting: theme.settingsId, data: theme.toStorage())
+          .catchError((Object error) {
+            debugPrint('Color theme not kept: $error');
+          }),
     );
   }
 }

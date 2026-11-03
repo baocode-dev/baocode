@@ -186,9 +186,14 @@ class ResumeAfterReset extends ChangeNotifier {
     final store = _store;
     if (store == null) return;
     unawaited(
-      store.write({
-        'entries': [for (final entry in entries) entry.toJson()],
-      }),
+      store
+          .write({
+            'entries': [for (final entry in entries) entry.toJson()],
+          })
+          .catchError((Object error) {
+            // 非等待保存显式记录失败，底层仍向等待调用者传播真实错误。
+            debugPrint('Resume entries not kept: $error');
+          }),
     );
   }
 
