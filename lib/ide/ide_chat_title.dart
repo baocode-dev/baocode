@@ -205,14 +205,7 @@ class _ChatTabsState extends State<_ChatTabs> {
       final current = widget.current;
       final context = current == null ? null : _keys[current]?.currentContext;
       if (context == null) return;
-      Scrollable.ensureVisible(
-        context,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-      );
-      Scrollable.ensureVisible(
-        context,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-      );
+      TabStripScroll.reveal(context);
     });
   }
 

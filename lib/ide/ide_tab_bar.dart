@@ -173,14 +173,7 @@ class _IdeTabBarState extends State<IdeTabBar> {
           ? _pageKey.currentContext
           : _keys[active]?.currentContext;
       if (context == null) return;
-      Scrollable.ensureVisible(
-        context,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-      );
-      Scrollable.ensureVisible(
-        context,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-      );
+      TabStripScroll.reveal(context);
     });
   }
 
