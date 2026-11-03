@@ -891,9 +891,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   // its first item is pressed. That bar is not a row of the list, so no index
   // is moved by it; the room for it is the list's top padding.
 
-  /// The list's room above its first item (the composer's under its last,
-  /// [Islands.inset]), and the bar's height after it.
-  static const _chatTopPadding = 12.0;
+  /// The list's room above its first item: as at its sides (the gutter),
+  /// where a message as wide as the chat lets it be sticks too (see
+  /// [_stickyInset]); and the bar's height after it.
+  double get _chatTopPadding => _gutter;
   static const _earlierBarHeight = 40.0;
 
   /// How near the top the list is scrolled before the earlier turns are read.
@@ -1703,15 +1704,16 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _editorMoved.value++;
   }
 
-  /// Room above the editor stuck to the top of the list.
-  static const _editorInset = 8.0;
+  /// Room above the editor stuck to the top of the list: as above the
+  /// stuck message it opens from.
+  double get _editorInset => _stickyInset;
 
   /// Where the editor goes, relative to [layer]: on its placeholder, but
   /// never above the top of the list (it sticks there once scrolled past),
   /// unless the user's messages do not stick ([_sticks]). Null when the
   /// placeholder is out of the built items, out of view.
   double? _editorTop(RenderBox layer) {
-    const inset = _editorInset;
+    final inset = _editorInset;
     // Closing: on the message, below its gap (its placeholder is gone).
     if (_closingIndex case final index?) {
       final item = _laidOutItems()
@@ -1745,8 +1747,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   // --- The sticky user message ---------------------------------------------
 
-  /// Room above the stuck message, as above the editor stuck to the top.
-  static const _stickyInset = AppMetrics.contentInset;
+  /// Room above the stuck message: as above the list's first item, and at
+  /// its sides where it is as wide as the chat lets it be (the gutter).
+  double get _stickyInset => _chatTopPadding;
 
   /// Height of the fade under the stuck message, over the transcript
   /// scrolling beneath it.
