@@ -199,7 +199,12 @@ class Sidebar extends StatefulWidget {
     this.updates,
     this.onUpdate,
     this.setup,
+    this.surface,
   });
+
+  /// Under it: [AppColors.sidebarSurface] by default; none where the
+  /// window's own color is under it already.
+  final Color? surface;
 
   /// Over the foot's row: the setup checklist folded ("Setup n/m"), which
   /// shows nothing when the checklist does not fold there.
@@ -984,7 +989,7 @@ class _SidebarState extends State<Sidebar>
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.sidebarSurface,
+      color: widget.surface ?? AppColors.sidebarSurface,
       child: Listener(
         // On the way up, so a click lands on the row it went down on
         // before every project is listed again.

@@ -7,9 +7,11 @@ import '../chat/composer/file_drag.dart';
 import '../chat/widgets/inline_rename_field.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
+import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/islands.dart';
 import '../workspace/window_controls.dart';
 import 'editor_minimap_setting.dart';
 import 'ide_hover.dart';
@@ -306,7 +308,15 @@ class _IdeTabBarState extends State<IdeTabBar> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final (i, doc) in docs.indexed)
+                  ?IdeTabStrip.lead(context),
+                  for (final (i, doc) in docs.indexed) ...[
+                    if (i > 0)
+                      ?IdeTabStrip.separator(
+                        context,
+                        shown:
+                            !identical(docs[i - 1], widget.active) &&
+                            !identical(doc, widget.active),
+                      ),
                     _draggable(
                       doc,
                       _Tab(
@@ -320,6 +330,7 @@ class _IdeTabBarState extends State<IdeTabBar> {
                             _showMenu(doc, position: position),
                       ),
                     ),
+                  ],
                   if (widget.page case final page?)
                     KeyedSubtree(key: _pageKey, child: page),
                 ],
@@ -522,18 +533,34 @@ class IdeTabStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
     height: small ? smallHeight : height,
-    // Not a Container: its border would inset the tabs.
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: themeColors['editorGroupHeader.tabsBackground'],
-        border: switch (border ?? line) {
-          final color? => Border(bottom: BorderSide(color: color)),
-          null => null,
-        },
-      ),
-      child: child,
-    ),
+    // Over a card (see [HeadedIsland]): on the window's color, the card's
+    // outline under it.
+    child: IslandSurface.colorOf(context) != null
+        ? child
+        // Not a Container: its border would inset the tabs.
+        : DecoratedBox(
+            decoration: BoxDecoration(
+              color: themeColors['editorGroupHeader.tabsBackground'],
+              border: switch (border ?? line) {
+                final color? => Border(bottom: BorderSide(color: color)),
+                null => null,
+              },
+            ),
+            child: child,
+          ),
   );
+
+  /// Between two tabs over a card: a line where neither is in front.
+  static Widget? separator(BuildContext context, {required bool shown}) =>
+      IslandSurface.colorOf(context) == null
+      ? null
+      : IslandTabSeparator(shown: shown);
+
+  /// Before the first tab over a card: room for the tab in front's foot.
+  static Widget? lead(BuildContext context) =>
+      IslandSurface.colorOf(context) == null
+      ? null
+      : const SizedBox(width: IslandTab.flare);
 }
 
 /// A tab as the editor's (multiEditorTabsControl.ts, in the theme's
@@ -656,6 +683,8 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
         ? IdeEditorTab.labelStyleBase.copyWith(fontSize: 12)
         : IdeEditorTab.labelStyleBase;
     final closeSize = small ? 18.0 : 22.0;
+    // Over a card: a browser's tab, the one in front of the card's color.
+    final island = IslandSurface.colorOf(context);
     Widget tab = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
@@ -681,26 +710,31 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
               left: padding,
               right: onClose == null ? padding : (small ? 3 : 5),
             ),
-            decoration: BoxDecoration(
-              // The active tab in the editor's own color (by default),
-              // merging with it.
-              color: active
-                  ? colors['tab.activeBackground']
-                  : (hovered ? colors.get('tab.hoverBackground') : null) ??
-                        colors['tab.inactiveBackground'],
-              border: Border(
-                top: BorderSide(
-                  color:
-                      (active && widget.borderTop
-                          ? colors.get('tab.activeBorderTop')
-                          : null) ??
-                      Colors.transparent,
-                ),
-                right: BorderSide(color: right ?? Colors.transparent),
-              ),
-            ),
+            decoration: island != null
+                ? null
+                : BoxDecoration(
+                    // The active tab in the editor's own color (by default),
+                    // merging with it.
+                    color: active
+                        ? colors['tab.activeBackground']
+                        : (hovered
+                                  ? colors.get('tab.hoverBackground')
+                                  : null) ??
+                              colors['tab.inactiveBackground'],
+                    border: Border(
+                      top: BorderSide(
+                        color:
+                            (active && widget.borderTop
+                                ? colors.get('tab.activeBorderTop')
+                                : null) ??
+                            Colors.transparent,
+                      ),
+                      right: BorderSide(color: right ?? Colors.transparent),
+                    ),
+                  ),
             // Over the tab, as upstream's are.
-            foregroundDecoration: bottom == null && outline == null
+            foregroundDecoration:
+                island != null || (bottom == null && outline == null)
                 ? null
                 : BoxDecoration(
                     border: outline != null
@@ -796,6 +830,24 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
         ),
       ),
     );
+    if (island != null) {
+      tab = CustomPaint(
+        painter: active
+            ? IslandTabShape(fill: island, line: Islands.border, overhang: 0)
+            : null,
+        child: Padding(
+          // The hover's, inset from the foot.
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: hovered ? AppColors.hover : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: tab,
+          ),
+        ),
+      );
+    }
     if (widget.tooltip case final tooltip?) {
       tab = IdeHover(message: tooltip, child: tab);
     }

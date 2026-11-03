@@ -50,6 +50,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
 import '../../workspace/editor_launcher.dart' show openExternal;
+import '../../workspace/islands.dart';
 import '../../workspace/window_controls.dart';
 import '../file_service.dart' show IdeHostFiles;
 import '../ide_animated_list.dart';
@@ -3340,7 +3341,9 @@ class IdeGitGraph extends StatelessWidget {
                 : hovered
                 ? colors['list.hoverBackground']
                 : Colors.transparent,
-            this.background ?? colors['sideBar.background'],
+            this.background ??
+                IslandSurface.colorOf(context) ??
+                colors['sideBar.background'],
           );
           return Padding(
             padding: const EdgeInsets.only(left: 4, right: 12),

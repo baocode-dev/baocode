@@ -11,6 +11,7 @@ import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/window_blur.dart';
 import 'package:baocode/theme/workbench_theme.dart';
+import 'package:baocode/workspace/islands.dart';
 
 import 'workbench/fake_files.dart';
 
@@ -30,51 +31,61 @@ void main() {
     expect(AppColors.windowCanvas.a, 0);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  testWidgets('the parts are flush and square, the activity bar VS Code\'s', (
-    tester,
-  ) async {
+  testWidgets('the parts are cards a gap apart on the window\'s color, the '
+      'activity bar VS Code\'s beside them', (tester) async {
     await pumpWorkbench(tester, {'a.txt': 'a'});
     Rect part(Finder of) => tester.getRect(
       find.ancestor(of: of, matching: find.byType(IdePart)).first,
     );
     final activityBar = part(find.byIcon(Codicons.files));
-    Rect partIn(String key) => tester.getRect(
+    HeadedIsland cardOf(String key) => tester.widget<HeadedIsland>(
       find
           .descendant(
             of: find.byKey(ValueKey(key)),
-            matching: find.byType(IdePart),
+            matching: find.byType(HeadedIsland),
           )
           .first,
     );
-    final sidebar = partIn('ide-sidebar');
-    final editor = partIn('ide-editor');
-    final chat = partIn('ide-chat');
-    // Against the window's side, 44px wide; each part against the next,
-    // down to the status bar.
-    expect(activityBar.left, 0);
-    expect(activityBar.width, 44);
-    expect(sidebar.left, activityBar.right);
-    expect(editor.left, sidebar.right);
-    expect(chat.left, editor.right);
-    expect(chat.right, 1400);
-    expect(editor.bottom, activityBar.bottom);
-    expect(tester.getRect(find.byType(IdeStatusBar)).top, activityBar.bottom);
-    // In the theme's colors: no card's border or corners.
-    final sidebarPart = tester.widget<IdePart>(
+    Rect cardIn(String key) => tester.getRect(
       find
           .descendant(
-            of: find.byKey(const ValueKey('ide-sidebar')),
-            matching: find.byType(IdePart),
+            of: find.byKey(ValueKey(key)),
+            matching: find.byType(HeadedIsland),
           )
           .first,
     );
-    expect(sidebarPart.color, themeColors['sideBar.background']);
-    // The line beside it, the theme's: `sideBar.border`, else
-    // `surface.border`.
+    final sidebar = cardIn('ide-sidebar');
+    final editor = cardIn('ide-editor');
+    final chat = cardIn('ide-chat');
+    // Against the window's side, 44px wide, on its color; each card a gap
+    // from the next, and from the window's right; down to the status bar.
+    expect(activityBar.left, 0);
+    expect(activityBar.width, 44);
     expect(
-      sidebarPart.border!.right.color,
-      themeColors.get('sideBar.border') ?? themeColors['surface.border'],
+      tester
+          .widget<IdePart>(
+            find
+                .ancestor(
+                  of: find.byIcon(Codicons.files),
+                  matching: find.byType(IdePart),
+                )
+                .first,
+          )
+          .color,
+      isNull,
     );
+    expect(sidebar.left, activityBar.right + Islands.gap / 2);
+    expect(editor.left - sidebar.right, Islands.gap);
+    expect(chat.left - editor.right, Islands.gap);
+    expect(chat.right, 1400 - Islands.gap);
+    expect(sidebar.bottom, chat.bottom);
+    expect(tester.getRect(find.byType(IdeStatusBar)).top, chat.bottom);
+    // Their titles and tabs over them, as high as each other.
+    expect(cardOf('ide-sidebar').header, cardOf('ide-chat').header);
+    expect(cardOf('ide-editor').header, cardOf('ide-chat').header);
+    expect(cardOf('ide-sidebar').color, AppColors.code);
+    expect(cardOf('ide-editor').color, themeColors['editor.background']);
+    // The status bar on the window's color too.
     final statusBar = tester.widget<Container>(
       find
           .descendant(
@@ -83,10 +94,7 @@ void main() {
           )
           .first,
     );
-    expect(
-      (statusBar.decoration! as BoxDecoration).color,
-      themeColors['statusBar.background'],
-    );
+    expect(statusBar.decoration, isNull);
 
     // 36px items, 8px apart, the first 4px (half the lane) from the top.
     Finder inBar(IconData icon) => find.descendant(
@@ -114,7 +122,7 @@ void main() {
     expect(files.size, const Size.square(36));
     expect(search.top - files.bottom, 8);
     expect(files.top - activityBar.top, 4);
-    // Centered, less `activityBar.border` where the theme has it.
+    // Centered across it.
     expect(files.center.dx, closeTo(activityBar.center.dx, 0.5));
 
     // The Explorer is showing: its item is on the rounded box, the others
@@ -132,13 +140,13 @@ void main() {
                 .decoration!
             as BoxDecoration;
     expect(box(Codicons.files).color, IdeModernUI.activityActiveBackground);
-    expect(box(Codicons.files).borderRadius, BorderRadius.circular(4));
+    expect(box(Codicons.files).borderRadius, BorderRadius.circular(8));
     expect(box(Codicons.search).color, isNull);
     expect(
       tester.widget<Icon>(inBar(Codicons.search)).color,
       IdeModernUI.activityForeground,
     );
-    expect(tester.widget<Icon>(find.byIcon(Codicons.files)).size, 24);
+    expect(tester.widget<Icon>(find.byIcon(Codicons.files)).size, 20);
 
     // Closing the side bar unselects its item.
     await tester.tap(find.byIcon(Codicons.files));

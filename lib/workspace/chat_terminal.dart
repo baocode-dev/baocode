@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import '../chat/chat_keys.dart';
 import '../ide/file_service.dart';
 import '../ide/ide_hover.dart';
-import '../ide/ide_modern_ui.dart';
 import '../ide/ide_rows.dart';
 import '../ide/terminal/links/terminal_links.dart';
 import '../ide/terminal/terminal_hosts.dart';
@@ -18,6 +17,7 @@ import '../l10n/l10n.dart';
 import '../sidebar/sidebar.dart' show SidebarIconButton;
 import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
+import 'islands.dart';
 import 'terminal_deck.dart';
 
 /// Toggle Terminal (⌃`): the chat window's panel, as the IDE's.
@@ -280,9 +280,9 @@ class ChatTerminalArea extends StatefulWidget {
   /// Opens a link ⌘-clicked (Ctrl-clicked off macOS) in a terminal.
   final ValueChanged<TerminalLink>? onOpenLink;
 
-  /// The line between the conversation and the panel; the drag is taken
-  /// over a strip about it ([_ChatTerminalAreaState._grip]), above both.
-  static const sashHeight = 1.0;
+  /// The gap between the conversation's card and the panel's, which takes
+  /// the drag.
+  static const sashHeight = Islands.gap;
 
   @override
   State<ChatTerminalArea> createState() => _ChatTerminalAreaState();
@@ -296,9 +296,6 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
 
   ChatTerminals get _terminals => widget.terminals;
   String get _root => widget.root;
-
-  /// How much more than the line the sash takes, half on each side.
-  static const _grip = 4.0;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -326,12 +323,7 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
               children: [
                 Expanded(child: widget.child),
                 if (panel) ...[
-                  // The line where the conversation ends, the panel's tabs
-                  // right under it.
-                  ColoredBox(
-                    color: AppColors.partBorder,
-                    child: const SizedBox(height: ChatTerminalArea.sashHeight),
-                  ),
+                  const SizedBox(height: ChatTerminalArea.sashHeight),
                   SizedBox(
                     height: rows.panel,
                     child: _ChatTerminalPanel(
@@ -354,8 +346,8 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: rows.panel - _grip / 2,
-                height: _grip + ChatTerminalArea.sashHeight,
+                bottom: rows.panel,
+                height: ChatTerminalArea.sashHeight,
                 child: _sash(rows, room),
               ),
           ],
@@ -394,15 +386,8 @@ class _ChatTerminalAreaState extends State<ChatTerminalArea> {
       onVerticalDragEnd: (_) => _endDrag(),
       onVerticalDragCancel: _endDrag,
       onDoubleTap: () => setState(() => _terminals.setHeight(_root, null)),
-      // At rest the line under it shows; dragged, as thick as the IDE's
-      // sashes, in their `sash.hoverBorder`.
-      child: Center(
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          height: _dragging ? IdeModernUI.gap : ChatTerminalArea.sashHeight,
-          color: _dragging ? IdeModernUI.sashHover : Colors.transparent,
-        ),
-      ),
+      // The gap alone at rest; dragged, the IDE's sash in it.
+      child: Islands.sashLine(dragging: _dragging, axis: Axis.vertical),
     ),
   );
 
@@ -440,7 +425,10 @@ class _ChatTerminalPanel extends StatelessWidget {
   final ValueChanged<TerminalLink>? onOpenLink;
 
   @override
-  Widget build(BuildContext context) => TerminalDeck(
+  Widget build(BuildContext context) =>
+      Island(color: AppColors.code, child: _deck(context));
+
+  Widget _deck(BuildContext context) => TerminalDeck(
     key: const ValueKey('chat-terminal-panel'),
     // One panel a project, wherever it shows.
     place: service,

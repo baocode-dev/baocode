@@ -973,9 +973,10 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
         // icons and gaps grow with the text they hold.
         final zoom = percent / 100;
         final media = UiZoom.zoomed(MediaQuery.of(context), zoom);
-        // The traffic lights, level with the title bar as it grows.
+        // The traffic lights in the middle of the title bar, as it grows.
         WindowControls.setTitleBarDrop(
-          AppMetrics.titleBarHeight * (zoom - 1) / 2,
+          (AppMetrics.titleBarHeight * zoom - AppMetrics.nativeTitleBarHeight) /
+              2,
           viewId: window.viewId,
         );
         // Windows blurs glyphs drawn at a fractional pixel size.

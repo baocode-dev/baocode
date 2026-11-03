@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 
+import '../theme/app_theme.dart';
 import '../theme/icon_registry.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 
@@ -73,31 +74,28 @@ class IdeStatusBarItem {
 }
 
 /// The workbench's bottom bar: [left] items after the window edge, [right]
-/// items against the other. In the color theme's `statusBar.*` and
-/// `statusBarItem.*` colors (workbench/browser/parts/statusbar/
-/// statusbarPart.ts, media/statusbarpart.css): `statusBar.background`,
-/// and `statusBar.border` above it where the theme has one.
+/// items against the other (workbench/browser/parts/statusbar/
+/// statusbarPart.ts, media/statusbarpart.css). On the window's color,
+/// under the parts' cards, not a bar of
+/// `statusBar.background`: its items muted, rounded where hovered or of a
+/// color of their own (`statusBarItem.*`).
 class IdeStatusBar extends StatelessWidget {
   const IdeStatusBar({super.key, required this.left, required this.right});
 
   final List<IdeStatusBarItem> left;
   final List<IdeStatusBarItem> right;
 
-  static const height = 22.0;
+  static const height = 28.0;
+
+  /// An item's, centered in it.
+  static const itemHeight = 22.0;
 
   @override
   Widget build(BuildContext context) {
-    final colors = themeColors;
     return Container(
       height: height,
       padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: colors['statusBar.background'],
-        border: switch (colors.get('statusBar.border')) {
-          final border? => Border(top: BorderSide(color: border)),
-          null => null,
-        },
-      ),
+      alignment: Alignment.center,
       child: LayoutBuilder(
         builder: (context, constraints) => Row(
           children: [
@@ -159,20 +157,25 @@ class _StatusItemState extends State<_StatusItem> {
     final hovered = _hover && tappable;
     // Its icons too (`color: inherit`); its own color stays on hover.
     final color =
-        item.color ??
-        (hovered ? colors.get('statusBarItem.hoverForeground') : null) ??
-        colors['statusBar.foreground'];
+        item.color ?? (hovered ? AppColors.text : AppColors.textMuted);
     // High contrast themes outline a hovered item (dashed upstream).
     final outline = hovered ? colors.get('contrastActiveBorder') : null;
+    const radius = BorderRadius.all(Radius.circular(5));
     Widget child = Container(
-      height: IdeStatusBar.height - 1,
+      height: IdeStatusBar.itemHeight,
       padding: const EdgeInsets.symmetric(horizontal: 6),
-      color: hovered
-          ? item.hoverBackground ?? colors['statusBarItem.hoverBackground']
-          : item.background ?? Colors.transparent,
+      decoration: BoxDecoration(
+        color: hovered
+            ? item.hoverBackground ?? AppColors.hover
+            : item.background ?? Colors.transparent,
+        borderRadius: radius,
+      ),
       foregroundDecoration: outline == null
           ? null
-          : BoxDecoration(border: Border.all(color: outline)),
+          : BoxDecoration(
+              border: Border.all(color: outline),
+              borderRadius: radius,
+            ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -340,8 +343,7 @@ class IdeLanguageNames {
   /// Every language there is to pick (Change Language Mode): TextMate's
   /// and Monaco's, each once by its id, named by its first alias, with
   /// its extensions; by name.
-  static List<({String id, String name, List<String> extensions})>
-  get all {
+  static List<({String id, String name, List<String> extensions})> get all {
     final names = <String, String>{};
     final extensions = <String, Set<String>>{};
     void add(String id, List<String> aliases, List<String> more) {

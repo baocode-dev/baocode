@@ -323,7 +323,15 @@ class _ChatTabsState extends State<_ChatTabs> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          ?IdeTabStrip.lead(context),
           for (final (i, thread) in tabs.indexed) ...[
+            if (i > 0)
+              ?IdeTabStrip.separator(
+                context,
+                shown:
+                    !identical(tabs[i - 1], widget.current) &&
+                    !identical(thread, widget.current),
+              ),
             if (_spot == i) const TabDropLine(),
             TabDragSource(
               enabled: tabs.length > 1,

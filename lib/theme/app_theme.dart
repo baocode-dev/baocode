@@ -213,8 +213,14 @@ abstract final class AppColors {
 
 /// Window chrome shared by the sidebar and the chat, so their edges line up.
 abstract final class AppMetrics {
-  /// The Flutter-drawn title bar, level with the native traffic lights.
-  static const titleBarHeight = 30.0;
+  /// The Flutter-drawn title bar, the native traffic lights moved down to
+  /// its middle (see [nativeTitleBarHeight]): a row of the window's color
+  /// over the cards (see Islands), a part's tabs at its foot.
+  static const titleBarHeight = 38.0;
+
+  /// The title bar AppKit lays the traffic lights out in, unmoved: their
+  /// middle half that down.
+  static const nativeTitleBarHeight = 28.0;
 
   /// From the title bar to the first content under it (the sidebar's New
   /// Agent button, the chat's stuck message).
