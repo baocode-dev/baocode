@@ -492,7 +492,7 @@ class _PartCell extends StatelessWidget {
             color: picked
                 ? AppColors.accent.withValues(alpha: 0.14)
                 : hovered && onTap != null
-                ? AppColors.hover
+                ? AppColors.bubbleHover
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),

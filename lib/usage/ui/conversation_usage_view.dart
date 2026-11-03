@@ -377,7 +377,8 @@ class _ConversationUsageViewState extends State<ConversationUsageView> {
           children: [
             if (hasCalls)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                // The cards under them a row's gap away, at rest.
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                 child: _filters(all),
               ),
             Expanded(

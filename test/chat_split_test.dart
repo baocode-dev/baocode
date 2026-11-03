@@ -1036,13 +1036,13 @@ void main() {
     list.position.jumpTo(0);
     await tester.pump();
     final view = tester.getRect(scrollable);
-    // An agent not open whose row reaches into the list's last 15%,
+    // An agent not open whose row's middle is in the list's last 15%,
     // scrolled to be all shown there.
     final near = workspace.threads.firstWhere((thread) {
       if (identical(thread, workspace.current)) return false;
       final finder = inSidebar(find.text(thread.title));
       return finder.evaluate().length == 1 &&
-          tester.getRect(finder).bottom > view.top + view.height * .85;
+          tester.getRect(finder).center.dy > view.top + view.height * .85;
     });
     final row = inSidebar(find.text(near.title));
     list.position.jumpTo(
