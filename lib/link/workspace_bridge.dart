@@ -182,6 +182,13 @@ class WorkspaceBridge {
     throw LinkRemoteException(LinkErrors.notFound, 'No project $id');
   }
 
+  /// Where the files [params] ask for are: a project's, or a bot's (its
+  /// folder, where its agent works; any file by its full path).
+  Project _filesProject(Map<String, Object?> params) => switch (params['bot']) {
+    final Object id => workspace.projectAt(_bot(id).folder),
+    _ => _project(params['project']),
+  };
+
   final Map<String, ProjectFiles> _files = {};
 
   ProjectFiles _filesOf(Project project) =>
@@ -565,17 +572,17 @@ class WorkspaceBridge {
         );
       case LinkMethods.read:
         return _readFile(
-          _project(params['project']),
+          _filesProject(params),
           params['path'] as String? ?? '',
         );
       case LinkMethods.image:
         return _readImage(
-          _project(params['project']),
+          _filesProject(params),
           params['path'] as String? ?? '',
         );
       case LinkMethods.download:
         return _download(
-          _project(params['project']),
+          _filesProject(params),
           params['path'] as String? ?? '',
         );
       case LinkMethods.extensions:
