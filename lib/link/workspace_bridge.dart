@@ -558,6 +558,11 @@ class WorkspaceBridge {
         return null;
       case LinkMethods.files:
         return _listFiles(_project(params['project']));
+      case LinkMethods.folder:
+        return _listFolder(
+          _project(params['project']),
+          params['path'] as String? ?? '',
+        );
       case LinkMethods.read:
         return _readFile(
           _project(params['project']),
@@ -923,6 +928,43 @@ class WorkspaceBridge {
           if (change.kind != FileChangeKind.deleted)
             ?_phonePath(project, change.path): change.kind.name,
       },
+    };
+  }
+
+  /// What is in [project]'s folder at [path], all of it: the phone shows
+  /// what Git ignores too, as the Explorer does.
+  Future<Map<String, Object?>> _listFolder(Project project, String path) async {
+    await _reach(project);
+    final roots = _rootsOf(project);
+    // A workspace's root: its folders, by the names the phone has them.
+    if (path.isEmpty && roots.first.$1.isNotEmpty) {
+      return {
+        'folders': [for (final (name, _) in roots) name],
+        'files': const <String>[],
+      };
+    }
+    final full = path.isEmpty
+        ? roots.first.$2
+        : roots.where((r) => r.$1 == path).firstOrNull?.$2 ??
+              _fullPath(project, path);
+    if (full == null) {
+      throw LinkRemoteException(LinkErrors.notFound, 'No folder $path');
+    }
+    final List<IdeFile> entries;
+    try {
+      entries = await _filesOf(project).files.list(full);
+    } on Object {
+      throw LinkRemoteException(LinkErrors.notFound, 'No folder $path');
+    }
+    return {
+      'folders': [
+        for (final entry in entries)
+          if (entry.isDirectory) entry.name,
+      ],
+      'files': [
+        for (final entry in entries)
+          if (!entry.isDirectory) entry.name,
+      ],
     };
   }
 
