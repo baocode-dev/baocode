@@ -337,6 +337,10 @@ class _CodeCardState extends State<_CodeCard> {
   List<String> _coloredLines = const [];
   List<List<TextSpan>> _colors = const [];
   String? _coloredCode;
+
+  /// The theme's colors [_colors] were made in: another theme colors the
+  /// code again, as an editor recolors its tokens.
+  Object? _coloredIn;
   bool _coloring = false;
 
   /// Its language has no grammar: no use asking again.
@@ -377,7 +381,12 @@ class _CodeCardState extends State<_CodeCard> {
   /// that grew meanwhile is asked for once that one is answered.
   void _colorSoon() {
     final code = widget.code;
-    if (_uncolored || _coloring || code == _coloredCode) return;
+    final theme = themeColors;
+    if (_uncolored ||
+        _coloring ||
+        (code == _coloredCode && identical(theme, _coloredIn))) {
+      return;
+    }
     final colored = switch ((widget.citation, widget.language)) {
       (final citation?, _) => _colorize?.call(citation.path, code),
       (null, final language?) => _colorizeBlock?.call(language, code),
@@ -390,6 +399,7 @@ class _CodeCardState extends State<_CodeCard> {
         _coloring = false;
         if (!mounted) return;
         _coloredCode = code;
+        _coloredIn = theme;
         if (lines == null) {
           _uncolored = true;
         } else {
@@ -427,6 +437,8 @@ class _CodeCardState extends State<_CodeCard> {
 
   @override
   Widget build(BuildContext context) {
+    // Built again for a new theme: its colors for the code.
+    _colorSoon();
     final colors = themeColors;
     final line = colors['chat.requestBorder'];
     final background = colors['textCodeBlock.background'];

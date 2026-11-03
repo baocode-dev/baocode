@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/widgets/code_citation.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 
 Future<void> pumpMarkdown(
   WidgetTester tester,
@@ -521,6 +522,30 @@ void main() {}
         });
       }
       expect(colored, ['x = 1']);
+    });
+
+    testWidgets('another theme colors it again', (tester) async {
+      final themes = WorkbenchThemeService.instance;
+      await tester.runAsync(themes.initialize);
+      var asked = 0;
+      Future<List<List<TextSpan>>?> colorize(String language, String code) {
+        asked++;
+        return Future.value([
+          [TextSpan(text: code)],
+        ]);
+      }
+
+      Future<void> pump() =>
+          pumpMarkdown(tester, '```py\nx = 1\n```', colorizeBlock: colorize);
+      await pump();
+      await tester.pump();
+      await pump();
+      await tester.pump();
+      expect(asked, 1);
+      await tester.runAsync(() => themes.setColorTheme('Bao Light'));
+      await pump();
+      await tester.pump();
+      expect(asked, 2);
     });
 
     testWidgets('without a language is left plain', (tester) async {
