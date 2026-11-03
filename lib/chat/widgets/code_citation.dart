@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:bao_editor/textmate/textmate_syntax.dart' show TextMateSyntax;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -403,9 +405,21 @@ class _CodeCardState extends State<_CodeCard> {
         if (lines == null) {
           _uncolored = true;
         } else {
+          final coloredLines = code.split('\n');
           setState(() {
-            _coloredLines = code.split('\n');
-            _colors = lines;
+            // A line colored as it was keeps its spans: its paragraph is
+            // not built again.
+            _colors = [
+              for (final (i, spans) in lines.indexed)
+                i < _colors.length &&
+                        i < _coloredLines.length &&
+                        i < coloredLines.length &&
+                        _coloredLines[i] == coloredLines[i] &&
+                        listEquals(_colors[i], spans)
+                    ? _colors[i]
+                    : spans,
+            ];
+            _coloredLines = coloredLines;
           });
         }
         _colorSoon();
@@ -615,6 +629,54 @@ class _CodeCardState extends State<_CodeCard> {
     return IdeHover(message: citation.path, child: file);
   }
 
+  /// Lines to a paragraph of the code: code the agent writes on lays out
+  /// its last paragraph again, not all of it. One paragraph of a long block
+  /// took hundreds of ms a frame on a slow Mac (YQAHVBDB).
+  static const _linesPerParagraph = 40;
+
+  /// The code's paragraphs last built, kept while their lines, colors and
+  /// style are the same.
+  List<_CodeParagraph> _paragraphs = const [];
+
+  /// Paragraph [index] of [lines]: the one last built if it is the same.
+  _CodeParagraph _paragraph(int index, List<String> lines, TextStyle style) {
+    final start = index * _linesPerParagraph;
+    final own = lines.sublist(
+      start,
+      math.min(start + _linesPerParagraph, lines.length),
+    );
+    final colors = [
+      for (final (i, line) in own.indexed)
+        start + i < _colors.length &&
+                start + i < _coloredLines.length &&
+                _coloredLines[start + i] == line
+            ? _colors[start + i]
+            : null,
+    ];
+    if (index < _paragraphs.length) {
+      final built = _paragraphs[index];
+      if (built.isOf(own, colors, style)) return built;
+    }
+    final widget = ChatFindMarks(
+      child: Text.rich(
+        TextSpan(
+          style: style,
+          children: [
+            for (final (i, line) in own.indexed) ...[
+              if (i > 0) const TextSpan(text: '\n'),
+              if (colors[i] case final spans?)
+                ...spans
+              else
+                TextSpan(text: line),
+            ],
+          ],
+        ),
+        softWrap: false,
+      ),
+    );
+    return _CodeParagraph(own, colors, style, widget);
+  }
+
   /// Line numbers from the citation's first, beside the code; the code
   /// scrolls sideways alone, its scrollbar at the card's bottom, not the
   /// code's. A code block has no numbers.
@@ -623,17 +685,31 @@ class _CodeCardState extends State<_CodeCard> {
     final citation = widget.citation;
     final style = AppFonts.uiCodeStyle(12)
         .copyWith(color: themeColors['editor.foreground'], height: 1.5);
+    final count = (lines.length + _linesPerParagraph - 1) ~/ _linesPerParagraph;
     final numbers = switch (citation) {
+      // As the code's paragraphs, so a line's number lies beside it.
       final citation? => SelectionContainer.disabled(
         child: Padding(
           padding: const EdgeInsets.only(left: 12, right: 14),
-          child: Text(
-            [for (var i = 0; i < lines.length; i++) '${citation.start + i}']
-                .join('\n'),
-            textAlign: TextAlign.right,
-            style: style.copyWith(
-              color: themeColors['editorLineNumber.foreground'],
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (var j = 0; j < count; j++)
+                Text(
+                  [
+                    for (
+                      var i = j * _linesPerParagraph;
+                      i < math.min((j + 1) * _linesPerParagraph, lines.length);
+                      i++
+                    )
+                      '${citation.start + i}',
+                  ].join('\n'),
+                  textAlign: TextAlign.right,
+                  style: style.copyWith(
+                    color: themeColors['editorLineNumber.foreground'],
+                  ),
+                ),
+            ],
           ),
         ),
       ),
@@ -647,24 +723,10 @@ class _CodeCardState extends State<_CodeCard> {
       ),
       null => 12.0,
     };
-    final code = ChatFindMarks(
-      child: Text.rich(
-        TextSpan(
-          style: style,
-          children: [
-            for (final (i, line) in lines.indexed) ...[
-              if (i > 0) const TextSpan(text: '\n'),
-              if (i < _colors.length &&
-                  i < _coloredLines.length &&
-                  _coloredLines[i] == line)
-                ..._colors[i]
-              else
-                TextSpan(text: line),
-            ],
-          ],
-        ),
-        softWrap: false,
-      ),
+    _paragraphs = [for (var j = 0; j < count; j++) _paragraph(j, lines, style)];
+    final code = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [for (final paragraph in _paragraphs) paragraph.widget],
     );
     // As tall as its lines, so nothing scrolls down in it: the page does.
     return MediaQuery(
@@ -685,7 +747,9 @@ class _CodeCardState extends State<_CodeCard> {
                   controller: _horizontal,
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.only(right: 12),
+                  // Copied a line to a line, as one paragraph was.
                   child: FiniteSelectionEdges(
+                    joinsLines: true,
                     child: WillChangePaint(child: code),
                   ),
                 ),
@@ -707,6 +771,26 @@ class _CodeCardState extends State<_CodeCard> {
     final width = painter.width;
     painter.dispose();
     return width + 12 + 14;
+  }
+}
+
+/// A paragraph of a [_CodeCard]'s code, and what it was built of.
+class _CodeParagraph {
+  const _CodeParagraph(this.lines, this.colors, this.style, this.widget);
+
+  final List<String> lines;
+
+  /// Each line's spans, the very ones; null for one not colored.
+  final List<List<TextSpan>?> colors;
+  final TextStyle style;
+  final Widget widget;
+
+  bool isOf(List<String> lines, List<List<TextSpan>?> colors, TextStyle style) {
+    if (style != this.style || !listEquals(lines, this.lines)) return false;
+    for (var i = 0; i < colors.length; i++) {
+      if (!identical(colors[i], this.colors[i])) return false;
+    }
+    return true;
   }
 }
 

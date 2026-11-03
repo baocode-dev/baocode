@@ -193,6 +193,10 @@ class TextMateWorker implements ITMGrammarFactoryHost {
   /// (which check it).
   static int debugCreated = 0;
 
+  /// Lines a [TextMateColorize] had tokenized, in any worker of this
+  /// isolate: those colored as before are not.
+  static int debugColorizedLines = 0;
+
   final void Function(TextMateResponse response) _send;
   final Future<IOnigLib> _onigLib;
   TMGrammarFactory? _grammarFactory;
@@ -205,8 +209,11 @@ class TextMateWorker implements ITMGrammarFactoryHost {
     switch (request) {
       case TextMateInit(:final grammars):
         _grammarFactory = TMGrammarFactory(this, grammars, _onigLib);
+        _colored.clear();
       case TextMateSetTheme(:final theme, :final colorMap):
         _grammarFactory?.setTheme(theme, colorMap);
+        // Its tokens carry the theme's colors.
+        _colored.clear();
         for (final document in _documents.values) {
           document.tokenizer.retokenize(
             1,
@@ -292,20 +299,41 @@ class TextMateWorker implements ITMGrammarFactoryHost {
       ),
       request.maxTokenizationLineLength,
     );
-    var currentState = support.getInitialState();
-    final lines = <Uint32List>[];
-    for (final line in request.lines) {
+    // From the first line that changed of the code most like it colored
+    // lately: code the agent writes on is not tokenized from the start
+    // again for every piece of it.
+    _Colored? before;
+    var same = 0;
+    for (final colored in _colored) {
+      final kept = colored.sameLines(request);
+      if (kept > same) (before, same) = (colored, kept);
+    }
+    final tokens = <Uint32List>[...?before?.tokens.take(same)];
+    final states = <StateStack>[...?before?.states.take(same)];
+    var currentState = same > 0 ? states.last : support.getInitialState();
+    for (final line in request.lines.skip(same)) {
       final tokenizationResult = support.tokenizeEncoded(
         line,
         true,
         currentState,
       );
       LineTokens.convertToEndOffset(tokenizationResult.tokens, line.length);
-      lines.add(tokenizationResult.tokens);
+      tokens.add(tokenizationResult.tokens);
       currentState = tokenizationResult.endState;
+      states.add(currentState);
+      debugColorizedLines++;
     }
-    return lines;
+    _colored
+      ..remove(before)
+      ..insert(0, _Colored(request, tokens, states));
+    if (_colored.length > _coloredKept) _colored.removeLast();
+    return tokens;
   }
+
+  /// The code last colored, the latest first: a few blocks being written at
+  /// once each go on from their own.
+  final List<_Colored> _colored = [];
+  static const _coloredKept = 8;
 
   void dispose() {
     for (final document in _documents.values) {
@@ -330,6 +358,37 @@ class TextMateWorker implements ITMGrammarFactoryHost {
     final completer = _files[requestId] = Completer<String>();
     _send(TextMateReadFile(requestId, resource));
     return completer.future;
+  }
+}
+
+/// Lines a [TextMateColorize] colored, each line's tokens and the state
+/// after it.
+class _Colored {
+  _Colored(TextMateColorize request, this.tokens, this.states)
+    : encodedLanguageId = request.encodedLanguageId,
+      maxTokenizationLineLength = request.maxTokenizationLineLength,
+      lines = request.lines;
+
+  final int encodedLanguageId;
+  final int maxTokenizationLineLength;
+  final List<String> lines;
+  final List<Uint32List> tokens;
+  final List<StateStack> states;
+
+  /// How many of [request]'s first lines are these, tokenized the same.
+  int sameLines(TextMateColorize request) {
+    if (request.encodedLanguageId != encodedLanguageId ||
+        request.maxTokenizationLineLength != maxTokenizationLineLength) {
+      return 0;
+    }
+    final other = request.lines;
+    var same = 0;
+    while (same < lines.length &&
+        same < other.length &&
+        lines[same] == other[same]) {
+      same++;
+    }
+    return same;
   }
 }
 

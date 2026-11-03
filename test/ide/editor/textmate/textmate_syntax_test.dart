@@ -328,6 +328,36 @@ class A {
     expect(await syntax.colorize('no-such-language', 'x'), isNull);
   });
 
+  test('colors code written on from its first changed line, as from the '
+      'start', () async {
+    // A comment and a template string over lines: each line's colors
+    // depend on the lines before.
+    const code =
+        'let a = 1; /* one\ntwo */ let b = `x\n\${a} y`;\n'
+        'const c = "d"; // e\nfunction f() {\n  return a;\n}\n';
+    for (var end = 1; end <= code.length; end += 4) {
+      final lines = code.substring(0, end).split('\n');
+      final before = TextMateWorker.debugColorizedLines;
+      final got = await syntax.tokenizeFromStart('typescript', lines);
+      // The lines from the one being written: the first ones colored before.
+      if (end > 1) {
+        expect(
+          TextMateWorker.debugColorizedLines - before,
+          lessThanOrEqualTo(2),
+          reason: 'at $end',
+        );
+      }
+      // A worker of its own, which has colored nothing.
+      final cold = TextMateSyntax(
+        themes: WorkbenchThemeService.instance,
+        launch: () async => TextMateInProcessWorker.create(),
+      );
+      final want = await cold.tokenizeFromStart('typescript', lines);
+      cold.dispose();
+      expect(got, want, reason: 'at $end');
+    }
+  });
+
   test('is unavailable without a worker', () async {
     final unavailable = TextMateSyntax(
       themes: WorkbenchThemeService.instance,

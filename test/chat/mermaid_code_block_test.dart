@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:baocode/chat/widgets/code_citation.dart';
 import 'package:baocode/chat/widgets/content_image.dart';
+import 'package:baocode/chat/widgets/finite_selection_edges.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/chat/widgets/mermaid_code_block.dart';
 import 'package:baocode/chat/widgets/mermaid_theme.dart';
@@ -372,7 +373,14 @@ void main() {
         reason: code.substring(0, code.length.clamp(0, 40)),
       );
       expect(find.byType(MarkdownCodeBlock), findsOneWidget);
-      expect(find.text(code), findsOneWidget);
+      // All of it, a few lines to a paragraph.
+      final shown = tester.widgetList<RichText>(
+        find.descendant(
+          of: find.byType(FiniteSelectionEdges),
+          matching: find.byType(RichText),
+        ),
+      );
+      expect(shown.map((text) => text.text.toPlainText()).join('\n'), code);
       expect(find.byIcon(Codicons.copy), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
