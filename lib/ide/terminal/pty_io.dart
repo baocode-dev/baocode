@@ -78,19 +78,11 @@ abstract final class PtyProcesses {
     TerminalEnvironmentRequest? environment,
   }) async {
     final os = _os;
-    final inherited = Platform.environment;
-    final candidate =
-        shell ??
-        defaultTerminalShell(os, inherited, exists: _exists, list: _list);
-    // 已知登录启动由新 shell 读取当前配置；其他启动仍可能依赖解析环境。
-    final login = os != TerminalOs.windows && _readsLoginFiles(candidate);
-    final resolved = login ? inherited : await ClaudeEnvironment.of();
-    shell ??= login
-        ? candidate
-        : defaultTerminalShell(os, resolved, exists: _exists, list: _list);
-    // 解析后默认 shell 可能变化，基础环境以最终选定的启动形式为准。
+    final resolved = await ClaudeEnvironment.of();
+    shell ??= defaultTerminalShell(os, resolved, exists: _exists, list: _list);
+    // shell 选择保持原行为；已知登录启动自行读取当前配置。
     final base = os != TerminalOs.windows && _readsLoginFiles(shell)
-        ? inherited
+        ? Platform.environment
         : resolved;
     final launch = PtyLaunch(
       executable: shell.executable,
