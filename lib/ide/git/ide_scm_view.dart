@@ -3345,7 +3345,7 @@ class IdeGitGraph extends StatelessWidget {
                 : Colors.transparent,
             this.background ??
                 IslandSurface.colorOf(context) ??
-                colors['sideBar.background'],
+                AppColors.background,
           );
           return Padding(
             padding: const EdgeInsets.only(left: 4, right: 12),

@@ -1957,9 +1957,9 @@ class _TabStripState extends State<_TabStrip> {
         final leading? => Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // The strip's inset before it, as after.
+            // The gap after it, as after a tab.
             Center(child: leading),
-            const SizedBox(width: IdeTabStrip.flatInset),
+            const SizedBox(width: IdeTabStrip.flatGap),
             Expanded(child: tabs),
           ],
         ),

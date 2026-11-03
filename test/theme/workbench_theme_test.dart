@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart' hide ColorScheme;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/island_tones.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
-
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -138,15 +138,18 @@ void main() {
       return AppColors.partBorder;
     }
 
-    // Its side bar's border.
-    expect(await line('Dark Modern'), const Color(0xFF2B2B2B));
+    // Its side bar's border, lifted with its cards (see IslandTones).
+    expect(
+      await line('Dark Modern'),
+      IslandTones(
+        const Color(0xFF1F1F1F),
+        const Color(0xFF181818),
+      ).apply('sideBar.border', const Color(0xFF2B2B2B)),
+    );
     // Its `surface.border`, apart from both backgrounds.
     expect(await line('Solarized Light'), const Color(0xFFDDD6C1));
     // Transparent.
-    expect(
-      await line('Red'),
-      const Color(0xFFF8F8F8).withValues(alpha: 0.1),
-    );
+    expect(await line('Red'), const Color(0xFFF8F8F8).withValues(alpha: 0.1));
     expect(
       await line('Tomorrow Night Blue'),
       const Color(0xFFFFFFFF).withValues(alpha: 0.1),

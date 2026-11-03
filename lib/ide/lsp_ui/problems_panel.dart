@@ -34,6 +34,7 @@ import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 
 import '../ide_hover.dart';
 import '../ide_list.dart';
+import '../ide_tab_bar.dart' show IdeTabStrip;
 import '../lsp/language_features.dart';
 import '../lsp/lsp_protocol.dart';
 import 'diagnostics.dart';
@@ -252,8 +253,11 @@ class IdeBottomPanel extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // As a card's flat tab strip (see [IdeTabStrip.flat]): room
+            // above and before its tabs, none under them.
             Container(
-              height: 36,
+              height: IdeTabStrip.flatHeight,
+              padding: const EdgeInsets.only(top: IdeTabStrip.flatInset),
               decoration: titleBorder == null
                   ? null
                   : BoxDecoration(
@@ -261,54 +265,63 @@ class IdeBottomPanel extends StatelessWidget {
                     ),
               child: Row(
                 children: [
-                  const SizedBox(width: 8),
+                  const SizedBox(width: IdeTabStrip.flatInset),
                   // Narrow, the tabs scroll and the actions stay whole; the
-                  // last ones (the terminal's) shown whole first.
+                  // last ones (the terminal's) shown whole first. With room,
+                  // from the start.
                   Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      reverse: true,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _Tab(
-                            label: context.l10n.panelProblems,
-                            tooltip: keys.titleWithKeybinding(
-                              context.l10n.idePanelProblems,
-                              'workbench.actions.view.problems',
-                            ),
-                            badge: total == 0 ? null : '$total',
-                            selected: tab == IdePanelTab.problems,
-                            onTap: () => onTab(IdePanelTab.problems),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        reverse: true,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: constraints.maxWidth,
                           ),
-                          _Tab(
-                            label: context.l10n.panelReferences,
-                            tooltip: context.l10n.idePanelReferences,
-                            badge: references == null
-                                ? null
-                                : '${references!.locations.length}',
-                            selected: tab == IdePanelTab.references,
-                            onTap: () => onTab(IdePanelTab.references),
-                          ),
-                          if (debugConsole != null)
-                            _Tab(
-                              label: DebugStrings.of(context).debugConsole
-                                  .toUpperCase(),
-                              tooltip: DebugStrings.of(context).debugConsole,
-                              selected: tab == IdePanelTab.debugConsole,
-                              onTap: () => onTab(IdePanelTab.debugConsole),
-                            ),
-                          if (terminal != null)
-                            _Tab(
-                              label: context.l10n.panelTerminal,
-                              tooltip: keys.titleWithKeybinding(
-                                context.l10n.idePanelTerminal,
-                                'workbench.action.terminal.toggleTerminal',
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _Tab(
+                                label: context.l10n.panelProblems,
+                                tooltip: keys.titleWithKeybinding(
+                                  context.l10n.idePanelProblems,
+                                  'workbench.actions.view.problems',
+                                ),
+                                badge: total == 0 ? null : '$total',
+                                selected: tab == IdePanelTab.problems,
+                                onTap: () => onTab(IdePanelTab.problems),
                               ),
-                              selected: tab == IdePanelTab.terminal,
-                              onTap: () => onTab(IdePanelTab.terminal),
-                            ),
-                        ],
+                              _Tab(
+                                label: context.l10n.panelReferences,
+                                tooltip: context.l10n.idePanelReferences,
+                                badge: references == null
+                                    ? null
+                                    : '${references!.locations.length}',
+                                selected: tab == IdePanelTab.references,
+                                onTap: () => onTab(IdePanelTab.references),
+                              ),
+                              if (debugConsole != null)
+                                _Tab(
+                                  label: DebugStrings.of(context).debugConsole
+                                      .toUpperCase(),
+                                  tooltip: DebugStrings.of(context)
+                                      .debugConsole,
+                                  selected: tab == IdePanelTab.debugConsole,
+                                  onTap: () => onTab(IdePanelTab.debugConsole),
+                                ),
+                              if (terminal != null)
+                                _Tab(
+                                  label: context.l10n.panelTerminal,
+                                  tooltip: keys.titleWithKeybinding(
+                                    context.l10n.idePanelTerminal,
+                                    'workbench.action.terminal.toggleTerminal',
+                                  ),
+                                  selected: tab == IdePanelTab.terminal,
+                                  onTap: () => onTab(IdePanelTab.terminal),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),

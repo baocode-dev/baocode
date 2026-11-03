@@ -40,6 +40,7 @@ import '../theme/workbench_theme.dart' show themeColors;
 import '../update/update_service.dart';
 import '../workspace/chat_drag.dart';
 import '../workspace/editor_launcher.dart';
+import '../workspace/islands.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
@@ -2294,9 +2295,15 @@ class _SidebarState extends State<Sidebar>
         widget.setup == null) {
       return const SizedBox.shrink();
     }
-    // No line over it: the list fades out above it instead.
+    // No line over it: the list fades out above it instead. Its buttons'
+    // middle where the row under the conversation's card has its own.
     return Padding(
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.fromLTRB(
+        6,
+        6,
+        6,
+        (Islands.belowHeight - _footerRowHeight) / 2,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2304,6 +2311,9 @@ class _SidebarState extends State<Sidebar>
       ),
     );
   }
+
+  /// The footer's buttons' row: the archived toggle's height.
+  static const _footerRowHeight = 26.0;
 
   Widget _buildFooterButtons(
     int count,
@@ -2397,7 +2407,7 @@ class _SidebarState extends State<Sidebar>
 
   Widget _buildArchivedLabel(int count, bool active) {
     return Container(
-      height: 26,
+      height: _footerRowHeight,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: active ? AppColors.hover : Colors.transparent,

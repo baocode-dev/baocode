@@ -19,6 +19,7 @@ import '../chat/composer/file_drop.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
 import '../platform/app_paths.dart';
+import '../theme/app_theme.dart' show AppColors;
 import '../theme/codicons.dart';
 import 'ide_hover.dart';
 import '../theme/material_file_icons.dart';
@@ -2092,7 +2093,7 @@ class IdeExplorerState extends State<IdeExplorer>
       color:
           widget.background ??
           IslandSurface.colorOf(context) ??
-          themeColors['sideBar.background'],
+          AppColors.background,
       child: Focus(
         focusNode: _focusNode,
         onKeyEvent: _onKey,

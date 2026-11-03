@@ -1418,7 +1418,7 @@ class _ChatScreenState extends State<ChatScreen>
             _ => null,
           },
         ),
-        _PanelSlot(gap: 0, child: _buildActivityStrip()),
+        _PanelSlot(child: _buildActivityStrip()),
         ChatComposer(
           key: _composerKey,
           session: _session,
@@ -1778,20 +1778,22 @@ class _HistoryLoadingState extends State<_HistoryLoading> {
   }
 }
 
-/// A panel above the composer, or nothing. It appears and disappears at
-/// once (no size or fade transition): the history above yields the height.
+/// A panel above the composer, or nothing, a gap under it. It appears and
+/// disappears at once (no size or fade transition): the history above
+/// yields the height.
 class _PanelSlot extends StatelessWidget {
-  const _PanelSlot({required this.child, this.gap = 8});
+  const _PanelSlot({required this.child});
 
   final Widget? child;
-  final double gap;
+
+  static const gap = 8.0;
 
   @override
   Widget build(BuildContext context) {
     final panel = child;
     if (panel == null) return const SizedBox.shrink();
     return Padding(
-      padding: EdgeInsets.only(bottom: gap),
+      padding: const EdgeInsets.only(bottom: gap),
       child: panel,
     );
   }

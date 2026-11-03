@@ -764,8 +764,8 @@ void main() {
     expect(find.text('task 0'), findsNothing);
     await tester.tap(find.text('10 background tasks running'));
     await tester.pump();
-    // That line and four rows, the strip's padding and top border.
-    expect(tester.getSize(find.byType(ActivityStrip)).height, 28 * 5 + 6 + 1);
+    // That line and four rows, the strip's padding and its border.
+    expect(tester.getSize(find.byType(ActivityStrip)).height, 28 * 5 + 6 + 2);
     expect(find.text('task 0').hitTestable(), findsOneWidget);
     expect(find.text('task 9').hitTestable(), findsNothing);
 
