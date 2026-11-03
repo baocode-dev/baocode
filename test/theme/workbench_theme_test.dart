@@ -156,6 +156,31 @@ void main() {
     );
   });
 
+  test('the overview rulers\' left edges are gone on the cards, kept in '
+      'a high contrast theme', () async {
+    final kept = WorkbenchThemeService.instance;
+    addTearDown(() => WorkbenchThemeService.instance = kept);
+    Future<List<Color?>> borders(String setting) async {
+      final themes = WorkbenchThemeService()..restore(setting: setting);
+      await themes.initialize();
+      return [
+        themes.colors['editorOverviewRuler.border'],
+        themes.colors['terminalOverviewRuler.border'],
+      ];
+    }
+
+    for (final theme in ['Dark Modern', 'Bao Dark', 'Bao Light']) {
+      expect(await borders(theme), [
+        const Color(0x00000000),
+        const Color(0x00000000),
+      ], reason: theme);
+    }
+    expect(
+      (await borders('Default High Contrast')).every((c) => c!.a > 0),
+      isTrue,
+    );
+  });
+
   test('a theme gone falls back to the default', () async {
     final themes = WorkbenchThemeService()..restore(setting: 'No Such Theme');
     await themes.initialize();
