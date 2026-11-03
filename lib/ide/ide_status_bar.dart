@@ -81,10 +81,18 @@ class IdeStatusBarItem {
 /// `statusBar.background`: its items muted, rounded where hovered or of a
 /// color of their own (`statusBarItem.*`).
 class IdeStatusBar extends StatelessWidget {
-  const IdeStatusBar({super.key, required this.left, required this.right});
+  const IdeStatusBar({
+    super.key,
+    required this.left,
+    required this.right,
+    this.onRightWidth,
+  });
 
   final List<IdeStatusBarItem> left;
   final List<IdeStatusBarItem> right;
+
+  /// Told each of [right]'s widths (by its index) as it is laid out.
+  final void Function(int index, double width)? onRightWidth;
 
   static const height = Islands.belowHeight;
 
@@ -119,7 +127,7 @@ class IdeStatusBar extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final item in right) _StatusItem(item, key: item.key),
+                    for (final (i, item) in right.indexed) _measured(item, i),
                   ],
                 ),
               ),
@@ -129,6 +137,47 @@ class IdeStatusBar extends StatelessWidget {
       ),
     );
   }
+
+  /// [item], its width told [onRightWidth]: keyed as it is.
+  Widget _measured(IdeStatusBarItem item, int index) => switch (onRightWidth) {
+    final told? => WidthReport(
+      key: item.key,
+      onWidth: (width) => told(index, width),
+      child: _StatusItem(item),
+    ),
+    null => _StatusItem(item, key: item.key),
+  };
+}
+
+/// A status bar's [right] items alone, as wide as they are: in another
+/// row of the bar's height (under the IDE's chat, after its branch; see
+/// [IslandFootTrailing]).
+class IdeStatusBarTrailing extends StatelessWidget {
+  const IdeStatusBarTrailing({super.key, required this.right, this.onWidth});
+
+  final List<IdeStatusBarItem> right;
+
+  /// Told each of [right]'s widths (by its index) as it is laid out.
+  final void Function(int index, double width)? onWidth;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: IdeStatusBar.height,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (i, item) in right.indexed)
+          switch (onWidth) {
+            final told? => WidthReport(
+              key: item.key,
+              onWidth: (width) => told(i, width),
+              child: _StatusItem(item),
+            ),
+            null => _StatusItem(item, key: item.key),
+          },
+      ],
+    ),
+  );
 }
 
 class _StatusItem extends StatefulWidget {
