@@ -2056,6 +2056,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Ask in a conversation of its own, beside this one';
 
   @override
+  String get forkCommandDetail => 'Fork this conversation and open the copy';
+
+  @override
+  String get forkUnavailable =>
+      'This conversation can\'t be forked: it needs a message first, and its agent has to support forking.';
+
+  @override
   String get sidebarFoldAsides => 'Hide /btw Conversations';
 
   @override

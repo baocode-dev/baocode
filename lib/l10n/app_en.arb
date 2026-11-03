@@ -1096,6 +1096,14 @@
   "@btwCommandDetail": {
     "description": "The /btw command in the composer's command list: what follows is asked in a new conversation copied from this one, listed under it."
   },
+  "forkCommandDetail": "Fork this conversation and open the copy",
+  "@forkCommandDetail": {
+    "description": "The /fork command in the composer's command list: the conversation is copied into a new one (as the sidebar's Fork), which opens; what follows the command is sent there."
+  },
+  "forkUnavailable": "This conversation can't be forked: it needs a message first, and its agent has to support forking.",
+  "@forkUnavailable": {
+    "description": "Shown when /fork is sent in a conversation that cannot be copied (nothing sent yet, or its kernel cannot fork)."
+  },
   "sidebarFoldAsides": "Hide /btw Conversations",
   "@sidebarFoldAsides": {
     "description": "The arrow on a sidebar row with conversations asked beside it (/btw) listed under it: no longer lists them."

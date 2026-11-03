@@ -1,7 +1,8 @@
 // /btw: a question asked in a conversation of its own beside another,
 // copied from all of that one so far and told it was asked on the side;
 // listed under it in the sidebar, a card in it where it was copied up to,
-// shown in its place, and detached, deleted or kept with it.
+// shown in its place, and detached, deleted or kept with it. And /fork, a
+// copy of its own, opened.
 
 import 'dart:async';
 import 'dart:convert';
@@ -412,6 +413,101 @@ void main() {
         workspace.threads.firstWhere((thread) => thread.id == id);
     expect(workspace.parentOf(thread(id)), same(thread(_Catalog.kept.id)));
     expect(workspace.asidesAt(thread(_Catalog.kept.id)).keys, [at]);
+    await _stopAll(tester, workspace);
+  });
+
+  // /fork, as the sidebar's Fork, from the input.
+  testWidgets('/fork opens a copy of the conversation, what follows sent '
+      'there; never the agent\'s', (tester) async {
+    final workspace = await _pumpLoaded(tester);
+    final kept = await _showKept(tester, workspace);
+    final copied = kept.session.itemCount;
+    final sentBefore = _sent.length;
+
+    final editor = tester.widget<MarkdownEditor>(
+      find.byType(MarkdownEditor).last,
+    );
+    final controller = editor.controller as ComposerController;
+    const text = '/fork Try it another way';
+    controller.replace(
+      0,
+      controller.length,
+      text,
+      selection: const TextSelection.collapsed(offset: text.length),
+    );
+    editor.focusNode!.requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    for (var i = 0; i < 20 && _Catalog.forks.isEmpty; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+
+    final forked = workspace.threads.firstWhere(
+      (thread) => thread.id == _Catalog.forks.single.id,
+    );
+    expect(workspace.current, same(forked));
+    expect(workspace.threads, contains(same(kept)));
+    expect(forked.title, '${kept.localizedTitle(englishLocalizations)} (fork)');
+    expect(workspace.parentOf(forked), isNull);
+    // Not sent where it was typed.
+    expect(kept.session.itemCount, copied);
+    expect(controller.text, isEmpty);
+
+    // Sent in the copy, after what it copied.
+    for (var i = 0; i < 20 && forked.session.itemCount <= copied; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+    final asked = [
+      for (var i = 0; i < forked.session.itemCount; i++)
+        if (forked.session.itemAt(i) case UserMessageItem(:final text)) text,
+    ];
+    expect(asked.length, greaterThan(1));
+    expect(asked.last, 'Try it another way');
+    for (var i = 0; i < 20 && _sent.length <= sentBefore; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    }
+    final user = _sent.last.lastWhere((message) => message['type'] == 'user');
+    expect(jsonEncode(user), contains('Try it another way'));
+    expect(jsonEncode(_sent), isNot(contains('/fork')));
+    await _stopAll(tester, workspace);
+  });
+
+  testWidgets('/fork where there is nothing to copy says so, sends nothing', (
+    tester,
+  ) async {
+    final workspace = await _pumpLoaded(tester);
+    final fresh = workspace.create();
+    await tester.pump();
+    final count = workspace.threads.length;
+
+    final editor = tester.widget<MarkdownEditor>(
+      find.byType(MarkdownEditor).last,
+    );
+    final controller = editor.controller as ComposerController;
+    controller.replace(
+      0,
+      controller.length,
+      '/fork',
+      selection: const TextSelection.collapsed(offset: 5),
+    );
+    editor.focusNode!.requestFocus();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    // Offered among the commands; Enter takes it, the next sends it.
+    expect(find.text(englishLocalizations.forkCommandDetail), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(find.text(englishLocalizations.forkUnavailable), findsOneWidget);
+    expect(controller.text, isEmpty);
+    expect(workspace.threads.length, count);
+    expect(workspace.current, same(fresh));
+    expect(fresh.session.itemCount, 0);
+    expect(_Catalog.forks, isEmpty);
     await _stopAll(tester, workspace);
   });
 }
