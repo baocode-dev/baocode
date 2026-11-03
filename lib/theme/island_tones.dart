@@ -18,7 +18,13 @@ import 'dart:ui';
 /// light theme's cards lifted, and where they are as light as they go, the
 /// window sunk.
 class IslandTones {
-  IslandTones._(this._card, this._base, this._lift, this._window);
+  IslandTones._(
+    this._card,
+    this._base,
+    this._lift,
+    this._window, [
+    this._cards = true,
+  ]);
 
   /// For a theme whose cards are [card] (`editor.background`) on a window
   /// of [base] (`sideBar.background`). Nothing moved where the window is
@@ -26,20 +32,32 @@ class IslandTones {
   factory IslandTones(Color card, Color base) {
     final cardL = lightness(card);
     final baseL = lightness(base);
-    if (card.a < 1 || base.a < 1 || cardL < baseL) return none;
+    if (card.a < 1 || base.a < 1 || cardL < baseL) return _asTheyAre;
     if (baseL < 0.5) {
       final window = math.max(0.0, _darkest - baseL);
       final lift = math.max(0.0, baseL + window + darkStep - cardL);
       return IslandTones._(cardL, baseL, lift, window);
     }
     final need = lightStep - (cardL - baseL);
-    if (need <= 0) return none;
+    if (need <= 0) return _asTheyAre;
     final lift = math.min(need, math.max(0.0, _lightest - cardL));
     return IslandTones._(cardL, baseL, lift, lift - need);
   }
 
-  /// Leaves every color as it is.
-  static final none = IslandTones._(0, 0, 0, 0);
+  /// Leaves every color as it is (a high contrast theme's, its lines
+  /// kept).
+  static final none = IslandTones._(0, 0, 0, 0, false);
+
+  /// Moves none, the lines a card has no need of gone.
+  static final _asTheyAre = IslandTones._(0, 0, 0, 0);
+
+  /// Lines on a card setting a part of it apart, of no use there, the
+  /// card's edges doing it: the overview rulers' left edges (a dark
+  /// theme's near black, a hard line down a lifted card).
+  static const _apartOnCard = [
+    'editorOverviewRuler.border',
+    'terminalOverviewRuler.border',
+  ];
 
   /// The least lightness (OKLab L) between a dark theme's cards and its
   /// window: about the island prototype's (#222221 on #181817, 0.043).
@@ -84,6 +102,7 @@ class IslandTones {
     'breadcrumbPicker.',
   ];
 
+  final bool _cards;
   final double _card;
   final double _base;
   final double _lift;
@@ -94,8 +113,10 @@ class IslandTones {
 
   /// [color], read for [id], moved: lifted if it is of a card's tone, as
   /// the window if of the window's (near it, raised; the same, sunk). Text,
-  /// popups' backgrounds when sunk, and what is see-through, as they are.
+  /// popups' backgrounds when sunk, and what is see-through, as they are;
+  /// [_apartOnCard], gone.
   Color apply(String id, Color color) {
+    if (_cards && _apartOnCard.contains(id)) return const Color(0x00000000);
     if ((_lift == 0 && _window == 0) || color.a < 1) return color;
     if (id.endsWith('oreground')) return color;
     final l = lightness(color);
