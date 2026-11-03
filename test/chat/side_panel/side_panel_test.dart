@@ -145,6 +145,7 @@ Future<({AgentSidePanel panel, ChatSession session, _Files files})> _pumpChat(
   IdeGitWorktreeChoice Function(IdeGitRepository git)? worktreesOf,
   double titleBarInset = 0,
   Widget? leading,
+  bool roomComing = false,
 }) async {
   _bigWindow(tester);
   final session = ChatSession(
@@ -160,6 +161,7 @@ Future<({AgentSidePanel panel, ChatSession session, _Files files})> _pumpChat(
     _app(
       AgentSidePanelArea(
         panel: panel,
+        roomComing: roomComing,
         builder: (context) => AgentSidePanelView(
           notifications: IdeNotifications(),
           panel: panel,
@@ -1649,7 +1651,10 @@ void main() {
 
   testWidgets('a room short a while only (the sidebar giving way) does not '
       'put the panel over the conversations', (tester) async {
-    final (:panel, :session, files: _) = await _pumpChat(tester);
+    final (:panel, :session, files: _) = await _pumpChat(
+      tester,
+      roomComing: true,
+    );
     tester.view.physicalSize = const Size(1600, 800);
     panel.show();
     await tester.pumpAndSettle();
@@ -1679,6 +1684,22 @@ void main() {
     expect(_scrim, findsNothing);
     await tester.pump(AgentSidePanelArea.overlayDelay);
     expect(_scrim, findsOneWidget);
+  });
+
+  testWidgets('shown where the room is short for good, the panel is over '
+      'the conversations at once, not beside them first', (tester) async {
+    final (:panel, :session, files: _) = await _pumpChat(tester);
+    await tester.pump(AgentSidePanelArea.overlayDelay);
+    tester.view.physicalSize = const Size(600, 800);
+    await tester.pump();
+    panel.show();
+    await tester.pump();
+    expect(_scrim, findsOneWidget);
+    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(AgentSidePanelView)).width,
+      greaterThan(600 - AgentSidePanelArea.minChat),
+    );
   });
 
   testWidgets(
