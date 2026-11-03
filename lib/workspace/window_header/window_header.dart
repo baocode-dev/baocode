@@ -48,6 +48,7 @@ class WindowHeader extends StatefulWidget {
     super.key,
     required this.workspace,
     required this.sidebarShown,
+    this.sidebarAtRight = false,
     required this.onToggleSidebar,
     required this.pinned,
     required this.onTogglePin,
@@ -84,6 +85,9 @@ class WindowHeader extends StatefulWidget {
 
   /// Whether the sidebar is shown (the toggle offers the other way).
   final bool sidebarShown;
+
+  /// The sidebar at the window's right: its toggle's icon says so.
+  final bool sidebarAtRight;
 
   /// Shows or hides the sidebar; with none (an agent's window has no
   /// sidebar), its toggle is not offered.
@@ -258,9 +262,12 @@ class _WindowHeaderState extends State<WindowHeader> {
           null => const SizedBox.shrink(),
           // The IDE's layout icons: the icon shows whether it is open.
           final toggle => SidebarIconButton(
-            icon: widget.sidebarShown
-                ? Codicons.layoutSidebarLeft
-                : Codicons.layoutSidebarLeftOff,
+            icon: switch ((widget.sidebarShown, widget.sidebarAtRight)) {
+              (true, false) => Codicons.layoutSidebarLeft,
+              (false, false) => Codicons.layoutSidebarLeftOff,
+              (true, true) => Codicons.layoutSidebarRight,
+              (false, true) => Codicons.layoutSidebarRightOff,
+            },
             tooltip: widget.sidebarShown
                 ? context.l10n.windowHideSidebar
                 : context.l10n.windowShowSidebar,

@@ -711,8 +711,11 @@
     "description": "Tooltip of the title bar button that shows the side panel."
   },
   "sidePanelHide": "Hide side panel",
-  "sidePanelMoveLeft": "Move to the Left of the Conversation",
-  "sidePanelMoveRight": "Move to the Right of the Conversation",
+  "chatLayout": "Layout",
+  "chatLayoutSidebarChatPanel": "Sidebar · Chat · Panel",
+  "chatLayoutSidebarPanelChat": "Sidebar · Panel · Chat",
+  "chatLayoutPanelChatSidebar": "Panel · Chat · Sidebar",
+  "chatLayoutChatPanelSidebar": "Chat · Panel · Sidebar",
   "@sidePanelHide": {
     "description": "Tooltip of the button that hides the side panel."
   },

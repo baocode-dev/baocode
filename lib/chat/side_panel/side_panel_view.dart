@@ -65,6 +65,7 @@ import 'file_preview.dart';
 import 'git_changes.dart';
 import 'side_panel_controller.dart';
 import '../../theme/svg_icons.dart';
+import 'chat_layout_picker.dart';
 
 /// [child] (the conversations) and, at its right (its left, as [panel] is
 /// [AgentSidePanel.atLeft]) while [panel] shows, the side panel [builder]
@@ -1622,18 +1623,24 @@ class _SectionBar extends StatelessWidget {
               ],
               const SizedBox(width: _SectionTab.spacing),
               const Spacer(),
-              // To the conversations' other side.
+              // Where it, the sidebar and the conversations are.
               Center(
-                child: IdeActionButton(
-                  key: const ValueKey('side-panel-move'),
-                  icon: Codicons.arrowSwap,
-                  tooltip: KeybindingService.instance.titleWithKeybinding(
-                    panel.atLeft
-                        ? l10n.sidePanelMoveRight
-                        : l10n.sidePanelMoveLeft,
-                    ChatCommandIds.toggleSidePanelPosition,
+                child: Builder(
+                  builder: (context) => IdeActionButton(
+                    key: const ValueKey('side-panel-layout'),
+                    icon: Codicons.layout,
+                    tooltip: l10n.chatLayout,
+                    onPressed: () {
+                      final box = context.findRenderObject()! as RenderBox;
+                      unawaited(
+                        showChatLayoutPicker(
+                          context,
+                          anchor: box.localToGlobal(Offset.zero) & box.size,
+                          panel: panel,
+                        ),
+                      );
+                    },
                   ),
-                  onPressed: () => panel.atLeft = !panel.atLeft,
                 ),
               ),
               const SizedBox(width: 2),

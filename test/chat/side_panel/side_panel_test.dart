@@ -67,6 +67,7 @@ import '../../workspace_test.dart' show pumpLoaded;
 import '../../kernel_ui_test.dart' show pumpScripted;
 
 import 'package:baocode/theme/svg_icons.dart';
+import 'package:baocode/chat/side_panel/chat_layout_picker.dart';
 
 /// A project's files, in memory.
 class _Files implements IdeFileService {
@@ -1679,45 +1680,56 @@ void main() {
     expect(_scrim, findsOneWidget);
   });
 
-  testWidgets('moved to the conversations\' left: its page, tab and width '
-      'kept, its edge toward them dragged; kept for the next run (#145)', (
-    tester,
-  ) async {
-    final (:panel, :session, files: _) = await _pumpChat(tester);
-    panel.open(session, const FileOpenRequest('/p/lib/main.dart'));
-    await tester.pumpAndSettle();
-    final width = tester.getSize(find.byType(AgentSidePanelView)).width;
-    expect(tester.getTopRight(find.byType(AgentSidePanelView)).dx, 1600);
+  testWidgets(
+    'moved to the conversations\' left from the layouts: its page, tab and width '
+    'kept, its edge toward them dragged; kept for the next run (#145)',
+    (tester) async {
+      final (:panel, :session, files: _) = await _pumpChat(tester);
+      panel.open(session, const FileOpenRequest('/p/lib/main.dart'));
+      await tester.pumpAndSettle();
+      final width = tester.getSize(find.byType(AgentSidePanelView)).width;
+      expect(tester.getTopRight(find.byType(AgentSidePanelView)).dx, 1600);
 
-    await tester.tap(find.byKey(const ValueKey('side-panel-move')));
-    await tester.pumpAndSettle();
-    expect(panel.atLeft, isTrue);
-    final view = find.byType(AgentSidePanelView);
-    expect(tester.getTopLeft(view).dx, 0);
-    expect(tester.getSize(view).width, width);
-    expect(find.byType(FilePreview), findsOneWidget);
-    // The conversations at its right, past the gap the sash is in.
-    expect(
-      tester.getTopLeft(find.byType(ChatScreen)).dx,
-      width + AgentSidePanelArea.sashWidth,
-    );
+      // From the layouts, by the panel's Layout button.
+      await tester.tap(find.byKey(const ValueKey('side-panel-layout')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatLayoutPicker), findsOneWidget);
+      await tester.tap(find.text('Sidebar · Panel · Chat'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatLayoutPicker), findsNothing);
+      expect(panel.layout, ChatLayout.sidebarPanelChat);
+      expect(panel.atLeft, isTrue);
+      final view = find.byType(AgentSidePanelView);
+      expect(tester.getTopLeft(view).dx, 0);
+      expect(tester.getSize(view).width, width);
+      expect(find.byType(FilePreview), findsOneWidget);
+      // The conversations at its right, past the gap the sash is in.
+      expect(
+        tester.getTopLeft(find.byType(ChatScreen)).dx,
+        width + AgentSidePanelArea.sashWidth,
+      );
 
-    // Its right edge dragged right: wider.
-    final sash = find.byKey(const ValueKey('side-panel-sash'));
-    expect(tester.getTopLeft(sash).dx, width);
-    await tester.drag(sash, const Offset(100, 0));
-    await tester.pumpAndSettle();
-    expect(panel.width, closeTo(width + 100, 1));
+      // Its right edge dragged right: wider.
+      final sash = find.byKey(const ValueKey('side-panel-sash'));
+      expect(tester.getTopLeft(sash).dx, width);
+      await tester.drag(sash, const Offset(100, 0));
+      await tester.pumpAndSettle();
+      expect(panel.width, closeTo(width + 100, 1));
 
-    final kept = AgentSidePanel(state: panel.toJson());
-    addTearDown(kept.dispose);
-    expect(kept.atLeft, isTrue);
+      final kept = AgentSidePanel(state: panel.toJson());
+      addTearDown(kept.dispose);
+      expect(kept.layout, ChatLayout.sidebarPanelChat);
+      // As an earlier run kept it.
+      final earlier = AgentSidePanel(state: {'atLeft': true});
+      addTearDown(earlier.dispose);
+      expect(earlier.layout, ChatLayout.sidebarPanelChat);
 
-    panel.atLeft = false;
-    await tester.pumpAndSettle();
-    expect(tester.getTopRight(view).dx, 1600);
-    expect(panel.toJson(), isNot(contains('atLeft')));
-  });
+      panel.atLeft = false;
+      await tester.pumpAndSettle();
+      expect(tester.getTopRight(view).dx, 1600);
+      expect(panel.toJson(), isNot(contains('layout')));
+    },
+  );
 
   testWidgets('at the window\'s top left, its tabs clear of the traffic '
       'lights, the sidebar\'s toggle by them (#227)', (tester) async {
@@ -2820,7 +2832,7 @@ void main() {
     }
 
     // Between the tabs and the buttons.
-    final move = find.byKey(const ValueKey('side-panel-move'));
+    final move = find.byKey(const ValueKey('side-panel-layout'));
     await dragFrom(tester.getCenter(move) - const Offset(60, 0));
     expect(drags, 1);
     await dragFrom(tester.getCenter(find.byType(IslandTab).first));
