@@ -384,8 +384,18 @@ class IslandTab extends StatefulWidget {
   /// its foot too.
   static const lead = 12.0;
 
-  /// How high it is, at the foot of a taller row (the title bar's).
+  /// How high it is, at the foot of a row as high or higher (a strip of
+  /// its own).
   static const height = 34.0;
+
+  /// Above it in a row lower than [height] (the title bar's): it is that
+  /// much lower than the row.
+  static const headroom = 4.0;
+
+  /// How high it is in a row [row] high: [height], or in a lower row, all
+  /// of it but [headroom].
+  static double heightIn(double row) =>
+      row < height ? math.max(0.0, row - headroom) : height;
 
   /// In front, or hovered: `tab.activeForeground`; else
   /// `tab.inactiveForeground`.
@@ -408,30 +418,34 @@ class _IslandTabState extends State<IslandTab> {
     child: _tab(),
   );
 
-  Widget _tab() => Align(
-    alignment: Alignment.bottomCenter,
-    child: SizedBox(
-      height: IslandTab.height,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: widget.onTap,
-          child: CustomPaint(
-            painter: widget.active
-                ? IslandTabShape(
-                    fill: widget.color,
-                    line: Islands.border,
-                    flareLeft: !widget.atStart,
-                  )
-                : null,
-            child: widget.builder(
-              context,
-              IslandTab.foreground(active: widget.active, hovered: _hovered),
-            ),
-          ),
+  Widget _tab() => LayoutBuilder(
+    builder: (context, constraints) => Align(
+      alignment: Alignment.bottomCenter,
+      child: SizedBox(
+        height: IslandTab.heightIn(constraints.maxHeight),
+        child: _box(),
+      ),
+    ),
+  );
+
+  Widget _box() => MouseRegion(
+    cursor: SystemMouseCursors.click,
+    onEnter: (_) => setState(() => _hovered = true),
+    onExit: (_) => setState(() => _hovered = false),
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      child: CustomPaint(
+        painter: widget.active
+            ? IslandTabShape(
+                fill: widget.color,
+                line: Islands.border,
+                flareLeft: !widget.atStart,
+              )
+            : null,
+        child: widget.builder(
+          context,
+          IslandTab.foreground(active: widget.active, hovered: _hovered),
         ),
       ),
     ),
@@ -595,13 +609,17 @@ class IslandTabSeparator extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
     width: width,
     child: shown
-        ? Align(
-            alignment: Alignment.bottomCenter,
-            child: SizedBox(
-              height: IslandTab.height,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Center(child: Container(width: 1, color: Islands.line)),
+        ? LayoutBuilder(
+            builder: (context, constraints) => Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(
+                height: IslandTab.heightIn(constraints.maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Center(
+                    child: Container(width: 1, color: Islands.line),
+                  ),
+                ),
               ),
             ),
           )
