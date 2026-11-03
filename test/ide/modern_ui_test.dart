@@ -87,9 +87,10 @@ void main() {
     expect(cardOf('ide-chat').footer, Islands.belowHeight);
     expect(status.height, Islands.belowHeight);
     expect(status.right, chat.left - Islands.gap / 2);
-    // Their titles and tabs over them, as high as each other.
-    expect(cardOf('ide-sidebar').header, cardOf('ide-chat').header);
+    // The editor's and the chat's tabs over them, as high as each other;
+    // the side bar's title in its card.
     expect(cardOf('ide-editor').header, cardOf('ide-chat').header);
+    expect(cardOf('ide-sidebar').header, 0);
     expect(cardOf('ide-sidebar').color, AppColors.code);
     expect(cardOf('ide-editor').color, themeColors['editor.background']);
     // The status bar on the window's color too.

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../ide/terminal/terminal_colors.dart';
 import '../platform/app_platform.dart';
 import 'code_font.dart';
+import 'island_tones.dart';
 import 'window_blur.dart';
 import 'workbench_theme.dart' hide ColorScheme;
 
@@ -21,8 +22,26 @@ abstract final class AppColors {
     return const Color(0x00000000);
   }
 
-  /// `sideBar.background`.
+  /// `sideBar.background`: the window's color, under the cards (see
+  /// [IslandTones] for how far apart they are).
   static Color get background => _colors['sideBar.background'];
+
+  /// The least lightness between the faintest text and the cards: about
+  /// the island prototype's `--fg-3` (#878680 on #222221, 0.37); Bao
+  /// Dark's `disabledForeground` (0.34) as it is.
+  static const _faintStep = 0.33;
+
+  /// [color] taken from [from], darker if it is the darker (else
+  /// lighter), till their lightness is [step] apart; as it is if it is
+  /// already.
+  static Color _apart(Color color, Color from, double step) =>
+      _apartCache[(color, from, step)] ??= () {
+        final gap = IslandTones.lightness(color) - IslandTones.lightness(from);
+        if (gap.abs() >= step) return color;
+        return IslandTones.shift(color, gap <= 0 ? gap - step : step - gap);
+      }();
+
+  static final _apartCache = <(Color, Color, double), Color>{};
 
   /// Whether the window has the system's material under it, to show
   /// through the sidebar and the conversation: macOS (see
@@ -142,8 +161,10 @@ abstract final class AppColors {
   /// `descriptionForeground`.
   static Color get textMuted => _colors['descriptionForeground'];
 
-  /// `disabledForeground`.
-  static Color get textFaint => _colors['disabledForeground'];
+  /// `disabledForeground`, at least [_faintStep] from the cards: Bao
+  /// Light's (#AEADA8 on #FCFBFA) hardly reads.
+  static Color get textFaint =>
+      _apart(_colors['disabledForeground'], code, _faintStep);
 
   /// The theme's own `textLink.foreground`, else its `focusBorder`: links
   /// in the theme's color, not the registry's blue, in a theme that sets

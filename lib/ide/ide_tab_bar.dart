@@ -538,12 +538,15 @@ class IdeTabStrip extends StatelessWidget {
   static const height = IslandTab.height;
   static const smallHeight = 28.0;
 
-  /// A [flat] strip's inset from the card's edges on all sides, and
-  /// between its tabs: the card's corner and its tabs' concentric.
-  static const flatInset = Islands.radius - Islands.controlRadius;
+  /// A [flat] strip's inset from the card's top and sides: room around
+  /// its first tab. None under it: what is under it has its own.
+  static const flatInset = 8.0;
 
-  /// A [flat] strip's height: a segment's, inset.
-  static const flatHeight = IslandSegment.height + 2 * flatInset;
+  /// Between a [flat] strip's tabs.
+  static const flatGap = 4.0;
+
+  /// A [flat] strip's height: a segment's, inset at the top.
+  static const flatHeight = IslandSegment.height + flatInset;
 
   /// `editorGroupHeader.tabsBorder`, none by default.
   static Color? get border => themeColors.get('editorGroupHeader.tabsBorder');
@@ -564,7 +567,12 @@ class IdeTabStrip extends StatelessWidget {
         // panel's views: no strip of its own, no line under it.
         : flat
         ? Padding(
-            padding: const EdgeInsets.all(flatInset),
+            padding: const EdgeInsets.fromLTRB(
+              flatInset,
+              flatInset,
+              flatInset,
+              0,
+            ),
             child: _FlatTabs(child: child),
           )
         : DecoratedBox(
@@ -746,7 +754,7 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
             ),
             // In a card's flat strip, a segment: a gap after it.
             margin: flat
-                ? const EdgeInsets.only(right: IdeTabStrip.flatInset)
+                ? const EdgeInsets.only(right: IdeTabStrip.flatGap)
                 : null,
             padding: EdgeInsets.only(
               left: padding,

@@ -4235,27 +4235,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
   }
 
-  /// The side bar: its view's title on the window's color over its card;
-  /// the Git log, cards of its own.
+  /// The side bar: its view on a card, its title in it; the Git log,
+  /// cards of its own, untitled.
   Widget _sidebarPart() {
     final view = Focus(focusNode: _sidebarFocus, child: _sidePanel());
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Islands.gap / 2),
       child: _view == IdeSideView.sourceControl
-          // Its title as the other views', over the log's own cards: their
-          // tops where the editor's and the chat's are.
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                IdeViewTitle(context.l10n.scmTitle),
-                Expanded(child: view),
-              ],
-            )
-          : HeadedIsland(
-              header: IdeViewTitle.height,
-              color: AppColors.code,
-              child: view,
-            ),
+          ? view
+          : HeadedIsland(header: 0, color: AppColors.code, child: view),
     );
   }
 
@@ -4384,12 +4372,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // The folder's actions are the explorer's commands: their keybindings
     // in their tooltips (upstream's `MenuEntryActionViewItem.getTooltip`).
     final keys = KeybindingService.instance;
-    // Over a card (the side bar's, under this): its color under the panes,
-    // the title on the window's.
+    // Over a card (the side bar's, under this, its title in it too): its
+    // color under the panes.
     return Builder(
       builder: (context) => ColoredBox(
         color: IslandSurface.colorOf(context) == null
-            ? themeColors['sideBar.background']
+            ? AppColors.background
             : Colors.transparent,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

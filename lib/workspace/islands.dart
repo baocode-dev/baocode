@@ -13,7 +13,7 @@ import '../theme/workbench_theme.dart';
 /// conversation) is on the window's color, outside its card.
 abstract final class Islands {
   /// Between two cards, and between a card and the window's edge.
-  static const gap = 8.0;
+  static const gap = 6.0;
 
   /// A card's corners.
   static const radius = 12.0;
