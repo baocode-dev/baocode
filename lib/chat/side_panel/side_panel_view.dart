@@ -65,6 +65,7 @@ import 'file_open.dart';
 import 'file_preview.dart';
 import 'git_changes.dart';
 import 'side_panel_controller.dart';
+import '../../theme/svg_icons.dart';
 
 /// [child] (the conversations) and, at its right (its left, as [panel] is
 /// [AgentSidePanel.atLeft]) while [panel] shows, the side panel [builder]
@@ -1349,7 +1350,7 @@ extension SidePanelSectionUi on SidePanelSection {
     SidePanelSection.files => Codicons.files,
     SidePanelSection.changes => Codicons.sourceControl,
     SidePanelSection.terminal => Codicons.terminal,
-    SidePanelSection.usage => Codicons.graph,
+    SidePanelSection.usage => SvgIcons.usage,
     SidePanelSection.browser => Codicons.globe,
     SidePanelSection.plan => Codicons.checklist,
   };
@@ -1709,7 +1710,7 @@ class _SectionTab extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(section.icon, size: iconSize, color: foreground),
+            AppIcon(section.icon, size: iconSize, color: foreground),
             if (!compact) ...[
               const SizedBox(width: gap),
               Text(
