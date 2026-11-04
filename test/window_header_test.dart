@@ -767,9 +767,9 @@ void main() {
     expect(sidePanel.top, greaterThan(open.bottom));
     // Its right edge on the rail's under it.
     expect(sidePanel.right, card.right - AgentSidePanelArea.railRight);
-    // At the end of the conversation's card, a gap from the window's: not
-    // its column's.
-    expect(open.right, 1400 - Islands.gap - 8);
+    // At the window's end, as far from it as the IDE's Back to Chat (the
+    // card's gap counted in): not its column's.
+    expect(open.right, 1400 - 8);
     expect(
       open.right,
       greaterThan(tester.getRect(find.byType(ChatComposer)).right),
