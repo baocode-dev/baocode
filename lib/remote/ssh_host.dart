@@ -64,7 +64,8 @@ class SshHost extends ChangeNotifier implements ProjectHost {
   String get name => host;
 
   /// The host's own: Windows' on a Windows host (as its hello says, once
-  /// connected), POSIX otherwise.
+  /// connected), POSIX otherwise. Where there is a path, how it is spelled
+  /// says as much before then ([RemoteLocation.pathsFor]).
   @override
   p.Context get paths => hello?.platform.os == 'win' ? p.windows : p.posix;
 
@@ -88,7 +89,7 @@ class SshHost extends ChangeNotifier implements ProjectHost {
             remoteGitService(this, folder).isRepositoryTop(),
         submodulesOf: (folder) =>
             remoteGitService(this, folder).submodulePaths(),
-        paths: paths,
+        paths: RemoteLocation.pathsFor(root),
       );
 
   @override

@@ -101,6 +101,19 @@ void main() {
       expect(project.root, r'C:\Users\me\app');
     });
 
+    test("a Windows host's Git spells its paths so before it connects", () {
+      // Never connects: its hello, which says it is Windows, never comes.
+      final host = SshHost(
+        'win',
+        connect: (_, {onProgress}) => Completer<SshConnection>().future,
+      );
+      addTearDown(host.dispose);
+      expect(host.paths, p.posix);
+      final git = remoteGitService(host, r'C:\Users\me\app');
+      expect(git.pathContext.style, p.windows.style);
+      expect(git.pathContext.normalize('C:/Users/me/app'), r'C:\Users\me\app');
+    });
+
     test('projects are told apart by host and path', () {
       final remote = Project.at('ssh://dev/home/me/app');
       expect(remote.name, 'app');
