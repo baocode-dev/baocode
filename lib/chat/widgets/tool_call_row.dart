@@ -82,7 +82,35 @@ class ToolCallRow extends StatelessWidget {
     _ => null,
   };
 
-  bool get _opens => results.isNotEmpty || _shown != null || images.isNotEmpty;
+  bool get _opens =>
+      _answered == null &&
+      (results.isNotEmpty || _shown != null || images.isNotEmpty);
+
+  /// The questions asked and what the user answered, once they have
+  /// (AskUserQuestion): shown under it as they are, not folded in what it
+  /// returned.
+  List<({String question, String answer})>? get _answered {
+    if (kind != ToolKind.question || status != ToolStatus.succeeded) {
+      return null;
+    }
+    final answers = input['answers'];
+    if (answers is! Map || answers.isEmpty) return null;
+    final asked = [
+      for (final question in input['questions'] as List? ?? const [])
+        if (question is Map && question['question'] is String)
+          question['question'] as String,
+    ];
+    final pairs = [
+      for (final question in asked)
+        if (answers[question] case final answer?)
+          (question: question, answer: '$answer'),
+      // Answers to questions not in the list, as they came.
+      for (final MapEntry(:key, :value) in answers.entries)
+        if (!asked.contains(key) && value != null)
+          (question: '$key', answer: '$value'),
+    ];
+    return pairs.isEmpty ? null : pairs;
+  }
 
   /// The list written or read, each item marked by its status (its
   /// output says it as text).
@@ -171,7 +199,9 @@ class ToolCallRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         header,
-        if (_todos case final todos? when expanded)
+        if (_answered case final answered?)
+          StepBody(child: _QuestionAnswers(answered: answered))
+        else if (_todos case final todos? when expanded)
           StepBody(child: _TodoList(todos: todos))
         else if (expanded && (results.isNotEmpty || _shown != null))
           StepBody(
@@ -215,6 +245,57 @@ class ToolCallRow extends StatelessWidget {
             lines,
             style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
           ),
+      ],
+    );
+  }
+}
+
+/// Each question asked, and under it what the user answered.
+class _QuestionAnswers extends StatelessWidget {
+  const _QuestionAnswers({required this.answered});
+
+  final List<({String question, String answer})> answered;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (i, (:question, :answer)) in answered.indexed) ...[
+          if (i > 0) const SizedBox(height: 8),
+          Text(
+            question,
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 12.5,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 3, right: 6),
+                child: Icon(
+                  Icons.subdirectory_arrow_right_rounded,
+                  size: 14,
+                  color: AppColors.textFaint,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  answer,
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 13,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
