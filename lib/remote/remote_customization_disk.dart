@@ -44,7 +44,15 @@ class RemoteCustomizationDisk implements CustomizationDisk {
   Future<String> _findConfigDir() async {
     final client = await _client;
     try {
-      final output = await client.run('printenv', const ['CLAUDE_CONFIG_DIR']);
+      // Windows has no printenv.
+      final output = client.hello?.platform.os == 'win'
+          ? await client.run('powershell', const [
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              r'$env:CLAUDE_CONFIG_DIR',
+            ])
+          : await client.run('printenv', const ['CLAUDE_CONFIG_DIR']);
       final dir = output.stdout.trim();
       if (output.exitCode == 0 && dir.isNotEmpty) return dir;
     } on RemoteException {

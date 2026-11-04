@@ -24,6 +24,7 @@ import 'server_review.dart';
 import 'server_streams.dart';
 import 'server_tcp.dart';
 import '../platform/process_tree.dart';
+import '../platform/windows_executable.dart';
 
 /// Params as a map, whatever came.
 Map<String, Object?> paramsOf(Object? params) => switch (params) {
@@ -247,7 +248,7 @@ class RemoteServer {
       final args = paramsOf(params);
       final environment = await _environment(args);
       final process = await Process.start(
-        args['executable'] as String,
+        _executable(args, environment),
         (args['arguments'] as List? ?? const []).cast<String>(),
         workingDirectory: args['cwd'] as String?,
         environment: environment,
@@ -257,11 +258,12 @@ class RemoteServer {
     };
     handlers[RemoteProtocol.processRun] = (params, call) async {
       final args = paramsOf(params);
+      final environment = await _environment(args);
       final process = await Process.start(
-        args['executable'] as String,
+        _executable(args, environment),
         (args['arguments'] as List? ?? const []).cast<String>(),
         workingDirectory: args['cwd'] as String?,
-        environment: await _environment(args),
+        environment: environment,
         includeParentEnvironment: args['login'] != true,
       );
       unawaited(call.cancelled.then((_) => process.kill()));
@@ -419,6 +421,20 @@ class RemoteServer {
     final overlay = (args['environment'] as Map?)?.cast<String, String>();
     if (args['login'] != true) return overlay;
     return {...await ClaudeEnvironment.of(), ...?overlay};
+  }
+
+  /// The executable [args] name, found as `cmd.exe` would on Windows (see
+  /// [windowsExecutable]) in the [environment] it runs in.
+  static String _executable(
+    Map<String, Object?> args,
+    Map<String, String>? environment,
+  ) {
+    final executable = args['executable'] as String;
+    if (!Platform.isWindows) return executable;
+    return windowsExecutable(executable, {
+      if (args['login'] != true) ...Platform.environment,
+      ...?environment,
+    });
   }
 
   Map<String, Object?> _track(Process process) {
