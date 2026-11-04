@@ -174,8 +174,10 @@ class AgentThread {
     // A plan awaiting and a pending request both wait on the user, and
     // are told of the same way: a turn that ended on its own (what the
     // agent did about a background subagent's report) still needs their
-    // say-so to go on.
-    if (session?.pendingInteraction != null || session?.awaitingPlan != null) {
+    // say-so to go on. Not before the turn that put the plan is over: it
+    // runs till then.
+    if (session?.pendingInteraction != null ||
+        (session?.canStartPlan ?? false)) {
       return ThreadStatus.needsInput;
     }
     if (session?.isStreaming ?? false) return ThreadStatus.running;

@@ -149,7 +149,18 @@ void main() {
     modes.onSelected(modes.options.firstWhere((mode) => mode.id == 'plan'));
     await tester.pump();
     planner.session.send(const ComposerMessage(text: '加一个限流'));
-    await _runUntilDone(tester, planner.session);
+    // Still at work once the plan is put: not waiting on the user yet.
+    var putWhileRunning = false;
+    for (var i = 0; i < 200 && planner.session.isStreaming; i++) {
+      if (planner.session.awaitingPlan != null) {
+        putWhileRunning = true;
+        expect(planner.status, ThreadStatus.running);
+        expect(host.notifications, isEmpty);
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(planner.session.isStreaming, isFalse);
+    expect(putWhileRunning, isTrue);
 
     // The turn ended on a plan awaiting the user's go-ahead: told of like
     // a question, not as merely finished.
