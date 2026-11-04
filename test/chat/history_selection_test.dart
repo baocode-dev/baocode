@@ -69,7 +69,7 @@ class _Feed extends ChangeNotifier implements ChatFeed {
   @override
   set editing(({int index, ComposerDraft draft})? value) {}
   @override
-  void editMessage(int index, ComposerMessage message) {}
+  void editMessage(int index, ComposerMessage message, {UserPlace? from}) {}
   @override
   VoidCallback? moveToBackgroundAt(int index) => null;
   @override
@@ -438,6 +438,81 @@ void main() {
       tester.takeException().toString(),
       contains('A drag on text selected nothing (selected done again)'),
     );
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pump();
+    expect(copied, answer);
+  });
+
+  testWidgets('a release the list did not see (the button let go outside '
+      'the window) ends the drag: the wheel then leaves the selection', (
+    tester,
+  ) async {
+    String? copied;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    final feed = _Feed([
+      for (var n = 0; n < 30; n++) ...[
+        UserMessageItem(text: 'Question $n?'),
+        AssistantTextItem('Answer $n, a line of its own.'),
+      ],
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    const answer = 'Answer 27, a line of its own.';
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.byWidgetPredicate(
+        (widget) => widget is RichText && widget.text.toPlainText() == answer,
+      ),
+    );
+    final end = paragraph.localToGlobal(
+      Offset(paragraph.size.width - 0.5, paragraph.size.height / 2),
+    );
+    final mouse = await tester.startGesture(
+      paragraph.localToGlobal(Offset(0.5, paragraph.size.height / 2)),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await mouse.moveTo(end);
+    await tester.pump();
+    // No release comes; the mouse moves on with no button down.
+    tester.binding.handlePointerEvent(
+      PointerHoverEvent(
+        position: end,
+        kind: PointerDeviceKind.mouse,
+        device: 1,
+      ),
+    );
+    await tester.pump();
+    tester.binding.handlePointerEvent(
+      PointerScrollEvent(
+        position: end,
+        kind: PointerDeviceKind.mouse,
+        device: 1,
+        scrollDelta: const Offset(0, -300),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyC);

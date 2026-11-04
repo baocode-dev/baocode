@@ -17,6 +17,8 @@ import 'browser_bridge.dart';
 import 'browser_records.dart';
 import 'browser_steps.dart';
 import 'source_map.dart';
+import '../remote/port_forwards.dart';
+import '../remote/remote_location.dart';
 
 part 'browser_actions.dart';
 part 'browser_debug_tools.dart';
@@ -32,25 +34,6 @@ part 'browser_watch.dart';
 /// protocol. Their names are `mcp__baocode__browser_…` to an agent.
 abstract final class BrowserTools {
   static bool _registered = false;
-
-  /// The tab an agent last used: the side panel's page shows it.
-  static final lastTab = ValueNotifier<BrowserTab?>(null);
-
-  static final _shown = StreamController<BrowserTab>.broadcast();
-
-  /// The tabs asked to show in the side panel ([show]), for the panel to
-  /// open its browser page.
-  static Stream<BrowserTab> get shown => _shown.stream;
-
-  /// Shows [tabId] in the side panel (a step of the conversation clicked):
-  /// as the tab an agent used last, over the one the user picked there.
-  static void show(int tabId) {
-    final browsers = BrowserBridge.instance.browsers;
-    if (browsers.isEmpty) return;
-    final tab = BrowserTab(browsers.first, tabId);
-    lastTab.value = tab;
-    _shown.add(tab);
-  }
 
   /// Starts the bridge to the user's browsers; gives the agents the tools
   /// while one has connected and the user lets them ([BrowserBridge.used]).
@@ -123,7 +106,6 @@ abstract final class BrowserTools {
               tab,
               () => tool.run(input, call),
             );
-            if (tool.name != 'browser_close') _used(tabId);
             return answer;
           },
         ),
@@ -204,12 +186,6 @@ abstract final class BrowserTools {
     if (_Debugging.pausedNote(tab) case final note?) throw BrowserError(note);
   }
 
-  static void _used(int tabId) {
-    final browsers = BrowserBridge.instance.browsers;
-    if (browsers.isEmpty) return;
-    lastTab.value = BrowserTab(browsers.first, tabId);
-  }
-
   /// What the agent must not do with the tools, in its system prompt while
   /// they are given: crawl the sites of public bodies.
   static const rules = '''
@@ -270,12 +246,12 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
         final tab =
             await browser.request('tabs.create', {'url': 'about:blank'}) as Map;
         final tabId = tab['tabId'] as int;
-        _used(tabId);
         await _watch(tabId);
+        final url = await _reachable(call.cwd, input['url'] as String?);
         await _loading(
           browser,
           tabId,
-          () => browser.cdp(tabId, 'Page.navigate', {'url': input['url']}),
+          () => browser.cdp(tabId, 'Page.navigate', {'url': url}),
         );
         return _arrived(browser, tabId);
       },
@@ -304,7 +280,7 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
         await _go(
           browser,
           tabId,
-          input['url'] as String?,
+          await _reachable(call.cwd, input['url'] as String?),
           input['action'] as String?,
         );
         return _arrived(browser, tabId);
@@ -488,6 +464,23 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
       ),
       width > 0 && deviceWidth > 0 ? deviceWidth / width : 1,
     );
+  }
+
+  /// [url] as this machine's browser reaches it, for an agent working in
+  /// [cwd]: on an SSH host, its loopback's port forwarded here first, and
+  /// the URL on the port here (see PortForwards.localUrl).
+  static Future<String?> _reachable(String cwd, String? url) async {
+    final host = RemoteLocation.hostOf(cwd);
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (host == null || RemoteLocation.isWsl(host) || uri == null) return url;
+    try {
+      return '${await PortForwards.instance.localUrl(host, uri)}';
+    } on Object catch (error) {
+      throw BrowserError(
+        'Port ${uri.port} of the host could not be '
+        'forwarded to this computer: $error',
+      );
+    }
   }
 
   /// Goes to [url] in [tabId], or back, forward, or reloads ([action]);

@@ -13,15 +13,14 @@
 // writes, so run this and commit the files when a target changes.
 import 'dart:io';
 
+import 'package:baocode/link/phone_downloads.dart';
 import 'package:qr/qr.dart';
 
-/// The site the codes are scanned from: where their targets resolve.
-const _site = 'https://baocode.dev';
-
 /// Each phone card's target, as site/download.html links it, by the card
-/// it belongs to: the phone app's two downloads (docs/release.md, 10).
-/// test/tool/download_qr_test.dart holds the pages to this.
-const downloadQrTargets = {'android': '/dl/android', 'ios': '/dl/ios'};
+/// it belongs to: the phone app's two downloads (docs/release.md, 10), the
+/// same as Settings → Mobile shows. test/tool/download_qr_test.dart holds
+/// the pages to this.
+const downloadQrTargets = phoneDownloadTargets;
 
 /// The colors of the page they are shown on (site/style.css): its ink and
 /// its paper. Scanners read that contrast as well as black on white.
@@ -44,8 +43,8 @@ Future<void> main(List<String> arguments) async {
 
 /// Each code's SVG, by its path in the repository.
 Map<String, String> downloadQrSvgs() => {
-  for (final MapEntry(key: os, value: path) in downloadQrTargets.entries)
-    'site/qr/$os.svg': qrSvg('$_site$path'),
+  for (final os in downloadQrTargets.keys)
+    'site/qr/$os.svg': qrSvg(phoneDownloadUrl(os)),
 };
 
 /// [data] as a QR code in SVG: one unit to a module, the quiet margin the

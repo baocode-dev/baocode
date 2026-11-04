@@ -23,11 +23,13 @@ abstract interface class LinkPlatform {
   Future<void> write(Map<String, Object?> json);
 
   /// This desktop on the network as [identity], keeping to [relays],
-  /// taking the phones' connections; on [port] (UDP) if it is free.
+  /// taking the phones' connections; on [port] (UDP) if it is free, or
+  /// only on it when [strictPort].
   Future<LinkNode> bind(
     LinkIdentity identity, {
     required List<String> relays,
     required int port,
+    bool strictPort = false,
   });
 
   /// Makes this desktop known on the LAN as [advert] (DNS-SD, see

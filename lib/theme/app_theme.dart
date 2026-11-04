@@ -21,7 +21,8 @@ abstract final class AppColors {
     return const Color(0x00000000);
   }
 
-  /// `sideBar.background`.
+  /// `sideBar.background`: the side bar's color; the window's, the
+  /// agents' window's about its cards too.
   static Color get background => _colors['sideBar.background'];
 
   /// Whether the window has the system's material under it, to show
@@ -92,11 +93,11 @@ abstract final class AppColors {
     return foreground.withValues(alpha: foreground.a * 0.1);
   }
 
-  /// The chat's message bubbles and its input: their own color
-  /// (`agentsChatInput.background`, over [code]) a step towards the
-  /// editor's text, so it stands out from them however far they are from
-  /// the page, tinged with [accent]; the input's when typed into, a step on
-  /// towards [accent].
+  /// The chat's message bubbles and its input: their fill ([bubbleFill]) a
+  /// step towards the editor's text, so it stands out from them however far
+  /// they are from the page, tinged with [accent]; the input's when typed
+  /// into, a step on towards [accent]. Not the theme's border, which may be
+  /// of another hue (Solarized Dark's violet around its teal).
   static Color bubbleBorder({bool focused = false}) {
     final line = Color.lerp(
       _towardsText(bubbleFill, 0.12),
@@ -106,12 +107,18 @@ abstract final class AppColors {
     return focused ? Color.lerp(line, accent.withValues(alpha: 1), 0.2)! : line;
   }
 
-  /// The chat's message bubbles and its input, typed into or not:
-  /// `agentsChatInput.background` over [code].
-  static Color get bubbleFill => _bubble;
-
-  static Color get _bubble =>
+  /// The chat's message bubbles and its input, typed into or not, in the
+  /// agents' window and the IDE alike: `agentsChatInput.background` over
+  /// [code].
+  static Color get bubbleFill =>
       Color.alphaBlend(_colors['agentsChatInput.background'], code);
+
+  /// A row hovered on a [bubbleFill] panel: the text's color faintly over
+  /// it, lighter on a dark one, darker on a light one, of its hue (a
+  /// theme's `list.hoverBackground` is the side bar's, maybe darker than
+  /// the panel and of another hue).
+  static Color get bubbleHover =>
+      _colors['editor.foreground'].withValues(alpha: 0.07);
 
   static Color _towardsText(Color color, double t) =>
       Color.lerp(color, _colors['editor.foreground'].withValues(alpha: 1), t)!;
@@ -213,8 +220,14 @@ abstract final class AppColors {
 
 /// Window chrome shared by the sidebar and the chat, so their edges line up.
 abstract final class AppMetrics {
-  /// The Flutter-drawn title bar, level with the native traffic lights.
+  /// The Flutter-drawn title bar, the native traffic lights moved down to
+  /// its middle (see [nativeTitleBarHeight]): a row of the window's color
+  /// over the cards (see Islands), a part's tabs at its foot.
   static const titleBarHeight = 30.0;
+
+  /// The title bar AppKit lays the traffic lights out in, unmoved: their
+  /// middle half that down.
+  static const nativeTitleBarHeight = 28.0;
 
   /// From the title bar to the first content under it (the sidebar's New
   /// Agent button, the chat's stuck message).

@@ -1,0 +1,40 @@
+# bao_iroh's library for this runner's targets, built on main for rust/ as
+# it is (bao_iroh.yml), into packages/bao_iroh/build/prebuilt/, where its
+# build hook takes it rather than build iroh again: once for each `dart run
+# tool/…` and each target of a build. With none in the cache (rust/ changed
+# on a tag only, or bao_iroh.yml has yet to run), the hook builds it.
+#
+# A tag's run can restore only main's caches, so the builds only restore:
+# what a tag saved, no other tag would find.
+name: bao_iroh, prebuilt
+description: Restores bao_iroh's library built on main, for its build hook
+inputs:
+  kind:
+    description: desktop, android or ios (a Mac builds for two of them)
+    default: desktop
+  root:
+    description: Where this repository is checked out (mobile.yml's monad/)
+    default: .
+  save:
+    description: Save the folder instead (bao_iroh.yml, once it is built)
+    default: 'false'
+outputs:
+  hit:
+    description: Whether the library was in the cache
+    value: ${{ steps.restore.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    # hashFiles hashes the files' contents alone: the same wherever the
+    # checkout is.
+    - id: restore
+      if: inputs.save != 'true'
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ inputs.root }}/packages/bao_iroh/build/prebuilt
+        key: bao-iroh-v1-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/packages/bao_iroh/rust/**', inputs.root)) }}
+    - if: inputs.save == 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ inputs.root }}/packages/bao_iroh/build/prebuilt
+        key: bao-iroh-v1-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/packages/bao_iroh/rust/**', inputs.root)) }}

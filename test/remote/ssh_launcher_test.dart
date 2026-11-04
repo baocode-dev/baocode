@@ -458,11 +458,111 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     expect(SshLauncher.platform('Darwin', 'arm64'), 'darwin-arm64');
     expect(SshLauncher.platform('Darwin', 'x86_64'), 'darwin-x64');
     expect(SshLauncher.platform('FreeBSD', 'amd64'), isNull);
+    // Windows' probe says PROCESSOR_ARCHITECTURE; a Unix shell there
+    // (Git's, MSYS2's) its own name for Windows.
+    expect(SshLauncher.platform('Windows', 'AMD64'), 'windows-x64');
+    expect(SshLauncher.platform('Windows', 'ARM64'), 'windows-arm64');
+    expect(
+      SshLauncher.platform('MINGW64_NT-10.0-26100', 'x86_64'),
+      'windows-x64',
+    );
+    expect(SshLauncher.platform('Windows', 'x86'), isNull);
     expect(SshLauncher.describe('darwin-arm64'), 'macOS arm64');
     expect(SshLauncher.describe('linux-x64'), 'Linux x64');
+    expect(SshLauncher.describe('windows-arm64'), 'Windows arm64');
   });
 
-  test('a host other than Linux or macOS on x64 or arm64 is refused', () async {
+  test("a Windows host's commands: PowerShell's, encoded, whatever its "
+      'shell; the server put there by sftp', () {
+    final command = SshLauncher.powershellCommand("Write-Output 'é'");
+    final parts = command.split(' ');
+    expect(parts.take(6), [
+      'powershell',
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-EncodedCommand',
+    ]);
+    final bytes = base64.decode(parts.last);
+    final script = String.fromCharCodes([
+      for (var i = 0; i < bytes.length; i += 2) bytes[i] | bytes[i + 1] << 8,
+    ]);
+    expect(script, endsWith("\nWrite-Output 'é'"));
+    expect(script, startsWith('[Console]::OutputEncoding'));
+
+    final launcher = SshLauncher(
+      ssh: '/usr/bin/ssh',
+      binaries: FakeBinaries('9.9-abc', const {}),
+    );
+    expect(
+      launcher.windowsServerPath,
+      r'.baocode-server\9.9-abc\baocode-server.exe',
+    );
+    expect(launcher.windowsProbeScript, contains('PROCESSOR_ARCHITECTURE'));
+    // ssh's options sftp takes: -o's alone (not -T, -e).
+    const sftpOptions = [
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'ServerAliveInterval=15',
+      '-o',
+      'ServerAliveCountMax=3',
+      '-o',
+      'ConnectTimeout=20',
+    ];
+    final session = launcher.windowsSessionScript('0123456789abcdef');
+    expect(session, contains('Win32_Process'));
+    expect(session, contains('--daemon 0123456789abcdef'));
+    expect(session, contains("'0123456789abcdef.port'"));
+    expect(
+      launcher.sftpArguments(
+        SshTarget.configured(
+          'box',
+          destination: 'box',
+          configFile: '/c/servers',
+        ),
+        '/tmp/batch',
+        extra: ['-o', 'ControlPath=none', '-T'],
+      ),
+      [
+        ...sftpOptions,
+        '-o',
+        'ControlPath=none',
+        '-F',
+        '/c/servers',
+        '-b',
+        '/tmp/batch',
+        'box',
+      ],
+    );
+    expect(launcher.sftpArguments(SshTarget.parse('me@box:2222'), 'b'), [
+      ...sftpOptions,
+      '-P',
+      '2222',
+      '-b',
+      'b',
+      'me@box',
+    ]);
+  });
+
+  test("ssh -W's end: the daemon gone where nothing came and ssh ended "
+      'well', () {
+    expect(
+      SshLauncher.isForwardRefused(
+        'channel 0: open failed: connect failed: Connection refused',
+      ),
+      isTrue,
+    );
+    expect(SshLauncher.isForwardRefused('stdio forwarding failed'), isTrue);
+    expect(
+      SshLauncher.isForwardRefused('Connection to box closed by remote host.'),
+      isFalse,
+    );
+  });
+
+  test('a host other than Linux, macOS or Windows on x64 or arm64 is '
+      'refused', () async {
     for (final (system, machine) in [
       ('FreeBSD', 'amd64'),
       ('Linux', 'i686'),

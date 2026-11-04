@@ -8,7 +8,8 @@ import 'package:flutter/services.dart' show ServicesBinding;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:path/path.dart' as p;
 import 'package:bao_editor/textmate/textmate_syntax.dart';
-import 'package:bao_markdown/bao_markdown.dart' show MdClipboard;
+import 'package:bao_markdown/bao_markdown.dart'
+    show MarkdownEditor, MdClipboard;
 
 import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
@@ -118,12 +119,16 @@ import 'theme/pixel_snapped_text_scaler.dart';
 import 'theme/ui_zoom.dart';
 import 'theme/window_blur.dart';
 import 'theme/workbench_theme.dart';
+import 'theme/theme_transition.dart';
 import 'update/update_controller.dart';
 import 'update/update_platform.dart';
 import 'update/update_service.dart';
 import 'update/update_settings.dart';
 import 'update/update_store.dart';
 import 'update/version.dart';
+import 'usage/usage_ledger.dart';
+import 'usage/usage_prices.dart';
+import 'usage/usage_storage.dart';
 import 'window/app_windows.dart';
 import 'window/code_args.dart';
 import 'window/window_host.dart';
@@ -168,6 +173,7 @@ Future<void> main(List<String> arguments) async {
   if (!kIsWeb) {
     AppEventWatch.start();
     FrameWatch.start();
+    MarkdownEditor.onInputLost = (message) => appEvent('input', message);
   }
   // The Windows app's own logs and the macOS app's hang reports go beside
   // them.
@@ -223,6 +229,18 @@ Future<void> main(List<String> arguments) async {
     l10n: () =>
         lookupAppLocalizations(locale.locale ?? AppLocale.systemLocale()),
   )..load();
+  // The conversations' titles and projects, kept with their calls.
+  UsageLedger.titleOf = (session) => switch (workspace.threads
+      .where((thread) => thread.id == session)
+      .firstOrNull) {
+    final thread? when thread.titled => thread.title,
+    _ => null,
+  };
+  UsageLedger.projectOf = (session) => workspace.threads
+      .where((thread) => thread.id == session)
+      .firstOrNull
+      ?.project
+      .name;
   // Claude Code's skills, agents, commands, rules, servers, hooks and
   // plugins: the Customize view beside the chat, and Settings → Customize.
   final customizations = CustomizationStore();
@@ -322,6 +340,10 @@ Future<void> main(List<String> arguments) async {
         http: IoForgeHttp(),
         read: () => files.storage.get<List<Object?>>(forgeAccountsKey),
         write: (json) => files.storage.set(forgeAccountsKey, json),
+        readCertificates: () =>
+            files.storage.get<Map<Object?, Object?>>(forgeCertificatesKey),
+        writeCertificates: (json) =>
+            files.storage.set(forgeCertificatesKey, json),
       ),
     );
     StashForge.current = stash.forge;
@@ -356,6 +378,7 @@ Future<void> main(List<String> arguments) async {
     ..restore(
       setting: colorTheme.colorThemeSetting,
       data: colorTheme.colorThemeData,
+      autoDetectColorScheme: colorTheme.autoDetectColorScheme,
     )
     ..storage = colorTheme
     // A theme of an extension applies once they are read.
@@ -501,14 +524,12 @@ void followSettingsFiles(SettingsFiles files) {
   // Settings → General → Claude Code: the core sessions run on (BaoCode's
   // own, or the CLI), read as each agent starts. Unset, the CLI where it
   // is installed (looked for on the app's PATH, then the shell's), else
-  // the built-in core, which suggests the CLI.
+  // the built-in core.
   ClaudeCore.cliInstalled = localClaudeInstalled;
   unawaited(lookForLocalClaude());
   ClaudeCore.current = () =>
       ClaudeCore.parse(files.settings[ClaudeCore.settingKey]);
   ClaudeCore.changes = files.settings;
-  ClaudeCore.pick = (core) =>
-      files.settings.update(ClaudeCore.settingKey, core.name);
   // Settings → Models: the upstreams, kept in settings.json.
   ModelProviders.current = ModelProviders.settings(files.settings);
   // Claude Code's own models as it last listed them: in the picker
@@ -521,6 +542,15 @@ void followSettingsFiles(SettingsFiles files) {
   ClaudeCodeKernel.turnStats = turnStatsIn(
     p.join(DataDirectory.current.path, 'turn-stats'),
   );
+  // The calls to custom upstreams (Settings → Usage, the side panel's
+  // Usage page): in the data folder, a file a day, kept as long as the
+  // user says.
+  UsageLedger.current = UsageLedger(
+    usageStorageIn(p.join(DataDirectory.current.path, 'usage')),
+  )..follow(files.settings);
+  unawaited(UsageLedger.current.prune());
+  // The models' prices, the calls' costs worked out from them.
+  UsagePrices.current = UsagePrices()..follow(files.settings);
   // The upstreams' sites' icons, for those that show no other: in the
   // cache, fetched as soon as one is added.
   SiteIcons.current = SiteIcons(
@@ -775,7 +805,8 @@ class BaoCodeApp extends StatefulWidget {
   State<BaoCodeApp> createState() => _BaoCodeAppState();
 }
 
-class _BaoCodeAppState extends State<BaoCodeApp> {
+class _BaoCodeAppState extends State<BaoCodeApp>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final Workspace _workspace =
       widget.workspace ??
       (Workspace(preferences: PreferenceStore.file())..load());
@@ -841,12 +872,43 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
   );
 
   final WorkbenchThemeService _themes = WorkbenchThemeService.instance;
+  late final _themeTransition = ColorThemeTransition(vsync: this);
   bool? _darkAppearance;
+
+  void _transitionTheme(WorkbenchColors colors, VoidCallback apply) {
+    _themeTransition.change(
+      from: AppColors.windowCanvas,
+      to: AppColors.usesSystemMaterial
+          ? Colors.transparent
+          : colors['sideBar.background'],
+      apply: apply,
+      animate:
+          !identical(colors.theme, _themes.colorTheme) &&
+          !WidgetsBinding
+              .instance
+              .platformDispatcher
+              .accessibilityFeatures
+              .disableAnimations,
+    );
+  }
+
+  @override
+  void didChangeAccessibilityFeatures() {
+    if (WidgetsBinding
+        .instance
+        .platformDispatcher
+        .accessibilityFeatures
+        .disableAnimations) {
+      _themeTransition.finish();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _lifecycle;
+    WidgetsBinding.instance.addObserver(this);
+    _themes.transition = _transitionTheme;
     _themes.addListener(_colorThemeChanged);
     _colorThemeChanged();
     _locale.addListener(_windows.relabel);
@@ -857,13 +919,28 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     );
   }
 
+  @override
+  void didChangePlatformBrightness() {
+    unawaited(
+      _themes
+          .setPlatformBrightness(
+            WidgetsBinding.instance.platformDispatcher.platformBrightness,
+          )
+          .catchError((Object error) {
+            debugPrint('System color theme not applied: $error');
+          }),
+    );
+  }
+
   /// The terminals take the theme's colors (`getXtermTheme`); the window's
-  /// own parts follow its type.
+  /// own parts follow its type. The panel's on a card as the editors are,
+  /// of their color: without `terminal.background`, theirs.
   void _colorThemeChanged() {
     final colors = _themes.colors;
     terminalColorTheme.value = TerminalColorTheme.resolve(
       colors.get,
       type: colors.type,
+      inEditor: true,
     );
     editorTerminalColorTheme.value = TerminalColorTheme.resolve(
       colors.get,
@@ -878,6 +955,9 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _themes.transition = null;
+    _themeTransition.dispose();
     _themes.removeListener(_colorThemeChanged);
     _locale.removeListener(_windows.relabel);
     _settings.files?.settings.removeListener(_windows.settingsChanged);
@@ -935,6 +1015,7 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
     title: 'BaoCode',
     debugShowCheckedModeBanner: false,
     theme: buildAppTheme(),
+    themeAnimationDuration: Duration.zero,
     scrollBehavior: const BaoScrollBehavior(),
     builder: (context, child) => ValueListenableBuilder<int>(
       valueListenable: CodeFont.uiScale,
@@ -943,9 +1024,10 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
         // icons and gaps grow with the text they hold.
         final zoom = percent / 100;
         final media = UiZoom.zoomed(MediaQuery.of(context), zoom);
-        // The traffic lights, level with the title bar as it grows.
+        // The traffic lights in the middle of the title bar, as it grows.
         WindowControls.setTitleBarDrop(
-          AppMetrics.titleBarHeight * (zoom - 1) / 2,
+          (AppMetrics.titleBarHeight * zoom - AppMetrics.nativeTitleBarHeight) /
+              2,
           viewId: window.viewId,
         );
         // Windows blurs glyphs drawn at a fractional pixel size.
@@ -964,7 +1046,10 @@ class _BaoCodeAppState extends State<BaoCodeApp> {
           ),
         );
       },
-      child: child,
+      child: _themeTransition.wrap(
+        child ?? const SizedBox.shrink(),
+        canvas: AppColors.windowCanvas,
+      ),
     ),
     locale: _locale.locale,
     supportedLocales: AppLocale.supportedLocales,

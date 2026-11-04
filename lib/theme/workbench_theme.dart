@@ -15,8 +15,9 @@
 //
 // Deviations: settings and storage are two preference entries the app keeps
 // (`ColorThemeStorage`), read once at startup; no customizations, transient
-// colors, theme watching, telemetry, file or product icon themes, or
-// automatic color scheme detection. Themes are named by their settings id.
+// colors, theme watching, telemetry, or file or product icon themes.
+// Auto (`window.autoDetectColorScheme`) is Bao Light or Bao Dark by the
+// system's appearance; no preferred light or dark theme settings.
 // Widgets read colors through [WorkbenchThemeService.colors] and are all
 // rebuilt when the theme changes ([WorkbenchThemeScope]), as a theme change
 // restyles the whole workbench upstream.
@@ -90,7 +91,19 @@ String migrateThemeSettingsId(String settingsId) => switch (settingsId) {
 abstract interface class ColorThemeStorage {
   String? get colorThemeSetting;
   String? get colorThemeData;
-  void storeColorTheme({required String setting, String? data});
+
+  /// Whether the theme follows the system's appearance (Auto).
+  bool get autoDetectColorScheme;
+
+  /// Keeps [setting], whether it follows the system, and [data] (the
+  /// colors' cache); [cacheOnly], the cache alone. Throws where it could
+  /// not.
+  Future<void> storeColorTheme({
+    required String setting,
+    String? data,
+    bool autoDetectColorScheme = false,
+    bool cacheOnly = false,
+  });
 }
 
 /// A color theme's colors as widgets read them: what the theme sets, else
@@ -160,18 +173,49 @@ class WorkbenchThemeService extends ChangeNotifier
   /// Where the choice is kept; none under test.
   ColorThemeStorage? storage;
 
-  /// The `workbench.colorTheme` setting: what [restoreColorTheme] loads.
+  /// The `workbench.colorTheme` setting kept, apart from the theme Auto
+  /// shows.
   String _setting = ThemeSettingDefaults.colorThemeDark;
+  bool _automatic = false;
+  ColorScheme _committedType = ColorScheme.dark;
+  String? _preview;
+  ui.Brightness _brightness = ui.PlatformDispatcher.instance.platformBrightness;
+  int _request = 0;
+  int _preferenceRevision = 0;
+
+  /// The theme kept; Auto leaves it as it is.
+  String get colorThemeSetting => _setting;
+
+  /// Whether Auto is kept; a preview does not change it.
+  bool get autoDetectColorScheme => _automatic;
+
+  bool get _followsSystem =>
+      _preview == IdeColorThemeController.autoId ||
+      (_preview == null && _automatic);
+  String get _resolvedSetting => _followsSystem
+      ? (_brightness == ui.Brightness.light
+            ? ThemeSettingDefaults.colorThemeLight
+            : ThemeSettingDefaults.colorThemeDark)
+      : _preview ?? _setting;
+
+  /// Shows a change of theme to [colors]: [apply] once, unless another
+  /// came since. Only for one the system's appearance makes.
+  void Function(WorkbenchColors colors, VoidCallback apply)? transition;
 
   /// The current theme: from storage or a type's initial colors until the
   /// theme file is loaded ([ColorThemeData.isLoaded]).
   @override
   ColorThemeData get colorTheme => _current;
 
-  /// The settings id of the theme the workbench shows.
+  /// The choice as the picker has it: Auto's, or the theme's settings id.
   @override
   String get colorThemeId =>
-      _current.settingsId.startsWith('__') ? _setting : _current.settingsId;
+      _preview ??
+      (_automatic
+          ? IdeColorThemeController.autoId
+          : (_current.settingsId.startsWith('__')
+                ? _setting
+                : _current.settingsId));
 
   WorkbenchColors get colors => _colors ??= WorkbenchColors(_current);
 
@@ -329,21 +373,14 @@ class WorkbenchThemeService extends ChangeNotifier
     _extensionThemes
       ..clear()
       ..addAll(next);
-    final first = !_extensionThemesKnown;
     _extensionThemesKnown = true;
-    // The setting's theme, waiting for them (or gone with an extension).
-    if (_current.settingsId != _setting || !_current.isLoaded || first) {
-      if (_extensionThemes[_setting] case final theme?) {
-        await theme.ensureLoaded(_read);
-        _apply(theme, preview: false);
-      } else if ((await _loadManifest()).themeById(_setting) == null) {
-        await _setColorTheme(_defaultSetting, preview: false);
-      }
-    }
+    // The choice's theme again: an extension's updated or gone too; one
+    // loaded is read once.
+    await _loadCurrent(_request);
     notifyListeners();
   });
 
-  String get _defaultSetting => _current.type == ColorScheme.light
+  String get _defaultSetting => _committedType == ColorScheme.light
       ? ThemeSettingDefaults.colorThemeLight
       : ThemeSettingDefaults.colorThemeDark;
 
@@ -358,15 +395,29 @@ class WorkbenchThemeService extends ChangeNotifier
 
   /// The constructor's restore: the kept theme, painted from storage when it
   /// is still the setting's, until [initialize] loads it.
-  void restore({String? setting, String? data}) {
+  void restore({
+    String? setting,
+    String? data,
+    bool autoDetectColorScheme = false,
+    ui.Brightness? brightness,
+  }) {
+    _request++;
+    _preferenceRevision++;
+    _preview = null;
+    _automatic = autoDetectColorScheme;
+    _brightness =
+        brightness ?? ui.PlatformDispatcher.instance.platformBrightness;
     if (setting != null && setting.isNotEmpty) {
       _setting = migrateThemeSettingsId(setting);
     }
+    final id = _resolvedSetting;
     var theme = ColorThemeData.fromStorageData(data);
-    if (theme != null && theme.settingsId != _setting) theme = null;
+    if (theme != null && theme.settingsId != id) theme = null;
     theme ??= ColorThemeData.createUnloadedThemeForThemeType(
-      ColorScheme.dark,
-      switch (_setting) {
+      id == ThemeSettingDefaults.colorThemeLight
+          ? ColorScheme.light
+          : ColorScheme.dark,
+      switch (id) {
         ThemeSettingDefaults.colorThemeLight => colorThemeLightInitialColors,
         ThemeSettingDefaults.colorThemeDark => colorThemeDarkInitialColors,
         _ => null,
@@ -377,27 +428,60 @@ class WorkbenchThemeService extends ChangeNotifier
 
   /// Reads the bundled themes and applies the setting's theme, loaded
   /// (`restoreColorTheme`); the default theme when it is gone.
-  Future<void> initialize() => _queue(() async {
-    final manifest = await _loadManifest();
-    final theme = manifest.themeById(_setting);
-    if (theme == null) {
-      if (_extensionThemes[_setting] case final extension?) {
-        await extension.ensureLoaded(_read);
-        if (!identical(extension, _current)) _apply(extension, preview: false);
-        return;
-      }
-      // An extension's, maybe: the restored colors show until the
-      // extensions say ([setExtensionThemes]).
+  Future<void> initialize() {
+    final request = _request;
+    return _queue(() => _loadCurrent(request));
+  }
+
+  Future<ColorThemeData?> _loadTheme(String id) async {
+    final theme = (await _loadManifest()).themeById(id);
+    final data = theme != null ? _themeData(theme) : _extensionThemes[id];
+    if (data != null) await data.ensureLoaded(_read);
+    return data;
+  }
+
+  Future<void> _loadCurrent(int request, {bool force = false}) async {
+    if (request != _request) return;
+    var id = _resolvedSetting;
+    var data = await _loadTheme(id);
+    var fallback = false;
+    if (request != _request || id != _resolvedSetting) return;
+    if (data == null) {
+      fallback = true;
       if (waitsForExtensionThemes && !_extensionThemesKnown) return;
-      // A theme gone (or no longer bundled): the default of the kept
-      // theme's type, as `initializeColorTheme` falls back.
-      await _setColorTheme(_defaultSetting, preview: false);
-      return;
+      id = _defaultSetting;
+      data = await _loadTheme(id);
+      if (request != _request || data == null) return;
+      if (_preview != null) {
+        _preview = id;
+      } else if (!_automatic) {
+        try {
+          await _keep(data, setting: id, automatic: false);
+        } catch (error) {
+          debugPrint('Fallback color theme not kept: $error');
+        }
+        if (request != _request) return;
+      }
     }
-    final data = _themeData(theme);
-    await data.ensureLoaded(_read);
-    if (!identical(data, _current)) _apply(data, preview: false);
-  });
+    if (force || !identical(data, _current)) {
+      _apply(data, preview: _preview != null, fallback: fallback);
+    }
+    if (_preview == null) await _remember(data);
+  }
+
+  Future<void> _remember(ColorThemeData theme) async {
+    try {
+      await storage?.storeColorTheme(
+        setting: _setting,
+        data: theme.toStorage(),
+        autoDetectColorScheme: _automatic,
+        cacheOnly: true,
+      );
+    } catch (error) {
+      // Shown even so; a choice failing to be kept throws (see [_keep]).
+      debugPrint('Color theme cache not kept: $error');
+    }
+  }
 
   /// The current theme, loaded; the setting's when none is.
   @override
@@ -420,53 +504,183 @@ class WorkbenchThemeService extends ChangeNotifier
   /// `setColorTheme(settingsId, preview ? 'preview' : 'auto')`: shows the
   /// theme; unless [preview], keeps it as the setting and in storage.
   @override
-  Future<void> setColorTheme(String settingsId, {bool preview = false}) =>
-      _queue(() => _setColorTheme(settingsId, preview: preview));
+  Future<void> setColorTheme(String settingsId, {bool preview = false}) {
+    final request = ++_request;
+    return _queue(
+      () => _setColorTheme(settingsId, preview: preview, request: request),
+    );
+  }
+
+  /// Drops the preview: the choice kept shows again, Auto at the system's
+  /// appearance now.
+  @override
+  Future<void> restoreColorThemePreview() {
+    final request = ++_request;
+    _preview = null;
+    return _queue(() => _loadCurrent(request, force: true));
+  }
+
+  /// The settings file changed (by hand, say): its theme and Auto shown,
+  /// nothing written back.
+  Future<void> applyColorThemeSettings({
+    required String setting,
+    required bool autoDetectColorScheme,
+  }) {
+    final request = ++_request;
+    final revision = ++_preferenceRevision;
+    final id = _setting = migrateThemeSettingsId(setting);
+    _automatic = autoDetectColorScheme;
+    _preview = null;
+    return _queue(() async {
+      final manifest = await _loadManifest();
+      // The kept theme's type, for a fallback, even as a preview shows.
+      if (revision == _preferenceRevision) {
+        final theme = manifest.themeById(id);
+        final data = theme != null ? _themeData(theme) : _extensionThemes[id];
+        if (data != null) _committedType = data.type;
+      }
+      await _loadCurrent(request, force: true);
+    });
+  }
+
+  /// The system's appearance changed to [brightness]: shown under Auto
+  /// (through [transition]), noted otherwise.
+  Future<void> setPlatformBrightness(ui.Brightness brightness) {
+    if (_brightness == brightness) return Future<void>.value();
+    _brightness = brightness;
+    if (!_followsSystem) return Future<void>.value();
+    final request = _request;
+    return _queue(() async {
+      _bySystem = true;
+      try {
+        await _loadCurrent(request, force: true);
+      } finally {
+        _bySystem = false;
+      }
+    });
+  }
+
+  /// A theme shown as the system's appearance changed, not as one was
+  /// picked: what [transition] is for. One picked, or previewed (moving
+  /// through the picker), shows at once.
+  bool _bySystem = false;
 
   Future<void> _setColorTheme(
     String settingsId, {
     required bool preview,
+    required int request,
   }) async {
-    if (_current.isLoaded && settingsId == _current.settingsId) {
-      if (!preview) _keep(_current);
-      return;
+    if (request != _request) return;
+    final automatic = settingsId == IdeColorThemeController.autoId;
+    final id = automatic
+        ? (_brightness == ui.Brightness.light
+              ? ThemeSettingDefaults.colorThemeLight
+              : ThemeSettingDefaults.colorThemeDark)
+        : settingsId;
+    try {
+      final data = await _loadTheme(id);
+      if (request != _request) return;
+      if (data == null) {
+        throw StateError('Color theme no longer available: $id');
+      }
+      if (preview) {
+        _preview = settingsId;
+      } else {
+        await _keep(
+          data,
+          setting: automatic ? _setting : settingsId,
+          automatic: automatic,
+        );
+        if (request != _request) return;
+        _preview = null;
+      }
+      if (data.settingsId != _resolvedSetting) {
+        await _loadCurrent(request, force: true);
+      } else {
+        _apply(data, preview: preview);
+      }
+    } catch (_) {
+      if (request == _request) {
+        _preview = null;
+        await _loadCurrent(request, force: true).catchError((Object error) {
+          debugPrint('Color theme not restored: $error');
+        });
+      }
+      rethrow;
     }
-    final manifest = await _loadManifest();
-    final theme = manifest.themeById(settingsId);
-    final data = theme != null
-        ? _themeData(theme)
-        : _extensionThemes[settingsId];
-    if (data == null) return;
-    await data.ensureLoaded(_read);
-    _apply(data, preview: preview);
   }
 
   void _apply(
     ColorThemeData theme, {
     bool silent = false,
     bool preview = true,
+    bool fallback = false,
   }) {
-    _current.clearCaches();
-    _current = theme;
-    _colors = null;
-    appEvent(
-      'theme',
-      '${theme.settingsId} (${theme.type.name}'
-          '${theme.isLoaded ? '' : ', not loaded'}'
-          '${silent ? ', restored' : preview ? ', preview' : ''})',
-    );
-    if (silent) return;
-    notifyListeners();
-    // Remember theme data for a quick restore.
-    if (!preview && theme.isLoaded) _keep(theme);
+    final request = _request;
+    void apply() {
+      if (request != _request ||
+          theme.settingsId != _resolvedSetting && !silent && !fallback) {
+        return;
+      }
+      _current.clearCaches();
+      _current = theme;
+      if (silent || !preview) _committedType = theme.type;
+      _colors = null;
+      appEvent(
+        'theme',
+        '${theme.settingsId} (${theme.type.name}'
+            '${theme.isLoaded ? '' : ', not loaded'}'
+            '${silent
+                ? ', restored'
+                : preview
+                ? ', preview'
+                : ''})',
+      );
+      if (!silent) notifyListeners();
+    }
+
+    final animate = transition;
+    if (!silent &&
+        _bySystem &&
+        animate != null &&
+        _current.isLoaded &&
+        theme.isLoaded) {
+      animate(WorkbenchColors(theme), apply);
+    } else {
+      apply();
+    }
   }
 
-  void _keep(ColorThemeData theme) {
-    _setting = theme.settingsId;
-    storage?.storeColorTheme(
-      setting: theme.settingsId,
+  Future<void> _keep(
+    ColorThemeData theme, {
+    required String setting,
+    required bool automatic,
+  }) async {
+    final revision = _preferenceRevision;
+    final store = storage;
+    await store?.storeColorTheme(
+      setting: setting,
       data: theme.toStorage(),
+      autoDetectColorScheme: automatic,
     );
+    // Kept, whatever previews since; not over settings changed meanwhile.
+    if (revision == _preferenceRevision) {
+      _setting = store == null
+          ? setting
+          : migrateThemeSettingsId(
+              store.colorThemeSetting ?? ThemeSettingDefaults.colorThemeDark,
+            );
+      _automatic = store?.autoDetectColorScheme ?? automatic;
+      _committedType = theme.type;
+      _preferenceRevision++;
+    }
+  }
+
+  @override
+  void dispose() {
+    _request++;
+    transition = null;
+    super.dispose();
   }
 }
 

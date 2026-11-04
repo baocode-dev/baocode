@@ -316,7 +316,16 @@ class AgentLoop {
       'max_tokens': maxTokens,
       ...settings,
     };
-    return ModelRequest(body, betas: _betas(info, body, inline: inline));
+    return ModelRequest(
+      body,
+      betas: _betas(info, body, inline: inline),
+      headers: requestHints(
+        session.environment,
+        requestClass: isMain ? 'main' : 'subagent',
+        agentId: run.agentId,
+        agentType: run.agentType,
+      ),
+    );
   }
 
   static bool _truthy(String? value) =>

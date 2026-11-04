@@ -1,0 +1,161 @@
+# Builds bao_iroh's Rust (iroh) for each target the apps are built for, on
+# the runners they are built on, and keeps it in main's cache for rust/ as
+# it is. The builds (release.yml, remote.yml, mobile.yml) restore it,
+# through .github/actions/bao-iroh-prebuilt, and bao_iroh's build hook
+# takes it rather than build iroh again, several minutes each time.
+#
+# On main, as a tag's run can restore only main's caches. Each day too, as
+# GitHub drops a cache a week unused; one already there is not built again.
+#
+#   Actions → bao_iroh → Run workflow   build it for main as it is
+name: bao_iroh
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/bao_iroh/rust/**
+      - .github/workflows/bao_iroh.yml
+      - .github/actions/bao-iroh-prebuilt/**
+      - .github/actions/setup-rust/**
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # release.yml's runners: each key names its OS and arch.
+  desktop:
+    name: Build for ${{ matrix.targets }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The Mac builds both its apps.
+          - runner: macos-15
+            targets: aarch64-apple-darwin x86_64-apple-darwin
+            lib: libbao_iroh.dylib
+          - runner: windows-latest
+            targets: x86_64-pc-windows-msvc
+            lib: bao_iroh.dll
+          - runner: windows-11-arm
+            targets: aarch64-pc-windows-msvc
+            lib: bao_iroh.dll
+          # The oldest Ubuntu built on, for its glibc (release.yml).
+          - runner: ubuntu-22.04
+            targets: x86_64-unknown-linux-gnu
+            lib: libbao_iroh.so
+          - runner: ubuntu-22.04-arm
+            targets: aarch64-unknown-linux-gnu
+            lib: libbao_iroh.so
+    steps:
+      - uses: actions/checkout@v5
+      - id: cached
+        uses: ./.github/actions/bao-iroh-prebuilt
+      - if: steps.cached.outputs.hit != 'true'
+        uses: ./.github/actions/setup-rust
+      # As native_toolchain_rust builds it (the hook, with none here), into
+      # build/prebuilt/<target>/, where the hook looks.
+      - name: Build
+        if: steps.cached.outputs.hit != 'true'
+        shell: bash
+        working-directory: packages/bao_iroh/rust
+        env:
+          TARGETS: ${{ matrix.targets }}
+          LIB: ${{ matrix.lib }}
+        run: |
+          for target in $TARGETS; do
+            cargo build --release --locked --package bao_iroh --target "$target" \
+              --target-dir "$RUNNER_TEMP/target"
+            mkdir -p "../build/prebuilt/$target"
+            cp "$RUNNER_TEMP/target/$target/release/$LIB" "../build/prebuilt/$target/"
+          done
+          ls -lR ../build/prebuilt
+      - if: steps.cached.outputs.hit != 'true'
+        uses: ./.github/actions/bao-iroh-prebuilt
+        with:
+          save: true
+
+  # mobile.yml's, which checks this repository out in monad/: the cache
+  # restores only to the path it was saved from.
+  mobile:
+    name: Build for ${{ matrix.kind }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Every ABI an APK carries.
+          - runner: ubuntu-latest
+            kind: android
+            targets: aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+            lib: libbao_iroh.so
+          # Devices: TestFlight's.
+          - runner: macos-26
+            kind: ios
+            targets: aarch64-apple-ios
+            lib: libbao_iroh.dylib
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: monad
+      - id: cached
+        uses: ./monad/.github/actions/bao-iroh-prebuilt
+        with:
+          kind: ${{ matrix.kind }}
+          root: monad
+      - if: steps.cached.outputs.hit != 'true'
+        uses: ./monad/.github/actions/setup-rust
+        with:
+          dir: monad/packages/bao_iroh/rust
+      # The NDK Flutter hands the hook (the first of ANDROID_NDK_HOME,
+      # ANDROID_NDK_PATH, ANDROID_NDK_ROOT, else the SDK's newest), and the
+      # tools native_toolchain_rust points cargo at in it.
+      - name: Point cargo at the NDK
+        if: steps.cached.outputs.hit != 'true' && matrix.kind == 'android'
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          ndk=${ANDROID_NDK_HOME:-${ANDROID_NDK_PATH:-${ANDROID_NDK_ROOT:-}}}
+          [ -n "$ndk" ] || ndk=$(ls -d "$ANDROID_HOME"/ndk/*/ | sort -V | tail -1)
+          bin="${ndk%/}/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          sysroot="${ndk%/}/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+          echo "NDK: $ndk"
+          for target in $TARGETS; do
+            case $target in
+              armv7-linux-androideabi) clang=armv7a-linux-androideabi35-clang; include=arm-linux-androideabi ;;
+              *) clang=${target}35-clang; include=$target ;;
+            esac
+            t=${target//-/_}
+            {
+              echo "AR_$t=$bin/llvm-ar"
+              echo "CC_$t=$bin/$clang"
+              echo "CXX_$t=$bin/$clang++"
+              echo "RANLIB_$t=$bin/llvm-ranlib"
+              echo "CARGO_TARGET_${t^^}_LINKER=$bin/$clang"
+              echo "BINDGEN_EXTRA_CLANG_ARGS_$t=--sysroot=$sysroot -I$sysroot/usr/include/$include"
+            } >> "$GITHUB_ENV"
+          done
+      - name: Build
+        if: steps.cached.outputs.hit != 'true'
+        working-directory: monad/packages/bao_iroh/rust
+        env:
+          TARGETS: ${{ matrix.targets }}
+          LIB: ${{ matrix.lib }}
+        run: |
+          for target in $TARGETS; do
+            cargo build --release --locked --package bao_iroh --target "$target" \
+              --target-dir "$RUNNER_TEMP/target"
+            mkdir -p "../build/prebuilt/$target"
+            cp "$RUNNER_TEMP/target/$target/release/$LIB" "../build/prebuilt/$target/"
+          done
+          ls -lR ../build/prebuilt
+      - if: steps.cached.outputs.hit != 'true'
+        uses: ./monad/.github/actions/bao-iroh-prebuilt
+        with:
+          kind: ${{ matrix.kind }}
+          root: monad
+          save: true

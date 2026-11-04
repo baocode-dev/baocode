@@ -4,6 +4,7 @@
 // names too.
 
 import 'package:baocode/ide/git/git_service.dart';
+import 'package:baocode/ide/git/ide_git_log_view.dart' show ideGitUnwrapBody;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -72,12 +73,39 @@ void main() {
   Finder inDetails(String text) =>
       find.descendant(of: details, matching: find.text(text));
 
+  test('a body broken at its columns is joined to wrap at the width; '
+      'paragraphs, lists, indents and trailers kept on their lines', () {
+    expect(
+      ideGitUnwrapBody(
+        'Diffs mark changed lines only: the\n'
+        'choice is gone.\n'
+        '\n'
+        'The details:\n'
+        '- one line\n'
+        '  more of it\n'
+        '1. two\n'
+        '\n'
+        'Co-Authored-By: A <a@b>\n'
+        'Signed-off-by: B <b@c>',
+      ),
+      'Diffs mark changed lines only: the choice is gone.\n'
+      '\n'
+      'The details:\n'
+      '- one line\n'
+      '  more of it\n'
+      '1. two\n'
+      '\n'
+      'Co-Authored-By: A <a@b>\n'
+      'Signed-off-by: B <b@c>',
+    );
+  });
+
   testWidgets('the details are selectable, and show the branches that have '
       'the commit, not asked for', (tester) async {
     await pump(tester);
     expect(inDetails('commit: c2'), findsOneWidget);
     expect(inDetails('Second'), findsOneWidget);
-    expect(find.text('Hide Branches'), findsOneWidget);
+    expect(find.text('Hide Branches'), findsNothing);
     // A local branch of a slashed name and its remote's, as one; the
     // remote's HEAD left out.
     expect(inDetails('In 2 branches'), findsOneWidget);

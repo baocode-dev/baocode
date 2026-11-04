@@ -1,3 +1,4 @@
+import '../usage/usage_capture.dart' show UsageHeaders;
 import 'model_provider.dart';
 import 'upstream.dart';
 
@@ -22,11 +23,14 @@ Map<String, String> launchEnvironment({
   String? key,
   ProxyEndpoint? proxy,
   String? noProxy,
+  bool recordUsage = false,
 }) {
   final String baseUrl;
   final String token;
   var apiKey = '';
-  final proxied = provider.throughProxy;
+  // Its calls kept: through the proxy, which keeps them, whatever it
+  // speaks.
+  final proxied = provider.throughProxy || recordUsage;
   if (proxied) {
     if (proxy == null) {
       throw StateError('${provider.name} needs the model proxy');
@@ -69,6 +73,9 @@ Map<String, String> launchEnvironment({
     if (provider.speaksAnthropic) ClaudeModelVariables.alwaysEnableEffort: '1',
     if (provider.disableNonessentialTraffic)
       ClaudeModelVariables.nonessentialTraffic: '1',
+    // What each request is for (a subagent's, a compaction), for the
+    // calls kept: the proxy does not pass it on.
+    if (recordUsage) UsageHeaders.gatewayHintsVariable: '1',
     // The proxy is on this machine: never through the user's HTTP proxy.
     if (proxied)
       'NO_PROXY': [

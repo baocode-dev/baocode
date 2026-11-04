@@ -114,6 +114,10 @@ Matcher isSelection(int base, int extent) => isA<TextSelection>()
 void main() {
   testWidgets('the answers sit inset from the user\'s messages by their '
       'corner radius', (tester) async {
+    // Tall enough for a message of the user's and an answer to show.
+    tester.view.physicalSize = const Size(800, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await pumpScreen(tester);
     final items = tester.widgetList<ChatItemView>(find.byType(ChatItemView));
     double width(bool user) => tester
@@ -1419,21 +1423,38 @@ void main() {
     );
     // The history opens at the bottom; bring the message into view.
     Future<void> reveal(WidgetTester tester, String text) async {
-      // Mid-view: at the top, the message's copy stuck there would cover it.
-      await Scrollable.ensureVisible(
-        tester.element(
-          find.descendant(
-            of: find.byType(SuperListView),
-            matching: find.textContaining(
-              text,
-              findRichText: true,
-              skipOffstage: false,
-            ),
-            skipOffstage: false,
-          ),
+      final message = find.descendant(
+        of: find.byType(SuperListView),
+        matching: find.textContaining(
+          text,
+          findRichText: true,
+          skipOffstage: false,
         ),
-        alignment: 0.5,
+        skipOffstage: false,
       );
+      // Up the list until it is built: the list builds what is near the view.
+      final position = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(SuperListView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      while (message.evaluate().isEmpty &&
+          position.pixels > position.minScrollExtent) {
+        position.jumpTo(
+          (position.pixels - 400).clamp(
+            position.minScrollExtent,
+            position.maxScrollExtent,
+          ),
+        );
+        await tester.pump();
+      }
+      // Mid-view: at the top, the message's copy stuck there would cover it.
+      await Scrollable.ensureVisible(tester.element(message), alignment: 0.5);
       await tester.pump();
     }
 

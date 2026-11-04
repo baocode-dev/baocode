@@ -319,10 +319,12 @@ EXPORT int bao_pty_poll(int master, int exit_fd, int wake, int timeout) {
       {.fd = exit_fd, .events = POLLIN},
       {.fd = wake, .events = POLLIN},
   };
-  int count;
-  while ((count = poll(fds, 3, timeout)) == -1 && errno == EINTR) {
-  }
-  if (count == -1) return -errno;
+  // Interrupted, nothing is ready: the caller looks again. Restarted with
+  // the whole timeout instead, it never ran out where signals come more
+  // often than that (the Dart VM's profiler's, every millisecond on Linux
+  // under flutter test or run), and a paused terminal never read again.
+  int count = poll(fds, 3, timeout);
+  if (count == -1) return errno == EINTR ? 0 : -errno;
   int ready = 0;
   if (fds[0].revents != 0) ready |= kOutput;
   if (fds[1].revents != 0) ready |= kExited;

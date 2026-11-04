@@ -13,10 +13,12 @@ import '../models/model_providers.dart';
 /// Titles a conversation after [message], held with [model] (the
 /// session's: a provider's model has the provider asked) in the project at
 /// [location] (whose host asks, for a remote one); null when it cannot.
+/// Its call is kept under the conversation [session], an auxiliary one.
 typedef AgentTitler = Future<String?> Function(
   String message, {
   String? model,
   String? location,
+  String? session,
 });
 
 /// The most of a message the model is given, in characters.
@@ -59,6 +61,7 @@ Future<String?> claudeAgentTitle(
   String message, {
   String? model,
   String? location,
+  String? session,
 }) async {
   var text = message.trim();
   if (text.length > agentTitleMessageBudget) {
@@ -74,6 +77,7 @@ Future<String?> claudeAgentTitle(
         model: auxiliary.model,
         exact: auxiliary.exact,
         location: location,
+        session: session,
       ),
     );
   } on Object {

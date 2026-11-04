@@ -88,6 +88,9 @@ class FakeApi {
           'anthropic-beta',
           'user-agent',
           'x-custom',
+          'x-claude-code-request-class',
+          'x-claude-code-agent-id',
+          'x-claude-code-agent-type',
         ])
           name: ?request.headers.value(name),
       });

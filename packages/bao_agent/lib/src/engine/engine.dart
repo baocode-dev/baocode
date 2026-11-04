@@ -419,6 +419,7 @@ class AgentEngine {
         if (asString(request['appendSystemPrompt']) case final extra?) {
           _appendedByHost = extra;
         }
+        if (request.containsKey('hooks')) _hostHooks(asMap(request['hooks']));
         return _initialize();
       case 'set_permission_mode':
         final mode = asString(request['mode']) ?? 'default';
@@ -1772,6 +1773,45 @@ class AgentEngine {
     });
     await _runModel(turn);
   }
+
+  /// The hooks the host has called back ([hooks] as `initialize` gives
+  /// them: by event, matchers each with the ids of its callbacks), in place
+  /// of those it gave before: each, run, a `hook_callback` request to it,
+  /// its answer what a command hook would print.
+  void _hostHooks(Map<String, Object?> hooks) {
+    session.hooks.sessionHooks
+      ..removeWhere((hook) => hook.source == _hostHook)
+      ..addAll([
+        for (final MapEntry(key: event, value: matchers) in hooks.entries)
+          for (final matcher in asList(matchers).map(asMap))
+            for (final id in asList(matcher['hookCallbackIds']))
+              if (asString(id) case final id?)
+                Hook(
+                  event: event,
+                  type: 'callback',
+                  text: id,
+                  source: _hostHook,
+                  matcher: asString(matcher['matcher']),
+                  timeout: switch (asInt(matcher['timeout'])) {
+                    final int seconds when seconds > 0 => Duration(
+                      seconds: seconds,
+                    ),
+                    _ => null,
+                  },
+                  evaluate: (input, cancel) async {
+                    final answer = await _hostRequest('hook_callback', {
+                      'callback_id': id,
+                      'input': input,
+                      'tool_use_id': ?input['tool_use_id'],
+                    });
+                    return HookRunner.parseOutput(event, jsonEncode(answer));
+                  },
+                ),
+      ]);
+  }
+
+  /// Where the host's hooks are said to be from.
+  static const _hostHook = 'sdkHook';
 
   /// Sets [condition] as the session's goal: a Stop hook of the session's
   /// that checks it each time the agent would stop.

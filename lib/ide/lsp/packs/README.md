@@ -212,6 +212,21 @@ Each server takes the `lsp.json` server fields plus `id` and `languages`
 (default: all the pack's languages); the languages it lists use the pack's
 servers instead of the bundled ones. A single server object works too.
 
+## Vue
+
+`.vue` files use `vuels` (vue-language-server) and
+`typescript-language-server`, in that order, rooted like `.ts` files so one
+tsserver serves both. vue-language-server 3.x answers for templates and
+styles; TypeScript (the script, and the template's expressions, props and
+components: go to definition, references, rename, hover) is tsserver's with
+`@vue/typescript-plugin`. The manager adds that plugin to a TypeScript server
+it starts (typescript-language-server's `plugins`, vtsls's
+`vtsls.tsserver.globalPlugins`), from beside the vue-language-server it
+finds, else the project's `node_modules`; and carries vue-language-server's
+`tsserver/request`s to it as `typescript.tsserverRequest` commands
+(`lib/ide/lsp/vue_language_tools.dart`). Installing either restarts the
+other, so the plugin and the answers are there.
+
 ## Where this lives
 
 - `lib/ide/lsp/catalog/`: `BundledLspCatalog` (the layers and matching),

@@ -43,6 +43,7 @@ void main() {
           '~/code/baocode/lib/chat/chat_history_view.dart': 'class View {}',
           '~/code/baocode/assets/logo.png': null,
           '~/code/baocode/node_modules/x/index.js': '',
+          '/tmp/a.log': 'started',
         }),
         paths: p.posix,
       ),
@@ -138,6 +139,52 @@ void main() {
 
     await host.setRelayMode(LinkRelayMode.auto);
     expect(platform.boundRelays, defaultLinkRelays);
+  });
+
+  test('direct only: no relay kept, told or bound to; its own port alone',
+      () async {
+    await host.setEnabled(true);
+    await host.setRelayMode(LinkRelayMode.direct);
+    expect(host.relays, isEmpty);
+    expect(platform.boundRelays, isEmpty);
+    expect(platform.boundStrictPort, isTrue);
+    expect(platform.kept['relayMode'], 'direct');
+
+    final offer = (await host.beginPairing())!;
+    expect(offer.relays, isEmpty);
+    expect(offer.direct, isTrue);
+    final parsed = PairingOffer.parse(offer.uri);
+    expect(parsed.direct, isTrue);
+    expect(parsed.relays, isEmpty);
+
+    final peer = await connect(phone);
+    final hello =
+        await peer.call(LinkMethods.hello, {
+              'name': 'iPhone',
+              'token': encodeKey(offer.token),
+            })
+            as Map;
+    final device = DeviceInfo.fromJson(
+      hello['device']! as Map<String, Object?>,
+    );
+    expect(device.direct, isTrue);
+    expect(device.relays, isEmpty);
+    await peer.close();
+  });
+
+  test('the direct port: kept, and bound to alone', () async {
+    await host.setEnabled(true);
+    await host.setRelayMode(LinkRelayMode.direct);
+    expect(host.linkPort, defaultLinkPort);
+    expect(platform.boundPort, defaultLinkPort);
+
+    expect(await host.setLinkPort(51000), isTrue);
+    expect(host.linkPort, 51000);
+    expect(platform.boundPort, 51000);
+    expect(platform.kept['linkPort'], 51000);
+
+    expect(await host.setLinkPort(80), isFalse);
+    expect(host.linkPort, 51000);
   });
 
   test('relays of one\'s own kept before there was a choice: the first '
@@ -348,6 +395,30 @@ void main() {
       workspace.threads.firstWhere((t) => t.title == first.title).pinned,
       isTrue,
     );
+
+    // A project pinned from the phone, on top as the desktop's.
+    await peer.call(LinkMethods.pinProject, {
+      'project': '~/code/cursor-docs',
+      'pinned': true,
+    });
+    final pinned = LinkState.fromJson(
+      (await peer.call(LinkMethods.state))! as Map<String, Object?>,
+    );
+    expect(pinned.projects.first.id, '~/code/cursor-docs');
+    expect(pinned.projects.first.pinned, isTrue);
+    expect(pinned.projects.skip(1).map((p) => p.pinned), everyElement(false));
+
+    // Deleted from the phone, as the desktop deletes one.
+    await peer.call(LinkMethods.delete, {'session': created['session']});
+    expect(workspace.threads, isNot(contains(thread)));
+    // A project off the list, as the desktop's Remove from list.
+    await peer.call(LinkMethods.hideProject, {'project': '~/code/cursor-docs'});
+    final after = LinkState.fromJson(
+      (await peer.call(LinkMethods.state))! as Map<String, Object?>,
+    );
+    expect([
+      for (final p in after.projects) p.name,
+    ], isNot(contains('cursor-docs')));
   });
 
   test('a new agent from the phone starts as picked there', () async {
@@ -420,6 +491,36 @@ void main() {
       listed['changes'],
       containsPair('lib/chat/chat_history_view.dart', 'modified'),
     );
+    // A folder as it is on disk: what the list leaves out too.
+    expect(
+      await peer.call(LinkMethods.folder, {
+        'project': '~/code/baocode',
+        'path': '',
+      }),
+      {
+        'folders': ['lib', 'assets', 'node_modules'],
+        'files': ['README.md'],
+      },
+    );
+    expect(
+      await peer.call(LinkMethods.folder, {
+        'project': '~/code/baocode',
+        'path': 'node_modules/x',
+      }),
+      {
+        'folders': <String>[],
+        'files': ['index.js'],
+      },
+    );
+    await expectLater(
+      peer.call(LinkMethods.folder, {
+        'project': '~/code/baocode',
+        'path': '../..',
+      }),
+      throwsA(
+        isA<LinkRemoteException>().having((e) => e.code, 'code', 'notFound'),
+      ),
+    );
 
     final read =
         (await peer.call(LinkMethods.read, {
@@ -455,6 +556,84 @@ void main() {
     );
   });
 
+  test('a message sent again is not taken twice', () async {
+    final peer = await pair();
+    Future<Object?> send(String text, String id) => peer.call(
+      LinkMethods.send,
+      {'project': '~/code/baocode', 'text': text, 'id': id},
+    );
+    final first = await send('only once', 'm1');
+    // Its answer lost, sent again: answered as before.
+    expect(await send('only once', 'm1'), first);
+    expect(
+      workspace.threads.where((t) => t.title == 'only once'),
+      hasLength(1),
+    );
+    // Another message, though it says the same.
+    await send('only once', 'm2');
+    expect(
+      workspace.threads.where((t) => t.title == 'only once'),
+      hasLength(2),
+    );
+  });
+
+  test('any file of the machine opens by its full path', () async {
+    final peer = await pair();
+    final read =
+        (await peer.call(LinkMethods.read, {
+              'project': '~/code/baocode',
+              'path': '/tmp/./a.log',
+            }))!
+            as Map;
+    expect(read['text'], 'started');
+    await expectLater(
+      peer.call(LinkMethods.read, {
+        'project': '~/code/baocode',
+        'path': '/tmp/none.log',
+      }),
+      throwsA(
+        isA<LinkRemoteException>().having((e) => e.code, 'code', 'notFound'),
+      ),
+    );
+    // As it is, for an app of the phone's to open.
+    final file =
+        (await peer.call(LinkMethods.download, {
+              'project': '~/code/baocode',
+              'path': '/tmp/a.log',
+            }))!
+            as Map;
+    expect(utf8.decode(base64.decode(file['data'] as String)), 'started');
+  });
+
+  test('a project whose server cannot be reached says so, not that it has '
+      'no files', () async {
+    host.dispose();
+    host = LinkHost(
+      workspace: workspace,
+      platform: platform,
+      filesOf: (project) => (
+        files: _MemoryFiles({'~/code/baocode/README.md': '#'}),
+        paths: p.posix,
+      ),
+      reachHost: (project) async => throw StateError('ssh: timed out'),
+    );
+    await host.load();
+    final peer = await pair();
+    for (final (method, params) in [
+      (LinkMethods.files, {'project': '~/code/baocode'}),
+      (LinkMethods.read, {'project': '~/code/baocode', 'path': 'README.md'}),
+    ]) {
+      await expectLater(
+        peer.call(method, params),
+        throwsA(
+          isA<LinkRemoteException>()
+              .having((e) => e.code, 'code', LinkErrors.unreachable)
+              .having((e) => e.message, 'message', contains('timed out')),
+        ),
+      );
+    }
+  });
+
   test('a workspace\'s files are its folders\', each under its name', () async {
     host.dispose();
     final multi = Workspace(
@@ -481,6 +660,20 @@ void main() {
     final listed =
         (await peer.call(LinkMethods.files, {'project': made.path}))! as Map;
     expect(listed['paths'], ['site/index.html', 'api/go.mod', 'api/main.go']);
+    expect(await peer.call(LinkMethods.folder, {'project': made.path}), {
+      'folders': ['site', 'api'],
+      'files': <String>[],
+    });
+    expect(
+      await peer.call(LinkMethods.folder, {
+        'project': made.path,
+        'path': 'api',
+      }),
+      {
+        'folders': <String>[],
+        'files': ['main.go', 'go.mod'],
+      },
+    );
     final read =
         (await peer.call(LinkMethods.read, {
               'project': made.path,
@@ -488,12 +681,26 @@ void main() {
             }))!
             as Map;
     expect(read['text'], 'package main');
-    for (final path in [
-      'site/../api/main.go',
-      'web.code-workspace',
-      '/code/api/main.go',
-      'api',
-    ]) {
+    // By its full path too, as any file of the machine.
+    expect(
+      ((await peer.call(LinkMethods.read, {
+            'project': made.path,
+            'path': '/code/api/main.go',
+          }))!
+          as Map)['text'],
+      'package main',
+    );
+    // As an agent wrote it in its words: under one of the folders, not
+    // named.
+    expect(
+      ((await peer.call(LinkMethods.read, {
+            'project': made.path,
+            'path': 'main.go',
+          }))!
+          as Map)['text'],
+      'package main',
+    );
+    for (final path in ['site/../api/main.go', 'web.code-workspace', 'api']) {
       await expectLater(
         peer.call(LinkMethods.read, {'project': made.path, 'path': path}),
         throwsA(isA<LinkRemoteException>()),

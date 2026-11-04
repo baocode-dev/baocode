@@ -72,6 +72,7 @@ class CodexUsage {
     this.secondary,
     this.limitReached = false,
     this.credits,
+    this.resetCredits,
   });
 
   /// When it was learned.
@@ -90,6 +91,11 @@ class CodexUsage {
   /// The credits left beyond the plan, as the backend words them; null
   /// without any.
   final String? credits;
+
+  /// How many reset credits it has (`rate_limit_reset_credits`): each
+  /// starts its windows over at once ([CodexResetCredit]); null when not
+  /// told.
+  final int? resetCredits;
 
   List<CodexWindow> get windows => [?primary, ?secondary];
 
@@ -129,8 +135,26 @@ class CodexUsage {
         {'has_credits': true, 'balance': final Object balance?} => '$balance',
         _ => null,
       },
+      resetCredits: switch (map['rate_limit_reset_credits']) {
+        {'available_count': final num count} => count.toInt(),
+        _ => null,
+      },
     );
   }
+
+  /// Whether a window is used up, and starts over later than [now]: one
+  /// worth a reset credit. With [fiveHours] false, only one that lasts
+  /// longer (a used-up five hours starts over soon enough by itself).
+  bool usedUp(DateTime now, {bool fiveHours = false}) => windows.any((window) {
+    final resetsAt = window.resetsAt;
+    if (window.usedPercent < 100 || resetsAt == null) return false;
+    if (!resetsAt.isAfter(now)) return false;
+    if (fiveHours) return true;
+    return switch (window.minutes) {
+      final minutes? => minutes > 300,
+      null => resetsAt.difference(now) > const Duration(hours: 5),
+    };
+  });
 
   /// As a reply's headers tell, over [previous] (what they do not tell
   /// kept); null when they tell nothing.
@@ -151,6 +175,72 @@ class CodexUsage {
       primary: primary ?? previous?.primary,
       secondary: secondary ?? previous?.secondary,
       credits: previous?.credits,
+      resetCredits: previous?.resetCredits,
     );
   }
+
+  /// It with [resetCredits] as [count].
+  CodexUsage withResetCredits(int count) => CodexUsage(
+    at: at,
+    plan: plan,
+    primary: primary,
+    secondary: secondary,
+    limitReached: limitReached,
+    credits: credits,
+    resetCredits: count,
+  );
+}
+
+/// A reset credit of an account's (`/wham/rate-limit-reset-credits`): used,
+/// it starts the account's quota windows over at once.
+class CodexResetCredit {
+  const CodexResetCredit({required this.id, this.grantedAt, this.expiresAt});
+
+  final String id;
+  final DateTime? grantedAt;
+
+  /// Until when it can be used.
+  final DateTime? expiresAt;
+
+  /// Those of [json] that can be used: Codex's, available, not expired
+  /// by [now]; those expiring first first.
+  static List<CodexResetCredit> listFromJson(Object? json, DateTime now) {
+    final credits = <CodexResetCredit>[];
+    for (final item in switch (json) {
+      {'credits': final List list} => list,
+      _ => const [],
+    }) {
+      if (item is! Map) continue;
+      if (item['reset_type'] != 'codex_rate_limits') continue;
+      if (item['status'] != 'available') continue;
+      final expiresAt = _time(item['consumable_until'] ?? item['expires_at']);
+      if (expiresAt != null && !expiresAt.isAfter(now)) continue;
+      credits.add(
+        CodexResetCredit(
+          id: '${item['id'] ?? ''}',
+          grantedAt: _time(item['granted_at']),
+          expiresAt: expiresAt,
+        ),
+      );
+    }
+    credits.sort((a, b) {
+      final x = a.expiresAt, y = b.expiresAt;
+      if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
+      return x.compareTo(y);
+    });
+    return credits;
+  }
+
+  /// An RFC 3339 time, or seconds (or milliseconds) since the epoch.
+  static DateTime? _time(Object? value) => switch (value) {
+    final String text when text.trim().isNotEmpty =>
+      DateTime.tryParse(text.trim()) ?? _time(num.tryParse(text.trim())),
+    final num at when at > 1000000000000 => DateTime.fromMillisecondsSinceEpoch(
+      at.toInt(),
+    ),
+    final num at when at > 0 => DateTime.fromMillisecondsSinceEpoch(
+      at.toInt() * 1000,
+    ),
+    _ => null,
+  };
 }

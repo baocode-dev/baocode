@@ -8,9 +8,9 @@ import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
-import 'pty.dart';
+import 'package:bao_conpty/bao_conpty.dart';
+
 import 'pty_native.dart';
-import 'pty_windows.dart';
 
 bool get supported => Platform.isWindows
     ? WindowsPty.supported

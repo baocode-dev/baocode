@@ -36,6 +36,9 @@ class CustomizationStore {
   /// its file manager, opened in its IDE.
   bool get isLocal => _disk?.isLocal ?? true;
 
+  /// How paths are spelled where the files are.
+  p.Context get paths => _disk == null ? p.context : _paths;
+
   Future<String> config() async => configDir ?? await _files.configDir();
 
   /// Where the CLI keeps its state and the user's MCP servers: beside the

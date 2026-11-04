@@ -10,8 +10,8 @@ import 'attention_host.dart';
 import 'attention_settings.dart';
 import 'notification_sound.dart';
 
-/// Tells the user when an agent wants them: it stopped on a question
-/// ([AttentionEvent.needsInput]) or ended its turn
+/// Tells the user when an agent wants them: it stopped on a question or
+/// put a plan to them ([AttentionEvent.needsInput]) or ended its turn
 /// ([AttentionEvent.finished]) — a notification of the system's and a
 /// sound, unless they are looking at it; the Dock's bounce (taskbar's
 /// flash) for a question. Keeps the count on the app's icon (agents
@@ -206,16 +206,21 @@ class AttentionService {
     final String body;
     switch (event) {
       case AttentionEvent.needsInput:
-        final detail = _request(thread.session.pendingInteraction, l10n);
-        body = detail == null
-            ? l10n.attentionNeedsInput
-            : '${l10n.attentionNeedsInput} · $detail';
+        final session = thread.session;
+        if (session.pendingInteraction == null && session.canStartPlan) {
+          // A plan put to the user: what waits on them is their go-ahead,
+          // not a request to answer. Said as such, not as a question.
+          body = l10n.attentionPlanReady;
+        } else {
+          final detail = _request(session.pendingInteraction, l10n);
+          body = detail == null
+              ? l10n.attentionNeedsInput
+              : '${l10n.attentionNeedsInput} · $detail';
+        }
         unawaited(host.requestAttention());
       case AttentionEvent.finished:
         final reply = _lastReply(thread);
-        body = thread.session.awaitingPlan != null
-            ? l10n.attentionPlanReady
-            : reply == null
+        body = reply == null
             ? l10n.attentionFinished
             : '${l10n.attentionFinished} · $reply';
     }

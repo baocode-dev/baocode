@@ -204,6 +204,7 @@ class _ChatQuotaBarState extends State<ChatQuotaBar>
     return LayoutBuilder(
       builder: (context, constraints) => Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 4,
         children: [
           ConstrainedBox(
             constraints: BoxConstraints(
@@ -212,7 +213,7 @@ class _ChatQuotaBarState extends State<ChatQuotaBar>
             child: widget.branch,
           ),
           Padding(
-            padding: const EdgeInsets.only(top: 4, left: 2),
+            padding: const EdgeInsets.only(left: 2),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: constraints.maxWidth - 2),
               child: _QuotaPill(
@@ -327,7 +328,7 @@ class _QuotaPillState extends State<_QuotaPill> {
       ].join(' · ');
       warn = (usage?.mostUsed ?? 0) >= 90;
     }
-    final color = warn ? AppColors.caution : AppColors.textMuted;
+    final color = warn ? AppColors.caution : AppColors.textFaint;
     final colors = themeColors;
     Widget pill = HoverBuilder(
       cursor: SystemMouseCursors.click,

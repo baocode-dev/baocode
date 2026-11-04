@@ -34,6 +34,7 @@ import '../ide_input.dart';
 import '../ide_list.dart';
 import '../ide_menu.dart';
 import '../ide_panes.dart';
+import '../../workspace/islands.dart';
 import 'ide_extensions.dart';
 
 /// The view's state across switches to other views: the search, the list
@@ -262,7 +263,9 @@ class _IdeExtensionsViewState extends State<IdeExtensionsView> {
             _ => l10n.extTitleMarketplace,
           };
     return ColoredBox(
-      color: widget.background ?? AppColors.sidebarSurface,
+      color:
+          widget.background ??
+          Islands.underOr(context, AppColors.sidebarSurface),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

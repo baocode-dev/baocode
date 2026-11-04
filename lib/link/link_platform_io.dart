@@ -55,10 +55,12 @@ class IoLinkPlatform implements LinkPlatform {
     LinkIdentity identity, {
     required List<String> relays,
     required int port,
+    bool strictPort = false,
   }) => IrohLinkNode.bind(
     identity: identity,
     relays: relays,
     port: port,
+    strictPort: strictPort,
     accept: true,
   );
 

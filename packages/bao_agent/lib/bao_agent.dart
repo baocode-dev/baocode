@@ -9,7 +9,7 @@ library;
 export 'src/api/anthropic_client.dart' show AnthropicClient, ApiConfig;
 export 'src/api/model_catalog.dart' show ModelCatalog, ModelInfo;
 export 'src/api/model_client.dart'
-    show ApiError, ModelClient, ModelRequest, RetryInfo;
+    show ApiError, ModelClient, ModelRequest, RetryInfo, requestHints;
 export 'src/cli/agent_cli.dart' show AgentCommandLine, runAgentCommandLine;
 export 'src/config/paths.dart' show AgentPaths;
 export 'src/engine/engine.dart'

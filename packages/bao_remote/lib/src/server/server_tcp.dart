@@ -13,8 +13,13 @@ import 'remote_server.dart';
 class ServerTcp {
   ServerTcp(this._peer) {
     final handlers = _peer.handlers;
-    handlers[RemoteProtocol.tcpListen] = (_, _) async {
-      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    handlers[RemoteProtocol.tcpListen] = (params, _) async {
+      // A port asked for (the user's own forward), else any.
+      final port = params is Map ? params['port'] as int? ?? 0 : 0;
+      final server = await ServerSocket.bind(
+        InternetAddress.loopbackIPv4,
+        port,
+      );
       final id = ++_nextId;
       _listeners[id] = server;
       server.listen((socket) => _accepted(id, socket), onError: (Object _) {});

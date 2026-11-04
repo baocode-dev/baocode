@@ -173,14 +173,16 @@ dart run tool/build_macos.dart --remote-release              # macOS 同理
 | `remote` | | 调用 `remote.yml`（推 `server-*` 标签时它也单独运行并发布，见第 3 节），下面两步 |
 | `remote` › `build` | macOS 15 | 下载和 Flutter 同版本的 x64 Dart SDK → 编译远程服务端（`--all`：Linux x64/arm64 交叉编译；macOS arm64 用本机的 dart，macOS x64 用 x64 的 dart 经 Rosetta，`dart compile exe` 只能在 Mac 上、按 dart 自己的架构编 macOS 版）→ `tool/test_remote_server_macos.sh`：在这台 Mac 上把两份 macOS 版各跑一遍 → 上传 `remote`（`VERSION`、`servers.json`、`.gz`）和 `remote-linux`（Linux 的两个二进制）两个产物 |
 | `remote` › `linux` | Ubuntu | `tool/test_remote_server.sh`：在 Docker 里的 Ubuntu 20.04 / 24.04、Debian 12、Rocky Linux 8 上，两种架构各跑一遍（arm64 用 QEMU 模拟），要能启动、回答 `initialize`、列出目录 |
-| `macos` | macOS 15 | 有证书就导入临时钥匙串 → `tool/build_macos.dart --remote-built`：构建 universal 的 .app，**检查是 universal**（每个可执行文件都有 arm64 和 x86_64）→ 放进 `remote` 任务的 `servers.json` → 用 `ditto --arch` 拆成 Apple silicon（arm64）和 Intel（x64）两个应用，各自检查只剩一种架构，下面每个各做一遍：→ 签名（有证书用 Developer ID，带 hardened runtime；没有就 ad hoc，**不带** hardened runtime，否则系统拒绝加载应用自己的框架、一启动就崩；总要重签，因为放进去的文件要包进签名）→ 做 dmg → 有证书时签 dmg、公证、钉票据 → 打更新用的 zip → **把两个 zip 解开各真正启动一次**（Intel 版经 Rosetta），15 秒内退出就不发 |
-| `windows` | Windows（x64 在 `windows-latest`，arm64 在 `windows-11-arm`） | 装 Inno Setup → `tool/build_windows.dart --remote-built --arch <x64\|arm64>`：构建、放进 `servers.json`、打安装包。Flutter 只能给本机架构构建，所以 arm64 在 Arm 机器上编；Flutter 的 Windows 压缩包里是 x64 的 Dart，arm64 改为按标签 clone Flutter。arm64 没有打过补丁的引擎（`tool/engine/`），用 Flutter 自带的；OpenSSH 用 `OpenSSH-ARM64.zip`。安装包 `BaoCode-<版本>-setup-arm64.exe`，和 x64 同一个 AppId，互相覆盖安装 |
+| `macos` | macOS 15 | 有证书就导入临时钥匙串 → `tool/build_macos.dart --build-only`：构建 universal 的 .app → 等 `remote` 产物传上来 → `tool/build_macos.dart --skip-build`：**检查是 universal**（每个可执行文件都有 arm64 和 x86_64）→ 放进 `remote` 任务的 `servers.json` → 用 `ditto --arch` 拆成 Apple silicon（arm64）和 Intel（x64）两个应用，各自检查只剩一种架构，下面每个各做一遍：→ 签名（有证书用 Developer ID，带 hardened runtime；没有就 ad hoc，**不带** hardened runtime，否则系统拒绝加载应用自己的框架、一启动就崩；总要重签，因为放进去的文件要包进签名）→ 做 dmg → 有证书时签 dmg、公证、钉票据 → 打更新用的 zip → **把两个 zip 解开各真正启动一次**（Intel 版经 Rosetta），15 秒内退出就不发 |
+| `windows` | Windows（x64 在 `windows-latest`，arm64 在 `windows-11-arm`） | 装 Inno Setup → `tool/build_windows.dart --build-only --arch <x64\|arm64>` 构建 → 等 `remote` 产物传上来 → `--skip-build --remote-built` 放进 `servers.json`、打安装包。Flutter 只能给本机架构构建，所以 arm64 在 Arm 机器上编；Flutter 的 Windows 压缩包里是 x64 的 Dart，arm64 改为按标签 clone Flutter。arm64 没有打过补丁的引擎（`tool/engine/`），用 Flutter 自带的；OpenSSH 用 `OpenSSH-ARM64.zip`。安装包 `BaoCode-<版本>-setup-arm64.exe`，和 x64 同一个 AppId，互相覆盖安装 |
 | `publish` | Ubuntu | 汇总产物 → 用更新私钥签 `latest.json`（`tool/release_manifest.dart`，带上 dmg 给网站用）→ 上传远程服务端 → 上传安装包 → 按清单里的链接确认 CDN 给出的文件大小对 → **最后**上传 `latest.json` → 建 GitHub Release（附两个 dmg 和 exe；重新发布时先删掉旧的） |
 
 几个设计上的考虑：
 
 - **`latest.json` 最后传**：应用一读到新清单就会去下载，安装包必须先就位。
 - **远程服务端只编译一次**：`remote` 任务编译，macOS 和 Windows 两个应用带的是同一份 `servers.json`（四个平台都有），R2 上一个版本只有一个 `releases/remote/<版本>-<二进制哈希>/`。
+- **应用和远程服务端同时编**：`macos`、`windows`、`linux` 不 `needs` `remote`，应用编完、打包前才用 `.github/actions/wait-for-artifact` 等 `remote` 产物（远程服务端的 job 失败或被取消——macOS 机器可能 15 分钟都分不到——就立刻跟着失败，像 `needs` 一样；最多等 20 分钟）；`share`、`publish` 仍然等 `remote` 整个跑完（含 Linux 上的测试）。
+- **bao_iroh 的 Rust 不在发版时编**：`bao_iroh.yml` 在 main 上按 `packages/bao_iroh/rust/` 的哈希给每个目标编一次，存进 main 的缓存（标签上的运行只能读 main 的缓存，标签自己存的别的标签读不到，所以发版任务只读不存，flutter-action 也不开缓存）；各构建任务用 `.github/actions/bao-iroh-prebuilt` 取到 `packages/bao_iroh/build/prebuilt/<target>/`，构建钩子直接用。没取到（Rust 只在标签上改了、或 `bao_iroh.yml` 还没跑完）就照旧现编。
 - **下载链接带哈希**：`latest.json` 里每个链接末尾是 `?sha256=<文件哈希前 16 位>`。CDN 按完整地址缓存，文件换了地址就换了，不会给出旧文件；应用取文件名时只看路径。
 - **`downloads`**：`latest.json` 里多了这一项，是给网站用的（两个 dmg 和 Windows 安装包的链接、大小，键是 `macos-arm64`、`macos-x64`、`windows`、`windows-arm64`、`linux-x64`、`linux-arm64`），应用不读它。Windows on Arm 的应用按 `windows-arm64` 更新；x64 版在 Arm 上（模拟运行）继续按 `windows-x64` 更新，不自动换。
 - **密钥只在 `release` 环境里**，只有 `v*` 标签能用（见 7.2）。PR 和手动运行拿不到。
@@ -392,11 +394,19 @@ CI 从 `baocode-dev/mobile` 的 main 取代码（放在本仓库旁边，`../mon
 
 APK 上传时用 `--content-type` 说明类型（`application/vnd.android.package-archive`）。
 
-发布时 APK 传到 `releases/mobile/<版本>/`，最后写 `releases/mobile/latest.json`（`version`、`pubDate`、`beta`、`downloads.android` 的 `url / size / sha256`）。桌面版的 `latest.json` 不受影响。
+发布时 APK 传到 `releases/mobile/<版本>/`，最后写 `releases/mobile/latest.json`（`version`、`pubDate`、`beta`、`downloads.android` 的 `url / size / sha256`；还有 `ios`，见下文）。桌面版的 `latest.json` 不受影响。
 
 iOS 在 App Store Connect 上的 App 是 **BaoCode**（Apple ID `6825371537`，Bundle ID `dev.baocode.mobile`，Team `77SLP2NCVR`）。证书和描述文件一年一换：到期前用 App Store Connect API（或开发者网站）新建 Apple Distribution 证书、用它重做 App Store 描述文件，换掉下面三个密钥。
 
 TestFlight 上每个 build 都要回答出口合规（加密）问题，否则停在「缺少合规证明」；在手机版的 `Info.plist` 里加 `ITSAppUsesNonExemptEncryption` 就不用每次回答。
+
+内部测试组（Internal）自动拿到每个 build；公开测试组（Public beta，就是 `/dl/ios` 跳去的公开链接）要把 build 加进组、过 Beta 审核才拿得到。`mobile-v*` 发版时 `testflight` 任务（Ubuntu，等多久都不花钱）跑 `tool/testflight.mjs`：等苹果处理完 → 用手机版仓库的 `release-notes/<版本>.zh.md`、`.en.md` 写「测试内容」→ 加进 Public beta → 提交 Beta 审核 → 等公开测试员拿到（最多等约 5.5 小时，超时就重跑这个任务再看）→ 在 `releases/mobile/latest.json` 里写 `ios`（`version`、`build`、`url` 为公开链接）。手机端据此在对话列表顶部提示 iOS 新版，点一下打开 TestFlight；`publish` 任务写 `latest.json` 时保留原来的 `ios`。本机手动提交某个 build：
+
+```bash
+KEY_ID=… ISSUER=…  # App Store Connect API Key（同 NOTARY_KEY_ID、NOTARY_ISSUER）
+ASC_KEY="$(cat AuthKey_$KEY_ID.p8)" ASC_KEY_ID=$KEY_ID ASC_ISSUER=$ISSUER \
+  node tool/testflight.mjs --version 0.1.7 --build 31 --notes-zh notes.zh.md --notes-en notes.en.md
+```
 
 **`release` 环境里要有的**（7.2 那些之外）：
 

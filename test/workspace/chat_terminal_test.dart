@@ -14,7 +14,9 @@ import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/workspace/chat_grid.dart';
 import 'package:baocode/workspace/chat_grid_view.dart';
+import 'package:baocode/workspace/chat_quota_bar.dart';
 import 'package:baocode/workspace/chat_terminal.dart';
+import 'package:baocode/workspace/islands.dart';
 import 'package:baocode/workspace/window_header/window_header.dart';
 import 'package:baocode/workspace/workspace.dart';
 
@@ -128,6 +130,39 @@ void main() {
     await _settle(tester);
     expect(_panel, findsOneWidget);
     expect(ptys, hasLength(1));
+  }, variant: _mac);
+
+  testWidgets('shown, the conversation\'s branch row is under the panel, '
+      'at the window\'s foot; hidden, under the conversation\'s card', (
+    tester,
+  ) async {
+    final ptys = <FakePty>[];
+    await _pumpApp(tester, terminalBackend: fakeTerminalBackend(ptys));
+    final chat = find.byType(ChatScreen).first;
+    Finder below() => find.byType(ChatQuotaBar);
+    expect(find.descendant(of: chat, matching: below()), findsOneWidget);
+    // Its row down to the window's foot, as the IDE's status bar: no gap
+    // under it.
+    expect(tester.getRect(chat).bottom, 900);
+
+    await tester.tap(_toggle);
+    await _settle(tester);
+    expect(find.descendant(of: chat, matching: below()), findsNothing);
+    expect(below(), findsOneWidget);
+    final panel = tester.getRect(
+      find.ancestor(of: _panel, matching: find.byType(Island)).first,
+    );
+    final row = tester.getRect(below());
+    expect(row.top, greaterThanOrEqualTo(panel.bottom));
+    expect(row.bottom, lessThanOrEqualTo(900));
+    // The conversation on its card still, down to the gap over the panel's.
+    final card = find.descendant(of: chat, matching: find.byType(Island));
+    expect(card, findsOneWidget);
+    expect(tester.getRect(card).bottom, lessThan(panel.top));
+
+    await tester.tap(_toggle);
+    await _settle(tester);
+    expect(find.descendant(of: chat, matching: below()), findsOneWidget);
   }, variant: _mac);
 
   testWidgets('⌃` toggles it from the chat and from the terminal, whose '
@@ -426,12 +461,19 @@ void main() {
     expect(ptys, isEmpty);
   }, variant: _mac);
 
-  testWidgets('on Windows the header has the button by the pin, and View → '
-      'Terminal', (tester) async {
+  testWidgets('on Windows the button is on the conversation\'s card, as on '
+      'macOS, not in the header; and View → Terminal', (tester) async {
     final ptys = <FakePty>[];
     await _pumpApp(tester, terminalBackend: fakeTerminalBackend(ptys));
+    expect(
+      find.descendant(
+        of: find.byType(WindowHeader),
+        matching: find.byType(ChatTerminalToggle),
+      ),
+      findsNothing,
+    );
     final toggle = find.descendant(
-      of: find.byType(WindowHeader),
+      of: find.byType(ChatScreen),
       matching: find.byType(ChatTerminalToggle),
     );
     expect(toggle, findsOneWidget);

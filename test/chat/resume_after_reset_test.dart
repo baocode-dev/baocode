@@ -36,6 +36,20 @@ void main() {
   void hit(ResumeAfterReset resumes, String id, {Duration after = _hour}) =>
       resumes.hit(sessionId: id, resetsAt: _start.add(after));
 
+  testWidgets('a failure to keep them is logged, not left uncaught', (
+    tester,
+  ) async {
+    final store = _FailingStore();
+    final resumes = make(store: store);
+    hit(resumes, 'a');
+    await tester.pump();
+    resumes.remove('a');
+    await tester.pump();
+    expect(store.writes, 2);
+    expect(resumes.entries, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('on, a limit hit goes on a minute after it resets', (
     tester,
   ) async {
@@ -204,3 +218,13 @@ void main() {
 
 final _start = DateTime(2026, 10, 13, 14);
 const _hour = Duration(hours: 1);
+
+class _FailingStore extends MemoryPreferenceStore {
+  int writes = 0;
+
+  @override
+  Future<void> write(Map<String, Object?> preferences) async {
+    writes++;
+    throw StateError('模拟恢复任务保存失败');
+  }
+}

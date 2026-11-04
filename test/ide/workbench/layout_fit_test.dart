@@ -4,11 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_columns.dart';
 import 'package:baocode/ide/ide_layout.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
+import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/workspace/back_to_chat_button.dart';
 
 import '../../title_bar_double_click_test.dart'
     show doubleClickAt, recordWindowCalls, titleDoubleClicks;
+
 import 'fake_files.dart';
 
 Finder _part(String key) => find.byKey(ValueKey(key));
@@ -43,9 +45,9 @@ void main() {
     expect(workspace.layout.editorVisible, isFalse);
     final sidebar = tester.getRect(_part('ide-sidebar'));
     final beside = tester.getRect(_part('ide-chat'));
-    expect(sidebar.left, IdeModernUI.activityBarWidth);
+    expect(sidebar.left, IdeModernUI.activityBarWidth - IdeWorkbench.gap / 2);
     expect(beside.left, sidebar.right);
-    expect(beside.right, 740);
+    expect(beside.right, 740 - IdeWorkbench.gap / 2);
     expect(tester.element(find.byKey(chatKey)), same(chat));
     expect(find.byIcon(Codicons.layoutSidebarLeft), findsOneWidget);
 
@@ -247,8 +249,9 @@ void main() {
     final drag = await tester.startGesture(
       tester.getCenter(_part('ide-chat-sash')),
     );
-    // Of 1356 (the window less the activity bar), the side bar snaps shut
-    // at a chat of 894⅓, and the editor at 1089⅓.
+    // Of 1356 (the window less the activity bar's room, and half a gap at
+    // its right), the side bar snaps shut at a chat of 894⅓, and the editor
+    // at 1089⅓.
     await drag.moveBy(const Offset(-20, 0));
     await drag.moveBy(const Offset(-649, 0));
     await tester.pump();
@@ -258,12 +261,13 @@ void main() {
     await tester.pump();
     expect(workspace.layout.chatMaximized, isTrue);
     expect(_part('ide-editor'), findsNothing);
-    // Its sash over the activity bar's edge.
-    const left = IdeModernUI.activityBarWidth;
+    // Its sash over the activity bar's edge (its room's, the card against
+    // it).
+    final left = IdeModernUI.activityBarWidth - IdeWorkbench.gap / 2;
     expect(tester.getCenter(_part('ide-chat-sash')).dx, left);
     final maximized = tester.getRect(_part('ide-chat'));
     expect(maximized.left, left);
-    expect(maximized.right, 1400);
+    expect(maximized.right, 1400 - IdeWorkbench.gap / 2);
     // The panel below it, as high as it was.
     final panel = tester.getRect(_part('ide-panel'));
     expect(panel.left, maximized.left);

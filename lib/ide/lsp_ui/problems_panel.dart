@@ -18,7 +18,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 
 import '../../base/smooth_scroll.dart';
 import '../../debug/ui/debug_strings.dart';
@@ -28,11 +27,14 @@ import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
+import '../../workspace/islands.dart';
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 
+import '../host_paths.dart';
 import '../ide_hover.dart';
 import '../ide_list.dart';
+import '../ide_tab_bar.dart' show IdeTabStrip;
 import '../lsp/language_features.dart';
 import '../lsp/lsp_protocol.dart';
 import 'diagnostics.dart';
@@ -248,11 +250,18 @@ class IdeBottomPanel extends StatelessWidget {
         // A tab's hover: its view's name and the keys showing it, as the
         // activity bar's (compositeBarActions.ts `computeTitle`).
         final keys = KeybindingService.instance;
+        final islands = Islands.on(context);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // As a card's flat tab strip (see [IdeTabStrip.flat]): room
+            // above and before its tabs, none under them. Not islands,
+            // upstream's title row.
             Container(
-              height: 30,
+              height: islands ? IdeTabStrip.flatHeight : 30,
+              padding: EdgeInsets.only(
+                top: islands ? IdeTabStrip.flatInset : 0,
+              ),
               decoration: titleBorder == null
                   ? null
                   : BoxDecoration(
@@ -260,52 +269,63 @@ class IdeBottomPanel extends StatelessWidget {
                     ),
               child: Row(
                 children: [
-                  const SizedBox(width: 8),
-                  // Narrow, the tabs scroll and the actions stay whole.
+                  SizedBox(width: islands ? IdeTabStrip.flatInset : 8),
+                  // Narrow, the tabs scroll and the actions stay whole; the
+                  // last ones (the terminal's) shown whole first. With room,
+                  // from the start.
                   Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _Tab(
-                            label: context.l10n.panelProblems,
-                            tooltip: keys.titleWithKeybinding(
-                              context.l10n.idePanelProblems,
-                              'workbench.actions.view.problems',
-                            ),
-                            badge: total == 0 ? null : '$total',
-                            selected: tab == IdePanelTab.problems,
-                            onTap: () => onTab(IdePanelTab.problems),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        reverse: true,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: constraints.maxWidth,
                           ),
-                          _Tab(
-                            label: context.l10n.panelReferences,
-                            tooltip: context.l10n.idePanelReferences,
-                            badge: references == null
-                                ? null
-                                : '${references!.locations.length}',
-                            selected: tab == IdePanelTab.references,
-                            onTap: () => onTab(IdePanelTab.references),
-                          ),
-                          if (debugConsole != null)
-                            _Tab(
-                              label: DebugStrings.of(context).debugConsole
-                                  .toUpperCase(),
-                              tooltip: DebugStrings.of(context).debugConsole,
-                              selected: tab == IdePanelTab.debugConsole,
-                              onTap: () => onTab(IdePanelTab.debugConsole),
-                            ),
-                          if (terminal != null)
-                            _Tab(
-                              label: context.l10n.panelTerminal,
-                              tooltip: keys.titleWithKeybinding(
-                                context.l10n.idePanelTerminal,
-                                'workbench.action.terminal.toggleTerminal',
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _Tab(
+                                label: context.l10n.panelProblems,
+                                tooltip: keys.titleWithKeybinding(
+                                  context.l10n.idePanelProblems,
+                                  'workbench.actions.view.problems',
+                                ),
+                                badge: total == 0 ? null : '$total',
+                                selected: tab == IdePanelTab.problems,
+                                onTap: () => onTab(IdePanelTab.problems),
                               ),
-                              selected: tab == IdePanelTab.terminal,
-                              onTap: () => onTab(IdePanelTab.terminal),
-                            ),
-                        ],
+                              _Tab(
+                                label: context.l10n.panelReferences,
+                                tooltip: context.l10n.idePanelReferences,
+                                badge: references == null
+                                    ? null
+                                    : '${references!.locations.length}',
+                                selected: tab == IdePanelTab.references,
+                                onTap: () => onTab(IdePanelTab.references),
+                              ),
+                              if (debugConsole != null)
+                                _Tab(
+                                  label: DebugStrings.of(context).debugConsole
+                                      .toUpperCase(),
+                                  tooltip: DebugStrings.of(context)
+                                      .debugConsole,
+                                  selected: tab == IdePanelTab.debugConsole,
+                                  onTap: () => onTab(IdePanelTab.debugConsole),
+                                ),
+                              if (terminal != null)
+                                _Tab(
+                                  label: context.l10n.panelTerminal,
+                                  tooltip: keys.titleWithKeybinding(
+                                    context.l10n.idePanelTerminal,
+                                    'workbench.action.terminal.toggleTerminal',
+                                  ),
+                                  selected: tab == IdePanelTab.terminal,
+                                  onTap: () => onTab(IdePanelTab.terminal),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -481,61 +501,67 @@ class _Tab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
-    return IdeHover(
-      message: tooltip,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+    final islands = Islands.on(context);
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: islands ? 12 : 11,
+            letterSpacing: islands ? null : 0.3,
+            color:
+                colors[selected
+                    ? 'panelTitle.activeForeground'
+                    : 'panelTitle.inactiveForeground'],
+          ),
+        ),
+        if (badge != null) ...[
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5),
             decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: selected
-                      ? colors['panelTitle.activeBorder']
-                      : Colors.transparent,
-                ),
+              color: colors['panelTitleBadge.background'],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              badge!,
+              style: TextStyle(
+                fontSize: 10.5,
+                color: colors['panelTitleBadge.foreground'],
               ),
             ),
-            alignment: Alignment.center,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    letterSpacing: 0.3,
-                    color:
-                        colors[selected
-                            ? 'panelTitle.activeForeground'
-                            : 'panelTitle.inactiveForeground'],
-                  ),
-                ),
-                if (badge != null) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
-                    decoration: BoxDecoration(
-                      color: colors['panelTitleBadge.background'],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      badge!,
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        color: colors['panelTitleBadge.foreground'],
+          ),
+        ],
+      ],
+    );
+    return IdeHover(
+      message: tooltip,
+      // A segment of a segmented control, the panel's views'; not islands,
+      // upstream's, `panelTitle.activeBorder` under the one shown.
+      child: islands
+          ? IslandSegment(selected: selected, onTap: onTap, child: content)
+          : MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: selected
+                            ? colors['panelTitle.activeBorder']
+                            : Colors.transparent,
                       ),
                     ),
                   ),
-                ],
-              ],
+                  alignment: Alignment.center,
+                  child: content,
+                ),
+              ),
             ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -926,10 +952,11 @@ class _FileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = p.basename(path);
-    final folder = p.isWithin(root, path)
-        ? p.dirname(p.relative(path, from: root))
-        : p.dirname(path);
+    final paths = hostContext(path);
+    final name = paths.basename(path);
+    final folder = paths.isWithin(root, path)
+        ? paths.dirname(paths.relative(path, from: root))
+        : paths.dirname(path);
     final colors = themeColors;
     final badgeBorder = colors.get('contrastBorder');
     final foreground = _foreground(selected, colors['foreground']);

@@ -92,6 +92,7 @@ class IdeCodeDiff extends StatefulWidget {
     this.originalLineNumberOf,
     this.modifiedLineNumberOf,
     this.embedded = false,
+    this.bars = true,
     this.horizontal,
   });
 
@@ -147,6 +148,10 @@ class IdeCodeDiff extends StatefulWidget {
   /// the page where the editors cannot scroll, no unchanged lines hidden
   /// and no overview.
   final bool embedded;
+
+  /// The bars at the gutter's edge by the changed lines, inline; none in a
+  /// chat's edit, its lines' colors enough there.
+  final bool bars;
 
   /// Given how each editor scrolls across once they are laid out, for
   /// scrollbars of the embedder's where an [embedded] one's own, at its
@@ -662,7 +667,9 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       model: _diff.model,
       style: style,
       theme: theme,
-      colors: DiffEditorColors.from(colors.get),
+      colors: widget.bars
+          ? DiffEditorColors.from(colors.get)
+          : DiffEditorColors.from(colors.get).withoutBars(),
       dark:
           type == ThemeTypeSelector.vsDark || type == ThemeTypeSelector.hcBlack,
       originalStyledLines: _diff.textMate?.styledLines,
@@ -670,8 +677,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       border: colors.get('diffEditor.border'),
       sashHover: colors.get('sash.hoverBorder'),
       sideBySide: widget.sideBySide ?? _options.sideBySide,
-      // Embedded, small: whole lines alone, the words' colors too many.
-      highlight: embedded ? DiffHighlight.lines : _options.highlight,
+      highlight: DiffHighlight.lines,
       hideUnchanged: !embedded && _options.collapseUnchanged,
       originalLineNumberOf: widget.originalLineNumberOf,
       modifiedLineNumberOf: widget.modifiedLineNumberOf,

@@ -6,8 +6,7 @@ import 'text_search_stub.dart'
 
 export 'package:bao_remote/search.dart';
 
-/// Searches with the platform's engine: Git's file list (respecting
-/// `.gitignore`) or a walk of the folder, read and matched off the UI
-/// isolate.
+/// Searches with the platform's engine: a walk of the folder that honors
+/// `.gitignore` files at every level, read and matched off the UI isolate.
 Stream<Object> ideSearchText(String root, IdeTextQuery query) =>
     platform.searchText(root, query);

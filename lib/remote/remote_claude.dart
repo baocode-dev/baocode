@@ -24,6 +24,7 @@ import '../models/launch_environment.dart';
 import 'remote_claude_install.dart';
 import 'remote_location.dart';
 import 'ssh_host.dart';
+import 'port_forwards.dart';
 
 /// What the user is told to run on the host when Claude Code could not be
 /// installed there for them, as its install guidance says.
@@ -373,6 +374,7 @@ class RemoteClaudeTransport implements ClaudeCodeTransport {
     final cwd = RemoteLocation.pathOf(launch.cwd);
     final env = await remoteModelEnvironment(client, launch.env);
     final started = launch.copyWith(cwd: cwd, env: env);
+    final forwarded = await PortForwards.instance.remoteEnvironment(host.host);
     try {
       final process = await startRemoteCore(
         host,
@@ -385,7 +387,7 @@ class RemoteClaudeTransport implements ClaudeCodeTransport {
               : started.arguments,
           settings: started.hasSecrets ? started.settings : null,
           cleared: [if (env != null) ...ClaudeModelVariables.inherited],
-          environment: ClaudeLaunch.environment,
+          environment: {...ClaudeLaunch.environment, ...forwarded},
           core: core,
         ),
       );

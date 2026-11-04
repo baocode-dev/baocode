@@ -139,8 +139,8 @@ void main() {
       final theme = await bundled('Bao Dark');
       expect(theme.type, ColorScheme.dark);
       expect(theme.semanticHighlighting, isTrue);
-      expect(theme.colors['editor.background'], '#292925');
-      expect(theme.colors['sideBar.background'], '#22211E');
+      expect(theme.colors['editor.background'], '#282827');
+      expect(theme.colors['sideBar.background'], '#212120');
       expect(theme.colors['focusBorder'], '#E5BA7DB3');
       // What it leaves unset, from Dark 2026's include chain.
       expect(theme.colors['button.secondaryBackground'], '#00000000');
@@ -154,8 +154,8 @@ void main() {
       final theme = await bundled('Bao Light');
       expect(theme.type, ColorScheme.light);
       expect(theme.semanticHighlighting, isTrue);
-      expect(theme.colors['editor.background'], '#FDFCF8');
-      expect(theme.colors['sideBar.background'], '#F5F4EE');
+      expect(theme.colors['editor.background'], '#FCFBFA');
+      expect(theme.colors['sideBar.background'], '#F3F3F1');
       expect(theme.colors['button.background'], '#E2B373');
       // What it leaves unset, from Light 2026's include chain.
       expect(theme.colors['browser.border'], '#00000000');

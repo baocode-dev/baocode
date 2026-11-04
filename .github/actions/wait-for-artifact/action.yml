@@ -1,0 +1,63 @@
+# An artifact another job of this run uploads, downloaded once it is there:
+# for a job that starts before that one ends (it needs the artifact only
+# late), rather than waiting for it with `needs`. Given that job's name, it
+# stops as soon as the job ends without it (failed, or cancelled: a macOS
+# runner may never come), as `needs` would. The workflow has to let its
+# token read actions (permissions: actions: read).
+name: Wait for an artifact
+description: Waits for an artifact of this run, then downloads it
+inputs:
+  name:
+    description: The artifact
+    required: true
+  path:
+    description: Where it goes
+    required: true
+  job:
+    description: The name of the job that uploads it, as the run lists it
+    default: ''
+  minutes:
+    description: How long to wait for it
+    default: '20'
+runs:
+  using: composite
+  steps:
+    # PowerShell: on every runner, and reads JSON (jq may not be on Arm
+    # Windows).
+    - name: Wait for ${{ inputs.name }}
+      shell: pwsh
+      env:
+        TOKEN: ${{ github.token }}
+        NAME: ${{ inputs.name }}
+        JOB: ${{ inputs.job }}
+        MINUTES: ${{ inputs.minutes }}
+      run: |
+        $headers = @{ Authorization = "Bearer $env:TOKEN"; Accept = 'application/vnd.github+json' }
+        $run = "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+        $deadline = (Get-Date).AddMinutes([int]$env:MINUTES)
+        while ($true) {
+          try {
+            $artifacts = Invoke-RestMethod "$run/artifacts?name=$env:NAME" -Headers $headers
+            if ($artifacts.total_count -gt 0) { Write-Output "$env:NAME is there"; break }
+            if ($env:JOB) {
+              # This attempt's jobs: a run again makes the job again.
+              $jobs = (Invoke-RestMethod "$run/jobs?filter=latest&per_page=100" -Headers $headers).jobs
+              $job = $jobs | Where-Object { $_.name -eq $env:JOB } | Select-Object -First 1
+              if ($job -and $job.status -eq 'completed' -and $job.conclusion -ne 'success') {
+                Write-Output "::error::$env:JOB ended ($($job.conclusion)) without uploading $env:NAME"
+                exit 1
+              }
+            }
+          } catch {
+            Write-Output "Asking GitHub failed, asking again: $_"
+          }
+          if ((Get-Date) -gt $deadline) {
+            Write-Output "::error::$env:NAME was not uploaded within $env:MINUTES minutes"
+            exit 1
+          }
+          Start-Sleep -Seconds 10
+        }
+    - uses: actions/download-artifact@v7
+      with:
+        name: ${{ inputs.name }}
+        path: ${{ inputs.path }}

@@ -85,6 +85,7 @@ class KernelWorkspace {
     this.instructions = '',
     this.ownPrompt = false,
     this.tools,
+    this.userServers = false,
     this.allowedTools = const [],
     this.approvesAll = false,
     this.reaches = const [],
@@ -107,8 +108,12 @@ class KernelWorkspace {
 
   /// The only built-in tools it has (none for an empty list), the app's
   /// own aside; all when null. Set, the app's MCP servers are its only
-  /// ones: none of the user's.
+  /// ones: none of the user's, but with [userServers].
   final List<String>? tools;
+
+  /// Whether, with [tools] set, the user's own MCP servers are its all the
+  /// same: [tools] there only to keep some of Claude Code's own from it.
+  final bool userServers;
 
   /// Built-in tools it uses without asking, whatever its permission mode
   /// (permission rules: `WebFetch`, say).
@@ -284,6 +289,23 @@ abstract interface class QueuesMessages {
 abstract interface class RevertsChanges {
   /// Puts back the files changed since turn [turnId] began.
   void revertChanges({required String sinceTurn});
+}
+
+/// Told of each file the agent (or one of its subagents) edits as it edits
+/// it: what the review of its changes keeps.
+abstract interface class EditWatch {
+  /// The agent is about to write [path] (absolute): it writes once this
+  /// completes.
+  Future<void> beforeEdit(String path);
+
+  /// It wrote [path], or gave up writing it.
+  Future<void> afterEdit(String path);
+}
+
+/// A kernel that tells an [EditWatch] of its edits, before and after each:
+/// set before it starts.
+abstract interface class WatchesEdits {
+  set editWatch(EditWatch? watch);
 }
 
 abstract interface class RewindsConversation {

@@ -61,10 +61,14 @@ void main() {
     await data.delete(recursive: true);
   });
 
-  /// Lets the disk catch up until [done].
+  /// Lets the disk catch up until [done], and the page show it: a tap
+  /// before it is rebuilt would act on what it showed before.
   Future<void> settle(WidgetTester tester, bool Function() done) async {
     for (var i = 0; i < 100; i++) {
-      if (done()) return;
+      if (done()) {
+        await tester.pump();
+        return;
+      }
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
       );

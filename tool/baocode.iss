@@ -143,6 +143,14 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; \
   ValueData: "{olddata};{app}"; Tasks: addtopath; \
   Check: (not IsAdminInstallMode) and NeedsAddPath(ExpandConstant('{app}'), False)
 
+; baocode_wer.dll listed for Windows Error Reporting (windows/wer), as the
+; app lists it for the user who runs it (hang_watchdog.cpp's
+; RegisterFastFailModule): written here so that uninstalling removes it.
+; The user's own, so a per-user install's only.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\Windows Error Reporting\RuntimeExceptionHelperModules"; \
+  ValueType: dword; ValueName: "{app}\baocode_wer.dll"; ValueData: 0; \
+  Flags: uninsdeletevalue; Check: not IsAdminInstallMode
+
 ; Explorer's context menu, on a file, a folder and a folder's background,
 ; each in a new window: Open with BaoCode, a new agent in a narrow window of
 ; its own (a file in its composer; see AppWindows.openAgent), and Open with
@@ -209,8 +217,10 @@ Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\BaoCodeFastIde\c
   Tasks: contextmenu
 ; The baocode: URL scheme, always: a site's one-click import of an upstream
 ; (baocode.dev/import opens baocode://provider/import?…; see
-; docs/upstream-import.md), and the channel build's setup (baocode.dev/activate
-; opens baocode://activate?…). The link comes after --baocode-link, which the
+; docs/upstream-import.md), the channel build's setup (baocode.dev/activate
+; opens baocode://activate?…), and a file to open in the IDE at a line, as
+; VS Code's vscode://file/… (baocode://file/C:/…:12:5, see FileLink in
+; lib/window/code_args.dart). The link comes after --baocode-link, which the
 ; runner hands Flutter as a request (windows/runner/open_requests.cpp).
 Root: HKA; Subkey: "Software\Classes\baocode"; ValueType: string; \
   ValueName: ""; ValueData: "URL:BaoCode"; Flags: uninsdeletekey

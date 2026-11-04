@@ -27,6 +27,7 @@ import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/editor_launcher.dart';
+import '../workspace/islands.dart';
 import '../workspace/title_bar_double_click.dart';
 import '../workspace/workspace.dart';
 import 'customization_store.dart';
@@ -83,7 +84,12 @@ class CustomizeView extends StatefulWidget {
     this.onOpenFile,
     this.host,
     this.showTitleBar = true,
+    this.island,
   });
+
+  /// Given, what is under the title bar is on a card of this color (see
+  /// [Island]), the title bar on the window's.
+  final Color? island;
 
   /// The customizations of the machine shown: this one's, or [host]'s.
   final CustomizationStore store;
@@ -176,7 +182,7 @@ class CustomizeViewState extends State<CustomizeView> {
   };
 
   /// How paths are spelled where the customizations are.
-  p.Context get _paths => widget.store.isLocal ? p.context : p.posix;
+  p.Context get _paths => widget.store.paths;
 
   @override
   void dispose() {
@@ -409,32 +415,40 @@ class CustomizeViewState extends State<CustomizeView> {
       children: [
         if (widget.showTitleBar) _buildTitleBar(context.l10n),
         Expanded(
-          child: open != null
-              ? _CustomizationEditor(
-                  key: ObjectKey(open),
-                  item: open,
-                  store: widget.store,
-                  onBack: () {
-                    setState(() => _open = null);
-                    unawaited(_load());
-                  },
-                  onOpenFile: widget.store.isLocal ? widget.onOpenFile : null,
-                  menu: () => _menu(open, opened: true),
-                  status: switch (_statusOf(open)) {
-                    final status? => _McpStatusPanel(
-                      status: status,
-                      onTest: _probeable(open)
-                          ? () => unawaited(_probe(open))
-                          : null,
-                    ),
-                    null => null,
-                  },
-                )
-              : _buildList(context.l10n),
+          child: _onIsland(
+            open != null
+                ? _CustomizationEditor(
+                    key: ObjectKey(open),
+                    item: open,
+                    store: widget.store,
+                    onBack: () {
+                      setState(() => _open = null);
+                      unawaited(_load());
+                    },
+                    onOpenFile: widget.store.isLocal ? widget.onOpenFile : null,
+                    menu: () => _menu(open, opened: true),
+                    status: switch (_statusOf(open)) {
+                      final status? => _McpStatusPanel(
+                        status: status,
+                        onTest: _probeable(open)
+                            ? () => unawaited(_probe(open))
+                            : null,
+                      ),
+                      null => null,
+                    },
+                  )
+                : _buildList(context.l10n),
+          ),
         ),
       ],
     );
   }
+
+  /// [child] on its card, where it has one ([CustomizeView.island]).
+  Widget _onIsland(Widget child) => switch (widget.island) {
+    final color? => Island(color: color, child: child),
+    null => child,
+  };
 
   Widget _buildTitleBar(AppLocalizations l10n) {
     return TitleBarDoubleClick(
@@ -455,12 +469,15 @@ class CustomizeViewState extends State<CustomizeView> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            // Whose: a remote host's, named as the sidebar names it.
+            // Whose: a remote host's, named as the sidebar names it. It
+            // takes the rest of the row, the close button at its end: a
+            // Flexible beside a Spacer would keep half of it empty, the
+            // button short of the edge.
             if (widget.host case final host?) ...[
               const SizedBox(width: 10),
               Icon(Codicons.remote, size: 13, color: AppColors.textFaint),
               const SizedBox(width: 4),
-              Flexible(
+              Expanded(
                 child: Text(
                   host,
                   maxLines: 1,
@@ -468,8 +485,8 @@ class CustomizeViewState extends State<CustomizeView> {
                   style: TextStyle(color: AppColors.textFaint, fontSize: 12.5),
                 ),
               ),
-            ],
-            const Spacer(),
+            ] else
+              const Spacer(),
             SidebarIconButton(
               icon: Codicons.close,
               tooltip: l10n.customizeClose,
@@ -1446,7 +1463,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
       readBytes: local
           ? readFileBytes
           : (path) => Future.error(UnsupportedError(path)),
-      pathContext: local ? p.context : p.posix,
+      pathContext: local ? p.context : widget.store.paths,
       // Its source's editor told, which keeps whether it is saved.
       onEdited: _text.syncFromDocument,
       // On the page, its text under the title's and off its right edge

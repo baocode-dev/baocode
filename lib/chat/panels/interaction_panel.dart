@@ -660,21 +660,22 @@ class _OptionRow extends StatelessWidget {
     final hint = row.textHint;
     final colors = themeColors;
     // As upstream's question list: hover, then the selection; high contrast
-    // themes outline the selection.
+    // themes outline the selection. At once, as the other panels' rows: the
+    // frames between the faint hover and none flashed both rows dark grey
+    // on Windows.
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => onHover(),
       child: GestureDetector(
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
+        child: Container(
           margin: const EdgeInsets.only(bottom: 2),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           decoration: BoxDecoration(
             color: selected
                 ? colors['list.activeSelectionBackground']
                 : highlighted
-                ? AppColors.hover
+                ? AppColors.bubbleHover
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(

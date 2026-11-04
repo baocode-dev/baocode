@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../base/mouse_navigation.dart';
 import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
 import '../../ide/ide_hover.dart';
@@ -29,11 +31,14 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../../chat/widgets/hover_builder.dart';
 import '../../chat/widgets/pixel_loader.dart';
 import '../../workspace/workspace.dart';
+import '../../workspace/window_controls.dart';
+import 'codex_import_dialog.dart';
 import 'featured_upstreams_strip.dart';
 import 'model_dialogs.dart';
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 import '../../ide/ide_back_button.dart';
+import '../../ide/ide_spinning.dart';
 
 /// Asks [model] of [provider] [modelTestPrompt]; its reply, timed.
 /// Completing [cancel] stops it.
@@ -638,6 +643,10 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   CodexLogin? _login;
   String? _loginError;
   bool _refreshingQuota = false;
+  final Set<String> _refreshingAccounts = {};
+  bool _importingAccounts = false;
+  List<CodexImportResult>? _importResults;
+  String? _importError;
 
   ModelProviders get _providers => widget.providers;
   ModelProvider get _provider => widget.provider;
@@ -681,12 +690,73 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     }
   }
 
+  Future<void> _importAccounts({bool paste = false}) async {
+    if (_importingAccounts) return;
+    setState(() {
+      _importingAccounts = true;
+      _importResults = null;
+      _importError = null;
+    });
+    final l10n = context.l10n;
+    try {
+      final String contents;
+      if (paste) {
+        final typed = await showCodexImportDialog(context);
+        if (!mounted || typed == null) return;
+        contents = typed;
+      } else {
+        final paths = await WindowControls.pickOpenFiles(multiple: false);
+        if (!mounted || paths.isEmpty) return;
+        final choice = await showIdeDialog(
+          context,
+          message: l10n.modelsAccountsImportConfirm,
+          detail: l10n.modelsAccountsImportConfirmDetail,
+          buttons: [l10n.modelsAccountsImport],
+        );
+        if (!mounted || choice != 0) return;
+        final file = File(paths.single);
+        if (await file.length() > 4 * 1024 * 1024) {
+          throw const CodexException('The credential file is too large.');
+        }
+        contents = await file.readAsString();
+        if (!mounted) return;
+      }
+      final results = await _codex.importAccountsJson(
+        _provider.id,
+        contents,
+        confirmed: true,
+      );
+      if (mounted) setState(() => _importResults = results);
+    } on CodexException catch (error) {
+      if (mounted) setState(() => _importError = error.message);
+    } on Object {
+      // Native/file errors can contain paths or input: never show them.
+      if (mounted) {
+        setState(() => _importError = l10n.modelsAccountsImportFailed);
+      }
+    } finally {
+      if (mounted) setState(() => _importingAccounts = false);
+    }
+  }
+
   Future<void> _refreshQuota() async {
     setState(() => _refreshingQuota = true);
     try {
       await _codex.refreshUsage(_providerNow);
     } finally {
       if (mounted) setState(() => _refreshingQuota = false);
+    }
+  }
+
+  Future<void> _refreshAccountQuota(ProviderAccount account) async {
+    if (_refreshingQuota || !_refreshingAccounts.add(account.id)) return;
+    setState(() {});
+    try {
+      await _codex.refreshAccountUsage(_providerNow, account.id);
+    } finally {
+      if (mounted) {
+        setState(() => _refreshingAccounts.remove(account.id));
+      }
     }
   }
 
@@ -700,6 +770,24 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     );
     if (choice != 0) return;
     await _codex.removeAccount(_provider.id, account.id);
+  }
+
+  Future<void> _useResetCredit(ProviderAccount account) async {
+    final l10n = context.l10n;
+    final choice = await showIdeDialog(
+      context,
+      message: l10n.modelsResetCreditConfirm(account.displayName),
+      detail: l10n.modelsResetCreditConfirmDetail,
+      buttons: [l10n.modelsResetCreditUse],
+      type: IdeDialogType.question,
+    );
+    if (choice != 0) return;
+    try {
+      await _codex.useResetCredit(_providerNow, account.id);
+    } on CodexException catch (error) {
+      // Shown under the account, as its error.
+      debugPrint('$error');
+    }
   }
 
   Future<void> _readKey() async {
@@ -900,7 +988,16 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => MouseNavigation(
+    // The mouse's back button: back to the models, as the arrow.
+    onBack: () {
+      widget.onBack();
+      return true;
+    },
+    child: _page(context),
+  );
+
+  Widget _page(BuildContext context) {
     final l10n = context.l10n;
     final provider = _provider;
     return SettingsColumn(
@@ -956,6 +1053,66 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     return _save(provider);
   }
 
+  /// Whether an account out of quota uses a reset credit by itself, and
+  /// for which windows: as the model picker's switch, with its reach.
+  Widget _autoResetCredits(BuildContext context) {
+    final l10n = context.l10n;
+    final provider = _provider;
+    final choices = [
+      (
+        on: false,
+        fiveHours: provider.resetCreditsFiveHours,
+        label: l10n.modelsAutoResetCreditsOff,
+        description: l10n.modelsAutoResetCreditsOffDescription,
+      ),
+      (
+        on: true,
+        fiveHours: false,
+        label: l10n.modelsAutoResetCreditsLong,
+        description: l10n.modelsAutoResetCreditsLongDescription,
+      ),
+      (
+        on: true,
+        fiveHours: true,
+        label: l10n.modelsAutoResetCreditsAny,
+        description: l10n.modelsAutoResetCreditsAnyDescription,
+      ),
+    ];
+    final current = choices.firstWhere(
+      (choice) =>
+          choice.on == provider.autoResetCredits &&
+          (!choice.on || choice.fiveHours == provider.resetCreditsFiveHours),
+    );
+    return SettingsRow(
+      label: l10n.autoResetCreditsToggle,
+      description: current.description,
+      trailing: SettingsDropdown(
+        current: current.label,
+        semanticLabel: l10n.modelsChoiceLabel(
+          l10n.autoResetCreditsToggle,
+          current.label,
+        ),
+        entries: () => [
+          for (final choice in choices)
+            IdeMenuAction(
+              choice.label,
+              checked: identical(choice, current),
+              onSelected: () => unawaited(() async {
+                await _save(
+                  _providerNow.copyWith(
+                    autoResetCredits: choice.on,
+                    resetCreditsFiveHours: choice.fiveHours,
+                  ),
+                );
+                // Turned on: one out of quota already uses its credit now.
+                if (choice.on) await _codex.refreshUsage(_providerNow);
+              }()),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _accounts(BuildContext context) {
     final l10n = context.l10n;
     final provider = _provider;
@@ -979,6 +1136,14 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               usage: _codex.usage(provider.id, account.id),
               error: _codex.error(provider.id, account.id),
               limitedUntil: _codex.limitedUntil(provider.id, account.id),
+              resetCredits: _codex.resetCredits(provider.id, account.id),
+              resetting: _codex.resetting(provider.id, account.id),
+              onReset: () => unawaited(_useResetCredit(account)),
+              refreshing: _refreshingAccounts.contains(account.id),
+              onRefresh:
+                  _refreshingQuota || _refreshingAccounts.contains(account.id)
+                  ? null
+                  : () => unawaited(_refreshAccountQuota(account)),
               onEnabled: (value) => unawaited(
                 _save(
                   _providerNow.withAccount(account.copyWith(enabled: value)),
@@ -1014,6 +1179,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               ],
             ),
           ),
+        if (provider.accounts.isNotEmpty) _autoResetCredits(context),
         SettingsRow(
           label: login != null
               ? l10n.modelsAccountSigningIn
@@ -1054,19 +1220,80 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                     label: l10n.modelsRefreshQuota,
                     icon: Codicons.refresh,
                     secondary: true,
-                    onPressed: _refreshingQuota
+                    spinning: _refreshingQuota,
+                    onPressed:
+                        _refreshingQuota || _refreshingAccounts.isNotEmpty
                         ? null
                         : () => unawaited(_refreshQuota()),
                   ),
                 IdeButton(
                   label: l10n.modelsAddAccount,
                   icon: Codicons.add,
-                  onPressed: () => unawaited(_addAccount()),
+                  onPressed: _importingAccounts
+                      ? null
+                      : () => unawaited(_addAccount()),
                 ),
               ],
             ],
           ),
         ),
+        if (WindowControls.canPickFiles)
+          SettingsRow(
+            label: l10n.modelsAccountsImportTitle,
+            description: l10n.modelsAccountsImportDescription,
+            trailing: SettingsButtons(
+              children: [
+                IdeButton(
+                  label: l10n.modelsAccountsPaste,
+                  secondary: true,
+                  onPressed: _importingAccounts || login != null
+                      ? null
+                      : () => unawaited(_importAccounts(paste: true)),
+                ),
+                IdeButton(
+                  label: l10n.modelsAccountsImportFile,
+                  secondary: true,
+                  onPressed: _importingAccounts || login != null
+                      ? null
+                      : () => unawaited(_importAccounts()),
+                ),
+              ],
+            ),
+            below: [
+              if (_importResults case final results?) ...[
+                Text(
+                  l10n.modelsAccountsImportSummary(
+                    results
+                        .where((result) => result.account != null)
+                        .where((result) => !result.known)
+                        .length,
+                  ),
+                  style: SettingsText.description,
+                ),
+                if (results.where((result) => result.known).length
+                    case final known when known > 0)
+                  Text(
+                    l10n.modelsAccountsImportKept(known),
+                    style: SettingsText.description,
+                  ),
+                for (var i = 0; i < results.length; i++)
+                  if (results[i].error case final error?)
+                    SelectableText(
+                      l10n.modelsAccountsImportItemFailed(i + 1, error),
+                      style: SettingsText.description.copyWith(
+                        color: themeColors['errorForeground'],
+                      ),
+                    ),
+              ],
+              if (_importError case final error?)
+                SelectableText(
+                  error,
+                  style: SettingsText.description.copyWith(
+                    color: themeColors['errorForeground'],
+                  ),
+                ),
+            ],
+          ),
         if (login != null)
           SettingsRow(
             label: l10n.modelsAccountCallback,
@@ -1912,6 +2139,11 @@ class _AccountRow extends StatelessWidget {
     required this.limitedUntil,
     required this.onEnabled,
     required this.onRemove,
+    required this.refreshing,
+    required this.onRefresh,
+    this.resetCredits,
+    this.resetting = false,
+    this.onReset,
   });
 
   final ProviderAccount account;
@@ -1920,6 +2152,13 @@ class _AccountRow extends StatelessWidget {
   final DateTime? limitedUntil;
   final ValueChanged<bool> onEnabled;
   final VoidCallback onRemove;
+  final bool refreshing;
+  final VoidCallback? onRefresh;
+
+  /// Its reset credits, as listed; [onReset] uses one up.
+  final List<CodexResetCredit>? resetCredits;
+  final bool resetting;
+  final VoidCallback? onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -1992,18 +2231,139 @@ class _AccountRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          SettingsSwitch(
-            value: account.enabled,
-            semanticLabel: l10n.modelsAccountEnable(account.displayName),
-            onChanged: onEnabled,
-          ),
-          const SizedBox(width: 8),
-          IdeActionButton(
-            icon: Codicons.trash,
-            tooltip: l10n.modelsAccountRemove,
-            onPressed: onRemove,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IdeActionButton(
+                    icon: Codicons.refresh,
+                    // Turning as the refresh of all of them does.
+                    iconWidget: refreshing
+                        ? IdeSpinning(
+                            Icon(
+                              Codicons.sync,
+                              size: 16,
+                              color: IdeActionButton.foreground,
+                            ),
+                          )
+                        : null,
+                    tooltip: l10n.modelsAccountRefreshQuota(
+                      account.displayName,
+                    ),
+                    onPressed: onRefresh,
+                  ),
+                  const SizedBox(width: 8),
+                  SettingsSwitch(
+                    value: account.enabled,
+                    semanticLabel: l10n.modelsAccountEnable(
+                      account.displayName,
+                    ),
+                    onChanged: onEnabled,
+                  ),
+                  const SizedBox(width: 8),
+                  IdeActionButton(
+                    icon: Codicons.trash,
+                    tooltip: l10n.modelsAccountRemove,
+                    onPressed: onRemove,
+                  ),
+                ],
+              ),
+              if (usage?.resetCredits case final count? when count > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: _ResetCredits(
+                    count: count,
+                    credits: resetCredits,
+                    resetting: resetting,
+                    onReset: onReset,
+                  ),
+                ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// How many reset credits an account has, in small text; hovered, each
+/// one's expiry, and a button that uses one up.
+class _ResetCredits extends StatelessWidget {
+  const _ResetCredits({
+    required this.count,
+    required this.credits,
+    required this.resetting,
+    required this.onReset,
+  });
+
+  final int count;
+  final List<CodexResetCredit>? credits;
+  final bool resetting;
+  final VoidCallback? onReset;
+
+  static String _time(DateTime at) {
+    final local = at.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${local.month}/${local.day} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final faint = SettingsText.description.copyWith(
+      color: SettingsColors.textSecondary,
+    );
+    return IdeHover(
+      interactive: true,
+      compact: false,
+      message: l10n.modelsResetCredits(count),
+      content: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 180, maxWidth: 280),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.modelsResetCreditsTitle(count),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(l10n.modelsResetCreditsDetail, style: faint),
+              if (credits case final credits? when credits.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                for (final (i, credit) in credits.indexed)
+                  Text(
+                    '${i + 1}. ${switch (credit.expiresAt) {
+                      final at? => l10n.modelsResetCreditExpires(_time(at)),
+                      null => '—',
+                    }}',
+                    style: SettingsText.description,
+                  ),
+              ],
+              const SizedBox(height: 8),
+              IdeButton(
+                label: l10n.modelsResetCreditUse,
+                icon: Codicons.debugRestart,
+                spinning: resetting,
+                onPressed: resetting ? null : onReset,
+              ),
+            ],
+          ),
+        ),
+      ),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.help,
+        child: Text(
+          l10n.modelsResetCredits(count),
+          style: SettingsText.description.copyWith(
+            decoration: TextDecoration.underline,
+            decorationStyle: TextDecorationStyle.dotted,
+            decorationColor: SettingsColors.textSecondary,
+          ),
+        ),
       ),
     );
   }

@@ -44,6 +44,7 @@ import 'file_link.dart';
 import 'file_open.dart';
 import 'line_diff.dart';
 import '../../base/safe_selection_indexes.dart';
+import '../../ide/host_paths.dart';
 
 /// A file in the side panel: its text in the IDE's editor, to edit, search
 /// and save (Cmd+S, Ctrl+S), the lines asked for marked and scrolled to,
@@ -814,7 +815,9 @@ class _FilePreviewState extends State<FilePreview> {
       files: files,
       l10n: l10n,
       root: widget.root,
-      context: widget.paths ?? (remote ? p.posix : p.context),
+      context:
+          widget.paths ??
+          (remote ? hostPathsFor(widget.root ?? '') : p.context),
       remote: remote,
       confirmLarge: (name, size) async {
         if (!mounted) return false;

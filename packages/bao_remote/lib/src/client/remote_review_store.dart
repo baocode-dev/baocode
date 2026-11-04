@@ -4,16 +4,13 @@ import '../protocol.dart';
 import '../review/review_store.dart';
 import '../rpc/rpc_peer.dart';
 
-/// [ReviewStore] of a project on the remote host: its repository there
-/// (in the server's `checkpoints/`), every call a request.
+/// [ReviewStore] of the remote host: its checkpoints there (in the
+/// server's data folder), every call a request.
 class RemoteReviewStore implements ReviewStore {
-  RemoteReviewStore(this._peer, this._id, this.root);
+  RemoteReviewStore(this._peer, this._id);
 
   final RpcPeer _peer;
   final int _id;
-
-  @override
-  final String root;
 
   Future<Object?> _call(
     String method, [
@@ -27,61 +24,12 @@ class RemoteReviewStore implements ReviewStore {
   static ReviewBlob? _blob(Object? json) => ReviewBlob.fromJson(json);
 
   @override
-  Future<String?> snapshot({Iterable<String>? paths}) async =>
-      await _call('snapshot', {
-        if (paths != null) 'paths': [...paths],
-      }) as String?;
-
-  @override
-  Future<List<ReviewTreeChange>> diff(String from, String to) async => [
-    for (final change in await _call('diff', {'from': from, 'to': to}) as List)
-      if (change case [final String path, final before, final after])
-        ReviewTreeChange(path, _blob(before), _blob(after)),
-  ];
-
-  @override
-  Future<Map<String, ({int added, int removed})?>> lineCounts(
-    String from,
-    String to,
-  ) async => {
-    for (final MapEntry(:key, :value) in (await _call('lineCounts', {
-      'from': from,
-      'to': to,
-    }) as Map).cast<String, Object?>().entries)
-      key: switch (value) {
-        [final int added, final int removed] => (
-          added: added,
-          removed: removed,
-        ),
-        _ => null,
-      },
-  };
-
-  @override
-  Future<String> overlay(String tree, Map<String, ReviewBlob?> entries) async =>
-      await _call('overlay', {
-        'tree': tree,
-        'entries': {
-          for (final MapEntry(:key, :value) in entries.entries)
-            key: value?.toJson(),
-        },
-      }) as String;
-
-  @override
-  Future<bool> contains(String tree, String path) async =>
-      await _call('contains', {'tree': tree, 'path': path}) as bool;
-
-  @override
-  Future<bool> exists(String path) async =>
-      await _call('exists', {'path': path}) as bool;
+  Future<ReviewBlob?> take(String path) async =>
+      _blob(await _call('take', {'path': path}));
 
   @override
   Future<ReviewBlob?> current(String path) async =>
       _blob(await _call('current', {'path': path}));
-
-  @override
-  Future<ReviewBlob?> take(String path) async =>
-      _blob(await _call('take', {'path': path}));
 
   @override
   Future<Uint8List> read(ReviewBlob blob) async =>
@@ -92,13 +40,21 @@ class RemoteReviewStore implements ReviewStore {
       _blob(await _call('store', {'bytes': encodeBytes(bytes), 'mode': mode}))!;
 
   @override
-  Future<void> restore(String path, ReviewBlob? blob) =>
-      _call('restore', {'path': path, 'blob': blob?.toJson()});
+  Future<void> restore(String path, ReviewBlob? blob, {String? root}) =>
+      _call('restore', {'path': path, 'blob': blob?.toJson(), 'root': root});
 
   @override
-  Future<Uint8List?> merge(String path, ReviewBlob from, ReviewBlob to) async {
+  Future<void> write(String path, Uint8List bytes) =>
+      _call('write', {'path': path, 'bytes': encodeBytes(bytes)});
+
+  @override
+  Future<Uint8List?> merge(
+    ReviewBlob mine,
+    ReviewBlob from,
+    ReviewBlob to,
+  ) async {
     final merged = await _call('merge', {
-      'path': path,
+      'mine': mine.toJson(),
       'from': from.toJson(),
       'to': to.toJson(),
     });
@@ -106,8 +62,16 @@ class RemoteReviewStore implements ReviewStore {
   }
 
   @override
-  Future<void> write(String path, Uint8List bytes) =>
-      _call('write', {'path': path, 'bytes': encodeBytes(bytes)});
+  Future<({int added, int removed})?> lineCounts(
+    ReviewBlob? from,
+    ReviewBlob? to,
+  ) async => switch (await _call('lineCounts', {
+    'from': from?.toJson(),
+    'to': to?.toJson(),
+  })) {
+    [final int added, final int removed] => (added: added, removed: removed),
+    _ => null,
+  };
 
   @override
   Future<String?> load(String session) async =>

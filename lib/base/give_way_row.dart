@@ -351,10 +351,17 @@ class _RenderGiveWayRow extends RenderBox
     return false;
   }
 
+  /// The fill first, wherever it shows: read first, as what the row is of.
+  /// After children with hovers of their own, in a row merged into one
+  /// node, its hover's node was sent with no parent (the Git log's subject
+  /// after its labels), which the desktop engines reject.
   @override
   void visitChildrenForSemantics(RenderObjectVisitor visitor) {
     for (final child in _children) {
-      if (_data(child).shown) visitor(child);
+      if (_data(child).shown && _data(child).item!.fill) visitor(child);
+    }
+    for (final child in _children) {
+      if (_data(child).shown && !_data(child).item!.fill) visitor(child);
     }
   }
 

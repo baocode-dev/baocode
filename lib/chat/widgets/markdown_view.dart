@@ -15,7 +15,6 @@ import '../composer/composer_embeds.dart' show FileImageChip;
 import '../side_panel/file_open.dart';
 import 'code_citation.dart';
 import 'content_image.dart';
-import 'finite_selection_edges.dart';
 import 'hover_scrollbar.dart';
 import 'inline_code.dart';
 import 'lazy_segment.dart';
@@ -23,6 +22,7 @@ import 'markdown_cjk.dart';
 import 'markdown_math.dart';
 import 'markdown_tags.dart';
 import 'mermaid_code_block.dart';
+import 'table_selection.dart';
 import 'will_change_paint.dart';
 
 /// GitHub-flavored markdown as plain widgets (so a surrounding
@@ -226,7 +226,7 @@ class _MarkdownViewState extends State<MarkdownView> {
         final link = FileLink.parseHref(href);
         final path = link == null || link.range != null
             ? null
-            : files.resolve(link.path);
+            : files.resolveShown(link.path);
         if (path == null || !files.showsImage(path)) return null;
         return FileImageChip.span(
           path: path,
@@ -900,16 +900,18 @@ class _TableState extends State<_Table> {
                     vertical: 5,
                   ),
                   child: i < cells.length
-                      ? InlineCodeText(
-                          _inlines(
-                            cells[i].children ?? const [],
-                            header
-                                ? style.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                  )
-                                : style,
-                            widget.options,
+                      ? TableCellSelection(
+                          child: InlineCodeText(
+                            _inlines(
+                              cells[i].children ?? const [],
+                              header
+                                  ? style.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.textPrimary,
+                                    )
+                                  : style,
+                              widget.options,
+                            ),
                           ),
                         )
                       : const SizedBox.shrink(),
@@ -930,10 +932,16 @@ class _TableState extends State<_Table> {
         clipBehavior: Clip.antiAlias,
         child: HoverScrollbar(
           controller: _scroll,
-          child: SingleChildScrollView(
-            controller: _scroll,
-            scrollDirection: Axis.horizontal,
-            child: FiniteSelectionEdges(child: WillChangePaint(child: table)),
+          // The table's selection is its own, not the scroll view's.
+          child: SelectionContainer.disabled(
+            child: SingleChildScrollView(
+              controller: _scroll,
+              scrollDirection: Axis.horizontal,
+              child: TableSelection(
+                registrar: SelectionContainer.maybeOf(context),
+                child: WillChangePaint(child: table),
+              ),
+            ),
           ),
         ),
       ),

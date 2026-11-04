@@ -1,17 +1,51 @@
 import '../util/cancel.dart';
 
-/// One request to the Messages API: its body, and the beta features it
-/// needs (`anthropic-beta`).
+/// One request to the Messages API: its body, the beta features it needs
+/// (`anthropic-beta`), and the headers that say what it is for
+/// ([requestHints]).
 class ModelRequest {
-  const ModelRequest(this.body, {this.betas = const []});
+  const ModelRequest(
+    this.body, {
+    this.betas = const [],
+    this.headers = const {},
+  });
 
   final Map<String, Object?> body;
   final List<String> betas;
+  final Map<String, String> headers;
 
   String get model => body['model'] as String? ?? '';
 
-  ModelRequest copyWith({Map<String, Object?>? body, List<String>? betas}) =>
-      ModelRequest(body ?? this.body, betas: betas ?? this.betas);
+  ModelRequest copyWith({
+    Map<String, Object?>? body,
+    List<String>? betas,
+    Map<String, String>? headers,
+  }) => ModelRequest(
+    body ?? this.body,
+    betas: betas ?? this.betas,
+    headers: headers ?? this.headers,
+  );
+}
+
+/// The headers that tell a gateway what a request is for, as the CLI sends
+/// them: a subagent's id always; what it is for (`main`, `subagent`,
+/// `compaction`, `auxiliary`) and the subagent's kind where [environment]
+/// asks for them (`CLAUDE_CODE_GATEWAY_HINT_HEADERS`, which BaoCode's
+/// model proxy sets to keep the calls).
+Map<String, String> requestHints(
+  Map<String, String> environment, {
+  required String requestClass,
+  String? agentId,
+  String? agentType,
+}) {
+  final hints = environment['CLAUDE_CODE_GATEWAY_HINT_HEADERS'];
+  final on =
+      hints != null && hints.isNotEmpty && hints != '0' && hints != 'false';
+  return {
+    'x-claude-code-agent-id': ?agentId,
+    if (on) 'x-claude-code-request-class': requestClass,
+    if (on) 'x-claude-code-agent-type': ?agentType,
+  };
 }
 
 /// A request is about to be sent again after it failed.

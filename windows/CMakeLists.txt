@@ -60,6 +60,10 @@ add_subdirectory("runner")
 # The browsers' native messaging host; see BrowserBridge/CMakeLists.txt.
 add_subdirectory("BrowserBridge")
 
+# Windows Error Reporting's module for the app's fast fails; see
+# wer/CMakeLists.txt.
+add_subdirectory("wer")
+
 
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
@@ -87,6 +91,10 @@ install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
 install(TARGETS baocode-browser-host RUNTIME
   DESTINATION "${CMAKE_INSTALL_PREFIX}" COMPONENT Runtime)
 install(FILES "BrowserBridge/dev.baocode.browser.json"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}" COMPONENT Runtime)
+
+# The module that writes down a fast fail, beside the app that registers it.
+install(TARGETS baocode_wer RUNTIME
   DESTINATION "${CMAKE_INSTALL_PREFIX}" COMPONENT Runtime)
 
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"

@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:bao_link/bao_link.dart';
 import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
-import 'package:baocode/chat/chat_session.dart' show ComposerMessage;
+import 'package:baocode/chat/chat_session.dart' show ComposerMessage, UserPlace;
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/bots/bot_folders.dart';
 import 'package:baocode/bots/bots.dart';
@@ -61,6 +62,7 @@ void main() {
       label: 'Claude Code',
       icon: Icons.auto_awesome_rounded,
       description: '',
+      catalog: _KeptCatalog(),
       create: (context) => ClaudeCodeKernel(
         descriptor,
         KernelContext(
@@ -271,6 +273,44 @@ void main() {
         throwsA(isA<LinkRemoteException>()),
       );
     });
+  });
+
+  test('a conversation read anew is followed anew, all of it sent', () async {
+    await workspace.refresh();
+    final kept = workspace.threads.firstWhere(
+      (thread) => thread.record?.id == 'k',
+    );
+    final keptId = WorkspaceBridge.idOf(kept);
+    await bridge.handle(LinkMethods.open, {'session': keptId, 'window': 2});
+    await settle();
+    final was = kept.session;
+    updates.clear();
+
+    workspace.reload(kept);
+    await settle();
+    expect(identical(kept.session, was), isFalse);
+    // All of it again, of the conversation read anew: as it opened, its
+    // history as it is read.
+    expect(updates, isNotEmpty);
+    expect(updates.map((update) => update.session), everyElement(keptId));
+    expect(updates.first.start, 0);
+    expect(texts(updates.last.items), ['u4', '-', 'u5', '-', 'u6', '-']);
+    // Earlier ones from the conversation read anew.
+    final earlier = await bridge.handle(LinkMethods.earlier, {
+      'session': keptId,
+      'count': 2,
+    });
+    expect(earlier, isNotNull);
+  });
+
+  test('a message from the phone tells the agent so, unseen', () async {
+    await bridge.handle(LinkMethods.send, {'session': id, 'text': 'go'});
+    await settle();
+    final content = (cli.users.last['message']! as Map)['content']! as List;
+    expect(
+      [for (final block in content) (block as Map)['text']],
+      [UserPlace.phone.note, 'go'],
+    );
   });
 
   test('streamed text goes as what was added, and adds up the same', () async {
@@ -561,6 +601,57 @@ void main() {
       ),
     );
   });
+
+  test('a bot\'s files open from its chat: by their full path', () async {
+    final workspace = Workspace();
+    addTearDown(workspace.dispose);
+    final bots = Bots(workspace: workspace, folders: MemoryBotFolders());
+    await bots.start();
+    addTearDown(bots.dispose);
+    final (_, desktop) = await peers();
+    final withBots = WorkspaceBridge(
+      workspace: workspace,
+      peer: desktop,
+      device: () => const DeviceInfo(name: 'PC', kind: 'pc', system: 'Win'),
+      bots: bots,
+    );
+    addTearDown(withBots.dispose);
+    final folder = Directory.systemTemp.createTempSync('bot_files');
+    addTearDown(() => folder.deleteSync(recursive: true));
+    final pdf = File('${folder.path}/简历.pdf')
+      ..writeAsBytesSync([37, 80, 68, 70, 0, 1, 2]);
+    final notes = File('${folder.path}/notes.md')..writeAsStringSync('# Hi');
+    // As its reply links them, though the bot is in no project.
+    expect(
+      await withBots.handle(LinkMethods.read, {
+        'bot': 'assistant',
+        'path': notes.path,
+      }),
+      containsPair('text', '# Hi'),
+    );
+    expect(
+      await withBots.handle(LinkMethods.read, {
+        'bot': 'assistant',
+        'path': pdf.path,
+      }),
+      {'binary': true},
+    );
+    final download = await withBots.handle(LinkMethods.download, {
+      'bot': 'assistant',
+      'path': pdf.path,
+    }) as Map;
+    expect(base64.decode(download['data'] as String), pdf.readAsBytesSync());
+    expect(
+      withBots.handle(LinkMethods.read, {'bot': 'nobody', 'path': pdf.path}),
+      throwsA(
+        isA<LinkRemoteException>().having(
+          (e) => e.code,
+          'code',
+          LinkErrors.notFound,
+        ),
+      ),
+    );
+  });
 }
 
 /// A phone's end and a desktop's, connected.
@@ -572,4 +663,28 @@ Future<(LinkPeer, LinkPeer)> peers() async {
   final accepted = LinkPeer.accept(b);
   final connected = await LinkPeer.connect(a);
   return (connected, await accepted);
+}
+
+/// Lists one kept session in the project.
+class _KeptCatalog implements SessionCatalog {
+  @override
+  Future<List<ProjectRecord>> projects() async => [
+    ProjectRecord(
+      path: '/p',
+      sessions: [
+        SessionRecord(
+          id: 'k',
+          title: 'kept',
+          updatedAt: DateTime(2026),
+          cwd: '/p',
+        ),
+      ],
+    ),
+  ];
+
+  @override
+  Future<List<SessionRecord>> sessionsIn(String cwd) async => const [];
+
+  @override
+  Future<void> delete(String id) async {}
 }

@@ -17,7 +17,6 @@ import 'composer/paste_store.dart';
 import 'mock_conversation.dart';
 import 'open_editor.dart';
 import 'review/change_review.dart';
-import 'review/change_reviews.dart';
 import 'review/review_store.dart';
 
 /// Opens the review of a project's changes (see [ChangeReview.open]).
@@ -39,6 +38,41 @@ class ComposerMessage {
   final List<ImageAttachment> images;
 
   bool get isEmpty => text.trim().isEmpty && mentions.isEmpty && images.isEmpty;
+}
+
+/// Where the user writes to an agent from: told it, unseen, as that
+/// changes (see [ChatSession.send]), for its replies to suit the screen
+/// they are read on. Not its system prompt, which would break its cache.
+enum UserPlace {
+  /// The BaoCode app on their phone: replies read as chat bubbles.
+  phone,
+
+  /// The desktop app's composer.
+  computer;
+
+  /// What the agent is told when the user comes to write from here.
+  String get note => switch (this) {
+    phone =>
+      '<system-reminder>The user is now writing to you from the BaoCode '
+          'app on their phone, and reads your replies there as chat bubbles '
+          'on a small screen. Reply as in a chat: plain, conversational text '
+          'in short paragraphs, the outcome first. A little formatting is '
+          'fine (bold, links, inline code, a short list); no headings, '
+          'tables, long code blocks or wide layouts unless they ask for '
+          'them. This holds until you are told they are back at their '
+          'computer.</system-reminder>',
+    computer =>
+      '<system-reminder>The user is back at their computer, in the BaoCode '
+          'desktop app: reply as you normally would there, Markdown and '
+          'all.</system-reminder>',
+  };
+
+  /// What the agent is told with each message after the first from the
+  /// phone: a word, that the way it replies there holds however long
+  /// the conversation, whatever the model.
+  static const stillOnPhone =
+      '<system-reminder>Still on their phone: reply as in a chat, short, '
+      'little formatting.</system-reminder>';
 }
 
 /// A choice a kernel offers (its model, its mode, the kernel itself): the
@@ -160,6 +194,13 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   void _connect(KernelDescriptor descriptor) {
     _kernel = descriptor.create(kernelContext);
+    if ((_kernel, _openReview, kernelContext.cwd) case (
+      final WatchesEdits kernel,
+      _?,
+      _?,
+    )) {
+      kernel.editWatch = _ReviewWatch(this);
+    }
     _subscription = _kernel.events.listen(_apply);
   }
 
@@ -169,8 +210,6 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       notifyListeners();
       return;
     }
-    // Nothing to show: for the review alone.
-    if (event is FilesMayHaveChanged) return _reviewEvent(event);
     if (event is KernelInfoChanged || _transcript.apply(event)) {
       _cache.clear();
       _timeQuiet();
@@ -184,64 +223,36 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   final ChangeReviewOpener? _openReview;
 
   /// The review of the changes, while it opens; null when there is none.
-  Future<ChangeReviews?>? _reviewOpening;
-  ChangeReviews? _review;
-
-  /// Gives the edits reported a moment to settle before a look.
-  Timer? _lookTimer;
-
-  /// The whole project's next look while the agent works, after what may
-  /// have written files without saying which (a command, a subagent): see
-  /// [_scanSoon].
-  Timer? _scanTimer;
-
-  /// Set from a look's start till [_scanInterval] after its end: looks
-  /// asked for meanwhile wait ([_scanWanted]).
-  bool _scanBusy = false;
-  bool _scanWanted = false;
-  Timer? _scanRest;
-
-  /// How soon after a command the project is looked at, and how far apart
-  /// two such looks are at least: a look reads the whole project (Git's
-  /// status of it), too much for every command of a busy turn.
-  static const _scanDelay = Duration(seconds: 1);
-  static const _scanInterval = Duration(seconds: 5);
+  Future<ChangeReview?>? _reviewOpening;
+  ChangeReview? _review;
 
   /// The review, while it holds: null before it opened, or once it failed
   /// (the changes are then those the kernel reported).
-  ChangeReviews? get _activeReview => switch (_review) {
+  ChangeReview? get _activeReview => switch (_review) {
     final review? when review.failure == null => review,
     _ => null,
   };
 
-  /// Opens the review of the project (each of its folders, in a
-  /// multi-folder workspace), the first time; and snapshots it, so that
-  /// the first message need not wait.
-  void _startReview() {
-    if (_reviewOpening != null) return;
+  /// Opens the review of the agent's changes, the first time.
+  Future<ChangeReview?>? _startReview() {
+    if (_reviewOpening case final opening?) return opening;
     final open = _openReview;
     final root = kernelContext.cwd;
-    if (open == null || root == null) return;
-    _reviewOpening =
-        ChangeReviews.open(
-          [root, ...?kernelContext.workspace?.call()?.folders],
-          open: open,
-          session: kernelContext.resume?.id,
-        ).then((review) {
-          if (review == null) return null;
-          if (_disposed) {
-            review.dispose();
-            return null;
-          }
-          _review = review
-            ..session = sessionId
-            // A message sent while it opened.
-            ..working = isStreaming
-            ..addListener(_reviewChanged);
-          unawaited(review.begin());
-          notifyListeners();
-          return review;
-        }, onError: (Object _) => null);
+    if (open == null || root == null) return null;
+    return _reviewOpening = open(root, session: kernelContext.resume?.id).then((
+      review,
+    ) {
+      if (review == null) return null;
+      if (_disposed) {
+        review.dispose();
+        return null;
+      }
+      _review = review
+        ..session = sessionId
+        ..addListener(_reviewChanged);
+      notifyListeners();
+      return review;
+    }, onError: (Object _) => null);
   }
 
   void _reviewChanged() {
@@ -253,67 +264,12 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     if (review == null) return;
     review.session = sessionId;
     switch (event) {
-      case TurnStarted():
-        review.working = true;
       case TurnEnded():
-        review.working = isStreaming;
-        _lookTimer?.cancel();
-        _stopScans();
-        unawaited(review.observe());
-      // Only while it works: between turns, what changes is not the agent's.
-      case FilesMayHaveChanged() when isStreaming:
-        _scanSoon(review);
+        unawaited(review.look());
       case FileEdited(:final change, :final original):
         review.report(change, original: original);
-        _lookTimer?.cancel();
-        _lookTimer = Timer(
-          const Duration(milliseconds: 400),
-          () => unawaited(review.observe(full: false)),
-        );
       default:
     }
-  }
-
-  /// A look at the whole project, soon: [_scanDelay] after it is asked
-  /// for, then no other till [_scanInterval] after it ends, those asked for
-  /// meanwhile taken in by one look then.
-  void _scanSoon(ChangeReviews review) {
-    if (_scanTimer != null) return;
-    if (_scanBusy) {
-      _scanWanted = true;
-      return;
-    }
-    _scanTimer = Timer(_scanDelay, () => unawaited(_scan(review)));
-  }
-
-  Future<void> _scan(ChangeReviews review) async {
-    _scanTimer = null;
-    if (_disposed || !isStreaming) return;
-    _scanBusy = true;
-    try {
-      await review.observe();
-    } finally {
-      if (!_disposed && _scanBusy) {
-        _scanRest = Timer(_scanInterval, () {
-          _scanRest = null;
-          _scanBusy = false;
-          if (_scanWanted) {
-            _scanWanted = false;
-            _scanSoon(review);
-          }
-        });
-      }
-    }
-  }
-
-  /// No more looks of the turn's: its end looks at everything.
-  void _stopScans() {
-    _scanTimer?.cancel();
-    _scanTimer = null;
-    _scanRest?.cancel();
-    _scanRest = null;
-    _scanBusy = false;
-    _scanWanted = false;
   }
 
   Timer? _quietTimer;
@@ -630,6 +586,22 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     }
     return null;
   }
+
+  /// The id of the last item a fork made now would hold (see [fork]): all
+  /// of it but a turn under way. Null with nothing before that, or where
+  /// that item has no id of its own.
+  String? get forkEndsAt {
+    final at = switch (_transcript.activeTurn) {
+      final turn? => _transcript.indexOf(turn) ?? _transcript.length,
+      null => _transcript.length,
+    };
+    return at == 0 ? null : _transcript.idAt(at - 1);
+  }
+
+  /// The id of the item at [index], as its kernel gave it; null for one
+  /// of an earlier history read whole (see [Transcript.history]).
+  String? itemIdAt(int index) =>
+      index < _transcript.length ? _transcript.idAt(index) : null;
 
   // --- Projections ------------------------------------------------------------
 
@@ -1073,7 +1045,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
 
   /// The review of the agent's changes while it holds (the editor keeps
   /// and undoes them part by part with it); null without one.
-  ChangeReviews? get changeReview => _activeReview;
+  ChangeReview? get changeReview => _activeReview;
 
   final Map<Symbol, Object> _cache = {};
   int _cacheVersion = -1;
@@ -1114,6 +1086,25 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   OpenEditor? _toldEditor;
   bool _toldOfEditor = false;
 
+  /// Where the user was last said to write from, once said (see
+  /// [_placeNotes]).
+  UserPlace? _toldPlace;
+
+  /// What the agent is told of where the user writes [from]: on the phone
+  /// still, a word ([UserPlace.stillOnPhone]); at the computer still,
+  /// nothing, nor of the computer before any other (as its system prompt
+  /// has it); nothing for a message the app sent.
+  List<String> _placeNotes(UserPlace? from) {
+    if (from == UserPlace.phone && _toldPlace == UserPlace.phone) {
+      return const [UserPlace.stillOnPhone];
+    }
+    if (from == null || from == _toldPlace) return const [];
+    final before = _toldPlace;
+    _toldPlace = from;
+    if (before == null && from == UserPlace.computer) return const [];
+    return [from.note];
+  }
+
   /// What the agent is told of [editor], the file open beside the chat now:
   /// nothing where it was told so already, nor of no file before any.
   List<String> _editorNotes(OpenEditor? editor) {
@@ -1130,11 +1121,16 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// [awaitingPlan]), it says what should change in it.
   ///
   /// [editor] gives the file open in the editor beside the chat, where
-  /// there is one; the agent is told of it as it changes.
+  /// there is one; the agent is told of it as it changes. [from], where
+  /// the user wrote it (null for what the app sends): the agent is told as
+  /// that changes ([UserPlace]). [notes] go to the agent with it, not
+  /// shown (each a `<system-reminder>`).
   void send(
     ComposerMessage message, {
     bool now = false,
     OpenEditor? Function()? editor,
+    UserPlace? from,
+    List<String> notes = const [],
   }) {
     if (message.isEmpty || !canSend) return;
     final turn = KernelTurn(
@@ -1148,24 +1144,12 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       mentions: message.mentions,
       images: acceptsImages ? message.images : const [],
       now: now,
-      notes: editor == null ? const [] : _editorNotes(editor()),
+      notes: [
+        ...notes,
+        ..._placeNotes(from),
+        if (editor != null) ..._editorNotes(editor()),
+      ],
     );
-    // A turn about to start, not one queued behind another: the project
-    // is snapshotted, so that what the agent does is told apart. Not
-    // waited on: the agent takes a while before it edits anything, and
-    // the looks its edits bring on are queued behind this one. (A review
-    // still opening takes its own snapshot as it opens.)
-    if (_review case final review? when !isStreaming) {
-      review.working = true;
-      // Taken late, it would count some of the agent's work as what was
-      // there: the review gives way to what the kernel reports.
-      unawaited(
-        review.begin().timeout(
-          const Duration(seconds: 30),
-          onTimeout: () => review.abandon('The snapshot took too long.'),
-        ),
-      );
-    }
     _kernel.send(turn);
   }
 
@@ -1219,7 +1203,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   /// Resends the user message at [index] as [message]: everything after it
   /// is discarded and the turn runs again from there.
   @override
-  void editMessage(int index, ComposerMessage message) {
+  void editMessage(int index, ComposerMessage message, {UserPlace? from}) {
     if (_kernel case final RewindsConversation kernel
         when !message.isEmpty && itemAt(index) is UserMessageItem) {
       stop();
@@ -1242,7 +1226,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
               lastSeen: lastSeen,
             )
             .then((rewound) {
-              if (rewound && !_disposed) send(message);
+              if (rewound && !_disposed) send(message, from: from);
             }),
       );
     }
@@ -1279,8 +1263,6 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   void dispose() {
     _disposed = true;
     _quietTimer?.cancel();
-    _lookTimer?.cancel();
-    _stopScans();
     _review
       ?..removeListener(_reviewChanged)
       ..dispose();
@@ -1288,4 +1270,24 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     _kernel.dispose();
     super.dispose();
   }
+}
+
+/// What [session]'s agent tells of its edits as it makes them, for the
+/// review of its changes (opened for them, where it was not yet).
+class _ReviewWatch implements EditWatch {
+  _ReviewWatch(this.session);
+
+  final ChatSession session;
+
+  Future<ChangeReview?> _review() async {
+    final review = await session._startReview();
+    review?.session = session.sessionId;
+    return review;
+  }
+
+  @override
+  Future<void> beforeEdit(String path) async => (await _review())?.before(path);
+
+  @override
+  Future<void> afterEdit(String path) async => (await _review())?.after(path);
 }

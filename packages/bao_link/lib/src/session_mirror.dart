@@ -77,10 +77,15 @@ class LinkSessionSlimmer {
 class LinkSessionMirror {
   final Map<String, _Mirrored> _sessions = {};
 
+  /// Those closed since they were last opened: what still comes of them
+  /// was sent before the desktop heard, and is let go.
+  final Set<String> _closed = {};
+
   /// The whole update an `open` answered with.
   void opened(Map<String, Object?> update) {
     final session = update['session'];
     if (session is! String) return;
+    _closed.remove(session);
     _sessions[session] = _Mirrored(
       [...?(update['items'] as List?)],
       {for (final key in LinkSessionWire.rest) key: update[key]},
@@ -93,7 +98,15 @@ class LinkSessionMirror {
     if (mirrored != null) mirrored.items.insertAll(0, items);
   }
 
-  void closed(String session) => _sessions.remove(session);
+  void closed(String session) {
+    _sessions.remove(session);
+    _closed.add(session);
+  }
+
+  /// Whether [update] is of a session closed, sent before the desktop
+  /// heard: to let go, not to apply nor to open the session again for.
+  bool stale(Map<String, Object?> update) =>
+      _closed.contains(update['session']);
 
   /// The whole update [update] makes: what the phone used to be sent, its
   /// items from the first that changed. Null when it does not fit the

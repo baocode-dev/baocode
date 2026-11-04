@@ -669,7 +669,8 @@ void main() {
         ],
       },
     });
-    await tester.pump();
+    // Shown with the next of the turn's rebuilds (at most every 66 ms).
+    await tester.pump(const Duration(milliseconds: 100));
     expect(tester.widget<PlanCard>(card).item.status, PlanStatus.awaiting);
     expect(session.awaitingPlan?.path, plan);
     // Not started while the turn that put it goes on.
@@ -1438,10 +1439,8 @@ void main() {
     expect(find.text('Conversation'), findsOneWidget);
 
     // Away to another conversation and back: still open, as it was.
-    Widget screen(Widget home) => MaterialApp(
-      theme: buildAppTheme(),
-      home: home,
-    );
+    Widget screen(Widget home) =>
+        MaterialApp(theme: buildAppTheme(), home: home);
     await tester.pumpWidget(screen(const SizedBox()));
     await tester.pumpWidget(screen(ChatScreen(session: session)));
     await tester.pump();
@@ -1488,6 +1487,61 @@ void main() {
     // background task.
     expect(find.text('Compare the games'), findsNWidgets(2));
     expect(find.text('· Explore · 1m 14s · 1 tool · 9.1k tokens'), findsOne);
+  });
+
+  testWidgets("the mouse's back button leaves a subagent, its forward "
+      'button goes in again (#516)', (tester) async {
+    final (:session, :cli) = await pumpScripted(tester);
+    cli
+      ..push(
+        assistant(null, 'toolu_a', {
+          'name': 'Agent',
+          'input': {
+            'description': 'Compare the games',
+            'subagent_type': 'Explore',
+            'prompt': 'Compare the three games.',
+          },
+        }),
+      )
+      ..push({
+        'type': 'system',
+        'subtype': 'task_started',
+        'task_id': 't1',
+        'tool_use_id': 'toolu_a',
+        'description': 'Compare the games',
+        'task_type': 'local_agent',
+        'is_backgrounded': false,
+      });
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Compare the games'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Conversation'), findsOneWidget);
+
+    Future<void> side(int buttons) async {
+      await tester.tapAt(
+        tester.getCenter(find.byType(ChatScreen)),
+        buttons: buttons,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+    }
+
+    await side(kBackMouseButton);
+    expect(find.text('Conversation'), findsNothing);
+    expect(session.openAgents, isEmpty);
+    // Nothing further back in the conversation: nothing happens.
+    await side(kBackMouseButton);
+    expect(find.byType(ChatComposer), findsOneWidget);
+
+    await side(kForwardMouseButton);
+    expect(find.text('Conversation'), findsOneWidget);
+    expect(session.openAgents, hasLength(1));
+    // Nothing further in.
+    await side(kForwardMouseButton);
+    expect(session.openAgents, hasLength(1));
   });
 
   testWidgets('its turn over, an agent with a subagent still running in the '

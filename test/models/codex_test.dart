@@ -246,6 +246,74 @@ void main() {
       expect(usage.credits, '12.5');
       // The week used up: until it starts over.
       expect(usage.limitedUntil, now.add(const Duration(days: 2)));
+      expect(usage.resetCredits, isNull);
+      // Worth a reset credit: not five hours, which start over soon.
+      expect(usage.usedUp(now), isTrue);
+    });
+
+    test('reset credits: their count, those that can be used', () {
+      CodexUsage usage(int minutes) => CodexUsage.fromJson({
+        'rate_limit': {
+          'primary_window': {
+            'used_percent': 100,
+            'limit_window_seconds': minutes * 60,
+            'reset_after_seconds': 600,
+          },
+        },
+        'rate_limit_reset_credits': {
+          'available_count': 2,
+          'applicable_available_count': 0,
+        },
+      }, now);
+      expect(usage(300).resetCredits, 2);
+      expect(usage(300).usedUp(now), isFalse);
+      expect(usage(300).usedUp(now, fiveHours: true), isTrue);
+      expect(usage(43200).usedUp(now), isTrue);
+      expect(usage(300).withResetCredits(1).resetCredits, 1);
+
+      final later = now.add(const Duration(days: 3)).toUtc();
+      final sooner = now.add(const Duration(days: 1)).toUtc();
+      final credits = CodexResetCredit.listFromJson({
+        'available_count': 2,
+        'credits': [
+          {
+            'id': 'c1',
+            'reset_type': 'codex_rate_limits',
+            'status': 'available',
+            'granted_at': '2026-10-01T00:00:00Z',
+            'consumable_until': later.toIso8601String(),
+          },
+          {
+            'id': 'c2',
+            'reset_type': 'codex_rate_limits',
+            'status': 'available',
+            'expires_at': sooner.toIso8601String(),
+          },
+          {
+            'id': 'used',
+            'reset_type': 'codex_rate_limits',
+            'status': 'redeemed',
+            'expires_at': later.toIso8601String(),
+          },
+          {
+            'id': 'other',
+            'reset_type': 'something_else',
+            'status': 'available',
+          },
+          {
+            'id': 'expired',
+            'reset_type': 'codex_rate_limits',
+            'status': 'available',
+            'expires_at': now
+                .subtract(const Duration(hours: 1))
+                .toUtc()
+                .toIso8601String(),
+          },
+        ],
+      }, now);
+      expect(credits.map((c) => c.id), ['c2', 'c1']);
+      expect(credits.last.expiresAt, later);
+      expect(credits.last.grantedAt, DateTime.utc(2026, 10));
     });
 
     test('as a reply\'s headers tell, over what was known', () {
@@ -535,6 +603,158 @@ void main() {
       await openai.close();
     });
 
+    test('imports with consent, deduplicates and delays refresh', () async {
+      final access = jwt({
+        'exp':
+            DateTime.now()
+                .add(const Duration(hours: 1))
+                .millisecondsSinceEpoch ~/
+            1000,
+        'https://api.openai.com/auth': {'chatgpt_account_id': 'ws-a'},
+      });
+      final contents = jsonEncode({
+        'auth_mode': 'chatgpt',
+        'OPENAI_API_KEY': null,
+        'tokens': {
+          'id_token': idToken(),
+          'access_token': access,
+          'refresh_token': 'import-secret',
+          'account_id': 'ws-a',
+        },
+      });
+      await expectLater(
+        accounts.importAccountsJson('cx', contents, confirmed: false),
+        throwsA(isA<CodexException>()),
+      );
+      expect(provider().accounts, [a, b]);
+      final results = await accounts.importAccountsJson(
+        'cx',
+        contents,
+        confirmed: true,
+      );
+      final imported = results.single.account!;
+      expect(await accounts.accessToken(provider(), imported), access);
+      expect(openai.requests, isEmpty);
+      expect(
+        await secrets.read(ModelProvider.accountRefFor('cx', imported.id)),
+        'import-secret',
+      );
+      openai.reply = (_, _, _) => tokens('new-access', refresh: 'rotated');
+      expect(
+        await accounts.accessToken(provider(), imported, rejected: access),
+        'new-access',
+      );
+      final again = await accounts.importAccountsJson(
+        'cx',
+        contents,
+        confirmed: true,
+      );
+      expect(again.single.account!.id, imported.id);
+      expect(results.single.known, isFalse);
+      expect(again.single.known, isTrue);
+      expect(
+        provider().accounts.where((a) => a.id == imported.id),
+        hasLength(1),
+      );
+      expect(
+        await secrets.read(ModelProvider.accountRefFor('cx', imported.id)),
+        'rotated',
+      );
+      expect(await accounts.accessToken(provider(), imported), 'new-access');
+    });
+
+    test('imports CPA and Sub2API entries with individual failures', () async {
+      final results = await accounts.importAccountsJson(
+        'cx',
+        jsonEncode([
+          {
+            'type': 'codex',
+            'id_token': idToken(),
+            'refresh_token': 'cpa-refresh',
+          },
+          {
+            'platform': 'openai',
+            'type': 'oauth',
+            'credentials': {
+              'email': 'a@example.com',
+              'id_token': idToken(account: 'ws-team'),
+              'chatgpt_account_id': 'ws-team',
+              'refresh_token': 'sub-refresh',
+            },
+          },
+          {'platform': 'anthropic', 'type': 'oauth', 'credentials': {}},
+          {'type': 'codex', 'access_token': 'secret-access'},
+        ]),
+        confirmed: true,
+      );
+      expect(results.map((r) => r.account?.accountId), [
+        'ws-a',
+        'ws-team',
+        null,
+        null,
+      ]);
+      expect(results[2].error, isNotNull);
+      expect(results[3].error, isNot(contains('secret-access')));
+      expect(provider().accounts, hasLength(4));
+      expect(openai.requests, isEmpty);
+      final imported = results.first.account!;
+      expect(
+        await secrets.read(ModelProvider.accountRefFor('cx', imported.id)),
+        'cpa-refresh',
+      );
+      openai.reply = (_, _, _) => tokens('refreshed', refresh: 'next');
+      expect(await accounts.accessToken(provider(), imported), 'refreshed');
+      expect(
+        form(openai.to('/oauth/token').single.body)['refresh_token'],
+        'cpa-refresh',
+      );
+    });
+
+    test(
+      'invalid imports do not expose credentials or change accounts',
+      () async {
+        await expectLater(
+          accounts.importAccountsJson(
+            'cx',
+            'secret-invalid-json',
+            confirmed: true,
+          ),
+          throwsA(
+            isA<CodexException>().having(
+              (e) => e.message,
+              'message',
+              isNot(contains('secret')),
+            ),
+          ),
+        );
+        for (final json in [
+          {'OPENAI_API_KEY': 'secret-key'},
+          {
+            'tokens': {'refresh_token': 'secret-refresh'},
+          },
+          {
+            'tokens': {
+              'id_token': idToken(),
+              'access_token': idToken(),
+              'refresh_token': 'secret-refresh',
+              'account_id': 'wrong',
+            },
+          },
+        ]) {
+          final results = await accounts.importAccountsJson(
+            'cx',
+            jsonEncode(json),
+            confirmed: true,
+          );
+          expect(results.single.account, isNull);
+          expect(results.single.error, isNotNull);
+          expect(results.single.error, isNot(contains('secret')));
+        }
+        expect(provider().accounts, [a, b]);
+        expect(openai.requests, isEmpty);
+      },
+    );
+
     test('a token is refreshed once at a time, its successor kept', () async {
       var n = 0;
       openai.reply = (path, _, body) {
@@ -632,6 +852,188 @@ void main() {
       expect(newer.headers['user-agent'], codexUserAgent('0.170.0'));
     });
 
+    group('reset credits', () {
+      const usagePath = '/backend-api/wham/usage';
+      const listPath = '/backend-api/wham/rate-limit-reset-credits';
+      const consumePath = '/backend-api/wham/rate-limit-reset-credits/consume';
+      late int credits;
+      late bool weekUsedUp;
+      late bool fiveHoursUsedUp;
+      var consumeStatus = 200;
+
+      String usage() => jsonEncode({
+        'rate_limit': {
+          'limit_reached': weekUsedUp || fiveHoursUsedUp,
+          'primary_window': {
+            'used_percent': fiveHoursUsedUp ? 100 : 10,
+            'limit_window_seconds': 18000,
+            'reset_after_seconds': 600,
+          },
+          'secondary_window': {
+            'used_percent': weekUsedUp ? 100 : 0,
+            'limit_window_seconds': 604800,
+            'reset_after_seconds': 3 * 86400,
+          },
+        },
+        'rate_limit_reset_credits': {'available_count': credits},
+      });
+
+      String list() => jsonEncode({
+        'available_count': credits,
+        'credits': [
+          for (var i = 0; i < credits; i++)
+            {
+              'id': 'c$i',
+              'reset_type': 'codex_rate_limits',
+              'status': 'available',
+              'consumable_until': DateTime.now()
+                  .add(Duration(days: i + 1))
+                  .toUtc()
+                  .toIso8601String(),
+            },
+        ],
+      });
+
+      Answer? backend(String path) => switch (path) {
+        '/oauth/token' => tokens('access'),
+        usagePath => (200, const {}, [usage()]),
+        listPath => (200, const {}, [list()]),
+        consumePath when consumeStatus != 200 => (
+          consumeStatus,
+          const {},
+          ['{"error":{"message":"no credit"}}'],
+        ),
+        consumePath => () {
+          credits--;
+          weekUsedUp = false;
+          fiveHoursUsedUp = false;
+          return (
+            200,
+            const <String, String>{},
+            ['{"code":"ok","windows_reset":2}'],
+          );
+        }(),
+        _ => null,
+      };
+
+      setUp(() {
+        credits = 2;
+        weekUsedUp = true;
+        fiveHoursUsedUp = false;
+        consumeStatus = 200;
+        openai.reply = (path, _, _) =>
+            backend(path) ?? (404, const {}, const []);
+      });
+
+      Future<void> settle() async {
+        for (var i = 0; i < 20; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      }
+
+      test('listed as their count is learned; one used by hand', () async {
+        await accounts.refreshUsage(provider());
+        await settle();
+        expect(accounts.usage('cx', 'a')!.resetCredits, 2);
+        expect(accounts.resetCredits('cx', 'a')!.map((c) => c.id), [
+          'c0',
+          'c1',
+        ]);
+        // Off: none used by itself.
+        expect(openai.to(consumePath), isEmpty);
+        expect(accounts.limitedUntil('cx', 'a'), isNotNull);
+
+        await accounts.useResetCredit(provider(), 'a');
+        final sent = openai.to(consumePath).single;
+        expect(sent.headers['authorization'], 'Bearer access');
+        expect(sent.headers['chatgpt-account-id'], 'ws-a');
+        expect(
+          (jsonDecode(sent.body) as Map)['redeem_request_id'],
+          matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-')),
+        );
+        await settle();
+        expect(accounts.limitedUntil('cx', 'a'), isNull);
+        expect(accounts.usage('cx', 'a')!.resetCredits, 1);
+        expect(accounts.resetCredits('cx', 'a'), hasLength(1));
+        expect(accounts.resetting('cx', 'a'), isFalse);
+      });
+
+      test('one that could not be used says why', () async {
+        consumeStatus = 400;
+        await expectLater(
+          accounts.useResetCredit(provider(), 'a'),
+          throwsA(isA<CodexException>()),
+        );
+        expect(accounts.error('cx', 'a'), contains('no credit'));
+      });
+
+      test('on: one used by itself once the week is used up', () async {
+        await providers.save(provider().copyWith(autoResetCredits: true));
+        await accounts.refreshUsage(provider());
+        await settle();
+        // Once each: the next not till its quota shows started over.
+        expect(openai.to(consumePath), hasLength(2));
+        expect(accounts.limitedUntil('cx', 'a'), isNull);
+        expect(accounts.usage('cx', 'a')!.resetCredits, 0);
+      });
+
+      test('five hours used up: one used only if they are to be', () async {
+        weekUsedUp = false;
+        fiveHoursUsedUp = true;
+        await providers.save(provider().copyWith(autoResetCredits: true));
+        await accounts.refreshUsage(provider());
+        await settle();
+        expect(openai.to(consumePath), isEmpty);
+
+        await providers.save(provider().copyWith(resetCreditsFiveHours: true));
+        await accounts.refreshUsage(provider());
+        await settle();
+        expect(openai.to(consumePath), hasLength(2));
+        expect(accounts.limitedUntil('cx', 'a'), isNull);
+      });
+
+      test('on: a request out of quota goes on, a credit used', () async {
+        await providers.save(provider().copyWith(autoResetCredits: true));
+        openai.reply = (path, headers, _) {
+          if (backend(path) case final answer?) return answer;
+          return weekUsedUp
+              ? (
+                  429,
+                  const {},
+                  [
+                    jsonEncode({
+                      'error': {
+                        'type': 'usage_limit_reached',
+                        'resets_in_seconds': 3 * 86400,
+                      },
+                    }),
+                  ],
+                )
+              : (200, const {}, _stream);
+        };
+        final (status, _) = await accounts.post(
+          provider(),
+          const CodexEndpoints().responses.replace(
+            scheme: 'http',
+            host: '127.0.0.1',
+            port: Uri.parse(openai.base).port,
+            path: '/backend-api/codex/responses',
+          ),
+          utf8.encode('{}'),
+          contentType: ContentType.json,
+        );
+        expect(status, 200);
+        expect(openai.to(consumePath), hasLength(1));
+        // Went on the account the credit was used for.
+        expect(
+          openai
+              .to('/backend-api/codex/responses')
+              .map((r) => r.headers['chatgpt-account-id']),
+          ['ws-a', 'ws-a'],
+        );
+      });
+    });
+
     group('usage refresh', () {
       const usagePath = '/backend-api/wham/usage';
       late DateTime clock;
@@ -658,6 +1060,93 @@ void main() {
         openai.reply = (path, _, _) =>
             path == '/oauth/token' ? tokens('access') : quota(30);
       });
+
+      test(
+        'refreshing one account leaves every other account untouched',
+        () async {
+          accounts.markError(provider(), a, 'Keep this account error.');
+          await accounts.refreshAccountUsage(provider(), 'b');
+          expect(
+            openai.to(usagePath).map((r) => r.headers['chatgpt-account-id']),
+            ['ws-b'],
+          );
+          expect(openai.to('/oauth/token'), hasLength(1));
+          expect(
+            form(openai.to('/oauth/token').single.body)['refresh_token'],
+            'refresh-b',
+          );
+          expect(accounts.usage('cx', 'a'), isNull);
+          expect(accounts.error('cx', 'a'), 'Keep this account error.');
+          expect(accounts.usage('cx', 'b')!.mostUsed, 30);
+          expect(
+            await secrets.read(ModelProvider.accountRefFor('cx', 'a')),
+            'refresh-a',
+          );
+          expect(provider().accounts, [a, b]);
+        },
+      );
+
+      test(
+        'a refused refresh token affects only the selected account',
+        () async {
+          openai.reply = (_, _, _) =>
+              (401, const {}, ['{"error":{"message":"refresh_token_reused"}}']);
+          await accounts.refreshAccountUsage(provider(), 'b');
+          expect(accounts.signedOut('cx', 'b'), isTrue);
+          expect(accounts.error('cx', 'b'), contains('refresh_token_reused'));
+          expect(accounts.signedOut('cx', 'a'), isFalse);
+          expect(accounts.error('cx', 'a'), isNull);
+          expect(accounts.available(provider()), [a]);
+          expect(openai.to('/oauth/token'), hasLength(1));
+          expect(
+            form(openai.to('/oauth/token').single.body)['refresh_token'],
+            'refresh-b',
+          );
+          expect(openai.to(usagePath), isEmpty);
+          expect(
+            await secrets.read(ModelProvider.accountRefFor('cx', 'a')),
+            'refresh-a',
+          );
+        },
+      );
+
+      test('a missing account does not cause any request', () async {
+        await accounts.refreshAccountUsage(provider(), 'missing');
+        expect(openai.requests, isEmpty);
+      });
+
+      test('single account refresh honors the cache unless forced', () async {
+        await accounts.refreshAccountUsage(provider(), 'a', force: false);
+        await accounts.refreshAccountUsage(provider(), 'a', force: false);
+        expect(openai.to(usagePath), hasLength(1));
+        await accounts.refreshAccountUsage(provider(), 'a');
+        expect(openai.to(usagePath), hasLength(2));
+        expect(accounts.usage('cx', 'b'), isNull);
+      });
+
+      test(
+        'single and all account refreshes share an in-flight request',
+        () async {
+          final received = Completer<void>();
+          final answer = Completer<Answer>();
+          openai.delayedReply = (path, _, _) {
+            if (path == '/oauth/token') return tokens('access');
+            if (!received.isCompleted) received.complete();
+            return answer.future;
+          };
+          final first = accounts.refreshAccountUsage(provider(), 'b');
+          await received.future;
+          final second = accounts.refreshAccountUsage(provider(), 'b');
+          final all = accounts.refreshUsage(provider());
+          answer.complete(quota(30));
+          await Future.wait([first, second, all]);
+          expect(
+            openai.to(usagePath).map((r) => r.headers['chatgpt-account-id']),
+            unorderedEquals(['ws-a', 'ws-b']),
+          );
+          expect(openai.to('/oauth/token'), hasLength(2));
+        },
+      );
 
       test(
         'concurrent forced and automatic refreshes share each account',

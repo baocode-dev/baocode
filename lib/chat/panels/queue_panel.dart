@@ -35,9 +35,9 @@ class QueuePanel extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.bubbleFill,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderStrong),
+        border: Border.all(color: AppColors.bubbleBorder()),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -126,7 +126,7 @@ class _QueuedRow extends StatelessWidget {
         Container(
           padding: const EdgeInsets.fromLTRB(4, 3, 4, 3),
           decoration: BoxDecoration(
-            color: hovered ? AppColors.hover : null,
+            color: hovered ? AppColors.bubbleHover : null,
             borderRadius: BorderRadius.circular(5),
           ),
           child: Row(
@@ -220,7 +220,7 @@ class _Action extends StatelessWidget {
               padding: const EdgeInsets.all(3),
               margin: const EdgeInsets.only(left: 2),
               decoration: BoxDecoration(
-                color: hovered ? AppColors.hover : null,
+                color: hovered ? AppColors.bubbleHover : null,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Icon(icon, size: 14, color: AppColors.textMuted),

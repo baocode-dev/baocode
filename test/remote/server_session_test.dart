@@ -6,9 +6,11 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:bao_remote/client.dart';
+import 'package:bao_remote/server.dart' show RemoteServer, ServerSession;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -130,5 +132,69 @@ void main() {
       await second.channel.ended.timeout(const Duration(seconds: 10)),
       ChannelEnd.gone,
     );
+  });
+
+  test('as on Windows: the daemon listens on a port of the loopback, said '
+      'in a file with a token, and only one that says it is let in; the '
+      'link lost, the next carries on', () async {
+    final run = p.join(dir.path, 'tcp-run');
+    final session = ServerSession(
+      id: 'c0ffee0123456789',
+      runDirectory: run,
+      heartbeat: const Duration(seconds: 1),
+      tcp: true,
+    );
+    final ended = session.runDaemon(
+      serve: (peer) => RemoteServer(
+        peer,
+        dataDir: p.join(dir.path, 'tcp-data'),
+        version: 'test',
+      ),
+    );
+    final file = File(session.portPath);
+    final deadline = DateTime.now().add(const Duration(seconds: 10));
+    while (!file.existsSync() && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    final [port, token] = file.readAsStringSync().split(' ');
+    expect(token, matches(RegExp(r'^[0-9a-f]{32}$')));
+
+    Future<Socket> dial(String said) async {
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        int.parse(port),
+      );
+      socket.add(utf8.encode('$said\n'));
+      return socket;
+    }
+
+    // Another's: closed, never served.
+    final stranger = await dial('not-the-token');
+    expect(await stranger.fold<int>(0, (n, data) => n + data.length), 0);
+
+    final channel = ResumableChannel(heartbeat: const Duration(seconds: 1));
+    Future<void> link() async {
+      final socket = await dial(token);
+      unawaited(
+        channel.attach(
+          ChannelLink(input: socket, write: socket.add, close: socket.destroy),
+        ),
+      );
+    }
+
+    await link();
+    final client = RemoteClient(RpcPeer(channel.messages, channel.send));
+    await client.initialize().timeout(const Duration(seconds: 30));
+    final relinked = channel.linkChanges
+        .firstWhere((up) => !up)
+        .then((_) => channel.linkChanges.firstWhere((up) => up));
+    channel.detach();
+    await link();
+    expect(await relinked.timeout(const Duration(seconds: 10)), isTrue);
+    await client.initialize().timeout(const Duration(seconds: 30));
+    await client.shutdown();
+    expect(await ended.timeout(const Duration(seconds: 10)), isTrue);
+    // Gone with it.
+    expect(file.existsSync(), isFalse);
   });
 }

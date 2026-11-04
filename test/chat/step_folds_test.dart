@@ -236,6 +236,40 @@ void main() {
     });
   });
 
+  test('a question the user answered breaks a run, and shows out of a '
+      'closed turn, with what they said', () {
+    const asked = ToolCallItem(
+      kind: ToolKind.question,
+      target: 'Color',
+      input: {
+        'questions': [
+          {'question': 'Red or blue?', 'header': 'Color'},
+        ],
+        'answers': {'Red or blue?': 'Red'},
+      },
+    );
+    final turn = <ChatItem>[
+      _prompt(),
+      _read,
+      _grep,
+      asked,
+      _read,
+      _grep,
+      _answer,
+    ];
+    expect(_folds(turn), ['work 1-6', 'steps 1-3', 'steps 4-6']);
+    final folds = _fold(turn);
+    expect(folds.rowAt(3, asked, (_) => false).item, isTrue);
+    // Still being asked: in the panel over the composer, not out of it.
+    final asking = [...turn]
+      ..[3] = const ToolCallItem(
+        kind: ToolKind.question,
+        target: 'Color',
+        status: ToolStatus.running,
+      );
+    expect(_fold(asking).rowAt(3, asking[3], (_) => false).item, isFalse);
+  });
+
   group('thoughts one after another', () {
     const empty = ThinkingItem(text: '', tokens: 0, seconds: 12);
     const titled = ThinkingItem(

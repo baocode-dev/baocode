@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 
 import '../customize/customization_disk.dart';
 import 'ssh_host.dart';
+import 'remote_location.dart';
 
 /// The files of [host], where its agents run and read their
 /// customizations: through its server, on the connection already made.
@@ -25,7 +26,7 @@ class RemoteCustomizationDisk implements CustomizationDisk {
   bool get isLocal => false;
 
   @override
-  p.Context get paths => p.posix;
+  p.Context get paths => host.paths;
 
   /// `CLAUDE_CONFIG_DIR` in the login shell's environment there, else
   /// `~/.claude`; looked up again after a failure.
@@ -43,13 +44,22 @@ class RemoteCustomizationDisk implements CustomizationDisk {
   Future<String> _findConfigDir() async {
     final client = await _client;
     try {
-      final output = await client.run('printenv', const ['CLAUDE_CONFIG_DIR']);
+      // Windows has no printenv.
+      final output = client.hello?.platform.os == 'win'
+          ? await client.run('powershell', const [
+              '-NoProfile',
+              '-NonInteractive',
+              '-Command',
+              r'$env:CLAUDE_CONFIG_DIR',
+            ])
+          : await client.run('printenv', const ['CLAUDE_CONFIG_DIR']);
       final dir = output.stdout.trim();
       if (output.exitCode == 0 && dir.isNotEmpty) return dir;
     } on RemoteException {
       // No printenv there: the default.
     }
-    return p.posix.join(client.hello?.home ?? '', '.claude');
+    final home = client.hello?.home ?? '';
+    return RemoteLocation.pathsFor(home).join(home, '.claude');
   }
 
   @override
@@ -77,7 +87,10 @@ class RemoteCustomizationDisk implements CustomizationDisk {
   ) async {
     final client = await _client;
     final names = await client.entries(directory);
-    final paths = [for (final name in names) p.posix.join(directory, name)];
+    final paths = [
+      for (final name in names)
+        RemoteLocation.pathsFor(directory).join(directory, name),
+    ];
     final types = await Future.wait(paths.map(client.stat));
     return [
       for (final (i, path) in paths.indexed)
@@ -103,7 +116,7 @@ class RemoteCustomizationDisk implements CustomizationDisk {
       await client.write(_root, path, text);
       return;
     }
-    await _makeFolders(client, p.posix.dirname(path));
+    await _makeFolders(client, RemoteLocation.pathsFor(path).dirname(path));
     await client.writeBytes(_root, path, utf8.encode(text));
   }
 
@@ -113,7 +126,7 @@ class RemoteCustomizationDisk implements CustomizationDisk {
     var dir = folder;
     while (await client.stat(dir) == null) {
       missing.add(dir);
-      final parent = p.posix.dirname(dir);
+      final parent = RemoteLocation.pathsFor(dir).dirname(dir);
       if (parent == dir) break;
       dir = parent;
     }

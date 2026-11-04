@@ -7,6 +7,9 @@
 //
 //   dart run tool/build_macos.dart                build, then package
 //   dart run tool/build_macos.dart --skip-build   package what is built
+//   dart run tool/build_macos.dart --build-only   build, not package (CI,
+//                                                while the remote server is
+//                                                still building)
 //   dart run tool/build_macos.dart --remote-built build the app, take the
 //                                                remote server already in
 //                                                build/remote/ (CI builds
@@ -117,6 +120,10 @@ Future<void> main(List<String> arguments) async {
     );
   }
   final skipBuild = arguments.contains('--skip-build');
+  final buildOnly = arguments.contains('--build-only');
+  if (skipBuild && buildOnly) {
+    _fail('--skip-build and --build-only leave nothing to do.');
+  }
   final channel = arguments.contains('--channel');
   final edition = channel ? '-channel' : '';
   final releaseAt = arguments.indexOf('--remote-release');
@@ -157,6 +164,10 @@ Future<void> main(List<String> arguments) async {
     app.copySync('${symbols.path}/App.macos.symbols');
     // -x: the local symbols, the Dart code's (as flutter strips it).
     await _run('strip', ['-x', app.path, '-o', app.path], root.path);
+    if (buildOnly) {
+      _step('Built: --skip-build packages it');
+      return;
+    }
   } else {
     _step('Using the app already built');
   }
@@ -221,7 +232,11 @@ Future<void> main(List<String> arguments) async {
 
   final createDmg = await _findCreateDmg();
   installers.createSync(recursive: true);
-  final made = <File>[];
+  // Each image notarised, stapled and zipped while the next is made, and
+  // the notarisations side by side: Apple takes minutes over each. The
+  // images themselves one after the other: create-dmg lays out a window in
+  // Finder for each.
+  final finishing = <Future<List<File>>>[];
   for (final MapEntry(key: lipoArch, value: arch) in _architectures.entries) {
     _step('Making the $arch app');
     final app = Directory('${root.path}/$_thinRelative/$arch/BaoCode.app');
@@ -271,37 +286,12 @@ Future<void> main(List<String> arguments) async {
       // The folder the app alone is in: all of it goes in the image.
       app.parent.path,
     ], root.path);
-    if (!signing.adHoc) {
-      await signing.sign(dmg.path);
-      if (signing.notary != null) {
-        // Notarising the image notarises the app in it too: the ticket
-        // stapled to each is the one for its own signature.
-        _step('Notarising the $arch disk image (a few minutes)');
-        await signing.notarise(dmg);
-        await signing.staple(dmg.path);
-        await signing.staple(app.path);
-      }
-    }
-
-    _step('Making the $arch update archive');
-    // What the app downloads to update itself: the .app (stapled when it
-    // was notarised), zipped as Finder would (ditto keeps its symlinks,
-    // permissions and extended attributes, which a framework's signature
-    // depends on).
-    final zip = File(
-      '${installers.path}/BaoCode-${version.marketing}-mac-$arch$edition.zip',
+    if (!signing.adHoc) await signing.sign(dmg.path);
+    finishing.add(
+      _finish(signing, installers, version.marketing, edition, arch, app, dmg),
     );
-    if (zip.existsSync()) zip.deleteSync();
-    await _run('ditto', [
-      '-c',
-      '-k',
-      '--sequesterRsrc',
-      '--keepParent',
-      app.path,
-      zip.path,
-    ], root.path);
-    made.addAll([dmg, zip]);
   }
+  final made = [for (final files in await Future.wait(finishing)) ...files];
 
   // None when published already (--remote-release).
   final downloads = Directory('${installers.path}/remote/$remoteVersion');
@@ -351,6 +341,48 @@ Future<void> main(List<String> arguments) async {
       '    --macos-x64$edition $base-mac-x64$edition.zip '
       '--dmg-x64$edition $base-x64$edition.dmg',
     );
+}
+
+/// Notarises [dmg] (and so the [arch] app in it) where [signing] says to,
+/// staples the ticket to both, and zips the app for updates: the image and
+/// the archive.
+Future<List<File>> _finish(
+  _Signing signing,
+  Directory installers,
+  String marketing,
+  String edition,
+  String arch,
+  Directory app,
+  File dmg,
+) async {
+  if (!signing.adHoc && signing.notary != null) {
+    // Notarising the image notarises the app in it too: the ticket
+    // stapled to each is the one for its own signature.
+    _step('Notarising the $arch disk image (a few minutes)');
+    await signing.notarise(dmg);
+    await signing.staple(dmg.path);
+    await signing.staple(app.path);
+    _step('Notarised the $arch disk image');
+  }
+
+  _step('Making the $arch update archive');
+  // What the app downloads to update itself: the .app (stapled when it
+  // was notarised), zipped as Finder would (ditto keeps its symlinks,
+  // permissions and extended attributes, which a framework's signature
+  // depends on).
+  final zip = File(
+    '${installers.path}/BaoCode-$marketing-mac-$arch$edition.zip',
+  );
+  if (zip.existsSync()) zip.deleteSync();
+  await _run('ditto', [
+    '-c',
+    '-k',
+    '--sequesterRsrc',
+    '--keepParent',
+    app.path,
+    zip.path,
+  ], signing.root.path);
+  return [dmg, zip];
 }
 
 /// Signing with a Developer ID, and notarising, as the environment says

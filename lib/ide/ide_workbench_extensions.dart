@@ -28,8 +28,11 @@ extension _ExtensionsPart on IdeWorkbenchState {
         ? _ExtensionsTab.languageServers
         : _extensionsTab;
     final l10n = context.l10n;
-    // Under the tabs, on the editor's color as the tab in front is.
-    final background = themes == null ? null : themeColors['editor.background'];
+    // On the side bar's card, as the other views are; not islands, under
+    // the tabs, on the editor's color as the tab in front is.
+    final background = themes == null || IdeWorkbench.islands
+        ? null
+        : themeColors['editor.background'];
     final body = switch (tab) {
       _ExtensionsTab.themes => ExtensionsView(
         model: themes!.model,
@@ -255,8 +258,14 @@ class _ExtensionsTabsState extends State<_ExtensionsTabs> {
     super.dispose();
   }
 
+  // A segmented control, as the other views' on a card have (Commit and
+  // Stash): not an editor's tabs, which are a strip of their own. Not
+  // islands, those.
   @override
-  Widget build(BuildContext context) => IdeTabStrip(
+  Widget build(BuildContext context) =>
+      IdeWorkbench.islands ? _segments(context) : _tabs();
+
+  Widget _tabs() => IdeTabStrip(
     child: TabStripScroll(
       controller: _scroll,
       child: Row(
@@ -275,4 +284,83 @@ class _ExtensionsTabsState extends State<_ExtensionsTabs> {
       ),
     ),
   );
+
+  Widget _segments(BuildContext context) => Container(
+    height: 10 + IslandSegment.height + 4,
+    padding: const EdgeInsets.fromLTRB(Islands.inset, 10, Islands.inset, 4),
+    child: ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: SingleChildScrollView(
+        controller: _scroll,
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final (i, (value, icon, label)) in widget.tabs.indexed) ...[
+              if (i > 0) const SizedBox(width: 2),
+              _ExtensionsSegment(
+                key: ValueKey(value),
+                icon: icon,
+                label: label,
+                selected: widget.selected == value,
+                onTap: () => widget.onSelect(value),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _ExtensionsSegment extends StatefulWidget {
+  const _ExtensionsSegment({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_ExtensionsSegment> createState() => _ExtensionsSegmentState();
+}
+
+class _ExtensionsSegmentState extends State<_ExtensionsSegment> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    final foreground = widget.selected || _hover
+        ? colors['panelTitle.activeForeground']
+        : colors['panelTitle.inactiveForeground'];
+    return Semantics(
+      button: true,
+      selected: widget.selected,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: IslandSegment(
+          selected: widget.selected,
+          onTap: widget.onTap,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 14, color: foreground),
+              const SizedBox(width: 5),
+              Text(
+                widget.label,
+                style: TextStyle(fontSize: 12, color: foreground),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

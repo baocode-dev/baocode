@@ -19,6 +19,7 @@ import 'package:baocode/kernel/claude_code/claude_code_transport.dart';
 import 'package:baocode/kernel/claude_code/claude_code_translator.dart';
 import 'package:baocode/kernel/claude_code/claude_environment.dart';
 import 'package:baocode/kernel/claude_code/claude_goal.dart';
+import 'package:baocode/kernel/claude_code/claude_sdk_tools.dart';
 import 'package:baocode/kernel/claude_code/claude_storage_io.dart';
 import 'package:baocode/kernel/claude_code/cli_locator.dart';
 import 'package:baocode/kernel/claude_code/control_channel.dart';
@@ -32,6 +33,8 @@ import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/kernel/queued_messages.dart';
 import 'package:baocode/kernel/transcript.dart';
+import 'package:baocode/usage/usage_ledger.dart';
+import 'package:baocode/usage/usage_prices.dart';
 
 /// Lines Claude Code 2.1.281 printed (recorded, with paths and account
 /// details replaced).
@@ -390,6 +393,40 @@ void main() {
         'Skipped question',
       );
       expect(toolVerb(ToolKind.question), 'Asked');
+    });
+
+    test('a question answered keeps what was asked and what the user said, '
+        'from the result or, without one, its words', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      );
+      for (final message in recorded('question')) {
+        translator.translate(message);
+      }
+      final asked = [
+        for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+      ].whereType<ToolCallItem>().single;
+      expect(asked.kind, ToolKind.question);
+      expect(asked.status, ToolStatus.succeeded);
+      expect(asked.input['answers'], {'Do you prefer red or blue?': 'Red'});
+      expect(
+        (asked.input['questions'] as List).single,
+        containsPair('question', 'Do you prefer red or blue?'),
+      );
+
+      // Only in its words (BaoCode's own core's, a result not kept).
+      expect(
+        questionAnswers(
+          null,
+          'The user answered: "Which \\"one\\"?"="A, B", "Size?"="Large". '
+          'Carry on with these answers.',
+        ),
+        {'Which "one"?': 'A, B', 'Size?': 'Large'},
+      );
+      expect(questionAnswers({'Q?': 'Yes'}, 'ignored'), {'Q?': 'Yes'});
     });
 
     test('a message sent to an agent reads on its line, in full opened', () {
@@ -838,8 +875,7 @@ void main() {
     });
 
     test("a subagent's edits, sent without their patches, are told from "
-        'their input; its commands and its end, as files that may have '
-        'changed', () {
+        'their input', () {
       final events = <KernelEvent>[];
       var seq = 0;
       final translator = ClaudeTranslator(
@@ -918,25 +954,12 @@ void main() {
       expect((originals.last! as OriginalByEdits).edits, [
         (before: 'x', after: 'y\nz'),
       ]);
-      expect(events.whereType<FilesMayHaveChanged>(), isEmpty);
 
-      call('b1', 'Bash', {'command': 'echo c > c.txt'}, parent: 'agent-1');
-      expect(events.whereType<FilesMayHaveChanged>(), hasLength(1));
-      call(
-        'agent-1',
-        'Agent',
-        {'description': 'Make files', 'prompt': 'make them'},
-        result: {'status': 'completed', 'content': []},
-      );
-      expect(events.whereType<FilesMayHaveChanged>(), hasLength(2));
-
-      // A kept session's, replayed: nothing to look at.
+      // A kept session's, replayed: nothing to review.
       events.clear();
       translator.replaying = true;
       call('w2', 'Write', {'file_path': '/p/d.txt', 'content': 'd'});
-      call('b2', 'Bash', {'command': 'true'});
       expect(events.whereType<FileEdited>(), isEmpty);
-      expect(events.whereType<FilesMayHaveChanged>(), isEmpty);
     });
 
     test('each round of planning is one card; a plan sent back gives way '
@@ -1543,6 +1566,71 @@ void main() {
       kernel.dispose();
     });
 
+    test("one of the app's tools asks the user itself: on the "
+        "conversation, answered to it; the CLI's leave not asked for it", () async {
+      ClaudeSdkTools.register(
+        ClaudeSdkTool(
+          name: 'ask_me',
+          description: 'Asks.',
+          inputSchema: const {'type': 'object'},
+          asksItself: true,
+          run: (input, call) async =>
+              '${await call.ask!(const ApprovalRequest(id: '', title: 'Run it here?', toolName: 'mcp__baocode__ask_me', alwaysAllowLabel: 'Always for this host'))}',
+        ),
+      );
+      addTearDown(() => ClaudeSdkTools.unregister('ask_me'));
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+      await pumpEventQueue();
+      cli.push({
+        'type': 'control_request',
+        'request_id': 'p1',
+        'request': {
+          'subtype': 'can_use_tool',
+          'tool_name': 'mcp__baocode__ask_me',
+          'input': <String, Object?>{},
+        },
+      });
+      await pumpEventQueue();
+      expect(cli.responses.last, {
+        'behavior': 'allow',
+        'updatedInput': <String, Object?>{},
+      });
+      expect(transcript.pendingInteraction, isNull);
+
+      cli.push({
+        'type': 'control_request',
+        'request_id': 'm1',
+        'request': {
+          'subtype': 'mcp_message',
+          'server_name': 'baocode',
+          'message': {
+            'jsonrpc': '2.0',
+            'id': 5,
+            'method': 'tools/call',
+            'params': {'name': 'ask_me', 'arguments': <String, Object?>{}},
+          },
+        },
+      });
+      await pumpEventQueue();
+      final request = transcript.pendingInteraction as ApprovalRequest;
+      expect(request.title, 'Run it here?');
+      expect(request.alwaysAllowLabel, 'Always for this host');
+      kernel.answer(
+        request.id,
+        const ApprovalAnswer(ApprovalDecision.allowAlways),
+      );
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isNull);
+      final mcp = cli.responses.last['mcp_response']! as Map;
+      expect(((mcp['result'] as Map)['content'] as List).single, {
+        'type': 'text',
+        'text': 'ApprovalDecision.allowAlways',
+      });
+      kernel.dispose();
+    });
+
     test('a tool asks leave; always allowing sends its rules', () async {
       final cli = FakeCli();
       final (:kernel, :transcript, events: _) = claude(cli);
@@ -1800,6 +1888,34 @@ void main() {
           'updatedInput': command,
         });
       }
+      // A question no one would answer: asked in its words instead.
+      cli.push({
+        'type': 'control_request',
+        'request_id': 'q',
+        'request': {
+          'subtype': 'can_use_tool',
+          'tool_name': 'AskUserQuestion',
+          'input': {
+            'questions': [
+              {
+                'question': 'Which language?',
+                'header': 'Language',
+                'options': [
+                  {'label': 'English'},
+                  {'label': 'Chinese'},
+                ],
+              },
+            ],
+          },
+        },
+      });
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isNull);
+      expect(cli.responses.last['behavior'], 'deny');
+      expect(
+        cli.responses.last['message'],
+        contains('Ask them in your reply instead'),
+      );
       kernel.dispose();
     });
 
@@ -3112,6 +3228,47 @@ void main() {
       expect(
         usage.segments.map((s) => s.kind).toSet(),
         containsAll([ContextKind.used, ContextKind.free, ContextKind.buffer]),
+      );
+      kernel.dispose();
+    });
+
+    test("keeps the calls on Claude Code's own models, timed, and priced "
+        "at Anthropic's as the CLI prices them", () async {
+      final ledger = UsageLedger.current = UsageLedger(MemoryUsageStorage());
+      addTearDown(
+        () => UsageLedger.current = UsageLedger(MemoryUsageStorage()),
+      );
+      final cli = FakeCli();
+      final (:kernel, transcript: _, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      final messages = recorded('question');
+      final result = messages.indexWhere((m) => m['type'] == 'result');
+      for (final message in messages.take(result + 1)) {
+        if (message['type'] case 'control_response' || 'control_request') {
+          continue;
+        }
+        cli.push(message);
+      }
+      await pumpEventQueue();
+      ledger.flush();
+      final calls = await ledger.range();
+      // Its two requests; the CLI's totals no more than theirs.
+      expect(calls, hasLength(2));
+      expect(calls.map((c) => (c.provider, c.model)).toSet(), {
+        ('claude-code', 'claude-sonnet-5'),
+      });
+      expect(calls.map((c) => c.output), [122, 5]);
+      expect(calls.first.cacheWriteLong, 6455);
+      expect(calls.first.stopReason, 'tool_use');
+      expect(calls.first.firstToken, isNotNull);
+      expect(calls.first.toolCalls, isNotEmpty);
+      // The plan's limits, told between them.
+      expect(calls.last.quota, isNotEmpty);
+      // What the CLI said they cost (its modelUsage's costUSD).
+      expect(
+        UsagePrices().costOf(calls).byCurrency['USD'],
+        closeTo(0.0425954, 1e-9),
       );
       kernel.dispose();
     });
@@ -5185,6 +5342,21 @@ void main() {
     expect(ClaudeLaunch.citingCode, contains('```startLine:endLine:filepath'));
   });
 
+  test('some of Claude Code\'s tools: the app\'s MCP servers alone, or the '
+      'user\'s too', () {
+    List<String> arguments({bool userServers = false}) => ClaudeLaunch(
+      cwd: '/p',
+      tools: const ['Bash', 'Read'],
+      userServers: userServers,
+    ).arguments;
+    final only = arguments();
+    expect(only[only.indexOf('--tools') + 1], 'Bash,Read');
+    expect(only, contains('--strict-mcp-config'));
+    final theirs = arguments(userServers: true);
+    expect(theirs[theirs.indexOf('--tools') + 1], 'Bash,Read');
+    expect(theirs, isNot(contains('--strict-mcp-config')));
+  });
+
   group('commit attribution', () {
     /// What `--settings` gives Claude Code besides the environment always
     /// unset, if anything.
@@ -5694,6 +5866,94 @@ exec /usr/bin/env "\$@"
       );
     });
 
+    test('a session is listed past the notes sent ahead of what was typed, '
+        'and by a command typed with what it is to do', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      final cwd = '${root.path}/project';
+      Directory(cwd).createSync(recursive: true);
+      void session(String id, Object content) =>
+          File('$config/projects/-p/$id.jsonl')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              '${jsonEncode({
+                'type': 'user',
+                'uuid': 'aaaaaaaa-1111-4111-8111-111111111111',
+                'cwd': cwd,
+                'message': {'role': 'user', 'content': content},
+              })}\n',
+            );
+      // As the app sends them: the notes first, what was typed last.
+      session('editor', [
+        {
+          'type': 'text',
+          'text':
+              '<system-reminder>The user has lib/a.dart open in the '
+              'editor. This may or may not be related to the current '
+              'task.</system-reminder>',
+        },
+        {'type': 'text', 'text': 'fix the crash'},
+      ]);
+      session('phone', [
+        {'type': 'text', 'text': '[Image #1]'},
+        {
+          'type': 'image',
+          'source': {'type': 'base64', 'media_type': 'image/png', 'data': ''},
+        },
+        {
+          'type': 'text',
+          'text':
+              '<system-reminder>The user is now writing to you from the '
+              'BaoCode app on their phone.</system-reminder>',
+        },
+        {'type': 'text', 'text': 'why is this red\n[Image #1]'},
+      ]);
+      session('goal', [
+        {
+          'type': 'text',
+          'text':
+              '<command-name>/goal</command-name>\n'
+              '            <command-message>goal</command-message>\n'
+              '            <command-args>fix #149 and #148</command-args>',
+        },
+      ]);
+      session(
+        'design',
+        '<command-message>design</command-message>\n'
+            '<command-name>/design</command-name>\n'
+            '<command-args>a settings page</command-args>',
+      );
+      // Not what the user asked: no conversation to list.
+      session(
+        'model',
+        '<command-name>/model</command-name>\n'
+            '<command-args></command-args>',
+      );
+      session('notes', [
+        {
+          'type': 'text',
+          'text':
+              '<system-reminder>The user no longer has a file open in the '
+              'editor.</system-reminder>',
+        },
+      ]);
+
+      final sessions = (await ClaudeStorage(
+        configDir: config,
+        cacheFile: '${root.path}/cache.json',
+      ).projects()).single.sessions;
+      expect(
+        {for (final s in sessions) s.id: s.title},
+        {
+          'editor': 'fix the crash',
+          'phone': 'why is this red',
+          'goal': '/goal fix #149 and #148',
+          'design': '/design a settings page',
+        },
+      );
+    });
+
     test('a session file is read again only once it changes, and the cache '
         'keeps only the files still there', () async {
       final root = await Directory.systemTemp.createTemp('baocode-storage-');
@@ -5738,6 +5998,82 @@ exec /usr/bin/env "\$@"
       // One not to trust is started over.
       File(cacheFile).writeAsStringSync('{not json');
       expect(await titles(), {'one': 'grown longer'});
+    });
+
+    test('a session file appended to is read on from where it was read, '
+        'its titles and last message taken from what came', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      final cwd = '${root.path}/project';
+      final cacheFile = '${root.path}/cache/claude-sessions.json';
+      Directory(cwd).createSync(recursive: true);
+      final file = File('$config/projects/-p/one.jsonl')
+        ..createSync(recursive: true);
+      void append(List<Map<String, Object?>> lines) => file.writeAsStringSync(
+        lines.map((line) => '${jsonEncode(line)}\n').join(),
+        mode: FileMode.append,
+      );
+      final storage = ClaudeStorage(configDir: config, cacheFile: cacheFile);
+      Future<SessionRecord> session() async =>
+          (await storage.projects()).single.sessions.single;
+
+      append([
+        {
+          'type': 'user',
+          'message': {'role': 'user', 'content': 'first'},
+          'cwd': cwd,
+          'timestamp': '2026-09-27T08:00:00.000Z',
+        },
+      ]);
+      expect((await session()).title, 'first');
+
+      // Changed where it was read already, not at its end: not read again.
+      final read = file.readAsStringSync();
+      file.writeAsStringSync(read.replaceFirst('first', 'xxxxx'));
+      append([
+        {
+          'type': 'assistant',
+          'cwd': cwd,
+          'timestamp': '2026-09-27T09:00:00.000Z',
+          'message': {'role': 'assistant', 'content': []},
+        },
+      ]);
+      var kept = await session();
+      expect(kept.title, 'first');
+      expect(kept.updatedAt, DateTime.utc(2026, 9, 27, 9).toLocal());
+
+      append([
+        {'type': 'ai-title', 'aiTitle': 'Generated', 'sessionId': 'one'},
+      ]);
+      expect((await session()).title, 'Generated');
+      append([
+        {'type': 'custom-title', 'customTitle': 'Named', 'sessionId': 'one'},
+      ]);
+      expect((await session()).title, 'Named');
+
+      append([
+        {'type': 'ai-title', 'aiTitle': 'Generated again', 'sessionId': 'one'},
+      ]);
+      expect((await session()).title, 'Named');
+      append([
+        {'type': 'custom-title', 'customTitle': ' ', 'sessionId': 'one'},
+      ]);
+      expect((await session()).title, 'Generated again');
+
+      // Written over from the start, not appended to: read whole again.
+      file.writeAsStringSync(
+        '${jsonEncode({
+          'type': 'user',
+          'cwd': cwd,
+          'timestamp': '2026-09-27T10:00:00.000Z',
+          'message': {'role': 'user', 'content': 'rewritten from the start, '
+              'longer than it was before'},
+        })}\n',
+      );
+      kept = await session();
+      expect(kept.title, 'rewritten from the start, longer than it was before');
+      expect(kept.updatedAt, DateTime.utc(2026, 9, 27, 10).toLocal());
     });
 
     test(

@@ -12,8 +12,10 @@ import 'package:baocode/chat/widgets/inline_rename_field.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/main.dart';
-import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/sidebar/sidebar.dart';
+import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/workspace/islands.dart';
+import 'package:baocode/workspace/back_to_chat_button.dart';
 import 'package:baocode/workspace/chat_drag.dart';
 import 'package:baocode/workspace/chat_grid.dart';
 import 'package:baocode/workspace/chat_grid_view.dart';
@@ -132,6 +134,47 @@ Offset near(Rect rect, PaneSide side) => switch (side) {
 };
 
 void main() {
+  testWidgets("the mouse's back and forward buttons go through the agents "
+      'selected, as a browser through its pages (#516)', (tester) async {
+    final workspace = await pumpApp(tester);
+    final start = workspace.current!;
+    final others = workspace.threads
+        .where((thread) => thread != start && !thread.archived)
+        .take(2)
+        .toList();
+    Future<void> side(int buttons) async {
+      await tester.tapAt(
+        gridRect(tester).center,
+        buttons: buttons,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    workspace.select(others[0]);
+    await tester.pumpAndSettle();
+    workspace.select(others[1]);
+    await tester.pumpAndSettle();
+
+    await side(kBackMouseButton);
+    expect(workspace.current, others[0]);
+    await side(kBackMouseButton);
+    expect(workspace.current, start);
+    // Nothing further back.
+    await side(kBackMouseButton);
+    expect(workspace.current, start);
+
+    await side(kForwardMouseButton);
+    expect(workspace.current, others[0]);
+    // Another picked: nothing ahead any more.
+    workspace.select(start);
+    await tester.pumpAndSettle();
+    await side(kForwardMouseButton);
+    expect(workspace.current, start);
+    await side(kBackMouseButton);
+    expect(workspace.current, others[0]);
+  });
+
   testWidgets('an agent dragged to the right of the chat opens beside it', (
     tester,
   ) async {
@@ -153,19 +196,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(preview(), findsNothing);
     expect(paneTitles(tester), unorderedEquals([first, second]));
+    // Under the window's one row over them all, as the one conversation's
+    // card was; no row under their cards, a gap from the window's foot.
+    final panes = gridRect(tester);
+    expect(panes.top, grid.top + AppMetrics.titleBarHeight);
+    expect(panes.bottom, grid.bottom - Islands.gap);
     final left = tester.getRect(pane(first));
     final right = tester.getRect(pane(second));
     // Where it was, the first gives the second half its room; a line
     // between them, down the whole height.
-    expect(left.topLeft, grid.topLeft);
-    expect(right.right, grid.right);
+    expect(left.topLeft, panes.topLeft);
+    expect(right.right, panes.right);
     expect(right.left - left.right, ChatGridView.gap);
-    expect(left.height, grid.height);
-    // As the sidebar's border.
-    expect(lineColor(tester), AppColors.partBorder);
+    expect(left.height, panes.height);
+    // In the gap between their cards: nothing there at rest.
+    expect(lineColor(tester), Colors.transparent);
     final drawn = tester.getRect(line());
-    expect(drawn.width, 1);
-    expect(drawn.height, grid.height);
+    expect(drawn.width, 0);
+    expect(drawn.height, panes.height);
     expect(drawn.center.dx, closeTo((left.right + right.left) / 2, .5));
     // The one dropped is focused; the other is still in view.
     expect(workspace.current!.title, second);
@@ -180,8 +228,9 @@ void main() {
     expect(top.bottom + ChatGridView.gap, bottom.top);
     expect(top.width, gridRect(tester).width);
     expect(tester.getRect(line(column: false)).width, gridRect(tester).width);
-    // Below another, a double click on its title bar is not the window's.
-    expect(tester.widget<ChatScreen>(pane(second)).windowTitleBar, isTrue);
+    // Under the window's row, a double click on a card's title bar is not
+    // the window's, at the top or not.
+    expect(tester.widget<ChatScreen>(pane(second)).windowTitleBar, isFalse);
     expect(tester.widget<ChatScreen>(pane(first)).windowTitleBar, isFalse);
   });
 
@@ -347,36 +396,6 @@ void main() {
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
     expect(workspace.current!.title, second);
     expect(tester.widget<ChatScreen>(pane(first)).focused, isFalse);
-    // The one not focused in the sidebar's color, set apart: the whole of
-    // its place, up to the line between the two.
-    bool setApart(String title) {
-      final rect = tester.getRect(pane(title));
-      return find
-          .byWidgetPredicate(
-            (widget) =>
-                widget is ColoredBox &&
-                widget.color == AppColors.unfocusedConversationSurface,
-          )
-          .evaluate()
-          .map(
-            (element) =>
-                tester.getRect(find.byElementPredicate((e) => e == element)),
-          )
-          .any(
-            (backdrop) =>
-                backdrop.contains(rect.center) &&
-                backdrop.top <= rect.top &&
-                backdrop.bottom >= rect.bottom &&
-                (backdrop.left < rect.left || backdrop.right > rect.right),
-          );
-    }
-
-    expect(
-      AppColors.unfocusedConversationSurface,
-      isNot(AppColors.conversationSurface),
-    );
-    expect(setApart(first), isTrue);
-    expect(setApart(second), isFalse);
     // The focused one outlined in the drop preview's line.
     final frame = find.byWidgetPredicate(
       (widget) =>
@@ -385,24 +404,16 @@ void main() {
           (widget.decoration as BoxDecoration).border ==
               Border.all(color: ChatGridView.frameColor),
     );
-    // One frame, round the whole pane: on the line between the two (over
-    // it, one line, not two), at the view's edges elsewhere.
+    // One frame, its card's outline: the whole pane, no row over it nor
+    // under it.
     bool framed(String title) {
       final shown = tester.getRect(frame);
       final rect = tester.getRect(pane(title));
-      final grid = gridRect(tester);
-      const out = ChatGridView.gap / 2 + .5;
       bool near(double a, double b) => (a - b).abs() < .5;
-      return near(
-            shown.left,
-            rect.left > grid.left ? rect.left - out : grid.left,
-          ) &&
-          near(
-            shown.right,
-            rect.right < grid.right ? rect.right + out : grid.right,
-          ) &&
-          near(shown.top, grid.top) &&
-          near(shown.bottom, grid.bottom);
+      return near(shown.left, rect.left) &&
+          near(shown.right, rect.right) &&
+          near(shown.top, rect.top) &&
+          near(shown.bottom, rect.bottom);
     }
 
     expect(framed(second), isTrue);
@@ -417,8 +428,6 @@ void main() {
     expect(workspace.current!.title, first);
     expect(tester.widget<ChatScreen>(pane(first)).focused, isTrue);
     expect(tester.widget<ChatScreen>(pane(second)).focused, isFalse);
-    expect(setApart(first), isFalse);
-    expect(setApart(second), isTrue);
     expect(framed(first), isTrue);
     expect(framed(second), isFalse);
 
@@ -677,7 +686,7 @@ void main() {
 
     final editor = find.descendant(
       of: pane(second),
-      matching: find.byType(OpenInEditorButton),
+      matching: find.byType(SidePanelToggle),
     );
     final gesture = await tester.startGesture(
       tester.getCenter(editor),
@@ -703,9 +712,9 @@ void main() {
   });
 
   testWidgets(
-    'each pane\'s title bar buttons are its own agent\'s: a click '
-    'on them, or on another pane\'s close, leaves the focus; Fast Ide '
-    'opens its agent',
+    'one Open in Editor for the panes, the focused one\'s project\'s; '
+    'a click on another pane\'s close leaves the focus; Fast Ide opens '
+    'the focused agent',
     (tester) async {
       final opened = <String>[];
       OpenInEditorButton.launch = (editor, path) async {
@@ -730,15 +739,33 @@ void main() {
         (thread) => thread.title == second,
       );
       expect(right.project, isNot(focused.project));
-      Finder tool(String label) => find.descendant(
-        of: pane(second),
-        matching: find.bySemanticsLabel(label),
-      );
+      Finder tool(String label) => find.bySemanticsLabel(label);
+      // The window's, not one in each pane.
+      expect(find.byType(OpenInEditorButton), findsOneWidget);
+      for (final title in [first, second, third]) {
+        expect(
+          find.descendant(
+            of: pane(title),
+            matching: find.byType(OpenInEditorButton),
+          ),
+          findsNothing,
+        );
+      }
 
-      // The right pane's project, not the focused agent's.
+      // The focused agent's project.
       await tester.tap(tool('Open in VS Code'));
       await tester.pump();
-      expect(opened, [right.project.path]);
+      expect(opened, [focused.project.path]);
+      expect(workspace.current, same(focused));
+
+      // Another pane focused, its project's.
+      await tester.tapAt(tester.getRect(pane(second)).center);
+      await tester.pump();
+      await tester.tap(tool('Open in VS Code'));
+      await tester.pump();
+      expect(opened, [focused.project.path, right.project.path]);
+      await tester.tapAt(tester.getRect(pane(first)).center);
+      await tester.pump();
       expect(workspace.current, same(focused));
 
       await tester.tap(
@@ -751,8 +778,7 @@ void main() {
       expect(paneTitles(tester), unorderedEquals([first, second]));
       expect(workspace.current, same(focused));
 
-      // Its agent's chat in the IDE, the focused one's being another
-      // project's.
+      // The focused agent's chat in the IDE.
       workspace.preferredEditor = Editor.fastIde;
       await tester.pump();
       await tester.tap(tool('Open in Fast Ide'));
@@ -761,8 +787,11 @@ void main() {
       expect(workspace.layout, WorkspaceLayout.ide);
       expect(workspace.current, same(focused));
       final ide = find.byType(IdeWorkbench);
-      expect(tester.widget<IdeWorkbench>(ide).project.path, right.project.path);
-      expect(opened, hasLength(1));
+      expect(
+        tester.widget<IdeWorkbench>(ide).project.path,
+        focused.project.path,
+      );
+      expect(opened, hasLength(2));
       workspace.layout = WorkspaceLayout.chat;
       await tester.pump();
     },
@@ -798,7 +827,11 @@ void main() {
         final paneRect = tester.getRect(pane(title));
         final rail = railOf(title);
         expect(rail.right, paneRect.right - AgentSidePanelArea.railRight);
-        expect(rail.top - paneRect.top, AppMetrics.titleBarHeight + 4);
+        // Under the row along its card's top, there being none over it.
+        expect(
+          rail.top - paneRect.top,
+          ChatScreen.cardHeaderHeight + AgentSidePanelArea.railRight,
+        );
         final close = tester.getRect(
           find.descendant(
             of: pane(title),
@@ -922,38 +955,42 @@ void main() {
     }),
   );
 
-  testWidgets('under Windows\' header, side by side, the terminal, side '
-      'panel and editor buttons leave it for the panes\' own, the pin '
-      'staying; one conversation again, they are back', (tester) async {
+  testWidgets('under Windows\' header, one conversation or several, the '
+      'terminal and side panel buttons are on the cards, as on macOS; the pin '
+      'and the editor\'s in the header', (tester) async {
     await pumpApp(tester);
     Finder inHeader(Type type) => find.descendant(
       of: find.byType(WindowHeader),
       matching: find.byType(type),
     );
-    expect(inHeader(SidePanelToggle), findsOneWidget);
+    expect(inHeader(SidePanelToggle), findsNothing);
+    expect(
+      find.descendant(of: pane(first), matching: find.byType(SidePanelToggle)),
+      findsOneWidget,
+    );
     expect(inHeader(OpenInEditorButton), findsOneWidget);
     expect(inHeader(PinWindowButton), findsOneWidget);
 
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
     expect(inHeader(SidePanelToggle), findsNothing);
     expect(inHeader(ChatTerminalToggle), findsNothing);
-    expect(inHeader(OpenInEditorButton), findsNothing);
+    expect(inHeader(OpenInEditorButton), findsOneWidget);
     expect(inHeader(PinWindowButton), findsOneWidget);
     for (final title in [first, second]) {
-      for (final type in [SidePanelToggle, OpenInEditorButton]) {
-        expect(
-          find.descendant(of: pane(title), matching: find.byType(type)),
-          findsOneWidget,
-        );
-      }
-      // The window's, in its header alone.
       expect(
         find.descendant(
           of: pane(title),
-          matching: find.byType(PinWindowButton),
+          matching: find.byType(SidePanelToggle),
         ),
-        findsNothing,
+        findsOneWidget,
       );
+      // The window's, in its header alone.
+      for (final type in [PinWindowButton, OpenInEditorButton]) {
+        expect(
+          find.descendant(of: pane(title), matching: find.byType(type)),
+          findsNothing,
+        );
+      }
     }
 
     await tester.tap(
@@ -963,7 +1000,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(inHeader(SidePanelToggle), findsOneWidget);
+    expect(inHeader(SidePanelToggle), findsNothing);
+    expect(
+      find.descendant(of: pane(first), matching: find.byType(SidePanelToggle)),
+      findsOneWidget,
+    );
     expect(inHeader(OpenInEditorButton), findsOneWidget);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
@@ -1031,13 +1072,13 @@ void main() {
     list.position.jumpTo(0);
     await tester.pump();
     final view = tester.getRect(scrollable);
-    // An agent not open whose row reaches into the list's last 15%,
+    // An agent not open whose row's middle is in the list's last 15%,
     // scrolled to be all shown there.
     final near = workspace.threads.firstWhere((thread) {
       if (identical(thread, workspace.current)) return false;
       final finder = inSidebar(find.text(thread.title));
       return finder.evaluate().length == 1 &&
-          tester.getRect(finder).bottom > view.top + view.height * .9;
+          tester.getRect(finder).center.dy > view.top + view.height * .85;
     });
     final row = inSidebar(find.text(near.title));
     list.position.jumpTo(
@@ -1287,8 +1328,8 @@ void main() {
     expect(tester.getSize(line()).width, IdeModernUI.gap);
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(lineColor(tester), AppColors.partBorder);
-    expect(tester.getSize(line()).width, 1);
+    expect(lineColor(tester), Colors.transparent);
+    expect(tester.getSize(line()).width, 0);
     expect(tester.getRect(pane(first)).width, before.width - 100);
     expect(tester.getRect(pane(third)).width, before.width - 100);
     expect(
@@ -1413,23 +1454,24 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     final needed = 2 * ChatGridView.minPane.width + ChatGridView.gap;
+    // The window's room less the gaps about the cards.
     expect(grown, [
-      {'width': needed - 700, 'height': 0.0},
+      {'width': needed - (700 - 2 * Islands.gap), 'height': 0.0},
     ]);
     expect(paneTitles(tester), unorderedEquals([first, second]));
 
     // The window grew as asked: the panes have it all.
-    tester.view.physicalSize = Size(needed, 900);
+    tester.view.physicalSize = Size(needed + 2 * Islands.gap, 900);
     await tester.pumpAndSettle();
     expect(gridRect(tester).width, needed);
     expect(tester.getRect(pane(first)).width, ChatGridView.minPane.width);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  testWidgets('the title keeps to the pane\'s start and the buttons '
-      'to its end, alone or side by side', (tester) async {
+  testWidgets('the title keeps to the pane\'s start, after its close '
+      'button side by side, and the buttons to its end', (tester) async {
     await pumpApp(tester);
 
-    void expectPlaced(String title, Finder rightmost) {
+    void expectPlaced(String title, Finder rightmost, {bool close = false}) {
       final composer = tester.getRect(
         find.descendant(of: pane(title), matching: find.byType(ChatComposer)),
       );
@@ -1440,13 +1482,29 @@ void main() {
         ),
         matching: find.text(title),
       );
-      expect(tester.getTopLeft(text).dx, tester.getRect(pane(title)).left + 12);
-      expect(tester.getTopLeft(text).dx, lessThan(composer.left));
+      final start = tester.getRect(pane(title)).left + 12;
+      if (close) {
+        final button = tester.getRect(
+          find.descendant(
+            of: pane(title),
+            matching: find.bySemanticsLabel('Close pane'),
+          ),
+        );
+        expect(button.left, start);
+        expect(tester.getTopLeft(text).dx, button.right + 4);
+      } else {
+        expect(tester.getTopLeft(text).dx, start);
+        // No further in than the input (as far in, on a narrow card).
+        expect(tester.getTopLeft(text).dx, lessThanOrEqualTo(composer.left));
+      }
       expect(
         tester
             .getTopRight(find.descendant(of: pane(title), matching: rightmost))
             .dx,
-        tester.getRect(pane(title)).right - 8,
+        tester.getRect(pane(title)).right -
+            // The side panel's toggle with its padding (2), on the card.
+            // Alone, the window's: as far from its edge as the IDE's.
+            (close ? ChatScreen.cardHeaderEnd + 2 : 8 - Islands.gap),
       );
     }
 
@@ -1454,12 +1512,36 @@ void main() {
     final composer = tester.getRect(find.byType(ChatComposer));
     expect(composer.left - gridRect(tester).left, greaterThan(100));
     expectPlaced(first, find.byType(OpenInEditorButton));
+    final editor = tester.getRect(find.byType(OpenInEditorButton));
 
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
-    // Each pane keeps the buttons its own agent's, its editor's at the end.
-    expectPlaced(first, find.byType(OpenInEditorButton));
-    expectPlaced(second, find.byType(OpenInEditorButton));
+    // Each pane keeps the buttons its own agent's, its side panel's at the
+    // end; the editor's is the window's, where it was.
+    expectPlaced(first, find.byType(SidePanelToggle), close: true);
+    expectPlaced(second, find.byType(SidePanelToggle), close: true);
+    expect(tester.getRect(find.byType(OpenInEditorButton)), editor);
   });
+
+  testWidgets(
+    'Open in Editor is where the IDE\'s Back to Chat is, one conversation '
+    'shown or several',
+    (tester) async {
+      final workspace = await pumpApp(tester, width: 1600);
+      final one = tester.getRect(find.byType(OpenInEditorButton));
+      await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
+      expect(find.byType(OpenInEditorButton), findsOneWidget);
+      expect(tester.getRect(find.byType(OpenInEditorButton)), one);
+      workspace.layout = WorkspaceLayout.ide;
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.byType(BackToChatButton)), one);
+      workspace.layout = WorkspaceLayout.chat;
+      await tester.pumpAndSettle();
+    },
+    variant: TargetPlatformVariant(const {
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
 
   testWidgets('dragging the sidebar\'s border or a line lays the chats out '
       'anew without building them: as thick as the IDE\'s sashes', (

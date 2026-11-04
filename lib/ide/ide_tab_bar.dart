@@ -1,6 +1,5 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 
 import '../chat/composer/composer_files.dart';
 import '../chat/composer/file_drag.dart';
@@ -10,12 +9,15 @@ import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/islands.dart';
 import '../workspace/window_controls.dart';
 import 'editor_minimap_setting.dart';
+import 'host_paths.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_workspace.dart';
 import 'save_copy.dart';
+import 'tab_reorder.dart';
 import 'tab_strip_scroll.dart';
 
 /// The actions of a tab's context menu.
@@ -43,17 +45,18 @@ List<String?> ideTabDescriptions(
   List<String>? names,
 }) {
   List<String> parents(String path) {
-    final directory = p.dirname(path);
-    if (p.equals(directory, root)) return [p.basename(root)];
-    if (p.isWithin(root, directory)) {
-      return p.split(p.relative(directory, from: root));
+    final paths = hostContext(path);
+    final directory = paths.dirname(path);
+    if (paths.equals(directory, root)) return [paths.basename(root)];
+    if (paths.isWithin(root, directory)) {
+      return paths.split(paths.relative(directory, from: root));
     }
-    return p.split(directory);
+    return paths.split(directory);
   }
 
   final byName = <String, List<int>>{};
   for (var i = 0; i < paths.length; i++) {
-    byName.putIfAbsent(names?[i] ?? p.basename(paths[i]), () => []).add(i);
+    byName.putIfAbsent(names?[i] ?? hostBasename(paths[i]), () => []).add(i);
   }
   final descriptions = List<String?>.filled(paths.length, null);
   for (final group in byName.values) {
@@ -102,9 +105,13 @@ class IdeTabBar extends StatefulWidget {
     this.onMarkdownPreview,
     this.page,
     this.actions,
+    this.onMove,
   });
 
   final List<IdeDocument> documents;
+
+  /// A tab dragged to [index] among the others; none: they stay in order.
+  final void Function(IdeDocument doc, int index)? onMove;
 
   /// A tab after the files' that is not a file's (an extension's page):
   /// the one in front while [active] is null.
@@ -136,10 +143,23 @@ class IdeTabBar extends StatefulWidget {
   State<IdeTabBar> createState() => _IdeTabBarState();
 }
 
-class _IdeTabBarState extends State<IdeTabBar> {
+class _IdeTabBarState extends State<IdeTabBar>
+    with TabReorder<IdeTabBar, IdeDocument> {
   final ScrollController _scroll = ScrollController();
   final Map<IdeDocument, GlobalKey> _keys = {};
   final GlobalKey _pageKey = GlobalKey();
+
+  @override
+  ScrollController get tabScroll => _scroll;
+
+  @override
+  List<IdeDocument> get reorderedTabs => widget.documents;
+
+  @override
+  BuildContext? tabContext(IdeDocument doc) => _keys[doc]?.currentContext;
+
+  @override
+  void moveTab(IdeDocument doc, int index) => widget.onMove?.call(doc, index);
 
   @override
   void initState() {
@@ -172,14 +192,7 @@ class _IdeTabBarState extends State<IdeTabBar> {
           ? _pageKey.currentContext
           : _keys[active]?.currentContext;
       if (context == null) return;
-      Scrollable.ensureVisible(
-        context,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-      );
-      Scrollable.ensureVisible(
-        context,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-      );
+      TabStripScroll.reveal(context);
     });
   }
 
@@ -280,14 +293,18 @@ class _IdeTabBarState extends State<IdeTabBar> {
   }
 
   /// [tab], dragged onto the chat's composer, puts its file in; not a
-  /// revision's tab, whose text is not the file's.
-  Widget _draggable(IdeDocument doc, Widget tab) => doc.readRevision != null
-      ? KeyedSubtree(key: ObjectKey(doc), child: tab)
-      : FileDraggable(
-          key: ObjectKey(doc),
-          files: [ComposerFile(doc.path)],
-          child: tab,
-        );
+  /// revision's tab, whose text is not the file's. Dragged along the
+  /// tabs, it goes among them.
+  Widget _draggable(IdeDocument doc, Widget tab) {
+    if (widget.onMove != null) tab = reorderable(doc, tab);
+    return doc.readRevision != null
+        ? KeyedSubtree(key: ObjectKey(doc), child: tab)
+        : FileDraggable(
+            key: ObjectKey(doc),
+            files: [ComposerFile(doc.path)],
+            child: tab,
+          );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -306,22 +323,43 @@ class _IdeTabBarState extends State<IdeTabBar> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final (i, doc) in docs.indexed)
+                  for (final (i, doc) in docs.indexed) ...[
+                    if (i > 0)
+                      ?IdeTabStrip.separator(
+                        context,
+                        shown:
+                            !identical(docs[i - 1], widget.active) &&
+                            !identical(doc, widget.active),
+                      ),
+                    if (dropSpot == i) const TabDropLine(),
                     _draggable(
                       doc,
-                      _Tab(
-                        key: _keys.putIfAbsent(doc, GlobalKey.new),
-                        doc: doc,
-                        description: descriptions[i],
-                        active: identical(doc, widget.active),
-                        onSelect: () => widget.onSelect(doc),
-                        onClose: () => widget.onClose(doc),
-                        onMenu: (position) =>
-                            _showMenu(doc, position: position),
+                      Opacity(
+                        opacity: identical(doc, draggedTab) ? .5 : 1,
+                        child: IslandTabStart(
+                          atStart: i == 0,
+                          child: _Tab(
+                            key: _keys.putIfAbsent(doc, GlobalKey.new),
+                            doc: doc,
+                            description: descriptions[i],
+                            active: identical(doc, widget.active),
+                            onSelect: () => widget.onSelect(doc),
+                            onClose: () => widget.onClose(doc),
+                            onMenu: (position) =>
+                                _showMenu(doc, position: position),
+                          ),
+                        ),
                       ),
                     ),
+                  ],
+                  if (dropSpot == docs.length) const TabDropLine(),
                   if (widget.page case final page?)
                     KeyedSubtree(key: _pageKey, child: page),
+                  // Over a card, the last clear of its rounded corner, its
+                  // foot too, as the first is of the other (see
+                  // [IslandTab.lead]); scrolled to it, as far.
+                  if (IslandSurface.colorOf(context) != null)
+                    const SizedBox(width: IslandTab.lead),
                 ],
               ),
             ),
@@ -503,6 +541,7 @@ class IdeTabStrip extends StatelessWidget {
     required this.child,
     this.line,
     this.small = false,
+    this.flat = false,
   });
 
   final Widget child;
@@ -510,30 +549,81 @@ class IdeTabStrip extends StatelessWidget {
   /// The line under the tabs where the theme has none ([border]).
   final Color? line;
 
+  /// In a card (a terminal's, the side panel's): on its color, its tabs
+  /// segments as a panel's views (see [IslandSegment]).
+  final bool flat;
+
   /// [smallHeight] high, for [IdeEditorTab.small] tabs.
   final bool small;
 
-  static const height = 35.0;
+  static const height = IslandTab.height;
   static const smallHeight = 28.0;
+
+  /// A [flat] strip's inset from the card's top and sides: room around
+  /// its first tab. None under it: what is under it has its own.
+  static const flatInset = 8.0;
+
+  /// Between a [flat] strip's tabs.
+  static const flatGap = 4.0;
+
+  /// A [flat] strip's height: a segment's, inset at the top.
+  static const flatHeight = IslandSegment.height + flatInset;
 
   /// `editorGroupHeader.tabsBorder`, none by default.
   static Color? get border => themeColors.get('editorGroupHeader.tabsBorder');
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    height: small ? smallHeight : height,
-    // Not a Container: its border would inset the tabs.
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: themeColors['editorGroupHeader.tabsBackground'],
-        border: switch (border ?? line) {
-          final color? => Border(bottom: BorderSide(color: color)),
-          null => null,
-        },
-      ),
-      child: child,
-    ),
+    height: flat
+        ? flatHeight
+        : small
+        ? smallHeight
+        : height,
+    // Over a card (see [HeadedIsland]): on the window's color, the card's
+    // outline under it.
+    child: IslandSurface.colorOf(context) != null
+        ? child
+        // Not a Container: its border would inset the tabs.
+        // On the card, its tabs segments (see [IdeEditorTab]), as a
+        // panel's views: no strip of its own, no line under it.
+        : flat
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(
+              flatInset,
+              flatInset,
+              flatInset,
+              0,
+            ),
+            child: _FlatTabs(child: child),
+          )
+        : DecoratedBox(
+            decoration: BoxDecoration(
+              color: themeColors['editorGroupHeader.tabsBackground'],
+              border: switch (border ?? line) {
+                final color? => Border(bottom: BorderSide(color: color)),
+                null => null,
+              },
+            ),
+            child: child,
+          ),
   );
+
+  /// Between two tabs over a card: a line where neither is in front.
+  static Widget? separator(BuildContext context, {required bool shown}) =>
+      IslandSurface.colorOf(context) == null
+      ? null
+      : IslandTabSeparator(shown: shown);
+}
+
+/// Under an [IdeTabStrip.flat]: its tabs'.
+class _FlatTabs extends InheritedWidget {
+  const _FlatTabs({required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_FlatTabs>() != null;
+
+  @override
+  bool updateShouldNotify(_FlatTabs old) => false;
 }
 
 /// A tab as the editor's (multiEditorTabsControl.ts, in the theme's
@@ -634,7 +724,13 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
     final colors = themeColors;
     // The active tab is selected: hovering it changes nothing.
     final hovered = _hover && !active;
-    final foreground = active
+    // Over a card: a browser's tab, the one in front of the card's color.
+    final island = IslandSurface.colorOf(context);
+    // In a card's flat strip: behind the active one, none of its own.
+    final flat = island == null && _FlatTabs.of(context);
+    final foreground = island != null || flat
+        ? IslandTab.foreground(active: active, hovered: hovered)
+        : active
         ? colors['tab.activeForeground']
         : (hovered ? colors.get('tab.hoverForeground') : null) ??
               colors['tab.inactiveForeground'];
@@ -677,30 +773,48 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
               minWidth: widget.minWidth,
               maxWidth: 260,
             ),
+            // In a card's flat strip, a segment: a gap after it.
+            margin: flat
+                ? const EdgeInsets.only(right: IdeTabStrip.flatGap)
+                : null,
             padding: EdgeInsets.only(
               left: padding,
               right: onClose == null ? padding : (small ? 3 : 5),
             ),
-            decoration: BoxDecoration(
-              // The active tab in the editor's own color (by default),
-              // merging with it.
-              color: active
-                  ? colors['tab.activeBackground']
-                  : (hovered ? colors.get('tab.hoverBackground') : null) ??
-                        colors['tab.inactiveBackground'],
-              border: Border(
-                top: BorderSide(
-                  color:
-                      (active && widget.borderTop
-                          ? colors.get('tab.activeBorderTop')
-                          : null) ??
-                      Colors.transparent,
-                ),
-                right: BorderSide(color: right ?? Colors.transparent),
-              ),
-            ),
+            decoration: island != null
+                ? null
+                // As a panel's views ([IslandSegment]).
+                : flat
+                ? BoxDecoration(
+                    color: Islands.segmentFill(
+                      selected: active,
+                      hovered: hovered,
+                    ),
+                    borderRadius: BorderRadius.circular(Islands.controlRadius),
+                  )
+                : BoxDecoration(
+                    // The active tab in the editor's own color (by default),
+                    // merging with it.
+                    color: active
+                        ? colors['tab.activeBackground']
+                        : (hovered
+                                  ? colors.get('tab.hoverBackground')
+                                  : null) ??
+                              colors['tab.inactiveBackground'],
+                    border: Border(
+                      top: BorderSide(
+                        color:
+                            (active && widget.borderTop
+                                ? colors.get('tab.activeBorderTop')
+                                : null) ??
+                            Colors.transparent,
+                      ),
+                      right: BorderSide(color: right ?? Colors.transparent),
+                    ),
+                  ),
             // Over the tab, as upstream's are.
-            foregroundDecoration: bottom == null && outline == null
+            foregroundDecoration:
+                island != null || flat || (bottom == null && outline == null)
                 ? null
                 : BoxDecoration(
                     border: outline != null
@@ -796,6 +910,25 @@ class _IdeEditorTabState extends State<IdeEditorTab> {
         ),
       ),
     );
+    if (island != null) {
+      final atStart = IslandTabStart.of(context);
+      tab = IslandCornerClaim(
+        claim: atStart && active,
+        child: CustomPaint(
+          painter: active
+              ? IslandTabShape(
+                  fill: island,
+                  line: Islands.border,
+                  overhang: 0,
+                  // The first, flush with the card's edge: straight down
+                  // into it there.
+                  flareLeft: !atStart,
+                )
+              : null,
+          child: tab,
+        ),
+      );
+    }
     if (widget.tooltip case final tooltip?) {
       tab = IdeHover(message: tooltip, child: tab);
     }

@@ -5,8 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_columns.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
+import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/ide_rows.dart';
 import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/workspace/islands.dart';
 
 import 'fake_files.dart';
 
@@ -31,7 +33,7 @@ void main() {
       tester.getCenter(_part('ide-sidebar-sash')),
     );
     // As far as the side bar goes: 676 of 1356 (the window less the
-    // activity bar).
+    // activity bar's room, and half a gap at its right; see Islands).
     await drag.moveBy(const Offset(20, 0));
     await drag.moveBy(const Offset(416, 0));
     await tester.pump();
@@ -117,7 +119,7 @@ void main() {
     expect(_part('ide-chat-sash'), findsNothing);
     expect(
       tester.getRect(_part('ide-editor')).right,
-      tester.view.physicalSize.width,
+      tester.view.physicalSize.width - IdeWorkbench.gap / 2,
     );
     await tester.tap(find.byIcon(Codicons.layoutSidebarRightOff));
     await tester.pump();
@@ -181,14 +183,18 @@ void main() {
     expect(panel.left, editor.left);
     expect(panel.right, editor.right);
     expect(panel.bottom, column.bottom);
-    // Its sash over the line between the two.
+    // Its sash in the middle of the gap over its card.
     expect(
       tester.getCenter(_part('ide-panel-sash')).dy,
-      closeTo(panel.top, 0.01),
+      closeTo(panel.top + IdeWorkbench.gap / 2, 0.01),
     );
     expect(tester.getSize(_part('ide-panel-sash')).height, IdeModernUI.gap);
-    // The side bar and the chat keep the whole height.
-    expect(tester.getRect(_part('ide-chat')).bottom, panel.bottom);
+    // The side bar and the chat keep the whole height; the chat down to
+    // the window's foot, its branch beside the status bar.
+    expect(
+      tester.getRect(_part('ide-chat')).bottom,
+      panel.bottom + Islands.belowHeight,
+    );
     expect(tester.getRect(_part('ide-sidebar')).bottom, panel.bottom);
 
     final drag = await tester.startGesture(
@@ -240,7 +246,7 @@ void main() {
     final editor = tester.getRect(_part('ide-editor'));
     final chat = tester.getRect(_part('ide-chat'));
     expect(chat.top, editor.top);
-    expect(chat.bottom, editor.bottom);
+    expect(chat.bottom, editor.bottom + Islands.belowHeight);
     expect(chat.left, editor.right);
     expect(chat.width, IdeColumns.minChat);
     // The side bar gave way to the editor opened.

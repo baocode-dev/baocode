@@ -54,6 +54,8 @@ class ChatHistoryView extends StatefulWidget {
     this.onOpenAgent,
     this.onSetGoal,
     this.onFindClosed,
+    this.after,
+    this.underTitle = false,
   });
 
   /// The conversation shown: a session's, or a subagent's.
@@ -77,6 +79,16 @@ class ChatHistoryView extends StatefulWidget {
 
   /// Where the focus goes once its find bar closes (see [find]).
   final VoidCallback? onFindClosed;
+
+  /// What shows under item [index], after its turn's footer, not of the
+  /// conversation itself (the conversations asked beside it there); none
+  /// for most.
+  final Widget? Function(int index)? after;
+
+  /// Whether a row is right over it (its card's title): room of its own
+  /// above the history, which then keeps less above its first item and a
+  /// stuck message, and fades less deep at its top.
+  final bool underTitle;
 
   @override
   State<ChatHistoryView> createState() => _ChatHistoryViewState();
@@ -573,9 +585,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   bool _contentBelow = false;
   bool _contentAbove = false;
 
-  /// Pointer held down in the list (drag, scrollbar) or a wheel event just
-  /// arrived: only then does a scroll change whether we stick to the bottom.
-  int _pointersDown = 0;
+  /// The devices with a button held down in the list (drag, scrollbar), by
+  /// [PointerEvent.device]. Held, or a wheel event just arrived: only then
+  /// does a scroll change whether we stick to the bottom.
+  final Set<int> _pressedDevices = {};
+  int get _pointersDown => _pressedDevices.length;
 
   late final _ChatSelectionDelegate _selectionDelegate = _ChatSelectionDelegate(
     locate: _locateItemPoint,
@@ -883,8 +897,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   // its first item is pressed. That bar is not a row of the list, so no index
   // is moved by it; the room for it is the list's top padding.
 
-  /// The list's room above its first item, and the bar's height after it.
-  static const _chatTopPadding = 20.0;
+  /// The list's room above its first item: as at its sides (the gutter),
+  /// where a message as wide as the chat lets it be sticks too (see
+  /// [_stickyInset]); less under a row ([ChatHistoryView.underTitle]). And
+  /// the bar's height after it.
+  double get _chatTopPadding => widget.underTitle ? 12 : _gutter;
   static const _earlierBarHeight = 40.0;
 
   /// How near the top the list is scrolled before the earlier turns are read.
@@ -895,17 +912,37 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _ => null,
   };
 
-  /// There were earlier turns to read: the room for the bar stays, as it
-  /// goes with the last of them.
-  bool _earlierSeen = false;
+  /// There are earlier turns to read, or they are being read: room for
+  /// the bar.
+  bool get _earlierRoom => switch (_session) {
+    final session? => session.hasEarlierHistory || session.loadingEarlier,
+    null => false,
+  };
 
-  bool get _earlierRoom {
+  /// Whether the list was last laid out with room for the bar, and for
+  /// whose turns.
+  (ChatSession?, bool) _earlierRoomLaidOut = (null, false);
+
+  /// [_earlierRoom], what is in the list kept where it is as the room comes
+  /// or goes (the last of the earlier turns read): scrolled by as much,
+  /// unless at the top, where the bar goes with it.
+  bool _keepEarlierRoom() {
     final session = _session;
-    if (session != null &&
-        (session.hasEarlierHistory || session.loadingEarlier)) {
-      _earlierSeen = true;
+    final room = _earlierRoom;
+    final (laidOutFor, laidOut) = _earlierRoomLaidOut;
+    _earlierRoomLaidOut = (session, room);
+    if (!identical(laidOutFor, session) || laidOut == room) return room;
+    if (_scrollController.hasClients) {
+      final position = _scrollController.position;
+      if (position.hasPixels && position.pixels > 0) {
+        position.correctBy(
+          room
+              ? _earlierBarHeight
+              : -math.min(_earlierBarHeight, position.pixels),
+        );
+      }
     }
-    return _earlierSeen;
+    return room;
   }
 
   /// Reading them brought nothing: not tried again until asked to.
@@ -1256,7 +1293,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   static const _scrollbarGutter = 24.0;
 
   void _handlePointerDown(PointerDownEvent event) {
-    _pointersDown++;
+    _pressedDevices.add(event.device);
     // What a right click is on, found as it presses: the selection's menu
     // builds as it comes up, when nothing may be hit tested.
     _linkMenu = event.buttons & kSecondaryMouseButton != 0
@@ -1323,7 +1360,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   }
 
   void _handlePointerUp(PointerEvent event) {
-    _pointersDown--;
+    if (!_pressedDevices.remove(event.device)) return;
     final from = _dragFrom;
     _dragFrom = null;
     if (from != null &&
@@ -1353,6 +1390,15 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         ..extending = false
         ..suspended = false;
     }
+  }
+
+  /// A device moving with no button down, though its release never came
+  /// here (let go outside the window, or as another window took the
+  /// focus): released now. Held on, its drag's end went on being put back
+  /// under the pointer at each wheel step (see [_scheduleDragReselect]), and
+  /// scrolling selected text.
+  void _handlePointerHover(PointerHoverEvent event) {
+    if (_pressedDevices.contains(event.device)) _handlePointerUp(event);
   }
 
   /// Scrolls while a drag selection is held near or past an edge, as the
@@ -1665,15 +1711,16 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _editorMoved.value++;
   }
 
-  /// Room above the editor stuck to the top of the list.
-  static const _editorInset = 8.0;
+  /// Room above the editor stuck to the top of the list: as above the
+  /// stuck message it opens from.
+  double get _editorInset => _stickyInset;
 
   /// Where the editor goes, relative to [layer]: on its placeholder, but
   /// never above the top of the list (it sticks there once scrolled past),
   /// unless the user's messages do not stick ([_sticks]). Null when the
   /// placeholder is out of the built items, out of view.
   double? _editorTop(RenderBox layer) {
-    const inset = _editorInset;
+    final inset = _editorInset;
     // Closing: on the message, below its gap (its placeholder is gone).
     if (_closingIndex case final index?) {
       final item = _laidOutItems()
@@ -1685,8 +1732,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           layer.localToGlobal(Offset.zero).dy;
       return _sticks ? math.max(top, inset) : top;
     }
+    // Not findRenderObject: painted in the frame whose layout dropped the
+    // placeholder's item, its element is inactive (and its box detached)
+    // until the frame ends.
     final placeholder =
-        _editorPlaceholderKey.currentContext?.findRenderObject() as RenderBox?;
+        (_editorPlaceholderKey.currentContext as Element?)?.renderObject
+            as RenderBox?;
     if (placeholder != null && placeholder.attached && placeholder.hasSize) {
       final top =
           placeholder.localToGlobal(Offset.zero).dy -
@@ -1703,8 +1754,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   // --- The sticky user message ---------------------------------------------
 
-  /// Room above the stuck message, as above the editor stuck to the top.
-  static const _stickyInset = AppMetrics.contentInset;
+  /// Room above the stuck message: as above the list's first item, and at
+  /// its sides where it is as wide as the chat lets it be (the gutter).
+  double get _stickyInset => _chatTopPadding;
 
   /// Height of the fade under the stuck message, over the transcript
   /// scrolling beneath it.
@@ -1712,7 +1764,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// How far the list scrolls while the stuck message comes in (and goes
   /// as the next pushes it away): as far as the list's top fade reaches.
-  static const _stickyEase = 32.0;
+  double get _stickyEase => _topFade;
+
+  /// How deep the list's top fade is: less under a row, which keeps it
+  /// apart from what is above already ([ChatHistoryView.underTitle]).
+  double get _topFade => widget.underTitle ? 24 : 32;
 
   /// Which copies are built is settled after layout, with the items where
   /// the scroll put them: a frame late, but ready before any scroll brings
@@ -1852,6 +1908,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         child: EdgeFadeMask(
           top: true,
           bottom: false,
+          topFadeLength: _topFade,
           topFadeAmount: () => 1 - (_stickyIn(index) ?? 1),
           repaint: repaint,
           child: _StickyFollower(
@@ -2114,7 +2171,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _foldOpen.removeWhere((key, _) => key.$2 > index);
       _unfoldedTurns.clear();
     });
-    _feed.editMessage(index, message);
+    _feed.editMessage(index, message, from: UserPlace.computer);
   }
 
   /// Row [index] of the list: [child] in the column, [gap] below the row
@@ -2186,7 +2243,23 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     final row = _rowAt(index);
     final folds = [?row.work, ?row.steps];
-    final footer = _turnFooter(index) ?? _liveFooter(index);
+    final footer = switch ((
+      _turnFooter(index) ?? _liveFooter(index),
+      widget.after?.call(index),
+    )) {
+      (final footer, null) => footer,
+      (null, final after?) => Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: after,
+      ),
+      (final footer?, final after?) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          footer,
+          Padding(padding: const EdgeInsets.only(top: 10), child: after),
+        ],
+      ),
+    };
     // Folded away (what the turn under way has written showing still).
     if (folds.isEmpty && !row.item) {
       return footer == null
@@ -2532,6 +2605,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         onPointerDown: _handlePointerDown,
         onPointerUp: _handlePointerUp,
         onPointerCancel: _handlePointerUp,
+        onPointerHover: _handlePointerHover,
         // Runs before the list handles the signal (that is resolved after
         // every target has seen it).
         onPointerSignal: (event) {
@@ -2593,6 +2667,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                 child: EdgeFadeMask(
                                   top: _contentAbove,
                                   bottom: _contentBelow,
+                                  topFadeLength: _topFade,
                                   // Hidden under the stuck message, fading in
                                   // below it.
                                   topCover: _stickyCover,
@@ -2621,7 +2696,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                           padding: EdgeInsets.fromLTRB(
                                             _gutter,
                                             _chatTopPadding +
-                                                (_earlierRoom
+                                                (_keepEarlierRoom()
                                                     ? _earlierBarHeight
                                                     : 0),
                                             _gutter,
@@ -2629,7 +2704,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                           ),
                                           itemBuilder: (context, index) =>
                                               _isHidden(index) &&
-                                                  index != _editingIndex
+                                                  index != _editingIndex &&
+                                                  widget.after?.call(index) ==
+                                                      null
                                               ? _hiddenRow(index)
                                               : _row(
                                                   index,

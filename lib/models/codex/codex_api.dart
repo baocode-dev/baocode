@@ -42,7 +42,8 @@ class CodexEndpoints {
   /// OAuth's: `/oauth/authorize`, `/oauth/token`.
   final String auth;
 
-  /// The backend's: `/codex/responses`, `/codex/models`, `/wham/usage`.
+  /// The backend's: `/codex/responses`, `/codex/models`, `/wham/usage`,
+  /// `/wham/rate-limit-reset-credits`.
   final String backend;
 
   /// The port sign-in comes back to, on this machine: the one the client
@@ -58,6 +59,11 @@ class CodexEndpoints {
     '$backend/codex/models?client_version=${Uri.encodeQueryComponent(version)}',
   );
   Uri get usage => Uri.parse('$backend/wham/usage');
+
+  /// An account's reset credits, and using one up.
+  Uri get resetCredits => Uri.parse('$backend/wham/rate-limit-reset-credits');
+  Uri get consumeResetCredit =>
+      Uri.parse('$backend/wham/rate-limit-reset-credits/consume');
 
   /// The Images API's, as the Codex CLI's image generation asks it.
   Uri get imageGenerations => Uri.parse('$backend/codex/images/generations');

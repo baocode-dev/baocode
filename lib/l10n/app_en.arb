@@ -660,21 +660,12 @@
   },
   "cmdSidePanelChanges": "Show Agent Changes",
   "cmdSidePanelFiles": "Show Agent Files",
+  "cmdSidePanelUsage": "Show Conversation Usage",
   "cmdSidePanelTerminal": "Show Agent Terminals",
   "cmdSidePanelCloseTab": "Close Side Panel Tab",
   "sidePanelFiles": "Files",
   "sidePanelTerminal": "Terminal",
-  "sidePanelBrowser": "Browser",
-  "@sidePanelBrowser": {"description": "The side panel's browser page, there once the browser plugin is installed."},
-  "browserNotConnected": "No browser is connected. Add BaoCode's extension to Chrome (or Edge, Brave, Arc) and agents can use the tabs you share with them.",
-  "browserNoSharedTab": "No tab is shared yet. Ask an agent to open a page, or click BaoCode in the browser toolbar to share the tab in front.",
   "browserOtherApp": "Another BaoCode is connected to the browser.",
-  "browserSharedTabs": "Shared Tabs",
-  "browserReload": "Reload",
-  "browserShowInBrowser": "Show in Browser",
-  "browserDetached": "The browser stopped letting BaoCode see this tab.",
-  "browserReconnect": "Reconnect",
-  "browserShowInPanel": "Show in Side Panel",
   "browserWatchTitle": "Watching you in the browser",
   "@browserWatchTitle": {"description": "The card in the conversation while an agent watches the user do something in their browser (browser_watch), recording it."},
   "browserWatchHint": "Do it in the BaoCode tab of your browser. When you're done, click Done here or the BaoCode button in the browser's toolbar.",
@@ -720,8 +711,11 @@
     "description": "Tooltip of the title bar button that shows the side panel."
   },
   "sidePanelHide": "Hide side panel",
-  "sidePanelMoveLeft": "Move to the Left of the Conversation",
-  "sidePanelMoveRight": "Move to the Right of the Conversation",
+  "chatLayout": "Layout",
+  "chatLayoutSidebarChatPanel": "Sidebar · Chat · Panel",
+  "chatLayoutSidebarPanelChat": "Sidebar · Panel · Chat",
+  "chatLayoutPanelChatSidebar": "Panel · Chat · Sidebar",
+  "chatLayoutChatPanelSidebar": "Chat · Panel · Sidebar",
   "@sidePanelHide": {
     "description": "Tooltip of the button that hides the side panel."
   },
@@ -1078,6 +1072,44 @@
   "@sidebarFork": {
     "description": "An agent's menu in the sidebar: copies its conversation into a new agent, which opens."
   },
+  "sidebarDetachAside": "Detach from Conversation",
+  "@sidebarDetachAside": {
+    "description": "The menu of a conversation asked beside another with /btw, listed under it in the sidebar: makes it a conversation of its own."
+  },
+  "sidebarDeleteAsidesToo": "{count, plural, =1{Its /btw conversation is deleted with it.} other{Its {count} /btw conversations are deleted with it.}}",
+  "@sidebarDeleteAsidesToo": {
+    "description": "After the message asking to delete an agent that has conversations asked beside it with /btw.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "btwCommandDetail": "Ask in a conversation of its own, beside this one",
+  "@btwCommandDetail": {
+    "description": "The /btw command in the composer's command list: what follows is asked in a new conversation copied from this one, listed under it."
+  },
+  "forkCommandDetail": "Fork this conversation and open the copy",
+  "@forkCommandDetail": {
+    "description": "The /fork command in the composer's command list: the conversation is copied into a new one (as the sidebar's Fork), which opens; what follows the command is sent there."
+  },
+  "forkUnavailable": "This conversation can't be forked: it needs a message first, and its agent has to support forking.",
+  "@forkUnavailable": {
+    "description": "Shown when /fork is sent in a conversation that cannot be copied (nothing sent yet, or its kernel cannot fork)."
+  },
+  "sidebarFoldAsides": "Hide /btw Conversations",
+  "@sidebarFoldAsides": {
+    "description": "The arrow on a sidebar row with conversations asked beside it (/btw) listed under it: no longer lists them."
+  },
+  "sidebarUnfoldAsides": "{count, plural, =1{Show its /btw conversation} other{Show its {count} /btw conversations}}",
+  "@sidebarUnfoldAsides": {
+    "description": "The arrow, or the tag, on a sidebar row whose conversations asked beside it (/btw) are hidden: lists them under it again.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "sidebarShowMore": "Show more ({count})",
   "@sidebarShowMore": {
     "placeholders": {
@@ -1285,6 +1317,10 @@
   },
   "chatOpensItsConversation": "Opens its conversation",
   "chatLoadEarlier": "Load earlier messages",
+  "chatReload": "Reload (continued elsewhere)",
+  "@chatReload": {
+    "description": "Over a kept conversation, once its session was talked in elsewhere (e.g. in a terminal) since it was read: reads it anew."
+  },
   "chatStop": "Stop",
   "chatKeepRunningHint": "Keep it running and let the agent go on",
   "chatBackground": "Background",
@@ -1821,11 +1857,7 @@
   "stripChangeModified": "Modified",
   "stripChangeDeleted": "Deleted",
   "stripChangeConflict": "Changed again since the agent left it, so Undo could not take the agent's change out. Undo it by hand, then keep it.",
-  "stripChangeShared": "Another agent was working in this project at the same time: some of this change may be its.",
-  "@stripChangeShared": {
-    "description": "Tooltip of a changed file seen while another agent worked in the same project."
-  },
-  "stripChangeUntracked": "What it was before is not known (it is ignored or too large and the agent did not tell, or it is outside the project): it can be kept, not undone.",
+  "stripChangeUntracked": "What it was before is not known (too large to keep, or the agent did not tell): it can be kept, not undone.",
   "stripChangesDiff": "Agent Changes",
   "@stripChangesDiff": {
     "description": "Label of the diff editor comparing a file before the agent changed it with the file now."
@@ -2425,7 +2457,7 @@
   "@generalSettingsClaudeCore": {
     "description": "Settings → General → Claude Code row: what runs Claude Code sessions, BaoCode's built-in core (written in Dart) or the Claude Code CLI."
   },
-  "generalSettingsClaudeCoreDescription": "Claude Code CLI: Anthropic's own program, with this machine's sign-in and setup; pick it to use a Claude subscription. Built-in: comes with BaoCode, and uses only the models added in Settings → Models. The CLI is the default, downloaded for you if this machine has none. Changes apply to new sessions.",
+  "generalSettingsClaudeCoreDescription": "Claude Code CLI: Anthropic's own program, with this machine's sign-in and setup; pick it to use a Claude subscription. Built-in: comes with BaoCode, and uses only the models added in Settings → Models. By default, the CLI where this machine has Claude Code, else the built-in core; the CLI, picked where there is none, is downloaded for you. Changes apply to new sessions.",
   "generalSettingsClaudeCoreBuiltin": "Built-in",
   "@generalSettingsClaudeCoreBuiltin": {
     "description": "Claude Code core choice: BaoCode's own agent core, written in Dart and run inside the app."
@@ -2647,7 +2679,9 @@
   "@themeHighContrastThemes": {
     "description": "Separator in the color theme picker."
   },
-  "themeSelectPlaceholder": "Select Color Theme (detect system color mode disabled)",
+  "themeAuto": "Auto",
+  "themeFollowSystem": "Follow system",
+  "themeSelectPlaceholder": "Select Color Theme",
   "dateNow": "now",
   "@dateNow": {
     "description": "A time within half a minute of now."
@@ -4370,7 +4404,7 @@
       }
     }
   },
-  "claudePathMissing": "None found yet: Claude Code is downloaded as the first conversation starts.",
+  "claudePathMissing": "None found yet: with the Claude Code CLI picked, it is downloaded as the first conversation starts.",
   "generalSettingsIdeWindows": "Fast Ide Windows",
   "generalSettingsIdeWindowsDescription": "Where the Fast Ide opens: in the main window in place of the chat, one folder at a time, or in windows of its own, one per folder (New Window, ⇧⌘N / Ctrl+Shift+N, opens an empty one). Applies at once. (window.ideWindows)",
   "generalSettingsIdeWindowsSeparate": "Separate windows",
@@ -4674,6 +4708,34 @@
   },
   "modelsAddAccount": "Add Account",
   "modelsAddAccountDescription": "Opens ChatGPT's sign-in page in the browser.",
+  "modelsAccountsImport": "Import",
+  "modelsAccountsImportTitle": "Import Accounts",
+  "modelsAccountsImportFile": "Choose File…",
+  "modelsAccountsImportDescription": "Enter account credentials as JSON or choose a JSON file.",
+  "modelsAccountsPaste": "Enter JSON…",
+  "modelsAccountsPastePlaceholder": "Type or paste your JSON credentials here.",
+  "modelsAccountsImportConfirm": "Import these ChatGPT credentials?",
+  "modelsAccountsImportConfirmDetail": "BaoCode will keep the credentials securely without changing the original file or actively refreshing tokens during import. Renewing them later may rotate the refresh token and require the original tool to sign in again. Only import credentials you are authorized to use.",
+  "modelsAccountsImportFailed": "The credentials could not be read or imported.",
+  "modelsAccountsImportSummary": "Accounts imported: {count}",
+  "@modelsAccountsImportSummary": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "modelsAccountsImportKept": "Already here, kept as signed in: {count}",
+  "@modelsAccountsImportKept": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "modelsAccountsImportItemFailed": "Entry {index}: {error}",
+  "@modelsAccountsImportItemFailed": {
+    "placeholders": {
+      "index": {"type": "int"},
+      "error": {"type": "String"}
+    }
+  },
   "modelsAccountSigningIn": "Waiting for sign-in…",
   "modelsAccountSigningInDetail": "Finish signing in in the browser. If it did not open, copy the link into it.",
   "modelsAccountCopyLink": "Copy Link",
@@ -4685,7 +4747,13 @@
       }
     }
   },
-  "modelsRefreshQuota": "Refresh Quota",
+  "modelsRefreshQuota": "Refresh All Quotas",
+  "modelsAccountRefreshQuota": "Refresh quota for {name}",
+  "@modelsAccountRefreshQuota": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
   "modelsAccountRemove": "Remove account",
   "modelsAccountRemoveConfirm": "Remove “{name}”?",
   "@modelsAccountRemoveConfirm": {
@@ -5800,6 +5868,15 @@
       }
     }
   },
+  "remoteStatusSystem": "System: {platform}",
+  "@remoteStatusSystem": {
+    "placeholders": {
+      "platform": {
+        "type": "String",
+        "example": "Windows x64"
+      }
+    }
+  },
   "remoteStatusTooltipLost": "The connection to {host} is lost: click to reconnect now",
   "@remoteStatusTooltipLost": {
     "placeholders": {
@@ -6432,6 +6509,18 @@
   "mobilePairCancel": "Cancel",
   "mobilePairNewCode": "New Code",
   "mobilePairCopyLink": "Copy Link",
+  "mobilePairQrHint": "Click to copy the link, to paste on the phone",
+  "mobileGetApp": "Get the Phone App",
+  "mobileGetAppDescription": "Scan with the phone's camera: the same downloads as on baocode.dev.",
+  "mobileGetAndroidDetail": "The APK; it keeps itself up to date",
+  "mobileGetIos": "iPhone and iPad",
+  "mobileGetIosDetail": "The beta, on TestFlight",
+  "mobileGetOpen": "Click to open {url}",
+  "@mobileGetOpen": {
+    "placeholders": {
+      "url": {"type": "String"}
+    }
+  },
   "mobilePairCopied": "Copied",
   "mobilePairExpires": "Good for {minutes} min, once. A phone that cannot scan it can paste the link instead.",
   "@mobilePairExpires": {
@@ -6502,6 +6591,15 @@
   "mobileRelayModeAutoDescription": "BaoCode's relays, the nearest that answers.",
   "mobileRelayModePinned": "Pick One",
   "mobileRelayModePinnedDescription": "Only the one picked: one of BaoCode's, or a custom address.",
+  "mobileRelayModeDirect": "Direct Only",
+  "mobileRelayModeDirectDescription": "No relay: phones connect straight to this computer. It needs a public address, or the port below forwarded to it.",
+  "mobileDirectPort": "Direct Port",
+  "mobileDirectPortDescription": "The UDP port phones connect to. Forward it to this computer at the router, and allow it in the firewall.",
+  "mobileDirectPortInvalid": "A port from 1024 to 65535.",
+  "mobileDirectAddress": "Direct Address",
+  "mobileDirectAddressDescription": "It goes in the pairing code and in every connection after.",
+  "mobileDirectAddressNone": "No public address yet: check again once this computer is online, or forward the port to it if it is behind a router.",
+  "mobileStatusDirect": "On, direct only",
   "mobilePathLan": "Same network",
   "mobilePathDirect": "Direct",
   "mobilePathRelay": "Through the relay",
@@ -6941,12 +7039,13 @@
   },
   "settingsSectionAccounts": "Git Accounts",
   "settingsAccountsKeywords": "GitHub GitLab sign in login token issue pull request merge request",
-  "accountsDescription": "Sign in to GitHub or GitLab to see the state of the issues and pull requests linked in Stash, import issues as stashes, and reply to them once you confirm.",
+  "accountsDescription": "Sign in to GitHub, GitLab or Gitee to see the state of the issues and pull requests linked in Stash, import issues as stashes, and reply to them once you confirm.",
   "accountsSignedIn": "Signed in",
   "accountsAdd": "Add an account",
-  "accountsKeptLocally": "Tokens are kept in this computer's keychain and are sent only to the GitHub or GitLab they are for. Nothing is posted without your confirmation.",
+  "accountsKeptLocally": "Tokens are kept in this computer's keychain and are sent only to the GitHub, GitLab or Gitee they are for. Nothing is posted without your confirmation.",
   "accountsGitHubHosts": "github.com, or your company's GitHub Enterprise",
-  "accountsGitLabHosts": "gitlab.com, or a self-managed GitLab",
+  "accountsGitLabHosts": "gitlab.com, or a self-managed GitLab (http:// or https://, with its port)",
+  "accountsGiteeHosts": "gitee.com, with a personal access token",
   "accountsSignInBrowser": "Sign in with Browser",
   "accountsSignInToken": "Use a Token…",
   "accountsViaBrowser": "signed in with browser",
@@ -6988,10 +7087,11 @@
     }
   },
   "accountsSignIn": "Sign In",
-  "accountsHost": "Host",
+  "accountsHost": "Server",
   "accountsToken": "Token",
   "accountsTokenGitHubScopes": "A classic token with the repo and read:user scopes, or a fine-grained token with read and write access to issues and pull requests.",
   "accountsTokenGitLabScopes": "A personal access token with the api scope.",
+  "accountsTokenGiteeScopes": "A personal access token with the user_info, projects, pull_requests, issues and notes scopes.",
   "accountsTokenCreate": "Create a Token on {host}",
   "@accountsTokenCreate": {
     "placeholders": {
@@ -7001,6 +7101,29 @@
     }
   },
   "accountsTokenRefused": "The token was not accepted. Check that it is complete and has not expired.",
+  "accountsCertificateTitle": "Untrusted Certificate",
+  "@accountsCertificateTitle": {
+    "description": "Title of the dialog asking whether to trust a forge server's certificate."
+  },
+  "accountsCertificateDetail": "The certificate of {host} cannot be verified ({issuer}).\n\nSHA-256 fingerprint:\n{fingerprint}\n\nTrusting it lets BaoCode reach this server, and only the certificate with this fingerprint is accepted. You are asked again if the certificate changes.",
+  "@accountsCertificateDetail": {
+    "description": "What a self-signed or privately issued forge certificate is, before the user confirms it.",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "issuer": {
+        "type": "String"
+      },
+      "fingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "accountsCertificateTrust": "Trust and Continue",
+  "@accountsCertificateTrust": {
+    "description": "Button that trusts the certificate shown, and only that one."
+  },
   "accountsBrowserTitle": "Sign in to {forge}",
   "@accountsBrowserTitle": {
     "placeholders": {
@@ -7125,7 +7248,7 @@
   },
   "stashImportPaste": "Paste an issue or pull request link",
   "stashImportAdd": "Add",
-  "stashImportNotALink": "Not a GitHub or GitLab issue or pull request link.",
+  "stashImportNotALink": "Not a GitHub, GitLab or Gitee issue or pull request link.",
   "stashImportSignIn": "Sign in to {forge} in Settings → Accounts to list its issues.",
   "@stashImportSignIn": {
     "placeholders": {
@@ -7140,7 +7263,7 @@
   "stashImportAll": "All open",
   "stashImportSearch": "Search",
   "stashImportLoading": "Loading…",
-  "stashImportNoRepos": "No project has a GitHub or GitLab remote. Paste an issue link above.",
+  "stashImportNoRepos": "No project has a GitHub, GitLab or Gitee remote. Paste an issue link above.",
   "stashImportNone": "No open issues here.",
   "stashImportKnown": "in Stash #{id}",
   "@stashImportKnown": {
@@ -7174,7 +7297,7 @@
   "stashWelcomeAgentTitle": "Hand it to an agent",
   "stashWelcomeAgent": "Click Implement in BaoCode, or mention it in a conversation; the conversation and the stash stay linked.",
   "stashWelcomeTrackTitle": "See how it goes",
-  "stashWelcomeTrack": "Cards show their conversations live, and the GitHub and GitLab issues and pull requests they link to stay in sync.",
+  "stashWelcomeTrack": "Cards show their conversations live, and the GitHub, GitLab and Gitee issues and pull requests they link to stay in sync.",
   "stashWelcomeStart": "Get Started",
   "stashWelcomeNoteBody": "Text, screenshots and links all go in, and each one gets a number of its own, like an issue.",
   "stashWelcomeHotkeyTitle": "Set a shortcut to note things down",
@@ -7274,9 +7397,6 @@
   "modelWelcomeStart": "Start Chatting",
   "healthNoModel": "Pick a model to start: add an upstream and its models are ready to use.",
   "modelSetUp": "Set Up a Model",
-  "claudeCoreHint": "This chat runs on BaoCode's built-in core. We recommend the Claude Code core for the fullest experience; it's downloaded for you if needed.",
-  "claudeCoreHintSwitch": "Switch to Claude Code",
-  "claudeCoreHintLater": "Not Now",
   "remoteAddServer": "Add SSH Server...",
   "remoteEditServer": "Edit",
   "settingsSectionSsh": "SSH Servers",
@@ -7435,7 +7555,7 @@
   "aboutFeedbackDetail": "Open an issue on GitHub, or see those others opened",
   "aboutOpen": "Open",
   "stashSettingsIssueSync": "Issues as stashes",
-  "stashSettingsIssueSyncDescription": "A project that is a Git repository on GitHub or GitLab (signed in under Accounts): its open issues are stashes, each once, kept in step both ways. A stash deleted, or unlinked from its issue, does not come back.",
+  "stashSettingsIssueSyncDescription": "A project that is a Git repository on GitHub, GitLab or Gitee (signed in under Accounts): its open issues are stashes, each once, kept in step both ways. A stash deleted, or unlinked from its issue, does not come back.",
     "stashIssueSyncMine": "Only those assigned to or opened by me",
   "stashIssueSyncOff": "Off: imported or published ones only",
   "stashIssueLocal": "Local only",
@@ -7801,12 +7921,7 @@
     }
   },
   "gitLogSelectCommit": "Select a commit to see its details.",
-  "gitLogAuthor": "Author",
   "gitLogParents": "Parent: ",
-  "gitLogShowBranches": "Show Branches",
-  "gitLogHideBranches": "Hide Branches",
-  "gitLogShowSizes": "Show Sizes",
-  "gitLogHideSizes": "Hide Sizes",
   "gitLogFileCount": "{count, plural, =1{1 file} other{{count} files}}",
   "@gitLogFileCount": {
     "placeholders": {
@@ -7917,9 +8032,6 @@
       }
     }
   },
-  "diffHighlightCharacters": "Highlight Characters",
-  "diffHighlightWords": "Highlight Words",
-  "diffHighlightLines": "Highlight Lines",
   "diffGoToFile": "Go to Changed File",
   "lineChangePrevious": "Previous Change",
   "lineChangeNext": "Next Change",
@@ -8134,6 +8246,8 @@
   "gitStashNone": "No stashes",
   "gitStashTab": "Stash",
   "gitCommitTab": "Commit",
+  "gitCommitPanelFold": "Fold",
+  "gitCommitPanelUnfold": "Unfold",
   "gitStashSelected": "Stash Selected Files…",
   "gitCommitIgnored": "Ignored Files",
   "gitCommitShowIgnored": "Show Ignored Files",
@@ -8255,5 +8369,394 @@
   "@localHistoryLabel": {"placeholders": {"name": {"type": "String"}, "time": {"type": "String"}}},
   "explorerCompareSelected": "Compare Selected",
   "compareFilesLabel": "{original} \u2194 {modified}",
-  "@compareFilesLabel": {"placeholders": {"original": {"type": "String"}, "modified": {"type": "String"}}}
+  "@compareFilesLabel": {"placeholders": {"original": {"type": "String"}, "modified": {"type": "String"}}},
+  "settingsSectionUsage": "Usage",
+  "sidePanelUsage": "Usage",
+  "ustatKeywords": "usage statistics tokens cache calls cost dashboard upstream model",
+  "ustatAll": "All",
+  "ustatAgent": "Agent",
+  "ustatKind": "Kind",
+  "ustatModel": "Model",
+  "ustatUpstream": "Upstream",
+  "ustatConversation": "Conversation",
+  "ustatFailedOnly": "Failed only",
+  "ustatResetFilters": "Reset filters",
+  "ustatRefresh": "Refresh",
+  "ustatUnpin": "Back to the whole range",
+  "ustatRangeHour": "Last hour",
+  "ustatRangeToday": "Today",
+  "ustatRangeDay": "Last 24 hours",
+  "ustatRangeWeek": "Last 7 days",
+  "ustatRangeMonth": "Last 30 days",
+  "ustatRangeQuarter": "Last 90 days",
+  "ustatRangeAll": "All time",
+  "ustatClassMain": "Main agent",
+  "ustatClassSubagent": "Subagent",
+  "ustatClassWorkflow": "Workflow",
+  "ustatClassCompaction": "Compaction",
+  "ustatClassAuxiliary": "Auxiliary",
+  "ustatClassSideReply": "Side reply",
+  "ustatMainAgent": "Main agent",
+  "ustatPartSystem": "System prompt",
+  "ustatPartTools": "Tool definitions",
+  "ustatPartUser": "User messages",
+  "ustatPartAssistant": "Replies",
+  "ustatPartThinking": "Thinking",
+  "ustatPartToolUse": "Tool calls",
+  "ustatPartToolResult": "Tool results",
+  "ustatPartMedia": "Images & files",
+  "ustatTokenInput": "Input",
+  "ustatTokenOutput": "Output",
+  "ustatTokenCacheRead": "Cache read",
+  "ustatTokenCacheWrite": "Cache write",
+  "ustatTokenReasoning": "Reasoning",
+  "ustatTotalTokens": "Tokens",
+  "ustatTokensDetail": "{input} in · {output} out",
+  "@ustatTokensDetail": {"placeholders": {"input": {"type": "String"}, "output": {"type": "String"}}},
+  "ustatCalls": "Calls",
+  "ustatCallsDetail": "{count} tool calls asked",
+  "@ustatCallsDetail": {"placeholders": {"count": {"type": "String"}}},
+  "ustatCallsOk": "Succeeded",
+  "ustatCallsShort": "{count} calls",
+  "@ustatCallsShort": {"placeholders": {"count": {"type": "int"}}},
+  "ustatCacheHit": "Cache hit rate",
+  "ustatCacheDetail": "{read} read · {written} written",
+  "@ustatCacheDetail": {"placeholders": {"read": {"type": "String"}, "written": {"type": "String"}}},
+  "ustatFirstToken": "Time to first token",
+  "ustatDurationDetail": "{duration} per call on average",
+  "@ustatDurationDetail": {"placeholders": {"duration": {"type": "String"}}},
+  "ustatSpeed": "Output speed",
+  "ustatOutputDetail": "{tokens} output in all",
+  "@ustatOutputDetail": {"placeholders": {"tokens": {"type": "String"}}},
+  "ustatReasoningDetail": "{tokens} of it reasoning",
+  "@ustatReasoningDetail": {"placeholders": {"tokens": {"type": "String"}}},
+  "ustatErrors": "Failed",
+  "ustatErrorRate": "{rate} of calls",
+  "@ustatErrorRate": {"placeholders": {"rate": {"type": "String"}}},
+  "ustatOverTime": "Over time",
+  "ustatMetricTokens": "Tokens",
+  "ustatMetricCalls": "Calls",
+  "ustatMetricLatency": "Latency",
+  "ustatMetricSpeed": "Speed",
+  "ustatByUpstream": "By upstream",
+  "ustatByModel": "By model",
+  "ustatByConversation": "By conversation",
+  "ustatByTurn": "By turn",
+  "ustatByTurnDetail": "Each of your messages and all the requests that answered it",
+  "ustatTurnDetail": "{duration} · context up to {peak}",
+  "@ustatTurnDetail": {"placeholders": {"duration": {"type": "String"}, "peak": {"type": "String"}}},
+  "ustatNoConversations": "No conversation named its session",
+  "ustatTools": "Tools",
+  "ustatToolsDetail": "What their results brought into the context (estimated), how often they were called, how long they ran",
+  "ustatToolSortTokens": "Context",
+  "ustatToolSortCalls": "Calls",
+  "ustatToolSortTime": "Time",
+  "ustatNoTools": "No tools were used",
+  "ustatToolCalled": "Called",
+  "ustatToolResult": "result",
+  "ustatShowAll": "Show all {count}",
+  "@ustatShowAll": {"placeholders": {"count": {"type": "int"}}},
+  "ustatShowLess": "Show less",
+  "ustatContextGrowth": "Context growth",
+  "ustatContextNow": "{tokens} now",
+  "@ustatContextNow": {"placeholders": {"tokens": {"type": "String"}}},
+  "ustatContextPeak": "peak {tokens}",
+  "@ustatContextPeak": {"placeholders": {"tokens": {"type": "String"}}},
+  "ustatCompactions": "{count, plural, =1{1 compaction} other{{count} compactions}}",
+  "@ustatCompactions": {"placeholders": {"count": {"type": "int"}}},
+  "ustatCompactedFrom": "Compacted at {tokens}",
+  "@ustatCompactedFrom": {"placeholders": {"tokens": {"type": "String"}}},
+  "ustatContextMakeup": "What fills the context",
+  "ustatRecentCalls": "Recent calls",
+  "ustatCallsTitle": "Calls",
+  "ustatRecentCallsDetail": "{count} in all, newest first",
+  "@ustatRecentCallsDetail": {"placeholders": {"count": {"type": "int"}}},
+  "ustatShowMoreCalls": "Show more ({count} left)",
+  "@ustatShowMoreCalls": {"placeholders": {"count": {"type": "int"}}},
+  "ustatNoCalls": "No calls",
+  "ustatCopyJson": "Copy the call as JSON",
+  "ustatFieldTime": "Time",
+  "ustatFieldStatus": "Status",
+  "ustatFieldUpstream": "Upstream",
+  "ustatFieldModel": "Model",
+  "ustatFieldEffort": "Effort",
+  "ustatFieldClass": "Kind",
+  "ustatFieldSession": "Session",
+  "ustatFieldAgent": "Agent",
+  "ustatFieldTask": "Task",
+  "ustatFieldAccount": "Account",
+  "ustatFieldUpstreamLatency": "Upstream answered",
+  "ustatCallAsking": "Requesting",
+  "@ustatCallAsking": {"description": "A call under way, nothing of its answer yet"},
+  "ustatCallAnswering": "Answering",
+  "@ustatCallAnswering": {"description": "A call under way, its answer coming"},
+  "ustatCallCancelled": "Cancelled",
+  "@ustatCallCancelled": {"description": "A call Claude Code gave up on before it was answered in full (it timed out, or was interrupted)"},
+  "ustatFieldFirstToken": "First token",
+  "ustatFieldDuration": "Duration",
+  "ustatFieldSpeed": "Speed",
+  "ustatFieldMessages": "Messages",
+  "ustatFieldTools": "tools",
+  "ustatFieldBytes": "Size",
+  "ustatFieldCompacted": "After compaction",
+  "ustatFieldError": "Error",
+  "ustatEmptyTitle": "No calls yet",
+  "ustatEmptyDetail": "Calls show here once a conversation runs.",
+  "ustatEmptyFiltered": "Nothing matches these filters",
+  "ustatConversationNew": "Usage shows once the conversation starts",
+  "ustatConversationEmpty": "No calls kept for this conversation",
+  "ustatConversationEmptyDetail": "Only conversations on a custom upstream are counted: Claude's official service does not go through BaoCode's proxy.",
+  "ustatRecordOff": "Usage is not being recorded",
+  "ustatTurnOn": "Turn on",
+  "ustatDataTitle": "Data",
+  "ustatDataDescription": "Detailed records take room: keep them as long as you like, and clear what you no longer need.",
+  "ustatRecord": "Record usage",
+  "ustatRecordDescription": "Claude Code's own calls are read from what it prints; sessions on a custom upstream go through BaoCode's local proxy, which keeps each call. Applies to agents started from now on.",
+  "ustatRecordOffDescription": "Turn it on to keep each call to a model: tokens, the cache, time, by conversation, subagent and tool.",
+  "ustatDetailed": "Detailed records",
+  "ustatDetailedDescription": "Also keeps what filled each request's context and the tools' share. Takes more room.",
+  "ustatRetention": "Keep records for",
+  "ustatRetentionDescription": "Older days are deleted as they pass.",
+  "ustatKeepDays": "{days} days",
+  "@ustatKeepDays": {"placeholders": {"days": {"type": "int"}}},
+  "ustatKeepForever": "Forever",
+  "ustatSpace": "Using {size}",
+  "@ustatSpace": {"placeholders": {"size": {"type": "String"}}},
+  "ustatSpaceDetail": "{days} days kept, since {oldest}",
+  "@ustatSpaceDetail": {"placeholders": {"days": {"type": "int"}, "oldest": {"type": "String"}}},
+  "ustatSpaceEmpty": "Nothing kept yet",
+  "ustatClearEllipsis": "Clear…",
+  "ustatClear": "Clear",
+  "ustatClearOlderThan": "Clear all but the last {days} days",
+  "@ustatClearOlderThan": {"placeholders": {"days": {"type": "int"}}},
+  "ustatClearShown": "Clear the time shown",
+  "ustatClearShownFiltered": "Clear what the filters show",
+  "ustatClearAll": "Clear everything",
+  "ustatClearConfirm": "{what}?",
+  "@ustatClearConfirm": {"placeholders": {"what": {"type": "String"}}},
+  "ustatClearDetail": "The calls are deleted from this computer. This cannot be undone.",
+  "autoResetCreditsToggle": "Auto-Use Reset Credits",
+  "modelsResetCredits": "{count, plural, =1{1 reset left} other{{count} resets left}}",
+  "@modelsResetCredits": {"placeholders": {"count": {"type": "int"}}},
+  "modelsResetCreditsTitle": "{count, plural, =1{1 reset credit} other{{count} reset credits}}",
+  "@modelsResetCreditsTitle": {"placeholders": {"count": {"type": "int"}}},
+  "modelsResetCreditsDetail": "Using one starts this account's quota windows over at once.",
+  "modelsResetCreditExpires": "Expires {time}",
+  "@modelsResetCreditExpires": {"placeholders": {"time": {"type": "String"}}},
+  "modelsResetCreditUse": "Reset Now",
+  "modelsResetCreditConfirm": "Use a reset credit of {account}?",
+  "@modelsResetCreditConfirm": {"placeholders": {"account": {"type": "String"}}},
+  "modelsResetCreditConfirmDetail": "Its quota starts over at once. The credit can't be given back, and whatever quota is left now is lost.",
+  "resetCreditsHint": "{count, plural, =1{A reset credit expires} other{{count} reset credits expire}} within a week. To get their worth, use Codex models on this plan, resetting once the quota runs out:",
+  "@resetCreditsHint": {"placeholders": {"count": {"type": "int"}}},
+  "resetCreditsHintDay": "{day}: reset {count, plural, =1{once} other{{count} times}}",
+  "@resetCreditsHintDay": {"placeholders": {"day": {"type": "String"}, "count": {"type": "int"}}},
+  "resetCreditsHintBy": "by {time}",
+  "@resetCreditsHintBy": {"placeholders": {"time": {"type": "String"}}},
+  "resetCreditsHintToday": "Today",
+  "resetCreditsHintTomorrow": "Tomorrow",
+  "resetCreditsHintAuto": "Reset Automatically",
+  "resetCreditsHintLater": "Got It",
+  "ustatPartMemory": "CLAUDE.md & rules",
+  "ustatPartSkills": "Skills",
+  "ustatPartMcp": "MCP",
+  "ustatPartMessages": "Conversation",
+  "ustatCacheHitShort": "{rate} cached",
+  "@ustatCacheHitShort": {"placeholders": {"rate": {"type": "String"}}},
+  "ustatCompactedAfter": "First after compacting",
+  "ustatContextPickHint": "Click to see what filled it",
+  "ustatRequests": "{count, plural, =1{1 request} other{{count} requests}}",
+  "@ustatRequests": {"placeholders": {"count": {"type": "int"}}},
+  "ustatRequestOf": "#{index} of {count}",
+  "@ustatRequestOf": {"placeholders": {"index": {"type": "int"}, "count": {"type": "int"}}},
+  "ustatPreviousRequest": "Previous request",
+  "ustatNextRequest": "Next request",
+  "ustatNoMakeup": "What filled this request's context was not recorded (turn on Detailed recording).",
+  "ustatMakeupNoDetail": "Recorded before the breakdown by tool, MCP server and skill: requests from now on have it.",
+  "ustatMakeupShapeMissing": "The breakdown of this request's tools and skills was not found.",
+  "ustatMcpTools": "{count, plural, =0{instructions only} =1{1 tool} other{{count} tools}}",
+  "@ustatMcpTools": {"placeholders": {"count": {"type": "int"}}},
+  "ustatMcpInstructions": "Instructions",
+  "ustatSkillPlugin": "plugin",
+  "ustatToolInputs": "inputs {tokens}",
+  "@ustatToolInputs": {"placeholders": {"tokens": {"type": "String"}}},
+  "ustatSwitchedHint": "Saved to Settings → Customize. The agent's next requests go without what was turned off.",
+  "ustatShowAuxiliary": "Show auxiliary requests",
+  "ustatShowAuxiliaryDescription": "Count Claude Code's requests beside the conversation (suggesting the next prompt, naming the conversation, summing up a web page) in the charts and totals. They are kept either way.",
+  "ustatTrace": "Debug capture",
+  "ustatTraceDescription": "Also keep every request to a custom upstream whole: as Claude Code sent it, as it went to the upstream, the upstream's raw answer and what went back; of Claude Code's own models, only their answers. Keys are masked. Takes a lot of space: turn it off when done.",
+  "ustatTraceTitle": "Raw exchange",
+  "ustatTraceLoading": "Reading…",
+  "ustatTraceGone": "The raw exchange was cleared.",
+  "ustatTraceNone": "Nothing went this way (it was answered before).",
+  "ustatTraceRequestBody": "Request body",
+  "ustatTraceRawResponse": "Raw response",
+  "ustatTraceToUpstream": "Sent upstream",
+  "ustatTraceResponseHeaders": "Response headers · {count}",
+  "@ustatTraceResponseHeaders": {"placeholders": {"count": {"type": "int"}}},
+  "ustatTraceAnswerOnly": "As Claude Code printed it; the request to Anthropic is not seen",
+  "ustatTraceTry": "Try {n}",
+  "@ustatTraceTry": {"placeholders": {"n": {"type": "int"}}},
+  "ustatTraceCopyAll": "Copy all",
+  "ustatTraceCopyBody": "Copy",
+  "ustatTraceHeaders": "Request headers · {count}",
+  "@ustatTraceHeaders": {"placeholders": {"count": {"type": "int"}}},
+  "ustatTraceRaw": "As sent",
+  "ustatTraceFormatted": "Formatted",
+  "ustatTraceEmpty": "Empty",
+  "ustatTraceMore": "Show more ({size} left)",
+  "@ustatTraceMore": {"placeholders": {"size": {"type": "String"}}},
+  "ustatTraceTruncated": "cut at 24M characters",
+  "ustatSpaceTraces": "; raw exchanges {size} ({count})",
+  "@ustatSpaceTraces": {"placeholders": {"size": {"type": "String"}, "count": {"type": "int"}}},
+  "ustatClearTraces": "Clear the raw exchanges only",
+  "ustatClearTracesDetail": "The calls stay; their raw requests and answers are deleted from this computer.",
+  "ustatColumnTotal": "Total",
+  "ustatColumnMix": "Breakdown",
+  "ustatDeferred": "deferred, {size}",
+  "@ustatDeferred": {"placeholders": {"size": {"type": "String"}}},
+  "ustatSwitchedOff": "turned off",
+  "usageUntilCompaction": "{tokens} to auto-compact",
+  "@usageUntilCompaction": {"placeholders": {"tokens": {"type": "String"}}},
+  "usageAgentDefinition": "agent",
+  "usageAttachments": "Reminders & attachments",
+  "ustatCost": "Cost",
+  "ustatCostEstimated": "At the prices as they are now",
+  "ustatCostUnpriced": "{count, plural, =1{1 call unpriced} other{{count} calls unpriced}}",
+  "@ustatCostUnpriced": {"placeholders": {"count": {"type": "int"}}},
+  "ustatCostNoPrices": "No prices set",
+  "ustatPrices": "Model prices",
+  "ustatPricesDetail": "A million tokens each. Costs are worked out at the prices as they are now, the calls before a change included, unless a price is set from a date on.",
+  "ustatPricesAgentHint": "BaoCode can keep these for you: ask it in a chat to look up the current prices of these models and update them. It checks the upstream's own pricing page and writes them here.",
+  "ustatPriceCurrency": "Currency",
+  "ustatPriceAnyUpstream": "any upstream",
+  "ustatPriceSource": "Where the price was read",
+  "ustatPriceUpdated": "updated {when}",
+  "@ustatPriceUpdated": {"placeholders": {"when": {"type": "String"}}},
+  "ustatPriceClear": "Clear the price",
+  "ustatPriceIncomplete": "Fill in both the input and the output price",
+  "ustatPriceSpent": "In this time",
+  "modelsAutoResetCreditsOff": "Off",
+  "modelsAutoResetCreditsLong": "When the Week or Month Runs Out",
+  "modelsAutoResetCreditsAny": "When Any Window Runs Out",
+  "modelsAutoResetCreditsOffDescription": "An account out of quota waits for it to start over.",
+  "modelsAutoResetCreditsLongDescription": "An account out of its week (or month) uses a reset credit and goes on. Five hours running out is waited for: they start over soon.",
+  "modelsAutoResetCreditsAnyDescription": "An account out of any window, five hours too, uses a reset credit at once and goes on. Credits go faster.",
+  "ustatQuota": "Claude Plan",
+  "ustatQuotaDetail": "How much of the plan's limits Claude Code's own models took in this time, from the limits as they stood after each call.",
+  "ustatQuotaFiveHour": "5-hour limit",
+  "ustatQuotaWeek": "Weekly limit",
+  "ustatQuotaWeekOf": "Weekly {model} limit",
+  "@ustatQuotaWeekOf": {"placeholders": {"model": {"type": "String"}}},
+  "ustatQuotaUsed": "{percent} used in this time",
+  "@ustatQuotaUsed": {"placeholders": {"percent": {"type": "String"}}},
+  "ustatQuotaPeak": "Peak {percent} in this time · reset {count, plural, =1{once} other{{count} times}}",
+  "@ustatQuotaPeak": {"placeholders": {"percent": {"type": "String"}, "count": {"type": "int"}}},
+  "ustatQuotaPerPercent": "1% of the weekly limit ≈ {tokens} tokens",
+  "@ustatQuotaPerPercent": {"placeholders": {"tokens": {"type": "String"}}},
+  "ustatQuotaPerPercentCost": "≈ {cost} at API prices",
+  "@ustatQuotaPerPercentCost": {"placeholders": {"cost": {"type": "String"}}},
+  "ustatCacheSaved": "{amount} saved",
+  "@ustatCacheSaved": {"placeholders": {"amount": {"type": "String"}}},
+  "ustatCostIn": "In {currency} only; the other currencies are in the totals",
+  "@ustatCostIn": {"placeholders": {"currency": {"type": "String"}}},
+  "ustatPriceClaudeDefault": "Claude Code's own models without a price of yours are priced at Anthropic's API prices: the grey figures.",
+  "ustatPriceRuleTiers": "{count} tiers by prompt length",
+  "@ustatPriceRuleTiers": {"placeholders": {"count": {"type": "int"}}},
+  "ustatPriceRuleSchedule": "peak and off-peak hours",
+  "ustatPriceRuleFast": "fast mode ×{factor}",
+  "@ustatPriceRuleFast": {"placeholders": {"factor": {"type": "String"}}},
+  "ustatPriceRuleServiceTiers": "by service tier",
+  "ustatPriceRuleGeo": "by region",
+  "ustatPriceRulePerCall": "{amount} a call",
+  "@ustatPriceRulePerCall": {"placeholders": {"amount": {"type": "String"}}},
+  "ustatPriceRuleTools": "tools priced a use",
+  "ustatPriceRuleVersions": "{count} prices by date",
+  "@ustatPriceRuleVersions": {"placeholders": {"count": {"type": "int"}}},
+  "ustatPriceRuleRate": "upstream rate ×{factor}",
+  "@ustatPriceRuleRate": {"placeholders": {"factor": {"type": "String"}}},
+  "ustatPriceRuleTime": "time of week ×{factor}",
+  "@ustatPriceRuleTime": {"placeholders": {"factor": {"type": "String"}}},
+  "ustatPriceRuleFees": "fees {amount}",
+  "@ustatPriceRuleFees": {"placeholders": {"amount": {"type": "String"}}},
+  "ustatFees": "Fees",
+  "ustatPricedBy": "Priced by",
+  "ustatUpstreamRates": "Upstream rates",
+  "ustatUpstreamRatesDetail": "The models of these upstreams without a price of their own: the same model's price elsewhere, times the rate.",
+  "ustatUpstreamRateClear": "Clear the rate",
+  "ustatContextUnpickHint": "Click again to unpick: back to the context as it is now",
+  "localRunTitle": "Run on this computer",
+  "localRunReason": "The agent on {host} wants to run this command on your computer ({system}), not on {host}.",
+  "@localRunReason": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "system": {
+        "type": "String"
+      }
+    }
+  },
+  "localRunAlways": "Always allow for {host}",
+  "@localRunAlways": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteLocalAccess": "Allow Remote Agents to Act on This Computer",
+  "remoteLocalAccessDetail": "Agents on these hosts may run commands on this computer (asking you each time), copy files both ways and forward ports.",
+  "remoteLocalAccessNoAsking": "Runs commands without asking",
+  "remoteLocalAccessAskAgain": "Ask Each Time",
+  "sidePanelPorts": "Ports",
+  "portsEmpty": "No ports are forwarded. A server on {host} that prints its http://localhost address is forwarded here on its own.",
+  "@portsEmpty": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsAdd": "Forward a Port",
+  "portsCopy": "Copy Address",
+  "portsOpen": "Open in Browser",
+  "portsStop": "Stop Forwarding",
+  "portsHostToHere": "{host} → this computer",
+  "@portsHostToHere": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsHereToHost": "This computer → {host}",
+  "@portsHereToHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsAuto": "Auto",
+  "portsPort": "Port",
+  "portsListen": "Listen on (optional)",
+  "portsForward": "Forward",
+  "portsCopied": "Copied {address}",
+  "@portsCopied": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "branchBarFolder": "{path}\nClick to copy its path",
+  "@branchBarFolder": {
+    "description": "Hover of the project folder shown under the chat in place of a Git branch (no repository): its path, then that a click copies it.",
+    "placeholders": {"path": {"type": "String"}}
+  },
+  "branchBarPathCopied": "Path copied",
+  "@branchBarPathCopied": {
+    "description": "Hover of the project folder under the chat once clicked: its path was copied."
+  }
 }

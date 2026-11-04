@@ -1,33 +1,28 @@
 import '../protocol.dart';
-import '../review/git_review_store.dart';
+import '../review/blob_review_store.dart';
 import '../review/review_store.dart';
 import '../rpc/rpc_peer.dart';
 import 'remote_server.dart';
 
-/// The review snapshots of the remote projects: one [GitReviewStore] a
-/// project, its repository under [checkpoints] on this machine, answering
+/// The review store of this machine's files, for the remote projects'
+/// conversations: a [BlobReviewStore] under [checkpoints], answering
 /// [RemoteProtocol.reviewCall] by method.
 class ServerReview {
   ServerReview(RpcPeer peer, {required this.checkpoints}) {
     peer.handlers[RemoteProtocol.reviewOpen] = (params, _) async {
-      final root = paramsOf(params)['root'] as String;
-      final store = await GitReviewStore.open(root, checkpoints: checkpoints);
-      if (store == null) return null;
-      final id = ++_nextId;
-      _stores[id] = store;
-      return {'id': id, 'root': store.root};
+      _store ??= BlobReviewStore.open(checkpoints);
+      return {'id': 1};
     };
     peer.handlers[RemoteProtocol.reviewCall] = (params, _) {
       final args = paramsOf(params);
-      final store = _stores[args['id']];
+      final store = _store;
       if (store == null) throw const ReviewUnavailable('No such store');
       return call(store, args['method'] as String, paramsOf(args['args']));
     };
   }
 
   final String checkpoints;
-  final Map<int, ReviewStore> _stores = {};
-  int _nextId = 0;
+  ReviewStore? _store;
 
   static ReviewBlob? _blob(Object? json) => ReviewBlob.fromJson(json);
 
@@ -39,34 +34,10 @@ class ServerReview {
   ) async {
     String string(String name) => args[name] as String;
     switch (method) {
-      case 'snapshot':
-        return store.snapshot(paths: (args['paths'] as List?)?.cast<String>());
-      case 'diff':
-        return [
-          for (final change in await store.diff(string('from'), string('to')))
-            [change.path, change.before?.toJson(), change.after?.toJson()],
-        ];
-      case 'lineCounts':
-        final counts = await store.lineCounts(string('from'), string('to'));
-        return {
-          for (final MapEntry(:key, :value) in counts.entries)
-            key: value == null ? null : [value.added, value.removed],
-        };
-      case 'overlay':
-        return store.overlay(string('tree'), {
-          for (final MapEntry(:key, :value) in paramsOf(
-            args['entries'],
-          ).entries)
-            key: _blob(value),
-        });
-      case 'contains':
-        return store.contains(string('tree'), string('path'));
-      case 'exists':
-        return store.exists(string('path'));
-      case 'current':
-        return (await store.current(string('path')))?.toJson();
       case 'take':
         return (await store.take(string('path')))?.toJson();
+      case 'current':
+        return (await store.current(string('path')))?.toJson();
       case 'read':
         return encodeBytes(await store.read(_blob(args['blob'])!));
       case 'store':
@@ -76,18 +47,28 @@ class ServerReview {
         );
         return blob.toJson();
       case 'restore':
-        await store.restore(string('path'), _blob(args['blob']));
+        await store.restore(
+          string('path'),
+          _blob(args['blob']),
+          root: args['root'] as String?,
+        );
+        return null;
+      case 'write':
+        await store.write(string('path'), decodeBytes(args['bytes']));
         return null;
       case 'merge':
         final merged = await store.merge(
-          string('path'),
+          _blob(args['mine'])!,
           _blob(args['from'])!,
           _blob(args['to'])!,
         );
         return merged == null ? null : encodeBytes(merged);
-      case 'write':
-        await store.write(string('path'), decodeBytes(args['bytes']));
-        return null;
+      case 'lineCounts':
+        final counts = await store.lineCounts(
+          _blob(args['from']),
+          _blob(args['to']),
+        );
+        return counts == null ? null : [counts.added, counts.removed];
       case 'load':
         return store.load(string('session'));
       case 'save':

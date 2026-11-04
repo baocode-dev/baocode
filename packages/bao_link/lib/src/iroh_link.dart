@@ -17,12 +17,13 @@ class IrohLinkNode implements LinkNode {
   IrohLinkNode._(this._endpoint);
 
   /// Binds as [identity], keeping to [relays]. [port], the UDP port wanted
-  /// (another if it is taken); [accept], to take connections. [direct]
-  /// false: through relays only (under test).
+  /// (another if it is taken, unless [strictPort]); [accept], to take
+  /// connections. [direct] false: through relays only (under test).
   static Future<IrohLinkNode> bind({
     required LinkIdentity identity,
     required List<String> relays,
     int port = 0,
+    bool strictPort = false,
     bool accept = false,
     bool direct = true,
   }) async => IrohLinkNode._(
@@ -31,6 +32,7 @@ class IrohLinkNode implements LinkNode {
       alpn: linkAlpn,
       relays: relays,
       port: port,
+      strictPort: strictPort,
       accept: accept,
       ip: direct,
     ),

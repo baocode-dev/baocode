@@ -94,6 +94,7 @@ abstract final class ChatCommandIds {
   static const sidePanelChanges = 'baocode.chat.sidePanel.changes';
   static const sidePanelFiles = 'baocode.chat.sidePanel.files';
   static const sidePanelTerminal = 'baocode.chat.sidePanel.terminal';
+  static const sidePanelUsage = 'baocode.chat.sidePanel.usage';
 
   /// Closes the side panel's tab in front, on its page shown; hides the
   /// panel where the page has none.
@@ -194,6 +195,10 @@ abstract final class ChatContextKeys {
   /// A subagent's conversation shows over the chat's.
   static const subagentVisible = 'chatSubagentVisible';
 
+  /// The chat is a conversation asked beside another (`/btw`), shown in
+  /// its place, and no subagent's shows over it.
+  static const asideVisible = 'chatAsideVisible';
+
   /// The focus is on a prompt's options (a question, an approval, a plan).
   static const inInteraction = 'inChatInteraction';
 
@@ -230,6 +235,7 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.sidePanelChanges, 'Show Agent Changes'),
     (ChatCommandIds.sidePanelFiles, 'Show Agent Files'),
     (ChatCommandIds.sidePanelTerminal, 'Show Agent Terminals'),
+    (ChatCommandIds.sidePanelUsage, 'Show Conversation Usage'),
     (ChatCommandIds.sidePanelCloseTab, 'Close Side Panel Tab'),
     (ChatCommandIds.closeTab, 'Close Chat'),
     (ChatCommandIds.focusInput, 'Focus Chat Input'),
@@ -535,6 +541,25 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     command: ChatCommandIds.closeSubagent,
     when: '${ChatContextKeys.subagentVisible} && !inputFocus',
   ),
+  // From a /btw conversation back to the one it was asked beside, as from
+  // a subagent; in its input too while it has nothing to take the key.
+  const KeybindingEntry(
+    key: 'escape',
+    command: ChatCommandIds.closeSubagent,
+    when:
+        '${ChatContextKeys.asideVisible} && !inputFocus && '
+        '!${ChatContextKeys.inInteraction}',
+  ),
+  const KeybindingEntry(
+    key: 'escape',
+    command: ChatCommandIds.closeSubagent,
+    when:
+        '${ChatContextKeys.asideVisible} && $_input && '
+        '!${ChatContextKeys.inputHasText} && '
+        '!${ChatContextKeys.requestInProgress} && '
+        '!${ChatContextKeys.currentlyEditing} && '
+        '!${ChatContextKeys.suggestWidgetVisible}',
+  ),
   // Its input's.
   const KeybindingEntry(
     key: 'enter',
@@ -706,6 +731,7 @@ const Set<String> chatContextKeys = {
   ChatContextKeys.currentlyEditing,
   ChatContextKeys.hasToolConfirmation,
   ChatContextKeys.subagentVisible,
+  ChatContextKeys.asideVisible,
   ChatContextKeys.inInteraction,
   ChatContextKeys.sidePanelFocus,
 };

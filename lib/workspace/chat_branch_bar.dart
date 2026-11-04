@@ -5,23 +5,29 @@
 // one's branches at its side. A branch checked out in another worktree is
 // switched to by working there: the conversation shows that worktree, and
 // the composer gets a line telling the agent so. Switchable while the agent
-// works too; nothing to switch without a repository: then only the name.
+// works too; nothing to switch without a repository: then a workspace's
+// name only, and a project's folder (and its host), a click copying its
+// path.
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_session.dart';
 import '../chat/composer/composer_picker.dart';
+import '../chat/widgets/hover_builder.dart';
 import '../ide/git/git_checkout.dart' show ideSanitizeBranchName;
 import '../ide/git/git_model.dart';
 import '../ide/git/git_repository.dart';
 import '../ide/ide_dialog.dart';
+import '../ide/ide_hover.dart';
 import '../kernel/kernel_types.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 
 class ChatBranchBar extends StatefulWidget {
   const ChatBranchBar({
@@ -31,13 +37,16 @@ class ChatBranchBar extends StatefulWidget {
     this.workspace = false,
     this.repositories = const [],
     this.onSwitchWorktree,
+    this.path,
+    this.host,
   });
 
   /// The conversation whose input it is under: told in its composer where
   /// to work when switched to another worktree.
   final ChatSession session;
 
-  /// The project's name, or the workspace's.
+  /// The workspace's name, shown when none of its folders has Git; a
+  /// project's is not shown.
   final String name;
 
   /// Whether it is a multi-folder workspace's, [repositories] its folders'.
@@ -50,6 +59,14 @@ class ChatBranchBar extends StatefulWidget {
   /// Makes the conversation show the worktree at `path` of `folder`'s
   /// repository; no worktrees offered when null.
   final void Function(String folder, String path)? onSwitchWorktree;
+
+  /// A project's folder's path (on [host]): with no repository, its name
+  /// shows in place of a branch, a click copying this.
+  final String? path;
+
+  /// The remote host the project is on, after its name; null for this
+  /// machine.
+  final String? host;
 
   @override
   State<ChatBranchBar> createState() => _ChatBranchBarState();
@@ -374,20 +391,24 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: Listenable.merge([..._gits]),
-      builder: (context, _) => Padding(
-        padding: const EdgeInsets.only(top: 4, left: 4),
-        child: MouseRegion(
-          onEnter: (_) => _pointedAt(),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [Flexible(child: _buildPill(context))],
+      builder: (context, _) => switch (_buildPill(context)) {
+        null => const SizedBox.shrink(),
+        final pill => Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: MouseRegion(
+            onEnter: (_) => _pointedAt(),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [Flexible(child: pill)],
+            ),
           ),
         ),
-      ),
+      },
     );
   }
 
-  Widget _buildPill(BuildContext context) {
+  /// None for a project without Git.
+  Widget? _buildPill(BuildContext context) {
     final l10n = context.l10n;
     if (widget.workspace) {
       if (widget.repositories.isEmpty) {
@@ -397,12 +418,23 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
     }
     final git = widget.repositories.firstOrNull?.$2;
     final state = git?.state;
-    if (git == null || state == null) {
-      return _Label(icon: Codicons.folder, label: widget.name);
+    if (state == null) {
+      // Its status not read yet: nothing rather than the folder a moment.
+      if (git != null && !git.loaded) return null;
+      return switch (widget.path) {
+        final path? => _FolderLabel(
+          name: widget.name,
+          host: widget.host,
+          path: path,
+        ),
+        null => null,
+      };
     }
+    if (git == null) return null;
     final current = state.head.branch;
     final folder = widget.repositories.first.$1;
     return ComposerPicker(
+      foreground: AppColors.textFaint,
       options: [
         for (final branch in _branchesOf(git))
           _branchOption(git, branch, branch),
@@ -450,6 +482,7 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
     String nameOf(String folder) => p.basename(folder);
     const create = KernelOptionGroup('create', '');
     return ComposerPicker(
+      foreground: AppColors.textFaint,
       options: [
         for (final (folder, git) in widget.repositories)
           KernelOption(
@@ -520,7 +553,76 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
   }
 }
 
-/// The pill's look with nothing to open: the name of a folder without a
+/// A project's folder without a repository: its name, and the host it is
+/// on; a click copies its path.
+class _FolderLabel extends StatefulWidget {
+  const _FolderLabel({
+    required this.name,
+    required this.host,
+    required this.path,
+  });
+
+  final String name;
+  final String? host;
+  final String path;
+
+  @override
+  State<_FolderLabel> createState() => _FolderLabelState();
+}
+
+class _FolderLabelState extends State<_FolderLabel> {
+  bool _copied = false;
+  Timer? _done;
+
+  @override
+  void dispose() {
+    _done?.cancel();
+    super.dispose();
+  }
+
+  void _copy() {
+    unawaited(Clipboard.setData(ClipboardData(text: widget.path)));
+    _done?.cancel();
+    setState(() => _copied = true);
+    _done = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final host = widget.host;
+    final where = host == null ? widget.path : '$host:${widget.path}';
+    return IdeHover(
+      message: _copied ? l10n.branchBarPathCopied : l10n.branchBarFolder(where),
+      child: HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          onTap: _copy,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: hovered
+                  ? themeColors['toolbar.hoverBackground']
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: _Label(
+              icon: _copied
+                  ? Codicons.check
+                  : host == null
+                  ? Codicons.folder
+                  : Codicons.remote,
+              label: host == null ? widget.name : '${widget.name} · $host',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The pill's look with nothing to open: the name of a workspace without a
 /// repository.
 class _Label extends StatelessWidget {
   const _Label({required this.icon, required this.label});
@@ -530,7 +632,7 @@ class _Label extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = AppColors.textMuted;
+    final color = AppColors.textFaint;
     return Container(
       height: 22,
       padding: const EdgeInsets.symmetric(horizontal: 6),

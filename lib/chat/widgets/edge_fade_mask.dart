@@ -8,7 +8,8 @@ import 'fade_curve.dart';
 /// Fades [child] out towards its [top] and/or [bottom] edge, through its alpha
 /// (like a CSS `mask-image`), so whatever is behind it shows through. Each
 /// fade starts [fadeOffset] in from the edge (hidden up to there) and shows
-/// the content in full [fadeLength] further in.
+/// the content in full [fadeLength] further in ([topFadeLength] at the top,
+/// when given).
 ///
 /// The mask reaches 2px past each edge, hidden there: on screen an edge can
 /// fall mid-pixel, and a scroll view's clip keeps that whole row of pixels while
@@ -36,6 +37,7 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
     this.edges,
     this.axis = Axis.vertical,
     this.fadeLength = 32,
+    this.topFadeLength,
     this.fadeOffset = 4,
     this.topCover,
     this.coverFade = 16,
@@ -49,6 +51,7 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
   final ValueGetter<({bool top, bool bottom})?>? edges;
   final Axis axis;
   final double fadeLength;
+  final double? topFadeLength;
   final double fadeOffset;
 
   /// How far down it is covered; null (or none) for not at all.
@@ -63,6 +66,7 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
   @override
   RenderEdgeFadeMask createRenderObject(BuildContext context) =>
       RenderEdgeFadeMask(top, bottom, fadeLength, fadeOffset)
+        ..topFadeLength = topFadeLength
         ..edges = edges
         ..axis = axis
         ..topCover = topCover
@@ -81,6 +85,7 @@ class EdgeFadeMask extends SingleChildRenderObjectWidget {
       ..edges = edges
       ..axis = axis
       ..fadeLength = fadeLength
+      ..topFadeLength = topFadeLength
       ..fadeOffset = fadeOffset
       ..topCover = topCover
       ..coverFade = coverFade
@@ -110,6 +115,13 @@ class RenderEdgeFadeMask extends RenderProxyBox {
   set fadeLength(double value) {
     if (value == _fadeLength) return;
     _fadeLength = value;
+    markNeedsPaint();
+  }
+
+  double? _topFadeLength;
+  set topFadeLength(double? value) {
+    if (value == _topFadeLength) return;
+    _topFadeLength = value;
     markNeedsPaint();
   }
 
@@ -214,6 +226,10 @@ class RenderEdgeFadeMask extends RenderProxyBox {
     // Short children: the two fades meet in the middle rather than overlap.
     final offset = math.min(_fadeOffset, extent / 2);
     final length = math.min(_fadeLength, extent / 2 - offset);
+    final topLength = math.min(
+      _topFadeLength ?? _fadeLength,
+      extent / 2 - offset,
+    );
     // From each end of the mask, hidden up to here.
     final hidden = _overshoot + offset;
     final colors = <Color>[];
@@ -234,7 +250,7 @@ class RenderEdgeFadeMask extends RenderProxyBox {
     } else if (top) {
       stop(0, atTop(0));
       for (final (t, opacity) in easedFade()) {
-        stop(hidden + t * length, atTop(opacity));
+        stop(hidden + t * topLength, atTop(opacity));
       }
     } else {
       stop(0, 1);

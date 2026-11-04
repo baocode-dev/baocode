@@ -65,6 +65,29 @@ void main() {
     expect(api.model.requests.single.body.containsKey('metadata'), isFalse);
   });
 
+  test('what a request is for goes with it, the kind only where the '
+      'environment asks for it', () async {
+    expect(requestHints(const {}, requestClass: 'main'), isEmpty);
+    expect(requestHints(const {}, requestClass: 'subagent', agentId: 'a1'), {
+      'x-claude-code-agent-id': 'a1',
+    });
+    final hints = requestHints(
+      const {'CLAUDE_CODE_GATEWAY_HINT_HEADERS': '1'},
+      requestClass: 'subagent',
+      agentId: 'a1',
+      agentType: 'Explore',
+    );
+    expect(hints, {
+      'x-claude-code-agent-id': 'a1',
+      'x-claude-code-request-class': 'subagent',
+      'x-claude-code-agent-type': 'Explore',
+    });
+    api.model.script.add(Reply.text('ok'));
+    await client().stream(request.copyWith(headers: hints)).toList();
+    expect(api.headers.single['x-claude-code-request-class'], 'subagent');
+    expect(api.headers.single['x-claude-code-agent-id'], 'a1');
+  });
+
   test('the session goes with every request as metadata.user_id', () async {
     api.model.script.add(Reply.text('ok'));
     await AnthropicClient(

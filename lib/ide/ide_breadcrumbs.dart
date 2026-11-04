@@ -4,6 +4,8 @@ import 'package:path/path.dart' as p;
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/islands.dart';
+import 'host_paths.dart';
 import 'lsp/lsp_protocol.dart';
 import 'lsp_ui/language_icons.dart';
 
@@ -32,12 +34,13 @@ class IdeBreadcrumbs extends StatelessWidget {
   final List<LspDocumentSymbol> symbols;
   final ValueChanged<LspDocumentSymbol>? onSymbol;
 
-  static const height = 22.0;
+  static const height = 28.0;
 
   @override
   Widget build(BuildContext context) {
-    final inside = p.isWithin(root, path);
-    final parts = p.split(inside ? p.relative(path, from: root) : path);
+    final paths = hostContext(path);
+    final inside = paths.isWithin(root, path);
+    final parts = paths.split(inside ? paths.relative(path, from: root) : path);
     var base = inside ? root : '';
     final segments = <(String, String, bool)>[];
     for (final (i, part) in parts.indexed) {
@@ -46,10 +49,12 @@ class IdeBreadcrumbs extends StatelessWidget {
     }
     // The separators are their item's color (`inherit`).
     final separator = themeColors['breadcrumb.foreground'];
+    final islands = Islands.on(context);
     return Container(
-      height: height,
+      // Upstream's 22 where the parts are not islands (see [IslandStyle]).
+      height: islands ? height : 22,
       color: themeColors['breadcrumb.background'],
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: EdgeInsets.symmetric(horizontal: islands ? 12 : 8),
       alignment: Alignment.centerLeft,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,

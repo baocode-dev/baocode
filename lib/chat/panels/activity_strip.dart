@@ -17,7 +17,7 @@ import '../widgets/pixel_loader.dart';
 import 'change_tree.dart';
 import 'interaction_panel.dart';
 
-/// Indicator area docked on top of the composer: background tasks still
+/// A card over the composer, apart from it: background tasks still
 /// running and the files changed and not yet kept or undone, as a tree
 /// (see [ChangeTree]).
 class ActivityStrip extends StatefulWidget {
@@ -131,13 +131,9 @@ class _ActivityStripState extends State<ActivityStrip> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-        border: Border(
-          top: BorderSide(color: AppColors.borderStrong),
-          left: BorderSide(color: AppColors.borderStrong),
-          right: BorderSide(color: AppColors.borderStrong),
-        ),
+        color: AppColors.bubbleFill,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.bubbleBorder()),
       ),
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Column(
@@ -232,7 +228,7 @@ class _StripRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 7),
           decoration: BoxDecoration(
             color: hovered && onTap != null
-                ? AppColors.hover
+                ? AppColors.bubbleHover
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(5),
           ),

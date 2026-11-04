@@ -14,7 +14,8 @@ enum Editor {
   fastIde(
     'Fast Ide',
     null,
-    icon: Icons.space_dashboard_outlined,
+    // The demo's: a window's outline, in line with the codicons around it.
+    icon: Codicons.window,
     builtIn: true,
   ),
   vscode(
@@ -71,8 +72,7 @@ enum Editor {
   /// Whether it is BaoCode's own ([fastIde]), shown instead of launched.
   final bool builtIn;
 
-  /// Its icon: a codicon, as the IDE's own buttons have theirs, but for the
-  /// Fast Ide's own.
+  /// Its icon: a codicon, as the IDE's own buttons have theirs.
   final IconData icon;
 
   /// What the platform calls it.

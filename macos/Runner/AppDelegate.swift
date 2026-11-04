@@ -210,12 +210,24 @@ final class OpenRequests {
     }
   }
 
-  /// The marker of a site's import of an upstream (code_args.dart's
-  /// importRequestMarker).
+  /// The marker of a `baocode://` link Flutter reads itself (code_args.dart's
+  /// importRequestMarker): a site's import of an upstream, the channel
+  /// build's setup, a file to open in the IDE.
   static let importMarker = "\u{0}import"
 
+  /// Whether [request] is a site's link, which asks in the main window (a
+  /// file link opens in the IDE instead).
   static func isImport(_ request: [String]) -> Bool {
-    request.first == importMarker
+    request.first == importMarker && !isFileLink(request)
+  }
+
+  /// Whether [request] is a `baocode://file/…` link (see FileLink in
+  /// code_args.dart, which reads it).
+  static func isFileLink(_ request: [String]) -> Bool {
+    guard request.first == importMarker, request.count > 1,
+      let url = URL(string: request[1])
+    else { return false }
+    return url.host?.lowercased() == "file"
   }
 
   /// What a `baocode://` URL asks. The Finder extension's (see
@@ -227,12 +239,17 @@ final class OpenRequests {
   /// then them). A site's (baocode.dev/import): `provider/import`, an
   /// upstream to add, the link as it came after its marker, which Flutter
   /// reads (upstream_import.dart); so too baocode.dev/activate's,
-  /// `activate`, the channel build's setup (channel_setup.dart). Nil for
-  /// any other URL, or one without absolute paths.
+  /// `activate`, the channel build's setup (channel_setup.dart). A page's
+  /// or a tool's, as VS Code's `vscode://file/…`: `file`, a file to open in
+  /// the IDE at a line, the link after the same marker (FileLink in
+  /// code_args.dart). Nil for any other URL, or one without absolute paths.
   static func request(from url: URL) -> [String]? {
     guard url.scheme == "baocode",
       let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
     else { return nil }
+    if components.host?.lowercased() == "file" {
+      return [importMarker, url.absoluteString]
+    }
     if components.host == "provider" {
       return components.path == "/import" ? [importMarker, url.absoluteString] : nil
     }

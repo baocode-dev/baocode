@@ -9,6 +9,7 @@ import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/app_theme.dart';
+import 'package:baocode/theme/window_blur.dart';
 import 'package:baocode/workspace/workspace.dart';
 
 import 'first_frame_test.dart' show LongTurnFeed;
@@ -19,6 +20,9 @@ Future<void> pumpMacApp(WidgetTester tester, {double width = 1400}) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  // The material is a setting, off by default (Settings → Appearance).
+  WindowBlur.enabled.value = true;
+  addTearDown(() => WindowBlur.enabled.value = false);
   await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
   await tester.pump();
 }
@@ -133,11 +137,19 @@ void main() {
   testWidgets('on macOS the sidebar and the conversation both show the '
       'material through', (tester) async {
     await pumpMacApp(tester);
-    // The window itself paints nothing over the material.
-    expect(colorsUnder(tester, find.byType(Sidebar)), [Colors.transparent]);
-    expect(sidebarColor(tester).a, lessThan(0.85));
+    // One tint over the material under the sidebar and between the cards
+    // (the window's canvas paints nothing): the sidebar on it, none of its
+    // own; the conversation's card a denser one, on it too.
+    expect(colorsUnder(tester, find.byType(Sidebar)), [
+      AppColors.sidebarSurface,
+      Colors.transparent,
+      Colors.transparent,
+    ]);
+    expect(sidebarColor(tester), Colors.transparent);
+    expect(AppColors.sidebarSurface.a, lessThan(0.85));
     expect(colorsUnder(tester, find.byType(ChatScreen)), [
-      AppColors.conversationSurface,
+      AppColors.sidebarSurface,
+      Colors.transparent,
       Colors.transparent,
     ]);
     expect(AppColors.conversationSurface.a, lessThan(1));
@@ -156,12 +168,17 @@ void main() {
     'material through',
     (tester) async {
       await pumpMacApp(tester);
-      expect(colorsUnder(tester, find.byType(Sidebar)), [Colors.transparent]);
+      expect(colorsUnder(tester, find.byType(Sidebar)), [
+        AppColors.sidebarSurface,
+        Colors.transparent,
+        Colors.transparent,
+      ]);
       // Acrylic is a thinner blur than macOS's sidebar material: 96% over
       // the sidebar, 98% over the conversation (see AppColors).
-      expect(sidebarColor(tester).a, closeTo(0.96, 0.001));
+      expect(AppColors.sidebarSurface.a, closeTo(0.96, 0.001));
       expect(colorsUnder(tester, find.byType(ChatScreen)), [
-        AppColors.conversationSurface,
+        AppColors.sidebarSurface,
+        Colors.transparent,
         Colors.transparent,
       ]);
       expect(AppColors.conversationSurface.a, closeTo(0.98, 0.001));
@@ -190,7 +207,7 @@ void main() {
     await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
     await tester.pump();
     expect(colorsUnder(tester, find.byType(Sidebar)).first.a, 1);
-    expect(sidebarColor(tester).a, 1);
+    expect(AppColors.sidebarSurface.a, 1);
   }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 }
 

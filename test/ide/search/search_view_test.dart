@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/ide/file_service.dart' show IdeFileNotFoundException;
 import 'package:baocode/ide/ide_explorer.dart';
 import 'package:baocode/ide/ide_input.dart';
 import 'package:baocode/ide/ide_list.dart';
@@ -221,6 +224,69 @@ void main() {
     await tester.pumpAndSettle();
     expect(label('b.dart'), findsNothing);
     expect(find.text('2 results in 1 file'), findsOneWidget);
+  });
+
+  testWidgets('the results follow an open file edited, unsaved edits and '
+      'all', (tester) async {
+    await pumpSearch(tester, open: ['lib/a.dart']);
+    await search(tester, 'foo');
+    expect(find.text('3 results in 2 files'), findsOneWidget);
+
+    workspace.edit(inRoot('lib/a.dart'), 'bar one\nFoo two\nfoo four');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(matchRow('foo one'), findsNothing);
+    expect(matchRow('foo four'), findsOneWidget);
+    expect(find.text('3 results in 2 files'), findsOneWidget);
+
+    // Left without matches, it drops out; back as it matches again.
+    workspace.edit(inRoot('lib/a.dart'), 'bar');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(label('a.dart'), findsNothing);
+    expect(find.text('1 result in 1 file'), findsOneWidget);
+    workspace.edit(inRoot('lib/a.dart'), 'foo again');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(matchRow('foo again'), findsOneWidget);
+    expect(find.text('2 results in 2 files'), findsOneWidget);
+  });
+
+  test('the results follow their files changed on disk', () async {
+    final texts = {'/p/a.txt': 'foo one', '/p/sub/b.txt': 'foo two'};
+    final changes = <String, StreamController<void>>{};
+    final session = IdeSearchSession(
+      engine: (root, query) => Stream.fromIterable([
+        for (final MapEntry(key: path, value: text) in texts.entries)
+          IdeFileMatches(path, ideMatchLines(text, query.toRegExp())),
+        const IdeTextSearchComplete(limitHit: false),
+      ]),
+      read: (path) async =>
+          texts[path] ?? (throw IdeFileNotFoundException(path)),
+      watch: (directory) =>
+          (changes[directory] = StreamController<void>()).stream,
+    );
+    addTearDown(session.dispose);
+    session.query.text = 'foo';
+    session.search('/p');
+    await pumpEventQueue();
+    expect(changes.keys, unorderedEquals(['/p', '/p/sub']));
+
+    texts['/p/a.txt'] = 'x\nfoo moved';
+    changes['/p']!.add(null);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    // Folders first: b.txt's, then a.txt's.
+    expect(session.results.last.matches.single.line, 1);
+    expect(session.results.last.matches.single.text, 'foo moved');
+
+    texts.remove('/p/sub/b.txt');
+    changes['/p/sub']!.add(null);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(session.results.map((file) => file.path), ['/p/a.txt']);
+
+    // A new search's results only: the old one's watches gone.
+    session.clear();
+    expect(changes.values.every((c) => !c.hasListener), isTrue);
   });
 
   testWidgets('sized as VS Code: the inputs, their toggles, and the details '

@@ -8,16 +8,16 @@ import 'review_store_stub.dart'
 
 export 'package:bao_remote/review.dart';
 
-/// The store for the project at [root]; null where there is none (no Git,
-/// no such folder, the web, or under test). A remote project's is its
-/// host's: its checkpoints there, in the server's data folder.
+/// The store for the files of the project at [root]: its machine's; null
+/// where there is none (the web, or under test). A remote project's is
+/// its host's: its checkpoints there, in the server's data folder.
 Future<ReviewStore?> openReviewStore(String root) async {
   if (RemoteLocation.hostOf(root) case final host?) {
     if (!reviewSupported) return null;
     final client = await SshHosts.instance[host].ready;
-    return client.openReview(RemoteLocation.pathOf(root));
+    return client.openReview();
   }
-  return platform.openReviewStore(root);
+  return platform.openReviewStore();
 }
 
 /// [root] with its links resolved, where that is another path; null where

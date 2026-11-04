@@ -1,7 +1,6 @@
 // Tests of words streaming into a turn under way: they show together, a
 // few times a second, not each on its own; what else changes shows at once.
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_feed.dart';
@@ -51,7 +50,7 @@ class _LiveFeed extends ChangeNotifier implements ChatFeed {
   ({int index, ComposerDraft draft})? editing;
 
   @override
-  void editMessage(int index, ComposerMessage message) {}
+  void editMessage(int index, ComposerMessage message, {UserPlace? from}) {}
 
   @override
   VoidCallback? moveToBackgroundAt(int index) => null;

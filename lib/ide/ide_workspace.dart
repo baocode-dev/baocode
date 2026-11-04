@@ -10,6 +10,7 @@ import 'file_views.dart';
 import 'git/git_repository.dart';
 import 'git/scm_host.dart';
 import 'git/repository_scan.dart';
+import 'host_paths.dart';
 import 'ide_layout.dart';
 import 'ide_local_history.dart';
 import 'ide_notifications.dart';
@@ -196,7 +197,7 @@ class IdeDocument {
   String get savedText => model.savedText;
   set savedText(String value) => model.markSaved(value);
 
-  String get name => p.basename(path);
+  String get name => hostBasename(path);
 
   /// The tab's title: the name, and the [label].
   String get title => label?.isNotEmpty ?? false ? '$name ($label)' : name;
@@ -554,6 +555,13 @@ class IdeWorkspace extends ChangeNotifier
   /// as well (see [IdeLayout]).
   final IdeLayout layout = IdeLayout();
 
+  /// Whether Go Back and Go Forward have somewhere to go, for the title
+  /// bar's arrows beside its search, the window's header's as well.
+  final ValueNotifier<({bool back, bool forward})> navigation = ValueNotifier((
+    back: false,
+    forward: false,
+  ));
+
   /// The workbench's notifications.
   final IdeNotifications notifications = IdeNotifications();
 
@@ -709,6 +717,16 @@ class IdeWorkspace extends ChangeNotifier
       _startSync(doc);
     }
     if (select) _activeKey = doc.key;
+    notifyListeners();
+  }
+
+  /// Puts [doc]'s tab at [index] among the others (a tab dragged).
+  void moveDocument(IdeDocument doc, int index) {
+    final from = _documents.indexOf(doc);
+    if (from < 0) return;
+    _documents
+      ..removeAt(from)
+      ..insert(index.clamp(0, _documents.length), doc);
     notifyListeners();
   }
 
@@ -1326,6 +1344,7 @@ class IdeWorkspace extends ChangeNotifier
   void dispose() {
     _disposed = true;
     _changesTimer?.cancel();
+    navigation.dispose();
     for (final watch in _watches.values) {
       unawaited(watch.cancel());
     }

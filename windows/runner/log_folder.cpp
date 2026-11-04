@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <vector>
 
+#include "crash_report.h"
+#include "hang_watchdog.h"
 #include "utils.h"
 
 namespace log_folder {
@@ -78,6 +80,7 @@ void SetFolder(const std::wstring& folder) {
     Locked locked;
     g_folder = folder;
   }
+  hang_watchdog::LogsFolderNamed(folder);
   ::RegSetKeyValueW(HKEY_CURRENT_USER, kSettingsKey, kFolderValue, REG_SZ,
                     folder.c_str(),
                     static_cast<DWORD>((folder.size() + 1) * sizeof(wchar_t)));
@@ -129,22 +132,7 @@ std::wstring Path() {
 }
 
 void AppendExit(const char* how) {
-  const std::wstring folder = Path();
-  if (folder.empty()) {
-    return;
-  }
-  FILE* out = nullptr;
-  // Binary: a line ends in \n alone, as Flutter's do.
-  if (_wfopen_s(&out, (folder + L"\\events.log").c_str(), L"ab") != 0 ||
-      out == nullptr) {
-    return;
-  }
-  SYSTEMTIME now = {};
-  ::GetLocalTime(&now);
-  std::fprintf(out, "%04u-%02u-%02uT%02u:%02u:%02u.%03u [exit] %s\n",
-               now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute,
-               now.wSecond, now.wMilliseconds, how);
-  std::fclose(out);
+  crash_report::AppendExit(Path(), how);
 }
 
 }  // namespace log_folder

@@ -40,9 +40,10 @@ abstract final class LinkMethods {
   static const close = 'close';
 
   /// `{"session"?, "project"?, "bot"?, "text", "images"?, "mentions"?,
-  /// "now"?}`: a message to the bot's conversation ([LinkBot.id]), started
-  /// if it has none; else to the session; with neither, to a new one in the
-  /// project.
+  /// "now"?, "id"?}`: a message to the bot's conversation ([LinkBot.id]),
+  /// started if it has none; else to the session; with neither, to a new
+  /// one in the project. With `id` (the phone's for it), one sent again
+  /// (its answer lost) is answered as before, not taken twice.
   /// Images are `{"data" (base64), "type", "name"?}`; mentions, the
   /// project's files the text names (`@path`), from its root. With `now`,
   /// taken up at once, the turn running stopped for it, rather than queued
@@ -79,8 +80,20 @@ abstract final class LinkMethods {
   /// `{"session", "pinned"}`.
   static const pin = 'pin';
 
+  /// `{"project", "pinned"}`: on top of the projects (see
+  /// [ProjectInfo.pinned]), as the desktop's Pin.
+  static const pinProject = 'pinProject';
+
   /// `{"session"}`: off the list (archived on the desktop).
   static const archive = 'archive';
+
+  /// `{"session"}`: deleted, with its conversation, as the desktop's
+  /// Delete.
+  static const delete = 'delete';
+
+  /// `{"project"}`: off the list, as the desktop's Remove from list: its
+  /// folder and its agents stay.
+  static const hideProject = 'hideProject';
 
   /// `{"session", "paths"?}`: keeps the changes to those files (all of
   /// them, with no paths), as the desktop's Keep.
@@ -111,6 +124,12 @@ abstract final class LinkMethods {
   /// changes being its agents' not kept yet.
   static const files = 'files';
 
+  /// `{"project", "path"}`: what is in a folder of the project (`""` its
+  /// root), as it is on disk, what [files] leaves out with it (what Git
+  /// ignores, build outputs): `{"folders", "files"}`, their names.
+  /// `unknown` from a desktop before it.
+  static const folder = 'folder';
+
   /// `{"project", "path"}`: a file of the project: `{"text", "original"?}`
   /// (`original`, what it was before its agents changed it: empty when they
   /// added it), or `{"binary": true}`, or `{"tooLarge": true, "size"}`.
@@ -138,8 +157,15 @@ abstract final class LinkMethods {
   /// `bad` for a file that is not a picture.
   static const image = 'image';
 
+  /// `{"project", "path"}`: any file of the machine, its bytes, for the
+  /// phone to open in an app of its own (a video, a PDF, an archive):
+  /// `{"data"}` (base64), or `{"tooLarge": true, "size"}` past
+  /// [LinkLimits.download].
+  static const download = 'download';
+
   /// `{"bot"?, "name", "avatar"?, "avatarImage"?, "identity", "abilities",
-  /// "proactive"}` (as [LinkBot]'s JSON): the bot changed, or a new one (no
+  /// "proactive", "chatOnly"?}` (as [LinkBot]'s JSON; `chatOnly` not said,
+  /// as it was): the bot changed, or a new one (no
   /// `bot`): `{"bot": LinkBot}`. `avatarImage`, `{"data" (base64), "type"}`
   /// (at most [LinkLimits.avatar]), is a new picture for it; else `avatar`
   /// is an emoji, or the picture it has, kept.
@@ -180,7 +206,7 @@ abstract final class LinkMethods {
 
   /// Those whose answers can be large: each goes on a stream of its own
   /// (see [LinkPeer]), holding up nothing else.
-  static const bulk = {read, image, icon, files, botAvatar, extensions};
+  static const bulk = {read, image, icon, files, folder, botAvatar, extensions};
 }
 
 /// How much of what a phone asks for it gets, at most.
@@ -199,6 +225,10 @@ abstract final class LinkLimits {
 
   /// A bot's picture's bytes.
   static const avatar = 1024 * 1024;
+
+  /// A file's bytes, opened in another app: base64, under the relay's
+  /// burst (16 MiB).
+  static const download = 8 * 1024 * 1024;
 }
 
 /// A task an agent left running beside the conversation: a command, a
@@ -328,6 +358,12 @@ abstract final class LinkEvents {
   /// a session's update does not fit what it has (see
   /// [LinkSessionMirror]). The session should be opened again.
   static const resync = 'resync';
+
+  /// `{"session", "items", "earlier"}`: not sent: the phone's [LinkPeer]
+  /// tells its app of the items an `earlier` answer put before the first,
+  /// in step with the session's updates (as an `open` answer is told as
+  /// [session]): each lands on the items as they were when it was sent.
+  static const earlier = 'earlier';
 }
 
 /// What a watched task wrote ([LinkEvents.output]): [text], ending at
@@ -395,6 +431,10 @@ abstract final class LinkErrors {
 
   /// The request was not one the desktop knows: one from before it could.
   static const unknown = 'unknown';
+
+  /// The project is on a machine the desktop cannot reach now (a server
+  /// over SSH): what is asked of its files could not be.
+  static const unreachable = 'unreachable';
 }
 
 /// The desktop, as the phone lists it.
@@ -406,6 +446,7 @@ class DeviceInfo {
     this.laptop = true,
     this.relays = const [],
     this.addrs = const [],
+    this.direct = false,
   });
 
   factory DeviceInfo.fromJson(Map<String, Object?> json) => DeviceInfo(
@@ -415,6 +456,7 @@ class DeviceInfo {
     laptop: json['laptop'] as bool? ?? true,
     relays: [...?(json['relays'] as List?)?.whereType<String>()],
     addrs: [...?(json['addrs'] as List?)?.whereType<String>()],
+    direct: json['direct'] == true,
   );
 
   final String name;
@@ -431,15 +473,23 @@ class DeviceInfo {
   final List<String> relays;
   final List<String> addrs;
 
-  DeviceInfo copyWith({List<String>? relays, List<String>? addrs}) =>
-      DeviceInfo(
-        name: name,
-        kind: kind,
-        system: system,
-        laptop: laptop,
-        relays: relays ?? this.relays,
-        addrs: addrs ?? this.addrs,
-      );
+  /// It keeps to no relay: phones reach it at [addrs] alone. Its relays
+  /// are then empty on purpose, not because it has none yet.
+  final bool direct;
+
+  DeviceInfo copyWith({
+    List<String>? relays,
+    List<String>? addrs,
+    bool? direct,
+  }) => DeviceInfo(
+    name: name,
+    kind: kind,
+    system: system,
+    laptop: laptop,
+    relays: relays ?? this.relays,
+    addrs: addrs ?? this.addrs,
+    direct: direct ?? this.direct,
+  );
 
   Map<String, Object?> toJson() => {
     'name': name,
@@ -448,6 +498,7 @@ class DeviceInfo {
     'laptop': laptop,
     'relays': relays,
     'addrs': addrs,
+    if (direct) 'direct': true,
   };
 }
 
@@ -459,6 +510,7 @@ class ProjectInfo {
     required this.path,
     this.branch,
     this.icon,
+    this.pinned,
   });
 
   factory ProjectInfo.fromJson(Map<String, Object?> json) => ProjectInfo(
@@ -470,6 +522,7 @@ class ProjectInfo {
       final Map<String, Object?> icon => icon,
       _ => null,
     },
+    pinned: json['pinned'] as bool?,
   );
 
   final String id;
@@ -484,12 +537,18 @@ class ProjectInfo {
   /// model maker's logo). Null for its folder.
   final Map<String, Object?>? icon;
 
+  /// Pinned on top of the projects, as the desktop's sidebar has it
+  /// (changed by [LinkMethods.pinProject]); null from a desktop from
+  /// before it said.
+  final bool? pinned;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
     'path': path,
     'branch': ?branch,
     'icon': ?icon,
+    'pinned': ?pinned,
   };
 }
 

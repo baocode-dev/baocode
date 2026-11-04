@@ -15,7 +15,15 @@ import '../../base/safe_selection_indexes.dart';
 /// open and built, however far above. Here such an edge goes just past the
 /// content instead, where every line knows it is after it.
 class FiniteSelectionEdges extends StatefulWidget {
-  const FiniteSelectionEdges({super.key, required this.child});
+  const FiniteSelectionEdges({
+    super.key,
+    this.joinsLines = false,
+    required this.child,
+  });
+
+  /// Its paragraphs' selections copied a line to each, not run together:
+  /// lines of code laid out a few to a paragraph.
+  final bool joinsLines;
 
   final Widget child;
 
@@ -24,7 +32,7 @@ class FiniteSelectionEdges extends StatefulWidget {
 }
 
 class _FiniteSelectionEdgesState extends State<FiniteSelectionEdges> {
-  final _delegate = _FiniteEdgesDelegate();
+  final _delegate = FiniteEdgesDelegate();
 
   @override
   void dispose() {
@@ -33,12 +41,29 @@ class _FiniteSelectionEdgesState extends State<FiniteSelectionEdges> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      SelectionContainer(delegate: _delegate, child: widget.child);
+  Widget build(BuildContext context) {
+    _delegate.joinsLines = widget.joinsLines;
+    return SelectionContainer(delegate: _delegate, child: widget.child);
+  }
 }
 
-class _FiniteEdgesDelegate extends StaticSelectionContainerDelegate
+/// [FiniteSelectionEdges]'s: an edge sent at infinity put just past the
+/// content.
+class FiniteEdgesDelegate extends StaticSelectionContainerDelegate
     with SafeSelectionIndexes {
+  bool joinsLines = false;
+
+  @override
+  SelectedContent? getSelectedContent() {
+    if (!joinsLines) return super.getSelectedContent();
+    final parts = [
+      for (final selectable in selectables)
+        if (selectable.getSelectedContent() case final content?)
+          content.plainText,
+    ];
+    return parts.isEmpty ? null : SelectedContent(plainText: parts.join('\n'));
+  }
+
   @override
   SelectionResult dispatchSelectionEvent(SelectionEvent event) {
     if (event

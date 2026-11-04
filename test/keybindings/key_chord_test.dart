@@ -115,5 +115,40 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     });
+
+    testWidgets(
+      "Windows' Insert named by its scan code is Insert, not Numpad 0",
+      (tester) async {
+        // A dictionary's Ctrl+Insert, sent without the extended flag: the
+        // engine names the key Numpad 0, its virtual key says Insert.
+        // ignore: deprecated_member_use
+        RawKeyEvent raw(int keyCode, {bool down = true}) {
+          // ignore: deprecated_member_use
+          final data = RawKeyEventDataWindows(
+            keyCode: keyCode,
+            scanCode: 0x52,
+            modifiers: 0,
+          );
+          // ignore: deprecated_member_use
+          return down ? RawKeyDownEvent(data: data) : RawKeyUpEvent(data: data);
+        }
+
+        const numpad0 = KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.numpad0,
+          logicalKey: LogicalKeyboardKey.numpad0,
+          timeStamp: Duration.zero,
+        );
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        debugSeeRawKeyEvent(raw(0x2D)); // VK_INSERT
+        expect(KeyChord.fromEvent(numpad0), KeyChord.parse('ctrl+insert'));
+        debugSeeRawKeyEvent(raw(0x2D, down: false));
+        // The keypad's own 0 (NumLock on) stays Numpad 0.
+        debugSeeRawKeyEvent(raw(0x60)); // VK_NUMPAD0
+        expect(KeyChord.fromEvent(numpad0), KeyChord.parse('ctrl+numpad0'));
+        debugSeeRawKeyEvent(raw(0x60, down: false));
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.windows),
+    );
   });
 }

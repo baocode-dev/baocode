@@ -50,6 +50,7 @@ void main() {
       conversationOf: (thread) => thread.title,
       retryDelay: const Duration(seconds: 1),
     )..start();
+    addTearDown(prompt.dispose);
   }
 
   setUp(() {
@@ -57,8 +58,6 @@ void main() {
     enabled = true;
     busy = false;
   });
-
-  tearDown(() => prompt.dispose());
 
   /// The mock's agents, a conversation each.
   List<AgentThread> conversations() => workspace.threads.toList();

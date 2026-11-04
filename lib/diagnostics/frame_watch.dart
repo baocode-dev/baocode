@@ -177,8 +177,9 @@ class FrameWatch {
     appEvent('semantics', on ? 'on' : 'off');
   }
 
-  /// The trees' sizes, the conversations shown, memory, the app's state:
-  /// a slow frame's, and a hang's as it ends (hang_watch.dart).
+  /// The trees' sizes, the conversations shown, memory, the app's state,
+  /// and in a tree past [heavyObjects], where most of it is: a slow
+  /// frame's, and a hang's as it ends (hang_watch.dart).
   static String describeState() {
     final binding = WidgetsBinding.instance;
     var objects = 0, nodes = 0;
@@ -203,13 +204,98 @@ class FrameWatch {
       for (final note in notes.values)
         if (note() case final text when text.isNotEmpty) text,
     ];
+    final root = binding.rootElement;
     return [
       binding.semanticsEnabled ? 'semantics on, $nodes nodes' : 'semantics off',
       '$objects render objects',
       if (shown.isNotEmpty) 'chats ${shown.join(' / ')}',
       '${ProcessInfo.currentRss >> 20} MB',
       binding.lifecycleState?.name ?? 'no lifecycle',
+      if (root != null && objects >= heavyObjects && _heavyDue())
+        'heaviest ${heaviest(root)}',
     ].join('; ');
+  }
+
+  /// Past this many render objects, [describeState] also says where most of
+  /// them are ([heaviest]). Some page of 1.8.0's held 42,000 (ZR8D6WP1, 15,000
+  /// semantics nodes, frames of 1.5 s) and nothing told which.
+  static const heavyObjects = 20000;
+
+  /// [heaviest] walks the whole element tree: not more than once each
+  /// [_heavyGap], [_heavyMost] in a run.
+  static const _heavyGap = Duration(seconds: 30);
+  static const _heavyMost = 20;
+  static final _heavyClock = Stopwatch()..start();
+  static int _heavyAt = -1 << 62;
+  static int _heavyWritten = 0;
+
+  static bool _heavyDue() {
+    final now = _heavyClock.elapsedMicroseconds;
+    if (_heavyWritten >= _heavyMost ||
+        now - _heavyAt < _heavyGap.inMicroseconds) {
+      return false;
+    }
+    _heavyWritten++;
+    _heavyAt = now;
+    return true;
+  }
+
+  /// Where most of the element tree under [root] is: down the child that
+  /// holds half or more of it each time, to where none does (a list of
+  /// many, a page of parts). The closest [names] widgets over that one
+  /// (those built by code, the app's and the framework's), it, and its
+  /// children's widgets, the largest [kinds] of them:
+  /// `12000 elements, under A > B > C: Column, 9000 in 1500 children
+  /// (_Row ×1500 8900, …)`.
+  static String heaviest(Element root, {int names = 10, int kinds = 3}) {
+    final sizes = Map<Element, int>.identity();
+    int measure(Element element) {
+      var size = 1;
+      element.visitChildren((child) => size += measure(child));
+      sizes[element] = size;
+      return size;
+    }
+
+    final total = measure(root);
+    final path = <String>[];
+    var at = root;
+    while (true) {
+      final size = sizes[at]!;
+      Element? top;
+      var topSize = 0;
+      at.visitChildren((child) {
+        final childSize = sizes[child]!;
+        if (childSize > topSize) {
+          top = child;
+          topSize = childSize;
+        }
+      });
+      final next = top;
+      if (next == null || topSize * 2 < size) break;
+      if (at is StatelessElement || at is StatefulElement) {
+        final name = at.widget.runtimeType.toString();
+        if (path.isEmpty || path.last != name) path.add(name);
+      }
+      at = next;
+    }
+    final byKind = <String, (int, int)>{};
+    var children = 0;
+    at.visitChildren((child) {
+      children++;
+      final kind = child.widget.runtimeType.toString();
+      final (count, size) = byKind[kind] ?? (0, 0);
+      byKind[kind] = (count + 1, size + sizes[child]!);
+    });
+    final ranked = byKind.entries.toList()
+      ..sort((a, b) => b.value.$2.compareTo(a.value.$2));
+    final over = path.length > names ? path.sublist(path.length - names) : path;
+    return [
+      '$total elements',
+      if (over.isNotEmpty) ', under ${over.join(' > ')}',
+      ': ${at.widget.runtimeType}, ${sizes[at]} in $children children',
+      if (ranked.isNotEmpty)
+        ' (${[for (final MapEntry(key: kind, value: (count, size)) in ranked.take(kinds)) '$kind ×$count $size', if (ranked.length > kinds) '…'].join(', ')})',
+    ].join();
   }
 }
 

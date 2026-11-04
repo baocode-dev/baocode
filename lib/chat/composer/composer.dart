@@ -23,6 +23,7 @@ import '../floating/floating_layer.dart';
 import '../floating/floating_placement.dart';
 import '../floating/floating_registry.dart';
 import '../../workspace/window_controls.dart';
+import '../widgets/context_meter.dart';
 import '../widgets/hover_builder.dart';
 import 'composer_caret.dart';
 import 'composer_controller.dart';
@@ -87,6 +88,7 @@ class ChatComposer extends StatefulWidget {
     this.initialText,
     this.initialImages = const [],
     this.onSubmit,
+    this.onIntercept,
     this.onCancel,
     this.tapRegionGroupId,
     this.draft,
@@ -105,6 +107,10 @@ class ChatComposer extends StatefulWidget {
   /// Images to start from (the message being edited had them).
   final List<ImageAttachment> initialImages;
   final ValueChanged<ComposerMessage>? onSubmit;
+
+  /// Takes a message the app handles itself, never the agent's (a side
+  /// question, say): true when it was, and what is typed is gone.
+  final bool Function(ComposerMessage message)? onIntercept;
   final VoidCallback? onCancel;
 
   /// Group of a [TapRegion] around this composer: its menus, which open in
@@ -1471,11 +1477,23 @@ class ChatComposerState extends State<ChatComposer>
     if (_showsStop) return;
     final message = _buildMessage();
     if (message.text.isEmpty && message.images.isEmpty) return;
+    if (widget.onIntercept case final intercept? when intercept(message)) {
+      _pool = {};
+      _controller.clear();
+      _leaveHistory();
+      _saveDraft();
+      _dismissedTrigger = null;
+      return;
+    }
     if (widget.onSubmit case final onSubmit?) {
       onSubmit(message);
       return;
     }
-    widget.session.send(message, editor: widget.openEditor);
+    widget.session.send(
+      message,
+      editor: widget.openEditor,
+      from: UserPlace.computer,
+    );
     _pool = {};
     _controller.clear();
     _leaveHistory();
@@ -1635,7 +1653,7 @@ class ChatComposerState extends State<ChatComposer>
           // the color of every bubble, and their line; typed into, the line
           // turns a little towards the accent.
           color: AppColors.bubbleFill,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.bubbleBorder(focused: focused)),
         ),
         child: Column(
@@ -1978,8 +1996,8 @@ class ChatComposerState extends State<ChatComposer>
             final onToggle?,
             final usage?,
           )) ...[
-            _ContextRing(
-              fraction: usage.fraction,
+            ContextMeter(
+              usage: usage,
               active: widget.contextPanelOpen,
               // Toggle Context Panel's, which has none by default.
               tooltip: _hovers.ring,
@@ -2048,102 +2066,6 @@ class _PolishButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ContextRing extends StatelessWidget {
-  const _ContextRing({
-    required this.fraction,
-    required this.active,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final double fraction;
-  final bool active;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = themeColors;
-    return IdeHover(
-      message: tooltip,
-      child: HoverBuilder(
-        cursor: SystemMouseCursors.click,
-        builder: (context, hovered) => GestureDetector(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            width: 23,
-            height: 22,
-            // The ring keeps its square: the box is taller than it.
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: active
-                  ? colors['toolbar.activeBackground']
-                  : hovered
-                  ? colors['toolbar.hoverBackground']
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: SizedBox.square(
-              dimension: 13,
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(end: fraction),
-                duration: const Duration(milliseconds: 400),
-                builder: (context, value, _) => CustomPaint(
-                  painter: _RingPainter(
-                    value,
-                    track: colors['disabledForeground'],
-                    arc: colors['icon.foreground'],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// As upstream's context usage widget: the track `disabledForeground`, the
-/// arc `icon.foreground`.
-class _RingPainter extends CustomPainter {
-  _RingPainter(this.fraction, {required this.track, required this.arc});
-
-  final double fraction;
-  final Color track;
-  final Color arc;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-    canvas.drawArc(
-      rect.deflate(1),
-      0,
-      math.pi * 2,
-      false,
-      stroke..color = track,
-    );
-    canvas.drawArc(
-      rect.deflate(1),
-      -math.pi / 2,
-      math.pi * 2 * fraction.clamp(0, 1),
-      false,
-      stroke..color = arc,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter oldDelegate) =>
-      oldDelegate.fraction != fraction ||
-      oldDelegate.track != track ||
-      oldDelegate.arc != arc;
 }
 
 class _SendButton extends StatelessWidget {

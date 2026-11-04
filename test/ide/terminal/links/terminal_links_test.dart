@@ -174,6 +174,16 @@ void main() {
       links.wordSeparators = '.';
       expect((await links.linkAt(0, 0))!.text, 'a');
     });
+
+    test('a row\'s links are kept until its text changes', () async {
+      await write('see');
+      final first = (await links.linkAt(0, 0))!;
+      expect(identical(await links.linkAt(1, 0), first), isTrue);
+      await write('\r\x1b[2Kfoo bar');
+      expect((await links.linkAt(5, 0))!.text, 'bar');
+      xterm.reset();
+      expect(await links.linkAt(5, 0), isNull);
+    });
   });
 
   group('terminalSearchLinkText', () {

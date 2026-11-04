@@ -713,7 +713,6 @@ class FileChange {
     this.kind = FileChangeKind.modified,
     this.binary = false,
     this.tracked = true,
-    this.shared = false,
     this.conflict = false,
   });
 
@@ -725,14 +724,9 @@ class FileChange {
   /// No line counts: a binary file.
   final bool binary;
 
-  /// Whether what it was before is known, to be undone; not when it is
-  /// in no snapshot (ignored, too large, outside the project) and the
-  /// agent did not tell.
+  /// Whether what it was before is known, to be undone; not when it was
+  /// too large to keep and the agent did not tell.
   final bool tracked;
-
-  /// Another agent was at work in the project at the same time: some of
-  /// it may be theirs.
-  final bool shared;
 
   /// It changed again since the agent left it, and Undo could not carry
   /// that over.

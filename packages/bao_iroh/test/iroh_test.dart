@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -197,4 +198,38 @@ void main() {
     await a.close();
     await b.close();
   });
+
+  test('watching tells what there is, then only what changed, until closed', () async {
+    final seen = <IrohEndpointInfo>[];
+    final done = server.watch().forEach(seen.add);
+    await Future<void>.delayed(const Duration(seconds: 1));
+    // Nothing changed: what there was, once.
+    expect([for (final info in seen) info.id], [server.id]);
+    await server.close();
+    await done.timeout(const Duration(seconds: 5));
+  });
+
+  // Once on a relay its watchers had changed: the endpoint was seen as
+  // ever changing, tens of thousands of times a second.
+  final relay = Platform.environment['BAO_IROH_RELAY'];
+  test(
+    'on a relay, its info is told only when it changed',
+    () async {
+      final endpoint = await IrohEndpoint.bind(secret: secret(), alpn: alpn, relays: [relay!]);
+      final seen = <IrohEndpointInfo>[];
+      final done = endpoint.watch().forEach(seen.add);
+      final deadline = DateTime.now().add(const Duration(seconds: 15));
+      while (!(seen.lastOrNull?.home.any((home) => home.connected) ?? false)) {
+        if (DateTime.now().isAfter(deadline)) fail('not on the relay');
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      final onRelay = seen.length;
+      await Future<void>.delayed(const Duration(seconds: 3));
+      expect(onRelay, lessThan(10));
+      expect(seen.length - onRelay, lessThan(3));
+      await endpoint.close();
+      await done.timeout(const Duration(seconds: 5));
+    },
+    skip: relay == null ? 'BAO_IROH_RELAY is not set' : false,
+  );
 }

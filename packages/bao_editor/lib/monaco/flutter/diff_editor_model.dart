@@ -352,6 +352,23 @@ class DiffEditorColors {
     );
   }
 
+  /// These, no bars by the changed lines ([insertedBar], [removedBar]).
+  DiffEditorColors withoutBars() => DiffEditorColors(
+    insertedLine: insertedLine,
+    removedLine: removedLine,
+    insertedText: insertedText,
+    removedText: removedText,
+    insertedGutter: insertedGutter,
+    removedGutter: removedGutter,
+    overviewInserted: overviewInserted,
+    overviewRemoved: overviewRemoved,
+    overviewModified: overviewModified,
+    insertedTextBorder: insertedTextBorder,
+    removedTextBorder: removedTextBorder,
+    unchangedBackground: unchangedBackground,
+    unchangedForeground: unchangedForeground,
+  );
+
   static Color? _doubled(Color? color) =>
       color?.withValues(alpha: math.min(1, color.a * 2));
 

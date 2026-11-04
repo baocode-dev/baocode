@@ -421,4 +421,7 @@ class _Themes extends ChangeNotifier implements IdeColorThemeController {
 
   @override
   Future<void> setColorTheme(String id, {bool preview = false}) async {}
+
+  @override
+  Future<void> restoreColorThemePreview() async {}
 }

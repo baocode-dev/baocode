@@ -47,7 +47,7 @@ class _TwoTurnFeed extends ChangeNotifier implements ChatFeed {
   ({int index, ComposerDraft draft})? editing;
 
   @override
-  void editMessage(int index, ComposerMessage message) {}
+  void editMessage(int index, ComposerMessage message, {UserPlace? from}) {}
 
   @override
   VoidCallback? moveToBackgroundAt(int index) => null;
@@ -102,14 +102,16 @@ void main() {
       await tester.pump();
     }
 
-    /// How bright the top of the history is, beside the scrollbar.
+    /// How bright the history is around [y] below its top, beside the
+    /// scrollbar.
     final layer = tester.binding.renderViews.first.debugLayer! as OffsetLayer;
-    Future<double> brightness() async {
+    Future<double> brightness(double y) async {
+      // Around the message's top, [y] down: under the list's top fade.
       final band = Rect.fromLTRB(
         list.left + 60,
-        list.top,
+        list.top + y - 4,
         list.right - 60,
-        list.top + 40,
+        list.top + y + 12,
       );
       final image = (await tester.runAsync(() => layer.toImage(band)))!;
       final bytes = (await tester.runAsync(
@@ -143,31 +145,97 @@ void main() {
         )
         .topFadeAmount!();
 
-    // Stuck once it is less than 8 from the top: the copy takes over under
-    // the list's top fade, as its message was, the list shown below it.
-    await put(9);
-    final inList = await brightness();
-    await put(7);
-    expect(await brightness(), closeTo(inList, 1.5));
-    expect(copyFade(_TwoTurnFeed.second), closeTo(31 / 32, 0.001));
-    expect(listFade(), closeTo(1 / 32, 0.001));
+    // Stuck once it is less than 24 from the top (as far as from the
+    // sides, the chat's gutter): the copy takes over under the list's top
+    // fade, as its message was, the list shown below it.
+    await put(24.5);
+    final inList = await brightness(24.5);
+    await put(23.5);
+    expect(await brightness(23.5), closeTo(inList, 1.5));
+    expect(copyFade(_TwoTurnFeed.second), closeTo(63 / 64, 0.001));
+    expect(listFade(), closeTo(1 / 64, 0.001));
 
-    // Whole, and the list faded out below it, 32 on.
-    await put(-25);
-    expect(await brightness(), greaterThan(inList + 4));
+    // Whole, and the list faded out below it, 32 on: as bright, its top
+    // below the list's fade already where it was taken over.
+    await put(-8.5);
+    expect(await brightness(24), closeTo(inList, 1.5));
     expect(copyFade(_TwoTurnFeed.second), 0);
     expect(listFade(), 1);
 
     // The first message's copy, pushed away by the second: with the room
-    // above a stuck message and the fade below it, it is as tall as its
-    // bubble and 24 more.
-    final height = tester.getSize(second).height + 24;
+    // above a stuck message (24) and the fade below it (16), it is as tall
+    // as its bubble and 40 more.
+    final height = tester.getSize(second).height + 40;
     await put(height);
     expect(copyFade(0), 0);
     await put(height - 16);
     expect(copyFade(0), closeTo(0.5, 0.001));
     await put(height - 32);
     expect(copyFade(0), 1);
+  });
+
+  testWidgets('under a title, a message sticks nearer the top, and comes in '
+      'over less of a scroll', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(800, 600);
+    addTearDown(tester.view.reset);
+    final feed = _TwoTurnFeed();
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed, underTitle: true)),
+      ),
+    );
+    await tester.pump();
+    final listView = find.byType(SuperListView);
+    final list = tester.getRect(listView);
+    final position = tester
+        .state<ScrollableState>(
+          find
+              .descendant(of: listView, matching: find.byType(Scrollable))
+              .first,
+        )
+        .position;
+    position.jumpTo(0);
+    await tester.pump();
+    await tester.pump();
+    final first = find.byWidgetPredicate(
+      (widget) =>
+          widget is UserMessageBubble && widget.text == 'First question',
+    );
+    // The room above the first message: 12, not the gutter's 24.
+    expect(tester.getRect(first.first).top - list.top, 12);
+    final listMask = tester.widget<EdgeFadeMask>(
+      find.ancestor(of: listView, matching: find.byType(EdgeFadeMask)),
+    );
+    expect(listMask.topFadeLength, 24);
+
+    double copyFade() => tester
+        .widget<EdgeFadeMask>(
+          find
+              .ancestor(
+                of: find.byWidgetPredicate(
+                  (widget) =>
+                      widget is UserMessageBubble &&
+                      widget.key == const ValueKey(('sticky', 0)),
+                ),
+                matching: find.byType(EdgeFadeMask),
+              )
+              .first,
+        )
+        .topFadeAmount!();
+
+    // Stuck once scrolled past 12 from the top; whole 24 on.
+    position.jumpTo(12);
+    await tester.pump();
+    await tester.pump();
+    expect(copyFade(), closeTo(0.5, 0.001));
+    position.jumpTo(24);
+    await tester.pump();
+    await tester.pump();
+    expect(copyFade(), 0);
   });
 
   testWidgets('as bubbles, messages are at the right, as wide as their text, '

@@ -425,9 +425,11 @@ Future<void> _review(ShowScene scene) async {
   await scene.settle(const Duration(seconds: 1));
   // The changes above the input, opened; a file of them in the side
   // panel, each part to keep or undo.
-  await scene.tapText(scene.l10n.stripFilesChanged(5));
+  await scene.tapText(
+    scene.l10n.stripFilesChanged(thread.session.fileChanges.length),
+  );
   await scene.settle(const Duration(seconds: 1));
-  await scene.tapText('package.json');
+  await scene.tapText('index.test.ts', exact: true);
   await scene.settle(const Duration(seconds: 2));
   await scene.shot('review');
 }

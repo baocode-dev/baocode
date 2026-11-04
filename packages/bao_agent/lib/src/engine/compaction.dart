@@ -232,18 +232,21 @@ class Compaction {
     final maxTokens = info.known ? math.min(20000, info.maxOutput) : 16000;
     var accumulator = MessageAccumulator();
     await for (final event in session.client.stream(
-      ModelRequest({
-        'model': model,
-        'max_tokens': maxTokens,
-        'system': [
-          {'type': 'text', 'text': _system},
-        ],
-        'messages': conversation,
-        if (info.known &&
-            info.canDisableThinking &&
-            info.thinking != ThinkingStyle.none)
-          'thinking': {'type': 'disabled'},
-      }),
+      ModelRequest(
+        {
+          'model': model,
+          'max_tokens': maxTokens,
+          'system': [
+            {'type': 'text', 'text': _system},
+          ],
+          'messages': conversation,
+          if (info.known &&
+              info.canDisableThinking &&
+              info.thinking != ThinkingStyle.none)
+            'thinking': {'type': 'disabled'},
+        },
+        headers: requestHints(session.environment, requestClass: 'compaction'),
+      ),
       cancel: cancel,
     )) {
       if (event['type'] == 'stream_restart') {

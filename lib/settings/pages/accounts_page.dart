@@ -18,7 +18,7 @@ import '../../workspace/editor_launcher.dart' show openExternal;
 import 'model_dialogs.dart';
 import 'settings_widgets.dart';
 
-/// Settings → Accounts: the GitHub and GitLab accounts the stashes' issues
+/// Settings → Accounts: the GitHub, GitLab and Gitee accounts the stashes' issues
 /// and pull requests are asked of (docs/stash.md), signed in from the
 /// browser or with a token; signed out here.
 class AccountsSettingsPage extends StatelessWidget {
@@ -62,6 +62,7 @@ class AccountsSettingsPage extends StatelessWidget {
                   description: switch (kind) {
                     ForgeKind.github => l10n.accountsGitHubHosts,
                     ForgeKind.gitlab => l10n.accountsGitLabHosts,
+                    ForgeKind.gitee => l10n.accountsGiteeHosts,
                   },
                   trailing: SettingsButtons(
                     children: [
@@ -107,7 +108,8 @@ class _AccountRow extends StatelessWidget {
         _ => account.login,
       },
       description: [
-        '${account.kind.label} · ${account.host}',
+        '${account.kind.label} · ${account.host}'
+            '${account.scheme == 'http' ? ' (http)' : ''}',
         switch (account.via) {
           ForgeSignIn.browser => l10n.accountsViaBrowser,
           ForgeSignIn.token => l10n.accountsViaToken,
@@ -142,37 +144,28 @@ class _AccountRow extends StatelessWidget {
 
 /// Where [account]'s authorization is revoked on its forge: the app's (signed
 /// in from the browser) or the tokens' page.
-Uri forgeRevokePage(ForgeAccount account) =>
-    switch ((account.kind, account.via)) {
-      (ForgeKind.github, ForgeSignIn.browser) => Uri.https(
-        account.host,
-        '/settings/applications',
-      ),
-      (ForgeKind.github, ForgeSignIn.token) => Uri.https(
-        account.host,
-        '/settings/tokens',
-      ),
-      (ForgeKind.gitlab, ForgeSignIn.browser) => Uri.https(
-        account.host,
-        '/-/user_settings/applications',
-      ),
-      (ForgeKind.gitlab, ForgeSignIn.token) => Uri.https(
-        account.host,
-        '/-/user_settings/personal_access_tokens',
-      ),
-    };
+Uri forgeRevokePage(ForgeAccount account) => account.base.replace(
+  path: switch ((account.kind, account.via)) {
+    (ForgeKind.github, ForgeSignIn.browser) => '/settings/applications',
+    (ForgeKind.github, ForgeSignIn.token) => '/settings/tokens',
+    (ForgeKind.gitlab, ForgeSignIn.browser) => '/-/user_settings/applications',
+    (ForgeKind.gitlab, ForgeSignIn.token) =>
+      '/-/user_settings/personal_access_tokens',
+    (ForgeKind.gitee, _) => '/profile/personal_access_tokens',
+  },
+);
 
-/// Where a token for BaoCode is made on [host], what it needs checked.
-Uri forgeNewTokenPage(ForgeKind kind, String host) => switch (kind) {
-  ForgeKind.github => Uri.https(host, '/settings/tokens/new', {
-    'scopes': 'repo,read:user',
-    'description': 'BaoCode',
-  }),
-  ForgeKind.gitlab => Uri.https(
-    host,
-    '/-/user_settings/personal_access_tokens',
-    {'name': 'BaoCode', 'scopes': 'api'},
+/// Where a token for BaoCode is made on [site], what it needs checked.
+Uri forgeNewTokenPage(ForgeKind kind, Uri site) => switch (kind) {
+  ForgeKind.github => site.replace(
+    path: '/settings/tokens/new',
+    queryParameters: {'scopes': 'repo,read:user', 'description': 'BaoCode'},
   ),
+  ForgeKind.gitlab => site.replace(
+    path: '/-/user_settings/personal_access_tokens',
+    queryParameters: {'name': 'BaoCode', 'scopes': 'api'},
+  ),
+  ForgeKind.gitee => site.replace(path: '/profile/personal_access_tokens/new'),
 };
 
 TextStyle _text({Color? color, double size = 13}) => TextStyle(
@@ -234,14 +227,16 @@ class _ForgeTokenDialogState extends State<ForgeTokenDialog> {
     super.dispose();
   }
 
-  String get _hostTyped => _host.text.trim().isEmpty
-      ? widget.kind.publicHost
-      : Uri.tryParse(
-              _host.text.contains('://')
-                  ? _host.text.trim()
-                  : 'https://${_host.text.trim()}',
-            )?.host ??
-            _host.text.trim();
+  /// The server as typed: a host, or a whole address (`http://gitlab.corp:
+  /// 8080`) for one served so.
+  Uri get _site {
+    final text = _host.text.trim();
+    if (text.isEmpty) return Uri.https(widget.kind.publicHost, '');
+    final uri = Uri.tryParse(text.contains('://') ? text : 'https://$text');
+    return uri == null || uri.host.isEmpty ? Uri.https(text, '') : uri;
+  }
+
+  String get _hostTyped => _site.authority;
 
   Future<void> _signIn() async {
     if (_signingIn || _token.text.trim().isEmpty) return;
@@ -252,10 +247,28 @@ class _ForgeTokenDialogState extends State<ForgeTokenDialog> {
     try {
       final account = await widget.accounts.signInWithToken(
         widget.kind,
-        _hostTyped,
+        _site.toString(),
         _token.text,
       );
       if (mounted) Navigator.pop(context, account);
+    } on ForgeCertificateException catch (error) {
+      if (!mounted) return;
+      setState(() => _signingIn = false);
+      // The server's certificate is a self-signed one or a private CA's:
+      // the user says whether to trust this one, and only this one.
+      final answer = await showIdeDialog(
+        context,
+        message: context.l10n.accountsCertificateTitle,
+        detail: context.l10n.accountsCertificateDetail(
+          error.host,
+          error.issuer.isEmpty ? error.subject : error.issuer,
+          error.sha256,
+        ),
+        buttons: [context.l10n.accountsCertificateTrust],
+      );
+      if (!mounted || answer != 0) return;
+      widget.accounts.trustCertificate(error.host, error.sha256);
+      await _signIn();
     } on ForgeException catch (error) {
       if (mounted) {
         setState(() {
@@ -321,6 +334,7 @@ class _ForgeTokenDialogState extends State<ForgeTokenDialog> {
             Text(switch (kind) {
               ForgeKind.github => l10n.accountsTokenGitHubScopes,
               ForgeKind.gitlab => l10n.accountsTokenGitLabScopes,
+              ForgeKind.gitee => l10n.accountsTokenGiteeScopes,
             }, style: _muted()),
             const SizedBox(height: 8),
             Align(
@@ -330,7 +344,7 @@ class _ForgeTokenDialogState extends State<ForgeTokenDialog> {
                 icon: Codicons.linkExternal,
                 secondary: true,
                 onPressed: () => unawaited(
-                  openExternal('${forgeNewTokenPage(kind, _hostTyped)}'),
+                  openExternal('${forgeNewTokenPage(kind, _site)}'),
                 ),
               ),
             ),

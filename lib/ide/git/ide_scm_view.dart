@@ -50,8 +50,10 @@ import '../../theme/app_theme.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
 import '../../workspace/editor_launcher.dart' show openExternal;
+import '../../workspace/islands.dart';
 import '../../workspace/window_controls.dart';
 import '../file_service.dart' show IdeHostFiles;
+import '../host_paths.dart';
 import '../ide_animated_list.dart';
 import '../ide_commands.dart';
 import '../ide_dates.dart';
@@ -824,7 +826,9 @@ class IdeScmViewState extends State<IdeScmView>
   Widget build(BuildContext context) {
     final git = _git;
     return ColoredBox(
-      color: widget.background ?? AppColors.sidebarSurface,
+      color:
+          widget.background ??
+          Islands.underOr(context, AppColors.sidebarSurface),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -902,7 +906,7 @@ class IdeScmViewState extends State<IdeScmView>
               id: 'graph',
               title: l10n.scmGraph,
               // Which repository's, with several.
-              description: _grouped ? p.basename(git.service.root) : null,
+              description: _grouped ? hostBasename(git.service.root) : null,
               weight: 2,
               actions: [
                 IdePaneAction(
@@ -1545,7 +1549,7 @@ class IdeScmViewState extends State<IdeScmView>
         final keyed =
             [
               for (final resource in resources)
-                (resource, IdeFileNameKey(p.basename(resource.path))),
+                (resource, IdeFileNameKey(hostBasename(resource.path))),
             ]..sort((a, b) {
               final order = a.$2.compareTo(b.$2);
               return order != 0 ? order : byPath(a.$1, b.$1);
@@ -2301,7 +2305,7 @@ class IdeScmViewState extends State<IdeScmView>
                 children: [
                   Flexible(
                     child: Text(
-                      p.basename(root),
+                      hostBasename(root),
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
@@ -2737,7 +2741,7 @@ class IdeScmViewState extends State<IdeScmView>
             const SizedBox(width: 6),
             Expanded(
               child: IdeResourceLabel(
-                name: p.basename(resource.path),
+                name: hostBasename(resource.path),
                 description: treeDepth != null || folder == '.' ? null : folder,
                 strikeThrough: resource.status.strikeThrough,
                 letter: resource.status.letter,
@@ -3076,7 +3080,7 @@ class IdeScmViewState extends State<IdeScmView>
     ];
     final toTrash = widget.trash != null;
     final l10n = context.l10n;
-    String name(IdeGitResource r) => p.basename(r.path);
+    String name(IdeGitResource r) => hostBasename(r.path);
 
     (String, String?, String) untrackedDialog(List<IdeGitResource> files) {
       final one = files.length == 1;
@@ -3340,7 +3344,9 @@ class IdeGitGraph extends StatelessWidget {
                 : hovered
                 ? colors['list.hoverBackground']
                 : Colors.transparent,
-            this.background ?? colors['sideBar.background'],
+            this.background ??
+                IslandSurface.colorOf(context) ??
+                AppColors.background,
           );
           return Padding(
             padding: const EdgeInsets.only(left: 4, right: 12),

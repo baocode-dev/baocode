@@ -6,8 +6,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/widgets/code_citation.dart';
+import 'package:baocode/chat/widgets/finite_selection_edges.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/theme/codicons.dart';
+import 'package:baocode/theme/workbench_theme.dart';
 
 Future<void> pumpMarkdown(
   WidgetTester tester,
@@ -93,7 +95,7 @@ void main() {
       expect(const CodeCitation(7, 7, 'a.dart').lines, 'Ln 7');
     });
 
-    test('opens only in the folder the agent works in', () {
+    test('opens from the folder the agent works in, as its tools do', () {
       expect(
         const CodeCitation(1, 1, 'lib/a.dart').pathIn('/p'),
         '/p/lib/a.dart',
@@ -102,8 +104,8 @@ void main() {
         const CodeCitation(1, 1, '/p/lib/a.dart').pathIn('/p'),
         '/p/lib/a.dart',
       );
-      expect(const CodeCitation(1, 1, '../q/a.dart').pathIn('/p'), isNull);
-      expect(const CodeCitation(1, 1, '/etc/hosts').pathIn('/p'), isNull);
+      expect(const CodeCitation(1, 1, '../q/a.dart').pathIn('/p'), '/q/a.dart');
+      expect(const CodeCitation(1, 1, '/etc/hosts').pathIn('/p'), '/etc/hosts');
     });
   });
 
@@ -252,9 +254,7 @@ void main() {}
       expect(texts(tester), contains('14\n15\n16'));
     });
 
-    testWidgets('a file outside the agent\'s folder does not open', (
-      tester,
-    ) async {
+    testWidgets('a file outside the agent\'s folder opens too', (tester) async {
       final opened = <String>[];
       await pumpMarkdown(
         tester,
@@ -262,7 +262,7 @@ void main() {}
         onOpen: (path, _, _) => opened.add(path),
       );
       await tester.tap(find.text('hosts'));
-      expect(opened, isEmpty);
+      expect(opened, ['/etc/hosts']);
     });
 
     testWidgets('code is colored, lines still the same keep theirs', (
@@ -498,6 +498,117 @@ void main() {}
       });
     }
 
+    /// The paragraphs of the code shown.
+    List<RichText> paragraphs(WidgetTester tester) => tester
+        .widgetList<RichText>(
+          find.descendant(
+            of: find.byType(FiniteSelectionEdges),
+            matching: find.byType(RichText),
+          ),
+        )
+        .toList();
+
+    testWidgets('written on, lays out only its last lines again', (
+      tester,
+    ) async {
+      final lines = [for (var i = 0; i < 90; i++) 'line_$i = $i;'];
+      await pumpMarkdownInPage(tester, '```py\n${lines.join('\n')}');
+      final before = paragraphs(tester);
+      expect(before, hasLength(3));
+      expect(
+        before.map((text) => text.text.toPlainText()).join('\n'),
+        lines.join('\n'),
+      );
+
+      lines.add('line_90 = 90;');
+      await pumpMarkdownInPage(tester, '```py\n${lines.join('\n')}');
+      final after = paragraphs(tester);
+      // The same widgets: not built nor laid out again.
+      expect(after[0], same(before[0]));
+      expect(after[1], same(before[1]));
+      expect(after[2], isNot(same(before[2])));
+      expect(
+        after.map((text) => text.text.toPlainText()).join('\n'),
+        lines.join('\n'),
+      );
+    });
+
+    testWidgets('copies a line to a line across its paragraphs', (
+      tester,
+    ) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      // Tall enough for the lines dragged over.
+      tester.view
+        ..physicalSize = const Size(800, 2400)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final lines = [for (var i = 0; i < 90; i++) 'line_$i = $i;'];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Shortcuts(
+              shortcuts: const {
+                SingleActivator(LogicalKeyboardKey.keyC, control: true):
+                    CopySelectionTextIntent.copy,
+              },
+              child: SelectionArea(
+                child: SingleChildScrollView(
+                  child: MarkdownView('```dart\n${lines.join('\n')}\n```'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final shown = paragraphs(tester);
+      expect(shown, hasLength(3));
+      // From line 38 to 42, the first paragraph's last lines to the next's.
+      final first = tester.renderObject<RenderParagraph>(
+        find.byWidget(shown[0]),
+      );
+      final second = tester.renderObject<RenderParagraph>(
+        find.byWidget(shown[1]),
+      );
+      final from = first.getOffsetForCaret(
+        TextPosition(offset: lines.take(38).join('\n').length + 1),
+        Rect.zero,
+      );
+      final to = second.getOffsetForCaret(
+        TextPosition(offset: lines.skip(40).take(3).join('\n').length),
+        Rect.zero,
+      );
+      final mouse = await tester.startGesture(
+        first.localToGlobal(from + const Offset(0.5, 4)),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await mouse.moveTo(second.localToGlobal(to + const Offset(-0.5, 4)));
+      await tester.pump();
+      await mouse.up();
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(copied, lines.sublist(38, 43).join('\n'));
+    });
+
     testWidgets('is colored by its language', (tester) async {
       const red = TextStyle(color: Color(0xFFFF0000));
       final asked = <(String, String)>[];
@@ -521,6 +632,30 @@ void main() {}
         });
       }
       expect(colored, ['x = 1']);
+    });
+
+    testWidgets('another theme colors it again', (tester) async {
+      final themes = WorkbenchThemeService.instance;
+      await tester.runAsync(themes.initialize);
+      var asked = 0;
+      Future<List<List<TextSpan>>?> colorize(String language, String code) {
+        asked++;
+        return Future.value([
+          [TextSpan(text: code)],
+        ]);
+      }
+
+      Future<void> pump() =>
+          pumpMarkdown(tester, '```py\nx = 1\n```', colorizeBlock: colorize);
+      await pump();
+      await tester.pump();
+      await pump();
+      await tester.pump();
+      expect(asked, 1);
+      await tester.runAsync(() => themes.setColorTheme('Bao Light'));
+      await pump();
+      await tester.pump();
+      expect(asked, 2);
     });
 
     testWidgets('without a language is left plain', (tester) async {

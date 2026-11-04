@@ -336,12 +336,17 @@ void main() {
           seconds: 4,
         ),
       );
-      expect(header('Planning the fix'), findsOneWidget);
+      // Headed by its latest part's title; open, its parts' titles are
+      // lines of it.
+      expect(header('Checking tests'), findsOneWidget);
       expect(find.textContaining('Thought'), findsNothing);
-      await tester.tap(header('Planning the fix'));
+      await tester.tap(header('Checking tests'));
       await tester.pump();
       expect(
-        find.text('First read the kernel.\n\nChecking tests\n\nThen run them.'),
+        find.text(
+          'Planning the fix\n\nFirst read the kernel.\n\n'
+          'Checking tests\n\nThen run them.',
+        ),
         findsOneWidget,
       );
     });
@@ -759,8 +764,8 @@ void main() {
     expect(find.text('task 0'), findsNothing);
     await tester.tap(find.text('10 background tasks running'));
     await tester.pump();
-    // That line and four rows, the strip's padding and top border.
-    expect(tester.getSize(find.byType(ActivityStrip)).height, 28 * 5 + 6 + 1);
+    // That line and four rows, the strip's padding and its border.
+    expect(tester.getSize(find.byType(ActivityStrip)).height, 28 * 5 + 6 + 2);
     expect(find.text('task 0').hitTestable(), findsOneWidget);
     expect(find.text('task 9').hitTestable(), findsNothing);
 

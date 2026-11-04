@@ -19,8 +19,8 @@
 //
 // Not here: opening links, the hover widget and its modifier tracking, the
 // link quick pick (`getLinks`, `openRecentLink`), extension link providers
-// and OSC 8 hyperlinks. The renderer caches a row's links while the mouse
-// stays on it, as xterm.js' linkifier does.
+// and OSC 8 hyperlinks. A row's links are kept while the mouse stays on it,
+// as xterm.js' linkifier does, until the terminal's rows change.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -65,7 +65,7 @@ class TerminalLink {
     this.column,
     this.endLine,
     this.endColumn,
-    this.searchText,
+    this._searchText,
   });
 
   /// The cells of the link, as xterm.js' `ILink.range`: one-based x and y
@@ -97,8 +97,12 @@ class TerminalLink {
 
   /// For a [TerminalLinkType.search] link: what to search for, the word with
   /// a `file://` or `./` prefix and trailing punctuation removed and the
-  /// line and column its context gives appended (`foo.ts:12:5`).
-  final String? searchText;
+  /// line and column its context gives appended (`foo.ts:12:5`). Worked out
+  /// when first read, as VS Code does when the link is opened: parsing the
+  /// context line again for each of a long line's hundreds of words took
+  /// seconds on the UI thread.
+  late final String? searchText = _searchText?.call();
+  final String? Function()? _searchText;
 
   /// Whether the link is shown on hover without the modifier (underline and
   /// tooltip): everything but words.
@@ -169,6 +173,12 @@ class TerminalLinkDetection {
       ),
       _wordDetector,
     ];
+    // What is on the rows (or which rows they are) changed.
+    void forget(_) => _rowLinks = null;
+    xterm.onWriteParsed(forget);
+    xterm.onRender(forget);
+    xterm.onScroll(forget);
+    xterm.onResize(forget);
   }
 
   final Terminal xterm;
@@ -184,13 +194,25 @@ class TerminalLinkDetection {
 
   final Map<(int, int), Future<List<TerminalLink>>> _activeRequests = {};
 
+  /// The last row's links (its one-based buffer line number), kept while the
+  /// pointer moves on it, as xterm.js' linkifier keeps a row's replies: a
+  /// row of a long line takes the detectors milliseconds, and every move of
+  /// the pointer asks.
+  (int, Future<List<List<TerminalLink>>>)? _rowLinks;
+
   /// The directory relative paths resolve against: the process's initial
   /// cwd, empty until known.
   String get initialCwd => _processInfo.initialCwd;
-  set initialCwd(String value) => _processInfo.initialCwd = value;
+  set initialCwd(String value) {
+    _processInfo.initialCwd = value;
+    _rowLinks = null;
+  }
 
   /// `terminal.integrated.wordSeparators`.
-  set wordSeparators(String value) => _wordDetector.wordSeparators = value;
+  set wordSeparators(String value) {
+    _wordDetector.wordSeparators = value;
+    _rowLinks = null;
+  }
 
   OperatingSystem get _os => _processInfo.os ?? hostOperatingSystem;
 
@@ -220,10 +242,16 @@ class TerminalLinkDetection {
   }
 
   Future<List<List<TerminalLink>>> _provideAll(int bufferLineNumber) {
-    return Future.wait([
+    final cached = _rowLinks;
+    if (cached != null && cached.$1 == bufferLineNumber) {
+      return cached.$2;
+    }
+    final replies = Future.wait([
       for (var i = 0; i < detectors.length; i++)
         _provideLinksOnce(i, bufferLineNumber),
     ]);
+    _rowLinks = (bufferLineNumber, replies);
+    return replies;
   }
 
   Future<List<TerminalLink>> _provideLinksOnce(
@@ -290,6 +318,8 @@ class TerminalLinkDetection {
       l.bufferRange.end.x--;
     }
     final os = _os;
+    final text = l.text;
+    final contextLine = l.contextLine;
     final uri = l.uri;
     final path = uri != null && uri.scheme == 'file'
         ? fileUriToPath(uri, os)
@@ -336,9 +366,9 @@ class TerminalLinkDetection {
       endLine: endLine,
       endColumn: endColumn,
       searchText: l.type == TerminalBuiltinLinkType.search
-          ? terminalSearchLinkText(
-              l.text,
-              contextLine: l.contextLine,
+          ? () => terminalSearchLinkText(
+              text,
+              contextLine: contextLine,
               os: os,
               workspaceFolders: workspaceFolders,
             )

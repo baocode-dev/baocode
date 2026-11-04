@@ -25,14 +25,12 @@ void main() {
 
   // #198: the window drags itself by the header Windows draws, so nothing
   // floating over it could be clicked.
-  testWidgets(
-    'bounds keep below the window\'s own header on Windows',
-    (tester) async {
-      final bounds = FloatingLayer.boundsIn(const Size(400, 300));
-      expect(bounds, Rect.fromLTRB(8, AppMetrics.headerHeight, 392, 292));
-    },
-    variant: TargetPlatformVariant.only(TargetPlatform.windows),
-  );
+  testWidgets('bounds keep below the window\'s own header on Windows', (
+    tester,
+  ) async {
+    final bounds = FloatingLayer.boundsIn(const Size(400, 300));
+    expect(bounds, Rect.fromLTRB(8, AppMetrics.headerHeight, 392, 292));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   test('bounds keep an inset from the window\'s edges elsewhere', () {
     expect(
@@ -315,8 +313,12 @@ void main() {
 
     Future<void> setUpScreen(WidgetTester tester) async {
       await pumpScreen(tester);
-      // The last turn's read is folded with its thought and search: open it.
-      await tester.tap(find.byType(StepsFoldLine).last);
+      // The last turn's read is folded with its thought and search: open it,
+      // clear of the turn's message stuck at the top.
+      final fold = find.byType(StepsFoldLine, skipOffstage: false).last;
+      await Scrollable.ensureVisible(tester.element(fold), alignment: 0.5);
+      await tester.pump();
+      await tester.tap(fold);
       await tester.pump();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));

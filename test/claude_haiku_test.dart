@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:baocode/kernel/claude_code/claude_haiku.dart';
+import 'package:baocode/usage/usage_record.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -76,6 +77,48 @@ void main() {
     expect(
       () => ClaudeAnswerTimer().answer('boom', 1),
       throwsA(isA<ClaudeHaikuException>()),
+    );
+  });
+
+  test('a call of Claude\'s own is kept from its result, under the '
+      'conversation it was for', () {
+    final at = DateTime(2026, 11, 1, 12);
+    final call = claudeHaikuCall(
+      {
+        'type': 'result',
+        'duration_ms': 1500,
+        'usage': {
+          'input_tokens': 120,
+          'output_tokens': 9,
+          'cache_read_input_tokens': 4000,
+          'cache_creation_input_tokens': 0,
+        },
+        'modelUsage': {'claude-haiku-4-5-20251001': <String, Object?>{}},
+      },
+      at: at,
+      session: 'conversation-1',
+    )!;
+    expect(call.session, 'conversation-1');
+    expect(call.requestClass, UsageClass.auxiliary);
+    expect(call.model, 'claude-haiku-4-5');
+    expect(call.input, 120);
+    expect(call.output, 9);
+    expect(call.cacheRead, 4000);
+    expect(call.at, at.subtract(const Duration(milliseconds: 1500)));
+    expect(claudeHaikuCall({'type': 'result'}, at: at), isNull);
+  });
+
+  test('a provider is told the conversation in a header of its own, after '
+      'its own headers', () {
+    expect(
+      withUsageSession({'A': '1'}, 's1')['ANTHROPIC_CUSTOM_HEADERS'],
+      'x-baocode-session: s1',
+    );
+    expect(
+      withUsageSession({
+        'ANTHROPIC_CUSTOM_HEADERS': 'X-Team: a',
+      }, 's1')['ANTHROPIC_CUSTOM_HEADERS'],
+      'X-Team: a\nx-baocode-session: s1',
     );
   });
 }

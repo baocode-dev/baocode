@@ -67,6 +67,7 @@ class PairingOffer {
     required this.expires,
     this.relays = const [],
     this.addrs = const [],
+    this.direct = false,
   });
 
   /// As [uri] wrote it, or as the code's text is pasted. A code of before
@@ -110,6 +111,7 @@ class PairingOffer {
         expires: DateTime.fromMillisecondsSinceEpoch(expires * 1000),
         relays: [...?(json['r'] as List?)?.whereType<String>()],
         addrs: [...?(json['a'] as List?)?.whereType<String>()],
+        direct: json['d'] == true,
       );
     }
     throw FormatException('Not a pairing code', text);
@@ -136,6 +138,9 @@ class PairingOffer {
   /// Its addresses (`ip:port`): on the LAN first.
   final List<String> addrs;
 
+  /// It keeps to no relay: [relays] is empty on purpose.
+  final bool direct;
+
   String get id => deviceIdOf(key);
 
   /// Where to dial the desktop.
@@ -153,6 +158,7 @@ class PairingOffer {
       'x': expires.millisecondsSinceEpoch ~/ 1000,
       'r': relays,
       'a': addrs,
+      if (direct) 'd': true,
     };
     return '$scheme://pair?d=${encodeKey(utf8.encode(jsonEncode(json)))}';
   }

@@ -38,12 +38,19 @@ void main() {
     expect(files.resolve('app/lib/chat/step_folds.dart'), _read);
   });
 
-  test('a file read outside the project opens by its absolute path', () {
+  test('a file outside the project opens by its absolute path, read or '
+      'not, as the agent\'s tools reach it', () {
     final files = scope([]);
     expect(files.resolve(_read), _read);
     expect(files.resolve('../Documents/app/lib/chat/step_folds.dart'), _read);
-    expect(files.resolve('/Users/me/Documents/other.dart'), isNull);
-    expect(files.resolve('../Documents/other.dart'), isNull);
+    expect(
+      files.resolve('/Users/me/Documents/other.dart'),
+      '/Users/me/Documents/other.dart',
+    );
+    expect(
+      files.resolve('../Documents/other.dart'),
+      '/Users/me/Documents/other.dart',
+    );
   });
 
   test('only whole names match, and only files read', () async {

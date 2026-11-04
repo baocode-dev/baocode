@@ -7,7 +7,6 @@ import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/theme/codicons.dart';
-import 'package:baocode/workspace/chat_branch_bar.dart';
 import 'package:baocode/workspace/chat_quota_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -121,7 +120,7 @@ Future<void> _pump(
               session: session,
               providers: providers,
               codex: codex,
-              branch: ChatBranchBar(session: session, name: 'main'),
+              branch: const Text('main'),
             ),
           ),
         ),

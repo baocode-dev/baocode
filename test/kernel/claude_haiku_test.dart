@@ -113,6 +113,11 @@ void main() {
     final previous = ModelProviders.current;
 
     setUp(() async {
+      // The upstreams' proxy is in this isolate: real sockets, not the test
+      // binding's 400s.
+      final overrides = HttpOverrides.current;
+      HttpOverrides.global = null;
+      addTearDown(() => HttpOverrides.global = overrides);
       root = Directory.systemTemp.createTempSync('baocode-haiku-');
       api = await FakeApi.start(errands: (_) => Reply.text('Short answer'));
       // The machine's own setup: a key and a Haiku of its own.

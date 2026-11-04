@@ -73,7 +73,8 @@ class KeyChord {
   /// modifiers [keyboard] holds now; null for a modifier alone.
   static KeyChord? fromEvent(KeyEvent event, [HardwareKeyboard? keyboard]) {
     final pressed = keyboard ?? HardwareKeyboard.instance;
-    var key = event.logicalKey;
+    _WindowsVirtualKeys.watch();
+    var key = _WindowsVirtualKeys.meant(event) ?? event.logicalKey;
     if (_modifierKeys.contains(key)) return null;
     // macOS types Shift+Tab as a back tab (U+0019). The Shift itself may
     // not reach the app (an input method keeps it, e.g. Pinyin's to switch
@@ -227,6 +228,87 @@ class KeySequence {
   @override
   String toString() => userSettingsLabel(KeybindingPlatform.mac);
 }
+
+/// What a Windows key down was as its virtual key has it, where the engine
+/// names it otherwise. The engine names the keypad's keys by scan code, so
+/// that its Ins (NumLock off), and an Insert another program sends without
+/// the extended flag (a dictionary's Ctrl+Insert to copy the selection the
+/// mouse made), come as Numpad 0, and Ctrl+Insert as Reset Zoom
+/// (`ctrl+numpad0`). Chromium, and so VS Code, takes the virtual key:
+/// Insert. The raw event, heard before the key event goes out, has it.
+abstract final class _WindowsVirtualKeys {
+  static bool _watching = false;
+
+  /// A keypad key down now, by its physical key: the key its virtual key
+  /// is where that is not the keypad's own (Insert, End, the arrows…).
+  static final Map<PhysicalKeyboardKey, LogicalKeyboardKey> _down = {};
+
+  static void watch() {
+    if (_watching || defaultTargetPlatform != TargetPlatform.windows) return;
+    _watching = true;
+    // ignore: deprecated_member_use
+    RawKeyboard.instance.addListener(see);
+  }
+
+  // ignore: deprecated_member_use
+  static void see(RawKeyEvent event) {
+    // ignore: deprecated_member_use
+    final data = event.data;
+    // ignore: deprecated_member_use
+    if (data is! RawKeyEventDataWindows) return;
+    final physical = event.physicalKey;
+    // ignore: deprecated_member_use
+    if (event is! RawKeyDownEvent || !_keypad.contains(physical)) {
+      _down.remove(physical);
+      return;
+    }
+    final key = kWindowsNumPadMap.containsKey(data.keyCode)
+        ? null
+        : kWindowsToLogicalKey[data.keyCode];
+    if (key == null) {
+      _down.remove(physical);
+    } else {
+      _down[physical] = key;
+    }
+  }
+
+  static LogicalKeyboardKey? meant(KeyEvent event) =>
+      _keypadKeys.contains(event.logicalKey) ? _down[event.physicalKey] : null;
+
+  static final _keypad = {
+    PhysicalKeyboardKey.numpad0,
+    PhysicalKeyboardKey.numpad1,
+    PhysicalKeyboardKey.numpad2,
+    PhysicalKeyboardKey.numpad3,
+    PhysicalKeyboardKey.numpad4,
+    PhysicalKeyboardKey.numpad5,
+    PhysicalKeyboardKey.numpad6,
+    PhysicalKeyboardKey.numpad7,
+    PhysicalKeyboardKey.numpad8,
+    PhysicalKeyboardKey.numpad9,
+    PhysicalKeyboardKey.numpadDecimal,
+  };
+
+  static final _keypadKeys = {
+    LogicalKeyboardKey.numpad0,
+    LogicalKeyboardKey.numpad1,
+    LogicalKeyboardKey.numpad2,
+    LogicalKeyboardKey.numpad3,
+    LogicalKeyboardKey.numpad4,
+    LogicalKeyboardKey.numpad5,
+    LogicalKeyboardKey.numpad6,
+    LogicalKeyboardKey.numpad7,
+    LogicalKeyboardKey.numpad8,
+    LogicalKeyboardKey.numpad9,
+    LogicalKeyboardKey.numpadDecimal,
+  };
+}
+
+/// Hands [event] to what reads Windows' virtual keys, as the raw keyboard
+/// would: for tests.
+@visibleForTesting
+// ignore: deprecated_member_use
+void debugSeeRawKeyEvent(RawKeyEvent event) => _WindowsVirtualKeys.see(event);
 
 final Set<LogicalKeyboardKey> _modifierKeys = {
   LogicalKeyboardKey.meta,

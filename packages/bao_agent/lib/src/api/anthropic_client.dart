@@ -139,7 +139,10 @@ class AnthropicClient implements ModelClient {
         name: value,
   };
 
-  Map<String, String> _headers({List<String> betas = const []}) => {
+  Map<String, String> _headers({
+    List<String> betas = const [],
+    Map<String, String> extra = const {},
+  }) => {
     'content-type': 'application/json',
     'anthropic-version': apiVersion,
     'user-agent': config.userAgent,
@@ -147,6 +150,7 @@ class AnthropicClient implements ModelClient {
     if (config.authToken case final token? when token.isNotEmpty)
       'authorization': 'Bearer $token',
     if (betas.isNotEmpty) 'anthropic-beta': betas.join(','),
+    ...extra,
     ...config.headers,
   };
 
@@ -222,7 +226,10 @@ class AnthropicClient implements ModelClient {
               ? endpoint.replace(queryParameters: {'beta': 'true'})
               : endpoint,
         );
-        _headers(betas: request.betas).forEach(http.headers.set);
+        _headers(
+          betas: request.betas,
+          extra: request.headers,
+        ).forEach(http.headers.set);
         http.add(utf8.encode(jsonEncode(_body(request.body))));
         response = await http.close();
       } on Cancelled {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/ide/ide_switch.dart';
+import 'package:baocode/kernel/extension_switches.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 
 void main() {
@@ -170,4 +172,160 @@ void main() {
       findsOneWidget,
     );
   });
+
+  test("Claude Code's full context usage reads as each part's things", () {
+    final detail = ContextDetail.parse(_fullUsage)!;
+    expect(
+      [for (final item in detail.mcpTools) item.name],
+      ['search', 'fetch'],
+    );
+    expect(detail.mcpTools.first.group, 'claude.ai Docs');
+    expect(detail.mcpTools.last.loaded, isFalse);
+    expect(detail.skills.last.group, 'cloudflare');
+    expect(detail.toolUses.single.results, 30000);
+    expect(detail.messages, 50000);
+    expect(detail.autoCompactAt, 367000);
+    expect(ContextDetail.parse(const {'categories': []}), isNull);
+  });
+
+  testWidgets(
+    "the parts as the usage views', a part picked its things, the servers "
+    'and skills a switch each, those turned off to turn back on',
+    (tester) async {
+      var switches = const ExtensionSwitches(disabledServers: {'github'});
+      ExtensionSwitches.current = () => switches;
+      ExtensionSwitches.save = (next) async => switches = next;
+      addTearDown(() {
+        ExtensionSwitches.current = () => ExtensionSwitches.none;
+        ExtensionSwitches.save = null;
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 700,
+              child: ContextUsagePanel(
+                usage: ContextUsage(
+                  window: 400000,
+                  used: 70000,
+                  segments: const [
+                    ContextSegment('System prompt', 3000),
+                    ContextSegment('System tools', 12000),
+                    ContextSegment('MCP tools', 1500),
+                    ContextSegment('MCP server instructions', 500),
+                    ContextSegment('Skills', 3000),
+                    ContextSegment('Messages', 50000),
+                    ContextSegment(
+                      'Free space',
+                      297000,
+                      kind: ContextKind.free,
+                    ),
+                    ContextSegment(
+                      'Autocompact buffer',
+                      33000,
+                      kind: ContextKind.buffer,
+                    ),
+                  ],
+                  detail: ContextDetail.parse(_fullUsage),
+                ),
+                onClose: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      // The messages' tool results apart; MCP's two in one.
+      expect(find.text('Tool results'), findsOneWidget);
+      expect(find.text('Conversation'), findsOneWidget);
+      expect(find.text('30.0k'), findsOneWidget);
+      expect(find.text('MCP'), findsOneWidget);
+      expect(find.text('2.0k'), findsOneWidget);
+      expect(find.textContaining('297.0k to auto-compact'), findsOneWidget);
+
+      await tester.tap(find.text('MCP'));
+      await tester.pump();
+      expect(
+        find.textContaining('claude.ai Docs', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.textContaining('github', findRichText: true), findsOneWidget);
+      expect(find.byType(IdeSwitch), findsNWidgets(2));
+
+      await tester.tap(find.byType(IdeSwitch).last);
+      await tester.pump();
+      expect(switches.serverEnabled('github'), isTrue);
+
+      await tester.tap(find.text('Skills'));
+      await tester.pump();
+      expect(
+        find.textContaining('dataviz', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('wrangler  plugin', findRichText: true),
+        findsOneWidget,
+      );
+      // A plugin's skill is kept on by Claude Code.
+      expect(find.byType(IdeSwitch), findsOneWidget);
+    },
+  );
 }
+
+const _fullUsage = <String, Object?>{
+  'mcpTools': [
+    {
+      'name': 'mcp__claude_ai_Docs__search',
+      'serverName': 'claude.ai Docs',
+      'tokens': 1500,
+      'isLoaded': true,
+    },
+    {
+      'name': 'mcp__claude_ai_Docs__fetch',
+      'serverName': 'claude.ai Docs',
+      'tokens': 900,
+      'isLoaded': false,
+    },
+  ],
+  'systemTools': [
+    {'name': 'Bash', 'tokens': 7000},
+    {'name': 'Read', 'tokens': 5000},
+  ],
+  'systemPromptSections': [
+    {'name': 'Core', 'tokens': 3000},
+  ],
+  'agents': [
+    {'agentType': 'Explore', 'source': 'built-in', 'tokens': 300},
+  ],
+  'memoryFiles': [],
+  'skills': {
+    'totalSkills': 2,
+    'includedSkills': 2,
+    'tokens': 3000,
+    'skillFrontmatter': [
+      {'name': 'dataviz', 'source': 'userSettings', 'tokens': 2000},
+      {
+        'name': 'cloudflare:wrangler',
+        'source': 'plugin',
+        'pluginName': 'cloudflare',
+        'tokens': 1000,
+      },
+    ],
+  },
+  'autoCompactThreshold': 367000,
+  'isAutoCompactEnabled': true,
+  'messageBreakdown': {
+    'toolCallTokens': 5000,
+    'toolResultTokens': 30000,
+    'attachmentTokens': 2000,
+    'assistantMessageTokens': 8000,
+    'userMessageTokens': 5000,
+    'redirectedContextTokens': 0,
+    'unattributedTokens': 0,
+    'toolCallsByType': [
+      {'name': 'Read', 'callTokens': 5000, 'resultTokens': 30000},
+    ],
+    'attachmentsByType': [
+      {'name': 'todo_reminder', 'tokens': 2000},
+    ],
+  },
+};

@@ -5,7 +5,6 @@ import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
 
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -127,6 +126,20 @@ void main() {
     );
   });
 
+  test('the chat input\'s outline is a step from its fill towards the '
+      'text, of its hue, not the theme\'s border', () async {
+    final kept = WorkbenchThemeService.instance;
+    addTearDown(() => WorkbenchThemeService.instance = kept);
+    final themes = WorkbenchThemeService()..restore(setting: 'Solarized Dark');
+    await themes.initialize();
+    WorkbenchThemeService.instance = themes;
+    final line = HSVColor.fromColor(AppColors.bubbleBorder());
+    final fill = HSVColor.fromColor(AppColors.bubbleFill);
+    expect(AppColors.bubbleBorder(), isNot(AppColors.border));
+    expect((line.hue - fill.hue).abs(), lessThan(15));
+    expect(line.value, greaterThan(fill.value));
+  });
+
   test('the line between the parts is the theme\'s, else where it would not '
       'show, the editor\'s foreground faintly', () async {
     final kept = WorkbenchThemeService.instance;
@@ -138,15 +151,12 @@ void main() {
       return AppColors.partBorder;
     }
 
-    // Its side bar's border.
+    // Its side bar's border, as the theme has it.
     expect(await line('Dark Modern'), const Color(0xFF2B2B2B));
     // Its `surface.border`, apart from both backgrounds.
     expect(await line('Solarized Light'), const Color(0xFFDDD6C1));
     // Transparent.
-    expect(
-      await line('Red'),
-      const Color(0xFFF8F8F8).withValues(alpha: 0.1),
-    );
+    expect(await line('Red'), const Color(0xFFF8F8F8).withValues(alpha: 0.1));
     expect(
       await line('Tomorrow Night Blue'),
       const Color(0xFFFFFFFF).withValues(alpha: 0.1),

@@ -37,6 +37,17 @@ class ConversationLayer extends StatelessWidget {
   /// How far it slides.
   static const shift = 40.0;
 
+  /// How long it takes to come in, or go.
+  static const duration = Duration(milliseconds: 300);
+
+  /// How it comes in, and goes.
+  static CurvedAnimation curve(AnimationController controller) =>
+      CurvedAnimation(
+        parent: controller,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+
   @override
   Widget build(BuildContext context) {
     final cover = this.cover;
@@ -75,6 +86,7 @@ class SubagentHeader extends StatelessWidget {
     super.key,
     required this.trail,
     required this.onBack,
+    this.backText,
     this.backFocusNode,
     this.maxContentWidth = 720,
     this.minimap = false,
@@ -82,6 +94,10 @@ class SubagentHeader extends StatelessWidget {
 
   /// The subagents from the outermost to this one.
   final List<String> trail;
+
+  /// What the back button says, where it goes back to another
+  /// conversation than this one's own: that one's title.
+  final String? backText;
 
   /// Goes back to [depth] subagents in: 0 for the session's own.
   final ValueChanged<int> onBack;
@@ -110,18 +126,34 @@ class SubagentHeader extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 6, 24, 4),
           child: Row(
             children: [
-              IdeBackButton.compact(
-                label: context.l10n.chatBack,
-                text: context.l10n.chatConversation,
-                // Esc, unless rebound (see ChatCommandIds.closeSubagent).
-                hover: ChatKeys.titleWithKey(
-                  context.l10n.chatBack,
-                  ChatCommandIds.closeSubagent,
-                  const {ChatContextKeys.subagentVisible: true},
+              if (backText case final text?)
+                Flexible(
+                  child: IdeBackButton.compact(
+                    label: context.l10n.chatBack,
+                    text: text,
+                    // Esc too (see ChatContextKeys.asideVisible).
+                    hover: ChatKeys.titleWithKey(
+                      context.l10n.chatBack,
+                      ChatCommandIds.closeSubagent,
+                      const {ChatContextKeys.asideVisible: true},
+                    ),
+                    focusNode: backFocusNode,
+                    onTap: () => onBack(trail.length - 1),
+                  ),
+                )
+              else
+                IdeBackButton.compact(
+                  label: context.l10n.chatBack,
+                  text: context.l10n.chatConversation,
+                  // Esc, unless rebound (see ChatCommandIds.closeSubagent).
+                  hover: ChatKeys.titleWithKey(
+                    context.l10n.chatBack,
+                    ChatCommandIds.closeSubagent,
+                    const {ChatContextKeys.subagentVisible: true},
+                  ),
+                  focusNode: backFocusNode,
+                  onTap: () => onBack(trail.length - 1),
                 ),
-                focusNode: backFocusNode,
-                onTap: () => onBack(trail.length - 1),
-              ),
               for (final (i, label) in trail.indexed) ...[
                 const SizedBox(width: 8),
                 if (i == trail.length - 1)

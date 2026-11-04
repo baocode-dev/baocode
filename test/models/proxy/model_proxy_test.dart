@@ -561,50 +561,56 @@ void main() {
       expect(promptCacheKey(request(jsonEncode({'device_id': 'd'}))), isNull);
     });
 
-    test('#307 falls back on the session header for a user_id the user set',
-        () {
-      final key = promptCacheKey(
-        request(jsonEncode({'device_id': 'd', 'session_id': session})),
-      );
-      expect(promptCacheKey(request('abcdefghijk'), header: session), key);
-      expect(promptCacheKey(const {}, header: session), key);
-      // The body's own session is taken over the header.
-      expect(
-        promptCacheKey(
-          request(jsonEncode({'session_id': session})),
-          header: 'other',
-        ),
-        key,
-      );
-      expect(sessionId(request('abcdefghijk'), header: ' '), isNull);
-    });
+    test(
+      '#307 falls back on the session header for a user_id the user set',
+      () {
+        final key = promptCacheKey(
+          request(jsonEncode({'device_id': 'd', 'session_id': session})),
+        );
+        expect(promptCacheKey(request('abcdefghijk'), header: session), key);
+        expect(promptCacheKey(const {}, header: session), key);
+        // The body's own session is taken over the header.
+        expect(
+          promptCacheKey(
+            request(jsonEncode({'session_id': session})),
+            header: 'other',
+          ),
+          key,
+        );
+        expect(sessionId(request('abcdefghijk'), header: ' '), isNull);
+      },
+    );
 
-    test('#307 an overridden user_id still sends the key, by the header',
-        () async {
-      provider = provider.copyWith(protocol: ProviderProtocol.openaiResponses);
-      upstream.reply = (_) => (200, const []);
-      final body = {
-        'model': 'gpt-5',
-        'stream': true,
-        'metadata': {'user_id': 'abcdefghijk'},
-        'messages': [
-          {'role': 'user', 'content': 'hi'},
-        ],
-      };
-      await post(
-        await messages(),
-        body,
-        headers: {
-          'authorization': 'Bearer tok',
-          'x-claude-code-session-id': session,
-        },
-      );
-      expect(
-        (upstream.requests.last.body! as Map)['prompt_cache_key'],
-        promptCacheKey(body, header: session),
-      );
-      expect(promptCacheKey(body, header: session), isNotNull);
-    });
+    test(
+      '#307 an overridden user_id still sends the key, by the header',
+      () async {
+        provider = provider.copyWith(
+          protocol: ProviderProtocol.openaiResponses,
+        );
+        upstream.reply = (_) => (200, const []);
+        final body = {
+          'model': 'gpt-5',
+          'stream': true,
+          'metadata': {'user_id': 'abcdefghijk'},
+          'messages': [
+            {'role': 'user', 'content': 'hi'},
+          ],
+        };
+        await post(
+          await messages(),
+          body,
+          headers: {
+            'authorization': 'Bearer tok',
+            'x-claude-code-session-id': session,
+          },
+        );
+        expect(
+          (upstream.requests.last.body! as Map)['prompt_cache_key'],
+          promptCacheKey(body, header: session),
+        );
+        expect(promptCacheKey(body, header: session), isNotNull);
+      },
+    );
 
     for (final protocol in [
       ProviderProtocol.openaiChat,
@@ -817,6 +823,36 @@ void main() {
       expect(sent.headers['x-tenant'], 'acme');
       expect(upstream.requests, isEmpty);
       expect(errors.last, isNull);
+    });
+
+    test('a long session\'s request, megabytes, read and sent off the UI '
+        'isolate, goes as it came; one that is not JSON is refused', () async {
+      anthropic.reply = (_) => (200, const ['event: message_stop', '']);
+      final body = {
+        'model': 'claude-opus-4-5',
+        'stream': true,
+        'max_tokens': 100,
+        'messages': [
+          for (var i = 0; i < 40; i++)
+            {
+              'role': i.isEven ? 'user' : 'assistant',
+              'content': '长会话 $i ' * 4000,
+            },
+        ],
+      };
+      final url = await on('an');
+      final answer = await post(url, body, headers: {'x-api-key': 'tok'});
+      expect(answer.status, 200);
+      expect(anthropic.requests.single.body, body);
+
+      final client = HttpClient();
+      addTearDown(client.close);
+      final broken = await client.postUrl(url);
+      broken.headers.set('x-api-key', 'tok');
+      broken.add(utf8.encode('{"messages": "${'x' * 400000}'));
+      final refused = await broken.close();
+      expect(refused.statusCode, 400);
+      expect(await utf8.decodeStream(refused), contains('not JSON'));
     });
 
     test('a model of another upstream goes there, by its own name', () async {

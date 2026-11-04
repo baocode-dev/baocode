@@ -196,14 +196,14 @@ class _GoalPanelState extends State<GoalPanel> {
           : Container(
               margin: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: AppColors.bubbleFill,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: switch (goal.state) {
                     GoalState.active
                         when widget.activity == GoalActivity.working =>
                       _amber.withValues(alpha: 0.55),
-                    _ => AppColors.borderStrong,
+                    _ => AppColors.bubbleBorder(),
                   },
                 ),
               ),
@@ -547,7 +547,7 @@ class _TextAction extends StatelessWidget {
             margin: const EdgeInsets.only(left: 4),
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
             decoration: BoxDecoration(
-              color: hovered && tap != null ? AppColors.hover : null,
+              color: hovered && tap != null ? AppColors.bubbleHover : null,
               borderRadius: BorderRadius.circular(5),
               border: strong ? Border.all(color: AppColors.borderStrong) : null,
             ),
@@ -588,7 +588,7 @@ class _IconAction extends StatelessWidget {
             padding: const EdgeInsets.all(2),
             margin: const EdgeInsets.only(left: 2),
             decoration: BoxDecoration(
-              color: hovered ? AppColors.hover : null,
+              color: hovered ? AppColors.bubbleHover : null,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Icon(icon, size: 14, color: AppColors.textMuted),

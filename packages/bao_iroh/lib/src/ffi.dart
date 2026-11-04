@@ -38,8 +38,8 @@ external void biEndpointBind(
 @Native<Void Function(Int64, Int64)>(symbol: 'bi_endpoint_info', isLeaf: true)
 external void biEndpointInfo(int req, int handle);
 
-@Native<Void Function(Int64, Int64)>(symbol: 'bi_endpoint_watch', isLeaf: true)
-external void biEndpointWatch(int req, int handle);
+@Native<Void Function(Int64, Int64, Int64)>(symbol: 'bi_endpoint_watch', isLeaf: true)
+external void biEndpointWatch(int req, int handle, int seen);
 
 @Native<Void Function(Int64, Int64)>(symbol: 'bi_endpoint_accept', isLeaf: true)
 external void biEndpointAccept(int req, int handle);

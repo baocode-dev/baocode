@@ -16,10 +16,30 @@ abstract class CodexService extends ChangeNotifier {
   /// (the port it comes back to taken).
   Future<CodexLogin> login(String providerId);
 
+  /// Imports Codex CLI, CLIProxyAPI or Sub2API JSON after the caller obtains
+  /// consent. Importing does not refresh tokens; renewing them later may
+  /// invalidate the source tool's copy. Results follow the entries' order.
+  Future<List<CodexImportResult>> importAccountsJson(
+    String providerId,
+    String contents, {
+    required bool confirmed,
+  }) async => throw const CodexException('Import is not available here.');
+
   /// Asks how much of each of [provider]'s accounts' quota is used.
   /// With [force] false, those learned (or tried) in [usageMaxAge] are
   /// not asked again, unless a window of theirs started over since.
   Future<void> refreshUsage(ModelProvider provider, {bool force = true});
+
+  /// Asks only [accountId]'s quota, leaving the other accounts untouched.
+  Future<void> refreshAccountUsage(
+    ModelProvider provider,
+    String accountId, {
+    bool force = true,
+  }) {
+    final account = provider.account(accountId);
+    if (account == null) return Future.value();
+    return refreshUsage(provider.copyWith(accounts: [account]), force: force);
+  }
 
   /// The account a request of Claude Code's session [session] goes to
   /// now: the one it is kept on, or the next by [provider]'s balance;
@@ -34,6 +54,19 @@ abstract class CodexService extends ChangeNotifier {
   /// Account [accountId]'s quota, as last known.
   CodexUsage? usage(String providerId, String accountId);
 
+  /// Account [accountId]'s reset credits that can be used, those expiring
+  /// first first; null until listed.
+  List<CodexResetCredit>? resetCredits(String providerId, String accountId) =>
+      null;
+
+  /// Whether a reset credit of account [accountId]'s is being used.
+  bool resetting(String providerId, String accountId) => false;
+
+  /// Uses up a reset credit of account [accountId]'s: its quota windows
+  /// start over at once. Throws [CodexException].
+  Future<void> useResetCredit(ModelProvider provider, String accountId) async =>
+      throw const CodexException('Reset credits are not available here.');
+
   /// Why account [accountId] last failed, while it is not known to work.
   String? error(String providerId, String accountId);
 
@@ -45,6 +78,26 @@ abstract class CodexService extends ChangeNotifier {
 
   /// Removes account [accountId] from provider [providerId], and its token.
   Future<void> removeAccount(String providerId, String accountId);
+}
+
+/// One entry in an account import: kept, there already (its sign-in left
+/// as it was), or rejected without its secrets.
+class CodexImportResult {
+  const CodexImportResult.added(ProviderAccount this.account)
+    : error = null,
+      known = false;
+  const CodexImportResult.known(ProviderAccount this.account)
+    : error = null,
+      known = true;
+  const CodexImportResult.failed(String this.error)
+    : account = null,
+      known = false;
+
+  final ProviderAccount? account;
+  final String? error;
+
+  /// Signed in to already: an older export must not replace its token.
+  final bool known;
 }
 
 /// A sign-in under way.

@@ -159,7 +159,9 @@ mixin ReadWriteOnlyFiles implements IdeFileService {
       throw UnsupportedError('writeBytes');
 }
 
-final testRoot = p.join(p.separator, 'project');
+// At the filesystem's root: on Windows, the current drive's (a path the
+// workspace keeps whole, as it would `\\project`'s, made absolute).
+final testRoot = p.join(p.rootPrefix(p.current), 'project');
 String inRoot(String relative) => p.joinAll([testRoot, ...relative.split('/')]);
 
 const chatKey = Key('test-chat');

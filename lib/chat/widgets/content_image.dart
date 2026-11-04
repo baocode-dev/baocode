@@ -628,7 +628,7 @@ String? markdownImagePath(String src, FileOpenScope files) {
   final link = FileLink.parseHref(src);
   if (link == null || link.range != null) return null;
   // In the project, or one the agent saw (a screenshot saved, say).
-  final path = files.resolve(link.path);
+  final path = files.resolveShown(link.path);
   if (path == null || !files.showsImage(path)) return null;
   return path;
 }

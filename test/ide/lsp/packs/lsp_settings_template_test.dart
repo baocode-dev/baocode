@@ -71,7 +71,7 @@ void main() {
       'till the project closes', () async {
     final catalog = _Counting();
     final manager = LspManager(temp.path, catalog, const _NoServers());
-    final changes = ValueNotifier(0);
+    final changes = _Changes();
     StandardLsp(
       catalog: BundledLspCatalog(),
       provider: const _NoServers(),
@@ -87,8 +87,15 @@ void main() {
     await manager.shutdown();
     changes.value++;
     expect(catalog.asked, 2);
-    expect(changes.hasListeners, isFalse);
+    expect(changes.listened, isFalse);
   });
+}
+
+/// lsp.json's changes, telling whether they are still listened to.
+class _Changes extends ValueNotifier<int> {
+  _Changes() : super(0);
+
+  bool get listened => hasListeners;
 }
 
 class _Counting implements LspCatalog {
