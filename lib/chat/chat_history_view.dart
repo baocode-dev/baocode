@@ -55,6 +55,7 @@ class ChatHistoryView extends StatefulWidget {
     this.onSetGoal,
     this.onFindClosed,
     this.after,
+    this.underTitle = false,
   });
 
   /// The conversation shown: a session's, or a subagent's.
@@ -83,6 +84,11 @@ class ChatHistoryView extends StatefulWidget {
   /// conversation itself (the conversations asked beside it there); none
   /// for most.
   final Widget? Function(int index)? after;
+
+  /// Whether a row is right over it (its card's title): room of its own
+  /// above the history, which then keeps less above its first item and a
+  /// stuck message, and fades less deep at its top.
+  final bool underTitle;
 
   @override
   State<ChatHistoryView> createState() => _ChatHistoryViewState();
@@ -893,8 +899,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// The list's room above its first item: as at its sides (the gutter),
   /// where a message as wide as the chat lets it be sticks too (see
-  /// [_stickyInset]); and the bar's height after it.
-  double get _chatTopPadding => _gutter;
+  /// [_stickyInset]); less under a row ([ChatHistoryView.underTitle]). And
+  /// the bar's height after it.
+  double get _chatTopPadding => widget.underTitle ? 12 : _gutter;
   static const _earlierBarHeight = 40.0;
 
   /// How near the top the list is scrolled before the earlier turns are read.
@@ -1757,7 +1764,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// How far the list scrolls while the stuck message comes in (and goes
   /// as the next pushes it away): as far as the list's top fade reaches.
-  static const _stickyEase = 32.0;
+  double get _stickyEase => _topFade;
+
+  /// How deep the list's top fade is: less under a row, which keeps it
+  /// apart from what is above already ([ChatHistoryView.underTitle]).
+  double get _topFade => widget.underTitle ? _stickyFade : 32;
 
   /// Which copies are built is settled after layout, with the items where
   /// the scroll put them: a frame late, but ready before any scroll brings
@@ -1897,6 +1908,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         child: EdgeFadeMask(
           top: true,
           bottom: false,
+          topFadeLength: _topFade,
           topFadeAmount: () => 1 - (_stickyIn(index) ?? 1),
           repaint: repaint,
           child: _StickyFollower(
@@ -2655,6 +2667,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                 child: EdgeFadeMask(
                                   top: _contentAbove,
                                   bottom: _contentBelow,
+                                  topFadeLength: _topFade,
                                   // Hidden under the stuck message, fading in
                                   // below it.
                                   topCover: _stickyCover,
