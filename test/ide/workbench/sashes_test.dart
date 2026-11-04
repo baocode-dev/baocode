@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_columns.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
+import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/ide/ide_rows.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/workspace/islands.dart';
@@ -118,7 +119,7 @@ void main() {
     expect(_part('ide-chat-sash'), findsNothing);
     expect(
       tester.getRect(_part('ide-editor')).right,
-      tester.view.physicalSize.width - Islands.gap / 2,
+      tester.view.physicalSize.width - IdeWorkbench.gap / 2,
     );
     await tester.tap(find.byIcon(Codicons.layoutSidebarRightOff));
     await tester.pump();
@@ -185,7 +186,7 @@ void main() {
     // Its sash in the middle of the gap over its card.
     expect(
       tester.getCenter(_part('ide-panel-sash')).dy,
-      closeTo(panel.top + Islands.gap / 2, 0.01),
+      closeTo(panel.top + IdeWorkbench.gap / 2, 0.01),
     );
     expect(tester.getSize(_part('ide-panel-sash')).height, IdeModernUI.gap);
     // The side bar and the chat keep the whole height; the chat down to

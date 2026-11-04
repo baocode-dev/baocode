@@ -128,6 +128,7 @@ import 'project_tools.dart';
 import 'save_copy.dart';
 import 'search/ide_search_view.dart';
 import 'search/text_search.dart';
+import 'tab_strip_scroll.dart';
 import 'terminal/links/terminal_links.dart';
 import 'terminal/terminal_instance.dart';
 import 'terminal/terminal_panel.dart';
@@ -187,6 +188,14 @@ class IdeWorkbench extends StatefulWidget {
   });
 
   final IdeWorkspace workspace;
+
+  /// Whether its parts are islands, as the agents' window's (see
+  /// [IslandStyle]): not for now, flush and square with a line between
+  /// them as before; kept to come back to.
+  static bool islands = false;
+
+  /// Between two of its cards; none where they are not ([islands]).
+  static double get gap => islands ? Islands.gap : 0;
 
   /// The multi-folder workspace a recent folder is, for the start page.
   final IdeRecentWorkspace? Function(String path)? recentWorkspaceOf;
@@ -4204,8 +4213,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final settings = _hostCommand(openSettingsCommandId);
     return SizedBox(
       width: IdeModernUI.activityBarWidth,
-      // On the window's color, beside the cards.
+      // On the window's color, beside the cards; not islands, a part of
+      // its own, its line beside the side bar.
       child: IdePart(
+        color: IdeWorkbench.islands ? null : IdeModernUI.activityBarBackground,
+        border: IdeWorkbench.islands
+            ? null
+            : Border(right: IdePart.side('activityBar.border')),
         child: Padding(
           // Half the lane above and below; the items centered across.
           padding: const EdgeInsets.symmetric(
@@ -4239,9 +4253,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// The side bar: its view on a card, its title in it; the Git log,
-  /// cards of its own, untitled.
-  Widget _sidebarPart() {
+  /// cards of its own, untitled. Not islands, a part of the side bar's
+  /// color, its line at its right but where it has the editor's place
+  /// ([border]).
+  Widget _sidebarPart({bool border = true}) {
     final view = Focus(focusNode: _sidebarFocus, child: _sidePanel());
+    if (!IdeWorkbench.islands) {
+      return IdePart(
+        color: themeColors['sideBar.background'],
+        border: border ? Border(right: _sideBarBorder) : null,
+        child: view,
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Islands.gap / 2),
       child: _view == IdeSideView.sourceControl
@@ -4249,6 +4272,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           : HeadedIsland(header: 0, color: AppColors.code, child: view),
     );
   }
+
+  /// Not islands, between the side bars and the editor: `sideBar.border`,
+  /// else the Modern UI's `surface.border`, so every theme has the line.
+  static BorderSide get _sideBarBorder =>
+      IdePart.side('sideBar.border', fallback: 'surface.border');
 
   Widget _sidePanel() => switch (_view) {
     IdeSideView.explorer => _explorerView(),
@@ -4270,7 +4298,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       host: widget.workspace,
       session: _scm,
       notifications: _notifications,
-      islands: true,
+      islands: IdeWorkbench.islands,
       ai: widget.commitMessage,
       onAsk: widget.onAskInChat == null ? null : _askInChat,
       onFixup: (git, commit) async =>
@@ -4589,7 +4617,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // none, the card's top where the side bar's and the chat's are.
     final tabs = widget.workspace.documents.isNotEmpty || page != null;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Islands.gap / 2),
+      padding: EdgeInsets.symmetric(horizontal: IdeWorkbench.gap / 2),
       child: HeadedIsland(
         header: IdeTabStrip.height,
         color: themeColors['editor.background'],
@@ -4597,7 +4625,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (!tabs) ...[
-              const SizedBox(height: IdeTabStrip.height),
+              // Not islands, no row: nothing over the editor's part.
+              if (IdeWorkbench.islands)
+                const SizedBox(height: IdeTabStrip.height),
               if (dockedToolbar) DebugToolbar(service: debug),
             ],
             if (tabs) ...[
@@ -4850,7 +4880,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// maximized, and back: its tabs on the window's color over its card.
   Widget _chatPart({Widget? trailing}) => Padding(
     key: _chatKey,
-    padding: const EdgeInsets.symmetric(horizontal: Islands.gap / 2),
+    padding: EdgeInsets.symmetric(horizontal: IdeWorkbench.gap / 2),
     child: IslandFootTrailing(
       trailing: trailing,
       onRoom: (room) {
@@ -4864,6 +4894,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         // editor's place, the panel under it.
         footer: _layout.editorVisible ? Islands.belowHeight : 0,
         color: AppColors.code,
+        // Not islands: beside the editor, the secondary side bar, the side
+        // bar's line on its left; its row in line with the status bar.
+        border: _layout.editorVisible ? Border(left: _sideBarBorder) : null,
+        footerLine: IdeStatusBar.line,
         child: Focus(focusNode: _chatFocus, child: widget.chat),
       ),
     ),
@@ -4949,7 +4983,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // The activity bar's room: its lane at the right the half gap the card
     // after it keeps, so the card is against it, its items as far from
     // either side.
-    const bar = IdeModernUI.activityBarWidth - Islands.gap / 2;
+    final bar = IdeModernUI.activityBarWidth - IdeWorkbench.gap / 2;
     // The editor hidden, the chat is sized as though it were there: dragged
     // back, the editor comes out where the pointer is.
     final room = size.width - bar;
@@ -5091,7 +5125,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                               inPlace: gitLog
                                   ? KeyedSubtree(
                                       key: _sidebarKey,
-                                      child: _sidebarPart(),
+                                      child: _sidebarPart(border: false),
                                     )
                                   : !editorHidden
                                   ? null
@@ -5185,9 +5219,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
     final toolbarLocation = debug?.settings().toolBarLocation;
     // In the middle of the gap over the panel's card.
-    final sashTop = (height - rows.panel + Islands.gap / 2 - _sashWidth / 2)
-        .clamp(0.0, math.max(0.0, height - _sashWidth))
-        .toDouble();
+    final sashTop =
+        (height - rows.panel + IdeWorkbench.gap / 2 - _sashWidth / 2)
+            .clamp(0.0, math.max(0.0, height - _sashWidth))
+            .toDouble();
     return Stack(
       children: [
         Positioned.fill(
@@ -5310,66 +5345,74 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 focusNode: _panelFocus,
                 // On a card of its own a gap under the editor's, of the
                 // cards' color (not `panel.background`: a card as the
-                // others).
+                // others). Not islands, panelPart.ts' `panel.background`,
+                // `panel.border` above.
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    Islands.gap / 2,
-                    Islands.gap,
-                    Islands.gap / 2,
+                  padding: EdgeInsets.fromLTRB(
+                    IdeWorkbench.gap / 2,
+                    IdeWorkbench.gap,
+                    IdeWorkbench.gap / 2,
                     0,
                   ),
-                  child: Island(
-                    color: AppColors.code,
-                    child: IdeBottomPanel(
-                      tab: _panel ?? _lastPanel,
-                      root: widget.workspace.root,
-                      languages: _languages,
-                      references: _references,
-                      // TERMINAL, clicked, gives its terminal the keyboard.
-                      onTab: (tab) => tab == IdePanelTab.terminal
-                          ? _showTerminal()
-                          : _selectPanel(tab),
-                      onClose: () => setState(() => _panel = null),
-                      onOpen: (location, {select = false}) =>
-                          unawaited(_openLocation(location, select: select)),
-                      onOpenFocused: (location) =>
-                          unawaited(_openFocused(location)),
-                      problemsList: _problemsList,
-                      referencesList: _referencesList,
-                      textOf: _textOf,
-                      terminal: switch (_terminals) {
-                        final terminals? => TerminalPanel(
-                          terminals: terminals,
-                          tasks: widget.terminalTasks,
-                          files: widget.workspace.files,
-                          shownTask: _terminalTask,
-                          onShowTask: (id) =>
-                              setState(() => _terminalTask = id),
-                          onNew: _newTerminal,
-                          onOpenLink: _openTerminalLink,
-                          shouldSkipShell: _terminalSkipsShell,
-                          resolveKey: _terminalFindKey,
-                          hosts: widget.terminalHosts,
-                          place: this,
-                          shown: widget.visible,
-                        ),
-                        null => null,
-                      },
-                      debugConsole: switch (_debug) {
-                        final debug? => DebugConsolePanel(service: debug),
-                        null => null,
-                      },
-                      terminalActions: switch (_terminals) {
-                        final terminals? => TerminalTitleActions(
-                          terminals: terminals,
-                          onNew: _newTerminal,
-                          onNewWithProfile: (profile) =>
-                              _newTerminal(profile: profile),
-                          onSelectDefaultProfile: () =>
-                              unawaited(_selectDefaultProfile()),
-                        ),
-                        null => null,
-                      },
+                  child: IdePart(
+                    border: IdeWorkbench.islands
+                        ? null
+                        : Border(top: IdePart.side('panel.border')),
+                    child: Island(
+                      color: IdeWorkbench.islands
+                          ? AppColors.code
+                          : themeColors['panel.background'],
+                      child: IdeBottomPanel(
+                        tab: _panel ?? _lastPanel,
+                        root: widget.workspace.root,
+                        languages: _languages,
+                        references: _references,
+                        // TERMINAL, clicked, gives its terminal the keyboard.
+                        onTab: (tab) => tab == IdePanelTab.terminal
+                            ? _showTerminal()
+                            : _selectPanel(tab),
+                        onClose: () => setState(() => _panel = null),
+                        onOpen: (location, {select = false}) =>
+                            unawaited(_openLocation(location, select: select)),
+                        onOpenFocused: (location) =>
+                            unawaited(_openFocused(location)),
+                        problemsList: _problemsList,
+                        referencesList: _referencesList,
+                        textOf: _textOf,
+                        terminal: switch (_terminals) {
+                          final terminals? => TerminalPanel(
+                            terminals: terminals,
+                            tasks: widget.terminalTasks,
+                            files: widget.workspace.files,
+                            shownTask: _terminalTask,
+                            onShowTask: (id) =>
+                                setState(() => _terminalTask = id),
+                            onNew: _newTerminal,
+                            onOpenLink: _openTerminalLink,
+                            shouldSkipShell: _terminalSkipsShell,
+                            resolveKey: _terminalFindKey,
+                            hosts: widget.terminalHosts,
+                            place: this,
+                            shown: widget.visible,
+                          ),
+                          null => null,
+                        },
+                        debugConsole: switch (_debug) {
+                          final debug? => DebugConsolePanel(service: debug),
+                          null => null,
+                        },
+                        terminalActions: switch (_terminals) {
+                          final terminals? => TerminalTitleActions(
+                            terminals: terminals,
+                            onNew: _newTerminal,
+                            onNewWithProfile: (profile) =>
+                                _newTerminal(profile: profile),
+                            onSelectDefaultProfile: () =>
+                                unawaited(_selectDefaultProfile()),
+                          ),
+                          null => null,
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -5648,9 +5691,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         // The other half of the gap at the window's right
                         // (each card keeps half a gap about it).
                         child: Padding(
-                          padding: const EdgeInsets.only(
-                            right: Islands.gap / 2,
-                          ),
+                          padding: EdgeInsets.only(right: IdeWorkbench.gap / 2),
                           child: LayoutBuilder(
                             builder: (context, constraints) => _split(
                               constraints.biggest,
@@ -5737,7 +5778,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         return MouseNavigation(
           onBack: () => _navigate(back: true),
           onForward: () => _navigate(back: false),
-          child: focus,
+          child: IslandStyle(on: IdeWorkbench.islands, child: focus),
         );
       },
     );
@@ -5965,16 +6006,24 @@ class _ActivityItemState extends State<_ActivityItem> {
           : _hover
           ? IdeModernUI.activityHoverBackground
           : null,
-      borderRadius: BorderRadius.circular(IdeModernUI.activityItemRadius),
+      borderRadius: BorderRadius.circular(
+        IdeWorkbench.islands
+            ? IdeModernUI.activityItemRadius
+            : IdeModernUI.flatActivityItemRadius,
+      ),
     ),
     child: Icon(
       widget.icon,
-      size: IdeModernUI.activityIconSize,
+      size: IdeWorkbench.islands
+          ? IdeModernUI.activityIconSize
+          : IdeModernUI.flatActivityIconSize,
       color: widget.selected
           ? IdeModernUI.activityActiveForeground
           : _hover
           ? IdeModernUI.activityHoverForeground
-          : IdeModernUI.activityForeground,
+          : IdeWorkbench.islands
+          ? IdeModernUI.activityForeground
+          : IdeModernUI.flatActivityForeground,
     ),
   );
 }

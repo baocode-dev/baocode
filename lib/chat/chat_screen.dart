@@ -1079,8 +1079,10 @@ class _ChatScreenState extends State<ChatScreen>
     final footer = _footer;
     return Scaffold(
       // The window's color about the card, or the card's it is on (the
-      // IDE's): none of its own.
-      backgroundColor: island == null && !_onCard ? null : Colors.transparent,
+      // IDE's, a card or not): none of its own.
+      backgroundColor: island == null && !IslandSurface.on(context)
+          ? null
+          : Colors.transparent,
       body: Column(
         children: [
           // The session's title, in the row the window's header leaves it

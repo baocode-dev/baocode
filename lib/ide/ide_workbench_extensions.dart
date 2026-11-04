@@ -28,8 +28,11 @@ extension _ExtensionsPart on IdeWorkbenchState {
         ? _ExtensionsTab.languageServers
         : _extensionsTab;
     final l10n = context.l10n;
-    // On the side bar's card, as the other views are.
-    const Color? background = null;
+    // On the side bar's card, as the other views are; not islands, under
+    // the tabs, on the editor's color as the tab in front is.
+    final background = themes == null || IdeWorkbench.islands
+        ? null
+        : themeColors['editor.background'];
     final body = switch (tab) {
       _ExtensionsTab.themes => ExtensionsView(
         model: themes!.model,
@@ -256,9 +259,33 @@ class _ExtensionsTabsState extends State<_ExtensionsTabs> {
   }
 
   // A segmented control, as the other views' on a card have (Commit and
-  // Stash): not an editor's tabs, which are a strip of their own.
+  // Stash): not an editor's tabs, which are a strip of their own. Not
+  // islands, those.
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) =>
+      IdeWorkbench.islands ? _segments(context) : _tabs();
+
+  Widget _tabs() => IdeTabStrip(
+    child: TabStripScroll(
+      controller: _scroll,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (value, icon, label) in widget.tabs)
+            IdeEditorTab(
+              key: ValueKey(value),
+              icon: Icon(icon),
+              label: label,
+              active: widget.selected == value,
+              minWidth: 0,
+              onSelect: () => widget.onSelect(value),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _segments(BuildContext context) => Container(
     height: 10 + IslandSegment.height + 4,
     padding: const EdgeInsets.fromLTRB(Islands.inset, 10, Islands.inset, 4),
     child: ScrollConfiguration(

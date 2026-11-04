@@ -70,8 +70,11 @@ abstract final class IdePaneColors {
       themeColors['sideBarSectionHeader.foreground'];
 
   /// The separator: a line on the side bar's card, as the card's others
-  /// ([AppColors.border]).
+  /// ([AppColors.border]); where the parts are not islands (see
+  /// [IslandStyle]), theirs ([AppColors.partBorder]).
   static Color get border => AppColors.border;
+  static Color borderOf(BuildContext context) =>
+      Islands.on(context) ? border : AppColors.partBorder;
 
   /// Modern UI tints a header on hover.
   static Color get hoverBackground => themeColors['list.hoverBackground'];
@@ -83,6 +86,11 @@ abstract final class IdePaneColors {
   /// every side.
   static const headerSize = 32.0;
   static const headerInset = 4.0;
+
+  /// [headerSize], or upstream's 28 where the parts are not islands, its
+  /// hover the header's height.
+  static double headerSizeOf(BuildContext context) =>
+      Islands.on(context) ? headerSize : 28;
 
   /// Bodies smaller than this are not shrunk further by a sash.
   static const minimumBodySize = 44.0;
@@ -164,7 +172,8 @@ class _IdePaneContainerState extends State<IdePaneContainer>
         ];
         final bodies = math.max(
           0.0,
-          constraints.maxHeight - panes.length * IdePaneColors.headerSize,
+          constraints.maxHeight -
+              panes.length * IdePaneColors.headerSizeOf(context),
         );
         final total = open.fold(0.0, (sum, pane) => sum + _weight(pane));
         double bodyHeight(IdePane pane) =>
@@ -239,7 +248,7 @@ class _IdePaneContainerState extends State<IdePaneContainer>
     var top = 0.0;
     for (final child in children) {
       if (child is _PaneView) {
-        top += IdePaneColors.headerSize + child.bodyHeight;
+        top += IdePaneColors.headerSizeOf(context) + child.bodyHeight;
       } else if (child is _PaneSash) {
         yield Positioned(
           left: 0,
@@ -285,6 +294,7 @@ class _PaneViewState extends State<_PaneView> {
   @override
   Widget build(BuildContext context) {
     final pane = widget.pane;
+    final islands = Islands.on(context);
     final header = MouseRegion(
       onEnter: (_) => setState(() => _hoverHeader = true),
       onExit: (_) => setState(() => _hoverHeader = false),
@@ -296,15 +306,20 @@ class _PaneViewState extends State<_PaneView> {
           behavior: HitTestBehavior.opaque,
           onTap: widget.onToggle,
           child: Container(
-            height: IdePaneColors.headerSize,
+            height: IdePaneColors.headerSizeOf(context),
             // Its hover as far from the lines over and under it as from the
-            // card's sides, rounded as a row is.
-            padding: const EdgeInsets.all(IdePaneColors.headerInset),
+            // card's sides, rounded as a row is; not islands, as high as
+            // the header.
+            padding: islands
+                ? const EdgeInsets.all(IdePaneColors.headerInset)
+                : const EdgeInsets.symmetric(horizontal: 4),
             child: Container(
               padding: const EdgeInsets.only(left: 4),
               decoration: BoxDecoration(
                 color: _hoverHeader ? IdePaneColors.hoverBackground : null,
-                borderRadius: BorderRadius.circular(Islands.rowRadius),
+                borderRadius: BorderRadius.circular(
+                  islands ? Islands.rowRadius : 4,
+                ),
               ),
               child: Row(
                 children: [
@@ -404,7 +419,7 @@ class _PaneViewState extends State<_PaneView> {
                   right: 0,
                   top: 0,
                   height: 1,
-                  child: ColoredBox(color: IdePaneColors.border),
+                  child: ColoredBox(color: IdePaneColors.borderOf(context)),
                 ),
               ],
             ),
@@ -519,6 +534,9 @@ class IdeViewTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Not islands (see [IslandStyle]): upstream's, `sideBarTitle.foreground`
+    // and its actions against the edge.
+    final islands = Islands.on(context);
     final text = Text(
       title,
       maxLines: 1,
@@ -526,7 +544,7 @@ class IdeViewTitle extends StatelessWidget {
       style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: foreground,
+        color: islands ? foreground : themeColors['sideBarTitle.foreground'],
       ),
     );
     return Container(
@@ -538,7 +556,7 @@ class IdeViewTitle extends StatelessWidget {
         null => null,
       },
       child: Padding(
-        padding: const EdgeInsets.only(left: 12, right: _actionsEnd),
+        padding: EdgeInsets.only(left: 12, right: islands ? _actionsEnd : 4),
         child: Row(
           children: [
             Expanded(child: text),

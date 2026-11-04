@@ -294,6 +294,10 @@ class _IdeListRowState extends State<IdeListRow> {
   Widget build(BuildContext context) {
     final selected = widget.selected;
     final outline = _outline;
+    // Rounder where the parts are islands (see [IslandStyle]).
+    final radius = BorderRadius.circular(
+      Islands.on(context) ? Islands.rowRadius : 4,
+    );
     final row = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -313,7 +317,7 @@ class _IdeListRowState extends State<IdeListRow> {
             height: widget.height,
             margin: const EdgeInsets.symmetric(horizontal: IdeListColors.inset),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Islands.rowRadius),
+              borderRadius: radius,
               color: selected
                   ? (widget.focused || widget.keepSelectionActive
                         ? IdeListColors.activeSelection
@@ -327,7 +331,7 @@ class _IdeListRowState extends State<IdeListRow> {
             foregroundDecoration: outline == null
                 ? null
                 : BoxDecoration(
-                    borderRadius: BorderRadius.circular(Islands.rowRadius),
+                    borderRadius: radius,
                     border: Border.all(color: outline),
                   ),
             child: widget.builder(context, _hover),

@@ -56,14 +56,20 @@ abstract final class IdeModernUI {
   /// The activity bar's width.
   static const activityBarWidth = activityItemSize + activityLane;
 
-  /// Smaller than `ActivitybarPart.ICON_SIZE` (24), as the cards' own.
+  /// Smaller than `ActivitybarPart.ICON_SIZE` (24), as the cards' own;
+  /// that where the parts are not islands ([flatActivityIconSize]).
   static const activityIconSize = 20.0;
+  static const flatActivityIconSize = 24.0;
 
   /// A step under the status bar's and the titles' (see
   /// [AppColors.textFaint]): the bar is on the window's color, its icons
   /// not to stand out from the cards beside it; not
   /// `activityBar.inactiveForeground`, as bright as the cards' icons.
   static Color get activityForeground => AppColors.textFaint;
+
+  /// `activityBar.inactiveForeground`, where the parts are not islands.
+  static Color get flatActivityForeground =>
+      _colors['activityBar.inactiveForeground'];
 
   /// `modernActivityBarItem.activeBackground`
   /// (`list.inactiveSelectionBackground`), behind the active item.
@@ -84,8 +90,10 @@ abstract final class IdeModernUI {
       _colors['modernActivityBarItem.hoverForeground'];
 
   /// The active and hovered items' box: rounder than `cornerRadius.small`,
-  /// as the cards about it.
+  /// as the cards about it; `cornerRadius.small` where the parts are not
+  /// islands.
   static const activityItemRadius = 8.0;
+  static const flatActivityItemRadius = 4.0;
 
   /// `activityBarBadge.*`.
   static Color get activityBadgeBackground =>

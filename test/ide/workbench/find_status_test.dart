@@ -10,7 +10,6 @@ import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/workbench_theme.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/workspace/back_to_chat_button.dart';
-import 'package:baocode/workspace/islands.dart';
 import 'package:baocode/workspace/pin_window_button.dart';
 
 import '../../debug/support/fake_debug_adapter.dart';
@@ -147,7 +146,7 @@ void main() {
     // No editor: the notifications bell alone, under the chat's card, as
     // far in as the card is.
     final bell = tester.getRect(find.byTooltip('No Notifications'));
-    expect(bell.right, closeTo(window.width - Islands.gap, 1));
+    expect(bell.right, closeTo(window.width - 6, 1));
     expect(bell.bottom, closeTo(window.height - 3, 1));
     // Not in the bar under the rest.
     expect(
@@ -201,7 +200,7 @@ void main() {
       );
     }
     final bell = tester.getRect(find.byTooltip('No Notifications'));
-    expect(bell.right, closeTo(window.width - Islands.gap, 1));
+    expect(bell.right, closeTo(window.width - 6, 1));
   });
 
   testWidgets('status bar: a mark of the debugging colors while a session '
