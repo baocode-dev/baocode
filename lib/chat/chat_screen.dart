@@ -77,6 +77,7 @@ class ChatScreen extends StatefulWidget {
     this.cardTrailing,
     this.rowOverCard = true,
     this.footOnCard = false,
+    this.cardButtonsAtStart = false,
     this.titleBarInset,
     this.titleBarEnd = 8,
     this.onRename,
@@ -140,6 +141,11 @@ class ChatScreen extends StatefulWidget {
   /// on the card instead, under the composer: a pane among others, which
   /// leave no row under theirs.
   final bool footOnCard;
+
+  /// [cardTrailing] at the start of the row along the card's top, before
+  /// [cardLeading]: the side panel at the conversation's left, its rail
+  /// under them.
+  final bool cardButtonsAtStart;
 
   /// The row along the top of its card, with its title.
   static const cardHeaderHeight = 36.0;
@@ -771,8 +777,16 @@ class _ChatScreenState extends State<ChatScreen>
   /// [ChatScreen.trailing] after, there being no row over the card.
   Widget _buildCardHeader() {
     final window = !WindowControls.drawsHeader;
-    final leading = [if (!window) ?widget.leading, ?widget.cardLeading];
-    final trailing = [?widget.cardTrailing, if (!window) ?widget.trailing];
+    final start = widget.cardButtonsAtStart && widget.cardTrailing != null;
+    final leading = [
+      if (!window) ?widget.leading,
+      if (start) ?widget.cardTrailing,
+      ?widget.cardLeading,
+    ];
+    final trailing = [
+      if (!start) ?widget.cardTrailing,
+      if (!window) ?widget.trailing,
+    ];
     // The title bar's ways all the same: a press drags the window (a
     // pane's, the pane), a double click does what the system's does.
     return TitleBarDoubleClick(
@@ -781,8 +795,9 @@ class _ChatScreenState extends State<ChatScreen>
       child: SizedBox(
         height: ChatScreen.cardHeaderHeight,
         child: Padding(
-          padding: const EdgeInsets.only(
-            left: Islands.inset,
+          // Its buttons first, their left edge on the rail's at the left.
+          padding: EdgeInsets.only(
+            left: start && window ? ChatScreen.cardHeaderEnd : Islands.inset,
             right: ChatScreen.cardHeaderEnd,
           ),
           child: Row(

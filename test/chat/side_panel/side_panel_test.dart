@@ -2577,6 +2577,48 @@ void main() {
     }),
   );
 
+  testWidgets(
+    'the panel at the left, the conversation\'s buttons on its card are '
+    'before its title, their left edge on the rail\'s under them',
+    (tester) async {
+      final workspace = await pumpLoaded(tester);
+      await tester.pumpAndSettle();
+      workspace.select(
+        workspace.threads.firstWhere((thread) => thread.record != null),
+      );
+      await tester.pumpAndSettle();
+      tester
+              .widget<AgentSidePanelArea>(find.byType(AgentSidePanelArea))
+              .panel
+              .atLeft =
+          true;
+      await tester.pumpAndSettle();
+      final chat = tester.getRect(find.byType(ChatScreen));
+      final rail = tester.getRect(find.byType(SidePanelRail));
+      final toggle = tester.getRect(
+        find.descendant(
+          of: find.byType(ChatScreen),
+          matching: find.byType(SidePanelToggle),
+        ),
+      );
+      final title = tester.getRect(
+        find
+            .descendant(
+              of: find.byType(ChatScreen),
+              matching: find.text(
+                tester.widget<ChatScreen>(find.byType(ChatScreen)).title,
+              ),
+            )
+            .first,
+      );
+      expect(rail.left, chat.left + AgentSidePanelArea.railRight);
+      // The side panel's nearest the edge, over its rail; then the title.
+      expect(toggle.left, rail.left);
+      expect(title.left, greaterThan(toggle.right));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   test('Close Editor on the terminal page hides the panel: its tabs are '
       'terminals, which only their own Close kills', () {
     final panel = AgentSidePanel();
