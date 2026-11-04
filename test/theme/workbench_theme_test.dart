@@ -126,27 +126,16 @@ void main() {
     );
   });
 
-  testWidgets('the chat input\'s outline is a step from its fill towards '
-      'the text, of its hue, not the theme\'s border', (tester) async {
+  test('the chat input\'s outline is a step from its fill towards the '
+      'text, of its hue, not the theme\'s border', () async {
     final kept = WorkbenchThemeService.instance;
     addTearDown(() => WorkbenchThemeService.instance = kept);
     final themes = WorkbenchThemeService()..restore(setting: 'Solarized Dark');
-    await tester.runAsync(themes.initialize);
+    await themes.initialize();
     WorkbenchThemeService.instance = themes;
-    late Color border;
-    late Color background;
-    await tester.pumpWidget(
-      Builder(
-        builder: (context) {
-          border = AppColors.bubbleBorderIn(context);
-          background = AppColors.bubbleFillIn(context);
-          return const SizedBox();
-        },
-      ),
-    );
-    final line = HSVColor.fromColor(border);
-    final fill = HSVColor.fromColor(background);
-    expect(border, isNot(AppColors.border));
+    final line = HSVColor.fromColor(AppColors.bubbleBorder());
+    final fill = HSVColor.fromColor(AppColors.bubbleFill);
+    expect(AppColors.bubbleBorder(), isNot(AppColors.border));
     expect((line.hue - fill.hue).abs(), lessThan(15));
     expect(line.value, greaterThan(fill.value));
   });

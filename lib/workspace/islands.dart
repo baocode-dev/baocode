@@ -35,10 +35,6 @@ abstract final class Islands {
   static const controlHeight = 30.0;
   static const controlRadius = 8.0;
 
-  /// What is raised on a card (an input, the composer, the segment picked):
-  /// see [AppColors.raised].
-  static Color get raised => AppColors.raised;
-
   /// A line on a card (between its parts, about what is raised on it):
   /// `panel.border`, lighter than the card's own outline.
   static Color get line => AppColors.border;

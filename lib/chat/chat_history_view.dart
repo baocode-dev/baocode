@@ -2001,11 +2001,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                   : _editorOpened,
                               closing: closing,
                               border: _feed.canEditMessages
-                                  ? AppColors.bubbleBorderIn(
-                                      context,
-                                      focused: true,
-                                    )
-                                  : AppColors.bubbleBorderIn(context),
+                                  ? AppColors.bubbleBorder(focused: true)
+                                  : AppColors.bubbleBorder(),
                               child: child,
                             )
                           : ClipRect(
