@@ -125,6 +125,14 @@ class ServerPty {
       locale: args['locale'] as String?,
       version: args['version'] as String?,
     );
+    // The app's for the host's terminals (where adb's server is, say).
+    if (args['environment'] case final Map<Object?, Object?> extra) {
+      for (final MapEntry(:key, :value) in extra.entries) {
+        if ((key, value) case (final String name, final String text)) {
+          environment[name] = text;
+        }
+      }
+    }
     var nonce = '';
     if (args['shellIntegration'] != false) {
       nonce = args['nonce'] as String? ?? generateShellIntegrationNonce();

@@ -34,6 +34,7 @@ import '../models/model_providers.dart';
 import '../remote/remote_location.dart';
 import '../remote/remote_status.dart' show sshErrorText;
 import '../remote/ssh_host.dart' show SshHost, SshHostState, SshHosts;
+import '../remote/remote_host_settings.dart';
 import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
@@ -1434,6 +1435,17 @@ class _SidebarState extends State<Sidebar>
           icon: Icons.emoji_emotions_outlined,
           onSelected: () => _openHostIconPicker(current),
         ),
+        // Its agents' tools for this machine (local_tools.dart).
+        if (!RemoteLocation.isWsl(current))
+          SidebarMenuItem(
+            l10n.remoteLocalAccess,
+            icon: Codicons.vm,
+            checked: RemoteHostSettings.instance.localAccess(current),
+            onSelected: () => RemoteHostSettings.instance.setLocalAccess(
+              current,
+              !RemoteHostSettings.instance.localAccess(current),
+            ),
+          ),
         if (ssh.state == SshHostState.connected)
           SidebarMenuItem(
             l10n.sidebarDisconnectHost,

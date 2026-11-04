@@ -156,6 +156,9 @@ import 'workspace/window_header/window_header.dart';
 import 'workspace/workspace.dart';
 import 'workspace/workspace_dialog.dart';
 import 'ide/host_paths.dart';
+import 'remote/local_tools.dart';
+import 'remote/port_forwards.dart';
+import 'remote/remote_host_settings.dart';
 
 /// The window: the agents sidebar on the left, the selected agent's chat
 /// on the right, and up to three more beside it, dragged there from the
@@ -613,6 +616,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ImageTools.start();
       // The calls kept and the models' prices, for agents.
       UsageTools.start();
+      // Agents on SSH hosts acting on this machine, and the ports
+      // forwarded for them.
+      LocalTools.start(l10n: () => context.l10n);
+      PortForwards.instance.watch();
       OpenRequests.listen((paths) => unawaited(_openPaths(paths)));
       _workspace.addListener(_syncRecentMenu);
       _syncRecentMenu();
@@ -3716,6 +3723,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           icon: const Icon(Codicons.file),
           onSelected: () => _openRemoteFile(),
         ),
+        // Its agents' tools for this machine (local_tools.dart).
+        if (!RemoteLocation.isWsl(host)) ...[
+          const IdeMenuSeparator(),
+          IdeMenuAction(
+            l10n.remoteLocalAccess,
+            checked: RemoteHostSettings.instance.localAccess(host),
+            onSelected: () => RemoteHostSettings.instance.setLocalAccess(
+              host,
+              !RemoteHostSettings.instance.localAccess(host),
+            ),
+          ),
+        ],
         const IdeMenuSeparator(),
         IdeMenuAction(
           l10n.sidebarAddSshHost,
@@ -5035,6 +5054,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
       SidePanelSection.terminal ||
       SidePanelSection.usage ||
+      SidePanelSection.ports ||
       SidePanelSection.plan => null,
     };
   }

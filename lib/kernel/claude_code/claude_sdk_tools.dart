@@ -8,6 +8,14 @@
 import 'dart:async';
 
 import '../../chat/chat_models.dart' show ToolCallItem, ToolKind;
+import '../kernel_types.dart' show ApprovalDecision, ApprovalRequest;
+
+/// Asks the user [request] on the agent's conversation, as the agent's
+/// own requests are: what they decided, or null where it was given up
+/// (the turn stopped) or no one is there to ask.
+typedef ClaudeSdkAsk = Future<ApprovalDecision?> Function(
+  ApprovalRequest request,
+);
 
 /// Where a tool is called from: the agent's working directory (its
 /// project's path, as the workspace has it) and its session.
@@ -17,9 +25,14 @@ class ClaudeSdkCall {
     this.sessionId,
     this.cancelled,
     this.toolUseId,
+    this.ask,
   });
 
   final String cwd;
+
+  /// Asks the user, on the agent's conversation: its id is the kernel's
+  /// to give (the request's own is not kept). None where the kernel cannot.
+  final ClaudeSdkAsk? ask;
   final String? sessionId;
 
   /// The tool use it answers, as Claude Code says (`_meta`'s
@@ -45,7 +58,18 @@ class ClaudeSdkTool {
     this.summary,
     this.files,
     this.alwaysLoad = false,
+    this.offeredIn,
+    this.asksItself = false,
   });
+
+  /// Whether it asks the user itself, each time, whatever the mode
+  /// ([ClaudeSdkCall.ask]): the CLI's leave not asked for it too.
+  final bool asksItself;
+
+  /// Whether an agent working in a folder (its location) is offered it, as
+  /// the tool itself says, besides [ClaudeSdkTools.gate]; everywhere for
+  /// null.
+  final bool Function(String cwd)? offeredIn;
 
   final String name;
   final String description;
@@ -114,15 +138,21 @@ abstract final class ClaudeSdkTools {
 
   static void unregister(String name) => _tools.remove(name);
 
-  /// What each feature tells the agent of its tools, by feature: the
-  /// server's instructions, in the agent's system prompt.
-  static final Map<String, String> _instructions = {};
+  /// What each feature tells the agent of its tools, by feature, for the
+  /// folder it works in: the server's instructions, in the agent's system
+  /// prompt.
+  static final Map<String, String? Function(String cwd)> _instructions = {};
 
   /// Has the server tell the agent [text] for [feature]; null takes it
   /// back.
   static void instruct(String feature, String? text) => text == null
       ? _instructions.remove(feature)
-      : _instructions[feature] = text;
+      : _instructions[feature] = (_) => text;
+
+  /// Has the server tell an agent what [text] gives for the folder it
+  /// works in (nothing for null) for [feature].
+  static void instructFor(String feature, String? Function(String cwd) text) =>
+      _instructions[feature] = text;
 
   /// Which tools, by name, an agent working in a folder is offered, and
   /// which features' instructions it is told (see [ClaudeSdkGate]); all of
@@ -130,7 +160,8 @@ abstract final class ClaudeSdkTools {
   static ClaudeSdkGate? gate;
 
   static bool _offers(String cwd, String tool) =>
-      gate?.offersTool(cwd, tool) ?? true;
+      (_tools[tool]?.offeredIn?.call(cwd) ?? true) &&
+      (gate?.offersTool(cwd, tool) ?? true);
 
   static bool _tells(String cwd, String feature) =>
       gate?.tellsFeature(cwd, feature) ?? true;
@@ -176,7 +207,7 @@ abstract final class ClaudeSdkTools {
         final told = [
           for (final MapEntry(key: feature, value: text)
               in _instructions.entries)
-            if (_tells(call.cwd, feature)) text,
+            if (_tells(call.cwd, feature)) ?text(call.cwd),
         ];
         return result({
           'protocolVersion': params['protocolVersion'] ?? '2024-11-05',
@@ -228,6 +259,7 @@ abstract final class ClaudeSdkTools {
               cwd: call.cwd,
               sessionId: call.sessionId,
               cancelled: cancel.future,
+              ask: call.ask,
               toolUseId: switch (params['_meta']) {
                 {'claudecode/toolUseId': final String id} => id,
                 _ => null,

@@ -17,6 +17,8 @@ import 'browser_bridge.dart';
 import 'browser_records.dart';
 import 'browser_steps.dart';
 import 'source_map.dart';
+import '../remote/port_forwards.dart';
+import '../remote/remote_location.dart';
 
 part 'browser_actions.dart';
 part 'browser_debug_tools.dart';
@@ -245,10 +247,11 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
             await browser.request('tabs.create', {'url': 'about:blank'}) as Map;
         final tabId = tab['tabId'] as int;
         await _watch(tabId);
+        final url = await _reachable(call.cwd, input['url'] as String?);
         await _loading(
           browser,
           tabId,
-          () => browser.cdp(tabId, 'Page.navigate', {'url': input['url']}),
+          () => browser.cdp(tabId, 'Page.navigate', {'url': url}),
         );
         return _arrived(browser, tabId);
       },
@@ -277,7 +280,7 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
         await _go(
           browser,
           tabId,
-          input['url'] as String?,
+          await _reachable(call.cwd, input['url'] as String?),
           input['action'] as String?,
         );
         return _arrived(browser, tabId);
@@ -461,6 +464,23 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
       ),
       width > 0 && deviceWidth > 0 ? deviceWidth / width : 1,
     );
+  }
+
+  /// [url] as this machine's browser reaches it, for an agent working in
+  /// [cwd]: on an SSH host, its loopback's port forwarded here first, and
+  /// the URL on the port here (see PortForwards.localUrl).
+  static Future<String?> _reachable(String cwd, String? url) async {
+    final host = RemoteLocation.hostOf(cwd);
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (host == null || RemoteLocation.isWsl(host) || uri == null) return url;
+    try {
+      return '${await PortForwards.instance.localUrl(host, uri)}';
+    } on Object catch (error) {
+      throw BrowserError(
+        'Port ${uri.port} of the host could not be '
+        'forwarded to this computer: $error',
+      );
+    }
   }
 
   /// Goes to [url] in [tabId], or back, forward, or reloads ([action]);

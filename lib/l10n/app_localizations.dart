@@ -22068,6 +22068,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Click again to unpick: back to the context as it is now'**
   String get ustatContextUnpickHint;
+
+  /// No description provided for @localRunTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Run on this computer'**
+  String get localRunTitle;
+
+  /// No description provided for @localRunReason.
+  ///
+  /// In en, this message translates to:
+  /// **'The agent on {host} wants to run this command on your computer ({system}), not on {host}.'**
+  String localRunReason(String host, String system);
+
+  /// No description provided for @localRunAlways.
+  ///
+  /// In en, this message translates to:
+  /// **'Always allow for {host}'**
+  String localRunAlways(String host);
+
+  /// No description provided for @remoteLocalAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow Remote Agents to Act on This Computer'**
+  String get remoteLocalAccess;
+
+  /// No description provided for @remoteLocalAccessDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Its agents may run commands on this computer (asking you each time), copy files here and there and forward ports.'**
+  String get remoteLocalAccessDetail;
+
+  /// No description provided for @sidePanelPorts.
+  ///
+  /// In en, this message translates to:
+  /// **'Ports'**
+  String get sidePanelPorts;
+
+  /// No description provided for @portsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No ports are forwarded. A server on {host} that prints its http://localhost address is forwarded here on its own.'**
+  String portsEmpty(String host);
+
+  /// No description provided for @portsAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward a Port'**
+  String get portsAdd;
+
+  /// No description provided for @portsCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Address'**
+  String get portsCopy;
+
+  /// No description provided for @portsOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Browser'**
+  String get portsOpen;
+
+  /// No description provided for @portsStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Forwarding'**
+  String get portsStop;
+
+  /// No description provided for @portsHostToHere.
+  ///
+  /// In en, this message translates to:
+  /// **'{host} → this computer'**
+  String portsHostToHere(String host);
+
+  /// No description provided for @portsHereToHost.
+  ///
+  /// In en, this message translates to:
+  /// **'This computer → {host}'**
+  String portsHereToHost(String host);
+
+  /// No description provided for @portsAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get portsAuto;
+
+  /// No description provided for @portsPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Port'**
+  String get portsPort;
+
+  /// No description provided for @portsListen.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen on (optional)'**
+  String get portsListen;
+
+  /// No description provided for @portsForward.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward'**
+  String get portsForward;
+
+  /// No description provided for @portsCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied {address}'**
+  String portsCopied(String address);
 }
 
 class _AppLocalizationsDelegate
