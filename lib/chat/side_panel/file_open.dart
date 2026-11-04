@@ -106,12 +106,17 @@ class FileLinkTarget {
     this.sizeOf,
     this.paths,
     this.roots,
+    this.home,
     this.inPanel = false,
     this.openInIde,
     this.openFolder,
   });
 
   final ValueChanged<FileOpenRequest> open;
+
+  /// The home folder of the project's host, where `~` goes; null while it
+  /// is not known (a remote host not reached yet).
+  final String? Function()? home;
 
   /// Shows a folder the chat names (absolute, on the project's host) in
   /// the side panel's tree; none where there is no such tree.
@@ -234,6 +239,7 @@ class FileOpenScope extends InheritedWidget {
     this.paths,
     this.roots = const [],
     this.seen = const [],
+    this.home,
     this.local = true,
     this.readBytes,
     this.sizeOf,
@@ -278,6 +284,9 @@ class FileOpenScope extends InheritedWidget {
   /// name it `a/lib/b.dart`.
   final List<String> seen;
 
+  /// See [FileLinkTarget.home].
+  final String? home;
+
   static FileOpenScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<FileOpenScope>();
 
@@ -285,9 +294,10 @@ class FileOpenScope extends InheritedWidget {
   static FileOpenScope? find(BuildContext context) =>
       context.getInheritedWidgetOfExactType<FileOpenScope>();
 
-  /// [path] (absolute, or relative to [root]) in [root]; null outside it.
-  /// In a workspace, the first of its folders' found to have it; until
-  /// one is, the first's.
+  /// [path] absolute (see [FileLink.resolvePath]): relative to [root], or
+  /// in a workspace the first of its folders' found to have it (until one
+  /// is, the first's); the file the agent saw that it names, where that is
+  /// the one found.
   String? resolve(String path) {
     final candidates = _candidates(path);
     if (candidates.length < 2) return candidates.firstOrNull;
@@ -297,12 +307,28 @@ class FileOpenScope extends InheritedWidget {
     return candidates.first;
   }
 
+  /// [resolve]d, where it is read with no click asking for it (an image
+  /// the chat shows): in [root] or one of [roots], or a file the agent
+  /// saw; null elsewhere.
+  String? resolveShown(String path) {
+    final full = resolve(path);
+    if (full == null) return null;
+    final context = paths ?? p.context;
+    final inside = [...roots, root].any(
+      (folder) => folder == full || context.isWithin(folder, full),
+    );
+    if (inside) return full;
+    final seenFile = _seen(path);
+    return seenFile != null && context.equals(seenFile, full) ? full : null;
+  }
+
   /// Where [path] may be: in each of [roots], then in [root], then the
   /// file of those [seen] it names.
   List<String> _candidates(String path) {
     final found = <String>{};
     for (final folder in [...roots, root]) {
-      if (FileLink.resolvePath(path, folder, paths: paths) case final full?) {
+      if (FileLink.resolvePath(path, folder, paths: paths, home: home)
+          case final full?) {
         found.add(full);
       }
     }
@@ -530,6 +556,7 @@ class FileOpenScope extends InheritedWidget {
       onOpen != oldWidget.onOpen ||
       existence != oldWidget.existence ||
       paths != oldWidget.paths ||
+      home != oldWidget.home ||
       local != oldWidget.local ||
       readBytes != oldWidget.readBytes ||
       inPanel != oldWidget.inPanel ||

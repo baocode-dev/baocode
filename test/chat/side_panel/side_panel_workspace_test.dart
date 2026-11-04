@@ -411,9 +411,9 @@ void main() {
       await pumpEventQueue();
       expect(files.resolve('main.go'), '$_api/main.go');
       expect(files.resolve('index.html'), '$_site/index.html');
-      // An absolute path in any folder; none outside them.
+      // An absolute path in any folder, or out of them.
       expect(files.resolve('$_api/new.go'), '$_api/new.go');
-      expect(files.resolve('/elsewhere/a.go'), isNull);
+      expect(files.resolve('/elsewhere/a.go'), '/elsewhere/a.go');
     });
 
     test('a link opens where it is found, though not known before', () async {

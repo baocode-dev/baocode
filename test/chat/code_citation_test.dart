@@ -95,7 +95,7 @@ void main() {
       expect(const CodeCitation(7, 7, 'a.dart').lines, 'Ln 7');
     });
 
-    test('opens only in the folder the agent works in', () {
+    test('opens from the folder the agent works in, as its tools do', () {
       expect(
         const CodeCitation(1, 1, 'lib/a.dart').pathIn('/p'),
         '/p/lib/a.dart',
@@ -104,8 +104,8 @@ void main() {
         const CodeCitation(1, 1, '/p/lib/a.dart').pathIn('/p'),
         '/p/lib/a.dart',
       );
-      expect(const CodeCitation(1, 1, '../q/a.dart').pathIn('/p'), isNull);
-      expect(const CodeCitation(1, 1, '/etc/hosts').pathIn('/p'), isNull);
+      expect(const CodeCitation(1, 1, '../q/a.dart').pathIn('/p'), '/q/a.dart');
+      expect(const CodeCitation(1, 1, '/etc/hosts').pathIn('/p'), '/etc/hosts');
     });
   });
 
@@ -254,9 +254,7 @@ void main() {}
       expect(texts(tester), contains('14\n15\n16'));
     });
 
-    testWidgets('a file outside the agent\'s folder does not open', (
-      tester,
-    ) async {
+    testWidgets('a file outside the agent\'s folder opens too', (tester) async {
       final opened = <String>[];
       await pumpMarkdown(
         tester,
@@ -264,7 +262,7 @@ void main() {}
         onOpen: (path, _, _) => opened.add(path),
       );
       await tester.tap(find.text('hosts'));
-      expect(opened, isEmpty);
+      expect(opened, ['/etc/hosts']);
     });
 
     testWidgets('code is colored, lines still the same keep theirs', (

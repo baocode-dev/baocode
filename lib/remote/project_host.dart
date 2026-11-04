@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:path/path.dart' as p;
 
 import '../ide/file_service.dart';
@@ -7,6 +9,7 @@ import '../ide/git/repository_scan.dart';
 import '../ide/lsp/catalog/standard_lsp.dart';
 import '../ide/lsp/language_features.dart';
 import '../ide/terminal/terminal_instance.dart';
+import '../platform/app_paths.dart';
 import 'remote_location.dart';
 import 'ssh_host.dart';
 
@@ -27,6 +30,10 @@ abstract interface class ProjectHost {
 
   /// How paths are spelled there.
   p.Context get paths;
+
+  /// The user's home folder there, where `~` goes; null while it is not
+  /// known (a host not reached yet).
+  String? get home;
 
   /// [location]'s path there.
   String pathOf(String location);
@@ -56,6 +63,9 @@ class LocalHost implements ProjectHost {
 
   @override
   p.Context get paths => p.context;
+
+  @override
+  String? get home => AppPaths.home(Platform.environment);
 
   @override
   String pathOf(String location) => location;

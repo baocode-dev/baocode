@@ -1113,6 +1113,7 @@ class _ChatScreenState extends State<ChatScreen>
             onOpenFolder: links.openFolder,
             roots: links.roots?.call() ?? const [],
             seen: _session.filesSeen,
+            home: links.home?.call(),
             local: switch (_session.kernelContext.cwd) {
               final cwd? => !RemoteLocation.isRemote(cwd),
               null => true,

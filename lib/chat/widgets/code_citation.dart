@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:markdown/markdown.dart' as md;
-import 'package:path/path.dart' as p;
 
 import '../../ide/ide_hover.dart';
 import '../../l10n/l10n.dart';
@@ -51,11 +50,9 @@ class CodeCitation {
   /// `Ln 14–16`, or `Ln 14` for a line.
   String get lines => start == end ? 'Ln $start' : 'Ln $start–$end';
 
-  /// [path] in [root], the folder the agent works in; null when outside.
-  String? pathIn(String root) {
-    final full = p.normalize(p.isAbsolute(path) ? path : p.join(root, path));
-    return p.isWithin(root, full) ? full : null;
-  }
+  /// [path] made absolute from [root], the folder the agent works in (see
+  /// [FileLink.resolvePath]).
+  String? pathIn(String root) => FileLink.resolvePath(path, root);
 
   @override
   bool operator ==(Object other) =>

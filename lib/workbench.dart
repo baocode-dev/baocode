@@ -4283,6 +4283,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       paths: paths,
       roots: () =>
           _workspace.workspaceAt(thread.project.path)?.folders ?? const [],
+      home: () => ProjectHost.of(thread.project.path).home,
     );
   }
 
