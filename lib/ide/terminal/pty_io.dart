@@ -56,8 +56,9 @@ abstract final class PtyProcesses {
     }
   }
 
-  /// [shell] 是已知会读取登录配置的交互启动形式时返回 true。
-  /// 特殊参数或未知 shell 保留既有解析环境，不猜测其初始化行为。
+  /// Whether [shell] is started as a login shell known to read the login
+  /// files. Other arguments, or a shell it does not know, are not guessed
+  /// at.
   static bool _readsLoginFiles(TerminalShell shell) {
     if (!const {'bash', 'zsh', 'fish'}.contains(p.basename(shell.executable))) {
       return false;
@@ -80,7 +81,9 @@ abstract final class PtyProcesses {
     final os = _os;
     final resolved = await ClaudeEnvironment.of();
     shell ??= defaultTerminalShell(os, resolved, exists: _exists, list: _list);
-    // shell 选择保持原行为；已知登录启动自行读取当前配置。
+    // As VS Code, whose terminals inherit the environment it resolved from
+    // the login shell; but that one is of when the app started, and a login
+    // shell reads the files as they are now (one changed since, #226).
     final base = os != TerminalOs.windows && _readsLoginFiles(shell)
         ? Platform.environment
         : resolved;

@@ -56,8 +56,9 @@ class TerminalEnvironmentRequest {
 /// shell_integration/shell_integration_files.dart); fails with
 /// [PtyException] on the web.
 ///
-/// 本地已知的交互登录 shell 从应用原始继承环境读取当前配置；
-/// 非登录、特殊参数及未知 shell 保留既有解析环境，以免丢失登录配置值。
+/// A login shell it knows (bash, zsh, fish) starts from the app's own
+/// environment and reads the user's files as they are now; any other keeps
+/// the one resolved at start, not to lose what the login files set.
 Future<PtyLaunch> terminalLaunch(
   String root, {
   int columns = 80,

@@ -96,7 +96,7 @@ void main() {
           shell: shell,
           shellIntegration: false,
         );
-        // 只比较是否相同，避免失败时把真实进程环境值写进日志。
+        // Compared, not shown: a failure must not log the real environment.
         expect(
           launch.environment!['PATH'] == Platform.environment['PATH'],
           isTrue,
