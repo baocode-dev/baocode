@@ -293,6 +293,21 @@ void main() {
       expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
     });
 
+    testWidgets('a file read with Windows backslash path shows only its file name', (
+      tester,
+    ) async {
+      await pumpStep(
+        tester,
+        const ToolCallItem(
+          kind: ToolKind.read,
+          target: r'C:\PROJECTS\baocode\lib\chat\widgets\turn_footer.dart',
+          path: r'C:\PROJECTS\baocode\lib\chat\widgets\turn_footer.dart',
+          detail: 'L265-325',
+        ),
+      );
+      expect(header('Read turn_footer.dart L265-325'), findsOneWidget);
+    });
+
     testWidgets('a thought counts its time while it streams, from 1s', (
       tester,
     ) async {

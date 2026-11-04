@@ -143,12 +143,18 @@ class ToolCallRow extends StatelessWidget {
     final todo = kind == ToolKind.todo
         ? todoStep(tool, input, target, output: output, l10n: context.l10n)
         : null;
+    final objectName = todo?.object ??
+        switch (kind) {
+          ToolKind.read || ToolKind.edit || ToolKind.listDir =>
+            target.split(RegExp(r'[/\\]')).last,
+          _ => target,
+        };
     Widget header = StepHeader(
       verb:
           label ??
           todo?.verb ??
           toolVerb(kind, status: status, l10n: context.l10n),
-      object: todo?.object ?? target,
+      object: objectName,
       detail: todo?.detail ?? detail,
       running: _running,
       expanded: expanded,
@@ -181,8 +187,8 @@ class ToolCallRow extends StatelessWidget {
         _ => null,
       },
     );
-    // A file read shows only its name: the whole path on hover.
-    if (kind == ToolKind.read && path != null) {
+    // A file read or edit shows only its name: the whole path on hover.
+    if ((kind == ToolKind.read || kind == ToolKind.edit) && path != null) {
       header = HoverTooltip(content: _pathTooltip, child: header);
     }
     if (file != null) {
