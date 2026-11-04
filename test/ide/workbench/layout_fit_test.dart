@@ -4,13 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_columns.dart';
 import 'package:baocode/ide/ide_layout.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
+import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/workspace/back_to_chat_button.dart';
 
 import '../../title_bar_double_click_test.dart'
     show doubleClickAt, recordWindowCalls, titleDoubleClicks;
-
-import 'package:baocode/workspace/islands.dart';
 
 import 'fake_files.dart';
 
@@ -46,9 +45,9 @@ void main() {
     expect(workspace.layout.editorVisible, isFalse);
     final sidebar = tester.getRect(_part('ide-sidebar'));
     final beside = tester.getRect(_part('ide-chat'));
-    expect(sidebar.left, IdeModernUI.activityBarWidth - Islands.gap / 2);
+    expect(sidebar.left, IdeModernUI.activityBarWidth - IdeWorkbench.gap / 2);
     expect(beside.left, sidebar.right);
-    expect(beside.right, 740 - Islands.gap / 2);
+    expect(beside.right, 740 - IdeWorkbench.gap / 2);
     expect(tester.element(find.byKey(chatKey)), same(chat));
     expect(find.byIcon(Codicons.layoutSidebarLeft), findsOneWidget);
 
@@ -264,11 +263,11 @@ void main() {
     expect(_part('ide-editor'), findsNothing);
     // Its sash over the activity bar's edge (its room's, the card against
     // it).
-    const left = IdeModernUI.activityBarWidth - Islands.gap / 2;
+    final left = IdeModernUI.activityBarWidth - IdeWorkbench.gap / 2;
     expect(tester.getCenter(_part('ide-chat-sash')).dx, left);
     final maximized = tester.getRect(_part('ide-chat'));
     expect(maximized.left, left);
-    expect(maximized.right, 1400 - Islands.gap / 2);
+    expect(maximized.right, 1400 - IdeWorkbench.gap / 2);
     // The panel below it, as high as it was.
     final panel = tester.getRect(_part('ide-panel'));
     expect(panel.left, maximized.left);

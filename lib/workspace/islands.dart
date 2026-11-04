@@ -68,6 +68,10 @@ abstract final class Islands {
   static Color underOr(BuildContext context, Color color) =>
       IslandSurface.colorOf(context) == null ? color : Colors.transparent;
 
+  /// Whether the parts under [context] are islands: the agents' window's
+  /// are, the IDE's not (see [IslandStyle]).
+  static bool on(BuildContext context) => IslandStyle.of(context);
+
   /// A sash in a gap: nothing at rest, the gap's middle the IDE's
   /// `sash.hoverBorder` while dragged.
   static Widget sashLine({
@@ -83,8 +87,24 @@ abstract final class Islands {
   );
 }
 
+/// Whether the parts under it are islands ([on]), or flush and square with
+/// a line between them, as before the islands: the IDE's are that way for
+/// now, the agents' window's islands (see [IdeWorkbench.islands]).
+class IslandStyle extends InheritedWidget {
+  const IslandStyle({super.key, required this.on, required super.child});
+
+  final bool on;
+
+  /// Islands where nothing says otherwise.
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<IslandStyle>()?.on ?? true;
+
+  @override
+  bool updateShouldNotify(IslandStyle old) => old.on != on;
+}
+
 /// [child] on a card of [color], its corners rounded and cut: nothing of
-/// it shows past them.
+/// it shows past them. Not islands ([IslandStyle]): of [color], square.
 class Island extends StatelessWidget {
   const Island({
     super.key,
@@ -114,6 +134,7 @@ class Island extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!Islands.on(context)) return ColoredBox(color: color, child: child);
     final radius = radiusOf(topLeft: topLeft);
     return DecoratedBox(
       // The outline over what is in it, at its edge.
@@ -630,23 +651,34 @@ class IslandTabSeparator extends StatelessWidget {
 /// What is under it is on a card of [color] (see [HeadedIsland]): its
 /// lists on the card's color rather than the side bar's, its tabs as a
 /// browser's ([IslandTab]'s look), its strip on the window's color; its
-/// last [footer] on the window's color too, under the card.
+/// last [footer] on the window's color too, under the card. Not islands
+/// ([card] false): a part of [color], what is on it as before the islands,
+/// the row under it all the same.
 class IslandSurface extends InheritedWidget {
   const IslandSurface({
     super.key,
     required this.color,
     this.footer = 0,
+    this.card = true,
     required super.child,
   });
 
   final Color color;
   final double footer;
+  final bool card;
 
   static IslandSurface? _of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<IslandSurface>();
 
   /// The card's color, where there is one.
-  static Color? colorOf(BuildContext context) => _of(context)?.color;
+  static Color? colorOf(BuildContext context) => switch (_of(context)) {
+    final surface? when surface.card => surface.color,
+    _ => null,
+  };
+
+  /// Whether it is on a part that has its own color, a card or not: none
+  /// of its own needed.
+  static bool on(BuildContext context) => _of(context) != null;
 
   /// How high the row under the card is, where there is one (see
   /// [Islands.belowHeight]); else 0.
@@ -654,26 +686,34 @@ class IslandSurface extends InheritedWidget {
 
   @override
   bool updateShouldNotify(IslandSurface old) =>
-      old.color != color || old.footer != footer;
+      old.color != color || old.footer != footer || old.card != card;
 }
 
 /// [child] on a card of [color], all but its first [header] and its last
 /// [footer] high on the window's color: a part's title or tabs over its
 /// card, the tab in front one with the card (an [IslandSurface] under it);
 /// a conversation's branch under it. The card's outline along the header's
-/// last row, which the tab in front covers.
+/// last row, which the tab in front covers. Not islands ([IslandStyle]):
+/// all but its [footer] a part of [color], [border] about that.
 class HeadedIsland extends StatefulWidget {
   const HeadedIsland({
     super.key,
     required this.header,
     this.footer = 0,
     required this.color,
+    this.border,
+    this.footerLine,
     required this.child,
   });
 
   final double header;
   final double footer;
   final Color color;
+
+  /// Not islands: the lines about the part (a side bar's beside it), and
+  /// over the footer (the status bar's, which it is in line with).
+  final Border? border;
+  final Color? footerLine;
   final Widget child;
 
   @override
@@ -691,7 +731,50 @@ class _HeadedIslandState extends State<HeadedIsland> {
   }
 
   @override
-  Widget build(BuildContext context) => IslandCorner(
+  Widget build(BuildContext context) {
+    if (!Islands.on(context)) return _flat();
+    return _card();
+  }
+
+  /// As before the islands: the part flush, its [HeadedIsland.border]
+  /// about it; the footer on the window's color under it.
+  Widget _flat() {
+    final border = widget.border;
+    final footer = widget.footer;
+    return IslandSurface(
+      color: widget.color,
+      footer: footer,
+      card: false,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            bottom: footer,
+            child: ColoredBox(color: widget.color),
+          ),
+          widget.child,
+          // Over what is in it (its tabs' strip has a color of its own).
+          if (border != null)
+            Positioned.fill(
+              bottom: footer,
+              child: IgnorePointer(
+                child: DecoratedBox(decoration: BoxDecoration(border: border)),
+              ),
+            ),
+          if (widget.footerLine case final line? when footer > 0)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: footer - 1,
+              height: 1,
+              child: IgnorePointer(child: ColoredBox(color: line)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _card() => IslandCorner(
     square: _square,
     child: IslandSurface(
       color: widget.color,

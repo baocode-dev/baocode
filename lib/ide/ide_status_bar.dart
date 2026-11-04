@@ -99,12 +99,22 @@ class IdeStatusBar extends StatelessWidget {
   /// An item's, centered in it.
   static const itemHeight = 22.0;
 
+  /// Over it where the parts are not islands (see [IslandStyle]), the
+  /// line upstream's has: `statusBar.border`, where the theme has one.
+  static Color? get line => themeColors.get('statusBar.border');
+
   @override
   Widget build(BuildContext context) {
+    final line = Islands.on(context) ? null : IdeStatusBar.line;
     return Container(
       height: height,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       alignment: Alignment.center,
+      decoration: line == null
+          ? null
+          : BoxDecoration(
+              border: Border(top: BorderSide(color: line)),
+            ),
       child: LayoutBuilder(
         builder: (context, constraints) => Row(
           children: [
@@ -161,8 +171,11 @@ class IdeStatusBarTrailing extends StatelessWidget {
   final void Function(int index, double width)? onWidth;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
+  Widget build(BuildContext context) => Container(
     height: IdeStatusBar.height,
+    // As far from the window's edge as the bar's are where the parts are
+    // not islands; a card's gaps about it else.
+    padding: EdgeInsets.only(right: Islands.on(context) ? 0 : 6),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [

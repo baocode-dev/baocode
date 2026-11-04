@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/islands.dart';
 import 'host_paths.dart';
 import 'lsp/lsp_protocol.dart';
 import 'lsp_ui/language_icons.dart';
@@ -48,10 +49,12 @@ class IdeBreadcrumbs extends StatelessWidget {
     }
     // The separators are their item's color (`inherit`).
     final separator = themeColors['breadcrumb.foreground'];
+    final islands = Islands.on(context);
     return Container(
-      height: height,
+      // Upstream's 22 where the parts are not islands (see [IslandStyle]).
+      height: islands ? height : 22,
       color: themeColors['breadcrumb.background'],
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: EdgeInsets.symmetric(horizontal: islands ? 12 : 8),
       alignment: Alignment.centerLeft,
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,

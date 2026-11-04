@@ -1682,22 +1682,42 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
         if (folded) fold?.toggle();
       },
     );
-    // A segmented control, as the panel's views'.
+    // A segmented control, as the panel's views'; not islands, tabs over a
+    // line.
+    final islands = Islands.on(context);
     final row = Container(
       height: folded
           ? IdeGitCommitPanel.foldedHeight
-          : 10 + IslandSegment.height + 4,
-      padding: folded
+          : islands
+          ? 10 + IslandSegment.height + 4
+          : 28,
+      padding: !islands
+          ? const EdgeInsets.symmetric(horizontal: 6)
+          : folded
           ? const EdgeInsets.symmetric(horizontal: Islands.inset)
           : const EdgeInsets.fromLTRB(Islands.inset, 10, Islands.inset, 4),
+      decoration: islands
+          ? null
+          : BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: themeColors.get('panel.border') ?? Colors.transparent,
+                ),
+              ),
+            ),
       child: Row(
+        crossAxisAlignment: islands
+            ? CrossAxisAlignment.center
+            : CrossAxisAlignment.stretch,
         children: [
           tab(l10n.gitCommitTab, false),
-          const SizedBox(width: 2),
+          if (islands) const SizedBox(width: 2),
           tab(l10n.gitStashTab, true),
           if (fold != null) ...[
             const Spacer(),
-            _FoldButton(folded: folded, onTap: fold.toggle),
+            Center(
+              child: _FoldButton(folded: folded, onTap: fold.toggle),
+            ),
           ],
         ],
       ),
@@ -1721,7 +1741,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
       height: 30,
       child: Padding(
         // The icons as far in as the card's other controls.
-        padding: const EdgeInsets.symmetric(horizontal: Islands.inset - 4),
+        padding: EdgeInsets.symmetric(horizontal: _inset - 4),
         child: Row(
           children: [
             IdeActionButton(
@@ -1889,7 +1909,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
       height: 30,
       child: Padding(
         // The icons as far in as the card's other controls.
-        padding: const EdgeInsets.symmetric(horizontal: Islands.inset - 4),
+        padding: EdgeInsets.symmetric(horizontal: _inset - 4),
         child: GiveWayRow(
           children: [
             GiveWay(
@@ -2523,11 +2543,21 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
   /// The commit message's lines that fit in [height].
   static int lines(double height) => math.max(1, ((height - 8) / 20).floor());
 
-  /// The buttons under the message: [Islands.controlHeight] high.
+  /// The buttons under the message: [Islands.controlHeight] high on a
+  /// card, as [IdeButton]'s own else.
   static const _buttonPadding = EdgeInsets.symmetric(
     horizontal: 12,
     vertical: (Islands.controlHeight - 16 - 2) / 2,
   );
+
+  /// Whether it is as on a card (see [IslandStyle]): its controls in from
+  /// the edges by [Islands.inset], rounder; else as before the islands.
+  bool get _islands => Islands.on(context);
+  double get _inset => _islands ? Islands.inset : 8;
+  double get _radius => _islands ? Islands.controlRadius : 4;
+  EdgeInsets get _buttonPad => _islands
+      ? _buttonPadding
+      : const EdgeInsets.symmetric(horizontal: 8, vertical: 4);
 
   /// Under the tree: Amend, the commit message, and the buttons.
   Widget _commitArea(BuildContext context) {
@@ -2543,12 +2573,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     final busy = _committing || _repositories.any((git) => git.busy);
     final branch = git?.state?.head.branch;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        Islands.inset,
-        6,
-        Islands.inset,
-        Islands.inset,
-      ),
+      padding: EdgeInsets.fromLTRB(_inset, 6, _inset, _inset),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2654,11 +2679,11 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                 minLines: lines(constraints.maxHeight),
                 maxLines: lines(constraints.maxHeight),
                 lineHeight: 20,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
+                padding: EdgeInsets.symmetric(
+                  horizontal: _islands ? 10 : 6,
                   vertical: 4,
                 ),
-                radius: Islands.controlRadius,
+                radius: _radius,
                 validation: _shownValidation,
                 floatingValidation: true,
                 shortcuts: {
@@ -2716,8 +2741,8 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
               GiveWay(
                 IdeButton(
                   label: l10n.gitCommitButton,
-                  padding: _buttonPadding,
-                  radius: Islands.controlRadius,
+                  padding: _buttonPad,
+                  radius: _radius,
                   onPressed: busy ? null : () => unawaited(_commit()),
                 ),
               ),
@@ -2726,8 +2751,8 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                 IdeButton(
                   label: l10n.gitCommitAndPush,
                   secondary: true,
-                  padding: _buttonPadding,
-                  radius: Islands.controlRadius,
+                  padding: _buttonPad,
+                  radius: _radius,
                   onPressed: busy ? null : () => unawaited(_commit(push: true)),
                 ),
               ),
@@ -2764,8 +2789,8 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
       icon: generating ? Codicons.debugStop : Codicons.sparkle,
       label: labeled ? label : '',
       secondary: true,
-      padding: _buttonPadding,
-      radius: Islands.controlRadius,
+      padding: _buttonPad,
+      radius: _radius,
       onPressed: () => unawaited(_generateMessage()),
     );
     return labeled ? button : IdeHover(message: label, child: button);
@@ -3050,21 +3075,49 @@ class _PanelTabState extends State<_PanelTab> {
   Widget build(BuildContext context) {
     final colors = themeColors;
     final selected = widget.selected;
+    final label = Text(
+      widget.label,
+      style: TextStyle(
+        fontSize: 12,
+        color: selected || _hover
+            ? colors['panelTitle.activeForeground']
+            : colors['panelTitle.inactiveForeground'],
+      ),
+    );
+    // Not islands: JetBrains', a line under the one selected.
+    if (!Islands.on(context)) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  width: 2,
+                  color: selected
+                      ? colors['panelTitle.activeBorder']
+                      : Colors.transparent,
+                ),
+              ),
+            ),
+            alignment: Alignment.center,
+            child: label,
+          ),
+        ),
+      );
+    }
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: IslandSegment(
         selected: selected,
         onTap: widget.onTap,
-        child: Text(
-          widget.label,
-          style: TextStyle(
-            fontSize: 12,
-            color: selected || _hover
-                ? colors['panelTitle.activeForeground']
-                : colors['panelTitle.inactiveForeground'],
-          ),
-        ),
+        child: label,
       ),
     );
   }

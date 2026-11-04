@@ -88,7 +88,9 @@ class _SegmentState extends State<_Segment> {
               selected: widget.selected,
               hovered: _hover,
             ),
-            borderRadius: BorderRadius.circular(Islands.controlRadius),
+            borderRadius: BorderRadius.circular(
+              Islands.on(context) ? Islands.controlRadius : 4,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

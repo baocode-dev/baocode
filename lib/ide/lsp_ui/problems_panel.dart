@@ -250,14 +250,18 @@ class IdeBottomPanel extends StatelessWidget {
         // A tab's hover: its view's name and the keys showing it, as the
         // activity bar's (compositeBarActions.ts `computeTitle`).
         final keys = KeybindingService.instance;
+        final islands = Islands.on(context);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // As a card's flat tab strip (see [IdeTabStrip.flat]): room
-            // above and before its tabs, none under them.
+            // above and before its tabs, none under them. Not islands,
+            // upstream's title row.
             Container(
-              height: IdeTabStrip.flatHeight,
-              padding: const EdgeInsets.only(top: IdeTabStrip.flatInset),
+              height: islands ? IdeTabStrip.flatHeight : 30,
+              padding: EdgeInsets.only(
+                top: islands ? IdeTabStrip.flatInset : 0,
+              ),
               decoration: titleBorder == null
                   ? null
                   : BoxDecoration(
@@ -265,7 +269,7 @@ class IdeBottomPanel extends StatelessWidget {
                     ),
               child: Row(
                 children: [
-                  const SizedBox(width: IdeTabStrip.flatInset),
+                  SizedBox(width: islands ? IdeTabStrip.flatInset : 8),
                   // Narrow, the tabs scroll and the actions stay whole; the
                   // last ones (the terminal's) shown whole first. With room,
                   // from the start.
@@ -497,45 +501,67 @@ class _Tab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
-    return IdeHover(
-      message: tooltip,
-      // A segment of a segmented control, the panel's views'.
-      child: IslandSegment(
-        selected: selected,
-        onTap: onTap,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
+    final islands = Islands.on(context);
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: islands ? 12 : 11,
+            letterSpacing: islands ? null : 0.3,
+            color:
+                colors[selected
+                    ? 'panelTitle.activeForeground'
+                    : 'panelTitle.inactiveForeground'],
+          ),
+        ),
+        if (badge != null) ...[
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            decoration: BoxDecoration(
+              color: colors['panelTitleBadge.background'],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              badge!,
               style: TextStyle(
-                fontSize: 12,
-                color:
-                    colors[selected
-                        ? 'panelTitle.activeForeground'
-                        : 'panelTitle.inactiveForeground'],
+                fontSize: 10.5,
+                color: colors['panelTitleBadge.foreground'],
               ),
             ),
-            if (badge != null) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                decoration: BoxDecoration(
-                  color: colors['panelTitleBadge.background'],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  badge!,
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    color: colors['panelTitleBadge.foreground'],
+          ),
+        ],
+      ],
+    );
+    return IdeHover(
+      message: tooltip,
+      // A segment of a segmented control, the panel's views'; not islands,
+      // upstream's, `panelTitle.activeBorder` under the one shown.
+      child: islands
+          ? IslandSegment(selected: selected, onTap: onTap, child: content)
+          : MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: selected
+                            ? colors['panelTitle.activeBorder']
+                            : Colors.transparent,
+                      ),
+                    ),
                   ),
+                  alignment: Alignment.center,
+                  child: content,
                 ),
               ),
-            ],
-          ],
-        ),
-      ),
+            ),
     );
   }
 }
