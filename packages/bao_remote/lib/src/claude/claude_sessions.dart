@@ -491,7 +491,7 @@ class _SummaryCache {
   _SummaryCache._(this._path, this._root, this._old);
 
   /// Raise it whenever [_Summary] makes something else of a file.
-  static const _version = 2;
+  static const _version = 3;
 
   factory _SummaryCache.load(String path, String root) {
     var old = const <String, Object?>{};
@@ -784,7 +784,8 @@ DateTime? _lastMessageTime(List<String> lines) {
 }
 
 /// The text of a message the user typed: empty for images alone, null for
-/// none (a command's output, an interruption).
+/// none (a command's output, an interruption). A command typed with what
+/// it is to do (`/goal …`) is that, as typed.
 String? _promptText(Map<String, Object?> entry) {
   final message = entry['message'];
   if (message is! Map) return null;
@@ -794,11 +795,15 @@ String? _promptText(Map<String, Object?> entry) {
     final String text => text,
     _ => [
       for (final block in blocks)
-        // Not the name the CLI gives an image ahead of it (`[Image #1]`).
-        if (block is Map &&
-            block['type'] == 'text' &&
-            !_imageName.hasMatch(block['text'] as String? ?? ''))
-          block['text'],
+        if (block is Map && block['type'] == 'text')
+          if (block['text'] as String? ?? '' case final text
+              // Not the name the CLI gives an image ahead of it
+              // (`[Image #1]`), nor a note for the model the app sends
+              // ahead of what was typed (the file open in the editor, the
+              // phone written from).
+              when !_imageName.hasMatch(text) &&
+                  !text.trimLeft().startsWith('<system-reminder>'))
+            text,
     ].join('\n'),
   };
   final trimmed = text.trim();
@@ -806,13 +811,22 @@ String? _promptText(Map<String, Object?> entry) {
     final images = blocks.any((b) => b is Map && b['type'] == 'image');
     return images ? '' : null;
   }
-  if (trimmed.startsWith('<')) return null;
+  if (trimmed.startsWith('<')) {
+    final name = _commandName.firstMatch(trimmed)?[1]?.trim();
+    final args = _commandArgs.firstMatch(trimmed)?[1]?.trim();
+    if (name == null || args == null || args.isEmpty) return null;
+    return '${name.startsWith('/') ? name : '/$name'} $args';
+  }
   if (trimmed.startsWith('[Request interrupted')) return null;
   return trimmed;
 }
 
 /// A text block that is only an image's name, as the CLI puts ahead of it.
 final _imageName = RegExp(r'^\s*\[Image #\d+\]\s*$');
+
+/// A command the CLI ran, as it keeps it.
+final _commandName = RegExp(r'<command-name>([\s\S]*?)</command-name>');
+final _commandArgs = RegExp(r'<command-args>([\s\S]*?)</command-args>');
 
 /// The conversation, oldest first, along the branch that ends with the
 /// last message: rewinds and forks leave other branches in the file.
