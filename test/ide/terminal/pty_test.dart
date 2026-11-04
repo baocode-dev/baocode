@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/terminal/pty.dart';
 import 'package:baocode/ide/terminal/pty_io.dart';
 import 'package:baocode/ide/terminal/terminal_shell.dart';
+import 'package:baocode/kernel/claude_code/claude_environment.dart';
 import 'package:baocode/platform/child_process_registry.dart';
 import 'package:path/path.dart' as p;
 
@@ -29,7 +30,10 @@ void main() {
       signal: (_) => false,
     );
   });
-  tearDown(() => dir.deleteSync(recursive: true));
+  tearDown(() async {
+    await PtyProcesses.registry.flush();
+    dir.deleteSync(recursive: true);
+  });
 
   const timeout = Duration(seconds: 10);
 
@@ -69,6 +73,76 @@ void main() {
     expect(
       printed.toString(),
       contains('term=xterm-256color program=baocode lang=en_US.UTF-8'),
+    );
+  });
+
+  group('launch environment', () {
+    const cached = {
+      'SHELL': '/chosen/bash',
+      'PATH': '/cached/bin',
+      'BAOCODE_TEST_CACHE_ONLY': 'cached',
+    };
+    setUp(() => ClaudeEnvironment.use(cached));
+    tearDown(() => ClaudeEnvironment.use(null));
+
+    test('login shells do not inherit the cached environment', () async {
+      for (final shell in const <TerminalShell>[
+        (executable: '/bin/bash', arguments: ['-l']),
+        (executable: '/bin/zsh', arguments: ['-il']),
+        (executable: '/bin/fish', arguments: ['-i', '--login']),
+      ]) {
+        final launch = await terminalLaunch(
+          dir.path,
+          shell: shell,
+          shellIntegration: false,
+        );
+        // Compared, not shown: a failure must not log the real environment.
+        expect(
+          launch.environment!['PATH'] == Platform.environment['PATH'],
+          isTrue,
+        );
+        expect(
+          launch.environment!['BAOCODE_TEST_CACHE_ONLY'] ==
+              Platform.environment['BAOCODE_TEST_CACHE_ONLY'],
+          isTrue,
+        );
+      }
+      expect(identical(await ClaudeEnvironment.of(), cached), isTrue);
+    });
+
+    test(
+      'non-login and custom arguments retain the resolved environment',
+      () async {
+        for (final shell in const <TerminalShell>[
+          (executable: '/bin/bash', arguments: []),
+          (executable: '/bin/zsh', arguments: ['-f', '-l']),
+          (executable: '/bin/bash', arguments: ['-c', 'echo', '--login']),
+          (executable: '/custom/shell', arguments: ['--login']),
+        ]) {
+          final launch = await terminalLaunch(
+            dir.path,
+            shell: shell,
+            shellIntegration: false,
+          );
+          expect(launch.environment!['BAOCODE_TEST_CACHE_ONLY'], 'cached');
+        }
+      },
+    );
+
+    test(
+      'the default shell still comes from the resolved environment',
+      () async {
+        final launch = await terminalLaunch(dir.path, shellIntegration: false);
+        expect(launch.executable, cached['SHELL']);
+        expect(launch.arguments, Platform.isMacOS ? ['-l'] : isEmpty);
+        expect(
+          launch.environment!['BAOCODE_TEST_CACHE_ONLY'] ==
+              (Platform.isMacOS
+                  ? Platform.environment['BAOCODE_TEST_CACHE_ONLY']
+                  : 'cached'),
+          isTrue,
+        );
+      },
     );
   });
 
