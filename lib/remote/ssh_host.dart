@@ -63,8 +63,10 @@ class SshHost extends ChangeNotifier implements ProjectHost {
   @override
   String get name => host;
 
+  /// The host's own: Windows' on a Windows host (as its hello says, once
+  /// connected), POSIX otherwise.
   @override
-  p.Context get paths => p.posix;
+  p.Context get paths => hello?.platform.os == 'win' ? p.windows : p.posix;
 
   @override
   String pathOf(String location) => RemoteLocation.pathOf(location);

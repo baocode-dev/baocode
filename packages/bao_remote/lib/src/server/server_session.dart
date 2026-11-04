@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import '../rpc/resumable_channel.dart';
 import '../rpc/rpc_peer.dart';
@@ -12,13 +14,20 @@ import 'remote_server.dart';
 /// A connection lost, the next one's bridge carries on the same session
 /// ([ResumableChannel]): its terminals, Claude Code and language servers
 /// keep running meanwhile, for [grace] at most.
+///
+/// On Windows ([tcp]), which has no hangup to keep the daemon from, the
+/// daemon listens on a port of the loopback instead, written with a token
+/// to a file of the user's ([portPath]); the app reaches it by SSH's own
+/// forwarding (`ssh -W`), saying the token first: no bridge of the
+/// server's in between.
 class ServerSession {
   ServerSession({
     required this.id,
     required this.runDirectory,
     this.grace = defaultGrace,
     this.heartbeat = defaultHeartbeat,
-  });
+    bool? tcp,
+  }) : tcp = tcp ?? Platform.isWindows;
 
   /// From the command line: `--session <id>` or `--daemon <id>`, with
   /// `--grace <seconds>`, `--heartbeat <ms>` and `--run <dir>`; null
@@ -61,6 +70,19 @@ class ServerSession {
   final Duration grace;
   final Duration heartbeat;
 
+  /// Whether the daemon listens on a port of the loopback with a token
+  /// (Windows'), not on a socket of its folder.
+  final bool tcp;
+
+  /// Where, with [tcp], the daemon says its port and token:
+  /// `<port> <token>`.
+  String get portPath => '$runDirectory${Platform.pathSeparator}$id.port';
+
+  /// The signals that say the connection is gone, where there are any.
+  static List<ProcessSignal> get hangups => Platform.isWindows
+      ? const []
+      : [ProcessSignal.sighup, ProcessSignal.sigterm];
+
   /// Hex, as the app makes them: nothing that would name another path.
   static bool isValidId(String id) => RegExp(r'^[0-9a-f]{8,64}$').hasMatch(id);
 
@@ -78,7 +100,9 @@ class ServerSession {
   /// The socket the daemon listens on, once it does.
   String? _bound;
 
-  String get logPath => '${File(socketPaths.first).parent.path}/$id.log';
+  String get logPath => tcp
+      ? '$runDirectory${Platform.pathSeparator}$id.log'
+      : '${File(socketPaths.first).parent.path}/$id.log';
 
   static String _uid() {
     try {
@@ -195,8 +219,7 @@ class ServerSession {
       onError: (Object _) => end(),
     );
     final signals = [
-      for (final signal in [ProcessSignal.sighup, ProcessSignal.sigterm])
-        signal.watch().listen((_) => end()),
+      for (final signal in hangups) signal.watch().listen((_) => end()),
     ];
     await ended.future;
     for (final signal in signals) {
@@ -242,7 +265,7 @@ class ServerSession {
       ),
     );
     final signals = [
-      for (final signal in [ProcessSignal.sighup, ProcessSignal.sigterm])
+      for (final signal in hangups)
         signal.watch().listen((_) => channel.close()),
     ];
     await Future.any([peer.done, gone, channel.ended]);
@@ -294,8 +317,14 @@ class ServerSession {
   }) async {
     final say = log ?? (_) {};
     final ServerSocket listener;
+    String? token;
     try {
-      listener = await _bind();
+      if (tcp) {
+        token = _token();
+        listener = await _bindTcp(token);
+      } else {
+        listener = await _bind();
+      }
     } on _AlreadyServed {
       return true;
     }
@@ -326,14 +355,30 @@ class ServerSession {
         wait();
       }
     });
-    listener.listen((socket) {
+    void attach(Socket socket, Stream<List<int>> input) {
       current?.destroy();
       current = socket;
-      unawaited(socket.done.then((_) {}, onError: (Object _) {}));
       unawaited(
         channel.attach(
-          ChannelLink(input: socket, write: socket.add, close: socket.destroy),
+          ChannelLink(input: input, write: socket.add, close: socket.destroy),
         ),
+      );
+    }
+
+    listener.listen((socket) {
+      unawaited(socket.done.then((_) {}, onError: (Object _) {}));
+      if (token == null) return attach(socket, socket);
+      // Anyone of the machine's may connect to the port: only one that
+      // says the token (read from the user's file) is the app.
+      unawaited(
+        afterToken(socket, token).then((input) {
+          if (input == null) {
+            say('a connection without the token: refused');
+            socket.destroy();
+          } else {
+            attach(socket, input);
+          }
+        }),
       );
     });
     final end = await Future.any([
@@ -351,8 +396,103 @@ class ServerSession {
     channel.close();
     current?.destroy();
     await listener.close();
-    await _deleteSocket(_bound);
+    await _deleteSocket(tcp ? portPath : _bound);
     return end == ChannelEnd.closed;
+  }
+
+  static String _token() {
+    final random = Random.secure();
+    return [for (var i = 0; i < 16; i++) random.nextInt(256).toRadixString(16)]
+        .map((byte) => byte.padLeft(2, '0'))
+        .join();
+  }
+
+  /// What [socket] says after its first line, when that line is [token];
+  /// null when it is not, or the socket ends or waits too long first.
+  static Future<Stream<List<int>>?> afterToken(
+    Stream<List<int>> socket,
+    String token, {
+    Duration wait = const Duration(seconds: 20),
+  }) {
+    final said = Completer<Stream<List<int>>?>();
+    final rest = StreamController<List<int>>();
+    final heard = <int>[];
+    late final StreamSubscription<List<int>> subscription;
+    final timer = Timer(wait, () {
+      if (said.isCompleted) return;
+      said.complete(null);
+      unawaited(subscription.cancel());
+    });
+    subscription = socket.listen(
+      (data) {
+        if (said.isCompleted) return rest.add(data);
+        heard.addAll(data);
+        final newline = heard.indexOf(10);
+        if (newline < 0) {
+          if (heard.length > 256) {
+            timer.cancel();
+            said.complete(null);
+            unawaited(subscription.cancel());
+          }
+          return;
+        }
+        timer.cancel();
+        final line = utf8.decode(
+          heard.sublist(0, newline),
+          allowMalformed: true,
+        );
+        if (line.trim() != token) {
+          said.complete(null);
+          unawaited(subscription.cancel());
+          return;
+        }
+        if (newline + 1 < heard.length) rest.add(heard.sublist(newline + 1));
+        said.complete(rest.stream);
+      },
+      onError: (Object error) {
+        if (said.isCompleted) return rest.addError(error);
+        timer.cancel();
+        said.complete(null);
+      },
+      onDone: () {
+        timer.cancel();
+        if (!said.isCompleted) said.complete(null);
+        unawaited(rest.close());
+      },
+    );
+    rest.onCancel = subscription.cancel;
+    return said.future;
+  }
+
+  /// With [tcp]: listens on a port of the loopback, and says it, with
+  /// [token], in [portPath], unless the session's daemon is there already.
+  Future<ServerSocket> _bindTcp(String token) async {
+    final file = File(portPath);
+    if (file.existsSync()) {
+      final port = int.tryParse(
+        file.readAsStringSync().trim().split(' ').first,
+      );
+      if (port != null) {
+        try {
+          final other = await Socket.connect(
+            InternetAddress.loopbackIPv4,
+            port,
+            timeout: const Duration(seconds: 2),
+          );
+          other.destroy();
+          throw const _AlreadyServed();
+        } on SocketException {
+          // Left behind: no one listens.
+        }
+      }
+    }
+    await file.parent.create(recursive: true);
+    final listener = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    // Written whole, then put in place: never read half.
+    final partial = File('$portPath.${_token().substring(0, 8)}');
+    await partial.writeAsString('${listener.port} $token', flush: true);
+    await partial.rename(portPath);
+    return listener;
   }
 
   static Future<void> _deleteSocket(String? path) async {

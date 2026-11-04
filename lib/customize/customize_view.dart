@@ -182,7 +182,7 @@ class CustomizeViewState extends State<CustomizeView> {
   };
 
   /// How paths are spelled where the customizations are.
-  p.Context get _paths => widget.store.isLocal ? p.context : p.posix;
+  p.Context get _paths => widget.store.paths;
 
   @override
   void dispose() {
@@ -1463,7 +1463,7 @@ class _CustomizationEditorState extends State<_CustomizationEditor> {
       readBytes: local
           ? readFileBytes
           : (path) => Future.error(UnsupportedError(path)),
-      pathContext: local ? p.context : p.posix,
+      pathContext: local ? p.context : widget.store.paths,
       // Its source's editor told, which keeps whether it is saved.
       onEdited: _text.syncFromDocument,
       // On the page, its text under the title's and off its right edge

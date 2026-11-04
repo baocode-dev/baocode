@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../platform/data_dir.dart';
 import 'file_service.dart';
+import 'host_paths.dart';
 
 export 'package:bao_remote/local.dart'
     show readFileBytes, walkProjectFiles, watchDirectory;
@@ -33,7 +34,10 @@ Future<void> uploadTo(
           if (entry is Link && await FileSystemEntity.isDirectory(entry.path)) {
             continue;
           }
-          await walk(entry.path, p.posix.join(to, p.basename(entry.path)));
+          await walk(
+            entry.path,
+            hostPathsFor(to).join(to, p.basename(entry.path)),
+          );
         }
       case FileSystemEntityType.file:
         copies.add((from: from, to: to));

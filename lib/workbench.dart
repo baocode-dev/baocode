@@ -155,6 +155,7 @@ import 'workspace/window_controls.dart';
 import 'workspace/window_header/window_header.dart';
 import 'workspace/workspace.dart';
 import 'workspace/workspace_dialog.dart';
+import 'ide/host_paths.dart';
 
 /// The window: the agents sidebar on the left, the selected agent's chat
 /// on the right, and up to three more beside it, dragged there from the
@@ -2337,7 +2338,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           ? doc.path
           : local
           ? p.basename(doc.path)
-          : p.posix.basename(doc.path),
+          : hostPathsFor(doc.path).basename(doc.path),
     );
     if (path != null) _workspace.addRecentFile(path);
     return path;
