@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import '../ide/terminal/terminal_colors.dart';
 import '../platform/app_platform.dart';
 import 'code_font.dart';
-import '../workspace/islands.dart' show IslandStyle;
-import 'island_tones.dart';
 import 'window_blur.dart';
 import 'workbench_theme.dart' hide ColorScheme;
 
@@ -26,23 +24,6 @@ abstract final class AppColors {
   /// `sideBar.background`: the side bar's color; the window's, the
   /// agents' window's about its cards too.
   static Color get background => _colors['sideBar.background'];
-
-  /// The least lightness between the faintest text and the cards: about
-  /// the island prototype's `--fg-3` (#878680 on #222221, 0.37); Bao
-  /// Dark's `disabledForeground` (0.34) as it is.
-  static const _faintStep = 0.33;
-
-  /// [color] taken from [from], darker if it is the darker (else
-  /// lighter), till their lightness is [step] apart; as it is if it is
-  /// already.
-  static Color _apart(Color color, Color from, double step) =>
-      _apartCache[(color, from, step)] ??= () {
-        final gap = IslandTones.lightness(color) - IslandTones.lightness(from);
-        if (gap.abs() >= step) return color;
-        return IslandTones.shift(color, gap <= 0 ? gap - step : step - gap);
-      }();
-
-  static final _apartCache = <(Color, Color, double), Color>{};
 
   /// Whether the window has the system's material under it, to show
   /// through the sidebar and the conversation: macOS (see
@@ -66,12 +47,9 @@ abstract final class AppColors {
   static double get _conversationTint => AppPlatform.isWindows11 ? 0.98 : 0.9;
 
   /// The sidebar's: [background] as a tint over the material, or opaque.
-  static Color get sidebarSurface => sidebarSurfaceOf(background);
-
-  /// [color] as the sidebar's tint over the material, or opaque.
-  static Color sidebarSurfaceOf(Color color) => usesSystemMaterial
-      ? color.withValues(alpha: color.a * _sidebarTint)
-      : color;
+  static Color get sidebarSurface => usesSystemMaterial
+      ? background.withValues(alpha: background.a * _sidebarTint)
+      : background;
 
   /// The conversation's: `editor.background`, as VS Code's agent sessions
   /// window has it; over the material a denser tint than the sidebar's.
@@ -115,48 +93,25 @@ abstract final class AppColors {
     return foreground.withValues(alpha: foreground.a * 0.1);
   }
 
-  /// The chat's message bubbles and its input: their fill ([bubbleFillIn])
-  /// a step towards the editor's text, so it stands out from them however
-  /// far they are from the page, tinged with [accent]; the input's when
-  /// typed into, a step on towards [accent]. Not the theme's border, which
-  /// may be of another hue (Solarized Dark's violet around its teal).
-  static Color bubbleBorderIn(BuildContext context, {bool focused = false}) {
+  /// The chat's message bubbles and its input: their fill ([bubbleFill]) a
+  /// step towards the editor's text, so it stands out from them however far
+  /// they are from the page, tinged with [accent]; the input's when typed
+  /// into, a step on towards [accent]. Not the theme's border, which may be
+  /// of another hue (Solarized Dark's violet around its teal).
+  static Color bubbleBorder({bool focused = false}) {
     final line = Color.lerp(
-      _towardsText(bubbleFillIn(context), 0.12),
+      _towardsText(bubbleFill, 0.12),
       accent.withValues(alpha: 1),
       0.03,
     )!;
     return focused ? Color.lerp(line, accent.withValues(alpha: 1), 0.2)! : line;
   }
 
-  /// The chat's message bubbles and its input, typed into or not: on an
-  /// island (the agents' window, see [IslandStyle]) the cards' raised
-  /// controls' color ([raised]); where the parts are not islands (the
-  /// IDE's chat), `agentsChatInput.background` over [code], as before them.
-  static Color bubbleFillIn(BuildContext context) => IslandStyle.of(context)
-      ? raised
-      : Color.alphaBlend(_colors['agentsChatInput.background'], code);
-
-  /// What is raised on a card (an input, the composer, the panels over
-  /// it): `input.background` over [code], half a step off it; not
-  /// `agentsChatInput.background`, a well some light themes sink far under
-  /// it. A dark theme's input sunk in the card (Bao Dark's) the card a step
-  /// lighter instead.
-  static Color get raised {
-    final card = code;
-    final input = Color.alphaBlend(_colors['input.background'], card);
-    if (!_colors.dark ||
-        IslandTones.lightness(input) > IslandTones.lightness(card)) {
-      return input;
-    }
-    return _raisedCache[card] ??= IslandTones.shift(card, _raisedStep);
-  }
-
-  /// How far [raised] is over a dark card where the theme's input is not:
-  /// Bao Dark's input over its card as the islands had them (#282827 on
-  /// #222221).
-  static const _raisedStep = 0.025;
-  static final _raisedCache = <Color, Color>{};
+  /// The chat's message bubbles and its input, typed into or not, in the
+  /// agents' window and the IDE alike: `agentsChatInput.background` over
+  /// [code].
+  static Color get bubbleFill =>
+      Color.alphaBlend(_colors['agentsChatInput.background'], code);
 
   /// A row hovered on a [bubbleFill] panel: the text's color faintly over
   /// it, lighter on a dark one, darker on a light one, of its hue (a
@@ -192,10 +147,8 @@ abstract final class AppColors {
   /// `descriptionForeground`.
   static Color get textMuted => _colors['descriptionForeground'];
 
-  /// `disabledForeground`, at least [_faintStep] from the cards: Bao
-  /// Light's (#AEADA8 on #FCFBFA) hardly reads.
-  static Color get textFaint =>
-      _apart(_colors['disabledForeground'], code, _faintStep);
+  /// `disabledForeground`.
+  static Color get textFaint => _colors['disabledForeground'];
 
   /// The theme's own `textLink.foreground`, else its `focusBorder`: links
   /// in the theme's color, not the registry's blue, in a theme that sets

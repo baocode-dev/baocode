@@ -131,9 +131,9 @@ class _ActivityStripState extends State<ActivityStrip> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: AppColors.bubbleFillIn(context),
+        color: AppColors.bubbleFill,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.bubbleBorderIn(context)),
+        border: Border.all(color: AppColors.bubbleBorder()),
       ),
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Column(
