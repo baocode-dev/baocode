@@ -779,10 +779,13 @@ class RemoteClient {
     String? locale,
     String? version,
     String? nonce,
+    Map<String, String>? environment,
   }) async {
     final started = _map(
       await peer.request(RemoteProtocol.ptyStart, {
         'cwd': cwd,
+        if (environment != null && environment.isNotEmpty)
+          'environment': environment,
         'columns': columns,
         'rows': rows,
         'shellIntegration': shellIntegration,
@@ -863,12 +866,16 @@ class RemoteClient {
   // --- Port forwarding -------------------------------------------------------
 
   /// A port there whose connections go to [localPort] here (on
-  /// [localHost]).
+  /// [localHost]): [remotePort], when given (failing where it is taken),
+  /// else any.
   Future<RemoteForward> forward(
     int localPort, {
     String localHost = '127.0.0.1',
+    int? remotePort,
   }) async {
-    final result = _map(await peer.request(RemoteProtocol.tcpListen));
+    final result = _map(
+      await peer.request(RemoteProtocol.tcpListen, {'port': ?remotePort}),
+    );
     final id = result['id'] as int;
     final forward = RemoteForward._(this, id, result['port'] as int, localPort);
     _forwards[id] = forward;
@@ -877,6 +884,10 @@ class RemoteClient {
   }
 
   final Map<int, String> _localHosts = {};
+
+  /// The ports there forwarded here ([forward]).
+  Iterable<int> get forwardedPorts =>
+      _forwards.values.map((forward) => forward.remotePort);
 
   /// A connection to [port] of the remote host (on its [host]).
   Future<RemoteTunnel> connectTcp(int port, {String host = '127.0.0.1'}) async {

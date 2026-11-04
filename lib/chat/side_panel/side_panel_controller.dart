@@ -66,7 +66,16 @@ class SidePanelTab {
 /// commands; and the plan the agent wrote, alone, while there is one.
 /// The usage page: what the conversation took of its upstream (see
 /// lib/usage/).
-enum SidePanelSection { files, changes, terminal, usage, plan }
+enum SidePanelSection {
+  files,
+  changes,
+  terminal,
+  usage,
+  plan,
+
+  /// An SSH project's ports forwarded (see PortsView).
+  ports,
+}
 
 /// How the agent window lays out, from its left: the sidebar (the
 /// conversations' list), the conversations, the side panel. Each of the
@@ -145,7 +154,9 @@ class SidePanelTabs {
   SidePanelTab? get current => switch (section) {
     SidePanelSection.files => active,
     SidePanelSection.changes => activeDiff,
-    SidePanelSection.terminal || SidePanelSection.usage => null,
+    SidePanelSection.terminal ||
+    SidePanelSection.usage ||
+    SidePanelSection.ports => null,
     SidePanelSection.plan => plan,
   };
 }
@@ -801,7 +812,9 @@ class AgentSidePanel extends ChangeNotifier {
           SidePanelSection.plan:
         if (tabs.current case final tab?) return close(conversation, tab);
       // Its tabs are the terminals themselves, killed by their own Close.
-      case SidePanelSection.terminal || SidePanelSection.usage:
+      case SidePanelSection.terminal ||
+          SidePanelSection.usage ||
+          SidePanelSection.ports:
         break;
     }
     hide();

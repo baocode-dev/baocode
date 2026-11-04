@@ -8632,5 +8632,68 @@
   "ustatUpstreamRates": "Upstream rates",
   "ustatUpstreamRatesDetail": "The models of these upstreams without a price of their own: the same model's price elsewhere, times the rate.",
   "ustatUpstreamRateClear": "Clear the rate",
-  "ustatContextUnpickHint": "Click again to unpick: back to the context as it is now"
+  "ustatContextUnpickHint": "Click again to unpick: back to the context as it is now",
+  "localRunTitle": "Run on this computer",
+  "localRunReason": "The agent on {host} wants to run this command on your computer ({system}), not on {host}.",
+  "@localRunReason": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "system": {
+        "type": "String"
+      }
+    }
+  },
+  "localRunAlways": "Always allow for {host}",
+  "@localRunAlways": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteLocalAccess": "Allow Remote Agents to Act on This Computer",
+  "remoteLocalAccessDetail": "Its agents may run commands on this computer (asking you each time), copy files here and there and forward ports.",
+  "sidePanelPorts": "Ports",
+  "portsEmpty": "No ports are forwarded. A server on {host} that prints its http://localhost address is forwarded here on its own.",
+  "@portsEmpty": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsAdd": "Forward a Port",
+  "portsCopy": "Copy Address",
+  "portsOpen": "Open in Browser",
+  "portsStop": "Stop Forwarding",
+  "portsHostToHere": "{host} → this computer",
+  "@portsHostToHere": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsHereToHost": "This computer → {host}",
+  "@portsHereToHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "portsAuto": "Auto",
+  "portsPort": "Port",
+  "portsListen": "Listen on (optional)",
+  "portsForward": "Forward",
+  "portsCopied": "Copied {address}",
+  "@portsCopied": {
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  }
 }

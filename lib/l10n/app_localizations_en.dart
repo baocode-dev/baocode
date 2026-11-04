@@ -13566,4 +13566,71 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ustatContextUnpickHint =>
       'Click again to unpick: back to the context as it is now';
+
+  @override
+  String get localRunTitle => 'Run on this computer';
+
+  @override
+  String localRunReason(String host, String system) {
+    return 'The agent on $host wants to run this command on your computer ($system), not on $host.';
+  }
+
+  @override
+  String localRunAlways(String host) {
+    return 'Always allow for $host';
+  }
+
+  @override
+  String get remoteLocalAccess => 'Allow Remote Agents to Act on This Computer';
+
+  @override
+  String get remoteLocalAccessDetail =>
+      'Its agents may run commands on this computer (asking you each time), copy files here and there and forward ports.';
+
+  @override
+  String get sidePanelPorts => 'Ports';
+
+  @override
+  String portsEmpty(String host) {
+    return 'No ports are forwarded. A server on $host that prints its http://localhost address is forwarded here on its own.';
+  }
+
+  @override
+  String get portsAdd => 'Forward a Port';
+
+  @override
+  String get portsCopy => 'Copy Address';
+
+  @override
+  String get portsOpen => 'Open in Browser';
+
+  @override
+  String get portsStop => 'Stop Forwarding';
+
+  @override
+  String portsHostToHere(String host) {
+    return '$host → this computer';
+  }
+
+  @override
+  String portsHereToHost(String host) {
+    return 'This computer → $host';
+  }
+
+  @override
+  String get portsAuto => 'Auto';
+
+  @override
+  String get portsPort => 'Port';
+
+  @override
+  String get portsListen => 'Listen on (optional)';
+
+  @override
+  String get portsForward => 'Forward';
+
+  @override
+  String portsCopied(String address) {
+    return 'Copied $address';
+  }
 }

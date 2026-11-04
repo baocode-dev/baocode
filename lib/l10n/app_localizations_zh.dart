@@ -12817,4 +12817,71 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ustatContextUnpickHint => '再次点击取消选中，回到当前上下文';
+
+  @override
+  String get localRunTitle => '在本机执行';
+
+  @override
+  String localRunReason(String host, String system) {
+    return '$host 上的 agent 要在你的电脑（$system）上执行这条命令，不是在 $host 上执行。';
+  }
+
+  @override
+  String localRunAlways(String host) {
+    return '这台主机一直允许';
+  }
+
+  @override
+  String get remoteLocalAccess => '允许远程 agent 操作本机';
+
+  @override
+  String get remoteLocalAccessDetail =>
+      '它的 agent 可以在本机执行命令（每次都会问你）、在两边之间传文件、转发端口。';
+
+  @override
+  String get sidePanelPorts => '端口';
+
+  @override
+  String portsEmpty(String host) {
+    return '还没有转发的端口。$host 上的服务打印出 http://localhost 地址时，会自动转发到本机。';
+  }
+
+  @override
+  String get portsAdd => '转发端口';
+
+  @override
+  String get portsCopy => '复制地址';
+
+  @override
+  String get portsOpen => '在浏览器打开';
+
+  @override
+  String get portsStop => '停止转发';
+
+  @override
+  String portsHostToHere(String host) {
+    return '$host → 本机';
+  }
+
+  @override
+  String portsHereToHost(String host) {
+    return '本机 → $host';
+  }
+
+  @override
+  String get portsAuto => '自动';
+
+  @override
+  String get portsPort => '端口';
+
+  @override
+  String get portsListen => '监听端口（可选）';
+
+  @override
+  String get portsForward => '转发';
+
+  @override
+  String portsCopied(String address) {
+    return '已复制 $address';
+  }
 }
