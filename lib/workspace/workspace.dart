@@ -150,6 +150,16 @@ class AgentThread {
 
   bool get isOpen => _session != null;
 
+  /// Its kept session was talked in elsewhere (in a terminal) since it was
+  /// read here, its conversation idle: to be read anew (see
+  /// [Workspace.reload]).
+  bool get goneOnElsewhere => _goneOnElsewhere;
+  bool _goneOnElsewhere = false;
+
+  /// Since when its conversation here has been idle: what is said in its
+  /// session after that is said elsewhere. Null while it runs.
+  DateTime? _quietSince;
+
   /// Its session's id: none for a new agent until its first message.
   String? get id => (isOpen ? session.sessionId : null) ?? record?.id;
   String? get _id => id;
@@ -413,6 +423,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   Future<void> _refresh() async {
     if (_loading) return;
     final before = _threads.length;
+    var goneOn = false;
     for (final kernel in kernels) {
       final List<ProjectRecord> records;
       try {
@@ -430,11 +441,67 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
             ..insert(0, project);
         }
         for (final session in record.sessions) {
+          if (_noteGoneOn(session)) goneOn = true;
           _addKept(kernel, project, session);
         }
       }
     }
-    if (_threads.length != before) notifyListeners();
+    if (_threads.length != before || goneOn) notifyListeners();
+  }
+
+  /// A message of the conversation's own may be timed a moment after its
+  /// turn is seen to end.
+  static const _ownMessageLag = Duration(seconds: 5);
+
+  /// Notes the conversation of [record] that was talked in elsewhere since
+  /// it was read here (see [AgentThread.goneOnElsewhere]); whether one
+  /// newly was.
+  bool _noteGoneOn(SessionRecord record) {
+    var noted = false;
+    for (final thread in _threads) {
+      if (thread.record?.id != record.id || thread._goneOnElsewhere) continue;
+      final quiet = thread._quietSince;
+      if (thread.isOpen &&
+          quiet != null &&
+          record.updatedAt.isAfter(quiet.add(_ownMessageLag))) {
+        thread._goneOnElsewhere = true;
+        noted = true;
+      }
+    }
+    return noted;
+  }
+
+  /// Whether [thread]'s kept session can be read anew now: not while its
+  /// agent is at work or waits on the user, what they would lose.
+  bool canReload(AgentThread thread) =>
+      !_disposed &&
+      thread.record != null &&
+      thread.isOpen &&
+      _threads.contains(thread) &&
+      !thread.session.isStreaming &&
+      thread.session.pendingInteraction == null;
+
+  /// Reads [thread]'s kept session anew, in its place: what was said in it
+  /// elsewhere since it was read here (gone on with in a terminal) shows.
+  /// The thread stays the same, its marks, draft and place with it; only
+  /// its conversation is opened again, the one before stopped.
+  void reload(AgentThread thread) {
+    if (!canReload(thread)) return;
+    final was = thread.session;
+    // What is typed and not yet saved goes on in the conversation read anew
+    // (none where it was never typed in, e.g. followed from the phone).
+    if (was.draft.content != null) _draftChanged(thread);
+    if (_listeners.remove(thread) case final listener?) {
+      was.removeListener(listener);
+    }
+    thread._session = null;
+    thread._goneOnElsewhere = false;
+    // Opened anew, and listened to (see [_listen]).
+    thread.session;
+    was
+      ..stop()
+      ..dispose();
+    notifyListeners();
   }
 
   /// Opens [path] as a project (if not yet) and a new agent in it.
@@ -2722,6 +2789,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     // Named while closed: its CLI keeps the name once running.
     if (_names[thread.record?.id] case final name?) thread.session.rename(name);
     _followDraft(thread);
+    thread._quietSince = DateTime.now();
     void listener() => _sync(thread);
     _listeners[thread] = listener;
     thread.session.addListener(listener);
@@ -2734,6 +2802,12 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (!_threads.contains(thread)) return;
     final session = thread.session;
     _noteLimit(thread);
+    if (session.isStreaming) {
+      thread._quietSince = null;
+      thread._goneOnElsewhere = false;
+    } else {
+      thread._quietSince ??= DateTime.now();
+    }
     // Renamed in Claude Code (/rename): named so here too.
     if (session.takeRenamed() case final title?) rename(thread, title);
     // An agent of the app's own (a bot's) is named by it, not by what it

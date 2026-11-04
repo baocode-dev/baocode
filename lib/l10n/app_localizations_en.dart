@@ -2317,6 +2317,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatLoadEarlier => 'Load earlier messages';
 
   @override
+  String get chatReload => 'Reload (continued elsewhere)';
+
+  @override
   String get chatStop => 'Stop';
 
   @override
