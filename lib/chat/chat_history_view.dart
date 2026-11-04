@@ -1768,7 +1768,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// How deep the list's top fade is: less under a row, which keeps it
   /// apart from what is above already ([ChatHistoryView.underTitle]).
-  double get _topFade => widget.underTitle ? 12 : 32;
+  double get _topFade => widget.underTitle ? 24 : 32;
 
   /// Which copies are built is settled after layout, with the items where
   /// the scroll put them: a frame late, but ready before any scroll brings
