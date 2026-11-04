@@ -16,8 +16,8 @@ enum ClaudeCore {
   static const settingKey = 'claudeCode.core';
 
   /// When the setting is unset, or not one of these: the CLI where Claude
-  /// Code is on this machine, else the built-in core (which suggests the
-  /// CLI, see ClaudeCoreHint): nothing is downloaded unasked.
+  /// Code is on this machine, else the built-in core. Nothing is downloaded
+  /// unasked, nor the CLI suggested.
   static ClaudeCore get fallback => cliInstalled() ? cli : builtin;
 
   /// Whether Claude Code is on this machine, as last looked; main() points
@@ -34,10 +34,6 @@ enum ClaudeCore {
   /// Told as the setting may have changed; main() points it at
   /// settings.json.
   static Listenable changes = const _Never();
-
-  /// Keeps [core] as the setting, for the sessions to come; main() points
-  /// it at settings.json.
-  static Future<void> Function(ClaudeCore core) pick = (_) async {};
 
   /// Why [builtin] has nothing to run on: no upstream turned on.
   static const noModel =

@@ -2453,7 +2453,7 @@
   "@generalSettingsClaudeCore": {
     "description": "Settings → General → Claude Code row: what runs Claude Code sessions, BaoCode's built-in core (written in Dart) or the Claude Code CLI."
   },
-  "generalSettingsClaudeCoreDescription": "Claude Code CLI: Anthropic's own program, with this machine's sign-in and setup; pick it to use a Claude subscription. Built-in: comes with BaoCode, and uses only the models added in Settings → Models. The CLI is the default, downloaded for you if this machine has none. Changes apply to new sessions.",
+  "generalSettingsClaudeCoreDescription": "Claude Code CLI: Anthropic's own program, with this machine's sign-in and setup; pick it to use a Claude subscription. Built-in: comes with BaoCode, and uses only the models added in Settings → Models. By default, the CLI where this machine has Claude Code, else the built-in core; the CLI, picked where there is none, is downloaded for you. Changes apply to new sessions.",
   "generalSettingsClaudeCoreBuiltin": "Built-in",
   "@generalSettingsClaudeCoreBuiltin": {
     "description": "Claude Code core choice: BaoCode's own agent core, written in Dart and run inside the app."
@@ -4392,7 +4392,7 @@
       }
     }
   },
-  "claudePathMissing": "None found yet: Claude Code is downloaded as the first conversation starts.",
+  "claudePathMissing": "None found yet: with the Claude Code CLI picked, it is downloaded as the first conversation starts.",
   "generalSettingsIdeWindows": "Fast Ide Windows",
   "generalSettingsIdeWindowsDescription": "Where the Fast Ide opens: in the main window in place of the chat, one folder at a time, or in windows of its own, one per folder (New Window, ⇧⌘N / Ctrl+Shift+N, opens an empty one). Applies at once. (window.ideWindows)",
   "generalSettingsIdeWindowsSeparate": "Separate windows",
@@ -7351,9 +7351,6 @@
   "modelWelcomeStart": "Start Chatting",
   "healthNoModel": "Pick a model to start: add an upstream and its models are ready to use.",
   "modelSetUp": "Set Up a Model",
-  "claudeCoreHint": "This chat runs on BaoCode's built-in core. We recommend the Claude Code core for the fullest experience; it's downloaded for you if needed.",
-  "claudeCoreHintSwitch": "Switch to Claude Code",
-  "claudeCoreHintLater": "Not Now",
   "remoteAddServer": "Add SSH Server...",
   "remoteEditServer": "Edit",
   "settingsSectionSsh": "SSH Servers",

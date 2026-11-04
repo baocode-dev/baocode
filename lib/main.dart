@@ -522,14 +522,12 @@ void followSettingsFiles(SettingsFiles files) {
   // Settings → General → Claude Code: the core sessions run on (BaoCode's
   // own, or the CLI), read as each agent starts. Unset, the CLI where it
   // is installed (looked for on the app's PATH, then the shell's), else
-  // the built-in core, which suggests the CLI.
+  // the built-in core.
   ClaudeCore.cliInstalled = localClaudeInstalled;
   unawaited(lookForLocalClaude());
   ClaudeCore.current = () =>
       ClaudeCore.parse(files.settings[ClaudeCore.settingKey]);
   ClaudeCore.changes = files.settings;
-  ClaudeCore.pick = (core) =>
-      files.settings.update(ClaudeCore.settingKey, core.name);
   // Settings → Models: the upstreams, kept in settings.json.
   ModelProviders.current = ModelProviders.settings(files.settings);
   // Claude Code's own models as it last listed them: in the picker
