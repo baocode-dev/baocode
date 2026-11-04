@@ -713,7 +713,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
       ),
       _ => LiveStatusItem(
         'Planning next move',
-        whimsical: true,
+        whimsical: false,
         visible: _statusVisible,
         output: output,
         startedAt: _transcript.turnStartedAt,

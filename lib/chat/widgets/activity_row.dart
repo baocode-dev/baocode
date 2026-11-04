@@ -104,7 +104,9 @@ class ActivityRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Reveal(visible: visible, child: _row(context.l10n));
+    return RepaintBoundary(
+      child: _Reveal(visible: visible, child: _row(context.l10n)),
+    );
   }
 
   Widget _row(AppLocalizations l10n) {
@@ -255,8 +257,8 @@ class _MusingState extends State<_Musing> {
   static const _blink = 500;
   static const _rest = _blink * 3 ~/ 2;
 
-  /// A dot every step, three to a round, faded out at its end.
-  static const _dotStep = 400;
+  /// A dot every second (1 Hz), three to a round.
+  static const _dotStep = 1000;
   static const _dotFade = 140;
   static const _round = _dotStep * 4;
   static const _rounds = 2;
@@ -282,9 +284,7 @@ class _MusingState extends State<_Musing> {
   List<int> _typed = const [];
   bool _still = false;
 
-  // A step each of the shared clock's frames, not every vsync: on a 170Hz
-  // screen that would draw the window 170 times a second, all the while
-  // the agent works.
+  // A step each frame of the clock, but redrawing ONLY when visible text/dots change.
   final StepClock _clock = StepClock(StepClock.frame);
 
   /// The clock's time when the phrase began.
@@ -454,8 +454,6 @@ class _MusingState extends State<_Musing> {
   /// The caret after the last letter typed, gliding on from the one before.
   double _caretX(double t) {
     if (_carets.isEmpty) return 0;
-    // Laid out for the phrase before until the next frame builds: none come
-    // while the window is hidden, though the clock goes on.
     if (_carets.length != _typed.length + 1) return _carets.last;
     final last = _typed.lastIndexWhere((at) => at <= t);
     return last < 0
@@ -467,29 +465,23 @@ class _MusingState extends State<_Musing> {
                   );
   }
 
-  /// Fading in at the start, then steady while it types, then blinking at
-  /// its rest, on for half of each blink, its edges soft.
+  /// Caret blinking at its rest, without intermediate frames.
   double _caretOpacity(double t) {
     final resting = t - (_dotsAt - _rest);
     final blink = resting % _blink;
-    return _unit(t / 80) *
-        (resting < 0
-            ? 1
-            : blink < _blink / 2
-            ? _unit((_blink / 2 - blink) / 60)
-            : _unit((blink - (_blink - 60)) / 60));
+    return resting < 0 ? 1.0 : (blink < _blink / 2 ? 1.0 : 0.0);
   }
 
-  /// What shows [t] ms in, as finely as the eye tells: opacities in 64ths,
-  /// the caret's place in half pixels. A frame that shows the same as the
+  /// What shows [t] ms in: quantizing opacities coarsely (0 or 1 at 0.5 threshold)
+  /// and caret position in full pixels. A frame that shows the same as the
   /// last is not drawn.
   List<int> _lookAt(double t) {
-    int seen(double opacity) => (opacity * 64).round();
+    int seen(double opacity) => opacity > 0.5 ? 1 : 0;
     final fade = _fadeAt(t);
     return [
       for (var i = 0; i < _phrase.length; i++) seen(fade * _letterAt(i, t)),
       for (var k = 0; k < _dots.length; k++) seen(fade * _dotAt(k, t)),
-      if (_caretShown(t)) ...[(_caretX(t) * 2).round(), seen(_caretOpacity(t))],
+      if (_caretShown(t)) ...[(_caretX(t)).round(), seen(_caretOpacity(t))],
     ];
   }
 
