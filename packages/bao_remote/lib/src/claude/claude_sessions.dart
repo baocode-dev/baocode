@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -141,9 +142,32 @@ class ClaudeSessions {
     required int turns,
     String? before,
     int bytes = pageBytes,
-  }) => Isolate.run(
-    () => _page(_branch(path), turns: turns, before: before, bytes: bytes),
-  );
+  }) async {
+    final kept = _linesKept[path];
+    final (lines, page) = await Isolate.run(() {
+      final file = File(path).openSync();
+      try {
+        final lines =
+            (kept == null ? null : _Lines.readOn(file, kept)) ??
+            _Lines.readOn(file, null)!;
+        final branch = _Branch(file, lines);
+        return (
+          lines,
+          _page(branch, turns: turns, before: before, bytes: bytes),
+        );
+      } finally {
+        file.closeSync();
+      }
+    });
+    _linesKept
+      ..remove(path)
+      ..[path] = lines;
+    if (_linesKept.length > 8) _linesKept.remove(_linesKept.keys.first);
+    return page;
+  }
+
+  /// The lines of the sessions whose pages were read last (see [_Lines]).
+  static final _linesKept = <String, _Lines>{};
 
   /// How much a page of [readPage] comes to, about.
   static const pageBytes = 512 * 1024;
@@ -840,7 +864,7 @@ List<Map<String, Object?>> _branch(String path) {
 /// page has how the goal stood all along: it is worked out from every
 /// record, which no other page has then.
 ClaudeHistoryPage _page(
-  List<Map<String, Object?>> branch, {
+  _Branch branch, {
   required int turns,
   required int bytes,
   String? before,
@@ -848,7 +872,7 @@ ClaudeHistoryPage _page(
   var end = branch.length;
   if (before != null) {
     // Gone, the session rewound meanwhile: nothing more before it.
-    end = branch.indexWhere((entry) => entry['uuid'] == before);
+    end = branch.indexOfId(before);
     if (end < 0) return const ClaudeHistoryPage([]);
   }
   var start = 0;
@@ -875,12 +899,176 @@ ClaudeHistoryPage _page(
       break;
     }
   }
-  bool isGoal(Map<String, Object?> entry) => entry['type'] == 'attachment';
   return ClaudeHistoryPage([
-    if (before == null) ...branch.take(start).where(isGoal),
-    for (final entry in branch.sublist(start, end))
-      if (before == null || !isGoal(entry)) entry,
-  ], earlier: start > 0 ? branch[start]['uuid'] as String? : null);
+    if (before == null)
+      for (var i = 0; i < start; i++)
+        if (branch.isGoalAt(i)) branch[i],
+    for (var i = start; i < end; i++)
+      if (before == null || !branch.isGoalAt(i)) branch[i],
+  ], earlier: start > 0 ? branch.idAt(start) : null);
+}
+
+/// A session file's lines as its pages are read (see
+/// [ClaudeSessions.readPage]): where each is, and what of it places it in
+/// the conversation. Kept between pages, and read on from [scanned] once
+/// the file has grown, as [_Summary] is: every page of a long session read
+/// the whole of it again (hundreds of MB, decoded line by line), to show a
+/// few hundred KB of it.
+class _Lines {
+  _Lines();
+
+  final starts = <int>[];
+  final ends = <int>[];
+
+  /// [_keptLine], [_sidechain], [_goal].
+  final kinds = <int>[];
+  final ids = <String?>[];
+
+  /// `parentUuid`, else `logicalParentUuid` (across a compaction).
+  final parents = <String?>[];
+
+  /// To the end of the last line read whole; [mark], the bytes before it
+  /// (see [_Summary.scanned]).
+  var scanned = 0;
+  var mark = Uint8List(0);
+
+  static const _keptLine = 1;
+  static const _sidechain = 2;
+  static const _goal = 4;
+
+  static final _json = utf8.decoder.fuse(json.decoder);
+
+  /// The line at [start] to [end] of [bytes]; null when it does not read.
+  static Map<String, Object?>? _decode(Uint8List bytes, int start, int end) {
+    if (end <= start) return null;
+    try {
+      final entry = _json.convert(Uint8List.sublistView(bytes, start, end));
+      return entry is Map ? entry.cast<String, Object?>() : null;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// [kept] (changed), with the lines [file] has after it; all its lines
+  /// when null. Null when it was not only appended to since.
+  static _Lines? readOn(RandomAccessFile file, _Lines? kept) {
+    final mark = kept?.mark ?? Uint8List(0);
+    final scanned = kept?.scanned ?? 0;
+    final from = scanned - mark.length;
+    final length = file.lengthSync();
+    if (from < 0 || length < scanned) return null;
+    file.setPositionSync(from);
+    final bytes = file.readSync(length - from);
+    if (bytes.length < mark.length) return null;
+    for (var i = 0; i < mark.length; i++) {
+      if (bytes[i] != mark[i]) return null;
+    }
+    final lines = kept ?? _Lines();
+    var at = mark.length;
+    var done = at;
+    while (at < bytes.length) {
+      var end = bytes.indexOf(0x0a, at);
+      final whole = end >= 0;
+      if (!whole) end = bytes.length;
+      final entry = _decode(bytes, at, end);
+      // Written halfway: read next time, whole.
+      if (!whole && entry == null) break;
+      if (entry != null) {
+        final parent = entry['parentUuid'] ?? entry['logicalParentUuid'];
+        lines.starts.add(from + at);
+        lines.ends.add(from + end);
+        lines.ids.add(entry['uuid'] is String ? entry['uuid'] as String : null);
+        lines.parents.add(parent is String ? parent : null);
+        lines.kinds.add(
+          (_kept(entry) ? _keptLine : 0) |
+              (entry['isSidechain'] == true ? _sidechain : 0) |
+              (_kept(entry) && entry['type'] == 'attachment' ? _goal : 0),
+        );
+      }
+      at = done = whole ? end + 1 : end;
+    }
+    lines
+      ..scanned = from + done
+      ..mark = Uint8List.fromList(
+        Uint8List.sublistView(
+          bytes,
+          math.max(0, done - _Summary._markLength),
+          done,
+        ),
+      );
+    return lines;
+  }
+
+  /// The lines along the branch that ends with the last message, oldest
+  /// first, as [_branch] has them.
+  List<int> branch() {
+    final byId = <String, int>{for (var i = 0; i < ids.length; i++) ?ids[i]: i};
+    int? leaf;
+    for (var i = kinds.length - 1; i >= 0; i--) {
+      if (kinds[i] & (_keptLine | _sidechain) == _keptLine && ids[i] != null) {
+        leaf = i;
+        break;
+      }
+    }
+    final rows = <int>[];
+    final seen = <String>{};
+    for (var row = leaf; row != null;) {
+      if (!seen.add(ids[row]!)) break;
+      rows.add(row);
+      row = switch (parents[row]) {
+        final parent? => byId[parent],
+        null => null,
+      };
+    }
+    return [
+      for (final row in rows.reversed)
+        if (kinds[row] & _keptLine != 0) row,
+    ];
+  }
+
+  /// Line [row], read from [file].
+  Map<String, Object?> entry(RandomAccessFile file, int row) {
+    file.setPositionSync(starts[row]);
+    final bytes = file.readSync(ends[row] - starts[row]);
+    return _decode(bytes, 0, bytes.length) ?? const {};
+  }
+}
+
+/// The conversation along the branch [_Lines.branch] gives, each line read
+/// only once asked for: a page is a few hundred of thousands.
+class _Branch extends ListBase<Map<String, Object?>> {
+  _Branch(this._file, this._lines) : _rows = _lines.branch();
+
+  final RandomAccessFile _file;
+  final _Lines _lines;
+  final List<int> _rows;
+  final _read = <int, Map<String, Object?>>{};
+
+  @override
+  int get length => _rows.length;
+
+  @override
+  set length(int length) => throw UnsupportedError('A branch as it is');
+
+  @override
+  Map<String, Object?> operator [](int index) =>
+      _read[index] ??= _lines.entry(_file, _rows[index]);
+
+  @override
+  void operator []=(int index, Map<String, Object?> entry) =>
+      _read[index] = entry;
+
+  String? idAt(int index) => _lines.ids[_rows[index]];
+
+  /// Whether line [index] is how the goal stood (see [_kept]).
+  bool isGoalAt(int index) => _lines.kinds[_rows[index]] & _Lines._goal != 0;
+
+  int indexOfId(String id) {
+    for (var i = 0; i < _rows.length; i++) {
+      if (_lines.ids[_rows[i]] == id) return i;
+    }
+    return -1;
+  }
 }
 
 /// Whether [entry] is the user beginning a turn.

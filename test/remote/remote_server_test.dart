@@ -662,6 +662,46 @@ printf '%s\n' "$line"
         );
         expect(gone.entries, isEmpty);
         expect(gone.earlier, isNull);
+
+        // Grown since its pages were read: what came is on the last page,
+        // and those before read as they did.
+        final file = File(p.join(sessions.path, 'long.jsonl'));
+        final written = lines.length;
+        add('u6', {
+          'type': 'user',
+          'cwd': root,
+          'timestamp': '2026-10-01T10:06:00Z',
+          'message': {'role': 'user', 'content': 'Turn 6'},
+        });
+        add('a6', {
+          'type': 'assistant',
+          'message': {'role': 'assistant', 'content': 'Done 6'},
+        });
+        file.writeAsStringSync(
+          '\n${lines.skip(written).map(jsonEncode).join('\n')}',
+          mode: FileMode.append,
+        );
+        final grown = await client().claudeHistoryPage(path, turns: 2);
+        expect(ids(grown), [
+          'g1', 'g2', //
+          'u5', 'c5', 'r5', 'a5', 'u6', 'a6',
+        ]);
+        expect(grown.earlier, 'u5');
+        final beforeGrown = await client().claudeHistoryPage(
+          path,
+          turns: 1,
+          before: grown.earlier,
+        );
+        expect(ids(beforeGrown), ['u4', 'c4', 'r4', 'a4']);
+
+        // Written over, shorter: read whole again.
+        file.writeAsStringSync(lines.take(9).map(jsonEncode).join('\n'));
+        final over = await client().claudeHistoryPage(path, turns: 10);
+        expect(ids(over), [
+          'u1', 'c1', 'r1', 'a1', 'g1', //
+          'u2', 'c2', 'r2', 'a2',
+        ]);
+        expect(over.entries, await client().claudeHistory(path));
       },
     );
 
