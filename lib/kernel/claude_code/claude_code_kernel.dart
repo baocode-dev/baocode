@@ -2768,9 +2768,11 @@ class ClaudeCodeKernel
   @override
   void emit(KernelEvent event) {
     super.emit(event);
-    if (event case ItemUpserted(
-      item: ToolCallItem(kind: ToolKind.command, :final output?),
-    ) when output.isNotEmpty) {
+    if (event
+        case ItemUpserted(
+          item: ToolCallItem(kind: ToolKind.command, :final output?),
+        )
+        when output.isNotEmpty) {
       if (_remoteHost case final host? when !RemoteLocation.isWsl(host)) {
         PortForwards.instance.notice(host, output);
       }
