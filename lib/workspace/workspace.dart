@@ -596,6 +596,79 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     );
   }
 
+  /// Reads [thread]'s kept session anew: its file was written to since it
+  /// was opened (the conversation went on in a terminal), and only what it
+  /// held when opened is shown. Its conversation is replaced by a fresh
+  /// one reading the same session, everywhere the thread was. Nothing
+  /// where its agent is at work: what it writes next would be lost.
+  void reload(AgentThread thread) {
+    final record = thread.record;
+    if (record == null ||
+        _disposed ||
+        !_threads.contains(thread) ||
+        thread.isOpen && (thread.session.isStreaming ||
+            thread.session.pendingInteraction != null)) {
+      return;
+    }
+    final kernel = thread.kernel;
+    ChatSession open() => ChatSession(
+      kernel: kernel,
+      kernels: kernels,
+      kernelContext: KernelContext(
+        cwd: record.cwd,
+        resume: record,
+        settings: _setUp(record.cwd, {
+          ..._preferredSettings,
+          ...?_agentSettings[record.id],
+        }),
+        workspace: () => _kernelWorkspace(record.cwd),
+      ),
+      historyCount: 0,
+    );
+    final fresh = AgentThread._(
+      project: thread.project,
+      kernel: kernel,
+      record: record,
+      title: thread._title,
+      updatedAt: thread.updatedAt,
+      pinned: thread.pinned,
+      archived: thread.archived,
+      open: open,
+    );
+    // A draft half-written goes on with the conversation it was for, and
+    // what the thread's marks kept of it.
+    fresh._named = thread._named;
+    if (thread.isOpen) {
+      final was = thread.session;
+      fresh._session = open();
+      final listener = _listeners.remove(thread);
+      if (listener != null) was.removeListener(listener);
+      _snapshots.remove(thread);
+      _turnsRun.remove(thread);
+      _draftKeys.remove(thread);
+      // The same conversation read anew, everywhere it was.
+      _threads[_threads.indexOf(thread)] = fresh;
+      _grid.swap(thread, fresh);
+      for (final tabs in _ideChats.values) {
+        for (var i = 0; i < tabs.length; i++) {
+          if (identical(tabs[i], thread)) tabs[i] = fresh;
+        }
+      }
+      for (final folder in _ideChats.keys.toList()) {
+        if (identical(_ideChatShown[folder], thread)) {
+          _ideChatShown[folder] = fresh;
+        }
+      }
+      if (identical(_selected, thread)) _selected = fresh;
+      _listen(fresh); // Keeps its draft, as the old one is not disposed.
+      was.stop();
+      Future.microtask(was.dispose);
+    } else {
+      _threads[_threads.indexOf(thread)] = fresh;
+    }
+    notifyListeners();
+  }
+
   // --- Mock ------------------------------------------------------------------
 
   /// Sample projects and agents at various ages and states, on the

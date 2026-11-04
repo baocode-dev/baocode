@@ -4727,6 +4727,19 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             size: 22,
           ),
         ),
+        // A conversation kept by the agent (gone on with in a terminal):
+        // reading its session anew is what shows what was said since.
+        if (thread.record != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: SidebarIconButton(
+              icon: Codicons.refresh,
+              tooltip: context.l10n.chatReload,
+              onTap: () => _workspace.reload(thread),
+              size: 22,
+              spinning: thread.session.isStreaming,
+            ),
+          ),
         if (windowTools) ...[
           const SizedBox(width: 2),
           PinWindowButton(pinned: _pinned, onChanged: _setPinned),

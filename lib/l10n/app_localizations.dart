@@ -4148,6 +4148,12 @@ abstract class AppLocalizations {
   /// **'Load earlier messages'**
   String get chatLoadEarlier;
 
+  /// Title bar button: reads a kept session's file anew, showing what was said in it since it was opened (e.g. it went on in a terminal).
+  ///
+  /// In en, this message translates to:
+  /// **'Reload conversation'**
+  String get chatReload;
+
   /// No description provided for @chatStop.
   ///
   /// In en, this message translates to:

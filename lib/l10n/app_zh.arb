@@ -675,6 +675,7 @@
   "chatSubagentSemantics": "子智能体 {description}，{status}",
   "chatOpensItsConversation": "打开其对话",
   "chatLoadEarlier": "加载更早的消息",
+  "chatReload": "重新加载对话",
   "chatStop": "停止",
   "chatKeepRunningHint": "让它继续运行，智能体接着往下进行",
   "chatBackground": "转到后台",

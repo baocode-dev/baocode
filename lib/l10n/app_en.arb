@@ -1317,6 +1317,10 @@
   },
   "chatOpensItsConversation": "Opens its conversation",
   "chatLoadEarlier": "Load earlier messages",
+  "chatReload": "Reload conversation",
+  "@chatReload": {
+    "description": "Title bar button: reads a kept session's file anew, showing what was said in it since it was opened (e.g. it went on in a terminal)."
+  },
   "chatStop": "Stop",
   "chatKeepRunningHint": "Keep it running and let the agent go on",
   "chatBackground": "Background",

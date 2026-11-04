@@ -328,6 +328,21 @@ class ChatGrid<T extends Object> {
     if (_under.remove(old) case final under?) _under[pane] = under;
   }
 
+  /// [fresh] everywhere [old] was: its cells, its place under another
+  /// pane, and those it covered — the same conversation read anew (see
+  /// [Workspace.reload]), unlike [replace] which only shows a pane.
+  void swap(T old, T fresh) {
+    assert(!contains(fresh));
+    _cells = [for (final shown in _cells) shown == old ? fresh : shown];
+    for (final under in _under.values) {
+      for (var i = 0; i < under.length; i++) {
+        if (under[i] == old) under[i] = fresh;
+      }
+    }
+    if (_under.remove(old) case final under?) _under[fresh] = under;
+    if (_opened.remove(old) case final opened?) _opened[fresh] = opened;
+  }
+
   /// Takes [pane] out, and those it covered with it: a pane beside it takes
   /// its cells, the one across the
   /// straight line first (see [columnsFirst]: above or below where it is the

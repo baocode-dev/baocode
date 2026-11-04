@@ -176,6 +176,61 @@ class _Renames implements ClaudeCodeTransport {
 }
 
 void main() {
+  testWidgets('a kept session is read anew on reload, where it was', (
+    tester,
+  ) async {
+    final workspace = await pumpLoaded(tester);
+    await tester.tap(inSidebar(find.text('Write a.txt and read it back')));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    final was = workspace.selected;
+    expect(was.record, FakeCatalog.kept);
+    expect(find.textContaining('Said in a terminal since'), findsNothing);
+
+    // The conversation went on in a terminal: the session's file grew.
+    final file = File(FakeCatalog.kept.path!);
+    final original = file.readAsStringSync();
+    addTearDown(() => file.writeAsStringSync(original));
+    // In fake async, only synchronous IO runs: the lines go in as text.
+    const since = '\n'
+        '{"parentUuid":"d23f2137-f51f-4a22-af0c-05760c529c4e","isSidechain":'
+        'false,"type":"user","uuid":"11111111-2222-4333-8444-555555555555",'
+        '"message":{"role":"user","content":[{"type":"text","text":'
+        '"Said in a terminal since"}]},"cwd":"/tmp/project","sessionId":'
+        '"eafc328b-0be0-4b23-bbaa-962b545ecb51","version":"2.0.0"}\n'
+        '{"parentUuid":"11111111-2222-4333-8444-555555555555","isSidechain":'
+        'false,"type":"assistant","uuid":"22222222-3333-4444-8555-666666666666"'
+        ',"message":{"id":"msg_terminal_since","type":"message","role":'
+        '"assistant","model":"claude-sonnet-5","content":[{"type":"text",'
+        '"text":"Answered there and then."}]},"cwd":"/tmp/project",'
+        '"sessionId":"eafc328b-0be0-4b23-bbaa-962b545ecb51","version":"2.0.0"}'
+        '\n';
+    file.writeAsStringSync('$original$since', flush: true);
+
+    workspace.reload(was);
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    await tester.pump();
+
+    // The same thread's place, a conversation read anew.
+    final fresh = workspace.selected;
+    expect(identical(fresh, was), isFalse);
+    expect(fresh.record, FakeCatalog.kept);
+    expect(fresh.title, was.title);
+    expect(workspace.threads.contains(was), isFalse);
+    expect(
+      tester.widget<ChatScreen>(find.byType(ChatScreen)).session,
+      fresh.session,
+    );
+    expect(find.textContaining('Said in a terminal since'), findsOneWidget);
+    expect(find.textContaining('Answered there and then.'), findsOneWidget);
+
+    // A thread at work is not reloaded under it.
+    expect(() => workspace.reload(fresh), returnsNormally);
+    fresh.session.stop();
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   testWidgets('lists the kept sessions; one opens with its history', (
     tester,
   ) async {
