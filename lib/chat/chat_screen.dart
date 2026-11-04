@@ -73,6 +73,7 @@ class ChatScreen extends StatefulWidget {
     this.session,
     this.leading,
     this.trailing,
+    this.cardLeading,
     this.cardTrailing,
     this.titleBarInset,
     this.onRename,
@@ -116,6 +117,11 @@ class ChatScreen extends StatefulWidget {
 
   /// At the right of the title bar, e.g. a button to open the project.
   final Widget? trailing;
+
+  /// The pane's own buttons before its title (its close button): on its
+  /// card ([island]), at the start of the row along its top; else first of
+  /// those at the title bar's right.
+  final Widget? cardLeading;
 
   /// The conversation's own buttons (its terminal's, its side panel's): on
   /// its card ([island]), at the right of the row along its top, after the
@@ -698,15 +704,14 @@ class _ChatScreenState extends State<ChatScreen>
   /// it is not on a card ([title]), and [ChatScreen.cardTrailing] then.
   Widget _buildTitleBar({required bool title}) {
     final inset = widget.titleBarInset ?? AppMetrics.trafficLightsWidth + 12;
-    final trailing = switch ((
-      widget.trailing,
-      title ? widget.cardTrailing : null,
-    )) {
-      (final trailing?, final own?) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [own, trailing],
-      ),
-      (final trailing, final own) => trailing ?? own,
+    final buttons = [
+      if (title) ...[?widget.cardLeading, ?widget.cardTrailing],
+      ?widget.trailing,
+    ];
+    final trailing = switch (buttons) {
+      [] => null,
+      [final one] => one,
+      _ => Row(mainAxisSize: MainAxisSize.min, children: buttons),
     };
     final bar = SizedBox(
       height: AppMetrics.titleBarHeight,
@@ -748,7 +753,7 @@ class _ChatScreenState extends State<ChatScreen>
   /// [ChatScreen.trailing] after, there being no row over the card.
   Widget _buildCardHeader() {
     final window = !WindowControls.drawsHeader;
-    final leading = window ? null : widget.leading;
+    final leading = [if (!window) ?widget.leading, ?widget.cardLeading];
     final trailing = [?widget.cardTrailing, if (!window) ?widget.trailing];
     // The title bar's ways all the same: a press drags the window (a
     // pane's, the pane), a double click does what the system's does.
@@ -764,7 +769,12 @@ class _ChatScreenState extends State<ChatScreen>
           ),
           child: Row(
             children: [
-              if (leading != null) ...[leading, const SizedBox(width: 6)],
+              if (leading.isNotEmpty) ...[
+                TitleBarControls(
+                  child: Row(mainAxisSize: MainAxisSize.min, children: leading),
+                ),
+                const SizedBox(width: 4),
+              ],
               Expanded(child: _buildTitle()),
               if (trailing.isNotEmpty) ...[
                 const SizedBox(width: 6),
