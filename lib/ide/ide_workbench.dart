@@ -5161,37 +5161,39 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                             sidebar,
                           Expanded(
                             key: const ValueKey('ide-editor-column'),
-                            child: _editorColumn(
-                              size.height - IdeStatusBar.height,
-                              commands,
-                              inPlace: gitLog
-                                  ? KeyedSubtree(
-                                      key: _sidebarKey,
-                                      child: _sidebarPart(border: false),
-                                    )
-                                  : !editorHidden
-                                  ? null
-                                  : sidebarVisible
-                                  ? Stack(
-                                      children: [
-                                        Positioned.fill(
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
-                                            children: [
-                                              sidebar,
-                                              Expanded(child: chat),
-                                            ],
+                            child: RepaintBoundary(
+                              child: _editorColumn(
+                                size.height - IdeStatusBar.height,
+                                commands,
+                                inPlace: gitLog
+                                    ? KeyedSubtree(
+                                        key: _sidebarKey,
+                                        child: _sidebarPart(border: false),
+                                      )
+                                    : !editorHidden
+                                    ? null
+                                    : sidebarVisible
+                                    ? Stack(
+                                        children: [
+                                          Positioned.fill(
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.stretch,
+                                              children: [
+                                                sidebar,
+                                                Expanded(child: chat),
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                        _sashAt(
-                                          columns.sidebar,
-                                          room,
-                                          sidebarSash,
-                                        ),
-                                      ],
-                                    )
-                                  : chat,
+                                          _sashAt(
+                                            columns.sidebar,
+                                            room,
+                                            sidebarSash,
+                                          ),
+                                        ],
+                                      )
+                                    : chat,
+                              ),
                             ),
                           ),
                         ],
@@ -5202,7 +5204,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 ),
               ),
               if (!editorHidden)
-                _chatSlot(columns.chat, trailing: statusTrailing),
+                RepaintBoundary(
+                  child: _chatSlot(columns.chat, trailing: statusTrailing),
+                ),
             ],
           ),
         ),
@@ -5228,7 +5232,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     top: 0,
     bottom: 0,
     width: _sashWidth,
-    child: sash,
+    child: RepaintBoundary(child: sash),
   );
 
   /// The editor, and below it the panel (the terminal), as VS Code's panel
@@ -5876,6 +5880,10 @@ class _SashState extends State<_Sash> {
   bool _dragging = false;
   double _start = 0;
 
+  /// Coalesce rapid drag update events to Vsync frame rate to prevent UI jank.
+  double? _pendingDelta;
+  bool _frameScheduled = false;
+
   /// Over the window while dragging, with the sash's cursor: the pointer
   /// leaves the sash where it stops, and the cursor goes with it rather
   /// than turn into what it is over (VS Code's drag shield).
@@ -5895,6 +5903,7 @@ class _SashState extends State<_Sash> {
   @override
   void dispose() {
     _removeShield();
+    _frameScheduled = false;
     super.dispose();
   }
 
@@ -5903,6 +5912,7 @@ class _SashState extends State<_Sash> {
 
   void _begin(DragStartDetails details) {
     _start = _along(details.globalPosition);
+    _pendingDelta = null;
     widget.onStart();
     setState(() => _dragging = true);
     if (Overlay.maybeOf(context) case final overlay?) {
@@ -5913,8 +5923,30 @@ class _SashState extends State<_Sash> {
     }
   }
 
+  void _onDragUpdate(DragUpdateDetails details) {
+    _pendingDelta = _along(details.globalPosition) - _start;
+    if (!_frameScheduled) {
+      _frameScheduled = true;
+      SchedulerBinding.instance.scheduleFrameCallback((_) {
+        _frameScheduled = false;
+        if (!mounted) return;
+        final delta = _pendingDelta;
+        _pendingDelta = null;
+        if (delta != null) {
+          widget.onDrag(delta);
+        }
+      });
+    }
+  }
+
   void _end() {
     _removeShield();
+    _frameScheduled = false;
+    final delta = _pendingDelta;
+    _pendingDelta = null;
+    if (delta != null) {
+      widget.onDrag(delta);
+    }
     setState(() => _dragging = false);
     widget.onEnd?.call();
   }
@@ -5930,8 +5962,6 @@ class _SashState extends State<_Sash> {
   Widget build(BuildContext context) {
     final active = _hover || _dragging;
     final horizontal = widget.axis == Axis.horizontal;
-    void update(DragUpdateDetails details) =>
-        widget.onDrag(_along(details.globalPosition) - _start);
     return MouseRegion(
       cursor: widget.cursor,
       onEnter: (_) => setState(() => _hover = true),
@@ -5940,11 +5970,11 @@ class _SashState extends State<_Sash> {
         behavior: HitTestBehavior.opaque,
         dragStartBehavior: DragStartBehavior.down,
         onHorizontalDragStart: horizontal ? _begin : null,
-        onHorizontalDragUpdate: horizontal ? update : null,
+        onHorizontalDragUpdate: horizontal ? _onDragUpdate : null,
         onHorizontalDragEnd: horizontal ? (_) => _end() : null,
         onHorizontalDragCancel: horizontal ? _end : null,
         onVerticalDragStart: horizontal ? null : _begin,
-        onVerticalDragUpdate: horizontal ? null : update,
+        onVerticalDragUpdate: horizontal ? null : _onDragUpdate,
         onVerticalDragEnd: horizontal ? null : (_) => _end(),
         onVerticalDragCancel: horizontal ? null : _end,
         onDoubleTap: widget.onReset,
