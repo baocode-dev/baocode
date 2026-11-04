@@ -174,6 +174,70 @@ void main() {
     expect(copyFade(0), 1);
   });
 
+  testWidgets('under a title, a message sticks nearer the top, and comes in '
+      'over less of a scroll', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(800, 600);
+    addTearDown(tester.view.reset);
+    final feed = _TwoTurnFeed();
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed, underTitle: true)),
+      ),
+    );
+    await tester.pump();
+    final listView = find.byType(SuperListView);
+    final list = tester.getRect(listView);
+    final position = tester
+        .state<ScrollableState>(
+          find
+              .descendant(of: listView, matching: find.byType(Scrollable))
+              .first,
+        )
+        .position;
+    position.jumpTo(0);
+    await tester.pump();
+    await tester.pump();
+    final first = find.byWidgetPredicate(
+      (widget) =>
+          widget is UserMessageBubble && widget.text == 'First question',
+    );
+    // The room above the first message: 12, not the gutter's 24.
+    expect(tester.getRect(first.first).top - list.top, 12);
+    final listMask = tester.widget<EdgeFadeMask>(
+      find.ancestor(of: listView, matching: find.byType(EdgeFadeMask)),
+    );
+    expect(listMask.topFadeLength, 16);
+
+    double copyFade() => tester
+        .widget<EdgeFadeMask>(
+          find
+              .ancestor(
+                of: find.byWidgetPredicate(
+                  (widget) =>
+                      widget is UserMessageBubble &&
+                      widget.key == const ValueKey(('sticky', 0)),
+                ),
+                matching: find.byType(EdgeFadeMask),
+              )
+              .first,
+        )
+        .topFadeAmount!();
+
+    // Stuck once scrolled past 12 from the top; whole 16 on.
+    position.jumpTo(8);
+    await tester.pump();
+    await tester.pump();
+    expect(copyFade(), closeTo(0.5, 0.001));
+    position.jumpTo(16);
+    await tester.pump();
+    await tester.pump();
+    expect(copyFade(), 0);
+  });
+
   testWidgets('as bubbles, messages are at the right, as wide as their text, '
       'and scroll away', (tester) async {
     tester.view

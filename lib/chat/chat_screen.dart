@@ -1149,11 +1149,15 @@ class _ChatScreenState extends State<ChatScreen>
     );
   }
 
+  /// Whether it shows its title: in a row over it, or along its card's top
+  /// ([_buildCardHeader]).
+  bool get _titled => !widget.embedded && (widget.titleBar || _renaming);
+
   Widget _buildScaffold() {
     final island = widget.island;
     final conversation = _buildConversation();
     final footer = _footer;
-    final titled = !widget.embedded && (widget.titleBar || _renaming);
+    final titled = _titled;
     return Scaffold(
       // The window's color about the card, or the card's it is on (the
       // IDE's, a card or not): none of its own.
@@ -1291,6 +1295,10 @@ class _ChatScreenState extends State<ChatScreen>
                     ChatHistoryView(
                       key: _historyKey,
                       feed: _session,
+                      // Under its card's title, or a subagent's header.
+                      underTitle:
+                          widget.back != null ||
+                          (_titled && widget.island != null),
                       maxContentWidth: _maxContentWidth,
                       minimap: _minimap,
                       minimapRoom: widget.back == null
@@ -1478,6 +1486,7 @@ class _ChatScreenState extends State<ChatScreen>
           child: ChatHistoryView(
             key: layer.historyKey,
             feed: layer.feed,
+            underTitle: true,
             maxContentWidth: _maxContentWidth,
             minimap: _minimap,
             minimapRoom: layer.minimapRoom,
