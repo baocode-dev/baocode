@@ -164,9 +164,10 @@ class WindowHeader extends StatefulWidget {
   final bool sidePanelShown;
   final VoidCallback? onToggleSidePanel;
 
-  /// Whether the strip has the chat's terminal, side panel and editor
-  /// buttons: not while conversations are side by side, each pane's title
-  /// bar having its own agent's (the menus still toggle the focused one's).
+  /// Whether the strip has the chat's terminal and side panel buttons: not
+  /// while conversations are side by side, each pane's card having its own
+  /// agent's (the menus still toggle the focused one's). Open in Editor
+  /// stays, the focused one's project's: the window's, at its top right.
   final bool chatTools;
 
   /// The File menu's Settings…: opens the settings dialog.
@@ -407,7 +408,8 @@ class _WindowHeaderState extends State<WindowHeader> {
     // The chat's terminal and side panel where the IDE has its
     // panel and chat, the pin after them, and the way to the other
     // layout last: each where it was after a switch. Agents side by side
-    // have theirs in their panes, the pin alone here (see [chatTools]).
+    // have theirs in their panes, the pin and the editor's here (see
+    // [chatTools]).
     if (widget.onToggleTerminal case final toggle?
         when !ide && widget.chatTools)
       KeyedSubtree(
@@ -443,7 +445,7 @@ class _WindowHeaderState extends State<WindowHeader> {
       ),
     ),
     // The chat's; the IDE is the editor there.
-    if (widget.project case final project? when !ide && widget.chatTools) ...[
+    if (widget.project case final project? when !ide) ...[
       const SizedBox(width: 8),
       KeyedSubtree(
         key: _open,

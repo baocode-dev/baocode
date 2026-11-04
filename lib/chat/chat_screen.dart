@@ -75,7 +75,10 @@ class ChatScreen extends StatefulWidget {
     this.trailing,
     this.cardLeading,
     this.cardTrailing,
+    this.rowOverCard = true,
+    this.footOnCard = false,
     this.titleBarInset,
+    this.titleBarEnd = 8,
     this.onRename,
     this.onSummarizeTitle,
     this.subtitle,
@@ -128,6 +131,16 @@ class ChatScreen extends StatefulWidget {
   /// title; else before [trailing].
   final Widget? cardTrailing;
 
+  /// Whether its card ([island]) has a row over it, on the window's color,
+  /// where macOS has its title bar (with [leading] and [trailing]): not a
+  /// pane among others, the window having one row over them all.
+  final bool rowOverCard;
+
+  /// Whether the row under its card ([below], how full the context is) is
+  /// on the card instead, under the composer: a pane among others, which
+  /// leave no row under theirs.
+  final bool footOnCard;
+
   /// The row along the top of its card, with its title.
   static const cardHeaderHeight = 36.0;
 
@@ -140,6 +153,11 @@ class ChatScreen extends StatefulWidget {
   /// traffic lights, as when this is the whole window. The title and
   /// [trailing] keep to the conversation's column, clear of both.
   final double? titleBarInset;
+
+  /// From the title bar's right to [trailing]: less where a gap is already
+  /// between it and the window's edge, for the window's buttons to be
+  /// where the IDE's title bar has its own.
+  final double titleBarEnd;
 
   /// Given, a double click on the title edits it.
   final ValueChanged<String>? onRename;
@@ -716,7 +734,7 @@ class _ChatScreenState extends State<ChatScreen>
     final bar = SizedBox(
       height: AppMetrics.titleBarHeight,
       child: CustomMultiChildLayout(
-        delegate: _TitleBarLayout(inset: inset),
+        delegate: _TitleBarLayout(inset: inset, end: widget.titleBarEnd),
         children: [
           if (widget.leading case final leading?)
             LayoutId(id: _TitleBarSlot.leading, child: leading),
@@ -1170,7 +1188,9 @@ class _ChatScreenState extends State<ChatScreen>
           // of its own over it; see AppMetrics): its title there, but on a
           // card, which has it along its top. Under Windows' header, none
           // over a card.
-          if (titled && (island == null || !WindowControls.drawsHeader))
+          if (titled &&
+              (island == null ||
+                  !WindowControls.drawsHeader && widget.rowOverCard))
             _buildTitleBar(title: island == null),
           // Its card even with no row under it (the terminal's then).
           if (island == null && footer == 0)
@@ -1257,9 +1277,16 @@ class _ChatScreenState extends State<ChatScreen>
     );
   }
 
-  /// Whether the context's meter is in the row under the card, not in the
-  /// composer.
-  bool get _meterInFoot => _footer > 0;
+  /// Whether the context's meter is in the row under the card (or on it,
+  /// [_footOnCard]), not in the composer.
+  bool get _meterInFoot => _footer > 0 || _footOnCard;
+
+  /// Whether the row under the card is on it, under the composer (see
+  /// [ChatScreen.footOnCard]): not where what is around it shows it.
+  bool get _footOnCard =>
+      widget.footOnCard &&
+      widget.island != null &&
+      !IslandFootHosted.of(context);
 
   /// Whether it is on a card: its own ([ChatScreen.island]), or the one
   /// it is put on (the IDE's, see [IslandSurface]).
@@ -1269,7 +1296,7 @@ class _ChatScreenState extends State<ChatScreen>
   /// The row under the card, on the window's color: its own card's, or the
   /// one it is on's (the IDE's), if that leaves one; else 0, [ChatScreen.below]
   /// under the input.
-  double get _footer => IslandFootHosted.of(context)
+  double get _footer => IslandFootHosted.of(context) || _footOnCard
       ? 0
       : widget.island != null
       ? Islands.belowHeight
@@ -1374,6 +1401,8 @@ class _ChatScreenState extends State<ChatScreen>
           inset: _onCard ? Islands.inset : null,
           bottom: !_onCard
               ? 12
+              : _footOnCard
+              ? 0
               : _footer == 0 &&
                     widget.below != null &&
                     !IslandFootHosted.of(context)
@@ -1579,8 +1608,12 @@ class _ChatScreenState extends State<ChatScreen>
               ? null
               : _intercept,
         ),
-        // On a card, it is under the card (see [_buildScaffold]).
-        if (_footer == 0 && !IslandFootHosted.of(context)) ?widget.below,
+        // On a card, it is under the card (see [_buildScaffold]); a pane's
+        // on it, here, in the row under the card's.
+        if (_footOnCard)
+          SizedBox(height: Islands.belowHeight, child: _buildFoot())
+        else if (_footer == 0 && !IslandFootHosted.of(context))
+          ?widget.below,
       ],
     );
   }
@@ -1611,15 +1644,15 @@ double _columnWidth(double width, double maxWidth, {required bool minimap}) =>
 /// column; the buttons ([_TitleBarSlot.trailing]) at the bar's right end,
 /// the window's as the IDE's title bar has them, not the column's.
 class _TitleBarLayout extends MultiChildLayoutDelegate {
-  _TitleBarLayout({required this.inset});
+  _TitleBarLayout({required this.inset, required this.end});
 
   final double inset;
 
+  /// From the right side to the buttons.
+  final double end;
+
   /// Between the leading and the title.
   static const _gap = 6.0;
-
-  /// The least from the right side, where the column reaches it.
-  static const _endInset = 8.0;
 
   @override
   void performLayout(Size size) {
@@ -1635,7 +1668,7 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
       );
       start += leading.width + _gap;
     }
-    var end = _endInset;
+    var end = this.end;
     if (hasChild(_TitleBarSlot.trailing)) {
       final trailing = layoutChild(
         _TitleBarSlot.trailing,
@@ -1644,7 +1677,7 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
       positionChild(
         _TitleBarSlot.trailing,
         Offset(
-          size.width - _endInset - trailing.width,
+          size.width - this.end - trailing.width,
           (size.height - trailing.height) / 2,
         ),
       );
@@ -1660,7 +1693,7 @@ class _TitleBarLayout extends MultiChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_TitleBarLayout oldDelegate) =>
-      oldDelegate.inset != inset;
+      oldDelegate.inset != inset || oldDelegate.end != end;
 }
 
 /// [child] across the conversation's column (see [_columnWidth]), level
