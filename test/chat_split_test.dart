@@ -955,15 +955,19 @@ void main() {
     }),
   );
 
-  testWidgets('under Windows\' header, side by side, the terminal and side '
-      'panel buttons leave it for the panes\' own, the pin and the editor\'s '
-      'staying; one conversation again, they are back', (tester) async {
+  testWidgets('under Windows\' header, one conversation or several, the '
+      'terminal and side panel buttons are on the cards, as on macOS; the pin '
+      'and the editor\'s in the header', (tester) async {
     await pumpApp(tester);
     Finder inHeader(Type type) => find.descendant(
       of: find.byType(WindowHeader),
       matching: find.byType(type),
     );
-    expect(inHeader(SidePanelToggle), findsOneWidget);
+    expect(inHeader(SidePanelToggle), findsNothing);
+    expect(
+      find.descendant(of: pane(first), matching: find.byType(SidePanelToggle)),
+      findsOneWidget,
+    );
     expect(inHeader(OpenInEditorButton), findsOneWidget);
     expect(inHeader(PinWindowButton), findsOneWidget);
 
@@ -996,7 +1000,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(inHeader(SidePanelToggle), findsOneWidget);
+    expect(inHeader(SidePanelToggle), findsNothing);
+    expect(
+      find.descendant(of: pane(first), matching: find.byType(SidePanelToggle)),
+      findsOneWidget,
+    );
     expect(inHeader(OpenInEditorButton), findsOneWidget);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 

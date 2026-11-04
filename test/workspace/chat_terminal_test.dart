@@ -461,12 +461,19 @@ void main() {
     expect(ptys, isEmpty);
   }, variant: _mac);
 
-  testWidgets('on Windows the header has the button by the pin, and View → '
-      'Terminal', (tester) async {
+  testWidgets('on Windows the button is on the conversation\'s card, as on '
+      'macOS, not in the header; and View → Terminal', (tester) async {
     final ptys = <FakePty>[];
     await _pumpApp(tester, terminalBackend: fakeTerminalBackend(ptys));
+    expect(
+      find.descendant(
+        of: find.byType(WindowHeader),
+        matching: find.byType(ChatTerminalToggle),
+      ),
+      findsNothing,
+    );
     final toggle = find.descendant(
-      of: find.byType(WindowHeader),
+      of: find.byType(ChatScreen),
       matching: find.byType(ChatTerminalToggle),
     );
     expect(toggle, findsOneWidget);

@@ -3406,7 +3406,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       onToggleSidePanel: ide || (agent ?? _workspace.current) == null
           ? null
           : _toggleSidePanel,
-      chatTools: ide || !_toolsInPanes,
+      chatTools: ide || (!_toolsInPanes && _titleInHeader),
       onOpenFolder: _openFolder,
       onOpenSettings: () => unawaited(openSettings()),
       onToggleContextPanel: () {
@@ -3429,8 +3429,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   /// Whether the conversations are side by side, each pane's card with its
   /// own agent's terminal and side panel buttons (see [_buildChat]), as
-  /// macOS has them: Windows' header then has only the window's, the pin
-  /// and Open in Editor (the focused one's).
+  /// macOS has them. Windows' header has only the window's, the pin and
+  /// Open in Editor (the focused one's), one conversation or several: the
+  /// card has its toggles but where the header has the title in place of
+  /// the card's row ([_titleInHeader]).
   bool get _toolsInPanes =>
       !_agentWindow && !_replacingChat && _workspace.grid.length >= 2;
 
@@ -4779,6 +4781,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // there are panes: the header keeps the pin and Open in Editor, the
     // others leave it for theirs (see [_toolsInPanes]).
     final paneTools = !embedded && (!header || !place.alone);
+    // The terminal's and the side panel's toggles, on the card's row along
+    // its top, under Windows' header as well: in the header only where it
+    // has the title in place of that row (see [_titleInHeader]).
+    final cardTools = !embedded && !(place.alone && _titleInHeader);
     final terminals = _terminals;
     // The window's along the top, in the order of the IDE's title bar
     // ([pin][back]): the pin, then the way to the other layout at the end,
@@ -4828,7 +4834,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // edge, over its rail.
     final atStart = !embedded && _sidePanel.atLeft;
     final own = [
-      if (paneTools) ...[
+      if (cardTools) ...[
         // The panel is under each conversation (see [_withTerminal]), so
         // the button in a pane is that pane's project's.
         if (showsTerminals && terminals != null)
