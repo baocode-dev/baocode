@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import '../ide/ide_button.dart';
 import '../ide/ide_hover.dart';
 import '../ide/ide_input.dart';
-import '../ide/ide_switch.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
@@ -17,8 +16,8 @@ import 'remote_location.dart';
 
 /// The side panel's ports page, of an SSH project's conversation: the
 /// ports forwarded for its host ([PortForwards]), each with its address to
-/// copy or open in the browser, and to stop; a port forwarded by hand;
-/// and whether the host's agents may act on this machine.
+/// copy or open in the browser, and to stop; and a port forwarded by
+/// hand.
 class PortsView extends StatefulWidget {
   const PortsView({super.key, required this.host, this.forwards, this.open});
 
@@ -83,7 +82,7 @@ class _PortsViewState extends State<PortsView> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([_forwards, RemoteHostSettings.instance]),
+    listenable: _forwards,
     builder: (context, _) => _build(context),
   );
 
@@ -91,39 +90,10 @@ class _PortsViewState extends State<PortsView> {
     final l10n = context.l10n;
     final name = RemoteLocation.hostName(widget.host);
     final forwards = _forwards.of(widget.host);
-    final settings = RemoteHostSettings.instance;
     return ListView(
       key: const ValueKey('ports-page'),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.remoteLocalAccess,
-                    style: TextStyle(fontSize: 13, color: AppColors.text),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    l10n.remoteLocalAccessDetail,
-                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            IdeSwitch(
-              key: const ValueKey('ports-local-access'),
-              value: settings.localAccess(widget.host),
-              semanticLabel: l10n.remoteLocalAccess,
-              onChanged: (on) => settings.setLocalAccess(widget.host, on),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
         Row(
           children: [
             Expanded(

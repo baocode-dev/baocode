@@ -9,6 +9,7 @@ import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
 import '../../l10n/l10n.dart';
 import '../../remote/remote_files.dart' show defaultRemoteConfigHosts;
+import '../../remote/remote_host_settings.dart';
 import '../../remote/remote_location.dart';
 import '../../remote/remote_status.dart' show sshErrorText;
 import '../../remote/ssh_host.dart';
@@ -21,7 +22,8 @@ import 'settings_widgets.dart';
 /// Settings → SSH Servers: the servers remote projects connect to, added,
 /// edited (the window's form: see [editSshServer]), connected to or
 /// disconnected from, and removed; those of `~/.ssh/config` listed as they
-/// are there.
+/// are there; and whether each one's agents may act on this machine
+/// ([RemoteHostSettings.localAccess]).
 class SshSettingsPage extends StatefulWidget {
   const SshSettingsPage({super.key, this.workspace, this.configHosts});
 
@@ -110,7 +112,11 @@ class _SshSettingsPageState extends State<SshSettingsPage> {
       );
     }
     return ListenableBuilder(
-      listenable: Listenable.merge([workspace, SshHosts.instance]),
+      listenable: Listenable.merge([
+        workspace,
+        SshHosts.instance,
+        RemoteHostSettings.instance,
+      ]),
       builder: (context, _) {
         // Those the app's form edits: not ~/.ssh/config's, nor WSL's.
         final servers = [
@@ -176,9 +182,54 @@ class _SshSettingsPageState extends State<SshSettingsPage> {
                     ),
                 ],
               ),
+            if ([...{...servers, ..._config}] case final hosts when hosts.isNotEmpty)
+              _localAccess(l10n, workspace, hosts),
           ],
         );
       },
+    );
+  }
+
+  /// Whether each of [hosts]' agents may act on this machine (on unless
+  /// turned off), and, where a command card was told to always allow it,
+  /// asking again.
+  static Widget _localAccess(
+    AppLocalizations l10n,
+    Workspace workspace,
+    List<String> hosts,
+  ) {
+    final settings = RemoteHostSettings.instance;
+    return SettingsGroup(
+      title: l10n.remoteLocalAccess,
+      description: l10n.remoteLocalAccessDetail,
+      children: [
+        for (final host in hosts)
+          if (settings.runsWithoutAsking(host))
+            SettingsRow(
+              label: workspace.hostLabel(host),
+              description: l10n.remoteLocalAccessNoAsking,
+              trailing: SettingsButtons(
+                children: [
+                  IdeButton(
+                    label: l10n.remoteLocalAccessAskAgain,
+                    secondary: true,
+                    onPressed: () => settings.setRunsWithoutAsking(host, false),
+                  ),
+                  SettingsSwitch(
+                    value: true,
+                    semanticLabel: workspace.hostLabel(host),
+                    onChanged: (on) => settings.setLocalAccess(host, on),
+                  ),
+                ],
+              ),
+            )
+          else
+            SettingsSwitchRow(
+              label: workspace.hostLabel(host),
+              value: settings.localAccess(host),
+              onChanged: (on) => settings.setLocalAccess(host, on),
+            ),
+      ],
     );
   }
 

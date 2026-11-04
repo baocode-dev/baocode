@@ -22180,8 +22180,20 @@ abstract class AppLocalizations {
   /// No description provided for @remoteLocalAccessDetail.
   ///
   /// In en, this message translates to:
-  /// **'Its agents may run commands on this computer (asking you each time), copy files here and there and forward ports.'**
+  /// **'Agents on these hosts may run commands on this computer (asking you each time), copy files both ways and forward ports.'**
   String get remoteLocalAccessDetail;
+
+  /// No description provided for @remoteLocalAccessNoAsking.
+  ///
+  /// In en, this message translates to:
+  /// **'Runs commands without asking'**
+  String get remoteLocalAccessNoAsking;
+
+  /// No description provided for @remoteLocalAccessAskAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask Each Time'**
+  String get remoteLocalAccessAskAgain;
 
   /// No description provided for @sidePanelPorts.
   ///
