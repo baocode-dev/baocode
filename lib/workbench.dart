@@ -4139,6 +4139,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           repositories: multi != null
               ? _shownRepositories(thread, _sidePanelRepositories(multi))
               : [if (git != null) (project.path, git)],
+          path: multi == null ? project.root : null,
+          host: project.host,
           onSwitchWorktree: widget.gitFor == null
               ? null
               : (folder, path) =>
@@ -4732,7 +4734,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           workspace: _workspace,
           project: thread.project,
           agent: thread,
-          compact: !place.alone,
         ),
       ],
       if (trailingToggle) ...[const SizedBox(width: 6), _showSidebarButton()],

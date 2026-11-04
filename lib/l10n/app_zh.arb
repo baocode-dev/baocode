@@ -3687,5 +3687,7 @@
   "portsPort": "端口",
   "portsListen": "监听端口（可选）",
   "portsForward": "转发",
-  "portsCopied": "已复制 {address}"
+  "portsCopied": "已复制 {address}",
+  "branchBarFolder": "{path}\n点击复制路径",
+  "branchBarPathCopied": "已复制路径"
 }

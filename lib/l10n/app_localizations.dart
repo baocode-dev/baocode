@@ -22182,6 +22182,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copied {address}'**
   String portsCopied(String address);
+
+  /// Hover of the project folder shown under the chat in place of a Git branch (no repository): its path, then that a click copies it.
+  ///
+  /// In en, this message translates to:
+  /// **'{path}\nClick to copy its path'**
+  String branchBarFolder(String path);
+
+  /// Hover of the project folder under the chat once clicked: its path was copied.
+  ///
+  /// In en, this message translates to:
+  /// **'Path copied'**
+  String get branchBarPathCopied;
 }
 
 class _AppLocalizationsDelegate

@@ -57,6 +57,7 @@ import 'widgets/agent_step.dart';
 import 'widgets/chat_minimap.dart';
 import 'widgets/code_citation.dart';
 import 'widgets/hover_scroll_text.dart';
+import 'widgets/context_meter.dart';
 import 'widgets/inline_rename_field.dart';
 import 'widgets/pixel_loader.dart';
 import 'widgets/plan_start.dart';
@@ -729,10 +730,11 @@ class _ChatScreenState extends State<ChatScreen>
       ),
     );
     // Beside the title (a double click renames it) and the buttons, a
-    // double click does what one on the system's title bar does.
+    // double click does what one on the system's title bar does. A pane
+    // drags by its title: from here only where the title is.
     return TitleBarDoubleClick(
       windowTitleBar: widget.windowTitleBar,
-      onDragStart: _renaming ? null : widget.onTitleDragStart,
+      onDragStart: title && !_renaming ? widget.onTitleDragStart : null,
       // Beside the traffic lights it is the window's, panes side by side or
       // not: with the sidebar hidden, nothing else along the top is.
       windowStart: inset >= AppMetrics.trafficLightsWidth ? inset : 0,
@@ -1188,11 +1190,7 @@ class _ChatScreenState extends State<ChatScreen>
                   bottom: 0,
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: IslandFootTrailing.leading(
-                      context,
-                      (_agentShown == null ? widget.below : null) ??
-                          const SizedBox.shrink(),
-                    ),
+                    child: IslandFootTrailing.leading(context, _buildFoot()),
                   ),
                 ),
               ),
@@ -1201,6 +1199,53 @@ class _ChatScreenState extends State<ChatScreen>
       ),
     );
   }
+
+  /// The row under the card: [ChatScreen.below] (where the agent works),
+  /// and how full the context is, at the row's end; right after the other
+  /// where the row has more after it (the IDE's status bar's items).
+  Widget _buildFoot() {
+    final below = _agentShown == null ? widget.below : null;
+    final meter = _agentShown == null
+        ? ListenableBuilder(
+            listenable: _session,
+            builder: (context, _) => switch (_session.context) {
+              final usage? => ContextMeter(
+                usage: usage,
+                active: _contextPanelOpen,
+                labeled: true,
+                tooltip: ChatKeys.titleWithKey(
+                  context.l10n.composerContextUsage,
+                  ChatCommandIds.toggleContextPanel,
+                  const {ChatContextKeys.inChat: true},
+                ),
+                onTap: _toggleContextPanel,
+              ),
+              null => const SizedBox.shrink(),
+            },
+          )
+        : null;
+    if (IslandFootTrailing.hosts(context)) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (below != null) Flexible(child: below),
+          ?meter,
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: Align(alignment: Alignment.centerLeft, child: below),
+        ),
+        ?meter,
+      ],
+    );
+  }
+
+  /// Whether the context's meter is in the row under the card, not in the
+  /// composer.
+  bool get _meterInFoot => _footer > 0;
 
   /// Whether it is on a card: its own ([ChatScreen.island]), or the one
   /// it is put on (the IDE's, see [IslandSurface]).
@@ -1510,7 +1555,7 @@ class _ChatScreenState extends State<ChatScreen>
             _ => null,
           },
           contextPanelOpen: _contextPanelOpen,
-          onToggleContextPanel: _toggleContextPanel,
+          onToggleContextPanel: _meterInFoot ? null : _toggleContextPanel,
           onIntercept: widget.onSideQuestion == null && widget.onFork == null
               ? null
               : _intercept,

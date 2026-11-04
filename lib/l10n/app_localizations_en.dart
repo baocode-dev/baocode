@@ -13638,4 +13638,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String portsCopied(String address) {
     return 'Copied $address';
   }
+
+  @override
+  String branchBarFolder(String path) {
+    return '$path\nClick to copy its path';
+  }
+
+  @override
+  String get branchBarPathCopied => 'Path copied';
 }

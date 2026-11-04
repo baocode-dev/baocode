@@ -6,24 +6,28 @@
 // switched to by working there: the conversation shows that worktree, and
 // the composer gets a line telling the agent so. Switchable while the agent
 // works too; nothing to switch without a repository: then a workspace's
-// name only, and nothing for a project (its name is over the input, or in
-// the title).
+// name only, and a project's folder (and its host), a click copying its
+// path.
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_session.dart';
 import '../chat/composer/composer_picker.dart';
+import '../chat/widgets/hover_builder.dart';
 import '../ide/git/git_checkout.dart' show ideSanitizeBranchName;
 import '../ide/git/git_model.dart';
 import '../ide/git/git_repository.dart';
 import '../ide/ide_dialog.dart';
+import '../ide/ide_hover.dart';
 import '../kernel/kernel_types.dart';
 import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 import '../theme/codicons.dart';
+import '../theme/workbench_theme.dart' show themeColors;
 
 class ChatBranchBar extends StatefulWidget {
   const ChatBranchBar({
@@ -33,6 +37,8 @@ class ChatBranchBar extends StatefulWidget {
     this.workspace = false,
     this.repositories = const [],
     this.onSwitchWorktree,
+    this.path,
+    this.host,
   });
 
   /// The conversation whose input it is under: told in its composer where
@@ -53,6 +59,14 @@ class ChatBranchBar extends StatefulWidget {
   /// Makes the conversation show the worktree at `path` of `folder`'s
   /// repository; no worktrees offered when null.
   final void Function(String folder, String path)? onSwitchWorktree;
+
+  /// A project's folder's path (on [host]): with no repository, its name
+  /// shows in place of a branch, a click copying this.
+  final String? path;
+
+  /// The remote host the project is on, after its name; null for this
+  /// machine.
+  final String? host;
 
   @override
   State<ChatBranchBar> createState() => _ChatBranchBarState();
@@ -404,7 +418,19 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
     }
     final git = widget.repositories.firstOrNull?.$2;
     final state = git?.state;
-    if (git == null || state == null) return null;
+    if (state == null) {
+      // Its status not read yet: nothing rather than the folder a moment.
+      if (git != null && !git.loaded) return null;
+      return switch (widget.path) {
+        final path? => _FolderLabel(
+          name: widget.name,
+          host: widget.host,
+          path: path,
+        ),
+        null => null,
+      };
+    }
+    if (git == null) return null;
     final current = state.head.branch;
     final folder = widget.repositories.first.$1;
     return ComposerPicker(
@@ -523,6 +549,75 @@ class _ChatBranchBarState extends State<ChatBranchBar> {
             _pick(folder, git, branch);
         }
       },
+    );
+  }
+}
+
+/// A project's folder without a repository: its name, and the host it is
+/// on; a click copies its path.
+class _FolderLabel extends StatefulWidget {
+  const _FolderLabel({
+    required this.name,
+    required this.host,
+    required this.path,
+  });
+
+  final String name;
+  final String? host;
+  final String path;
+
+  @override
+  State<_FolderLabel> createState() => _FolderLabelState();
+}
+
+class _FolderLabelState extends State<_FolderLabel> {
+  bool _copied = false;
+  Timer? _done;
+
+  @override
+  void dispose() {
+    _done?.cancel();
+    super.dispose();
+  }
+
+  void _copy() {
+    unawaited(Clipboard.setData(ClipboardData(text: widget.path)));
+    _done?.cancel();
+    setState(() => _copied = true);
+    _done = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final host = widget.host;
+    final where = host == null ? widget.path : '$host:${widget.path}';
+    return IdeHover(
+      message: _copied ? l10n.branchBarPathCopied : l10n.branchBarFolder(where),
+      child: HoverBuilder(
+        cursor: SystemMouseCursors.click,
+        builder: (context, hovered) => GestureDetector(
+          onTap: _copy,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: hovered
+                  ? themeColors['toolbar.hoverBackground']
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: _Label(
+              icon: _copied
+                  ? Codicons.check
+                  : host == null
+                  ? Codicons.folder
+                  : Codicons.remote,
+              label: host == null ? widget.name : '${widget.name} · $host',
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
