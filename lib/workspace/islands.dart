@@ -910,6 +910,11 @@ class IslandFootTrailing extends StatefulWidget {
 
   /// [child], what the card has in the row under it from [Islands.inset]:
   /// measured, for the room after it.
+  /// Whether the row [context] is in has what is after it (the IDE's
+  /// status bar's right items): what leads it keeps to its own width.
+  static bool hosts(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_FootLeading>() != null;
+
   static Widget leading(BuildContext context, Widget child) {
     final foot = context
         .dependOnInheritedWidgetOfExactType<_FootLeading>()

@@ -27,7 +27,6 @@ class OpenInEditorButton extends StatelessWidget {
     required this.workspace,
     required this.project,
     this.agent,
-    this.compact = false,
   });
 
   final Workspace workspace;
@@ -36,10 +35,6 @@ class OpenInEditorButton extends StatelessWidget {
   /// The agent whose chat the IDE opens with [project]; null: the focused
   /// one's, where it is this project's.
   final AgentThread? agent;
-
-  /// The editor's icon alone: a pane's title bar among others, where the
-  /// label does not fit beside them.
-  final bool compact;
 
   /// Opens a project in an editor; replaceable under test.
   @visibleForTesting
@@ -92,7 +87,7 @@ class OpenInEditorButton extends StatelessWidget {
       ],
       builder: (context, menu) {
         final foreground = IdeButtonColors.foreground;
-        final width = compact ? 0.0 : titleBarSwitchWidth(context);
+        final width = titleBarSwitchWidth(context);
         return Container(
           height: 22,
           constraints: BoxConstraints(minWidth: width),
@@ -121,10 +116,7 @@ class OpenInEditorButton extends StatelessWidget {
                         )
                       : open,
                   onTap: () => _open(editor),
-                  padding: EdgeInsets.only(
-                    left: compact ? 6 : 8,
-                    right: compact ? 4 : 6,
-                  ),
+                  padding: const EdgeInsets.only(left: 8, right: 6),
                   borderRadius: const BorderRadius.horizontal(
                     left: Radius.circular(3),
                   ),
@@ -132,17 +124,15 @@ class OpenInEditorButton extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(editor.icon, size: 16, color: foreground),
-                      if (!compact) ...[
-                        const SizedBox(width: 4),
-                        Text(
-                          editor.localizedPlatformLabel(context.l10n),
-                          style: TextStyle(
-                            color: foreground,
-                            fontSize: 12,
-                            height: 16 / 12,
-                          ),
+                      const SizedBox(width: 4),
+                      Text(
+                        editor.localizedPlatformLabel(context.l10n),
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: 12,
+                          height: 16 / 12,
                         ),
-                      ],
+                      ),
                     ],
                   ),
                 ),

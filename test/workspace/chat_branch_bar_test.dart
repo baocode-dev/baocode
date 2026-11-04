@@ -1,7 +1,7 @@
 // Under the chat input, the Git branch the agent works on: switched from
 // its menu, while the agent works too; a workspace's folders' branch, or
-// each one's; a workspace's name only, and a project's nothing, without a
-// repository. Worktrees made and
+// each one's; a workspace's name only, and a project's folder (and host),
+// its path copied by a click, without a repository. Worktrees made and
 // switched to from it.
 
 import 'package:baocode/chat/chat_session.dart';
@@ -10,6 +10,7 @@ import 'package:baocode/ide/git/git_service.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/workspace/chat_branch_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -39,6 +40,8 @@ Future<void> _pump(
   bool workspace = false,
   List<(String, IdeGitRepository)> repositories = const [],
   void Function(String folder, String path)? onSwitchWorktree,
+  String? path,
+  String? host,
 }) async {
   session ??= ChatSession(historyCount: 0);
   addTearDown(session.dispose);
@@ -56,6 +59,8 @@ Future<void> _pump(
               workspace: workspace,
               repositories: repositories,
               onSwitchWorktree: onSwitchWorktree,
+              path: path,
+              host: host,
             ),
           ),
         ),
@@ -255,14 +260,44 @@ void main() {
     ]);
   });
 
-  testWidgets('a project without Git shows nothing: its name is elsewhere', (
-    tester,
-  ) async {
-    final fake = _git('/work/notes')..isRepository = false;
+  testWidgets('a project without Git shows its folder, and its host; a '
+      'click copies its path', (tester) async {
+    final fake = _git('/root')..isRepository = false;
     final git = fake.repository();
     addTearDown(git.dispose);
-    await _pump(tester, name: 'notes', repositories: [('/work/notes', git)]);
-    expect(find.text('notes'), findsNothing);
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await _pump(
+      tester,
+      name: 'root',
+      repositories: [('/root', git)],
+      path: '/root',
+      host: 'bandwagonhost',
+    );
+    expect(find.text('root · bandwagonhost'), findsOneWidget);
+    await tester.tap(find.text('root · bandwagonhost'));
+    await tester.pump();
+    expect(copied, '/root');
+    await tester.pump(const Duration(seconds: 2));
+
+    // Here, no host; nothing without its path.
+    await _pump(tester, name: 'notes', path: '/work/notes');
+    expect(find.text('notes'), findsOneWidget);
+    await _pump(tester, name: 'notes');
     expect(tester.getSize(find.byType(ChatBranchBar)).height, 0);
   });
 

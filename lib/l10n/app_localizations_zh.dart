@@ -12889,4 +12889,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String portsCopied(String address) {
     return '已复制 $address';
   }
+
+  @override
+  String branchBarFolder(String path) {
+    return '$path\n点击复制路径';
+  }
+
+  @override
+  String get branchBarPathCopied => '已复制路径';
 }

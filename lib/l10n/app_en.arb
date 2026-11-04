@@ -8704,5 +8704,14 @@
         "type": "String"
       }
     }
+  },
+  "branchBarFolder": "{path}\nClick to copy its path",
+  "@branchBarFolder": {
+    "description": "Hover of the project folder shown under the chat in place of a Git branch (no repository): its path, then that a click copies it.",
+    "placeholders": {"path": {"type": "String"}}
+  },
+  "branchBarPathCopied": "Path copied",
+  "@branchBarPathCopied": {
+    "description": "Hover of the project folder under the chat once clicked: its path was copied."
   }
 }
