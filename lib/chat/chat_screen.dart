@@ -11,7 +11,6 @@ import '../base/mouse_navigation.dart';
 import '../channel/channel_setup.dart';
 import '../ide/ide_menu.dart';
 import '../kernel/kernel_types.dart';
-import '../kernel/claude_code/claude_path_setting.dart' show installLocalClaude;
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
 import '../models/model_welcome.dart';
@@ -42,7 +41,6 @@ import 'composer/composer_embeds.dart';
 import 'composer/composer_mock_data.dart';
 import 'composer/file_mentions.dart';
 import 'panels/activity_strip.dart';
-import 'panels/claude_core_hint.dart';
 import 'panels/health_banner.dart';
 import 'panels/interaction_panel.dart';
 import 'panels/limit_reset_panel.dart';
@@ -536,33 +534,6 @@ class _ChatScreenState extends State<ChatScreen>
   void _answer(InteractionAnswer answer) {
     _session.answer(answer);
     _composerKey.currentState?.focus();
-  }
-
-  /// Whether the conversation is a Claude Code one on this machine, whose
-  /// core may be BaoCode's own ([ClaudeCoreHint]).
-  bool get _localClaudeCode =>
-      !kIsWeb &&
-      _session.kernel.id == 'claude-code' &&
-      switch (_session.kernelContext.cwd) {
-        final cwd? => RemoteLocation.hostOf(cwd) == null,
-        null => true,
-      };
-
-  /// The CLI picked from [ClaudeCoreHint]: the session moves to it now
-  /// when at rest, downloaded first where there is none (as
-  /// [ClaudeInstallBanner] shows); else it is downloaded meanwhile, for
-  /// the session to move to it as it starts again.
-  void _movedToCli() {
-    if (!_session.isStreaming && _session.pendingInteraction == null) {
-      _session.restart();
-      return;
-    }
-    unawaited(
-      installLocalClaude().catchError((Object error) {
-        // Said again by the session that starts on it.
-        debugPrint('Claude Code not downloaded: $error');
-      }),
-    );
   }
 
   /// The sequence of the plan writing last shown.
@@ -1448,8 +1419,6 @@ class _ChatScreenState extends State<ChatScreen>
               // Claude Code being downloaded for this machine, or put on
               // a remote project's host.
               ClaudeInstallBanner(location: _session.kernelContext.cwd),
-              // BaoCode's own core picked: the CLI suggested.
-              if (_localClaudeCode) ClaudeCoreHint(onSwitched: _movedToCli),
               // Reset credits of the model's ChatGPT accounts about to
               // expire: a plan to use them.
               ResetCreditsHint(model: _session.models?.selected.id),
