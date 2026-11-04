@@ -182,7 +182,7 @@ class RemoteIdeFileService implements IdeHostFiles, IdeRangeFiles {
 /// The Git of the project at [root] on [host]: its commands run there.
 IdeGitService remoteGitService(SshHost host, String root) => IdeGitService(
   root,
-  pathContext: host.paths,
+  pathContext: RemoteLocation.pathsFor(root),
   runner:
       (
         arguments, {
