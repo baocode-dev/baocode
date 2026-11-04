@@ -5878,6 +5878,82 @@ exec /usr/bin/env "\$@"
       expect(await titles(), {'one': 'grown longer'});
     });
 
+    test('a session file appended to is read on from where it was read, '
+        'its titles and last message taken from what came', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      final cwd = '${root.path}/project';
+      final cacheFile = '${root.path}/cache/claude-sessions.json';
+      Directory(cwd).createSync(recursive: true);
+      final file = File('$config/projects/-p/one.jsonl')
+        ..createSync(recursive: true);
+      void append(List<Map<String, Object?>> lines) => file.writeAsStringSync(
+        lines.map((line) => '${jsonEncode(line)}\n').join(),
+        mode: FileMode.append,
+      );
+      final storage = ClaudeStorage(configDir: config, cacheFile: cacheFile);
+      Future<SessionRecord> session() async =>
+          (await storage.projects()).single.sessions.single;
+
+      append([
+        {
+          'type': 'user',
+          'message': {'role': 'user', 'content': 'first'},
+          'cwd': cwd,
+          'timestamp': '2026-09-27T08:00:00.000Z',
+        },
+      ]);
+      expect((await session()).title, 'first');
+
+      // Changed where it was read already, not at its end: not read again.
+      final read = file.readAsStringSync();
+      file.writeAsStringSync(read.replaceFirst('first', 'xxxxx'));
+      append([
+        {
+          'type': 'assistant',
+          'cwd': cwd,
+          'timestamp': '2026-09-27T09:00:00.000Z',
+          'message': {'role': 'assistant', 'content': []},
+        },
+      ]);
+      var kept = await session();
+      expect(kept.title, 'first');
+      expect(kept.updatedAt, DateTime.utc(2026, 9, 27, 9).toLocal());
+
+      append([
+        {'type': 'ai-title', 'aiTitle': 'Generated', 'sessionId': 'one'},
+      ]);
+      expect((await session()).title, 'Generated');
+      append([
+        {'type': 'custom-title', 'customTitle': 'Named', 'sessionId': 'one'},
+      ]);
+      expect((await session()).title, 'Named');
+
+      append([
+        {'type': 'ai-title', 'aiTitle': 'Generated again', 'sessionId': 'one'},
+      ]);
+      expect((await session()).title, 'Named');
+      append([
+        {'type': 'custom-title', 'customTitle': ' ', 'sessionId': 'one'},
+      ]);
+      expect((await session()).title, 'Generated again');
+
+      // Written over from the start, not appended to: read whole again.
+      file.writeAsStringSync(
+        '${jsonEncode({
+          'type': 'user',
+          'cwd': cwd,
+          'timestamp': '2026-09-27T10:00:00.000Z',
+          'message': {'role': 'user', 'content': 'rewritten from the start, '
+              'longer than it was before'},
+        })}\n',
+      );
+      kept = await session();
+      expect(kept.title, 'rewritten from the start, longer than it was before');
+      expect(kept.updatedAt, DateTime.utc(2026, 9, 27, 10).toLocal());
+    });
+
     test(
       'the app\'s data path wins, and the CLI is told to keep state there',
       () async {

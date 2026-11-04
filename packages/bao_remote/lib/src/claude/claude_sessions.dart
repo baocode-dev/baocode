@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:bao_agent/bao_agent.dart' show AgentPaths;
 import 'package:path/path.dart' as p;
@@ -344,17 +346,47 @@ List<Map<String, Object?>> _goal(String id, String config) {
     final file = File('${project.path}/$id.jsonl');
     if (!file.existsSync()) continue;
     return [
-      for (final line in const LineSplitter().convert(file.readAsStringSync()))
-        // Most lines are not: only these are decoded.
-        if (line.contains('"goal_status"'))
-          if (_decode(line) case final entry?
-              when entry['type'] == 'attachment' &&
-                  entry['attachment'] is Map &&
-                  (entry['attachment'] as Map)['type'] == 'goal_status')
-            entry,
+      // Most lines are not: only these are decoded. Asked again as each
+      // turn ends, of a session that may be hundreds of MB: looked for in
+      // its bytes, not its text.
+      for (final line in _linesWith(file.readAsBytesSync(), _goalStatus))
+        if (_decode(line) case final entry?
+            when entry['type'] == 'attachment' &&
+                entry['attachment'] is Map &&
+                (entry['attachment'] as Map)['type'] == 'goal_status')
+          entry,
     ];
   }
   return const [];
+}
+
+final _goalStatus = utf8.encode('"goal_status"');
+
+/// The lines of [bytes] that have [marker] in them, in order.
+Iterable<String> _linesWith(Uint8List bytes, List<int> marker) sync* {
+  final first = marker.first;
+  var at = 0;
+  search:
+  while (at <= bytes.length - marker.length) {
+    if (bytes[at] != first) {
+      at++;
+      continue;
+    }
+    for (var i = 1; i < marker.length; i++) {
+      if (bytes[at + i] != marker[i]) {
+        at++;
+        continue search;
+      }
+    }
+    final start = bytes.lastIndexOf(0x0a, at) + 1;
+    var end = bytes.indexOf(0x0a, at);
+    if (end < 0) end = bytes.length;
+    yield utf8.decode(
+      Uint8List.sublistView(bytes, start, end),
+      allowMalformed: true,
+    );
+    at = end + 1;
+  }
 }
 
 Map<String, Object?>? _decode(String line) {
@@ -424,16 +456,18 @@ List<ClaudeProjectSummary> _scan(String root, String cachePath) {
   return projects;
 }
 
-/// What [_summarize] made of each session file, kept between runs: reading
+/// What [_Summary] made of each session file, kept between runs: reading
 /// them all again is what made the first listing slow. A file is read again
-/// only once its size or time of change differs; only the files still there
-/// are kept, so it stays a few hundred bytes a session. Anything amiss with
-/// it (unreadable, another version, another folder) and it starts over.
+/// only once its size or time of change differs, and then only what was
+/// appended to it (a session at work grows by hundreds of MB, and is listed
+/// again each time the app comes back to the front); only the files still
+/// there are kept, so it stays a few hundred bytes a session. Anything amiss
+/// with it (unreadable, another version, another folder) and it starts over.
 class _SummaryCache {
   _SummaryCache._(this._path, this._root, this._old);
 
-  /// Raise it whenever [_summarize] makes something else of a file.
-  static const _version = 1;
+  /// Raise it whenever [_Summary] makes something else of a file.
+  static const _version = 2;
 
   factory _SummaryCache.load(String path, String root) {
     var old = const <String, Object?>{};
@@ -465,52 +499,21 @@ class _SummaryCache {
     if (stat.type == FileSystemEntityType.notFound) return null;
     final size = stat.size;
     final modified = stat.modified.microsecondsSinceEpoch;
-    if (_old[file.path]
-        case {
-          'size': final int keptSize,
-          'modified': final int keptModified,
-          'session': final Object? kept,
-        }
-        when keptSize == size && keptModified == modified) {
-      final session = _decode(file.path, kept);
-      if (session != null || kept == null) {
-        _fresh[file.path] = _old[file.path];
-        return session;
-      }
+    final old = _old[file.path];
+    final kept = old is Map ? _Summary.fromJson(old) : null;
+    if (kept != null && kept.size == size && kept.modified == modified) {
+      _fresh[file.path] = old;
+      return kept.session(file.path);
     }
     // Stat before reading: a write meanwhile shows as a change next time.
-    final session = _summarize(file);
-    _fresh[file.path] = {
-      'size': size,
-      'modified': modified,
-      'session': session == null
-          ? null
-          : {
-              'title': session.title,
-              'cwd': session.cwd,
-              'updatedAt': session.updatedAt.microsecondsSinceEpoch,
-            },
-    };
+    final read =
+        (kept == null ? null : _Summary.readOn(file, kept)) ??
+        _Summary.readOn(file, const _Summary()) ??
+        const _Summary();
+    final summary = read.at(size: size, modified: modified);
+    _fresh[file.path] = summary.toJson();
     _changed = true;
-    return session;
-  }
-
-  static ClaudeSessionSummary? _decode(String path, Object? kept) {
-    if (kept case {
-      'title': final String title,
-      'cwd': final String cwd,
-      'updatedAt': final int updatedAt,
-    }) {
-      final name = p.basename(path);
-      return ClaudeSessionSummary(
-        id: name.substring(0, name.length - '.jsonl'.length),
-        title: title,
-        updatedAt: DateTime.fromMicrosecondsSinceEpoch(updatedAt),
-        cwd: cwd,
-        path: path,
-      );
-    }
-    return null;
+    return summary.session(file.path);
   }
 
   /// Writes it, if anything changed: whole, so a run cut short leaves the
@@ -536,75 +539,204 @@ class _SummaryCache {
   }
 }
 
-/// Title, place and time of a session file; null for one with no
-/// conversation (e.g. only a failed start). Raise [_SummaryCache._version]
-/// when changing what it makes of a file.
-ClaudeSessionSummary? _summarize(File file) {
-  final String text;
-  try {
-    text = file.readAsStringSync();
-  } on Object {
+/// What a session file says of itself (title, place and time), as far as
+/// it was read: to [scanned], the end of its last whole line then. Claude
+/// Code only appends to it, so what it says once grown is this and what
+/// the lines after say; [mark], the bytes before [scanned], tells whether
+/// it was only appended to. Raise [_SummaryCache._version] when changing
+/// what it makes of a file.
+class _Summary {
+  const _Summary({
+    this.cwd,
+    this.prompt,
+    this.named,
+    this.generated,
+    this.said,
+    this.scanned = 0,
+    this.mark = '',
+    this.size,
+    this.modified,
+  });
+
+  /// [json] as [toJson] wrote it; null when it is not.
+  static _Summary? fromJson(Map<Object?, Object?> json) {
+    if (json case {
+      'size': final int size,
+      'modified': final int modified,
+      'scanned': final int scanned,
+      'mark': final String mark,
+      'cwd': final String? cwd,
+      'prompt': final String? prompt,
+      'named': final String? named,
+      'generated': final String? generated,
+      'said': final int? said,
+    }) {
+      return _Summary(
+        cwd: cwd,
+        prompt: prompt,
+        named: named,
+        generated: generated,
+        said: said,
+        scanned: scanned,
+        mark: mark,
+        size: size,
+        modified: modified,
+      );
+    }
     return null;
   }
-  String? cwd;
-  String? firstPrompt;
-  // The last title wins; scan for the marker rather than decoding every
-  // line of a long session.
-  String? lastTitle(String type, String key) {
-    final at = text.lastIndexOf('"type":"$type"');
-    if (at < 0) return null;
-    final start = text.lastIndexOf('\n', at) + 1;
-    final end = text.indexOf('\n', at);
-    final line = text.substring(start, end < 0 ? text.length : end);
+
+  /// The folder it ran in, as its first line of the user's says.
+  final String? cwd;
+
+  /// The first line of the first thing the user typed, cut to 120
+  /// characters: its title until it has one.
+  final String? prompt;
+
+  /// The last title the user gave it (`/rename`), and the last Claude Code
+  /// generated: as written, blank too (then it is not titled so).
+  final String? named;
+  final String? generated;
+
+  /// When its last message was written, in microseconds since the epoch.
+  final int? said;
+
+  final int scanned;
+
+  /// Base64.
+  final String mark;
+
+  /// The file's size and time of change as it was read (see [at]).
+  final int? size;
+  final int? modified;
+
+  /// How much of what is before [scanned] tells it again.
+  static const _markLength = 32;
+
+  _Summary at({required int size, required int modified}) => _Summary(
+    cwd: cwd,
+    prompt: prompt,
+    named: named,
+    generated: generated,
+    said: said,
+    scanned: scanned,
+    mark: mark,
+    size: size,
+    modified: modified,
+  );
+
+  Map<String, Object?> toJson() => {
+    'size': size,
+    'modified': modified,
+    'scanned': scanned,
+    'mark': mark,
+    'cwd': cwd,
+    'prompt': prompt,
+    'named': named,
+    'generated': generated,
+    'said': said,
+  };
+
+  /// The session it is; null for one with no conversation (e.g. only a
+  /// failed start).
+  ClaudeSessionSummary? session(String path) {
+    final cwd = this.cwd;
+    final prompt = this.prompt;
+    if (cwd == null || prompt == null) return null;
+    String? titled(String? title) =>
+        title == null || title.isEmpty ? null : title;
+    final name = p.basename(path);
+    return ClaudeSessionSummary(
+      id: name.substring(0, name.length - '.jsonl'.length),
+      // The user's before the one Claude Code generated.
+      title: titled(named) ?? titled(generated) ?? prompt,
+      // When it was last talked in: the file is written to besides
+      // (titles, the last prompt), by the CLI resuming it too.
+      updatedAt: DateTime.fromMicrosecondsSinceEpoch(said ?? modified ?? 0),
+      cwd: cwd,
+      path: path,
+    );
+  }
+
+  /// What [file] says: [kept], what was made of it up to where it was read
+  /// last ([_Summary()] for nothing), with what came after. Null when it
+  /// was not only appended to since, or could not be read.
+  static _Summary? readOn(File file, _Summary kept) {
+    final mark = base64Decode(kept.mark);
+    final from = kept.scanned - mark.length;
+    if (from < 0) return null;
+    final Uint8List bytes;
     try {
-      final title = ((jsonDecode(line) as Map)[key] as String?)?.trim();
-      return title?.isEmpty ?? true ? null : title;
-    } on Object {
+      final opened = file.openSync();
+      try {
+        final length = opened.lengthSync();
+        if (length < kept.scanned) return null;
+        opened.setPositionSync(from);
+        bytes = opened.readSync(length - from);
+      } finally {
+        opened.closeSync();
+      }
+    } on FileSystemException {
       return null;
     }
-  }
+    if (bytes.length < mark.length) return null;
+    for (var i = 0; i < mark.length; i++) {
+      if (bytes[i] != mark[i]) return null;
+    }
+    final added = Uint8List.sublistView(bytes, mark.length);
+    final end = added.lastIndexOf(0x0a) + 1;
+    final before = Uint8List.sublistView(
+      bytes,
+      math.max(0, mark.length + end - _markLength),
+      mark.length + end,
+    );
+    // A line written halfway counts as far as it reads; it is read again,
+    // whole, next time.
+    final text = utf8.decode(added, allowMalformed: true);
+    String? lastTitle(String type, String key) {
+      final at = text.lastIndexOf('"type":"$type"');
+      if (at < 0) return null;
+      final start = text.lastIndexOf('\n', at) + 1;
+      final end = text.indexOf('\n', at);
+      final line = text.substring(start, end < 0 ? text.length : end);
+      try {
+        return ((jsonDecode(line) as Map)[key] as String?)?.trim() ?? '';
+      } on Object {
+        return '';
+      }
+    }
 
-  // The user's (`/rename`) before the one Claude Code generated.
-  final title =
-      lastTitle('custom-title', 'customTitle') ??
-      lastTitle('ai-title', 'aiTitle');
-  final lines = const LineSplitter().convert(text);
-  for (final line in lines) {
-    if (!line.contains('"type":"user"')) continue;
-    final Map<String, Object?> entry;
-    try {
-      entry = (jsonDecode(line) as Map).cast<String, Object?>();
-    } on Object {
-      continue;
+    final lines = const LineSplitter().convert(text);
+    var cwd = kept.cwd;
+    var prompt = kept.prompt;
+    for (final line in lines) {
+      if (prompt != null) break;
+      if (!line.contains('"type":"user"')) continue;
+      final Map<String, Object?> entry;
+      try {
+        entry = (jsonDecode(line) as Map).cast<String, Object?>();
+      } on Object {
+        continue;
+      }
+      cwd ??= entry['cwd'] as String?;
+      if (entry['isSidechain'] == true || entry['isMeta'] == true) continue;
+      if (_promptText(entry) case final typed?) {
+        final first = typed.trim().split('\n').first;
+        prompt = first.length > 120 ? '${first.substring(0, 120)}…' : first;
+      }
     }
-    cwd ??= entry['cwd'] as String?;
-    if (entry['isSidechain'] == true || entry['isMeta'] == true) continue;
-    final prompt = _promptText(entry);
-    if (prompt != null) {
-      firstPrompt = prompt;
-      break;
-    }
+    return _Summary(
+      cwd: cwd,
+      prompt: prompt,
+      named: lastTitle('custom-title', 'customTitle') ?? kept.named,
+      generated: lastTitle('ai-title', 'aiTitle') ?? kept.generated,
+      said: _lastMessageTime(lines)?.microsecondsSinceEpoch ?? kept.said,
+      scanned: kept.scanned + end,
+      mark: base64Encode(before),
+    );
   }
-  if (cwd == null || firstPrompt == null) return null;
-  final name = file.uri.pathSegments.last;
-  final firstLine = firstPrompt.trim().split('\n').first;
-  return ClaudeSessionSummary(
-    id: name.substring(0, name.length - '.jsonl'.length),
-    title:
-        title ??
-        (firstLine.length > 120
-            ? '${firstLine.substring(0, 120)}…'
-            : firstLine),
-    // When it was last talked in: the file is written to besides (titles,
-    // the last prompt), by the CLI resuming it too.
-    updatedAt: _lastMessageTime(lines) ?? file.lastModifiedSync(),
-    cwd: cwd,
-    path: file.path,
-  );
 }
 
-/// What the user typed, or null for a tool result, command wrapper or
-/// injected note.
 /// The time of the last message, user's or Claude's, in [lines]; null
 /// when none has one.
 DateTime? _lastMessageTime(List<String> lines) {
