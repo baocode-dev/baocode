@@ -1838,10 +1838,14 @@ class MarkdownEditorState extends State<MarkdownEditor>
     // select to its ends with Shift. The numpad's 7 and 1 are Home and End
     // with NumLock off, which Windows tells as numpad7 and numpad1 and the
     // defaults don't map; with NumLock on they are digits, and stay digits.
+    // A digit comes with its character: the lock modes alone can't say,
+    // as on Windows they miss a NumLock already on when the app starts
+    // (2MSCSKQ2: the numpad's 1 typed nothing).
     final mac = defaultTargetPlatform == TargetPlatform.macOS;
     final numpad =
         (defaultTargetPlatform == TargetPlatform.windows ||
             defaultTargetPlatform == TargetPlatform.linux) &&
+        event.character == null &&
         !keyboard.lockModesEnabled.contains(KeyboardLockMode.numLock);
     final forward = switch (key) {
       LogicalKeyboardKey.home when mac => false,
