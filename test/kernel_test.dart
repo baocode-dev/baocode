@@ -5832,6 +5832,94 @@ exec /usr/bin/env "\$@"
       );
     });
 
+    test('a session is listed past the notes sent ahead of what was typed, '
+        'and by a command typed with what it is to do', () async {
+      final root = await Directory.systemTemp.createTemp('baocode-storage-');
+      addTearDown(() => root.delete(recursive: true));
+      final config = '${root.path}/config';
+      final cwd = '${root.path}/project';
+      Directory(cwd).createSync(recursive: true);
+      void session(String id, Object content) =>
+          File('$config/projects/-p/$id.jsonl')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              '${jsonEncode({
+                'type': 'user',
+                'uuid': 'aaaaaaaa-1111-4111-8111-111111111111',
+                'cwd': cwd,
+                'message': {'role': 'user', 'content': content},
+              })}\n',
+            );
+      // As the app sends them: the notes first, what was typed last.
+      session('editor', [
+        {
+          'type': 'text',
+          'text':
+              '<system-reminder>The user has lib/a.dart open in the '
+              'editor. This may or may not be related to the current '
+              'task.</system-reminder>',
+        },
+        {'type': 'text', 'text': 'fix the crash'},
+      ]);
+      session('phone', [
+        {'type': 'text', 'text': '[Image #1]'},
+        {
+          'type': 'image',
+          'source': {'type': 'base64', 'media_type': 'image/png', 'data': ''},
+        },
+        {
+          'type': 'text',
+          'text':
+              '<system-reminder>The user is now writing to you from the '
+              'BaoCode app on their phone.</system-reminder>',
+        },
+        {'type': 'text', 'text': 'why is this red\n[Image #1]'},
+      ]);
+      session('goal', [
+        {
+          'type': 'text',
+          'text':
+              '<command-name>/goal</command-name>\n'
+              '            <command-message>goal</command-message>\n'
+              '            <command-args>fix #149 and #148</command-args>',
+        },
+      ]);
+      session(
+        'design',
+        '<command-message>design</command-message>\n'
+            '<command-name>/design</command-name>\n'
+            '<command-args>a settings page</command-args>',
+      );
+      // Not what the user asked: no conversation to list.
+      session(
+        'model',
+        '<command-name>/model</command-name>\n'
+            '<command-args></command-args>',
+      );
+      session('notes', [
+        {
+          'type': 'text',
+          'text':
+              '<system-reminder>The user no longer has a file open in the '
+              'editor.</system-reminder>',
+        },
+      ]);
+
+      final sessions = (await ClaudeStorage(
+        configDir: config,
+        cacheFile: '${root.path}/cache.json',
+      ).projects()).single.sessions;
+      expect(
+        {for (final s in sessions) s.id: s.title},
+        {
+          'editor': 'fix the crash',
+          'phone': 'why is this red',
+          'goal': '/goal fix #149 and #148',
+          'design': '/design a settings page',
+        },
+      );
+    });
+
     test('a session file is read again only once it changes, and the cache '
         'keeps only the files still there', () async {
       final root = await Directory.systemTemp.createTemp('baocode-storage-');
