@@ -36,7 +36,9 @@ void main() {
   void hit(ResumeAfterReset resumes, String id, {Duration after = _hour}) =>
       resumes.hit(sessionId: id, resetsAt: _start.add(after));
 
-  testWidgets('保存失败可观测，条目增删不产生未捕获异步错误', (tester) async {
+  testWidgets('a failure to keep them is logged, not left uncaught', (
+    tester,
+  ) async {
     final store = _FailingStore();
     final resumes = make(store: store);
     hit(resumes, 'a');

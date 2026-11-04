@@ -17,50 +17,55 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('存储直接调用原子更新两个偏好，保留注释并拒绝破损 JSONC', () async {
-    final directory = await Directory.systemTemp.createTemp('theme_storage_');
-    addTearDown(() => directory.delete(recursive: true));
-    final files = SettingsFiles(DataDirectory(directory.path));
-    addTearDown(files.dispose);
-    final workspace = Workspace(preferences: MemoryPreferenceStore());
-    addTearDown(workspace.dispose);
-    await workspace.load();
-    await files.settings.writeText(
-      '// 保留说明\n{\n  "workbench.colorTheme": "Kimbie Dark",\n}\n',
-    );
-    final storage = ColorThemeSettings(
-      settings: files.settings,
-      state: workspace,
-    );
-    addTearDown(storage.dispose);
-    var changes = 0;
-    files.settings.addListener(() => changes++);
-    await storage.storeColorTheme(
-      setting: 'Bao Light',
-      autoDetectColorScheme: true,
-    );
-    expect(files.settings['workbench.colorTheme'], 'Kimbie Dark');
-    expect(files.settings['window.autoDetectColorScheme'], isTrue);
-    changes = 0;
-    await storage.storeColorTheme(setting: 'Bao Dark');
-    expect(changes, 1);
-    expect(files.settings['workbench.colorTheme'], 'Bao Dark');
-    expect(files.settings['window.autoDetectColorScheme'], isFalse);
-    expect(await files.settings.readText(), contains('// 保留说明'));
-    await files.settings.writeText('{');
-    await expectLater(
-      storage.storeColorTheme(
+  test(
+    'both kept in one write, comments kept, a broken file refused',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('theme_storage_');
+      addTearDown(() => directory.delete(recursive: true));
+      final files = SettingsFiles(DataDirectory(directory.path));
+      addTearDown(files.dispose);
+      final workspace = Workspace(preferences: MemoryPreferenceStore());
+      addTearDown(workspace.dispose);
+      await workspace.load();
+      await files.settings.writeText(
+        '// 保留说明\n{\n  "workbench.colorTheme": "Kimbie Dark",\n}\n',
+      );
+      final storage = ColorThemeSettings(
+        settings: files.settings,
+        state: workspace,
+      );
+      addTearDown(storage.dispose);
+      var changes = 0;
+      files.settings.addListener(() => changes++);
+      await storage.storeColorTheme(
         setting: 'Bao Light',
         autoDetectColorScheme: true,
-      ),
-      throwsA(isA<JsoncFileException>()),
-    );
-    expect(await files.settings.readText(), '{');
-    expect(workspace.colorThemeSetting, 'Bao Dark');
-    expect(workspace.autoDetectColorScheme, isFalse);
-  });
+      );
+      expect(files.settings['workbench.colorTheme'], 'Kimbie Dark');
+      expect(files.settings['window.autoDetectColorScheme'], isTrue);
+      changes = 0;
+      await storage.storeColorTheme(setting: 'Bao Dark');
+      expect(changes, 1);
+      expect(files.settings['workbench.colorTheme'], 'Bao Dark');
+      expect(files.settings['window.autoDetectColorScheme'], isFalse);
+      expect(await files.settings.readText(), contains('// 保留说明'));
+      await files.settings.writeText('{');
+      await expectLater(
+        storage.storeColorTheme(
+          setting: 'Bao Light',
+          autoDetectColorScheme: true,
+        ),
+        throwsA(isA<JsoncFileException>()),
+      );
+      expect(await files.settings.readText(), '{');
+      expect(workspace.colorThemeSetting, 'Bao Dark');
+      expect(workspace.autoDetectColorScheme, isFalse);
+    },
+  );
 
-  testWidgets('应用接收真实平台亮度事件，卸载后取消监听', (tester) async {
+  testWidgets('the app follows the platform\'s brightness, until disposed', (
+    tester,
+  ) async {
     final previous = WorkbenchThemeService.instance;
     final themes = WorkbenchThemeService();
     WorkbenchThemeService.instance = themes;
@@ -81,7 +86,8 @@ void main() {
     await tester.pumpWidget(BaoCodeApp(workspace: Workspace.mock()));
     await tester.pumpAndSettle();
     expect(themes.colorTheme.settingsId, 'Bao Light');
-    // 平台事件及完成屏障在同一真实异步区发送，避免假时钟队列阻塞。
+    // The platform's event and the wait for it in real async, not to be
+    // held up by the fake clock.
     await tester.runAsync(() async {
       tester.binding.platformDispatcher.platformBrightnessTestValue =
           Brightness.dark;
@@ -106,7 +112,7 @@ void main() {
     expect(themes.colorTheme.settingsId, 'Bao Light');
   }, timeout: const Timeout(Duration(seconds: 30)));
 
-  test('默认及固定主题不随系统变化', () async {
+  test('the default and a fixed theme do not follow the system', () async {
     final themes = WorkbenchThemeService()..restore();
     addTearDown(themes.dispose);
     await themes.initialize();
@@ -118,7 +124,8 @@ void main() {
     expect(themes.colorTheme.settingsId, 'Kimbie Dark');
   });
 
-  test('Auto 双向跟随系统，保留固定偏好，具体主题退出 Auto', () async {
+  test('Auto follows the system both ways, the fixed theme kept; a theme '
+      'picked leaves Auto', () async {
     final kept = MemoryPreferenceStore();
     final workspace = Workspace(preferences: kept);
     addTearDown(workspace.dispose);
@@ -148,7 +155,30 @@ void main() {
     expect(themes.colorTheme.settingsId, 'Solarized Light');
   });
 
-  test('Auto 重启拒绝上次系统亮度的缓存，首次绘制已用当前亮度', () async {
+  test('only a change of the system\'s appearance goes through the '
+      'transition; one picked or previewed shows at once', () async {
+    final themes = WorkbenchThemeService()
+      ..restore(setting: 'Kimbie Dark', brightness: Brightness.light);
+    addTearDown(themes.dispose);
+    await themes.initialize();
+    final through = <String>[];
+    themes.transition = (colors, apply) {
+      through.add(colors.theme.settingsId);
+      apply();
+    };
+    await themes.setColorTheme('Solarized Light', preview: true);
+    await themes.setColorTheme('Solarized Light');
+    await themes.setColorTheme(IdeColorThemeController.autoId);
+    expect(themes.colorTheme.settingsId, 'Bao Light');
+    expect(through, isEmpty);
+
+    await themes.setPlatformBrightness(Brightness.dark);
+    expect(themes.colorTheme.settingsId, 'Bao Dark');
+    expect(through, ['Bao Dark']);
+  });
+
+  test('Auto restarted paints at the system\'s appearance now, not the '
+      'cached one', () async {
     final old = WorkbenchThemeService()..restore(setting: 'Bao Dark');
     addTearDown(old.dispose);
     await old.initialize();
@@ -167,7 +197,7 @@ void main() {
     expect(themes.colorThemeSetting, 'Kimbie Dark');
   });
 
-  test('取消固定主题预览恢复已提交的 Auto 与最新系统亮度', () async {
+  test('a preview cancelled shows Auto again, at the appearance now', () async {
     final themes = WorkbenchThemeService()
       ..restore(
         setting: 'Kimbie Dark',
@@ -185,48 +215,52 @@ void main() {
     expect(themes.colorThemeSetting, 'Kimbie Dark');
   });
 
-  test('设置文件保留注释并原子保存模式；保存失败不伪提交', () async {
-    final directory = await Directory.systemTemp.createTemp('auto_theme_');
-    addTearDown(() => directory.delete(recursive: true));
-    final files = SettingsFiles(DataDirectory(directory.path));
-    addTearDown(files.dispose);
-    final workspace = Workspace(preferences: MemoryPreferenceStore());
-    addTearDown(workspace.dispose);
-    await workspace.load();
-    await files.settings.writeText(
-      '// 保留说明\n{\n  "workbench.colorTheme": "Kimbie Dark",\n}\n',
-    );
-    final storage = ColorThemeSettings(
-      settings: files.settings,
-      state: workspace,
-    );
-    addTearDown(storage.dispose);
-    final themes = WorkbenchThemeService()
-      ..restore(setting: 'Kimbie Dark', brightness: Brightness.light)
-      ..storage = storage;
-    addTearDown(themes.dispose);
-    storage.follow(themes);
-    final initialText = await files.settings.readText();
-    await themes.initialize();
-    expect(await files.settings.readText(), initialText);
-    await themes.setColorTheme(IdeColorThemeController.autoId);
-    expect(files.settings['workbench.colorTheme'], 'Kimbie Dark');
-    expect(files.settings['window.autoDetectColorScheme'], isTrue);
-    expect(await files.settings.readText(), contains('// 保留说明'));
+  test(
+    'the settings file keeps its comments; a failed write keeps nothing',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('auto_theme_');
+      addTearDown(() => directory.delete(recursive: true));
+      final files = SettingsFiles(DataDirectory(directory.path));
+      addTearDown(files.dispose);
+      final workspace = Workspace(preferences: MemoryPreferenceStore());
+      addTearDown(workspace.dispose);
+      await workspace.load();
+      await files.settings.writeText(
+        '// 保留说明\n{\n  "workbench.colorTheme": "Kimbie Dark",\n}\n',
+      );
+      final storage = ColorThemeSettings(
+        settings: files.settings,
+        state: workspace,
+      );
+      addTearDown(storage.dispose);
+      final themes = WorkbenchThemeService()
+        ..restore(setting: 'Kimbie Dark', brightness: Brightness.light)
+        ..storage = storage;
+      addTearDown(themes.dispose);
+      storage.follow(themes);
+      final initialText = await files.settings.readText();
+      await themes.initialize();
+      expect(await files.settings.readText(), initialText);
+      await themes.setColorTheme(IdeColorThemeController.autoId);
+      expect(files.settings['workbench.colorTheme'], 'Kimbie Dark');
+      expect(files.settings['window.autoDetectColorScheme'], isTrue);
+      expect(await files.settings.readText(), contains('// 保留说明'));
 
-    await themes.setColorTheme('Bao Dark');
-    expect(files.settings['workbench.colorTheme'], 'Bao Dark');
-    expect(files.settings['window.autoDetectColorScheme'], isFalse);
-    await files.settings.writeText('{');
-    await expectLater(
-      themes.setColorTheme(IdeColorThemeController.autoId),
-      throwsA(isA<JsoncFileException>()),
-    );
-    expect(themes.autoDetectColorScheme, isFalse);
-    expect(themes.colorTheme.settingsId, 'Bao Dark');
-  });
+      await themes.setColorTheme('Bao Dark');
+      expect(files.settings['workbench.colorTheme'], 'Bao Dark');
+      expect(files.settings['window.autoDetectColorScheme'], isFalse);
+      await files.settings.writeText('{');
+      await expectLater(
+        themes.setColorTheme(IdeColorThemeController.autoId),
+        throwsA(isA<JsoncFileException>()),
+      );
+      expect(themes.autoDetectColorScheme, isFalse);
+      expect(themes.colorTheme.settingsId, 'Bao Dark');
+    },
+  );
 
-  test('缓存等待工作区恢复，不遮蔽已保存的固定主题和模式', () async {
+  test('the cache waits for the workspace\'s restore, not over what was '
+      'kept', () async {
     final kept = _DelayedStore({
       'colorTheme': 'Kimbie Dark',
       'autoDetectColorScheme': true,
@@ -248,37 +282,44 @@ void main() {
     expect(kept.preferences['colorThemeData'], 'new cache');
   });
 
-  test('工作区提交写入失败回滚偏好，缓存失败也不改变模式', () async {
-    final kept = _FailingStore();
-    final workspace = Workspace(preferences: kept);
-    addTearDown(workspace.dispose);
-    await workspace.load();
-    await workspace.storeColorTheme(setting: 'Kimbie Dark', data: 'old cache');
-    kept.fail = true;
-    await expectLater(
-      workspace.storeColorTheme(
-        setting: 'Bao Light',
-        data: 'new cache',
-        autoDetectColorScheme: true,
-      ),
-      throwsA(isA<FileSystemException>()),
-    );
-    expect(workspace.colorThemeSetting, 'Kimbie Dark');
-    expect(workspace.autoDetectColorScheme, isFalse);
-    await expectLater(
-      workspace.storeColorTheme(
-        setting: 'Bao Light',
-        data: 'new cache',
-        cacheOnly: true,
-      ),
-      throwsA(isA<FileSystemException>()),
-    );
-    expect(workspace.colorThemeData, 'old cache');
-    expect(workspace.colorThemeSetting, 'Kimbie Dark');
-    expect(workspace.autoDetectColorScheme, isFalse);
-  });
+  test(
+    'a failed workspace write rolls back; a failed cache keeps Auto',
+    () async {
+      final kept = _FailingStore();
+      final workspace = Workspace(preferences: kept);
+      addTearDown(workspace.dispose);
+      await workspace.load();
+      await workspace.storeColorTheme(
+        setting: 'Kimbie Dark',
+        data: 'old cache',
+      );
+      kept.fail = true;
+      await expectLater(
+        workspace.storeColorTheme(
+          setting: 'Bao Light',
+          data: 'new cache',
+          autoDetectColorScheme: true,
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(workspace.colorThemeSetting, 'Kimbie Dark');
+      expect(workspace.autoDetectColorScheme, isFalse);
+      await expectLater(
+        workspace.storeColorTheme(
+          setting: 'Bao Light',
+          data: 'new cache',
+          cacheOnly: true,
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(workspace.colorThemeData, 'old cache');
+      expect(workspace.colorThemeSetting, 'Kimbie Dark');
+      expect(workspace.autoDetectColorScheme, isFalse);
+    },
+  );
 
-  test('过期提交的真实保存错误仍抛出，不覆盖新预览', () async {
+  test('an older choice\'s write error still throws, not over a newer '
+      'preview', () async {
     final kept = _FailingStore();
     final workspace = Workspace(preferences: kept);
     addTearDown(workspace.dispose);
@@ -303,7 +344,7 @@ void main() {
     expect(themes.colorTheme.settingsId, 'Bao Light');
   });
 
-  test('回退显示失败保存时仍保留已提交的固定偏好', () async {
+  test('a fallback not kept leaves the theme kept as it was', () async {
     final kept = _FailingStore();
     final workspace = Workspace(preferences: kept);
     addTearDown(workspace.dispose);
@@ -323,7 +364,8 @@ void main() {
     expect(themes.colorTheme.settingsId, 'Bao Dark');
   });
 
-  test('真实选择器接受已移除扩展的旧条目会报错并恢复偏好', () async {
+  test('the picker accepting a theme of an extension gone reports it, and '
+      'goes back', () async {
     final folder = await Directory.systemTemp.createTemp(
       'auto-theme-extension',
     );
@@ -358,7 +400,7 @@ void main() {
     expect(themes.colorTheme.settingsId, 'Kimbie Dark');
   });
 
-  test('外部浅色偏好被预览抢占后，主题移除仍按已提交色系回退', () async {
+  test('a theme gone falls back by the type kept, a preview showing', () async {
     final folder = await Directory.systemTemp.createTemp(
       'auto_theme_external_',
     );
@@ -392,7 +434,7 @@ void main() {
     expect(themes.colorTheme.settingsId, 'Bao Light');
   });
 
-  test('已取消的慢预览不能在恢复后重新应用', () async {
+  test('a slow preview cancelled is not applied after going back', () async {
     final bundle = _DelayedBundle();
     final themes = WorkbenchThemeService(bundle: bundle)
       ..restore(setting: 'Bao Dark');

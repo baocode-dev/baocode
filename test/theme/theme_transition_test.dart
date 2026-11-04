@@ -11,7 +11,9 @@ void main() {
     microseconds: kThemeAnimationDuration.inMicroseconds ~/ 2,
   );
 
-  testWidgets('低透明度处交换一次，同一输入树保留文本和焦点', (tester) async {
+  testWidgets('swapped once, faded out; the same tree keeps text and focus', (
+    tester,
+  ) async {
     final transition = ColorThemeTransition(vsync: tester);
     addTearDown(transition.dispose);
     final text = TextEditingController(text: '保留文本');
@@ -53,7 +55,8 @@ void main() {
     expect(tester.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('新目标从当前颜色与透明度接续，不交换过期目标', (tester) async {
+  testWidgets('a new change goes on from where the last is; the old one not '
+      'applied', (tester) async {
     final transition = ColorThemeTransition(vsync: tester);
     addTearDown(transition.dispose);
     await tester.pumpWidget(
@@ -89,12 +92,14 @@ void main() {
     expect(old, 0);
     expect(latest, 1);
     expect(tester.widget<FadeTransition>(fade).opacity.value, 1);
-    // 框架在到达终点后的下一帧停止 ticker，不留下运行中的动画。
+    // Its ticker stopped the frame after it ends: nothing left running.
     await tester.pump(const Duration(milliseconds: 16));
     expect(tester.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('系统过渡中切回原亮度，停止旧底色动画并保留偏好', (tester) async {
+  testWidgets('the appearance back while changing: stopped, the choice kept', (
+    tester,
+  ) async {
     final themes = WorkbenchThemeService()
       ..restore(
         setting: 'Kimbie Dark',
@@ -131,13 +136,14 @@ void main() {
     await tester.runAsync(() => themes.setPlatformBrightness(Brightness.dark));
     await tester.pump();
     expect(tester.widget<FadeTransition>(fade).opacity.value, 1);
+    // At rest, nothing painted: the window paints its canvas itself.
     expect(
       tester
           .widget<ColoredBox>(
             find.ancestor(of: fade, matching: find.byType(ColoredBox)).first,
           )
           .color,
-      Colors.black,
+      Colors.transparent,
     );
     await tester.pump(kThemeAnimationDuration);
     expect(shown, isNot(contains('Bao Light')));
@@ -147,7 +153,9 @@ void main() {
     expect(tester.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('跨过中点的跳帧仍在零透明度交接一次', (tester) async {
+  testWidgets('a frame skipped past halfway still swaps once, faded out', (
+    tester,
+  ) async {
     final transition = ColorThemeTransition(vsync: tester);
     addTearDown(transition.dispose);
     await tester.pumpWidget(
@@ -177,7 +185,9 @@ void main() {
     expect(tester.binding.hasScheduledFrame, isFalse);
   });
 
-  testWidgets('减少动态效果、结束与销毁不留下运行中的动画', (tester) async {
+  testWidgets('reduced motion, finished or disposed: nothing left running', (
+    tester,
+  ) async {
     final transition = ColorThemeTransition(vsync: tester);
     await tester.pumpWidget(
       MaterialApp(

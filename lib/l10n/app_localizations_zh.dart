@@ -3732,7 +3732,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeHighContrastThemes => '高对比度主题';
 
   @override
-  String get themeAuto => 'Auto';
+  String get themeAuto => '自动';
 
   @override
   String get themeFollowSystem => '跟随系统';

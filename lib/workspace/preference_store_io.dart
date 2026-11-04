@@ -38,7 +38,7 @@ class FilePreferenceStore implements PreferenceStore {
       // Whole or not at all: a crash mid-write leaves the old file.
       await writeFileAtomically(file, text);
     });
-    // 调用者获得真实失败；队列恢复后仍允许下一次写入。
+    // The caller learns of a failure; the next write is tried still.
     _writing = result.then((_) {}, onError: (_) {});
     return result;
   }

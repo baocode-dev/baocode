@@ -337,7 +337,8 @@ void main() {
       );
     }
 
-    test('机器人偏好保存失败不泄漏异步错误，后续保存仍可尝试', () async {
+    test('a failure to keep the bots\' preferences is caught, the next '
+        'tried', () async {
       bots.dispose();
       final failing = _FailingBotStore();
       bots = Bots(

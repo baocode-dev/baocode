@@ -178,7 +178,8 @@ class ColorThemeSettings implements ColorThemeStorage {
     }
     _writing = (setting: setting, automatic: autoDetectColorScheme);
     try {
-      // 同一次读／写更新偏好，保留原注释与缩进；Auto 不覆盖固定主题。
+      // Both in one read and write, its comments and indentation kept;
+      // Auto leaves the fixed theme as it is.
       await settings.transform((source) {
         final text = source ?? '';
         final errors = <JsoncParseError>[];
@@ -221,7 +222,8 @@ class ColorThemeSettings implements ColorThemeStorage {
         }
         return next == text ? null : next;
       });
-      // 设置文件已提交；配色缓存失败不应把成功的偏好报告成失败。
+      // The settings are written: the colors' cache failing does not make
+      // that a failure.
       await state
           .storeColorTheme(
             setting: _writing!.setting,

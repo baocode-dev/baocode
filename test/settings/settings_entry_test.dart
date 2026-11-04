@@ -420,7 +420,7 @@ void main() {
     expect(find.text('Dark 2026'), findsOneWidget);
     await tester.tap(find.text('Dark 2026'));
     await tester.pumpAndSettle();
-    // Auto 独立置顶；真实主题仍依次为浅色、深色、高对比度。
+    // Auto first, apart; the themes light, dark, then high contrast.
     expect(find.text('Follow system'), findsOneWidget);
     final order = [
       'Auto',

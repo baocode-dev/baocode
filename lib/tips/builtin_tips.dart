@@ -17,7 +17,8 @@ abstract final class FeatureTipIds {
   static const colorTheme = 'colorTheme';
 }
 
-/// 选择固定主题或 Auto 后，首次引导不再提示选择主题。
+/// The settings.json keys of the color theme and Auto (set once one is
+/// picked).
 const _colorThemeSetting = 'workbench.colorTheme';
 const _autoDetectColorSchemeSetting = 'window.autoDetectColorScheme';
 

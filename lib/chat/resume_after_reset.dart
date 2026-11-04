@@ -191,7 +191,8 @@ class ResumeAfterReset extends ChangeNotifier {
             'entries': [for (final entry in entries) entry.toJson()],
           })
           .catchError((Object error) {
-            // 非等待保存显式记录失败，底层仍向等待调用者传播真实错误。
+            // Not waited for: a failure is logged here; the store still gives it to
+            // whoever waits.
             debugPrint('Resume entries not kept: $error');
           }),
     );

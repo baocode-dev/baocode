@@ -19,9 +19,11 @@
 //   Extension" button, and Enter with no active item (a filter matching
 //   nothing) only closes the picker, where upstream opens the Extensions
 //   view's `category:themes` search.
-// - Auto 独立置顶，跟随系统亮度；真实主题仍按浅色、深色、高对比度排序，
-//   不增加输入框旁的颜色模式按钮。
-// - 取消或当前请求失败时恢复已提交偏好，不持久化打开时的具体主题。
+// - Auto, first and apart, follows the system's appearance; the themes stay
+//   ordered light, dark, then high contrast, with no color mode button
+//   beside the input.
+// - Cancelled, or the current request failing, it goes back to the choice
+//   kept, not to the theme shown as it opened.
 // - `localeCompare` is `ideLocaleCompare`, which approximates ICU's root
 //   collation.
 
@@ -53,16 +55,17 @@ class IdeColorThemeEntry {
 
 /// What the picker needs from the theme service (upstream IWorkbenchThemeService).
 abstract interface class IdeColorThemeController {
-  /// 跟随系统的选择 ID；不是主题资产，不加入 [colorThemes]。
+  /// The choice that follows the system: not a theme, not in [colorThemes].
   static const autoId = '__auto__';
 
   List<IdeColorThemeEntry> get colorThemes;
   String get colorThemeId;
 
-  /// [preview] 为 true 时仅预览 [id]，否则应用并保存选择。
+  /// Shows [id]; unless [preview], keeps it as the choice too.
   Future<void> setColorTheme(String id, {bool preview = false});
 
-  /// 恢复已提交偏好；Auto 使用恢复时最新的系统亮度，不写入设置。
+  /// Back to the choice kept (Auto at the system's appearance now), nothing
+  /// written.
   Future<void> restoreColorThemePreview();
 }
 
@@ -87,9 +90,11 @@ Map<String, String> _defaultThemeDescriptions(AppLocalizations l10n) => {
   _defaultDark: l10n.themeDefaultDark,
 };
 
-/// [themes] 的主题快捷选择器：移动选项后等待 200ms 预览，确认时应用并保存。
-/// 取消时恢复已提交偏好（包括 Auto），不写入设置；[onError] 接收应用失败。
-/// 文案使用 [l10n]，未传入时使用英文。
+/// The quick pick of [themes]' color themes: moving the active item
+/// previews it 200ms later, accepting applies and keeps it.
+/// Hidden otherwise, the choice kept (Auto too) shows again, nothing
+/// written; [onError] reports a theme that failed to apply.
+/// Its own words are in [l10n]'s language (English when null).
 IdeQuickPick ideColorThemePick(
   IdeColorThemeController themes, {
   ValueChanged<Object>? onError,
@@ -140,7 +145,7 @@ IdeQuickPick ideColorThemePick(
     ];
   }
 
-  // Auto 独立置顶；保留真实主题的分组与排序。
+  // Auto first, apart; the themes in their groups and order.
   final picks = [
     auto,
     ...toEntries(
@@ -169,7 +174,9 @@ IdeQuickPick ideColorThemePick(
     ),
   );
 
-  // 保留 200ms 预览；新请求替换待执行的预览，并使旧失败失效。
+  // Previews [id] after 200ms, or applies it next (the choice kept when
+  // null); a newer call replaces a pending one, and an older one's failure
+  // no longer counts.
   void selectTheme(String? id, bool applyTheme) {
     selectThemeTimeout?.cancel();
     final currentRequest = ++request;
@@ -189,7 +196,7 @@ IdeQuickPick ideColorThemePick(
                 (_) {},
                 onError: (Object error) {
                   onError?.call(error);
-                  // 关闭或选择已更新后，旧失败不能恢复并覆盖新选择。
+                  // Closed, or another picked since: not put back over it.
                   if (!isClosed && currentRequest == request) restorePreview();
                 },
               ),
@@ -211,7 +218,7 @@ IdeQuickPick ideColorThemePick(
     },
     onDidAccept: (item) {
       if (isClosed || isAccepted) return;
-      // 无匹配项时只关闭并恢复偏好，不提交主题。
+      // No item: closed, the choice kept shown again, nothing kept.
       if (themeOf(item) case final id?) {
         isAccepted = true;
         selectTheme(id, true);

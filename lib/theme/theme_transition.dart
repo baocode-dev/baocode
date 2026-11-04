@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// 一个窗口集合共用的主题过渡：底色补间，内容淡出／淡入，中点交换配色。
-/// [vsync] 提供框架时钟；业务树由 [wrap] 原样保留，不复制或重新挂载。
+/// A change of theme for the windows: the canvas from one color to the
+/// other, the content faded out and in, the colors swapped halfway.
+/// [vsync] ticks it; what [wrap] holds is kept as it is, not built again.
 class ColorThemeTransition {
   ColorThemeTransition({required TickerProvider vsync})
     : _controller = AnimationController(
@@ -31,8 +32,9 @@ class ColorThemeTransition {
   late final Animation<double> _opacity;
   VoidCallback? _apply;
 
-  /// 从 [from] 到 [to]，在内容最低透明度处调用 [apply] 一次。
-  /// 新目标从当前呈现状态接续；[animate] 为 false 时立即到终态。
+  /// From [from] to [to], [apply] called once where the content is faded
+  /// out. A new one goes on from where the last one is; none when not
+  /// [animate].
   void change({
     required Color from,
     required Color to,
@@ -58,14 +60,14 @@ class ColorThemeTransition {
     if (_controller.value >= 0.5 && _apply != null) {
       final apply = _apply!;
       _apply = null;
-      // 跳帧也先落到最低透明度，再由同一控制器继续淡入。
+      // A frame skipped past halfway: from faded out still, then in.
       _controller.value = 0.5;
       apply();
       _controller.forward();
     }
   }
 
-  /// 结束过渡并交接尚未应用的有效目标，恢复可见、可交互状态。
+  /// Ends it: what was to be applied is, the content shown and usable.
   void finish() {
     _controller.stop();
     final apply = _apply;
@@ -74,14 +76,17 @@ class ColorThemeTransition {
     _controller.value = 1;
   }
 
-  /// 包裹同一 [child]；[canvas] 是当前主题底色，透明窗口保持透明。
-  /// 每帧只重建呈现层，内容不可见时停止指针命中，不锁键盘。
+  /// [child] under it, over the canvas changing color while it changes; a
+  /// see-through window's ([canvas] the theme's) is left so. Nothing is
+  /// painted at rest: the window paints its canvas itself. Each frame
+  /// rebuilds this alone; the pointer passes while the content is faded
+  /// out, the keys still go to it.
   Widget wrap(Widget child, {required Color canvas}) => AnimatedBuilder(
     animation: _controller,
     child: child,
     builder: (context, child) => ColoredBox(
       color: canvas.a == 0 || !_controller.isAnimating
-          ? canvas
+          ? Colors.transparent
           : _canvas.transform(Curves.easeInOut.transform(_controller.value))!,
       child: IgnorePointer(
         ignoring: _opacity.value < 0.05,
@@ -90,7 +95,7 @@ class ColorThemeTransition {
     ),
   );
 
-  /// 释放框架时钟；关闭时丢弃未显示的交接，不留下待完成的 Future。
+  /// Stops it; what was to be applied is not.
   void dispose() {
     _apply = null;
     _controller.dispose();

@@ -5,7 +5,7 @@ import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
 
 void main() {
-  test('真实文件写入失败可观察，失败后队列仍可恢复', () async {
+  test('a file not written fails its write, the next tried', () async {
     final folder = await Directory.systemTemp.createTemp(
       'baocode-prefs-failure',
     );

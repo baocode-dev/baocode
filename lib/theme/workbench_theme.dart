@@ -16,7 +16,8 @@
 // Deviations: settings and storage are two preference entries the app keeps
 // (`ColorThemeStorage`), read once at startup; no customizations, transient
 // colors, theme watching, telemetry, or file or product icon themes.
-// Auto 根据系统亮度解析内置浅／深主题；真实主题仍使用设置 ID。
+// Auto (`window.autoDetectColorScheme`) is Bao Light or Bao Dark by the
+// system's appearance; no preferred light or dark theme settings.
 // Widgets read colors through [WorkbenchThemeService.colors] and are all
 // rebuilt when the theme changes ([WorkbenchThemeScope]), as a theme change
 // restyles the whole workbench upstream.
@@ -91,11 +92,12 @@ abstract interface class ColorThemeStorage {
   String? get colorThemeSetting;
   String? get colorThemeData;
 
-  /// 已保存的跟随系统模式；未配置时为 false。
+  /// Whether the theme follows the system's appearance (Auto).
   bool get autoDetectColorScheme;
 
-  /// 保存固定偏好 [setting]、模式与配色缓存 [data]；[cacheOnly] 只更新缓存。
-  /// 返回实际写入结果，失败时抛出错误。
+  /// Keeps [setting], whether it follows the system, and [data] (the
+  /// colors' cache); [cacheOnly], the cache alone. Throws where it could
+  /// not.
   Future<void> storeColorTheme({
     required String setting,
     String? data,
@@ -171,7 +173,8 @@ class WorkbenchThemeService extends ChangeNotifier
   /// Where the choice is kept; none under test.
   ColorThemeStorage? storage;
 
-  /// 已提交的固定主题，与 Auto 当前解析出的主题分开保存。
+  /// The `workbench.colorTheme` setting kept, apart from the theme Auto
+  /// shows.
   String _setting = ThemeSettingDefaults.colorThemeDark;
   bool _automatic = false;
   ColorScheme _committedType = ColorScheme.dark;
@@ -180,10 +183,10 @@ class WorkbenchThemeService extends ChangeNotifier
   int _request = 0;
   int _preferenceRevision = 0;
 
-  /// 已成功保存的固定偏好；Auto 不改写它。
+  /// The theme kept; Auto leaves it as it is.
   String get colorThemeSetting => _setting;
 
-  /// 已成功保存的跟随系统模式，预览不会提交此值。
+  /// Whether Auto is kept; a preview does not change it.
   bool get autoDetectColorScheme => _automatic;
 
   bool get _followsSystem =>
@@ -195,7 +198,8 @@ class WorkbenchThemeService extends ChangeNotifier
             : ThemeSettingDefaults.colorThemeDark)
       : _preview ?? _setting;
 
-  /// 呈现层接收已加载配色；[apply] 仅在本次选择仍有效时应用一次。
+  /// Shows a change of theme to [colors]: [apply] once, unless another
+  /// came since. Only for one the system's appearance makes.
   void Function(WorkbenchColors colors, VoidCallback apply)? transition;
 
   /// The current theme: from storage or a type's initial colors until the
@@ -203,7 +207,7 @@ class WorkbenchThemeService extends ChangeNotifier
   @override
   ColorThemeData get colorTheme => _current;
 
-  /// 选择器中的偏好 ID；Auto 是选择项，不是颜色主题资产。
+  /// The choice as the picker has it: Auto's, or the theme's settings id.
   @override
   String get colorThemeId =>
       _preview ??
@@ -370,7 +374,8 @@ class WorkbenchThemeService extends ChangeNotifier
       ..clear()
       ..addAll(next);
     _extensionThemesKnown = true;
-    // 按当前模式重新解析，也处理同 ID 扩展被更新或移除；已加载资产复用缓存。
+    // The choice's theme again: an extension's updated or gone too; one
+    // loaded is read once.
     await _loadCurrent(_request);
     notifyListeners();
   });
@@ -473,7 +478,7 @@ class WorkbenchThemeService extends ChangeNotifier
         cacheOnly: true,
       );
     } catch (error) {
-      // 缓存更新失败不阻止已加载的主题显示；显式提交仍由 _keep 抛出错误。
+      // Shown even so; a choice failing to be kept throws (see [_keep]).
       debugPrint('Color theme cache not kept: $error');
     }
   }
@@ -506,7 +511,8 @@ class WorkbenchThemeService extends ChangeNotifier
     );
   }
 
-  /// 丢弃预览，按最后成功提交的偏好与当前系统亮度恢复；不提交打开时的主题。
+  /// Drops the preview: the choice kept shows again, Auto at the system's
+  /// appearance now.
   @override
   Future<void> restoreColorThemePreview() {
     final request = ++_request;
@@ -514,7 +520,8 @@ class WorkbenchThemeService extends ChangeNotifier
     return _queue(() => _loadCurrent(request, force: true));
   }
 
-  /// 接收外部设置文件的固定偏好与模式，返回配色加载结果，不重复提交设置。
+  /// The settings file changed (by hand, say): its theme and Auto shown,
+  /// nothing written back.
   Future<void> applyColorThemeSettings({
     required String setting,
     required bool autoDetectColorScheme,
@@ -526,7 +533,7 @@ class WorkbenchThemeService extends ChangeNotifier
     _preview = null;
     return _queue(() async {
       final manifest = await _loadManifest();
-      // 成功偏好的色系独立于显示请求；预览抢占不能丢失回退依据。
+      // The kept theme's type, for a fallback, even as a preview shows.
       if (revision == _preferenceRevision) {
         final theme = manifest.themeById(id);
         final data = theme != null ? _themeData(theme) : _extensionThemes[id];
@@ -536,14 +543,27 @@ class WorkbenchThemeService extends ChangeNotifier
     });
   }
 
-  /// 更新系统 [brightness]；固定模式只记录亮度，不切换或改写偏好。
+  /// The system's appearance changed to [brightness]: shown under Auto
+  /// (through [transition]), noted otherwise.
   Future<void> setPlatformBrightness(ui.Brightness brightness) {
     if (_brightness == brightness) return Future<void>.value();
     _brightness = brightness;
     if (!_followsSystem) return Future<void>.value();
     final request = _request;
-    return _queue(() => _loadCurrent(request, force: true));
+    return _queue(() async {
+      _bySystem = true;
+      try {
+        await _loadCurrent(request, force: true);
+      } finally {
+        _bySystem = false;
+      }
+    });
   }
+
+  /// A theme shown as the system's appearance changed, not as one was
+  /// picked: what [transition] is for. One picked, or previewed (moving
+  /// through the picker), shows at once.
+  bool _bySystem = false;
 
   Future<void> _setColorTheme(
     String settingsId, {
@@ -620,7 +640,11 @@ class WorkbenchThemeService extends ChangeNotifier
     }
 
     final animate = transition;
-    if (!silent && animate != null && _current.isLoaded && theme.isLoaded) {
+    if (!silent &&
+        _bySystem &&
+        animate != null &&
+        _current.isLoaded &&
+        theme.isLoaded) {
       animate(WorkbenchColors(theme), apply);
     } else {
       apply();
@@ -639,7 +663,7 @@ class WorkbenchThemeService extends ChangeNotifier
       data: theme.toStorage(),
       autoDetectColorScheme: automatic,
     );
-    // 新的预览不抹掉已完成提交；外部设置已更新时不回写旧偏好。
+    // Kept, whatever previews since; not over settings changed meanwhile.
     if (revision == _preferenceRevision) {
       _setting = store == null
           ? setting

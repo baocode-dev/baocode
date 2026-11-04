@@ -2502,7 +2502,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _autoDetectColorScheme = autoDetectColorScheme;
     _colorThemeStored = true;
     try {
-      // 先读回其他已保存状态，避免首次加载中的主题写入覆盖它们。
+      // Not before what was kept is read: that would be written over.
       await _restoring;
       await _writePreferences();
     } catch (_) {

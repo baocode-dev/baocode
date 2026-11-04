@@ -72,7 +72,7 @@ const _themes = [
   ),
 ];
 
-/// 分别记录已提交选择和预览；恢复不把预览当作持久偏好。
+/// The choices kept and the previews, apart: going back keeps no preview.
 class _FakeColorThemes implements IdeColorThemeController {
   _FakeColorThemes([String id = 'Dark Modern', this.colorThemes = _themes])
     : _committedId = id;
@@ -277,7 +277,7 @@ void main() {
       'high contrast themes',
       'Light High Contrast  Default High Contrast Light',
     ]);
-    // Auto 独立置顶，三个主题组前均有分隔线。
+    // Auto first, apart; a separator before each group of themes.
     expect(_separatorLines(tester), 3);
     expect(_active(tester), 'Dark Modern');
 
@@ -321,7 +321,8 @@ void main() {
     await themes.setColorTheme('Red');
     await _openPicker(tester);
     expect(_active(tester), 'Red');
-    // 当前主题在列表后半部；用实际搜索交互显示顶部 Auto，再确认选择。
+    // The current theme far down the list: Auto found by searching for it,
+    // then accepted.
     await tester.enterText(_input, 'Auto');
     await tester.pumpAndSettle();
     await _key(tester, LogicalKeyboardKey.enter);
@@ -639,7 +640,8 @@ void main() {
     await tester.pump();
     expect(_rows(tester), ['Tomorrow Night Blue']);
 
-    // 无匹配项时恢复已提交偏好；Enter 关闭也不提交主题。
+    // Nothing matching: the choice kept shows again; Enter closes, keeping
+    // nothing.
     await tester.enterText(_input, 'zzz');
     await tester.pump();
     expect(_rows(tester), isEmpty);

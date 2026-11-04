@@ -109,7 +109,7 @@ void main() {
   }
 
   group('the built-in color theme tip', () {
-    // 仅 true 表示已配置 Auto；缺省、false 或无效类型仍按未选主题处理。
+    // Only true is Auto set; absent, false or another type is none picked.
     final cases = <(String, Map<String, Object?>, bool)>[
       ('unset', {}, true),
       ('fixed theme', {'workbench.colorTheme': 'Bao Light'}, false),
@@ -454,7 +454,7 @@ void main() {
   );
 }
 
-/// 仅提供内置主题提示读取的设置；不接触磁盘或其他平台服务。
+/// The settings the theme's tip reads, nothing on disk.
 class _TipSettings implements AppSettings {
   _TipSettings(Map<String, Object?> values) : files = _TipSettingsFiles(values);
 
