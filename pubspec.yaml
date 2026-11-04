@@ -25,6 +25,7 @@ environment:
 # pub.dev yet): see each one's HANDOFF.md.
 workspace:
   - packages/bao_agent
+  - packages/bao_conpty
   - packages/bao_editor
   - packages/bao_iroh
   - packages/bao_link

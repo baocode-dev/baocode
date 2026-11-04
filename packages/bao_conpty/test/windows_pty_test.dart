@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:bao_pty/bao_pty.dart';
-import 'package:bao_pty/src/pty_windows.dart';
+import 'package:bao_conpty/bao_conpty.dart';
+import 'package:bao_conpty/src/windows_pty.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -174,12 +174,13 @@ void main() {
     tearDown(() => dir.deleteSync(recursive: true));
 
     Future<(Pty, StringBuffer)> cmd(String command) async {
-      final pty = await spawnPty(
+      final pty = await WindowsPty.start(
         PtyLaunch(
           executable: 'cmd.exe',
           arguments: ['/d', '/c', command],
           workingDirectory: dir.path,
         ),
+        Platform.environment,
       );
       final printed = StringBuffer();
       const Utf8Decoder(allowMalformed: true)

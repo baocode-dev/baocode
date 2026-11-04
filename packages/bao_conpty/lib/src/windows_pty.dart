@@ -8,7 +8,7 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
-import 'pty.dart';
+import 'pty_types.dart';
 
 /// A process on a Windows pseudo console (ConPTY, Windows 10 1809 and
 /// later), run as node-pty's conpty agent runs one, over anonymous pipes.

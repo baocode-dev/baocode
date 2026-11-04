@@ -84,6 +84,7 @@ jobs:
           - { dir: ., shard: '2' }
           - { dir: ., shard: '3' }
           - { dir: packages/bao_agent }
+          - { dir: packages/bao_conpty }
           - { dir: packages/bao_editor }
           - { dir: packages/bao_iroh }
           - { dir: packages/bao_link }

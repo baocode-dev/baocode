@@ -317,7 +317,9 @@ class _SessionKeeper {
 
   /// [process]'s stdout, `ssh -W`'s: where the daemon is gone (nothing
   /// listens on its port), what the bridge says then
-  /// ([ResumableChannel.goneLine]).
+  /// ([ResumableChannel.goneLine]). Windows' sshd says nothing of it: the
+  /// forward closed before a byte came, and ssh ended as it does when
+  /// all went well. A connection lost ends it otherwise (255).
   Stream<List<int>> _windowsInput(Process process, List<String> said) {
     var heard = false;
     final controller = StreamController<List<int>>();
@@ -328,11 +330,11 @@ class _SessionKeeper {
       },
       onError: controller.addError,
       onDone: () async {
-        await process.exitCode.timeout(
+        final code = await process.exitCode.timeout(
           const Duration(seconds: 2),
           onTimeout: () => -1,
         );
-        if (!heard && said.any(SshLauncher.isForwardRefused)) {
+        if (!heard && (code == 0 || said.any(SshLauncher.isForwardRefused))) {
           controller.add(utf8.encode('${ResumableChannel.goneLine}\n'));
         }
         await controller.close();

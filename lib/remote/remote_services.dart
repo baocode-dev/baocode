@@ -8,9 +8,11 @@ import 'dart:typed_data';
 
 import 'package:bao_remote/client.dart';
 import 'package:bao_remote/terminal.dart' show generateShellIntegrationNonce;
+import 'package:path/path.dart' as p;
 
 import '../ide/file_service.dart';
 import '../ide/git/git_service.dart';
+import '../ide/host_paths.dart';
 import '../ide/lsp/lsp_process.dart';
 import '../ide/search/text_search.dart';
 import '../ide/terminal/pty.dart';
@@ -237,7 +239,10 @@ TerminalBackend remoteTerminalBackend(SshHost host) => TerminalBackend(
       profiles: [
         for (final path in found.shells)
           TerminalProfile(
-            name: path.split('/').last,
+            // A Windows host's without .exe: `pwsh`, `cmd`.
+            name: isWindowsPath(path)
+                ? p.windows.basenameWithoutExtension(path)
+                : p.posix.basename(path),
             path: path,
             isAutoDetected: true,
           ),
