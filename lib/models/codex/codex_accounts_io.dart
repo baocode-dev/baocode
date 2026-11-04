@@ -13,6 +13,7 @@ import '../secret_store.dart';
 import '../upstream.dart';
 import 'codex_api.dart';
 import 'codex_balancer.dart';
+import 'codex_import.dart';
 import 'codex_oauth.dart';
 import 'codex_service.dart';
 import 'codex_usage.dart';
@@ -361,14 +362,81 @@ class CodexAccounts extends CodexService {
     if (tokens == null || refreshToken == null) {
       throw const CodexException('Sign-in gave no refresh token.');
     }
+    return _keepTokens(providerId, tokens);
+  }
+
+  @override
+  Future<List<CodexImportResult>> importAccountsJson(
+    String providerId,
+    String contents, {
+    required bool confirmed,
+  }) async {
+    if (!confirmed) {
+      throw const CodexException('Import requires user confirmation.');
+    }
+    final provider = _providers().provider(providerId);
+    if (provider == null || provider.protocol != ProviderProtocol.codex) {
+      throw const CodexException('A ChatGPT provider is required.');
+    }
+    final entries = parseCodexCredentials(contents);
+    final results = <CodexImportResult>[];
+    for (final entry in entries) {
+      final credential = entry.credential;
+      if (credential == null) {
+        results.add(CodexImportResult.failed(entry.error!));
+        continue;
+      }
+      try {
+        final id = credential.identity.key;
+        final known = _providers().provider(providerId)?.account(id);
+        // An older export must not replace a token that has since rotated.
+        if (known != null && !signedOut(providerId, id)) {
+          final saved = await _providers().secrets.read(
+            ModelProvider.accountRefFor(providerId, id),
+          );
+          if (saved != null && saved.isNotEmpty) {
+            results.add(CodexImportResult.known(known));
+            continue;
+          }
+        }
+        final account = await _keepTokens(
+          providerId,
+          CodexTokens(
+            access: credential.accessToken ?? '',
+            refresh: credential.refreshToken,
+            expiresAt: credential.expiresAt ?? _now(),
+          ),
+          importedIdentity: credential.identity,
+          refreshUsage: false,
+        );
+        results.add(CodexImportResult.added(account));
+      } on SecretStoreException {
+        results.add(
+          const CodexImportResult.failed('The token could not be read.'),
+        );
+      } on CodexException catch (error) {
+        results.add(CodexImportResult.failed(error.message));
+      }
+    }
+    return results;
+  }
+
+  Future<ProviderAccount> _keepTokens(
+    String providerId,
+    CodexTokens tokens, {
+    CodexIdentity? importedIdentity,
+    bool refreshUsage = true,
+  }) async {
     final fromId = CodexIdentity.fromIdToken(tokens.idToken);
     final fromAccess = CodexIdentity.fromIdToken(tokens.access);
-    final identity = CodexIdentity(
-      email: fromId.email ?? fromAccess.email,
-      accountId: fromId.accountId ?? fromAccess.accountId,
-      userId: fromId.userId ?? fromAccess.userId,
-      plan: fromId.plan ?? fromAccess.plan,
-    );
+    final identity =
+        importedIdentity ??
+        CodexIdentity(
+          email: fromId.email ?? fromAccess.email,
+          accountId: fromId.accountId ?? fromAccess.accountId,
+          userId: fromId.userId ?? fromAccess.userId,
+          plan: fromId.plan ?? fromAccess.plan,
+        );
     final providers = _providers();
     final provider = providers.provider(providerId);
     if (provider == null) {
@@ -393,10 +461,10 @@ class CodexAccounts extends CodexService {
     try {
       await providers.secrets.write(
         ModelProvider.accountRefFor(providerId, account.id),
-        refreshToken,
+        tokens.refresh!,
       );
-    } on SecretStoreException catch (error) {
-      throw CodexException('The token could not be kept: $error');
+    } on SecretStoreException {
+      throw const CodexException('The token could not be kept.');
     }
     _requests.remove(key);
     _tokens[key] = (access: tokens.access, expiresAt: tokens.expiresAt);
@@ -408,7 +476,7 @@ class CodexAccounts extends CodexService {
       (providers.provider(providerId) ?? provider).withAccount(account),
     );
     notifyListeners();
-    unawaited(_fetchUsage(providerId, account));
+    if (refreshUsage) unawaited(_fetchUsage(providerId, account));
     return account;
   }
 
