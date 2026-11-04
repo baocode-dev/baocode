@@ -34,6 +34,8 @@ jobs:
     # Mac below takes the builds, as VERSION names them all.
     runs-on: ${{ matrix.runner }}
     strategy:
+      # One failing leaves the other building, to be re-run alone.
+      fail-fast: false
       matrix:
         include:
           - arch: x64
@@ -56,6 +58,8 @@ jobs:
           git clone --depth 1 --branch "$env:FLUTTER_VERSION" https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
           "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" --version
+          # The engine's packages (sky_engine), for pub.
+          & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" precache --windows
       - id: iroh
         uses: ./.github/actions/bao-iroh-prebuilt
       - if: steps.iroh.outputs.hit != 'true'
