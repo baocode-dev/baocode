@@ -242,9 +242,9 @@ class StepFolds {
 
 /// Whether [item] is a quick step, folded with others like it: a thought,
 /// or a tool call that only looks around or runs something. Not an edit
-/// (shown on its own), a subagent, a message to another agent, a goal
-/// proposed, pictures made, a refused call, nor a command left running in
-/// the background.
+/// (shown on its own), a subagent, a message to another agent, a question
+/// to the user (with what they answered), a goal proposed, pictures made,
+/// a refused call, nor a command left running in the background.
 bool isQuickStep(ChatItem item) => switch (item) {
   ThinkingItem() => true,
   ToolCallItem(:final kind, :final status) =>
@@ -253,6 +253,7 @@ bool isQuickStep(ChatItem item) => switch (item) {
           ToolKind.edit ||
           ToolKind.agent ||
           ToolKind.message ||
+          ToolKind.question ||
           ToolKind.goal ||
           ToolKind.image => false,
           _ => true,
@@ -262,10 +263,13 @@ bool isQuickStep(ChatItem item) => switch (item) {
 };
 
 /// Whether [item] shows though its turn's work is folded: pictures an
-/// image model made, which are what the user asked for.
+/// image model made, which are what the user asked for; questions the user
+/// answered, and what they said.
 bool standsOutOfWork(ChatItem item) => switch (item) {
   ToolCallItem(kind: ToolKind.image, :final status, :final images) =>
     status == ToolStatus.succeeded && images.isNotEmpty,
+  ToolCallItem(kind: ToolKind.question, :final status) =>
+    status == ToolStatus.succeeded,
   _ => false,
 };
 

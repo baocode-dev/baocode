@@ -122,6 +122,10 @@ class ClaudeTranslator {
   /// The subjects of the todos created (TaskCreate), by their ids.
   final Map<String, String> _taskSubjects = {};
 
+  /// What the user answered to questions asked (AskUserQuestion), by the
+  /// call's id: each answer by its question's text.
+  final Map<String, Map<String, String>> _answers = {};
+
   /// The session's goal (`/goal`), as last reported.
   KernelGoal? _goal;
 
@@ -1116,6 +1120,8 @@ class ClaudeTranslator {
         status: status,
         output: output,
       ),
+      // The questions, and once answered, the answers (see [_answers]),
+      // for the history to show what was asked and said.
       'AskUserQuestion' => ToolCallItem(
         kind: ToolKind.question,
         target: [
@@ -1124,6 +1130,8 @@ class ClaudeTranslator {
         ].join(' · '),
         status: status,
         output: output,
+        tool: name,
+        input: {'questions': input['questions'], 'answers': ?_answers[tool.id]},
       ),
       // "Said …": what it says, on a line; opened, all of it (what sending
       // it returned only if it failed).
@@ -1314,6 +1322,8 @@ class ClaudeTranslator {
           parent: tool.parent,
         );
         return;
+      case 'AskUserQuestion' when outcome == _Outcome.done:
+        _answers[id] = questionAnswers(structured?['answers'], text);
       case 'ExitPlanMode':
         if (_string(tool.input['plan']) != null) return;
       case 'TaskCreate':
@@ -2030,3 +2040,25 @@ class _Agent {
   AgentItem item;
   final Map<String, ChatItem> children = {};
 }
+
+/// What the user answered to questions asked (AskUserQuestion), each
+/// answer by its question's text: from the call's result ([structured]'s
+/// `answers`, the CLI's and BaoCode's own core's alike), else read from
+/// what it said to the model (`"question"="answer", …`).
+Map<String, String> questionAnswers(Object? structured, String text) {
+  if (structured is Map && structured.isNotEmpty) {
+    return {
+      for (final MapEntry(:key, :value) in structured.entries)
+        if (key is String && value != null) key: '$value',
+    };
+  }
+  return {
+    for (final match in _answered.allMatches(text))
+      _unquote(match[1]!): _unquote(match[2]!),
+  };
+}
+
+final _answered = RegExp(r'"((?:[^"\\]|\\.)*)"="((?:[^"\\]|\\.)*)"');
+
+String _unquote(String text) =>
+    text.replaceAllMapped(RegExp(r'\\(.)'), (match) => match[1]!);

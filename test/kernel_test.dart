@@ -395,6 +395,40 @@ void main() {
       expect(toolVerb(ToolKind.question), 'Asked');
     });
 
+    test('a question answered keeps what was asked and what the user said, '
+        'from the result or, without one, its words', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      );
+      for (final message in recorded('question')) {
+        translator.translate(message);
+      }
+      final asked = [
+        for (var i = 0; i < transcript.length; i++) transcript.itemAt(i),
+      ].whereType<ToolCallItem>().single;
+      expect(asked.kind, ToolKind.question);
+      expect(asked.status, ToolStatus.succeeded);
+      expect(asked.input['answers'], {'Do you prefer red or blue?': 'Red'});
+      expect(
+        (asked.input['questions'] as List).single,
+        containsPair('question', 'Do you prefer red or blue?'),
+      );
+
+      // Only in its words (BaoCode's own core's, a result not kept).
+      expect(
+        questionAnswers(
+          null,
+          'The user answered: "Which \\"one\\"?"="A, B", "Size?"="Large". '
+          'Carry on with these answers.',
+        ),
+        {'Which "one"?': 'A, B', 'Size?': 'Large'},
+      );
+      expect(questionAnswers({'Q?': 'Yes'}, 'ignored'), {'Q?': 'Yes'});
+    });
+
     test('a message sent to an agent reads on its line, in full opened', () {
       final transcript = Transcript();
       var seq = 0;
