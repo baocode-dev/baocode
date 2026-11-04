@@ -147,8 +147,10 @@ class ChatScreen extends StatefulWidget {
   /// under them.
   final bool cardButtonsAtStart;
 
-  /// The row along the top of its card, with its title.
-  static const cardHeaderHeight = 36.0;
+  /// The row along the top of its card, with its title: as high as the
+  /// window's title bar over it (macOS's), and the side panel's tabs
+  /// beside it.
+  static const cardHeaderHeight = AppMetrics.titleBarHeight;
 
   /// From the card's right to the row's last button, less its padding (2):
   /// its right edge on the side panel's rail's under it, as far in as that

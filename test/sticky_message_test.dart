@@ -210,7 +210,7 @@ void main() {
     final listMask = tester.widget<EdgeFadeMask>(
       find.ancestor(of: listView, matching: find.byType(EdgeFadeMask)),
     );
-    expect(listMask.topFadeLength, 16);
+    expect(listMask.topFadeLength, 12);
 
     double copyFade() => tester
         .widget<EdgeFadeMask>(
@@ -227,12 +227,12 @@ void main() {
         )
         .topFadeAmount!();
 
-    // Stuck once scrolled past 12 from the top; whole 16 on.
-    position.jumpTo(8);
+    // Stuck once scrolled past 12 from the top; whole 12 on.
+    position.jumpTo(6);
     await tester.pump();
     await tester.pump();
     expect(copyFade(), closeTo(0.5, 0.001));
-    position.jumpTo(16);
+    position.jumpTo(12);
     await tester.pump();
     await tester.pump();
     expect(copyFade(), 0);
