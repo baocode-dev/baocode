@@ -104,14 +104,13 @@ class TurnFooter extends StatelessWidget {
     child: Padding(padding: const EdgeInsets.only(top: 6), child: line),
   );
 
-  static Widget _line(List<Widget> items) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      for (final (index, item) in items.indexed) ...[
-        if (index > 0) const SizedBox(width: 12),
-        item,
-      ],
-    ],
+  /// [items] in a line, going on to the next where a narrow conversation
+  /// (beside the side panel) has not the room.
+  static Widget _line(List<Widget> items) => Wrap(
+    spacing: 12,
+    runSpacing: 4,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    children: items,
   );
 
   List<Widget> _stats(AppLocalizations l10n) {

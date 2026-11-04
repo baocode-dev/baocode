@@ -134,4 +134,28 @@ void main() {
       expect(rects[i - 1].right, lessThan(rects[i].left));
     }
   });
+
+  testWidgets('a conversation too narrow for the line: the rest goes on '
+      'under it, nothing cut', (tester) async {
+    await _pump(
+      tester,
+      const SizedBox(
+        width: 220,
+        child: TurnFooter(
+          answer: 'Done.',
+          worked: Duration(seconds: 11),
+          usage: TurnUsage(
+            inputTokens: 90000,
+            outputTokens: 2720,
+            costUsd: 0.074,
+            tokensPerSecond: 136.92,
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final first = tester.getRect(find.text('11s'));
+    final last = tester.getRect(find.text('92.72k tokens'));
+    expect(last.top, greaterThan(first.bottom - 1));
+  });
 }
