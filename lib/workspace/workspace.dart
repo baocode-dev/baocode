@@ -366,7 +366,14 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       final project = _project(folder);
       // A remote project's sessions are its host's: no catalog lists them
       // with this machine's, so they are asked for there (not waited for).
-      if (RemoteLocation.isRemote(folder)) unawaited(_listKept(project));
+      // Not one taken off the sidebar (its host removed, say): that would
+      // connect, and ask to sign in, at each start; listed once back.
+      if (!RemoteLocation.isRemote(folder)) continue;
+      if (isHidden(project)) {
+        _unlisted.add(folder);
+      } else {
+        unawaited(_listKept(project));
+      }
     }
     // Only once all were read: what one failed to list is not gone. Nor
     // while remote projects' sessions are still to be listed (or cannot
@@ -487,6 +494,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     }
     if (_threads.length != before) notifyListeners();
   }
+
+  /// Remote projects whose sessions were not asked for, being off the
+  /// sidebar as the app started: asked for once listed again ([_unhide]).
+  final Set<String> _unlisted = {};
 
   /// The listeners of the hosts that could not be reached to list their
   /// projects' sessions, by project.
@@ -1428,6 +1439,13 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   void _unhide(String path) {
     if (_hiddenProjects.remove(path) != null) _save();
+    _listUnlisted(path);
+  }
+
+  /// Lists the sessions of the remote project at [path], back on the
+  /// sidebar, if they were not asked for (see [_unlisted]).
+  void _listUnlisted(String path) {
+    if (_unlisted.remove(path)) unawaited(_listKept(_project(path)));
   }
 
   /// The order the user dragged projects in, by path.
@@ -1510,7 +1528,10 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       // Taken off with the host: at the time it went, the last.
       final removed = hidden.values.reduce((a, b) => a.isAfter(b) ? a : b);
       hidden.forEach((path, since) {
-        if (since == removed) _hiddenProjects.remove(path);
+        if (since == removed) {
+          _hiddenProjects.remove(path);
+          _listUnlisted(path);
+        }
       });
     }
     _save();
