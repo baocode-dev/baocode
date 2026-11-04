@@ -5120,39 +5120,37 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                             sidebar,
                           Expanded(
                             key: const ValueKey('ide-editor-column'),
-                            child: RepaintBoundary(
-                              child: _editorColumn(
-                                size.height - IdeStatusBar.height,
-                                commands,
-                                inPlace: gitLog
-                                    ? KeyedSubtree(
-                                        key: _sidebarKey,
-                                        child: _sidebarPart(border: false),
-                                      )
-                                    : !editorHidden
-                                    ? null
-                                    : sidebarVisible
-                                    ? Stack(
-                                        children: [
-                                          Positioned.fill(
-                                            child: Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.stretch,
-                                              children: [
-                                                sidebar,
-                                                Expanded(child: chat),
-                                              ],
-                                            ),
+                            child: _editorColumn(
+                              size.height - IdeStatusBar.height,
+                              commands,
+                              inPlace: gitLog
+                                  ? KeyedSubtree(
+                                      key: _sidebarKey,
+                                      child: _sidebarPart(border: false),
+                                    )
+                                  : !editorHidden
+                                  ? null
+                                  : sidebarVisible
+                                  ? Stack(
+                                      children: [
+                                        Positioned.fill(
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              sidebar,
+                                              Expanded(child: chat),
+                                            ],
                                           ),
-                                          _sashAt(
-                                            columns.sidebar,
-                                            room,
-                                            sidebarSash,
-                                          ),
-                                        ],
-                                      )
-                                    : chat,
-                              ),
+                                        ),
+                                        _sashAt(
+                                          columns.sidebar,
+                                          room,
+                                          sidebarSash,
+                                        ),
+                                      ],
+                                    )
+                                  : chat,
                             ),
                           ),
                         ],
@@ -5163,9 +5161,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 ),
               ),
               if (!editorHidden)
-                RepaintBoundary(
-                  child: _chatSlot(columns.chat, trailing: statusTrailing),
-                ),
+                _chatSlot(columns.chat, trailing: statusTrailing),
             ],
           ),
         ),

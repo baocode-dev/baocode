@@ -381,7 +381,7 @@ class ViewportLayout {
   ViewportLayout({
     required this.snapshot,
     required this.style,
-    required this.viewportSize,
+    required Size viewportSize,
     this.wrap = false,
     this.textDirection = TextDirection.ltr,
     this.textScaler = TextScaler.noScaling,
@@ -394,7 +394,8 @@ class ViewportLayout {
     ViewportLayout? previousLayout,
     double horizontalScrollOffset = 0,
     double verticalScrollOffset = 0,
-  }) : assert(viewportSize.width.isFinite && viewportSize.width >= 0),
+  }) : _viewportSize = viewportSize,
+       assert(viewportSize.width.isFinite && viewportSize.width >= 0),
        assert(viewportSize.height.isFinite && viewportSize.height >= 0),
        assert(!wrap || viewportSize.width > 0),
        hiddenLines = (hiddenLines ?? HiddenLineRanges.none).clampTo(
@@ -455,7 +456,12 @@ class ViewportLayout {
 
   final DocumentSnapshot snapshot;
   final TextStyle style;
-  final Size viewportSize;
+  Size _viewportSize;
+  Size get viewportSize => _viewportSize;
+  set viewportSize(Size value) {
+    if (value == _viewportSize) return;
+    _viewportSize = value;
+  }
   final bool wrap;
   final TextDirection textDirection;
   final TextScaler textScaler;
