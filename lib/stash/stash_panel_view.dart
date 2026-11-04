@@ -23,7 +23,6 @@ import '../models/auxiliary_model_menu.dart';
 import '../models/model_providers.dart';
 import '../platform/app_platform.dart';
 import '../theme/app_theme.dart';
-import '../workspace/islands.dart';
 import '../theme/codicons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/pin_window_button.dart';
@@ -1288,7 +1287,7 @@ class _AllStashesState extends State<_AllStashes> {
     return Container(
       decoration: BoxDecoration(
         // The chat's sidebar's.
-        color: Islands.windowSurfaceOf(context),
+        color: AppColors.sidebarSurface,
         border: Border(right: BorderSide(color: AppColors.partBorder)),
       ),
       child: Column(
@@ -1430,7 +1429,7 @@ class _AllStashesState extends State<_AllStashes> {
                     ? IdeListColors.activeSelection
                     : IdeListColors.inactiveSelection)
               : IdeListColors.hover,
-          Islands.windowOf(context),
+          AppColors.background,
         );
         final number = Positioned(
           top: 0,

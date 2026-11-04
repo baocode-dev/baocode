@@ -1,46 +1,12 @@
-// The cards (Islands) and the window under them, set apart.
-//
-// A theme's editor is its cards' color and its side bar the window's (see
-// AppColors). Many themes' are a shade apart, as the parts sat side by side
-// with a line between them: Bao Dark's #282827 on #212120, the cards hardly
-// told from the window. The theme's colors stay as they are, the IDE's
-// parts (not islands) and everything on a card in them; the agents'
-// window's own color, about its cards, is sunk under them instead.
+// Lightness, and a color shifted by it, in OKLab: its hue and its chroma
+// kept. What is raised on the cards (see AppColors.raised) and the faint
+// text's steps from them.
 
 import 'dart:math' as math;
 import 'dart:ui';
 
-/// How the agents' window is set apart from its cards: its color (a
-/// theme's `sideBar.background`) sunk till the cards (its
-/// `editor.background`) stand [darkStep] over it, [lightStep] in a light
-/// theme, as they are where they already do.
+/// A color's lightness, and the color made lighter or darker by it.
 abstract final class IslandTones {
-  /// The least lightness (OKLab L) between a dark theme's cards and its
-  /// window: further than the island prototype's (#222221 on #181817,
-  /// 0.043).
-  static const darkStep = 0.08;
-
-  /// A light theme's: light grays being harder to tell apart, further.
-  static const lightStep = 0.06;
-
-  /// As dark as a dark theme's window is sunk, not to read black: less
-  /// apart from its cards then.
-  static const darkest = 0.19;
-
-  /// The window's color about cards of [card], for a theme whose window
-  /// is [base]: [base] sunk, or as it is where it is apart enough already,
-  /// lighter than the cards, see-through, or [highContrast] (outlined).
-  static Color window(Color card, Color base, {bool highContrast = false}) {
-    if (highContrast || card.a < 1 || base.a < 1) return base;
-    final cardL = lightness(card);
-    final baseL = lightness(base);
-    if (cardL < baseL) return base;
-    final target = baseL < 0.5
-        ? math.max(cardL - darkStep, math.min(darkest, baseL))
-        : cardL - lightStep;
-    return target >= baseL ? base : shift(base, target - baseL);
-  }
-
   /// Perceived lightness, OKLab's L for a gray: the cube root of the
   /// luminance.
   static double lightness(Color color) =>

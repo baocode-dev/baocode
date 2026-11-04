@@ -206,7 +206,7 @@ class Sidebar extends StatefulWidget {
     this.atRight = false,
   });
 
-  /// Under it: [Islands.windowSurface] by default; none where the
+  /// Under it: [AppColors.sidebarSurface] by default; none where the
   /// window's own color is under it already.
   final Color? surface;
 
@@ -997,7 +997,7 @@ class _SidebarState extends State<Sidebar>
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: widget.surface ?? Islands.windowSurface,
+      color: widget.surface ?? AppColors.sidebarSurface,
       child: Listener(
         // On the way up, so a click lands on the row it went down on
         // before every project is listed again.
@@ -4417,7 +4417,7 @@ class _HostIcon extends StatelessWidget {
               color: attention == ThreadStatus.needsInput
                   ? StatusIndicator.needsInputColor
                   : AppColors.accent,
-              border: Border.all(color: Islands.windowSurface, width: 1),
+              border: Border.all(color: AppColors.sidebarSurface, width: 1),
             ),
           ),
         ),

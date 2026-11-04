@@ -23,8 +23,8 @@ abstract final class AppColors {
     return const Color(0x00000000);
   }
 
-  /// `sideBar.background`: the side bar's color; the agents' window's,
-  /// about its cards, sunk under them (see [IslandTones.window]).
+  /// `sideBar.background`: the side bar's color; the window's, the
+  /// agents' window's about its cards too.
   static Color get background => _colors['sideBar.background'];
 
   /// The least lightness between the faintest text and the cards: about
