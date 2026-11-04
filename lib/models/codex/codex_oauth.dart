@@ -166,7 +166,7 @@ class CodexIdentity {
   }
 }
 
-/// A JWT's claims, unverified (it came from the token endpoint, over TLS).
+/// A JWT's claims, unverified: metadata, not proof that the token is valid.
 Map<String, Object?>? jwtClaims(String jwt) {
   final parts = jwt.split('.');
   if (parts.length < 2) return null;
