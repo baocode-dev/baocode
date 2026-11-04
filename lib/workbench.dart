@@ -4706,9 +4706,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // so each is where it was after a switch. The terminal and the side
     // panel, the IDE's [panel][chat], are the conversation's, on its card.
     final under = _workspace.grid.under(thread);
-    final tools = [
+    // A pane's, before its title on its card: closing it, and those it
+    // covers.
+    final closing = [
       if (!place.alone) ...[
-        if (under.isNotEmpty) _coveredButton(thread, under),
         // With Close Pane's keys, which close the focused pane: as each of
         // upstream's tabs titles its close button with Close's. Over
         // another, it says which shows again.
@@ -4722,8 +4723,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           command: ChatCommandIds.closePane,
           onTap: () => _workspace.closePane(thread),
         ),
-        if (windowTools) const SizedBox(width: 8),
+        if (under.isNotEmpty) _coveredButton(thread, under),
       ],
+    ];
+    final tools = [
       if (paneTools) ...[
         if (windowTools) ...[
           const SizedBox(width: 2),
@@ -4806,6 +4809,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             ? null
             : KeepPaneFocus(
                 child: Row(mainAxisSize: MainAxisSize.min, children: tools),
+              ),
+        cardLeading: closing.isEmpty
+            ? null
+            : KeepPaneFocus(
+                child: Row(mainAxisSize: MainAxisSize.min, children: closing),
               ),
         cardTrailing: own.isEmpty
             ? null

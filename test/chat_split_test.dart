@@ -1427,11 +1427,11 @@ void main() {
     expect(tester.getRect(pane(first)).width, ChatGridView.minPane.width);
   }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
-  testWidgets('the title keeps to the pane\'s start and the buttons '
-      'to its end, alone or side by side', (tester) async {
+  testWidgets('the title keeps to the pane\'s start, after its close '
+      'button side by side, and the buttons to its end', (tester) async {
     await pumpApp(tester);
 
-    void expectPlaced(String title, Finder rightmost) {
+    void expectPlaced(String title, Finder rightmost, {bool close = false}) {
       final composer = tester.getRect(
         find.descendant(of: pane(title), matching: find.byType(ChatComposer)),
       );
@@ -1442,9 +1442,21 @@ void main() {
         ),
         matching: find.text(title),
       );
-      expect(tester.getTopLeft(text).dx, tester.getRect(pane(title)).left + 12);
-      // No further in than the input (as far in, on a narrow card).
-      expect(tester.getTopLeft(text).dx, lessThanOrEqualTo(composer.left));
+      final start = tester.getRect(pane(title)).left + 12;
+      if (close) {
+        final button = tester.getRect(
+          find.descendant(
+            of: pane(title),
+            matching: find.bySemanticsLabel('Close pane'),
+          ),
+        );
+        expect(button.left, start);
+        expect(tester.getTopLeft(text).dx, button.right + 4);
+      } else {
+        expect(tester.getTopLeft(text).dx, start);
+        // No further in than the input (as far in, on a narrow card).
+        expect(tester.getTopLeft(text).dx, lessThanOrEqualTo(composer.left));
+      }
       expect(
         tester
             .getTopRight(find.descendant(of: pane(title), matching: rightmost))
@@ -1460,8 +1472,8 @@ void main() {
 
     await dropAgent(tester, second, near(gridRect(tester), PaneSide.right));
     // Each pane keeps the buttons its own agent's, its editor's at the end.
-    expectPlaced(first, find.byType(OpenInEditorButton));
-    expectPlaced(second, find.byType(OpenInEditorButton));
+    expectPlaced(first, find.byType(OpenInEditorButton), close: true);
+    expectPlaced(second, find.byType(OpenInEditorButton), close: true);
   });
 
   testWidgets('dragging the sidebar\'s border or a line lays the chats out '
