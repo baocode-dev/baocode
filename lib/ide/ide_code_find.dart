@@ -8,6 +8,7 @@ import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:bao_editor/monaco/vs/editor/common/model/search/piece_tree_search.dart';
 import 'package:bao_editor/monaco/vs/editor/contrib/find/browser/replace_pattern.dart';
 
+import '../diagnostics/input_lag.dart';
 import 'ide_find_widget.dart';
 
 /// The IDE editor's find and replace (see `IdeEditorState`'s) for an
@@ -40,6 +41,19 @@ class IdeCodeFind extends ChangeNotifier {
   final FocusNode findFocusNode = FocusNode(debugLabel: 'code find');
   final FocusNode replaceFocusNode = FocusNode(debugLabel: 'code replace');
 
+  /// The widget's keys and clicks, timed to the frame that shows them.
+  late final InputLag _lag = InputLag(
+    'code find',
+    describe: () {
+      final text = _model.snapshot;
+      return [
+        'text ${text.text.length} chars, ${text.lineCount} lines',
+        '${_results.length} matches of ${findController.text.length} '
+            'chars${_regex ? ', regex' : ''}',
+      ].join('; ');
+    },
+  );
+
   bool get visible => _visible;
   bool _visible = false;
   bool get replaceVisible => _visible && _replaceVisible && !readOnly;
@@ -70,7 +84,7 @@ class IdeCodeFind extends ChangeNotifier {
   void _search() {
     if (!_visible || _disposed) return;
     _searched = _model.snapshot;
-    _results = _model.findMatches(_params);
+    _results = _lag.time('search', () => _model.findMatches(_params));
     _index = -1;
     notifyListeners();
   }
@@ -338,6 +352,7 @@ class IdeCodeFind extends ChangeNotifier {
     commandIds: editorFindCommandIds,
     // Lines found across, as the editor's.
     multiline: true,
+    lag: _lag,
   );
 
   @override
