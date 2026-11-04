@@ -80,13 +80,24 @@ abstract class CodexService extends ChangeNotifier {
   Future<void> removeAccount(String providerId, String accountId);
 }
 
-/// One entry in an account import: kept, or rejected without its secrets.
+/// One entry in an account import: kept, there already (its sign-in left
+/// as it was), or rejected without its secrets.
 class CodexImportResult {
-  const CodexImportResult.added(ProviderAccount this.account) : error = null;
-  const CodexImportResult.failed(String this.error) : account = null;
+  const CodexImportResult.added(ProviderAccount this.account)
+    : error = null,
+      known = false;
+  const CodexImportResult.known(ProviderAccount this.account)
+    : error = null,
+      known = true;
+  const CodexImportResult.failed(String this.error)
+    : account = null,
+      known = false;
 
   final ProviderAccount? account;
   final String? error;
+
+  /// Signed in to already: an older export must not replace its token.
+  final bool known;
 }
 
 /// A sign-in under way.

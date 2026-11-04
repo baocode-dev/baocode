@@ -6181,7 +6181,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsAddAccountDescription => '在浏览器中打开 ChatGPT 登录页。';
 
   @override
-  String get modelsAccountsImport => '导入账号…';
+  String get modelsAccountsImport => '导入';
+
+  @override
+  String get modelsAccountsImportTitle => '导入账号';
+
+  @override
+  String get modelsAccountsImportFile => '选择文件…';
 
   @override
   String get modelsAccountsImportDescription => '输入或选择 JSON 格式的账号凭据。';
@@ -6197,7 +6203,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelsAccountsImportConfirmDetail =>
-      'BaoCode 会安全保存凭据，不修改原文件，导入时也不会主动刷新令牌。但后续续期可能轮换刷新令牌，导致原工具需要重新登录。请仅导入您有权使用的凭据。';
+      'BaoCode 会安全保存凭据，不修改原文件，导入时也不会主动刷新令牌。但后续续期可能轮换刷新令牌，导致原工具需要重新登录。请只导入你有权使用的凭据。';
 
   @override
   String get modelsAccountsImportFailed => '无法读取或导入凭据。';
@@ -6205,6 +6211,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String modelsAccountsImportSummary(int count) {
     return '已导入账号：$count';
+  }
+
+  @override
+  String modelsAccountsImportKept(int count) {
+    return '已存在，保留现有登录：$count';
   }
 
   @override

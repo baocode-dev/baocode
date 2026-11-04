@@ -4696,7 +4696,9 @@
   },
   "modelsAddAccount": "Add Account",
   "modelsAddAccountDescription": "Opens ChatGPT's sign-in page in the browser.",
-  "modelsAccountsImport": "Import Accounts…",
+  "modelsAccountsImport": "Import",
+  "modelsAccountsImportTitle": "Import Accounts",
+  "modelsAccountsImportFile": "Choose File…",
   "modelsAccountsImportDescription": "Enter account credentials as JSON or choose a JSON file.",
   "modelsAccountsPaste": "Enter JSON…",
   "modelsAccountsPastePlaceholder": "Type or paste your JSON credentials here.",
@@ -4705,6 +4707,12 @@
   "modelsAccountsImportFailed": "The credentials could not be read or imported.",
   "modelsAccountsImportSummary": "Accounts imported: {count}",
   "@modelsAccountsImportSummary": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "modelsAccountsImportKept": "Already here, kept as signed in: {count}",
+  "@modelsAccountsImportKept": {
     "placeholders": {
       "count": {"type": "int"}
     }

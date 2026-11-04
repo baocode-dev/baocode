@@ -43,7 +43,7 @@ class _CodexImportDialogState extends State<_CodexImportDialog> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     return ModelDialogFrame(
-      title: l10n.modelsAccountsPaste,
+      title: l10n.modelsAccountsImportTitle,
       maxWidth: 640,
       actions: [
         IdeButton(

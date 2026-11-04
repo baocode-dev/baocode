@@ -395,7 +395,7 @@ class CodexAccounts extends CodexService {
             ModelProvider.accountRefFor(providerId, id),
           );
           if (saved != null && saved.isNotEmpty) {
-            results.add(CodexImportResult.added(known));
+            results.add(CodexImportResult.known(known));
             continue;
           }
         }

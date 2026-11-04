@@ -1321,14 +1321,14 @@ void main() {
       await pump(tester, codex: codex);
       await tester.tap(find.text('ChatGPT'));
       await tester.pumpAndSettle();
-      final label = input ? 'Enter JSON…' : 'Import Accounts…';
+      final label = input ? 'Enter JSON…' : 'Choose File…';
       await tester.ensureVisible(find.text(label).last);
       await tester.tap(find.text(label).last);
       await tester.pumpAndSettle();
     }
 
     Future<void> confirmImport(WidgetTester tester, _FakeCodex codex) async {
-      await tester.tap(find.text('Import Accounts…').last);
+      await tester.tap(find.text('Import').last);
       // File I/O uses real time; the dialog and its continuations use the
       // widget test's clock. Let both advance, without awaiting a fake-time
       // completer from runAsync.
@@ -1360,9 +1360,7 @@ void main() {
         await tester.pump();
         expect(
           tester
-              .widget<IdeButton>(
-                find.widgetWithText(IdeButton, 'Import Accounts…').last,
-              )
+              .widget<IdeButton>(find.widgetWithText(IdeButton, 'Import').last)
               .onPressed,
           isNull,
         );

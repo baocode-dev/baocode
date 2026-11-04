@@ -1239,7 +1239,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
         ),
         if (WindowControls.canPickFiles)
           SettingsRow(
-            label: l10n.modelsAccountsImport,
+            label: l10n.modelsAccountsImportTitle,
             description: l10n.modelsAccountsImportDescription,
             trailing: SettingsButtons(
               children: [
@@ -1251,7 +1251,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                       : () => unawaited(_importAccounts(paste: true)),
                 ),
                 IdeButton(
-                  label: l10n.modelsAccountsImport,
+                  label: l10n.modelsAccountsImportFile,
                   secondary: true,
                   onPressed: _importingAccounts || login != null
                       ? null
@@ -1263,10 +1263,19 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               if (_importResults case final results?) ...[
                 Text(
                   l10n.modelsAccountsImportSummary(
-                    results.where((result) => result.account != null).length,
+                    results
+                        .where((result) => result.account != null)
+                        .where((result) => !result.known)
+                        .length,
                   ),
                   style: SettingsText.description,
                 ),
+                if (results.where((result) => result.known).length
+                    case final known when known > 0)
+                  Text(
+                    l10n.modelsAccountsImportKept(known),
+                    style: SettingsText.description,
+                  ),
                 for (var i = 0; i < results.length; i++)
                   if (results[i].error case final error?)
                     SelectableText(

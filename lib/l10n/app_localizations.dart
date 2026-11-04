@@ -10692,8 +10692,20 @@ abstract class AppLocalizations {
   /// No description provided for @modelsAccountsImport.
   ///
   /// In en, this message translates to:
-  /// **'Import Accounts…'**
+  /// **'Import'**
   String get modelsAccountsImport;
+
+  /// No description provided for @modelsAccountsImportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Accounts'**
+  String get modelsAccountsImportTitle;
+
+  /// No description provided for @modelsAccountsImportFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose File…'**
+  String get modelsAccountsImportFile;
 
   /// No description provided for @modelsAccountsImportDescription.
   ///
@@ -10736,6 +10748,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Accounts imported: {count}'**
   String modelsAccountsImportSummary(int count);
+
+  /// No description provided for @modelsAccountsImportKept.
+  ///
+  /// In en, this message translates to:
+  /// **'Already here, kept as signed in: {count}'**
+  String modelsAccountsImportKept(int count);
 
   /// No description provided for @modelsAccountsImportItemFailed.
   ///

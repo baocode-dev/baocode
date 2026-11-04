@@ -650,6 +650,8 @@ void main() {
         confirmed: true,
       );
       expect(again.single.account!.id, imported.id);
+      expect(results.single.known, isFalse);
+      expect(again.single.known, isTrue);
       expect(
         provider().accounts.where((a) => a.id == imported.id),
         hasLength(1),

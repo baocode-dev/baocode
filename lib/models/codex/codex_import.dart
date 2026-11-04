@@ -154,10 +154,12 @@ CodexCredential _credential(Object? value) {
   return CodexCredential(
     refreshToken: refresh,
     accessToken: access,
-    expiresAt:
-        _epoch(claims?['exp']) ??
-        _epoch(source['expires_at']) ??
-        DateTime.tryParse(_read(source, 'expired') ?? ''),
+    // When the access token is out; none, nothing to use until renewed.
+    expiresAt: access == null
+        ? null
+        : _epoch(claims?['exp']) ??
+              _epoch(source['expires_at']) ??
+              DateTime.tryParse(_read(source, 'expired') ?? ''),
     identity: identity,
   );
 }

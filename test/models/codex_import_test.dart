@@ -114,6 +114,20 @@ void main() {
     expect(credential.expiresAt, isNull);
   });
 
+  test('an expiry without an access token is not one to use', () {
+    final later = DateTime.now().add(const Duration(hours: 1));
+    final credential = parseCodexCredentials(
+      jsonEncode({
+        'type': 'codex',
+        'id_token': id,
+        'refresh_token': 'refresh',
+        'expired': later.toIso8601String(),
+      }),
+    ).single.credential!;
+    expect(credential.accessToken, isNull);
+    expect(credential.expiresAt, isNull);
+  });
+
   test(
     'mixed arrays retain each entry and reject other vendors and API keys',
     () {
