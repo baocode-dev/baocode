@@ -124,9 +124,10 @@ class ChatScreen extends StatefulWidget {
   /// The row along the top of its card, with its title.
   static const cardHeaderHeight = 36.0;
 
-  /// From the card's right to the row's last button: in line with the side
-  /// panel's rail under it (see AgentSidePanelArea.railRight).
-  static const cardHeaderEnd = 17.0;
+  /// From the card's right to the row's last button, less its padding (2):
+  /// its right edge on the side panel's rail's under it, as far in as that
+  /// (AgentSidePanelArea.railRight, [Islands.inset]).
+  static const cardHeaderEnd = Islands.inset - 2;
 
   /// Left of the title bar's [leading]: by default clear of the native
   /// traffic lights, as when this is the whole window. The title and
