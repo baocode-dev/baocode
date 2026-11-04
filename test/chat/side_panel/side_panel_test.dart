@@ -2550,13 +2550,14 @@ void main() {
       expect(composer.right, lessThan(rail.left));
       // Room enough: the column in the middle, as without the rail.
       expect(composer.center.dx, closeTo(chat.center.dx, 0.5));
-      // As far under the conversation's title bar as in from its right;
-      // at the top under Windows' header.
+      // As far under the row along the top of its card as in from its
+      // right; that row at the top under Windows' header, none over it.
       expect(
         rail.top - chat.top,
         (defaultTargetPlatform == TargetPlatform.windows
                 ? 0
                 : AppMetrics.titleBarHeight) +
+            ChatScreen.cardHeaderHeight +
             AgentSidePanelArea.railRight,
       );
 

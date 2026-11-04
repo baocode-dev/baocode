@@ -43,6 +43,7 @@ import '../../workspace/islands.dart';
 import '../../workspace/terminal_deck.dart';
 import '../../workspace/title_bar_double_click.dart';
 import '../../workspace/window_controls.dart';
+import '../chat_screen.dart' show ChatScreen;
 import '../chat_models.dart' show CommandStatus;
 import '../../keybindings/chat_keybindings.dart';
 import '../../keybindings/keybinding_service.dart';
@@ -91,7 +92,7 @@ class AgentSidePanelArea extends StatefulWidget {
     required this.panel,
     required this.builder,
     this.rail,
-    this.railTop = AppMetrics.titleBarHeight + railRight,
+    this.railTop,
     this.hidden = false,
     this.roomComing = false,
     this.conversation,
@@ -118,9 +119,16 @@ class AgentSidePanelArea extends StatefulWidget {
   /// which reach the edge.
   final Widget? rail;
 
-  /// How far down [rail] is: under the conversation's title bar, where it
-  /// has one.
-  final double railTop;
+  /// How far down [rail] is: [defaultRailTop] by default.
+  final double? railTop;
+
+  /// Under the row along the top of the conversation's card (see
+  /// [ChatScreen.cardHeaderHeight]), and the row over the card where there
+  /// is one: not under Windows' header.
+  static double get defaultRailTop =>
+      (WindowControls.drawsHeader ? 0 : AppMetrics.titleBarHeight) +
+      ChatScreen.cardHeaderHeight +
+      railRight;
 
   /// Whether it gave way to the window's sidebar, though shown: the rail
   /// is there instead, to ask for it again.
@@ -280,7 +288,7 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
                 key: const ValueKey('rail'),
                 left: atLeft ? AgentSidePanelArea.railRight : null,
                 right: atLeft ? null : AgentSidePanelArea.railRight,
-                top: widget.railTop,
+                top: widget.railTop ?? AgentSidePanelArea.defaultRailTop,
                 child: widget.rail!,
               ),
             if (shown) ...[
