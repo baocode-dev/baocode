@@ -156,34 +156,40 @@ void main() {
     expect(back, open);
   }, variant: _windows);
 
-  testWidgets('over the IDE it is the IDE\'s title bar: no line under it, '
-      'and the way back to the chat on the right', (tester) async {
+  testWidgets('over the IDE it is the IDE\'s title bar, and over the '
+      'conversations their window\'s top: no line under it either way; the '
+      'way back to the chat on the right', (tester) async {
     final (workspace, calls) = await pumpWindowsApp(tester);
     final header = find.byType(WindowHeader);
-    BoxBorder? line() =>
-        (tester
-                    .widget<DecoratedBox>(
-                      find
-                          .descendant(
-                            of: header,
-                            matching: find.byType(DecoratedBox),
-                          )
-                          .first,
-                    )
-                    .decoration
-                as BoxDecoration)
-            .border;
+    // A line along its foot, of anything in it as wide as it.
+    bool line() {
+      final width = tester.getSize(header).width;
+      final boxes = find.descendant(
+        of: header,
+        matching: find.byType(DecoratedBox),
+      );
+      return boxes.evaluate().any(
+        (element) =>
+            (element.size?.width ?? 0) >= width - .5 &&
+            switch ((element.widget as DecoratedBox).decoration) {
+              BoxDecoration(border: Border(:final bottom)) =>
+                bottom != BorderSide.none,
+              _ => false,
+            },
+      );
+    }
+
     final back = find.descendant(
       of: header,
       matching: find.byType(BackToChatButton),
     );
-    expect(line(), isNotNull);
+    expect(line(), isFalse);
     expect(back, findsNothing);
 
     workspace.layout = WorkspaceLayout.ide;
     await tester.pump();
     await tester.pump();
-    expect(line(), isNull);
+    expect(line(), isFalse);
     expect(back, findsOneWidget);
     final button = tester.getRect(back);
     expect(button.height, 22);
