@@ -431,6 +431,26 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('the numpad\'s 7 and 1 with their digits stay digits on '
+      'Windows', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final controller = MarkdownController(text: 'ab\ncd');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    controller.selection = const TextSelection.collapsed(offset: 4);
+    await tester.pump();
+    // NumLock on before the app started: the lock modes don't have it.
+    expect(
+      HardwareKeyboard.instance.lockModesEnabled,
+      isNot(contains(KeyboardLockMode.numLock)),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad7, character: '7');
+    await tester.sendKeyEvent(LogicalKeyboardKey.numpad1, character: '1');
+    await tester.pump();
+    expect(controller.selection.extentOffset, 4);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('the numpad\'s 7 and 1 stay digits elsewhere', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     final controller = MarkdownController(text: 'ab\ncd');
