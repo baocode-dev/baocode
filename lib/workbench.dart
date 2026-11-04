@@ -4823,7 +4823,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         _showSidebarButton(),
       ],
     ];
-    // The conversation's own, on its card along its top, after its title.
+    // The conversation's own, on its card along its top, after its title;
+    // the side panel at the left, before it, the side panel's nearest the
+    // edge, over its rail.
+    final atStart = !embedded && _sidePanel.atLeft;
     final own = [
       if (paneTools) ...[
         // The panel is under each conversation (see [_withTerminal]), so
@@ -4903,8 +4906,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         cardTrailing: own.isEmpty
             ? null
             : KeepPaneFocus(
-                child: Row(mainAxisSize: MainAxisSize.min, children: own),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: atStart ? own.reversed.toList() : own,
+                ),
               ),
+        cardButtonsAtStart: atStart,
         // A pane's card is under the window's row (see [_panesTitleBar]).
         windowTitleBar: place.top && !inPane,
         titleBar: !(place.alone && _titleInHeader),
