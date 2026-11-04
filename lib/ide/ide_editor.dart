@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/composer/composer_files.dart';
+import '../diagnostics/input_lag.dart';
 import '../keybindings/key_chord.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/command_titles.dart';
@@ -310,6 +311,22 @@ class IdeEditorState extends State<IdeEditor> {
   bool _findRegex = false;
   List<FindMatch> _findResults = [];
   int _findIndex = -1;
+
+  /// The find widget's keys and clicks, timed to the frame that shows them
+  /// (2MSCSKQ2): what the editor had then, in sizes and counts.
+  late final InputLag _findLag = InputLag(
+    'ide find',
+    describe: () {
+      final text = widget.active.model.snapshot;
+      return [
+        'text ${text.text.length} chars, ${text.lineCount} lines',
+        '${_findResults.length} matches of ${_findController.text.length} '
+            'chars${_findRegex ? ', regex' : ''}',
+        '${_nativeControllers.length} editors, '
+            '${widget.workspace.documents.length} documents open',
+      ].join('; ');
+    },
+  );
   String _path = '';
   bool _syncing = false;
   bool _positionUpdatePending = false;
@@ -1980,7 +1997,10 @@ class IdeEditorState extends State<IdeEditor> {
 
   void _refreshFindResults() {
     if (!_findVisible) return;
-    final results = widget.active.model.findMatches(_searchParams);
+    final results = _findLag.time(
+      'search',
+      () => widget.active.model.findMatches(_searchParams),
+    );
     if (!mounted) return;
     setState(() {
       _findResults = results;
@@ -2750,6 +2770,7 @@ class IdeEditorState extends State<IdeEditor> {
     resolveKey: widget.keyResolver == null
         ? null
         : (event) => _resolveKey(event).command,
+    lag: _findLag,
   );
 
   TextStyle _editorStyle(WorkbenchColors colors) =>
