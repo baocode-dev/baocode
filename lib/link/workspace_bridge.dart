@@ -155,12 +155,15 @@ class WorkspaceBridge {
   // --- Ids ------------------------------------------------------------------
 
   /// Each agent's id for the phones: its session's, else one given here
-  /// (a new agent's, until it has one), kept for the run.
+  /// (a new agent's, until it has one), kept for the run. Those given here
+  /// are this run's alone: a phone keeps what it had of the last run's
+  /// `new-0`, not to be shown as this one's.
   static final Expando<String> _ids = Expando('link id');
   static int _nextId = 0;
+  static final _run = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
 
   static String idOf(AgentThread thread) =>
-      _ids[thread] ??= thread.id ?? 'new-${_nextId++}';
+      _ids[thread] ??= thread.id ?? 'new-$_run-${_nextId++}';
 
   AgentThread _thread(Object? id) {
     if (id is String) {
