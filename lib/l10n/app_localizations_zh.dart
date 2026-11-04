@@ -12888,7 +12888,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get remoteLocalAccessDetail =>
-      '它的 agent 可以在本机执行命令（每次都会问你）、在两边之间传文件、转发端口。';
+      '这些主机上的 agent 可以在本机执行命令（每次都会问你）、在两边之间传文件、转发端口。';
+
+  @override
+  String get remoteLocalAccessNoAsking => '命令直接执行，不再询问';
+
+  @override
+  String get remoteLocalAccessAskAgain => '改回每次询问';
 
   @override
   String get sidePanelPorts => '端口';

@@ -158,7 +158,6 @@ import 'workspace/workspace_dialog.dart';
 import 'ide/host_paths.dart';
 import 'remote/local_tools.dart';
 import 'remote/port_forwards.dart';
-import 'remote/remote_host_settings.dart';
 
 /// The window: the agents sidebar on the left, the selected agent's chat
 /// on the right, and up to three more beside it, dragged there from the
@@ -3729,18 +3728,6 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           icon: const Icon(Codicons.file),
           onSelected: () => _openRemoteFile(),
         ),
-        // Its agents' tools for this machine (local_tools.dart).
-        if (!RemoteLocation.isWsl(host)) ...[
-          const IdeMenuSeparator(),
-          IdeMenuAction(
-            l10n.remoteLocalAccess,
-            checked: RemoteHostSettings.instance.localAccess(host),
-            onSelected: () => RemoteHostSettings.instance.setLocalAccess(
-              host,
-              !RemoteHostSettings.instance.localAccess(host),
-            ),
-          ),
-        ],
         const IdeMenuSeparator(),
         IdeMenuAction(
           l10n.sidebarAddSshHost,

@@ -8700,7 +8700,9 @@
     }
   },
   "remoteLocalAccess": "Allow Remote Agents to Act on This Computer",
-  "remoteLocalAccessDetail": "Its agents may run commands on this computer (asking you each time), copy files here and there and forward ports.",
+  "remoteLocalAccessDetail": "Agents on these hosts may run commands on this computer (asking you each time), copy files both ways and forward ports.",
+  "remoteLocalAccessNoAsking": "Runs commands without asking",
+  "remoteLocalAccessAskAgain": "Ask Each Time",
   "sidePanelPorts": "Ports",
   "portsEmpty": "No ports are forwarded. A server on {host} that prints its http://localhost address is forwarded here on its own.",
   "@portsEmpty": {
