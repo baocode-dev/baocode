@@ -10689,6 +10689,60 @@ abstract class AppLocalizations {
   /// **'Opens ChatGPT\'s sign-in page in the browser.'**
   String get modelsAddAccountDescription;
 
+  /// No description provided for @modelsAccountsImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Accounts…'**
+  String get modelsAccountsImport;
+
+  /// No description provided for @modelsAccountsImportDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter account credentials as JSON or choose a JSON file.'**
+  String get modelsAccountsImportDescription;
+
+  /// No description provided for @modelsAccountsPaste.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter JSON…'**
+  String get modelsAccountsPaste;
+
+  /// No description provided for @modelsAccountsPastePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Type or paste your JSON credentials here.'**
+  String get modelsAccountsPastePlaceholder;
+
+  /// No description provided for @modelsAccountsImportConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Import these ChatGPT credentials?'**
+  String get modelsAccountsImportConfirm;
+
+  /// No description provided for @modelsAccountsImportConfirmDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode will keep the credentials securely without changing the original file or actively refreshing tokens during import. Renewing them later may rotate the refresh token and require the original tool to sign in again. Only import credentials you are authorized to use.'**
+  String get modelsAccountsImportConfirmDetail;
+
+  /// No description provided for @modelsAccountsImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The credentials could not be read or imported.'**
+  String get modelsAccountsImportFailed;
+
+  /// No description provided for @modelsAccountsImportSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts imported: {count}'**
+  String modelsAccountsImportSummary(int count);
+
+  /// No description provided for @modelsAccountsImportItemFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Entry {index}: {error}'**
+  String modelsAccountsImportItemFailed(int index, String error);
+
   /// No description provided for @modelsAccountSigningIn.
   ///
   /// In en, this message translates to:

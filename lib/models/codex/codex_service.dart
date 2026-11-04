@@ -16,6 +16,15 @@ abstract class CodexService extends ChangeNotifier {
   /// (the port it comes back to taken).
   Future<CodexLogin> login(String providerId);
 
+  /// Imports Codex CLI, CLIProxyAPI or Sub2API JSON after the caller obtains
+  /// consent. Importing does not refresh tokens; renewing them later may
+  /// invalidate the source tool's copy. Results follow the entries' order.
+  Future<List<CodexImportResult>> importAccountsJson(
+    String providerId,
+    String contents, {
+    required bool confirmed,
+  }) async => throw const CodexException('Import is not available here.');
+
   /// Asks how much of each of [provider]'s accounts' quota is used.
   /// With [force] false, those learned (or tried) in [usageMaxAge] are
   /// not asked again, unless a window of theirs started over since.
@@ -69,6 +78,15 @@ abstract class CodexService extends ChangeNotifier {
 
   /// Removes account [accountId] from provider [providerId], and its token.
   Future<void> removeAccount(String providerId, String accountId);
+}
+
+/// One entry in an account import: kept, or rejected without its secrets.
+class CodexImportResult {
+  const CodexImportResult.added(ProviderAccount this.account) : error = null;
+  const CodexImportResult.failed(String this.error) : account = null;
+
+  final ProviderAccount? account;
+  final String? error;
 }
 
 /// A sign-in under way.

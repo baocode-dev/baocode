@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:baocode/icons/brand_logos.dart';
 import 'package:baocode/icons/project_icon.dart';
@@ -19,6 +20,7 @@ import 'package:baocode/settings/pages/models_page.dart';
 import 'package:baocode/settings/pages/settings_widgets.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/widgets/pixel_loader.dart';
@@ -33,6 +35,10 @@ class _FakeCodex extends CodexService {
   int refreshed = 0;
   final List<List<String>> quotaRequests = [];
   Future<void> Function(ModelProvider)? onRefresh;
+  final imports = <(String, String, bool)>[];
+  List<CodexImportResult> importResults = const [];
+  Object? importFailure;
+  final importFinished = Completer<void>();
   Completer<ProviderAccount>? _pending;
 
   /// Whether sign-in finds its port free.
@@ -56,6 +62,29 @@ class _FakeCodex extends CodexService {
         if (!pending.isCompleted) pending.completeError(const CodexCancelled());
       },
     )..listening = listening;
+  }
+
+  @override
+  Future<List<CodexImportResult>> importAccountsJson(
+    String providerId,
+    String contents, {
+    required bool confirmed,
+  }) async {
+    imports.add((providerId, contents, confirmed));
+    try {
+      if (importFailure case final error?) throw error;
+      for (final result in importResults) {
+        if (result.account case final account?) {
+          await providers.save(
+            providers.provider(providerId)!.withAccount(account),
+          );
+        }
+      }
+      notifyListeners();
+      return importResults;
+    } finally {
+      importFinished.complete();
+    }
   }
 
   @override
@@ -1247,6 +1276,246 @@ void main() {
         isNotNull,
       );
     });
+  });
+
+  group('ChatGPT account import', () {
+    late Directory directory;
+
+    setUp(() {
+      directory = Directory.systemTemp.createTempSync(
+        'baocode-account-import-',
+      );
+    });
+
+    tearDown(() => directory.deleteSync(recursive: true));
+
+    Future<void> openImport(
+      WidgetTester tester,
+      _FakeCodex codex,
+      List<String> picked, {
+      bool input = false,
+    }) async {
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        const MethodChannel('baocode/window'),
+        (call) async {
+          if (call.method != 'pickOpenFiles') return null;
+          expect(input, isFalse);
+          expect(call.arguments, {'multiple': false});
+          return picked;
+        },
+      );
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(
+          const MethodChannel('baocode/window'),
+          null,
+        ),
+      );
+      await providers.save(
+        const ModelProvider(
+          id: 'cx',
+          name: 'ChatGPT',
+          protocol: ProviderProtocol.codex,
+        ),
+      );
+      await pump(tester, codex: codex);
+      await tester.tap(find.text('ChatGPT'));
+      await tester.pumpAndSettle();
+      final label = input ? 'Enter JSON…' : 'Import Accounts…';
+      await tester.ensureVisible(find.text(label).last);
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> confirmImport(WidgetTester tester, _FakeCodex codex) async {
+      await tester.tap(find.text('Import Accounts…').last);
+      // File I/O uses real time; the dialog and its continuations use the
+      // widget test's clock. Let both advance, without awaiting a fake-time
+      // completer from runAsync.
+      for (var i = 0; i < 100 && !codex.importFinished.isCompleted; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump();
+      }
+      expect(codex.importFinished.isCompleted, isTrue);
+      await tester.pumpAndSettle();
+    }
+
+    Finder jsonInput() => find.descendant(
+      of: find.byType(ModelDialogFrame),
+      matching: find.byType(EditableText),
+    );
+
+    testWidgets(
+      'empty input is disabled and cancel discards typed credentials',
+      (tester) async {
+        final codex = _FakeCodex(providers);
+        await openImport(tester, codex, [], input: true);
+        expect(
+          tester.widget<EditableText>(jsonInput()).maxLines,
+          anyOf(isNull, greaterThan(1)),
+        );
+        await tester.enterText(jsonInput(), '  ');
+        await tester.pump();
+        expect(
+          tester
+              .widget<IdeButton>(
+                find.widgetWithText(IdeButton, 'Import Accounts…').last,
+              )
+              .onPressed,
+          isNull,
+        );
+        await tester.enterText(
+          jsonInput(),
+          '{"refresh_token":"secret-discarded"}',
+        );
+        await tester.pump();
+        expect(codex.imports, isEmpty);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(codex.imports, isEmpty);
+        expect(find.textContaining('secret-discarded'), findsNothing);
+        await tester.tap(find.text('Enter JSON…').last);
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<EditableText>(jsonInput()).controller.text,
+          isEmpty,
+        );
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+      },
+      variant: TargetPlatformVariant({TargetPlatform.macOS}),
+    );
+
+    for (final (kind, contents) in const [
+      ('single', '{\n  "refresh_token": "secret-typed"\n}'),
+      (
+        'multiple',
+        '[\n  {"refresh_token": "secret-a"},\n  {"refresh_token": "secret-b"}\n]',
+      ),
+    ]) {
+      testWidgets('typed $kind JSON uses the shared account import service', (
+        tester,
+      ) async {
+        final codex = _FakeCodex(providers)
+          ..importResults = [
+            const CodexImportResult.added(
+              ProviderAccount(id: 'typed-a', email: 'a@example.com'),
+            ),
+            if (kind == 'multiple')
+              const CodexImportResult.added(
+                ProviderAccount(id: 'typed-b', email: 'b@example.com'),
+              ),
+          ];
+        await openImport(tester, codex, [], input: true);
+        await tester.enterText(jsonInput(), contents);
+        await tester.pump();
+        expect(codex.imports, isEmpty);
+        await confirmImport(tester, codex);
+        expect(codex.imports, [('cx', contents, true)]);
+        expect(codex.refreshed, 0);
+        expect(
+          find.text('Accounts imported: ${codex.importResults.length}'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('secret-'), findsNothing);
+        expect(find.byType(ModelDialogFrame), findsNothing);
+      }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
+    }
+
+    testWidgets('typed JSON errors do not keep credentials on the page', (
+      tester,
+    ) async {
+      final codex = _FakeCodex(providers)
+        ..importFailure = const CodexException('Invalid JSON credentials.');
+      await openImport(tester, codex, [], input: true);
+      await tester.enterText(jsonInput(), 'secret-invalid-input');
+      await tester.pump();
+      await confirmImport(tester, codex);
+      expect(find.text('Invalid JSON credentials.'), findsOneWidget);
+      expect(find.textContaining('secret-invalid-input'), findsNothing);
+      expect(providers.provider('cx')!.accounts, isEmpty);
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
+
+    testWidgets('canceling file selection never calls the import service', (
+      tester,
+    ) async {
+      final codex = _FakeCodex(providers);
+      await openImport(tester, codex, []);
+      expect(find.text('Import these ChatGPT credentials?'), findsNothing);
+      expect(codex.imports, isEmpty);
+      expect(providers.provider('cx')!.accounts, isEmpty);
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
+
+    testWidgets('canceling confirmation never reads or imports the file', (
+      tester,
+    ) async {
+      final codex = _FakeCodex(providers);
+      // Not readable: cancel must not try to open it.
+      await openImport(tester, codex, ['${directory.path}/absent.json']);
+      expect(find.text('Import these ChatGPT credentials?'), findsOneWidget);
+      expect(
+        find.textContaining('without changing the original file'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('rotate the refresh token'), findsOneWidget);
+      expect(codex.imports, isEmpty);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(codex.imports, isEmpty);
+      expect(
+        find.text('The credentials could not be read or imported.'),
+        findsNothing,
+      );
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
+
+    testWidgets(
+      'confirmed JSON import shows ordered failures without secrets',
+      (tester) async {
+        const contents = '{"refresh_token":"secret-import-token"}';
+        final file = File('${directory.path}/auth.json')
+          ..writeAsStringSync(contents);
+        final codex = _FakeCodex(providers)
+          ..importResults = const [
+            CodexImportResult.failed('Unsupported account type.'),
+            CodexImportResult.added(
+              ProviderAccount(id: 'imported', email: 'imported@example.com'),
+            ),
+            CodexImportResult.failed('Missing refresh token.'),
+          ];
+        await openImport(tester, codex, [file.path]);
+        expect(codex.imports, isEmpty);
+        expect(find.textContaining('secret-import-token'), findsNothing);
+        await confirmImport(tester, codex);
+        expect(codex.imports, [('cx', contents, true)]);
+        expect(codex.refreshed, 0);
+        expect(find.text('Accounts imported: 1'), findsOneWidget);
+        expect(find.text('Entry 1: Unsupported account type.'), findsOneWidget);
+        expect(find.text('Entry 3: Missing refresh token.'), findsOneWidget);
+        expect(find.text('imported@example.com'), findsOneWidget);
+        expect(find.textContaining('secret-import-token'), findsNothing);
+        expect(file.readAsStringSync(), contents);
+      },
+      variant: TargetPlatformVariant({TargetPlatform.macOS}),
+    );
+
+    testWidgets('unexpected import errors are not shown verbatim', (
+      tester,
+    ) async {
+      final file = File('${directory.path}/auth.json')..writeAsStringSync('{}');
+      final codex = _FakeCodex(providers)
+        ..importFailure = StateError('secret-credential-or-path');
+      await openImport(tester, codex, [file.path]);
+      await confirmImport(tester, codex);
+      expect(
+        find.text('The credentials could not be read or imported.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('secret-credential-or-path'), findsNothing);
+      expect(find.text('Accounts imported: 0'), findsNothing);
+      expect(providers.provider('cx')!.accounts, isEmpty);
+    }, variant: TargetPlatformVariant({TargetPlatform.macOS}));
   });
 
   testWidgets('signing in can be cancelled', (tester) async {

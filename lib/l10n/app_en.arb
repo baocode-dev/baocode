@@ -4696,6 +4696,26 @@
   },
   "modelsAddAccount": "Add Account",
   "modelsAddAccountDescription": "Opens ChatGPT's sign-in page in the browser.",
+  "modelsAccountsImport": "Import Accounts…",
+  "modelsAccountsImportDescription": "Enter account credentials as JSON or choose a JSON file.",
+  "modelsAccountsPaste": "Enter JSON…",
+  "modelsAccountsPastePlaceholder": "Type or paste your JSON credentials here.",
+  "modelsAccountsImportConfirm": "Import these ChatGPT credentials?",
+  "modelsAccountsImportConfirmDetail": "BaoCode will keep the credentials securely without changing the original file or actively refreshing tokens during import. Renewing them later may rotate the refresh token and require the original tool to sign in again. Only import credentials you are authorized to use.",
+  "modelsAccountsImportFailed": "The credentials could not be read or imported.",
+  "modelsAccountsImportSummary": "Accounts imported: {count}",
+  "@modelsAccountsImportSummary": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "modelsAccountsImportItemFailed": "Entry {index}: {error}",
+  "@modelsAccountsImportItemFailed": {
+    "placeholders": {
+      "index": {"type": "int"},
+      "error": {"type": "String"}
+    }
+  },
   "modelsAccountSigningIn": "Waiting for sign-in…",
   "modelsAccountSigningInDetail": "Finish signing in in the browser. If it did not open, copy the link into it.",
   "modelsAccountCopyLink": "Copy Link",

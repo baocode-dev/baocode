@@ -603,6 +603,156 @@ void main() {
       await openai.close();
     });
 
+    test('imports with consent, deduplicates and delays refresh', () async {
+      final access = jwt({
+        'exp':
+            DateTime.now()
+                .add(const Duration(hours: 1))
+                .millisecondsSinceEpoch ~/
+            1000,
+        'https://api.openai.com/auth': {'chatgpt_account_id': 'ws-a'},
+      });
+      final contents = jsonEncode({
+        'auth_mode': 'chatgpt',
+        'OPENAI_API_KEY': null,
+        'tokens': {
+          'id_token': idToken(),
+          'access_token': access,
+          'refresh_token': 'import-secret',
+          'account_id': 'ws-a',
+        },
+      });
+      await expectLater(
+        accounts.importAccountsJson('cx', contents, confirmed: false),
+        throwsA(isA<CodexException>()),
+      );
+      expect(provider().accounts, [a, b]);
+      final results = await accounts.importAccountsJson(
+        'cx',
+        contents,
+        confirmed: true,
+      );
+      final imported = results.single.account!;
+      expect(await accounts.accessToken(provider(), imported), access);
+      expect(openai.requests, isEmpty);
+      expect(
+        await secrets.read(ModelProvider.accountRefFor('cx', imported.id)),
+        'import-secret',
+      );
+      openai.reply = (_, _, _) => tokens('new-access', refresh: 'rotated');
+      expect(
+        await accounts.accessToken(provider(), imported, rejected: access),
+        'new-access',
+      );
+      final again = await accounts.importAccountsJson(
+        'cx',
+        contents,
+        confirmed: true,
+      );
+      expect(again.single.account!.id, imported.id);
+      expect(
+        provider().accounts.where((a) => a.id == imported.id),
+        hasLength(1),
+      );
+      expect(
+        await secrets.read(ModelProvider.accountRefFor('cx', imported.id)),
+        'rotated',
+      );
+      expect(await accounts.accessToken(provider(), imported), 'new-access');
+    });
+
+    test('imports CPA and Sub2API entries with individual failures', () async {
+      final results = await accounts.importAccountsJson(
+        'cx',
+        jsonEncode([
+          {
+            'type': 'codex',
+            'id_token': idToken(),
+            'refresh_token': 'cpa-refresh',
+          },
+          {
+            'platform': 'openai',
+            'type': 'oauth',
+            'credentials': {
+              'email': 'a@example.com',
+              'id_token': idToken(account: 'ws-team'),
+              'chatgpt_account_id': 'ws-team',
+              'refresh_token': 'sub-refresh',
+            },
+          },
+          {'platform': 'anthropic', 'type': 'oauth', 'credentials': {}},
+          {'type': 'codex', 'access_token': 'secret-access'},
+        ]),
+        confirmed: true,
+      );
+      expect(results.map((r) => r.account?.accountId), [
+        'ws-a',
+        'ws-team',
+        null,
+        null,
+      ]);
+      expect(results[2].error, isNotNull);
+      expect(results[3].error, isNot(contains('secret-access')));
+      expect(provider().accounts, hasLength(4));
+      expect(openai.requests, isEmpty);
+      final imported = results.first.account!;
+      expect(
+        await secrets.read(ModelProvider.accountRefFor('cx', imported.id)),
+        'cpa-refresh',
+      );
+      openai.reply = (_, _, _) => tokens('refreshed', refresh: 'next');
+      expect(await accounts.accessToken(provider(), imported), 'refreshed');
+      expect(
+        form(openai.to('/oauth/token').single.body)['refresh_token'],
+        'cpa-refresh',
+      );
+    });
+
+    test(
+      'invalid imports do not expose credentials or change accounts',
+      () async {
+        await expectLater(
+          accounts.importAccountsJson(
+            'cx',
+            'secret-invalid-json',
+            confirmed: true,
+          ),
+          throwsA(
+            isA<CodexException>().having(
+              (e) => e.message,
+              'message',
+              isNot(contains('secret')),
+            ),
+          ),
+        );
+        for (final json in [
+          {'OPENAI_API_KEY': 'secret-key'},
+          {
+            'tokens': {'refresh_token': 'secret-refresh'},
+          },
+          {
+            'tokens': {
+              'id_token': idToken(),
+              'access_token': idToken(),
+              'refresh_token': 'secret-refresh',
+              'account_id': 'wrong',
+            },
+          },
+        ]) {
+          final results = await accounts.importAccountsJson(
+            'cx',
+            jsonEncode(json),
+            confirmed: true,
+          );
+          expect(results.single.account, isNull);
+          expect(results.single.error, isNotNull);
+          expect(results.single.error, isNot(contains('secret')));
+        }
+        expect(provider().accounts, [a, b]);
+        expect(openai.requests, isEmpty);
+      },
+    );
+
     test('a token is refreshed once at a time, its successor kept', () async {
       var n = 0;
       openai.reply = (path, _, body) {
