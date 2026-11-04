@@ -7,7 +7,6 @@ import 'package:flutter/rendering.dart' show RenderProxyBox;
 
 import '../ide/ide_modern_ui.dart';
 import '../theme/app_theme.dart';
-import '../theme/island_tones.dart';
 import '../theme/workbench_theme.dart';
 
 /// The window's parts as islands: cards of the editor's color on the
@@ -39,35 +38,6 @@ abstract final class Islands {
   /// What is raised on a card (an input, the composer, the segment picked):
   /// see [AppColors.raised].
   static Color get raised => AppColors.raised;
-
-  /// The agents' window's color, about its cards: the theme's side bar's,
-  /// sunk under them where they are hardly apart (see
-  /// [IslandTones.window]); the theme's colors as they are, the IDE's.
-  static Color get window {
-    final colors = themeColors;
-    final card = AppColors.code;
-    final base = AppColors.background;
-    return _windows[(card, base, colors.highContrast)] ??= IslandTones.window(
-      card,
-      base,
-      highContrast: colors.highContrast,
-    );
-  }
-
-  static final _windows = <(Color, Color, bool), Color>{};
-
-  /// [window] under the sidebar, see-through where the system's material
-  /// shows through it (see [AppColors.sidebarSurface]).
-  static Color get windowSurface => AppColors.sidebarSurfaceOf(window);
-
-  /// The window's color under [context]: [window] on islands, else the
-  /// theme's side bar's ([AppColors.background]).
-  static Color windowOf(BuildContext context) =>
-      on(context) ? window : AppColors.background;
-
-  /// [windowOf] as [windowSurface] is [window].
-  static Color windowSurfaceOf(BuildContext context) =>
-      on(context) ? windowSurface : AppColors.sidebarSurface;
 
   /// A line on a card (between its parts, about what is raised on it):
   /// `panel.border`, lighter than the card's own outline.

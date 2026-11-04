@@ -2749,11 +2749,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         // The text style (and ink) for what is not inside a panel's own:
         // the empty workspace, the dragged agent over the window.
         final content = Material(
-          color: AppColors.usesSystemMaterial
-              ? Colors.transparent
-              : _showsIde
-              ? AppColors.background
-              : Islands.window,
+          color: AppColors.windowCanvas,
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -3046,7 +3042,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // fractional x (a dragged width), would each half cover the pixel
     // there, and the material would show through the seam.
     return ColoredBox(
-      color: Islands.windowSurface,
+      color: AppColors.sidebarSurface,
       child: Stack(
         fit: StackFit.expand,
         children: [row, if (_dragging) _resizeCursorLayer],
@@ -3089,7 +3085,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       children: [
         Positioned.fill(
           child: ColoredBox(
-            color: Islands.windowSurface,
+            color: AppColors.sidebarSurface,
             child: _islandsInset(body ?? _buildPanes(showToggle: true)),
           ),
         ),
@@ -3172,10 +3168,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     cursor: SystemMouseCursors.resizeColumn,
   );
 
-  /// On the window's own color (see [Islands.window]): over the system's
-  /// material (see [AppColors.windowCanvas]), opaque.
+  /// On the window's own color: over the system's material (see
+  /// [AppColors.windowCanvas]), opaque.
   static Widget _opaque(Widget child) =>
-      ColoredBox(color: Islands.window, child: child);
+      ColoredBox(color: AppColors.background, child: child);
 
   /// [thread] in this agent's window, in place of its agent.
   void _showInWindow(AgentThread thread) {
