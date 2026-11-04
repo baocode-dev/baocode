@@ -30,6 +30,50 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.9.0">
+    <h2 class="plain"><a href="#v1.9.0">1.9.0</a></h2>
+    <p>This release rebuilds the agents&#x27; window with cards, and the sidebar, conversations and side panel can be arranged in four layouts. A Windows computer can now be an SSH host. /fork is new, and an agent&#x27;s questions stay in the conversation with your answers.</p>
+    <p>New</p>
+    <ul>
+    <li>The agents&#x27; window is laid out in cards: the sidebar, the conversations and the side panel each on their own. The side panel&#x27;s Layout button switches between four arrangements, and the sidebar can sit at the right.</li>
+    <li>A conversation&#x27;s title and buttons are on its own card. With split panes there is one set of buttons at the window&#x27;s top right, and each pane&#x27;s details are on its card instead of taking a row of their own.</li>
+    <li>A row under the conversation shows where the agent works (a click copies the path) and how full its context is, with a warning past 80%.</li>
+    <li>Windows as an SSH host: connecting, files, a PowerShell terminal and language server diagnostics all work. The status bar shows the host&#x27;s system.</li>
+    <li>In SSH projects, the remote agent can use the tools that act on this computer, with ports forwarded both ways.</li>
+    <li>/fork: type /fork in the input to copy the conversation and go on in a new one.</li>
+    <li>Once you answer an agent&#x27;s questions, each question and your answer stay in the conversation, also when the turn is folded.</li>
+    <li>Each conversation has its own Git log in the side panel; the local changes under it fold.</li>
+    <li>File tabs in the editor and the side panel can be dragged into another order.</li>
+    </ul>
+    <p>Phones</p>
+    <ul>
+    <li>Browsing files on the phone shows the files Git ignores, dimmed.</li>
+    <li>File links in a bot&#x27;s replies open on the phone.</li>
+    <li>After the computer restarts, a new conversation on the phone no longer shows as an old one.</li>
+    </ul>
+    <p>Improved</p>
+    <ul>
+    <li>Without Claude Code installed, BaoCode&#x27;s built-in core is used by default, and the official CLI is no longer suggested.</li>
+    <li>Edit cards show their changes inline.</li>
+    <li>A code block being written lays out and colors only what changed, so long replies no longer stutter.</li>
+    <li>History reads only the part of a session shown, and a session file that grows is read on from where it was read. Large requests&#x27; JSON is handled off the UI thread, using less CPU.</li>
+    <li>File links in the chat resolve paths as the agent&#x27;s tools do, so ~ and relative paths open.</li>
+    <li>Bao Dark and Bao Light&#x27;s grays are closer to neutral gray; the sand gold accent is unchanged.</li>
+    <li>In a narrow conversation, a finished turn&#x27;s time, speed, cost and tokens wrap onto another line.</li>
+    <li>The side panel no longer has a browser page; the agent&#x27;s browser tools work as before.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Sessions whose first message carried an added note (the file open in the editor, sent from the phone, Ask mode) no longer disappear from the list after a restart. Sessions starting with a command such as /goal are listed too.</li>
+    <li>The input could stop taking text after the input method&#x27;s connection dropped (macOS Pinyin).</li>
+    <li>A code block being written could occasionally freeze the window (Intel Macs).</li>
+    <li>Code blocks are colored again after switching themes.</li>
+    <li>A terminal paused on Linux reads its output again once resumed.</li>
+    <li>Stashing works with Git before 2.13.</li>
+    <li>Home and End move to the line&#x27;s start and end in the Markdown editor.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.8.1">
     <h2 class="plain"><a href="#v1.8.1">1.8.1</a></h2>
     <p>This release mostly improves the phone: the computer can keep to direct connections with no relay; messages sent from the phone get plain-text replies that read well there; bots work better. It also adds back and forward on the mouse's side buttons, formulas copied as TeX, Gitee, and usage priced the way upstreams price. On the phone, 0.1.6 is recommended, and Direct Only needs it.</p>
