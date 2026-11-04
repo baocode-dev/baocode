@@ -4148,6 +4148,12 @@ abstract class AppLocalizations {
   /// **'Load earlier messages'**
   String get chatLoadEarlier;
 
+  /// Over a kept conversation, once its session was talked in elsewhere (e.g. in a terminal) since it was read: reads it anew.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload (continued elsewhere)'**
+  String get chatReload;
+
   /// No description provided for @chatStop.
   ///
   /// In en, this message translates to:

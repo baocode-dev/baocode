@@ -3398,6 +3398,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ideNavigation: ide ? _ideSpace(_ideFolder).navigation : null,
       pinned: _pinned,
       onTogglePin: _setPinned,
+      reloadChat: switch (agent ?? _workspace.current) {
+        final thread? when !ide && _reloadable(thread) => _reloadButton(thread),
+        _ => null,
+      },
       terminalShown: _terminals?.shown ?? false,
       onToggleTerminal: ide || _terminals?.root == null
           ? null
@@ -4835,6 +4839,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     final atStart = !embedded && _sidePanel.atLeft;
     final own = [
       if (cardTools) ...[
+        // Only once it was talked in elsewhere: nothing new to read before.
+        if (_reloadable(thread))
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: _reloadButton(thread),
+          ),
         // The panel is under each conversation (see [_withTerminal]), so
         // the button in a pane is that pane's project's.
         if (showsTerminals && terminals != null)
@@ -5005,6 +5015,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     command: 'workbench.action.toggleSidebarVisibility',
     onTap: _toggle,
   );
+
+  /// Whether [thread]'s kept session was talked in elsewhere since it was
+  /// read here, and can be read anew now (see [Workspace.reload]).
+  bool _reloadable(AgentThread thread) =>
+      thread.goneOnElsewhere && _workspace.canReload(thread);
+
+  Widget _reloadButton(AgentThread thread) => SidebarIconButton(
+    icon: Codicons.refresh,
+    tooltip: context.l10n.chatReload,
+    onTap: () => _reload(thread),
+    size: 22,
+  );
+
+  /// Reads [thread]'s kept session anew, its chat and side panel as they
+  /// were.
+  void _reload(AgentThread thread) {
+    final was = thread.session;
+    _workspace.reload(thread);
+    if (identical(thread.session, was)) return;
+    _sidePanel.carryOver(was, thread.session);
+    // A chat of the conversation before is not shown again: built anew.
+    _chatKeys[thread] = GlobalKey();
+    _ideChatWidgets.remove(thread);
+  }
 
   // --- Asides (/btw) -------------------------------------------------------
 

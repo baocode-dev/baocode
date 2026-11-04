@@ -295,7 +295,9 @@ class WorkspaceBridge {
       (throw LinkRemoteException(LinkErrors.notFound, 'No bot $id'));
 
   void _stateChanged() {
-    if (_disposed || _stateTimer != null) return;
+    if (_disposed) return;
+    _refollow();
+    if (_stateTimer != null) return;
     _stateTimer = Timer(throttle, () {
       _stateTimer = null;
       if (_disposed) return;
@@ -305,6 +307,25 @@ class WorkspaceBridge {
       _stateSent = text;
       peer.emit(LinkEvents.state, json);
     });
+  }
+
+  /// Follows anew the agents whose conversation was opened again (see
+  /// [Workspace.reload]): the phone sent all of it, as when it opened it.
+  void _refollow() {
+    for (final MapEntry(key: id, value: follow) in [..._follows.entries]) {
+      final AgentThread thread;
+      try {
+        thread = _thread(id);
+      } on LinkRemoteException {
+        continue;
+      }
+      if (!thread.isOpen || identical(thread.session, follow.session)) {
+        continue;
+      }
+      follow.dispose();
+      final fresh = _follows[id] = follow.over(thread.session);
+      peer.emit(LinkEvents.session, fresh.start());
+    }
   }
 
   // --- Requests -------------------------------------------------------------
@@ -1131,6 +1152,16 @@ class _Follow {
   final ChatSession session;
   final LinkPeer peer;
   final Duration throttle;
+
+  /// The same following, of [session] (its conversation read anew).
+  _Follow over(ChatSession session) => _Follow(
+    id: id,
+    session: session,
+    peer: peer,
+    throttle: throttle,
+    pathOf: pathOf,
+    window: window,
+  );
 
   /// How many of the last items the phone follows at first, if it pages
   /// back through the rest (see [earlier]); null for all of them.

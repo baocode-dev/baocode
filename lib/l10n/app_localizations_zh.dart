@@ -2232,6 +2232,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatLoadEarlier => '加载更早的消息';
 
   @override
+  String get chatReload => '重新加载（在别处有新消息）';
+
+  @override
   String get chatStop => '停止';
 
   @override

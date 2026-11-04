@@ -1317,6 +1317,10 @@
   },
   "chatOpensItsConversation": "Opens its conversation",
   "chatLoadEarlier": "Load earlier messages",
+  "chatReload": "Reload (continued elsewhere)",
+  "@chatReload": {
+    "description": "Over a kept conversation, once its session was talked in elsewhere (e.g. in a terminal) since it was read: reads it anew."
+  },
   "chatStop": "Stop",
   "chatKeepRunningHint": "Keep it running and let the agent go on",
   "chatBackground": "Background",
