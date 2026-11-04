@@ -152,11 +152,13 @@ class ChatItemView extends StatelessWidget {
         :final visible,
         :final cue,
       ) =>
-        ActivityRow(
-          label: label,
-          whimsical: whimsical,
-          visible: visible,
-          cue: cue,
+        RepaintBoundary(
+          child: ActivityRow(
+            label: label,
+            whimsical: whimsical,
+            visible: visible,
+            cue: cue,
+          ),
         ),
     };
   }

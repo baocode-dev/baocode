@@ -95,7 +95,7 @@ class TurnFooter extends StatelessWidget {
     return ListenableBuilder(
       listenable: LiveTurnStatsSetting.changes ?? Listenable.merge(const []),
       builder: (context, _) => LiveTurnStatsSetting.current()
-          ? _padded(_LiveStats(output: live, since: since))
+          ? RepaintBoundary(child: _padded(_LiveStats(output: live, since: since)))
           : const SizedBox.shrink(),
     );
   }
@@ -271,6 +271,7 @@ class _Stat extends StatelessWidget {
                 fontSize: 12,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
+              rolling: false,
             )
           else
             Text(text, style: TextStyle(color: color, fontSize: 12)),

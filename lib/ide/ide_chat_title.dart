@@ -9,7 +9,6 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../chat/widgets/pixel_loader.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
@@ -372,10 +371,10 @@ class IdeThreadIcon extends StatelessWidget {
   Widget build(BuildContext context) => ThreadStatusBuilder(
     thread,
     (context, status) => status == ThreadStatus.running
-        ? SizedBox.square(
+        ? const SizedBox.square(
             dimension: 16,
             child: Center(
-              child: PixelLoader.agent(color: IconTheme.of(context).color),
+              child: ThreadStatusMark(ThreadStatus.running),
             ),
           )
         : Icon(thread.pinned ? Codicons.pinned : Codicons.commentDiscussion),
