@@ -3887,8 +3887,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get themeHighContrastThemes => 'high contrast themes';
 
   @override
-  String get themeSelectPlaceholder =>
-      'Select Color Theme (detect system color mode disabled)';
+  String get themeAuto => 'Auto';
+
+  @override
+  String get themeFollowSystem => 'Follow system';
+
+  @override
+  String get themeSelectPlaceholder => 'Select Color Theme';
 
   @override
   String get dateNow => 'now';

@@ -17,8 +17,10 @@ abstract final class FeatureTipIds {
   static const colorTheme = 'colorTheme';
 }
 
-/// The settings.json key of the color theme (set once one is picked).
+/// The settings.json keys of the color theme and Auto (set once one is
+/// picked).
 const _colorThemeSetting = 'workbench.colorTheme';
+const _autoDetectColorSchemeSetting = 'window.autoDetectColorScheme';
 
 /// The features the app recommends, in the checklist's order. A new one is
 /// one more entry here (its words in the .arb files).
@@ -96,7 +98,8 @@ List<FeatureTip> builtInFeatureTips(AppSettings settings) => [
     triggers: {TipTrigger.firstLaunch},
     relevant: () async =>
         settings.files != null &&
-        settings.files!.settings[_colorThemeSetting] == null,
+        settings.files!.settings[_colorThemeSetting] == null &&
+        settings.files!.settings[_autoDetectColorSchemeSetting] != true,
     apply: (at) async {
       at.openSettings(SettingsSection.appearance);
       return true;

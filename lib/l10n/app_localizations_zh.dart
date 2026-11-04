@@ -3732,7 +3732,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeHighContrastThemes => '高对比度主题';
 
   @override
-  String get themeSelectPlaceholder => '选择颜色主题(检测系统颜色模式已禁用)';
+  String get themeAuto => '自动';
+
+  @override
+  String get themeFollowSystem => '跟随系统';
+
+  @override
+  String get themeSelectPlaceholder => '选择颜色主题';
 
   @override
   String get dateNow => '现在';

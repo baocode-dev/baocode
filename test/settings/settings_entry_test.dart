@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/ide/ide_color_theme_picker.dart';
 import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/ide/ide_menu.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/keybindings/default_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
@@ -11,6 +12,7 @@ import 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart' as vs;
 import 'package:baocode/keybindings/keybinding_service.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/settings/pages/appearance_page.dart';
+import 'package:baocode/settings/pages/settings_dropdown.dart';
 import 'package:baocode/settings/settings_dialog.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/theme/codicons.dart';
@@ -370,10 +372,7 @@ void main() {
     await _press(tester, LogicalKeyboardKey.keyT, meta: true);
     expect(_section(tester), SettingsSection.appearance);
     // The IDE's own theme picker stays shut under the dialog.
-    expect(
-      find.text('Select Color Theme (detect system color mode disabled)'),
-      findsNothing,
-    );
+    expect(find.text('Select Color Theme'), findsNothing);
   }, variant: _mac);
 
   testWidgets('the settings\' search finds Appearance by "theme"', (
@@ -421,9 +420,10 @@ void main() {
     expect(find.text('Dark 2026'), findsOneWidget);
     await tester.tap(find.text('Dark 2026'));
     await tester.pumpAndSettle();
-    // Light first, the default first among them; then dark; then high
-    // contrast.
+    // Auto first, apart; the themes light, dark, then high contrast.
+    expect(find.text('Follow system'), findsOneWidget);
     final order = [
+      'Auto',
       'Light 2026',
       'Solarized Light',
       'Monokai',
@@ -434,14 +434,54 @@ void main() {
     await tester.pumpAndSettle();
     expect(themes.applied, [('Monokai', false)]);
     expect(find.text('Monokai'), findsOneWidget);
+
+    final dropdown = find.byType(SettingsDropdown).first;
+    List<IdeMenuAction> choices() => tester
+        .widget<SettingsDropdown>(dropdown)
+        .entries()
+        .whereType<IdeMenuAction>()
+        .toList();
+    expect(choices().first.label, 'Auto');
+    expect(choices().first.checked, isFalse);
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Auto').last);
+    await tester.pumpAndSettle();
+    expect(themes.applied, [
+      ('Monokai', false),
+      (IdeColorThemeController.autoId, false),
+    ]);
+    expect(themes.colorThemeId, IdeColorThemeController.autoId);
+    expect(find.text('Auto'), findsOneWidget);
+    expect(
+      tester.widget<SettingsDropdown>(dropdown).semanticLabel,
+      'Color theme: Auto',
+    );
+    expect(choices().first.checked, isTrue);
+    expect(choices().skip(1).every((choice) => !choice.checked), isTrue);
+    expect(
+      themes.colorThemes.map((theme) => theme.id),
+      isNot(contains(IdeColorThemeController.autoId)),
+    );
+
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Monokai').last);
+    await tester.pumpAndSettle();
+    expect(themes.colorThemeId, 'Monokai');
+    expect(choices().first.checked, isFalse);
+    expect(themes.applied.last, ('Monokai', false));
   });
 }
 
 class _FakeThemes extends ChangeNotifier implements IdeColorThemeController {
   final List<(String, bool)> applied = [];
 
+  String _committedId = 'Dark 2026';
+  String? _previewId;
+
   @override
-  String colorThemeId = 'Dark 2026';
+  String get colorThemeId => _previewId ?? _committedId;
 
   @override
   List<IdeColorThemeEntry> get colorThemes => const [
@@ -475,7 +515,18 @@ class _FakeThemes extends ChangeNotifier implements IdeColorThemeController {
   @override
   Future<void> setColorTheme(String id, {bool preview = false}) async {
     applied.add((id, preview));
-    colorThemeId = id;
+    if (preview) {
+      _previewId = id;
+    } else {
+      _committedId = id;
+      _previewId = null;
+    }
+    notifyListeners();
+  }
+
+  @override
+  Future<void> restoreColorThemePreview() async {
+    _previewId = null;
     notifyListeners();
   }
 }
