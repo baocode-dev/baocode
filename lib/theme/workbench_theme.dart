@@ -44,7 +44,6 @@ import 'package:bao_editor/textmate/textmate_worker.dart'
 
 import '../ide/ide_color_theme_picker.dart';
 import '../platform/event_log.dart';
-import 'island_tones.dart';
 import 'workbench_theme_initial_colors.dart';
 
 export 'package:bao_editor/monaco/vs/platform/theme/common/theme.dart'
@@ -102,17 +101,6 @@ class WorkbenchColors {
   final ColorThemeData theme;
   final Map<String, ui.Color?> _colors = {};
 
-  /// The cards set apart from the window (see [IslandTones]); high
-  /// contrast themes' as they are, outlined.
-  late final IslandTones _tones = highContrast
-      ? IslandTones.none
-      : IslandTones(_raw('editor.background'), _raw('sideBar.background'));
-
-  ui.Color _raw(String id) => switch (theme.getColor(id)) {
-    final color? => toFlutterColor(color),
-    null => const ui.Color(0x00000000),
-  };
-
   ColorScheme get type => theme.type;
   bool get dark => isDark(type);
   bool get highContrast => isHighContrast(type);
@@ -121,7 +109,7 @@ class WorkbenchColors {
   /// gives it one.
   ui.Color? get(String id) => _colors.putIfAbsent(id, () {
     final color = theme.getColor(id);
-    return color == null ? null : _tones.apply(id, toFlutterColor(color));
+    return color == null ? null : toFlutterColor(color);
   });
 
   /// [get], else what the element would inherit upstream: a text color

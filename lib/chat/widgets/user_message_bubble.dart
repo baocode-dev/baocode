@@ -227,15 +227,15 @@ class _UserMessageBubbleState extends State<UserMessageBubble> {
           // As its editor and viewer: the chat input's.
           decoration: fitted
               ? ShapeDecoration(
-                  color: AppColors.bubbleFill,
+                  color: AppColors.bubbleFillIn(context),
                   shape: _MessageShape(
-                    side: BorderSide(color: AppColors.bubbleBorder()),
+                    side: BorderSide(color: AppColors.bubbleBorderIn(context)),
                   ),
                 )
               : BoxDecoration(
-                  color: AppColors.bubbleFill,
+                  color: AppColors.bubbleFillIn(context),
                   borderRadius: BorderRadius.circular(UserMessageBubble.radius),
-                  border: Border.all(color: AppColors.bubbleBorder()),
+                  border: Border.all(color: AppColors.bubbleBorderIn(context)),
                 ),
           child: SelectionContainer(
             delegate: _selection,
@@ -285,15 +285,15 @@ class UserMessagePreview extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
       decoration: fitted
           ? ShapeDecoration(
-              color: AppColors.bubbleFill,
+              color: AppColors.bubbleFillIn(context),
               shape: _MessageShape(
-                side: BorderSide(color: AppColors.bubbleBorder()),
+                side: BorderSide(color: AppColors.bubbleBorderIn(context)),
               ),
             )
           : BoxDecoration(
-              color: AppColors.bubbleFill,
+              color: AppColors.bubbleFillIn(context),
               borderRadius: BorderRadius.circular(UserMessageBubble.radius),
-              border: Border.all(color: AppColors.bubbleBorder()),
+              border: Border.all(color: AppColors.bubbleBorderIn(context)),
             ),
       child: InlineCodeText(
         _messageSpan(text, ComposerVocabulary.of(context), images),
@@ -374,9 +374,9 @@ class _UserMessageViewerState extends State<UserMessageViewer> {
       child: Container(
         decoration: BoxDecoration(
           // The editor's (see ChatComposer).
-          color: AppColors.bubbleFill,
+          color: AppColors.bubbleFillIn(context),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.bubbleBorder()),
+          border: Border.all(color: AppColors.bubbleBorderIn(context)),
         ),
         child: ConstrainedBox(
           constraints: BoxConstraints(
@@ -992,8 +992,8 @@ class UserMessageEditMorph extends SingleChildRenderObjectWidget {
   RenderObject createRenderObject(BuildContext context) => _RenderEditMorph(
     from: from,
     progress: progress,
-    fill: AppColors.bubbleFill,
-    fromBorder: AppColors.bubbleBorder(),
+    fill: AppColors.bubbleFillIn(context),
+    fromBorder: AppColors.bubbleBorderIn(context),
     border: border,
     closing: closing,
   );
@@ -1003,8 +1003,8 @@ class UserMessageEditMorph extends SingleChildRenderObjectWidget {
     renderObject as _RenderEditMorph
       ..from = from
       ..progress = progress
-      ..fill = AppColors.bubbleFill
-      ..fromBorder = AppColors.bubbleBorder()
+      ..fill = AppColors.bubbleFillIn(context)
+      ..fromBorder = AppColors.bubbleBorderIn(context)
       ..border = border
       ..closing = closing;
   }

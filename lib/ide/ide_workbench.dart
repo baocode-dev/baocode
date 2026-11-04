@@ -4898,6 +4898,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         // bar's line on its left; its row in line with the status bar.
         border: _layout.editorVisible ? Border(left: _sideBarBorder) : null,
         footerLine: IdeStatusBar.line,
+        footerColor: themeColors.get('statusBar.background'),
         child: Focus(focusNode: _chatFocus, child: widget.chat),
       ),
     ),

@@ -307,7 +307,7 @@ class _AgentSidePanelAreaState extends State<AgentSidePanelArea> {
                   decoration: BoxDecoration(
                     // Over the conversations, on the window's color opaque,
                     // its gap too.
-                    color: overlay ? AppColors.background : null,
+                    color: overlay ? Islands.window : null,
                     boxShadow: overlay
                         ? [
                             BoxShadow(

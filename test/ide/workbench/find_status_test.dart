@@ -143,11 +143,11 @@ void main() {
       'against the window\'s right edge, however few', (tester) async {
     await pumpWorkbench(tester, const {'a.dart': 'a'});
     final window = tester.view.physicalSize / tester.view.devicePixelRatio;
-    // No editor: the notifications bell alone, under the chat's card, as
-    // far in as the card is.
+    // No editor: the notifications bell alone, under the chat, as far from
+    // the edge as the bar's items, as high as the row under its line.
     final bell = tester.getRect(find.byTooltip('No Notifications'));
     expect(bell.right, closeTo(window.width - 6, 1));
-    expect(bell.bottom, closeTo(window.height - 3, 1));
+    expect(bell.bottom, closeTo(window.height, 1));
     // Not in the bar under the rest.
     expect(
       find.descendant(

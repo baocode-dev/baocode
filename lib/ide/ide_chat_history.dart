@@ -448,7 +448,7 @@ class _IdeChatHistoryState extends State<IdeChatHistory> {
                   boxShadow: IdeQuickInput.shadows,
                 ),
                 child: Material(
-                  color: IdeQuickInput.background,
+                  color: IdeQuickInput.backgroundOf(context),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
                       IdeQuickInput.cornerRadius,

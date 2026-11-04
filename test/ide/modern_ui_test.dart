@@ -82,6 +82,20 @@ void main() {
     expect(sidebar.bottom, status.top);
     expect(chat.bottom, 800);
     expect(cardOf('ide-chat').footer, Islands.belowHeight);
+    // The theme's status bar colors, under the chat's row too.
+    final bar = tester.widget<Container>(
+      find
+          .descendant(
+            of: find.byType(IdeStatusBar),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    expect(
+      (bar.decoration! as BoxDecoration).color,
+      themeColors['statusBar.background'],
+    );
+    expect(cardOf('ide-chat').footerColor, themeColors['statusBar.background']);
     // The activity bar's items upstream's: 24px icons, a 4px box.
     final files = tester.widget<Icon>(find.byIcon(Codicons.files));
     expect(files.size, IdeModernUI.flatActivityIconSize);

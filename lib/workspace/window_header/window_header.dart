@@ -21,6 +21,7 @@ import '../../l10n/l10n.dart';
 import '../../sidebar/sidebar.dart';
 import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
+import '../islands.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../back_to_chat_button.dart';
 import '../chat_terminal.dart';
@@ -282,7 +283,7 @@ class _WindowHeaderState extends State<WindowHeader> {
           ? IdeModernUI.shell
           : title != null
           ? AppColors.conversationSurface
-          : AppColors.sidebarSurface,
+          : Islands.windowSurface,
       child: DecoratedBox(
         decoration: BoxDecoration(
           border: ide || title != null

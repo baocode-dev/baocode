@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart' show RenderProxyBox;
 
 import '../ide/ide_modern_ui.dart';
 import '../theme/app_theme.dart';
+import '../theme/island_tones.dart';
 import '../theme/workbench_theme.dart';
 
 /// The window's parts as islands: cards of the editor's color on the
@@ -36,8 +37,37 @@ abstract final class Islands {
   static const controlRadius = 8.0;
 
   /// What is raised on a card (an input, the composer, the segment picked):
-  /// `input.background`.
-  static Color get raised => themeColors['input.background'];
+  /// see [AppColors.raised].
+  static Color get raised => AppColors.raised;
+
+  /// The agents' window's color, about its cards: the theme's side bar's,
+  /// sunk under them where they are hardly apart (see
+  /// [IslandTones.window]); the theme's colors as they are, the IDE's.
+  static Color get window {
+    final colors = themeColors;
+    final card = AppColors.code;
+    final base = AppColors.background;
+    return _windows[(card, base, colors.highContrast)] ??= IslandTones.window(
+      card,
+      base,
+      highContrast: colors.highContrast,
+    );
+  }
+
+  static final _windows = <(Color, Color, bool), Color>{};
+
+  /// [window] under the sidebar, see-through where the system's material
+  /// shows through it (see [AppColors.sidebarSurface]).
+  static Color get windowSurface => AppColors.sidebarSurfaceOf(window);
+
+  /// The window's color under [context]: [window] on islands, else the
+  /// theme's side bar's ([AppColors.background]).
+  static Color windowOf(BuildContext context) =>
+      on(context) ? window : AppColors.background;
+
+  /// [windowOf] as [windowSurface] is [window].
+  static Color windowSurfaceOf(BuildContext context) =>
+      on(context) ? windowSurface : AppColors.sidebarSurface;
 
   /// A line on a card (between its parts, about what is raised on it):
   /// `panel.border`, lighter than the card's own outline.
@@ -703,6 +733,7 @@ class HeadedIsland extends StatefulWidget {
     required this.color,
     this.border,
     this.footerLine,
+    this.footerColor,
     required this.child,
   });
 
@@ -714,6 +745,10 @@ class HeadedIsland extends StatefulWidget {
   /// over the footer (the status bar's, which it is in line with).
   final Border? border;
   final Color? footerLine;
+
+  /// Not islands: under the footer (the status bar's color), else the
+  /// window's shows.
+  final Color? footerColor;
   final Widget child;
 
   @override
@@ -751,6 +786,15 @@ class _HeadedIslandState extends State<HeadedIsland> {
           Positioned.fill(
             bottom: footer,
             child: ColoredBox(color: widget.color),
+          ),
+          // Always there: what is in it keeps its place in the stack as
+          // the footer comes and goes.
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: footer,
+            child: ColoredBox(color: widget.footerColor ?? Colors.transparent),
           ),
           widget.child,
           // Over what is in it (its tabs' strip has a color of its own).

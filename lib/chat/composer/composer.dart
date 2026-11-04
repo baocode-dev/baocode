@@ -1651,9 +1651,11 @@ class ChatComposerState extends State<ChatComposer>
           // The agents window's chat input, editing a sent message too:
           // the color of every bubble, and their line; typed into, the line
           // turns a little towards the accent.
-          color: AppColors.bubbleFill,
+          color: AppColors.bubbleFillIn(context),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.bubbleBorder(focused: focused)),
+          border: Border.all(
+            color: AppColors.bubbleBorderIn(context, focused: focused),
+          ),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
