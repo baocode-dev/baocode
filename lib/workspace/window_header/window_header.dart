@@ -163,10 +163,11 @@ class WindowHeader extends StatefulWidget {
   final bool sidePanelShown;
   final VoidCallback? onToggleSidePanel;
 
-  /// Whether the strip has the chat's terminal and side panel buttons: not
-  /// while conversations are side by side, each pane's card having its own
-  /// agent's (the menus still toggle the focused one's). Open in Editor
-  /// stays, the focused one's project's: the window's, at its top right.
+  /// Whether the strip has the chat's terminal and side panel buttons: only
+  /// where it has the conversation's title, the card having no row of its
+  /// own for them; else the card's row has them, as on macOS (the menus
+  /// still toggle the focused one's). Open in Editor stays, the focused
+  /// one's project's: the window's, at its top right.
   final bool chatTools;
 
   /// The File menu's Settings…: opens the settings dialog.

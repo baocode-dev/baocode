@@ -505,10 +505,9 @@ void main() {
             widget.command == 'workbench.action.toggleSidebarVisibility',
       ),
     );
-    final panelToggle = find.descendant(
-      of: header,
-      matching: find.byType(SidePanelToggle),
-    );
+    // On the conversation's card; in the header where that has the title,
+    // the window narrow.
+    final panelToggle = find.byType(SidePanelToggle);
     final sash = find.byKey(const ValueKey('side-panel-sash'));
     Future<void> resize(double width) async {
       tester.view.physicalSize = Size(width, 900);
