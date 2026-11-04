@@ -5,6 +5,7 @@ import 'package:baocode/icons/project_icon.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_button.dart';
 import 'package:baocode/ide/ide_back_button.dart';
+import 'package:baocode/ide/ide_spinning.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/claude_code/claude_haiku.dart';
 import 'package:baocode/models/codex/codex_service.dart';
@@ -1184,7 +1185,7 @@ void main() {
       await tester.pump();
       final busy = tester.widget<IdeActionButton>(refresh('a@example.com'));
       expect(busy.onPressed, isNull);
-      expect(busy.iconWidget, isA<PixelLoader>());
+      expect(busy.iconWidget, isA<IdeSpinning>());
       expect(
         tester.widget<IdeActionButton>(refresh('b@example.com')).onPressed,
         isNotNull,

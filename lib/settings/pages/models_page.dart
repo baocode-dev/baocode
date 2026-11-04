@@ -35,6 +35,7 @@ import 'model_dialogs.dart';
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 import '../../ide/ide_back_button.dart';
+import '../../ide/ide_spinning.dart';
 
 /// Asks [model] of [provider] [modelTestPrompt]; its reply, timed.
 /// Completing [cancel] stops it.
@@ -2124,10 +2125,14 @@ class _AccountRow extends StatelessWidget {
                 children: [
                   IdeActionButton(
                     icon: Codicons.refresh,
+                    // Turning as the refresh of all of them does.
                     iconWidget: refreshing
-                        ? PixelLoader.agent(
-                            size: 12,
-                            color: IdeActionButton.foreground,
+                        ? IdeSpinning(
+                            Icon(
+                              Codicons.sync,
+                              size: 16,
+                              color: IdeActionButton.foreground,
+                            ),
                           )
                         : null,
                     tooltip: l10n.modelsAccountRefreshQuota(
