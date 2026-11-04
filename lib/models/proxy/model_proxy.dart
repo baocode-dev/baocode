@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
@@ -228,8 +230,7 @@ class ModelProxy {
         );
       }
       final providerId = segments[1];
-      final text = await utf8.decodeStream(request);
-      final body = jsonDecode(text);
+      final (text, body) = await _readJson(request);
       if (body is! Map<String, Object?>) {
         return await _fail(response, 400, 'The request is not a JSON object');
       }
@@ -296,7 +297,7 @@ class ModelProxy {
       }
       if (countTokens) {
         return await _json(response, 200, {
-          'input_tokens': estimateInputTokens(body),
+          'input_tokens': await _estimate(body),
         });
       }
       await _forward(
@@ -465,14 +466,14 @@ class ModelProxy {
               ? 'text/event-stream'
               : 'application/json',
         );
-      final payload = jsonEncode(outgoing);
+      final (payload, encoded) = await _encodeJson(outgoing);
       meter?.trace?.sending(
         method: 'POST',
         url: url,
         headers: UsageTraceMessage.headersOf(upstreamRequest.headers.forEach),
         body: payload,
       );
-      upstreamRequest.add(utf8.encode(payload));
+      upstreamRequest.add(encoded);
       _dropWithClient(response, upstreamRequest);
       final answer = upstream = await upstreamRequest.close();
       meter?.answered();
@@ -631,14 +632,14 @@ class ModelProxy {
       model: '${body['model'] ?? ''}',
     ).forEach(upstreamRequest.headers.set);
     upstreamRequest.headers.contentType = ContentType.json;
-    final payload = jsonEncode(body);
+    final (payload, encoded) = await _encodeJson(body);
     meter?.trace?.sending(
       method: 'POST',
       url: url,
       headers: UsageTraceMessage.headersOf(upstreamRequest.headers.forEach),
       body: payload,
     );
-    upstreamRequest.add(utf8.encode(payload));
+    upstreamRequest.add(encoded);
     _dropWithClient(response, upstreamRequest);
     final answer = await upstreamRequest.close();
     meter?.answered();
@@ -652,9 +653,7 @@ class ModelProxy {
         ?..upstreamText(text)
         ..passedOn = true;
       if (countTokens) {
-        return _json(response, 200, {
-          'input_tokens': estimateInputTokens(body),
-        });
+        return _json(response, 200, {'input_tokens': await _estimate(body)});
       }
       final message = upstreamErrorMessage(answer.statusCode, text);
       meter?.fail(message);
@@ -767,14 +766,14 @@ class ModelProxy {
         ).forEach(request.headers.set);
         custom.forEach(request.headers.set);
         request.headers.contentType = ContentType.json;
-        final payload = jsonEncode(outgoing);
+        final (payload, encoded) = await _encodeJson(outgoing);
         meter?.trace?.sending(
           method: 'POST',
           url: codex.endpoints.responses,
           headers: UsageTraceMessage.headersOf(request.headers.forEach),
           body: payload,
         );
-        request.add(utf8.encode(payload));
+        request.add(encoded);
         _dropWithClient(response, request);
         final upstream = await request.close();
         codex.record(provider, account, upstream.headers.value);
@@ -879,6 +878,43 @@ class ModelProxy {
       ..headers.set(HttpHeaders.cacheControlHeader, 'no-cache');
   }
 
+  /// From this size, a request's JSON is decoded and encoded off the UI
+  /// isolate, which the proxy answers on: a long session's requests are
+  /// megabytes, ~70ms of it each, at every call the agent makes.
+  static const _offThread = 256 * 1024;
+
+  /// [request]'s body, as text and decoded.
+  static Future<(String, Object?)> _readJson(HttpRequest request) async {
+    final bytes = BytesBuilder(copy: false);
+    await request.forEach(bytes.add);
+    final read = bytes.takeBytes();
+    (String, Object?) decode() {
+      final text = utf8.decode(read);
+      return (text, jsonDecode(text));
+    }
+
+    if (read.length < _offThread) return decode();
+    _slot?.large = true;
+    return Isolate.run(decode);
+  }
+
+  /// [json] encoded, as text (for the trace) and bytes (to send): off the
+  /// UI isolate for a large request's.
+  static Future<(String, List<int>)> _encodeJson(Object? json) async {
+    (String, List<int>) encode() {
+      final text = jsonEncode(json);
+      return (text, utf8.encode(text));
+    }
+
+    return _slot?.large ?? false ? Isolate.run(encode) : encode();
+  }
+
+  /// [estimateInputTokens], off the UI isolate for a large request.
+  static Future<int> _estimate(Map<String, Object?> body) async =>
+      _slot?.large ?? false
+      ? Isolate.run(() => estimateInputTokens(body))
+      : estimateInputTokens(body);
+
   static Future<void> _json(
     HttpResponse response,
     int status,
@@ -915,6 +951,9 @@ class _Slot {
   }
 
   UsageTrace? trace;
+
+  /// Its body is large: its JSON is handled off the UI isolate.
+  bool large = false;
 
   /// When Claude Code's connection is closed: it gave up on the request.
   final Future<void>? gone;
