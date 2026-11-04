@@ -74,7 +74,8 @@ class PortForwardSpec {
 ///
 /// - whether its agents may act on this machine ([localAccess]): the
 ///   tools that run commands here and move files and ports (see
-///   local_tools.dart); off until the user turns it on;
+///   local_tools.dart); on until the user turns it off (Settings → SSH
+///   Servers), so only an off one is kept;
 /// - whether commands run here need no asking each time
 ///   ([runsWithoutAsking]), as the user answered on a card;
 /// - the ports forwarded ([forwards]), made again as it connects.
@@ -182,13 +183,13 @@ class RemoteHostSettings extends ChangeNotifier {
 @immutable
 class _HostSettings {
   const _HostSettings({
-    this.localAccess = false,
+    this.localAccess = true,
     this.runsWithoutAsking = false,
     this.forwards = const [],
   });
 
   factory _HostSettings.fromJson(Map<String, Object?> json) => _HostSettings(
-    localAccess: json['localAccess'] == true,
+    localAccess: json['localAccess'] != false,
     runsWithoutAsking: json['runsWithoutAsking'] == true,
     forwards: [
       for (final forward in json['forwards'] as List? ?? const [])
@@ -202,7 +203,7 @@ class _HostSettings {
   final bool runsWithoutAsking;
   final List<PortForwardSpec> forwards;
 
-  bool get isEmpty => !localAccess && !runsWithoutAsking && forwards.isEmpty;
+  bool get isEmpty => localAccess && !runsWithoutAsking && forwards.isEmpty;
 
   _HostSettings copyWith({
     bool? localAccess,
@@ -215,7 +216,7 @@ class _HostSettings {
   );
 
   Map<String, Object?> toJson() => {
-    if (localAccess) 'localAccess': true,
+    if (!localAccess) 'localAccess': false,
     if (runsWithoutAsking) 'runsWithoutAsking': true,
     if (forwards.isNotEmpty)
       'forwards': [for (final forward in forwards) forward.toJson()],

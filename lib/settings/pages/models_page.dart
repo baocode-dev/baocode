@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,11 +31,14 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../../chat/widgets/hover_builder.dart';
 import '../../chat/widgets/pixel_loader.dart';
 import '../../workspace/workspace.dart';
+import '../../workspace/window_controls.dart';
+import 'codex_import_dialog.dart';
 import 'featured_upstreams_strip.dart';
 import 'model_dialogs.dart';
 import 'settings_dropdown.dart';
 import 'settings_widgets.dart';
 import '../../ide/ide_back_button.dart';
+import '../../ide/ide_spinning.dart';
 
 /// Asks [model] of [provider] [modelTestPrompt]; its reply, timed.
 /// Completing [cancel] stops it.
@@ -639,6 +643,10 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   CodexLogin? _login;
   String? _loginError;
   bool _refreshingQuota = false;
+  final Set<String> _refreshingAccounts = {};
+  bool _importingAccounts = false;
+  List<CodexImportResult>? _importResults;
+  String? _importError;
 
   ModelProviders get _providers => widget.providers;
   ModelProvider get _provider => widget.provider;
@@ -682,12 +690,73 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     }
   }
 
+  Future<void> _importAccounts({bool paste = false}) async {
+    if (_importingAccounts) return;
+    setState(() {
+      _importingAccounts = true;
+      _importResults = null;
+      _importError = null;
+    });
+    final l10n = context.l10n;
+    try {
+      final String contents;
+      if (paste) {
+        final typed = await showCodexImportDialog(context);
+        if (!mounted || typed == null) return;
+        contents = typed;
+      } else {
+        final paths = await WindowControls.pickOpenFiles(multiple: false);
+        if (!mounted || paths.isEmpty) return;
+        final choice = await showIdeDialog(
+          context,
+          message: l10n.modelsAccountsImportConfirm,
+          detail: l10n.modelsAccountsImportConfirmDetail,
+          buttons: [l10n.modelsAccountsImport],
+        );
+        if (!mounted || choice != 0) return;
+        final file = File(paths.single);
+        if (await file.length() > 4 * 1024 * 1024) {
+          throw const CodexException('The credential file is too large.');
+        }
+        contents = await file.readAsString();
+        if (!mounted) return;
+      }
+      final results = await _codex.importAccountsJson(
+        _provider.id,
+        contents,
+        confirmed: true,
+      );
+      if (mounted) setState(() => _importResults = results);
+    } on CodexException catch (error) {
+      if (mounted) setState(() => _importError = error.message);
+    } on Object {
+      // Native/file errors can contain paths or input: never show them.
+      if (mounted) {
+        setState(() => _importError = l10n.modelsAccountsImportFailed);
+      }
+    } finally {
+      if (mounted) setState(() => _importingAccounts = false);
+    }
+  }
+
   Future<void> _refreshQuota() async {
     setState(() => _refreshingQuota = true);
     try {
       await _codex.refreshUsage(_providerNow);
     } finally {
       if (mounted) setState(() => _refreshingQuota = false);
+    }
+  }
+
+  Future<void> _refreshAccountQuota(ProviderAccount account) async {
+    if (_refreshingQuota || !_refreshingAccounts.add(account.id)) return;
+    setState(() {});
+    try {
+      await _codex.refreshAccountUsage(_providerNow, account.id);
+    } finally {
+      if (mounted) {
+        setState(() => _refreshingAccounts.remove(account.id));
+      }
     }
   }
 
@@ -1070,6 +1139,11 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               resetCredits: _codex.resetCredits(provider.id, account.id),
               resetting: _codex.resetting(provider.id, account.id),
               onReset: () => unawaited(_useResetCredit(account)),
+              refreshing: _refreshingAccounts.contains(account.id),
+              onRefresh:
+                  _refreshingQuota || _refreshingAccounts.contains(account.id)
+                  ? null
+                  : () => unawaited(_refreshAccountQuota(account)),
               onEnabled: (value) => unawaited(
                 _save(
                   _providerNow.withAccount(account.copyWith(enabled: value)),
@@ -1146,19 +1220,80 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                     label: l10n.modelsRefreshQuota,
                     icon: Codicons.refresh,
                     secondary: true,
-                    onPressed: _refreshingQuota
+                    spinning: _refreshingQuota,
+                    onPressed:
+                        _refreshingQuota || _refreshingAccounts.isNotEmpty
                         ? null
                         : () => unawaited(_refreshQuota()),
                   ),
                 IdeButton(
                   label: l10n.modelsAddAccount,
                   icon: Codicons.add,
-                  onPressed: () => unawaited(_addAccount()),
+                  onPressed: _importingAccounts
+                      ? null
+                      : () => unawaited(_addAccount()),
                 ),
               ],
             ],
           ),
         ),
+        if (WindowControls.canPickFiles)
+          SettingsRow(
+            label: l10n.modelsAccountsImportTitle,
+            description: l10n.modelsAccountsImportDescription,
+            trailing: SettingsButtons(
+              children: [
+                IdeButton(
+                  label: l10n.modelsAccountsPaste,
+                  secondary: true,
+                  onPressed: _importingAccounts || login != null
+                      ? null
+                      : () => unawaited(_importAccounts(paste: true)),
+                ),
+                IdeButton(
+                  label: l10n.modelsAccountsImportFile,
+                  secondary: true,
+                  onPressed: _importingAccounts || login != null
+                      ? null
+                      : () => unawaited(_importAccounts()),
+                ),
+              ],
+            ),
+            below: [
+              if (_importResults case final results?) ...[
+                Text(
+                  l10n.modelsAccountsImportSummary(
+                    results
+                        .where((result) => result.account != null)
+                        .where((result) => !result.known)
+                        .length,
+                  ),
+                  style: SettingsText.description,
+                ),
+                if (results.where((result) => result.known).length
+                    case final known when known > 0)
+                  Text(
+                    l10n.modelsAccountsImportKept(known),
+                    style: SettingsText.description,
+                  ),
+                for (var i = 0; i < results.length; i++)
+                  if (results[i].error case final error?)
+                    SelectableText(
+                      l10n.modelsAccountsImportItemFailed(i + 1, error),
+                      style: SettingsText.description.copyWith(
+                        color: themeColors['errorForeground'],
+                      ),
+                    ),
+              ],
+              if (_importError case final error?)
+                SelectableText(
+                  error,
+                  style: SettingsText.description.copyWith(
+                    color: themeColors['errorForeground'],
+                  ),
+                ),
+            ],
+          ),
         if (login != null)
           SettingsRow(
             label: l10n.modelsAccountCallback,
@@ -2004,6 +2139,8 @@ class _AccountRow extends StatelessWidget {
     required this.limitedUntil,
     required this.onEnabled,
     required this.onRemove,
+    required this.refreshing,
+    required this.onRefresh,
     this.resetCredits,
     this.resetting = false,
     this.onReset,
@@ -2015,6 +2152,8 @@ class _AccountRow extends StatelessWidget {
   final DateTime? limitedUntil;
   final ValueChanged<bool> onEnabled;
   final VoidCallback onRemove;
+  final bool refreshing;
+  final VoidCallback? onRefresh;
 
   /// Its reset credits, as listed; [onReset] uses one up.
   final List<CodexResetCredit>? resetCredits;
@@ -2098,6 +2237,24 @@ class _AccountRow extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  IdeActionButton(
+                    icon: Codicons.refresh,
+                    // Turning as the refresh of all of them does.
+                    iconWidget: refreshing
+                        ? IdeSpinning(
+                            Icon(
+                              Codicons.sync,
+                              size: 16,
+                              color: IdeActionButton.foreground,
+                            ),
+                          )
+                        : null,
+                    tooltip: l10n.modelsAccountRefreshQuota(
+                      account.displayName,
+                    ),
+                    onPressed: onRefresh,
+                  ),
+                  const SizedBox(width: 8),
                   SettingsSwitch(
                     value: account.enabled,
                     semanticLabel: l10n.modelsAccountEnable(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../diagnostics/input_lag.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
@@ -94,6 +95,7 @@ class IdeFindWidget extends StatefulWidget {
     this.commandIds,
     this.resolveKey,
     this.multiline = false,
+    this.lag,
   });
 
   final TextEditingController findController;
@@ -140,6 +142,9 @@ class IdeFindWidget extends StatefulWidget {
 
   /// Whether what is found may span lines (see the class doc).
   final bool multiline;
+
+  /// Times each key and click in the widget to the frame that shows it.
+  final InputLag? lag;
 
   static const width = 419.0;
   static const rowHeight = 33.0;
@@ -361,8 +366,14 @@ class _IdeFindWidgetState extends State<IdeFindWidget> {
       child: Focus(
         canRequestFocus: false,
         skipTraversal: true,
-        onKeyEvent: _onKey,
-        child: _body(noResults, count, mac, tooltip, counterWidth, border),
+        onKeyEvent: (node, event) {
+          if (event is! KeyUpEvent) widget.lag?.begin('key');
+          return _onKey(node, event);
+        },
+        child: Listener(
+          onPointerDown: (_) => widget.lag?.begin('click'),
+          child: _body(noResults, count, mac, tooltip, counterWidth, border),
+        ),
       ),
     );
   }

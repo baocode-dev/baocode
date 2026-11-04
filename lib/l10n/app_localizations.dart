@@ -4148,6 +4148,12 @@ abstract class AppLocalizations {
   /// **'Load earlier messages'**
   String get chatLoadEarlier;
 
+  /// Over a kept conversation, once its session was talked in elsewhere (e.g. in a terminal) since it was read: reads it anew.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload (continued elsewhere)'**
+  String get chatReload;
+
   /// No description provided for @chatStop.
   ///
   /// In en, this message translates to:
@@ -6572,10 +6578,22 @@ abstract class AppLocalizations {
   /// **'high contrast themes'**
   String get themeHighContrastThemes;
 
+  /// No description provided for @themeAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get themeAuto;
+
+  /// No description provided for @themeFollowSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow system'**
+  String get themeFollowSystem;
+
   /// No description provided for @themeSelectPlaceholder.
   ///
   /// In en, this message translates to:
-  /// **'Select Color Theme (detect system color mode disabled)'**
+  /// **'Select Color Theme'**
   String get themeSelectPlaceholder;
 
   /// A time within half a minute of now.
@@ -10689,6 +10707,78 @@ abstract class AppLocalizations {
   /// **'Opens ChatGPT\'s sign-in page in the browser.'**
   String get modelsAddAccountDescription;
 
+  /// No description provided for @modelsAccountsImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get modelsAccountsImport;
+
+  /// No description provided for @modelsAccountsImportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import Accounts'**
+  String get modelsAccountsImportTitle;
+
+  /// No description provided for @modelsAccountsImportFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose File…'**
+  String get modelsAccountsImportFile;
+
+  /// No description provided for @modelsAccountsImportDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter account credentials as JSON or choose a JSON file.'**
+  String get modelsAccountsImportDescription;
+
+  /// No description provided for @modelsAccountsPaste.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter JSON…'**
+  String get modelsAccountsPaste;
+
+  /// No description provided for @modelsAccountsPastePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Type or paste your JSON credentials here.'**
+  String get modelsAccountsPastePlaceholder;
+
+  /// No description provided for @modelsAccountsImportConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Import these ChatGPT credentials?'**
+  String get modelsAccountsImportConfirm;
+
+  /// No description provided for @modelsAccountsImportConfirmDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'BaoCode will keep the credentials securely without changing the original file or actively refreshing tokens during import. Renewing them later may rotate the refresh token and require the original tool to sign in again. Only import credentials you are authorized to use.'**
+  String get modelsAccountsImportConfirmDetail;
+
+  /// No description provided for @modelsAccountsImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The credentials could not be read or imported.'**
+  String get modelsAccountsImportFailed;
+
+  /// No description provided for @modelsAccountsImportSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts imported: {count}'**
+  String modelsAccountsImportSummary(int count);
+
+  /// No description provided for @modelsAccountsImportKept.
+  ///
+  /// In en, this message translates to:
+  /// **'Already here, kept as signed in: {count}'**
+  String modelsAccountsImportKept(int count);
+
+  /// No description provided for @modelsAccountsImportItemFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Entry {index}: {error}'**
+  String modelsAccountsImportItemFailed(int index, String error);
+
   /// No description provided for @modelsAccountSigningIn.
   ///
   /// In en, this message translates to:
@@ -10716,8 +10806,14 @@ abstract class AppLocalizations {
   /// No description provided for @modelsRefreshQuota.
   ///
   /// In en, this message translates to:
-  /// **'Refresh Quota'**
+  /// **'Refresh All Quotas'**
   String get modelsRefreshQuota;
+
+  /// No description provided for @modelsAccountRefreshQuota.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh quota for {name}'**
+  String modelsAccountRefreshQuota(String name);
 
   /// No description provided for @modelsAccountRemove.
   ///
@@ -22084,8 +22180,20 @@ abstract class AppLocalizations {
   /// No description provided for @remoteLocalAccessDetail.
   ///
   /// In en, this message translates to:
-  /// **'Its agents may run commands on this computer (asking you each time), copy files here and there and forward ports.'**
+  /// **'Agents on these hosts may run commands on this computer (asking you each time), copy files both ways and forward ports.'**
   String get remoteLocalAccessDetail;
+
+  /// No description provided for @remoteLocalAccessNoAsking.
+  ///
+  /// In en, this message translates to:
+  /// **'Runs commands without asking'**
+  String get remoteLocalAccessNoAsking;
+
+  /// No description provided for @remoteLocalAccessAskAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask Each Time'**
+  String get remoteLocalAccessAskAgain;
 
   /// No description provided for @sidePanelPorts.
   ///

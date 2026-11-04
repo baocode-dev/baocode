@@ -2232,6 +2232,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatLoadEarlier => '加载更早的消息';
 
   @override
+  String get chatReload => '重新加载（在别处有新消息）';
+
+  @override
   String get chatStop => '停止';
 
   @override
@@ -3729,7 +3732,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeHighContrastThemes => '高对比度主题';
 
   @override
-  String get themeSelectPlaceholder => '选择颜色主题(检测系统颜色模式已禁用)';
+  String get themeAuto => '自动';
+
+  @override
+  String get themeFollowSystem => '跟随系统';
+
+  @override
+  String get themeSelectPlaceholder => '选择颜色主题';
 
   @override
   String get dateNow => '现在';
@@ -6181,6 +6190,49 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsAddAccountDescription => '在浏览器中打开 ChatGPT 登录页。';
 
   @override
+  String get modelsAccountsImport => '导入';
+
+  @override
+  String get modelsAccountsImportTitle => '导入账号';
+
+  @override
+  String get modelsAccountsImportFile => '选择文件…';
+
+  @override
+  String get modelsAccountsImportDescription => '输入或选择 JSON 格式的账号凭据。';
+
+  @override
+  String get modelsAccountsPaste => '输入 JSON…';
+
+  @override
+  String get modelsAccountsPastePlaceholder => '在此输入或粘贴 JSON 凭据。';
+
+  @override
+  String get modelsAccountsImportConfirm => '导入这些 ChatGPT 凭据？';
+
+  @override
+  String get modelsAccountsImportConfirmDetail =>
+      'BaoCode 会安全保存凭据，不修改原文件，导入时也不会主动刷新令牌。但后续续期可能轮换刷新令牌，导致原工具需要重新登录。请只导入你有权使用的凭据。';
+
+  @override
+  String get modelsAccountsImportFailed => '无法读取或导入凭据。';
+
+  @override
+  String modelsAccountsImportSummary(int count) {
+    return '已导入账号：$count';
+  }
+
+  @override
+  String modelsAccountsImportKept(int count) {
+    return '已存在，保留现有登录：$count';
+  }
+
+  @override
+  String modelsAccountsImportItemFailed(int index, String error) {
+    return '第 $index 项：$error';
+  }
+
+  @override
   String get modelsAccountSigningIn => '等待登录…';
 
   @override
@@ -6195,7 +6247,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get modelsRefreshQuota => '刷新额度';
+  String get modelsRefreshQuota => '刷新全部额度';
+
+  @override
+  String modelsAccountRefreshQuota(String name) {
+    return '刷新 $name 的额度';
+  }
 
   @override
   String get modelsAccountRemove => '移除账号';
@@ -12831,7 +12888,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get remoteLocalAccessDetail =>
-      '它的 agent 可以在本机执行命令（每次都会问你）、在两边之间传文件、转发端口。';
+      '这些主机上的 agent 可以在本机执行命令（每次都会问你）、在两边之间传文件、转发端口。';
+
+  @override
+  String get remoteLocalAccessNoAsking => '命令直接执行，不再询问';
+
+  @override
+  String get remoteLocalAccessAskAgain => '改回每次询问';
 
   @override
   String get sidePanelPorts => '端口';

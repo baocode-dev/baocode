@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/icons/project_icon.dart';
+import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/main.dart';
 import 'package:baocode/models/secret_store.dart';
 import 'package:baocode/remote/remote_files.dart';
@@ -13,11 +14,15 @@ import 'workspace_test.dart' show claude;
 Future<Workspace> pumpLoaded(
   WidgetTester tester, {
   PreferenceStore? preferences,
+  KernelDescriptor? kernel,
 }) async {
   tester.view.physicalSize = const Size(1400, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final workspace = Workspace(kernels: [claude], preferences: preferences);
+  final workspace = Workspace(
+    kernels: [kernel ?? claude],
+    preferences: preferences,
+  );
   await tester.pumpWidget(BaoCodeApp(workspace: workspace));
   await tester.runAsync(workspace.load);
   await tester.pump();
@@ -26,6 +31,23 @@ Future<Workspace> pumpLoaded(
 
 Finder inSidebar(Finder finder) =>
     find.descendant(of: find.byType(Sidebar), matching: finder);
+
+/// Claude Code's sessions, none kept; the folders asked for, in order.
+class _AskedCatalog implements SessionCatalog {
+  final List<String> asked = [];
+
+  @override
+  Future<List<ProjectRecord>> projects() async => const [];
+
+  @override
+  Future<List<SessionRecord>> sessionsIn(String cwd) async {
+    asked.add(cwd);
+    return const [];
+  }
+
+  @override
+  Future<void> delete(String id) async {}
+}
 
 /// The sidebar lists this machine's projects, or an SSH host's: switched
 /// between under its heading once there is a host.
@@ -184,6 +206,41 @@ void main() {
     workspace.addSshHost('dev');
     expect(workspace.isHidden(app), isFalse);
     expect(workspace.sshHosts, ['box', 'dev']);
+  });
+
+  testWidgets('a host removed is not connected to as the app starts (no '
+      'sign-in asked each time); added back, its projects are listed', (
+    tester,
+  ) async {
+    final store = MemoryPreferenceStore();
+    var workspace = await pumpLoaded(tester, preferences: store);
+    await workspace.openFolder('ssh://dev/srv/app');
+    await workspace.openFolder('ssh://box/srv/web');
+    workspace.removeSshHost('dev');
+    await tester.pump();
+
+    await tester.pumpWidget(const SizedBox());
+    final catalog = _AskedCatalog();
+    workspace = await pumpLoaded(
+      tester,
+      preferences: store,
+      kernel: KernelDescriptor(
+        id: claude.id,
+        label: claude.label,
+        icon: claude.icon,
+        description: claude.description,
+        catalog: catalog,
+        create: claude.create,
+      ),
+    );
+    expect(catalog.asked, ['ssh://box/srv/web']);
+
+    workspace.addSshHost('dev');
+    expect(catalog.asked, ['ssh://box/srv/web', 'ssh://dev/srv/app']);
+    // Once only.
+    workspace.removeSshHost('dev');
+    workspace.addSshHost('dev');
+    expect(catalog.asked, hasLength(2));
   });
 
   testWidgets('a project taken off a host stays off as the host is '

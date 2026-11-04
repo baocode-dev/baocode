@@ -337,6 +337,29 @@ void main() {
       );
     }
 
+    test('a failure to keep the bots\' preferences is caught, the next '
+        'tried', () async {
+      bots.dispose();
+      final failing = _FailingBotStore();
+      bots = Bots(
+        workspace: workspace,
+        folders: folders,
+        store: failing,
+        clock: () => now,
+        computer: () async => 'Test computer',
+      );
+      await bots.start();
+      final bot = bots.bots.single;
+      final thread = workspace.startAgent(workspace.projectAt(app));
+      bots.watch(bot, thread);
+      await pumpEventQueue();
+      expect(failing.writes, 1);
+      expect(bots.watching(bot), [BotTools.idOf(thread)]);
+      bots.watch(bot, thread);
+      await pumpEventQueue();
+      expect(failing.writes, 2);
+    });
+
     test('start with the assistant, its abilities on but being told of '
         'every agent, kept', () async {
       final assistant = bots.bots.single;
@@ -1636,6 +1659,19 @@ a note
 
 Duration seconds(int n) => Duration(seconds: n);
 Duration minutes(int n) => Duration(minutes: n);
+
+class _FailingBotStore implements PreferenceStore {
+  int writes = 0;
+
+  @override
+  Future<Map<String, Object?>> read() async => {};
+
+  @override
+  Future<void> write(Map<String, Object?> preferences) async {
+    writes++;
+    throw const FileSystemException('Test preference write failure');
+  }
+}
 
 /// Lists [projects] once they come.
 class _Catalog implements SessionCatalog {

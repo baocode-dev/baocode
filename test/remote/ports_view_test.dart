@@ -57,8 +57,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('lists, opens, stops and adds forwards; the host allowed '
-      'to act here', (tester) async {
+  testWidgets('lists, opens, stops and adds forwards', (tester) async {
     final opened = <String>[];
     await tester.runAsync(() async {
       await hosts['dev'].ready;
@@ -115,11 +114,6 @@ void main() {
     expect(find.byKey(const ValueKey('ports-form')), findsNothing);
     expect(find.text('127.0.0.1:${added.remotePort}'), findsOneWidget);
     expect(settings.forwards('dev'), [added.spec]);
-
-    expect(settings.localAccess('dev'), isFalse);
-    await tester.tap(find.byKey(const ValueKey('ports-local-access')));
-    await tester.pump();
-    expect(settings.localAccess('dev'), isTrue);
 
     await tester.runAsync(() => forwards.close(added));
   });

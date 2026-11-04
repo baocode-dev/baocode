@@ -53,6 +53,7 @@ class WindowHeader extends StatefulWidget {
     required this.onTogglePin,
     required this.onOpenFolder,
     required this.onToggleContextPanel,
+    this.reloadChat,
     this.terminalShown = false,
     this.onToggleTerminal,
     this.sidePanelShown = false,
@@ -162,6 +163,11 @@ class WindowHeader extends StatefulWidget {
   /// the View menu's Side Panel); with none, neither is offered.
   final bool sidePanelShown;
   final VoidCallback? onToggleSidePanel;
+
+  /// Over the chat, the button that reads its conversation anew, once it
+  /// was talked in elsewhere (see [Workspace.reload]); before the
+  /// terminal's.
+  final Widget? reloadChat;
 
   /// Whether the strip has the chat's terminal and side panel buttons: only
   /// where it has the conversation's title, the card having no row of its
@@ -399,6 +405,11 @@ class _WindowHeaderState extends State<WindowHeader> {
     // layout last: each where it was after a switch. Agents side by side
     // have theirs in their panes, the pin and the editor's here (see
     // [chatTools]).
+    if (widget.reloadChat case final reload? when !ide && widget.chatTools)
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: reload,
+      ),
     if (widget.onToggleTerminal case final toggle?
         when !ide && widget.chatTools)
       KeyedSubtree(

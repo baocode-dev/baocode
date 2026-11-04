@@ -328,5 +328,32 @@ void main() {
         expect(model.redo(), false);
       },
     );
+
+    test('searches an edited text as fast as an opened one', () {
+      // 2MSCSKQ2: each line read copied its whole piece, and a file edited
+      // once is two pieces of half of it; the find widget searched it again
+      // for each key, which froze the window.
+      final model = EditorDocumentModel(
+        '  final value = compute(alpha, beta, gamma); // note\n' * 20000,
+      );
+      const params = SearchParams('missing');
+      int search() {
+        final watch = Stopwatch()..start();
+        for (var i = 0; i < 3; i++) {
+          expect(model.findMatches(params), isEmpty);
+        }
+        return watch.elapsedMicroseconds;
+      }
+
+      search();
+      final opened = search();
+      model.applyEdit(Range(10000, 3, 10000, 3), 'x');
+      search();
+      final edited = search();
+      // Copying the pieces, it took hundreds of times as long.
+      expect(edited, lessThan(opened * 10 + 50000));
+      final found = model.findMatches(const SearchParams('xfinal')).single;
+      expect(found.range.equalsRange(Range(10000, 3, 10000, 9)), isTrue);
+    });
   });
 }

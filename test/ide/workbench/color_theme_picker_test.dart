@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' hide ColorScheme;
 import 'package:flutter/services.dart';
@@ -70,25 +72,39 @@ const _themes = [
   ),
 ];
 
-/// A theme service that records `preview <id>` and `apply <id>` calls.
+/// The choices kept and the previews, apart: going back keeps no preview.
 class _FakeColorThemes implements IdeColorThemeController {
-  _FakeColorThemes([
-    this.colorThemeId = 'Dark Modern',
-    this.colorThemes = _themes,
-  ]);
+  _FakeColorThemes([String id = 'Dark Modern', this.colorThemes = _themes])
+    : _committedId = id;
 
   @override
   final List<IdeColorThemeEntry> colorThemes;
 
+  String _committedId;
+  String? _previewId;
+
   @override
-  String colorThemeId;
+  String get colorThemeId => _previewId ?? _committedId;
 
   final List<String> calls = [];
+  final pending = <String, Completer<void>>{};
 
   @override
   Future<void> setColorTheme(String id, {bool preview = false}) async {
     calls.add('${preview ? 'preview' : 'apply'} $id');
-    colorThemeId = id;
+    if (pending[id] case final completion?) await completion.future;
+    if (preview) {
+      _previewId = id;
+    } else {
+      _committedId = id;
+      _previewId = null;
+    }
+  }
+
+  @override
+  Future<void> restoreColorThemePreview() async {
+    calls.add('restore $_committedId');
+    _previewId = null;
   }
 }
 
@@ -99,12 +115,27 @@ class _Storage implements ColorThemeStorage {
   @override
   String? get colorThemeSetting => kept.lastOrNull;
 
-  @override
-  String? get colorThemeData => null;
+  String? _data;
 
   @override
-  void storeColorTheme({required String setting, String? data}) =>
+  String? get colorThemeData => _data;
+
+  @override
+  bool autoDetectColorScheme = false;
+
+  @override
+  Future<void> storeColorTheme({
+    required String setting,
+    String? data,
+    bool autoDetectColorScheme = false,
+    bool cacheOnly = false,
+  }) async {
+    _data = data;
+    if (!cacheOnly) {
       kept.add(setting);
+      this.autoDetectColorScheme = autoDetectColorScheme;
+    }
+  }
 }
 
 const _files = {'lib/main.dart': 'void main() {}\n'};
@@ -173,6 +204,7 @@ void main() {
           },
       ],
       [
+        'Auto (Follow system)',
         '-- light themes',
         'Bao Light (Default Light)',
         'Light Modern',
@@ -191,10 +223,7 @@ void main() {
         'Light High Contrast (Default High Contrast Light)',
       ],
     );
-    expect(
-      pick.placeholder,
-      'Select Color Theme (detect system color mode disabled)',
-    );
+    expect(pick.placeholder, 'Select Color Theme');
     expect(pick.activeItems!.single.label, 'Dark Modern');
     // No group for a type without themes.
     final darkOnly = ideColorThemePick(
@@ -225,16 +254,12 @@ void main() {
     expect(_picker, findsOneWidget);
     expect(find.text(_waiting), findsNothing);
     expect(
-      find.descendant(
-        of: _picker,
-        matching: find.text(
-          'Select Color Theme (detect system color mode disabled)',
-        ),
-      ),
+      find.descendant(of: _picker, matching: find.text('Select Color Theme')),
       findsOneWidget,
     );
     // All the rows fit.
     expect(_rows(tester), [
+      'Auto  Follow system',
       'Bao Light  Default Light',
       'light themes',
       'Light Modern',
@@ -252,8 +277,8 @@ void main() {
       'high contrast themes',
       'Light High Contrast  Default High Contrast Light',
     ]);
-    // A line above each group but the first.
-    expect(_separatorLines(tester), 2);
+    // Auto first, apart; a separator before each group of themes.
+    expect(_separatorLines(tester), 3);
     expect(_active(tester), 'Dark Modern');
 
     // Upstream reports the active item as the picker shows: the current
@@ -268,7 +293,144 @@ void main() {
 
     await _key(tester, LogicalKeyboardKey.escape);
     expect(_picker, findsNothing);
-    expect(themes.calls, ['preview Dark Modern', 'apply Dark Modern']);
+    expect(themes.calls, ['preview Dark Modern', 'restore Dark Modern']);
+  });
+
+  testWidgets('Auto is independent, active when committed, and restored on '
+      'cancel; accepting it keeps the mode', (tester) async {
+    final themes = _FakeColorThemes(IdeColorThemeController.autoId);
+    await pumpWorkbench(tester, _files, colorThemes: themes);
+    await _openPicker(tester);
+    expect(_active(tester), 'Auto');
+    expect(_rows(tester).first, 'Auto  Follow system');
+    expect(
+      themes.colorThemes.map((theme) => theme.id),
+      isNot(contains(IdeColorThemeController.autoId)),
+    );
+    await _key(tester, LogicalKeyboardKey.arrowDown);
+    expect(_active(tester), 'Bao Light');
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(themes.colorThemeId, 'Bao Light');
+    await _key(tester, LogicalKeyboardKey.escape);
+    expect(themes.colorThemeId, IdeColorThemeController.autoId);
+    expect(themes.calls, [
+      'preview Bao Light',
+      'restore ${IdeColorThemeController.autoId}',
+    ]);
+
+    await themes.setColorTheme('Red');
+    await _openPicker(tester);
+    expect(_active(tester), 'Red');
+    // The current theme far down the list: Auto found by searching for it,
+    // then accepted.
+    await tester.enterText(_input, 'Auto');
+    await tester.pumpAndSettle();
+    await _key(tester, LogicalKeyboardKey.enter);
+    expect(_picker, findsNothing);
+    expect(themes.colorThemeId, IdeColorThemeController.autoId);
+    expect(themes.calls.last, 'apply ${IdeColorThemeController.autoId}');
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('a current preview failure restores the committed preference', (
+    tester,
+  ) async {
+    final themes = _FakeColorThemes(IdeColorThemeController.autoId);
+    final failure = Completer<void>();
+    themes.pending['Red'] = failure;
+    final errors = <Object>[];
+    final pick = ideColorThemePick(themes, onError: errors.add);
+    final red = pick.items.whereType<IdeQuickPickItem>().firstWhere(
+      (item) => item.label == 'Red',
+    );
+    pick.onDidChangeActive!(red);
+    await tester.pump(const Duration(milliseconds: 200));
+    final error = StateError('preview failed');
+    failure.completeError(error);
+    await tester.pump();
+    expect(errors, [same(error)]);
+    expect(themes.calls, [
+      'preview Red',
+      'restore ${IdeColorThemeController.autoId}',
+    ]);
+    expect(themes.colorThemeId, IdeColorThemeController.autoId);
+    pick.onDidHide!();
+    await tester.pump();
+  });
+
+  testWidgets('an older failed preview cannot restore while a newer selection '
+      'is waiting for its preview', (tester) async {
+    final themes = _FakeColorThemes();
+    final failure = Completer<void>();
+    themes.pending['Dark+'] = failure;
+    final errors = <Object>[];
+    final pick = ideColorThemePick(themes, onError: errors.add);
+    IdeQuickPickItem item(String label) => pick.items
+        .whereType<IdeQuickPickItem>()
+        .firstWhere((item) => item.label == label);
+    pick.onDidChangeActive!(item('Dark+'));
+    await tester.pump(const Duration(milliseconds: 200));
+    pick.onDidChangeActive!(item('Red'));
+    final error = StateError('old preview failed');
+    failure.completeError(error);
+    await tester.pump();
+    expect(errors, [same(error)]);
+    expect(themes.calls, ['preview Dark+']);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(themes.calls, ['preview Dark+', 'preview Red']);
+    expect(themes.colorThemeId, 'Red');
+    pick.onDidHide!();
+    await tester.pump();
+    expect(themes.colorThemeId, 'Dark Modern');
+  });
+
+  for (final accept in [false, true]) {
+    testWidgets(
+      'an older failed preview after ${accept ? 'accepting' : 'cancelling'} '
+      'cannot overwrite a newer committed choice',
+      (tester) async {
+        final themes = _FakeColorThemes();
+        final failure = Completer<void>();
+        themes.pending['Dark+'] = failure;
+        final errors = <Object>[];
+        final pick = ideColorThemePick(themes, onError: errors.add);
+        IdeQuickPickItem item(String label) => pick.items
+            .whereType<IdeQuickPickItem>()
+            .firstWhere((item) => item.label == label);
+        pick.onDidChangeActive!(item('Dark+'));
+        await tester.pump(const Duration(milliseconds: 200));
+        if (accept) pick.onDidAccept!(item('Red'));
+        pick.onDidHide!();
+        await tester.pump(Duration.zero);
+        if (!accept) await themes.setColorTheme('Red');
+        final calls = List<String>.of(themes.calls);
+        expect(themes.colorThemeId, 'Red');
+        final error = StateError('closed preview failed');
+        failure.completeError(error);
+        await tester.pump();
+        expect(errors, [same(error)]);
+        expect(themes.calls, calls);
+        expect(themes.colorThemeId, 'Red');
+        await tester.pump(const Duration(seconds: 1));
+        expect(themes.calls, calls);
+      },
+    );
+  }
+
+  testWidgets('cancel restores the latest commit, not the opening theme or '
+      'a preview', (tester) async {
+    final themes = _FakeColorThemes(IdeColorThemeController.autoId);
+    final pick = ideColorThemePick(themes);
+    final light = pick.items.whereType<IdeQuickPickItem>().firstWhere(
+      (item) => item.label == 'Bao Light',
+    );
+    pick.onDidChangeActive!(light);
+    await tester.pump(const Duration(milliseconds: 200));
+    await themes.setColorTheme('Red');
+    pick.onDidHide!();
+    await tester.pump();
+    expect(themes.calls, ['preview Bao Light', 'apply Red', 'restore Red']);
+    expect(themes.colorThemeId, 'Red');
   });
 
   testWidgets('the palette lists Preferences: Color Theme with its chord and '
@@ -299,7 +461,7 @@ void main() {
     expect(tester.widget<TextField>(_input).controller!.text, isEmpty);
     await _key(tester, LogicalKeyboardKey.escape);
     await tester.pump(const Duration(seconds: 1));
-    expect(themes.calls, ['apply Red']);
+    expect(themes.calls, ['restore Red']);
   });
 
   testWidgets('macOS labels and presses the chord with ⌘', (tester) async {
@@ -353,17 +515,19 @@ void main() {
     expect(_active(tester), 'Light High Contrast');
     await tester.pump(const Duration(milliseconds: 200));
     await _key(tester, LogicalKeyboardKey.pageUp);
-    expect(_active(tester), 'Bao Light');
+    expect(_active(tester), 'Auto');
     await tester.pump(const Duration(milliseconds: 200));
     expect(themes.calls, [
       'preview Dark Modern',
       'preview Kimbie Dark',
       'preview Dark+',
       'preview Default High Contrast Light',
-      'preview Bao Light',
+      'preview ${IdeColorThemeController.autoId}',
     ]);
 
     // Enter applies at once, dropping the pending preview.
+    await _key(tester, LogicalKeyboardKey.arrowDown);
+    expect(_active(tester), 'Bao Light');
     await _key(tester, LogicalKeyboardKey.arrowDown);
     expect(_active(tester), 'Light Modern');
     await _key(tester, LogicalKeyboardKey.enter);
@@ -382,7 +546,7 @@ void main() {
   });
 
   testWidgets('Escape, a click outside or another quick input restores the '
-      'theme the picker started with', (tester) async {
+      'committed choice without persisting a preview', (tester) async {
     final themes = _FakeColorThemes();
     await pumpWorkbench(tester, _files, colorThemes: themes);
     await _openPicker(tester);
@@ -391,7 +555,7 @@ void main() {
     expect(themes.calls, ['preview Dark+']);
     await _key(tester, LogicalKeyboardKey.escape);
     expect(_picker, findsNothing);
-    expect(themes.calls, ['preview Dark+', 'apply Dark Modern']);
+    expect(themes.calls, ['preview Dark+', 'restore Dark Modern']);
 
     // A click outside, before the preview ran.
     themes.calls.clear();
@@ -401,7 +565,7 @@ void main() {
     await tester.pump();
     expect(_picker, findsNothing);
     await tester.pump(const Duration(seconds: 1));
-    expect(themes.calls, ['apply Dark Modern']);
+    expect(themes.calls, ['restore Dark Modern']);
 
     // Quick Open replaces the picker.
     themes.calls.clear();
@@ -417,7 +581,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(themes.calls, ['preview Bao Dark', 'apply Dark Modern']);
+    expect(themes.calls, ['preview Bao Dark', 'restore Dark Modern']);
     await _key(tester, LogicalKeyboardKey.escape);
     await tester.pump(const Duration(seconds: 1));
     expect(themes.calls, hasLength(2));
@@ -466,23 +630,31 @@ void main() {
       'Dark High Contrast  Default High Contrast',
       'Light High Contrast  Default High Contrast Light',
     ]);
+    await tester.enterText(_input, 'follow system');
+    await tester.pump();
+    expect(_rows(tester), ['Auto  Follow system']);
+    expect(_active(tester), 'Auto');
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(themes.calls.last, 'preview ${IdeColorThemeController.autoId}');
     await tester.enterText(_input, 'tnb');
     await tester.pump();
     expect(_rows(tester), ['Tomorrow Night Blue']);
 
-    // Nothing matches: nothing is active, and the current theme is
-    // previewed; Enter only closes.
+    // Nothing matching: the choice kept shows again; Enter closes, keeping
+    // nothing.
     await tester.enterText(_input, 'zzz');
     await tester.pump();
     expect(_rows(tester), isEmpty);
     expect(_active(tester), isNull);
     await tester.pump(const Duration(milliseconds: 200));
-    expect(themes.calls.last, 'preview Dark Modern');
+    expect(themes.calls.last, 'restore Dark Modern');
     final count = themes.calls.length;
     await _key(tester, LogicalKeyboardKey.enter);
     expect(_picker, findsNothing);
     await tester.pump(const Duration(seconds: 1));
-    expect(themes.calls, hasLength(count));
+    expect(themes.calls, hasLength(count + 1));
+    expect(themes.calls.last, 'restore Dark Modern');
+    expect(themes.colorThemeId, 'Dark Modern');
 
     // Clearing the filter lists the groups again.
     await _openPicker(tester);
@@ -491,7 +663,7 @@ void main() {
     await tester.enterText(_input, '');
     await tester.pump();
     expect(_rows(tester), contains('dark themes'));
-    expect(_active(tester), 'Bao Light');
+    expect(_active(tester), 'Auto');
     await _key(tester, LogicalKeyboardKey.escape);
     await tester.pump(const Duration(seconds: 1));
   });
@@ -523,7 +695,7 @@ void main() {
     await _key(tester, LogicalKeyboardKey.escape);
     await tester.pump(const Duration(seconds: 1));
     expect(_picker, findsNothing);
-    expect(themes.calls, ['apply Dark Modern']);
+    expect(themes.calls, ['restore Dark Modern']);
 
     // The editor's own chord (Show Hover) says nothing.
     await press(tester, LogicalKeyboardKey.keyK, primary: true);
@@ -594,6 +766,7 @@ void main() {
     await _key(tester, LogicalKeyboardKey.escape);
     await settle();
     expect(themes.colorThemeId, 'Bao Dark');
+    expect(storage.kept, isEmpty, reason: 'cancelling does not keep a choice');
 
     await _openPicker(tester);
     await _key(tester, LogicalKeyboardKey.arrowDown);

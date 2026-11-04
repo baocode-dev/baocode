@@ -1,5 +1,8 @@
 import 'package:baocode/ide/ide_notifications.dart';
 import 'package:baocode/l10n/l10n.dart';
+import 'package:baocode/settings/app_settings.dart';
+import 'package:baocode/settings/user_settings.dart';
+import 'package:baocode/tips/builtin_tips.dart';
 import 'package:baocode/tips/feature_tip.dart';
 import 'package:baocode/tips/feature_tips_controller.dart';
 import 'package:baocode/update/version.dart';
@@ -104,6 +107,40 @@ void main() {
     await tips.start();
     return tips;
   }
+
+  group('the built-in color theme tip', () {
+    // Only true is Auto set; absent, false or another type is none picked.
+    final cases = <(String, Map<String, Object?>, bool)>[
+      ('unset', {}, true),
+      ('fixed theme', {'workbench.colorTheme': 'Bao Light'}, false),
+      ('Auto', {'window.autoDetectColorScheme': true}, false),
+      ('Auto off', {'window.autoDetectColorScheme': false}, true),
+      ('invalid Auto value', {'window.autoDetectColorScheme': 'true'}, true),
+      (
+        'Auto with a fixed fallback',
+        {
+          'window.autoDetectColorScheme': true,
+          'workbench.colorTheme': 'Bao Dark',
+        },
+        false,
+      ),
+    ];
+    for (final (name, values, offered) in cases) {
+      test('$name is recognized on first launch', () async {
+        final settings = _TipSettings(values);
+        addTearDown(settings.files.settings.dispose);
+        final tip = builtInFeatureTips(settings)
+            .singleWhere((tip) => tip.id == FeatureTipIds.colorTheme);
+        expect(await tip.relevant(), offered);
+        final tips = FeatureTipsController(tips: [tip], storage: storage);
+        addTearDown(tips.dispose);
+        await tips.start();
+        expect(tips.checklist.map((tip) => tip.id), [
+          if (offered) FeatureTipIds.colorTheme,
+        ]);
+      });
+    }
+  });
 
   group('the checklist', () {
     test(
@@ -415,6 +452,35 @@ void main() {
       expect(tips.entryVisible, isFalse);
     },
   );
+}
+
+/// The settings the theme's tip reads, nothing on disk.
+class _TipSettings implements AppSettings {
+  _TipSettings(Map<String, Object?> values) : files = _TipSettingsFiles(values);
+
+  @override
+  final SettingsFiles files;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TipSettingsFiles implements SettingsFiles {
+  _TipSettingsFiles(Map<String, Object?> values)
+    : settings = _TipUserSettings(values);
+
+  @override
+  final UserSettings settings;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _TipUserSettings extends UserSettings {
+  _TipUserSettings(this.values) : super('/unused/settings.json');
+
+  @override
+  final Map<String, Object?> values;
 }
 
 /// A context for tips whose actions need none.

@@ -17,7 +17,7 @@ import 'package:path/path.dart' as p;
 import 'remote_harness.dart';
 
 /// The tools an agent on an SSH host has for the user's computer: offered
-/// only while the host may act on it; a command run here asked of the
+/// unless the host is turned off; a command run here asked of the
 /// user each time (unless always allowed for the host); files copied both
 /// ways; ports forwarded. Over a server in memory, whose "host" is this
 /// machine too.
@@ -108,17 +108,30 @@ void main() {
     );
   }
 
-  test('offered only to an SSH project whose host may act here, and told '
-      'of then', () async {
+  test('offered to an SSH project unless its host is turned off, and told '
+      'of then; turned off, told where to turn it on', () async {
     final local = [
       LocalTools.run,
       LocalTools.push,
       LocalTools.pull,
       LocalTools.forward,
     ];
+    settings.setLocalAccess('dev', false);
     expect(await listed(), isNot(containsAll(local)));
     expect((await call(LocalTools.run, {'command': 'echo hi'})).error, isTrue);
+    final off = await request('initialize');
+    expect(off['instructions'], contains('Settings → SSH Servers'));
+    expect(off['instructions'], isNot(contains('local_run')));
+    expect(
+      File(p.join(dir.path, 'remote-hosts.json')).readAsStringSync(),
+      contains('"localAccess": false'),
+    );
     settings.setLocalAccess('dev', true);
+    // On as it was at first: nothing kept for it.
+    expect(
+      File(p.join(dir.path, 'remote-hosts.json')).readAsStringSync().trim(),
+      '{}',
+    );
     expect(await listed(), containsAll(local));
     expect(await listed(at: project), isNot(contains(LocalTools.run)));
     expect(

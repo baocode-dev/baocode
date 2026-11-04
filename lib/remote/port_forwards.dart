@@ -210,8 +210,9 @@ class PortForwards extends ChangeNotifier {
       _forwards.remove(forward.host);
     }
     if (!forward.system) _settings.forgetForward(forward.host, forward.spec);
-    await forward._close();
+    // Gone from the list at once, not once its sockets are closed.
     notifyListeners();
+    await forward._close();
   }
 
   /// A port here for [spec]: the one asked for, else the host's own where it

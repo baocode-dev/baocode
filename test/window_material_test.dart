@@ -143,11 +143,13 @@ void main() {
     expect(colorsUnder(tester, find.byType(Sidebar)), [
       AppColors.sidebarSurface,
       Colors.transparent,
+      Colors.transparent,
     ]);
     expect(sidebarColor(tester), Colors.transparent);
     expect(AppColors.sidebarSurface.a, lessThan(0.85));
     expect(colorsUnder(tester, find.byType(ChatScreen)), [
       AppColors.sidebarSurface,
+      Colors.transparent,
       Colors.transparent,
     ]);
     expect(AppColors.conversationSurface.a, lessThan(1));
@@ -169,12 +171,14 @@ void main() {
       expect(colorsUnder(tester, find.byType(Sidebar)), [
         AppColors.sidebarSurface,
         Colors.transparent,
+        Colors.transparent,
       ]);
       // Acrylic is a thinner blur than macOS's sidebar material: 96% over
       // the sidebar, 98% over the conversation (see AppColors).
       expect(AppColors.sidebarSurface.a, closeTo(0.96, 0.001));
       expect(colorsUnder(tester, find.byType(ChatScreen)), [
         AppColors.sidebarSurface,
+        Colors.transparent,
         Colors.transparent,
       ]);
       expect(AppColors.conversationSurface.a, closeTo(0.98, 0.001));

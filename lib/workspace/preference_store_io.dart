@@ -33,14 +33,13 @@ class FilePreferenceStore implements PreferenceStore {
   Future<void> write(Map<String, Object?> preferences) {
     final file = _file;
     final text = const JsonEncoder.withIndent('  ').convert(preferences);
-    return _writing = _writing.then((_) async {
-      try {
-        await file.parent.create(recursive: true);
-        // Whole or not at all: a crash mid-write leaves the old file.
-        await writeFileAtomically(file, text);
-      } on Object {
-        // Not kept this time; the next change tries again.
-      }
+    final result = _writing.then((_) async {
+      await file.parent.create(recursive: true);
+      // Whole or not at all: a crash mid-write leaves the old file.
+      await writeFileAtomically(file, text);
     });
+    // The caller learns of a failure; the next write is tried still.
+    _writing = result.then((_) {}, onError: (_) {});
+    return result;
   }
 }

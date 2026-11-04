@@ -342,6 +342,15 @@ class AgentSidePanel extends ChangeNotifier {
   SidePanelTabs tabsOf(Object conversation) =>
       _tabs[conversation] ??= SidePanelTabs();
 
+  /// [to] has [from]'s panel as it was, its tabs and its being shown: the
+  /// same conversation read anew.
+  void carryOver(Object from, Object to) {
+    if (_tabs[from] case final tabs?) _tabs[to] = tabs;
+    if (_shownIn[from] case final shown?) _shownIn[to] = shown;
+    if (_focusNodes.remove(from) case final node?) _focusNodes[to] = node;
+    notifyListeners();
+  }
+
   /// The files page's tree of each project (by its folder), kept while
   /// the panel is, so it stays expanded as it was.
   final Map<String, IdeExplorerController> _explorers = {};

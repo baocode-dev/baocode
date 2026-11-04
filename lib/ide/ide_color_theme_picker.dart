@@ -19,13 +19,11 @@
 //   Extension" button, and Enter with no active item (a filter matching
 //   nothing) only closes the picker, where upstream opens the Extensions
 //   view's `category:themes` search.
-// - No `window.autoDetectColorScheme`: the preferred color scheme is always
-//   upstream's undefined, so the placeholder is its "detect system color
-//   mode disabled" title, the order is light, dark, then high contrast
-//   themes, and there is no color mode button beside the input.
-// - When a theme fails to apply, upstream applies the current one again
-//   without writing settings (`setColorTheme(current, undefined)`); here that
-//   is a preview of it, the controller's only way not to persist.
+// - Auto, first and apart, follows the system's appearance; the themes stay
+//   ordered light, dark, then high contrast, with no color mode button
+//   beside the input.
+// - Cancelled, or the current request failing, it goes back to the choice
+//   kept, not to the theme shown as it opened.
 // - `localeCompare` is `ideLocaleCompare`, which approximates ICU's root
 //   collation.
 
@@ -57,11 +55,18 @@ class IdeColorThemeEntry {
 
 /// What the picker needs from the theme service (upstream IWorkbenchThemeService).
 abstract interface class IdeColorThemeController {
+  /// The choice that follows the system: not a theme, not in [colorThemes].
+  static const autoId = '__auto__';
+
   List<IdeColorThemeEntry> get colorThemes;
   String get colorThemeId;
 
-  /// `setColorTheme(id, 'preview')` when [preview], else applied and persisted.
+  /// Shows [id]; unless [preview], keeps it as the choice too.
   Future<void> setColorTheme(String id, {bool preview = false});
+
+  /// Back to the choice kept (Auto at the system's appearance now), nothing
+  /// written.
+  Future<void> restoreColorThemePreview();
 }
 
 /// The Preferences: Color Theme command.
@@ -85,11 +90,10 @@ Map<String, String> _defaultThemeDescriptions(AppLocalizations l10n) => {
   _defaultDark: l10n.themeDefaultDark,
 };
 
-/// The quick pick of [themes]' color themes (`SelectColorThemeAction.run`
-/// with `InstalledThemesPicker.openQuickPick`): moving the active item
-/// previews its theme 200ms later, accepting applies and persists it, and
-/// hiding otherwise applies the theme that was current again. [onError]
-/// reports a theme that failed to apply (upstream `onUnexpectedError`).
+/// The quick pick of [themes]' color themes: moving the active item
+/// previews it 200ms later, accepting applies and keeps it.
+/// Hidden otherwise, the choice kept (Auto too) shows again, nothing
+/// written; [onError] reports a theme that failed to apply.
 /// Its own words are in [l10n]'s language (English when null).
 IdeQuickPick ideColorThemePick(
   IdeColorThemeController themes, {
@@ -100,7 +104,12 @@ IdeQuickPick ideColorThemePick(
   final descriptions = _defaultThemeDescriptions(strings);
   final currentId = themes.colorThemeId;
   final all = themes.colorThemes;
-  final entries = Map<IdeQuickPickItem, IdeColorThemeEntry>.identity();
+  final entries = Map<IdeQuickPickItem, String>.identity();
+  final auto = IdeQuickPickItem(
+    label: strings.themeAuto,
+    description: strings.themeFollowSystem,
+  );
+  entries[auto] = IdeColorThemeController.autoId;
 
   // `toEntry`.
   IdeQuickPickItem toEntry(IdeColorThemeEntry theme) {
@@ -112,7 +121,7 @@ IdeQuickPick ideColorThemePick(
           theme.description ??
           (theme.label == settingId ? null : settingId),
     );
-    entries[item] = theme;
+    entries[item] = settingId;
     return item;
   }
 
@@ -136,8 +145,9 @@ IdeQuickPick ideColorThemePick(
     ];
   }
 
-  // The order for an undefined preferred color scheme.
+  // Auto first, apart; the themes in their groups and order.
   final picks = [
+    auto,
     ...toEntries(
       all.where((theme) => theme.type == ColorScheme.light),
       strings.themeLightThemes,
@@ -153,16 +163,32 @@ IdeQuickPick ideColorThemePick(
   ];
 
   Timer? selectThemeTimeout;
+  var request = 0;
+  var isClosed = false;
+  var isAccepted = false;
 
-  // Previews [theme] after 200ms, or applies it next (the current theme
-  // when null); a newer call replaces a pending one.
-  void selectTheme(IdeColorThemeEntry? theme, bool applyTheme) {
+  void restorePreview() => unawaited(
+    themes.restoreColorThemePreview().then<void>(
+      (_) {},
+      onError: (Object error) => onError?.call(error),
+    ),
+  );
+
+  // Previews [id] after 200ms, or applies it next (the choice kept when
+  // null); a newer call replaces a pending one, and an older one's failure
+  // no longer counts.
+  void selectTheme(String? id, bool applyTheme) {
     selectThemeTimeout?.cancel();
+    final currentRequest = ++request;
     selectThemeTimeout = Timer(
       applyTheme ? Duration.zero : const Duration(milliseconds: 200),
       () {
         selectThemeTimeout = null;
-        final id = theme?.id ?? currentId;
+        if (isClosed && !applyTheme) return;
+        if (id == null) {
+          restorePreview();
+          return;
+        }
         unawaited(
           themes
               .setColorTheme(id, preview: !applyTheme)
@@ -170,14 +196,8 @@ IdeQuickPick ideColorThemePick(
                 (_) {},
                 onError: (Object error) {
                   onError?.call(error);
-                  unawaited(
-                    themes
-                        .setColorTheme(currentId, preview: true)
-                        .then<void>(
-                          (_) {},
-                          onError: (Object error) => onError?.call(error),
-                        ),
-                  );
+                  // Closed, or another picked since: not put back over it.
+                  if (!isClosed && currentRequest == request) restorePreview();
                 },
               ),
         );
@@ -185,23 +205,34 @@ IdeQuickPick ideColorThemePick(
     );
   }
 
-  var isCompleted = false;
-  IdeColorThemeEntry? themeOf(IdeQuickPickItem? item) =>
+  String? themeOf(IdeQuickPickItem? item) =>
       item == null ? null : entries[item];
-  final active = entries.keys.where((item) => entries[item]!.id == currentId);
+  final active = entries.keys.where((item) => entries[item] == currentId);
   return IdeQuickPick(
     items: picks,
     placeholder: strings.themeSelectPlaceholder,
     activeItems: active.take(1).toList(),
     matchOnDescription: true,
-    onDidChangeActive: (item) => selectTheme(themeOf(item), false),
+    onDidChangeActive: (item) {
+      if (!isClosed && !isAccepted) selectTheme(themeOf(item), false);
+    },
     onDidAccept: (item) {
-      isCompleted = true;
-      // No item: upstream searches the marketplace (not ported).
-      if (themeOf(item) case final theme?) selectTheme(theme, true);
+      if (isClosed || isAccepted) return;
+      // No item: closed, the choice kept shown again, nothing kept.
+      if (themeOf(item) case final id?) {
+        isAccepted = true;
+        selectTheme(id, true);
+      }
     },
     onDidHide: () {
-      if (!isCompleted) selectTheme(null, true);
+      if (isClosed) return;
+      isClosed = true;
+      if (!isAccepted) {
+        selectThemeTimeout?.cancel();
+        selectThemeTimeout = null;
+        request++;
+        restorePreview();
+      }
     },
   );
 }

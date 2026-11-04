@@ -138,6 +138,41 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
   });
 
+  testWidgets('notifies of a plan put to the user, to start or change', (
+    tester,
+  ) async {
+    start();
+    final planner = _thread(workspace, 'Rate limit per API key');
+    final modes = planner.session.modes!;
+    modes.onSelected(modes.options.firstWhere((mode) => mode.id == 'plan'));
+    await tester.pump();
+    planner.session.send(const ComposerMessage(text: '加一个限流'));
+    // Still at work once the plan is put: not waiting on the user yet.
+    var putWhileRunning = false;
+    for (var i = 0; i < 200 && planner.session.isStreaming; i++) {
+      if (planner.session.awaitingPlan != null) {
+        putWhileRunning = true;
+        expect(planner.status, ThreadStatus.running);
+        expect(host.notifications, isEmpty);
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(planner.session.isStreaming, isFalse);
+    expect(putWhileRunning, isTrue);
+
+    // The turn ended on a plan awaiting the user's go-ahead: told of like
+    // a question, not as merely finished.
+    expect(planner.session.awaitingPlan, isNotNull);
+    expect(planner.status, ThreadStatus.needsInput);
+    expect(host.notifications, hasLength(1));
+    expect(host.notifications.single.body, 'Plan ready for review');
+    expect(host.sounds, hasLength(1));
+    expect(host.attentionRequests, 1);
+    expect(host.badge, 2);
+    expect(host.trays.last!.waiting.single.title, 'Rate limit per API key');
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   testWidgets('the agent in view notifies only while the window is not in '
       'front', (tester) async {
     start();
