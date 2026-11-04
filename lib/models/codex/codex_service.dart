@@ -21,6 +21,17 @@ abstract class CodexService extends ChangeNotifier {
   /// not asked again, unless a window of theirs started over since.
   Future<void> refreshUsage(ModelProvider provider, {bool force = true});
 
+  /// Asks only [accountId]'s quota, leaving the other accounts untouched.
+  Future<void> refreshAccountUsage(
+    ModelProvider provider,
+    String accountId, {
+    bool force = true,
+  }) {
+    final account = provider.account(accountId);
+    if (account == null) return Future.value();
+    return refreshUsage(provider.copyWith(accounts: [account]), force: force);
+  }
+
   /// The account a request of Claude Code's session [session] goes to
   /// now: the one it is kept on, or the next by [provider]'s balance;
   /// null when none can take it.

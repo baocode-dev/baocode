@@ -6195,7 +6195,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get modelsRefreshQuota => '刷新额度';
+  String get modelsRefreshQuota => '刷新全部额度';
+
+  @override
+  String modelsAccountRefreshQuota(String name) {
+    return '刷新 $name 的额度';
+  }
 
   @override
   String get modelsAccountRemove => '移除账号';

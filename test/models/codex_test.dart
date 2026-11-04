@@ -910,6 +910,93 @@ void main() {
       });
 
       test(
+        'refreshing one account leaves every other account untouched',
+        () async {
+          accounts.markError(provider(), a, 'Keep this account error.');
+          await accounts.refreshAccountUsage(provider(), 'b');
+          expect(
+            openai.to(usagePath).map((r) => r.headers['chatgpt-account-id']),
+            ['ws-b'],
+          );
+          expect(openai.to('/oauth/token'), hasLength(1));
+          expect(
+            form(openai.to('/oauth/token').single.body)['refresh_token'],
+            'refresh-b',
+          );
+          expect(accounts.usage('cx', 'a'), isNull);
+          expect(accounts.error('cx', 'a'), 'Keep this account error.');
+          expect(accounts.usage('cx', 'b')!.mostUsed, 30);
+          expect(
+            await secrets.read(ModelProvider.accountRefFor('cx', 'a')),
+            'refresh-a',
+          );
+          expect(provider().accounts, [a, b]);
+        },
+      );
+
+      test(
+        'a refused refresh token affects only the selected account',
+        () async {
+          openai.reply = (_, _, _) =>
+              (401, const {}, ['{"error":{"message":"refresh_token_reused"}}']);
+          await accounts.refreshAccountUsage(provider(), 'b');
+          expect(accounts.signedOut('cx', 'b'), isTrue);
+          expect(accounts.error('cx', 'b'), contains('refresh_token_reused'));
+          expect(accounts.signedOut('cx', 'a'), isFalse);
+          expect(accounts.error('cx', 'a'), isNull);
+          expect(accounts.available(provider()), [a]);
+          expect(openai.to('/oauth/token'), hasLength(1));
+          expect(
+            form(openai.to('/oauth/token').single.body)['refresh_token'],
+            'refresh-b',
+          );
+          expect(openai.to(usagePath), isEmpty);
+          expect(
+            await secrets.read(ModelProvider.accountRefFor('cx', 'a')),
+            'refresh-a',
+          );
+        },
+      );
+
+      test('a missing account does not cause any request', () async {
+        await accounts.refreshAccountUsage(provider(), 'missing');
+        expect(openai.requests, isEmpty);
+      });
+
+      test('single account refresh honors the cache unless forced', () async {
+        await accounts.refreshAccountUsage(provider(), 'a', force: false);
+        await accounts.refreshAccountUsage(provider(), 'a', force: false);
+        expect(openai.to(usagePath), hasLength(1));
+        await accounts.refreshAccountUsage(provider(), 'a');
+        expect(openai.to(usagePath), hasLength(2));
+        expect(accounts.usage('cx', 'b'), isNull);
+      });
+
+      test(
+        'single and all account refreshes share an in-flight request',
+        () async {
+          final received = Completer<void>();
+          final answer = Completer<Answer>();
+          openai.delayedReply = (path, _, _) {
+            if (path == '/oauth/token') return tokens('access');
+            if (!received.isCompleted) received.complete();
+            return answer.future;
+          };
+          final first = accounts.refreshAccountUsage(provider(), 'b');
+          await received.future;
+          final second = accounts.refreshAccountUsage(provider(), 'b');
+          final all = accounts.refreshUsage(provider());
+          answer.complete(quota(30));
+          await Future.wait([first, second, all]);
+          expect(
+            openai.to(usagePath).map((r) => r.headers['chatgpt-account-id']),
+            unorderedEquals(['ws-a', 'ws-b']),
+          );
+          expect(openai.to('/oauth/token'), hasLength(2));
+        },
+      );
+
+      test(
         'concurrent forced and automatic refreshes share each account',
         () async {
           final received = Completer<void>();

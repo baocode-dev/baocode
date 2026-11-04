@@ -10716,8 +10716,14 @@ abstract class AppLocalizations {
   /// No description provided for @modelsRefreshQuota.
   ///
   /// In en, this message translates to:
-  /// **'Refresh Quota'**
+  /// **'Refresh All Quotas'**
   String get modelsRefreshQuota;
+
+  /// No description provided for @modelsAccountRefreshQuota.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh quota for {name}'**
+  String modelsAccountRefreshQuota(String name);
 
   /// No description provided for @modelsAccountRemove.
   ///

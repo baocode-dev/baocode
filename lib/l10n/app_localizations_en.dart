@@ -6613,7 +6613,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get modelsRefreshQuota => 'Refresh Quota';
+  String get modelsRefreshQuota => 'Refresh All Quotas';
+
+  @override
+  String modelsAccountRefreshQuota(String name) {
+    return 'Refresh quota for $name';
+  }
 
   @override
   String get modelsAccountRemove => 'Remove account';
