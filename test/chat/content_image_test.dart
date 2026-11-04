@@ -428,9 +428,10 @@ void main() {
       expect(menu.onOpenInIde, isNotNull);
       expect(
         imageMenu(context, a, '/u/elsewhere.png'),
-        isA<ImageMenu>(),
-        reason: 'not a file of the session',
+        isA<FileLinkMenu>(),
+        reason: 'out of the project, the file all the same',
       );
+      expect(imageMenu(context, a, null), isA<ImageMenu>());
     });
   });
 

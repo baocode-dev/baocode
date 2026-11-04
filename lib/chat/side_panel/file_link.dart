@@ -103,19 +103,40 @@ class FileLink {
     return _pathLike(link.path) ? link : null;
   }
 
-  /// [path] in [root] (absolute, in [paths]' spelling; this machine's when
-  /// null): null when it is outside it, as the agent's work is all there.
-  String? resolveIn(String root, {p.Context? paths}) =>
-      resolvePath(path, root, paths: paths);
+  /// [path] made absolute from [root] (in [paths]' spelling; this
+  /// machine's when null): see [resolvePath].
+  String? resolveIn(String root, {p.Context? paths, String? home}) =>
+      resolvePath(path, root, paths: paths, home: home);
 
-  /// [path] (absolute, or relative to [root]) in [root]; null outside.
-  static String? resolvePath(String path, String root, {p.Context? paths}) {
+  /// [path] absolute, as the agent's own tools take it (bao_agent's
+  /// `PermissionEngine.absolute`): `~` the [home] folder of the host,
+  /// relative to [root] (where the agent works), wherever that leads, in
+  /// the project or out of it. Null for nothing, `~` without a [home], or
+  /// another user's (`~bob`).
+  static String? resolvePath(
+    String path,
+    String root, {
+    p.Context? paths,
+    String? home,
+  }) {
     final context = paths ?? p.context;
-    if (path.isEmpty || path.startsWith('~')) return null;
-    final full = context.normalize(
-      context.isAbsolute(path) ? path : context.join(root, path),
+    if (path.isEmpty) return null;
+    var expanded = path;
+    if (path.startsWith('~')) {
+      final rest = path.substring(1);
+      if (home == null || home.isEmpty) return null;
+      if (rest.isEmpty) {
+        expanded = home;
+      } else if (rest.startsWith('/') ||
+          (context.style == p.Style.windows && rest.startsWith(r''))) {
+        expanded = context.join(home, rest.substring(1));
+      } else {
+        return null;
+      }
+    }
+    return context.normalize(
+      context.isAbsolute(expanded) ? expanded : context.join(root, expanded),
     );
-    return context.isWithin(root, full) ? full : null;
   }
 
   /// A scheme (`https:`, `vscode:`); a drive (`C:`) is not one.

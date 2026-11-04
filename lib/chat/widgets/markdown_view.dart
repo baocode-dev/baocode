@@ -226,7 +226,7 @@ class _MarkdownViewState extends State<MarkdownView> {
         final link = FileLink.parseHref(href);
         final path = link == null || link.range != null
             ? null
-            : files.resolve(link.path);
+            : files.resolveShown(link.path);
         if (path == null || !files.showsImage(path)) return null;
         return FileImageChip.span(
           path: path,
