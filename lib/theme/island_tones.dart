@@ -2,123 +2,43 @@
 //
 // A theme's editor is its cards' color and its side bar the window's (see
 // AppColors). Many themes' are a shade apart, as the parts sat side by side
-// with a line between them: Bao Dark's #222221 on #181817, Bao Light's
-// #FCFBFA on #F3F3F1, the cards hardly told from the window. Their colors
-// are moved apart as WorkbenchColors reads them, every color of a card's
-// tone with it, so what reads `editor.background` (the editor, the
-// terminal, a tab on a card) or a color the registry makes of it stays the
-// card's.
+// with a line between them: Bao Dark's #282827 on #212120, the cards hardly
+// told from the window. The theme's colors stay as they are, the IDE's
+// parts (not islands) and everything on a card in them; the agents'
+// window's own color, about its cards, is sunk under them instead.
 
 import 'dart:math' as math;
 import 'dart:ui';
 
-/// How a theme's colors are moved so its cards stand apart from the
-/// window. A dark theme's window as it is, its cards (and what is on them,
-/// as far above them) lifted [darkStep] over it; a light theme's cards
-/// lifted, and where they are as light as they go, the window sunk.
-class IslandTones {
-  IslandTones._(
-    this._card,
-    this._base,
-    this._lift,
-    this._window, [
-    this._cards = true,
-  ]);
-
-  /// For a theme whose cards are [card] (`editor.background`) on a window
-  /// of [base] (`sideBar.background`). Nothing moved where the window is
-  /// the lighter.
-  factory IslandTones(Color card, Color base) {
-    final cardL = lightness(card);
-    final baseL = lightness(base);
-    if (card.a < 1 || base.a < 1 || cardL < baseL) return _asTheyAre;
-    if (baseL < 0.5) {
-      final lift = baseL + darkStep - cardL;
-      return lift <= 0 ? _asTheyAre : IslandTones._(cardL, baseL, lift, 0);
-    }
-    final need = lightStep - (cardL - baseL);
-    if (need <= 0) return _asTheyAre;
-    final lift = math.min(need, math.max(0.0, _lightest - cardL));
-    return IslandTones._(cardL, baseL, lift, lift - need);
-  }
-
-  /// Leaves every color as it is (a high contrast theme's, its lines
-  /// kept).
-  static final none = IslandTones._(0, 0, 0, 0, false);
-
-  /// Moves none, the lines a card has no need of gone.
-  static final _asTheyAre = IslandTones._(0, 0, 0, 0);
-
-  /// Lines on a card setting a part of it apart, of no use there, the
-  /// card's edges doing it: the overview rulers' left edges (a dark
-  /// theme's near black, a hard line down a lifted card).
-  static const _apartOnCard = [
-    'editorOverviewRuler.border',
-    'terminalOverviewRuler.border',
-  ];
-
+/// How the agents' window is set apart from its cards: its color (a
+/// theme's `sideBar.background`) sunk till the cards (its
+/// `editor.background`) stand [darkStep] over it, [lightStep] in a light
+/// theme, as they are where they already do.
+abstract final class IslandTones {
   /// The least lightness (OKLab L) between a dark theme's cards and its
   /// window: further than the island prototype's (#222221 on #181817,
-  /// 0.043), the cards lighter (#2B2B2B on #181818).
+  /// 0.043).
   static const darkStep = 0.08;
 
-  /// A light theme's: further, light grays being harder to tell apart.
+  /// A light theme's: light grays being harder to tell apart, further.
   static const lightStep = 0.06;
 
-  /// As light as a card is lifted: the rest of [lightStep], the window
-  /// sunk.
-  static const _lightest = 0.97;
+  /// As dark as a dark theme's window is sunk, not to read black: less
+  /// apart from its cards then.
+  static const darkest = 0.19;
 
-  /// How far above the card a color lifts with it: what is on a card
-  /// (its inputs, menus, lines, selections), not its text.
-  static const _onCard = 0.13;
-
-  /// How near a color is to be taken for the card's or the window's.
-  static const _same = 0.004;
-
-  /// Popups over everything, of the window's color in some themes (Bao
-  /// Light's menus): not sunk with it.
-  static const _popups = [
-    'menu.',
-    'editorWidget.',
-    'editorHoverWidget.',
-    'editorSuggestWidget.',
-    'quickInput.',
-    'notifications.',
-    'notificationCenterHeader.',
-    'dropdown.',
-    'widget.',
-    'peekView',
-    'debugToolBar.',
-    'breadcrumbPicker.',
-  ];
-
-  final bool _cards;
-  final double _card;
-  final double _base;
-  final double _lift;
-
-  /// How much darker a light theme's window is (negative): sunk.
-  final double _window;
-
-  /// [color], read for [id], moved: lifted if it is of a card's tone, sunk
-  /// with the window if of the window's. Text,
-  /// popups' backgrounds when sunk, and what is see-through, as they are;
-  /// [_apartOnCard], gone.
-  Color apply(String id, Color color) {
-    if (_cards && _apartOnCard.contains(id)) return const Color(0x00000000);
-    if ((_lift == 0 && _window == 0) || color.a < 1) return color;
-    if (id.endsWith('oreground')) return color;
-    final l = lightness(color);
-    if (_lift > 0 && l >= _card - _same && l <= _card + _onCard) {
-      return shift(color, _lift);
-    }
-    if (_window < 0 &&
-        (l - _base).abs() <= _same &&
-        !_popups.any(id.startsWith)) {
-      return shift(color, _window);
-    }
-    return color;
+  /// The window's color about cards of [card], for a theme whose window
+  /// is [base]: [base] sunk, or as it is where it is apart enough already,
+  /// lighter than the cards, see-through, or [highContrast] (outlined).
+  static Color window(Color card, Color base, {bool highContrast = false}) {
+    if (highContrast || card.a < 1 || base.a < 1) return base;
+    final cardL = lightness(card);
+    final baseL = lightness(base);
+    if (cardL < baseL) return base;
+    final target = baseL < 0.5
+        ? math.max(cardL - darkStep, math.min(darkest, baseL))
+        : cardL - lightStep;
+    return target >= baseL ? base : shift(base, target - baseL);
   }
 
   /// Perceived lightness, OKLab's L for a gray: the cube root of the

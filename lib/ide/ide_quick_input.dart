@@ -41,6 +41,7 @@ import '../theme/app_theme.dart' show AppColors;
 import '../theme/icon_registry.dart';
 import '../theme/workbench_theme.dart'
     show ThemeTypeSelector, getThemeTypeSelector, themeColors;
+import '../workspace/islands.dart' show Islands;
 import 'ide_fuzzy.dart';
 import 'ide_hover.dart' show IdeActionButton;
 import 'ide_input.dart';
@@ -325,9 +326,13 @@ class IdeQuickInput extends StatefulWidget {
   /// `cornerRadius.xLarge`.
   static const cornerRadius = 12.0;
 
-  /// The cards' color (`editor.background`) rather than
+  /// On islands the cards' color (`editor.background`) rather than
   /// `quickInput.background`: a card over them. The palettes like it too.
-  static Color get background => AppColors.code;
+  /// Where the parts are not islands (the IDE's, see [IslandStyle]), the
+  /// theme's, as before them.
+  static Color backgroundOf(BuildContext context) => Islands.on(context)
+      ? AppColors.code
+      : themeColors['quickInput.background'];
 
   /// The input's and the rows': `cornerRadius.medium` (upstream's rows are
   /// 3px; a deviation, so both follow the widget's corners 6px in).
@@ -878,7 +883,7 @@ class IdeQuickInputState extends State<IdeQuickInput> {
                     boxShadow: IdeQuickInput.shadows,
                   ),
                   child: Material(
-                    color: IdeQuickInput.background,
+                    color: IdeQuickInput.backgroundOf(context),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(
                         IdeQuickInput.cornerRadius,

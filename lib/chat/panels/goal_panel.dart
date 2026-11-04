@@ -196,14 +196,14 @@ class _GoalPanelState extends State<GoalPanel> {
           : Container(
               margin: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: AppColors.bubbleFill,
+                color: AppColors.bubbleFillIn(context),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: switch (goal.state) {
                     GoalState.active
                         when widget.activity == GoalActivity.working =>
                       _amber.withValues(alpha: 0.55),
-                    _ => AppColors.bubbleBorder(),
+                    _ => AppColors.bubbleBorderIn(context),
                   },
                 ),
               ),

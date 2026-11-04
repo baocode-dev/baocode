@@ -91,8 +91,8 @@ void main() {
       );
       await tester.pump();
       expect(tester.takeException(), isNull, reason: theme.settingsId);
-      // The panel on TERMINAL, with two tabs: on a card of the editor's
-      // color (`editor.background`), as the other cards, never the shell's.
+      // The panel on TERMINAL, with two tabs: of the theme's
+      // `panel.background`, the IDE's parts not islands.
       await chord(tester, LogicalKeyboardKey.backquote, control: true);
       await chord(
         tester,
@@ -109,7 +109,7 @@ void main() {
       );
       expect(
         panel.color,
-        service.colors['editor.background'],
+        service.colors['panel.background'],
         reason: theme.settingsId,
       );
       await chord(tester, LogicalKeyboardKey.keyP, control: true, shift: true);

@@ -2320,7 +2320,7 @@ extension on _StashRow {
         // Opaque: what it covers does not show through.
         color: Color.alphaBlend(
           background ?? Colors.transparent,
-          AppColors.background,
+          Islands.windowOf(context),
         ),
         borderRadius: BorderRadius.circular(5),
       ),
