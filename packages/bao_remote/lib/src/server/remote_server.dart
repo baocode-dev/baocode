@@ -23,6 +23,7 @@ import 'server_pty.dart';
 import 'server_review.dart';
 import 'server_streams.dart';
 import 'server_tcp.dart';
+import '../platform/process_tree.dart';
 
 /// Params as a map, whatever came.
 Map<String, Object?> paramsOf(Object? params) => switch (params) {
@@ -513,6 +514,9 @@ class _ServerProcess {
 
   void kill({bool force = false}) {
     unawaited(closeStdin());
+    // On Windows, which has no signals, with what it started: Claude
+    // Code's tools, a language server's helpers.
+    if (Platform.isWindows) return killProcessTree(_process.pid);
     _process.kill(force ? ProcessSignal.sigkill : ProcessSignal.sigterm);
   }
 
@@ -522,7 +526,7 @@ class _ServerProcess {
     try {
       await _exited.future.timeout(timeout);
     } on TimeoutException {
-      _process.kill(ProcessSignal.sigkill);
+      kill(force: true);
       await _exited.future.timeout(timeout, onTimeout: () {});
     }
   }

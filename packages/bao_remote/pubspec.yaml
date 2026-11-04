@@ -14,6 +14,8 @@ environment:
 dependencies:
   bao_agent:
     path: ../bao_agent
+  bao_conpty:
+    path: ../bao_conpty
   crypto: ^3.0.6
   meta: ^1.15.0
   path: ^1.9.1

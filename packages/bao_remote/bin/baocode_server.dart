@@ -36,7 +36,10 @@ Future<void> main(List<String> arguments) async {
       ),
     );
   }
-  final home = Platform.environment['HOME'] ?? Directory.current.path;
+  final home =
+      Platform.environment['HOME'] ??
+      Platform.environment['USERPROFILE'] ??
+      Directory.current.path;
   final at = arguments.indexOf('--data');
   final dataDir = at >= 0 && at + 1 < arguments.length
       ? arguments[at + 1]
@@ -121,7 +124,7 @@ Future<void> main(List<String> arguments) async {
   }
 
   // The connection gone: sshd hangs up the session.
-  for (final signal in [ProcessSignal.sighup, ProcessSignal.sigterm]) {
+  for (final signal in ServerSession.hangups) {
     signal.watch().listen((_) => unawaited(exitWith(0)));
   }
   await peer.done;

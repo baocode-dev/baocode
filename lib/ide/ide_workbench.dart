@@ -136,6 +136,7 @@ import 'terminal/terminal_profile_service.dart';
 import 'terminal/terminal_profiles.dart';
 import 'terminal/terminal_hosts.dart';
 import 'terminal/terminal_service.dart';
+import 'host_paths.dart';
 
 part 'ide_workbench_extensions.dart';
 part 'ide_workbench_keys.dart';
@@ -1038,8 +1039,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         final IdeHostFiles files => files.readBytes,
         _ => readFileBytes,
       },
-      // A remote project's host is Linux or macOS: POSIX paths.
-      pathContext: _local ? p.context : p.posix,
+      // A remote project's paths are its host's.
+      pathContext: _local ? p.context : hostPathsFor(doc.path),
       // Where it was.
       initialLine: widget.workspace.viewStateOf(doc).previewLine,
       onLeave: (line) {
@@ -1067,9 +1068,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       files: workspace.files,
       l10n: l10n,
       root: workspace.hasFolder ? workspace.root : null,
-      // A remote project's host is Linux or macOS; the clipboard's files
+      // A remote project's paths are its host's; the clipboard's files
       // are this machine's, uploaded there.
-      context: _local ? p.context : p.posix,
+      context: _local
+          ? p.context
+          : hostPathsFor(workspace.hasFolder ? workspace.root : ''),
       remote: !_local,
       clipboard: IdeWorkbench.markdownClipboard,
       confirmLarge: (name, size) async {

@@ -1,5 +1,5 @@
 # Builds the remote server (baocode-server, the app's side on an SSH host)
-# for Linux and macOS, x64 and arm64, and runs it on each. docs/ssh-remote.md
+# for Linux, macOS and Windows, x64 and arm64, and runs it on each. docs/ssh-remote.md
 # (9.3) has where the builds go and how the app finds them.
 #
 #   git tag server-foo && git push origin server-foo
@@ -28,10 +28,59 @@ env:
   FLUTTER_VERSION: 3.47.5
 
 jobs:
+  windows:
+    name: Build the remote server for Windows (${{ matrix.arch }})
+    # Only Windows builds for Windows, each architecture on its own; the
+    # Mac below takes the builds, as VERSION names them all.
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      # One failing leaves the other building, to be re-run alone.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        if: matrix.arch == 'x64'
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      # Flutter's Windows SDK archive carries an x64 Dart; cloned at the
+      # version, it downloads the Arm one for this machine.
+      - name: Clone Flutter
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch "$env:FLUTTER_VERSION" https://github.com/flutter/flutter.git "$env:RUNNER_TEMP\flutter"
+          "$env:RUNNER_TEMP\flutter\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" --version
+          # The engine's packages (sky_engine), for pub.
+          & "$env:RUNNER_TEMP\flutter\bin\flutter.bat" precache --windows
+      - id: iroh
+        uses: ./.github/actions/bao-iroh-prebuilt
+      - if: steps.iroh.outputs.hit != 'true'
+        uses: ./.github/actions/setup-rust
+      - name: Build
+        run: dart run tool/build_remote_server.dart --out build/remote-windows --only windows-${{ matrix.arch }}
+      - name: Run it here
+        shell: pwsh
+        run: ./tool/test_remote_server_windows.ps1 build/remote-windows/baocode-server-windows-${{ matrix.arch }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: remote-windows-${{ matrix.arch }}
+          if-no-files-found: error
+          path: build/remote-windows/baocode-server-windows-${{ matrix.arch }}
+
   build:
     name: Build the remote server
     # A Mac, as only one builds for macOS: the Linux builds are
-    # cross-compiled, the macOS x64 one by an x64 Dart SDK under Rosetta.
+    # cross-compiled, the macOS x64 one by an x64 Dart SDK under Rosetta;
+    # the Windows ones are taken from Windows.
+    needs: windows
     runs-on: macos-15
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -54,12 +103,18 @@ jobs:
       # `dart run tool/…` runs bao_iroh's build hook, which would build iroh
       # for this Mac where main's build of it is not in the cache.
       - uses: ./.github/actions/bao-iroh-prebuilt
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: remote-windows-*
+          merge-multiple: true
+          path: build/remote-windows
       # Once, for both apps: they carry its servers.json, and download the
       # build a host needs from dl.baocode.dev (docs/ssh-remote.md, 9.3).
-      - name: Build for Linux and macOS, x64 and arm64
+      - name: Build for Linux and macOS, x64 and arm64, with Windows'
         run: |
           dart run tool/build_remote_server.dart --out build/remote --all \
-            --macos-x64-dart "$RUNNER_TEMP/dart-x64/dart-sdk/bin/dart"
+            --macos-x64-dart "$RUNNER_TEMP/dart-x64/dart-sdk/bin/dart" \
+            --from build/remote-windows
       - id: version
         run: echo "version=$(cat build/remote/VERSION)" >> "$GITHUB_OUTPUT"
       - name: Run the macOS builds here

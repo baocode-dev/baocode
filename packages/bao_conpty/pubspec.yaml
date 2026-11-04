@@ -1,0 +1,19 @@
+name: bao_conpty
+description: >-
+  Processes on a Windows pseudo console (ConPTY) for Dart, by dart:ffi
+  alone: no native library, no build hook. The pseudo terminal's types,
+  which package:bao_pty shares. No Flutter in the library.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  meta: ^1.15.0
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

@@ -7,7 +7,6 @@
 import 'dart:async';
 
 import 'package:bao_remote/client.dart';
-import 'package:path/path.dart' as p;
 
 import '../ide/lsp/catalog/standard_lsp.dart';
 import '../ide/lsp/install/mason_registry.dart';
@@ -100,7 +99,7 @@ class RemoteLspManager extends LspManager {
             return const [];
           }
         },
-        paths: p.posix,
+        paths: RemoteLocation.pathsFor(root),
         processId: () => host.hello?.pid,
       ) {
     // What ran over a lost connection is gone with it: started again.

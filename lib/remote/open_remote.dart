@@ -6,7 +6,6 @@ import 'dart:async';
 
 import 'package:bao_remote/client.dart';
 import 'package:flutter/widgets.dart';
-import 'package:path/path.dart' as p;
 
 import '../ide/ide_quick_input.dart';
 import '../ide/ide_spinning.dart';
@@ -195,7 +194,7 @@ class OpenRemoteFlow {
     String directory, {
     ReadingWait? waiting,
   }) async {
-    final paths = p.posix;
+    final paths = RemoteLocation.pathsFor(directory);
     List<String> folders = const [];
     String? failure;
 

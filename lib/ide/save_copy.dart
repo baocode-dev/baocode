@@ -2,6 +2,7 @@ import 'package:path/path.dart' as p;
 
 import '../workspace/window_controls.dart';
 import 'file_service.dart';
+import 'host_paths.dart';
 
 /// Whether a file shown can be saved elsewhere ([saveFileCopyAs]): where
 /// there is a save panel.
@@ -20,7 +21,7 @@ Future<String?> saveFileCopyAs(
   final to = await WindowControls.pickSaveFile(
     // Not a folder of the host's: the panel is this machine's.
     directory: local ? p.dirname(path) : null,
-    name: local ? p.basename(path) : p.posix.basename(path),
+    name: local ? p.basename(path) : hostPathsFor(path).basename(path),
   );
   if (to == null) return null;
   await saveCopyTo(files, path, to, text: text);

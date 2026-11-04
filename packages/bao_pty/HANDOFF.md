@@ -1,6 +1,6 @@
 # bao_pty 交接
 
-在伪终端里跑进程：macOS/Linux 用 forkpty（`native/bao_pty.c`，由 `hook/build.dart` 通过 Dart 的 build hook 编译成 `bao_pty.framework`／`libbao_pty.so`），Windows 用 ConPTY（`lib/src/pty_windows.dart`，直接用 `dart:ffi` 调 kernel32，没有原生库）。库里没有 Flutter；网页上 `ptySupported` 为 false，`spawnPty` 抛 `PtyException`。
+在伪终端里跑进程：macOS/Linux 用 forkpty（`native/bao_pty.c`，由 `hook/build.dart` 通过 Dart 的 build hook 编译成 `bao_pty.framework`／`libbao_pty.so`），Windows 用 ConPTY（`../bao_conpty/lib/src/windows_pty.dart`，直接用 `dart:ffi` 调 kernel32，没有原生库，单独成包是因为远程服务端不能依赖带 build hook 的包）。库里没有 Flutter；网页上 `ptySupported` 为 false，`spawnPty` 抛 `PtyException`。
 
 本文里的路径相对于包根目录；`../../` 开头的是 BaoCode 应用的文件。
 
@@ -13,7 +13,7 @@
 ## 测试
 
 - `test/pty_test.dart`：只在 macOS/Linux 跑，用 `/bin/sh -c` 和固定命令，在测试自己的临时目录里。
-- `test/pty_windows_test.dart`：`ConsolePoll`、命令行引号（照 node-pty）、环境块这些纯逻辑各平台都跑；`ConPTY` 一组是 `cmd.exe` 的真实进程，只在 Windows 上跑，还没在 Windows 实机上跑过。
+- `../bao_conpty/test/windows_pty_test.dart`：`ConsolePoll`、命令行引号（照 node-pty）、环境块这些纯逻辑各平台都跑；`ConPTY` 一组是 `cmd.exe` 的真实进程，只在 Windows 上跑，还没在 Windows 实机上跑过。
 - 平台上的已知问题（Windows 上 Dart 分析器闪退的绕法、Linux 上退出码可能读成 0）记在 [bao_xterm 的 HANDOFF](../bao_xterm/HANDOFF.md#已知问题)。
 
 ## 发布计划

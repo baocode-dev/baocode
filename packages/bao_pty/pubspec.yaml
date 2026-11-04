@@ -11,6 +11,8 @@ environment:
   sdk: ^3.13.4
 
 dependencies:
+  bao_conpty:
+    path: ../bao_conpty
   code_assets: ^1.2.1
   hooks: ^2.0.2
   meta: ^1.15.0

@@ -8,8 +8,8 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
 
 import '../platform/data_dir.dart';
-import 'mac_host_platform.dart'
-    if (dart.library.ffi) 'mac_host_platform_ffi.dart';
+import 'host_server_platform.dart'
+    if (dart.library.ffi) 'host_server_platform_ffi.dart';
 
 /// The server builds in [directory] (tool/build_remote_server.dart writes
 /// them): `baocode-server-<platform>` (`linux-x64`, `darwin-arm64`, …), and
@@ -52,6 +52,8 @@ class DirectoryServerBinaries implements RemoteServerBinaries {
     'linux-arm64',
     'darwin-x64',
     'darwin-arm64',
+    'windows-x64',
+    'windows-arm64',
   ];
 
   @override
@@ -353,16 +355,19 @@ class SourceServerBinaries implements RemoteServerBinaries {
       _built[platform] ??= _build(platform);
 
   /// Linux builds are cross-compiled; a macOS one only on a Mac of its
-  /// architecture, as `dart compile exe` builds for macOS.
+  /// architecture, a Windows one only on Windows of its, as `dart compile
+  /// exe` builds for them.
   Future<List<int>?> _build(String platform) async {
     final [os, arch] = platform.split('-');
     final name = SshLauncher.describe(platform);
-    final host = macHostPlatform();
-    if (os == 'darwin' && platform != host) {
+    final host = hostServerPlatform();
+    if (os != 'linux' && platform != host) {
       throw SshConnectException(
         SshFailure.server,
-        'The BaoCode server for $name can only be built on a Mac of that '
-        'architecture: run tool/build_remote_server.dart there',
+        'The BaoCode server for $name can only be built on '
+        '${os == 'darwin' ? 'a Mac' : 'Windows'} of that architecture: run '
+        'tool/build_remote_server.dart there (--only $platform), and give '
+        'its build to this one with --from',
       );
     }
     final out = File(

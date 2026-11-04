@@ -114,7 +114,7 @@ enum SshFailure {
   /// No such host, or it does not answer.
   unreachable,
 
-  /// Not a Linux or macOS host on x64 or arm64.
+  /// Not a Linux, macOS or Windows host on x64 or arm64.
   unsupported,
 
   /// The server could not be put there, or did not start.
@@ -221,7 +221,13 @@ class SshConnection {
 /// Keeps a session's link up: `ssh` running the bridge to it, run again
 /// once lost (at once, then after 1, 2, 4… seconds up to [maxBackoff]).
 class _SessionKeeper {
-  _SessionKeeper(this._launcher, this.target, this._extra, this.id) {
+  _SessionKeeper(
+    this._launcher,
+    this.target,
+    this._extra,
+    this.id, {
+    this.windows,
+  }) {
     channel.linkChanges.listen((up) {
       if (up) {
         _failures = 0;
@@ -239,6 +245,12 @@ class _SessionKeeper {
   final SshTarget target;
   final List<String> _extra;
   final String id;
+
+  /// A Windows host's session: its daemon's port there and the token it
+  /// asks first (see [SshLauncher.windowsSessionScript]), reached by
+  /// `ssh -W` rather than a bridge (what a command there reads of its
+  /// stdin is not to be relied on).
+  final ({int port, String token})? windows;
   late final ResumableChannel channel = ResumableChannel(
     heartbeat: _launcher.heartbeat,
     silence: _launcher.silence,
@@ -264,12 +276,20 @@ class _SessionKeeper {
   Future<(Process, AskpassRun?, List<String>, Future<void>)> dial({
     required bool resume,
   }) async {
-    final (process, askpass) = await _launcher._startSsh(
-      target,
-      _launcher.sessionCommand(id, resume: resume),
-      _extra,
-    );
+    final windows = this.windows;
+    final (process, askpass) = windows == null
+        ? await _launcher._startSsh(
+            target,
+            _launcher.sessionCommand(id, resume: resume),
+            _extra,
+          )
+        : await _launcher._startSsh(target, null, [
+            ..._extra,
+            '-W',
+            '127.0.0.1:${windows.port}',
+          ]);
     _process = process;
+    if (windows != null) process.stdin.add(utf8.encode('${windows.token}\n'));
     final said = <String>[];
     process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
@@ -283,7 +303,7 @@ class _SessionKeeper {
     process.stdin.done.then<void>((_) {}, onError: (Object _) {});
     final gone = channel.attach(
       ChannelLink(
-        input: process.stdout,
+        input: windows == null ? process.stdout : _windowsInput(process, said),
         write: (bytes) => process.stdin.add(bytes),
         close: process.kill,
         // Signing in: the user is being asked (or just answered).
@@ -293,6 +313,34 @@ class _SessionKeeper {
       ),
     );
     return (process, askpass, said, gone);
+  }
+
+  /// [process]'s stdout, `ssh -W`'s: where the daemon is gone (nothing
+  /// listens on its port), what the bridge says then
+  /// ([ResumableChannel.goneLine]). Windows' sshd says nothing of it: the
+  /// forward closed before a byte came, and ssh ended as it does when
+  /// all went well. A connection lost ends it otherwise (255).
+  Stream<List<int>> _windowsInput(Process process, List<String> said) {
+    var heard = false;
+    final controller = StreamController<List<int>>();
+    process.stdout.listen(
+      (data) {
+        heard = true;
+        controller.add(data);
+      },
+      onError: controller.addError,
+      onDone: () async {
+        final code = await process.exitCode.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => -1,
+        );
+        if (!heard && (code == 0 || said.any(SshLauncher.isForwardRefused))) {
+          controller.add(utf8.encode('${ResumableChannel.goneLine}\n'));
+        }
+        await controller.close();
+      },
+    );
+    return controller.stream;
   }
 
   Future<void> retryNow() async {
@@ -524,19 +572,52 @@ class SshLauncher {
   /// The server's path on the host, from the home folder.
   String get serverPath => '$_folder/baocode-server';
 
+  /// On a Windows host, from the user's folder.
+  String get windowsServerPath =>
+      '$serverRoot\\${binaries.version}\\baocode-server.exe';
+
+  /// Where a Windows host's sessions keep their ports, from the user's
+  /// folder.
+  static const windowsRunFolder = '$serverRoot\\run';
+
   /// `ssh`'s arguments to run [command] on [target], with [extra] options
   /// (see [hostKeyOptions]).
   List<String> arguments(
     SshTarget target,
-    String command, {
+    String? command, {
     List<String> extra = const [],
   }) => [
     for (final option in options)
       option == 'BatchMode=yes' && _prompts ? 'BatchMode=no' : option,
     ...extra,
     ...target.arguments,
-    command,
+    ?command,
   ];
+
+  /// `sftp`'s arguments to run [batch] (a file of its commands) on
+  /// [target]: [options]' and [extra]'s `-o`s (sftp takes no `-T` nor
+  /// `-e`), the target's own (`-F`), its port as `-P`. Ahead of `-b`,
+  /// whose `BatchMode=yes` would otherwise come first and win.
+  List<String> sftpArguments(
+    SshTarget target,
+    String batch, {
+    List<String> extra = const [],
+  }) {
+    final all = [
+      for (final option in options)
+        option == 'BatchMode=yes' && _prompts ? 'BatchMode=no' : option,
+      ...extra,
+    ];
+    return [
+      for (var i = 0; i < all.length - 1; i++)
+        if (all[i] == '-o') ...['-o', all[i + 1]],
+      ...target.options,
+      if (target.port case final port?) ...['-P', '$port'],
+      '-b',
+      batch,
+      target.destination,
+    ];
+  }
 
   /// What `ssh -G` makes of [target]'s configuration: each keyword, in
   /// lowercase, and its value; empty when it would not say.
@@ -668,11 +749,13 @@ class SshLauncher {
   /// what it asks answered by [prompter] until [AskpassRun.close].
   Future<(Process, AskpassRun?)> _startSsh(
     SshTarget target,
-    String command,
-    List<String> extra,
-  ) async {
+    String? command,
+    List<String> extra, {
+    String? executable,
+    List<String>? argumentsInstead,
+  }) async {
     if (target.wslDistro case final distro?) {
-      return (await _startWsl(distro, command), null);
+      return (await _startWsl(distro, command ?? 'true'), null);
     }
     final prompter = this.prompter;
     if (prompter != null && _askpass.windows) await _checkForced();
@@ -681,8 +764,8 @@ class SshLauncher {
         : null;
     try {
       final process = await _start(
-        ssh,
-        arguments(target, command, extra: extra),
+        executable ?? ssh,
+        argumentsInstead ?? arguments(target, command, extra: extra),
         environment: askpass?.environment,
       );
       // Cancelled: ended, lest it ask again (up to NumberOfPasswordPrompts
@@ -693,7 +776,7 @@ class SshLauncher {
       await askpass?.close();
       throw SshConnectException(
         SshFailure.noSsh,
-        'ssh could not be started',
+        '${executable == null ? 'ssh' : 'sftp'} could not be started',
         detail: error.message,
       );
     }
@@ -769,30 +852,129 @@ exit 0
         "mv -f $temporary $serverPath'";
   }
 
-  /// [uname -m] as mason names it; null for one there is no build for.
-  static String? architecture(String machine) => switch (machine) {
-    'x86_64' || 'amd64' => 'x64',
-    'aarch64' || 'arm64' => 'arm64',
-    _ => null,
-  };
+  /// [uname -m] (or Windows' `PROCESSOR_ARCHITECTURE`) as mason names
+  /// it; null for one there is no build for.
+  static String? architecture(String machine) =>
+      switch (machine.toLowerCase()) {
+        'x86_64' || 'amd64' => 'x64',
+        'aarch64' || 'arm64' => 'arm64',
+        _ => null,
+      };
+
+  /// Whether [uname -s]'s [system] is Windows': the Windows probe's, or a
+  /// Unix shell's there (Git's, MSYS2's, Cygwin's), whose host is
+  /// Windows all the same.
+  static bool isWindowsSystem(String system) =>
+      system == 'Windows' ||
+      system == 'Windows_NT' ||
+      system.startsWith('MINGW') ||
+      system.startsWith('MSYS') ||
+      system.startsWith('CYGWIN');
 
   /// [uname -s] and [uname -m] as the server's builds are named
-  /// (`linux-x64`, `darwin-arm64`); null for a host there is none for.
+  /// (`linux-x64`, `darwin-arm64`, `windows-x64`); null for a host there
+  /// is none for.
   static String? platform(String system, String machine) {
     final os = switch (system) {
       'Linux' => 'linux',
       'Darwin' => 'darwin',
+      _ when isWindowsSystem(system) => 'windows',
       _ => null,
     };
     final arch = architecture(machine);
     return os == null || arch == null ? null : '$os-$arch';
   }
 
-  /// [platform] for people: `Linux x64`, `macOS arm64`.
+  /// [platform] for people: `Linux x64`, `macOS arm64`, `Windows x64`.
   static String describe(String platform) {
     final parts = platform.split('-');
-    return '${parts.first == 'darwin' ? 'macOS' : 'Linux'} ${parts.last}';
+    final os = switch (parts.first) {
+      'darwin' => 'macOS',
+      'windows' => 'Windows',
+      _ => 'Linux',
+    };
+    return '$os ${parts.last}';
   }
+
+  /// [script] as a command Windows' shells all run alike (cmd, OpenSSH's
+  /// default, or PowerShell, as a host may have it instead): Windows
+  /// PowerShell's, the script given encoded (UTF-16LE, base64), so that
+  /// nothing in it is either shell's to quote. Its output in UTF-8.
+  static String powershellCommand(String script) {
+    final text = '[Console]::OutputEncoding = [Text.Encoding]::UTF8\n$script';
+    final bytes = <int>[
+      for (final unit in text.codeUnits) ...[unit & 0xff, unit >> 8],
+    ];
+    return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass '
+        '-EncodedCommand ${base64.encode(bytes)}';
+  }
+
+  /// [text] as a PowerShell string: quoted, its quotes doubled.
+  static String _quoted(String text) => "'${text.replaceAll("'", "''")}'";
+
+  /// What a Windows host is asked, where `sh` gave no answer: as
+  /// [probeScript], its architecture (the machine's, not this
+  /// PowerShell's) and whether this build of the server is there.
+  String get windowsProbeScript =>
+      '''
+\$ErrorActionPreference = 'SilentlyContinue'
+\$arch = (Get-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment').PROCESSOR_ARCHITECTURE
+if (-not \$arch) { \$arch = \$env:PROCESSOR_ARCHITECTURE }
+[Console]::Out.WriteLine("BAOCODE-PROBE Windows \$arch")
+if (Test-Path -LiteralPath (Join-Path \$env:USERPROFILE ${_quoted(windowsServerPath)})) { [Console]::Out.WriteLine('BAOCODE-PRESENT') }
+exit 0
+''';
+
+  /// What starts session [id]'s daemon on a Windows host, out of the SSH
+  /// session (WMI's process, not one of sshd's, which ends with it), and
+  /// says where it listens: `BAOCODE-SESSION <port> <token>`, as the
+  /// daemon writes them to a file of the user's (see ServerSession).
+  String windowsSessionScript(String id) {
+    final arguments = [
+      '--daemon',
+      id,
+      if (sessionGrace case final grace?) ...['--grace', '${grace.inSeconds}'],
+      if (heartbeat != const Duration(seconds: 5)) ...[
+        '--heartbeat',
+        '${heartbeat.inMilliseconds}',
+      ],
+    ].join(' ');
+    return '''
+\$ErrorActionPreference = 'Stop'
+\$exe = Join-Path \$env:USERPROFILE ${_quoted(windowsServerPath)}
+\$run = Join-Path \$env:USERPROFILE ${_quoted(windowsRunFolder)}
+\$file = Join-Path \$run ${_quoted('$id.port')}
+\$line = '"' + \$exe + '" $arguments --run "' + \$run + '"'
+try {
+  \$started = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = \$line; CurrentDirectory = \$env:USERPROFILE }
+} catch {
+  [Console]::Error.WriteLine("The server could not be started: \$_")
+  exit 2
+}
+if (\$started.ReturnValue -ne 0) {
+  [Console]::Error.WriteLine("The server could not be started (Win32_Process.Create: \$(\$started.ReturnValue))")
+  exit 2
+}
+for (\$i = 0; \$i -lt 300; \$i++) {
+  if (Test-Path -LiteralPath \$file) {
+    \$text = [IO.File]::ReadAllText(\$file).Trim()
+    if (\$text -match '^[0-9]+ [0-9a-f]+\$') {
+      [Console]::Out.WriteLine("BAOCODE-SESSION \$text")
+      exit 0
+    }
+  }
+  if (-not (Get-Process -Id \$started.ProcessId -ErrorAction SilentlyContinue)) { break }
+  Start-Sleep -Milliseconds 100
+}
+[Console]::Error.WriteLine('The server did not start (see ' + (Join-Path \$run ${_quoted('$id.log')}) + ')')
+exit 2
+''';
+  }
+
+  /// Whether `ssh -W`'s [line] says nothing listens where it forwards
+  /// to: a Windows session's daemon gone.
+  static bool isForwardRefused(String line) =>
+      line.contains('open failed') || line.contains('stdio forwarding failed');
 
   Future<SshConnection> connect(
     SshTarget target, {
@@ -807,12 +989,37 @@ exit 0
       extra,
       stdin: utf8.encode(probeScript),
     );
-    final lines = const LineSplitter().convert(probe.stdout);
-    final header = lines.firstWhere(
-      (line) => line.startsWith('BAOCODE-PROBE '),
-      orElse: () => '',
-    );
-    final parts = header.split(' ');
+    var lines = const LineSplitter().convert(probe.stdout);
+    List<String> partsOf(List<String> lines) => lines
+        .firstWhere(
+          (line) => line.startsWith('BAOCODE-PROBE '),
+          orElse: () => '',
+        )
+        .split(' ');
+    var parts = partsOf(lines);
+    // No sh there (Windows' shells), or a Unix shell of Windows': asked
+    // as Windows is.
+    if (target.wslDistro == null &&
+        (parts.length < 3 || isWindowsSystem(parts[1]))) {
+      final windows = await _run(
+        target,
+        powershellCommand(windowsProbeScript),
+        extra,
+      );
+      final windowsLines = const LineSplitter().convert(windows.stdout);
+      if (partsOf(windowsLines) case final found when found.length >= 3) {
+        (lines, parts) = (windowsLines, found);
+      } else if (parts.length < 3) {
+        throw SshConnectException(
+          SshFailure.server,
+          'The host gave no answer the app understands',
+          detail: _tail(
+            '${probe.stdout}\n${probe.stderr}\n'
+            '${windows.stdout}\n${windows.stderr}',
+          ),
+        );
+      }
+    }
     if (parts.length < 3) {
       throw SshConnectException(
         SshFailure.server,
@@ -825,10 +1032,11 @@ exit 0
     if (platform == null) {
       throw SshConnectException(
         SshFailure.unsupported,
-        'Only Linux and macOS hosts on x64 or arm64 are supported, not '
-        '$system $machine',
+        'Only Linux, macOS and Windows hosts on x64 or arm64 are supported, '
+        'not $system $machine',
       );
     }
+    final windows = platform.startsWith('windows-');
     if (!lines.contains('BAOCODE-PRESENT')) {
       progress('Installing the BaoCode server on ${target.name}');
       final binary = await binaries.read(platform);
@@ -837,6 +1045,11 @@ exit 0
           SshFailure.server,
           'This build of the app has no server for ${describe(platform)}',
         );
+      }
+      if (windows) {
+        await _uploadWindows(target, extra, binary);
+        progress('Starting the BaoCode server on ${target.name}');
+        return _launchWindows(target, extra);
       }
       final gzip = lines.contains('BAOCODE-GZIP');
       final upload = await _run(
@@ -854,11 +1067,119 @@ exit 0
       }
     }
     progress('Starting the BaoCode server on ${target.name}');
-    return _launch(target, extra);
+    return windows ? _launchWindows(target, extra) : _launch(target, extra);
   }
 
-  Future<SshConnection> _launch(SshTarget target, List<String> extra) async {
-    final keeper = _SessionKeeper(this, target, extra, _nonce(16));
+  /// Puts [binary] at [windowsServerPath] on a Windows host by `sftp`, its
+  /// own subsystem: what a command there reads of its stdin (as Unix
+  /// hosts are sent it) stops short there.
+  Future<void> _uploadWindows(
+    SshTarget target,
+    List<String> extra,
+    List<int> binary,
+  ) async {
+    final local = await Directory.systemTemp.createTemp('baocode-upload-');
+    try {
+      final file = File('${local.path}${Platform.pathSeparator}server.exe');
+      await file.writeAsBytes(binary);
+      final folder = '$serverRoot/${binaries.version}';
+      final temporary = '$folder/.upload-${_nonce()}';
+      final batch = File('${local.path}${Platform.pathSeparator}batch');
+      // A leading - lets a command fail (the folder there already); sftp's
+      // quotes take backslashes as escapes, Windows' paths slashes alike.
+      await batch.writeAsString(
+        [
+          '-mkdir $serverRoot',
+          '-mkdir $folder',
+          'put "${file.path.replaceAll(r'\', '/')}" "$temporary"',
+          '-rm "$folder/baocode-server.exe"',
+          'rename "$temporary" "$folder/baocode-server.exe"',
+          '',
+        ].join('\n'),
+      );
+      final (process, askpass) = await _startSsh(
+        target,
+        null,
+        extra,
+        executable: _beside(ssh, 'sftp'),
+        argumentsInstead: sftpArguments(target, batch.path, extra: extra),
+      );
+      unawaited(process.stdout.drain<void>().catchError((Object _) {}));
+      final stderr = process.stderr
+          .transform(const Utf8Decoder(allowMalformed: true))
+          .join();
+      await process.stdin.close().catchError((Object _) {});
+      final int code;
+      try {
+        code = await process.exitCode.timeout(
+          const Duration(minutes: 10),
+          onTimeout: () {
+            process.kill();
+            return -1;
+          },
+        );
+      } finally {
+        await askpass?.close();
+      }
+      if (code != 0) {
+        final said = await stderr;
+        if (code == 255 || (askpass?.cancelled ?? false)) {
+          throw _failure(code, said, cancelled: askpass?.cancelled ?? false);
+        }
+        throw SshConnectException(
+          SshFailure.server,
+          'The server could not be installed on ${target.name}',
+          detail: _tail(said),
+        );
+      }
+    } finally {
+      await local.delete(recursive: true).catchError((Object _) => local);
+    }
+  }
+
+  /// Starts a session's daemon on a Windows host
+  /// ([windowsSessionScript]), then connects to it.
+  Future<SshConnection> _launchWindows(
+    SshTarget target,
+    List<String> extra,
+  ) async {
+    final id = _nonce(16);
+    final started = await _run(
+      target,
+      powershellCommand(windowsSessionScript(id)),
+      extra,
+    );
+    final parts = const LineSplitter()
+        .convert(started.stdout)
+        .firstWhere(
+          (line) => line.startsWith('BAOCODE-SESSION '),
+          orElse: () => '',
+        )
+        .split(' ');
+    final port = parts.length == 3 ? int.tryParse(parts[1]) : null;
+    if (port == null) {
+      throw SshConnectException(
+        SshFailure.server,
+        'The server on ${target.name} did not start',
+        detail: _tail('${started.stdout}\n${started.stderr}'),
+      );
+    }
+    return _connectKeeper(
+      _SessionKeeper(
+        this,
+        target,
+        extra,
+        id,
+        windows: (port: port, token: parts[2]),
+      ),
+    );
+  }
+
+  Future<SshConnection> _launch(SshTarget target, List<String> extra) =>
+      _connectKeeper(_SessionKeeper(this, target, extra, _nonce(16)));
+
+  Future<SshConnection> _connectKeeper(_SessionKeeper keeper) async {
+    final target = keeper.target;
     final (process, askpass, said, gone) = await keeper.dial(resume: false);
     final peer = RpcPeer(keeper.channel.messages, keeper.channel.send);
     final client = RemoteClient(peer);

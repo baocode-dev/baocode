@@ -85,6 +85,22 @@ void main() {
       expect(RemoteLocation.pathOf('ssh://dev'), '/');
     });
 
+    test("a Windows host's paths are its own, with slashes in a location", () {
+      const location = 'ssh://win/C:/Users/me/app';
+      expect(RemoteLocation.of('win', r'C:\Users\me\app\'), location);
+      expect(RemoteLocation.pathOf(location), r'C:\Users\me\app');
+      expect(RemoteLocation.pathOf('ssh://win/D:'), r'D:\');
+      expect(RemoteLocation.pathsOf(location), p.windows);
+      expect(RemoteLocation.nameOf(location), 'app');
+      expect(RemoteLocation.pathsOf('ssh://dev/home/me'), p.posix);
+      expect(RemoteLocation.pathsFor(r'C:\x'), p.windows);
+      expect(RemoteLocation.pathsFor(r'\\server\share'), p.windows);
+      expect(RemoteLocation.pathsFor('/C:/x'), p.posix);
+      final project = Project.at(location);
+      expect(project.name, 'app');
+      expect(project.root, r'C:\Users\me\app');
+    });
+
     test('projects are told apart by host and path', () {
       final remote = Project.at('ssh://dev/home/me/app');
       expect(remote.name, 'app');
