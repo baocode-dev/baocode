@@ -4707,7 +4707,13 @@
       }
     }
   },
-  "modelsRefreshQuota": "Refresh Quota",
+  "modelsRefreshQuota": "Refresh All Quotas",
+  "modelsAccountRefreshQuota": "Refresh quota for {name}",
+  "@modelsAccountRefreshQuota": {
+    "placeholders": {
+      "name": {"type": "String"}
+    }
+  },
   "modelsAccountRemove": "Remove account",
   "modelsAccountRemoveConfirm": "Remove “{name}”?",
   "@modelsAccountRemoveConfirm": {

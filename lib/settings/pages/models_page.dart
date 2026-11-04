@@ -639,6 +639,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   CodexLogin? _login;
   String? _loginError;
   bool _refreshingQuota = false;
+  final Set<String> _refreshingAccounts = {};
 
   ModelProviders get _providers => widget.providers;
   ModelProvider get _provider => widget.provider;
@@ -688,6 +689,18 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
       await _codex.refreshUsage(_providerNow);
     } finally {
       if (mounted) setState(() => _refreshingQuota = false);
+    }
+  }
+
+  Future<void> _refreshAccountQuota(ProviderAccount account) async {
+    if (_refreshingQuota || !_refreshingAccounts.add(account.id)) return;
+    setState(() {});
+    try {
+      await _codex.refreshAccountUsage(_providerNow, account.id);
+    } finally {
+      if (mounted) {
+        setState(() => _refreshingAccounts.remove(account.id));
+      }
     }
   }
 
@@ -1070,6 +1083,11 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
               resetCredits: _codex.resetCredits(provider.id, account.id),
               resetting: _codex.resetting(provider.id, account.id),
               onReset: () => unawaited(_useResetCredit(account)),
+              refreshing: _refreshingAccounts.contains(account.id),
+              onRefresh:
+                  _refreshingQuota || _refreshingAccounts.contains(account.id)
+                  ? null
+                  : () => unawaited(_refreshAccountQuota(account)),
               onEnabled: (value) => unawaited(
                 _save(
                   _providerNow.withAccount(account.copyWith(enabled: value)),
@@ -1146,7 +1164,9 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                     label: l10n.modelsRefreshQuota,
                     icon: Codicons.refresh,
                     secondary: true,
-                    onPressed: _refreshingQuota
+                    spinning: _refreshingQuota,
+                    onPressed:
+                        _refreshingQuota || _refreshingAccounts.isNotEmpty
                         ? null
                         : () => unawaited(_refreshQuota()),
                   ),
@@ -2004,6 +2024,8 @@ class _AccountRow extends StatelessWidget {
     required this.limitedUntil,
     required this.onEnabled,
     required this.onRemove,
+    required this.refreshing,
+    required this.onRefresh,
     this.resetCredits,
     this.resetting = false,
     this.onReset,
@@ -2015,6 +2037,8 @@ class _AccountRow extends StatelessWidget {
   final DateTime? limitedUntil;
   final ValueChanged<bool> onEnabled;
   final VoidCallback onRemove;
+  final bool refreshing;
+  final VoidCallback? onRefresh;
 
   /// Its reset credits, as listed; [onReset] uses one up.
   final List<CodexResetCredit>? resetCredits;
@@ -2098,6 +2122,20 @@ class _AccountRow extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  IdeActionButton(
+                    icon: Codicons.refresh,
+                    iconWidget: refreshing
+                        ? PixelLoader.agent(
+                            size: 12,
+                            color: IdeActionButton.foreground,
+                          )
+                        : null,
+                    tooltip: l10n.modelsAccountRefreshQuota(
+                      account.displayName,
+                    ),
+                    onPressed: onRefresh,
+                  ),
+                  const SizedBox(width: 8),
                   SettingsSwitch(
                     value: account.enabled,
                     semanticLabel: l10n.modelsAccountEnable(

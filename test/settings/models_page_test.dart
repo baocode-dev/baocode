@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:baocode/icons/brand_logos.dart';
 import 'package:baocode/icons/project_icon.dart';
 import 'package:baocode/ide/ide_hover.dart';
+import 'package:baocode/ide/ide_button.dart';
 import 'package:baocode/ide/ide_back_button.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/claude_code/claude_haiku.dart';
@@ -29,6 +30,8 @@ class _FakeCodex extends CodexService {
   final Map<String, CodexUsage> usages = {};
   final List<String> removed = [];
   int refreshed = 0;
+  final List<List<String>> quotaRequests = [];
+  Future<void> Function(ModelProvider)? onRefresh;
   Completer<ProviderAccount>? _pending;
 
   /// Whether sign-in finds its port free.
@@ -55,10 +58,11 @@ class _FakeCodex extends CodexService {
   }
 
   @override
-  Future<void> refreshUsage(
-    ModelProvider provider, {
-    bool force = true,
-  }) async => refreshed++;
+  Future<void> refreshUsage(ModelProvider provider, {bool force = true}) async {
+    refreshed++;
+    quotaRequests.add([for (final account in provider.accounts) account.id]);
+    await onRefresh?.call(provider);
+  }
 
   @override
   CodexUsage? usage(String providerId, String accountId) => usages[accountId];
@@ -1112,6 +1116,136 @@ void main() {
     await tester.pumpAndSettle();
     expect(codex.removed, ['b']);
     expect(providers.provider('cx')!.accounts.map((a) => a.id), ['a']);
+  });
+
+  group('per-account quota refresh', () {
+    Future<_FakeCodex> openAccounts(WidgetTester tester) async {
+      await providers.save(
+        const ModelProvider(
+          id: 'cx',
+          name: 'ChatGPT',
+          protocol: ProviderProtocol.codex,
+          accounts: [
+            ProviderAccount(id: 'a', email: 'a@example.com'),
+            ProviderAccount(id: 'b', email: 'b@example.com', enabled: false),
+          ],
+        ),
+      );
+      final codex = _FakeCodex(providers);
+      await pump(tester, codex: codex);
+      await tester.tap(find.text('ChatGPT'));
+      await tester.pumpAndSettle();
+      codex.quotaRequests.clear();
+      return codex;
+    }
+
+    Finder refresh(String email) => find.byWidgetPredicate(
+      (widget) =>
+          widget is IdeActionButton &&
+          widget.tooltip == 'Refresh quota for $email',
+    );
+    Finder refreshAll() => find.widgetWithText(IdeButton, 'Refresh All Quotas');
+
+    testWidgets(
+      'each row refreshes only its own account; all stays available',
+      (tester) async {
+        final codex = await openAccounts(tester);
+        await tester.tap(refresh('a@example.com'));
+        await tester.pumpAndSettle();
+        expect(codex.quotaRequests, [
+          ['a'],
+        ]);
+        // Disabled accounts can still have their quota queried by hand.
+        await tester.tap(refresh('b@example.com'));
+        await tester.pumpAndSettle();
+        expect(codex.quotaRequests, [
+          ['a'],
+          ['b'],
+        ]);
+        await tester.tap(refreshAll());
+        await tester.pumpAndSettle();
+        expect(codex.quotaRequests, [
+          ['a'],
+          ['b'],
+          ['a', 'b'],
+        ]);
+      },
+    );
+
+    testWidgets('a busy account is disabled while another can refresh', (
+      tester,
+    ) async {
+      final codex = await openAccounts(tester);
+      final pending = Completer<void>();
+      codex.onRefresh = (provider) async {
+        if (provider.accounts.single.id == 'a') await pending.future;
+      };
+      await tester.tap(refresh('a@example.com'));
+      await tester.pump();
+      final busy = tester.widget<IdeActionButton>(refresh('a@example.com'));
+      expect(busy.onPressed, isNull);
+      expect(busy.iconWidget, isA<PixelLoader>());
+      expect(
+        tester.widget<IdeActionButton>(refresh('b@example.com')).onPressed,
+        isNotNull,
+      );
+      expect(tester.widget<IdeButton>(refreshAll()).onPressed, isNull);
+      await tester.tap(refresh('a@example.com'));
+      await tester.pump();
+      expect(codex.quotaRequests, [
+        ['a'],
+      ]);
+      await tester.tap(refresh('b@example.com'));
+      await tester.pump();
+      expect(codex.quotaRequests, [
+        ['a'],
+        ['b'],
+      ]);
+      pending.complete();
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<IdeActionButton>(refresh('a@example.com')).onPressed,
+        isNotNull,
+      );
+      expect(
+        tester.widget<IdeActionButton>(refresh('a@example.com')).iconWidget,
+        isNull,
+      );
+      expect(tester.widget<IdeButton>(refreshAll()).onPressed, isNotNull);
+    });
+
+    testWidgets('refresh all disables per-account buttons until it finishes', (
+      tester,
+    ) async {
+      final codex = await openAccounts(tester);
+      final pending = Completer<void>();
+      codex.onRefresh = (_) => pending.future;
+      await tester.tap(refreshAll());
+      await tester.pump();
+      expect(codex.quotaRequests, [
+        ['a', 'b'],
+      ]);
+      expect(tester.widget<IdeButton>(refreshAll()).spinning, isTrue);
+      expect(
+        tester.widget<IdeActionButton>(refresh('a@example.com')).onPressed,
+        isNull,
+      );
+      expect(
+        tester.widget<IdeActionButton>(refresh('b@example.com')).onPressed,
+        isNull,
+      );
+      pending.complete();
+      await tester.pumpAndSettle();
+      expect(tester.widget<IdeButton>(refreshAll()).spinning, isFalse);
+      expect(
+        tester.widget<IdeActionButton>(refresh('a@example.com')).onPressed,
+        isNotNull,
+      );
+      expect(
+        tester.widget<IdeActionButton>(refresh('b@example.com')).onPressed,
+        isNotNull,
+      );
+    });
   });
 
   testWidgets('signing in can be cancelled', (tester) async {
