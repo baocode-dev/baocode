@@ -24,7 +24,7 @@ Environment:
 | `BAOCODE_E2E_OUT` | where screenshots and results go |
 | `BAOCODE_E2E_HOST` | the host, as a project names it (`user@host`, or a saved server's name) |
 | `BAOCODE_E2E_ROOT` | the repository there (`C:\…`) |
-| `BAOCODE_E2E_PHASE` | `main`, `restart` (after `main`, same data folder) or `windows` |
+| `BAOCODE_E2E_PHASE` | `main`, `restart` (after `main`, same data folder), `windows` or `lsp` |
 | `BAOCODE_E2E_MODEL` | the agent's model, e.g. `@provider-3/glm-5.3` (an OpenCode one) |
 | `BAOCODE_E2E_CHROME`, `BAOCODE_E2E_EXTENSION` | a Chrome wrapper loading the unpacked extension (see the browser live tests), and `browser_extension/` |
 | `BAOCODE_E2E_SSH_HOST`, `BAOCODE_E2E_SSH_USER`, `BAOCODE_E2E_KEY` | `windows`: the saved server's address, user and key |
@@ -46,3 +46,7 @@ Phases:
 - `windows` (the app on Windows, the host this machine over its own sshd):
   the `main` steps without the agent and the browser; the tools for this
   machine called as an agent calls them (`local_run` in PowerShell).
+- `lsp`: the status bar's entry naming the host's system (`Windows x64`) on
+  hover; TypeScript's server (npm) and ty (PyPI) installed there, then a
+  file's errors, hover, and Go to Definition opening the other file once.
+  The host needs Node.js and Python.

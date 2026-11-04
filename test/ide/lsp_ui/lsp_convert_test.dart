@@ -15,6 +15,11 @@ void main() {
       lspPathOfUri('file:///C:/app/main.ts', paths: p.windows),
       r'C:\app\main.ts',
     );
+    // typescript-language-server's: the drive in small letters, escaped.
+    expect(
+      lspPathOfUri('file:///c%3A/app/main.ts', paths: p.windows),
+      r'C:\app\main.ts',
+    );
     expect(lspPathOfUri('untitled:Untitled-1', paths: p.posix), isNull);
   });
 

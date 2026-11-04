@@ -10,6 +10,7 @@ import 'file_views.dart';
 import 'git/git_repository.dart';
 import 'git/scm_host.dart';
 import 'git/repository_scan.dart';
+import 'host_paths.dart';
 import 'ide_layout.dart';
 import 'ide_local_history.dart';
 import 'ide_notifications.dart';
@@ -196,7 +197,7 @@ class IdeDocument {
   String get savedText => model.savedText;
   set savedText(String value) => model.markSaved(value);
 
-  String get name => p.basename(path);
+  String get name => hostBasename(path);
 
   /// The tab's title: the name, and the [label].
   String get title => label?.isNotEmpty ?? false ? '$name ($label)' : name;

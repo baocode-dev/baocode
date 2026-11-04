@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import 'file_service.dart';
+import 'host_paths.dart';
 
 enum IdeFolderChange { added, deleted, modified }
 
@@ -24,7 +25,9 @@ Future<List<IdeFolderDifference>> ideCompareFolders(
     final listing = await listProjectFiles(files, folder, limit: limit);
     return {
       for (final path in listing.paths)
-        p.posix.joinAll(p.split(p.relative(path, from: folder))),
+        p.posix.joinAll(
+          hostContext(folder).split(hostRelative(path, from: folder)),
+        ),
     };
   }
 

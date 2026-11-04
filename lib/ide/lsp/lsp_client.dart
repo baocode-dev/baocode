@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import '../host_paths.dart';
 import 'json_rpc.dart';
 import 'language_features.dart';
 import 'lsp_glob.dart';
@@ -906,7 +907,9 @@ List<JsonMap> _maps(Object? value) => [
 String? _pathOf(String uri, {bool? windows}) {
   try {
     final parsed = Uri.parse(uri);
-    return parsed.scheme == 'file' ? parsed.toFilePath(windows: windows) : null;
+    if (parsed.scheme != 'file') return null;
+    final path = parsed.toFilePath(windows: windows);
+    return windows == true ? capitalDrive(path) : path;
   } on Object {
     return null;
   }

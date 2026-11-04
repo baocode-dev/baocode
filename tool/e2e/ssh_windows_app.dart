@@ -17,6 +17,8 @@ import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/side_panel/side_panel_controller.dart';
 import 'package:baocode/chat/side_panel/side_panel_view.dart';
 import 'package:baocode/ide/ide_workbench.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
+import 'package:baocode/ide/lsp/lsp_protocol.dart' show LspPosition;
 import 'package:baocode/ide/terminal/terminal_instance.dart';
 import 'package:baocode/ide/terminal/terminal_panel.dart';
 import 'package:baocode/kernel/agent_kernel.dart' show KernelChoiceKind;
@@ -121,6 +123,8 @@ Future<void> main() async {
       await run.restarted();
     } else if (phase == 'windows') {
       await run.windowsClient();
+    } else if (phase == 'lsp') {
+      await run.languageServers();
     } else {
       await run.everything();
     }
@@ -817,6 +821,167 @@ class _Run {
     });
   }
 
+  // --- The host's system, its language servers -----------------------------
+
+  /// The status bar's entry naming the host's system on hover; language
+  /// servers installed there as the app offers (an npm one, a PyPI one),
+  /// then a file's errors, hover and a definition in another file.
+  Future<void> languageServers() async {
+    await step('30-system', () async {
+      await _until(
+        () => SshHosts.instance[host].state == SshHostState.connected,
+        'connected',
+        seconds: 120,
+      );
+      await _settle(frames: 20);
+      final entry = _textElements(
+        '',
+        where: (text) => text.startsWith('SSH: '),
+      ).firstOrNull;
+      if (entry == null) throw StateError('No SSH entry in the status bar');
+      final box = entry.findRenderObject()! as RenderBox;
+      _input.hover(box.localToGlobal(box.size.center(Offset.zero)));
+      await _until(
+        () => _richContains('Windows x64') || _richContains('Windows arm64'),
+        'the system in its tooltip',
+        seconds: 10,
+      );
+      return {'platform': SshHosts.instance[host].hello?.platform.toString()};
+    });
+
+    final client = await SshHosts.instance[host].ready;
+    for (final (file, text) in [
+      (
+        r'src\lib.ts',
+        'export function helper(n: number): number {\n  return n * 2;\n}\n',
+      ),
+      (
+        r'src\main.ts',
+        "import { helper } from './lib';\n"
+            "const wrong: number = 'text';\n"
+            'console.log(helper(wrong));\n',
+      ),
+      (
+        r'src\main.py',
+        'def twice(n: int) -> int:\n'
+            '    return n * 2\n'
+            '\n'
+            'wrong: int = "text"\n'
+            'print(twice(wrong))\n',
+      ),
+    ]) {
+      await client.writeBytes(root, at(file), utf8.encode(text));
+    }
+
+    Future<Map<String, Object?>> serve(
+      String file, {
+      required LspPosition hoverAt,
+      required LspPosition definitionAt,
+      required String definedIn,
+      String? goTo,
+    }) async {
+      _input.leave();
+      final path = at(file);
+      await ide.openFile(path);
+      await _until(() => _find<EditorSurface>() != null, 'the editor');
+      final languages = ide.widget.workspace.languages;
+      if (languages == null) throw StateError('No language features');
+      await _until(
+        () => languages.statusFor(path).isNotEmpty,
+        'a server for it',
+        seconds: 60,
+      );
+      // Not there yet: installed there, as the notification's Install does.
+      await _until(
+        () => languages
+            .statusFor(path)
+            .every((s) => s.state != LanguageServerState.starting),
+        'the server looked for',
+        seconds: 60,
+      );
+      final first = languages.statusFor(path).first;
+      final installed = first.state == LanguageServerState.missing;
+      if (installed) {
+        if (!first.installable) {
+          throw StateError(
+            '${first.serverId} missing, not installable '
+            '(${first.missingRuntime ?? first.message})',
+          );
+        }
+        await languages.install(first.serverId, path: path);
+      }
+      await _until(
+        () => languages.diagnosticsFor(path).isNotEmpty,
+        'its errors',
+        seconds: 300,
+      );
+      final hover = await languages.hover(path, hoverAt);
+      final definition = await languages.definition(path, definitionAt);
+      final target = [
+        for (final location in definition)
+          Uri.parse(location.uri).toFilePath(windows: true),
+      ];
+      final expected = at(definedIn).toLowerCase();
+      if (!target.any((path) => path.toLowerCase() == expected)) {
+        throw StateError('Definition at $target, not $expected');
+      }
+      if (hover == null) throw StateError('No hover');
+      String? opened;
+      if (goTo != null) {
+        // Go to Definition from the editor: the file there opened once,
+        // spelled as the explorer spells it.
+        final surface = _find<EditorSurface>()!.widget as EditorSurface;
+        final text = surface.controller.document.snapshot.text;
+        await _input.click(_pointAt(text.indexOf(goTo) + 2));
+        ide.runCommand('editor.action.revealDefinition');
+        final want = at(definedIn);
+        await _until(
+          () => ide.widget.workspace.active?.path == want,
+          'the definition opened',
+          seconds: 30,
+        );
+        opened = ide.widget.workspace.active?.path;
+        final copies = ide.widget.workspace.documents
+            .where((doc) => doc.path.toLowerCase() == want.toLowerCase())
+            .length;
+        if (copies != 1) throw StateError('$want open $copies times');
+      }
+      ide.runCommand('workbench.actions.view.problems');
+      await _settle(frames: 20);
+      return {
+        'server': first.serverId,
+        'installedNow': installed,
+        'diagnostics': [
+          for (final diagnostic in languages.diagnosticsFor(path))
+            diagnostic.message,
+        ],
+        'hover': hover.markdown,
+        'definition': target,
+        'opened': ?opened,
+      };
+    }
+
+    await step(
+      '31-lsp-typescript',
+      () => serve(
+        r'src\main.ts',
+        hoverAt: const LspPosition(1, 8),
+        definitionAt: const LspPosition(2, 14),
+        definedIn: r'src\lib.ts',
+        goTo: 'helper(wrong)',
+      ),
+    );
+    await step(
+      '32-lsp-python',
+      () => serve(
+        r'src\main.py',
+        hoverAt: const LspPosition(4, 8),
+        definitionAt: const LspPosition(4, 8),
+        definedIn: r'src\main.py',
+      ),
+    );
+  }
+
   // --- Helpers ---------------------------------------------------------------
 
   final List<Object> _keep = [];
@@ -1033,12 +1198,13 @@ Element? _find<T extends Widget>({bool Function(T widget)? where}) {
   return found;
 }
 
-/// Every [RichText] element showing [text] exactly, on screen.
-List<Element> _textElements(String text) {
+/// Every [RichText] element showing [text] exactly (or text [where]
+/// accepts), on screen.
+List<Element> _textElements(String text, {bool Function(String text)? where}) {
   final found = <Element>[];
   void visit(Element element) {
     if (element.widget case final RichText rich
-        when rich.text.toPlainText() == text) {
+        when (where ?? (shown) => shown == text)(rich.text.toPlainText())) {
       final box = element.findRenderObject();
       if (box is RenderBox && box.hasSize && box.attached) found.add(element);
     }
@@ -1111,7 +1277,11 @@ Future<void> _settle({int frames = 10}) async {
 Future<void> _shot(String name) async {
   final view = RendererBinding.instance.renderViews.first;
   final layer = view.debugLayer! as OffsetLayer;
-  final image = await layer.toImage(Offset.zero & view.size, pixelRatio: 1);
+  // The root layer scales to the display's pixels: all of them.
+  final image = await layer.toImage(
+    Offset.zero & view.flutterView.physicalSize,
+    pixelRatio: 1,
+  );
   final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
   image.dispose();
   if (bytes == null) throw StateError('No screenshot bytes');

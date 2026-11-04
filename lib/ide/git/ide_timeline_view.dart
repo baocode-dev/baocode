@@ -20,12 +20,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path/path.dart' as p;
 
 import '../../base/smooth_scroll.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart';
+import '../host_paths.dart';
 import '../ide_dates.dart';
 import '../ide_hover.dart';
 import '../ide_list.dart';
@@ -321,7 +321,7 @@ class _IdeTimelineViewState extends State<IdeTimelineView>
     }
     final commits = _commits;
     if (commits == null) {
-      return _message(l10n.timelineLoading(p.basename(path)));
+      return _message(l10n.timelineLoading(hostBasename(path)));
     }
     final items = _itemsOf(path, commits);
     if (items.isEmpty) {

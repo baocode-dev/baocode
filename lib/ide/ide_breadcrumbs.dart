@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import '../theme/codicons.dart';
 import '../theme/material_file_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import 'host_paths.dart';
 import 'lsp/lsp_protocol.dart';
 import 'lsp_ui/language_icons.dart';
 
@@ -36,8 +37,9 @@ class IdeBreadcrumbs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final inside = p.isWithin(root, path);
-    final parts = p.split(inside ? p.relative(path, from: root) : path);
+    final paths = hostContext(path);
+    final inside = paths.isWithin(root, path);
+    final parts = paths.split(inside ? paths.relative(path, from: root) : path);
     var base = inside ? root : '';
     final segments = <(String, String, bool)>[];
     for (final (i, part) in parts.indexed) {

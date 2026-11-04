@@ -6,12 +6,14 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:baocode/ide/file_service.dart';
+import 'package:baocode/ide/host_paths.dart';
 import 'package:baocode/ide/ide_commands.dart';
 import 'package:baocode/ide/ide_find_widget.dart';
 import 'package:baocode/ide/ide_fuzzy.dart';
 import 'package:baocode/ide/ide_quick_open.dart';
 import 'package:baocode/ide/ide_status_bar.dart';
 import 'package:baocode/ide/ide_tab_bar.dart';
+import 'package:baocode/ide/ide_workspace.dart' show IdeDocument;
 import 'package:baocode/ide/project_tools.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:path/path.dart' as p;
@@ -217,6 +219,22 @@ void main() {
       'project',
       'docs',
     ]);
+  });
+
+  test('a Windows host\'s files are named by their names, from any app', () {
+    const root = r'C:\wtest\repo';
+    expect(IdeDocument(r'C:\wtest\repo\src\main.ts', '').name, 'main.ts');
+    expect(
+      ideTabDescriptions([
+        r'C:\wtest\repo\src\a\main.ts',
+        r'C:\wtest\repo\src\b\main.ts',
+        r'C:\wtest\repo\main.ts',
+        r'C:\wtest\repo\lib.ts',
+      ], root),
+      ['…/a', '…/b', 'repo', null],
+    );
+    expect(hostBasename('/home/me/a.txt'), 'a.txt');
+    expect(hostRelative(r'C:\wtest\repo\src', from: root), 'src');
   });
 
   test('status labels: encoding, line endings, find counter', () {
