@@ -12,7 +12,6 @@ import 'package:baocode/chat/widgets/inline_rename_field.dart';
 import 'package:baocode/ide/ide_modern_ui.dart';
 import 'package:baocode/ide/ide_workbench.dart';
 import 'package:baocode/main.dart';
-import 'package:baocode/theme/app_theme.dart';
 import 'package:baocode/sidebar/sidebar.dart';
 import 'package:baocode/workspace/islands.dart';
 import 'package:baocode/workspace/chat_drag.dart';
@@ -800,10 +799,7 @@ void main() {
         final paneRect = tester.getRect(pane(title));
         final rail = railOf(title);
         expect(rail.right, paneRect.right - AgentSidePanelArea.railRight);
-        expect(
-          rail.top - paneRect.top,
-          AppMetrics.titleBarHeight + AgentSidePanelArea.railRight,
-        );
+        expect(rail.top - paneRect.top, AgentSidePanelArea.defaultRailTop);
         final close = tester.getRect(
           find.descendant(
             of: pane(title),

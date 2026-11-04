@@ -72,6 +72,7 @@ class ChatScreen extends StatefulWidget {
     this.session,
     this.leading,
     this.trailing,
+    this.cardTrailing,
     this.titleBarInset,
     this.onRename,
     this.onSummarizeTitle,
@@ -114,6 +115,18 @@ class ChatScreen extends StatefulWidget {
 
   /// At the right of the title bar, e.g. a button to open the project.
   final Widget? trailing;
+
+  /// The conversation's own buttons (its terminal's, its side panel's): on
+  /// its card ([island]), at the right of the row along its top, after the
+  /// title; else before [trailing].
+  final Widget? cardTrailing;
+
+  /// The row along the top of its card, with its title.
+  static const cardHeaderHeight = 36.0;
+
+  /// From the card's right to the row's last button: in line with the side
+  /// panel's rail under it (see AgentSidePanelArea.railRight).
+  static const cardHeaderEnd = 17.0;
 
   /// Left of the title bar's [leading]: by default clear of the native
   /// traffic lights, as when this is the whole window. The title and
@@ -613,14 +626,15 @@ class _ChatScreenState extends State<ChatScreen>
       ChatCommandIds.closeSubagent: back.onBack,
   };
 
-  Widget _buildTitleBar() {
+  /// The session's title, renamed in place by a double click; its
+  /// [ChatScreen.subtitle] after it, or [ChatScreen.titleTabs] instead.
+  Widget _buildTitle() {
     final style = TextStyle(
       color: widget.focused ? AppColors.textMuted : AppColors.textFaint,
       fontSize: 12.5,
       fontWeight: FontWeight.w500,
     );
     final onRename = widget.onRename;
-    final inset = widget.titleBarInset ?? AppMetrics.trafficLightsWidth + 12;
     Widget title;
     if (_renaming && onRename != null) {
       title = SizedBox(
@@ -651,6 +665,47 @@ class _ChatScreenState extends State<ChatScreen>
           widget.titleDragBuilder?.call(title) ??
           (widget.windowTitleBar ? TitleBarDragHandle(child: title) : title);
     }
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: switch (widget.subtitle) {
+        _ when !_renaming && widget.titleTabs != null => widget.titleTabs!,
+        final subtitle? when !_renaming => LayoutBuilder(
+          builder: (context, constraints) => Row(
+            children: [
+              Flexible(child: title),
+              const SizedBox(width: 8),
+              // Its own width, up to some of the bar's: the title has the
+              // rest.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: math.min(220, constraints.maxWidth * .4),
+                ),
+                child: subtitle,
+              ),
+            ],
+          ),
+        ),
+        _ => title,
+      },
+    );
+  }
+
+  /// The row along the top, on the window's color: the traffic lights'
+  /// (macOS draws a title bar of its own over it; see AppMetrics), with
+  /// [ChatScreen.leading] and [ChatScreen.trailing]; the title too where
+  /// it is not on a card ([title]), and [ChatScreen.cardTrailing] then.
+  Widget _buildTitleBar({required bool title}) {
+    final inset = widget.titleBarInset ?? AppMetrics.trafficLightsWidth + 12;
+    final trailing = switch ((
+      widget.trailing,
+      title ? widget.cardTrailing : null,
+    )) {
+      (final trailing?, final own?) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [own, trailing],
+      ),
+      (final trailing, final own) => trailing ?? own,
+    };
     final bar = SizedBox(
       height: AppMetrics.titleBarHeight,
       child: CustomMultiChildLayout(
@@ -660,43 +715,11 @@ class _ChatScreenState extends State<ChatScreen>
             LayoutId(id: _TitleBarSlot.leading, child: leading),
           LayoutId(
             id: _TitleBarSlot.title,
-            child: Row(
-              children: [
-                Expanded(
-                  // The title at the bar's start, as the row macOS draws
-                  // has it (Windows draws none of it: see window_header/).
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: switch (widget.subtitle) {
-                      _ when !_renaming && widget.titleTabs != null =>
-                        widget.titleTabs!,
-                      final subtitle? when !_renaming => LayoutBuilder(
-                        builder: (context, constraints) => Row(
-                          children: [
-                            Flexible(child: title),
-                            const SizedBox(width: 8),
-                            // Its own width, up to some of the bar's: the
-                            // title has the rest.
-                            ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: math.min(
-                                  220,
-                                  constraints.maxWidth * .4,
-                                ),
-                              ),
-                              child: subtitle,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _ => title,
-                    },
-                  ),
-                ),
-              ],
-            ),
+            // The title at the bar's start, as the row macOS draws has it
+            // (Windows draws none of it: see window_header/).
+            child: title ? _buildTitle() : const SizedBox.shrink(),
           ),
-          if (widget.trailing case final trailing?)
+          if (trailing != null)
             LayoutId(
               id: _TitleBarSlot.trailing,
               child: TitleBarControls(child: trailing),
@@ -713,6 +736,46 @@ class _ChatScreenState extends State<ChatScreen>
       // not: with the sidebar hidden, nothing else along the top is.
       windowStart: inset >= AppMetrics.trafficLightsWidth ? inset : 0,
       child: bar,
+    );
+  }
+
+  /// On its card, the row along its top: the title, then
+  /// [ChatScreen.cardTrailing]; where the window draws no title bar of its
+  /// own (under Windows' header), [ChatScreen.leading] before them and
+  /// [ChatScreen.trailing] after, there being no row over the card.
+  Widget _buildCardHeader() {
+    final window = !WindowControls.drawsHeader;
+    final leading = window ? null : widget.leading;
+    final trailing = [?widget.cardTrailing, if (!window) ?widget.trailing];
+    // The title bar's ways all the same: a press drags the window (a
+    // pane's, the pane), a double click does what the system's does.
+    return TitleBarDoubleClick(
+      windowTitleBar: widget.windowTitleBar,
+      onDragStart: _renaming ? null : widget.onTitleDragStart,
+      child: SizedBox(
+        height: ChatScreen.cardHeaderHeight,
+        child: Padding(
+          padding: const EdgeInsets.only(
+            left: Islands.inset,
+            right: ChatScreen.cardHeaderEnd,
+          ),
+          child: Row(
+            children: [
+              if (leading != null) ...[leading, const SizedBox(width: 6)],
+              Expanded(child: _buildTitle()),
+              if (trailing.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                TitleBarControls(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: trailing,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1077,6 +1140,7 @@ class _ChatScreenState extends State<ChatScreen>
     final island = widget.island;
     final conversation = _buildConversation();
     final footer = _footer;
+    final titled = !widget.embedded && (widget.titleBar || _renaming);
     return Scaffold(
       // The window's color about the card, or the card's it is on (the
       // IDE's, a card or not): none of its own.
@@ -1085,10 +1149,12 @@ class _ChatScreenState extends State<ChatScreen>
           : Colors.transparent,
       body: Column(
         children: [
-          // The session's title, in the row the window's header leaves it
-          // (macOS draws a title bar of its own over it; see AppMetrics).
-          if (!widget.embedded && (widget.titleBar || _renaming))
-            _buildTitleBar(),
+          // The row the window's header leaves it (macOS draws a title bar
+          // of its own over it; see AppMetrics): its title there, but on a
+          // card, which has it along its top. Under Windows' header, none
+          // over a card.
+          if (titled && (island == null || !WindowControls.drawsHeader))
+            _buildTitleBar(title: island == null),
           // Its card even with no row under it (the terminal's then).
           if (island == null && footer == 0)
             ...conversation
@@ -1099,7 +1165,12 @@ class _ChatScreenState extends State<ChatScreen>
                   : Island(
                       color: island,
                       borderColor: widget.islandBorder,
-                      child: Column(children: conversation),
+                      child: Column(
+                        children: [
+                          if (titled) _buildCardHeader(),
+                          ...conversation,
+                        ],
+                      ),
                     ),
             ),
             if (footer > 0)

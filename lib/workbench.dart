@@ -3833,13 +3833,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         // Customize, in place of the conversations, isn't one of theirs.
         hidden: _sidePanelHidden || _replacingChat,
         roomComing: _sidebarGivingWay,
-        // Just under the conversation's title bar, whose right has the
-        // window's buttons on macOS; at the top under Windows' header, already
-        // a bar of its own (the title row's right is empty, the rail beside
-        // its column).
-        railTop: WindowControls.drawsHeader
-            ? AgentSidePanelArea.railRight
-            : AppMetrics.titleBarHeight + AgentSidePanelArea.railRight,
+        // Just under the row along the top of the conversation's card (see
+        // [AgentSidePanelArea.defaultRailTop]).
         // Not in a narrow window, where the conversation has no room to spare
         // (the title bar's toggle shows the panel). Agents side by side have
         // one each, over their own pane (see [_paneRail]).
@@ -4704,10 +4699,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     // the pin, and the others leave it for theirs (see [_toolsInPanes]).
     final paneTools = !embedded && (!header || !place.alone);
     final terminals = _terminals;
-    // In the order of the IDE's title bar ([panel][chat][pin][back]): the
-    // terminal and the side panel as its panel and chat, then the pin, then
-    // the way to the other layout at the end, so each is where it was after
-    // a switch.
+    // The window's along the top, in the order of the IDE's title bar
+    // ([pin][back]): the pin, then the way to the other layout at the end,
+    // so each is where it was after a switch. The terminal and the side
+    // panel, the IDE's [panel][chat], are the conversation's, on its card.
     final under = _workspace.grid.under(thread);
     final tools = [
       if (!place.alone) ...[
@@ -4728,6 +4723,23 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         if (windowTools) const SizedBox(width: 8),
       ],
       if (paneTools) ...[
+        if (windowTools) ...[
+          const SizedBox(width: 2),
+          PinWindowButton(pinned: _pinned, onChanged: _setPinned),
+          const SizedBox(width: 8),
+        ],
+        OpenInEditorButton(
+          workspace: _workspace,
+          project: thread.project,
+          agent: thread,
+          compact: !place.alone,
+        ),
+      ],
+      if (trailingToggle) ...[const SizedBox(width: 6), _showSidebarButton()],
+    ];
+    // The conversation's own, on its card along its top, after its title.
+    final own = [
+      if (paneTools) ...[
         // The panel is under each conversation (see [_withTerminal]), so
         // the button in a pane is that pane's project's.
         if (showsTerminals && terminals != null)
@@ -4747,19 +4759,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             size: 22,
           ),
         ),
-        if (windowTools) ...[
-          const SizedBox(width: 2),
-          PinWindowButton(pinned: _pinned, onChanged: _setPinned),
-          const SizedBox(width: 8),
-        ],
-        OpenInEditorButton(
-          workspace: _workspace,
-          project: thread.project,
-          agent: thread,
-          compact: !place.alone,
-        ),
       ],
-      if (trailingToggle) ...[const SizedBox(width: 6), _showSidebarButton()],
     ];
     final draggable = !embedded && !place.alone && _agentThread == null;
     // The layout's context keys, for the chat's keybindings (see ChatKeys).
@@ -4805,6 +4805,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             ? null
             : KeepPaneFocus(
                 child: Row(mainAxisSize: MainAxisSize.min, children: tools),
+              ),
+        cardTrailing: own.isEmpty
+            ? null
+            : KeepPaneFocus(
+                child: Row(mainAxisSize: MainAxisSize.min, children: own),
               ),
         windowTitleBar: place.top,
         titleBar: !(place.alone && _titleInHeader),

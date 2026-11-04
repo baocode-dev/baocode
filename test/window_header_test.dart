@@ -737,8 +737,10 @@ void main() {
     );
   }, variant: _windows);
 
-  testWidgets('on macOS the chat\'s own buttons are at the window\'s right, '
-      'in the IDE title bar\'s order', (tester) async {
+  testWidgets('on macOS the window\'s buttons are at its right, in the IDE '
+      'title bar\'s order; the conversation\'s on its card, under them', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -750,10 +752,25 @@ void main() {
     final sidePanel = rectOf(SidePanelToggle);
     final pin = rectOf(PinWindowButton);
     final open = rectOf(OpenInEditorButton);
-    // The side panel's toggle, the pin, then the editor's button last, as
-    // the IDE's panel and chat toggles, its pin and Back to Chat.
-    expect(sidePanel.right, lessThan(pin.left));
+    // The pin, then the editor's button last, as the IDE's pin and Back to
+    // Chat; the side panel's toggle, as its chat toggle, the conversation's:
+    // along the top of its card, under them, at its right end.
     expect(pin.right, lessThan(open.left));
+    final card = tester.getRect(
+      find.descendant(
+        of: find.byType(ChatScreen),
+        matching: find.byType(Island),
+      ),
+    );
+    expect(sidePanel.top, greaterThan(card.top));
+    expect(sidePanel.bottom, lessThan(card.top + ChatScreen.cardHeaderHeight));
+    expect(sidePanel.top, greaterThan(open.bottom));
+    // Its padding (2) in from the row's end: centered over the rail's.
+    expect(sidePanel.right, card.right - ChatScreen.cardHeaderEnd - 2);
+    expect(
+      sidePanel.center.dx,
+      card.right - AgentSidePanelArea.railRight - SidePanelRail.width / 2,
+    );
     // At the end of the conversation's card, a gap from the window's: not
     // its column's.
     expect(open.right, 1400 - Islands.gap - 8);
