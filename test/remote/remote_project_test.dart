@@ -1214,8 +1214,24 @@ printf '%s\n' "$line"
         englishLocalizations.remoteInstallingClaude('Ubuntu'),
       );
 
-      // Installing Claude Code there: how far once its size is known.
+      // Connected: the system there, as its server says.
       await tester.runAsync(() => hosts['dev'].reconnect());
+      expect(
+        SshStatusIndicator(hosts['dev']).item(context).tooltip,
+        contains(
+          englishLocalizations.remoteStatusSystem(
+            systemName(hosts['dev'].hello!.platform),
+          ),
+        ),
+      );
+      expect(systemName(const RemotePlatform('win', 'x64')), 'Windows x64');
+      expect(systemName(const RemotePlatform('win', 'arm64')), 'Windows arm64');
+      expect(
+        systemName(const RemotePlatform('linux', 'x64', libc: 'musl')),
+        'Linux x64',
+      );
+
+      // Installing Claude Code there: how far once its size is known.
       hosts['dev'].installingClaude = const ClaudeInstallProgress(10, null);
       expect(
         SshStatusIndicator(hosts['dev']).item(context).text,

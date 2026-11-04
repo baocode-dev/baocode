@@ -633,7 +633,13 @@ void _publish(String uri) {
     }
   }
   _notify('textDocument/publishDiagnostics', {
-    'uri': uri,
+    // As typescript-language-server spells a Windows drive: `c%3A`.
+    'uri': _options['lowerDrive'] == true
+        ? uri.replaceFirstMapped(
+            RegExp('^file:///([A-Za-z]):'),
+            (m) => 'file:///${m[1]!.toLowerCase()}%3A',
+          )
+        : uri,
     'version': _versions[uri],
     'diagnostics': diagnostics,
   });

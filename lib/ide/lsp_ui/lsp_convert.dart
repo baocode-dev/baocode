@@ -4,6 +4,7 @@ import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 
+import '../host_paths.dart';
 import '../lsp/lsp_protocol.dart';
 
 /// The absolute path of a `file:` [uri] (other schemes: null), spelled as
@@ -16,9 +17,9 @@ String? lspPathOfUri(String uri, {p.Context? paths}) {
   if (parsed.scheme.isEmpty) return context.normalize(uri);
   if (parsed.scheme != 'file') return null;
   try {
-    return context.normalize(
-      parsed.toFilePath(windows: context.style == p.Style.windows),
-    );
+    final windows = context.style == p.Style.windows;
+    final path = context.normalize(parsed.toFilePath(windows: windows));
+    return windows ? capitalDrive(path) : path;
   } on UnsupportedError {
     return null;
   }

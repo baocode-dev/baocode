@@ -1759,7 +1759,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// does not show: a PDF, a video…).
   Future<void> _openInDefaultApp(String path) async {
     if (await IdeWorkbench.openInDefaultApp(path) || !mounted) return;
-    _report(context.l10n.openInDefaultAppFailed(p.basename(path)));
+    _report(context.l10n.openInDefaultAppFailed(hostBasename(path)));
   }
 
   /// Errors are error notifications, as VS Code's are.
@@ -1832,7 +1832,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   Future<void> _compareWith(String path, IdeCompareWith what) async {
     final l10n = context.l10n;
     final workspace = widget.workspace;
-    final name = p.basename(path);
+    final name = hostBasename(path);
     final git = workspace.gitAt(path);
     void show(IdeQuickInputModel model) {
       if (mounted) _showQuickModel(model);
@@ -1894,7 +1894,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final workspace = widget.workspace;
     final history = workspace.localHistory;
     if (history == null) return;
-    final name = p.basename(path);
+    final name = hostBasename(path);
     final List<IdeLocalVersion> versions;
     try {
       versions = await history.versionsOf(path);
@@ -1953,8 +1953,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       await workspace.openDiff(
         modified,
         label: l10n.compareFilesLabel(
-          p.basename(original),
-          p.basename(modified),
+          hostBasename(original),
+          hostBasename(modified),
         ),
         original: () => files.read(original),
       );
@@ -1971,7 +1971,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (differences.isEmpty) {
       _notifications.notify(
         IdeSeverity.info,
-        l10n.compareFoldersSame(p.basename(original), p.basename(modified)),
+        l10n.compareFoldersSame(hostBasename(original), hostBasename(modified)),
       );
       return;
     }
@@ -1995,8 +1995,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               IdeFolderChange.deleted => IdeGitStatus.deleted,
               IdeFolderChange.modified => IdeGitStatus.modified,
             },
-            originalLabel: p.basename(original),
-            modifiedLabel: p.basename(modified),
+            originalLabel: hostBasename(original),
+            modifiedLabel: hostBasename(modified),
             original: () async =>
                 change == IdeFolderChange.added ? '' : read(at(original, path)),
             modified: () async => change == IdeFolderChange.deleted
@@ -2018,10 +2018,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           label: difference.path,
           description: switch (difference.change) {
             IdeFolderChange.added => l10n.compareFoldersOnlyIn(
-              p.basename(modified),
+              hostBasename(modified),
             ),
             IdeFolderChange.deleted => l10n.compareFoldersOnlyIn(
-              p.basename(original),
+              hostBasename(original),
             ),
             IdeFolderChange.modified => l10n.compareFoldersModified,
           },
@@ -2030,8 +2030,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _showQuickModel(
       IdeQuickPick(
         placeholder: l10n.compareFoldersPick(
-          p.basename(original),
-          p.basename(modified),
+          hostBasename(original),
+          hostBasename(modified),
         ),
         sortByLabel: false,
         items: items.keys.toList(),
@@ -2043,8 +2043,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             workspace.openDiff(
               at(change == IdeFolderChange.deleted ? original : modified, path),
               label: l10n.compareFilesLabel(
-                p.basename(original),
-                p.basename(modified),
+                hostBasename(original),
+                hostBasename(modified),
               ),
               original: () async => change == IdeFolderChange.added
                   ? ''
@@ -2190,7 +2190,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       if (left == null) {
         _notifications.notify(
           IdeSeverity.warning,
-          context.l10n.wbHeadNotAvailable(p.basename(resource.path)),
+          context.l10n.wbHeadNotAvailable(hostBasename(resource.path)),
         );
         return;
       }
@@ -4541,7 +4541,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     title: context.l10n.wbTimeline,
                     description: timelinePath == null
                         ? null
-                        : p.basename(timelinePath),
+                        : hostBasename(timelinePath),
                     actions: [
                       IdePaneAction(
                         icon: _timeline.pinned == null
@@ -5530,7 +5530,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             branch,
             icon: Codicons.gitBranch,
             tooltip: keys.titleWithKeybinding(
-              '${p.basename(state.root)} (Git) - $branch, '
+              '${hostBasename(state.root)} (Git) - $branch, '
                   '${l10n.gitBranchesTitle}',
               'baocode.git.branches',
             ),

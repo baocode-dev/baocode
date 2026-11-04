@@ -1,6 +1,5 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 
 import '../chat/composer/composer_files.dart';
 import '../chat/composer/file_drag.dart';
@@ -13,6 +12,7 @@ import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/islands.dart';
 import '../workspace/window_controls.dart';
 import 'editor_minimap_setting.dart';
+import 'host_paths.dart';
 import 'ide_hover.dart';
 import 'ide_menu.dart';
 import 'ide_workspace.dart';
@@ -45,17 +45,18 @@ List<String?> ideTabDescriptions(
   List<String>? names,
 }) {
   List<String> parents(String path) {
-    final directory = p.dirname(path);
-    if (p.equals(directory, root)) return [p.basename(root)];
-    if (p.isWithin(root, directory)) {
-      return p.split(p.relative(directory, from: root));
+    final paths = hostContext(path);
+    final directory = paths.dirname(path);
+    if (paths.equals(directory, root)) return [paths.basename(root)];
+    if (paths.isWithin(root, directory)) {
+      return paths.split(paths.relative(directory, from: root));
     }
-    return p.split(directory);
+    return paths.split(directory);
   }
 
   final byName = <String, List<int>>{};
   for (var i = 0; i < paths.length; i++) {
-    byName.putIfAbsent(names?[i] ?? p.basename(paths[i]), () => []).add(i);
+    byName.putIfAbsent(names?[i] ?? hostBasename(paths[i]), () => []).add(i);
   }
   final descriptions = List<String?>.filled(paths.length, null);
   for (final group in byName.values) {

@@ -13011,6 +13011,12 @@ abstract class AppLocalizations {
   /// **'Connected to {host} over {kind}'**
   String remoteStatusTooltip(String kind, String host);
 
+  /// No description provided for @remoteStatusSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System: {platform}'**
+  String remoteStatusSystem(String platform);
+
   /// No description provided for @remoteStatusTooltipLost.
   ///
   /// In en, this message translates to:

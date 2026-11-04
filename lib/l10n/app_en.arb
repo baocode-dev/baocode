@@ -5822,6 +5822,15 @@
       }
     }
   },
+  "remoteStatusSystem": "System: {platform}",
+  "@remoteStatusSystem": {
+    "placeholders": {
+      "platform": {
+        "type": "String",
+        "example": "Windows x64"
+      }
+    }
+  },
   "remoteStatusTooltipLost": "The connection to {host} is lost: click to reconnect now",
   "@remoteStatusTooltipLost": {
     "placeholders": {

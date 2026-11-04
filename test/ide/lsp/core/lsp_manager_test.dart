@@ -167,6 +167,38 @@ void main() {
     await check('end');
   });
 
+  test('a Windows project\'s diagnostics reach the file whatever case its '
+      'drive has in the server\'s URIs', () async {
+    // A Windows host's project (from this machine, as a remote one is),
+    // its server run here.
+    final lsp = LspManager(
+      r'C:\proj',
+      FakeCatalog([
+        fakeServer('fake', options: {'lowerDrive': true}),
+      ]),
+      FakeProvider(),
+      paths: p.windows,
+      pathExists: (_) => false,
+      listDirectory: (_) => const [],
+      startProcess: (launch) => startLspProcess(
+        LspLaunch(
+          serverId: launch.serverId,
+          executable: launch.executable,
+          arguments: launch.arguments,
+          workingDirectory: root,
+          environment: launch.environment,
+        ),
+      ),
+      shutdownTimeout: const Duration(seconds: 2),
+    );
+    managers.add(lsp);
+    const path = r'C:\proj\src\a.fake';
+    lsp.openDocument(path, 'an ERROR here\n');
+    await until(() => lsp.diagnosticsFor(path).isNotEmpty);
+    expect(lsp.diagnosticsFor(path).single.message, 'ERROR found');
+    expect(lsp.allDiagnostics.keys, [path]);
+  });
+
   test('diagnostics follow the text', () async {
     final lsp = manager([fakeServer('fake')]);
     final (workspace, doc) = await open(lsp, 'a.fake', 'ok\nan ERROR here\n');

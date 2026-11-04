@@ -35,6 +35,7 @@ import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart';
 import '../file_service.dart'
     show IdeBinaryFileException, IdeFileNotFoundException, IdeFileService;
+import '../host_paths.dart';
 import '../ide_commands.dart' show ideWithKeybinding;
 import '../ide_dialog.dart';
 import '../ide_hover.dart';
@@ -1651,7 +1652,7 @@ class IdeSearchViewState extends State<IdeSearchView>
         '  ${match.line + 1},${match.start + 1}: ${match.text.trim()}';
     if (match != null) return line(match);
     return [
-      p.relative(file.path, from: _root),
+      hostRelative(file.path, from: _root),
       for (final match in file.matches) line(match),
     ].join('\n');
   }
@@ -1832,7 +1833,7 @@ class _FileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final folder = p.relative(p.dirname(file.path), from: root);
+    final folder = hostRelative(hostDirname(file.path), from: root);
     return IdeListRow(
       selected: selected,
       focused: focused,
@@ -1853,7 +1854,7 @@ class _FileRow extends StatelessWidget {
             const SizedBox(width: 5),
             Expanded(
               child: IdeResourceLabel(
-                name: p.basename(file.path),
+                name: hostBasename(file.path),
                 description: folder == '.' ? null : folder,
                 nameColor: selected
                     ? _selectedForeground(focused: focused)

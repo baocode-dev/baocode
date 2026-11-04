@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
+import '../host_paths.dart';
 import 'json_rpc.dart';
 import 'language_features.dart';
 import 'lsp_client.dart';
@@ -163,7 +164,12 @@ class LspManager extends ChangeNotifier
   /// Whether it was shut down: it runs no servers again.
   bool get isShutDown => _shutDown;
 
-  String _normalize(String path) => _paths.normalize(_paths.absolute(path));
+  /// [path] as the documents are kept by: on Windows its drive in capitals
+  /// (see [capitalDrive]).
+  String _normalize(String path) {
+    final normalized = _paths.normalize(_paths.absolute(path));
+    return _windowsPaths ? capitalDrive(normalized) : normalized;
+  }
 
   String _uriOf(String path) =>
       Uri.file(path, windows: _windowsPaths).toString();

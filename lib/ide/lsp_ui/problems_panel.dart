@@ -18,7 +18,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 
 import '../../base/smooth_scroll.dart';
 import '../../debug/ui/debug_strings.dart';
@@ -32,6 +31,7 @@ import '../../workspace/islands.dart';
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 
+import '../host_paths.dart';
 import '../ide_hover.dart';
 import '../ide_list.dart';
 import '../ide_tab_bar.dart' show IdeTabStrip;
@@ -926,10 +926,11 @@ class _FileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = p.basename(path);
-    final folder = p.isWithin(root, path)
-        ? p.dirname(p.relative(path, from: root))
-        : p.dirname(path);
+    final paths = hostContext(path);
+    final name = paths.basename(path);
+    final folder = paths.isWithin(root, path)
+        ? paths.dirname(paths.relative(path, from: root))
+        : paths.dirname(path);
     final colors = themeColors;
     final badgeBorder = colors.get('contrastBorder');
     final foreground = _foreground(selected, colors['foreground']);

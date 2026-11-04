@@ -1,5 +1,5 @@
 import 'package:bao_remote/client.dart'
-    show SshConnectException, SshFailure, SshLauncher;
+    show RemotePlatform, SshConnectException, SshFailure, SshLauncher;
 import 'package:flutter/material.dart';
 
 import '../chat/panels/health_banner.dart';
@@ -63,7 +63,13 @@ class SshStatusIndicator implements IdeRemoteIndicator {
       SshHostState.connected => IdeStatusBarItem(
         l10n.remoteStatus(kind, name),
         icon: Codicons.remote,
-        tooltip: tooltip(l10n.remoteStatusTooltip(kind, name)),
+        tooltip: tooltip(
+          [
+            l10n.remoteStatusTooltip(kind, name),
+            if (host.hello?.platform case final platform?)
+              l10n.remoteStatusSystem(systemName(platform)),
+          ].join('\n'),
+        ),
         onTapRect: onChoose,
       ),
       SshHostState.connecting => IdeStatusBarItem(
@@ -109,6 +115,11 @@ class SshStatusIndicator implements IdeRemoteIndicator {
   @override
   int get hashCode => host.hashCode;
 }
+
+/// [platform] for people (`Windows x64`, `Linux arm64`).
+String systemName(RemotePlatform platform) => SshLauncher.describe(
+  '${platform.os == 'win' ? 'windows' : platform.os}-${platform.arch}',
+);
 
 /// What installing Claude Code on [host] is doing, for the user.
 String claudeInstallText(

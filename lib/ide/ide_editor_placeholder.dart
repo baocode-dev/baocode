@@ -20,7 +20,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path/path.dart' as p;
 
 import '../l10n/l10n.dart';
 import '../theme/codicons.dart';
@@ -28,6 +27,7 @@ import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/editor_launcher.dart';
 import '../workspace/window_controls.dart';
 import 'file_service.dart';
+import 'host_paths.dart';
 import 'ide_button.dart';
 import 'ide_menu.dart';
 
@@ -206,7 +206,7 @@ class IdeEditorPlaceholder extends StatelessWidget {
             Editor.terminal.localizedPlatformLabel(l10n),
             icon: Icon(Editor.terminal.icon),
             onSelected: () =>
-                unawaited(openInEditor(Editor.terminal, p.dirname(path))),
+                unawaited(openInEditor(Editor.terminal, hostDirname(path))),
           ),
           if (WindowControls.canRevealInFileManager)
             IdeMenuAction(
