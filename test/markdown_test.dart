@@ -258,6 +258,121 @@ void main() {
         tester.getSize(find.byType(Table)).width,
       );
     });
+
+    group('selected', () {
+      final wide = 'x' * 120;
+      final data =
+          'above\n\n| h | k |\n| - | - |\n| a1 | b1 $wide |\n'
+          '| a2 | b2 |\n| a3 | b3 |\n\nbelow';
+      String? selected;
+
+      /// [data] in a selection area 500 wide, the table wider.
+      Future<void> pumpTable(WidgetTester tester) => tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 500,
+                child: SelectionArea(
+                  onSelectionChanged: (content) =>
+                      selected = content?.plainText,
+                  child: MarkdownView(data),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      /// Where [text] begins.
+      Offset at(WidgetTester tester, String text) =>
+          tester.getTopLeft(
+            find.textContaining(text, findRichText: true).last,
+          ) +
+          const Offset(1, 8);
+
+      /// A mouse drag from [from] to [to], held there [frames] frames.
+      Future<void> drag(
+        WidgetTester tester,
+        Offset from,
+        Offset to, {
+        int frames = 0,
+      }) async {
+        final gesture = await tester.startGesture(
+          from,
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        for (var i = 1; i <= 8; i++) {
+          await gesture.moveTo(Offset.lerp(from, to, i / 8)!);
+          await tester.pump();
+        }
+        for (var i = 0; i < frames; i++) {
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await gesture.up();
+        await tester.pump();
+      }
+
+      ScrollPosition table(WidgetTester tester) => tester
+          .state<ScrollableState>(
+            find.descendant(
+              of: find.byType(MarkdownView),
+              matching: find.byType(Scrollable),
+            ),
+          )
+          .position;
+
+      testWidgets('to beside a row, from above: up to that row\'s end, '
+          'a row to a line and its cells apart by tabs', (tester) async {
+        await pumpTable(tester);
+        await drag(
+          tester,
+          at(tester, 'above'),
+          Offset(600, at(tester, 'a1').dy),
+        );
+        expect(selected, endsWith('h\tk\na1\tb1 $wide'));
+        expect(selected, startsWith('above'));
+      });
+
+      testWidgets('to beside a row, from below: from that row\'s end', (
+        tester,
+      ) async {
+        await pumpTable(tester);
+        await drag(
+          tester,
+          at(tester, 'below') + const Offset(20, 0),
+          Offset(600, at(tester, 'a2').dy),
+        );
+        expect(selected, startsWith('a3\tb3'));
+        expect(selected, isNot(contains('a2')));
+      });
+
+      testWidgets('from a cell, held past the edge: the table scrolls to its '
+          'end, the row alone selected, after a drag across the table too', (
+        tester,
+      ) async {
+        await pumpTable(tester);
+        await drag(
+          tester,
+          at(tester, 'above'),
+          at(tester, 'below') + const Offset(20, 0),
+        );
+        expect(selected, contains('a1\tb1 $wide\na2\tb2\na3\tb3'));
+
+        final from = at(tester, 'a1');
+        await drag(tester, from, Offset(600, from.dy), frames: 150);
+        expect(table(tester).pixels, table(tester).maxScrollExtent);
+        expect(selected, 'a1\tb1 $wide');
+
+        table(tester).jumpTo(0);
+        await tester.pump();
+        final row2 = at(tester, 'a2');
+        await drag(tester, row2, Offset(600, row2.dy));
+        expect(selected, 'a2\tb2');
+      });
+    });
   });
 
   group('math', () {
