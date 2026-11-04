@@ -765,12 +765,8 @@ void main() {
     expect(sidePanel.top, greaterThan(card.top));
     expect(sidePanel.bottom, lessThan(card.top + ChatScreen.cardHeaderHeight));
     expect(sidePanel.top, greaterThan(open.bottom));
-    // Its padding (2) in from the row's end: centered over the rail's.
-    expect(sidePanel.right, card.right - ChatScreen.cardHeaderEnd - 2);
-    expect(
-      sidePanel.center.dx,
-      card.right - AgentSidePanelArea.railRight - SidePanelRail.width / 2,
-    );
+    // Its right edge on the rail's under it.
+    expect(sidePanel.right, card.right - AgentSidePanelArea.railRight);
     // At the end of the conversation's card, a gap from the window's: not
     // its column's.
     expect(open.right, 1400 - Islands.gap - 8);
