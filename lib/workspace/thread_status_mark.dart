@@ -1,6 +1,5 @@
 import 'package:flutter/widgets.dart';
 
-import '../chat/widgets/pixel_loader.dart';
 import '../theme/app_theme.dart' show AppColors;
 import '../theme/workbench_theme.dart' show themeColors;
 import 'workspace.dart';
@@ -34,7 +33,7 @@ class ThreadStatusMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (status) {
-    ThreadStatus.running => const PixelLoader.agent(),
+    ThreadStatus.running => _dot(AppColors.accent),
     ThreadStatus.needsInput => _dot(themeColors['list.warningForeground']),
     ThreadStatus.unread => _dot(AppColors.accent),
     ThreadStatus.idle => const SizedBox.shrink(),
