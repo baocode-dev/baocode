@@ -5,6 +5,7 @@ import '../contributions.dart';
 import '../services.dart';
 import 'debug.dart';
 import 'editor_panes.dart';
+import 'editor_commands.dart';
 import 'editor_status.dart';
 import 'explorer.dart';
 import 'language.dart';
@@ -16,6 +17,7 @@ import 'quick_input.dart';
 import 'scm.dart';
 import 'search.dart';
 import 'terminal.dart';
+import 'window.dart';
 
 List<WorkbenchContribution> createWorkbenchContributions(
   WorkbenchServices services,
@@ -33,4 +35,6 @@ List<WorkbenchContribution> createWorkbenchContributions(
   LayoutContribution(services),
   QuickInputContribution(services),
   SearchContribution(services),
+  EditorCommandsContribution(services),
+  WindowContribution(services),
 ];
