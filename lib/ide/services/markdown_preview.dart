@@ -77,11 +77,13 @@ class MarkdownPreviewService extends ChangeNotifier
 
   /// The active document's preview, while it shows.
   IdeMarkdownPreviewState? get preview => switch (_ws.active) {
-    final active? => GlobalObjectKey<IdeMarkdownPreviewState>(
-      active,
-    ).currentState,
+    final active? => previewOf(active),
     null => null,
   };
+
+  /// [doc]'s preview, while it shows.
+  IdeMarkdownPreviewState? previewOf(IdeDocument doc) =>
+      GlobalObjectKey<IdeMarkdownPreviewState>(doc).currentState;
 
   /// Whether the project's files are this machine's (not a remote
   /// host's).

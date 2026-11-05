@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import '../../ide_workspace.dart';
+import '../../markdown/markdown_preview.dart' show IdeMarkdownPreviewState;
 import '../../services/markdown_preview.dart';
 import '../actions.dart';
 import '../contributions.dart';
@@ -20,6 +21,10 @@ class MarkdownContribution extends WorkbenchRegistrations {
           id: 'workbench.editor.markdownPreview',
           accepts: markdown.previewing,
           build: (context, doc) => markdown.build(doc),
+          control: (doc) => switch (markdown.previewOf(doc)) {
+            final preview? => _PreviewControl(preview),
+            null => null,
+          },
         ),
         priority: EditorPanePriority.markdownPreview,
       ),
@@ -51,4 +56,18 @@ class MarkdownContribution extends WorkbenchRegistrations {
       ]),
     );
   }
+}
+
+/// A preview as the workbench focuses it and shows a line of it.
+class _PreviewControl implements EditorPaneControl {
+  _PreviewControl(this.preview);
+
+  final IdeMarkdownPreviewState preview;
+
+  @override
+  void focus() => preview.focus();
+
+  @override
+  void revealLine(int line, [int column = 1]) =>
+      preview.revealLine(line, column);
 }
