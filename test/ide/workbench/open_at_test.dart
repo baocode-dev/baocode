@@ -29,7 +29,7 @@ void main() {
     await workspace.openAt(inRoot('a.dart'), cited);
     await tester.pumpAndSettle();
     expect(workspace.active!.path, inRoot('a.dart'));
-    expect(_status(tester), 'Ln 22, Col 8 (23 selected)');
+    expect(_status(tester), 'Ln 22, Col 8 (3 lines, 23 selected)');
 
     // The file open already, and in front.
     await workspace.openAt(

@@ -4,6 +4,9 @@
 
 import 'package:flutter/widgets.dart';
 
+import '../ide_workspace.dart';
+import '../lsp/lsp_protocol.dart';
+import '../lsp_ui/lsp_convert.dart';
 import 'services.dart';
 
 /// One feature's additions to a window; [dispose] takes them back.
@@ -21,6 +24,18 @@ abstract interface class WorkbenchHost {
 
   /// The keyboard to the editor, once it shows.
   void focusEditor();
+
+  /// Opens the file at [path] in an editor, at [range] where given, with
+  /// the keyboard where [focusEditor] (until the editors are a service of
+  /// their own).
+  Future<void> openFile(String path, {LspRange? range, bool focusEditor});
+
+  /// Opens [location], recording where the caret was for Go Back where
+  /// [record].
+  Future<void> openLocation(IdeLocation location, {bool record});
+
+  /// Brings the open [doc] to the front.
+  Future<void> selectEditor(IdeDocument doc);
 
   /// [error] told in the notifications.
   void report(Object error);

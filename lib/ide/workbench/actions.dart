@@ -5,6 +5,7 @@
 
 import 'package:flutter/foundation.dart';
 
+import '../../keybindings/default_keybindings.dart' show commandCatalog;
 import '../ide_commands.dart';
 import 'services.dart';
 
@@ -22,6 +23,27 @@ class WorkbenchAction {
     this.precondition,
     this.takesArgs = false,
   });
+
+  /// One of the keybindings' catalog, its title and category the
+  /// catalog's.
+  factory WorkbenchAction.catalog(
+    String id, {
+    required void Function(WorkbenchServices services, Object? args) run,
+    bool Function(WorkbenchServices services)? precondition,
+    bool palette = true,
+    bool takesArgs = false,
+  }) {
+    final info = commandCatalog[id];
+    return WorkbenchAction(
+      id: id,
+      title: info?.title ?? id,
+      category: info?.category,
+      run: run,
+      precondition: precondition,
+      palette: palette,
+      takesArgs: takesArgs,
+    );
+  }
 
   /// The command's id, as keybindings and settings name it.
   final String id;

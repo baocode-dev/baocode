@@ -5,7 +5,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
@@ -46,8 +45,6 @@ import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
-import 'package:bao_editor/monaco/flutter/editor_document_model.dart'
-    show EditorContentChangeEvent, EditorDocumentModel;
 import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart'
     show EditorSurfaceController;
 import 'package:bao_editor/monaco/flutter/editor_keybindings.dart'
@@ -139,6 +136,8 @@ import 'terminal/terminal_profiles.dart';
 import 'terminal/terminal_hosts.dart';
 import 'terminal/terminal_service.dart';
 import 'host_paths.dart';
+import 'services/navigation_history.dart';
+import 'workbench/contributions/all.dart';
 import 'workbench/actions.dart';
 import 'workbench/context_keys.dart';
 import 'workbench/contributions.dart';
@@ -394,7 +393,6 @@ enum IdeSideView { explorer, search, sourceControl, debug, extensions }
 const _debugEntryShown = false;
 
 /// A navigation history entry (Go Back / Go Forward).
-typedef _NavigationEntry = ({String path, LspPosition position});
 
 /// A chord being typed (see [IdeWorkbenchState._chord]): its label, the
 /// chords pressed and its status message.
@@ -438,26 +436,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   final FocusNode _explorerFocus = FocusNode(debugLabel: 'ide explorer');
   late IdeExplorerController _explorer;
   late IdeFileIndex _fileIndex;
-  final IdeRecentList _recentFiles = IdeRecentList();
 
-  /// The open editors' keys, the most recently active first.
-  final IdeRecentList _editorHistory = IdeRecentList();
-
-  /// Open Next / Previous Recently Used Editor's stack and where they are
-  /// in it (upstream `recentlyUsedEditorsStack`), while they run.
-  List<String>? _recentlyUsedStack;
-  int _recentlyUsedIndex = 0;
-  bool _navigatingRecentlyUsed = false;
-
-  /// The open files' changes, watched for [_lastEdit].
-  final Map<EditorDocumentModel, StreamSubscription<EditorContentChangeEvent>>
-  _editWatches = {};
-
-  /// Where the last edit of an open file ended (Go to Last Edit Location).
-  _NavigationEntry? _lastEdit;
-
-  /// Whether the last Go Back / Go Forward went back (for Go Previous).
-  bool _lastNavigationBack = false;
+  /// The workspace's navigation history (Go Back, the editors by recent
+  /// use, those closed).
+  late NavigationHistoryService _history;
 
   /// Whether the panel is maximized (Toggle Maximized Panel).
   bool _panelMaximized = false;
@@ -475,7 +457,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     skipTraversal: true,
   );
   final IdeRecentList _recentCommands = IdeRecentList();
-  final List<String> _closedEditors = [];
 
   /// The widths the side bar and the chat open at, and have while there is
   /// room (see [IdeColumns.fit]).
@@ -682,8 +663,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   final _problemsList = IdePanelListModel();
   final _referencesList = IdePanelListModel();
   MarkerList<LspDiagnostic>? _markers;
-  final List<_NavigationEntry> _backStack = [];
-  final List<_NavigationEntry> _forwardStack = [];
 
   /// `editor.formatOnSave`, kept in settings.json as VS Code keeps it.
   bool get _formatOnSave => _setting('editor.formatOnSave', false);
@@ -1208,6 +1187,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     IdeDiffOptions.instance.attach(widget.settings);
     widget.workspace.localHistory ??= IdeLocalHistory.inDataDirectory();
     _createServices();
+    _contributions.addAll(createWorkbenchContributions(_services));
     FocusManager.instance.addEarlyKeyEventHandler(_onChordKey);
     FocusManager.instance.addLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.addListener(_keybindingsChanged);
@@ -1310,15 +1290,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     languages?.addListener(_languagesChanged);
     _editRequests = languages?.workspaceEdits.listen(_applyEditRequest);
     _markers = null;
-    _backStack.clear();
-    _forwardStack.clear();
-    _navigationChanged();
-    _navigationHere = null;
-    _navigationFile = null;
+    _services.add(workspace);
+    _history = _services.add(
+      NavigationHistoryService(
+        workspace: workspace,
+        caret: () => _caretPosition,
+        open: (location) => _openLocation(location, record: false),
+        select: _select,
+      ),
+    );
     _references = null;
     _problemsList.clear();
     _referencesList.clear();
-    _lastEdit = null;
     workspace.addListener(_workspaceChanged);
     workspace.edits.addListener(_documentEdited);
     workspace.layout.addListener(_layoutChanged);
@@ -1443,10 +1426,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _autoSaveTimer?.cancel();
     _autoSaveTimer = null;
     _autoSaveFailed.clear();
-    for (final watch in _editWatches.values) {
-      unawaited(watch.cancel());
-    }
-    _editWatches.clear();
+    _services.remove<NavigationHistoryService>();
+    _services.remove<IdeWorkspace>(owned: false);
     workspace.layout.removeListener(_layoutChanged);
     _git?.removeListener(_gitChanged);
     for (final git in _watchedRepositories) {
@@ -1717,8 +1698,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _rootsChanged();
     _keepViewSoon();
     _symbols?.update(widget.workspace.active);
-    _forgetClosedNavigation();
-    _watchEdits();
+    _history.documentsChanged();
     _refreshSearchOfOpenFiles();
     final documents = widget.workspace.documents;
     _autoSaveFailed.removeWhere(
@@ -1746,16 +1726,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // Another editor in front: `onFocusChange` saves the one left.
     if (_activeKey != null) unawaited(_autoSaveNow(const {'onFocusChange'}));
     _activeKey = active?.key;
-    // Upstream resets the recently used stack when an editor comes to the
-    // front otherwise than from it.
-    if (!_navigatingRecentlyUsed) {
-      _recentlyUsedStack = null;
-      _recentlyUsedIndex = 0;
-    }
+    _history.activeChanged(active);
     if (active == null) return;
-    _editorHistory.add(active.key);
     final path = active.path;
-    _activeFileChanged(path);
     // Upstream's `showEditorIfHidden`: an editor opened ends the chat's
     // maximizing, and has the side bar give way to it rather than it to
     // the side bar.
@@ -1771,7 +1744,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     if (!_closingEditors) _extensionPageShown = false;
     _recommendServers();
-    _recentFiles.add(path);
     unawaited(_explorer.reveal(path));
   }
 
@@ -2348,10 +2320,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           if (choice == 'save') await widget.workspace.save(doc);
         }
         await _editor?.closeDocument(doc);
-        if (doc.label == null && !doc.isUntitled) {
-          _closedEditors.remove(doc.path);
-          _closedEditors.add(doc.path);
-        }
+        _history.editorClosed(doc);
         widget.workspace.close(doc);
       }
     } catch (error) {
@@ -2375,17 +2344,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       return;
     }
     if (widget.workspace.active case final doc?) unawaited(_close(doc));
-  }
-
-  void _reopenClosed() {
-    final open = {for (final doc in widget.workspace.documents) doc.path};
-    while (_closedEditors.isNotEmpty) {
-      final path = _closedEditors.removeLast();
-      if (!open.contains(path)) {
-        unawaited(_open(path, focusEditor: true));
-        return;
-      }
-    }
   }
 
   void _cycleEditor(int delta) {
@@ -2536,127 +2494,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   // --- Language features ---------------------------------------------------
 
-  // Navigation history (Go Back / Go Forward), after VS Code's
-  // `EditorNavigationStack` (src/vs/workbench/services/history/browser/
-  // historyService.ts at 6a598d4a13031703d483d103c1d934a36ad27971): where
-  // the caret was is recorded when another file comes to the front (from
-  // the explorer, Quick Open, search, a tab, a definition), and when the
-  // caret jumps more than [_navigationThreshold] lines in the same file
-  // (upstream `TEXT_EDITOR_SELECTION_THRESHOLD`); closer moves only update
-  // where it is. Entries of files that close go (upstream keeps closed
-  // editors; here their tabs are gone).
-
-  /// Lines a move must span to be a navigation of its own.
-  static const _navigationThreshold = 10;
-
-  /// Where the caret was last seen, in which file; null when the active
-  /// file's caret was not reported since it came to the front (it is where
-  /// the last one reported was: the editor reports changes only).
-  _NavigationEntry? _navigationHere;
-
-  /// The file at the front when [_navigationHere] was last reset.
-  String? _navigationFile;
-
-  /// Set while Go Back / Go Forward moves: that move records nothing.
-  bool _navigating = false;
-
-  _NavigationEntry? _here() {
-    final path = widget.workspace.active?.path;
-    if (path == null) return null;
-    if (_navigationHere case final here? when here.path == path) return here;
-    return (
-      path: path,
-      position: LspPosition(
-        _caretPosition.lineNumber - 1,
-        _caretPosition.column - 1,
-      ),
-    );
-  }
-
-  /// Records [entry] for Go Back, unless it is the last one; a new
-  /// navigation drops what Go Forward had.
-  void _recordNavigation(_NavigationEntry? entry) {
-    if (entry == null || _navigating) return;
-    _lastNavigationBack = false;
-    if (_backStack.isEmpty ||
-        _backStack.last.path != entry.path ||
-        _backStack.last.position != entry.position) {
-      _backStack.add(entry);
-      if (_backStack.length > 50) _backStack.removeAt(0);
-    }
-    _forwardStack.clear();
-    _navigationChanged();
-  }
-
-  /// Tells the title bar's arrows (see [IdeWorkspace.navigation]) where
-  /// Go Back and Go Forward can go now; after the frame, while one builds.
-  void _navigationChanged() {
-    void tell() => widget.workspace.navigation.value = (
-      back: _backStack.isNotEmpty,
-      forward: _forwardStack.isNotEmpty,
-    );
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) tell();
-      });
-    } else {
-      tell();
-    }
-  }
-
-  /// The caret moved to [position] in the active file.
-  void _caretMoved(Position position) {
-    final path = widget.workspace.active?.path;
-    if (path == null) return;
-    final now = (
-      path: path,
-      position: LspPosition(position.lineNumber - 1, position.column - 1),
-    );
-    final before = _navigationHere;
-    if (before != null &&
-        before.path == path &&
-        (before.position.line - now.position.line).abs() >
-            _navigationThreshold) {
-      _recordNavigation(before);
-    }
-    _navigationHere = now;
-  }
-
-  /// Another file came to the front: where the caret was in the one
-  /// before is recorded, if that one is still open.
-  void _activeFileChanged(String path) {
-    final previous = _navigationFile;
-    final before =
-        _navigationHere ??
-        (previous == null
-            ? null
-            : (
-                path: previous,
-                position: LspPosition(
-                  _caretPosition.lineNumber - 1,
-                  _caretPosition.column - 1,
-                ),
-              ));
-    if (before != null &&
-        before.path != path &&
-        widget.workspace.documents.any((doc) => doc.path == before.path)) {
-      _recordNavigation(before);
-    }
-    _navigationFile = path;
-    _navigationHere = null;
-  }
-
-  /// Drops the entries of files no longer open.
-  void _forgetClosedNavigation() {
-    final open = {for (final doc in widget.workspace.documents) doc.path};
-    bool closed(_NavigationEntry entry) => !open.contains(entry.path);
-    if (!_backStack.any(closed) && !_forwardStack.any(closed)) return;
-    _backStack.removeWhere(closed);
-    _forwardStack.removeWhere(closed);
-    _navigationChanged();
-  }
-
   /// Opens [location] (another file too), recording where the caret was
   /// for Go Back.
   Future<void> _openLocation(
@@ -2666,7 +2503,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     bool record = true,
     VoidCallback? afterReveal,
   }) async {
-    if (record) _recordNavigation(_here());
+    if (record) _history.recordHere();
     if (widget.workspace.active?.path == location.path) {
       _revealRange(location.range, select: select, center: center);
       afterReveal?.call();
@@ -2685,32 +2522,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// Go Back (⌃-) / Go Forward (⌃⇧-), and the mouse's back and forward
   /// buttons: whether there was somewhere to go.
-  bool _navigate({required bool back}) {
-    final from = back ? _backStack : _forwardStack;
-    final to = back ? _forwardStack : _backStack;
-    if (from.isEmpty) return false;
-    final here = _here();
-    if (here != null) to.add(here);
-    final entry = from.removeLast();
-    _navigationChanged();
-    _lastNavigationBack = back;
-    _navigating = true;
-    unawaited(
-      _openLocation(
-        IdeLocation(entry.path, LspRange(entry.position, entry.position)),
-        record: false,
-      ).whenComplete(() {
-        // The caret lands after a frame: that move is this navigation's.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _navigating = false;
-          _navigationHere = entry;
-        });
-        WidgetsBinding.instance.scheduleFrame();
-      }),
-    );
-    if (mounted) setState(() {});
-    return true;
-  }
+  bool _navigate({required bool back}) => _history.navigate(back: back);
 
   /// F8 / ⇧F8: the next or previous problem across files, with its hover.
   void _gotoProblem({required bool next}) {
@@ -3220,7 +3032,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     return fileQuickPicks(
       text,
       index: _fileIndex,
-      recent: _recentFiles.items,
+      recent: _history.recentFiles.items,
       onOpen: (path, line, column) =>
           unawaited(_open(path, line: line, column: column, focusEditor: true)),
       onOpenInBackground: _openFileInBackground,
@@ -3308,8 +3120,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'foldersViewVisible' || 'explorerViewletVisible' =>
         _sidebarShown && _view == IdeSideView.explorer,
       'treestickyScrollFocused' => false,
-      'canNavigateBack' => _backStack.isNotEmpty,
-      'canNavigateForward' => _forwardStack.isNotEmpty,
       _ =>
         _listContextKey(key) ??
             _searchContextKey(key) ??
@@ -3717,13 +3527,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: () => unawaited(_closeDocs(workspace.documents)),
       ),
       IdeCommand(
-        id: 'workbench.action.reopenClosedEditor',
-        category: 'View',
-        label: 'Reopen Closed Editor',
-        enabled: _closedEditors.isNotEmpty,
-        run: _reopenClosed,
-      ),
-      IdeCommand(
         id: 'workbench.action.nextEditor',
         category: 'View',
         label: 'Open Next Editor',
@@ -3934,20 +3737,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         label: 'Go to Previous Problem in Files (Error, Warning, Info)',
         enabled: _languages != null,
         run: () => _gotoProblem(next: false),
-      ),
-      IdeCommand(
-        id: 'workbench.action.navigateBack',
-        category: 'Go',
-        label: 'Go Back',
-        enabled: _backStack.isNotEmpty,
-        run: () => _navigate(back: true),
-      ),
-      IdeCommand(
-        id: 'workbench.action.navigateForward',
-        category: 'Go',
-        label: 'Go Forward',
-        enabled: _forwardStack.isNotEmpty,
-        run: () => _navigate(back: false),
       ),
       IdeCommand(
         id: ideSelectColorThemeCommandId,
@@ -4890,7 +4679,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   void _positionChanged(IdeEditorPosition selection) {
-    _caretMoved(selection.position);
+    _history.caretMoved(selection.position);
     _editorViewChanged();
     if (mounted &&
         (!_caretPosition.equals(selection.position) ||
@@ -5866,6 +5655,20 @@ class _Host implements WorkbenchHost {
 
   @override
   void focusEditor() => _state._focusEditor();
+
+  @override
+  Future<void> openFile(
+    String path, {
+    LspRange? range,
+    bool focusEditor = false,
+  }) => _state._open(path, range: range, focusEditor: focusEditor);
+
+  @override
+  Future<void> openLocation(IdeLocation location, {bool record = true}) =>
+      _state._openLocation(location, record: record);
+
+  @override
+  Future<void> selectEditor(IdeDocument doc) => _state._select(doc);
 
   @override
   void report(Object error) => _state._report(error);
