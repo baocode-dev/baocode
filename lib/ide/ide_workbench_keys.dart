@@ -240,24 +240,13 @@ extension _WorkbenchKeys on IdeWorkbenchState {
 
   // --- Editors -------------------------------------------------------------
 
-  /// The open editors, the most recently active first (upstream
-  /// `EditorsOrder.MOST_RECENTLY_ACTIVE`), then those never active, the
-  /// last opened first.
-  List<IdeDocument> _editorsByRecentlyUsed() {
-    final byKey = {for (final doc in widget.workspace.documents) doc.key: doc};
-    return [
-      for (final key in _editorHistory.items) ?byKey.remove(key),
-      ...byKey.values.toList().reversed,
-    ];
-  }
-
   /// An editor picker's rows for [text] after its prefix.
   List<IdeQuickPickItem> _editorPicks(_QuickAccess access, String filter) =>
       editorQuickPicks(
         filter,
         editors: access == _QuickAccess.editorsByAppearance
             ? widget.workspace.documents
-            : _editorsByRecentlyUsed(),
+            : _history.editorsByRecentlyUsed(),
         root: widget.workspace.root,
         paths: widget.workspace.paths,
         onOpen: (doc, {required inBackground}) =>
@@ -295,74 +284,6 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     );
   }
 
-  /// Open Next / Previous Recently Used Editor (upstream
-  /// `ensureRecentlyUsedStack`): the stack of the editors by recent use,
-  /// taken when the first of these runs and kept while they bring its
-  /// editors to the front, [next] towards its top.
-  void _openRecentlyUsed({required bool next}) {
-    final stack =
-        _recentlyUsedStack ??
-        [for (final doc in _editorsByRecentlyUsed()) doc.key];
-    if (stack.isEmpty) return;
-    final index = (_recentlyUsedIndex + (next ? -1 : 1)).clamp(
-      0,
-      stack.length - 1,
-    );
-    _recentlyUsedStack = stack;
-    _recentlyUsedIndex = index;
-    final doc = widget.workspace.documents
-        .where((doc) => doc.key == stack[index])
-        .firstOrNull;
-    if (doc == null) return;
-    _navigatingRecentlyUsed = true;
-    unawaited(_select(doc).whenComplete(() => _navigatingRecentlyUsed = false));
-  }
-
-  /// Records where the last edit of an open file ended, for Go to Last
-  /// Edit Location: every open file's changes are watched.
-  void _watchEdits() {
-    final models = {
-      for (final doc in widget.workspace.documents)
-        if (doc.isFile) doc.model,
-    };
-    for (final model in _editWatches.keys.toList()) {
-      if (!models.contains(model)) {
-        unawaited(_editWatches.remove(model)!.cancel());
-      }
-    }
-    for (final model in models) {
-      _editWatches[model] ??= model.changes.listen(
-        (event) => _edited(model, event),
-      );
-    }
-  }
-
-  void _edited(EditorDocumentModel model, EditorContentChangeEvent event) {
-    final change = event.changes.lastOrNull;
-    final doc = widget.workspace.documents
-        .where((doc) => doc.isFile && identical(doc.model, model))
-        .firstOrNull;
-    if (change == null || doc == null) return;
-    final lines = change.text.split(RegExp(r'\r\n|\r|\n'));
-    _lastEdit = (
-      path: doc.path,
-      position: LspPosition(
-        change.startLine + lines.length - 1,
-        lines.length == 1
-            ? change.startCharacter + change.text.length
-            : lines.last.length,
-      ),
-    );
-  }
-
-  /// Go Previous (upstream `goPrevious`): where the last Go Back or Go
-  /// Forward came from, else back.
-  void _navigatePrevious() {
-    final back = !_lastNavigationBack;
-    if ((back ? _backStack : _forwardStack).isEmpty) return;
-    _navigate(back: back);
-  }
-
   /// The path Reveal in Finder shows: the explorer's selection while it
   /// has the keyboard, else the active file's.
   String? get _revealPath {
@@ -384,7 +305,6 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     final active = workspace.active;
     final hasEditors = docs.isNotEmpty;
     final settings = _hostCommand(openSettingsCommandId);
-    final lastEdit = _lastEdit;
     final reveal = _revealPath;
     IdeCommand quickNavigate(
       String id,
@@ -433,17 +353,6 @@ extension _WorkbenchKeys on IdeWorkbenchState {
         '',
         itemActivation: hasEditors ? null : IdeQuickPickFocus.first,
       ),
-      for (final (id, next) in [
-        ('workbench.action.openNextRecentlyUsedEditor', true),
-        ('workbench.action.openPreviousRecentlyUsedEditor', false),
-        ('workbench.action.openNextRecentlyUsedEditorInGroup', true),
-        ('workbench.action.openPreviousRecentlyUsedEditorInGroup', false),
-      ])
-        _catalogCommand(
-          id,
-          () => _openRecentlyUsed(next: next),
-          enabled: hasEditors,
-        ),
       _catalogCommand(
         'workbench.action.nextEditorInGroup',
         () => _cycleEditor(1),
@@ -468,23 +377,6 @@ extension _WorkbenchKeys on IdeWorkbenchState {
         'workbench.action.closeEditorsToTheLeft',
         () => unawaited(_closeDocs(docs.sublist(0, docs.indexOf(active!)))),
         enabled: active != null && docs.first != active,
-      ),
-      _catalogCommand(
-        'workbench.action.navigateToLastEditLocation',
-        () => unawaited(
-          _openLocation(
-            IdeLocation(
-              lastEdit!.path,
-              LspRange(lastEdit.position, lastEdit.position),
-            ),
-          ),
-        ),
-        enabled: lastEdit != null,
-      ),
-      _catalogCommand(
-        'workbench.action.navigateLast',
-        _navigatePrevious,
-        enabled: _backStack.isNotEmpty || _forwardStack.isNotEmpty,
       ),
       _catalogCommand(
         'revealFileInOS',
