@@ -6,7 +6,7 @@ served as it is, `/download` being `download.html`.
 - English at the root, Chinese under `zh/` (`/zh/`, `/zh/download`,
   `/zh/changelog`); each page links to itself in the other language. A
   change to a page's copy goes into both. The Chinese pages use absolute
-  paths (`/style.css`, `/shots/…`); the screenshots are shared.
+  paths (`/style.css`, `/mocks/…`); the figures are shared.
 - `changelog.html`, `zh/changelog.html`: made by
   `dart run tool/build_changelog.dart` from `release-notes/`. Edit those.
 
@@ -18,7 +18,14 @@ served as it is, `/download` being `download.html`.
   `activate.html`, `activate.js`, `channels.json` and `channels/`: the
   channels listed (lib/channel/). A channel asks to be listed with the
   `channel` issue template.
-- `shots/`: the screenshots on the page.
+- `mocks/`: the windows in the home page's figures, drawn in HTML (not
+  screenshots) and framed by it: each drawn at its own width (`data-w`) and
+  scaled to the frame's by `mock.js`; both languages in one file (`.z`,
+  `.e`, `?lang=en`), a theme by `?theme=light|kimbie|dark`, a part shown by
+  `?show=`. Their icons are codicons, in a font of only those used:
+  `tool/make_mock_icons.py` (needs fonttools) remakes it and its rules in
+  `mock.css` after an icon is added.
+- `shots/`: screenshots, `main.png` the README's.
 - `sounds/`: the notification sound the page plays.
 - `reviews/`: the avatars on the home page's reel of what users say (the
   words are in the pages, translated on the English one). "Say a word"

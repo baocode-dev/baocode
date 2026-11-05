@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN" data-w="1200">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>BaoCode</title>
+<link rel="stylesheet" href="mock.css">
+<script src="mock.js"></script>
+</head>
+<body>
+<!-- Fast IDE: the editor and a terminal, the conversation docked beside
+     them; ?show=picker, the colour theme picker open over it. -->
+<div class="win idewin" style="--w:1200;--h:760;--sidew:214px;--chatw:356px">
+  <div class="ttl">
+    <div class="lights" style="width:120px"><i></i><i></i><i></i></div>
+    <span class="ib"><i class="ci ci-arrow-left"></i></span>
+    <span class="ib"><i class="ci ci-arrow-right"></i></span>
+    <div class="cmdc"><i class="ci ci-search"></i>hono</div>
+    <span class="ib"><i class="ci ci-layout-sidebar-left"></i></span>
+    <span class="ib"><i class="ci ci-layout-panel"></i></span>
+    <span class="ib"><i class="ci ci-layout-sidebar-right"></i></span>
+    <span class="pill"><i class="ci ci-comment-discussion"></i><span class="z">回到对话</span><span class="e">Chat window</span></span>
+  </div>
+
+  <div class="act">
+    <span class="ib on"><i class="ci ci-files"></i></span>
+    <span class="ib"><i class="ci ci-search"></i></span>
+    <span class="ib"><i class="ci ci-source-control"></i><span class="badge">3</span></span>
+    <span class="ib"><i class="ci ci-debug-alt"></i></span>
+    <span class="ib"><i class="ci ci-extensions"></i></span>
+  </div>
+
+  <div class="pane">
+    <div class="ph"><span class="z">资源管理器</span><span class="e">Explorer</span><span class="sp"></span><span class="ib"><i class="ci ci-new-file"></i></span><span class="ib"><i class="ci ci-refresh"></i></span></div>
+    <div class="ftree">
+      <div class="row"><i class="ci ci-chevron-down"></i><b>HONO</b></div>
+      <div class="row" style="padding-left:20px"><i class="ci ci-chevron-right"></i>benchmarks</div>
+      <div class="row" style="padding-left:20px"><i class="ci ci-chevron-right"></i>docs</div>
+      <div class="row" style="padding-left:20px"><i class="ci ci-chevron-down"></i>src</div>
+      <div class="row" style="padding-left:32px"><i class="ci ci-chevron-right"></i>adapter</div>
+      <div class="row" style="padding-left:32px"><i class="ci ci-chevron-right"></i>helper</div>
+      <div class="row" style="padding-left:32px"><i class="ci ci-chevron-right"></i>jsx</div>
+      <div class="row mod" style="padding-left:32px"><i class="ci ci-chevron-down"></i>middleware<span class="sp"></span><span class="dot"></span></div>
+      <div class="row" style="padding-left:44px"><i class="ci ci-chevron-right"></i>cors</div>
+      <div class="row" style="padding-left:44px"><i class="ci ci-chevron-right"></i>etag</div>
+      <div class="row mod" style="padding-left:44px"><i class="ci ci-chevron-down"></i>rate-limiter<span class="sp"></span><span class="dot"></span></div>
+      <div class="row on mod" style="padding-left:60px"><span class="fi ts">TS</span>index.ts<span class="sp"></span><span class="meta mod">M</span></div>
+      <div class="row mod" style="padding-left:60px"><span class="fi ts">TS</span>index.test.ts<span class="sp"></span><span class="meta mod">M</span></div>
+      <div class="row unt" style="padding-left:60px"><span class="fi ts">TS</span>store.ts<span class="sp"></span><span class="meta unt">U</span></div>
+      <div class="row" style="padding-left:60px"><span class="fi md">M↓</span>README.md</div>
+      <div class="row" style="padding-left:44px"><i class="ci ci-chevron-right"></i>secure-headers</div>
+      <div class="row" style="padding-left:32px"><i class="ci ci-chevron-right"></i>router</div>
+      <div class="row" style="padding-left:32px"><span class="fi ts">TS</span>hono.ts</div>
+      <div class="row" style="padding-left:32px"><span class="fi ts">TS</span>context.ts</div>
+      <div class="row" style="padding-left:20px"><span class="fi js">{}</span>package.json</div>
+      <div class="row" style="padding-left:20px"><span class="fi md">M↓</span>MIGRATION.md</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="etabs">
+      <div class="etab"><span class="fi md">M↓</span>MIGRATION.md</div>
+      <div class="etab on"><span class="fi ts">TS</span>index.ts<i class="ci ci-close"></i></div>
+      <div class="etab"><span class="fi ts">TS</span>store.ts</div>
+      <div class="etab"><span class="fi js">{}</span>package.json</div>
+    </div>
+    <div class="crumbs">src<i class="ci ci-chevron-right"></i>middleware<i class="ci ci-chevron-right"></i>rate-limiter<i class="ci ci-chevron-right"></i>index.ts<i class="ci ci-chevron-right"></i><i class="ci ci-symbol-method"></i>rateLimiter</div>
+    <div class="editor">
+      <div class="gut"><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div>12</div><div>13</div><div>14</div><div class="on">15</div><div>16</div><div>17</div><div>18</div><div>19</div><div>20</div><div>21</div></div>
+<div class="src"><div><span class="k">import type</span> { <span class="t">MiddlewareHandler</span> } <span class="k">from</span> <span class="s">'../../types'</span></div><div><span class="k">import</span> { <span class="t">MemoryStore</span>, <span class="k">type</span> <span class="t">Store</span> } <span class="k">from</span> <span class="s">'./store'</span></div><div> </div><div><span class="cm">/** <span class="z">滑动窗口：上一窗口按剩余比例计入，边界不再突刺。</span><span class="e">Sliding window: the last one counted by the share left.</span> */</span></div><div><span class="k">export const</span> <span class="f">rateLimiter</span> = (<span class="p">options</span>: {</div><div>  <span class="p">limit</span>: <span class="t">number</span></div><div>  <span class="p">windowMs</span>: <span class="t">number</span></div><div>  <span class="p">store</span>?: <span class="t">Store</span></div><div>}): <span class="t">MiddlewareHandler</span> => {</div><div>  <span class="k">const</span> <span class="p">store</span> = options.store ?? <span class="k">new</span> <span class="t">MemoryStore</span>()</div><div>  <span class="k">return async</span> (<span class="p">c</span>, <span class="p">next</span>) => {</div><div>    <span class="k">const</span> <span class="p">key</span> = c.req.<span class="f">header</span>(<span class="s">'x-forwarded-for'</span>) ?? <span class="s">'anonymous'</span></div><div class="chg">    <span class="k">const</span> { <span class="p">current</span>, <span class="p">previous</span>, <span class="p">elapsed</span> } = <span class="k">await</span> store.<span class="f">hit</span>(key, options.windowMs)</div><div class="chg">    <span class="k">const</span> <span class="p">weight</span> = <span class="n">1</span> - elapsed / options.windowMs</div><div class="chg cur">    <span class="k">const</span> <span class="p">count</span> = previous * weight + current</div><div>    c.<span class="f">header</span>(<span class="s">'RateLimit'</span>, <span class="s">`limit=${options.limit}, remaining=${</span><span class="t">Math</span>.<span class="f">max</span>(<span class="n">0</span>, options.limit - count)<span class="s">}`</span>)</div><div>    <span class="k">if</span> (count > options.limit) {</div><div>      <span class="k">return</span> c.<span class="f">text</span>(<span class="s">'Too Many Requests'</span>, <span class="n">429</span>)</div><div>    }</div><div>    <span class="k">await</span> <span class="f">next</span>()</div><div>  }</div></div>
+      <div class="minimap"><i style="width:70%"></i><i style="width:80%"></i><i style="width:0"></i><i style="width:90%"></i><i style="width:60%"></i><i style="width:30%"></i><i style="width:36%"></i><i style="width:30%"></i><i style="width:50%"></i><i style="width:76%"></i><i style="width:46%"></i><i style="width:96%"></i><i style="width:100%"></i><i style="width:70%"></i><i style="width:62%"></i><i style="width:100%"></i><i style="width:40%"></i><i style="width:66%"></i></div>
+    </div>
+    <div class="panel" style="--panelh:206px">
+      <div class="ptabs"><span><span class="z">问题</span><span class="e">Problems</span></span><span><span class="z">输出</span><span class="e">Output</span></span><span class="on"><span class="z">终端</span><span class="e">Terminal</span></span><span class="sp"></span><span class="ib"><i class="ci ci-add"></i></span><span class="ib"><i class="ci ci-trash"></i></span></div>
+<div class="term"><span class="add">➜</span> <span class="p">hono</span> git:(<span class="del">feat/sliding-window</span>) bun test src/middleware/rate-limiter
+bun test v1.2.4
+
+<span class="add">✓</span> src/middleware/rate-limiter/index.test.ts <span class="dim">(9 tests) 21ms</span>
+  <span class="add">✓</span> <span class="z">窗口边界不再突刺</span><span class="e">no burst at the window’s edge</span>
+  <span class="add">✓</span> <span class="z">存储失效时放行并记日志</span><span class="e">a failing store lets requests through, logged</span>
+
+ <span class="add">9 pass</span>
+ 0 fail
+<span class="add">➜</span> <span class="p">hono</span> git:(<span class="del">feat/sliding-window</span>) ▍</div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <div class="dtabs"><span class="etab on" style="border:0;background:none;margin:0"><i class="ci ci-comment-discussion"></i><span class="z">限流改成滑动窗口</span><span class="e">Sliding-window limiting</span></span><span class="sp"></span><span class="ib"><i class="ci ci-add"></i></span><span class="ib"><i class="ci ci-history"></i></span></div>
+    <div class="conv">
+      <div class="bubble" style="max-width:92%"><span class="z">把限流改成滑动窗口，计数存储要能换成 Workers KV</span><span class="e">Make the limiter a sliding window; the store should swap for Workers KV</span></div>
+      <div class="step"><i class="ci ci-search"></i><span class="z">搜索 rateLimiter · 4 处</span><span class="e">Searched rateLimiter · 4 hits</span></div>
+      <div class="step"><i class="ci ci-file"></i><span class="z">读取 index.ts</span><span class="e">Read index.ts</span></div>
+      <div class="diff">
+        <div class="head"><i class="ci ci-edit"></i>index.ts<span class="sp"></span><span class="add">+6</span><span class="del">−2</span></div>
+        <div class="l d mono">const count = await store.incr(key)</div>
+        <div class="l a mono">const { current, previous, elapsed } =</div>
+        <div class="l a mono">  await store.hit(key, options.windowMs)</div>
+        <div class="l a mono">const weight = 1 - elapsed / options.windowMs</div>
+        <div class="l a mono">const count = previous * weight + current</div>
+      </div>
+      <div class="step"><i class="ci ci-terminal"></i>bun test src/middleware/rate-limiter <span class="add">· 9 pass</span></div>
+      <p class="z">改好了：按「上一窗口 × 剩余比例 + 当前窗口」估算，窗口边界不再突刺。计数存储抽成 <code>Store</code> 接口，内置内存版，KV 版在 <code>store.ts</code>。</p>
+      <p class="e">Done: it counts “previous window × the share left + this one”, so no burst at the edge. The counter is a <code>Store</code> now, memory built in, KV in <code>store.ts</code>.</p>
+    </div>
+    <div class="composer">
+      <div class="text"><span class="tag"><span class="fi ts">TS</span>index.ts:13-15</span> <span class="z">这三行加个注释</span><span class="e">comment these three lines</span><span class="gold">▍</span></div>
+      <div class="tools">
+        <span class="chip"><span class="inf">∞</span>Agent</span>
+        <span class="chip g"><i class="ci ci-shield"></i><span class="z">完全访问</span><span class="e">Full access</span></span>
+        <span class="chip"><i class="ci ci-sparkle"></i>Opus 5.5</span>
+        <span class="sp"></span>
+        <span class="send on"><i class="ci ci-arrow-up"></i></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="statusbar"><span><i class="ci ci-git-branch"></i> feat/sliding-window*</span><span><i class="ci ci-sync"></i> 0↓ 1↑</span><span><i class="ci ci-error"></i> 0 <i class="ci ci-warning"></i> 0</span><span class="sp"></span><span><span class="z">行 15，列 48</span><span class="e">Ln 15, Col 48</span></span><span><span class="z">空格: 2</span><span class="e">Spaces: 2</span></span><span>UTF-8</span><span>LF</span><span>TypeScript</span><span><i class="ci ci-bell"></i></span></div>
+
+  <div class="qpick">
+    <div class="q"><span class="z">选择颜色主题</span><span class="e">Select Color Theme</span></div>
+    <div class="mh"><span class="z">深色主题</span><span class="e">dark themes</span></div>
+    <div class="mi">Bao Dark</div>
+    <div class="mi">Dark Modern</div>
+    <div class="mi on">Kimbie Dark</div>
+    <div class="mi">Monokai Dimmed</div>
+    <div class="mi">Solarized Dark</div>
+    <div class="mi">Tomorrow Night Blue</div>
+    <div class="mh"><span class="z">浅色主题</span><span class="e">light themes</span></div>
+    <div class="mi">Bao Light</div>
+    <div class="mi">Light Modern</div>
+    <div class="mi">Solarized Light</div>
+  </div>
+</div>
+</body>
+</html>
