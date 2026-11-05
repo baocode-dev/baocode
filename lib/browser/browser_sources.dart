@@ -105,18 +105,26 @@ class _Debugging {
       _enabled = null;
       rethrow;
     }
-    // The page's own banner while paused, with its resume button: the user
-    // is not stuck.
+    // For the banner while paused (see [_banner]).
     try {
       await browser.cdp(tab.tabId, 'DOM.enable');
       await browser.cdp(tab.tabId, 'Overlay.enable');
-      await browser.cdp(tab.tabId, 'Overlay.setPausedInDebuggerMessage', {
-        'message': 'Paused in debugger (BaoCode)',
-      });
     } on Object {
       // No banner.
     }
   }();
+
+  /// The page's own banner while paused, with its resume button: the user is
+  /// not stuck. Only then, as DevTools does: set, Chrome lets no mouse move
+  /// with a button held through to the page, paused or not, and a drag
+  /// draws nothing.
+  void _banner(bool shown) => unawaited(
+    tab.browser
+        .cdp(tab.tabId, 'Overlay.setPausedInDebuggerMessage', {
+          if (shown) 'message': 'Paused in debugger (BaoCode)',
+        })
+        .then<void>((_) {}, onError: (_) {}),
+  );
 
   /// Pauses skipped unless asked for: a breakpoint, exceptions, a pause.
   Future<void> _sync() async {
@@ -184,11 +192,13 @@ class _Debugging {
         _pausing = false;
         pausedAt = _reason(params);
         _changes.add(null);
+        _banner(true);
         unawaited(_locate(params));
       case 'Debugger.resumed':
         paused = null;
         pausedAt = null;
         _changes.add(null);
+        _banner(false);
     }
   }
 

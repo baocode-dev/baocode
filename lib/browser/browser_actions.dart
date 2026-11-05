@@ -218,7 +218,10 @@ final _actionTools = [
         'deltaY | ref | text}; {action: "wait", text (until the page says '
         'it) | ms}; {action: "navigate", url | back | forward | reload: '
         'true}; {action: "upload", files (paths), ref | text | selector: a '
-        'file input, or what opens the file chooser}. Elements may be aimed '
+        'file input, or what opens the file chooser}; {action: "drag", ref '
+        '| text | x, y: where it starts, to: {ref | text | x, y} or path: '
+        '[[x, y], …] (to draw, to move a slider or a card)}. Elements may be '
+        'aimed '
         'by selector (CSS) too. Or file: a .json of steps kept to do again '
         '(a recording\'s, from browser_watch), its paths beside it.',
     inputSchema: {
@@ -240,6 +243,7 @@ final _actionTools = [
                   'wait',
                   'navigate',
                   'upload',
+                  'drag',
                 ],
               },
             },
@@ -356,6 +360,7 @@ Future<String> _step(
   'wait' => _wait(browser, tabId, step),
   'navigate' => _navigate(browser, tabId, step),
   'upload' => _upload(browser, tabId, step),
+  'drag' => _drag(browser, tabId, step),
   final action => throw BrowserError('No action ${jsonEncode(action)}.'),
 };
 
@@ -437,35 +442,45 @@ Future<String> _upload(
   }
 }
 
+/// The point [step] aims at, its element's or its x and y, and what it is
+/// called. An element covered is an error, unless [covered] lets it be (a
+/// drag's end, under what is dragged).
+Future<(double, double, String)> _aim(
+  BrowserConnection browser,
+  int tabId,
+  Map<String, Object?> step, {
+  bool covered = false,
+}) async {
+  if (_targetOf(step) case final target?) {
+    final element = await _find(browser, tabId, target);
+    final point = await _bao(browser, tabId, 'point(${element['ref']})') as Map;
+    if (point['covered'] case final Map over when !covered) {
+      final close = (over['close'] as List? ?? const []).cast<Map>();
+      throw BrowserError(
+        '${_elementName(element)} is covered by ${jsonEncode(over['name'])}'
+        '${close.isEmpty ? '.' : ': to close it, ${close.map((c) => _elementName(c.cast())).join(' or ')}.'}',
+      );
+    }
+    if (point['error'] case final String error) throw BrowserError(error);
+    return (
+      (point['x'] as num).toDouble(),
+      (point['y'] as num).toDouble(),
+      _elementName(element),
+    );
+  }
+  if ((step['x'], step['y']) case (final num x, final num y)) {
+    return (x.toDouble(), y.toDouble(), '(${x.round()}, ${y.round()})');
+  }
+  throw const BrowserError('Aim it: ref, text (role, near), or x and y.');
+}
+
 Future<String> _click(
   BrowserConnection browser,
   int tabId,
   Map<String, Object?> step,
 ) async {
-  final double x;
-  final double y;
-  final String what;
-  if (_targetOf(step) case final target?) {
-    final element = await _find(browser, tabId, target);
-    final point = await _bao(browser, tabId, 'point(${element['ref']})') as Map;
-    if (point['covered'] case final Map covered) {
-      final close = (covered['close'] as List? ?? const []).cast<Map>();
-      throw BrowserError(
-        '${_elementName(element)} is covered by ${jsonEncode(covered['name'])}'
-        '${close.isEmpty ? '.' : ': to close it, ${close.map((c) => _elementName(c.cast())).join(' or ')}.'}',
-      );
-    }
-    if (point['error'] case final String error) throw BrowserError(error);
-    x = (point['x'] as num).toDouble();
-    y = (point['y'] as num).toDouble();
-    what = _elementName(element);
-  } else if ((step['x'], step['y']) case (final num px, final num py)) {
-    x = px.toDouble();
-    y = py.toDouble();
-    what = 'at (${x.round()}, ${y.round()})';
-  } else {
-    throw const BrowserError('Aim it: ref, text (role, near), or x and y.');
-  }
+  final (x, y, name) = await _aim(browser, tabId, step);
+  final what = _targetOf(step) == null ? 'at $name' : name;
   final button = step['button'] as String? ?? 'left';
   final count = step['clickCount'] as int? ?? 1;
   Future<void> mouse(String type, [int clicks = 0]) =>
@@ -482,6 +497,102 @@ Future<String> _click(
     await mouse('mouseReleased', i);
   }
   return 'Clicked $what.';
+}
+
+/// Drags from [step]'s element or point to `to`'s (aimed the same way), or
+/// along `path` ([x, y] points): the left button held all the way, through
+/// the points between, as a hand moves; to draw on a canvas, to move a
+/// slider or a card. What the page lets drag and drop (draggable) is
+/// dropped where it ends.
+Future<String> _drag(
+  BrowserConnection browser,
+  int tabId,
+  Map<String, Object?> step,
+) async {
+  final (x, y, from) = await _aim(browser, tabId, step);
+  final points = <(double, double)>[];
+  var to = '';
+  if (step['to'] case final Map end) {
+    final (ex, ey, name) = await _aim(
+      browser,
+      tabId,
+      end.cast(),
+      covered: true,
+    );
+    points.add((ex, ey));
+    to = ' to $name';
+  } else if (step['path'] case final List path when path.isNotEmpty) {
+    for (final point in path) {
+      if (point case [final num px, final num py]) {
+        points.add((px.toDouble(), py.toDouble()));
+      } else {
+        throw const BrowserError('A path is [x, y] points.');
+      }
+    }
+    final (ex, ey) = points.last;
+    to = ' along ${points.length} points to (${ex.round()}, ${ey.round()})';
+  } else {
+    throw const BrowserError(
+      'Say where to: to (ref, text, or x and y), or path ([x, y] points).',
+    );
+  }
+  // The page's own drag and drop, caught as it starts: done then with its
+  // data, as the browser would.
+  Map? dragged;
+  final subscription = BrowserBridge.instance.events.listen((event) {
+    if (event.event == 'cdp' &&
+        identical(event.connection, browser) &&
+        event.tabId == tabId &&
+        event.message['method'] == 'Input.dragIntercepted') {
+      dragged = (event.message['params'] as Map?)?['data'] as Map?;
+    }
+  });
+  Future<void> mouse(String type, double x, double y, {bool held = true}) =>
+      browser.cdp(tabId, 'Input.dispatchMouseEvent', {
+        'type': type,
+        'x': x,
+        'y': y,
+        'button': held ? 'left' : 'none',
+        'buttons': held && type != 'mouseReleased' ? 1 : 0,
+        'clickCount': type == 'mouseMoved' ? 0 : 1,
+      });
+  var (px, py) = (x, y);
+  try {
+    await browser.cdp(tabId, 'Input.setInterceptDrags', {'enabled': true});
+    await mouse('mouseMoved', x, y, held: false);
+    await mouse('mousePressed', x, y);
+    moving:
+    for (final (nx, ny) in points) {
+      final distance = sqrt((nx - px) * (nx - px) + (ny - py) * (ny - py));
+      final moves = (distance / 8).ceil().clamp(1, 30);
+      final (sx, sy) = (px, py);
+      for (var i = 1; i <= moves; i++) {
+        (px, py) = (sx + (nx - sx) * i / moves, sy + (ny - sy) * i / moves);
+        await mouse('mouseMoved', px, py);
+        if (dragged != null) break moving;
+      }
+    }
+    if (dragged case final data?) {
+      final (ex, ey) = points.last;
+      for (final type in ['dragEnter', 'dragOver', 'drop']) {
+        await browser.cdp(tabId, 'Input.dispatchDragEvent', {
+          'type': type,
+          'x': ex,
+          'y': ey,
+          'data': data,
+        });
+      }
+      (px, py) = (ex, ey);
+    }
+    await mouse('mouseReleased', px, py);
+  } finally {
+    await subscription.cancel();
+    await browser
+        .cdp(tabId, 'Input.setInterceptDrags', {'enabled': false})
+        .catchError((Object _) => <String, Object?>{});
+  }
+  return '${dragged == null ? 'Dragged' : 'Dragged and dropped'} '
+      '${_targetOf(step) == null ? 'from ' : ''}$from$to.';
 }
 
 Future<String> _type(

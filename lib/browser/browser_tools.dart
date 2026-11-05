@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math' show sqrt;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -232,7 +233,9 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
       description:
           "Opens a URL in a new tab of the user's browser, in the BaoCode "
           'tab group, and waits for it to load. Returns the tab id and what '
-          'is on screen: the elements to act on (refs) and the words.',
+          'is on screen: the elements to act on (refs) and the words. '
+          'Close the tabs you open (browser_close) once done with them, '
+          'unless the user is to look at what is in them.',
       inputSchema: {
         'type': 'object',
         'properties': {
@@ -260,7 +263,9 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
           tabId,
           () => browser.cdp(tabId, 'Page.navigate', {'url': url}),
         );
-        return _arrived(browser, tabId);
+        return '${await _arrived(browser, tabId)}\n'
+            'Close it (browser_close) once done, unless the user is to look '
+            'at it.';
       },
     ),
     ClaudeSdkTool(
@@ -318,7 +323,8 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
     ),
     ClaudeSdkTool(
       name: 'browser_close',
-      description: 'Closes a shared tab.',
+      description:
+          'Closes a shared tab: the ones you opened, once done with them.',
       inputSchema: {
         'type': 'object',
         'properties': {'tabId': _tabId},
