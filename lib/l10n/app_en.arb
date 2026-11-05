@@ -860,6 +860,14 @@
   "sidebarByProject": "By project",
   "sidebarByDate": "By date",
   "sidebarByStatus": "By status",
+  "sidebarProjectSortRecent": "Recent activity",
+  "@sidebarProjectSortRecent": {
+    "description": "Sidebar menu: projects ordered by their latest agent, the most recent first."
+  },
+  "sidebarProjectSortManual": "Manual",
+  "@sidebarProjectSortManual": {
+    "description": "Sidebar menu: projects in the order the user dragged them."
+  },
   "sidebarTimeNow": "now",
   "@sidebarTimeNow": {
     "description": "Compact relative time in the agents list."

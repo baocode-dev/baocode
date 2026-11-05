@@ -1801,6 +1801,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarByStatus => 'By status';
 
   @override
+  String get sidebarProjectSortRecent => 'Recent activity';
+
+  @override
+  String get sidebarProjectSortManual => 'Manual';
+
+  @override
   String get sidebarTimeNow => 'now';
 
   @override

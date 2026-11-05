@@ -3344,6 +3344,18 @@ abstract class AppLocalizations {
   /// **'By status'**
   String get sidebarByStatus;
 
+  /// Sidebar menu: projects ordered by their latest agent, the most recent first.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent activity'**
+  String get sidebarProjectSortRecent;
+
+  /// Sidebar menu: projects in the order the user dragged them.
+  ///
+  /// In en, this message translates to:
+  /// **'Manual'**
+  String get sidebarProjectSortManual;
+
   /// Compact relative time in the agents list.
   ///
   /// In en, this message translates to:

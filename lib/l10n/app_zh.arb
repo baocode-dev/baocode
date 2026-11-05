@@ -541,6 +541,8 @@
   "sidebarByProject": "按项目",
   "sidebarByDate": "按日期",
   "sidebarByStatus": "按状态",
+  "sidebarProjectSortRecent": "最近活动",
+  "sidebarProjectSortManual": "手动",
   "sidebarTimeNow": "刚刚",
   "sidebarTimeMinutes": "{count}分钟",
   "sidebarTimeHours": "{count}小时",

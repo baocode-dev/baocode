@@ -100,6 +100,10 @@ class AgentSetup {
   final Map<String, String> settings;
 }
 
+/// How the sidebar orders the projects not pinned: by their latest agent's
+/// time, or as the user dragged them.
+enum ProjectSort { recent, manual }
+
 /// What an agent needs from the user, most urgent first.
 enum ThreadStatus {
   /// Stopped on a question only the user can answer.
@@ -1546,9 +1550,23 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
-  /// The projects the sidebar lists, in its order: those pinned first;
-  /// then those not dragged yet (e.g. new), most recent first; then as the
-  /// user ordered them.
+  /// How the projects not pinned are ordered: as chosen; else by their
+  /// agents' time, unless the user dragged some already (from before there
+  /// was a choice: their order kept).
+  ProjectSort get projectSort =>
+      _projectSort ??
+      (_projectOrder.isEmpty ? ProjectSort.recent : ProjectSort.manual);
+  ProjectSort? _projectSort;
+  set projectSort(ProjectSort sort) {
+    if (sort == _projectSort) return;
+    _projectSort = sort;
+    _save();
+    notifyListeners();
+  }
+
+  /// The projects the sidebar lists, in its order: those pinned first; then
+  /// by [projectSort] the others, their latest agent's first or as the user
+  /// dragged them (those not dragged yet, e.g. new, before).
   List<Project> get sidebarProjects {
     final shown = [
       for (final project in _projects)
@@ -1559,11 +1577,14 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       for (final project in shown)
         if (pinRank[project.path] != null) project,
     ]..sort((a, b) => pinRank[a.path]!.compareTo(pinRank[b.path]!));
-    final rank = {for (final (i, path) in _projectOrder.indexed) path: i};
     final rest = [
       for (final project in shown)
         if (pinRank[project.path] == null) project,
     ];
+    if (projectSort == ProjectSort.recent) {
+      return [...pinned, ..._byActivity(rest)];
+    }
+    final rank = {for (final (i, path) in _projectOrder.indexed) path: i};
     final ranked = [
       for (final project in rest)
         if (rank[project.path] != null) project,
@@ -1574,6 +1595,27 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
         if (rank[project.path] == null) project,
       ...ranked,
     ];
+  }
+
+  /// [projects] by their latest agent's time, the most recent first; those
+  /// with none yet (their agents not read yet, say) after, as they were.
+  List<Project> _byActivity(List<Project> projects) {
+    final latest = <Project, DateTime>{};
+    for (final thread in _threads) {
+      // Only one asked something: a new agent, still empty, is no activity.
+      if (thread.id == null) continue;
+      final time = latest[thread.project];
+      if (time == null || thread.updatedAt.isAfter(time)) {
+        latest[thread.project] = thread.updatedAt;
+      }
+    }
+    final at = {for (final (i, project) in projects.indexed) project: i};
+    return [...projects]..sort((a, b) {
+      final (ta, tb) = (latest[a], latest[b]);
+      if (ta != null && tb != null && ta != tb) return tb.compareTo(ta);
+      if ((ta == null) != (tb == null)) return ta == null ? 1 : -1;
+      return at[a]!.compareTo(at[b]!);
+    });
   }
 
   // --- SSH hosts ------------------------------------------------------------
@@ -1738,7 +1780,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Moves [project] in [sidebarProjects] to just before [before], or
   /// last, among those pinned or among the rest, as it is (last there when
   /// [before] is of the others): all listed are in the user's order from
-  /// then on.
+  /// then on, [ProjectSort.manual] (one not pinned dragged).
   void moveProject(Project project, {Project? before}) {
     final pinned = isPinnedProject(project);
     final order = [
@@ -1756,6 +1798,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     kept
       ..clear()
       ..addAll([...paths, ...rest]);
+    if (!pinned) _projectSort = ProjectSort.manual;
     _save();
     notifyListeners();
   }
@@ -2568,6 +2611,9 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       if (sidebar['grouping'] case final String grouping) {
         _sidebarGrouping = grouping;
       }
+      if (sidebar['projectSort'] case final String sort) {
+        _projectSort = ProjectSort.values.asNameMap()[sort];
+      }
       _collapsedGroups.addAll(list('collapsed'));
       _showArchived = sidebar['showArchived'] == true;
       _pinned.addAll(list('pinned'));
@@ -2704,6 +2750,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'ignoredRecommendations': [..._ignoredRecommendations],
       'sidebar': {
         'grouping': ?_sidebarGrouping,
+        'projectSort': ?_projectSort?.name,
         'collapsed': [..._collapsedGroups],
         'showArchived': _showArchived,
         'pinned': [..._pinned],

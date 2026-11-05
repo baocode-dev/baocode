@@ -1151,7 +1151,8 @@ class _SidebarState extends State<Sidebar>
           ),
           ?_buildCollapseAll(),
           SidebarMenu(
-            width: 150,
+            // `Recent activity` and its check whole.
+            width: 168,
             placement: (side: FloatingSide.bottom, align: FloatingAlign.end),
             items: () => [
               for (final grouping in SidebarGrouping.values)
@@ -1161,6 +1162,28 @@ class _SidebarState extends State<Sidebar>
                   checked: grouping == _grouping,
                   onSelected: () => _workspace.sidebarGrouping = grouping.name,
                 ),
+              // How the projects are ordered: only while they are the groups.
+              if (_grouping == SidebarGrouping.project) ...[
+                const SidebarMenuItem.divider(),
+                for (final (sort, label, icon) in [
+                  (
+                    ProjectSort.recent,
+                    context.l10n.sidebarProjectSortRecent,
+                    Icons.update_rounded,
+                  ),
+                  (
+                    ProjectSort.manual,
+                    context.l10n.sidebarProjectSortManual,
+                    Icons.drag_indicator_rounded,
+                  ),
+                ])
+                  SidebarMenuItem(
+                    label,
+                    icon: icon,
+                    checked: sort == _workspace.projectSort,
+                    onSelected: () => _workspace.projectSort = sort,
+                  ),
+              ],
             ],
             builder: (context, menu) => HoverBuilder(
               cursor: SystemMouseCursors.click,
