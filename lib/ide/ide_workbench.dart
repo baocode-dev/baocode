@@ -3903,6 +3903,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: _toggleProblems,
       ),
       IdeCommand(
+        id: 'workbench.actions.view.problems.refresh',
+        category: 'Problems',
+        label: 'Rescan Problems',
+        enabled: _languages != null,
+        run: () => unawaited(_rescanProblems()),
+      ),
+      IdeCommand(
         id: 'outline.focus',
         category: 'View',
         label: 'Show Outline',
@@ -4542,6 +4549,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                 for (final (_, git) in workspace.repositories)
                                   git,
                               ],
+                              languages: _languages,
                               onAddFolder: workspace.isMultiRoot
                                   ? widget.onAddFolder
                                   : null,
@@ -5431,6 +5439,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         referencesList: _referencesList,
                         textOf: _textOf,
                         onAsk: widget.onAskInChat == null ? null : _askInChat,
+                        onRefreshProblems: () => unawaited(_rescanProblems()),
                         terminal: switch (_terminals) {
                           final terminals? => TerminalPanel(
                             terminals: terminals,

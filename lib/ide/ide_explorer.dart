@@ -42,6 +42,8 @@ import 'ide_input.dart';
 import 'ide_list.dart';
 import 'ide_menu.dart';
 import 'ide_notifications.dart';
+import 'lsp/language_features.dart';
+import 'lsp_ui/problem_decorations.dart';
 import 'save_copy.dart';
 
 /// One visible row of the explorer tree.
@@ -540,6 +542,7 @@ class IdeExplorer extends StatefulWidget {
     this.isBound,
     this.local = true,
     this.repositories = const [],
+    this.languages,
     this.onAddFolder,
     this.onRemoveFolder,
     this.background,
@@ -570,6 +573,9 @@ class IdeExplorer extends StatefulWidget {
 
   /// For the rows' colors and letters.
   final IdeGitRepository? git;
+
+  /// Diagnostics for the rows' colors and badges.
+  final LanguageFeatures? languages;
 
   /// A file or folder was renamed or moved (cut and pasted).
   final void Function(String from, String to)? onMoved;
@@ -649,6 +655,7 @@ class IdeExplorerState extends State<IdeExplorer>
     _controller.addListener(_changed);
     _controller.lineCount.addListener(_changed);
     widget.git?.addListener(_changed);
+    widget.languages?.addListener(_changed);
     for (final repository in widget.repositories) {
       repository.addListener(_changed);
     }
@@ -670,6 +677,10 @@ class IdeExplorerState extends State<IdeExplorer>
       oldWidget.git?.removeListener(_changed);
       widget.git?.addListener(_changed);
     }
+    if (oldWidget.languages != widget.languages) {
+      oldWidget.languages?.removeListener(_changed);
+      widget.languages?.addListener(_changed);
+    }
     if (!listEquals(oldWidget.repositories, widget.repositories)) {
       for (final repository in oldWidget.repositories) {
         repository.removeListener(_changed);
@@ -689,6 +700,7 @@ class IdeExplorerState extends State<IdeExplorer>
     _controller.removeListener(_changed);
     _controller.lineCount.removeListener(_changed);
     widget.git?.removeListener(_changed);
+    widget.languages?.removeListener(_changed);
     for (final repository in widget.repositories) {
       repository.removeListener(_changed);
     }
@@ -2070,6 +2082,12 @@ class IdeExplorerState extends State<IdeExplorer>
     final rows = _shownRows = _rowsWithEdit();
     final focused = _focusNode.hasFocus;
     final decorations = widget.git?.decorations;
+    final problemDecorations = widget.languages != null
+        ? IdeProblemDecorations(
+            widget.languages!.allDiagnostics,
+            paths: _controller.paths,
+          )
+        : null;
     final repositories = widget.repositories;
     IdeGitDecorations? decorationsOf(String path) {
       if (repositories.isEmpty) return decorations;
@@ -2144,6 +2162,13 @@ class IdeExplorerState extends State<IdeExplorer>
                     onCancel: _cancelEdit,
                   );
                 }
+                final problemDecoration = switch (problemDecorations) {
+                  _ when row.message != null => null,
+                  null => null,
+                  final decorations when row.isDirectory =>
+                    decorations.folder(row.path),
+                  final decorations => decorations.file(row.path),
+                };
                 final gitDecoration = switch (decorationsOf(row.path)) {
                   _ when row.message != null => null,
                   null => null,
@@ -2154,9 +2179,17 @@ class IdeExplorerState extends State<IdeExplorer>
                 final lineDecoration = row.isDirectory || row.message != null
                     ? null
                     : _controller.lineCount.decorationFor(row.path);
-                final decoration = lineDecoration != null
-                    ? lineDecoration.merge(gitDecoration)
-                    : gitDecoration;
+                var decoration = problemDecoration;
+                if (decoration != null) {
+                  decoration = decoration.merge(gitDecoration);
+                } else {
+                  decoration = gitDecoration;
+                }
+                if (lineDecoration != null) {
+                  decoration = decoration != null
+                      ? decoration.merge(lineDecoration)
+                      : lineDecoration;
+                }
                 final view = _ExplorerRowView(
                   row: row,
                   selected: _controller.isSelected(row.path),
@@ -2469,13 +2502,13 @@ class _ExplorerRowView extends StatelessWidget {
                     ),
                   ),
                   if (letter == '•')
-                    // `bubble`: a dot for a folder with changes inside.
+                    // `bubble`: a dot for a folder with changes or problems inside.
                     Padding(
                       padding: const EdgeInsets.only(left: 5, right: 14),
                       child: Icon(
                         Codicons.circleFilled,
                         size: 14,
-                        color: (color ?? foreground).withValues(alpha: .4),
+                        color: color ?? foreground.withValues(alpha: .4),
                       ),
                     )
                   else if (letter != null)
@@ -2501,51 +2534,84 @@ class _ExplorerRowView extends StatelessWidget {
     required Color? color,
     required Color foreground,
   }) {
-    final comma = letter.indexOf(', ');
-    if (comma == -1) {
-      final isGit = color != null;
+    final parts = letter.split(', ');
+    if (parts.length == 1) {
+      final isColored = color != null;
       return Text(
         letter,
         style: TextStyle(
           fontSize: 13 * .9,
-          fontWeight: isGit ? FontWeight.w600 : FontWeight.w500,
-          color: isGit
-              ? color.withValues(alpha: .75)
+          fontWeight: isColored ? FontWeight.w600 : FontWeight.w500,
+          color: isColored
+              ? color.withValues(alpha: .85)
               : foreground.withValues(alpha: .5),
         ),
       );
     }
 
-    final first = letter.substring(0, comma);
-    final rest = letter.substring(comma + 2);
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: first,
-            style: TextStyle(
-              color: foreground.withValues(alpha: .5),
-              fontWeight: FontWeight.w500,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < parts.length; i++) ...[
+          if (i > 0)
+            Text(
+              ', ',
+              style: TextStyle(
+                fontSize: 13 * .9,
+                color: foreground.withValues(alpha: .35),
+                fontWeight: FontWeight.normal,
+              ),
             ),
-          ),
-          TextSpan(
-            text: ', ',
+          Text(
+            parts[i],
             style: TextStyle(
-              color: foreground.withValues(alpha: .35),
-              fontWeight: FontWeight.normal,
-            ),
-          ),
-          TextSpan(
-            text: rest,
-            style: TextStyle(
-              color: (color ?? foreground).withValues(alpha: .75),
-              fontWeight: FontWeight.w600,
+              fontSize: 13 * .9,
+              color: _badgePartColor(
+                parts[i],
+                i,
+                parts.length,
+                color,
+                foreground,
+              ),
+              fontWeight: _badgePartWeight(
+                parts[i],
+                i,
+                parts.length,
+                color,
+              ),
             ),
           ),
         ],
-      ),
-      style: const TextStyle(fontSize: 13 * .9),
+      ],
     );
+  }
+
+  Color _badgePartColor(
+    String part,
+    int index,
+    int total,
+    Color? color,
+    Color foreground,
+  ) {
+    final isLineCount = part.endsWith('h') ||
+        part.endsWith('k') ||
+        (color != null && index == total - 1 && int.tryParse(part) != null);
+    if (isLineCount) {
+      return foreground.withValues(alpha: .5);
+    }
+    return (color ?? foreground).withValues(alpha: .85);
+  }
+
+  FontWeight _badgePartWeight(
+    String part,
+    int index,
+    int total,
+    Color? color,
+  ) {
+    final isLineCount = part.endsWith('h') ||
+        part.endsWith('k') ||
+        (color != null && index == total - 1 && int.tryParse(part) != null);
+    return isLineCount ? FontWeight.w500 : FontWeight.w600;
   }
 }
 

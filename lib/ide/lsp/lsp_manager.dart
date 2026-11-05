@@ -274,6 +274,40 @@ class LspManager extends ChangeNotifier
     }
   }
 
+  Timer? _autoCompileTimer;
+
+  void _scheduleWorkspaceCompile() {
+    _autoCompileTimer?.cancel();
+    _autoCompileTimer = Timer(const Duration(milliseconds: 500), () async {
+      if (_shutDown) return;
+
+      // Clean up diagnostics for files that no longer exist on disk.
+      final missing = <String>[];
+      for (final path in _diagnostics.keys) {
+        if (!await _pathExists(path)) missing.add(path);
+      }
+      if (missing.isNotEmpty) {
+        for (final path in missing) {
+          _diagnostics.remove(path);
+        }
+        _notify();
+      }
+
+      // Trigger incremental compilation for language servers that support it (e.g. Java JDT.LS autobuild).
+      for (final server in _servers.values) {
+        final client = server.client;
+        if (client != null && client.isInitialized) {
+          if (client.commands.contains('java.workspace.compile')) {
+            unawaited(_ask(client, 'workspace/executeCommand', {
+              'command': 'java.workspace.compile',
+              'arguments': [false],
+            }));
+          }
+        }
+      }
+    });
+  }
+
   @override
   void saveDocument(String path, String text) {
     final doc = _documents[_normalize(path)];
@@ -281,6 +315,7 @@ class LspManager extends ChangeNotifier
     for (final server in doc.servers) {
       server.client?.didSave(doc.uri, text);
     }
+    _scheduleWorkspaceCompile();
   }
 
   @override
@@ -293,6 +328,57 @@ class LspManager extends ChangeNotifier
       _scheduleIdle(server);
     }
     _notify();
+  }
+
+  @override
+  Future<void> rescanDiagnostics({
+    required Future<String?> Function(String path) readText,
+  }) async {
+    if (_shutDown) return;
+
+    // Trigger full workspace compile if Java LSP (JDT.LS) is running.
+    for (final server in _servers.values) {
+      final client = server.client;
+      if (client != null && client.isInitialized) {
+        if (client.commands.contains('java.workspace.compile')) {
+          unawaited(_ask(client, 'workspace/executeCommand', {
+            'command': 'java.workspace.compile',
+            'arguments': [true],
+          }));
+        }
+      }
+    }
+
+    final paths = List<String>.from(_diagnostics.keys);
+    final toClose = <String>[];
+
+    for (final path in paths) {
+      final norm = _normalize(path);
+      final text = await readText(path);
+      if (text == null) {
+        // File no longer exists on disk: remove its diagnostics immediately.
+        _diagnostics.remove(path);
+        continue;
+      }
+
+      if (_documents.containsKey(norm)) {
+        saveDocument(path, text);
+      } else {
+        openDocument(path, text);
+        toClose.add(path);
+      }
+    }
+
+    _notify();
+
+    if (toClose.isNotEmpty) {
+      Timer(const Duration(milliseconds: 1500), () {
+        if (_shutDown) return;
+        for (final path in toClose) {
+          closeDocument(path);
+        }
+      });
+    }
   }
 
   /// Matches the open documents to servers again, after [catalog] changed
@@ -876,6 +962,7 @@ class LspManager extends ChangeNotifier
 
   @override
   void dispose() {
+    _autoCompileTimer?.cancel();
     unawaited(shutdown());
     _disposed = true;
     unawaited(_edits.close());

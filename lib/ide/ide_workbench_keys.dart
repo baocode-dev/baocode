@@ -1104,6 +1104,14 @@ extension _PanelKeys on IdeWorkbenchState {
     }
   }
 
+  /// Rescan problems by validating all files with diagnostics against disk.
+  Future<void> _rescanProblems() async {
+    final languages = _languages;
+    if (languages == null) return;
+    await languages.rescanDiagnostics(readText: _textOf);
+    if (mounted) _refresh(() {});
+  }
+
   /// Focus Problems (`workbench.action.problems.focus`).
   void _focusProblems() {
     _refresh(() => _panel = IdePanelTab.problems);

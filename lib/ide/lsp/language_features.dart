@@ -20,6 +20,12 @@ abstract interface class LanguageFeatures implements Listenable {
   /// All documents with diagnostics, for the problems panel.
   Map<String, List<LspDiagnostic>> get allDiagnostics;
 
+  /// Rescans files currently holding diagnostics by re-reading their text
+  /// from disk and re-validating them with language servers.
+  Future<void> rescanDiagnostics({
+    required Future<String?> Function(String path) readText,
+  });
+
   /// Whether some running server attached to [path] can answer [request].
   bool supports(String path, LanguageRequest request);
 

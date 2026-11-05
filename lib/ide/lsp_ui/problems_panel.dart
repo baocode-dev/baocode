@@ -204,6 +204,7 @@ class IdeBottomPanel extends StatelessWidget {
     this.terminalActions,
     this.debugConsole,
     this.onAsk,
+    this.onRefreshProblems,
   });
 
   final IdePanelTab tab;
@@ -213,6 +214,7 @@ class IdeBottomPanel extends StatelessWidget {
   final ValueChanged<IdePanelTab> onTab;
   final VoidCallback onClose;
   final ValueChanged<String>? onAsk;
+  final VoidCallback? onRefreshProblems;
 
   /// Opens a location; [select] selects its range instead of placing the
   /// caret at its start.
@@ -332,8 +334,19 @@ class IdeBottomPanel extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (tab == IdePanelTab.problems && total > 0 && onAsk != null)
-                    _SendToAgentButton(onTap: () => _sendAllToAgent(all)),
+                  if (tab == IdePanelTab.problems) ...[
+                    if (onRefreshProblems != null)
+                      IdeActionButton(
+                        icon: Codicons.refresh,
+                        tooltip: keys.titleWithKeybinding(
+                          context.l10n.cmdRefreshExplorer,
+                          'workbench.actions.view.problems.refresh',
+                        ),
+                        onPressed: onRefreshProblems,
+                      ),
+                    if (total > 0 && onAsk != null)
+                      _SendToAgentButton(onTap: () => _sendAllToAgent(all)),
+                  ],
                   if (tab == IdePanelTab.terminal) ?terminalActions,
                   IdeActionButton(
                     icon: Codicons.close,

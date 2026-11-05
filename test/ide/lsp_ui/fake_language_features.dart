@@ -96,6 +96,11 @@ class FakeLanguageFeatures extends ChangeNotifier implements LanguageFeatures {
   Map<String, List<LspDiagnostic>> get allDiagnostics => diagnostics;
 
   @override
+  Future<void> rescanDiagnostics({
+    required Future<String?> Function(String path) readText,
+  }) async {}
+
+  @override
   bool supports(String path, LanguageRequest request) =>
       supported.contains(request);
 
