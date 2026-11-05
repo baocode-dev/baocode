@@ -46,11 +46,7 @@ import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 
 import 'extensions/ide_extensions.dart';
 import 'extensions/ide_extensions_view.dart';
-import 'explorer_excludes.dart';
-import 'explorer_history.dart'
-    show explorerRedoCommandId, explorerUndoCommandId;
-import 'file_service.dart'
-    show IdeFileListing, IdeHostFiles, localizedFileError;
+import 'file_service.dart' show IdeHostFiles, localizedFileError;
 import 'git/commit_message.dart';
 import 'git/git_repository.dart';
 import 'git/ide_git_commit_panel.dart';
@@ -73,7 +69,6 @@ import 'ide_explorer.dart';
 import 'ide_local_history.dart';
 import 'ide_hover.dart';
 import 'ide_layout.dart';
-import 'ide_list.dart' show IdeKeyboardList;
 import 'ide_modern_ui.dart';
 import 'ide_diff_options.dart';
 import 'ide_notifications.dart';
@@ -105,7 +100,9 @@ import 'host_paths.dart';
 import 'services/navigation_history.dart';
 import 'services/scm_service.dart';
 import 'services/debug_view.dart';
+import 'services/explorer.dart';
 import 'services/language.dart';
+import 'services/lists.dart';
 import 'services/markdown_preview.dart';
 import 'services/problems.dart';
 import 'services/references.dart';
@@ -437,6 +434,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         settings: widget.settings,
       ),
     );
+    _services.add(ListService());
+    _explorerService = _services.add(
+      ExplorerService(host: _host, settings: () => widget.settings),
+    );
     _language = _services.add(
       LanguageService(
         host: _host,
@@ -480,9 +481,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   WorkbenchServices get services => _services;
 
   final FocusNode _workbenchFocus = FocusNode(debugLabel: 'ide workbench');
-  final FocusNode _explorerFocus = FocusNode(debugLabel: 'ide explorer');
-  late IdeExplorerController _explorer;
-  late IdeFileIndex _fileIndex;
+
+  /// The Explorer view: its tree, Quick Open's files, its panes.
+  late final ExplorerService _explorerService;
+  IdeExplorerController get _explorer => _explorerService.controller;
+  IdeFileIndex get _fileIndex => _explorerService.fileIndex;
+  FocusNode get _explorerFocus => _explorerService.focusNode;
 
   /// The workspace's navigation history (Go Back, the editors by recent
   /// use, those closed).
@@ -561,12 +565,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   late final ScmService _scmService;
   IdeScmSession get _scm => _scmService.session;
   IdeGitRepository? get _git => _scmService.git;
-
-  /// The explorer's open panes (Folders first, then Outline and Timeline,
-  /// collapsed as VS Code starts them), and what the timeline follows.
-  final Set<String> _explorerPanes = {'folder'};
-  final IdeTimelineController _timeline = IdeTimelineController();
-  final _explorerTree = GlobalKey<IdeExplorerState>();
 
   /// The Search view's inputs and results, while other views show.
   late final IdeSearchSession _search = IdeSearchSession(
@@ -779,12 +777,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
   }
 
-  /// The file and folder patterns the explorer leaves out
-  /// (`explorer.exclude` in settings.json; see [IdeExplorerExcludes]).
-  IdeExplorerExcludes get _excludes => IdeExplorerExcludes.parse(
-    widget.settings?[IdeExplorerExcludes.settingKey],
-  );
-
   /// Whether the editors kept are being opened again: until they are, the
   /// window is not kept, lest those not open yet be forgotten.
   bool _restoring = false;
@@ -891,9 +883,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// settings.json read again: what it says now, written here or not.
   void _settingsChanged() {
     _settingsSet.clear();
-    // The explorer's exclusions follow the file (a pattern added elsewhere
-    // shows at once).
-    _explorer.excludes = _excludes;
+    // The explorer's exclusions follow the file.
+    _explorerService.settingsChanged();
     // Auto save turned on (or its delay changed) saves what is unsaved.
     _scheduleAutoSave();
     setState(() {});
@@ -1029,6 +1020,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // The servers or their symbols changed; references found.
     _language.addListener(_servicesChanged);
     _referencesView.addListener(_servicesChanged);
+    // The explorer's panes opened or closed.
+    _explorerService.addListener(_servicesChanged);
     if (widget.visible) _focusSoon();
   }
 
@@ -1042,35 +1035,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final workspace = widget.workspace;
     workspace.notifications.addListener(_notificationsChanged);
     workspace.layout.terminals = _terminals != null;
-    _explorer = IdeExplorerController(
-      files: workspace.files,
-      root: workspace.root,
-      roots: workspace.roots,
-      paths: workspace.paths,
-      excludes: _excludes,
-      // Without a folder, no tree to keep current.
-      watch: workspace.hasFolder
-          ? workspace.watchFolder
-          : (_) => const Stream.empty(),
-    );
-    _fileIndex = IdeFileIndex(
-      workspace.files,
-      workspace.root,
-      roots: workspace.isMultiRoot ? workspace.roots : null,
-      pathContext: workspace.paths,
-      // Without a folder, the open files alone.
-      lister: workspace.hasFolder
-          ? null
-          : (_, _) async => IdeFileListing([
-              for (final doc in workspace.documents)
-                if (doc.isFile && doc.label == null) doc.path,
-            ]),
-    );
+    _explorerService.attach(workspace);
     _language.attach(workspace);
-    // A remote project's listed at once, for Quick Open not to wait on it.
-    if (workspace.hasFolder && workspace.files is IdeHostFiles) {
-      unawaited(_fileIndex.refresh());
-    }
     _quickRefresh = Listenable.merge([_fileIndex, ?_symbols]);
     _problems.clear();
     _referencesView.clear();
@@ -1103,9 +1069,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// explorer, Quick Open and Source Control follow.
   void _rootsChanged() {
     final workspace = widget.workspace;
+    _explorerService.rootsChanged();
     if (workspace.isMultiRoot) {
-      _explorer.roots = workspace.roots;
-      _fileIndex.roots = workspace.roots;
       _terminalView.root = workspace.roots.firstOrNull ?? workspace.root;
     }
     _scmService.rootsChanged();
@@ -1123,8 +1088,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _services.remove<IdeWorkspace>(owned: false);
     workspace.layout.removeListener(_layoutChanged);
     _scmService.detach();
-    _explorer.dispose();
-    _fileIndex.dispose();
+    _explorerService.detach();
     _language.detach();
   }
 
@@ -1212,14 +1176,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _debugView.removeListener(_servicesChanged);
     _language.removeListener(_servicesChanged);
     _referencesView.removeListener(_servicesChanged);
+    _explorerService.removeListener(_servicesChanged);
     _detach(widget.workspace);
     disposeContributions(_contributions);
     _services.dispose();
     _extensions?.dispose();
     _caret.dispose();
     _workbenchFocus.dispose();
-    _explorerFocus.dispose();
-    _timeline.dispose();
     _search.keptChanges.removeListener(_keepViewSoon);
     _search.dispose();
     _terminalView.removeListener(_terminalsChanged);
@@ -1303,7 +1266,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     if (!_closingEditors) _extensionPageShown = false;
     _language.recommendServers();
-    unawaited(_explorer.reveal(path));
+    _explorerService.follow(path);
   }
 
   /// Focuses the editor if one is open, else the workbench itself, so the
@@ -1617,22 +1580,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       case IdeTabAction.openInDefaultApp:
         unawaited(_openInDefaultApp(doc.path));
       case IdeTabAction.revealInExplorer:
-        _revealInExplorer(doc.path);
+        _explorerService.reveal(doc.path);
     }
-  }
-
-  /// Shows the explorer, expands [path]'s folders, selects and focuses it.
-  void _revealInExplorer(String path) {
-    setState(() {
-      _view = IdeSideView.explorer;
-      _layout.showSidebar();
-      _explorerPanes.add('folder');
-    });
-    unawaited(
-      _explorer.reveal(path).then((_) {
-        if (mounted) _explorerFocus.requestFocus();
-      }),
-    );
   }
 
   Future<void> _back() async {
@@ -2032,27 +1981,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'textInputFocus' => editorFocus || textField,
       'inputFocus' => editorFocus || textField || terminalFocus,
       'terminalFocus' => terminalFocus,
-      'filesExplorerFocus' => _explorerFocus.hasFocus,
-      'listFocus' || 'listSupportsKeyboardNavigation' =>
-        _explorerFocus.hasFocus || _focusedList != null,
-      'listSupportsMultiselect' =>
-        _explorerFocus.hasFocus
-            ? _explorerTree.currentState?.contextKey(key) == true
-            : _focusedList?.listSupportsMultiselect ?? false,
-      'listHasSelectionOrFocus' =>
-        _explorerFocus.hasFocus
-            ? _explorerTree.currentState?.contextKey(key) == true
-            : _focusedList?.listHasSelection ?? false,
       'foldersViewVisible' || 'explorerViewletVisible' =>
         _sidebarShown && _view == IdeSideView.explorer,
       'treestickyScrollFocused' => false,
       _ =>
-        _listContextKey(key) ??
-            _searchContextKey(key) ??
+        _searchContextKey(key) ??
             _quickInputContextKey(key) ??
             _layoutContextKey(key) ??
-            _editor?.contextKey(key) ??
-            _explorerTree.currentState?.contextKey(key),
+            _editor?.contextKey(key),
     };
   }
 
@@ -2078,8 +2014,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     for (final command in [
       ..._actions.commands(_services),
       ..._allCommands(),
-      ..._listCommands(),
-      ..._explorerCommands(),
       ..._quickInputCommands(),
       ..._keyboardCommands(),
       ..._searchKeyboardCommands(),
@@ -2087,99 +2021,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       byId.putIfAbsent(command.id, () => command);
     }
     return byId;
-  }
-
-  /// The explorer's commands (see [IdeExplorerState.contextKey]): for its
-  /// keybindings, not the palette, as upstream's.
-  List<IdeCommand> _explorerCommands() {
-    final explorer = _explorerTree.currentState;
-    if (explorer == null) return const [];
-    final selected = explorer.contextKey('explorerResourceIsRoot') == false;
-    IdeCommand command(
-      String id,
-      VoidCallback run, {
-      bool enabled = true,
-      void Function(Object? args)? runWithArgs,
-    }) => IdeCommand(
-      id: id,
-      label: commandCatalog[id]?.title ?? id,
-      run: run,
-      runWithArgs: runWithArgs,
-      enabled: enabled,
-    );
-    // `list.focusDown` / `list.focusUp`'s argument: how many rows.
-    int rows(Object? args) => args is num ? args.toInt() : 1;
-    return [
-      command(
-        'explorer.newFile',
-        () => unawaited(explorer.startCreate(directory: false)),
-      ),
-      command(
-        'explorer.newFolder',
-        () => unawaited(explorer.startCreate(directory: true)),
-      ),
-      command('renameFile', explorer.renameSelected, enabled: selected),
-      command(
-        'moveFileToTrash',
-        () => unawaited(explorer.deleteSelected()),
-        enabled: selected,
-      ),
-      command(
-        'deleteFile',
-        () => unawaited(explorer.deleteSelected(permanently: true)),
-        enabled: selected,
-      ),
-      command('filesExplorer.copy', explorer.copySelected, enabled: selected),
-      command(
-        'filesExplorer.cut',
-        () => explorer.copySelected(cut: true),
-        enabled: selected,
-      ),
-      // What the system's clipboard holds is only known once read.
-      command('filesExplorer.paste', () => unawaited(explorer.pasteSelected())),
-      command(
-        explorerUndoCommandId,
-        () => unawaited(explorer.undo()),
-        enabled: explorer.canUndo,
-      ),
-      command(
-        explorerRedoCommandId,
-        () => unawaited(explorer.redo()),
-        enabled: explorer.canRedo,
-      ),
-      command(
-        'filesExplorer.openFilePreserveFocus',
-        explorer.previewSelected,
-        enabled: selected,
-      ),
-      command(
-        'list.focusDown',
-        () => explorer.focusNext(1),
-        runWithArgs: (args) => explorer.focusNext(rows(args)),
-      ),
-      command(
-        'list.focusUp',
-        () => explorer.focusNext(-1),
-        runWithArgs: (args) => explorer.focusNext(-rows(args)),
-      ),
-      command('list.focusPageDown', () => explorer.focusPage(1)),
-      command('list.focusPageUp', () => explorer.focusPage(-1)),
-      command('list.focusFirst', explorer.focusFirst),
-      command('list.focusLast', explorer.focusLast),
-      command('list.expand', explorer.expandSelected),
-      command('list.collapse', explorer.collapseSelected),
-      command('list.select', explorer.openSelected),
-      command('list.toggleExpand', explorer.toggleSelected),
-      command('list.expandSelectionDown', () => explorer.expandSelection(1)),
-      command('list.expandSelectionUp', () => explorer.expandSelection(-1)),
-      command('list.selectAll', explorer.selectAll),
-      command(
-        'list.clear',
-        explorer.clearSelection,
-        enabled: explorer.contextKey('listHasSelectionOrFocus') == true,
-      ),
-      command('list.collapseAll', _explorer.collapseAll),
-    ];
   }
 
   /// For the editor: the command a key runs, [editorChordPrefix] when it
@@ -2511,25 +2352,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: () => _showView(IdeSideView.extensions),
       ),
       IdeCommand(
-        id: 'workbench.files.action.showActiveFileInExplorer',
-        category: 'File',
-        label: 'Reveal Active File in Explorer View',
-        enabled: active != null,
-        run: () => _revealInExplorer(active!.path),
-      ),
-      IdeCommand(
-        id: 'workbench.files.action.refreshFilesExplorer',
-        category: 'File',
-        label: 'Refresh Explorer',
-        run: () => unawaited(_explorer.refresh()),
-      ),
-      IdeCommand(
-        id: 'workbench.files.action.collapseExplorerFolders',
-        category: 'File',
-        label: 'Collapse Folders in Explorer',
-        run: _explorer.collapseAll,
-      ),
-      IdeCommand(
         id: 'copyFilePath',
         category: 'File',
         label: 'Copy Path of Active File',
@@ -2548,15 +2370,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         label: 'Go to Symbol in Editor...',
         enabled: active != null,
         run: () => _showQuickInput('@'),
-      ),
-      IdeCommand(
-        id: 'outline.focus',
-        category: 'View',
-        label: 'Show Outline',
-        run: () {
-          _explorerPanes.add('outline');
-          _showView(IdeSideView.explorer);
-        },
       ),
       IdeCommand(
         id: ideSelectColorThemeCommandId,
@@ -2835,7 +2648,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         onOpenChange: _scmService.openChangeInLog,
         onRevealInExplorer: (path) {
           _leaveGitLog();
-          _revealInExplorer(path);
+          _explorerService.reveal(path);
         },
         onAddToChat: widget.onAddToChat,
         trash: WindowControls.canMoveToTrash
@@ -2866,7 +2679,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   Widget _explorerView() {
     final workspace = widget.workspace;
     final activePath = workspace.active?.path;
-    final timelinePath = IdeTimelineView.pathOf(_timeline, activePath);
+    final timelinePath = IdeTimelineView.pathOf(
+      _explorerService.timeline,
+      activePath,
+    );
     // The folder's actions are the explorer's commands: their keybindings
     // in their tooltips (upstream's `MenuEntryActionViewItem.getTooltip`).
     final keys = KeybindingService.instance;
@@ -2883,10 +2699,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             IdeViewTitle(context.l10n.wbExplorer),
             Expanded(
               child: IdePaneContainer(
-                expanded: _explorerPanes,
-                onToggle: (id) => setState(() {
-                  if (!_explorerPanes.remove(id)) _explorerPanes.add(id);
-                }),
+                expanded: _explorerService.panes,
+                onToggle: _explorerService.togglePane,
                 panes: [
                   if (!workspace.hasFolder)
                     IdePane(
@@ -2921,7 +2735,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                             'explorer.newFile',
                           ),
                           onPressed: () => unawaited(
-                            _explorerTree.currentState?.startCreate(
+                            _explorerService.view?.startCreate(
                               directory: false,
                             ),
                           ),
@@ -2933,9 +2747,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                             'explorer.newFolder',
                           ),
                           onPressed: () => unawaited(
-                            _explorerTree.currentState?.startCreate(
-                              directory: true,
-                            ),
+                            _explorerService.view?.startCreate(directory: true),
                           ),
                         ),
                         IdePaneAction(
@@ -2958,7 +2770,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       body: workspace.isMultiRoot && workspace.roots.isEmpty
                           ? _EmptyWorkspace(onAddFolder: widget.onAddFolder)
                           : IdeExplorer(
-                              key: _explorerTree,
+                              key: _explorerService.tree,
                               controller: _explorer,
                               focusNode: _explorerFocus,
                               isBound: (event) =>
@@ -3041,23 +2853,23 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         : hostBasename(timelinePath),
                     actions: [
                       IdePaneAction(
-                        icon: _timeline.pinned == null
+                        icon: _explorerService.timeline.pinned == null
                             ? Codicons.pin
                             : Codicons.pinned,
-                        tooltip: _timeline.pinned == null
+                        tooltip: _explorerService.timeline.pinned == null
                             ? context.l10n.wbPinTimeline
                             : context.l10n.wbUnpinTimeline,
                         onPressed: () =>
-                            setState(() => _timeline.togglePin(activePath)),
+                            _explorerService.toggleTimelinePin(activePath),
                       ),
                       IdePaneAction(
                         icon: Codicons.refresh,
                         tooltip: context.l10n.commonRefresh,
-                        onPressed: _timeline.refresh,
+                        onPressed: _explorerService.timeline.refresh,
                       ),
                     ],
                     body: IdeTimelineView(
-                      controller: _timeline,
+                      controller: _explorerService.timeline,
                       // The file's repository: one in a subfolder, if so.
                       git: switch (timelinePath) {
                         final path? => workspace.gitAt(path),
@@ -3140,7 +2952,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   builder: (context, _) => IdeBreadcrumbs(
                     root: widget.workspace.root,
                     path: active.path,
-                    onReveal: _revealInExplorer,
+                    onReveal: _explorerService.reveal,
                     symbols: _language.symbolPath,
                     onSymbol: _language.revealSymbol,
                   ),
@@ -3717,7 +3529,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         );
       case TerminalLinkType.localFolder:
         if (link.inWorkspace) {
-          _revealInExplorer(link.path!);
+          _explorerService.reveal(link.path!);
         } else {
           unawaited(openExternal(link.path!));
         }
