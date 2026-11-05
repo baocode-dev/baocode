@@ -101,6 +101,7 @@ import 'services/language.dart';
 import 'services/layout.dart';
 import 'services/commands.dart';
 import 'services/quick_input.dart';
+import 'services/search_view.dart';
 import 'services/lists.dart';
 import 'services/markdown_preview.dart';
 import 'services/problems.dart';
@@ -308,53 +309,13 @@ class IdeWorkbench extends StatefulWidget {
   @override
   State<IdeWorkbench> createState() => IdeWorkbenchState();
 
-  /// Searches each of [roots] with [search], as one search: the matches of
-  /// all, then one end (cut short if any was).
+  /// Searches each of [roots] with [search], as one search (see
+  /// [searchFolders]).
   static Stream<Object> searchRoots(
     List<String> roots,
     IdeTextQuery query,
     IdeTextSearch search,
-  ) {
-    if (roots.isEmpty) {
-      return Stream.value(const IdeTextSearchComplete(limitHit: false));
-    }
-    late final StreamController<Object> controller;
-    final subscriptions = <StreamSubscription<Object>>[];
-    var open = roots.length;
-    var limitHit = false;
-    void ended() {
-      if (--open > 0) return;
-      controller
-        ..add(IdeTextSearchComplete(limitHit: limitHit))
-        ..close();
-    }
-
-    controller = StreamController<Object>(
-      onListen: () {
-        for (final root in roots) {
-          subscriptions.add(
-            search(root, query).listen(
-              (event) {
-                if (event is IdeTextSearchComplete) {
-                  limitHit |= event.limitHit;
-                } else {
-                  controller.add(event);
-                }
-              },
-              onError: controller.addError,
-              onDone: ended,
-            ),
-          );
-        }
-      },
-      onCancel: () async {
-        for (final subscription in subscriptions) {
-          await subscription.cancel();
-        }
-      },
-    );
-    return controller.stream;
-  }
+  ) => searchFolders(roots, query, search);
 }
 
 /// A navigation history entry (Go Back / Go Forward).
@@ -434,6 +395,17 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         onViewChanged: _editorViewChanged,
       ),
     );
+    _searchView = _services.add(
+      SearchViewService(
+        host: _host,
+        layout: _layoutService,
+        editors: _editors,
+        workspace: () => widget.workspace,
+        textSearch: () => widget.textSearch,
+        storage: _storage,
+      ),
+    );
+    _storage.register(_searchView);
     _markdown = _services.add(
       MarkdownPreviewService(
         host: _host,
@@ -581,28 +553,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   IdeGitRepository? get _git => _scmService.git;
 
   /// The Search view's inputs and results, while other views show.
-  late final IdeSearchSession _search = IdeSearchSession(
-    engine: (root, query) => switch (widget.workspace) {
-      // A multi-folder workspace's folders, each searched.
-      final IdeWorkspace workspace when workspace.isMultiRoot =>
-        IdeWorkbench.searchRoots(workspace.roots, query, widget.textSearch),
-      // A remote project's files are searched there.
-      IdeWorkspace(hasFolder: true, files: final IdeHostFiles files) =>
-        files.searchText(root, query),
-      IdeWorkspace(hasFolder: true) => widget.textSearch(root, query),
-      _ => _searchOpenFiles(query),
-    },
-    // The results follow their files: an open one's text in the editor,
-    // unsaved edits and all, as upstream's; others' on disk.
-    read: (path) async =>
-        _openFileDocument(path)?.text ?? widget.workspace.files.read(path),
-    watch: (directory) => widget.workspace.watchFolder(directory),
-  );
-
-  IdeDocument? _openFileDocument(String path) => widget.workspace.documents
-      .where((doc) => doc.isFile && doc.path == path)
-      .firstOrNull;
-  final _searchKey = GlobalKey<IdeSearchViewState>();
+  late final SearchViewService _searchView;
 
   /// Whether the project's files are this machine's (not a remote host's):
   /// only then are they shown in the file manager, opened in other apps,
@@ -777,7 +728,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final kept = widget.viewState;
     if (kept == null) return;
     _storage.restore(kept);
-    _search.restore(kept['search']);
     widget.workspace.viewStates.restore(kept['editorViews']);
     final editors = switch (kept['editors']) {
       final List<Object?> paths => paths.whereType<String>().toList(),
@@ -802,7 +752,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         if (doc.label == null && (doc.isFile || doc.isMedia)) doc.path,
     ];
     final active = widget.workspace.active?.key;
-    final search = _search.kept;
     _editor?.keepViewStates();
     final paths = widget.workspace.paths;
     // Those of files (not a diff's or a revision's, nor an untitled one).
@@ -810,7 +759,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       (key) => !key.contains('\u0000') && paths.isAbsolute(key),
     );
     return {
-      if (search.isNotEmpty) 'search': search,
       'editors': editors,
       if (editors.contains(active)) 'active': active,
       if (views.isNotEmpty) 'editorViews': views,
@@ -907,16 +855,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         () => [
           ..._workbenchCommands(),
           ..._editorCommands(),
-          ..._searchCommands(),
           ...?_editor?.editorCommands,
           ...widget.commands,
           ..._extensionCommands(),
         ],
       )
-      ..addSource(
-        () => [..._keyboardCommands(), ..._searchKeyboardCommands()],
-        palette: false,
-      );
+      ..addSource(_keyboardCommands, palette: false);
     FocusManager.instance.addEarlyKeyEventHandler(_onChordKey);
     FocusManager.instance.addLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.addListener(_keybindingsChanged);
@@ -925,7 +869,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     widget.settings?.addListener(_settingsChanged);
     widget.remote?.addListener(_remoteChanged);
     _restoreView();
-    _search.keptChanges.addListener(_keepViewSoon);
     _attach();
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(_git?.refresh()),
@@ -1114,8 +1057,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _services.dispose();
     _extensions?.dispose();
     _workbenchFocus.dispose();
-    _search.keptChanges.removeListener(_keepViewSoon);
-    _search.dispose();
     _terminalView.removeListener(_terminalsChanged);
     super.dispose();
   }
@@ -1125,22 +1066,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _documentEdited() {
     _language.documentChanged();
     _scheduleAutoSave();
-    _refreshSearchOfOpenFiles();
+    _searchView.documentsChanged();
   }
-
-  /// The Search view's results of the open files matched again, after
-  /// they were edited or read again; and of those just closed, their
-  /// unsaved edits perhaps discarded.
-  void _refreshSearchOfOpenFiles() {
-    final open = {
-      for (final doc in widget.workspace.documents)
-        if (doc.isFile) doc.path,
-    };
-    _search.refresh({...open, ..._searchedOpen});
-    _searchedOpen = open;
-  }
-
-  Set<String> _searchedOpen = const {};
 
   /// Follows the active editor: remembers it for Quick Open and reveals it
   /// in the explorer, as VS Code's `explorer.autoReveal` does.
@@ -1149,7 +1076,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _keepViewSoon();
     _language.documentChanged();
     _history.documentsChanged();
-    _refreshSearchOfOpenFiles();
+    _searchView.documentsChanged();
     final documents = widget.workspace.documents;
     _autoSaveFailed.removeWhere(
       (doc) => !doc.dirty || !documents.contains(doc),
@@ -1248,34 +1175,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   String _relative(String path) => widget.workspace.isMultiRoot
       ? widget.workspace.relativePath(path)
       : widget.workspace.paths.relative(path, from: widget.workspace.root);
-
-  /// Search without a folder: the open files' text, as upstream searches
-  /// the open editors alone in an empty window.
-  Stream<Object> _searchOpenFiles(IdeTextQuery query) async* {
-    final pattern = query.toRegExp();
-    var count = 0;
-    var limitHit = false;
-    final searched = <String>{};
-    for (final doc in [...widget.workspace.documents]) {
-      if (!doc.isFile || !searched.add(doc.path)) continue;
-      final left = query.maxResults - count;
-      final matches = ideMatchLines(
-        doc.text,
-        pattern,
-        // One more: whether the limit cut it short.
-        limit: left + 1,
-        multiline: query.isMultiline,
-      );
-      if (matches.length > left) {
-        limitHit = true;
-        matches.removeRange(left, matches.length);
-      }
-      count += matches.length;
-      if (matches.isNotEmpty) yield IdeFileMatches(doc.path, matches);
-      if (limitHit) break;
-    }
-    yield IdeTextSearchComplete(limitHit: limitHit);
-  }
 
   void _tabAction(IdeDocument doc, IdeTabAction action) {
     final docs = widget.workspace.documents;
@@ -1495,7 +1394,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'inputFocus' => editorFocus || textField || terminalFocus,
       'terminalFocus' => terminalFocus,
       'treestickyScrollFocused' => false,
-      _ => _searchContextKey(key) ?? _editor?.contextKey(key),
+      _ => _editor?.contextKey(key),
     };
   }
 
@@ -2017,8 +1916,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   Widget _sidePanel() => switch (_view) {
     IdeSideView.explorer => _explorerView(),
     IdeSideView.search => IdeSearchView(
-      key: _searchKey,
-      session: _search,
+      key: _searchView.viewKey,
+      session: _searchView.session,
       root: widget.workspace.root,
       // The workspace's own: replacing writes into its documents.
       replaceBackend: widget.workspace,
@@ -2232,15 +2131,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                   _local && WindowControls.canOpenInDefaultApp
                                   ? (path) => unawaited(_openInDefaultApp(path))
                                   : null,
-                              onFindInFolder: (folder) {
-                                _search.findInFolder(
-                                  _relative(folder) == '.'
-                                      ? ''
-                                      : _relative(folder),
-                                  workspace.root,
-                                );
-                                _layoutService.showView(IdeSideView.search);
-                              },
+                              onFindInFolder: _searchView.findInFolder,
                               onOpenInTerminal: _terminals == null
                                   ? null
                                   : _terminalView.openIn,
