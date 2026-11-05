@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_name__",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "__MSG_description__",
   "default_locale": "en",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw/z7XPTL8VYzRrKO5N7N14kL3MuvHD528smBkU6Odvd3L4/BHTaNmtwhOhEEE1q6DamfoekiwcgQWM2aoH32QAi1La7ZM7MXpFsQYkFQh8G7rbzrX5eronOSiPEeoeiXUNyNgnk4jxSAr0HKc7oiFzKtw7lAEXf83A0dFSbhNrLwRZIAqqA9s1qHNeglbG2j7UBf4C92NpdQXqJzs00MXb2gMh7IWIQwigL61nQtS2ZJKkWMTJJpE6TPiqGYiMEpBSjazUOcNzu28/X03iuPUVNgEzWbKe1DvqIOr7keI2QCnOlC2PkWIx2oNQnBZWgQsvffpdakemj7YC/MTIoyywIDAQAB",
@@ -12,6 +12,7 @@
   "permissions": [
     "nativeMessaging",
     "debugger",
+    "activeTab",
     "tabs",
     "tabGroups",
     "alarms"

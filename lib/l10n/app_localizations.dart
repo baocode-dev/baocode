@@ -16693,6 +16693,18 @@ abstract class AppLocalizations {
   /// **'The extension is newer than this BaoCode. Update BaoCode.'**
   String get browserSettingsAppOld;
 
+  /// No description provided for @browserSettingsNoFileAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'File access is off'**
+  String get browserSettingsNoFileAccess;
+
+  /// No description provided for @browserSettingsNoFileAccessDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Agents can\'t open local HTML files or upload files. In chrome://extensions, click Details on BaoCode and turn on Allow access to file URLs.'**
+  String get browserSettingsNoFileAccessDescription;
+
   /// No description provided for @browserSettingsInstall.
   ///
   /// In en, this message translates to:

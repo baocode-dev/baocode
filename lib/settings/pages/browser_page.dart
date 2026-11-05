@@ -222,6 +222,12 @@ class BrowserSettingsPage extends StatelessWidget {
           l10n.browserSettingsConnected(browser.browser ?? ''),
           l10n.browserSettingsExtensionVersion(browser.version ?? '?'),
         ),
+      for (final browser in browsers)
+        if (browser.fileAccess == false)
+          (
+            l10n.browserSettingsNoFileAccess,
+            l10n.browserSettingsNoFileAccessDescription,
+          ),
       for (final browser in mismatched)
         (
           l10n.browserSettingsIncompatible(browser.browser ?? ''),

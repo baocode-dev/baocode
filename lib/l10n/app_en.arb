@@ -7347,6 +7347,8 @@
   "@browserSettingsExtensionVersion": {"description": "The version of BaoCode's extension in a connected browser.", "placeholders": {"version": {"type": "String"}}},
   "browserSettingsExtensionOld": "The extension is out of date. From the store, it updates automatically, or click Update in chrome://extensions; installed manually, download the zip again, replace the folder's contents and click reload.",
   "browserSettingsAppOld": "The extension is newer than this BaoCode. Update BaoCode.",
+  "browserSettingsNoFileAccess": "File access is off",
+  "browserSettingsNoFileAccessDescription": "Agents can't open local HTML files or upload files. In chrome://extensions, click Details on BaoCode and turn on Allow access to file URLs.",
   "browserSettingsInstall": "Get the Extension",
   "browserSettingsStore": "Chrome Web Store",
   "browserSettingsStoreDescription": "Recommended. Updates automatically; works in Chrome, Edge, Brave, Arc and other Chromium browsers.",

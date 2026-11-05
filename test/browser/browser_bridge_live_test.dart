@@ -170,6 +170,19 @@ void main() {
         return content;
       }
 
+      // A local HTML file, by its path: the extension let reach files (an
+      // unpacked one is; from the store, the user turns it on).
+      expect(bridge.browsers.single.fileAccess, isTrue);
+      final local = File(p.join(profile.path, 'local.html'))
+        ..writeAsStringSync('<title>Local</title><p>From a file.</p>');
+      final file = await call('browser_open', {'url': local.path});
+      expect(file.first['text'], contains('From a file.'));
+      await call('browser_close', {
+        'tabId': int.parse(
+          RegExp(r'\[(\d+)\]').firstMatch(file.first['text'] as String)![1]!,
+        ),
+      });
+
       final opened = await call('browser_open', {'url': page});
       final tabId = int.parse(
         RegExp(r'\[(\d+)\]').firstMatch(opened.first['text'] as String)![1]!,

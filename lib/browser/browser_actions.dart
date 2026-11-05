@@ -371,6 +371,9 @@ Future<String> _upload(
   for (final file in files) {
     if (!File(file).existsSync()) throw BrowserError('No file $file.');
   }
+  if (browser.fileAccess == false) {
+    throw const BrowserError(BrowserConnection.fileAccessHelp);
+  }
   final target = _targetOf(step);
   if (target == null) {
     throw const BrowserError(

@@ -2772,6 +2772,8 @@
   "browserSettingsExtensionVersion": "扩展版本 {version}",
   "browserSettingsExtensionOld": "扩展版本太旧，需要更新。商店版会自动更新，也可以在 chrome://extensions 里点「更新」；手动安装的请重新下载 zip，覆盖原来的文件夹后点刷新。",
   "browserSettingsAppOld": "扩展比当前的 BaoCode 新，请更新 BaoCode。",
+  "browserSettingsNoFileAccess": "没有开文件访问权限",
+  "browserSettingsNoFileAccessDescription": "打不开本地 HTML，也传不了文件。在 chrome://extensions 里点 BaoCode 的「详细信息」，打开「允许访问文件网址」。",
   "browserSettingsInstall": "安装扩展",
   "browserSettingsStore": "Chrome 应用商店",
   "browserSettingsStoreDescription": "推荐。会自动更新，Chrome、Edge、Brave、Arc 等 Chromium 内核的浏览器都能装。",

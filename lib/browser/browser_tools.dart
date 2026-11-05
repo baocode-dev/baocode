@@ -236,7 +236,10 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
       inputSchema: {
         'type': 'object',
         'properties': {
-          'url': {'type': 'string', 'description': 'The URL to open.'},
+          'url': {
+            'type': 'string',
+            'description': 'The URL to open, or a local file\'s path.',
+          },
         },
         'required': ['url'],
       },
@@ -247,7 +250,11 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
             await browser.request('tabs.create', {'url': 'about:blank'}) as Map;
         final tabId = tab['tabId'] as int;
         await _watch(tabId);
-        final url = await _reachable(call.cwd, input['url'] as String?);
+        final url = await _reachable(
+          browser,
+          call.cwd,
+          input['url'] as String?,
+        );
         await _loading(
           browser,
           tabId,
@@ -280,7 +287,7 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
         await _go(
           browser,
           tabId,
-          await _reachable(call.cwd, input['url'] as String?),
+          await _reachable(browser, call.cwd, input['url'] as String?),
           input['action'] as String?,
         );
         return _arrived(browser, tabId);
@@ -468,10 +475,21 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
 
   /// [url] as this machine's browser reaches it, for an agent working in
   /// [cwd]: on an SSH host, its loopback's port forwarded here first, and
-  /// the URL on the port here (see PortForwards.localUrl).
-  static Future<String?> _reachable(String cwd, String? url) async {
+  /// the URL on the port here (see PortForwards.localUrl). A file here, by
+  /// its path too, is its file:// URL, if the extension may reach it.
+  static Future<String?> _reachable(
+    BrowserConnection browser,
+    String cwd,
+    String? url,
+  ) async {
     final host = RemoteLocation.hostOf(cwd);
+    if (url != null && host == null && p.isAbsolute(url)) {
+      url = Uri.file(url).toString();
+    }
     final uri = url == null ? null : Uri.tryParse(url);
+    if (uri != null && uri.isScheme('file') && browser.fileAccess == false) {
+      throw const BrowserError(BrowserConnection.fileAccessHelp);
+    }
     if (host == null || RemoteLocation.isWsl(host) || uri == null) return url;
     try {
       return '${await PortForwards.instance.localUrl(host, uri)}';
