@@ -268,9 +268,7 @@ class _RowState extends State<_Row> {
                 ? Wrap(
                     spacing: 6,
                     runSpacing: 4,
-                    children: [
-                      for (final item in property.items) _Tag(item),
-                    ],
+                    children: [for (final item in property.items) _Tag(item)],
                   )
                 : editable
                 ? IdeInputBox(
@@ -315,10 +313,8 @@ class _Tag extends StatelessWidget {
     ),
     child: Text(
       text,
-      style: AppFonts.uiCodeStyle(12).copyWith(
-        color: AppColors.textMuted,
-        height: 1.6,
-      ),
+      style: AppFonts.uiCodeStyle(12)
+          .copyWith(color: AppColors.textMuted, height: 1.6),
     ),
   );
 }

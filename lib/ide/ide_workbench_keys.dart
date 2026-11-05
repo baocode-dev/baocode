@@ -408,7 +408,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
   void _focusPanel() {
     final tab = _panel ?? _lastPanel;
     if (tab == IdePanelTab.terminal && _terminals != null) {
-      _showTerminal();
+      _terminalView.show();
       return;
     }
     _refresh(() => _panel = tab);
@@ -846,138 +846,12 @@ extension _TerminalKeys on IdeWorkbenchState {
     };
   }
 
-  /// Send Sequence: [args]' `text` to the active terminal as typed, its
-  /// line breaks as Enter, the terminal scrolled to its end (upstream
-  /// `terminalSendSequenceCommand`, `sendText(text, false)`).
-  void _sendSequence(Object? args) {
-    final terminal = _terminals?.active;
-    final text = args is Map ? args['text'] : null;
-    if (terminal == null || text is! String || text.isEmpty) return;
-    terminal.writeText(text.replaceAll(RegExp(r'\r?\n'), '\r'));
-    terminal.terminal.scrollToBottom();
-  }
-
-  /// The terminal's commands beyond the first ones, for the palette: on
-  /// the active terminal (upstream `registerActiveInstanceAction`).
-  List<IdeCommand> _terminalCommands() {
-    final terminals = _terminals;
-    final terminal = terminals?.active;
-    if (terminals == null) return const [];
-    final selected = terminal?.selection.hasSelection ?? false;
-    IdeCommand active(
-      String id,
-      void Function(TerminalInstance terminal) run, {
-      bool enabled = true,
-    }) => _catalogCommand(
-      'workbench.action.terminal.$id',
-      () => run(terminal!),
-      enabled: terminal != null && enabled,
-    );
-    return [
-      active(
-        'copySelection',
-        (t) => unawaited(t.clipboard.copySelection()),
-        enabled: selected,
-      ),
-      active(
-        'copyAndClearSelection',
-        (t) => unawaited(
-          t.clipboard.copySelection().then((_) => t.selection.clearSelection()),
-        ),
-        enabled: selected,
-      ),
-      active('paste', (t) => unawaited(t.clipboard.paste())),
-      active('pasteSelection', (t) => unawaited(t.clipboard.pasteSelection())),
-      active('selectAll', (t) => t.selection.selectAll()),
-      active('clear', (t) => t.terminal.clear()),
-      active(
-        'clearSelection',
-        (t) => t.selection.clearSelection(),
-        enabled: selected,
-      ),
-      active('scrollDown', (t) => t.terminal.scrollLines(1)),
-      active('scrollDownPage', (t) => t.terminal.scrollPages(1)),
-      active('scrollToBottom', (t) => t.terminal.scrollToBottom()),
-      active('scrollUp', (t) => t.terminal.scrollLines(-1)),
-      active('scrollUpPage', (t) => t.terminal.scrollPages(-1)),
-      active('scrollToTop', (t) => t.terminal.scrollToTop()),
-      _catalogCommand('workbench.action.terminal.killAll', () {
-        for (final instance in [...terminals.instances]) {
-          terminals.kill(instance);
-        }
-      }, enabled: terminals.instances.isNotEmpty),
-      // Find (terminal.find.contribution.ts), on the active terminal's
-      // widget.
-      active('focusFind', _focusTerminalFind),
-      active('hideFind', (t) {
-        t.find.hide();
-        t.focus();
-      }),
-      active('findNext', (t) => t.find.findNext()),
-      active('findPrevious', (t) => t.find.findPrevious()),
-      active('toggleFindRegex', (t) => t.find.toggleRegex()),
-      active('toggleFindWholeWord', (t) => t.find.toggleWholeWord()),
-      active('toggleFindCaseSensitive', (t) => t.find.toggleCaseSensitive()),
-      active(
-        'searchWorkspace',
-        (t) => _findInFiles({'query': t.selection.selectionText}),
-        enabled: selected,
-      ),
-    ];
-  }
-
-  /// Focus Find: the find widget revealed, its input focused; the
-  /// terminal's panel shown first if it is not.
-  void _focusTerminalFind(TerminalInstance terminal) {
-    if (_panel == IdePanelTab.terminal) return terminal.find.reveal();
-    _selectPanel(IdePanelTab.terminal);
-    WidgetsBinding.instance.addPostFrameCallback((_) => terminal.find.reveal());
-  }
-
   /// The command a key in a terminal's find widget runs, as the
   /// workbench's keybindings resolve it (see [TerminalView.resolveKey]).
   String? _terminalFindKey(KeyEvent event) => switch (_resolveKey(event)) {
     KeybindingFound(:final command) => command,
     _ => null,
   };
-
-  /// The terminal's commands for keybindings only: Send Sequence, which
-  /// needs its `text`.
-  List<IdeCommand> _terminalKeyboardCommands() => [
-    if (_terminals?.active != null)
-      _catalogCommand(
-        'workbench.action.terminal.sendSequence',
-        () {},
-        runWithArgs: _sendSequence,
-      ),
-  ];
-
-  /// The terminal's context keys (terminalContextKey.ts); null for
-  /// others.
-  Object? _terminalContextKey(String key) {
-    final terminals = _terminals;
-    final terminal = _panel == IdePanelTab.terminal ? terminals?.active : null;
-    final focused = terminal?.focusNode.hasFocus ?? false;
-    final selected = terminal?.selection.hasSelection ?? false;
-    return switch (key) {
-      'terminalFocusInAny' => focused,
-      'terminalTextSelected' => selected,
-      'terminalTextSelectedInFocused' => focused && selected,
-      'terminalProcessSupported' => terminals != null,
-      'terminalHasBeenCreated' ||
-      'terminalIsOpen' => terminals?.instances.isNotEmpty ?? false,
-      'terminalCount' => terminals?.instances.length ?? 0,
-      'terminalViewShowing' => terminal != null,
-      'terminalAltBufferActive' => terminal?.source.isAlternateBuffer ?? false,
-      'terminalFindVisible' => terminal?.find.isVisible ?? false,
-      'terminalFindFocused' ||
-      'terminalFindInputFocused' => terminal?.find.focused ?? false,
-      'terminalSplitPaneActive' ||
-      'terminalTabsFocus' ||
-      'terminalEditorFocus' => false,
-      _ => null,
-    };
-  }
 }
 
 extension _PanelKeys on IdeWorkbenchState {

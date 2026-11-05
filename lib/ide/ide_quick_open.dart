@@ -283,19 +283,13 @@ class IdeFileIndex extends ChangeNotifier {
 /// matching [filter]: the best [limit], best first, and all that matched.
 /// Run off the UI isolate (see [IdeFileIndex.bestFor]).
 ({List<int> best, List<int> matched}) _bestPaths(
-  ({
-    String filter,
-    List<String> relative,
-    List<int>? candidates,
-    int limit,
-  })
+  ({String filter, List<String> relative, List<int>? candidates, int limit})
   query,
 ) {
   final relative = query.relative;
   final scored = <({int index, int score})>[];
   final matched = <int>[];
-  for (final i
-      in query.candidates ?? Iterable<int>.generate(relative.length)) {
+  for (final i in query.candidates ?? Iterable<int>.generate(relative.length)) {
     final result = scoreFilePath(query.filter, relative[i]);
     if (result == null) continue;
     matched.add(i);
@@ -491,8 +485,7 @@ List<IdeQuickPickItem> fileQuickPicks(
     // found last shown (those still matching) until they are. Recently
     // opened files are matched here, all of them, for their rank to count.
     final recentSet = recent.toSet();
-    final best =
-        index.bestFor(query.filter, limit: limit) ?? index.lastFound;
+    final best = index.bestFor(query.filter, limit: limit) ?? index.lastFound;
     for (final i in best) {
       if (!recentSet.contains(index.paths[i])) {
         consider(index.paths[i], index.relativePaths[i]);

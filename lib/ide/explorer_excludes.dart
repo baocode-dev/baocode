@@ -58,9 +58,7 @@ class IdeExplorerExcludes {
   bool hides(String path, String root, p.Context paths) {
     if (patterns.isEmpty) return false;
     final name = paths.basename(path);
-    final relative = paths
-        .relative(path, from: root)
-        .replaceAll(r'\', '/');
+    final relative = paths.relative(path, from: root).replaceAll(r'\', '/');
     for (final pattern in patterns) {
       final glob = pattern.replaceAll(r'\', '/');
       final target = glob.contains('/') ? relative : name;

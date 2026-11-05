@@ -2,80 +2,24 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/git/git_model.dart';
 import 'package:baocode/ide/ide_notifications.dart';
-import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/ide/ide_workspace.dart';
-import 'package:baocode/ide/lsp/lsp_protocol.dart';
-import 'package:baocode/ide/lsp_ui/lsp_convert.dart';
 import 'package:baocode/ide/services/git_changes.dart';
 import 'package:baocode/ide/services/scm_service.dart';
-import 'package:baocode/ide/workbench/contributions.dart';
 import 'package:baocode/ide/workbench/storage.dart';
 import 'package:baocode/ide/workbench/views.dart';
 import 'package:baocode/l10n/l10n.dart';
 
 import '../../git/fake_git.dart';
 import '../fake_files.dart';
-
-/// What Source Control asks of the window, recorded.
-class _Host implements WorkbenchHost {
-  final List<String> calls = [];
-  IdeSideView shown = IdeSideView.explorer;
-  final List<IdeQuickInputModel> models = [];
-
-  @override
-  BuildContext? context;
-
-  @override
-  bool get editorBusy => false;
-
-  @override
-  Future<void> flushEditor() async {}
-
-  @override
-  void focusEditor() => calls.add('focusEditor');
-
-  @override
-  Future<void> openEditorWith(
-    Future<void> Function() open, {
-    bool focusEditor = false,
-  }) async {
-    calls.add('openEditorWith focus=$focusEditor');
-    await open();
-  }
-
-  @override
-  Future<void> openFile(
-    String path, {
-    LspRange? range,
-    bool focusEditor = false,
-  }) async => calls.add('openFile $path');
-
-  @override
-  Future<void> openLocation(IdeLocation location, {bool record = true}) async {}
-
-  @override
-  void report(Object error) => calls.add('report $error');
-
-  @override
-  Future<void> selectEditor(IdeDocument doc) async {}
-
-  @override
-  void showQuickModel(IdeQuickInputModel model) => models.add(model);
-
-  @override
-  IdeSideView get view => shown;
-
-  @override
-  void showView(IdeSideView view) => shown = view;
-}
+import 'fake_host.dart';
 
 void main() {
-  late _Host host;
+  late FakeWorkbenchHost host;
   late WorkbenchStorage storage;
   var kept = 0;
 
   setUp(() {
-    host = _Host();
+    host = FakeWorkbenchHost();
     kept = 0;
     storage = WorkbenchStorage(onChanged: () => kept++);
   });
@@ -129,7 +73,10 @@ void main() {
     scm.saveState(into);
     expect(into.keys, ['gitFavoriteBranches']);
 
-    final other = ScmService(host: _Host(), storage: WorkbenchStorage());
+    final other = ScmService(
+      host: FakeWorkbenchHost(),
+      storage: WorkbenchStorage(),
+    );
     addTearDown(other.dispose);
     other.restoreState(into);
     expect(other.favoriteBranches.isEmpty, isFalse);

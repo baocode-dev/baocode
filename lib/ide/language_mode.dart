@@ -21,9 +21,11 @@ void keepLanguageModes(GlobalStorage storage) {
   overrides.addListener(() {
     final picks = overrides.toJson();
     unawaited(
-      storage.set(languageModesKey, picks.isEmpty ? null : picks).catchError(
-        (Object error) => debugPrint('$languageModesKey not kept: $error'),
-      ),
+      storage
+          .set(languageModesKey, picks.isEmpty ? null : picks)
+          .catchError(
+            (Object error) => debugPrint('$languageModesKey not kept: $error'),
+          ),
     );
   });
 }
