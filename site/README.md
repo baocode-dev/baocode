@@ -20,6 +20,12 @@ served as it is, `/download` being `download.html`.
   `channel` issue template.
 - `shots/`: the screenshots on the page.
 - `sounds/`: the notification sound the page plays.
+- `reviews/`: the avatars on the home page's reel of what users say (the
+  words are in the pages, translated on the English one). "Say a word"
+  under it sends a visitor's to stats.baocode.dev (`/v1/review`, in the
+  private baocode.dev repository), seen on its dashboard. The README's
+  picture of them, `docs/readme/reviews*.png`, is drawn as HTML and
+  screenshot.
 - `qr/`: the phone cards' QR codes, made by
   `dart run tool/make_download_qr.dart`.
 - Copy marked `<mark class="todo">` is still to be written.

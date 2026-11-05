@@ -6,6 +6,8 @@
 
 [公式サイト](https://baocode.dev) · [ダウンロード](https://baocode.dev/download) · [変更履歴](https://baocode.dev/changelog)
 
+![BaoCode ユーザーの声](docs/readme/reviews.png)
+
 ![BaoCode のメイン画面：プロジェクト別のエージェント、並列表示された二つの会話、モデル選択](site/shots/main.png)
 
 > 英語 README の日本語版です。内容に相違がある場合は [English](README.md) を参照してください。リンク先のサイトや文書が日本語に対応しているとは限りません。

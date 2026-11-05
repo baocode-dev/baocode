@@ -167,6 +167,73 @@ for (const img of document.querySelectorAll('figure img')) {
   if (img.complete && !img.naturalWidth) missing();
 }
 
+// The reel of what users say: two reels, every other card in the second,
+// which runs the other way. Each its cards twice, the copy hidden from
+// readers and from Tab, at about 40 px a second however many there are.
+for (const reel of document.querySelectorAll('.reel')) {
+  const second = Object.assign(document.createElement('ul'), { className: 'reel back' });
+  second.append(...[...reel.children].filter((_, i) => i % 2));
+  reel.after(second);
+}
+for (const reel of document.querySelectorAll('.reel')) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) break;
+  for (const li of [...reel.children]) {
+    const copy = li.cloneNode(true);
+    copy.setAttribute('aria-hidden', 'true');
+    copy.inert = true;
+    reel.append(copy);
+  }
+  reel.style.setProperty('--reel-time', `${Math.round(reel.scrollWidth / 2 / 40)}s`);
+}
+
+// Saying a word: the dialog under the reel, its words (and where to find
+// whoever wrote them, if given) sent to stats.baocode.dev, then thanks.
+// Escape, Never mind or a click outside closes it; what was typed stays
+// until sent.
+(() => {
+  const dialog = document.querySelector('[data-say]');
+  if (!dialog?.showModal) return;
+  const form = dialog.querySelector('form');
+  const status = dialog.querySelector('[data-say-status]');
+  const send = form.querySelector('[type="submit"]');
+  const label = send.textContent;
+  document.querySelector('[data-say-open]')?.addEventListener('click', () => {
+    dialog.classList.remove('sent');
+    status.textContent = '';
+    dialog.showModal();
+  });
+  for (const button of dialog.querySelectorAll('[data-say-close]')) button.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = form.elements.text.value.trim();
+    if (!text) { form.elements.text.focus(); return; }
+    send.disabled = true;
+    send.textContent = send.dataset.sending;
+    status.textContent = '';
+    try {
+      const res = await fetch('https://stats.baocode.dev/v1/review', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          contact: form.elements.contact.value.trim() || null,
+          lang: document.documentElement.lang.startsWith('zh') ? 'zh' : 'en',
+        }),
+      });
+      if (res.status === 429) throw Object.assign(new Error(), { busy: true });
+      if (!res.ok) throw new Error();
+      form.reset();
+      dialog.classList.add('sent');
+    } catch (err) {
+      status.textContent = err.busy ? status.dataset.busy : status.dataset.failed;
+    } finally {
+      send.disabled = false;
+      send.textContent = label;
+    }
+  });
+})();
+
 // A block's Copy button: copies its text, and says so for a moment.
 for (const button of document.querySelectorAll('[data-copy]')) {
   const label = button.textContent;

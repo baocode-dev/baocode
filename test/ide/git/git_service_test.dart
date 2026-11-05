@@ -147,6 +147,28 @@ void main() {
     expect(tag.details!.subject, 'Second commit');
     expect(refs.singleWhere((r) => r.name == 'older').details, isNull);
 
+    // Not `git branch --format` (Git 2.13+, #735); a remote's HEAD left out.
+    await git([
+      'symbolic-ref',
+      'refs/remotes/origin/HEAD',
+      'refs/remotes/origin/topic',
+    ]);
+    expect(
+      [
+        for (final r in await service.branchesContaining(first))
+          (r.name, r.kind),
+      ],
+      [
+        ('main', IdeGitRefKind.branch),
+        ('older', IdeGitRefKind.branch),
+        ('origin/topic', IdeGitRefKind.remote),
+      ],
+    );
+    expect(
+      [for (final r in await service.branchesContaining(second)) r.name],
+      ['main'],
+    );
+
     // A remote branch is checked out as a new branch tracking it.
     expect(await service.trackingBranches('origin/topic'), isEmpty);
     await service.checkout('origin/topic', track: true);
