@@ -832,6 +832,9 @@ void main() {
     Future<void> pumpNested(
       WidgetTester tester, {
       bool innerReversed = false,
+      bool keep = false,
+      bool latch = true,
+      double innerHeight = 400,
     }) async {
       outer = ScrollController();
       inner = ScrollController();
@@ -848,7 +851,11 @@ void main() {
                 child: SingleChildScrollView(
                   controller: inner,
                   reverse: innerReversed,
-                  child: const WheelLatch(child: SizedBox(height: 400)),
+                  child: WheelLatch(
+                    keep: keep,
+                    latch: latch,
+                    child: SizedBox(height: innerHeight),
+                  ),
                 ),
               ),
               const SizedBox(height: 2000),
@@ -899,6 +906,54 @@ void main() {
       await wheel(tester, const Offset(400, 200), 30);
       expect(inner.offset, 0);
       expect(outer.offset, 50);
+    });
+
+    for (final reversed in [false, true]) {
+      testWidgets('an unlatched view takes over the wheel and keeps both '
+          'edges (reversed: $reversed)', (tester) async {
+        await pumpNested(
+          tester,
+          innerReversed: reversed,
+          keep: true,
+          latch: false,
+        );
+        pause();
+        await wheel(tester, const Offset(400, 50), 20);
+        const over = Offset(400, 200);
+        final forward = reversed ? -60.0 : 60.0;
+        await wheel(tester, over, forward);
+        expect(inner.offset, 60);
+        expect(outer.offset, 20);
+        for (var i = 0; i < 5; i++) {
+          await wheel(tester, over, forward);
+        }
+        expect(inner.offset, inner.position.maxScrollExtent);
+        expect(outer.offset, 20);
+        pause();
+        await wheel(tester, over, forward);
+        expect(outer.offset, 20);
+
+        await wheel(tester, over, -1000 * forward);
+        expect(inner.offset, 0);
+        await wheel(tester, over, -forward);
+        expect(outer.offset, 20);
+        pause();
+        await wheel(tester, over, -forward);
+        expect(outer.offset, 20);
+
+        await wheel(tester, const Offset(400, 50), 40);
+        expect(outer.offset, 60);
+      });
+    }
+
+    testWidgets('an unlatched view without overflow lets history scroll', (
+      tester,
+    ) async {
+      await pumpNested(tester, keep: true, latch: false, innerHeight: 100);
+      pause();
+      await wheel(tester, const Offset(400, 150), 60);
+      expect(inner.offset, 0);
+      expect(outer.offset, 60);
     });
 
     testWidgets('a reversed inner view (live output) scrolls the way the '

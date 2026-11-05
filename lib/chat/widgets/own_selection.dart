@@ -15,9 +15,13 @@ class OwnSelection extends StatelessWidget {
   /// Whether [event], a press going down, is in one.
   static bool pressedIn(PointerDownEvent event) => event.pointer == _pointer;
 
+  /// A control inside selectable content, such as its scrollbar, takes this
+  /// press itself without excluding all the content from selection.
+  static void takePress(PointerDownEvent event) => _pointer = event.pointer;
+
   @override
   Widget build(BuildContext context) => Listener(
-    onPointerDown: (event) => _pointer = event.pointer,
+    onPointerDown: takePress,
     child: SelectionContainer.disabled(child: child),
   );
 }

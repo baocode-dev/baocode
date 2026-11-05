@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 /// Wheel scrolling of a scroll view inside another, as browsers do it: a
-/// wheel gesture keeps to the scroll view it started scrolling.
+/// wheel gesture keeps to the scroll view it started scrolling by default.
 ///
 /// - Started over the inner view, while it can move that way: it scrolls
 ///   the inner view only, and stops at its end rather than go on to the
@@ -15,7 +15,12 @@ import 'package:flutter/widgets.dart';
 /// scroll view, around its content. (A trackpad pan is a drag, which the
 /// inner view keeps to itself already.)
 class WheelLatch extends StatefulWidget {
-  const WheelLatch({super.key, required this.child, this.keep = false});
+  const WheelLatch({
+    super.key,
+    required this.child,
+    this.keep = false,
+    this.latch = true,
+  });
 
   final Widget child;
 
@@ -23,6 +28,10 @@ class WheelLatch extends StatefulWidget {
   /// scroll at all, at its ends too: one that only scrolls there (an edit's
   /// card) never moves the outer view under the pointer.
   final bool keep;
+
+  /// Whether the gesture stays with the view it started in. Without a
+  /// latch, [keep] holds each event over this view, its edges included.
+  final bool latch;
 
   static const gap = Duration(milliseconds: 300);
 
@@ -73,6 +82,13 @@ class _WheelLatchState extends State<WheelLatch> {
     final inner = Scrollable.maybeOf(context);
     if (inner == null) return;
     final delta = _deltaIn(inner, event);
+    if (!widget.latch) {
+      final position = inner.position;
+      if (widget.keep && position.maxScrollExtent > position.minScrollExtent) {
+        _scroll(inner, event, delta);
+      }
+      return;
+    }
     final last = _lastWheel;
     if (last == null || event.timeStamp - last >= WheelLatch.gap) {
       final position = inner.position;
@@ -85,15 +101,7 @@ class _WheelLatchState extends State<WheelLatch> {
       _latchedAt = event.timeStamp;
     }
     if (_latched == this) {
-      // Taken first (the inner view's own handling passes at its ends).
-      GestureBinding.instance.pointerSignalResolver.register(event, (event) {
-        final position = inner.position;
-        final target = (position.pixels + delta).clamp(
-          position.minScrollExtent,
-          position.maxScrollExtent,
-        );
-        if (target != position.pixels) position.pointerScroll(delta);
-      });
+      _scroll(inner, event, delta);
       return;
     }
     // Another view's gesture: not the inner view's, even where it could
@@ -104,6 +112,18 @@ class _WheelLatchState extends State<WheelLatch> {
       event,
       (_) => outer.position.pointerScroll(_deltaIn(outer, event)),
     );
+  }
+
+  /// Takes the event even at an edge, where the view's own handling passes.
+  void _scroll(ScrollableState view, PointerScrollEvent event, double delta) {
+    GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+      final position = view.position;
+      final target = (position.pixels + delta).clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      if (target != position.pixels) position.pointerScroll(delta);
+    });
   }
 
   @override

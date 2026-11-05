@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../base/smooth_scroll.dart';
@@ -8,6 +9,7 @@ import 'finite_selection_edges.dart';
 import 'hover_builder.dart';
 import 'hover_scrollbar.dart';
 import 'image_thumbnails.dart' show PreviewClick, PreviewPressScope;
+import 'own_selection.dart';
 import 'scroll_edge_fade.dart';
 import 'shimmer_text.dart';
 import 'wheel_latch.dart';
@@ -257,6 +259,7 @@ class StepBody extends StatefulWidget {
     this.scrollbar = false,
     this.codeBlock = false,
     this.keepWheel = false,
+    this.latchWheel = true,
     this.bottom,
   });
 
@@ -288,6 +291,10 @@ class StepBody extends StatefulWidget {
   /// too ([WheelLatch.keep]).
   final bool keepWheel;
 
+  /// Whether a wheel gesture stays with the view it started in. Without
+  /// the latch, the view under the pointer takes each event it can scroll.
+  final bool latchWheel;
+
   /// Along the bottom of what scrolls, over [child]: scrollbars across it,
   /// say, shown while the mouse is over it ([hovered]).
   final Widget Function(BuildContext context, bool hovered)? bottom;
@@ -298,6 +305,7 @@ class StepBody extends StatefulWidget {
 
 class _StepBodyState extends State<StepBody> {
   final _controller = SmoothScrollController();
+  final _scrollbarContent = GlobalKey();
 
   @override
   void didUpdateWidget(StepBody old) {
@@ -337,16 +345,19 @@ class _StepBodyState extends State<StepBody> {
     final StepBody(:child, :maxHeight, :padding, :overlay, :header) = widget;
     // The line between the sidebar and the conversation.
     final line = AppColors.partBorder;
+    Widget content = SizedBox(width: double.infinity, child: child);
+    if (widget.latchWheel || widget.keepWheel) {
+      content = WheelLatch(
+        keep: widget.keepWheel,
+        latch: widget.latchWheel,
+        child: content,
+      );
+    }
     Widget scroll = SingleChildScrollView(
       controller: _controller,
       reverse: widget.followEnd,
       padding: padding,
-      child: FiniteSelectionEdges(
-        child: WheelLatch(
-          keep: widget.keepWheel,
-          child: SizedBox(width: double.infinity, child: child),
-        ),
-      ),
+      child: FiniteSelectionEdges(child: content),
     );
     if (widget.fadeEdges) {
       scroll = ScrollEdgeFade(fadeLength: 12, child: scroll);
@@ -356,10 +367,28 @@ class _StepBodyState extends State<StepBody> {
         ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: widget.scrollbar
-              ? Scrollbar(
-                  controller: _controller,
-                  thumbVisibility: hovered,
-                  child: scroll,
+              ? Listener(
+                  onPointerDown: (event) {
+                    final paint = _scrollbarContent.currentContext
+                        ?.findAncestorRenderObjectOfType<RenderCustomPaint>();
+                    final painter = paint?.foregroundPainter;
+                    if (paint != null &&
+                        painter is ScrollbarPainter &&
+                        painter.hitTestInteractive(
+                          paint.globalToLocal(event.position),
+                          event.kind,
+                        )) {
+                      OwnSelection.takePress(event);
+                    }
+                  },
+                  child: Scrollbar(
+                    controller: _controller,
+                    thumbVisibility: hovered,
+                    child: Builder(
+                      key: _scrollbarContent,
+                      builder: (_) => scroll,
+                    ),
+                  ),
                 )
               : scroll,
         ),
