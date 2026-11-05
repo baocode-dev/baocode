@@ -1011,7 +1011,6 @@ class IdeEditorState extends State<IdeEditor> {
     widget.onScrolled?.call();
     _language?.onViewChanged();
     _textMateViewportChanged();
-    _languageChanged();
   }
 
   /// The lines on screen go to the TextMate worker first.
@@ -3060,12 +3059,14 @@ class IdeEditorState extends State<IdeEditor> {
                           ? const SizedBox.expand()
                           : _diffOf(widget.active) == null
                           ? Builder(
-                              builder: (context) => _surface(
-                                colors,
-                                agent: agent?.parts(
-                                  colors: DiffEditorColors.from(colors.get),
-                                  style: _editorStyle(colors),
-                                  textScaler: MediaQuery.textScalerOf(context),
+                              builder: (context) => RepaintBoundary(
+                                child: _surface(
+                                  colors,
+                                  agent: agent?.parts(
+                                    colors: DiffEditorColors.from(colors.get),
+                                    style: _editorStyle(colors),
+                                    textScaler: MediaQuery.textScalerOf(context),
+                                  ),
                                 ),
                               ),
                             )

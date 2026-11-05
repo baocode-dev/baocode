@@ -87,7 +87,14 @@ class WheelGlide {
       0.0,
       1.0,
     );
-    final step = distance * _ease(_x) - _moved;
+    final target = distance * _ease(_x);
+    if ((distance - target).abs() < 0.5) {
+      _x = 1.0;
+      final step = distance - _moved;
+      _moved = distance;
+      return step;
+    }
+    final step = target - _moved;
     _moved += step;
     return step;
   }
