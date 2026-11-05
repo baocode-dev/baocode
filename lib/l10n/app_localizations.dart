@@ -4136,6 +4136,18 @@ abstract class AppLocalizations {
   /// **'Subagent {description}, {status}'**
   String chatSubagentSemantics(String description, String status);
 
+  /// No description provided for @chatAgentMessageSent.
+  ///
+  /// In en, this message translates to:
+  /// **'sent'**
+  String get chatAgentMessageSent;
+
+  /// No description provided for @chatAgentMessageSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Message from subagent {agent}'**
+  String chatAgentMessageSemantics(String agent);
+
   /// No description provided for @chatOpensItsConversation.
   ///
   /// In en, this message translates to:

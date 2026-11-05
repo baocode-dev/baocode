@@ -946,6 +946,8 @@ abstract final class BotTools {
   /// [item] in a line or so, for the bot to read; null for what is not
   /// worth it.
   static String? _line(ChatItem item) => switch (item) {
+    UserMessageItem(:final text, fromAgent: final agent?) =>
+      'Subagent "$agent": ${_clip(text)}',
     UserMessageItem(:final text) => 'User: ${_clip(text)}',
     AssistantTextItem(:final text) when text.trim().isNotEmpty =>
       'Agent: ${_clip(text)}',

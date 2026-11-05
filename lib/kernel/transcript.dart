@@ -250,6 +250,7 @@ class Transcript {
             worked: taken.worked,
             usage: taken.usage,
             sentAt: sent,
+            fromAgent: taken.fromAgent,
           ),
         _ => item,
       };
