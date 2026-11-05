@@ -40,9 +40,9 @@ void main() {
     expect(state.keyContext('ideMode'), isTrue);
 
     services.get<StatusbarService>().addEntry(
-      const IdeStatusBarItem('From a service'),
       'test.entry',
       StatusbarAlignment.left,
+      (_) => const IdeStatusBarItem('From a service'),
     );
     await tester.pump();
     expect(find.text('From a service'), findsOneWidget);

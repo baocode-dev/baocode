@@ -180,47 +180,72 @@ void main() {
   });
 
   group('StatusbarService', () {
-    test('orders entries by priority, then as added', () {
+    testWidgets('orders entries by priority, then as added', (tester) async {
       final statusbar = StatusbarService();
       addTearDown(statusbar.dispose);
+      final text = ValueNotifier('high');
+      addTearDown(text.dispose);
       statusbar.addEntry(
-        const IdeStatusBarItem('low'),
         'low',
         StatusbarAlignment.right,
+        (_) => const IdeStatusBarItem('low'),
         priority: 1,
       );
       final high = statusbar.addEntry(
-        const IdeStatusBarItem('high'),
         'high',
         StatusbarAlignment.right,
+        (_) => IdeStatusBarItem(text.value),
         priority: 10,
+        changes: text,
       );
       statusbar.addEntry(
-        const IdeStatusBarItem('also low'),
         'also-low',
         StatusbarAlignment.right,
+        (_) => const IdeStatusBarItem('also low'),
         priority: 1,
       );
       statusbar.addEntry(
-        const IdeStatusBarItem('left'),
         'left',
         StatusbarAlignment.left,
+        (_) => const IdeStatusBarItem('left'),
+      );
+      late BuildContext context;
+      await tester.pumpWidget(
+        Builder(
+          builder: (c) {
+            context = c;
+            return const SizedBox();
+          },
+        ),
       );
       List<String> texts(StatusbarAlignment side) => [
-        for (final item in statusbar.items(side)) item.text,
+        for (final item in statusbar.items(context, side)) item.text,
       ];
       expect(texts(StatusbarAlignment.right), ['high', 'low', 'also low']);
       expect(texts(StatusbarAlignment.left), ['left']);
 
       var changes = 0;
       statusbar.addListener(() => changes++);
-      high.update(const IdeStatusBarItem('higher'));
+      text.value = 'higher';
       expect(texts(StatusbarAlignment.right).first, 'higher');
-      high.update(null);
-      expect(statusbar.shows('high'), isFalse);
+      high.update((_) => null);
       expect(texts(StatusbarAlignment.right), ['low', 'also low']);
       high.dispose();
+      text.value = 'gone';
       expect(changes, 3);
+    });
+
+    test('merges entries among the items not yet entries', () {
+      const a = IdeStatusBarItem('a');
+      const b = IdeStatusBarItem('b');
+      const c = IdeStatusBarItem('c');
+      const d = IdeStatusBarItem('d');
+      expect(mergeStatusbarItems([(100, a), (50, c)], [(80, b), (50, d)]), [
+        a,
+        b,
+        c,
+        d,
+      ]);
     });
   });
 

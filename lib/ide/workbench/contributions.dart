@@ -4,10 +4,12 @@
 
 import 'package:flutter/widgets.dart';
 
+import '../ide_quick_input.dart';
 import '../ide_workspace.dart';
 import '../lsp/lsp_protocol.dart';
 import '../lsp_ui/lsp_convert.dart';
 import 'services.dart';
+import 'views.dart';
 
 /// One feature's additions to a window; [dispose] takes them back.
 abstract interface class WorkbenchContribution implements WorkbenchDisposable {}
@@ -36,6 +38,21 @@ abstract interface class WorkbenchHost {
 
   /// Brings the open [doc] to the front.
   Future<void> selectEditor(IdeDocument doc);
+
+  /// Whether an editor is opening, which another waits for.
+  bool get editorBusy;
+
+  /// Runs [open], an editor's opening, once the editor's changes are
+  /// written back, telling of a failure; the keyboard to the editor after
+  /// where [focusEditor]. Nothing while another opens.
+  Future<void> openEditorWith(Future<void> Function() open, {bool focusEditor});
+
+  /// The side bar's view, and another shown (the side bar too).
+  IdeSideView get view;
+  void showView(IdeSideView view);
+
+  /// [model] in the quick input (a pick or an input box).
+  void showQuickModel(IdeQuickInputModel model);
 
   /// [error] told in the notifications.
   void report(Object error);
