@@ -45,9 +45,20 @@ class FakeWorkbenchHost implements WorkbenchHost {
   @override
   Future<void> openFile(
     String path, {
+    int? line,
+    int? column,
     LspRange? range,
     bool focusEditor = false,
-  }) async => calls.add('openFile $path');
+  }) async =>
+      calls.add(line == null ? 'openFile $path' : 'openFile $path:$line');
+
+  @override
+  Future<void> openInDefaultApp(String path) async =>
+      calls.add('openInDefaultApp $path');
+
+  @override
+  void revealLine(int line, [int column = 1]) =>
+      calls.add('revealLine $line:$column');
 
   @override
   Future<void> openLocation(IdeLocation location, {bool record = true}) async =>

@@ -6,7 +6,6 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path/path.dart' as p;
 
 import '../base/mouse_navigation.dart';
 import '../chat/chat_keys.dart';
@@ -23,7 +22,6 @@ import '../extensions/ui/extensions_view.dart';
 import '../extensions/ui/vsix_drop.dart';
 import '../platform/data_dir.dart';
 import '../chat/composer/composer_files.dart' show CodeReference, ComposerFile;
-import '../chat/composer/file_drop.dart';
 import '../chat/open_editor.dart';
 import '../keybindings/chat_keybindings.dart' show ChatCommandIds;
 import '../keybindings/default_keybindings.dart'
@@ -45,8 +43,6 @@ import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 
 import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
-import 'package:bao_editor/monaco/flutter/editor_surface_controller.dart'
-    show EditorSurfaceController;
 import 'package:bao_editor/monaco/flutter/editor_keybindings.dart'
     show editorChordPrefix;
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
@@ -57,9 +53,8 @@ import 'extensions/ide_extensions_view.dart';
 import 'explorer_excludes.dart';
 import 'explorer_history.dart'
     show explorerRedoCommandId, explorerUndoCommandId;
-import 'file_views.dart';
 import 'file_service.dart'
-    show IdeFileListing, IdeHostFiles, localizedFileError, readFileBytes;
+    show IdeFileListing, IdeHostFiles, localizedFileError;
 import 'git/commit_message.dart';
 import 'git/git_repository.dart';
 import 'git/ide_git_commit_panel.dart';
@@ -77,8 +72,6 @@ import 'ide_commands.dart';
 import 'ide_debug_host.dart';
 import 'ide_dialog.dart';
 import 'ide_editor.dart';
-import 'ide_editor_placeholder.dart';
-import 'ide_image_preview.dart';
 import 'markdown/markdown_paste.dart';
 import 'markdown/markdown_preview.dart';
 import 'ide_explorer.dart';
@@ -118,8 +111,10 @@ import 'terminal/terminal_service.dart';
 import 'host_paths.dart';
 import 'services/navigation_history.dart';
 import 'services/scm_service.dart';
+import 'services/markdown_preview.dart';
 import 'services/terminal_view.dart';
 import 'workbench/contributions/all.dart';
+import 'workbench/editor_panes.dart';
 import 'workbench/actions.dart';
 import 'workbench/context_keys.dart';
 import 'workbench/contributions.dart';
@@ -422,10 +417,23 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         layout: () => widget.workspace.layout,
       ),
     );
+    _panes = _services.add(EditorPaneRegistry());
+    _markdown = _services.add(
+      MarkdownPreviewService(
+        host: _host,
+        storage: _storage,
+        workspace: () => widget.workspace,
+        caret: () => _caretPosition,
+        clipboard: () => IdeWorkbench.markdownClipboard,
+        insertInEditor: (text) => _editor?.insertAtCaret(text),
+      ),
+    );
+    _storage.register(_markdown);
   }
 
-  /// The activity bar's badge and the Git log follow Source Control.
-  void _scmChanged() {
+  /// The activity bar's badge and the Git log follow Source Control; the
+  /// editor's part, a markdown preview switched.
+  void _servicesChanged() {
     if (mounted) setState(() {});
   }
 
@@ -434,11 +442,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   WorkbenchServices get services => _services;
   final _runAndDebugKey = GlobalKey<RunAndDebugViewState>();
   DebugService? _listenedDebug;
-
-  /// The markdown files shown as their source rather than their preview,
-  /// the last switched last (a few hundred kept, with the window's state).
-  final LinkedHashSet<String> _markdownSources = LinkedHashSet();
-  static const _keptMarkdownSources = 300;
 
   final FocusNode _workbenchFocus = FocusNode(debugLabel: 'ide workbench');
   final FocusNode _explorerFocus = FocusNode(debugLabel: 'ide explorer');
@@ -640,6 +643,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The panel's terminals; none where they cannot run (the web).
   late final TerminalViewService _terminalView;
   TerminalService? get _terminals => _terminalView.terminals;
+
+  /// The editor's panes beside the text editor (see EditorPaneRegistry).
+  late final EditorPaneRegistry _panes;
+
+  /// The markdown files' previews.
+  late final MarkdownPreviewService _markdown;
   IdeReferences? _references;
 
   /// The Problems and References lists' focused rows and collapsed files.
@@ -767,9 +776,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (kept['view'] case final String name) {
       _view = IdeSideView.values.asNameMap()[name] ?? _view;
     }
-    if (kept['markdownSource'] case final List<Object?> paths) {
-      _markdownSources.addAll(paths.whereType<String>());
-    }
     // VS Code makes a terminal when its view shows with none.
     if (_layout.panel == IdePanelTab.terminal) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -814,7 +820,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ..._layout.toJson(),
       'view': _view.name,
       if (search.isNotEmpty) 'search': search,
-      if (_markdownSources.isNotEmpty) 'markdownSource': [..._markdownSources],
       'editors': editors,
       if (editors.contains(active)) 'active': active,
       if (views.isNotEmpty) 'editorViews': views,
@@ -877,25 +882,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// The active markdown document's preview, when it shows.
-  IdeMarkdownPreviewState? get _preview => switch (widget.workspace.active) {
-    final active? => GlobalObjectKey<IdeMarkdownPreviewState>(
-      active,
-    ).currentState,
-    null => null,
-  };
-
-  /// Whether [doc] can show as a markdown preview: a markdown file's own
-  /// tab (or a revision's), not its diff.
-  bool _hasPreview(IdeDocument doc) =>
-      isMarkdownPath(doc.path) &&
-      doc.diff == null &&
-      !doc.isMedia &&
-      doc.openError == null;
-
-  /// Whether [doc] shows as its preview: markdown files do, unless switched
-  /// to their source.
-  bool _previewing(IdeDocument? doc) =>
-      doc != null && _hasPreview(doc) && !_markdownSources.contains(doc.path);
+  IdeMarkdownPreviewState? get _preview => _markdown.preview;
 
   /// The edits the active editor holds back (a field of the fallback
   /// editor) put in its document.
@@ -934,58 +921,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
   }
 
-  /// Shows the active markdown document's preview, or its source: in
-  /// either, where the other's caret was (or about where it was scrolled
-  /// to), or the source at [at] (a line and column, one-based).
-  Future<void> _setMarkdownPreview(
-    bool preview, {
-    ({int line, int column})? at,
-  }) async {
-    final doc = widget.workspace.active;
-    if (doc == null || !_hasPreview(doc) || _previewing(doc) == preview) {
-      return;
-    }
-    int? line;
-    var column = 1;
-    if (preview) {
-      await _flushEditor();
-      // The preview shows first the caret's line in its source.
-      widget.workspace.keepViewState(
-        doc,
-        (kept) => kept.copyWith(previewLine: _caretPosition.lineNumber),
-      );
-      _markdownSources.remove(doc.path);
-    } else {
-      // The preview's caret, where it was put; else the line at its top.
-      final caret = at ?? _preview?.caret;
-      line = caret?.line ?? _preview?.topLine;
-      column = caret?.column ?? 1;
-      _markdownSources
-        ..remove(doc.path)
-        ..add(doc.path);
-      while (_markdownSources.length > _keptMarkdownSources) {
-        _markdownSources.remove(_markdownSources.first);
-      }
-    }
-    if (!mounted) return;
-    setState(() {});
-    _keepViewSoon();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !identical(widget.workspace.active, doc)) return;
-      if (line != null) _revealLine(line, column);
-      if (at != null || line == null) _focusEditor();
-    });
-  }
-
   /// Find in a preview: in its source, as the preview has no find.
   void _find({bool replace = false}) {
-    if (_previewing(widget.workspace.active)) {
+    if (_markdown.previewing(widget.workspace.active)) {
       _setStatusMessage(
         context.l10n.markdownFindInSource,
         hideAfter: const Duration(seconds: 4),
       );
       unawaited(
-        _setMarkdownPreview(false).then((_) {
+        _markdown.setPreview(false).then((_) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             replace ? _editor?.openReplace() : _editor?.openFind();
@@ -1006,149 +950,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       await widget.workspace.save(doc);
     } catch (error) {
       _report(error);
-    }
-  }
-
-  /// Opens the file a markdown preview's link goes to: at its line for
-  /// `#L12`, at its heading for a markdown file's `#anchor`.
-  Future<void> _openLinked(String path, String? fragment) async {
-    final line = switch (RegExp(r'^L(\d+)').firstMatch(fragment ?? '')) {
-      final match? => int.parse(match[1]!),
-      null => null,
-    };
-    await _open(path, line: line, focusEditor: true);
-    if (!mounted || line != null || fragment == null) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _preview?.revealAnchor(fragment);
-    });
-  }
-
-  /// [doc]'s preview.
-  Widget _markdownPreview(IdeDocument doc) {
-    final files = widget.workspace.files;
-    return IdeMarkdownPreview(
-      key: GlobalObjectKey<IdeMarkdownPreviewState>(doc),
-      path: doc.path,
-      model: doc.model,
-      readOnly: doc.readOnly,
-      readBytes: switch (files) {
-        final IdeHostFiles files => files.readBytes,
-        _ => readFileBytes,
-      },
-      // A remote project's paths are its host's.
-      pathContext: _local ? p.context : hostPathsFor(doc.path),
-      // Where it was.
-      initialLine: widget.workspace.viewStateOf(doc).previewLine,
-      onLeave: (line) {
-        if (line == null) return;
-        widget.workspace.keepViewState(
-          doc,
-          (kept) => kept.copyWith(previewLine: line),
-        );
-      },
-      onEdited: () => widget.workspace.notifyDocumentChanged(doc),
-      onPaste: doc.readOnly ? null : () => _markdownPaste().paste(doc.path),
-      onOpenFile: (path, fragment) => unawaited(_openLinked(path, fragment)),
-      onOpenExternal: (uri) => unawaited(openExternal(uri.toString())),
-      onReveal: _local && WindowControls.canRevealInFileManager
-          ? (path) => unawaited(WindowControls.revealInFileManager(path))
-          : null,
-    );
-  }
-
-  /// Pastes and drops of files into the project's markdown documents.
-  MarkdownPaste _markdownPaste() {
-    final l10n = context.l10n;
-    final workspace = widget.workspace;
-    return MarkdownPaste(
-      files: workspace.files,
-      l10n: l10n,
-      root: workspace.hasFolder ? workspace.root : null,
-      // A remote project's paths are its host's; the clipboard's files
-      // are this machine's, uploaded there.
-      context: _local
-          ? p.context
-          : hostPathsFor(workspace.hasFolder ? workspace.root : ''),
-      remote: !_local,
-      clipboard: IdeWorkbench.markdownClipboard,
-      confirmLarge: (name, size) async {
-        if (!mounted) return false;
-        final pick = await showIdeDialog(
-          context,
-          type: IdeDialogType.question,
-          message: l10n.markdownPasteLargeTitle,
-          detail: l10n.markdownPasteLargeMessage(name, ideFormatSize(size)),
-          buttons: [l10n.markdownPasteLargeConfirm],
-        );
-        return pick == 0;
-      },
-      report: (message) {
-        if (mounted) _notifications.notify(IdeSeverity.error, message);
-      },
-    );
-  }
-
-  /// A paste in [doc]'s source: a markdown document's files and pictures
-  /// put beside it and linked to (see [pasteMarkdownLinks]).
-  Future<bool> _pasteInEditor(
-    IdeDocument doc,
-    EditorSurfaceController editor,
-  ) async {
-    if (!isMarkdownPath(doc.path) || doc.readOnly || !mounted) return false;
-    final version = doc.model.version;
-    final pasted = await pasteMarkdownLinks(
-      editor,
-      () => _markdownPaste().paste(doc.path),
-      onMoved: () {
-        if (mounted) {
-          _notifications.notify(
-            IdeSeverity.info,
-            context.l10n.markdownPasteMoved,
-          );
-        }
-      },
-    );
-    if (doc.model.version != version) {
-      widget.workspace.notifyDocumentChanged(doc);
-    }
-    return pasted;
-  }
-
-  /// [editor], taking the files other apps drop on it when it is a
-  /// markdown document's (see [_dropOnMarkdown]).
-  Widget _markdownDrops(IdeDocument? active, Widget editor) {
-    if (active == null ||
-        !isMarkdownPath(active.path) ||
-        active.readOnly ||
-        active.diff != null ||
-        active.openError != null) {
-      return editor;
-    }
-    return FileDropRegion(delegate: _markdownDrop, child: editor);
-  }
-
-  late final _markdownDrop = _MarkdownDrop(
-    (position, files) => unawaited(_dropOnMarkdown(position, files)),
-  );
-
-  /// Files dropped from other apps on the active markdown document: put
-  /// beside it and linked to, at the caret, or after the block they were
-  /// dropped on.
-  Future<void> _dropOnMarkdown(
-    Offset position,
-    List<ComposerFile> files,
-  ) async {
-    final doc = widget.workspace.active;
-    if (doc == null || !isMarkdownPath(doc.path) || doc.readOnly) return;
-    final outcome = await _markdownPaste().drop(doc.path, files);
-    if (!mounted || outcome is! MarkdownPasteLinks) return;
-    if (!identical(widget.workspace.active, doc)) {
-      insertMarkdownAtEnd(doc.model, outcome.text);
-      widget.workspace.notifyDocumentChanged(doc);
-    } else if (_preview case final preview?) {
-      preview.insert(outcome.text, position: position);
-    } else {
-      _editor?.insertAtCaret(outcome.text);
     }
   }
 
@@ -1186,8 +987,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     });
     _scmService
       ..readBranch()
-      ..addListener(_scmChanged);
+      ..addListener(_servicesChanged);
     _terminalView.addListener(_terminalsChanged);
+    // A preview switched to its source, or back.
+    _markdown.addListener(_servicesChanged);
     if (widget.visible) _focusSoon();
   }
 
@@ -1491,6 +1294,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _search.keptChanges.removeListener(_keepViewSoon);
     _search.dispose();
     _terminalView.removeListener(_terminalsChanged);
+    _markdown.removeListener(_servicesChanged);
     _panelFocus.dispose();
     _problemsList.dispose();
     _referencesList.dispose();
@@ -2745,20 +2549,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: () => unawaited(_save()),
       ),
       IdeCommand(
-        id: 'markdown.showPreview',
-        category: 'Markdown',
-        label: 'Open Preview',
-        enabled: active != null && _hasPreview(active) && !_previewing(active),
-        run: () => unawaited(_setMarkdownPreview(true)),
-      ),
-      IdeCommand(
-        id: 'markdown.showSource',
-        category: 'Markdown',
-        label: 'Show Source',
-        enabled: _previewing(active),
-        run: () => unawaited(_setMarkdownPreview(false)),
-      ),
-      IdeCommand(
         id: 'workbench.action.files.saveAll',
         category: 'File',
         label: 'Save All',
@@ -3665,11 +3455,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 onMove: widget.workspace.moveDocument,
                 local: _local,
                 markdownPreview:
-                    !pageShown && active != null && _hasPreview(active)
-                    ? _previewing(active)
+                    !pageShown && active != null && _markdown.hasPreview(active)
+                    ? _markdown.previewing(active)
                     : null,
                 onMarkdownPreview: (preview) =>
-                    unawaited(_setMarkdownPreview(preview)),
+                    unawaited(_markdown.setPreview(preview)),
                 page: page == null ? null : _extensionPageTab(page),
                 actions: switch (widget.agentEdits) {
                   final edits? when !pageShown && active != null =>
@@ -3708,7 +3498,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   // The editors stay built under an extension's page.
                   Offstage(
                     offstage: pageShown,
-                    child: _markdownDrops(
+                    child: _markdown.drops(
                       active,
                       active == null && !widget.workspace.hasFolder
                           ? IdeStartPage(
@@ -3755,63 +3545,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                   ),
                               ],
                             )
-                          : active.view != null &&
-                                FileViews.byId(active.view!) != null
-                          // Its lists scrolled as they were, those of them
-                          // keyed with a PageStorageKey.
-                          ? PageStorage(
-                              key: ValueKey(active),
-                              bucket: widget.workspace.viewStates.bucket(
-                                active.key,
-                              ),
-                              child: FileViews.byId(active.view!)!
-                                  .build(context, active.path),
-                            )
-                          : active.isMedia
-                          ? IdeImagePreview(
-                              key: ValueKey(active),
-                              path: active.path,
-                              initialTransform: widget.workspace
-                                  .viewStateOf(active)
-                                  .image,
-                              onLeave: (transform) =>
-                                  widget.workspace.keepViewState(
-                                    active,
-                                    (kept) => kept.copyWith(image: transform),
-                                  ),
-                              read: switch (widget.workspace.files) {
-                                final IdeHostFiles files => files.readBytes,
-                                _ => null,
-                              },
-                              onOpenInDefaultApp:
-                                  _local && WindowControls.canOpenInDefaultApp
-                                  ? () => unawaited(
-                                      _openInDefaultApp(active.path),
-                                    )
-                                  : null,
-                            )
-                          : active.openError != null
-                          ? IdeEditorPlaceholder(
-                              key: ValueKey(active),
-                              error: active.openError!,
-                              path: active.path,
-                              onOpenAnyway: () => unawaited(
-                                widget.workspace.reopen(active, force: true),
-                              ),
-                              onRetry: () =>
-                                  unawaited(widget.workspace.reopen(active)),
-                              onOpenInDefaultApp:
-                                  _local &&
-                                      WindowControls.canOpenInDefaultApp &&
-                                      active.readRevision == null
-                                  ? () => unawaited(
-                                      _openInDefaultApp(active.path),
-                                    )
-                                  : null,
-                            )
-                          : _previewing(active)
-                          ? _markdownPreview(active)
-                          : widget.editorBuilder?.call(
+                          // A pane of its own (a file view, an image, a
+                          // preview), else the text editor.
+                          : _panes.paneFor(active)?.build(context, active) ??
+                                widget.editorBuilder?.call(
                                   context,
                                   widget.workspace,
                                 ) ??
@@ -3838,7 +3575,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                     _scmService.compareWith(path, what),
                                   ),
                                   keyResolver: _resolveEditorKey,
-                                  onPaste: _pasteInEditor,
+                                  onPaste: _markdown.pasteInEditor,
                                   formatOnSave: _formatOnSave,
                                   debug: _debug,
                                   agentEdits: widget.agentEdits,
@@ -4846,9 +4583,24 @@ class _Host implements WorkbenchHost {
   @override
   Future<void> openFile(
     String path, {
+    int? line,
+    int? column,
     LspRange? range,
     bool focusEditor = false,
-  }) => _state._open(path, range: range, focusEditor: focusEditor);
+  }) => _state._open(
+    path,
+    line: line,
+    column: column,
+    range: range,
+    focusEditor: focusEditor,
+  );
+
+  @override
+  Future<void> openInDefaultApp(String path) => _state._openInDefaultApp(path);
+
+  @override
+  void revealLine(int line, [int column = 1]) =>
+      _state._revealLine(line, column);
 
   @override
   Future<void> openLocation(IdeLocation location, {bool record = true}) =>
@@ -5201,22 +4953,4 @@ class _EmptyWorkspace extends StatelessWidget {
       ],
     );
   }
-}
-
-/// What a markdown document's editor does with files other apps drop on
-/// it: [onDrop].
-class _MarkdownDrop implements FileDropDelegate {
-  _MarkdownDrop(this.onDrop);
-
-  final void Function(Offset position, List<ComposerFile> files) onDrop;
-
-  @override
-  void fileDragOver(Offset position, List<ComposerFile> files) {}
-
-  @override
-  void fileDragLeave() {}
-
-  @override
-  void fileDrop(Offset position, List<ComposerFile> files) =>
-      onDrop(position, files);
 }
