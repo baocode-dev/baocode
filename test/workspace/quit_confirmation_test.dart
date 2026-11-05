@@ -68,6 +68,23 @@ void main() {
     await _stop(tester, workspace);
   });
 
+  testWidgets('Quit chosen again while asking (the tray) quits', (
+    tester,
+  ) async {
+    final workspace = await _pumpApp(tester);
+    final first = tester.binding.handleRequestAppExit();
+    await tester.pump();
+    expect(QuitConfirmation.asking, isTrue);
+
+    QuitConfirmation.quitAnyway();
+    expect(await first, AppExitResponse.exit);
+    expect(QuitConfirmation.asking, isFalse);
+    // The question left up answers nothing now.
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    await _stop(tester, workspace);
+  });
+
   testWidgets('a quit already chosen (Quit Now) is not asked about', (
     tester,
   ) async {

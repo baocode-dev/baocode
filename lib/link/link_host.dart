@@ -910,11 +910,25 @@ class LinkHost extends ChangeNotifier {
   /// What is being made so: one change at a time.
   Future<void> _advertising = Future.value();
 
+  /// Whether the app is quitting: advertised no more (see [stopAdvertising]).
+  bool _unadvertised = false;
+
+  /// No longer found on the LAN, as the app quits. On Windows the broadcast
+  /// left to the engine's teardown takes the app down with it: its plugin
+  /// lets go of its channel after the engine's messenger is gone. Not waited
+  /// on for long: the quit goes on.
+  Future<void> stopAdvertising() {
+    _unadvertised = true;
+    _syncAdvert();
+    return _advertising.timeout(const Duration(seconds: 2), onTimeout: () {});
+  }
+
   /// What this desktop should advertise now: nothing unless on the network
   /// and discoverable.
   LinkAdvert? get _wantedAdvert {
     final port = _info?.port;
     if (_disposed ||
+        _unadvertised ||
         !_loaded ||
         !_discoverable ||
         _status != LinkHostStatus.listening ||
