@@ -73,7 +73,7 @@ class WorkbenchScope extends InheritedWidget {
   final history = services.add(NavigationHistoryService(editors: editors, storage: storage));
   ```
 
-- 换工作区（`didUpdateWidget` 里 workspace 变了）时，整个容器释放后重建，对应现在的 `_detach` / `_attach`。
+- 容器和窗口同生命周期。换工作区（`didUpdateWidget` 里 workspace 变了）时，只有绑定工作区的服务（导航、Git 改动、资源管理器、语言等）用 `remove<T>()` 释放后重新创建，对应现在的 `_detach` / `_attach`；布局、快速输入、状态栏、注册表这些跟着窗口走，不重建。
 - 界面通过 `WorkbenchScope.of(context).get<T>()` 拿服务，不经过 `IdeWorkbenchState`。
 
 ### 3.2 上下文键服务
@@ -146,7 +146,7 @@ class StatusbarEntryAccessor { void update(StatusbarEntry entry); void dispose()
 
 - 贡献监听自己的服务，变化时调用 `accessor.update`。状态栏块只监听 `StatusbarService`，打字时不会重建别的块。
 - 行列和「已选 N 行」改成编辑器状态贡献（`EditorStatusContribution`），监听 `_caret`。缩进、编码、换行符、语言模式也放在这个贡献里。
-- 排序和现在一致：左侧依次是远程、调试、分支、问题、语言状态、状态消息；右侧依次是行列、缩进、编码、EOL、语言、铃铛。顺序用 priority 表达（左侧数字大的靠左，右侧数字大的靠右，同 VS Code）。
+- 排序和现在一致：左侧依次是远程、调试、分支、问题、语言状态、状态消息；右侧依次是行列、缩进、编码、EOL、语言、铃铛。顺序用 priority 表达：数字大的靠左，两侧都一样（同 VS Code 的 `StatusBarItem.priority`）。
 
 ### 3.5 存储
 

@@ -139,6 +139,12 @@ import 'terminal/terminal_profiles.dart';
 import 'terminal/terminal_hosts.dart';
 import 'terminal/terminal_service.dart';
 import 'host_paths.dart';
+import 'workbench/actions.dart';
+import 'workbench/context_keys.dart';
+import 'workbench/contributions.dart';
+import 'workbench/services.dart';
+import 'workbench/statusbar.dart';
+import 'workbench/storage.dart';
 
 part 'ide_workbench_extensions.dart';
 part 'ide_workbench_keys.dart';
@@ -396,6 +402,30 @@ typedef _Chord = ({String label, List<KeyChord> chords, String message});
 
 class IdeWorkbenchState extends State<IdeWorkbench> {
   final _editorKey = GlobalKey<IdeEditorState>();
+
+  /// The window's services and what the features add with them (see
+  /// docs/workbench-architecture.md): made as the workbench is, gone with
+  /// it.
+  final WorkbenchServices _services = WorkbenchServices();
+  late final ContextKeyService _contextKeys;
+  late final ActionRegistry _actions;
+  late final StatusbarService _statusbar;
+  late final WorkbenchStorage _storage;
+  late final WorkbenchHost _host = _Host(this);
+  final List<WorkbenchContribution> _contributions = [];
+
+  /// The window's services: those its features use, then the features.
+  void _createServices() {
+    _contextKeys = _services.add(ContextKeyService());
+    _actions = _services.add(ActionRegistry());
+    _statusbar = _services.add(StatusbarService());
+    _storage = _services.add(WorkbenchStorage(onChanged: _keepViewSoon));
+    _services.add<WorkbenchHost>(_host);
+  }
+
+  /// The services of ide_workbench_keys.dart and the views, for tests.
+  @visibleForTesting
+  WorkbenchServices get services => _services;
   final _runAndDebugKey = GlobalKey<RunAndDebugViewState>();
   DebugService? _listenedDebug;
 
@@ -763,6 +793,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _restoreView() {
     final kept = widget.viewState;
     if (kept == null) return;
+    _storage.restore(kept);
     double? size(String key) => switch (kept[key]) {
       final num value when value.isFinite && value > 0 => value.toDouble(),
       _ => null,
@@ -834,6 +865,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'editors': editors,
       if (editors.contains(active)) 'active': active,
       if (views.isNotEmpty) 'editorViews': views,
+      ..._storage.collect(),
     };
   }
 
@@ -1175,6 +1207,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     super.initState();
     IdeDiffOptions.instance.attach(widget.settings);
     widget.workspace.localHistory ??= IdeLocalHistory.inDataDirectory();
+    _createServices();
     FocusManager.instance.addEarlyKeyEventHandler(_onChordKey);
     FocusManager.instance.addLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.addListener(_keybindingsChanged);
@@ -1619,6 +1652,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // themes one applies the theme it started with again).
     _quickModel?.onDidHide?.call();
     _detach(widget.workspace);
+    disposeContributions(_contributions);
+    _services.dispose();
     _extensions?.dispose();
     _caret.dispose();
     _workbenchFocus.dispose();
@@ -3234,6 +3269,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The context keys a keybinding's `when` reads, as they are now.
   @visibleForTesting
   Object? keyContext(String key) {
+    // The services' keys, then those the workbench works out itself.
+    if (_contextKeys.getValue(key) case final value?) return value;
     final focus = FocusManager.instance.primaryFocus;
     final editorFocus = _editor?.hasTextFocus ?? false;
     // A text field, or the chat's input (a rich text editor of its own).
@@ -3306,6 +3343,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   Map<String, IdeCommand> _commandsById() {
     final byId = <String, IdeCommand>{};
     for (final command in [
+      ..._actions.commands(_services),
       ..._allCommands(),
       ..._listCommands(),
       ..._explorerCommands(),
@@ -4130,6 +4168,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The workbench's commands, then the editor's, then [IdeWorkbench.commands].
   List<IdeCommand> _allCommands() => [
+    ..._actions.commands(_services, palette: true),
     ..._workbenchCommands(),
     ..._debugCommands(),
     ..._editorCommands(),
@@ -5632,10 +5671,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           ...ideLanguageStatusItems(languages, doc.path, l10n: l10n),
       ],
       if (_statusMessage case final message?) IdeStatusBarItem(message),
+      ..._statusbar.items(StatusbarAlignment.left),
     ];
     final bell = ideNotificationsStatusItem(_notifications, l10n: l10n);
+    final added = _statusbar.items(StatusbarAlignment.right);
     if (active == null || active.openError != null || active.isMedia) {
-      return IdeStatusBar(left: left, right: [bell]);
+      return IdeStatusBar(left: left, right: [...added, bell]);
     }
     final snapshot = active.model.snapshot;
     if (!identical(snapshot, _eolSnapshot)) {
@@ -5683,6 +5724,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           ),
           onTap: () => unawaited(_changeLanguageMode()),
         ),
+        ...added,
         bell,
       ],
     );
@@ -5723,6 +5765,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                               // language server's progress.
                               Listenable.merge([
                                 _caret,
+                                _statusbar,
                                 widget.workspace.edits,
                                 _languages?.progressChanges,
                                 _debug,
@@ -5796,14 +5839,36 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         // upstream's `registerMouseNavigationListener` has them; where
         // what is under the pointer does not go back first (a subagent in
         // the chat, a commit's changes in the Git log).
-        return MouseNavigation(
-          onBack: () => _navigate(back: true),
-          onForward: () => _navigate(back: false),
-          child: IslandStyle(on: IdeWorkbench.islands, child: focus),
+        return WorkbenchScope(
+          services: _services,
+          child: MouseNavigation(
+            onBack: () => _navigate(back: true),
+            onForward: () => _navigate(back: false),
+            child: IslandStyle(on: IdeWorkbench.islands, child: focus),
+          ),
         );
       },
     );
   }
+}
+
+/// What the services need of the workbench's widgets.
+class _Host implements WorkbenchHost {
+  _Host(this._state);
+
+  final IdeWorkbenchState _state;
+
+  @override
+  BuildContext? get context => _state.mounted ? _state.context : null;
+
+  @override
+  Future<void> flushEditor() => _state._flushEditor();
+
+  @override
+  void focusEditor() => _state._focusEditor();
+
+  @override
+  void report(Object error) => _state._report(error);
 }
 
 /// A draggable line between two parts, over it: invisible at rest,
