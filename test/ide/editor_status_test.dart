@@ -99,7 +99,26 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(find.text('Ln 1, Col 2 (8 selected)'), findsOneWidget);
+    // Over two lines: how many too.
+    expect(find.text('Ln 1, Col 2 (2 lines, 8 selected)'), findsOneWidget);
+
+    // Within a line: the characters alone.
+    controller().selection = const TextSelection(
+      baseOffset: 1,
+      extentOffset: 4,
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Ln 1, Col 5 (3 selected)'), findsOneWidget);
+
+    // Up to the next line's start: that line not counted.
+    controller().selection = const TextSelection(
+      baseOffset: 0,
+      extentOffset: 6,
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Ln 2, Col 1 (6 selected)'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'alpha\nbeta!');
     await tester.pump();
