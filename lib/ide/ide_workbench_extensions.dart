@@ -185,7 +185,7 @@ extension _ExtensionsPart on IdeWorkbenchState {
       for (final theme in themes) item(theme.label, theme.id),
     ];
     var accepted = false;
-    _showQuickModel(
+    _quickInput.showModel(
       IdeQuickPick(
         items: items,
         placeholder: l10n.themeSelectIconThemePlaceholder,

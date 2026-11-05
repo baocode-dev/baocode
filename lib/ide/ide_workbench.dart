@@ -71,7 +71,6 @@ import 'ide_diff_options.dart';
 import 'ide_notifications.dart';
 import 'ide_panes.dart';
 import 'ide_quick_input.dart';
-import 'ide_quick_open.dart';
 import 'ide_status_bar.dart';
 import 'ide_tab_bar.dart';
 import 'ide_welcome.dart';
@@ -100,6 +99,8 @@ import 'services/editors.dart';
 import 'services/explorer.dart';
 import 'services/language.dart';
 import 'services/layout.dart';
+import 'services/commands.dart';
+import 'services/quick_input.dart';
 import 'services/lists.dart';
 import 'services/markdown_preview.dart';
 import 'services/problems.dart';
@@ -107,6 +108,8 @@ import 'services/references.dart';
 import 'services/terminal_view.dart';
 import 'workbench/contributions/all.dart';
 import 'workbench/editor_panes.dart';
+import 'workbench/parts/quick_input.dart';
+import 'workbench/quick_access.dart';
 import 'workbench/actions.dart';
 import 'workbench/context_keys.dart';
 import 'workbench/contributions.dart';
@@ -383,6 +386,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       LayoutService(host: _host, layout: () => widget.workspace.layout),
     );
     _storage.register(_layoutService);
+    _commands = _services.add(
+      CommandService(services: _services, actions: _actions),
+    );
+    _quickInput = _services.add(
+      QuickInputService(
+        host: _host,
+        registry: _services.add(QuickAccessRegistry()),
+        focusWorkbench: () => _editors.focusEditorOrWorkbench(),
+      ),
+    );
     _scmService = _services.add(
       ScmService(
         host: _host,
@@ -498,7 +511,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The Explorer view: its tree, Quick Open's files, its panes.
   late final ExplorerService _explorerService;
   IdeExplorerController get _explorer => _explorerService.controller;
-  IdeFileIndex get _fileIndex => _explorerService.fileIndex;
   FocusNode get _explorerFocus => _explorerService.focusNode;
 
   /// The workspace's navigation history (Go Back, the editors by recent
@@ -513,7 +525,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   FocusNode get _sidebarFocus => _layoutService.sidebarFocus;
   FocusNode get _chatFocus => _layoutService.chatFocus;
   FocusNode get _panelFocus => _layoutService.panelFocus;
-  final IdeRecentList _recentCommands = IdeRecentList();
 
   /// The widths the side bar and the chat open at, and have while there is
   /// room (see [IdeColumns.fit]).
@@ -560,7 +571,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// much is selected: the status bar alone is built again as it moves.
   ValueNotifier<IdeEditorPosition> get _caret => _editors.caret;
   Position get _caretPosition => _editors.position;
-  int get _statusColumn => _caret.value.statusColumn;
   int get _selectionLength => _caret.value.selectionLength;
   String? _activeKey;
 
@@ -613,21 +623,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Whether its tab is the one in front: another selected, it stays.
   bool _extensionPageShown = false;
 
-  /// The quick input's text while it is open (its prefix picks the mode).
-  String? _quickInput;
-
-  /// The quick pick (e.g. the color themes) or input box the quick input
-  /// shows instead.
-  IdeQuickInputModel? _quickModel;
-  GlobalKey<IdeQuickInputState> _quickInputKey = GlobalKey();
-  FocusNode? _focusBeforeQuickInput;
-
-  /// How the quick input [_quickInput] shows opens (see
-  /// [IdeQuickInput.itemActivation], [IdeQuickInput.quickNavigate],
-  /// [IdeQuickInput.hideInput]).
-  IdeQuickPickFocus _quickActivation = IdeQuickPickFocus.first;
-  List<KeyChord>? _quickNavigateChords;
-  bool _quickHideInput = false;
+  /// The window's commands, and the quick input (the palette is one).
+  late final CommandService _commands;
+  late final QuickInputService _quickInput;
 
   /// The chord being typed (upstream `_currentChords`).
   _Chord? _chord;
@@ -646,7 +644,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   late final LanguageService _language;
   LanguageFeatures? get _languages => _language.languages;
   IdeDocumentSymbols? get _symbols => _language.symbols;
-  late Listenable _quickRefresh;
 
   /// The Problems and References views.
   late final ProblemsService _problems;
@@ -904,6 +901,22 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     widget.workspace.localHistory ??= IdeLocalHistory.inDataDirectory();
     _createServices();
     _contributions.addAll(createWorkbenchContributions(_services));
+    // The commands not yet the features' actions.
+    _commands
+      ..addSource(
+        () => [
+          ..._workbenchCommands(),
+          ..._editorCommands(),
+          ..._searchCommands(),
+          ...?_editor?.editorCommands,
+          ...widget.commands,
+          ..._extensionCommands(),
+        ],
+      )
+      ..addSource(
+        () => [..._keyboardCommands(), ..._searchKeyboardCommands()],
+        palette: false,
+      );
     FocusManager.instance.addEarlyKeyEventHandler(_onChordKey);
     FocusManager.instance.addLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.addListener(_keybindingsChanged);
@@ -957,7 +970,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     workspace.layout.terminals = _terminals != null;
     _explorerService.attach(workspace);
     _language.attach(workspace);
-    _quickRefresh = Listenable.merge([_fileIndex, ?_symbols]);
     _problems.clear();
     _referencesView.clear();
     _services.add(workspace);
@@ -1090,7 +1102,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _lifecycle?.dispose();
     // A quick pick or input box going with the workbench hides (the color
     // themes one applies the theme it started with again).
-    _quickModel?.onDidHide?.call();
     _markdown.removeListener(_servicesChanged);
     _debugView.removeListener(_servicesChanged);
     _language.removeListener(_servicesChanged);
@@ -1346,52 +1357,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   // --- Quick input ---------------------------------------------------------
 
-  /// Opens the quick input with [prefix] (`>` commands, `:` go to line,
-  /// `edt ` editors, none for files), or switches the open one to it.
-  ///
-  /// With [quickNavigate] (upstream `quickNavigateConfiguration`), releasing
-  /// a modifier of those chords accepts, and the input is hidden unless a
-  /// quick input shows already; [itemActivation] is the row active first
-  /// (the second by default with [quickNavigate]).
-  /// How old a remote project's listing is before Quick Open lists it again.
-  static const _remoteListingAge = Duration(seconds: 30);
-
-  void _showQuickInput(
-    String prefix, {
-    IdeQuickPickFocus? itemActivation,
-    List<KeyChord>? quickNavigate,
-  }) {
-    if (_quickAccessOf(prefix).$1 == _QuickAccess.files) {
-      // A remote project's files come over the connection, all of them:
-      // listed again once a while old, not each time.
-      unawaited(
-        _local
-            ? _fileIndex.refresh()
-            : _fileIndex.refreshIfOlder(_remoteListingAge),
-      );
-    }
-    final shown = _quickInput != null || _quickModel != null;
-    if (_quickInput != null &&
-        itemActivation == null &&
-        quickNavigate == null) {
-      _quickInputKey.currentState?.setText(prefix);
-      return;
-    }
-    _openQuickInput(() {
-      _quickInput = prefix;
-      _quickActivation =
-          itemActivation ??
-          (quickNavigate != null
-              ? IdeQuickPickFocus.second
-              : IdeQuickPickFocus.first);
-      _quickNavigateChords = quickNavigate;
-      _quickHideInput = quickNavigate != null && !shown;
-    });
-  }
-
   /// Opens [model] in the quick input, for the views the workbench hosts
   /// (e.g. its chat).
-  void showQuickPick(IdeQuickInputModel model) => _showQuickModel(model);
+  void showQuickPick(IdeQuickInputModel model) => _quickInput.showModel(model);
 
   /// Opens [path] in an editor and focuses it (the host's Open File…).
   Future<void> openFile(String path) => _editors.open(path, focusEditor: true);
@@ -1419,17 +1387,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// Runs the command [id] (the palette's, or one of its keybindings'),
   /// as a menu does; false when there is none here, or it cannot run now.
-  bool runCommand(String id) {
-    final command = _commandsById()[id];
-    if (command == null || !command.enabled) return false;
-    _runCommand(command);
-    return true;
-  }
-
-  /// Opens [model], a quick pick or an input box, in the quick input in
-  /// place of what it shows.
-  void _showQuickModel(IdeQuickInputModel model) =>
-      _openQuickInput(() => _quickModel = model);
+  bool runCommand(String id) => _commands.runById(id);
 
   /// VS Code's Change End of Line Sequence (`ChangeEOLAction`): LF or CRLF
   /// for every line of the active document, the current one active.
@@ -1441,7 +1399,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final l10n = context.l10n;
     await IdeLanguageNames.load();
     if (!mounted || !identical(widget.workspace.active, active)) return;
-    _showQuickModel(
+    _quickInput.showModel(
       languageModePick(l10n, active.path, onPicked: _editors.focus),
     );
   }
@@ -1451,14 +1409,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (active == null || active.isMedia || active.openError != null) return;
     final l10n = context.l10n;
     if (active.readOnly) {
-      _showQuickModel(
+      _quickInput.showModel(
         IdeQuickPick(items: [IdeQuickPickItem(label: l10n.wbEditorReadOnly)]),
       );
       return;
     }
     const lf = IdeQuickPickItem(label: 'LF');
     const crlf = IdeQuickPickItem(label: 'CRLF');
-    _showQuickModel(
+    _quickInput.showModel(
       IdeQuickPick(
         items: const [lf, crlf],
         placeholder: l10n.wbSelectEol,
@@ -1473,118 +1431,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
   }
 
-  void _openQuickInput(VoidCallback open) {
-    final replaced = _quickModel;
-    if (_quickInput == null && replaced == null) {
-      _focusBeforeQuickInput = FocusManager.instance.primaryFocus;
-    }
-    setState(() {
-      _quickInputKey = GlobalKey();
-      _quickInput = null;
-      _quickModel = null;
-      _quickActivation = IdeQuickPickFocus.first;
-      _quickNavigateChords = null;
-      _quickHideInput = false;
-      open();
-    });
-    // Upstream hides the quick input that another one replaces.
-    replaced?.onDidHide?.call();
-  }
-
-  void _closeQuickInput() {
-    final model = _quickModel;
-    if (_quickInput == null && model == null) return;
-    setState(() {
-      _quickInput = null;
-      _quickModel = null;
-    });
-    final previous = _focusBeforeQuickInput;
-    _focusBeforeQuickInput = null;
-    if (previous != null &&
-        previous.context != null &&
-        previous.canRequestFocus) {
-      previous.requestFocus();
-    } else {
-      _editors.focusEditorOrWorkbench();
-    }
-    model?.onDidHide?.call();
-  }
-
   /// Preferences: Color Theme (see [ideColorThemePick]).
   void _selectColorTheme() {
     if (widget.colorThemes case final themes?) {
-      _showQuickModel(
+      _quickInput.showModel(
         ideColorThemePick(themes, onError: _report, l10n: context.l10n),
       );
     }
-  }
-
-  void _runCommand(IdeCommand command) {
-    _recentCommands.add(command.id);
-    command.run();
-  }
-
-  List<IdeQuickPickItem> _quickItems(String text) {
-    final l10n = context.l10n;
-    if (text.startsWith('@')) {
-      final symbols = _symbols;
-      final active = widget.workspace.active;
-      return symbolQuickPicks(
-        text.substring(1),
-        symbols: symbols != null && symbols.path == active?.path
-            ? symbols.symbols
-            : const [],
-        loaded: symbols?.loaded ?? true,
-        supported: symbols != null && active != null && symbols.supported,
-        onGo: _language.revealSymbol,
-        l10n: l10n,
-      );
-    }
-    if (text.startsWith('>')) {
-      return commandQuickPicks(
-        text.substring(1),
-        commands: _allCommands(),
-        recent: _recentCommands,
-        onRun: _runCommand,
-        l10n: l10n,
-      );
-    }
-    if (text.startsWith(':')) {
-      final active = widget.workspace.active;
-      return gotoLineQuickPicks(
-        text.substring(1),
-        lineCount: active?.model.snapshot.lineCount,
-        currentLine: _caretPosition.lineNumber,
-        currentColumn: _statusColumn,
-        onGo: (line, column) => _editors.revealLine(line, column ?? 1),
-        l10n: l10n,
-      );
-    }
-    final (access, prefix) = _quickAccessOf(text);
-    if (access != _QuickAccess.files) {
-      return _editorPicks(access, text.substring(prefix.length));
-    }
-    return fileQuickPicks(
-      text,
-      index: _fileIndex,
-      recent: _history.recentFiles.items,
-      onOpen: (path, line, column) => unawaited(
-        _editors.open(path, line: line, column: column, focusEditor: true),
-      ),
-      onOpenInBackground: _openFileInBackground,
-      l10n: l10n,
-    );
-  }
-
-  String _quickPlaceholder(String text) {
-    final l10n = context.l10n;
-    if (text.startsWith('>')) return l10n.wbQuickCommands;
-    if (text.startsWith(':')) return '';
-    if (text.startsWith('@')) return l10n.wbQuickSymbols;
-    if (_quickAccessOf(text).$1 != _QuickAccess.files) {
-      return l10n.wbQuickEditors;
-    }
-    return l10n.wbQuickFiles;
   }
 
   // --- Keybindings ---------------------------------------------------------
@@ -1642,10 +1495,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'inputFocus' => editorFocus || textField || terminalFocus,
       'terminalFocus' => terminalFocus,
       'treestickyScrollFocused' => false,
-      _ =>
-        _searchContextKey(key) ??
-            _quickInputContextKey(key) ??
-            _editor?.contextKey(key),
+      _ => _searchContextKey(key) ?? _editor?.contextKey(key),
     };
   }
 
@@ -1666,19 +1516,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
   }
 
-  Map<String, IdeCommand> _commandsById() {
-    final byId = <String, IdeCommand>{};
-    for (final command in [
-      ..._actions.commands(_services),
-      ..._allCommands(),
-      ..._quickInputCommands(),
-      ..._keyboardCommands(),
-      ..._searchKeyboardCommands(),
-    ]) {
-      byId.putIfAbsent(command.id, () => command);
-    }
-    return byId;
-  }
+  Map<String, IdeCommand> _commandsById() => _commands.byId();
 
   /// For the editor: the command a key runs, [editorChordPrefix] when it
   /// starts a sequence, null when no keybinding has it.
@@ -1815,24 +1653,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final active = workspace.active;
     final hasEditors = workspace.documents.isNotEmpty;
     return [
-      IdeCommand(
-        id: 'workbench.action.showCommands',
-        label: 'Show All Commands',
-        run: () => _showQuickInput('>'),
-      ),
-      // A keybinding's `args` is the text to open with (upstream's
-      // `prefix`: `"args": ">"` opens the commands).
-      IdeCommand(
-        id: 'workbench.action.quickOpen',
-        label: 'Go to File…',
-        run: () => _showQuickInput(''),
-        runWithArgs: (args) => _showQuickInput(args is String ? args : ''),
-      ),
-      IdeCommand(
-        id: 'workbench.action.gotoLine',
-        label: 'Go to Line/Column…',
-        run: () => _showQuickInput(':'),
-      ),
       IdeCommand(
         id: 'workbench.action.editor.changeLanguageMode',
         label: 'Change Language Mode',
@@ -1980,12 +1800,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: () => _tabAction(active!, IdeTabAction.copyRelativePath),
       ),
       IdeCommand(
-        id: 'workbench.action.gotoSymbol',
-        label: 'Go to Symbol in Editor...',
-        enabled: active != null,
-        run: () => _showQuickInput('@'),
-      ),
-      IdeCommand(
         id: ideSelectColorThemeCommandId,
         category: 'Preferences',
         label: 'Color Theme',
@@ -2046,15 +1860,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   /// The workbench's commands, then the editor's, then [IdeWorkbench.commands].
-  List<IdeCommand> _allCommands() => [
-    ..._actions.commands(_services, palette: true),
-    ..._workbenchCommands(),
-    ..._editorCommands(),
-    ..._searchCommands(),
-    ...?_editor?.editorCommands,
-    ...widget.commands,
-    ..._extensionCommands(),
-  ];
+  List<IdeCommand> _allCommands() => _commands.palette();
 
   /// Takes the .vsix files and extension folders among [paths] dropped on
   /// the window: false when there are none.
@@ -2656,7 +2462,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                   onOpenLocation: (location) => _editors
                                       .openLocation(location, center: true),
                                   onShowReferences: _referencesView.show,
-                                  onShowCommands: () => _showQuickInput('>'),
+                                  onShowCommands: () => _quickInput.show('>'),
                                   gitBlame: _gitBlame,
                                   onShowCommit: _scmService.showCommitInLog,
                                   onShowHistory: _scmService.showHistory,
@@ -3139,7 +2945,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           unawaited(openExternal(link.path!));
         }
       case TerminalLinkType.search:
-        _showQuickInput(link.searchText ?? link.text);
+        _quickInput.show(link.searchText ?? link.text);
     }
   }
 
@@ -3326,7 +3132,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         : l10n.ideSearchOpenFiles,
                     'workbench.action.quickOpen',
                   ),
-                  onSearch: () => _showQuickInput(''),
+                  onSearch: () => _quickInput.show(''),
                   navigation: widget.workspace.navigation,
                   onNavigate: (back) => _navigate(back: back),
                 ),
@@ -3458,35 +3264,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       ),
                     ),
                   ),
-                  if (_quickModel != null || _quickInput != null)
-                    Positioned.fill(
-                      top: WindowControls.drawsHeader
-                          ? 0
-                          : AppMetrics.titleBarHeight,
-                      child: switch (_quickModel) {
-                        final IdeQuickPick pick => IdeQuickInput.pick(
-                          key: _quickInputKey,
-                          pick: pick,
-                          onClose: _closeQuickInput,
-                        ),
-                        final IdeQuickInputBox box => IdeQuickInput.input(
-                          key: _quickInputKey,
-                          inputBox: box,
-                          onClose: _closeQuickInput,
-                        ),
-                        null => IdeQuickInput(
-                          key: _quickInputKey,
-                          initialText: _quickInput!,
-                          itemsFor: _quickItems,
-                          placeholderFor: _quickPlaceholder,
-                          onClose: _closeQuickInput,
-                          refresh: _quickRefresh,
-                          itemActivation: _quickActivation,
-                          quickNavigate: _quickNavigateChords,
-                          hideInput: _quickHideInput,
-                        ),
-                      },
-                    ),
+                  QuickInputPart(
+                    service: _quickInput,
+                    top: WindowControls.drawsHeader
+                        ? 0
+                        : AppMetrics.titleBarHeight,
+                  ),
                 ],
               ),
             ),
@@ -3589,7 +3372,7 @@ class _Host implements WorkbenchHost {
 
   @override
   void showQuickModel(IdeQuickInputModel model) {
-    if (_state.mounted) _state._showQuickModel(model);
+    if (_state.mounted) _state._quickInput.showModel(model);
   }
 
   @override
