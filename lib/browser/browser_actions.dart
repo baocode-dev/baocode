@@ -151,7 +151,9 @@ final _actionTools = [
         'Types text into a shared tab: into an element (by ref, or text, '
         'role, near: clicked first, as the user would, and what is in it '
         'replaced unless clear is false) or where the focus is; then '
-        'presses Enter if submit. Says what changed.',
+        'presses Enter if submit. A color, date or slider input is set to '
+        'the text (a color as #rrggbb or CSS says it), its chooser not '
+        'opened: no click reaches the browser\'s own. Says what changed.',
     inputSchema: {
       'type': 'object',
       'properties': {
@@ -220,7 +222,8 @@ final _actionTools = [
         'stops at the first that fails, saying why. Then says what changed '
         'overall. Steps: {action: "click", ref | text, role, near, nth | x, '
         'y}; {action: "type", text, ref | into (the field\'s words), role, '
-        'near, clear, submit}; {action: "press", key}; {action: "scroll", '
+        'near, clear, submit; sets a color, date or slider input too}; '
+        '{action: "press", key}; {action: "scroll", '
         'deltaY | ref | text}; {action: "wait", text (until the page says '
         'it) | ms}; {action: "navigate", url | back | forward | reload: '
         'true}; {action: "upload", files (paths), ref | text | selector: a '
@@ -745,6 +748,16 @@ Future<String> _type(
   var into = '';
   if (target != null) {
     final element = await _find(browser, tabId, target);
+    // A color, a date: the browser's own chooser, left shut, the value
+    // given as choosing it would.
+    final ref = element['ref'];
+    if (await _bao(browser, tabId, 'choose($ref, ${jsonEncode(text)})')
+        case final Map chosen) {
+      if (chosen['error'] case final String error) {
+        throw BrowserError('${_elementName(element)}: $error');
+      }
+      return 'Set ${_elementName(element)} to ${chosen['value']}.';
+    }
     // Clicked, as the user would: a box may become a field only then.
     await _click(browser, tabId, {'ref': element['ref']});
     var focused = await _bao(browser, tabId, 'focused()') as Map?;
