@@ -406,6 +406,7 @@ if (!window.__bao || window.__bao.v !== 3) (() => {
     if (tag === 'input') {
       if (e.type === 'checkbox' || e.type === 'radio' || e.type === 'file') return e.type;
       if (['button', 'submit', 'reset', 'image'].includes(e.type)) return 'button';
+      if (e.type === 'color') return 'color';
       return e.type === 'range' ? 'slider' : 'textbox';
     }
     if (tag === 'textarea' || e.isContentEditable) return 'textbox';
@@ -644,6 +645,39 @@ if (!window.__bao || window.__bao.v !== 3) (() => {
     if ('value' in a && typeof a.select === 'function') { a.select(); return true; }
     if (a.isContentEditable) { getSelection().selectAllChildren(a); return true; }
     return false;
+  };
+  // Inputs the browser's own chooser picks for (a color, a date, a
+  // slider's value), which no input of the protocol reaches: their value
+  // set, as choosing it would, with its events. Null for other elements.
+  const CHOSEN = {
+    color: 'a color: #rrggbb, or as CSS says it', date: '2026-11-05', time: '14:30',
+    'datetime-local': '2026-11-05T14:30', month: '2026-11', week: '2026-W45', range: 'a number',
+  };
+  B.choose = (r, text) => {
+    const e = document.querySelector('[data-bao-ref="' + r + '"]');
+    if (!e || e.tagName !== 'INPUT' || !(e.type in CHOSEN)) return null;
+    let v = String(text).trim();
+    if (e.type === 'color') {
+      // As a canvas reads a CSS color: #rrggbb when it is opaque.
+      const c = document.createElement('canvas').getContext('2d');
+      c.fillStyle = '#010203';
+      c.fillStyle = v;
+      const read = c.fillStyle;
+      if ((read === '#010203' && !/^#?010203$/i.test(v)) || !read.startsWith('#')) return { error: 'Not ' + CHOSEN.color + ', opaque.' };
+      v = read;
+    }
+    const wrong = e.type === 'range' ? isNaN(parseFloat(v)) : !v;
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    const was = e.value;
+    if (!wrong) set.call(e, v);
+    if (wrong || (e.type !== 'range' && e.value === '')) {
+      set.call(e, was);
+      return { error: 'It takes ' + CHOSEN[e.type] + '.' };
+    }
+    e.focus();
+    e.dispatchEvent(new Event('input', { bubbles: true }));
+    e.dispatchEvent(new Event('change', { bubbles: true }));
+    return { value: e.value };
   };
   B.focused = () => {
     const a = document.activeElement;

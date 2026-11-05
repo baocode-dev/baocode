@@ -562,6 +562,31 @@ void main() {
         ],
       });
       expect(await evaluate('+level.value') as num, greaterThan(90));
+      // The browser's own choosers: a color, a date, set as typed.
+      await evaluate('''
+        document.body.insertAdjacentHTML('afterbegin', '<input type=color id=tint aria-label=Tint><input type=date id=day aria-label=Day>');
+        tint.addEventListener('input', () => { window.tinted = tint.value; });
+      ''');
+      final tinted = await call('browser_act', {
+        'tabId': tabId,
+        'steps': [
+          {'action': 'type', 'into': 'Tint', 'text': 'tomato'},
+          {'action': 'type', 'selector': '#day', 'text': '2026-11-05'},
+        ],
+      });
+      expect(tinted, contains('Set color "Tint"'));
+      expect(tinted, contains('to #ff6347.'));
+      expect(await evaluate('tinted'), '#ff6347');
+      expect(await evaluate('day.value'), '2026-11-05');
+      expect(
+        await call('browser_type', {
+          'tabId': tabId,
+          'into': 'Day',
+          'text': 'soon',
+        }, error: true),
+        contains('It takes 2026-11-05.'),
+      );
+      expect(await evaluate('day.value'), '2026-11-05');
       final dropped = await call('browser_act', {
         'tabId': tabId,
         'steps': [
