@@ -480,6 +480,69 @@ void main() {
       expect(chosen, contains('Chose hello.txt through'));
       expect(await evaluate('picked.textContent'), 'hello.txt');
 
+      // Drags: drawing on a canvas, a slider, the page's drag and drop.
+      await evaluate('''
+        document.body.insertAdjacentHTML('afterbegin', '<canvas id=pad width=200 height=60 style="display: block; border: 1px solid"></canvas><input type=range id=level min=0 max=100 value=0 style="display: block; width: 200px; margin: 0"><div id=card draggable=true style="width: 60px">Card</div><div id=bin style="width: 120px; height: 40px; border: 1px dashed">Bin</div>');
+        window.drawn = 0;
+        pad.addEventListener('pointermove', (e) => { if (e.buttons === 1) drawn++; });
+        bin.addEventListener('dragover', (e) => e.preventDefault());
+        bin.addEventListener('drop', (e) => { e.preventDefault(); bin.textContent = 'got ' + e.dataTransfer.getData('text/plain'); });
+        card.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', 'card'));
+        scrollTo(0, 0);
+      ''');
+      final pad =
+          (await evaluate(
+                '(({left, top}) => [left, top])(pad.getBoundingClientRect())',
+              ))!
+              as List;
+      final (left, top) = ((pad[0] as num) + 0.0, (pad[1] as num) + 0.0);
+      final drew = await call('browser_act', {
+        'tabId': tabId,
+        'steps': [
+          {
+            'action': 'drag',
+            'x': left + 10,
+            'y': top + 30,
+            'path': [
+              [left + 100, top + 50],
+              [left + 190, top + 10],
+            ],
+          },
+        ],
+      });
+      expect(drew, contains('Dragged from'));
+      expect(await evaluate('drawn') as num, greaterThan(10));
+      final slider =
+          (await evaluate(
+                '(({left, right, top, bottom}) => [left, right, (top + bottom) / 2])'
+                '(level.getBoundingClientRect())',
+              ))!
+              as List;
+      await call('browser_act', {
+        'tabId': tabId,
+        'steps': [
+          {
+            'action': 'drag',
+            'x': (slider[0] as num) + 2,
+            'y': slider[2],
+            'to': {'x': (slider[1] as num) - 1, 'y': slider[2]},
+          },
+        ],
+      });
+      expect(await evaluate('+level.value') as num, greaterThan(90));
+      final dropped = await call('browser_act', {
+        'tabId': tabId,
+        'steps': [
+          {
+            'action': 'drag',
+            'selector': '#card',
+            'to': {'selector': '#bin'},
+          },
+        ],
+      });
+      expect(dropped, contains('Dragged and dropped'));
+      expect(await evaluate('bin.textContent'), 'got card');
+
       // Conditions.
       await call('browser_emulate', {'tabId': tabId, 'colorScheme': 'dark'});
       expect(
