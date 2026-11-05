@@ -1761,6 +1761,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarByStatus => '按状态';
 
   @override
+  String get sidebarProjectSortRecent => '最近活动';
+
+  @override
+  String get sidebarProjectSortManual => '手动';
+
+  @override
   String get sidebarTimeNow => '刚刚';
 
   @override

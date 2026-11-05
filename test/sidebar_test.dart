@@ -1708,6 +1708,56 @@ void main() {
     expect(pin, findsOneWidget);
   });
 
+  testWidgets('projects follow their latest agent until dragged; the '
+      'grouping menu switches back', (tester) async {
+    final store = MemoryPreferenceStore();
+    final catalog = KeptCatalog([
+      kept('a1', '/tmp/a', 30),
+      kept('b1', '/tmp/b', 10),
+      kept('c1', '/tmp/c', 20),
+    ]);
+    var workspace = await pumpKept(tester, catalog, preferences: store);
+    List<String> order() => [
+      for (final project in workspace.sidebarProjectsHere) project.name,
+    ];
+    Future<void> pick(String item) async {
+      await tester.tap(inSidebar(find.text('By project')));
+      await tester.pump();
+      await tester.tap(find.text(item));
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    expect(workspace.projectSort, ProjectSort.recent);
+    expect(order(), ['b', 'c', 'a']);
+
+    // Dragged on top: in the user's order from then on.
+    await mouseDrag(
+      tester,
+      tester.getCenter(inSidebar(find.text('a'))),
+      () => tester.getTopLeft(inSidebar(find.text('b'))) + const Offset(20, 2),
+    );
+    expect(workspace.projectSort, ProjectSort.manual);
+    expect(order(), ['a', 'b', 'c']);
+
+    await pick('Recent activity');
+    expect(order(), ['b', 'c', 'a']);
+    // The order dragged is kept for when it is back.
+    await pick('Manual');
+    expect(order(), ['a', 'b', 'c']);
+
+    // The next run.
+    await tester.pumpWidget(const SizedBox());
+    workspace = await pumpKept(tester, catalog, preferences: store);
+    expect(workspace.projectSort, ProjectSort.manual);
+    expect(order(), ['a', 'b', 'c']);
+
+    // Grouped by date, there is no project order to pick.
+    await pick('Date');
+    await tester.tap(inSidebar(find.text('By date')));
+    await tester.pump();
+    expect(find.text('Manual'), findsNothing);
+  });
+
   testWidgets('agents and projects keep the order they are dragged to', (
     tester,
   ) async {
