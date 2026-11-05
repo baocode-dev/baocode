@@ -27,10 +27,24 @@ abstract interface class WorkbenchHost {
   /// The keyboard to the editor, once it shows.
   void focusEditor();
 
-  /// Opens the file at [path] in an editor, at [range] where given, with
-  /// the keyboard where [focusEditor] (until the editors are a service of
-  /// their own).
-  Future<void> openFile(String path, {LspRange? range, bool focusEditor});
+  /// Opens the file at [path] in an editor, at [range] or [line] and
+  /// [column] (one-based) where given, with the keyboard where
+  /// [focusEditor] (until the editors are a service of their own).
+  Future<void> openFile(
+    String path, {
+    int? line,
+    int? column,
+    LspRange? range,
+    bool focusEditor,
+  });
+
+  /// Hands [path] to the app the system opens it with, telling where it
+  /// cannot.
+  Future<void> openInDefaultApp(String path);
+
+  /// [line] (one-based) of the active document shown: the caret there in
+  /// its editor, or its block at the top of its preview.
+  void revealLine(int line, [int column]);
 
   /// Opens [location], recording where the caret was for Go Back where
   /// [record].
