@@ -2442,6 +2442,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _focusChat(thread);
   }
 
+  /// [text] restored in [folder]'s chat (a new one, if it has none), the
+  /// keyboard there: the IDE's Ask in Chat.
+  void _askInIdeChat(String folder, String text) {
+    final chatFolder = folder == _noFolder ? _looseChatFolder.value : folder;
+    if (chatFolder == null) return;
+    if (_ideHistory.value == chatFolder) _ideHistory.value = null;
+    final thread =
+        _workspace.ideChat(chatFolder) ?? _workspace.newIdeChat(chatFolder);
+    thread.session.draft.restore(text, const []);
+    _focusChat(thread);
+  }
+
   /// Closes [folder]'s chat tab shown; the keyboard goes to the one shown
   /// next, so ⌘W goes on closing them.
   void _closeIdeChat(String folder) {
@@ -2944,13 +2956,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
                       .draft
                       .insertFiles(files),
             onAddCodeToChat: (code) => _addCodeToIdeChat(path, code),
-            onAskInChat: _workspace.ideChat(path) == null
-                ? null
-                : (text) => _workspace
-                      .ideChat(path)
-                      ?.session
-                      .draft
-                      .restore(text, const []),
+            onAskInChat: (text) => _askInIdeChat(path, text),
           ),
         ),
       ),
