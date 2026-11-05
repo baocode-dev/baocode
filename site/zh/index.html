@@ -53,6 +53,22 @@
   <a class="lang" href="/" hreflang="en" lang="en">English</a>
 </header>
 
+<section class="reviews" aria-label="用户的评价">
+  <ul class="reel">
+    <li><span class="who"><img src="/reviews/3.webp" alt="">QQ 用户<small>QQ</small></span><blockquote>速度非常快，内存占用非常少，我现在平常开发都使用 BaoCode，还可以躺在床上用手机就把任务完成了！</blockquote></li>
+    <li><span class="who"><img src="/reviews/5.webp" alt=""><a href="https://github.com/kaka30000">kaka1987</a><small><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>kaka30000</small></span><blockquote>比 Cursor 好用多了，支持，打造最佳工具，成倍放大 LLM 效率。</blockquote></li>
+    <li><span class="who"><img src="/reviews/2.webp" alt="">QQ 用户<small>QQ</small></span><blockquote>轻量，流畅，不占内存。</blockquote></li>
+    <li><span class="who"><img src="/reviews/1.webp" alt=""><a href="https://github.com/calonye">Kelen</a><small><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>calonye</small></span><blockquote>在 BaoCode 身上，我看到了团队倾注的热爱与匠心打磨，它是一款有追求、更焕发着蓬勃生命力的产品。</blockquote></li>
+    <li><span class="who"><span class="avatar">佚</span>佚名</span><blockquote>牛逼</blockquote></li>
+    <li><span class="who"><img src="/reviews/4.webp" alt="">QQ 用户<small>QQ</small></span><blockquote>丝滑，便捷，效率高，功能多，开发者堪比阿拉丁神灯！</blockquote></li>
+    <li><span class="who"><span class="avatar">鱼</span>会飞的鱼</span><blockquote>好用，工作中的好帮手，随时随地可以开发工作。</blockquote></li>
+    <li><span class="who"><img src="/reviews/6.webp" alt=""><a href="https://github.com/NmouZh">NmouZh</a><small><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>NmouZh</small></span><blockquote>还是 BaoCode 的用的不烧心。</blockquote></li>
+    <li><span class="who"><span class="avatar"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg></span>GitHub 用户</span><blockquote>好用是好用，我觉得要支持多一点 CLI 就好了，比如 Codex，嘻嘻~</blockquote></li>
+    <li><span class="who"><img src="/reviews/7.webp" alt="">QQ 用户<small>QQ</small></span><blockquote>牛逼！！！</blockquote></li>
+  </ul>
+</section>
+<p class="say-line">用过 BaoCode？<button type="button" data-say-open>说一句</button></p>
+
 <main class="page">
   <nav class="toc" aria-label="目录">
     <div class="label">目录</div>
@@ -249,6 +265,24 @@
 
   <footer>BaoCode 是独立项目，与 Anthropic 没有关联，也未获其认可。Claude Code 是 Anthropic 的产品。</footer>
 </main>
+
+<!-- What a visitor says of BaoCode (site.js), sent to stats.baocode.dev's /v1/review. -->
+<dialog class="star say" data-say aria-labelledby="say-title">
+  <form data-say-form>
+    <h2 class="plain" id="say-title">说一句</h2>
+    <p>一句话就行，好的坏的都欢迎，不用斟酌措辞。</p>
+    <label class="field"><span>你觉得 BaoCode 怎么样</span><textarea name="text" rows="3" maxlength="500" required placeholder="比如：启动真快"></textarea></label>
+    <label class="field"><span>在哪能找到你<em>选填</em></span><input name="contact" maxlength="200" autocomplete="off" placeholder="主页、GitHub、QQ、微博……什么都行"></label>
+    <p class="hint">我们可能会把这句话放到官网上；留了联系方式的话，会配上你的头像。不留也完全没关系。</p>
+    <div class="get"><button class="button primary" type="submit" data-sending="发送中…">发送</button><button class="button" type="button" data-say-close>算了</button></div>
+    <p class="say-status" role="status" data-say-status data-busy="发得有点快，过一分钟再试试吧。" data-failed="没发出去，稍后再试一次吧。"></p>
+  </form>
+  <div class="done">
+    <h2 class="plain">收到了，谢谢你！</h2>
+    <p>每一句我们都会看。</p>
+    <div class="get"><button class="button" type="button" data-say-close>关闭</button></div>
+  </div>
+</dialog>
 
 <script src="/site.js"></script>
 </body>

@@ -34,6 +34,36 @@ a:hover { text-decoration-color: var(--ink); }
 /* English and Chinese: each page links to itself in the other language. */
 .top .lang { padding-left: 16px; border-left: 1px solid var(--rule); }
 
+/* What users say (reviews/: their avatars), under the bar: a reel of cards
+   wider than the page, running left for ever (site.js doubles it, so the
+   loop has no seam), held while the mouse is on it. Its ends fade out. */
+.reviews { max-width: 1180px; margin: 6px auto 0; overflow: hidden; padding: 10px 0 16px;
+  --fade: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: var(--fade); mask-image: var(--fade); }
+.reel { display: flex; gap: 14px; width: max-content; margin: 0; padding: 0; list-style: none; animation: reel var(--reel-time, 80s) linear infinite; }
+.reviews:hover .reel { animation-play-state: paused; }
+@keyframes reel { to { transform: translateX(calc(-50% - 7px)); } }
+.reel li { flex: none; display: flex; flex-direction: column; gap: 8px; width: max-content; min-width: 190px; max-width: 340px; margin: 0; padding: 13px 16px 14px; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); box-shadow: 0 1px 2px rgba(0, 0, 0, .03), 0 10px 24px -18px rgba(0, 0, 0, .25); }
+.reel .who { display: flex; align-items: center; gap: 8px; font: 600 13px/1.4 var(--sans); color: var(--ink); white-space: nowrap; }
+.reel .who a { text-decoration: none; }
+.reel .who a:hover { text-decoration: underline; text-decoration-color: var(--faint); }
+.reel .who small { display: inline-flex; align-items: center; gap: 4px; font-weight: 400; font-size: 12px; color: var(--faint); }
+.reel .who small svg.ic { width: 12px; height: 12px; }
+.reel img, .reel .avatar { flex: none; width: 24px; height: 24px; border-radius: 50%; }
+.reel img { border: 1px solid var(--rule); }
+.reel .avatar { display: grid; place-items: center; background: #F8EAD2; color: #7A4E14; font-size: 12px; }
+.reel .avatar svg.ic { width: 14px; height: 14px; }
+.reel blockquote { margin: 0; font: 15px/1.55 var(--serif); color: var(--body); }
+/* Under the reel: the way to add to it. */
+.say-line { margin: 0 auto; padding: 0 24px; text-align: center; font: 13.5px/1.5 var(--sans); color: var(--muted); }
+.say-line button { padding: 0; border: 0; background: none; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; cursor: pointer; }
+.say-line button:hover { text-decoration-color: var(--ink); }
+/* Still: the cards side by side, scrolled by hand. */
+@media (prefers-reduced-motion: reduce) {
+  .reviews { overflow-x: auto; }
+  .reel { animation: none; }
+}
+
 /* Text in the middle column; the contents in the left margin, clear of the
    wider figures, when there is room. */
 .page { display: grid; grid-template-columns: 1fr min(var(--text), 100% - 48px) 1fr; padding: 48px 0 96px; }
@@ -217,6 +247,21 @@ dialog.star h2 { margin: 0 0 10px; font-size: 22px; }
 dialog.star p { margin: 0 0 22px; font: 15px/1.6 var(--sans); color: var(--muted); }
 dialog.star .get { display: flex; flex-wrap: wrap; gap: 8px; }
 dialog.star button.button { background: var(--paper); cursor: pointer; }
+dialog.star button.button.primary { background: var(--ink); }
+dialog.star button.button:disabled { opacity: .6; cursor: default; }
+/* Saying a word (site.js): a few words, and where to find them if they like. */
+dialog.say { width: 460px; }
+dialog.say .field { display: block; margin: 0 0 14px; font: 13.5px/1.5 var(--sans); color: var(--ink); }
+dialog.say .field span { display: block; margin-bottom: 6px; }
+dialog.say .field em { margin-left: 8px; font-style: normal; color: var(--faint); }
+dialog.say :is(textarea, input) { display: block; width: 100%; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: 15px/1.5 var(--sans); resize: vertical; }
+dialog.say :is(textarea, input):focus { outline: none; border-color: var(--faint); box-shadow: 0 0 0 3px rgba(226, 179, 115, .25); }
+dialog.say :is(textarea, input)::placeholder { color: var(--faint); }
+dialog.say p.hint { margin: -2px 0 20px; font-size: 13px; color: var(--faint); }
+dialog.say .say-status { margin: 12px 0 0; font-size: 13.5px; color: #A1462C; }
+dialog.say .say-status:empty { display: none; }
+dialog.say .done, dialog.say.sent form { display: none; }
+dialog.say.sent .done { display: block; }
 
 /* The one-click import of an upstream (import.js): what it is, then the
    button that hands it to the app. */

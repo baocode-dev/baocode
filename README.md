@@ -7,6 +7,8 @@ An awesome, easy-to-use desktop UI for [Claude Code](https://github.com/anthropi
 
 [Website](https://baocode.dev) · [Download](https://baocode.dev/download) · [Changelog](https://baocode.dev/changelog)
 
+![What users say about BaoCode](docs/readme/reviews.png)
+
 ![BaoCode's main window: agents grouped by project, two conversations side by side, and the model picker](site/shots/main.png)
 
 ## Why

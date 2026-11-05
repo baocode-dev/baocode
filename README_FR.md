@@ -6,6 +6,8 @@ Une interface de bureau conviviale pour [Claude Code](https://github.com/anthrop
 
 [Site web](https://baocode.dev) · [Télécharger](https://baocode.dev/download) · [Historique des versions](https://baocode.dev/changelog)
 
+![Ce que les utilisateurs disent de BaoCode](docs/readme/reviews.png)
+
 ![Fenêtre principale de BaoCode : agents regroupés par projet, deux conversations côte à côte et sélecteur de modèle](site/shots/main.png)
 
 > Présentation française du README anglais. En cas de différence, consultez la version [English](README.md). Les sites et documents liés ne sont pas nécessairement traduits en français.
