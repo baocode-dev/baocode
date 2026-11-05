@@ -50,9 +50,14 @@ abstract interface class WorkbenchHost {
   /// the middle where [center].
   void revealRange(LspRange range, {bool select, bool center});
 
-  /// Opens [location], recording where the caret was for Go Back where
-  /// [record].
-  Future<void> openLocation(IdeLocation location, {bool record});
+  /// Opens [location], selected where [select], recording where the caret
+  /// was for Go Back where [record]; [afterReveal] once it shows.
+  Future<void> openLocation(
+    IdeLocation location, {
+    bool select,
+    bool record,
+    VoidCallback? afterReveal,
+  });
 
   /// Brings the open [doc] to the front.
   Future<void> selectEditor(IdeDocument doc);

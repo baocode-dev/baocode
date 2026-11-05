@@ -43,7 +43,6 @@ import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_keybindings.dart'
     show editorChordPrefix;
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
-import 'package:bao_editor/monaco/vs/editor/contrib/gotoError/browser/marker_navigation.dart';
 
 import 'extensions/ide_extensions.dart';
 import 'extensions/ide_extensions_view.dart';
@@ -87,9 +86,7 @@ import 'ide_welcome.dart';
 import 'ide_workspace.dart';
 import 'lsp/language_features.dart';
 import 'lsp/lsp_protocol.dart';
-import 'lsp_ui/diagnostics.dart';
 import 'lsp_ui/document_symbols.dart';
-import 'lsp_ui/language_status.dart';
 import 'lsp_ui/lsp_convert.dart';
 import 'lsp_ui/problems_panel.dart';
 import 'lsp_ui/workspace_edit.dart';
@@ -108,7 +105,10 @@ import 'host_paths.dart';
 import 'services/navigation_history.dart';
 import 'services/scm_service.dart';
 import 'services/debug_view.dart';
+import 'services/language.dart';
 import 'services/markdown_preview.dart';
+import 'services/problems.dart';
+import 'services/references.dart';
 import 'services/terminal_view.dart';
 import 'workbench/contributions/all.dart';
 import 'workbench/editor_panes.dart';
@@ -437,6 +437,36 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         settings: widget.settings,
       ),
     );
+    _language = _services.add(
+      LanguageService(
+        host: _host,
+        caret: () => _caretPosition,
+        applyEdit: (edit) => switch (_editor) {
+          final editor? => editor.applyWorkspaceEdit(edit),
+          null => applyLspWorkspaceEdit(widget.workspace, edit),
+        },
+        ignored: () => widget.ignoredRecommendations,
+        onIgnore: (id) => widget.onIgnoreRecommendation?.call(id),
+      ),
+    );
+    _problems = _services.add(
+      ProblemsService(
+        host: _host,
+        language: _language,
+        layout: () => widget.workspace.layout,
+        caret: () => _caretPosition,
+        activePath: () => widget.workspace.active?.path,
+        showHover: () => _editor?.showHoverAtCaret(),
+      ),
+    );
+    _referencesView = _services.add(
+      ReferencesService(
+        host: _host,
+        layout: () => widget.workspace.layout,
+        caret: () => _caretPosition,
+        activePath: () => widget.workspace.active?.path,
+      ),
+    );
   }
 
   /// The activity bar's badge and the Git log follow Source Control; the
@@ -513,7 +543,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   IdeNotifications get _notifications => widget.workspace.notifications;
 
   /// Servers whose install was recommended in this session.
-  final Set<String> _recommended = {};
 
   /// Where the caret is (its column as the status bar counts it) and how
   /// much is selected: the status bar alone is built again as it moves.
@@ -618,10 +647,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   DocumentSnapshot? _eolSnapshot;
   String _eolLabel = 'LF';
 
-  LanguageFeatures? _languages;
-  IdeDocumentSymbols? _symbols;
-  StreamSubscription<LspApplyEditRequest>? _editRequests;
+  /// The workspace's language servers, and the active file's symbols.
+  late final LanguageService _language;
+  LanguageFeatures? get _languages => _language.languages;
+  IdeDocumentSymbols? get _symbols => _language.symbols;
   late Listenable _quickRefresh;
+
+  /// The Problems and References views.
+  late final ProblemsService _problems;
+  late final ReferencesService _referencesView;
 
   /// The panel's tab, or null when the panel is hidden.
   IdePanelTab? get _panel => _layout.panel;
@@ -654,12 +688,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The workspace's debugger as the workbench shows it.
   late final DebugViewService _debugView;
-  IdeReferences? _references;
-
-  /// The Problems and References lists' focused rows and collapsed files.
-  final _problemsList = IdePanelListModel();
-  final _referencesList = IdePanelListModel();
-  MarkerList<LspDiagnostic>? _markers;
 
   /// `editor.formatOnSave`, kept in settings.json as VS Code keeps it.
   bool get _formatOnSave => _setting('editor.formatOnSave', false);
@@ -998,19 +1026,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _markdown.addListener(_servicesChanged);
     // The debugger made, a session started or stopped.
     _debugView.addListener(_servicesChanged);
+    // The servers or their symbols changed; references found.
+    _language.addListener(_servicesChanged);
+    _referencesView.addListener(_servicesChanged);
     if (widget.visible) _focusSoon();
   }
-
-  /// Whether the display language can be read: the recommendations
-  /// [initState] would make wait for it.
-  bool _localized = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_localized) return;
-    _localized = true;
-    _recommendServers();
+    _language.localized();
   }
 
   void _attach() {
@@ -1041,17 +1066,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 if (doc.isFile && doc.label == null) doc.path,
             ]),
     );
-    final languages = _languages = workspace.languages;
-    _symbols = languages == null ? null : IdeDocumentSymbols(languages)
-      ?..addListener(_symbolsChanged);
+    _language.attach(workspace);
     // A remote project's listed at once, for Quick Open not to wait on it.
     if (workspace.hasFolder && workspace.files is IdeHostFiles) {
       unawaited(_fileIndex.refresh());
     }
     _quickRefresh = Listenable.merge([_fileIndex, ?_symbols]);
-    languages?.addListener(_languagesChanged);
-    _editRequests = languages?.workspaceEdits.listen(_applyEditRequest);
-    _markers = null;
+    _problems.clear();
+    _referencesView.clear();
     _services.add(workspace);
     _scmService.attach(workspace);
     _history = _services.add(
@@ -1062,9 +1084,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         select: _select,
       ),
     );
-    _references = null;
-    _problemsList.clear();
-    _referencesList.clear();
     workspace.addListener(_workspaceChanged);
     workspace.edits.addListener(_documentEdited);
     workspace.layout.addListener(_layoutChanged);
@@ -1106,23 +1125,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _scmService.detach();
     _explorer.dispose();
     _fileIndex.dispose();
-    _languages?.removeListener(_languagesChanged);
-    unawaited(_editRequests?.cancel());
-    _editRequests = null;
-    _symbols
-      ?..removeListener(_symbolsChanged)
-      ..dispose();
-    _symbols = null;
-    _languages = null;
-  }
-
-  void _languagesChanged() {
-    if (!mounted) return;
-    _recommendServers();
-    _markers = null;
-    final symbols = _symbols;
-    if (symbols != null && !symbols.loaded) symbols.refresh();
-    setState(() {});
+    _language.detach();
   }
 
   /// The status bar's bell follows them.
@@ -1133,24 +1136,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The terminal commands and the panel follow them.
   void _terminalsChanged() {
     if (mounted) setState(() {});
-  }
-
-  void _symbolsChanged() {
-    if (mounted) setState(() {});
-  }
-
-  /// `workspace/applyEdit` from a server: applied like a rename.
-  Future<void> _applyEditRequest(LspApplyEditRequest request) async {
-    try {
-      final editor = _editor;
-      final applied = editor != null
-          ? await editor.applyWorkspaceEdit(request.edit)
-          : await applyLspWorkspaceEdit(widget.workspace, request.edit);
-      request.complete(applied);
-    } catch (error) {
-      request.complete(false);
-      _report(error);
-    }
   }
 
   /// The keybindings of [IdeWorkbench.commands] the defaults do not have.
@@ -1225,6 +1210,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _quickModel?.onDidHide?.call();
     _markdown.removeListener(_servicesChanged);
     _debugView.removeListener(_servicesChanged);
+    _language.removeListener(_servicesChanged);
+    _referencesView.removeListener(_servicesChanged);
     _detach(widget.workspace);
     disposeContributions(_contributions);
     _services.dispose();
@@ -1237,8 +1224,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _search.dispose();
     _terminalView.removeListener(_terminalsChanged);
     _panelFocus.dispose();
-    _problemsList.dispose();
-    _referencesList.dispose();
     _sidebarFocus.dispose();
     _chatFocus.dispose();
     super.dispose();
@@ -1247,7 +1232,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// An edit typed in the editor, which the workspace's own listeners
   /// hear of only when it makes the document dirty or clean again.
   void _documentEdited() {
-    _symbols?.update(widget.workspace.active);
+    _language.documentChanged();
     _scheduleAutoSave();
     _refreshSearchOfOpenFiles();
   }
@@ -1271,7 +1256,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _workspaceChanged() {
     _rootsChanged();
     _keepViewSoon();
-    _symbols?.update(widget.workspace.active);
+    _language.documentChanged();
     _history.documentsChanged();
     _refreshSearchOfOpenFiles();
     final documents = widget.workspace.documents;
@@ -1317,7 +1302,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       });
     }
     if (!_closingEditors) _extensionPageShown = false;
-    _recommendServers();
+    _language.recommendServers();
     unawaited(_explorer.reveal(path));
   }
 
@@ -1691,35 +1676,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// buttons: whether there was somewhere to go.
   bool _navigate({required bool back}) => _history.navigate(back: back);
 
-  /// F8 / ⇧F8: the next or previous problem across files, with its hover.
-  void _gotoProblem({required bool next}) {
-    final languages = _languages;
-    if (languages == null) return;
-    final markers = _markers ??= ideMarkerList(languages.allDiagnostics);
-    final resource = widget.workspace.active?.path ?? '';
-    markers.move(next, resource, _caretPosition);
-    final selected = markers.selected;
-    if (selected == null) return;
-    final marker = selected.marker;
-    unawaited(
-      _openLocation(
-        IdeLocation(marker.resource, marker.data.range),
-        afterReveal: () => _editor?.showHoverAtCaret(),
-      ),
-    );
-  }
-
-  void _showReferences(String title, List<IdeLocation> locations) {
-    _referencesList.clear();
-    setState(() {
-      _references = IdeReferences(title, locations);
-      _panel = IdePanelTab.references;
-    });
-  }
-
-  void _togglePanel(IdePanelTab tab) =>
-      setState(() => _panel = _panel == tab ? null : tab);
-
   void _selectPanel(IdePanelTab tab) => setState(() => _panel = tab);
 
   Future<String?> _textOf(String path) async {
@@ -1727,77 +1683,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       if (doc.path == path) return doc.text;
     }
     return widget.workspace.files.read(path);
-  }
-
-  LspPosition get _caretLsp =>
-      LspPosition(_caretPosition.lineNumber - 1, _caretPosition.column - 1);
-
-  List<LspDocumentSymbol> get _symbolPath {
-    final symbols = _symbols;
-    final active = widget.workspace.active;
-    if (symbols == null || active == null || symbols.path != active.path) {
-      return const [];
-    }
-    return ideSymbolPathAt(symbols.symbols, _caretLsp);
-  }
-
-  void _revealSymbol(LspDocumentSymbol symbol) {
-    final path = widget.workspace.active?.path;
-    if (path == null) return;
-    unawaited(_openLocation(IdeLocation(path, symbol.selectionRange)));
-  }
-
-  /// Recommends installing the active file's missing language servers,
-  /// once a session each, as VS Code recommends a language's extension
-  /// (`FileBasedRecommendations`): a notification with Install.
-  void _recommendServers() {
-    final languages = _languages;
-    final path = widget.workspace.active?.path;
-    if (!_localized || languages == null || path == null) return;
-    for (final status in languages.statusFor(path)) {
-      if (status.state == LanguageServerState.missing &&
-          status.installable &&
-          status.missingRuntime == null &&
-          !widget.ignoredRecommendations.contains(status.serverId) &&
-          _recommended.add(status.serverId)) {
-        // Only in the notification center: a toast for every file opened
-        // is too much.
-        _recommendServer(status, path, silent: true);
-      }
-    }
-  }
-
-  void _recommendServer(
-    LanguageServerStatus status,
-    String path, {
-    bool silent = false,
-  }) {
-    final id = status.serverId;
-    final language = IdeLanguageNames.forPath(path);
-    final l10n = context.l10n;
-    _notifications.notify(
-      IdeSeverity.info,
-      l10n.wbRecommendServer(id, language),
-      sticky: true,
-      silent: silent,
-      primary: [
-        IdeNotificationAction(l10n.extInstall, () => _install(id, path)),
-      ],
-      secondary: [
-        IdeNotificationAction(
-          l10n.wbDontShowAgainServer,
-          () => widget.onIgnoreRecommendation?.call(id),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _install(String id, String path) async {
-    try {
-      await _languages?.install(id, path: path);
-    } catch (error) {
-      _report(error);
-    }
   }
 
   // --- Layout ------------------------------------------------------------
@@ -2043,7 +1928,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             : const [],
         loaded: symbols?.loaded ?? true,
         supported: symbols != null && active != null && symbols.supported,
-        onGo: _revealSymbol,
+        onGo: _language.revealSymbol,
         l10n: l10n,
       );
     }
@@ -2144,7 +2029,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'editorFocus' => _editor?.hasFocus ?? false,
       'editorHasSelection' => editorFocus && _selectionLength > 0,
       'editorReadonly' => widget.workspace.active?.readOnly ?? false,
-      'editorHasFormattingProvider' => _languages != null,
       'textInputFocus' => editorFocus || textField,
       'inputFocus' => editorFocus || textField || terminalFocus,
       'terminalFocus' => terminalFocus,
@@ -2165,7 +2049,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       _ =>
         _listContextKey(key) ??
             _searchContextKey(key) ??
-            _panelContextKey(key) ??
             _quickInputContextKey(key) ??
             _layoutContextKey(key) ??
             _editor?.contextKey(key) ??
@@ -2200,7 +2083,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ..._quickInputCommands(),
       ..._keyboardCommands(),
       ..._searchKeyboardCommands(),
-      ..._panelKeyboardCommands(),
     ]) {
       byId.putIfAbsent(command.id, () => command);
     }
@@ -2668,12 +2550,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: () => _showQuickInput('@'),
       ),
       IdeCommand(
-        id: 'workbench.actions.view.problems',
-        category: 'View',
-        label: 'Toggle Problems',
-        run: _toggleProblems,
-      ),
-      IdeCommand(
         id: 'outline.focus',
         category: 'View',
         label: 'Show Outline',
@@ -2681,18 +2557,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           _explorerPanes.add('outline');
           _showView(IdeSideView.explorer);
         },
-      ),
-      IdeCommand(
-        id: 'editor.action.marker.nextInFiles',
-        label: 'Go to Next Problem in Files (Error, Warning, Info)',
-        enabled: _languages != null,
-        run: () => _gotoProblem(next: true),
-      ),
-      IdeCommand(
-        id: 'editor.action.marker.prevInFiles',
-        label: 'Go to Previous Problem in Files (Error, Warning, Info)',
-        enabled: _languages != null,
-        run: () => _gotoProblem(next: false),
       ),
       IdeCommand(
         id: ideSelectColorThemeCommandId,
@@ -2761,7 +2625,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ..._editorCommands(),
     ..._layoutCommands(),
     ..._searchCommands(),
-    ..._panelCommands(),
     ...?_editor?.editorCommands,
     ...widget.commands,
     ..._extensionCommands(),
@@ -2998,35 +2861,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     IdeSideView.extensions => _extensionsView(),
   };
 
-  /// Starts the open files' servers named [id], and those limited to some
-  /// of its features (`ruff#only=format`), now that it is installed.
-  void _startServer(String id) {
-    final languages = _languages;
-    if (languages == null) return;
-    final ids = {
-      id,
-      for (final doc in widget.workspace.documents)
-        for (final status in languages.statusFor(doc.path))
-          if (status.serverId.split('#').first == id) status.serverId,
-    };
-    ids.forEach(languages.retry);
-  }
-
-  /// The servers the open files want and could install, less those not to
-  /// recommend: the Extensions view's Recommended pane.
-  Set<String> _recommendedServers() {
-    final languages = _languages;
-    if (languages == null) return const {};
-    return {
-      for (final doc in widget.workspace.documents)
-        for (final status in languages.statusFor(doc.path))
-          if (status.state == LanguageServerState.missing &&
-              status.installable &&
-              !widget.ignoredRecommendations.contains(status.serverId))
-            status.serverId.split('#').first,
-    };
-  }
-
   /// The Explorer view: the folder's tree, the active editor's outline and
   /// its file's timeline, as panes.
   Widget _explorerView() {
@@ -3191,8 +3025,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       listenable: _caret,
                       builder: (context, _) => IdeOutlineView(
                         symbols: _symbols,
-                        caret: workspace.active == null ? null : _caretLsp,
-                        onReveal: _revealSymbol,
+                        caret: workspace.active == null
+                            ? null
+                            : _language.caret,
+                        onReveal: _language.revealSymbol,
                         showHeader: false,
                       ),
                     ),
@@ -3305,8 +3141,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     root: widget.workspace.root,
                     path: active.path,
                     onReveal: _revealInExplorer,
-                    symbols: _symbolPath,
-                    onSymbol: _revealSymbol,
+                    symbols: _language.symbolPath,
+                    onSymbol: _language.revealSymbol,
                   ),
                 ),
             ],
@@ -3385,7 +3221,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                   // centered even when already in view.
                                   onOpenLocation: (location) =>
                                       _openLocation(location, center: true),
-                                  onShowReferences: _showReferences,
+                                  onShowReferences: _referencesView.show,
                                   onShowCommands: () => _showQuickInput('>'),
                                   gitBlame: _gitBlame,
                                   onShowCommit: _scmService.showCommitInLog,
@@ -3950,7 +3786,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         tab: _panel ?? _lastPanel,
                         root: widget.workspace.root,
                         languages: _languages,
-                        references: _references,
+                        references: _referencesView.references,
                         // TERMINAL, clicked, gives its terminal the keyboard.
                         onTab: (tab) => tab == IdePanelTab.terminal
                             ? _terminalView.show()
@@ -3959,9 +3795,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         onOpen: (location, {select = false}) =>
                             unawaited(_openLocation(location, select: select)),
                         onOpenFocused: (location) =>
-                            unawaited(_openFocused(location)),
-                        problemsList: _problemsList,
-                        referencesList: _referencesList,
+                            unawaited(openWithKeyboard(_host, location)),
+                        problemsList: _problems.list,
+                        referencesList: _referencesView.list,
                         textOf: _textOf,
                         terminal: switch (_terminals) {
                           final terminals? => TerminalPanel(
@@ -4123,38 +3959,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // they will have (the greater, the further left).
     final left = <(double, IdeStatusBarItem)>[
       if (widget.remote?.item(context) case final item?) (100, item),
-      if (_languages case final languages?) ...[
-        (
-          70,
-          () {
-            final counts = ideDiagnosticCounts(languages.allDiagnostics);
-            return IdeStatusBarItem(
-              '\$(error) ${counts.errors} \$(warning) ${counts.warnings}'
-              '${counts.infos > 0 ? ' \$(info) ${counts.infos}' : ''}',
-              tooltip: keys.titleWithKeybinding(
-                counts.errors + counts.warnings + counts.infos == 0
-                    ? l10n.wbNoProblems
-                    : counts.infos > 0
-                    ? l10n.wbProblemCountsInfos(
-                        counts.errors,
-                        counts.warnings,
-                        counts.infos,
-                      )
-                    : l10n.wbProblemCounts(counts.errors, counts.warnings),
-                'workbench.actions.view.problems',
-              ),
-              onTap: () => _togglePanel(IdePanelTab.problems),
-            );
-          }(),
-        ),
-        if (widget.workspace.active case final doc?)
-          for (final item in ideLanguageStatusItems(
-            languages,
-            doc.path,
-            l10n: l10n,
-          ))
-            (60, item),
-      ],
       if (_statusMessage case final message?) (50, IdeStatusBarItem(message)),
     ];
     final bell = ideNotificationsStatusItem(_notifications, l10n: l10n);
@@ -4404,8 +4208,17 @@ class _Host implements WorkbenchHost {
   void focusPanel() => _state._focusPanel();
 
   @override
-  Future<void> openLocation(IdeLocation location, {bool record = true}) =>
-      _state._openLocation(location, record: record);
+  Future<void> openLocation(
+    IdeLocation location, {
+    bool select = false,
+    bool record = true,
+    VoidCallback? afterReveal,
+  }) => _state._openLocation(
+    location,
+    select: select,
+    record: record,
+    afterReveal: afterReveal,
+  );
 
   @override
   Future<void> selectEditor(IdeDocument doc) => _state._select(doc);

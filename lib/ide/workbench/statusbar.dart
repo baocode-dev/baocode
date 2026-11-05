@@ -16,7 +16,12 @@ typedef StatusbarEntryBuilder = IdeStatusBarItem? Function(
   BuildContext context,
 );
 
-/// One entry's place and what it shows.
+/// What a group of entries shows now, left to right.
+typedef StatusbarEntriesBuilder = Iterable<IdeStatusBarItem> Function(
+  BuildContext context,
+);
+
+/// One entry's place and what it shows (a group's, all of them there).
 class _Entry {
   _Entry(this.id, this.alignment, this.priority, this.order, this.build);
 
@@ -24,7 +29,7 @@ class _Entry {
   final StatusbarAlignment alignment;
   final double priority;
   final int order;
-  StatusbarEntryBuilder build;
+  StatusbarEntriesBuilder build;
   Listenable? changes;
 }
 
@@ -37,7 +42,7 @@ class StatusbarEntryAccessor {
 
   /// What it shows from now on.
   void update(StatusbarEntryBuilder build) {
-    _entry.build = build;
+    _entry.build = _single(build);
     _service._changed();
   }
 
@@ -60,6 +65,22 @@ class StatusbarService extends ChangeNotifier {
     String id,
     StatusbarAlignment alignment,
     StatusbarEntryBuilder build, {
+    double priority = 0,
+    Listenable? changes,
+  }) => addEntries(
+    id,
+    alignment,
+    _single(build),
+    priority: priority,
+    changes: changes,
+  );
+
+  /// Adds entries as [addEntry] does one, as many as [build] makes now
+  /// (upstream's language status adds an entry for each of its items).
+  StatusbarEntryAccessor addEntries(
+    String id,
+    StatusbarAlignment alignment,
+    StatusbarEntriesBuilder build, {
     double priority = 0,
     Listenable? changes,
   }) {
@@ -87,7 +108,7 @@ class StatusbarService extends ChangeNotifier {
     });
     return [
       for (final entry in sides)
-        if (entry.build(context) case final item?) (entry.priority, item),
+        for (final item in entry.build(context)) (entry.priority, item),
     ];
   }
 
@@ -108,6 +129,9 @@ class StatusbarService extends ChangeNotifier {
     super.dispose();
   }
 }
+
+StatusbarEntriesBuilder _single(StatusbarEntryBuilder build) =>
+    (context) => [?build(context)];
 
 /// [entries] among [others] (the bar's items not yet entries, with the
 /// priorities they would have), by priority, the entries after others
