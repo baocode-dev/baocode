@@ -527,6 +527,17 @@ class BrowserConnection {
 
   bool can(String capability) => capabilities.contains(capability);
 
+  /// Whether the user let the extension reach file:// pages and local files
+  /// (its "Allow access to file URLs"): null for one from before it said.
+  bool? fileAccess;
+
+  /// What to tell when [fileAccess] is false: only the user can turn it on.
+  static const fileAccessHelp =
+      'The browser does not let BaoCode\'s extension reach local files. Ask '
+      'the user to open chrome://extensions, click Details on BaoCode and '
+      'turn on "Allow access to file URLs" (then try again; the extension '
+      'reloads).';
+
   int _lastId = 0;
   final Map<int, Completer<Object?>> _pending = {};
   final BytesBuilder _buffer = BytesBuilder(copy: false);
@@ -679,6 +690,7 @@ class BrowserConnection {
       case 'hello':
         browser = message['browser'] as String? ?? 'Browser';
         version = message['version'] as String?;
+        fileAccess = message['fileAccess'] as bool?;
         protocol = (message['protocol'] as num?)?.toInt() ?? 1;
         capabilities = {
           for (final capability in message['capabilities'] as List? ?? [])

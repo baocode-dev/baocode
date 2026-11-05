@@ -126,6 +126,27 @@ void main() {
     ]);
   }, skip: Platform.isWindows);
 
+  test('an extension not let reach local files is said so', () async {
+    await bridge.start();
+    final host = await connect({
+      'browser': 'Google Chrome',
+      'version': '0.2.0',
+      'fileAccess': false,
+    });
+    addTearDown(host.destroy);
+    await until(() => bridge.browsers.isNotEmpty);
+    expect(bridge.browsers.single.fileAccess, isFalse);
+
+    final l10n = AppLocalizationsEn();
+    expect(
+      BrowserSettingsPage.status(l10n, bridge),
+      contains((
+        l10n.browserSettingsNoFileAccess,
+        l10n.browserSettingsNoFileAccessDescription,
+      )),
+    );
+  }, skip: Platform.isWindows);
+
   test('a big answer, in many chunks, is read whole', () async {
     await bridge.start();
     final host = await connect({

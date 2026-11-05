@@ -10239,6 +10239,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'The extension is newer than this BaoCode. Update BaoCode.';
 
   @override
+  String get browserSettingsNoFileAccess => 'File access is off';
+
+  @override
+  String get browserSettingsNoFileAccessDescription =>
+      'Agents can\'t open local HTML files or upload files. In chrome://extensions, click Details on BaoCode and turn on Allow access to file URLs.';
+
+  @override
   String get browserSettingsInstall => 'Get the Extension';
 
   @override

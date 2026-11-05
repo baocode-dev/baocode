@@ -66,15 +66,25 @@ function setConnected(value) {
     subscribed.clear();
   }
   showState();
-  if (value) {
-    send({
-      type: 'hello',
-      protocol: BRIDGE,
-      capabilities: CAPABILITIES,
-      browser: browserName(),
-      version: chrome.runtime.getManifest().version,
-    });
-  }
+  if (value) hello();
+}
+
+async function hello() {
+  // Whether the user let it reach file:// pages and local files (to open an
+  // HTML file, to choose files for a page's input): "Allow access to file
+  // URLs", off till they turn it on, the extension reloaded when they do.
+  // The browser shows that switch only to an extension that could want it:
+  // activeTab, in the manifest for that alone, makes this one such.
+  const fileAccess = await chrome.extension.isAllowedFileSchemeAccess().catch(() => null);
+  if (!connected) return;
+  send({
+    type: 'hello',
+    protocol: BRIDGE,
+    capabilities: CAPABILITIES,
+    browser: browserName(),
+    version: chrome.runtime.getManifest().version,
+    fileAccess,
+  });
 }
 
 // The toolbar button's badge and title: recording, connected, or not.

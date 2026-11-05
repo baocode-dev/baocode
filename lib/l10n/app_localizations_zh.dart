@@ -9696,6 +9696,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get browserSettingsAppOld => '扩展比当前的 BaoCode 新，请更新 BaoCode。';
 
   @override
+  String get browserSettingsNoFileAccess => '没有开文件访问权限';
+
+  @override
+  String get browserSettingsNoFileAccessDescription =>
+      '打不开本地 HTML，也传不了文件。在 chrome://extensions 里点 BaoCode 的「详细信息」，打开「允许访问文件网址」。';
+
+  @override
   String get browserSettingsInstall => '安装扩展';
 
   @override
