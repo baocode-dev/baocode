@@ -390,10 +390,12 @@ class IdeHoverCard extends StatelessWidget {
     final endLine = diagnostic.range.end.line + 1;
     final contextStart = math.max(1, startLine - 1);
     final contextEnd = endLine + 2;
-    final rangeStr =
-        contextStart == contextEnd ? '$contextStart' : '$contextStart-$contextEnd';
+    final rangeStr = contextStart == contextEnd
+        ? '$contextStart'
+        : '$contextStart-$contextEnd';
 
-    final prompt = 'For the code present, we get this error:\n'
+    final prompt =
+        'For the code present, we get this error:\n'
         '```\n'
         '${diagnostic.message.trim()}\n'
         '```\n'

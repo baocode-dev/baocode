@@ -104,7 +104,10 @@ void main() {
     await tester.pump();
 
     expect(sentPrompt, isNotNull);
-    expect(sentPrompt, contains('@problems Please fix the following problems in the workspace:'));
+    expect(
+      sentPrompt,
+      contains('@problems Please fix the following problems in the workspace:'),
+    );
     expect(
       sentPrompt,
       contains(
@@ -113,56 +116,62 @@ void main() {
     );
   });
 
-  testWidgets('Fix with Agent in IdeHoverCard formats prompt with context lines', (
-    tester,
-  ) async {
-    String? sentPrompt;
-    const diagnostic = LspDiagnostic(
-      range: LspRange(LspPosition(24, 7), LspPosition(24, 49)),
-      message: 'The import com.crb.crm.shared.constant.StatusConstant is never used',
-      severity: LspDiagnosticSeverity.warning,
-      source: 'Java',
-      code: '268435844',
-    );
+  testWidgets(
+    'Fix with Agent in IdeHoverCard formats prompt with context lines',
+    (tester) async {
+      String? sentPrompt;
+      const diagnostic = LspDiagnostic(
+        range: LspRange(LspPosition(24, 7), LspPosition(24, 49)),
+        message: 'The import com.crb.crm.shared.constant.StatusConstant is never used',
+        severity: LspDiagnosticSeverity.warning,
+        source: 'Java',
+        code: '268435844',
+      );
 
-    const hoverState = IdeHoverState(
-      start: 100,
-      end: 150,
-      markdown: null,
-      diagnostics: [diagnostic],
-      keyboard: false,
-    );
+      const hoverState = IdeHoverState(
+        start: 100,
+        end: 150,
+        markdown: null,
+        diagnostics: [diagnostic],
+        keyboard: false,
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: IdeHoverCard(
-              state: hoverState,
-              filePath: '/project/sea-turtle-crm-service/src/main/java/com/crb/crm/access/application/AuthService.java',
-              workspaceRoot: '/project',
-              onAsk: (prompt) => sentPrompt = prompt,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: IdeHoverCard(
+                state: hoverState,
+                filePath: '/project/sea-turtle-crm-service/src/main/java/com/crb/crm/access/application/AuthService.java',
+                workspaceRoot: '/project',
+                onAsk: (prompt) => sentPrompt = prompt,
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pump();
+      );
+      await tester.pump();
 
-    final fixButton = find.text('Fix with Agent');
-    expect(fixButton, findsOneWidget);
+      final fixButton = find.text('Fix with Agent');
+      expect(fixButton, findsOneWidget);
 
-    await tester.tap(fixButton);
-    await tester.pump();
+      await tester.tap(fixButton);
+      await tester.pump();
 
-    expect(sentPrompt, isNotNull);
-    expect(sentPrompt, contains('For the code present, we get this error:'));
-    expect(sentPrompt, contains('The import com.crb.crm.shared.constant.StatusConstant is never used'));
-    expect(
-      sentPrompt,
-      contains(
-        'Fix it, verify, and then give a concise explanation. @sea-turtle-crm-service/src/main/java/com/crb/crm/access/application/AuthService.java:24-27',
-      ),
-    );
-  });
+      expect(sentPrompt, isNotNull);
+      expect(sentPrompt, contains('For the code present, we get this error:'));
+      expect(
+        sentPrompt,
+        contains(
+          'The import com.crb.crm.shared.constant.StatusConstant is never used',
+        ),
+      );
+      expect(
+        sentPrompt,
+        contains(
+          'Fix it, verify, and then give a concise explanation. @sea-turtle-crm-service/src/main/java/com/crb/crm/access/application/AuthService.java:24-27',
+        ),
+      );
+    },
+  );
 }

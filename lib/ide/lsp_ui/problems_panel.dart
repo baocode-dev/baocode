@@ -375,7 +375,9 @@ class IdeBottomPanel extends StatelessWidget {
   void _sendAllToAgent(Map<String, List<LspDiagnostic>> all) {
     if (onAsk == null) return;
     final buffer = StringBuffer();
-    buffer.writeln('@problems Please fix the following problems in the workspace:');
+    buffer.writeln(
+      '@problems Please fix the following problems in the workspace:',
+    );
     buffer.writeln();
 
     for (final (path, problems) in ideProblemsByFile(all)) {
@@ -394,7 +396,9 @@ class IdeBottomPanel extends StatelessWidget {
           if (problem.code != null) '(${problem.code})',
         ].join('');
         final sourceSuffix = sourceInfo.isEmpty ? '' : ' $sourceInfo';
-        buffer.writeln('- @$relPath:$line:$col [$severity] ${problem.message.trim()}$sourceSuffix');
+        buffer.writeln(
+          '- @$relPath:$line:$col [$severity] ${problem.message.trim()}$sourceSuffix',
+        );
       }
     }
 
@@ -1207,4 +1211,3 @@ class _SendToAgentButtonState extends State<_SendToAgentButton> {
     );
   }
 }
-
