@@ -8,6 +8,7 @@ import 'editor_panes.dart';
 import 'editor_commands.dart';
 import 'editor_status.dart';
 import 'explorer.dart';
+import 'extensions.dart';
 import 'language.dart';
 import 'layout.dart';
 import 'lists.dart';
@@ -37,4 +38,5 @@ List<WorkbenchContribution> createWorkbenchContributions(
   SearchContribution(services),
   EditorCommandsContribution(services),
   WindowContribution(services),
+  ExtensionsContribution(services),
 ];
