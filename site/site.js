@@ -167,12 +167,10 @@ for (const img of document.querySelectorAll('figure img')) {
   if (img.complete && !img.naturalWidth) missing();
 }
 
-// The reel of what users say: on a phone, two reels, every other card
-// in the second, which runs the other way. Each its cards twice, the
-// copy hidden from readers and from Tab, at about 40 px a second however
-// many there are.
+// The reel of what users say: two reels, every other card in the second,
+// which runs the other way. Each its cards twice, the copy hidden from
+// readers and from Tab, at about 40 px a second however many there are.
 for (const reel of document.querySelectorAll('.reel')) {
-  if (!matchMedia('(max-width: 640px)').matches) continue;
   const second = Object.assign(document.createElement('ul'), { className: 'reel back' });
   second.append(...[...reel.children].filter((_, i) => i % 2));
   reel.after(second);
