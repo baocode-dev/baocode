@@ -26,6 +26,7 @@
   <symbol id="ic-server" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><path d="M6 6h.01M6 18h.01"/></g></symbol>
   <symbol id="ic-puzzle" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M15.39 4.39a1 1 0 0 0 1.68-.474a2.5 2.5 0 1 1 3.014 3.015a1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474a2.5 2.5 0 1 0-3.014 3.015a1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474a2.5 2.5 0 1 1-3.014-3.015a1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474a2.5 2.5 0 1 0 3.014-3.015a1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></symbol>
   <symbol id="ic-sparkles" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594zM20 2v4m2-2h-4"/><circle cx="4" cy="20" r="2"/></g></symbol>
+  <symbol id="ic-chart-pie" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/></g></symbol>
   <symbol id="ic-bell" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d="M10.268 21a2 2 0 0 0 3.464 0m-10.47-5.674A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
   <symbol id="ic-target" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></g></symbol>
   <symbol id="ic-download" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10l5 5l5-5"/></g></symbol>
@@ -94,6 +95,7 @@
       <li><a href="#mobile"><svg class="ic" aria-hidden="true"><use href="#ic-smartphone"/></svg>手机</a></li>
       <li><a href="#customize"><svg class="ic" aria-hidden="true"><use href="#ic-puzzle"/></svg>技能与 MCP</a></li>
       <li><a href="#models"><svg class="ic" aria-hidden="true"><use href="#ic-sparkles"/></svg>任意模型</a></li>
+      <li><a href="#usage"><svg class="ic" aria-hidden="true"><use href="#ic-chart-pie"/></svg>调用统计</a></li>
       <li><a href="#notifications"><svg class="ic" aria-hidden="true"><use href="#ic-bell"/></svg>通知</a></li>
       <li><a href="#limits"><svg class="ic" aria-hidden="true"><use href="#ic-target"/></svg>它不做什么</a></li>
       <li><a href="#download"><svg class="ic" aria-hidden="true"><use href="#ic-download"/></svg>下载</a></li>
@@ -242,6 +244,15 @@
   <figure>
     <div class="img mock"><iframe src="/mocks/models" title="BaoCode 设置里的一个模型上游，协议菜单已打开" loading="lazy" tabindex="-1" style="aspect-ratio:1100/720"></iframe></div>
     <figcaption>一个上游：协议、Base URL、API 密钥和请求头，它提供的模型（逐个测过），以及 Claude Code 在各个角色上用哪个模型。</figcaption>
+  </figure>
+
+  <h2 id="usage"><svg class="ic" aria-hidden="true"><use href="#ic-chart-pie"/></svg>调用统计</h2>
+  <p>每一次模型调用，BaoCode 都会在本机记下来：令牌、缓存、首字耗时、输出速度和费用，按上游、模型、对话、子代理和工具细分。用你自己上游的对话经过 BaoCode 的本地代理记录，Claude Code 自带模型的调用从它的输出读取；用 Claude 订阅时，还能看到这段时间用掉了多少额度。</p>
+  <p>打开详细记录，每次请求的上下文由什么组成都看得到：系统提示词、工具定义、CLAUDE.md、技能、MCP 和对话消息各占多少，哪个工具把上下文撑大了一目了然。调试上游时可以打开调试抓包，完整保存每次请求和上游的原始返回，密钥会打码。</p>
+  <p>价格按每百万 token 填，支持阶梯价、分时段价和各种附加费；也可以直接让智能体去上游官网核对最新价格并更新。每个对话的用量也在它旁边的侧边面板里。这些数据只存在你的电脑上，保留多久你定，随时可以清理。</p>
+  <figure>
+    <div class="img mock"><iframe src="/mocks/usage" title="BaoCode 设置里的调用统计：最近 7 天的合计、令牌趋势，以及按上游和模型的费用" loading="lazy" tabindex="-1" style="aspect-ratio:1100/800"></iframe></div>
+    <figcaption>“设置 → 调用统计”：最近 7 天的合计，按类型堆叠的令牌趋势，以及按上游、按模型的费用。</figcaption>
   </figure>
 
   <h2 id="notifications"><svg class="ic" aria-hidden="true"><use href="#ic-bell"/></svg>通知</h2>
