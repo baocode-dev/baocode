@@ -1,23 +1,31 @@
 // The status bar's entries, each added by the feature it tells of and kept
 // current by it (upstream `IStatusbarService.addEntry`, which hands back
 // an accessor to update or dispose it;
-// src/vs/workbench/services/statusbar/browser/statusbar.ts).
+// src/vs/workbench/services/statusbar/browser/statusbar.ts). An entry is
+// built as the bar is, in its context (its text is localized there), and
+// the bar is built again when what an entry shows [changes].
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../ide_status_bar.dart';
 
 enum StatusbarAlignment { left, right }
 
-/// One entry's place and what it shows now.
+/// What an entry shows now; null hides it, keeping its place.
+typedef StatusbarEntryBuilder = IdeStatusBarItem? Function(
+  BuildContext context,
+);
+
+/// One entry's place and what it shows.
 class _Entry {
-  _Entry(this.id, this.alignment, this.priority, this.order, this.item);
+  _Entry(this.id, this.alignment, this.priority, this.order, this.build);
 
   final String id;
   final StatusbarAlignment alignment;
   final double priority;
   final int order;
-  IdeStatusBarItem? item;
+  StatusbarEntryBuilder build;
+  Listenable? changes;
 }
 
 /// Updates or removes an entry added (upstream `IStatusbarEntryAccessor`).
@@ -27,15 +35,16 @@ class StatusbarEntryAccessor {
   final StatusbarService _service;
   final _Entry _entry;
 
-  /// What it shows now; null hides it, keeping its place.
-  void update(IdeStatusBarItem? item) {
-    if (identical(item, _entry.item)) return;
-    _entry.item = item;
+  /// What it shows from now on.
+  void update(StatusbarEntryBuilder build) {
+    _entry.build = build;
     _service._changed();
   }
 
   void dispose() {
-    if (_service._entries.remove(_entry)) _service._changed();
+    if (!_service._entries.remove(_entry)) return;
+    _entry.changes?.removeListener(_service._changed);
+    _service._changed();
   }
 }
 
@@ -43,37 +52,81 @@ class StatusbarService extends ChangeNotifier {
   final List<_Entry> _entries = [];
   int _added = 0;
 
-  /// Adds [item] as [id], on the [alignment] side: the greater its
-  /// [priority], the further left (upstream's `StatusBarItem.priority`),
-  /// those alike in the order they were added.
+  /// Adds the entry [id], built by [build], on the [alignment] side: the
+  /// greater its [priority], the further left (upstream's
+  /// `StatusBarItem.priority`), those alike in the order they were added.
+  /// The bar is built again as [changes] tells.
   StatusbarEntryAccessor addEntry(
-    IdeStatusBarItem? item,
     String id,
-    StatusbarAlignment alignment, {
+    StatusbarAlignment alignment,
+    StatusbarEntryBuilder build, {
     double priority = 0,
+    Listenable? changes,
   }) {
-    final entry = _Entry(id, alignment, priority, _added++, item);
+    final entry = _Entry(id, alignment, priority, _added++, build)
+      ..changes = changes;
+    changes?.addListener(_changed);
     _entries.add(entry);
     _changed();
     return StatusbarEntryAccessor._(this, entry);
   }
 
-  /// The [alignment] side's entries showing, left to right.
-  List<IdeStatusBarItem> items(StatusbarAlignment alignment) {
-    final entries = [
+  /// The [alignment] side's entries showing, left to right, with their
+  /// priorities.
+  List<(double priority, IdeStatusBarItem item)> entries(
+    BuildContext context,
+    StatusbarAlignment alignment,
+  ) {
+    final sides = [
       for (final entry in _entries)
-        if (entry.alignment == alignment && entry.item != null) entry,
+        if (entry.alignment == alignment) entry,
     ];
-    entries.sort((a, b) {
+    sides.sort((a, b) {
       final byPriority = b.priority.compareTo(a.priority);
       return byPriority != 0 ? byPriority : a.order.compareTo(b.order);
     });
-    return [for (final entry in entries) entry.item!];
+    return [
+      for (final entry in sides)
+        if (entry.build(context) case final item?) (entry.priority, item),
+    ];
   }
 
-  /// Whether [id] has an entry showing.
-  bool shows(String id) =>
-      _entries.any((entry) => entry.id == id && entry.item != null);
+  /// The [alignment] side's entries showing, left to right.
+  List<IdeStatusBarItem> items(
+    BuildContext context,
+    StatusbarAlignment alignment,
+  ) => [for (final (_, item) in entries(context, alignment)) item];
 
   void _changed() => notifyListeners();
+
+  @override
+  void dispose() {
+    for (final entry in _entries) {
+      entry.changes?.removeListener(_changed);
+    }
+    _entries.clear();
+    super.dispose();
+  }
+}
+
+/// [entries] among [others] (the bar's items not yet entries, with the
+/// priorities they would have), by priority, the entries after others
+/// alike.
+List<IdeStatusBarItem> mergeStatusbarItems(
+  List<(double priority, IdeStatusBarItem item)> others,
+  List<(double priority, IdeStatusBarItem item)> entries,
+) {
+  final all =
+      [
+        for (final (index, (priority, item)) in others.indexed)
+          (priority, 0, index, item),
+        for (final (index, (priority, item)) in entries.indexed)
+          (priority, 1, index, item),
+      ]..sort((a, b) {
+        final byPriority = b.$1.compareTo(a.$1);
+        if (byPriority != 0) return byPriority;
+        final bySource = a.$2.compareTo(b.$2);
+        return bySource != 0 ? bySource : a.$3.compareTo(b.$3);
+      });
+  return [for (final (_, _, _, item) in all) item];
 }

@@ -13,7 +13,7 @@ import '../../ide/git/git_model.dart';
 import '../../ide/git/commit_message.dart';
 import '../../ide/git/git_repository.dart';
 import '../../ide/git/ide_git_log_view.dart'
-    show IdeGitLogView, IdeGitWorktreeChoice, ideLocalDiffFile;
+    show IdeGitLogView, IdeGitWorktreeChoice;
 import '../../ide/git/ide_git_commit_panel.dart';
 import '../../ide/git/scm_host.dart';
 import '../../ide/ide_button.dart';
@@ -24,6 +24,7 @@ import '../../ide/ide_code_editor.dart' show IdeTextFormatter;
 import '../../ide/ide_hover.dart';
 import '../../ide/file_views.dart';
 import '../../ide/search/ide_search_view.dart';
+import '../../ide/services/git_changes.dart';
 import '../../ide/search/text_search.dart' show IdeTextSearch, ideSearchText;
 import '../../ide/ide_list.dart';
 import '../../ide/ide_menu.dart';
@@ -908,27 +909,18 @@ class AgentSidePanelView extends StatelessWidget {
         .scmOf(session, git)
         .log
         .showDiff(
-          [
-            for (final change in resources)
-              ideLocalDiffFile(
-                git,
-                state,
-                change,
-                files.read,
-                l10n,
-                readBytes: (path) => readBytesThrough(files, path),
-                onOpenInEditor: () =>
-                    panel.open(session, FileOpenRequest(change.path)),
-                write: (path, text, {expectedText}) async {
-                  try {
-                    await files.write(path, text, expectedText: expectedText);
-                  } on Object catch (error) {
-                    notifications.notify(IdeSeverity.error, '$error');
-                    rethrow;
-                  }
-                },
-              ),
-          ],
+          // As the IDE's: the same diffs, written back the same way.
+          GitChangesService(
+            files: files,
+            notifications: notifications,
+          ).localDiffs(
+            git,
+            state,
+            resources,
+            l10n,
+            onOpenInEditor: (change) =>
+                panel.open(session, FileOpenRequest(change.path)),
+          ),
           resources.indexWhere((change) => change.path == resource.path),
           focus: false,
         );
