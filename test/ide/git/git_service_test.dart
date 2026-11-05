@@ -1,7 +1,10 @@
 @TestOn('vm')
 library;
 
+import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:bao_remote/local.dart' show runGit;
 import 'package:flutter_test/flutter_test.dart';
@@ -224,6 +227,41 @@ void main() {
     expect(repository.state!.count, 0);
     final log = await repository.service.log();
     expect(log.first.subject, 'Everything');
+  }, skip: hasGit ? false : 'Git is not installed');
+
+  test('an image is read whole at HEAD and in the index', () async {
+    final service = IdeGitService(root);
+    // Bytes Git takes for binary, of no multiple of 4, and not deflated
+    // much: lines of the binary patch to put together.
+    final random = math.Random(7);
+    final committed = Uint8List.fromList([
+      0x89, 0x50, 0x4e, 0x47, 0, //
+      for (var i = 0; i < 70003; i++) random.nextInt(256),
+    ]);
+    final staged = Uint8List.fromList([0, 1, 2]);
+    final image = p.join(root, 'img', 'a b.png');
+    await Directory(p.dirname(image)).create();
+    await File(image).writeAsBytes(committed);
+    await write('img/icon.svg', '<svg>\n</svg>');
+    await git(['add', '-A']);
+    await git(['commit', '-q', '-m', 'Images']);
+    await File(image).writeAsBytes(staged);
+    await git(['add', '-A']);
+    await File(image).writeAsBytes([9]);
+
+    expect(await service.showBytes('HEAD', image), committed);
+    expect(await service.showBytes('', image), staged);
+    // Text, where Git takes it for that.
+    expect(
+      utf8.decode(
+        await service.showBytes('HEAD', p.join(root, 'img/icon.svg')),
+      ),
+      '<svg>\n</svg>',
+    );
+    await expectLater(
+      service.showBytes('HEAD', p.join(root, 'img/none.png')),
+      throwsA(isA<IdeGitException>()),
+    );
   }, skip: hasGit ? false : 'Git is not installed');
 
   test('blame gives the commits of the lines on disk', () async {

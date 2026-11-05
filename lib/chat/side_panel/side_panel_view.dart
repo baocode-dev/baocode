@@ -916,6 +916,7 @@ class AgentSidePanelView extends StatelessWidget {
                 change,
                 files.read,
                 l10n,
+                readBytes: (path) => readBytesThrough(files, path),
                 onOpenInEditor: () =>
                     panel.open(session, FileOpenRequest(change.path)),
                 write: (path, text, {expectedText}) async {

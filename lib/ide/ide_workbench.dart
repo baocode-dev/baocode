@@ -67,6 +67,7 @@ import 'file_service.dart'
         IdeFileService,
         IdeHostFiles,
         localizedFileError,
+        readBytesThrough,
         readFileBytes;
 import 'git/commit_message.dart';
 import 'git/git_branch_actions.dart';
@@ -2011,6 +2012,18 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             modified: () async => change == IdeFolderChange.deleted
                 ? ''
                 : read(at(modified, path)),
+            originalBytes: ideImageSide(
+              path,
+              change == IdeFolderChange.added
+                  ? null
+                  : () => readBytesThrough(files, at(original, path)),
+            ),
+            modifiedBytes: ideImageSide(
+              path,
+              change == IdeFolderChange.deleted
+                  ? null
+                  : () => readBytesThrough(files, at(modified, path)),
+            ),
             write: change == IdeFolderChange.deleted
                 ? null
                 : (text) => files.write(at(modified, path), text),
@@ -2121,6 +2134,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             change,
             files.read,
             l10n,
+            readBytes: (path) => readBytesThrough(files, path),
             onOpenInEditor: () {
               _leaveGitLog();
               unawaited(_openChange(change, focusEditor: true));
