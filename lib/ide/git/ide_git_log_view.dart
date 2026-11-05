@@ -35,6 +35,7 @@ import '../ide_code_diff.dart';
 import '../ide_diff_options.dart';
 import '../ide_dialog.dart';
 import '../ide_hover.dart';
+import '../ide_image_preview.dart';
 import '../ide_input.dart';
 import '../ide_list.dart';
 import '../ide_menu.dart';
@@ -83,12 +84,20 @@ class IdeGitDiffFile {
     this.write,
     this.checks,
     this.agent,
+    this.originalBytes,
+    this.modifiedBytes,
   });
 
   final String path;
   final IdeGitStatus? status;
   final Future<String> Function() original;
   final Future<String> Function() modified;
+
+  /// An image's sides as bytes, null for a side there is none of: the
+  /// image shown rather than its text compared. Its text's alone when
+  /// either is null.
+  final Future<Uint8List?> Function()? originalBytes;
+  final Future<Uint8List?> Function()? modifiedBytes;
   final String originalLabel;
   final String modifiedLabel;
 
@@ -435,6 +444,21 @@ Future<List<IdeGitDiffFile>> ideGitWorkingTreeDiff(
             : files.read(change.path).catchError((Object _) => ''),
         originalLabel: label,
         modifiedLabel: workingTree,
+        originalBytes: ideImageSide(
+          change.path,
+          change.status == 'A'
+              ? null
+              : () => git.service.showBytes(
+                  revision,
+                  change.originalPath ?? change.path,
+                ),
+        ),
+        modifiedBytes: ideImageSide(
+          change.path,
+          change.status == 'D'
+              ? null
+              : () => readBytesThrough(files, change.path),
+        ),
       ),
   ];
 }
@@ -461,6 +485,21 @@ Future<List<IdeGitDiffFile>> ideGitRevisionsDiff(
             change.status == 'D' ? Future.value('') : show(to.$1, change.path),
         originalLabel: from.$2,
         modifiedLabel: to.$2,
+        originalBytes: ideImageSide(
+          change.path,
+          change.status == 'A'
+              ? null
+              : () => git.service.showBytes(
+                  from.$1,
+                  change.originalPath ?? change.path,
+                ),
+        ),
+        modifiedBytes: ideImageSide(
+          change.path,
+          change.status == 'D'
+              ? null
+              : () => git.service.showBytes(to.$1, change.path),
+        ),
       ),
   ];
 }
@@ -497,18 +536,34 @@ IdeGitDiffFile ideCommitDiffFile(
     originalLabel: parent == null ? '' : _short(parent),
     modifiedLabel: commit.shortId,
     commitId: commit.id,
+    originalBytes: ideImageSide(
+      change.path,
+      parent == null || change.status == 'A'
+          ? null
+          : () => git.service.showBytes(
+              parent,
+              change.originalPath ?? change.path,
+            ),
+    ),
+    modifiedBytes: ideImageSide(
+      change.path,
+      change.status == 'D'
+          ? null
+          : () => git.service.showBytes(commit.id, change.path),
+    ),
   );
 }
 
 /// A local change as the log shows it: its sides as Source Control's diff
 /// editor compares them (see git_change_editor.dart), its file read with
-/// [files].
+/// [read] (an image's with [readBytes]).
 IdeGitDiffFile ideLocalDiffFile(
   IdeGitRepository git,
   IdeGitState state,
   IdeGitResource resource,
   Future<String> Function(String path) read,
   AppLocalizations l10n, {
+  Future<Uint8List> Function(String path)? readBytes,
   VoidCallback? onOpenInEditor,
   Future<void> Function(String path, String text, {String? expectedText})?
   write,
@@ -537,6 +592,16 @@ IdeGitDiffFile ideLocalDiffFile(
     IdeGitSide(:final ref, :final path) =>
       () => git.service.show(ref!, path).catchError((Object _) => ''),
   };
+  Future<Uint8List?> Function()? bytes(IdeGitSide? side) =>
+      ideImageSide(resource.path, switch (side) {
+        null => null,
+        IdeGitSide(isFile: true, :final path) =>
+          () => (readBytes ?? readFileBytes)(path),
+        IdeGitSide(:final ref, :final path) => () => git.service.showBytes(
+          ref!,
+          path,
+        ),
+      });
   String label(IdeGitSide? side) => switch (side?.ref) {
     null when side == null => '',
     null => l10n.gitChangeWorkingTree,
@@ -557,6 +622,8 @@ IdeGitDiffFile ideLocalDiffFile(
         : side(right),
     originalLabel: label(editor.left),
     modifiedLabel: label(editor.right),
+    originalBytes: bytes(editor.left),
+    modifiedBytes: bytes(editor.right),
     onOpenInEditor: onOpenInEditor,
     // The file itself on the right: edited in the diff, as in the editor.
     write: switch ((right, write)) {
@@ -579,6 +646,16 @@ IdeGitDiffFile ideLocalDiffFile(
 }
 
 String _short(String id) => id.length > 7 ? id.substring(0, 7) : id;
+
+/// A side of [path]'s for [IdeGitDiffFile.originalBytes] or
+/// [IdeGitDiffFile.modifiedBytes]: [read], none where null; not one where
+/// [path] is no image.
+Future<Uint8List?> Function()? ideImageSide(
+  String path,
+  Future<Uint8List> Function()? read,
+) => ideIsImagePath(path)
+    ? () async => read == null ? null : await read()
+    : null;
 
 /// Over the details where they are under the table: whether the local
 /// changes' are folded to their tabs' row, [IdeGitCommitPanel.foldedHeight]
@@ -4182,6 +4259,7 @@ class _DiffAreaState extends State<_DiffArea> {
                 start: diff.start,
                 code: _codeOf(file),
                 position: _position,
+                border: widget.border,
                 onAsk: switch (widget.onAsk) {
                   final ask? => (change, line) => ask(
                     context.l10n.gitAskAiHunkPrompt(
@@ -4209,11 +4287,15 @@ class _DiffBody extends StatefulWidget {
     required this.start,
     required this.code,
     required this.position,
+    required this.border,
     this.onAsk,
   });
 
   final IdeGitDiffFile file;
   final void Function(String change, int line)? onAsk;
+
+  /// Between an image's sides.
+  final Color border;
   final IdeDiffStart start;
   final GlobalKey<IdeCodeDiffState> code;
   final ValueNotifier<({int current, int count})> position;
@@ -4223,6 +4305,10 @@ class _DiffBody extends StatefulWidget {
 }
 
 class _DiffBodyState extends State<_DiffBody> {
+  /// An image's sides: read as bytes, shown rather than compared as text.
+  late final bool _image =
+      widget.file.originalBytes != null && widget.file.modifiedBytes != null;
+
   late final Future<(String, String)> _texts = () async {
     final texts = await Future.wait([
       widget.file.original(),
@@ -4231,6 +4317,13 @@ class _DiffBodyState extends State<_DiffBody> {
     return (texts[0], texts[1]);
   }();
 
+  /// Each side's bytes, null where there is none of it, or why it could
+  /// not be read.
+  late final Future<List<Object?>> _images = Future.wait([
+    for (final read in [widget.file.originalBytes!, widget.file.modifiedBytes!])
+      read().then<Object?>((bytes) => bytes, onError: (Object error) => error),
+  ]);
+
   /// Not shown while it reads: the diff holds it then (see IdeCodeDiff).
   VoidCallback? _release;
 
@@ -4238,7 +4331,7 @@ class _DiffBodyState extends State<_DiffBody> {
   void initState() {
     super.initState();
     _release = ShownWhenReady.hold(context);
-    _texts.whenComplete(_released).ignore();
+    (_image ? _images : _texts).whenComplete(_released).ignore();
   }
 
   void _released() {
@@ -4253,25 +4346,82 @@ class _DiffBodyState extends State<_DiffBody> {
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<(String, String)>(
-    future: _texts,
-    builder: (context, texts) {
-      if (texts.hasError) return _Placeholder('${texts.error}');
-      final data = texts.data;
-      if (data == null) {
-        return const Center(child: _Spinner(size: 16));
-      }
-      return IdeCodeDiff(
-        key: widget.code,
-        path: widget.file.path,
-        original: data.$1,
-        modified: data.$2,
-        start: widget.start,
-        onEdit: widget.file.write,
-        position: widget.position,
-        checks: widget.file.checks,
-        agent: widget.file.agent,
-        onAsk: widget.onAsk,
+  Widget build(BuildContext context) {
+    if (_image) return _imageSides();
+    return FutureBuilder<(String, String)>(
+      future: _texts,
+      builder: (context, texts) {
+        if (texts.hasError) return _Placeholder('${texts.error}');
+        final data = texts.data;
+        if (data == null) {
+          return const Center(child: _Spinner(size: 16));
+        }
+        return IdeCodeDiff(
+          key: widget.code,
+          path: widget.file.path,
+          original: data.$1,
+          modified: data.$2,
+          start: widget.start,
+          onEdit: widget.file.write,
+          position: widget.position,
+          checks: widget.file.checks,
+          agent: widget.file.agent,
+          onAsk: widget.onAsk,
+        );
+      },
+    );
+  }
+
+  /// The image before and after, side by side; the one side alone where
+  /// it was added or deleted.
+  Widget _imageSides() => FutureBuilder<List<Object?>>(
+    future: _images,
+    builder: (context, images) {
+      final sides = images.data;
+      if (sides == null) return const Center(child: _Spinner(size: 16));
+      final file = widget.file;
+      final shown = [
+        for (final (i, side) in sides.indexed)
+          if (side != null)
+            (side, i == 0 ? file.originalLabel : file.modifiedLabel),
+      ];
+      if (shown.isEmpty) return const SizedBox.expand();
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final (i, (side, label)) in shown.indexed) ...[
+            if (i > 0) Container(width: 1, color: widget.border),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (shown.length > 1 && label.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: IdeListColors.description,
+                        ),
+                      ),
+                    ),
+                  Expanded(
+                    child: IdeImagePreview(
+                      path: file.path,
+                      read: (_) async => switch (side) {
+                        final Uint8List bytes => bytes,
+                        final error => throw error,
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       );
     },
   );

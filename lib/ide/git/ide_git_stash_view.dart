@@ -143,6 +143,11 @@ class IdeGitStashViewState extends State<IdeGitStashView> {
               .show('${stash.id}^3', path)
               .catchError((Object _) => ''),
           modifiedLabel: stash.ref,
+          originalBytes: ideImageSide(path, null),
+          modifiedBytes: ideImageSide(
+            path,
+            () => git.service.showBytes('${stash.id}^3', path),
+          ),
         ),
     ];
   }();

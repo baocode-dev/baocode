@@ -15,6 +15,9 @@
 // Deviations: no stash, and no credential prompts
 // (`GIT_TERMINAL_PROMPT=0`: a remote that asks for a password fails).
 
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:bao_remote/git.dart';
 import 'package:path/path.dart' as p;
 
@@ -46,6 +49,69 @@ typedef IdeGitWatcher = Stream<String> Function(String repositoryRoot);
 (int, int)? parseGitVersion(String output) {
   final match = RegExp(r'(\d+)\.(\d+)').firstMatch(output);
   return match == null ? null : (int.parse(match[1]!), int.parse(match[2]!));
+}
+
+/// The file a `git diff --binary` from nothing adds, whole: its `GIT binary
+/// patch` literal ([inflate] undoing zlib), or its text where Git took it
+/// for text; null where the diff adds no file.
+Uint8List? parseGitBinaryLiteral(
+  String diff,
+  List<int> Function(List<int> data) inflate,
+) {
+  final lines = const LineSplitter().convert(diff);
+  final patch = lines.indexOf('GIT binary patch');
+  if (patch >= 0) {
+    final header = lines.elementAtOrNull(patch + 1) ?? '';
+    final size = header.startsWith('literal ')
+        ? int.tryParse(header.substring(8))
+        : null;
+    if (size == null) return null;
+    const alphabet =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        'abcdefghijklmnopqrstuvwxyz!#\$%&()*+-;<=>?@^_`{|}~';
+    final deflated = BytesBuilder(copy: false);
+    for (final line in lines.skip(patch + 2)) {
+      if (line.isEmpty) break;
+      final first = line.codeUnitAt(0);
+      // Its bytes: A to Z 1 to 26, a to z 27 to 52.
+      final length = first >= 0x61 ? first - 0x61 + 27 : first - 0x41 + 1;
+      final bytes = Uint8List((line.length - 1) ~/ 5 * 4);
+      for (var group = 0; group * 5 + 1 < line.length; group++) {
+        var value = 0;
+        for (var i = 0; i < 5; i++) {
+          final digit = alphabet.indexOf(line[group * 5 + 1 + i]);
+          if (digit < 0) return null;
+          value = value * 85 + digit;
+        }
+        for (var i = 0; i < 4; i++) {
+          bytes[group * 4 + i] = value >> (24 - 8 * i) & 0xff;
+        }
+      }
+      if (length > bytes.length) return null;
+      deflated.add(Uint8List.sublistView(bytes, 0, length));
+    }
+    final inflated = inflate(deflated.takeBytes());
+    return inflated.length == size ? Uint8List.fromList(inflated) : null;
+  }
+  // Text: the hunk's added lines.
+  if (!lines.any((line) => line.startsWith('diff --git '))) return null;
+  final hunk = lines.indexWhere((line) => line.startsWith('@@ '));
+  if (hunk < 0) return Uint8List(0); // Empty.
+  final text = StringBuffer();
+  var newline = true;
+  for (final line in lines.skip(hunk + 1)) {
+    if (line.startsWith('+')) {
+      text.write('${line.substring(1)}\n');
+    } else if (line.startsWith(r'\')) {
+      newline = false;
+    } else {
+      break;
+    }
+  }
+  final added = text.toString();
+  return utf8.encode(
+    newline || added.isEmpty ? added : added.substring(0, added.length - 1),
+  );
 }
 
 /// A file a commit changed.
@@ -705,6 +771,38 @@ class IdeGitService {
       'Could not show object.',
     ).stdout;
   }
+
+  /// [path]'s bytes at [ref] (an image's), as [show] reads its text: `HEAD`,
+  /// a commit, or `''` for the index; not a merge's stages. Read as Git's
+  /// binary patch from the empty tree, which is text, so through any
+  /// runner, a remote host's too.
+  Future<Uint8List> showBytes(String ref, String path) async {
+    final top = await _requireRoot();
+    final relative = _relative(top, [path]).single;
+    final empty = _emptyTree ??= _check(
+      await _git(['hash-object', '-t', 'tree', '--stdin'], stdin: ''),
+      'Could not show object.',
+    ).stdout.trim();
+    final output = _check(
+      await _git([
+        'diff',
+        '--binary',
+        '--no-color',
+        '--no-ext-diff',
+        '--no-textconv',
+        '--no-renames',
+        if (ref.isEmpty) ...['--cached', empty] else ...[empty, ref],
+        '--',
+        relative,
+      ]),
+      'Could not show object.',
+    ).stdout;
+    final bytes = parseGitBinaryLiteral(output, platform.zlibInflate);
+    if (bytes == null) throw const IdeGitException('Could not show object.');
+    return bytes;
+  }
+
+  String? _emptyTree;
 
   /// `git blame --root --incremental` of [path] as it is on disk (`blame2`);
   /// null where Git cannot blame it: untracked, outside the repository, or

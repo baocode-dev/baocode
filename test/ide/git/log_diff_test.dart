@@ -11,6 +11,7 @@ import 'package:bao_editor/monaco/flutter/viewport_layout.dart'
     show HiddenLineRanges;
 import 'package:baocode/ide/ide_code_diff.dart';
 import 'package:baocode/ide/ide_diff_options.dart';
+import 'package:baocode/ide/ide_image_preview.dart';
 import 'package:baocode/ide/ide_list.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -374,5 +375,33 @@ void main() {
     expect(find.text('2 / 3'), findsOneWidget);
     expect(seen, isNotEmpty);
     expect(seen, everyElement('collapsed'));
+  });
+
+  testWidgets('an image shows its sides, not its text compared', (
+    tester,
+  ) async {
+    git.status =
+        '## main\x00'
+        ' M img/a.png\x00'
+        '?? img/new.png\x00';
+    await pumpWorkbench(
+      tester,
+      const {'img/a.png': 'png', 'img/new.png': 'png'},
+      git: git.repository(),
+      size: const Size(1800, 900),
+    );
+    await tester.pumpAndSettle();
+    await chord(tester, LogicalKeyboardKey.keyG, control: true, shift: true);
+    await tester.pumpAndSettle();
+    await tester.tap(rowOf('a.png'));
+    await tester.pumpAndSettle();
+    expect(find.byType(IdeCodeDiff), findsNothing);
+    // HEAD's and the file's.
+    expect(find.byType(IdeImagePreview), findsNWidgets(2));
+
+    // Untracked: the file's alone.
+    await tester.tap(rowOf('new.png'));
+    await tester.pumpAndSettle();
+    expect(find.byType(IdeImagePreview), findsOneWidget);
   });
 }

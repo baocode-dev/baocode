@@ -11,3 +11,7 @@ Future<IdeGitOutput> runGit(
 );
 
 Stream<String> watchRepository(String repositoryRoot) => const Stream.empty();
+
+/// [data] inflated from zlib's format.
+List<int> zlibInflate(List<int> data) =>
+    throw UnsupportedError('zlib is unavailable in the browser.');
