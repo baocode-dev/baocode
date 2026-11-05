@@ -46,6 +46,10 @@ abstract interface class WorkbenchHost {
   /// its editor, or its block at the top of its preview.
   void revealLine(int line, [int column]);
 
+  /// [range] of the active document shown, selected where [select], in
+  /// the middle where [center].
+  void revealRange(LspRange range, {bool select, bool center});
+
   /// Opens [location], recording where the caret was for Go Back where
   /// [record].
   Future<void> openLocation(IdeLocation location, {bool record});
@@ -67,6 +71,9 @@ abstract interface class WorkbenchHost {
 
   /// [model] in the quick input (a pick or an input box).
   void showQuickModel(IdeQuickInputModel model);
+
+  /// The keyboard to the panel's view (Focus Panel).
+  void focusPanel();
 
   /// [error] told in the notifications.
   void report(Object error);

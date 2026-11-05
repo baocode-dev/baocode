@@ -61,6 +61,16 @@ class FakeWorkbenchHost implements WorkbenchHost {
       calls.add('revealLine $line:$column');
 
   @override
+  void revealRange(
+    LspRange range, {
+    bool select = false,
+    bool center = false,
+  }) => calls.add('revealRange ${range.start.line}');
+
+  @override
+  void focusPanel() => calls.add('focusPanel');
+
+  @override
   Future<void> openLocation(IdeLocation location, {bool record = true}) async =>
       calls.add('openLocation ${location.path}');
 

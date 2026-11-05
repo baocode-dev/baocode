@@ -476,8 +476,6 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     'auxiliaryBarVisible' => _chatShown,
     'auxiliaryBarFocus' => _chatFocus.hasFocus,
     'focusedView' => _focusedView ?? '',
-    'inDebugMode' =>
-      (_debug?.state ?? DebugState.inactive) != DebugState.inactive,
     'inDebugRepl' =>
       _panelFocus.hasFocus &&
           (_panel ?? _lastPanel) == IdePanelTab.debugConsole,

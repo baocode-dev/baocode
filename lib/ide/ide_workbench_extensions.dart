@@ -2,24 +2,12 @@ part of 'ide_workbench.dart';
 
 // The workbench's extensions: the Extensions view (the color and file icon
 // theme extensions of lib/extensions/, and the language servers), a theme
-// extension's page, .vsix files dropped on the window, and the debugger's
-// listener.
+// extension's page, and .vsix files dropped on the window.
 
 /// What the Extensions view shows.
 enum _ExtensionsTab { themes, languageServers }
 
 extension _ExtensionsPart on IdeWorkbenchState {
-  void _syncDebugListener() {
-    final debug = _debug;
-    if (identical(debug, _listenedDebug)) return;
-    _listenedDebug?.removeListener(_debugChanged);
-    _listenedDebug = debug?..addListener(_debugChanged);
-  }
-
-  void _debugChanged() {
-    if (mounted) _refresh(() {});
-  }
-
   /// The Extensions view: Themes and Language Servers, as tabs (the
   /// language servers alone without theme extensions).
   Widget _extensionsView() {
