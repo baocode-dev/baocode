@@ -1278,7 +1278,11 @@ class _EditorSurfaceState extends State<EditorSurface>
     if (layout == null) return;
     _scrollToCaret = false;
     _fling?.stop();
-    (_wheel ??= WheelGlider(vsync: this, move: _glide)).add(
+    (_wheel ??= WheelGlider(
+      vsync: this,
+      move: _glide,
+      onDone: _scheduleGeometry,
+    )).add(
       Offset(dx, dy),
       at: Offset(_scrollLeft, _scrollTop),
       max: Offset(_maxScrollLeft(layout), _maxScrollTop(layout)),
@@ -2034,6 +2038,7 @@ class _EditorSurfaceState extends State<EditorSurface>
     (_fling ??= TrackpadFling(
       vsync: this,
       move: _flingBy,
+      onDone: _scheduleGeometry,
     )).start(context, event);
   }
 
