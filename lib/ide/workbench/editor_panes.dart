@@ -11,6 +11,16 @@ import '../file_views.dart';
 import '../ide_workspace.dart';
 import 'services.dart';
 
+/// What the workbench asks of a pane showing the active document, as of
+/// the text editor (upstream `IEditorPane.focus`, a text editor's
+/// `revealLine`).
+abstract interface class EditorPaneControl {
+  void focus();
+
+  /// [line] (one-based) shown, near [column].
+  void revealLine(int line, [int column]);
+}
+
 /// A pane for the documents it [accepts].
 @immutable
 class EditorPane {
@@ -18,6 +28,7 @@ class EditorPane {
     required this.id,
     required this.accepts,
     required this.build,
+    this.control,
   });
 
   final String id;
@@ -25,6 +36,10 @@ class EditorPane {
 
   /// It, for [doc], under the window's [WorkbenchScope].
   final Widget Function(BuildContext context, IdeDocument doc) build;
+
+  /// The pane showing [doc], while it does; none where it takes no
+  /// keyboard.
+  final EditorPaneControl? Function(IdeDocument doc)? control;
 }
 
 class EditorPaneRegistry extends ChangeNotifier {

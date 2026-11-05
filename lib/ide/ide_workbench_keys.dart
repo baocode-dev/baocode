@@ -259,10 +259,10 @@ extension _WorkbenchKeys on IdeWorkbenchState {
   void _openFromPicker(IdeDocument doc, {required bool inBackground}) {
     if (!widget.workspace.documents.contains(doc)) return;
     unawaited(
-      _select(doc).then((_) {
+      _editors.select(doc).then((_) {
         if (inBackground || !mounted) return;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _focusEditor();
+          if (mounted) _editors.focus();
         });
       }),
     );
@@ -276,7 +276,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
         : null;
     void refocus() => _quickInputKey.currentState?.focusInput();
     unawaited(
-      _open(
+      _editors.open(
         path,
         range: at == null ? null : LspRange(at, at),
         afterReveal: refocus,
@@ -355,27 +355,29 @@ extension _WorkbenchKeys on IdeWorkbenchState {
       ),
       _catalogCommand(
         'workbench.action.nextEditorInGroup',
-        () => _cycleEditor(1),
+        () => _editors.cycle(1),
         enabled: docs.length > 1,
       ),
       _catalogCommand(
         'workbench.action.previousEditorInGroup',
-        () => _cycleEditor(-1),
+        () => _editors.cycle(-1),
         enabled: docs.length > 1,
       ),
       _catalogCommand(
         'workbench.action.firstEditorInGroup',
-        () => _openEditorAt(0),
+        () => _editors.openAt(0),
         enabled: hasEditors,
       ),
       _catalogCommand(
         'workbench.action.closeEditorsInGroup',
-        () => unawaited(_closeDocs(docs)),
+        () => unawaited(_editors.closeAll(docs)),
         enabled: hasEditors,
       ),
       _catalogCommand(
         'workbench.action.closeEditorsToTheLeft',
-        () => unawaited(_closeDocs(docs.sublist(0, docs.indexOf(active!)))),
+        () => unawaited(
+          _editors.closeAll(docs.sublist(0, docs.indexOf(active!))),
+        ),
         enabled: active != null && docs.first != active,
       ),
       _catalogCommand(
@@ -457,7 +459,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
         'workbench.action.focusFirstEditorGroup',
         'workbench.action.focusLastEditorGroup',
       ])
-        _catalogCommand(id, _focusEditorOrWorkbench, enabled: editing),
+        _catalogCommand(id, _editors.focusEditorOrWorkbench, enabled: editing),
     ];
   }
 
@@ -572,7 +574,7 @@ extension _SearchAndListKeys on IdeWorkbenchState {
     final match = row?.$2;
     if (row == null || match == null) return;
     unawaited(
-      _open(
+      _editors.open(
         row.$1.path,
         range: LspRange(
           LspPosition(match.line, match.start),

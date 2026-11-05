@@ -39,7 +39,6 @@ import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 
-import 'package:bao_editor/monaco/flutter/document_snapshot.dart';
 import 'package:bao_editor/monaco/flutter/editor_keybindings.dart'
     show editorChordPrefix;
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
@@ -61,10 +60,8 @@ import 'ide_color_theme_picker.dart';
 import 'ide_columns.dart';
 import 'ide_rows.dart';
 import 'ide_commands.dart';
-import 'ide_dialog.dart';
 import 'ide_editor.dart';
 import 'markdown/markdown_paste.dart';
-import 'markdown/markdown_preview.dart';
 import 'ide_explorer.dart';
 import 'ide_local_history.dart';
 import 'ide_hover.dart';
@@ -86,7 +83,6 @@ import 'lsp_ui/lsp_convert.dart';
 import 'lsp_ui/problems_panel.dart';
 import 'lsp_ui/workspace_edit.dart';
 import 'language_mode.dart';
-import 'save_copy.dart';
 import 'search/ide_search_view.dart';
 import 'search/text_search.dart';
 import 'tab_strip_scroll.dart';
@@ -100,6 +96,7 @@ import 'host_paths.dart';
 import 'services/navigation_history.dart';
 import 'services/scm_service.dart';
 import 'services/debug_view.dart';
+import 'services/editors.dart';
 import 'services/explorer.dart';
 import 'services/language.dart';
 import 'services/lists.dart';
@@ -363,8 +360,6 @@ class IdeWorkbench extends StatefulWidget {
 typedef _Chord = ({String label, List<KeyChord> chords, String message});
 
 class IdeWorkbenchState extends State<IdeWorkbench> {
-  final _editorKey = GlobalKey<IdeEditorState>();
-
   /// The window's services and what the features add with them (see
   /// docs/workbench-architecture.md): made as the workbench is, gone with
   /// it.
@@ -408,6 +403,19 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ),
     );
     _panes = _services.add(EditorPaneRegistry());
+    _editors = _services.add(
+      EditorService(
+        host: _host,
+        panes: _panes,
+        workspace: () => widget.workspace,
+        layout: () => widget.workspace.layout,
+        history: () => _services.find<NavigationHistoryService>(),
+        focusWorkbench: _workbenchFocus.requestFocus,
+        // The one in front opened again puts the extension page behind.
+        onShowEditor: () => _extensionPageShown = false,
+        onViewChanged: _editorViewChanged,
+      ),
+    );
     _markdown = _services.add(
       MarkdownPreviewService(
         host: _host,
@@ -550,14 +558,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// Where the caret is (its column as the status bar counts it) and how
   /// much is selected: the status bar alone is built again as it moves.
-  final _caret =
-      ValueNotifier<({Position position, int column, int selected, int lines})>(
-        (position: const Position(1, 1), column: 1, selected: 0, lines: 0),
-      );
-  Position get _caretPosition => _caret.value.position;
-  int get _statusColumn => _caret.value.column;
-  int get _selectionLength => _caret.value.selected;
-  bool _busy = false;
+  ValueNotifier<IdeEditorPosition> get _caret => _editors.caret;
+  Position get _caretPosition => _editors.position;
+  int get _statusColumn => _caret.value.statusColumn;
+  int get _selectionLength => _caret.value.selectionLength;
   String? _activeKey;
 
   /// Source Control: the repository shown, its sessions, what opens and
@@ -609,10 +613,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Whether its tab is the one in front: another selected, it stays.
   bool _extensionPageShown = false;
 
-  /// Editors close: the one in front changing for it does not put the
-  /// extension page behind.
-  bool _closingEditors = false;
-
   /// The quick input's text while it is open (its prefix picks the mode).
   String? _quickInput;
 
@@ -641,9 +641,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Reads the Git status again when the app comes back to the front: a
   /// pull or a commit made elsewhere may have changed it unseen.
   AppLifecycleListener? _lifecycle;
-
-  DocumentSnapshot? _eolSnapshot;
-  String _eolLabel = 'LF';
 
   /// The workspace's language servers, and the active file's symbols.
   late final LanguageService _language;
@@ -680,6 +677,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The editor's panes beside the text editor (see EditorPaneRegistry).
   late final EditorPaneRegistry _panes;
+
+  /// The editors opened, shown and closed.
+  late final EditorService _editors;
 
   /// The markdown files' previews.
   late final MarkdownPreviewService _markdown;
@@ -743,7 +743,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final workspace = widget.workspace;
     final dirty = workspace.documents.where(_autoSaves).toList();
     if (dirty.isEmpty) return;
-    await _flushEditor();
+    await _editors.flush();
     for (final doc in dirty) {
       if (!mounted || !identical(workspace, widget.workspace)) return;
       try {
@@ -892,7 +892,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   static const _sashWidth = IdeModernUI.gap;
 
-  IdeEditorState? get _editor => _editorKey.currentState;
+  IdeEditorState? get _editor => _editors.editor;
 
   /// The file in front in the editor, its cursor and the lines selected:
   /// what the chat beside it tells the agent. None for a tab of no file of
@@ -903,46 +903,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (doc.isMedia) return OpenEditor(doc.path);
     if (!doc.isFile) return null;
     return OpenEditor.at(doc.path, doc.model.snapshot, _editor?.selection);
-  }
-
-  /// The active markdown document's preview, when it shows.
-  IdeMarkdownPreviewState? get _preview => _markdown.preview;
-
-  /// The edits the active editor holds back (a field of the fallback
-  /// editor) put in its document.
-  Future<void> _flushEditor() async {
-    await _editor?.flush();
-  }
-
-  /// The keyboard to the active editor, or the preview.
-  void _focusEditor() {
-    if (_editor case final editor?) {
-      editor.focus();
-    } else {
-      _preview?.focus();
-    }
-  }
-
-  /// [line] (one-based) of the active document shown: the caret there in
-  /// its editor, or its block at the top of its preview.
-  void _revealLine(int line, [int column = 1]) {
-    if (_editor case final editor?) {
-      unawaited(editor.revealLine(line, column));
-    } else {
-      _preview?.revealLine(line, column);
-    }
-  }
-
-  void _revealRange(
-    LspRange range, {
-    bool select = false,
-    bool center = false,
-  }) {
-    if (_editor case final editor?) {
-      editor.revealRange(range, select: select, center: center);
-    } else {
-      _preview?.revealLine(range.start.line + 1);
-    }
   }
 
   /// Find in a preview: in its source, as the preview has no find.
@@ -963,18 +923,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       return;
     }
     replace ? _editor?.openReplace() : _editor?.openFind();
-  }
-
-  /// Save: the editor's, or the preview's document.
-  Future<void> _save() async {
-    if (_editor case final editor?) return editor.save();
-    final doc = widget.workspace.active;
-    if (doc == null) return;
-    try {
-      await widget.workspace.save(doc);
-    } catch (error) {
-      _report(error);
-    }
   }
 
   /// [setState], for the commands of ide_workbench_keys.dart.
@@ -1020,8 +968,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // The servers or their symbols changed; references found.
     _language.addListener(_servicesChanged);
     _referencesView.addListener(_servicesChanged);
-    // The explorer's panes opened or closed.
+    // The explorer's panes opened or closed; an editor opening.
     _explorerService.addListener(_servicesChanged);
+    _editors.addListener(_servicesChanged);
     if (widget.visible) _focusSoon();
   }
 
@@ -1046,8 +995,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       NavigationHistoryService(
         workspace: workspace,
         caret: () => _caretPosition,
-        open: (location) => _openLocation(location, record: false),
-        select: _select,
+        open: (location) => _editors.openLocation(location, record: false),
+        select: _editors.select,
       ),
     );
     workspace.addListener(_workspaceChanged);
@@ -1177,11 +1126,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _language.removeListener(_servicesChanged);
     _referencesView.removeListener(_servicesChanged);
     _explorerService.removeListener(_servicesChanged);
+    _editors.removeListener(_servicesChanged);
     _detach(widget.workspace);
     disposeContributions(_contributions);
     _services.dispose();
     _extensions?.dispose();
-    _caret.dispose();
     _workbenchFocus.dispose();
     _search.keptChanges.removeListener(_keepViewSoon);
     _search.dispose();
@@ -1235,11 +1184,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         if (!mounted) return;
         _layout.showEditor();
         unawaited(
-          _openLocation(
+          _editors.openLocation(
             location,
             select: true,
             record: false,
-            afterReveal: _focusEditor,
+            afterReveal: _editors.focus,
           ),
         );
       });
@@ -1264,7 +1213,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         }
       });
     }
-    if (!_closingEditors) _extensionPageShown = false;
+    if (!_editors.closing) _extensionPageShown = false;
     _language.recommendServers();
     _explorerService.follow(path);
   }
@@ -1282,17 +1231,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               this) {
         return;
       }
-      _focusEditorOrWorkbench();
+      _editors.focusEditorOrWorkbench();
     });
-  }
-
-  void _focusEditorOrWorkbench() {
-    final editor = _editor;
-    if (editor != null && widget.workspace.active != null) {
-      editor.focus();
-    } else {
-      _workbenchFocus.requestFocus();
-    }
   }
 
   /// Hands [path] to the app the system opens it with (a file the IDE
@@ -1314,209 +1254,21 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   // --- Editors ---------------------------------------------------------------
 
   /// The next file with an agent's change pending, once one is done.
-  void _openAgentChange(String path) => unawaited(_open(path));
-
-  Future<void> _open(
-    String path, {
-    int? line,
-    int? column,
-    LspRange? range,
-    bool select = false,
-    bool center = false,
-    bool focusEditor = false,
-    VoidCallback? afterReveal,
-  }) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      await _flushEditor();
-      await widget.workspace.open(path);
-      if (!mounted) return;
-      // The one in front opened again puts the extension page behind too.
-      _extensionPageShown = false;
-      // The active one opened again changes nothing [_workspaceChanged]
-      // follows, but is asked for all the same.
-      _layout.showEditor();
-      if (line != null || range != null || focusEditor) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          if (range != null) {
-            _revealRange(range, select: select, center: center);
-            afterReveal?.call();
-          } else if (line != null) {
-            _revealLine(line, column ?? 1);
-          } else {
-            _focusEditor();
-          }
-        });
-      }
-    } catch (error) {
-      _report(error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
+  void _openAgentChange(String path) => unawaited(_editors.open(path));
 
   void _leaveGitLog() => _scmService.leaveGitLog();
-
-  /// Runs [open], an editor's opening, once the editor's changes are
-  /// written back; the keyboard to the editor after where [focusEditor].
-  Future<void> _openEditorWith(
-    Future<void> Function() open, {
-    bool focusEditor = false,
-  }) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      await _flushEditor();
-      await open();
-      if (mounted && focusEditor) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _focusEditor();
-        });
-      }
-    } catch (error) {
-      _report(error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _select(IdeDocument doc) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      await _flushEditor();
-      _extensionPageShown = false;
-      widget.workspace.select(doc.key);
-    } catch (error) {
-      _report(error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  /// VS Code's save confirmation: Save, Don't Save or Cancel.
-  Future<String?> _confirmClose(IdeDocument doc) async {
-    final l10n = context.l10n;
-    final choice = await showIdeDialog(
-      context,
-      message: l10n.wbConfirmSave(doc.name),
-      detail: l10n.explorerChangesLost,
-      buttons: [l10n.commonSave, l10n.commonDontSave],
-    );
-    return switch (choice) {
-      0 => 'save',
-      1 => 'discard',
-      _ => null,
-    };
-  }
-
-  /// Closes [docs] in order, asking about each unsaved one; Cancel stops.
-  Future<void> _closeDocs(List<IdeDocument> docs) async {
-    if (_busy || docs.isEmpty) return;
-    setState(() => _busy = true);
-    _closingEditors = true;
-    try {
-      await _flushEditor();
-      for (final doc in docs) {
-        if (!mounted) return;
-        if (!widget.workspace.documents.contains(doc)) continue;
-        if (doc.dirty) {
-          final choice = await _confirmClose(doc);
-          if (choice == null || !mounted) return;
-          if (choice == 'save' && doc.isUntitled) {
-            // Saved as a file, that is what closes; not saved, nothing.
-            final saved = await widget.workspace.saveAs(doc);
-            if (saved == null || !mounted) return;
-            widget.workspace.close(saved);
-            continue;
-          }
-          if (choice == 'save') await widget.workspace.save(doc);
-        }
-        await _editor?.closeDocument(doc);
-        _history.editorClosed(doc);
-        widget.workspace.close(doc);
-      }
-    } catch (error) {
-      _report(error);
-    } finally {
-      _closingEditors = false;
-      if (mounted) {
-        setState(() => _busy = false);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _focusEditorOrWorkbench();
-        });
-      }
-    }
-  }
-
-  Future<void> _close(IdeDocument doc) => _closeDocs([doc]);
 
   void _closeActive() {
     if (_extensionPageShown && _extensionPage != null) {
       _closeExtensionPage();
       return;
     }
-    if (widget.workspace.active case final doc?) unawaited(_close(doc));
-  }
-
-  void _cycleEditor(int delta) {
-    final docs = widget.workspace.documents;
-    if (docs.length < 2) return;
-    final index = docs.indexOf(widget.workspace.active ?? docs.first);
-    unawaited(_select(docs[(index + delta) % docs.length]));
-  }
-
-  void _openEditorAt(int index) {
-    final docs = widget.workspace.documents;
-    if (docs.isEmpty) return;
-    unawaited(
-      _select(
-        docs[index < 0 ? docs.length - 1 : math.min(index, docs.length - 1)],
-      ),
-    );
-  }
-
-  Future<void> _saveAll() async {
-    try {
-      await _flushEditor();
-      for (final doc in widget.workspace.documents) {
-        if (doc.dirty) await widget.workspace.save(doc);
-      }
-    } catch (error) {
-      _report(error);
-    }
+    if (widget.workspace.active case final doc?) unawaited(_editors.close(doc));
   }
 
   String _relative(String path) => widget.workspace.isMultiRoot
       ? widget.workspace.relativePath(path)
       : widget.workspace.paths.relative(path, from: widget.workspace.root);
-
-  /// New Text File: an untitled one, its editor focused.
-  void _newUntitled() {
-    final doc = widget.workspace.newUntitled();
-    unawaited(_select(doc));
-  }
-
-  /// Save As: the editor's text ([doc]'s, else the active one's) to a file
-  /// asked for, its tab then that file's. A picture's or a file not shown
-  /// as text is copied instead.
-  Future<void> _saveAs([IdeDocument? doc]) async {
-    doc ??= widget.workspace.active;
-    if (doc == null) return;
-    try {
-      if (!doc.isFile && !doc.isUntitled) {
-        await saveFileCopyAs(widget.workspace.files, doc.path);
-        return;
-      }
-      if (identical(doc, widget.workspace.active)) await _flushEditor();
-      final saved = await widget.workspace.saveAs(doc);
-      if (saved != null && mounted) _focusSoon();
-    } catch (error) {
-      _report(error);
-    }
-  }
 
   /// Search without a folder: the open files' text, as upstream searches
   /// the open editors alone in an empty window.
@@ -1550,31 +1302,31 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final docs = widget.workspace.documents;
     switch (action) {
       case IdeTabAction.close:
-        unawaited(_close(doc));
+        unawaited(_editors.close(doc));
       case IdeTabAction.closeOthers:
         unawaited(
-          _closeDocs([
+          _editors.closeAll([
             for (final d in docs)
               if (!identical(d, doc)) d,
           ]),
         );
       case IdeTabAction.closeToTheRight:
-        unawaited(_closeDocs(docs.sublist(docs.indexOf(doc) + 1)));
+        unawaited(_editors.closeAll(docs.sublist(docs.indexOf(doc) + 1)));
       case IdeTabAction.closeSaved:
         unawaited(
-          _closeDocs([
+          _editors.closeAll([
             for (final d in docs)
               if (!d.dirty) d,
           ]),
         );
       case IdeTabAction.closeAll:
-        unawaited(_closeDocs(docs));
+        unawaited(_editors.closeAll(docs));
       case IdeTabAction.copyPath:
         unawaited(Clipboard.setData(ClipboardData(text: doc.path)));
       case IdeTabAction.copyRelativePath:
         unawaited(Clipboard.setData(ClipboardData(text: _relative(doc.path))));
       case IdeTabAction.saveAs:
-        unawaited(_saveAs(doc));
+        unawaited(_editors.saveAs(doc));
       case IdeTabAction.revealInFileManager:
         unawaited(WindowControls.revealInFileManager(doc.path));
       case IdeTabAction.openInDefaultApp:
@@ -1586,7 +1338,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   Future<void> _back() async {
     try {
-      await _flushEditor();
+      await _editors.flush();
       if (mounted) widget.onBack();
     } catch (error) {
       _report(error);
@@ -1594,32 +1346,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   // --- Language features ---------------------------------------------------
-
-  /// Opens [location] (another file too), recording where the caret was
-  /// for Go Back.
-  Future<void> _openLocation(
-    IdeLocation location, {
-    bool select = false,
-    bool center = false,
-    bool record = true,
-    VoidCallback? afterReveal,
-  }) async {
-    if (record) _history.recordHere();
-    if (widget.workspace.active?.path == location.path) {
-      _revealRange(location.range, select: select, center: center);
-      afterReveal?.call();
-      if (mounted) setState(() {});
-      return;
-    }
-    await _open(
-      location.path,
-      range: location.range,
-      select: select,
-      center: center,
-      focusEditor: true,
-      afterReveal: afterReveal,
-    );
-  }
 
   /// Go Back (⌃-) / Go Forward (⌃⇧-), and the mouse's back and forward
   /// buttons: whether there was somewhere to go.
@@ -1735,7 +1461,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void showQuickPick(IdeQuickInputModel model) => _showQuickModel(model);
 
   /// Opens [path] in an editor and focuses it (the host's Open File…).
-  Future<void> openFile(String path) => _open(path, focusEditor: true);
+  Future<void> openFile(String path) => _editors.open(path, focusEditor: true);
 
   /// Shows the chat, if hidden (e.g. for an agent a notification opens).
   void showChat() => _layout.showChat();
@@ -1746,7 +1472,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// Has the editor's last keys in its document, for what is unsaved to be
   /// all of it (before its window closes, or the app quits).
-  Future<void> flush() async => _flushEditor();
+  Future<void> flush() async => _editors.flush();
 
   /// Whether the panel's terminals run: a shell alive, or
   /// ([childProcesses]) one running a command
@@ -1783,7 +1509,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     await IdeLanguageNames.load();
     if (!mounted || !identical(widget.workspace.active, active)) return;
     _showQuickModel(
-      languageModePick(l10n, active.path, onPicked: _focusEditor),
+      languageModePick(l10n, active.path, onPicked: _editors.focus),
     );
   }
 
@@ -1808,7 +1534,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           if (item == null) return;
           if (!identical(widget.workspace.active, active)) return;
           _editor?.setEndOfLine(identical(item, crlf) ? '\r\n' : '\n');
-          _focusEditor();
+          _editors.focus();
         },
       ),
     );
@@ -1846,7 +1572,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         previous.canRequestFocus) {
       previous.requestFocus();
     } else {
-      _focusEditorOrWorkbench();
+      _editors.focusEditorOrWorkbench();
     }
     model?.onDidHide?.call();
   }
@@ -1897,7 +1623,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         lineCount: active?.model.snapshot.lineCount,
         currentLine: _caretPosition.lineNumber,
         currentColumn: _statusColumn,
-        onGo: (line, column) => _revealLine(line, column ?? 1),
+        onGo: (line, column) => _editors.revealLine(line, column ?? 1),
         l10n: l10n,
       );
     }
@@ -1909,8 +1635,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       text,
       index: _fileIndex,
       recent: _history.recentFiles.items,
-      onOpen: (path, line, column) =>
-          unawaited(_open(path, line: line, column: column, focusEditor: true)),
+      onOpen: (path, line, column) => unawaited(
+        _editors.open(path, line: line, column: column, focusEditor: true),
+      ),
       onOpenInBackground: _openFileInBackground,
       l10n: l10n,
     );
@@ -2205,14 +1932,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         category: 'File',
         label: 'Save',
         enabled: active != null,
-        run: () => unawaited(_save()),
+        run: () => unawaited(_editors.save()),
       ),
       IdeCommand(
         id: 'workbench.action.files.saveAll',
         category: 'File',
         label: 'Save All',
         enabled: workspace.documents.any((doc) => doc.dirty),
-        run: () => unawaited(_saveAll()),
+        run: () => unawaited(_editors.saveAll()),
       ),
       IdeCommand(
         id: 'workbench.action.files.saveAs',
@@ -2223,13 +1950,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
             (active.isFile || active.isUntitled) &&
             active.label == null &&
             workspace.askSavePath != null,
-        run: () => unawaited(_saveAs()),
+        run: () => unawaited(_editors.saveAs()),
       ),
       IdeCommand(
         id: 'workbench.action.files.newUntitledFile',
         category: 'File',
         label: 'New Text File',
-        run: _newUntitled,
+        run: _editors.newUntitled,
       ),
       IdeCommand(
         id: 'workbench.action.closeActiveEditor',
@@ -2258,7 +1985,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         label: 'Close Saved Editors',
         enabled: workspace.documents.any((doc) => !doc.dirty),
         run: () => unawaited(
-          _closeDocs([
+          _editors.closeAll([
             for (final doc in workspace.documents)
               if (!doc.dirty) doc,
           ]),
@@ -2269,21 +1996,21 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         category: 'View',
         label: 'Close All Editors',
         enabled: hasEditors,
-        run: () => unawaited(_closeDocs(workspace.documents)),
+        run: () => unawaited(_editors.closeAll(workspace.documents)),
       ),
       IdeCommand(
         id: 'workbench.action.nextEditor',
         category: 'View',
         label: 'Open Next Editor',
         enabled: workspace.documents.length > 1,
-        run: () => _cycleEditor(1),
+        run: () => _editors.cycle(1),
       ),
       IdeCommand(
         id: 'workbench.action.previousEditor',
         category: 'View',
         label: 'Open Previous Editor',
         enabled: workspace.documents.length > 1,
-        run: () => _cycleEditor(-1),
+        run: () => _editors.cycle(-1),
       ),
       // ⌃9 / Alt+9 opens the last editor when there are fewer.
       for (var i = 1; i <= 9; i++)
@@ -2292,14 +2019,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           category: 'View',
           label: 'Open Editor at Index $i',
           enabled: hasEditors,
-          run: () => _openEditorAt(i == 9 ? -1 : i - 1),
+          run: () => _editors.openAt(i == 9 ? -1 : i - 1),
         ),
       IdeCommand(
         id: 'workbench.action.lastEditorInGroup',
         category: 'View',
         label: 'Open Last Editor in Group',
         enabled: hasEditors,
-        run: () => _openEditorAt(-1),
+        run: () => _editors.openAt(-1),
       ),
       IdeCommand(
         id: 'workbench.action.toggleSidebarVisibility',
@@ -2603,8 +2330,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       root: widget.workspace.root,
       // The workspace's own: replacing writes into its documents.
       replaceBackend: widget.workspace,
-      onOpen: (path, range, {required focusEditor}) =>
-          _open(path, range: range, select: true, focusEditor: focusEditor),
+      onOpen: (path, range, {required focusEditor}) => _editors.open(
+        path,
+        range: range,
+        select: true,
+        focusEditor: focusEditor,
+      ),
       onError: _report,
     ),
     // The Git log, in the side bar's and the editor's place (see
@@ -2622,7 +2353,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           _scmService.panelKey.currentState?.fixupInto(git, commit),
       onOpen: (path) {
         _leaveGitLog();
-        unawaited(_open(path, focusEditor: true));
+        unawaited(_editors.open(path, focusEditor: true));
       },
       onAddToChat: widget.onAddToChat,
       // Another worktree's changes and branch in Source Control.
@@ -2643,7 +2374,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         notifications: _notifications,
         onOpen: (path, {focusEditor = false}) {
           _leaveGitLog();
-          return _open(path, focusEditor: focusEditor);
+          return _editors.open(path, focusEditor: focusEditor);
         },
         onOpenChange: _scmService.openChangeInLog,
         onRevealInExplorer: (path) {
@@ -2660,7 +2391,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         onShowDiff: (files, index) => _scm.log.showDiff(files, index),
         onOpenAt: (path, line) {
           _leaveGitLog();
-          return _open(path, line: line, center: true, focusEditor: true);
+          return _editors.open(
+            path,
+            line: line,
+            center: true,
+            focusEditor: true,
+          );
         },
       ),
     ),
@@ -2787,7 +2523,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                   ? widget.onRemoveFolder
                                   : null,
                               onOpen: (path, focusEditor) => unawaited(
-                                _open(path, focusEditor: focusEditor),
+                                _editors.open(path, focusEditor: focusEditor),
                               ),
                               onMoved: workspace.moved,
                               onDeleted: workspace.deleted,
@@ -2916,8 +2652,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 documents: widget.workspace.documents,
                 active: pageShown ? null : active,
                 root: widget.workspace.root,
-                onSelect: (doc) => unawaited(_select(doc)),
-                onClose: (doc) => unawaited(_close(doc)),
+                onSelect: (doc) => unawaited(_editors.select(doc)),
+                onClose: (doc) => unawaited(_editors.close(doc)),
                 onAction: _tabAction,
                 onMove: widget.workspace.moveDocument,
                 local: _local,
@@ -3022,17 +2758,17 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                 IdeEditor(
                                   nativeEditorEnabled:
                                       widget.nativeEditorEnabled,
-                                  key: _editorKey,
+                                  key: _editors.editorKey,
                                   workspace: widget.workspace,
                                   active: active,
                                   onError: _report,
                                   onLspStatus: (_) {},
-                                  onPositionChanged: _positionChanged,
+                                  onPositionChanged: _editors.positionChanged,
                                   onScrolled: _editorViewChanged,
                                   // Go to Definition's target (F12),
                                   // centered even when already in view.
-                                  onOpenLocation: (location) =>
-                                      _openLocation(location, center: true),
+                                  onOpenLocation: (location) => _editors
+                                      .openLocation(location, center: true),
                                   onShowReferences: _referencesView.show,
                                   onShowCommands: () => _showQuickInput('>'),
                                   gitBlame: _gitBlame,
@@ -3062,23 +2798,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         ),
       ),
     );
-  }
-
-  void _positionChanged(IdeEditorPosition selection) {
-    _history.caretMoved(selection.position);
-    _editorViewChanged();
-    if (mounted &&
-        (!_caretPosition.equals(selection.position) ||
-            _statusColumn != selection.statusColumn ||
-            _selectionLength != selection.selectionLength ||
-            _caret.value.lines != selection.selectionLines)) {
-      _caret.value = (
-        position: selection.position,
-        column: selection.statusColumn,
-        selected: selection.selectionLength,
-        lines: selection.selectionLines,
-      );
-    }
   }
 
   /// The chat, kept mounted (and its state kept) while hidden.
@@ -3520,7 +3239,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         unawaited(openExternal(link.text));
       case TerminalLinkType.localFile:
         unawaited(
-          _open(
+          _editors.open(
             link.path!,
             line: link.line,
             column: link.column,
@@ -3604,8 +3323,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                             ? _terminalView.show()
                             : _selectPanel(tab),
                         onClose: () => setState(() => _panel = null),
-                        onOpen: (location, {select = false}) =>
-                            unawaited(_openLocation(location, select: select)),
+                        onOpen: (location, {select = false}) => unawaited(
+                          _editors.openLocation(location, select: select),
+                        ),
                         onOpenFocused: (location) =>
                             unawaited(openWithKeyboard(_host, location)),
                         problemsList: _problems.list,
@@ -3762,11 +3482,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   }
 
   IdeStatusBar _statusBar() {
-    final active = widget.workspace.active;
     final l10n = context.l10n;
-    // An item doing what a command does has its keybinding in its tooltip
-    // (a deviation: upstream's status bar items have their tooltips alone).
-    final keys = KeybindingService.instance;
     // The entries not yet the status bar service's, with the priorities
     // they will have (the greater, the further left).
     final left = <(double, IdeStatusBarItem)>[
@@ -3778,76 +3494,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       left,
       _statusbar.entries(context, StatusbarAlignment.left),
     );
-    final added = _statusbar.entries(context, StatusbarAlignment.right);
-    if (active == null || active.openError != null || active.isMedia) {
-      return IdeStatusBar(
-        left: leftItems,
-        right: mergeStatusbarItems([(-1000, bell)], added),
-      );
-    }
-    final snapshot = active.model.snapshot;
-    if (!identical(snapshot, _eolSnapshot)) {
-      _eolSnapshot = snapshot;
-      _eolLabel = ideEolLabel(snapshot);
-    }
     return IdeStatusBar(
       left: leftItems,
       right: mergeStatusbarItems([
-        (
-          100,
-          IdeStatusBarItem(
-            l10n.referencesPosition(_caretPosition.lineNumber, _statusColumn) +
-                switch ((_selectionLength, _caret.value.lines)) {
-                  (0, _) => '',
-                  (final count, final lines) when lines > 1 =>
-                    ' ${l10n.wbSelectedLines(lines, count)}',
-                  (final count, _) => ' ${l10n.wbSelectedCount(count)}',
-                },
-            tooltip: keys.titleWithKeybinding(
-              l10n.wbGoToLineColumn,
-              'workbench.action.gotoLine',
-            ),
-            onTap: () => _showQuickInput(':'),
-          ),
-        ),
-        (
-          90,
-          IdeStatusBarItem(
-            _editor?.localizedIndentationLabel(l10n) ?? l10n.wbSpaces(4),
-            tooltip: l10n.wbIndentation,
-          ),
-        ),
-        (
-          80,
-          IdeStatusBarItem(
-            ideEncodingLabel(snapshot.text),
-            tooltip: l10n.wbEncoding,
-          ),
-        ),
-        (
-          70,
-          IdeStatusBarItem(
-            _eolLabel == 'Mixed' ? l10n.wbEolMixed : _eolLabel,
-            tooltip: keys.titleWithKeybinding(
-              l10n.wbSelectEol,
-              'workbench.action.editor.changeEOL',
-            ),
-            onTap: _changeEndOfLine,
-          ),
-        ),
-        (
-          60,
-          IdeStatusBarItem(
-            IdeLanguageNames.forPath(active.path),
-            tooltip: keys.titleWithKeybinding(
-              l10n.languageModePlaceholder,
-              'workbench.action.editor.changeLanguageMode',
-            ),
-            onTap: () => unawaited(_changeLanguageMode()),
-          ),
-        ),
         (-1000, bell),
-      ], added),
+      ], _statusbar.entries(context, StatusbarAlignment.right)),
     );
   }
 
@@ -3982,10 +3633,10 @@ class _Host implements WorkbenchHost {
   BuildContext? get context => _state.mounted ? _state.context : null;
 
   @override
-  Future<void> flushEditor() => _state._flushEditor();
+  Future<void> flushEditor() => _state._editors.flush();
 
   @override
-  void focusEditor() => _state._focusEditor();
+  void focusEditor() => _state._editors.focus();
 
   @override
   Future<void> openFile(
@@ -3994,7 +3645,7 @@ class _Host implements WorkbenchHost {
     int? column,
     LspRange? range,
     bool focusEditor = false,
-  }) => _state._open(
+  }) => _state._editors.open(
     path,
     line: line,
     column: column,
@@ -4007,14 +3658,14 @@ class _Host implements WorkbenchHost {
 
   @override
   void revealLine(int line, [int column = 1]) =>
-      _state._revealLine(line, column);
+      _state._editors.revealLine(line, column);
 
   @override
   void revealRange(
     LspRange range, {
     bool select = false,
     bool center = false,
-  }) => _state._revealRange(range, select: select, center: center);
+  }) => _state._editors.revealRange(range, select: select, center: center);
 
   @override
   void focusPanel() => _state._focusPanel();
@@ -4025,7 +3676,7 @@ class _Host implements WorkbenchHost {
     bool select = false,
     bool record = true,
     VoidCallback? afterReveal,
-  }) => _state._openLocation(
+  }) => _state._editors.openLocation(
     location,
     select: select,
     record: record,
@@ -4033,16 +3684,16 @@ class _Host implements WorkbenchHost {
   );
 
   @override
-  Future<void> selectEditor(IdeDocument doc) => _state._select(doc);
+  Future<void> selectEditor(IdeDocument doc) => _state._editors.select(doc);
 
   @override
-  bool get editorBusy => _state._busy;
+  bool get editorBusy => _state._editors.busy;
 
   @override
   Future<void> openEditorWith(
     Future<void> Function() open, {
     bool focusEditor = false,
-  }) => _state._openEditorWith(open, focusEditor: focusEditor);
+  }) => _state._editors.openWith(open, focusEditor: focusEditor);
 
   @override
   IdeSideView get view => _state._view;
