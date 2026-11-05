@@ -141,36 +141,36 @@ void main() {
     expect(platform.boundRelays, defaultLinkRelays);
   });
 
-  test('direct only: no relay kept, told or bound to; its own port alone',
-      () async {
-    await host.setEnabled(true);
-    await host.setRelayMode(LinkRelayMode.direct);
-    expect(host.relays, isEmpty);
-    expect(platform.boundRelays, isEmpty);
-    expect(platform.boundStrictPort, isTrue);
-    expect(platform.kept['relayMode'], 'direct');
+  test(
+    'direct only: no relay kept, told or bound to; its own port alone',
+    () async {
+      await host.setEnabled(true);
+      await host.setRelayMode(LinkRelayMode.direct);
+      expect(host.relays, isEmpty);
+      expect(platform.boundRelays, isEmpty);
+      expect(platform.boundStrictPort, isTrue);
+      expect(platform.kept['relayMode'], 'direct');
 
-    final offer = (await host.beginPairing())!;
-    expect(offer.relays, isEmpty);
-    expect(offer.direct, isTrue);
-    final parsed = PairingOffer.parse(offer.uri);
-    expect(parsed.direct, isTrue);
-    expect(parsed.relays, isEmpty);
+      final offer = (await host.beginPairing())!;
+      expect(offer.relays, isEmpty);
+      expect(offer.direct, isTrue);
+      final parsed = PairingOffer.parse(offer.uri);
+      expect(parsed.direct, isTrue);
+      expect(parsed.relays, isEmpty);
 
-    final peer = await connect(phone);
-    final hello =
-        await peer.call(LinkMethods.hello, {
-              'name': 'iPhone',
-              'token': encodeKey(offer.token),
-            })
-            as Map;
-    final device = DeviceInfo.fromJson(
-      hello['device']! as Map<String, Object?>,
-    );
-    expect(device.direct, isTrue);
-    expect(device.relays, isEmpty);
-    await peer.close();
-  });
+      final peer = await connect(phone);
+      final hello = await peer.call(LinkMethods.hello, {
+        'name': 'iPhone',
+        'token': encodeKey(offer.token),
+      }) as Map;
+      final device = DeviceInfo.fromJson(
+        hello['device']! as Map<String, Object?>,
+      );
+      expect(device.direct, isTrue);
+      expect(device.relays, isEmpty);
+      await peer.close();
+    },
+  );
 
   test('the direct port: kept, and bound to alone', () async {
     await host.setEnabled(true);
@@ -841,6 +841,18 @@ void main() {
     await host.advertising;
     expect(platform.advertised, hasLength(1));
     await host.setEnabled(false);
+    await host.advertising;
+    expect(platform.advertised, isEmpty);
+  });
+
+  test('quitting, it is advertised no more, whatever changes', () async {
+    await host.setEnabled(true);
+    await host.advertising;
+    expect(platform.advertised, hasLength(1));
+
+    await host.stopAdvertising();
+    expect(platform.advertised, isEmpty);
+    await host.beginPairing();
     await host.advertising;
     expect(platform.advertised, isEmpty);
   });
