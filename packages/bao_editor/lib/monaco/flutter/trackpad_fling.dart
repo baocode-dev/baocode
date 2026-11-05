@@ -12,13 +12,18 @@ import 'package:flutter/widgets.dart';
 /// The fingers' moves are the view's to follow as they come; this only
 /// tracks them ([start], [update]) to fling it after ([end]).
 class TrackpadFling {
-  TrackpadFling({required TickerProvider vsync, required this.move}) {
+  TrackpadFling({
+    required TickerProvider vsync,
+    required this.move,
+    this.onDone,
+  }) {
     _ticker = vsync.createTicker(_tick);
   }
 
   /// Moves the view by what a frame gives, and says which ways it went all
   /// of that (not stopped at an end), to go on.
   final ({bool x, bool y}) Function(Offset by) move;
+  final VoidCallback? onDone;
 
   late final Ticker _ticker;
   VelocityTracker? _tracker;
@@ -149,7 +154,10 @@ class TrackpadFling {
     if (!identical(x, _x) || !identical(y, _y)) return;
     if (x != null && (x.simulation.isDone(time) || !went.x)) _x = null;
     if (y != null && (y.simulation.isDone(time) || !went.y)) _y = null;
-    if (!flinging) _ticker.stop();
+    if (!flinging) {
+      _ticker.stop();
+      onDone?.call();
+    }
   }
 
   void dispose() => _ticker.dispose();

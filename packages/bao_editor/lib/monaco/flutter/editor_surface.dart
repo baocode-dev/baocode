@@ -1278,7 +1278,11 @@ class _EditorSurfaceState extends State<EditorSurface>
     if (layout == null) return;
     _scrollToCaret = false;
     _fling?.stop();
-    (_wheel ??= WheelGlider(vsync: this, move: _glide)).add(
+    (_wheel ??= WheelGlider(
+      vsync: this,
+      move: _glide,
+      onDone: _scheduleGeometry,
+    )).add(
       Offset(dx, dy),
       at: Offset(_scrollLeft, _scrollTop),
       max: Offset(_maxScrollLeft(layout), _maxScrollTop(layout)),
@@ -2034,6 +2038,7 @@ class _EditorSurfaceState extends State<EditorSurface>
     (_fling ??= TrackpadFling(
       vsync: this,
       move: _flingBy,
+      onDone: _scheduleGeometry,
     )).start(context, event);
   }
 
@@ -2761,33 +2766,35 @@ class _EditorSurfaceState extends State<EditorSurface>
             ),
             Positioned.fill(
               child: IgnorePointer(
-                child: CustomPaint(
-                  painter: EditorGutterPainter(
-                    layout: layout,
-                    geometry: geometry,
-                    scrollTop: _scrollTop,
-                    background: widget.backgroundColor,
-                    theme: theme,
-                    glyphs: glyphs,
-                    lineNumbers: lineNumbers,
-                    lineNumberOf: widget.lineNumberOf,
-                    activeLines: activeLines,
-                    cursorLine: primary.isValid
-                        ? snapshot
-                              .positionAtOffset(
-                                primary.extentOffset.clamp(
-                                  0,
-                                  snapshot.text.length,
-                                ),
-                              )
-                              .lineNumber
-                        : 0,
-                    folding: _folding,
-                    foldingVersion: _foldingVersion,
-                    showFoldingControls: _hover == _Part.gutter,
-                    foldingEnabled: widget.folding,
-                    decorations: _decorations,
-                    annotations: widget.lineAnnotations,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: EditorGutterPainter(
+                      layout: layout,
+                      geometry: geometry,
+                      scrollTop: _scrollTop,
+                      background: widget.backgroundColor,
+                      theme: theme,
+                      glyphs: glyphs,
+                      lineNumbers: lineNumbers,
+                      lineNumberOf: widget.lineNumberOf,
+                      activeLines: activeLines,
+                      cursorLine: primary.isValid
+                          ? snapshot
+                                .positionAtOffset(
+                                  primary.extentOffset.clamp(
+                                    0,
+                                    snapshot.text.length,
+                                  ),
+                                )
+                                .lineNumber
+                          : 0,
+                      folding: _folding,
+                      foldingVersion: _foldingVersion,
+                      showFoldingControls: _hover == _Part.gutter,
+                      foldingEnabled: widget.folding,
+                      decorations: _decorations,
+                      annotations: widget.lineAnnotations,
+                    ),
                   ),
                 ),
               ),
@@ -2825,28 +2832,30 @@ class _EditorSurfaceState extends State<EditorSurface>
               ),
             Positioned.fill(
               child: IgnorePointer(
-                child: CustomPaint(
-                  painter: EditorScrollbarPainter(
-                    layout: layout,
-                    theme: theme,
-                    contentRect: contentRect,
-                    verticalTrack: geometry.verticalScrollbarRect,
-                    horizontalTrack: geometry.horizontalScrollbarRect,
-                    vertical: _verticalSlider(layout, geometry),
-                    horizontal: _horizontalSlider(layout, geometry),
-                    scrollTop: _scrollTop,
-                    scrollLeft: _scrollLeft,
-                    scrollHeight: scrollHeight,
-                    decorations: _decorations,
-                    overviewCache: _overviewCache,
-                    cursorLines: activeLines.toList(),
-                    hovered: _hoveredScrollbar,
-                    dragging: switch (_dragMode) {
-                      _DragMode.verticalScrollbar => ScrollbarPart.vertical,
-                      _DragMode.horizontalScrollbar => ScrollbarPart.horizontal,
-                      _ => ScrollbarPart.none,
-                    },
-                    fade: _scrollbarFade,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: EditorScrollbarPainter(
+                      layout: layout,
+                      theme: theme,
+                      contentRect: contentRect,
+                      verticalTrack: geometry.verticalScrollbarRect,
+                      horizontalTrack: geometry.horizontalScrollbarRect,
+                      vertical: _verticalSlider(layout, geometry),
+                      horizontal: _horizontalSlider(layout, geometry),
+                      scrollTop: _scrollTop,
+                      scrollLeft: _scrollLeft,
+                      scrollHeight: scrollHeight,
+                      decorations: _decorations,
+                      overviewCache: _overviewCache,
+                      cursorLines: activeLines.toList(),
+                      hovered: _hoveredScrollbar,
+                      dragging: switch (_dragMode) {
+                        _DragMode.verticalScrollbar => ScrollbarPart.vertical,
+                        _DragMode.horizontalScrollbar => ScrollbarPart.horizontal,
+                        _ => ScrollbarPart.none,
+                      },
+                      fade: _scrollbarFade,
+                    ),
                   ),
                 ),
               ),
