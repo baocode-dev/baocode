@@ -18,6 +18,7 @@ import 'mock_conversation.dart';
 import 'open_editor.dart';
 import 'review/change_review.dart';
 import 'review/review_store.dart';
+import 'side_panel/file_link.dart';
 
 /// Opens the review of a project's changes (see [ChangeReview.open]).
 typedef ChangeReviewOpener = Future<ChangeReview?> Function(
@@ -954,10 +955,14 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
         if (_transcript.itemAt(i) case ToolCallItem(
           :final path,
           :final imageFiles,
+          :final results,
         )) ...[
           if (path != null && path.isNotEmpty) _absolute(path),
           // The pictures the CLI saved for it: the agent may link them.
           for (final file in imageFiles) _absolute(file),
+          for (final res in results)
+            if (FileLink.parseText(res, blanks: true) case final link?)
+              _absolute(link.path),
         ],
       for (final edit in _transcript.edits) _absolute(edit.change.path),
     }.toList();

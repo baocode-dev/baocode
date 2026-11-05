@@ -141,6 +141,7 @@ class ClaudeCodeKernel
       emit: emit,
       nextSeq: () => nextSeq,
       goalSaid: _syncGoal,
+      root: _context.cwd,
     );
     _providers.addListener(_providersChanged);
     ExtensionSwitches.changes?.addListener(_applySwitches);

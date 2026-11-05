@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:bao_editor/textmate/textmate_syntax.dart';
@@ -4417,6 +4418,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     if (request.range case final range?) {
       return _openCode(thread, request.path, range.start, range.end);
     }
+    if (request.pattern case final pattern? when pattern.isNotEmpty) {
+      return unawaited(_openCodeWithPattern(thread, request.path, pattern));
+    }
     if (request.diff) _revealAgentChange(thread, request.path);
     _inIdeOf(thread, (ide) => ide.open(request.path));
   }
@@ -5266,6 +5270,71 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       LspPosition(end - 1, 1 << 30),
     );
     _inIdeOf(thread, (ide) => ide.openAt(path, range));
+  }
+
+  /// Opens a file in the IDE and reveals / selects the first occurrence of
+  /// [pattern] in its text (e.g. from Grep results when line number is absent).
+  Future<void> _openCodeWithPattern(
+    AgentThread thread,
+    String path,
+    String pattern,
+  ) async {
+    final hostPaths = ProjectHost.of(thread.project.path).paths;
+    final normalPath = hostPaths.normalize(path);
+    final space = _ideSpace(thread.project.path);
+    String? content = space.documents
+        .where((d) => d.path == normalPath || d.key == normalPath)
+        .firstOrNull
+        ?.text;
+    if (content == null) {
+      try {
+        final (:files, paths: _) = _projectFiles(thread);
+        content = await files.read(normalPath);
+      } catch (_) {}
+    }
+
+    if (content != null) {
+      final lines = const LineSplitter().convert(content);
+      int? foundLine;
+      int? foundCol;
+      int matchLen = pattern.length;
+
+      for (var i = 0; i < lines.length; i++) {
+        final col = lines[i].indexOf(pattern);
+        if (col >= 0) {
+          foundLine = i + 1;
+          foundCol = col + 1;
+          break;
+        }
+      }
+
+      if (foundLine == null) {
+        try {
+          final regex = RegExp(pattern);
+          for (var i = 0; i < lines.length; i++) {
+            final match = regex.firstMatch(lines[i]);
+            if (match != null) {
+              foundLine = i + 1;
+              foundCol = match.start + 1;
+              matchLen = match.end - match.start;
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (foundLine != null) {
+        final startPos = LspPosition(foundLine - 1, (foundCol ?? 1) - 1);
+        final endPos =
+            LspPosition(foundLine - 1, (foundCol ?? 1) - 1 + matchLen);
+        _inIdeOf(
+          thread,
+          (ide) => ide.openAt(normalPath, LspRange(startPos, endPos)),
+        );
+        return;
+      }
+    }
+    _inIdeOf(thread, (ide) => ide.open(normalPath));
   }
 
   // --- For AppWindows (WindowDelegate) -------------------------------------------

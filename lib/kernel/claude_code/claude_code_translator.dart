@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:path/path.dart' as p;
+
 import '../../chat/chat_models.dart';
 import '../kernel_event.dart';
 import '../kernel_types.dart';
@@ -19,10 +21,21 @@ import 'turn_stats.dart';
 /// and block, tool use id, message uuid), so translating a message twice,
 /// e.g. streamed and then whole, lands on the same items.
 class ClaudeTranslator {
-  ClaudeTranslator({required this.emit, required this.nextSeq, this.goalSaid});
+  ClaudeTranslator({
+    required this.emit,
+    required this.nextSeq,
+    this.goalSaid,
+    this.root,
+  });
 
   final void Function(KernelEvent event) emit;
   final int Function() nextSeq;
+
+  /// The root directory of the project/workspace, if known.
+  final String? root;
+
+  /// The current working directory of the CLI process, tracked from messages.
+  String? _cwd;
 
   /// Claude Code said something of the goal, live: how it stands is to be
   /// asked afresh (see claude_goal.dart).
@@ -318,6 +331,9 @@ class ClaudeTranslator {
   }
 
   void translate(Map<String, Object?> message) {
+    if (_extractCwd(message) case final cwd?) {
+      _cwd = cwd;
+    }
     final parent = message['parent_tool_use_id'] as String?;
     switch (message['type']) {
       case 'stream_event' when parent == null:
@@ -336,6 +352,15 @@ class ClaudeTranslator {
           _goalRecords.add(message);
         }
     }
+  }
+
+  static String? _extractCwd(Map<String, Object?> message) {
+    if (message['cwd'] is String) return message['cwd'] as String;
+    if (message['attachment'] is Map) {
+      final att = message['attachment'] as Map;
+      if (att['cwd'] is String) return att['cwd'] as String;
+    }
+    return null;
   }
 
   // --- Turn times, replaying ------------------------------------------------------
@@ -1262,7 +1287,7 @@ class ClaudeTranslator {
           );
         }
       case 'Grep' || 'Glob' when outcome == _Outcome.done:
-        final matches = _matches(tool.name, structured, text);
+        final matches = _matches(tool, structured, text);
         final item = _toolItem(tool, outcome) as ToolCallItem;
         _put(
           id,
@@ -1973,23 +1998,117 @@ class ClaudeTranslator {
     return '…${text.substring(text.length - max)}';
   }
 
-  static List<String> _matches(
-    String tool,
+  List<String> _matches(
+    _Tool tool,
     Map<String, Object?>? result,
     String text,
   ) {
-    if (tool == 'Glob') {
-      final names = _list(result?['filenames']).whereType<String>();
-      if (names.isNotEmpty) return names.toList();
+    final rawSearchPath = _string(tool.input['path']);
+    final searchPath = _resolveSearchPath(rawSearchPath);
+    String prefix(String entry) {
+      if (searchPath == null ||
+          searchPath.isEmpty ||
+          searchPath == '.' ||
+          searchPath == './') {
+        return entry;
+      }
+      final colon = entry.lastIndexOf(':');
+      final hasLine =
+          colon > 0 && int.tryParse(entry.substring(colon + 1)) != null;
+      final isDrive = colon == 1 && RegExp(r'^[a-zA-Z]:').hasMatch(entry);
+      final path = hasLine && !isDrive ? entry.substring(0, colon) : entry;
+      final suffix = hasLine && !isDrive ? entry.substring(colon) : '';
+
+      if (p.isAbsolute(path)) {
+        if (root != null) {
+          final normRoot = p.normalize(root!);
+          final normPath = p.normalize(path);
+          if (p.isWithin(normRoot, normPath)) {
+            return '${p.relative(normPath, from: normRoot)}$suffix';
+          }
+        }
+        return entry;
+      }
+      final normPath = path.replaceAll(r'\', '/');
+      final normPrefix =
+          searchPath.replaceAll(r'\', '/').replaceAll(RegExp(r'/+$'), '');
+      if (normPath == normPrefix || normPath.startsWith('$normPrefix/')) {
+        return '${p.normalize(path)}$suffix';
+      }
+      return '${p.normalize(p.join(searchPath, path))}$suffix';
     }
+
+    if (tool.name == 'Glob') {
+      final names = _list(result?['filenames']).whereType<String>();
+      if (names.isNotEmpty) return names.map(prefix).toList();
+    }
+    String cleanGrepLine(String rawLine) {
+      final line = rawLine.trim();
+      final fileLineMatch =
+          RegExp(r'^((?:[a-zA-Z]:)?[^:\r\n]+):(\d+):').firstMatch(line);
+      if (fileLineMatch != null) {
+        return '${fileLineMatch[1]}:${fileLineMatch[2]}';
+      }
+      final singleFileMatch = RegExp(r'^\s*(\d+):').firstMatch(line);
+      if (singleFileMatch != null && searchPath != null) {
+        return '$searchPath:${singleFileMatch[1]}';
+      }
+      final colonMatch =
+          RegExp(r'^((?:[a-zA-Z]:)?[^:\r\n]+)').firstMatch(line);
+      return colonMatch != null ? colonMatch[1]! : line;
+    }
+
     return [
       for (final line in const LineSplitter().convert(text))
         if (line.trim().isNotEmpty &&
             !line.startsWith('Found ') &&
             !line.startsWith('No files found') &&
             !line.startsWith('No matches'))
-          line.split(':').take(2).join(':'),
+          prefix(cleanGrepLine(line)),
     ];
+  }
+
+  String? _resolveSearchPath(String? raw) {
+    final base = (raw == null || raw.isEmpty || raw == '.' || raw == './')
+        ? null
+        : raw;
+    final projectRoot = root;
+    final currentCwd = _cwd;
+
+    if (base == null) {
+      if (projectRoot != null && currentCwd != null && currentCwd != projectRoot) {
+        final context = p.context;
+        final normRoot = context.normalize(projectRoot);
+        final normCwd = context.normalize(currentCwd);
+        if (context.isWithin(normRoot, normCwd)) {
+          return context.relative(normCwd, from: normRoot);
+        }
+      }
+      return null;
+    }
+
+    final context = p.context;
+    if (context.isAbsolute(base)) {
+      if (projectRoot != null) {
+        final normRoot = context.normalize(projectRoot);
+        final normBase = context.normalize(base);
+        if (normBase == normRoot || context.isWithin(normRoot, normBase)) {
+          return context.relative(normBase, from: normRoot);
+        }
+      }
+      return base;
+    }
+
+    if (projectRoot != null && currentCwd != null && currentCwd != projectRoot) {
+      final normRoot = context.normalize(projectRoot);
+      final normCwd = context.normalize(currentCwd);
+      if (context.isWithin(normRoot, normCwd)) {
+        final relCwd = context.relative(normCwd, from: normRoot);
+        return context.normalize(context.join(relCwd, base));
+      }
+    }
+
+    return base;
   }
 
   static String? _agentReport(Map<String, Object?>? result, String text) {

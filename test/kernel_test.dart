@@ -1385,6 +1385,201 @@ void main() {
       }
       expect(shown(twice), shown(once));
     });
+
+    test('Glob and Grep prefix relative search paths to matches', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      );
+      translator.translate({
+        'type': 'assistant',
+        'message': {
+          'id': 'msg1',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 'tool1',
+              'name': 'Glob',
+              'input': {
+                'path': 'sea-turtle-crm-service',
+                'pattern': 'src/test/java/**',
+              },
+            },
+          ],
+        },
+      });
+      translator.translate({
+        'type': 'user',
+        'message': {
+          'id': 'msg2',
+          'content': [
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'tool1',
+              'content': 'src/test/java/MapperTest.java',
+              'structured': {
+                'filenames': ['src/test/java/MapperTest.java'],
+              },
+            },
+          ],
+        },
+      });
+
+      final item = transcript.itemAt(0) as ToolCallItem;
+      expect(item.results, [
+        'sea-turtle-crm-service/src/test/java/MapperTest.java'
+            .replaceAll('/', Platform.isWindows ? '\\' : '/'),
+      ]);
+
+      // Grep on a single file with line numbers
+      translator.translate({
+        'type': 'assistant',
+        'message': {
+          'id': 'msg3',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 'tool2',
+              'name': 'Grep',
+              'input': {
+                'path': 'lib/ide/lsp/lsp_manager.dart',
+                'pattern': 'didChangeWatchedFiles',
+              },
+            },
+          ],
+        },
+      });
+      translator.translate({
+        'type': 'user',
+        'message': {
+          'id': 'msg4',
+          'content': [
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'tool2',
+              'content': '1017:      client.didChangeWatchedFiles([',
+            },
+          ],
+        },
+      });
+      final grepItem = transcript.itemAt(1) as ToolCallItem;
+      expect(grepItem.results, [
+        'lib/ide/lsp/lsp_manager.dart:1017'
+            .replaceAll('/', Platform.isWindows ? '\\' : '/'),
+      ]);
+
+      // Grep across files with Windows drive path
+      translator.translate({
+        'type': 'assistant',
+        'message': {
+          'id': 'msg5',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 'tool3',
+              'name': 'Grep',
+              'input': {
+                'pattern': 'didChangeWatchedFiles',
+              },
+            },
+          ],
+        },
+      });
+      translator.translate({
+        'type': 'user',
+        'message': {
+          'id': 'msg6',
+          'content': [
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'tool3',
+              'content':
+                  'C:\\PROJECTS\\baocode\\lib\\ide\\lsp\\lsp_client.dart:12: watcher',
+            },
+          ],
+        },
+      });
+      final grepItem2 = transcript.itemAt(2) as ToolCallItem;
+      expect(grepItem2.results, [
+        'C:\\PROJECTS\\baocode\\lib\\ide\\lsp\\lsp_client.dart:12',
+      ]);
+    });
+
+    test(
+      'Glob matches are prefixed with cwd when cwd is a subfolder of root and path is omitted',
+      () {
+        final transcript = Transcript();
+        var seq = 0;
+        final rootPath = Platform.isWindows
+            ? r'D:\Projects\conruabien'
+            : '/projects/conruabien';
+        final subPath = Platform.isWindows
+            ? r'D:\Projects\conruabien\sea-turtle-crm-service'
+            : '/projects/conruabien/sea-turtle-crm-service';
+        final translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+          root: rootPath,
+        );
+
+        // A message updates cwd to the subfolder
+        translator.translate({
+          'type': 'user',
+          'cwd': subPath,
+          'message': {
+            'id': 'msg_user',
+            'content': 'Run tests',
+          },
+        });
+
+        // Glob called without 'path' parameter
+        translator.translate({
+          'type': 'assistant',
+          'message': {
+            'id': 'msg_glob',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 'tool_glob',
+                'name': 'Glob',
+                'input': {
+                  'pattern': '**/AuthCookieSecurityIntegrationTest.java',
+                },
+              },
+            ],
+          },
+        });
+
+        // CLI returns paths relative to cwd
+        translator.translate({
+          'type': 'user',
+          'message': {
+            'id': 'msg_res',
+            'content': [
+              {
+                'type': 'tool_result',
+                'tool_use_id': 'tool_glob',
+                'content':
+                    'src/test/java/com/crb/crm/integration/security/AuthCookieSecurityIntegrationTest.java',
+                'structured': {
+                  'filenames': [
+                    'src/test/java/com/crb/crm/integration/security/AuthCookieSecurityIntegrationTest.java',
+                  ],
+                },
+              },
+            ],
+          },
+        });
+
+        final globItem = transcript.itemAt(0) as ToolCallItem;
+        final expected =
+            'sea-turtle-crm-service/src/test/java/com/crb/crm/integration/security/AuthCookieSecurityIntegrationTest.java'
+                .replaceAll('/', Platform.isWindows ? '\\' : '/');
+        expect(globItem.results, [expected]);
+      },
+    );
   });
 
   group('Claude Code kernel', () {

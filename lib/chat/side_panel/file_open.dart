@@ -22,6 +22,7 @@ class FileOpenRequest {
   const FileOpenRequest(
     this.path, {
     this.range,
+    this.pattern,
     this.diff = false,
     this.change,
     this.original,
@@ -35,6 +36,10 @@ class FileOpenRequest {
 
   /// Absolute, on the project's host (on this machine when [local]).
   final String path;
+
+  /// The text pattern or search term to highlight when opening, used when
+  /// [range] is not known in advance (e.g. from Grep results).
+  final String? pattern;
 
   /// On this machine whatever the project's host: something shown as a
   /// file (see [FileOpenScope.showText]).
@@ -72,11 +77,13 @@ class FileOpenRequest {
 
   FileOpenRequest copyWith({
     FileLineRange? range,
+    String? pattern,
     FileChange? change,
     Future<String> Function()? original,
   }) => FileOpenRequest(
     path,
     range: range ?? this.range,
+    pattern: pattern ?? this.pattern,
     diff: diff,
     change: change ?? this.change,
     original: original ?? this.original,
@@ -91,6 +98,7 @@ class FileOpenRequest {
   @override
   String toString() =>
       'FileOpenRequest($path${range == null ? '' : ', $range'}'
+      '${pattern == null ? '' : ', pattern: $pattern'}'
       '${diff ? ', diff' : ''}${plan ? ', plan' : ''}'
       '${local ? ', local' : ''}${readOnly ? ', read-only' : ''}'
       '${preview ? ', preview' : ''}${agentChange ? ', agent change' : ''})';
@@ -304,6 +312,9 @@ class FileOpenScope extends InheritedWidget {
     for (final candidate in candidates) {
       if (existence.known(candidate) == true) return candidate;
     }
+    for (final candidate in candidates) {
+      if (existence.known(candidate) != false) return candidate;
+    }
     return candidates.first;
   }
 
@@ -362,11 +373,17 @@ class FileOpenScope extends InheritedWidget {
 
   /// Opens [link] if it is in [root]; false if it is not. In a workspace,
   /// once it is found in one of its folders, if that is not known yet.
-  bool openLink(FileLink link, {bool diff = false}) {
+  bool openLink(FileLink link, {bool diff = false, String? pattern}) {
     final path = resolve(link.path);
     if (path == null) return false;
-    void open(String path) =>
-        onOpen(FileOpenRequest(path, range: link.range, diff: diff));
+    void open(String path) => onOpen(
+          FileOpenRequest(
+            path,
+            range: link.range,
+            pattern: pattern,
+            diff: diff,
+          ),
+        );
     final check = existence.check;
     final candidates = _candidates(link.path);
     if (candidates.length < 2 ||

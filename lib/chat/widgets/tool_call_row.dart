@@ -206,7 +206,13 @@ class ToolCallRow extends StatelessWidget {
         else if (expanded && (results.isNotEmpty || _shown != null))
           StepBody(
             child: results.isNotEmpty && files != null
-                ? _Results(results: results, files: files)
+                ? _Results(
+                    results: results,
+                    files: files,
+                    pattern: input['pattern'] is String
+                        ? input['pattern'] as String
+                        : null,
+                  )
                 : Text(
                     results.isNotEmpty ? results.join('\n') : _shown!,
                     style: stepMono,
@@ -356,10 +362,15 @@ class _TodoList extends StatelessWidget {
 /// A search's matches (`path`, `path:line`), each opening its file where
 /// it is in the project.
 class _Results extends StatelessWidget {
-  const _Results({required this.results, required this.files});
+  const _Results({
+    required this.results,
+    required this.files,
+    this.pattern,
+  });
 
   final List<String> results;
   final FileOpenScope files;
+  final String? pattern;
 
   @override
   Widget build(BuildContext context) {
@@ -378,7 +389,7 @@ class _Results extends StatelessWidget {
       cursor: SystemMouseCursors.click,
       builder: (context, hovered) => GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => files.openLink(link),
+        onTap: () => files.openLink(link, pattern: pattern),
         child: Text(
           result,
           style: stepMono.copyWith(
