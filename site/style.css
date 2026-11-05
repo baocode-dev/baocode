@@ -34,9 +34,9 @@ a:hover { text-decoration-color: var(--ink); }
 /* English and Chinese: each page links to itself in the other language. */
 .top .lang { padding-left: 16px; border-left: 1px solid var(--rule); }
 
-/* What users say (reviews/: their avatars), under the bar: two reels of
-   cards wider than the page (site.js splits them), the first running left
-   for ever and the second right (each doubled, so the loop has no seam),
+/* What users say (reviews/: their avatars), under the bar: three reels of
+   cards wider than the page, two on a phone (site.js deals them), running
+   left for ever but the second right (each doubled, so the loop has no seam),
    held while the mouse is on them. Their ends fade out. */
 .reviews { display: grid; gap: 12px; max-width: 1180px; margin: 10px auto 0; overflow: hidden; padding: 10px 0 16px;
   --fade: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);

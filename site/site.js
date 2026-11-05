@@ -160,13 +160,20 @@ listedChannel.then((channel) => {
   if (subtitle) for (const el of document.querySelectorAll('[data-channel-subtitle]')) el.textContent = subtitle;
 }).finally(() => document.documentElement.classList.remove('channel-pending'));
 
-// The reel of what users say: two reels, every other card in the second,
-// which runs the other way. Each its cards twice, the copy hidden from
-// readers and from Tab, at about 40 px a second however many there are.
+// The reel of what users say: three reels (two on a phone), the cards dealt
+// among them in turn, the middle one running the other way. Each its cards
+// twice, the copy hidden from readers and from Tab, at about 40 px a second
+// however many there are.
 for (const reel of document.querySelectorAll('.reel')) {
-  const second = Object.assign(document.createElement('ul'), { className: 'reel back' });
-  second.append(...[...reel.children].filter((_, i) => i % 2));
-  reel.after(second);
+  const rows = matchMedia('(max-width: 640px)').matches ? 2 : 3;
+  const cards = [...reel.children];
+  let last = reel;
+  for (let row = 1; row < rows; row++) {
+    const next = Object.assign(document.createElement('ul'), { className: row % 2 ? 'reel back' : 'reel' });
+    next.append(...cards.filter((_, i) => i % rows === row));
+    last.after(next);
+    last = next;
+  }
 }
 for (const reel of document.querySelectorAll('.reel')) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) break;
