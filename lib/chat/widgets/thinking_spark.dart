@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../base/step_clock.dart';
 import '../../theme/app_theme.dart';
 
 /// Claude's spark while it thinks, as Claude Code draws it: a star that
@@ -41,106 +40,38 @@ class ThinkingSpark extends StatefulWidget {
 }
 
 class _ThinkingSparkState extends State<ThinkingSpark> {
-  // A step each shape: drawn only as it changes, not at every vsync.
-  final StepClock _clock = StepClock(ThinkingSpark.frameTime);
-  bool _still = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _still = _clock.keepTo(context);
-  }
-
-  @override
-  void dispose() {
-    _clock.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: widget.size,
-      child: CustomPaint(
-        painter: _SparkPainter(_clock, widget.color, still: _still),
+    return RepaintBoundary(
+      child: SizedBox.square(
+        dimension: widget.size,
+        child: CustomPaint(
+          painter: _SparkPainter(widget.color),
+        ),
       ),
     );
   }
 }
 
 class _SparkPainter extends CustomPainter {
-  _SparkPainter(this.clock, this.color, {required this.still})
-    : super(repaint: clock);
+  _SparkPainter(this.color);
 
-  final StepClock clock;
   final Color color;
-  final bool still;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final time = clock.time;
-    final shape = still ? 4 : ThinkingSpark.shapeAt(time);
-    final turned =
-        time.inMicroseconds %
-        ThinkingSpark.turn.inMicroseconds /
-        ThinkingSpark.turn.inMicroseconds;
     canvas
       ..save()
       ..translate(size.width / 2, size.height / 2)
-      ..rotate(still ? 0 : turned * 2 * math.pi)
       // Drawn at a radius of 1.
       ..scale(size.shortestSide / 2);
     final paint = Paint()..color = color;
-    switch (shape) {
-      // ·
-      case 0:
-        canvas.drawCircle(Offset.zero, 0.2, paint);
-      // ✢
-      case 1:
-        _petals(canvas, paint, 4, length: 0.9, bulb: 0.2, neck: 0.05);
-      // ✳
-      case 2:
-        paint
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.16
-          ..strokeCap = StrokeCap.round;
-        for (var i = 0; i < 8; i++) {
-          final angle = i * math.pi / 4;
-          canvas.drawLine(
-            Offset.zero,
-            Offset(math.cos(angle), math.sin(angle)) * 0.8,
-            paint,
-          );
-        }
-      // ✶
-      case 3:
-        final star = Path();
-        for (var i = 0; i < 12; i++) {
-          final angle = i * math.pi / 6 - math.pi / 2;
-          final radius = i.isEven ? 0.88 : 0.46;
-          final point = Offset(math.cos(angle), math.sin(angle)) * radius;
-          i == 0
-              ? star.moveTo(point.dx, point.dy)
-              : star.lineTo(point.dx, point.dy);
-        }
-        // Its points rounded off: filled, and outlined with round joins.
-        canvas.drawPath(
-          star..close(),
-          paint
-            ..style = PaintingStyle.fill
-            ..strokeWidth = 0.18
-            ..strokeJoin = StrokeJoin.round,
-        );
-        canvas.drawPath(star, paint..style = PaintingStyle.stroke);
-      // ✻
-      case 4:
-        _petals(canvas, paint, 6, length: 0.98, bulb: 0.19, neck: 0.04);
-      // ✽
-      default:
-        _petals(canvas, paint, 6, length: 0.97, bulb: 0.29, neck: 0.07);
-    }
+    _petals(canvas, paint, 6, length: 0.98, bulb: 0.19, neck: 0.04);
     canvas.restore();
   }
+
+  @override
+  bool shouldRepaint(_SparkPainter oldDelegate) => oldDelegate.color != color;
 
   /// [count] teardrops about the center, the first straight up: a stem
   /// [neck] wide swelling to a round [bulb] at [length] out.
@@ -174,8 +105,4 @@ class _SparkPainter extends CustomPainter {
         ..restore();
     }
   }
-
-  @override
-  bool shouldRepaint(_SparkPainter old) =>
-      old.color != color || old.still != still;
 }

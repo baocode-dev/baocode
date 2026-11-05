@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../chat/composer/composer_files.dart' show displayPath;
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/codicons.dart';
@@ -76,6 +77,8 @@ class IdeLanguageOverlay extends StatelessWidget {
     this.colorize,
     this.language,
     this.renameHandlesKeys = true,
+    this.onAsk,
+    this.workspaceRoot,
   });
 
   final EditorLanguageSession session;
@@ -89,6 +92,12 @@ class IdeLanguageOverlay extends StatelessWidget {
 
   /// The editor's language, for code blocks that name none.
   final String? language;
+
+  /// Sends text to chat input.
+  final ValueChanged<String>? onAsk;
+
+  /// The workspace root for relative path calculations.
+  final String? workspaceRoot;
 
   @override
   Widget build(BuildContext context) {
@@ -147,6 +156,9 @@ class IdeLanguageOverlay extends StatelessWidget {
                   onPointer: session.onHoverCardPointer,
                   colorize: colorize,
                   language: language,
+                  onAsk: onAsk,
+                  filePath: session.path,
+                  workspaceRoot: workspaceRoot,
                 ),
                 above: true,
                 key: const ValueKey('ide-hover'),
@@ -353,6 +365,9 @@ class IdeHoverCard extends StatelessWidget {
     this.onPointer,
     this.colorize,
     this.language,
+    this.onAsk,
+    this.filePath,
+    this.workspaceRoot,
   });
 
   final IdeHoverState state;
@@ -363,6 +378,29 @@ class IdeHoverCard extends StatelessWidget {
 
   /// The editor's language, for code blocks that name none.
   final String? language;
+
+  final ValueChanged<String>? onAsk;
+  final String? filePath;
+  final String? workspaceRoot;
+
+  void _fixWithAgent(LspDiagnostic diagnostic) {
+    if (onAsk == null || filePath == null) return;
+    final relPath = displayPath(filePath!, workspaceRoot).replaceAll(r'\', '/');
+    final startLine = diagnostic.range.start.line + 1;
+    final endLine = diagnostic.range.end.line + 1;
+    final contextStart = math.max(1, startLine - 1);
+    final contextEnd = endLine + 2;
+    final rangeStr =
+        contextStart == contextEnd ? '$contextStart' : '$contextStart-$contextEnd';
+
+    final prompt = 'For the code present, we get this error:\n'
+        '```\n'
+        '${diagnostic.message.trim()}\n'
+        '```\n'
+        'Fix it, verify, and then give a concise explanation. @$relPath:$rangeStr';
+
+    onAsk!(prompt);
+  }
 
   /// `.monaco-hover .hover-row + .hover-row`'s `border-top`: the border at
   /// half strength.
@@ -377,7 +415,7 @@ class IdeHoverCard extends StatelessWidget {
     final foreground = colors['editorHoverWidget.foreground'];
     final rowBorder = IdeHoverCard.rowBorder;
     final rows = <Widget>[
-      for (final d in state.diagnostics)
+      for (final d in state.diagnostics) ...[
         // The message in the editor's font, then `source(code)` at 60%.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -397,6 +435,15 @@ class IdeHoverCard extends StatelessWidget {
             style: ideHoverCodeStyle.copyWith(color: foreground),
           ),
         ),
+        if (onAsk != null && filePath != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _FixWithAgentButton(onTap: () => _fixWithAgent(d)),
+            ),
+          ),
+      ],
       if (state.markdown case final markdown?)
         IdeHoverMarkdown(markdown, colorize: colorize, language: language),
     ];
@@ -436,6 +483,66 @@ class IdeHoverCard extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FixWithAgentButton extends StatefulWidget {
+  const _FixWithAgentButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_FixWithAgentButton> createState() => _FixWithAgentButtonState();
+}
+
+class _FixWithAgentButtonState extends State<_FixWithAgentButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    final bg = _hovered
+        ? colors['button.hoverBackground']
+        : colors['button.background'];
+    final fg = colors['button.foreground'];
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                'Fix with Agent',
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                '(Ctrl+Shift+D)',
+                style: TextStyle(
+                  color: fg.withValues(alpha: 0.8),
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
           ),
         ),
       ),

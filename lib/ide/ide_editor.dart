@@ -122,6 +122,7 @@ class IdeEditor extends StatefulWidget {
     this.onPaste,
     this.debug,
     this.agentEdits,
+    this.onAsk,
   });
 
   final IdeWorkspace workspace;
@@ -193,6 +194,9 @@ class IdeEditor extends StatefulWidget {
   /// The agents' changes pending in the files: shown in each file, the
   /// deleted lines above the added, with Undo and Keep by each change.
   final IdeAgentEdits? agentEdits;
+
+  /// Sends text to chat input.
+  final ValueChanged<String>? onAsk;
 
   @override
   State<IdeEditor> createState() => IdeEditorState();
@@ -3125,6 +3129,8 @@ class IdeEditorState extends State<IdeEditor> {
                       final EditorSurfaceView view => view,
                       _ => null,
                     },
+                    onAsk: widget.onAsk,
+                    workspaceRoot: widget.workspace.root,
                   ),
                 ),
               if (_findVisible)

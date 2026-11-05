@@ -7,10 +7,18 @@ import '../../base/step_clock.dart';
 /// its end, where a number's ones are, so a digit gained in front leaves
 /// the rest where they were. All at once where motion is turned down.
 class RollingText extends StatelessWidget {
-  const RollingText(this.text, {super.key, required this.style});
+  const RollingText(
+    this.text, {
+    super.key,
+    required this.style,
+    this.rolling = true,
+  });
 
   final String text;
   final TextStyle style;
+
+  /// Whether digits roll as they change. When false, updates are instant and static.
+  final bool rolling;
 
   static const duration = Duration(milliseconds: 220);
 
@@ -38,7 +46,7 @@ class RollingText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) {
+    if (!rolling || MediaQuery.disableAnimationsOf(context)) {
       return Text(text, style: style);
     }
     final runs = runsOf(text);

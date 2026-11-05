@@ -60,6 +60,7 @@ import 'extensions/ide_extensions_view.dart';
 import 'explorer_excludes.dart';
 import 'explorer_history.dart'
     show explorerRedoCommandId, explorerUndoCommandId;
+import 'explorer_line_count.dart';
 import 'file_views.dart';
 import 'file_service.dart'
     show
@@ -869,9 +870,39 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // The explorer's exclusions follow the file (a pattern added elsewhere
     // shows at once).
     _explorer.excludes = _excludes;
+    _applyLineCountSettings();
     // Auto save turned on (or its delay changed) saves what is unsaved.
     _scheduleAutoSave();
     setState(() {});
+  }
+
+  void _applyLineCountSettings() {
+    final settings = widget.settings;
+    if (settings == null) return;
+    final lineCount = _explorer.lineCount;
+    var changed = false;
+    final enabled = (settings[IdeExplorerLineCount.settingEnabled] as bool?) ?? true;
+    if (lineCount.enabled != enabled) {
+      lineCount.enabled = enabled;
+      changed = true;
+    }
+    final maxMb = settings[IdeExplorerLineCount.settingMaxFileSize];
+    if (maxMb is num) {
+      final newMax = (maxMb * 1024 * 1024).round();
+      if (lineCount.maxFileSize != newMax) {
+        lineCount.maxFileSize = newMax;
+        changed = true;
+      }
+    }
+    final minLines = settings[IdeExplorerLineCount.settingMinLineDisplay];
+    final newMin = (minLines is num) ? minLines.toInt() : 0;
+    if (lineCount.minLineDisplay != newMin) {
+      lineCount.minLineDisplay = newMin;
+      changed = true;
+    }
+    if (changed) {
+      lineCount.clear();
+    }
   }
 
   static const _sashWidth = IdeModernUI.gap;
@@ -1251,6 +1282,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
           ? workspace.watchFolder
           : (_) => const Stream.empty(),
     );
+    _applyLineCountSettings();
+    workspace.onSaved = (path) {
+      _explorer.lineCount.invalidate(path);
+    };
     _fileIndex = IdeFileIndex(
       workspace.files,
       workspace.root,
@@ -1355,14 +1390,20 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       debug.host
         ..onOpenDebugView = (() => _showView(IdeSideView.debug))
         ..onOpenRepl = (() => _selectPanel(IdePanelTab.debugConsole));
-      workspace.onSaved = debug.saved;
+      final onSaved = debug.saved;
+      workspace.onSaved = (path) {
+        onSaved(path);
+        _explorer.lineCount.invalidate(path);
+      };
       setState(() => _ideDebug = debug);
       _syncDebugListener();
     });
   }
 
   void _detachDebug(IdeWorkspace workspace) {
-    workspace.onSaved = null;
+    workspace.onSaved = (path) {
+      _explorer.lineCount.invalidate(path);
+    };
     final debug = _ideDebug;
     _ideDebug = null;
     _syncDebugListener();
@@ -4817,6 +4858,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                   formatOnSave: _formatOnSave,
                                   debug: _debug,
                                   agentEdits: widget.agentEdits,
+                                  onAsk: widget.onAskInChat == null
+                                      ? null
+                                      : _askInChat,
                                 ),
                     ),
                   ),
@@ -5386,6 +5430,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         problemsList: _problemsList,
                         referencesList: _referencesList,
                         textOf: _textOf,
+                        onAsk: widget.onAskInChat == null ? null : _askInChat,
                         terminal: switch (_terminals) {
                           final terminals? => TerminalPanel(
                             terminals: terminals,
@@ -5840,6 +5885,8 @@ class _SashState extends State<_Sash> {
   bool _hover = false;
   bool _dragging = false;
   double _start = 0;
+  double _lastDelta = 0;
+  DateTime _lastUpdate = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// Over the window while dragging, with the sash's cursor: the pointer
   /// leaves the sash where it stops, and the cursor goes with it rather
@@ -5868,6 +5915,8 @@ class _SashState extends State<_Sash> {
 
   void _begin(DragStartDetails details) {
     _start = _along(details.globalPosition);
+    _lastDelta = 0;
+    _lastUpdate = DateTime.now();
     widget.onStart();
     setState(() => _dragging = true);
     if (Overlay.maybeOf(context) case final overlay?) {
@@ -5878,8 +5927,20 @@ class _SashState extends State<_Sash> {
     }
   }
 
+  void _onDragUpdate(DragUpdateDetails details) {
+    final delta = _along(details.globalPosition) - _start;
+    _lastDelta = delta;
+    final now = DateTime.now();
+    // Throttle resize events to at most once every 16ms (~60 FPS) to prevent UI thread flooding.
+    if (now.difference(_lastUpdate).inMilliseconds >= 16) {
+      _lastUpdate = now;
+      widget.onDrag(delta);
+    }
+  }
+
   void _end() {
     _removeShield();
+    widget.onDrag(_lastDelta);
     setState(() => _dragging = false);
     widget.onEnd?.call();
   }
@@ -5895,8 +5956,6 @@ class _SashState extends State<_Sash> {
   Widget build(BuildContext context) {
     final active = _hover || _dragging;
     final horizontal = widget.axis == Axis.horizontal;
-    void update(DragUpdateDetails details) =>
-        widget.onDrag(_along(details.globalPosition) - _start);
     return MouseRegion(
       cursor: widget.cursor,
       onEnter: (_) => setState(() => _hover = true),
@@ -5905,11 +5964,11 @@ class _SashState extends State<_Sash> {
         behavior: HitTestBehavior.opaque,
         dragStartBehavior: DragStartBehavior.down,
         onHorizontalDragStart: horizontal ? _begin : null,
-        onHorizontalDragUpdate: horizontal ? update : null,
+        onHorizontalDragUpdate: horizontal ? _onDragUpdate : null,
         onHorizontalDragEnd: horizontal ? (_) => _end() : null,
         onHorizontalDragCancel: horizontal ? _end : null,
         onVerticalDragStart: horizontal ? null : _begin,
-        onVerticalDragUpdate: horizontal ? null : update,
+        onVerticalDragUpdate: horizontal ? null : _onDragUpdate,
         onVerticalDragEnd: horizontal ? null : (_) => _end(),
         onVerticalDragCancel: horizontal ? null : _end,
         onDoubleTap: widget.onReset,
