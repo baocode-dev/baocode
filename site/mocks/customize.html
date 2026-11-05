@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN" data-w="1100" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>BaoCode</title>
+<link rel="stylesheet" href="mock.css">
+<script src="mock.js"></script>
+</head>
+<body>
+<!-- Customize: plugins, MCP servers, skills and the rest, for you or a
+     project; the skills synced from claude.ai. -->
+<div class="win chatwin" style="--w:1100;--h:700;grid-template-columns:240px 1fr">
+  <div class="tbar" style="grid-column:1;grid-row:1">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <span class="sp"></span>
+    <span class="ib"><i class="ci ci-layout-sidebar-left"></i></span>
+  </div>
+  <div class="tbar" style="grid-column:2;grid-row:1;padding-left:6px">
+    <span class="title"><span class="z">自定义</span><span class="e">Customize</span></span>
+    <span class="sp"></span>
+    <span class="ib"><i class="ci ci-close"></i></span>
+  </div>
+
+  <div class="side" style="grid-column:1;grid-row:2/4">
+    <div class="newchat"><i class="ci ci-add"></i><span class="z">新对话</span><span class="e">New chat</span></div>
+    <div class="navrow"><i class="ci ci-search"></i><span class="z">搜索</span><span class="e">Search</span></div>
+    <div class="navrow on"><i class="ci ci-extensions"></i><span class="z">自定义</span><span class="e">Customize</span></div>
+    <div class="shead"><span class="z">智能体</span><span class="e">Agents</span><span><span class="z">按项目</span><span class="e">By project</span> ⌄</span></div>
+    <div class="list">
+      <div class="row proj"><i class="ci ci-chevron-down"></i><span class="name">🔥 hono</span></div>
+      <div class="row in"><span class="name z">限流改成滑动窗口</span><span class="name e">Sliding-window rate limiting</span><span class="meta">2h</span></div>
+      <div class="row in"><span class="name z">JSX 流式渲染在 Bun 上更慢</span><span class="name e">JSX streaming slower on Bun</span><span class="meta">3h</span></div>
+      <div class="row in"><span class="name z">嵌套路由的 RPC 客户端类型</span><span class="name e">RPC client types for nested routes</span><span class="meta">5h</span></div>
+      <div class="row proj"><i class="ci ci-chevron-down"></i><span class="name">⚡ fastapi</span></div>
+      <div class="row in"><span class="name z">给 API 补齐类型和测试</span><span class="name e">Types and tests for the API</span><span class="meta">now</span></div>
+      <div class="row in"><span class="name z">给 webhooks 加 OpenAPI 示例</span><span class="name e">OpenAPI examples for webhooks</span><span class="meta">7h</span></div>
+      <div class="row proj"><i class="ci ci-chevron-right"></i><span class="name">✏️ excalidraw</span><span class="meta">8</span></div>
+      <div class="row proj"><i class="ci ci-chevron-right"></i><span class="name">🦙 ollama</span><span class="meta">12</span></div>
+    </div>
+    <div class="sfoot"><span><i class="ci ci-archive" style="font-size:13px;vertical-align:-2px"></i> <span class="z">已归档 · 4</span><span class="e">Archived · 4</span></span><i class="ci ci-settings-gear"></i></div>
+  </div>
+
+  <div class="island" style="grid-column:2;grid-row:2/4;margin-bottom:8px;padding:22px 28px">
+    <div class="search" style="flex:none;height:34px;border-radius:17px"><i class="ci ci-search"></i><span class="z">搜索插件、技能、MCP…</span><span class="e">Search plugins, skills, MCPs…</span></div>
+    <div class="cfilters">
+      <span class="cf"><i class="ci ci-globe"></i><span class="z">用户 + hono</span><span class="e">User + hono</span><i class="ci ci-chevron-down"></i></span>
+      <span class="cf"><span class="z">插件</span><span class="e">Plugins</span></span>
+      <span class="cf">MCP</span>
+      <span class="cf on"><span class="z">技能</span><span class="e">Skills</span></span>
+      <span class="cf"><span class="z">子代理</span><span class="e">Subagents</span></span>
+      <span class="cf"><span class="z">规则</span><span class="e">Rules</span></span>
+      <span class="cf"><span class="z">命令</span><span class="e">Commands</span></span>
+      <span class="cf"><span class="z">钩子</span><span class="e">Hooks</span></span>
+    </div>
+    <div class="gtitle" style="display:flex;align-items:center"><span><span class="z">项目 · hono</span><span class="e">Project · hono</span> <span class="dim">1</span></span><span class="sp"></span><span class="btn" style="height:28px"><i class="ci ci-add"></i><span class="z">新建</span><span class="e">New</span></span></div>
+    <div class="skills" style="margin-bottom:20px">
+      <div class="skill"><span class="ic"><i class="ci ci-zap"></i></span><span class="lab">release-notes<small><span class="z">从上一个标签起的提交写出发布说明，按 feat / fix / perf 分组。</span><span class="e">Writes release notes from the commits since the last tag, grouped by feat / fix / perf.</span></small></span><i class="ci ci-ellipsis"></i></div>
+    </div>
+    <div class="gtitle"><span class="z">同步自 claude.ai</span><span class="e">Synced from claude.ai</span> <span class="dim">6</span></div>
+    <div class="skills">
+      <div class="skill"><span class="ic"><i class="ci ci-zap"></i></span><span class="lab">docx<small>Use this skill whenever the user wants to create, read, edit, or manipulate Word documents…</small></span><i class="ci ci-ellipsis"></i></div>
+      <div class="skill"><span class="ic"><i class="ci ci-zap"></i></span><span class="lab">pdf<small>Use this skill whenever the user wants to do anything with PDF files, including reading or extracting…</small></span><i class="ci ci-ellipsis"></i></div>
+      <div class="skill"><span class="ic"><i class="ci ci-zap"></i></span><span class="lab">pptx<small>Use this skill any time a .pptx file is involved in any way, as input, output, or both…</small></span><i class="ci ci-ellipsis"></i></div>
+      <div class="skill"><span class="ic"><i class="ci ci-zap"></i></span><span class="lab">xlsx<small>Use this skill any time a spreadsheet file is the primary input or output…</small></span><i class="ci ci-ellipsis"></i></div>
+      <div class="skill"><span class="ic"><i class="ci ci-zap"></i></span><span class="lab">skill-creator<small>Create new skills, modify and improve existing skills, and measure skill performance…</small></span><i class="ci ci-ellipsis"></i></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

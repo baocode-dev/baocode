@@ -863,6 +863,7 @@ class _BaoCodeAppState extends State<BaoCodeApp>
         stopLspProcesses(),
         ?widget.themeExtensions?.dispose(),
         stopPtyProcesses(),
+        ?_settings.link?.stopAdvertising(),
       ]);
       // The remote hosts' servers end, and all they run with them.
       await SshHosts.instance.closeAll();

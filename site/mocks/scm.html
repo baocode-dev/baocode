@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN" data-w="1200" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>BaoCode</title>
+<link rel="stylesheet" href="mock.css">
+<script src="mock.js"></script>
+</head>
+<body>
+<!-- Fast IDE's Source Control: the commit message Claude Code drafted,
+     the changes, the commit graph; an editor and a terminal beside. -->
+<div class="win idewin" style="--w:1200;--h:740;--sidew:300px">
+  <div class="ttl">
+    <div class="lights" style="width:120px"><i></i><i></i><i></i></div>
+    <span class="ib"><i class="ci ci-arrow-left"></i></span>
+    <span class="ib"><i class="ci ci-arrow-right"></i></span>
+    <div class="cmdc"><i class="ci ci-search"></i>fastapi</div>
+    <span class="ib"><i class="ci ci-layout-sidebar-left"></i></span>
+    <span class="ib"><i class="ci ci-layout-panel"></i></span>
+    <span class="ib"><i class="ci ci-layout-sidebar-right"></i></span>
+    <span class="pill"><i class="ci ci-comment-discussion"></i><span class="z">回到对话</span><span class="e">Chat window</span></span>
+  </div>
+
+  <div class="act">
+    <span class="ib"><i class="ci ci-files"></i></span>
+    <span class="ib"><i class="ci ci-search"></i></span>
+    <span class="ib on"><i class="ci ci-source-control"></i><span class="badge">5</span></span>
+    <span class="ib"><i class="ci ci-debug-alt"></i></span>
+    <span class="ib"><i class="ci ci-extensions"></i></span>
+  </div>
+
+  <div class="pane scm">
+    <div class="ph"><span class="z">源代码管理</span><span class="e">Source Control</span><span class="sp"></span><span class="ib"><i class="ci ci-check"></i></span><span class="ib"><i class="ci ci-refresh"></i></span><span class="ib"><i class="ci ci-ellipsis"></i></span></div>
+    <div class="msg"><span class="ib"><i class="ci ci-sparkle"></i></span>feat(api): typed routes, tests for each<br><br><span class="dim2"><span class="z">app/api 下的每个路由都有了返回类型，mypy --strict 通过；users、items、auth、webhooks 各补了测试，共 212 个。</span><span class="e">Every route under app/api has a return type and mypy --strict passes; users, items, auth and webhooks have tests, 212 in all.</span></span></div>
+    <div class="commitb"><span><i class="ci ci-check"></i><span class="z">提交</span><span class="e">Commit</span></span><span><i class="ci ci-chevron-down"></i></span></div>
+    <div class="sec"><i class="ci ci-chevron-down"></i><span class="z">更改</span><span class="e">Changes</span><span class="badge">5</span></div>
+    <div class="ftree">
+      <div class="row" style="padding-left:20px"><i class="ci ci-chevron-right"></i>app/api<span class="sp"></span><span class="dot"></span></div>
+      <div class="row" style="padding-left:20px"><i class="ci ci-chevron-right"></i>tests/api<span class="sp"></span><span class="dot" style="background:var(--green)"></span></div>
+      <div class="row" style="padding-left:20px"><span class="fi y">⚙</span>pyproject.toml<span class="sp"></span><span class="meta mod">M</span></div>
+    </div>
+    <div class="sec" style="margin-top:6px"><i class="ci ci-chevron-down"></i><span class="z">提交图</span><span class="e">Graph</span><span class="sp"></span><i class="ci ci-git-branch dim"></i></div>
+    <div class="lanes">
+      <svg width="34" height="264" viewBox="0 0 34 264" aria-hidden="true">
+        <path d="M8 12V264" stroke="#3E6A96" stroke-width="2" fill="none"/>
+        <path d="M8 36C8 48 20 48 20 60V132C20 144 8 144 8 156" stroke="#C4975A" stroke-width="2" fill="none"/>
+        <path d="M8 180C8 192 20 192 20 204V252" stroke="#B8467A" stroke-width="2" fill="none"/>
+        <circle cx="8" cy="12" r="5" style="fill:var(--base)" stroke="#3E6A96" stroke-width="2"/>
+        <circle cx="8" cy="36" r="4" fill="#3E6A96"/>
+        <circle cx="20" cy="60" r="4" fill="#C4975A"/>
+        <circle cx="20" cy="84" r="4" fill="#C4975A"/>
+        <circle cx="8" cy="108" r="4" fill="#3E6A96"/>
+        <circle cx="20" cy="132" r="4" fill="#C4975A"/>
+        <circle cx="8" cy="156" r="4" fill="#3E6A96"/>
+        <circle cx="8" cy="180" r="4" fill="#3E6A96"/>
+        <circle cx="20" cy="204" r="4" fill="#B8467A"/>
+        <circle cx="8" cy="228" r="4" fill="#3E6A96"/>
+        <circle cx="20" cy="252" r="4" fill="#B8467A"/>
+      </svg>
+      <div class="lane"><b>feat(webhooks): signed payloads</b><span class="ref">main</span></div>
+      <div class="lane">Merge branch 'typed-deps'</div>
+      <div class="lane">refactor(deps): one get_db</div>
+      <div class="lane">test(deps): overrides reset</div>
+      <div class="lane">fix(users): 404 on soft-deleted</div>
+      <div class="lane">feat(deps): typed Annotated deps</div>
+      <div class="lane">Merge pull request #1412</div>
+      <div class="lane">docs: OpenAPI examples</div>
+      <div class="lane">feat(items): cursor pagination</div>
+      <div class="lane">chore: pydantic 2.12</div>
+      <div class="lane">perf(items): select only needed</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="etabs">
+      <div class="etab"><span class="fi md">M↓</span>CLAUDE.md</div>
+      <div class="etab on"><span class="fi" style="color:#3E6A96">PY</span>users.py<i class="ci ci-close"></i></div>
+      <div class="etab"><span class="fi y">⚙</span>pyproject.toml</div>
+    </div>
+    <div class="crumbs">app<i class="ci ci-chevron-right"></i>api<i class="ci ci-chevron-right"></i>users.py<i class="ci ci-chevron-right"></i><i class="ci ci-symbol-method"></i>read_user</div>
+    <div class="editor">
+      <div class="gut"><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div><div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div><div class="on">12</div><div>13</div><div>14</div><div>15</div><div>16</div><div>17</div><div>18</div><div>19</div><div>20</div></div>
+<div class="src"><div><span class="k">from</span> typing <span class="k">import</span> <span class="t">Annotated</span></div><div> </div><div><span class="k">from</span> fastapi <span class="k">import</span> <span class="t">APIRouter</span>, <span class="t">Depends</span>, <span class="t">HTTPException</span></div><div><span class="k">from</span> sqlalchemy.orm <span class="k">import</span> <span class="t">Session</span></div><div> </div><div><span class="k">from</span> app.api.deps <span class="k">import</span> <span class="f">get_db</span></div><div><span class="k">from</span> app.models <span class="k">import</span> <span class="t">User</span>, <span class="t">UserOut</span></div><div> </div><div>router = <span class="t">APIRouter</span>(<span class="p">prefix</span>=<span class="s">"/users"</span>, <span class="p">tags</span>=[<span class="s">"users"</span>])</div><div> </div><div><span class="f">@router.get</span>(<span class="s">"/{user_id}"</span>)</div><div class="cur chg"><span class="k">def</span> <span class="f">read_user</span>(user_id: <span class="t">int</span>, db: <span class="t">Annotated</span>[<span class="t">Session</span>, <span class="t">Depends</span>(get_db)]) -> <span class="t">UserOut</span>:</div><div>    user = db.<span class="f">get</span>(<span class="t">User</span>, user_id)</div><div class="chg">    <span class="k">if</span> user <span class="k">is</span> <span class="k">None</span> <span class="k">or</span> user.deleted_at <span class="k">is not</span> <span class="k">None</span>:</div><div>        <span class="k">raise</span> <span class="t">HTTPException</span>(<span class="p">status_code</span>=<span class="n">404</span>)</div><div>    <span class="k">return</span> <span class="t">UserOut</span>.<span class="f">model_validate</span>(user)</div><div> </div><div> </div><div><span class="f">@router.get</span>(<span class="s">"/"</span>)</div><div><span class="k">def</span> <span class="f">list_users</span>(db: <span class="t">Annotated</span>[<span class="t">Session</span>, <span class="t">Depends</span>(get_db)], <span class="p">limit</span>: <span class="t">int</span> = <span class="n">50</span>) -> <span class="t">list</span>[<span class="t">UserOut</span>]:</div></div>
+      <div class="minimap"><i style="width:50%"></i><i style="width:0"></i><i style="width:80%"></i><i style="width:60%"></i><i style="width:0"></i><i style="width:50%"></i><i style="width:56%"></i><i style="width:0"></i><i style="width:90%"></i><i style="width:0"></i><i style="width:40%"></i><i style="width:100%"></i><i style="width:50%"></i><i style="width:80%"></i><i style="width:60%"></i><i style="width:56%"></i></div>
+    </div>
+    <div class="panel" style="--panelh:190px">
+      <div class="ptabs"><span><span class="z">问题</span><span class="e">Problems</span></span><span><span class="z">输出</span><span class="e">Output</span></span><span class="on"><span class="z">终端</span><span class="e">Terminal</span></span><span class="sp"></span><span class="ib"><i class="ci ci-add"></i></span><span class="ib"><i class="ci ci-trash"></i></span></div>
+<div class="term"><span class="add">➜</span> <span class="p">fastapi</span> git:(<span class="del">typed-api</span>) mypy --strict app &amp;&amp; pytest -q
+Success: no issues found in 38 source files
+........................................................ <span class="dim">[ 26%]</span>
+........................................................ <span class="dim">[100%]</span>
+<span class="add">212 passed</span> in 4.81s
+<span class="add">➜</span> <span class="p">fastapi</span> git:(<span class="del">typed-api</span>) ▍</div>
+    </div>
+  </div>
+
+  <div class="statusbar"><span><i class="ci ci-git-branch"></i> typed-api*</span><span><i class="ci ci-sync"></i> 0↓ 3↑</span><span><i class="ci ci-error"></i> 0 <i class="ci ci-warning"></i> 0</span><span class="sp"></span><span><span class="z">行 12，列 5</span><span class="e">Ln 12, Col 5</span></span><span><span class="z">空格: 4</span><span class="e">Spaces: 4</span></span><span>UTF-8</span><span>Python</span><span><i class="ci ci-bell"></i></span></div>
+</div>
+</body>
+</html>

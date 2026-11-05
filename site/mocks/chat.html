@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN" data-w="1200">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>BaoCode</title>
+<link rel="stylesheet" href="mock.css">
+<script src="mock.js"></script>
+</head>
+<body>
+<!-- The main window: agents by project, a conversation, its changes. -->
+<div class="win chatwin" style="--w:1200;--h:760;grid-template-columns:248px 1fr 452px">
+  <div class="tbar" style="grid-column:1;grid-row:1">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <span class="sp"></span>
+    <span class="ib"><i class="ci ci-layout-sidebar-left"></i></span>
+  </div>
+  <div class="tbar" style="grid-column:2;grid-row:1;padding-left:6px">
+    <span class="title"><span class="z">限流改成滑动窗口</span><span class="e">Sliding-window rate limiting</span></span>
+    <span class="sp"></span>
+    <span class="ib"><i class="ci ci-layout-panel"></i></span>
+    <span class="ib"><i class="ci ci-pin"></i></span>
+    <span class="pill"><i class="ci ci-window"></i>Fast IDE<i class="ci ci-chevron-down"></i></span>
+  </div>
+
+  <div class="side" style="grid-column:1;grid-row:2/4">
+    <div class="newchat"><i class="ci ci-add"></i><span class="z">新对话</span><span class="e">New chat</span></div>
+    <div class="navrow"><i class="ci ci-search"></i><span class="z">搜索</span><span class="e">Search</span></div>
+    <div class="navrow"><i class="ci ci-extensions"></i><span class="z">自定义</span><span class="e">Customize</span></div>
+    <div class="navrow"><i class="ci ci-inbox"></i>Stash<span class="sp"></span><span class="meta dim">3</span></div>
+    <div class="shead"><span class="z">智能体</span><span class="e">Agents</span><span><span class="z">按项目</span><span class="e">By project</span> ⌄</span></div>
+    <div class="list">
+      <div class="row proj"><i class="ci ci-pinned"></i><span class="name z">已置顶</span><span class="name e">Pinned</span><span class="meta">2</span></div>
+      <div class="row proj"><i class="ci ci-chevron-down"></i><span class="name">🔥 hono</span></div>
+      <div class="row in on"><span class="spin"></span><span class="name z">限流改成滑动窗口</span><span class="name e">Sliding-window rate limiting</span><span class="meta add">+86</span><span class="meta">now</span></div>
+      <div class="row in"><span class="dot"></span><span class="name z">JSX 流式渲染在 Bun 上更慢</span><span class="name e">JSX streaming slower on Bun</span><span class="meta">2m</span></div>
+      <div class="row in"><span class="name z">读取 body 之后 c.header 丢失</span><span class="name e">c.header lost after reading body</span><span class="meta">14m</span></div>
+      <div class="row in"><span class="name z">嵌套路由的 RPC 客户端类型</span><span class="name e">RPC client types for nested routes</span><span class="meta">1h</span></div>
+      <div class="row in dim"><span class="name z">显示更多（23）</span><span class="name e">Show more (23)</span></div>
+      <div class="row proj"><i class="ci ci-chevron-down"></i><span class="name">⚡ fastapi</span></div>
+      <div class="row in"><span class="spin"></span><span class="name z">依赖覆盖在测试之间串了</span><span class="name e">Dependency overrides leak between tests</span><span class="meta">25m</span></div>
+      <div class="row in"><span class="name z">给 webhooks 加 OpenAPI 示例</span><span class="name e">OpenAPI examples for webhooks</span><span class="meta">7h</span></div>
+      <div class="row proj"><i class="ci ci-chevron-down"></i><span class="name">✏️ excalidraw</span></div>
+      <div class="row in"><span class="name z">缩放时箭头绑定抖动</span><span class="name e">Arrow bindings jitter on zoom</span><span class="meta">40m</span></div>
+      <div class="row in"><span class="name z">暗色模式下的协作者光标</span><span class="name e">Collaborator cursors in dark mode</span><span class="meta">1d</span></div>
+      <div class="row proj"><i class="ci ci-chevron-right"></i><span class="name">🦙 ollama</span><span class="meta">12</span></div>
+      <div class="row proj"><i class="ci ci-chevron-right"></i><span class="name">🔍 ripgrep</span><span class="meta">6</span></div>
+    </div>
+    <div class="sfoot"><span><i class="ci ci-archive" style="font-size:13px;vertical-align:-2px"></i> <span class="z">已归档 · 4</span><span class="e">Archived · 4</span></span><i class="ci ci-settings-gear"></i></div>
+  </div>
+
+  <div class="island" style="grid-column:2;grid-row:2">
+    <div class="conv">
+      <p class="z">滑动窗口版的限流写好了：按「上一窗口计数 × 剩余比例 + 当前窗口计数」估算请求数，窗口边界不再出现突刺。计数存储做成了可替换的接口，内置内存和 Workers KV 两种实现。</p>
+      <p class="e">The sliding-window limiter is in: it estimates requests as “previous window × the share left + this window”, so there is no burst at the window’s edge any more. The counter store is an interface, with a memory one and a Workers KV one built in.</p>
+      <h3><span class="z">测试结果</span><span class="e">Tests</span></h3>
+      <ul>
+        <li><span class="z">新增 9 个用例，覆盖窗口边界、并发请求和存储失效，全部通过（</span><span class="e">9 new cases, for the window’s edge, concurrent requests and a failing store, all passing (</span><code>bun test src/middleware/rate-limiter</code><span class="z">）。</span><span class="e">).</span></li>
+        <li><span class="z">响应头换成 IETF 草案的 </span><span class="e">Headers now the IETF draft’s </span><code>RateLimit</code><span class="z"> 和 </span><span class="e"> and </span><code>RateLimit-Policy</code><span class="z">，旧头保留一个版本。</span><span class="e">; the old ones kept for a release.</span></li>
+      </ul>
+      <p><span class="z">迁移说明写在 </span><span class="e">How to migrate is in </span><a>MIGRATION.md</a><span class="z">。</span><span class="e">.</span></p>
+      <div class="stats"><i class="ci ci-copy"></i><span><i class="ci ci-clock"></i> 16s</span><span><i class="ci ci-zap"></i> 190 tok/s</span><span>$0.04</span><span>58.2k tokens</span></div>
+      <div class="bubble"><span class="z">把 Deno 和 Node 的回归也跑一下，结果汇总给我</span><span class="e">Run the Deno and Node regressions too, and sum them up for me</span></div>
+      <div class="step"><i class="ci ci-check-all"></i><span class="z">读了 <b>3</b> 个文件，运行了 <b>2</b> 条命令</span><span class="e">Read <b>3</b> files, ran <b>2</b> commands</span><span class="dim">· 53s</span></div>
+      <div class="step"><i class="ci ci-organization"></i><span class="z">启动了 <b>2</b> 个后台智能体</span><span class="e">Started <b>2</b> background agents</span></div>
+      <p class="thinking"><span class="spark">✻</span> <span class="z">等 Deno 和 Node 两边跑完…</span><span class="e">Waiting on the Deno and Node runs…</span></p>
+    </div>
+    <div class="tasks">
+      <div class="task"><span class="spin"></span><span class="what z">Deno 2 回归测试</span><span class="what e">Deno 2 regression run</span><span class="dim">· bun x deno test</span><span class="sp"></span><span class="z">运行中 · 41s</span><span class="e">Running · 41s</span></div>
+      <div class="task"><span class="spin"></span><span class="what z">Node 22 回归测试</span><span class="what e">Node 22 regression run</span><span class="dim">· node --test</span><span class="sp"></span><span class="z">运行中 · 38s</span><span class="e">Running · 38s</span></div>
+      <div class="task"><i class="ci ci-chevron-right" style="font-size:12px"></i><span class="z">3 个文件已更改</span><span class="e">3 files changed</span><span class="add">+86</span><span class="del">−24</span><span class="sp"></span><span class="btn"><span class="z">全部撤销</span><span class="e">Undo all</span></span><span class="btn primary"><span class="z">全部保留</span><span class="e">Keep all</span></span></div>
+    </div>
+    <div class="composer">
+      <div class="ph"><span class="z">规划、搜索、构建任何内容 · 拖入或粘贴文件 · / 命令</span><span class="e">Plan, search, build anything · drop or paste files · / for commands</span></div>
+      <div class="tools">
+        <span class="chip"><span class="inf">∞</span>Agent<i class="ci ci-chevron-down"></i></span>
+        <span class="chip g"><i class="ci ci-shield"></i><span class="z">完全访问</span><span class="e">Full access</span><i class="ci ci-chevron-down"></i></span>
+        <span class="chip"><i class="ci ci-sparkle"></i>Opus 5.5<i class="ci ci-chevron-down"></i></span>
+        <span class="sp"></span>
+        <span class="ring"></span>
+        <span class="send"><i class="ci ci-arrow-up"></i></span>
+      </div>
+    </div>
+  </div>
+  <div class="under" style="grid-column:2;grid-row:3"><i class="ci ci-git-branch"></i>hono: feat/sliding-window<i class="ci ci-chevron-down"></i><span class="sp"></span>62K / 200K</div>
+
+  <div class="rpanel" style="grid-column:3;grid-row:1/3">
+    <div class="tabs">
+      <div class="tab"><i class="ci ci-files"></i><span class="z">文件</span><span class="e">Files</span></div>
+      <div class="tab on"><i class="ci ci-source-control"></i><span class="z">变更</span><span class="e">Changes</span> <span class="badge">3</span></div>
+      <div class="tab"><i class="ci ci-terminal"></i><span class="z">终端</span><span class="e">Terminal</span></div>
+      <div class="tab"><i class="ci ci-globe"></i><span class="z">浏览器</span><span class="e">Browser</span></div>
+      <div class="tail"><span class="ib"><i class="ci ci-close"></i></span></div>
+    </div>
+    <div class="stack">
+      <div class="island first" style="flex:1.2">
+        <div class="toolbar">
+          <div class="search"><i class="ci ci-search"></i><span class="z">搜索提交信息</span><span class="e">Search commit messages</span></div>
+          <span class="chip"><i class="ci ci-git-branch"></i>main</span>
+        </div>
+        <div class="filters">
+          <span class="chip"><i class="ci ci-repo"></i>hono<i class="ci ci-chevron-down"></i></span>
+          <span class="chip"><i class="ci ci-git-branch"></i><span class="z">所有分支</span><span class="e">All branches</span><i class="ci ci-chevron-down"></i></span>
+          <span class="chip"><i class="ci ci-person"></i><span class="z">用户</span><span class="e">User</span><i class="ci ci-chevron-down"></i></span>
+        </div>
+        <div class="commits">
+          <div class="commit local"><div class="graph"><i></i></div><span class="msg"><span class="z">本地更改（3）</span><span class="e">Local changes (3)</span></span><span></span><span></span></div>
+          <div class="commit"><div class="graph"><i></i></div><span class="msg">Merge branch 'feat/jsx-stream'</span><span class="when">10:10</span><span class="by"><b>M</b>mia</span></div>
+          <div class="commit"><div class="graph"><i class="o"></i></div><span class="msg">feat(jsx): flush small chunks together</span><span class="when">09:42</span><span class="by"><b>M</b>mia</span></div>
+          <div class="commit"><div class="graph"><i></i></div><span class="msg">test(router): trie backtracking</span><span class="when"><span class="z">昨天</span><span class="e">Yesterday</span></span><span class="by"><b>M</b>mia</span></div>
+          <div class="commit"><div class="graph"><i class="p"></i></div><span class="msg">docs: middleware list</span><span class="when"><span class="z">昨天</span><span class="e">Yesterday</span></span><span class="by"><b class="h">A</b>alex</span></div>
+          <div class="commit"><div class="graph"><i></i></div><span class="msg">fix(router): regexp route cache</span><span class="when">Oct 30</span><span class="by"><b>M</b>mia</span></div>
+          <div class="commit"><div class="graph"><i></i></div><span class="msg">perf: fewer header copies</span><span class="when">Oct 29</span><span class="by"><b class="h">A</b>alex</span></div>
+          <div class="commit"><div class="graph"><i></i></div><span class="msg">chore: bun 1.2</span><span class="when">Oct 29</span><span class="by"><b>M</b>mia</span></div>
+        </div>
+      </div>
+      <div class="island" style="flex:1;margin-bottom:8px">
+        <div class="seg"><span class="on"><span class="z">提交</span><span class="e">Commit</span></span><span>Stash</span><span class="sp"></span><span class="chip"><i class="ci ci-list-tree"></i><span class="z">树形</span><span class="e">Tree</span></span></div>
+        <div class="tree">
+          <div class="row"><i class="ci ci-chevron-down" style="font-size:12px"></i><span class="check"></span><b>hono</b><span class="meta">feat/sliding-window</span></div>
+          <div class="row" style="padding-left:26px"><span class="check"></span>src/middleware/rate-limiter</div>
+          <div class="row" style="padding-left:46px"><span class="check"></span><span class="mod">index.ts</span><span class="sp"></span><span class="add">+41</span><span class="del">−24</span></div>
+          <div class="row" style="padding-left:46px"><span class="check"></span><span class="mod">index.test.ts</span><span class="sp"></span><span class="add">+28</span></div>
+          <div class="row" style="padding-left:46px"><span class="check"></span><span class="unt">store.ts</span><span class="sp"></span><span class="add">+17</span></div>
+        </div>
+        <div class="msgbox">feat(rate-limiter): sliding window, pluggable store<br><span class="dim2"><span class="z">按上一窗口加权估算，窗口边界不再突刺；计数存储可替换。</span><span class="e">Weighs in the previous window, so no burst at the edge; the store can be swapped.</span></span></div>
+        <div class="acts">
+          <span class="btn"><i class="ci ci-sparkle"></i><span class="z">生成提交信息</span><span class="e">Write message</span></span>
+          <span class="btn primary"><span class="z">提交</span><span class="e">Commit</span></span>
+          <span class="btn"><span class="z">提交并推送</span><span class="e">Commit &amp; Push</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN" data-w="1000" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>BaoCode</title>
+<link rel="stylesheet" href="mock.css">
+<script src="mock.js"></script>
+</head>
+<body>
+<!-- The input: a sent message opened again, its pictures and a reference
+     where they were put in the sentence; messages queued above the input. -->
+<div class="win chatwin" style="--w:1000;--h:600;grid-template-columns:1fr;padding:0 8px">
+  <div class="tbar" style="grid-row:1">
+    <div class="lights" style="padding-left:6px"><i></i><i></i><i></i></div>
+    <span class="ib" style="margin-left:10px"><i class="ci ci-layout-sidebar-left"></i></span>
+    <span class="title"><span class="z">看看这些截图和代码</span><span class="e">What these screens and code are</span></span>
+    <span class="sp"></span>
+    <span class="ib"><i class="ci ci-layout-panel"></i></span>
+    <span class="ib"><i class="ci ci-pin"></i></span>
+    <span class="pill"><i class="ci ci-window"></i>Fast IDE<i class="ci ci-chevron-down"></i></span>
+  </div>
+  <div class="island" style="grid-row:2">
+    <div class="conv lined">
+      <div class="composer focus" style="margin:0 0 14px">
+        <div class="thumbs">
+          <div class="thumb" style="background:#2b2925;color:#E5BA7D"><i style="top:10px;width:30px"></i><i style="top:18px"></i><i style="top:26px;right:22px"></i><i style="top:34px;right:14px"></i></div>
+          <div class="thumb" style="background:#F1EEE3;color:#8F6528"><i style="top:10px;right:30px"></i><i style="top:18px"></i><i style="top:26px"></i><i style="top:34px;right:26px"></i></div>
+          <div class="thumb" style="background:#FFFFFF;color:#3E6A96"><i style="top:8px;width:16px;height:36px;left:6px;opacity:.25"></i><i style="top:12px;left:28px"></i><i style="top:20px;left:28px;right:16px"></i><i style="top:28px;left:28px"></i></div>
+          <div class="thumb" style="background:#1F2430;color:#8FBCC4"><i style="top:10px"></i><i style="top:18px;right:20px"></i><i style="top:26px;right:30px"></i><i style="top:34px"></i></div>
+          <div class="thumb" style="background:#E8F0E1;color:#5C7F37"><i style="top:12px;width:40px"></i><i style="top:22px;height:14px;opacity:.25"></i></div>
+        </div>
+        <div class="text"><span class="z">这几张截图和代码分别是什么？</span><span class="e">What are these screens and this code?</span> <span class="tag"><span class="th" style="background:#2b2925"></span><span class="z">图片 1</span><span class="e">Image 1</span></span> <span class="tag"><span class="th" style="background:#F1EEE3"></span><span class="z">图片 2</span><span class="e">Image 2</span></span> <span class="z">是同一个页面，</span><span class="e">are one page,</span> <span class="tag"><span class="th" style="background:#1F2430"></span><span class="z">图片 4</span><span class="e">Image 4</span></span> <span class="z">里的按钮在</span><span class="e">and its button is in</span> <span class="tag"><i class="ci ci-file-code gold"></i>about-claude.html:4-7</span><span class="gold">▍</span></div>
+        <div class="tools">
+          <span class="chip"><span class="inf">∞</span>Agent<i class="ci ci-chevron-down"></i></span>
+          <span class="chip g"><i class="ci ci-shield"></i><span class="z">完全访问</span><span class="e">Full access</span><i class="ci ci-chevron-down"></i></span>
+          <span class="chip"><i class="ci ci-sparkle"></i>Opus 5.5 · <span class="z">高</span><span class="e">High</span><i class="ci ci-chevron-down"></i></span>
+          <span class="sp"></span>
+          <span class="send on"><i class="ci ci-arrow-up"></i></span>
+        </div>
+      </div>
+      <p class="thinking"><span class="z">思考了 3 秒</span><span class="e">Thought 3s</span></p>
+      <p><span class="z">先看看磁盘上实际有什么，再回答。</span><span class="e">I’ll look at what is actually on disk before answering.</span></p>
+      <div class="step"><i class="ci ci-terminal"></i><span class="z">运行了 <b>2</b> 条命令</span><span class="e">Ran <b>2</b> commands</span></div>
+      <div class="step"><i class="ci ci-file"></i><span class="z">读取 about-claude.html</span><span class="e">Read about-claude.html</span></div>
+      <p class="thinking"><span class="spark">✻</span> <span class="z">比对截图…</span><span class="e">Comparing the screens…</span></p>
+    </div>
+    <div class="queue">
+      <div class="qh"><i class="ci ci-history"></i><span class="z">2 条排队中 · 当前任务结束后依次发送</span><span class="e">2 queued · sent when the agent is done</span></div>
+      <div class="qi"><i class="ci ci-gripper grip"></i><span class="what"><span class="z">顺便看看图片 3 为什么是空白的</span><span class="e">And why Image 3 is blank</span></span><span class="ib"><i class="ci ci-edit"></i></span><span class="ib"><i class="ci ci-arrow-up"></i></span><span class="ib"><i class="ci ci-trash"></i></span></div>
+      <div class="qi"><i class="ci ci-gripper grip"></i><span class="what"><span class="z">做完之后把结论写进 NOTES.md</span><span class="e">Then write it up in NOTES.md</span></span><span class="ib"><i class="ci ci-edit"></i></span><span class="ib"><i class="ci ci-arrow-up"></i></span><span class="ib"><i class="ci ci-trash"></i></span></div>
+    </div>
+    <div class="composer">
+      <div class="ph"><span class="z">规划、搜索、构建任何内容 · 拖入或粘贴文件 · / 命令</span><span class="e">Plan, search, build anything · drop or paste files · / for commands</span></div>
+      <div class="tools">
+        <span class="chip"><span class="inf">∞</span>Agent<i class="ci ci-chevron-down"></i></span>
+        <span class="chip g"><i class="ci ci-shield"></i><span class="z">完全访问</span><span class="e">Full access</span><i class="ci ci-chevron-down"></i></span>
+        <span class="chip"><i class="ci ci-sparkle"></i>Opus 5.5 · <span class="z">高</span><span class="e">High</span><i class="ci ci-chevron-down"></i></span>
+        <span class="sp"></span>
+        <span class="ring" style="border-top-color:var(--gold)"></span>
+        <span class="send"><i class="ci ci-debug-stop"></i></span>
+      </div>
+    </div>
+  </div>
+  <div class="under" style="grid-row:3"><i class="ci ci-folder"></i>~/Desktop/about-claude<span class="sp"></span>31K / 200K</div>
+</div>
+</body>
+</html>
