@@ -24,9 +24,11 @@ import '../lsp/lsp_protocol.dart';
 import '../lsp_ui/lsp_convert.dart';
 import '../workbench/contributions.dart';
 import '../workbench/editor_panes.dart';
+import '../workbench/storage.dart';
 import 'navigation_history.dart';
 
-class EditorService extends ChangeNotifier {
+class EditorService extends ChangeNotifier
+    implements WorkbenchStorageParticipant {
   EditorService({
     required this.host,
     required this.panes,
@@ -37,6 +39,7 @@ class EditorService extends ChangeNotifier {
     this.onShowEditor,
     this.onViewChanged,
     this.revealInExplorer,
+    this.storage,
   });
 
   final WorkbenchHost host;
@@ -59,6 +62,47 @@ class EditorService extends ChangeNotifier {
 
   /// A tab's file shown in the explorer (Reveal in Explorer View).
   final ValueChanged<String>? revealInExplorer;
+
+  /// Where the editors open, the one in front and each file's view (its
+  /// scroll, its caret) are kept with the window.
+  final WorkbenchStorage? storage;
+
+  /// The editors kept by the last run opened again, the one in front as
+  /// it was; each file's view as it was left.
+  @override
+  void restoreState(Map<String, Object?> kept) {
+    _ws.viewStates.restore(kept['editorViews']);
+    final editors = switch (kept['editors']) {
+      final List<Object?> paths => paths.whereType<String>().toList(),
+      _ => const <String>[],
+    };
+    if (editors.isEmpty) return;
+    final restoring = _ws.restore(editors, active: kept['active'] as String?);
+    if (storage case final storage?) {
+      storage.holdWhile(restoring);
+    } else {
+      unawaited(restoring);
+    }
+  }
+
+  /// Those of files (not a diff's or a revision's, nor an untitled one).
+  @override
+  void saveState(Map<String, Object?> into) {
+    final workspace = _ws;
+    final editors = [
+      for (final doc in workspace.documents)
+        if (doc.label == null && (doc.isFile || doc.isMedia)) doc.path,
+    ];
+    final active = workspace.active?.key;
+    editor?.keepViewStates();
+    final paths = workspace.paths;
+    final views = workspace.viewStates.toJson(
+      (key) => !key.contains('\u0000') && paths.isAbsolute(key),
+    );
+    into['editors'] = editors;
+    if (editors.contains(active)) into['active'] = active;
+    if (views.isNotEmpty) into['editorViews'] = views;
+  }
 
   IdeWorkspace get _ws => _workspace();
 
@@ -91,13 +135,22 @@ class EditorService extends ChangeNotifier {
     if (host.context != null) notifyListeners();
   }
 
-  /// The text editor scrolled: the window is kept once it comes to rest.
-  void viewChanged() => onViewChanged?.call();
+  /// The text editor scrolled, or its caret moved: the window is kept once
+  /// it has come to rest, a scroll not written at each frame.
+  void viewChanged() {
+    onViewChanged?.call();
+    final storage = this.storage;
+    if (storage == null || !storage.keeps) return;
+    _viewTimer?.cancel();
+    _viewTimer = Timer(const Duration(seconds: 1), storage.keepSoon);
+  }
+
+  Timer? _viewTimer;
 
   /// The text editor's caret moved.
   void positionChanged(IdeEditorPosition selection) {
     _history()?.caretMoved(selection.position);
-    onViewChanged?.call();
+    viewChanged();
     final now = caret.value;
     if (host.context != null &&
         (!now.position.equals(selection.position) ||
@@ -428,6 +481,7 @@ class EditorService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _viewTimer?.cancel();
     caret.dispose();
     super.dispose();
   }

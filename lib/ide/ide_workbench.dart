@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
-import 'dart:convert';
 
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:flutter/material.dart';
@@ -81,6 +79,7 @@ import 'workbench/statusbar.dart';
 import 'workbench/storage.dart';
 import 'workbench/style.dart';
 import 'workbench/views.dart';
+import 'workbench/workspace_binding.dart';
 
 /// The IDE shell is kept mounted when the user returns to the conversation.
 class IdeWorkbench extends StatefulWidget implements WorkbenchOptions {
@@ -316,7 +315,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _contextKeys = _services.add(ContextKeyService());
     _actions = _services.add(ActionRegistry());
     _statusbar = _services.add(StatusbarService());
-    _storage = _services.add(WorkbenchStorage(onChanged: _keepViewSoon));
+    _storage = _services.add(WorkbenchStorage(save: () => widget.onViewState));
     _services
       ..add<WorkbenchHost>(_host)
       ..add<WorkbenchEnvironment>(_host);
@@ -385,7 +384,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         focusWorkbench: _workbenchFocus.requestFocus,
         // The one in front opened again puts the extension page behind.
         onShowEditor: () => _extensionsView.editorShown(),
-        onViewChanged: _editorViewChanged,
+        storage: _storage,
         revealInExplorer: (path) => _explorerService.reveal(path),
       ),
     );
@@ -469,7 +468,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         notify: (message) => _notifications.notify(IdeSeverity.error, message),
       ),
     );
-    _problems = _services.add(
+    _services.add(
       ProblemsService(
         host: _host,
         language: _language,
@@ -479,7 +478,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         showHover: () => _editor?.showHoverAtCaret(),
       ),
     );
-    _referencesView = _services.add(
+    _services.add(
       ReferencesService(
         host: _host,
         layout: () => widget.workspace.layout,
@@ -487,6 +486,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         activePath: () => widget.workspace.active?.path,
       ),
     );
+    // The editors last: those kept open again once the rest is restored.
+    _storage.register(_editors);
   }
 
   /// The services of ide_workbench_keys.dart and the views, for tests.
@@ -498,9 +499,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The Explorer view: its tree, Quick Open's files, its panes.
   late final ExplorerService _explorerService;
 
-  /// The workspace's navigation history (Go Back, the editors by recent
-  /// use, those closed).
-  late NavigationHistoryService _history;
+  /// The services on the workspace, another as it is swapped.
+  late final WorkspaceBinding _binding = WorkspaceBinding(_services);
 
   /// The parts' layout: the side bar's view, the sizes, which part has
   /// the keyboard.
@@ -509,19 +509,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Which parts show: the workspace's, for the window's header to toggle
   /// as well (see [IdeLayout]); [_layoutService] follows it.
   IdeLayout get _layout => widget.workspace.layout;
-  IdeSideView get _view => _layoutService.view;
-  set _view(IdeSideView view) => _layoutService.view = view;
-
-  /// The workspace being taken up: its editor in front then is not one
-  /// opened, which would leave the Git log.
-  bool _attaching = false;
 
   /// The workspace's notifications (the debugger's go there too).
   IdeNotifications get _notifications => widget.workspace.notifications;
 
   /// Where the caret is.
   Position get _caretPosition => _editors.position;
-  String? _activeKey;
 
   /// Source Control: the repository shown, its sessions, what opens and
   /// compares changes.
@@ -548,13 +541,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The workspace's language servers, and the active file's symbols.
   late final LanguageService _language;
 
-  /// The Problems and References views.
-  late final ProblemsService _problems;
-  late final ReferencesService _referencesView;
-
   /// The panel's terminals; none where they cannot run (the web).
   late final TerminalViewService _terminalView;
-  TerminalService? get _terminals => _terminalView.terminals;
 
   /// The editor's panes beside the text editor (see EditorPaneRegistry).
   late final EditorPaneRegistry _panes;
@@ -574,83 +562,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   late final AutoSaveService _autoSave;
   late final ChatService _chat;
 
-  /// Whether the editors kept are being opened again: until they are, the
-  /// window is not kept, lest those not open yet be forgotten.
-  bool _restoring = false;
-  Timer? _keepTimer;
-  String? _kept;
-
-  /// [IdeWorkbench.viewState] applied: the widths, the view and the
-  /// editors (which parts show the workspace's layout was made with, see
+  /// [IdeWorkbench.viewState] applied: each service reads its keys (which
+  /// parts show the workspace's layout was made with, see
   /// [IdeLayout.restore]).
   void _restoreView() {
-    final kept = widget.viewState;
-    if (kept == null) return;
-    _storage.restore(kept);
-    widget.workspace.viewStates.restore(kept['editorViews']);
-    final editors = switch (kept['editors']) {
-      final List<Object?> paths => paths.whereType<String>().toList(),
-      _ => const <String>[],
-    };
-    if (editors.isEmpty) return;
-    _restoring = true;
-    unawaited(
-      widget.workspace
-          .restore(editors, active: kept['active'] as String?)
-          .whenComplete(() {
-            _restoring = false;
-            _keepViewSoon();
-          }),
-    );
-  }
-
-  /// The window as [IdeWorkbench.onViewState] is told it.
-  Map<String, Object?> get _viewState {
-    final editors = [
-      for (final doc in widget.workspace.documents)
-        if (doc.label == null && (doc.isFile || doc.isMedia)) doc.path,
-    ];
-    final active = widget.workspace.active?.key;
-    _editor?.keepViewStates();
-    final paths = widget.workspace.paths;
-    // Those of files (not a diff's or a revision's, nor an untitled one).
-    final views = widget.workspace.viewStates.toJson(
-      (key) => !key.contains('\u0000') && paths.isAbsolute(key),
-    );
-    return {
-      'editors': editors,
-      if (editors.contains(active)) 'active': active,
-      if (views.isNotEmpty) 'editorViews': views,
-      ..._storage.collect(),
-    };
-  }
-
-  /// Once the editor has come to rest (scrolled, its caret moved): where
-  /// it is kept, a scroll not written at each frame.
-  void _editorViewChanged() {
-    if (widget.onViewState == null) return;
-    _editorViewTimer?.cancel();
-    _editorViewTimer = Timer(const Duration(seconds: 1), _keepViewSoon);
-  }
-
-  Timer? _editorViewTimer;
-
-  /// A moment after a change, as a sash dragged changes it at each frame.
-  void _keepViewSoon() {
-    if (widget.onViewState == null || _restoring) return;
-    _keepTimer ??= Timer(const Duration(milliseconds: 300), _keepView);
-  }
-
-  void _keepView() {
-    _keepTimer?.cancel();
-    _keepTimer = null;
-    final keep = widget.onViewState;
-    if (keep == null || _restoring) return;
-    final state = _viewState;
-    final json = jsonEncode(state);
-    if (json == _kept) return;
-    _kept = json;
-    keep(state);
+    if (widget.viewState case final kept?) _storage.restore(kept);
   }
 
   /// settings.json read again: what it says now, written here or not.
@@ -687,14 +603,14 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     widget.agentEdits?.open = _openAgentChange;
     widget.settings?.addListener(_settingsChanged);
     _restoreView();
-    _attach();
+    _binding.attach(widget.workspace);
     _lifecycle = AppLifecycleListener(
       onResume: () => unawaited(_git?.refresh()),
       // The window left: `onFocusChange` and `onWindowChange` save.
       onInactive: () {
         unawaited(_autoSave.saveNow(const {'onFocusChange', 'onWindowChange'}));
         // Where the editors are, should the app be quit from elsewhere.
-        _keepView();
+        _storage.keep();
       },
     );
     IdeLanguageNames.ensureLoaded(() {
@@ -708,61 +624,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _language.localized();
-  }
-
-  void _attach() {
-    final workspace = widget.workspace;
-    workspace.layout.terminals = _terminals != null;
-    _explorerService.attach(workspace);
-    _language.attach(workspace);
-    _problems.clear();
-    _referencesView.clear();
-    _services.add(workspace);
-    _scmService.attach(workspace);
-    _history = _services.add(
-      NavigationHistoryService(
-        workspace: workspace,
-        caret: () => _caretPosition,
-        open: (location) => _editors.openLocation(location, record: false),
-        select: _editors.select,
-      ),
-    );
-    workspace.addListener(_workspaceChanged);
-    workspace.edits.addListener(_documentEdited);
-    _layoutService.attach(workspace.layout);
-    _activeKey = null;
-    _attaching = true;
-    _workspaceChanged();
-    _attaching = false;
-    // New terminals start in the project (a workspace's first folder);
-    // those running stay where they are. The chat's start where it says.
-    _terminalView.root = workspace.roots.firstOrNull ?? workspace.root;
-    _debugView.attach(workspace);
-  }
-
-  /// A multi-folder workspace's folders, or the repository shown (of a
-  /// workspace's, or of those in a folder's subfolders) changed: the
-  /// explorer, Quick Open and Source Control follow.
-  void _rootsChanged() {
-    final workspace = widget.workspace;
-    _explorerService.rootsChanged();
-    if (workspace.isMultiRoot) {
-      _terminalView.root = workspace.roots.firstOrNull ?? workspace.root;
-    }
-    _scmService.rootsChanged();
-  }
-
-  void _detach(IdeWorkspace workspace) {
-    _debugView.detach(workspace);
-    workspace.removeListener(_workspaceChanged);
-    workspace.edits.removeListener(_documentEdited);
-    _autoSave.detach();
-    _services.remove<NavigationHistoryService>();
-    _services.remove<IdeWorkspace>(owned: false);
-    _layoutService.detach();
-    _scmService.detach();
-    _explorerService.detach();
-    _language.detach();
   }
 
   /// The keybindings of [IdeWorkbench.commands] the defaults do not have.
@@ -791,8 +652,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       _debugView.givenChanged();
     }
     if (oldWidget.workspace != widget.workspace) {
-      _detach(oldWidget.workspace);
-      _attach();
+      _binding
+        ..detach()
+        ..attach(widget.workspace);
       _scmService.readBranch();
     }
     if (widget.visible && !oldWidget.visible) {
@@ -807,77 +669,15 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       widget.agentEdits?.open = null;
     }
     widget.settings?.removeListener(_settingsChanged);
-    _editorViewTimer?.cancel();
-    _keepView();
+    _storage.keep();
     _lifecycle?.dispose();
     // A quick pick or input box going with the workbench hides (the color
     // themes one applies the theme it started with again).
-    _detach(widget.workspace);
+    _binding.detach();
     disposeContributions(_contributions);
     _services.dispose();
     _workbenchFocus.dispose();
     super.dispose();
-  }
-
-  /// An edit typed in the editor, which the workspace's own listeners
-  /// hear of only when it makes the document dirty or clean again.
-  void _documentEdited() {
-    _language.documentChanged();
-    _autoSave.schedule();
-    _searchView.documentsChanged();
-  }
-
-  /// Follows the active editor: remembers it for Quick Open and reveals it
-  /// in the explorer, as VS Code's `explorer.autoReveal` does.
-  void _workspaceChanged() {
-    _rootsChanged();
-    _keepViewSoon();
-    _language.documentChanged();
-    _history.documentsChanged();
-    _searchView.documentsChanged();
-    _autoSave.documentsChanged();
-    final active = widget.workspace.active;
-    if (widget.workspace.takeReveal() case final range? when active != null) {
-      final location = IdeLocation(active.path, range);
-      // Once the editor shows it.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _layout.showEditor();
-        unawaited(
-          _editors.openLocation(
-            location,
-            select: true,
-            record: false,
-            afterReveal: _editors.focus,
-          ),
-        );
-      });
-    }
-    if (active?.key == _activeKey) return;
-    // Another editor in front: `onFocusChange` saves the one left.
-    if (_activeKey != null) {
-      unawaited(_autoSave.saveNow(const {'onFocusChange'}));
-    }
-    _activeKey = active?.key;
-    _history.activeChanged(active);
-    if (active == null) return;
-    final path = active.path;
-    // Upstream's `showEditorIfHidden`: an editor opened ends the chat's
-    // maximizing, and has the side bar give way to it rather than it to
-    // the side bar.
-    _layout.showEditor();
-    // In the Git log's place, which has the editor's: the explorer's view
-    // back beside it.
-    if (_view == IdeSideView.sourceControl && !_attaching) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _view == IdeSideView.sourceControl) {
-          _view = IdeSideView.explorer;
-        }
-      });
-    }
-    if (!_editors.closing) _extensionsView.editorShown();
-    _language.recommendServers();
-    _explorerService.follow(path);
   }
 
   /// Focuses the editor if one is open, else the workbench itself, so the
@@ -922,7 +722,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// Go Back (⌃-) / Go Forward (⌃⇧-), and the mouse's back and forward
   /// buttons: whether there was somewhere to go.
-  bool _navigate({required bool back}) => _history.navigate(back: back);
+  bool _navigate({required bool back}) =>
+      _services.find<NavigationHistoryService>()?.navigate(back: back) ?? false;
 
   // --- Quick input ---------------------------------------------------------
 
