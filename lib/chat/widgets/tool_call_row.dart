@@ -181,8 +181,8 @@ class ToolCallRow extends StatelessWidget {
         _ => null,
       },
     );
-    // A file read shows only its name: the whole path on hover.
-    if (kind == ToolKind.read && path != null) {
+    // A file read or edit shows only its name: the whole path on hover.
+    if ((kind == ToolKind.read || kind == ToolKind.edit) && path != null) {
       header = HoverTooltip(content: _pathTooltip, child: header);
     }
     if (file != null) {

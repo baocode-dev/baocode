@@ -443,7 +443,7 @@ class CodexKernel
       final path = actions.first['path'] as String;
       return ToolCallItem(
         kind: ToolKind.read,
-        target: path.split('/').last,
+        target: path.split(RegExp(r'[/\\]')).last,
         path: path,
       );
     }
@@ -500,7 +500,7 @@ class CodexKernel
           oldLine++;
       }
     }
-    final slash = path.lastIndexOf('/');
+    final slash = path.lastIndexOf(RegExp(r'[/\\]'));
     emit(
       ItemUpserted(
         nextSeq,

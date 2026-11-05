@@ -732,9 +732,9 @@ class FileChange {
   /// that over.
   final bool conflict;
 
-  String get fileName => path.split('/').last;
+  String get fileName => path.split(RegExp(r'[/\\]')).last;
   String get directory {
-    final index = path.lastIndexOf('/');
+    final index = path.lastIndexOf(RegExp(r'[/\\]'));
     return index < 0 ? '' : path.substring(0, index);
   }
 }
