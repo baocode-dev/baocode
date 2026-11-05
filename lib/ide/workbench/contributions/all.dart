@@ -14,6 +14,7 @@ import 'markdown.dart';
 import 'navigation.dart';
 import 'quick_input.dart';
 import 'scm.dart';
+import 'search.dart';
 import 'terminal.dart';
 
 List<WorkbenchContribution> createWorkbenchContributions(
@@ -31,4 +32,5 @@ List<WorkbenchContribution> createWorkbenchContributions(
   ExplorerContribution(services),
   LayoutContribution(services),
   QuickInputContribution(services),
+  SearchContribution(services),
 ];

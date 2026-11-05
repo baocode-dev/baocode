@@ -5,7 +5,6 @@ import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/ide/services/commands.dart';
 import 'package:baocode/ide/services/quick_input.dart';
 import 'package:baocode/ide/workbench/actions.dart';
-import 'package:baocode/ide/workbench/contributions.dart';
 import 'package:baocode/ide/workbench/quick_access.dart';
 import 'package:baocode/ide/workbench/services.dart';
 import 'package:baocode/l10n/app_localizations.dart';
