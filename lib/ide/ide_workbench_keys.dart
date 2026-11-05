@@ -392,113 +392,6 @@ extension _WorkbenchKeys on IdeWorkbenchState {
       ),
     ];
   }
-
-  // --- Layout --------------------------------------------------------------
-
-  /// Toggle Maximized Panel: the panel shown maximized, or back as high as
-  /// it was.
-  void _toggleMaximizedPanel() => _refresh(() {
-    if (_panel == null) {
-      _panel = _lastPanel;
-      _panelMaximized = true;
-    } else {
-      _panelMaximized = !_panelMaximized;
-    }
-  });
-
-  /// Focus into Panel: the panel shown, and what it shows focused.
-  void _focusPanel() {
-    final tab = _panel ?? _lastPanel;
-    if (tab == IdePanelTab.terminal && _terminals != null) {
-      _terminalView.show();
-      return;
-    }
-    _refresh(() => _panel = tab);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _panelFocus.traversalDescendants.firstOrNull?.requestFocus();
-    });
-  }
-
-  /// Focus into Primary Side Bar: it shown, its view focused.
-  void _focusSideBar() {
-    _showView(_view);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _sidebarFocus.hasFocus) return;
-      _sidebarFocus.traversalDescendants.firstOrNull?.requestFocus();
-    });
-  }
-
-  /// The layout's commands beyond the first ones, for the palette.
-  List<IdeCommand> _layoutCommands() {
-    final editing = widget.workspace.active != null;
-    return [
-      _catalogCommand(
-        'workbench.action.toggleMaximizedPanel',
-        _toggleMaximizedPanel,
-      ),
-      _catalogCommand('workbench.action.focusPanel', _focusPanel),
-      _catalogCommand(
-        'workbench.action.closePanel',
-        () => _refresh(() => _panel = null),
-        enabled: _panel != null,
-      ),
-      _catalogCommand('workbench.action.focusSideBar', _focusSideBar),
-      _catalogCommand(
-        'workbench.action.closeSidebar',
-        () => _layout.sidebar = false,
-        enabled: _layout.sidebarVisible,
-      ),
-      _catalogCommand(
-        'workbench.action.closeAuxiliaryBar',
-        () => _layout.chat = false,
-        enabled: _chatShown,
-      ),
-      for (final id in const [
-        'workbench.action.focusActiveEditorGroup',
-        'workbench.action.focusFirstEditorGroup',
-        'workbench.action.focusLastEditorGroup',
-      ])
-        _catalogCommand(id, _editors.focusEditorOrWorkbench, enabled: editing),
-    ];
-  }
-
-  /// The layout's context keys; null for another's.
-  Object? _layoutContextKey(String key) => switch (key) {
-    'editorIsOpen' => widget.workspace.documents.isNotEmpty,
-    'sideBarVisible' => _layout.sidebarVisible,
-    'sideBarFocus' => _sidebarFocus.hasFocus,
-    'activeViewlet' => _layout.sidebarVisible ? _view.viewletId : null,
-    'explorerViewletFocus' =>
-      _sidebarFocus.hasFocus && _view == IdeSideView.explorer,
-    'panelVisible' => _panel != null,
-    'panelFocus' => _panelFocus.hasFocus,
-    'panelMaximized' => _panel != null && _panelMaximized,
-    'activePanel' => _panel?.panelId,
-    'auxiliaryBarVisible' => _chatShown,
-    'auxiliaryBarFocus' => _chatFocus.hasFocus,
-    'focusedView' => _focusedView ?? '',
-    'inDebugRepl' =>
-      _panelFocus.hasFocus &&
-          (_panel ?? _lastPanel) == IdePanelTab.debugConsole,
-    _ => null,
-  };
-
-  /// The id of the view with the keyboard (upstream `focusedView`).
-  String? get _focusedView {
-    if (_explorerFocus.hasFocus) return 'workbench.explorer.fileView';
-    if (_sidebarFocus.hasFocus) {
-      return switch (_view) {
-        IdeSideView.explorer => 'outline',
-        IdeSideView.search => 'workbench.view.search',
-        IdeSideView.sourceControl => 'workbench.scm',
-        IdeSideView.debug => 'workbench.debug.viewlet',
-        IdeSideView.extensions => 'workbench.views.extensions.installed',
-      };
-    }
-    if (_panelFocus.hasFocus) return (_panel ?? _lastPanel).viewId;
-    return null;
-  }
 }
 
 extension _SearchAndListKeys on IdeWorkbenchState {
@@ -548,7 +441,7 @@ extension _SearchAndListKeys on IdeWorkbenchState {
       // Files to include or exclude: shown, not to be missed.
       session.detailsShown = true;
     }
-    _showView(IdeSideView.search);
+    _layoutService.showView(IdeSideView.search);
     session.requestFocus();
     if (option<bool>('triggerSearch') ?? false) {
       session.search(widget.workspace.root);
@@ -559,7 +452,7 @@ extension _SearchAndListKeys on IdeWorkbenchState {
   /// search input focused (upstream `findOrReplaceInFiles`).
   void _replaceInFiles() {
     _search.replaceShown = true;
-    _showView(IdeSideView.search);
+    _layoutService.showView(IdeSideView.search);
     _search.requestFocus();
   }
 
@@ -568,7 +461,7 @@ extension _SearchAndListKeys on IdeWorkbenchState {
   /// which keeps the keyboard where it is.
   void _focusSearchResult({required bool next}) {
     if (!_sidebarShown || _view != IdeSideView.search) {
-      _showView(IdeSideView.search);
+      _layoutService.showView(IdeSideView.search);
     }
     final row = _search.selectMatch(next: next);
     final match = row?.$2;
@@ -614,7 +507,7 @@ extension _SearchAndListKeys on IdeWorkbenchState {
         enabled: hasResults,
       ),
       _catalogCommand('search.action.focusSearchList', () {
-        _showView(IdeSideView.search);
+        _layoutService.showView(IdeSideView.search);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) _searchKey.currentState?.moveFocusToResults();
         });
@@ -784,34 +677,5 @@ extension _TerminalKeys on IdeWorkbenchState {
   String? _terminalFindKey(KeyEvent event) => switch (_resolveKey(event)) {
     KeybindingFound(:final command) => command,
     _ => null,
-  };
-}
-
-extension on IdeSideView {
-  /// Upstream's id of the view container (`activeViewlet`).
-  String get viewletId => switch (this) {
-    IdeSideView.explorer => 'workbench.view.explorer',
-    IdeSideView.search => 'workbench.view.search',
-    IdeSideView.sourceControl => 'workbench.view.scm',
-    IdeSideView.debug => 'workbench.view.debug',
-    IdeSideView.extensions => 'workbench.view.extensions',
-  };
-}
-
-extension on IdePanelTab {
-  /// Upstream's id of the panel (`activePanel`).
-  String get panelId => switch (this) {
-    IdePanelTab.problems => 'workbench.panel.markers',
-    IdePanelTab.references => 'workbench.panel.referenceSearch',
-    IdePanelTab.debugConsole => 'workbench.panel.repl',
-    IdePanelTab.terminal => 'terminal',
-  };
-
-  /// Upstream's id of its view (`focusedView`).
-  String get viewId => switch (this) {
-    IdePanelTab.problems => 'workbench.panel.markers.view',
-    IdePanelTab.references => 'workbench.panel.referenceSearch',
-    IdePanelTab.debugConsole => 'workbench.panel.repl',
-    IdePanelTab.terminal => 'terminal',
   };
 }

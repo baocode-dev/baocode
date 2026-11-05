@@ -144,6 +144,8 @@ class ExplorerService extends ChangeNotifier {
   /// `ExplorerRootContext`…); null for others.
   Object? contextKey(String key) => switch (key) {
     'filesExplorerFocus' => focusNode.hasFocus,
+    // The tree's own view, in the side bar's.
+    'focusedView' when focusNode.hasFocus => 'workbench.explorer.fileView',
     _ when key.startsWith('explorerResource') => view?.contextKey(key),
     _ => null,
   };

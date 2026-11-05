@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_list.dart';
 import 'package:baocode/ide/ide_workspace.dart';
 import 'package:baocode/ide/services/explorer.dart';
+import 'package:baocode/ide/services/layout.dart';
 import 'package:baocode/ide/services/lists.dart';
 import 'package:baocode/ide/workbench/actions.dart';
 import 'package:baocode/ide/workbench/context_keys.dart';
@@ -35,6 +36,7 @@ void main() {
       ..add(ContextKeyService())
       ..add<WorkbenchHost>(host)
       ..add(ListService())
+      ..add(LayoutService(host: host, layout: () => workspace.layout))
       ..add(explorer)
       ..add(workspace);
     final contributions = [

@@ -99,6 +99,7 @@ import 'services/debug_view.dart';
 import 'services/editors.dart';
 import 'services/explorer.dart';
 import 'services/language.dart';
+import 'services/layout.dart';
 import 'services/lists.dart';
 import 'services/markdown_preview.dart';
 import 'services/problems.dart';
@@ -378,6 +379,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _statusbar = _services.add(StatusbarService());
     _storage = _services.add(WorkbenchStorage(onChanged: _keepViewSoon));
     _services.add<WorkbenchHost>(_host);
+    _layoutService = _services.add(
+      LayoutService(host: _host, layout: () => widget.workspace.layout),
+    );
+    _storage.register(_layoutService);
     _scmService = _services.add(
       ScmService(
         host: _host,
@@ -500,27 +505,22 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// use, those closed).
   late NavigationHistoryService _history;
 
-  /// Whether the panel is maximized (Toggle Maximized Panel).
-  bool _panelMaximized = false;
-
-  /// Around the side bar and the chat, for `sideBarFocus` and
-  /// `auxiliaryBarFocus`.
-  final FocusNode _sidebarFocus = FocusNode(
-    debugLabel: 'ide side bar',
-    canRequestFocus: false,
-    skipTraversal: true,
-  );
-  final FocusNode _chatFocus = FocusNode(
-    debugLabel: 'ide chat',
-    canRequestFocus: false,
-    skipTraversal: true,
-  );
+  /// The parts' layout: the side bar's view, the sizes, which part has
+  /// the keyboard.
+  late final LayoutService _layoutService;
+  bool get _panelMaximized => _layoutService.panelMaximized;
+  set _panelMaximized(bool value) => _layoutService.panelMaximized = value;
+  FocusNode get _sidebarFocus => _layoutService.sidebarFocus;
+  FocusNode get _chatFocus => _layoutService.chatFocus;
+  FocusNode get _panelFocus => _layoutService.panelFocus;
   final IdeRecentList _recentCommands = IdeRecentList();
 
   /// The widths the side bar and the chat open at, and have while there is
   /// room (see [IdeColumns.fit]).
-  double _chatWidth = IdeColumns.defaultChat;
-  double _sidebarWidth = IdeColumns.defaultSidebar;
+  double get _chatWidth => _layoutService.chatWidth;
+  set _chatWidth(double value) => _layoutService.chatWidth = value;
+  double get _sidebarWidth => _layoutService.sidebarWidth;
+  set _sidebarWidth(double value) => _layoutService.sidebarWidth = value;
 
   /// The widths, and the room for them, when a sash's drag began: it
   /// follows the pointer from there, so what it pushed aside or snapped
@@ -533,7 +533,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   bool _chatSashDragging = false;
 
   /// Which parts show: the workspace's, for the window's header to toggle
-  /// as well (see [IdeLayout]); [_layoutChanged] follows it.
+  /// as well (see [IdeLayout]); [_layoutService] follows it.
   IdeLayout get _layout => widget.workspace.layout;
   bool get _sidebarShown => _layout.sidebar;
   set _sidebarShown(bool value) => _layout.sidebar = value;
@@ -541,11 +541,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The panel's height below the editor; null is a third of the column
   /// (see [IdeRows]). Whether it shows, and what, is [_panel].
-  double? _panelHeight;
+  double? get _panelHeight => _layoutService.panelHeight;
+  set _panelHeight(double? value) => _layoutService.panelHeight = value;
 
   /// The panel's height, and the room for it, when its sash's drag began.
   ({IdeRows rows, double room})? _panelDragStart;
-  IdeSideView _view = IdeSideView.explorer;
+  IdeSideView get _view => _layoutService.view;
+  set _view(IdeSideView view) => _layoutService.view = view;
 
   /// The workspace being taken up: its editor in front then is not one
   /// opened, which would leave the Git log.
@@ -553,8 +555,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The workspace's notifications (the debugger's go there too).
   IdeNotifications get _notifications => widget.workspace.notifications;
-
-  /// Servers whose install was recommended in this session.
 
   /// Where the caret is (its column as the status bar counts it) and how
   /// much is selected: the status bar alone is built again as it moves.
@@ -660,16 +660,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The tab the panel shows again when toggled back.
   IdePanelTab get _lastPanel => _layout.lastPanel;
-
-  /// The panel's tab as [_layoutChanged] last saw it.
-  IdePanelTab? _shownPanel;
-
-  /// Around the panel: whether the keyboard is in it.
-  final FocusNode _panelFocus = FocusNode(
-    debugLabel: 'ide panel',
-    canRequestFocus: false,
-    skipTraversal: true,
-  );
 
   /// The panel's terminals; none where they cannot run (the web).
   late final TerminalViewService _terminalView;
@@ -790,23 +780,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final kept = widget.viewState;
     if (kept == null) return;
     _storage.restore(kept);
-    double? size(String key) => switch (kept[key]) {
-      final num value when value.isFinite && value > 0 => value.toDouble(),
-      _ => null,
-    };
-    _sidebarWidth = size('sidebarWidth') ?? _sidebarWidth;
-    _chatWidth = size('chatWidth') ?? _chatWidth;
-    _panelHeight = size('panelHeight');
     _search.restore(kept['search']);
-    if (kept['view'] case final String name) {
-      _view = IdeSideView.values.asNameMap()[name] ?? _view;
-    }
-    // VS Code makes a terminal when its view shows with none.
-    if (_layout.panel == IdePanelTab.terminal) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _terminals?.ensureTerminal();
-      });
-    }
     widget.workspace.viewStates.restore(kept['editorViews']);
     final editors = switch (kept['editors']) {
       final List<Object?> paths => paths.whereType<String>().toList(),
@@ -839,11 +813,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       (key) => !key.contains('\u0000') && paths.isAbsolute(key),
     );
     return {
-      'sidebarWidth': _sidebarWidth,
-      'chatWidth': _chatWidth,
-      'panelHeight': ?_panelHeight,
-      ..._layout.toJson(),
-      'view': _view.name,
       if (search.isNotEmpty) 'search': search,
       'editors': editors,
       if (editors.contains(active)) 'active': active,
@@ -971,6 +940,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // The explorer's panes opened or closed; an editor opening.
     _explorerService.addListener(_servicesChanged);
     _editors.addListener(_servicesChanged);
+    // A part shown or hidden, here or from the window's header.
+    _layoutService.addListener(_servicesChanged);
     if (widget.visible) _focusSoon();
   }
 
@@ -1001,8 +972,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
     workspace.addListener(_workspaceChanged);
     workspace.edits.addListener(_documentEdited);
-    workspace.layout.addListener(_layoutChanged);
-    _shownPanel = workspace.layout.panel;
+    _layoutService.attach(workspace.layout);
     _activeKey = null;
     _attaching = true;
     _workspaceChanged();
@@ -1035,7 +1005,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _autoSaveFailed.clear();
     _services.remove<NavigationHistoryService>();
     _services.remove<IdeWorkspace>(owned: false);
-    workspace.layout.removeListener(_layoutChanged);
+    _layoutService.detach();
     _scmService.detach();
     _explorerService.detach();
     _language.detach();
@@ -1127,6 +1097,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _referencesView.removeListener(_servicesChanged);
     _explorerService.removeListener(_servicesChanged);
     _editors.removeListener(_servicesChanged);
+    _layoutService.removeListener(_servicesChanged);
     _detach(widget.workspace);
     disposeContributions(_contributions);
     _services.dispose();
@@ -1135,9 +1106,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _search.keptChanges.removeListener(_keepViewSoon);
     _search.dispose();
     _terminalView.removeListener(_terminalsChanged);
-    _panelFocus.dispose();
-    _sidebarFocus.dispose();
-    _chatFocus.dispose();
     super.dispose();
   }
 
@@ -1351,8 +1319,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// buttons: whether there was somewhere to go.
   bool _navigate({required bool back}) => _history.navigate(back: back);
 
-  void _selectPanel(IdePanelTab tab) => setState(() => _panel = tab);
-
   Future<String?> _textOf(String path) async {
     for (final doc in widget.workspace.documents) {
       if (doc.path == path) return doc.text;
@@ -1362,36 +1328,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   // --- Layout ------------------------------------------------------------
 
-  void _showView(IdeSideView view) {
-    setState(() {
-      _view = view;
-      _layout.showSidebar();
-    });
-    if (view == IdeSideView.explorer) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _explorerFocus.requestFocus();
-      });
-    }
-  }
-
-  void _toggleSidebar() => _layout.toggleSidebar();
-
-  /// A part shown or hidden, here or from the window's header.
-  void _layoutChanged() {
-    final panel = _layout.panel;
-    if (panel != _shownPanel) {
-      _shownPanel = panel;
-      // Upstream restores a maximized panel as it hides.
-      if (panel == null) _panelMaximized = false;
-      // What had the keyboard there goes: it goes back to the editor.
-      if (_panelFocus.hasFocus) _focusSoon();
-      // VS Code makes a terminal when its view shows with none.
-      if (panel == IdePanelTab.terminal) _terminals?.ensureTerminal();
-    }
-    if (mounted) setState(() {});
-  }
-
-  void _toggleChat() => _layout.toggleChat();
+  void _toggleChat() => _layoutService.toggleChat();
 
   /// The editor's lines selected in the chat's composer, the chat shown
   /// and the keyboard in it (as Cursor's ⌘L).
@@ -1406,10 +1343,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     widget.onAskInChat?.call(text);
     if (!_chatShown) _toggleChat();
   }
-
-  /// VS Code's Toggle Panel: the panel as it was last, or hidden.
-  void _togglePanelVisibility() =>
-      setState(() => _panel = _panel == null ? _lastPanel : null);
 
   // --- Quick input ---------------------------------------------------------
 
@@ -1708,13 +1641,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       'textInputFocus' => editorFocus || textField,
       'inputFocus' => editorFocus || textField || terminalFocus,
       'terminalFocus' => terminalFocus,
-      'foldersViewVisible' || 'explorerViewletVisible' =>
-        _sidebarShown && _view == IdeSideView.explorer,
       'treestickyScrollFocused' => false,
       _ =>
         _searchContextKey(key) ??
             _quickInputContextKey(key) ??
-            _layoutContextKey(key) ??
             _editor?.contextKey(key),
     };
   }
@@ -2029,54 +1959,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         run: () => _editors.openAt(-1),
       ),
       IdeCommand(
-        id: 'workbench.action.toggleSidebarVisibility',
-        category: 'View',
-        label: 'Toggle Primary Side Bar Visibility',
-        run: _toggleSidebar,
-      ),
-      IdeCommand(
-        id: 'workbench.action.toggleAuxiliaryBar',
-        category: 'View',
-        label: 'Toggle Chat',
-        run: _toggleChat,
-      ),
-      IdeCommand(
         id: ChatCommandIds.attachSelection,
         category: 'Chat',
         label: 'Add Selection to Chat',
         enabled: widget.onAddCodeToChat != null && _editor != null,
         run: _addSelectionToChat,
-      ),
-      // VS Code's ⌘J toggles the panel; here it is the chat's.
-      IdeCommand(
-        id: 'workbench.action.togglePanel',
-        category: 'View',
-        label: 'Toggle Panel Visibility',
-        run: _togglePanelVisibility,
-      ),
-      IdeCommand(
-        id: 'workbench.view.explorer',
-        category: 'View',
-        label: 'Show Explorer',
-        run: () => _showView(IdeSideView.explorer),
-      ),
-      IdeCommand(
-        id: 'workbench.view.search',
-        category: 'View',
-        label: 'Show Search',
-        run: () => _showView(IdeSideView.search),
-      ),
-      IdeCommand(
-        id: 'workbench.view.scm',
-        category: 'View',
-        label: 'Show Source Control',
-        run: () => _showView(IdeSideView.sourceControl),
-      ),
-      IdeCommand(
-        id: 'workbench.view.extensions',
-        category: 'View',
-        label: 'Show Extensions',
-        run: () => _showView(IdeSideView.extensions),
       ),
       IdeCommand(
         id: 'copyFilePath',
@@ -2163,7 +2050,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ..._actions.commands(_services, palette: true),
     ..._workbenchCommands(),
     ..._editorCommands(),
-    ..._layoutCommands(),
     ..._searchCommands(),
     ...?_editor?.editorCommands,
     ...widget.commands,
@@ -2547,7 +2433,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                       : _relative(folder),
                                   workspace.root,
                                 );
-                                _showView(IdeSideView.search);
+                                _layoutService.showView(IdeSideView.search);
                               },
                               onOpenInTerminal: _terminals == null
                                   ? null
@@ -3321,7 +3207,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         // TERMINAL, clicked, gives its terminal the keyboard.
                         onTab: (tab) => tab == IdePanelTab.terminal
                             ? _terminalView.show()
-                            : _selectPanel(tab),
+                            : (_layoutService.panel = tab),
                         onClose: () => setState(() => _panel = null),
                         onOpen: (location, {select = false}) => unawaited(
                           _editors.openLocation(location, select: select),
@@ -3668,7 +3554,7 @@ class _Host implements WorkbenchHost {
   }) => _state._editors.revealRange(range, select: select, center: center);
 
   @override
-  void focusPanel() => _state._focusPanel();
+  void focusPanel() => _state._layoutService.focusPanel();
 
   @override
   Future<void> openLocation(
@@ -3696,10 +3582,10 @@ class _Host implements WorkbenchHost {
   }) => _state._editors.openWith(open, focusEditor: focusEditor);
 
   @override
-  IdeSideView get view => _state._view;
+  IdeSideView get view => _state._layoutService.view;
 
   @override
-  void showView(IdeSideView view) => _state._showView(view);
+  void showView(IdeSideView view) => _state._layoutService.showView(view);
 
   @override
   void showQuickModel(IdeQuickInputModel model) {
