@@ -301,9 +301,10 @@ void main() {
   });
 
   testWidgets('an input method composing text keeps its keys', (tester) async {
+    // Shift+Enter: Enter is the search box's own (it searches, #377).
     KeybindingService.instance.userEntries = const [
       KeybindingEntry(
-        key: 'enter',
+        key: 'shift+enter',
         command: 'workbench.action.showCommands',
         when: 'searchInputBoxFocus',
       ),
@@ -318,7 +319,9 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
     await tester.pump();
     expect(quickText(tester), isNull);
 
@@ -329,7 +332,9 @@ void main() {
       ),
     );
     await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shift);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shift);
     await tester.pump();
     expect(quickText(tester), '>');
   });
