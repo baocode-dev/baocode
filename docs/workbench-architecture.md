@@ -1,52 +1,48 @@
 # IDE 工作台架构：服务 + 注册表 + 贡献 + 界面分块
 
-> 一句话：IDE 的状态放进各自的服务里，界面各块只订阅自己用到的服务；命令、快捷键、状态栏项、编辑器面板由各功能自己注册。`IdeWorkbenchState` 最后只负责把各块拼起来。
+> 一句话：IDE 的状态放在各自的服务里，界面各块只订阅自己用到的服务；命令、快捷键、上下文键、状态栏项、编辑器面板由各功能自己注册。`IdeWorkbenchState` 只负责建服务、把应用给的选项交给它们、拼装界面各块。
 
-照搬 VS Code 的思路（`workbench/services/*`、`registerAction2`、`IContextKeyService`、`IStatusbarService`、`EditorPaneRegistry`、`IHistoryService`、`IStorageService`、`workbench/browser/parts/*`），按 Dart/Flutter 的习惯来写：
+照搬 VS Code 的思路（`workbench/services/*`、`registerAction2`、`IContextKeyService`、`IStatusbarService`、`EditorPaneRegistry`、`IHistoryService`、`IStorageService`、`IQuickAccessRegistry`、`workbench/browser/parts/*`），按 Dart/Flutter 的习惯来写：
 
 - 不用反射，也不用装饰器注入。服务的依赖在构造函数里显式传入。
 - 变化通知用 `ChangeNotifier` / `ValueListenable`。界面用 `ListenableBuilder` 只重建自己那一块。
-- 每个窗口一个服务容器，通过 `InheritedWidget` 交给界面。
+- 每个窗口一个服务容器，通过 `InheritedWidget`（`WorkbenchScope`）交给界面。
 
-## 1. 现状
+## 1. 重构前后
 
-`lib/ide/ide_workbench.dart` 一共约 7900 行，其中主文件 6135 行，另有 part 文件 `ide_workbench_keys.dart`（1489 行）和 `ide_workbench_extensions.dart`（366 行）。所有状态都是 `IdeWorkbenchState` 的私有字段：
-
-| 功能 | 字段 / 方法（节选） |
-|---|---|
-| 导航 | `_backStack` `_forwardStack` `_recordNavigation` `_navigate` `_recentlyUsedStack` `_closedEditors` |
-| Git / 对比 / 本地历史 | `_openChange` `_openChangeInLog` `_compareFiles` `_compareWith` `_showLocalHistory` `_writeFromDiff` `_ScmKeys` |
-| 终端 | `_terminals` `_toggleTerminal` `_newTerminal` `_TerminalKeys` |
-| Markdown 预览 | `_markdownSources` `_setMarkdownPreview` `_markdownPreview` |
-| 调试 | `_ideDebug` `_attachDebug` `_debugCommands` |
-| LSP / 符号 / 引用 / 问题 | `_languages` `_symbols` `_references` `_markers` `_PanelKeys` |
-| 资源管理器 | `_explorer` `_explorerTree` `_explorerCommands` |
-| 布局 | `_chatWidth` `_sidebarWidth` `_panelHeight` `_view` `_split` `_titleBar` `_activityBar` |
-| 状态栏 | `_statusBar()` `_caret` `_statusMessage` |
-| 快速输入 | `_quickInput` `_quickModel` `_showQuickInput` `_showQuickModel` |
-| 快捷键 | `keyContext()` 的大 switch、`_commandsById` `_onWorkbenchKey` 和 chord 处理 |
-| 命令 | `_workbenchCommands()`（468 行）以及各 part 里的 `_xxxCommands()` |
-| 持久化 | `_restoreView()` 和 `_viewState` 在一处收集所有键 |
-
-这样带来三个问题：
+重构前，`lib/ide/ide_workbench.dart` 主文件 6135 行，另有 part 文件 `ide_workbench_keys.dart`（1489 行）和 `ide_workbench_extensions.dart`（366 行），所有状态都是 `IdeWorkbenchState` 的私有字段。这带来三个问题：
 
 1. 任何变化都要 `setState`，整棵工作台跟着重建（共 62 处）。
-2. 功能之间靠私有字段互相调用，没法单独测试，现有测试只能走 `pumpWorkbench`。
+2. 功能之间靠私有字段互相调用，没法单独测试，测试只能走 `pumpWorkbench`。
 3. 对话模式的侧栏（`lib/chat/side_panel/side_panel_view.dart`）把 `ideLocalDiffFile`、写回 diff 这类逻辑又写了一遍。
+
+重构后：
+
+- `ide_workbench.dart` 966 行。其中 `IdeWorkbench` 这个 widget 的选项约 215 行，`IdeWorkbenchState` 557 行（建服务约 185 行），`_Host` 约 105 行。两个 part 文件已删除。
+- 根部只剩两处 `setState`：`settings.json` 重新读入（很少发生，且到处都读设置），以及语言名表第一次载入。
+- 各服务、贡献、界面块都有不走 `pumpWorkbench` 的测试（`test/ide/workbench/services/`、`test/ide/workbench/parts/`）。
+- 对话侧栏和 IDE 用同一个 `GitChangesService` 生成本地改动的 diff 并写回。
 
 ## 2. 目录
 
 ```
 lib/ide/workbench/
-  services.dart          服务容器 WorkbenchServices + WorkbenchScope（InheritedWidget）
+  services.dart          服务容器 WorkbenchServices + WorkbenchScope；WorkbenchDisposable
+  contributions.dart     WorkbenchContribution、WorkbenchRegistrations、WorkbenchHost（宿主接口）
+  environment.dart       WorkbenchEnvironment：服务要用的应用选项（settings、颜色主题、宿主命令）
+  options.dart           WorkbenchOptions：界面块要用的应用选项（IdeWorkbench 实现它）
+  style.dart             WorkbenchStyle：islands、gap、sashWidth
   context_keys.dart      ContextKeyService：上下文键
-  actions.dart           WorkbenchAction + ActionRegistry：命令、快捷键、菜单
-  statusbar.dart         StatusbarService：addEntry / 访问器
-  storage.dart           WorkbenchStorage：各服务自己存取视图状态
-  editor_panes.dart      EditorPaneRegistry：输入 → 面板
-  contributions/         各功能的贡献（注册动作、状态栏项、上下文键、面板）
-  parts/                 界面分块：标题栏、活动栏、侧栏、编辑区、面板、状态栏
-lib/ide/services/        有状态的服务（导航、Git 改动、终端视图、Markdown 预览、调试、语言、资源管理器、布局、快速输入、编辑器）
+  actions.dart           WorkbenchAction + ActionRegistry：命令、快捷键
+  statusbar.dart         StatusbarService：addEntry / addEntries / 状态消息
+  storage.dart           WorkbenchStorage：各服务自己存取视图状态，并负责何时保存
+  editor_panes.dart      EditorPaneRegistry：文档 → 面板
+  quick_access.dart      QuickAccessRegistry：快速输入的前缀 → 提供者
+  views.dart             IdeSideView 等视图枚举
+  workspace_binding.dart WorkspaceBinding：服务挂到工作区上、换工作区时卸下
+  contributions/         各功能的贡献（注册动作、上下文键、状态栏项、面板、快速访问）
+  parts/                 界面分块
+lib/ide/services/        有状态的服务（见第 4 节）
 ```
 
 ## 3. 基础设施
@@ -55,10 +51,11 @@ lib/ide/services/        有状态的服务（导航、Git 改动、终端视图
 
 ```dart
 class WorkbenchServices {
-  T add<T extends Object>(T service);   // 同一类型只能注册一次
-  T get<T extends Object>();            // 没有就抛错
-  T? find<T extends Object>();          // 可选的服务（调试、语言服务等）
-  void dispose();                       // 按注册的倒序释放（ChangeNotifier / WorkbenchDisposable）
+  T add<T extends Object>(T service);           // 同一类型只能注册一次
+  T get<T extends Object>();                    // 没有就抛错
+  T? find<T extends Object>();                  // 可选的服务（导航历史在换工作区时短暂没有）
+  void remove<T extends Object>({bool owned});  // 绑定工作区的服务，换工作区时移除
+  void dispose();                               // 按注册的倒序释放（ChangeNotifier / WorkbenchDisposable）
 }
 
 class WorkbenchScope extends InheritedWidget {
@@ -67,86 +64,75 @@ class WorkbenchScope extends InheritedWidget {
 }
 ```
 
-- 每个窗口（即每个 `IdeWorkbench`）一个容器，在 `initState` 里按依赖顺序创建，这一步相当于 VS Code 的 `InstantiationService`，但写成显式的构造调用：
-
-  ```dart
-  final history = services.add(NavigationHistoryService(editors: editors, storage: storage));
-  ```
-
-- 容器和窗口同生命周期。换工作区（`didUpdateWidget` 里 workspace 变了）时，只有绑定工作区的服务（导航、Git 改动、资源管理器、语言等）用 `remove<T>()` 释放后重新创建，对应现在的 `_detach` / `_attach`；布局、快速输入、状态栏、注册表这些跟着窗口走，不重建。
+- 每个窗口（即每个 `IdeWorkbench`）一个容器，在 `IdeWorkbenchState._createServices` 里按依赖顺序显式构造，相当于 VS Code 的 `InstantiationService`。
+- 容器和窗口同生命周期。换工作区时只有 `NavigationHistoryService` 和工作区本身（`IdeWorkspace` 也登记在容器里）被移除再加回；其余服务由 `WorkspaceBinding` 调它们的 `attach` / `detach`（见 3.7）。
 - 界面通过 `WorkbenchScope.of(context).get<T>()` 拿服务，不经过 `IdeWorkbenchState`。
 
 ### 3.2 上下文键服务
 
 ```dart
 class ContextKeyService extends ChangeNotifier {
-  ContextKey<T> createKey<T>(String name, T defaultValue); // 服务自己持有并 set
-  VoidCallback addProvider(ContextLookup provider);       // 算出来的键；返回 null 表示「不归我管」
-  Object? getValue(String key);                           // 先查 createKey 的键，再按注册顺序问各个 provider
-  ContextLookup get lookup;                               // 交给 KeybindingService.resolveEvent(context:)
+  ContextKey<T> createKey<T>(String name, T defaultValue);    // 服务持有，状态变时 set
+  VoidCallback bind<T>(String name, ValueListenable<T> value); // 跟着一个 ValueListenable
+  VoidCallback addProvider(ContextLookup provider);           // 现算的键；返回 null 表示「不归我管」
+  Object? getValue(String key);                               // 先查 createKey/bind 的键，再按注册顺序问 provider
 }
 ```
 
-- 状态在服务里的键（`canNavigateBack`、`activePanel`、`terminalCount`…）用 `createKey`，服务变化时 `set`。
-- 依赖焦点的键（`editorTextFocus`、`listFocus`、`terminalFocus`…）要在按键时现场判断，用 `addProvider`。这和现在 `keyContext()` 里 `?? _xxxContextKey(key)` 的串联是同一个语义。
-- 迁移期间，`IdeWorkbenchState.keyContext` 先查 `ContextKeyService`，查不到再走旧 switch。各块迁走后，旧 switch 就变空了。`keyContext` 本身作为 `@visibleForTesting` 入口保留。
+- 原来 `keyContext()` 的大 switch 已经拆光：每个贡献用 `addProvider` 回答自己的键（`terminalFocus`、`listFocus`、`searchViewletFocus`…）。依赖焦点的通用键（`editorTextFocus`、`inputFocus`、`textInputFocus`…）在 `FocusKeysContribution` 里，它排在最后，最后再问文本编辑器自己的键。
+- `IdeWorkbenchState.keyContext` 只是 `ContextKeyService.getValue` 的 `@visibleForTesting` 入口。
 
-### 3.3 动作注册表
+### 3.3 动作注册表与命令服务
 
 对应 VS Code 的 `registerAction2`：
 
 ```dart
 class WorkbenchAction {
   const WorkbenchAction({
-    required this.id,                  // 命令 id，不改
-    required this.title,               // 英文标题，同现在的 IdeCommand.label
-    this.category,
-    this.keybindings = const [],       // 目录里没有的命令才需要（见 registerExtraDefaults）
-    this.palette = true,               // false：只供快捷键调用（对应现在的 _keyboardCommands）
-    this.precondition,                 // bool Function(WorkbenchServices)，对应现在的 enabled
-    required this.run,                 // void Function(WorkbenchServices s, Object? args)
+    required String id,           // 命令 id，不改
+    required String title,        // 英文标题
+    required void Function(WorkbenchServices s, Object? args) run,
+    String? category,
+    List<IdeKeybinding> keybindings = const [], // 默认快捷键表里没有的命令才写
+    bool palette = true,          // false：只供快捷键调用（列表、视图里的键）
+    bool Function(WorkbenchServices s)? precondition,
+    bool takesArgs = false,       // 快捷键的 args 要传给 run
+    String Function(WorkbenchServices s)? titleFor, // 开关类命令的动态标题
   });
+  factory WorkbenchAction.catalog(String id, {...}); // 标题和分类取 commandCatalog 的
 }
 
 class ActionRegistry extends ChangeNotifier {
   VoidCallback register(WorkbenchAction action);
   VoidCallback registerAll(Iterable<WorkbenchAction> actions);
-  WorkbenchAction? byId(String id);
-  List<IdeCommand> commands(WorkbenchServices services, {bool palette = false});
+  WorkbenchAction? byId(String id);             // 同 id 取先注册的
+  List<IdeCommand> commands(WorkbenchServices s, {bool palette = false});
 }
 ```
 
-- `run` 只能拿到服务，拿不到 `State`。需要 `BuildContext` 的（弹窗、本地化文案）通过服务里的宿主接口取，见 3.6。
-- `commands()` 把动作转成现有的 `IdeCommand`，命令面板、`KeybindingService.resolveEvent(canRun:)`、`commandCatalog` 都照旧使用，快捷键解析不用改。
-- **同一个 id 有多个提供者**（例如 `list.focusDown` 由资源管理器、搜索结果、问题列表分别实现）：按注册顺序取第一个，和现在 `_commandsById` 的 `putIfAbsent` 一致。所以迁移时贡献的注册顺序要和原来在 `_commandsById` 里的位置对齐。
-- 菜单：本次重构不动现有菜单（右键菜单仍由各视图自己构建），`WorkbenchAction` 先不带 `menus` 字段，免得写了不用。
+- `run` 只拿到服务，拿不到 `State`。需要 `BuildContext` 的（弹窗、本地化文案）通过 `WorkbenchHost.context` 取，见 3.6。
+- `CommandService`（`lib/ide/services/commands.dart`）在注册表之上加「来源」：文本编辑器自己的命令、应用给的宿主命令按 `addSource` 接进来。`palette()` 给命令面板，`byId()` 给快捷键分发，`runById` 给菜单和宿主；`recent` 记最近运行的命令。
+- **同一个 id 有多个提供者**：按注册顺序取第一个。贡献的顺序在 `contributions/all.dart` 的 `createWorkbenchContributions` 里，就是命令的优先顺序。
+- `KeybindingDispatchService`（`lib/ide/services/keybindings.dart`）接管按键：早、晚两个 `FocusManager` 处理器，chord 状态和提示，终端里哪些键交给 shell。
+- 菜单：右键菜单仍由各视图自己构建，`WorkbenchAction` 不带 `menus` 字段。
 
 ### 3.4 状态栏服务
 
 对应 `IStatusbarService.addEntry`：
 
 ```dart
-enum StatusbarAlignment { left, right }
-
-class StatusbarEntry {                // 纯数据，渲染时转成 IdeStatusBarItem
-  final String text; final IconData? icon; final String? tooltip;
-  final String? command;              // 点击执行的命令 id（走 ActionRegistry）
-  final VoidCallback? onTap; final void Function(Rect)? onTapRect;
-  …                                   // 其余字段同 IdeStatusBarItem
-}
-
 class StatusbarService extends ChangeNotifier {
-  StatusbarEntryAccessor addEntry(StatusbarEntry entry, String id,
-      StatusbarAlignment alignment, {double priority = 0});
-  List<IdeStatusBarItem> items(StatusbarAlignment alignment); // 按优先级排序，同优先级按添加顺序
+  StatusbarEntryAccessor addEntry(String id, StatusbarAlignment alignment,
+      StatusbarEntryBuilder build, {double priority = 0, Listenable? changes});
+  StatusbarEntryAccessor addEntries(...); // 一组项（语言状态每项一个）
+  List<(double, IdeStatusBarItem)> entries(BuildContext context, StatusbarAlignment alignment);
+  void setMessage(String? message, {Duration? hideAfter}); // chord、命令的提示
 }
-
-class StatusbarEntryAccessor { void update(StatusbarEntry entry); void dispose(); }
 ```
 
-- 贡献监听自己的服务，变化时调用 `accessor.update`。状态栏块只监听 `StatusbarService`，打字时不会重建别的块。
-- 行列和「已选 N 行」改成编辑器状态贡献（`EditorStatusContribution`），监听 `_caret`。缩进、编码、换行符、语言模式也放在这个贡献里。
-- 排序和现在一致：左侧依次是远程、调试、分支、问题、语言状态、状态消息；右侧依次是行列、缩进、编码、EOL、语言、铃铛。顺序用 priority 表达：数字大的靠左，两侧都一样（同 VS Code 的 `StatusBarItem.priority`）。
+- 项是现建的（builder 拿 `BuildContext`，文案本地化），`changes` 变了状态栏重建；状态栏块只订阅它关心的东西（见第 7 节），打字时不重建别的块。
+- 行列和「已选 N 行」、缩进、编码、换行符、语言模式是 `EditorStatusContribution` 的项。
+- 顺序用 priority 表达，数字大的靠左：左侧远程 100、调试 90、分支 80、问题 70、语言状态 60、状态消息 50；右侧行列 100 … 铃铛 -1000。远程、状态消息、铃铛由 `parts/status_bar.dart` 按这些 priority 合进去。
 
 ### 3.5 存储
 
@@ -158,143 +144,177 @@ abstract interface class WorkbenchStorageParticipant {
   void saveState(Map<String, Object?> into);      // 写自己的键
 }
 
-class WorkbenchStorage {
+class WorkbenchStorage implements WorkbenchDisposable {
+  WorkbenchStorage({VoidCallback? onChanged, ValueChanged<Map<String, Object?>>? Function()? save});
   VoidCallback register(WorkbenchStorageParticipant participant);
   void restore(Map<String, Object?> kept);
   Map<String, Object?> collect();
-  void changed();   // 服务的状态变了：稍后保存（就是现在的 _keepViewSoon，300ms 防抖）
+  void changed();                       // 某个服务的状态变了：300ms 后保存
+  void holdWhile(Future<void> restoring); // 上次的编辑器重新打开期间不保存
+  void keep();                          // 立刻保存（应用退到后台、窗口关闭）
 }
 ```
 
-- **存储格式不变**：仍是同一个扁平的 JSON（`sidebarWidth`、`chatWidth`、`panelHeight`、`sidebar`、`chat`、`panel`、`view`、`search`、`markdownSource`、`gitFavoriteBranches`、`gitChangelists`、`editors`、`active`、`editorViews`）。每个服务只读写自己那几个键，用户已经存下的布局和打开的文件升级后照常恢复。
-- 迁移期间，`_viewState` 写成 `{...旧的键, ...storage.collect()}`，`_restoreView` 末尾调用 `storage.restore(kept)`，某个键迁走一个就删掉旧代码里的一个。
+- **存储格式不变**：仍是同一个扁平的 JSON，`IdeWorkbench.viewState` / `onViewState` 不变。各服务的键：
+  - `LayoutService`：`sidebarWidth` `chatWidth` `panelHeight` `view`，以及工作区 `IdeLayout.toJson()` 的显隐键（`sidebar` `chat` `panel` 等）；
+  - `ScmService`：`gitFavoriteBranches` `gitChangelists`；
+  - `SearchViewService`：`search`；
+  - `MarkdownPreviewService`：`markdownSource`；
+  - `EditorService`：`editors` `active` `editorViews`（最后注册，其余恢复后再打开编辑器）。
+- 什么时候保存也归存储管：同样的 JSON 不重复保存；编辑器滚动、光标移动停下 1 秒后才保存（`EditorService.viewChanged`）。`IdeWorkbenchState` 不再收集任何键。
 
-### 3.6 宿主接口
+### 3.6 宿主接口与应用选项
 
-有些服务要弹对话框、拿本地化文案、或者等编辑器把内容写回（`_flushEditor`），这些都离不开界面。做法是给它们一个窄接口 `WorkbenchHost`，由 `IdeWorkbenchState` 实现，服务通过构造函数拿到：
+服务要弹对话框、拿本地化文案、把编辑器里的改动写回文档，这些离不开界面。做法是给它们一个窄接口 `WorkbenchHost`，由 `IdeWorkbenchState` 里的 `_Host` 实现：
 
 ```dart
 abstract interface class WorkbenchHost {
   BuildContext? get context;           // 本地化、showIdeDialog；没挂载时为 null
-  Future<void> flushEditor();          // 编辑器里的改动写回文档
+  Future<void> flushEditor();
   void focusEditor();
   void report(Object error);           // 通知中心报错
+  void focusSoon();
+  bool executeCommand(String id, [Object? args]);
+  ...                                  // 打开文件 / 位置、显示视图、显示快速输入模型、聚焦面板
 }
 ```
 
-这对应 VS Code 里服务依赖 `IDialogService`、`INotificationService` 的做法。只是在 Flutter 里对话框需要 `BuildContext`，所以收成一个接口。
+应用给窗口的选项分两份：服务要用的放 `WorkbenchEnvironment`（`settings`、`colorThemes`、`hostCommands`，也由 `_Host` 实现）；界面块要用的放 `WorkbenchOptions`（工作区、项目、对话、编辑器构造器、提交信息模型、最近的文件夹……），`IdeWorkbench` 本身实现它，界面块构造时拿到。
+
+### 3.7 工作区绑定
+
+`WorkspaceBinding`（对应工作台跟着 `IWorkspaceContextService` 换文件夹，以及 `IEditorService.onDidActiveEditorChange` 的监听者）：
+
+- `attach(workspace)`：资源管理器、语言、SCM、布局、调试、终端根目录挂到工作区上，建这个工作区的 `NavigationHistoryService`。
+- 工作区变化时通知各服务：文件夹变了（资源管理器、SCM、终端根目录），文档变了（语言、导航、搜索、自动保存），打字（语言、自动保存、搜索）。
+- 前台编辑器换了：自动保存 `onFocusChange`、记导航、显示编辑区、从 Git 日志的位置回到资源管理器、资源管理器跟随。
+- `detach()`：全部卸下。`IdeWorkbenchState.didUpdateWidget` 换工作区时 `detach` 再 `attach`。
 
 ## 4. 服务清单
 
-| 服务 | 持有的状态 | 主要接口 | 上下文键 / 存储键 | 来源（VS Code） |
-|---|---|---|---|---|
-| `NavigationHistoryService` | 后退/前进栈、最近使用的编辑器栈、关掉的编辑器 | `record(location)`、`back()`、`forward()`、`canGoBack/Forward`（ValueListenable）、`forget(path)`、`reopenClosed()` | `canNavigateBack` `canNavigateForward` | `historyService.ts` |
-| `GitChangesService` | 当前仓库、hunks、changelists、收藏分支 | `openChange(resource)`、`localDiffs(git, state, resources)`、`writeFromDiff`、`compareFiles`、`compareWith`、`showLocalHistory` | `gitFavoriteBranches` `gitChangelists` | git 扩展 `commands.ts`、`compareWith` |
-| `TerminalViewService` | 终端集合（包装现有 `TerminalService`）、待开的终端请求 | `toggle()`、`create({profile, cwd})`、`show(task)`、`focus()`、`cycle()`、`rename()` | `terminalFocus` `terminalCount` … | `terminalService.ts`、`terminalView` |
-| `MarkdownPreviewService` | 选择看源码的 md 文件（`markdownSources`） | `previewing(doc)`、`setPreview(doc, on)`、`hasPreview(doc)` | `markdownSource` | markdown-language-features `preview` |
-| `DebugViewService` | 调试会话的监听 | `attach(debug)`、`detach()`、调试工具栏状态 | `inDebugMode` … | `debugService.ts` |
-| `LanguageViewService` | LSP 功能、符号、编辑请求、引用、问题标记、推荐的语言服务器 | `showReferences`、`revealSymbol`、`gotoProblem`、`recommendServers` | `problemsFocus`、`referenceSearchVisible` … | `markersView`、`referencesController` |
-| `ExplorerService` | `IdeExplorerController`、文件索引、时间线 | `reveal(path)`、`collapseAll()`、命令所需的当前树 | `filesExplorerFocus` `explorerViewletVisible` … | `explorerService.ts` |
-| `LayoutService` | `IdeLayout`、各部分宽高、当前侧栏视图、面板最大化、焦点节点 | `showView(view)`、`togglePanel(tab)`、`focusPart(part)`、`resize` | 宽高、`view`、`sidebar` `chat` `panel`；`activeViewlet`、`panelFocus` … | `layoutService.ts` |
-| `QuickInputService` | 当前的快速输入或模型 | `show(prefix)`、`pick(model)`、`close()` | `inQuickOpen` … | `quickInputService.ts` |
-| `EditorService` | 包装 `IdeWorkspace` 的文档部分，外加 busy、打开选项和揭示 | `open(path, {range, focus})`、`openDiff`、`openRevision`、`select`、`close`、`active`（ValueListenable） | `editors` `active` `editorViews` | `editorService.ts` |
-| 已有：`IdeNotifications` | 通知 | `notify` | | `notificationService` |
-| 已有：`IdeScmSession` `IdeSearchSession` `IdeExtensionsSession` | | | `search` | |
+| 服务 | 持有的状态 | 主要接口 | 来源（VS Code） |
+|---|---|---|---|
+| `NavigationHistoryService` | 后退/前进栈、最近使用的编辑器、关掉的编辑器 | `navigate(back:)`、`record`、`reopenClosed` | `historyService.ts` |
+| `ScmService` | 当前仓库、SCM 会话、hunks、changelists、收藏分支、Git 日志 | `openChange`、`compareWith`、`showHistory`、`leaveGitLog` | git 扩展 `commands.ts` |
+| `GitChangesService` | 无（文件服务、通知、可选的工作区） | `localDiffs`、`write` | git 扩展 |
+| `TerminalViewService` | 终端集合（包装 `TerminalService`）、显示的后台任务 | `show`、`create`、`openIn`、`selectDefaultProfile` | `terminalService.ts` |
+| `MarkdownPreviewService` | 看源码的 md 文件 | `hasPreview`、`previewing`、`setPreview`、`drops`、`pasteInEditor` | markdown-language-features |
+| `DebugViewService` | 调试器（给的或工作区的） | `attach`、`detach`、`toggleRepl`、`runAndDebugKey` | `debugService.ts` |
+| `LanguageService` | LSP 功能、符号、推荐的语言服务器 | `attach`、`documentChanged`、`revealSymbol`、`symbolPath`、`recommendServers` | `languageStatus`、`outline` |
+| `ProblemsService` / `ReferencesService` | 问题列表、引用结果 | `gotoProblem`、`show`、`list` | `markersView`、`referencesController` |
+| `ExplorerService` / `ListService` | `IdeExplorerController`、面板开合；当前有焦点的列表 | `reveal`、`follow`、`rootsChanged` | `explorerService.ts`、`listService.ts` |
+| `LayoutService` | 侧栏视图、宽高、面板最大化、各块焦点节点；显隐跟 `IdeLayout` | `showView`、`togglePanel`、`focusPanel`、`resized` | `layoutService.ts` |
+| `QuickInputService` | 快速输入的文字、模型 | `show(prefix)`、`showModel`、`quickNavigate`、`close` | `quickInputService.ts` |
+| `SearchViewService` | 搜索会话 | `findInFiles`、`replaceInFiles`、`findInFolder` | `searchView.ts` |
+| `EditorService` | 文本编辑器、光标、打开中的状态 | `open`、`openLocation`、`select`、`close`、`tabAction`、`caret` | `editorService.ts` |
+| `ExtensionsViewService` | 扩展视图的页签、扩展详情页 | `openPage`、`installFromVsix`、`drop`、`selectIconTheme` | `extensionsWorkbenchService` |
+| `ConfigurationService` / `AutoSaveService` | 设置开关；自动保存计时 | `flag`、`setFlag`、`formatOnSave`；`schedule`、`saveNow` | `configurationService`、`filesConfigurationService` |
+| `ChatService` | 无（应用给的回调） | `addSelection`、`ask`、`back` | （本应用自有） |
+| `CommandService` / `KeybindingDispatchService` | 命令来源、最近运行；chord 状态 | 见 3.3 | `commandService`、`keybindingService` |
+| 已有：`IdeWorkspace` `IdeNotifications` | 文档；通知 | | `EditorGroupModel`、`notificationService` |
 
-这些服务**不依赖** `IdeWorkbenchState`，只依赖别的服务和 `WorkbenchHost`。
+这些服务**不依赖** `IdeWorkbenchState`，只依赖别的服务、`WorkbenchHost` 和 `WorkbenchEnvironment`。
 
 ## 5. 贡献的写法
 
-对应 `IWorkbenchContribution`。一个功能写一个贡献，构造时注册，`dispose` 时注销：
+对应 `IWorkbenchContribution`。一个功能写一个贡献，构造时注册，`dispose` 时注销；`WorkbenchRegistrations` 收集注销回调：
 
 ```dart
-class NavigationContribution implements WorkbenchContribution {
-  NavigationContribution(WorkbenchServices s) {
-    final history = s.get<NavigationHistoryService>();
-    _disposers = [
-      s.get<ActionRegistry>().registerAll([
-        WorkbenchAction(
-          id: 'workbench.action.navigateBack',
-          title: 'Go Back',
-          precondition: (_) => history.canGoBack.value,
-          run: (_, _) => history.back(),
+class NavigationContribution extends WorkbenchRegistrations {
+  NavigationContribution(WorkbenchServices services) {
+    add(
+      services.get<ActionRegistry>().registerAll([
+        WorkbenchAction.catalog(
+          'workbench.action.navigateBack',
+          precondition: (s) => s.find<NavigationHistoryService>()?.canGoBack ?? false,
+          run: (s, _) => s.find<NavigationHistoryService>()?.navigate(back: true),
         ),
         …
       ]),
-      s.get<ContextKeyService>().bindListenable(
-          'canNavigateBack', history.canGoBack),
-    ];
+    );
+    add(services.get<ContextKeyService>().addProvider((key) => switch (key) {
+      'canNavigateBack' => …,
+      _ => null,
+    }));
   }
-  late final List<VoidCallback> _disposers;
-  @override
-  void dispose() { for (final d in _disposers) d(); }
 }
 ```
 
-- 命令 id、标题、快捷键原样照搬，从旧的 `IdeCommand` 列表里**剪切**过来，不能复制一份：旧列表在前，同 id 的新动作永远不会生效。
-- 快捷键：目录（`commandCatalog` / `defaultKeybindings`）里已有的命令不写 `keybindings`；只有现在用 `IdeCommand.keybindings` 带快捷键的，才原样写进 `WorkbenchAction.keybindings`。
-- 贡献列表集中写在 `lib/ide/workbench/contributions/contributions.dart` 的 `createWorkbenchContributions(services)` 里，顺序就是命令的优先顺序。
+- 命令 id、标题、快捷键照搬，原来的 `IdeCommand` 列表已经拆光。
+- 快捷键：目录（`commandCatalog` / `defaultKeybindings`）里已有的命令不写 `keybindings`；原来 `IdeCommand.keybindings` 带快捷键的，原样写进 `WorkbenchAction.keybindings`。
+- 贡献列表在 `contributions/all.dart`：导航、SCM、终端、编辑器面板、编辑器状态、Markdown、调试、语言、列表、资源管理器、布局、快速输入、搜索、编辑器命令、窗口、扩展，最后是 `FocusKeysContribution`。
+- 原来在 `_workbenchCommands` 里、在某些状态下从列表里拿掉的命令，现在一直注册，用 `precondition` 返回 false 表示不可用；快捷键和菜单看到的结果一样。
 
 ## 6. 编辑器面板
 
 对应 `EditorInput` 加 `EditorPaneRegistry`，在 `FileViews` 的基础上扩展：
 
 ```dart
-class EditorPane {
-  final String id;
-  final bool Function(EditorPaneInput input) accepts;
-  final Widget Function(BuildContext context, EditorPaneInput input) build;
-}
-
-class EditorPaneRegistry {
-  void register(EditorPane pane, {int priority = 0});
-  EditorPane? paneFor(EditorPaneInput input);
+class EditorPaneRegistry extends ChangeNotifier {
+  VoidCallback register(EditorPane pane, {int priority = 0});
+  EditorPane? paneFor(IdeDocument doc);   // 没有就用文本编辑器
 }
 ```
 
-- 输入：`IdeDocument`（文件、diff、修订、媒体、打不开的文件），以及没有文档时的开始页和欢迎页。
-- 内置面板按现在 `_editorArea` 的判断顺序注册：`FileViews` 视图（stash 等）→ 图片/媒体预览 → 打不开的占位 → Markdown 预览（`MarkdownPreviewService` 说要预览时）→ 文本编辑器（`editorBuilder` 或 `IdeEditor`）。
-- `FileViews.register` 继续可用，它是注册表里的一个来源：`FileView` 被包成 `EditorPane`。stash 不用改。
-- 扩展详情页保留现在的离屏页面，挂在编辑区上，不当成文档。
+- `EditorPanesContribution` 按原来 `_editorArea` 的判断顺序注册：`FileViews` 视图（stash 等）→ 图片/媒体 → 打不开的占位；`MarkdownContribution` 注册 Markdown 预览（`MarkdownPreviewService` 说要预览时）。都不接的，用 `editorBuilder` 或 `IdeEditor`。
+- `FileViews.register` 继续可用，`FileView` 被包成 `EditorPane`。
+- 开始页、欢迎页、扩展详情页在 `EditorPart` 里：详情页是叠在编辑器上的离屏页，不当成文档。
 
 ## 7. 界面分块
 
-对应 `workbench/browser/parts/*`：
+对应 `workbench/browser/parts/*`，都在 `lib/ide/workbench/parts/`：
 
-| 块 | 订阅 | 现在的位置 |
+| 块 | 订阅 | 原来的位置 |
 |---|---|---|
-| `TitlebarPart` | `LayoutService`、`EditorService.active`、导航 | `_titleBar` |
-| `ActivitybarPart` | `LayoutService`、SCM 计数 | `_activityBar` |
-| `SidebarPart` | `LayoutService.view` | `_sidebarPart` |
-| `EditorPart` | `EditorService`、`EditorPaneRegistry` | `_editorColumn` / `_editorArea` |
-| `PanelPart` | `LayoutService.panel`、终端、问题 | `_panelSlot` |
-| `StatusbarPart` | `StatusbarService` | `_statusBar` |
+| `TitleBarPart` | 工作区、快捷键 | `_titleBar` |
+| `ActivityBarPart` | `LayoutService`、`ScmService`、快捷键 | `_activityBar` |
+| `SideBarPart` / `ExplorerViewPart` | `LayoutService`、`ScmService`、`DebugViewService`、快捷键；`ExplorerService`、工作区、`LanguageService` | `_sidebarPart` / `_explorerView` |
+| `EditorPart` | 工作区、`EditorService`、`ExtensionsViewService`、`MarkdownPreviewService`、`DebugViewService`、`ConfigurationService`、快捷键；面包屑另订阅光标和 `LanguageService` | `_editorArea` |
+| `PanelPart` | `LayoutService`、`LanguageService`、`ReferencesService`、`TerminalViewService`、`DebugViewService`、快捷键 | `_panelSlot` |
+| 状态栏（`workbenchStatusBar` / `workbenchStatusChanges`） | `StatusbarService`、光标、编辑、通知、远程、语言服务器进度 | `_statusBar` |
+| `WorkbenchGrid` / `WorkbenchSash` | `LayoutService`、`DebugViewService` | `_split` / `_editorColumn` / `_chatSlot` / `_Sash` |
+| `QuickInputPart`、`ExtensionsViewPart` | 各自的服务 | `_quickInput` / extensions part |
 
-- 每块是一个独立的 widget，从 `WorkbenchScope` 取服务，用 `ListenableBuilder` 订阅。
-- `LayoutService` 负责宽高、显隐和拖动（`_split` / `_Sash`）。`IdeWorkbenchState.build` 只拼装：`WorkbenchScope` → 键盘焦点 → 各块 → 通知、快速输入的浮层。
+- 每块是独立的 widget，从 `WorkbenchScope` 取服务、从构造参数拿 `WorkbenchOptions`，用 `ListenableBuilder` 只重建自己。
+- 拖动分隔条改 `LayoutService` 的宽高，再调 `resized()`：网格重建，存储稍后保存。
+- `IdeWorkbenchState.build` 只拼装：`WorkbenchScope` → 鼠标前进后退 → 岛屿样式 → 键盘焦点 → 标题栏、网格 → 通知、快速输入的浮层。
+- 快捷键改了，带快捷键提示的块（标题栏、活动栏、侧栏、资源管理器、编辑区、面板）各自订阅 `KeybindingService`，不再靠根部整体重建。
 
 ## 8. IDE 与对话侧栏共用的规则
 
-- 侧栏和 IDE 用**同一个类**，各自用自己的依赖构造实例。例如 `GitChangesService(files:, notifications:, …)`：IDE 传入 workspace 的文件服务和通知，侧栏传入它自己的。逻辑只写一份。
-- 跟布局无关的服务（Git 改动的 diff 生成和写回、本地历史、编辑器面板注册表、Markdown 预览判断）放在 `lib/ide/services/`，不能依赖工作台的布局或焦点。
-- 跟 IDE 布局有关的服务（`LayoutService`、`QuickInputService`、状态栏）只在 IDE 用，侧栏不引入。
-- 第一项共用的是 `ideLocalDiffFile` 那一段：生成本地改动的 diff 列表，写回出错时发通知。`side_panel_view.dart` 的 `_showLocalDiff` 和工作台的 `_openChangeInLog` 都改为调用 `GitChangesService.localDiffs`。
+- 侧栏和 IDE 用**同一个类**，各自用自己的依赖构造实例。`GitChangesService(files:, notifications:, …)`：IDE 传入工作区的文件服务、通知、工作区（写回进打开的文档），侧栏传入它自己的。`side_panel_view.dart` 的 `_showLocalDiff` 和 IDE 的 `ScmService.openChangeInLog` 都调 `GitChangesService.localDiffs`。
+- 跟布局无关的东西（diff 生成和写回、`IdeGitChangeEditor` 决定改动的两边、编辑器面板注册表、Markdown 预览判断）不依赖工作台的布局或焦点；侧栏的 `gitChangeRequest` 也用 `IdeGitChangeEditor`。
+- 跟 IDE 布局有关的服务（`LayoutService`、`QuickInputService`、状态栏、各界面块）只在 IDE 用，侧栏不引入；侧栏自己的空状态样式不同，各写各的。
 
-## 9. 迁移顺序
+## 9. 迁移记录
 
-每一步一个 PR，新旧代码并存，每个 PR 都能单独发版：
+每一步一个 PR，新旧代码并存，每个 PR 都单独合进 main 并打了测试包标签：
 
-1. 本文档。
-2. 基础设施：服务容器、上下文键、动作注册表、状态栏服务、存储，并接到旧代码上（旧的 `keyContext` 和 `_commandsById` 先查新注册表，状态栏把注册的项合进去）。不搬功能。
-3. 按功能整块迁：导航 → Git/SCM、对比、本地历史（含侧栏共用）→ 终端 → Markdown 预览（改为编辑器面板）→ 调试 → LSP/符号/引用/问题 → 资源管理器。
-4. 编辑区：`_editorArea` 改成输入加面板注册表，`IdeWorkspace` 的文档部分升级为 `EditorService`。
-5. 命令：拆掉 `_workbenchCommands` 和 keys part 文件，各功能注册自己的动作。
-6. 布局：拆成界面分块加 `LayoutService`，`IdeWorkbenchState` 只剩拼装。
-7. 收尾：删掉并存的旧代码和不再用的 part 文件，更新本文档。
+| 步骤 | PR | 测试包标签 |
+|---|---|---|
+| 1 本文档 | #780 | `test-workbench-doc-2ee495a3` |
+| 2 基础设施 | #782 | `test-workbench-infra-029f64e0` |
+| 3 导航 | #783 | `test-workbench-navigation-2d2894d9` |
+| 3 Git/SCM、对比、本地历史（侧栏共用） | #784 | `test-workbench-scm-2187cbd3` |
+| 3 终端 | #785 | `test-workbench-terminal-06297a51` |
+| 3 Markdown 预览 → 编辑器面板 | #786 | `test-workbench-markdown-854f0d34` |
+| 3 调试 | #788 | `test-workbench-debug-50ff69cd` |
+| 3 LSP / 问题 / 引用 | #789 | `test-workbench-language-2dceec61` |
+| 3 资源管理器、列表 | #790 | `test-workbench-explorer-e3a200e2` |
+| 4 编辑区 → EditorService + 面板注册表 | #791 | `test-workbench-editor-84ac1b44` |
+| 5 布局命令 | #792 | `test-workbench-layout-9cbdb3f9` |
+| 5 快速输入、命令服务 | #793 | `test-workbench-quickinput-ec05af68` |
+| 5 搜索 | #794 | `test-workbench-search-0109560d` |
+| 5 编辑器/窗口命令，删 keys part | #795 | `test-workbench-commands-1e3860ff` |
+| 5 扩展，删 extensions part | #796 | `test-workbench-extensions-7cc4c295` |
+| 5 快捷键分发 | #797 | `test-workbench-keys-a8a83ba1` |
+| 6 界面分块 | #798 | `test-workbench-parts-386159d0` |
+| 6 存储与工作区绑定移出 State | #800 | `test-workbench-state-4f0c53b9` |
+| 7 收尾：本文档对齐实现 | 本 PR | |
 
 ### 兼容性检查（每步都要过）
 
 - 命令 id、快捷键（`default_keybindings.dart`、用户的 `keybindings.json`）、`when` 里的键名不变。
 - `settings.json` 的键不变（`files.autoSave`、`editor.formatOnSave`、`workbench.iconTheme` …）。
 - 视图状态的 JSON 键和值格式不变。
-- 每块迁移都补一份不依赖 `pumpWorkbench` 的单元测试或组件测试，放在 `test/ide/workbench/services/`。只跑与改动相关的测试。
+- 每块迁移都补一份不依赖 `pumpWorkbench` 的单元测试或组件测试，放在 `test/ide/workbench/services/` 或 `test/ide/workbench/parts/`。只跑与改动相关的测试。
