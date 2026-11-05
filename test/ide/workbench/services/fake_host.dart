@@ -71,8 +71,15 @@ class FakeWorkbenchHost implements WorkbenchHost {
   void focusPanel() => calls.add('focusPanel');
 
   @override
-  Future<void> openLocation(IdeLocation location, {bool record = true}) async =>
-      calls.add('openLocation ${location.path}');
+  Future<void> openLocation(
+    IdeLocation location, {
+    bool select = false,
+    bool record = true,
+    VoidCallback? afterReveal,
+  }) async {
+    calls.add('openLocation ${location.path}');
+    afterReveal?.call();
+  }
 
   @override
   void report(Object error) => calls.add('report $error');

@@ -33,8 +33,8 @@ extension _ExtensionsPart on IdeWorkbenchState {
         session: _extensions ??= IdeExtensionsSession(
           widget.extensions ?? IdeLanguageServerExtensions(),
         ),
-        recommended: _recommendedServers(),
-        onInstalled: _startServer,
+        recommended: _language.recommendedServers(),
+        onInstalled: _language.startServer,
         onError: _report,
         background: background,
       ),
