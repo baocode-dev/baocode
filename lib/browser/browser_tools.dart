@@ -704,8 +704,16 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
           if (type == 'keyDown' && (modifiers & 4) != 0)
             'commands': ?_commands[key.toLowerCase()],
         });
-    await key0(text == null ? 'rawKeyDown' : 'keyDown');
-    await key0('keyUp');
+    // The modifiers pressed themselves too, around it: pages that follow
+    // them by their own keys (Photopea) see a plain key otherwise.
+    final held = _Held(browser, tabId, parts.join('+'));
+    await held.down();
+    try {
+      await key0(text == null ? 'rawKeyDown' : 'keyDown');
+      await key0('keyUp');
+    } finally {
+      await held.up();
+    }
   }
 
   /// Meta's editing keys, as macOS's commands: the page has them so alone.

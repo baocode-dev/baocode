@@ -485,6 +485,10 @@ void main() {
         document.body.insertAdjacentHTML('afterbegin', '<canvas id=pad width=200 height=60 style="display: block; border: 1px solid"></canvas><input type=range id=level min=0 max=100 value=0 style="display: block; width: 200px; margin: 0"><div id=card draggable=true style="width: 60px">Card</div><div id=bin style="width: 120px; height: 40px; border: 1px dashed">Bin</div>');
         window.drawn = 0;
         pad.addEventListener('pointermove', (e) => { if (e.buttons === 1) drawn++; });
+        window.pen = [];
+        pad.addEventListener('pointerdown', (e) => { window.down = e.pointerType + (e.shiftKey ? '+shift' : ''); });
+        pad.addEventListener('pointermove', (e) => { if (e.buttons === 1 && e.pointerType === 'pen') pen.push(e.pressure); });
+        card.addEventListener('mouseenter', () => { card.title = 'hovered'; });
         bin.addEventListener('dragover', (e) => e.preventDefault());
         bin.addEventListener('drop', (e) => { e.preventDefault(); bin.textContent = 'got ' + e.dataTransfer.getData('text/plain'); });
         card.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', 'card'));
@@ -512,6 +516,34 @@ void main() {
       });
       expect(drew, contains('Dragged from'));
       expect(await evaluate('drawn') as num, greaterThan(10));
+      // A pen, pressing harder as it goes, Shift held.
+      final pressed = await call('browser_act', {
+        'tabId': tabId,
+        'steps': [
+          {
+            'action': 'drag',
+            'x': left + 10,
+            'y': top + 10,
+            'path': [
+              [left + 100, top + 30, 0.2],
+              [left + 190, top + 50, 0.9],
+            ],
+            'modifiers': 'Shift',
+          },
+        ],
+      });
+      expect(pressed, contains('holding Shift'));
+      expect(await evaluate('down'), 'pen+shift');
+      final pen = (await evaluate('pen'))! as List;
+      expect(pen.cast<num>().first, lessThan(0.5));
+      expect(pen.cast<num>().last, greaterThan(0.8));
+      await call('browser_act', {
+        'tabId': tabId,
+        'steps': [
+          {'action': 'hover', 'selector': '#card'},
+        ],
+      });
+      expect(await evaluate('card.title'), 'hovered');
       final slider =
           (await evaluate(
                 '(({left, right, top, bottom}) => [left, right, (top + bottom) / 2])'

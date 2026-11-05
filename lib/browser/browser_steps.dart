@@ -72,6 +72,7 @@ String browserStepSummary(
             'press' => '${step['key'] ?? ''}',
             'scroll' => '↕',
             'drag' => '${_aim(step.cast())} ⇢',
+            'hover' => _aim(step.cast()),
             'wait' => '…',
             'navigate' => _address('${step['url'] ?? ''}'),
             _ => '',
