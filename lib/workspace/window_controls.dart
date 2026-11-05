@@ -534,6 +534,12 @@ abstract final class WindowControls {
     }
   }
 
+  /// Whether the clipboard holds text, from its types alone, without
+  /// reading it (macOS; see lib/platform/app_binding.dart). Asks the main
+  /// window, which is there as long as the app.
+  static Future<bool> hasPasteboardText() async =>
+      await _main.invokeMethod<bool>('hasPasteboardText') ?? false;
+
   /// Plain text on the clipboard. On Linux this is the snapshot taken when
   /// Ctrl+V or the menu's Paste happened; the engine's own clipboard read
   /// comes back empty there (Wayland). Elsewhere it is that read.

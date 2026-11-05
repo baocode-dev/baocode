@@ -384,6 +384,12 @@ class BaoWindow: NSWindow {
       let pasteboard = NSPasteboard.general
       result(pasteboard.canReadObject(
         forClasses: [NSString.self, NSURL.self, NSImage.self], options: nil))
+    case "hasPasteboardText":
+      // The text fields' Paste (the engine's Clipboard.hasStrings, see
+      // lib/platform/app_binding.dart): the types alone. Reading the text
+      // waits on the app that copied it, and one that hangs held the
+      // window with it.
+      result(NSPasteboard.general.availableType(from: [.string]) != nil)
     case "writePasteboardMarkdown":
       result(Self.writePasteboardMarkdown(call.arguments as? [String: Any] ?? [:]))
     case "readPasteboardMarkdown":

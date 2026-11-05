@@ -78,6 +78,7 @@ import 'notifications/attention_host.dart';
 import 'notifications/attention_settings.dart';
 import 'platform/memory_budget.dart';
 import 'platform/native_md_clipboard.dart';
+import 'platform/app_binding.dart';
 import 'platform/app_platform.dart';
 import 'platform/data_dir.dart';
 import 'platform/error_log.dart';
@@ -151,7 +152,7 @@ Future<void> main(List<String> arguments) async {
     if (resolution.ok) {
       DataDirectory.current = resolution.directory;
     } else {
-      WidgetsFlutterBinding.ensureInitialized();
+      AppBinding.ensureInitialized();
       DataDirectory.current = await recoverDataDirectory(resolution);
     }
     // What goes wrong unseen from here on, kept for the user to send.
@@ -168,7 +169,7 @@ Future<void> main(List<String> arguments) async {
   unawaited(reapClaudeProcesses());
   unawaited(reapLspProcesses());
   unawaited(reapPtyProcesses());
-  WidgetsFlutterBinding.ensureInitialized();
+  AppBinding.ensureInitialized();
   MemoryBudget.apply();
   if (!kIsWeb) {
     AppEventWatch.start();
