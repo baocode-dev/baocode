@@ -23,7 +23,7 @@ void main() {
       ..log =
           '${gitLogRecord('c2', ['c1'], 'Second', refs: 'HEAD -> refs/heads/main, tag: refs/tags/v1.0')}\n'
           '${gitLogRecord('c1', [], 'First')}'
-      ..answers['branch'] = const IdeGitOutput(
+      ..answers['for-each-ref'] = const IdeGitOutput(
         0,
         'refs/heads/main\nrefs/heads/feature/long-name\n'
         'refs/remotes/origin/feature/long-name\nrefs/remotes/origin/HEAD\n',

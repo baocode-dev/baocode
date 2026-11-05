@@ -91,6 +91,9 @@ class EditorService extends ChangeNotifier {
     if (host.context != null) notifyListeners();
   }
 
+  /// The text editor scrolled: the window is kept once it comes to rest.
+  void viewChanged() => onViewChanged?.call();
+
   /// The text editor's caret moved.
   void positionChanged(IdeEditorPosition selection) {
     _history()?.caretMoved(selection.position);
