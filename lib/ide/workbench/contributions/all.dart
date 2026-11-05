@@ -3,6 +3,7 @@
 
 import '../contributions.dart';
 import '../services.dart';
+import 'debug.dart';
 import 'editor_panes.dart';
 import 'markdown.dart';
 import 'navigation.dart';
@@ -17,4 +18,5 @@ List<WorkbenchContribution> createWorkbenchContributions(
   TerminalContribution(services),
   EditorPanesContribution(services),
   MarkdownContribution(services),
+  DebugContribution(services),
 ];

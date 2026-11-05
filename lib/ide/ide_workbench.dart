@@ -9,18 +9,15 @@ import 'package:flutter/services.dart';
 
 import '../base/mouse_navigation.dart';
 import '../chat/chat_keys.dart';
-import '../debug/common/debug_types.dart';
 import '../debug/service/debug_service.dart';
 import '../debug/ui/debug_strings.dart';
 import '../debug/ui/debug_toolbar.dart';
 import '../debug/ui/debug_view.dart';
-import '../debug/ui/run_and_debug_view.dart';
 import '../extensions/theme_extensions.dart';
 import '../extensions/ui/extension_detail.dart';
 import '../extensions/ui/extensions_model.dart';
 import '../extensions/ui/extensions_view.dart';
 import '../extensions/ui/vsix_drop.dart';
-import '../platform/data_dir.dart';
 import '../chat/composer/composer_files.dart' show CodeReference, ComposerFile;
 import '../chat/open_editor.dart';
 import '../keybindings/chat_keybindings.dart' show ChatCommandIds;
@@ -69,7 +66,6 @@ import 'ide_color_theme_picker.dart';
 import 'ide_columns.dart';
 import 'ide_rows.dart';
 import 'ide_commands.dart';
-import 'ide_debug_host.dart';
 import 'ide_dialog.dart';
 import 'ide_editor.dart';
 import 'markdown/markdown_paste.dart';
@@ -111,6 +107,7 @@ import 'terminal/terminal_service.dart';
 import 'host_paths.dart';
 import 'services/navigation_history.dart';
 import 'services/scm_service.dart';
+import 'services/debug_view.dart';
 import 'services/markdown_preview.dart';
 import 'services/terminal_view.dart';
 import 'workbench/contributions/all.dart';
@@ -362,10 +359,6 @@ class IdeWorkbench extends StatefulWidget {
   }
 }
 
-/// Whether Run and Debug is offered: its activity bar item and its
-/// commands. Off until the debugger is ready to ship.
-const _debugEntryShown = false;
-
 /// A navigation history entry (Go Back / Go Forward).
 
 /// A chord being typed (see [IdeWorkbenchState._chord]): its label, the
@@ -429,6 +422,21 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ),
     );
     _storage.register(_markdown);
+    _debugView = _services.add(
+      DebugViewService(
+        host: _host,
+        given: () => widget.debugService,
+        layout: () => widget.workspace.layout,
+        selection: () => switch (_editor?.selection) {
+          final selection? when selection.isValid => (
+            start: selection.start,
+            end: selection.end,
+          ),
+          _ => null,
+        },
+        settings: widget.settings,
+      ),
+    );
   }
 
   /// The activity bar's badge and the Git log follow Source Control; the
@@ -440,8 +448,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The services of ide_workbench_keys.dart and the views, for tests.
   @visibleForTesting
   WorkbenchServices get services => _services;
-  final _runAndDebugKey = GlobalKey<RunAndDebugViewState>();
-  DebugService? _listenedDebug;
 
   final FocusNode _workbenchFocus = FocusNode(debugLabel: 'ide workbench');
   final FocusNode _explorerFocus = FocusNode(debugLabel: 'ide explorer');
@@ -580,10 +586,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// extension page behind.
   bool _closingEditors = false;
 
-  /// The workspace's debugger, when [IdeWorkbench.debugService] is not
-  /// given: made as the workbench attaches to it.
-  IdeDebug? _ideDebug;
-
   /// The quick input's text while it is open (its prefix picks the mode).
   String? _quickInput;
 
@@ -625,7 +627,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   IdePanelTab? get _panel => _layout.panel;
   set _panel(IdePanelTab? tab) => _layout.panel = tab;
 
-  DebugService? get _debug => widget.debugService ?? _ideDebug?.service;
+  DebugService? get _debug => _debugView.service;
 
   /// The tab the panel shows again when toggled back.
   IdePanelTab get _lastPanel => _layout.lastPanel;
@@ -649,6 +651,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// The markdown files' previews.
   late final MarkdownPreviewService _markdown;
+
+  /// The workspace's debugger as the workbench shows it.
+  late final DebugViewService _debugView;
   IdeReferences? _references;
 
   /// The Problems and References lists' focused rows and collapsed files.
@@ -991,6 +996,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _terminalView.addListener(_terminalsChanged);
     // A preview switched to its source, or back.
     _markdown.addListener(_servicesChanged);
+    // The debugger made, a session started or stopped.
+    _debugView.addListener(_servicesChanged);
     if (widget.visible) _focusSoon();
   }
 
@@ -1069,74 +1076,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // New terminals start in the project (a workspace's first folder);
     // those running stay where they are. The chat's start where it says.
     _terminalView.root = workspace.roots.firstOrNull ?? workspace.root;
-    _attachDebug();
-  }
-
-  /// Makes the workspace's debugger once the display language can be
-  /// read, unless one is given ([IdeWorkbench.debugService]).
-  void _attachDebug() {
-    _syncDebugListener();
-    if (widget.debugService != null) return;
-    final workspace = widget.workspace;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || widget.workspace != workspace) return;
-      final l10n = context.l10n;
-      final debug = await IdeDebug.open(
-        workspace: workspace,
-        userDirectory: DataDirectory.current.userDir,
-        settings: widget.settings,
-        language: Localizations.localeOf(context).languageCode,
-        pick: (model) {
-          if (mounted) _showQuickModel(model);
-        },
-        confirm: (message) async {
-          if (!mounted) return false;
-          final pick = await showIdeDialog(
-            context,
-            message: message,
-            buttons: [l10n.commonOk],
-          );
-          return pick == 0;
-        },
-        selection: () => switch (_editor?.selection) {
-          final selection? when selection.isValid => (
-            start: selection.start,
-            end: selection.end,
-          ),
-          _ => null,
-        },
-        reveal: (doc, range, {required focus}) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted || !identical(widget.workspace.active, doc)) return;
-            _layout.showEditor();
-            if (range != null) _revealRange(range, select: true);
-            if (focus) _focusEditor();
-          });
-          WidgetsBinding.instance.scheduleFrame();
-        },
-      );
-      if (!mounted ||
-          widget.workspace != workspace ||
-          widget.debugService != null ||
-          _ideDebug != null) {
-        await debug.dispose();
-        return;
-      }
-      debug.host
-        ..onOpenDebugView = (() => _showView(IdeSideView.debug))
-        ..onOpenRepl = (() => _selectPanel(IdePanelTab.debugConsole));
-      workspace.onSaved = debug.saved;
-      setState(() => _ideDebug = debug);
-      _syncDebugListener();
-    });
-  }
-
-  void _detachDebug(IdeWorkspace workspace) {
-    workspace.onSaved = null;
-    final debug = _ideDebug;
-    _ideDebug = null;
-    _syncDebugListener();
-    if (debug != null) unawaited(debug.dispose());
+    _debugView.attach(workspace);
   }
 
   /// A multi-folder workspace's folders, or the repository shown (of a
@@ -1154,7 +1094,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _detach(IdeWorkspace workspace) {
     workspace.notifications.removeListener(_notificationsChanged);
-    _detachDebug(workspace);
+    _debugView.detach(workspace);
     workspace.removeListener(_workspaceChanged);
     workspace.edits.removeListener(_documentEdited);
     _autoSaveTimer?.cancel();
@@ -1250,7 +1190,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       widget.remote?.addListener(_remoteChanged);
     }
     if (oldWidget.debugService != widget.debugService) {
-      _syncDebugListener();
+      _debugView.givenChanged();
     }
     if (oldWidget.workspace != widget.workspace) {
       _detach(oldWidget.workspace);
@@ -1283,6 +1223,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // A quick pick or input box going with the workbench hides (the color
     // themes one applies the theme it started with again).
     _quickModel?.onDidHide?.call();
+    _markdown.removeListener(_servicesChanged);
+    _debugView.removeListener(_servicesChanged);
     _detach(widget.workspace);
     disposeContributions(_contributions);
     _services.dispose();
@@ -1294,7 +1236,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _search.keptChanges.removeListener(_keepViewSoon);
     _search.dispose();
     _terminalView.removeListener(_terminalsChanged);
-    _markdown.removeListener(_servicesChanged);
     _panelFocus.dispose();
     _problemsList.dispose();
     _referencesList.dispose();
@@ -1778,11 +1719,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _togglePanel(IdePanelTab tab) =>
       setState(() => _panel = _panel == tab ? null : tab);
-
-  void _toggleDebugConsole() {
-    _togglePanel(IdePanelTab.debugConsole);
-    if (_panel == IdePanelTab.debugConsole) _focusPanel();
-  }
 
   void _selectPanel(IdePanelTab tab) => setState(() => _panel = tab);
 
@@ -2818,127 +2754,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ];
   }
 
-  void _runAndDebugAction(
-    Future<void> Function(RunAndDebugViewState view) action,
-  ) {
-    _showView(IdeSideView.debug);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final view = _runAndDebugKey.currentState;
-      if (view != null) unawaited(action(view));
-    });
-  }
-
-  List<IdeCommand> _debugCommands() {
-    final service = _debug;
-    if (!_debugEntryShown || service == null) return const [];
-    final session = service.viewModel.focusedSession;
-    final thread = debugActionThread(service);
-    return [
-      IdeCommand(
-        id: 'workbench.view.debug',
-        category: 'View',
-        label: DebugStrings.of(context).runAndDebug,
-        run: () => _showView(IdeSideView.debug),
-      ),
-      IdeCommand(
-        id: 'debug.start',
-        category: 'Debug',
-        label: 'Start Debugging',
-        run: () => _runAndDebugAction((view) => view.start()),
-      ),
-      IdeCommand(
-        id: 'debug.startFromConfig',
-        category: 'Debug',
-        label: 'Start Debugging from Configuration',
-        run: () => _runAndDebugAction((view) => view.start()),
-        runWithArgs: (args) {
-          final config = args is Map ? args.cast<String, Object?>() : null;
-          _runAndDebugAction((view) => view.start(config: config));
-        },
-      ),
-      IdeCommand(
-        id: 'debug.addConfiguration',
-        category: 'Debug',
-        label: 'Add Configuration...',
-        run: () => _runAndDebugAction((view) => view.addConfiguration()),
-      ),
-      IdeCommand(
-        id: 'debug.openConfigFile',
-        category: 'Debug',
-        label: 'Open launch.json',
-        run: () => _runAndDebugAction((view) => view.openConfigFile()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.debug.run',
-        category: 'Debug',
-        label: 'Run Without Debugging',
-        run: () => _runAndDebugAction((view) => view.runWithoutDebugging()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.toggleRepl',
-        category: 'Debug',
-        label: 'Toggle Debug Console',
-        run: _toggleDebugConsole,
-      ),
-      IdeCommand(
-        id: 'workbench.action.debug.stop',
-        category: 'Debug',
-        label: 'Stop Debugging',
-        run: () => unawaited(service.stopSession(null)),
-      ),
-      IdeCommand(
-        id: 'workbench.action.debug.restart',
-        category: 'Debug',
-        label: 'Restart Debugging',
-        enabled: session != null,
-        run: () {
-          if (session != null) unawaited(service.restartSession(session));
-        },
-      ),
-      IdeCommand(
-        id: 'workbench.action.debug.continue',
-        category: 'Debug',
-        label: 'Continue',
-        enabled: thread != null,
-        run: () => unawaited(thread?.continue_()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.debug.pause',
-        category: 'Debug',
-        label: 'Pause',
-        enabled: thread != null,
-        run: () => unawaited(thread?.pause()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.debug.stepOver',
-        category: 'Debug',
-        label: 'Step Over',
-        enabled: thread != null,
-        run: () => unawaited(thread?.next()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.debug.stepInto',
-        category: 'Debug',
-        label: 'Step Into',
-        enabled: thread != null,
-        run: () => unawaited(thread?.stepIn()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.debug.stepOut',
-        category: 'Debug',
-        label: 'Step Out',
-        enabled: thread != null,
-        run: () => unawaited(thread?.stepOut()),
-      ),
-    ];
-  }
-
   /// The workbench's commands, then the editor's, then [IdeWorkbench.commands].
   List<IdeCommand> _allCommands() => [
     ..._actions.commands(_services, palette: true),
     ..._workbenchCommands(),
-    ..._debugCommands(),
     ..._editorCommands(),
     ..._layoutCommands(),
     ..._searchCommands(),
@@ -3015,7 +2834,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 : ''),
         badge: _scmService.count,
       ),
-      if (_debugEntryShown)
+      if (debugEntryShown)
         item(
           IdeSideView.debug,
           Codicons.debugAlt,
@@ -3172,7 +2991,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     IdeSideView.debug => switch (_debug) {
       final debug? => DebugView(
         service: debug,
-        runAndDebugKey: _runAndDebugKey,
+        runAndDebugKey: _debugView.runAndDebugKey,
       ),
       null => const SizedBox.shrink(),
     },
@@ -4294,32 +4113,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
   }
 
-  /// While a session is debugged, a mark of the debugging colors: the bar
-  /// on the window's color, not the bar of them upstream's
-  /// (statusbarColorProvider.ts).
-  IdeStatusBarItem? _debuggingItem() {
-    final debug = _debug;
-    if (debug == null || debug.state == DebugState.inactive) return null;
-    final s = DebugStrings.of(context);
-    final background = themeColors['statusBar.debuggingBackground'];
-    final foreground = themeColors['statusBar.debuggingForeground'];
-    return IdeStatusBarItem(
-      debug.viewModel.focusedSession?.getLabel() ?? s.runAndDebug,
-      icon: Codicons.debugAltSmall,
-      color: foreground,
-      background: background,
-      hoverBackground: Color.alphaBlend(
-        foreground.withValues(alpha: 0.12),
-        background,
-      ),
-      tooltip: KeybindingService.instance.titleWithKeybinding(
-        s.runAndDebug,
-        'workbench.view.debug',
-      ),
-      onTap: () => _showView(IdeSideView.debug),
-    );
-  }
-
   IdeStatusBar _statusBar() {
     final active = widget.workspace.active;
     final l10n = context.l10n;
@@ -4330,7 +4123,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // they will have (the greater, the further left).
     final left = <(double, IdeStatusBarItem)>[
       if (widget.remote?.item(context) case final item?) (100, item),
-      if (_debuggingItem() case final item?) (90, item),
       if (_languages case final languages?) ...[
         (
           70,
@@ -4481,7 +4273,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                 _statusbar,
                                 widget.workspace.edits,
                                 _languages?.progressChanges,
-                                _debug,
                               ]),
                             ),
                           ),
@@ -4601,6 +4392,16 @@ class _Host implements WorkbenchHost {
   @override
   void revealLine(int line, [int column = 1]) =>
       _state._revealLine(line, column);
+
+  @override
+  void revealRange(
+    LspRange range, {
+    bool select = false,
+    bool center = false,
+  }) => _state._revealRange(range, select: select, center: center);
+
+  @override
+  void focusPanel() => _state._focusPanel();
 
   @override
   Future<void> openLocation(IdeLocation location, {bool record = true}) =>
