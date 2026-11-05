@@ -34,13 +34,15 @@ a:hover { text-decoration-color: var(--ink); }
 /* English and Chinese: each page links to itself in the other language. */
 .top .lang { padding-left: 16px; border-left: 1px solid var(--rule); }
 
-/* What users say (reviews/: their avatars), under the bar: a reel of cards
-   wider than the page, running left for ever (site.js doubles it, so the
-   loop has no seam), held while the mouse is on it. Its ends fade out. */
-.reviews { max-width: 1180px; margin: 6px auto 0; overflow: hidden; padding: 10px 0 16px;
+/* What users say (reviews/: their avatars), under the bar: two reels of
+   cards wider than the page (site.js splits them), the first running left
+   for ever and the second right (each doubled, so the loop has no seam),
+   held while the mouse is on them. Their ends fade out. */
+.reviews { display: grid; gap: 12px; max-width: 1180px; margin: 10px auto 0; overflow: hidden; padding: 10px 0 16px;
   --fade: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
   -webkit-mask-image: var(--fade); mask-image: var(--fade); }
 .reel { display: flex; gap: 14px; width: max-content; margin: 0; padding: 0; list-style: none; animation: reel var(--reel-time, 80s) linear infinite; }
+.reel.back { animation-direction: reverse; }
 .reviews:hover .reel { animation-play-state: paused; }
 @keyframes reel { to { transform: translateX(calc(-50% - 7px)); } }
 .reel li { flex: none; display: flex; flex-direction: column; gap: 8px; width: max-content; min-width: 190px; max-width: 340px; margin: 0; padding: 13px 16px 14px; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); box-shadow: 0 1px 2px rgba(0, 0, 0, .03), 0 10px 24px -18px rgba(0, 0, 0, .25); }
@@ -54,28 +56,28 @@ a:hover { text-decoration-color: var(--ink); }
 .reel .avatar { display: grid; place-items: center; background: #F8EAD2; color: #7A4E14; font-size: 12px; }
 .reel .avatar svg.ic { width: 14px; height: 14px; }
 .reel blockquote { margin: 0; font: 15px/1.55 var(--serif); color: var(--body); }
-/* A long one wider, so it is no taller than the rest by much. */
-.reel li.long { max-width: 560px; }
-/* On a phone: smaller cards, in two reels (site.js), the second running right. */
+/* A long one wider, so it is no taller than the rest; none over three
+   lines, so one longer still does not stretch its reel. */
+.reel li.long { max-width: 680px; }
+.reel blockquote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+/* On a phone: smaller cards. */
 @media (max-width: 640px) {
   .reviews { display: grid; gap: 10px; margin-top: 18px; padding: 6px 0 14px;
     --fade: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent); }
   .reel { gap: 10px; }
-  .reel.back { animation-direction: reverse; }
   @keyframes reel { to { transform: translateX(calc(-50% - 5px)); } }
   .reel li { gap: 6px; min-width: 150px; max-width: 250px; padding: 10px 12px 11px; border-radius: 9px; }
-  .reel li.long { max-width: 330px; }
-  /* No card taller than four lines, so one long one does not stretch its reel. */
-  .reel blockquote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+  .reel li.long { max-width: 360px; }
   .reel .who { gap: 7px; font-size: 12.5px; }
   .reel img, .reel .avatar { width: 22px; height: 22px; }
   .reel .who small { font-size: 11.5px; }
   .reel blockquote { font-size: 14px; line-height: 1.5; }
 }
 /* Under the reel: the way to add to it. */
-.say-line { margin: 0 auto; padding: 0 24px; text-align: center; font: 13.5px/1.5 var(--sans); color: var(--muted); }
+.say-line { margin: 0 auto 28px; padding: 0 24px; text-align: center; font: 13.5px/1.5 var(--sans); color: var(--muted); }
 .say-line button { padding: 0; border: 0; background: none; font: inherit; color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; cursor: pointer; }
 .say-line button:hover { text-decoration-color: var(--ink); }
+@media (max-width: 640px) { .say-line { margin-bottom: 0; } }
 /* Still: the cards side by side, scrolled by hand. */
 @media (prefers-reduced-motion: reduce) {
   .reviews { overflow-x: auto; }
