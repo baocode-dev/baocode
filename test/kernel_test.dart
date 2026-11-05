@@ -962,6 +962,70 @@ void main() {
       expect(events.whereType<FileEdited>(), isEmpty);
     });
 
+    test("a Windows path's file shows by its name", () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      );
+      void call(
+        String id,
+        String name,
+        Map<String, Object?> input, {
+        Object? result,
+      }) => translator
+        ..translate({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': 'msg-$id',
+            'role': 'assistant',
+            'content': [
+              {'type': 'tool_use', 'id': id, 'name': name, 'input': input},
+            ],
+          },
+        })
+        ..translate({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'tool_result', 'tool_use_id': id, 'content': 'ok'},
+            ],
+          },
+          'tool_use_result': ?result,
+        });
+
+      call('r1', 'Read', {'file_path': r'C:\p\lib\a.dart'});
+      call('l1', 'LS', {'path': r'C:\p\lib'});
+      call(
+        'e1',
+        'Edit',
+        {'file_path': r'C:\p\lib\b.dart', 'old_string': 'x', 'new_string': 'y'},
+        result: {
+          'filePath': r'C:\p\lib\b.dart',
+          'structuredPatch': [
+            {
+              'oldStart': 1,
+              'oldLines': 1,
+              'newStart': 1,
+              'newLines': 1,
+              'lines': ['-x', '+y'],
+            },
+          ],
+        },
+      );
+      expect(shown(transcript), [
+        'tool: read a.dart',
+        'tool: listDir lib',
+        'diff: b.dart +2',
+      ]);
+      final diff = transcript.itemAt(2) as CodeDiffItem;
+      expect(diff.directory, r'C:\p\lib');
+    });
+
     test('each round of planning is one card; a plan sent back gives way '
         'to the next', () {
       final transcript = Transcript();

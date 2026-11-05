@@ -53,6 +53,29 @@
   <a class="lang" href="/zh/" hreflang="zh" lang="zh-CN">中文</a>
 </header>
 
+<!-- What users told us, translated: the Chinese page has their own words. -->
+<section class="reviews" aria-label="What users say">
+  <ul class="reel">
+    <li><span class="who"><img src="/reviews/3.webp" alt="">QQ user<small>QQ</small></span><blockquote>Really fast and uses very little memory. I do all my everyday work in BaoCode now, and I can even finish a task from my phone in bed!</blockquote></li>
+    <li><span class="who"><span class="avatar">A</span>Anonymous</span><blockquote>Much faster than Cursor, quick and accurate too: the first I feel can hold its own against Claude Code.</blockquote></li>
+    <li><span class="who"><img src="/reviews/5.webp" alt=""><a href="https://github.com/kaka30000">kaka1987</a><small><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>kaka30000</small></span><blockquote>So much better than Cursor. Keep going, build the best tool, multiply what an LLM can do.</blockquote></li>
+    <li><span class="who"><span class="avatar" lang="zh-CN">大</span><span lang="zh-CN">大木</span></span><blockquote>Unbeatable, nothing more to say. Unbeatably good.</blockquote></li>
+    <li><span class="who"><img src="/reviews/2.webp" alt="">QQ user<small>QQ</small></span><blockquote>Light, smooth, easy on memory.</blockquote></li>
+    <li><span class="who"><img src="/reviews/1.webp" alt=""><a href="https://github.com/calonye">Kelen</a><small><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>calonye</small></span><blockquote>In BaoCode I see the love and craft the team has poured into it: a product with ambition, and full of life.</blockquote></li>
+    <li><span class="who"><img src="/reviews/8.webp" alt=""><a href="https://github.com/zkldwxz">zkldwxz</a><small><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>zkldwxz</small></span><blockquote>Striking themes, lovely interactions, and best of all: the speed!</blockquote></li>
+    <li><span class="who"><span class="avatar">A</span>Anonymous</span><blockquote>Awesome.</blockquote></li>
+    <li><span class="who"><span class="avatar">A</span>Anonymous</span><blockquote>Stash is a godsend.</blockquote></li>
+    <li><span class="who"><img src="/reviews/4.webp" alt="">QQ user<small>QQ</small></span><blockquote>Smooth, handy, efficient, full of features. The developer is a genie in a lamp!</blockquote></li>
+    <li><span class="who"><span class="avatar" lang="zh-CN">鱼</span><span lang="zh-CN">会飞的鱼</span></span><blockquote>Great to use, a real help at work: I can get work done anywhere.</blockquote></li>
+    <li class="long"><span class="who"><span class="avatar">K</span>katkitkat</span><blockquote>Editors like VS Code run on Electron, those like JetBrains’ on Java: they gave up too much speed and efficiency to run everywhere. BaoCode gives the AI era an IDE that need not choose, standing out among the heavy ones as fast, efficient and cross-platform.</blockquote></li>
+    <li><span class="who"><img src="/reviews/6.webp" alt=""><a href="https://github.com/NmouZh">NmouZh</a><small><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>NmouZh</small></span><blockquote>BaoCode it is: no heartburn.</blockquote></li>
+    <li><span class="who"><img src="/reviews/9.webp" alt=""><a href="https://github.com/Roshin0320">roshin</a><small><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>Roshin0320</small></span><blockquote>Great to use, love using it.</blockquote></li>
+    <li><span class="who"><span class="avatar"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg></span>GitHub user</span><blockquote>It's great, I just wish it supported more CLIs, like Codex. Hehe~</blockquote></li>
+    <li><span class="who"><img src="/reviews/7.webp" alt="">QQ user<small>QQ</small></span><blockquote>Awesome!!!</blockquote></li>
+  </ul>
+</section>
+<p class="say-line">Used BaoCode? <button type="button" data-say-open>Say a word</button></p>
+
 <main class="page">
   <nav class="toc" aria-label="Contents">
     <div class="label">Contents</div>
@@ -249,6 +272,24 @@
 
   <footer>BaoCode is an independent project, not affiliated with or endorsed by Anthropic. Claude Code is a product of Anthropic.</footer>
 </main>
+
+<!-- What a visitor says of BaoCode (site.js), sent to stats.baocode.dev's /v1/review. -->
+<dialog class="star say" data-say aria-labelledby="say-title">
+  <form data-say-form>
+    <h2 class="plain" id="say-title">Say a word</h2>
+    <p>A sentence is plenty. Good or bad, all welcome; no need to polish it.</p>
+    <label class="field"><span>What do you think of BaoCode?</span><textarea name="text" rows="3" maxlength="500" required placeholder="e.g. It starts really fast"></textarea></label>
+    <label class="field"><span>Where can we find you?<em>Optional</em></span><input name="contact" maxlength="200" autocomplete="off" placeholder="A homepage, GitHub, X, anything"></label>
+    <p class="hint">We may put your words on this site; with your avatar, if you leave somewhere to find it. Leaving nothing is fine too.</p>
+    <div class="get"><button class="button primary" type="submit" data-sending="Sending…">Send</button><button class="button" type="button" data-say-close>Never mind</button></div>
+    <p class="say-status" role="status" data-say-status data-busy="That was quick; try again in a minute." data-failed="It did not go through; try again in a while."></p>
+  </form>
+  <div class="done">
+    <h2 class="plain">Got it, thank you!</h2>
+    <p>We read every one.</p>
+    <div class="get"><button class="button" type="button" data-say-close>Close</button></div>
+  </div>
+</dialog>
 
 <script src="site.js"></script>
 </body>

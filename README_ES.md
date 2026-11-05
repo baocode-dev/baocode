@@ -6,6 +6,8 @@ Una interfaz de escritorio fácil de usar para [Claude Code](https://github.com/
 
 [Sitio web](https://baocode.dev) · [Descargar](https://baocode.dev/download) · [Historial de cambios](https://baocode.dev/changelog)
 
+![Lo que dicen los usuarios de BaoCode](docs/readme/reviews.png)
+
 ![Ventana principal de BaoCode: agentes agrupados por proyecto, dos conversaciones en paralelo y selector de modelo](site/shots/main.png)
 
 > Presentación en español del README en inglés. Si hay diferencias, consulta [English](README.md). Los sitios y documentos enlazados no necesariamente están traducidos al español.
