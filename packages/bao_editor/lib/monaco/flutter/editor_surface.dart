@@ -2485,13 +2485,10 @@ class _EditorSurfaceState extends State<EditorSurface>
     // Lines are decorated only while some decoration changes their layout.
     final decorations = _decorationsAffectLayout ? _decorations : null;
     final current = _layout;
-    final sizeMatches = wrap
-        ? _layoutSize == size
-        : _layoutSize != null && _layoutSize!.height == size.height;
     if (current != null &&
         identical(_layoutSnapshot, snapshot) &&
         _layoutStyle == widget.style &&
-        sizeMatches &&
+        _layoutSize == size &&
         _layoutDirection == direction &&
         _layoutScaler == scaler &&
         _layoutWrap == wrap &&
@@ -2501,8 +2498,6 @@ class _EditorSurfaceState extends State<EditorSurface>
         _layoutTabSize == widget.controller.tabSize &&
         _layoutDecorations == decorations &&
         current.stopRenderingLineAfter == widget.stopRenderingLineAfter) {
-      current.viewportSize = size;
-      _layoutSize = size;
       return current;
     }
     final layout = ViewportLayout(
