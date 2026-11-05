@@ -48,44 +48,6 @@ part of 'ide_workbench.dart';
 //   `${variables}` are not resolved.
 // - Terminal: Focus Find shows the terminal's panel first if it is hidden.
 
-/// The quick access providers, by their prefix (upstream
-/// `IQuickAccessRegistry`'s).
-enum _QuickAccess {
-  files,
-  commands,
-  gotoLine,
-  symbols,
-  editorsInGroup,
-  editorsByAppearance,
-  editorsByRecentlyUsed,
-}
-
-/// Upstream `ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX`.
-const _editorsInGroupPrefix = 'edt active ';
-
-/// Upstream `AllEditorsByMostRecentlyUsedQuickAccess.PREFIX`.
-const _editorsByRecentlyUsedPrefix = 'edt mru ';
-
-/// Upstream `AllEditorsByAppearanceQuickAccess.PREFIX`.
-const _editorsByAppearancePrefix = 'edt ';
-
-/// The provider [text] goes to, and its prefix.
-(_QuickAccess, String) _quickAccessOf(String text) {
-  if (text.startsWith('>')) return (_QuickAccess.commands, '>');
-  if (text.startsWith(':')) return (_QuickAccess.gotoLine, ':');
-  if (text.startsWith('@')) return (_QuickAccess.symbols, '@');
-  if (text.startsWith(_editorsInGroupPrefix)) {
-    return (_QuickAccess.editorsInGroup, _editorsInGroupPrefix);
-  }
-  if (text.startsWith(_editorsByRecentlyUsedPrefix)) {
-    return (_QuickAccess.editorsByRecentlyUsed, _editorsByRecentlyUsedPrefix);
-  }
-  if (text.startsWith(_editorsByAppearancePrefix)) {
-    return (_QuickAccess.editorsByAppearance, _editorsByAppearancePrefix);
-  }
-  return (_QuickAccess.files, '');
-}
-
 extension _WorkbenchKeys on IdeWorkbenchState {
   /// A command of the catalog, with its title and category.
   IdeCommand _catalogCommand(
@@ -105,183 +67,17 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     );
   }
 
-  /// The single chords [command] is bound to (upstream
-  /// `lookupKeybindings`, whose chords `registerQuickNavigation` reads).
-  List<KeyChord> _chordsOf(String command) => [
-    for (final item in KeybindingService.instance.resolver().lookupKeybindings(
-      command,
-    ))
-      if (item.keys case final keys? when keys.chords.length == 1)
-        keys.chords.single,
-  ];
-
-  // --- Quick input ---------------------------------------------------------
-
-  /// Upstream `QuickAccessController.show(prefix, options)` for [command]
-  /// with a quick navigation: releasing its modifier accepts, the input
-  /// hidden unless a quick input shows already.
-  void _quickNavigate(
-    String command,
-    String prefix, {
-    IdeQuickPickFocus? itemActivation,
-  }) => _showQuickInput(
-    prefix,
-    itemActivation: itemActivation,
-    quickNavigate: _chordsOf(command),
-  );
-
-  /// The quick input's commands, while it shows: for keybindings only.
-  List<IdeCommand> _quickInputCommands() {
-    final state = _quickInputKey.currentState;
-    if (state == null) return const [];
-    void focus(IdeQuickPickFocus what) => state.focus(what);
-    IdeCommand navigate(String id, {required bool next}) => _catalogCommand(
-      id,
-      () => state.navigate(next: next, quickNavigate: _chordsOf(id)),
-    );
-    return [
-      _catalogCommand('quickInput.next', () => focus(IdeQuickPickFocus.next)),
-      _catalogCommand(
-        'quickInput.previous',
-        () => focus(IdeQuickPickFocus.previous),
-      ),
-      _catalogCommand('quickInput.first', () => focus(IdeQuickPickFocus.first)),
-      _catalogCommand('quickInput.last', () => focus(IdeQuickPickFocus.last)),
-      _catalogCommand(
-        'quickInput.pageNext',
-        () => focus(IdeQuickPickFocus.nextPage),
-      ),
-      _catalogCommand(
-        'quickInput.pagePrevious',
-        () => focus(IdeQuickPickFocus.previousPage),
-      ),
-      _catalogCommand('quickInput.accept', state.accept),
-      _catalogCommand(
-        'quickInput.acceptInBackground',
-        () => state.accept(inBackground: true),
-      ),
-      _catalogCommand('quickInput.hide', state.hide),
-      _catalogCommand('workbench.action.closeQuickOpen', state.hide),
-      _catalogCommand(
-        'workbench.action.acceptSelectedQuickOpenItem',
-        state.accept,
-      ),
-      _catalogCommand('workbench.action.focusQuickOpen', state.focusInput),
-      _catalogCommand(
-        'workbench.action.quickOpenSelectNext',
-        () => state.navigate(next: true),
-      ),
-      _catalogCommand(
-        'workbench.action.quickOpenSelectPrevious',
-        () => state.navigate(next: false),
-      ),
-      navigate('workbench.action.quickOpenNavigateNext', next: true),
-      navigate('workbench.action.quickOpenNavigatePrevious', next: false),
-      navigate(
-        'workbench.action.quickOpenNavigateNextInFilePicker',
-        next: true,
-      ),
-      navigate(
-        'workbench.action.quickOpenNavigatePreviousInFilePicker',
-        next: false,
-      ),
-      navigate(
-        'workbench.action.quickOpenNavigateNextInEditorPicker',
-        next: true,
-      ),
-      navigate(
-        'workbench.action.quickOpenNavigatePreviousInEditorPicker',
-        next: false,
-      ),
-    ];
-  }
-
   /// The workbench's commands for keybindings only (upstream's without a
   /// palette entry), beyond the quick input's.
   List<IdeCommand> _keyboardCommands() {
     final active = widget.workspace.active;
     return [
       _catalogCommand(
-        'workbench.action.quickOpenPreviousEditor',
-        () => _showQuickInput('', itemActivation: IdeQuickPickFocus.second),
-      ),
-      _catalogCommand(
         'workbench.action.files.copyPathOfActiveFile',
         () => _tabAction(active!, IdeTabAction.copyPath),
         enabled: active != null,
       ),
     ];
-  }
-
-  /// The quick input's context keys; null for another's.
-  Object? _quickInputContextKey(String key) {
-    final open = _quickInput != null || _quickModel != null;
-    final state = _quickInputKey.currentState;
-    final access = _quickInput == null
-        ? null
-        : _quickAccessOf(state?.text ?? _quickInput!).$1;
-    return switch (key) {
-      'inQuickOpen' || 'inQuickInput' => open,
-      'quickInputType' =>
-        !open
-            ? null
-            : _quickModel is IdeQuickInputBox
-            ? 'inputBox'
-            : 'quickPick',
-      'cursorAtEndOfQuickInputBox' => open && (state?.cursorAtEnd ?? false),
-      'inFilesPicker' => access == _QuickAccess.files,
-      'inEditorsPicker' =>
-        access == _QuickAccess.editorsInGroup ||
-            access == _QuickAccess.editorsByAppearance ||
-            access == _QuickAccess.editorsByRecentlyUsed,
-      _ => null,
-    };
-  }
-
-  // --- Editors -------------------------------------------------------------
-
-  /// An editor picker's rows for [text] after its prefix.
-  List<IdeQuickPickItem> _editorPicks(_QuickAccess access, String filter) =>
-      editorQuickPicks(
-        filter,
-        editors: access == _QuickAccess.editorsByAppearance
-            ? widget.workspace.documents
-            : _history.editorsByRecentlyUsed(),
-        root: widget.workspace.root,
-        paths: widget.workspace.paths,
-        onOpen: (doc, {required inBackground}) =>
-            _openFromPicker(doc, inBackground: inBackground),
-        l10n: context.l10n,
-      );
-
-  /// Brings [doc] to the front, with the keyboard unless [inBackground]
-  /// (upstream `openEditor(editor, {preserveFocus})`).
-  void _openFromPicker(IdeDocument doc, {required bool inBackground}) {
-    if (!widget.workspace.documents.contains(doc)) return;
-    unawaited(
-      _editors.select(doc).then((_) {
-        if (inBackground || !mounted) return;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _editors.focus();
-        });
-      }),
-    );
-  }
-
-  /// Quick Open's file, accepted in the background: opened (at [line] and
-  /// [column] if given), the keyboard kept in the quick input.
-  void _openFileInBackground(String path, int? line, int? column) {
-    final at = line != null && line > 0
-        ? LspPosition(line - 1, math.max(0, (column ?? 1) - 1))
-        : null;
-    void refocus() => _quickInputKey.currentState?.focusInput();
-    unawaited(
-      _editors.open(
-        path,
-        range: at == null ? null : LspRange(at, at),
-        afterReveal: refocus,
-      ),
-    );
   }
 
   /// The path Reveal in Finder shows: the explorer's selection while it
@@ -306,53 +102,7 @@ extension _WorkbenchKeys on IdeWorkbenchState {
     final hasEditors = docs.isNotEmpty;
     final settings = _hostCommand(openSettingsCommandId);
     final reveal = _revealPath;
-    IdeCommand quickNavigate(
-      String id,
-      String prefix, {
-      IdeQuickPickFocus? itemActivation,
-      bool enabled = true,
-    }) => _catalogCommand(
-      id,
-      () => _quickNavigate(id, prefix, itemActivation: itemActivation),
-      enabled: enabled,
-    );
     return [
-      _catalogCommand(
-        'workbench.action.showAllEditors',
-        () => _showQuickInput(_editorsByAppearancePrefix),
-      ),
-      _catalogCommand(
-        'workbench.action.showEditorsInActiveGroup',
-        () => _showQuickInput(_editorsInGroupPrefix),
-      ),
-      _catalogCommand(
-        'workbench.action.showAllEditorsByMostRecentlyUsed',
-        () => _showQuickInput(_editorsByRecentlyUsedPrefix),
-      ),
-      quickNavigate(
-        'workbench.action.quickOpenPreviousRecentlyUsedEditor',
-        _editorsByRecentlyUsedPrefix,
-      ),
-      quickNavigate(
-        'workbench.action.quickOpenLeastRecentlyUsedEditor',
-        _editorsByRecentlyUsedPrefix,
-      ),
-      quickNavigate(
-        'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
-        _editorsInGroupPrefix,
-        enabled: hasEditors,
-      ),
-      quickNavigate(
-        'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup',
-        _editorsInGroupPrefix,
-        itemActivation: IdeQuickPickFocus.last,
-        enabled: hasEditors,
-      ),
-      quickNavigate(
-        'workbench.action.openPreviousEditorFromHistory',
-        '',
-        itemActivation: hasEditors ? null : IdeQuickPickFocus.first,
-      ),
       _catalogCommand(
         'workbench.action.nextEditorInGroup',
         () => _editors.cycle(1),

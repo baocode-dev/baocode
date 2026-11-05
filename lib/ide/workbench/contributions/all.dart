@@ -12,6 +12,7 @@ import 'layout.dart';
 import 'lists.dart';
 import 'markdown.dart';
 import 'navigation.dart';
+import 'quick_input.dart';
 import 'scm.dart';
 import 'terminal.dart';
 
@@ -29,4 +30,5 @@ List<WorkbenchContribution> createWorkbenchContributions(
   ListsContribution(services),
   ExplorerContribution(services),
   LayoutContribution(services),
+  QuickInputContribution(services),
 ];
