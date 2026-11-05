@@ -167,11 +167,10 @@ mark.todo { padding: 0 .2em; border-radius: 3px; background: #FFF1B8; color: #6B
 /* Figures run wider than the text; their captions keep to the text's measure. */
 figure { margin: 40px calc(50% - min(var(--wide), 100vw - 48px) / 2); counter-increment: fig; }
 figure .img { position: relative; overflow: hidden; border: 1px solid var(--rule); border-radius: 10px; background: var(--tint); box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 16px 40px -20px rgba(0, 0, 0, .22); }
-figure img { display: block; width: 100%; height: auto; }
-figure .img.missing { aspect-ratio: 16 / 10; }
+/* Each window is drawn in HTML (mocks/), to its own width and scaled to the
+   figure's; a picture, not to be clicked into. */
+figure iframe { display: block; width: 100%; border: 0; pointer-events: none; }
 figure .img + .img { margin-top: 24px; }
-figure .img.missing img { visibility: hidden; }
-figure .img.missing::after { content: attr(data-src); position: absolute; inset: 0; display: grid; place-items: center; font: 13px var(--mono); color: var(--faint); }
 figcaption { max-width: var(--text); margin: 14px auto 0; font: 14px/1.55 var(--sans); color: var(--muted); }
 figcaption::before { content: "Figure " counter(fig) ". "; color: var(--ink); font-weight: 600; }
 :lang(zh) figcaption::before { content: "图 " counter(fig) "　"; }

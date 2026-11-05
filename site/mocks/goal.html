@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN" data-w="1100" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>BaoCode</title>
+<link rel="stylesheet" href="mock.css">
+<script src="mock.js"></script>
+</head>
+<body>
+<!-- A goal set with /goal: above the input, in progress, opened to say
+     why it is not met yet. -->
+<div class="win chatwin" style="--w:1100;--h:680;grid-template-columns:240px 1fr">
+  <div class="tbar" style="grid-column:1;grid-row:1">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <span class="sp"></span>
+    <span class="ib"><i class="ci ci-layout-sidebar-left"></i></span>
+  </div>
+  <div class="tbar" style="grid-column:2;grid-row:1;padding-left:6px">
+    <span class="title"><span class="z">/goal 给 API 补齐类型和测试</span><span class="e">/goal Types and tests for the whole API</span></span>
+    <span class="sp"></span>
+    <span class="ib"><i class="ci ci-layout-panel"></i></span>
+    <span class="ib"><i class="ci ci-pin"></i></span>
+    <span class="pill"><i class="ci ci-window"></i>Fast IDE<i class="ci ci-chevron-down"></i></span>
+  </div>
+
+  <div class="side" style="grid-column:1;grid-row:2/4">
+    <div class="newchat"><i class="ci ci-add"></i><span class="z">新对话</span><span class="e">New chat</span></div>
+    <div class="navrow"><i class="ci ci-search"></i><span class="z">搜索</span><span class="e">Search</span></div>
+    <div class="navrow"><i class="ci ci-extensions"></i><span class="z">自定义</span><span class="e">Customize</span></div>
+    <div class="shead"><span class="z">智能体</span><span class="e">Agents</span><span><span class="z">按项目</span><span class="e">By project</span> ⌄</span></div>
+    <div class="list">
+      <div class="row proj"><i class="ci ci-chevron-down"></i><span class="name">⚡ fastapi</span></div>
+      <div class="row in on"><span class="spin"></span><span class="name z">/goal 给 API 补齐类型和测试</span><span class="name e">/goal Types and tests for the API</span><span class="meta">now</span></div>
+      <div class="row in"><span class="name z">依赖覆盖在测试之间串了</span><span class="name e">Dependency overrides leak</span><span class="meta add">+27</span><span class="meta">25m</span></div>
+      <div class="row in"><span class="name z">给 webhooks 加 OpenAPI 示例</span><span class="name e">OpenAPI examples for webhooks</span><span class="meta">7h</span></div>
+      <div class="row in dim"><span class="name z">显示更多（41）</span><span class="name e">Show more (41)</span></div>
+      <div class="row proj"><i class="ci ci-chevron-down"></i><span class="name">🔥 hono</span></div>
+      <div class="row in"><span class="name z">限流改成滑动窗口</span><span class="name e">Sliding-window rate limiting</span><span class="meta">2h</span></div>
+      <div class="row in"><span class="name z">JSX 流式渲染在 Bun 上更慢</span><span class="name e">JSX streaming slower on Bun</span><span class="meta">3h</span></div>
+      <div class="row proj"><i class="ci ci-chevron-right"></i><span class="name">✏️ excalidraw</span><span class="meta">8</span></div>
+      <div class="row proj"><i class="ci ci-chevron-right"></i><span class="name">🦙 ollama</span><span class="meta">12</span></div>
+    </div>
+    <div class="sfoot"><span><i class="ci ci-archive" style="font-size:13px;vertical-align:-2px"></i> <span class="z">已归档 · 4</span><span class="e">Archived · 4</span></span><i class="ci ci-settings-gear"></i></div>
+  </div>
+
+  <div class="island" style="grid-column:2;grid-row:2">
+    <div class="conv">
+      <div class="bubble" style="margin-top:0"><span class="cmd">/goal</span> <span class="z">给 app/api 下的每个路由补上返回类型和测试，mypy --strict 和 pytest 都要过</span><span class="e">Return types and tests for every route under app/api; mypy --strict and pytest must pass</span></div>
+      <p class="thinking"><span class="z">思考了 2 秒</span><span class="e">Thought 2s</span></p>
+      <p><span class="z">目标收到。先列出所有路由和现有的测试，再按模块分给几个子智能体并行补。</span><span class="e">Goal taken. I’ll list the routes and the tests there are, then split the modules among a few subagents.</span></p>
+      <div class="step"><i class="ci ci-check-all"></i><span class="z">读了 <b>14</b> 个文件，运行了 <b>3</b> 条命令</span><span class="e">Read <b>14</b> files, ran <b>3</b> commands</span></div>
+      <div class="step"><i class="ci ci-organization"></i><span class="z">4 个子智能体完成了 users、items、auth、webhooks</span><span class="e">4 subagents did users, items, auth and webhooks</span></div>
+      <p><span class="z">四个模块都补完了，</span><span class="e">All four are done:</span> <code>pytest</code> <span class="z">全部通过（212 个）。</span><span class="e">passes, 212 tests.</span> <code>mypy --strict</code> <span class="z">还剩 3 个错误，都在</span><span class="e">has 3 errors left, all in</span> <code>app/api/deps.py</code><span class="z">，接着修。</span><span class="e">; on them now.</span></p>
+      <div class="step"><i class="ci ci-edit"></i><span class="z">编辑 deps.py</span><span class="e">Edited deps.py</span><span class="add">+9</span><span class="del">−4</span></div>
+      <p class="thinking"><span class="spark">✻</span> <span class="z">再跑一遍 mypy…</span><span class="e">Running mypy again…</span></p>
+    </div>
+    <div class="goalbar">
+      <div class="top"><i class="ci ci-target"></i><b><span class="z">目标</span><span class="e">Goal</span></b><span class="what"><span class="z">给 app/api 下的每个路由补上返回类型和测试，mypy --strict 和 pytest 都要过</span><span class="e">Return types and tests for every route under app/api; mypy --strict and pytest must pass</span></span><span class="gold"><span class="z">进行中 · 18 分钟</span><span class="e">In progress · 18 min</span></span><i class="ci ci-chevron-up dim"></i></div>
+      <div class="why"><span class="z">还没达成：pytest 已通过，mypy --strict 还有 3 个错误（app/api/deps.py）。</span><span class="e">Not met yet: pytest passes; mypy --strict still has 3 errors (app/api/deps.py).</span> <span class="gold"><span class="z">修改目标</span><span class="e">Edit goal</span></span></div>
+    </div>
+    <div class="composer">
+      <div class="ph"><span class="z">规划、搜索、构建任何内容 · 拖入或粘贴文件 · / 命令</span><span class="e">Plan, search, build anything · drop or paste files · / for commands</span></div>
+      <div class="tools">
+        <span class="chip"><span class="inf">∞</span>Agent<i class="ci ci-chevron-down"></i></span>
+        <span class="chip g"><i class="ci ci-shield"></i><span class="z">完全访问</span><span class="e">Full access</span><i class="ci ci-chevron-down"></i></span>
+        <span class="chip"><i class="ci ci-sparkle"></i>Sonnet 5.5<i class="ci ci-chevron-down"></i></span>
+        <span class="sp"></span>
+        <span class="ring" style="border-top-color:var(--gold)"></span>
+        <span class="send"><i class="ci ci-debug-stop"></i></span>
+      </div>
+    </div>
+  </div>
+  <div class="under" style="grid-column:2;grid-row:3"><i class="ci ci-git-branch"></i>fastapi: typed-api<i class="ci ci-chevron-down"></i><span class="sp"></span>118K / 200K</div>
+</div>
+</body>
+</html>

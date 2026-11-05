@@ -160,13 +160,6 @@ listedChannel.then((channel) => {
   if (subtitle) for (const el of document.querySelectorAll('[data-channel-subtitle]')) el.textContent = subtitle;
 }).finally(() => document.documentElement.classList.remove('channel-pending'));
 
-// Until a screenshot exists, its frame shows the file it is waiting for.
-for (const img of document.querySelectorAll('figure img')) {
-  const missing = () => img.parentElement.classList.add('missing');
-  img.addEventListener('error', missing);
-  if (img.complete && !img.naturalWidth) missing();
-}
-
 // The reel of what users say: two reels, every other card in the second,
 // which runs the other way. Each its cards twice, the copy hidden from
 // readers and from Tab, at about 40 px a second however many there are.
