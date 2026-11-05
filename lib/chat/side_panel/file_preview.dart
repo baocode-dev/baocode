@@ -10,9 +10,11 @@ import 'package:flutter/rendering.dart' show SelectedContent;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:path/path.dart' as p;
+import 'package:super_sliver_list/super_sliver_list.dart';
 
 import '../../base/shown_when_ready.dart';
 import '../../base/smooth_scroll.dart';
+import '../../ide/editor_word_wrap.dart';
 import '../../ide/file_service.dart';
 import '../../ide/ide_agent_edits.dart';
 import '../../ide/ide_code_diff.dart';
@@ -29,6 +31,7 @@ import '../../ide/markdown/markdown_preview.dart';
 import '../../l10n/l10n.dart';
 import '../../platform/app_platform.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/codicons.dart';
 import '../../theme/material_file_icons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/editor_launcher.dart' show openExternal;
@@ -232,6 +235,7 @@ class _FilePreviewState extends State<FilePreview> {
     super.initState();
     if (widget.edit case final edit? when _editable) _attach(edit);
     EditorLanguageOverrides.instance.addListener(_languageModesChanged);
+    EditorWordWrap.on.addListener(_editChanged);
     IdeLanguageNames.ensureLoaded(() {
       if (mounted) setState(() {});
     });
@@ -287,6 +291,7 @@ class _FilePreviewState extends State<FilePreview> {
   @override
   void dispose() {
     EditorLanguageOverrides.instance.removeListener(_languageModesChanged);
+    EditorWordWrap.on.removeListener(_editChanged);
     _dropMarkdown();
     _detach();
     _hunks.dispose();
@@ -573,6 +578,15 @@ class _FilePreviewState extends State<FilePreview> {
           if ((widget.agentEdit, _agent) case (final edit?, _?)
               when !_isMarkdown || _source)
             IdeAgentEditActions(edit: edit, hunks: _hunks),
+          // Its lines, the editor's or only shown, wrapped or not: the
+          // editors' one setting.
+          if (_loaded is _Text && !_image && (_markdown == null || _source))
+            IdeActionButton(
+              icon: Codicons.wordWrap,
+              tooltip: l10n.menuWordWrap,
+              checked: EditorWordWrap.on.value,
+              onPressed: EditorWordWrap.toggle,
+            ),
           ...widget.actions,
         ],
       ),
@@ -645,9 +659,11 @@ class _FilePreviewState extends State<FilePreview> {
         if (_edit case final edit?) return _editing(edit);
         final range = _request.range;
         final gutter = _gutter(context, lines.length);
+        final wrap = EditorWordWrap.on.value;
         return _Lines(
           key: ValueKey(('text', _request.path)),
           count: lines.length,
+          wrap: wrap,
           lineHeight: _lineHeight(context),
           reveal: widget.reveal,
           target: range == null ? null : range.start - 1,
@@ -659,6 +675,7 @@ class _FilePreviewState extends State<FilePreview> {
             colors: _colors.elementAtOrNull(i),
             gutter: gutter,
             sideways: sideways,
+            wrap: wrap,
             marked: range != null && i + 1 >= range.start && i + 1 <= range.end,
           ),
         );
@@ -961,12 +978,17 @@ class _Lines extends StatefulWidget {
     required this.row,
     required this.width,
     required this.lineHeight,
+    this.wrap = false,
     this.target,
     this.reveal = 0,
     this.onCopy,
   });
 
   final int count;
+
+  /// Whether long lines wrap at the view's width, rather than scroll
+  /// sideways: rows as tall as they wrap.
+  final bool wrap;
   final Widget Function(
     BuildContext context,
     int index,
@@ -986,6 +1008,9 @@ class _Lines extends StatefulWidget {
 class _LinesState extends State<_Lines> {
   final _scroll = SmoothScrollController();
   final _sideways = ScrollController();
+
+  /// Where each row is, wrapped: rows of their own heights.
+  final _list = ListController();
   late final _selection = _LinesSelection(
     (first, last, text) => widget.onCopy?.call(first, last, text),
   );
@@ -1001,6 +1026,7 @@ class _LinesState extends State<_Lines> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.reveal != widget.reveal ||
         oldWidget.target != widget.target ||
+        oldWidget.wrap != widget.wrap ||
         oldWidget.lineHeight != widget.lineHeight) {
       _reveal();
     }
@@ -1012,6 +1038,16 @@ class _LinesState extends State<_Lines> {
     if (target == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
+      if (widget.wrap) {
+        if (_list.isAttached) {
+          _list.jumpToItem(
+            index: math.max(0, target - 3),
+            scrollController: _scroll,
+            alignment: 0,
+          );
+        }
+        return;
+      }
       final position = _scroll.position;
       final offset = (target - 3) * widget.lineHeight;
       _scroll.jumpTo(offset.clamp(0.0, position.maxScrollExtent));
@@ -1022,6 +1058,7 @@ class _LinesState extends State<_Lines> {
   void dispose() {
     _scroll.dispose();
     _sideways.dispose();
+    _list.dispose();
     _selection.dispose();
     super.dispose();
   }
@@ -1032,6 +1069,12 @@ class _LinesState extends State<_Lines> {
       builder: (context, constraints) {
         // The measured width already includes gutters and change markers.
         final width = math.max(constraints.maxWidth, widget.width + 24);
+        Widget row(BuildContext context, int index) => _SelectableRow(
+          index: index,
+          lines: _selection,
+          child: widget.row(context, index, _sideways),
+        );
+        const padding = EdgeInsets.symmetric(vertical: 6);
         // Both scrollbars at the edges of the view, not of the lines as
         // wide as the longest; drawn as the editor's are.
         return SelectionArea(
@@ -1044,31 +1087,35 @@ class _LinesState extends State<_Lines> {
                 thickness: 14,
                 notificationPredicate: (notification) =>
                     notification.metrics.axis == Axis.vertical,
-                child: HoverScrollbar(
-                  controller: _sideways,
-                  thickness: 12,
-                  notificationPredicate: (notification) =>
-                      notification.metrics.axis == Axis.horizontal,
-                  child: SingleChildScrollView(
-                    controller: _sideways,
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: width,
-                      height: constraints.maxHeight,
-                      child: ListView.builder(
+                child: widget.wrap
+                    ? SuperListView.builder(
                         controller: _scroll,
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        itemExtent: widget.lineHeight,
+                        listController: _list,
+                        padding: padding,
                         itemCount: widget.count,
-                        itemBuilder: (context, index) => _SelectableRow(
-                          index: index,
-                          lines: _selection,
-                          child: widget.row(context, index, _sideways),
+                        itemBuilder: row,
+                      )
+                    : HoverScrollbar(
+                        controller: _sideways,
+                        thickness: 12,
+                        notificationPredicate: (notification) =>
+                            notification.metrics.axis == Axis.horizontal,
+                        child: SingleChildScrollView(
+                          controller: _sideways,
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: width,
+                            height: constraints.maxHeight,
+                            child: ListView.builder(
+                              controller: _scroll,
+                              padding: padding,
+                              itemExtent: widget.lineHeight,
+                              itemCount: widget.count,
+                              itemBuilder: row,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
               ),
             ),
           ),
@@ -1200,12 +1247,16 @@ class _LineRow extends StatelessWidget {
     required this.sideways,
     this.colors,
     this.marked = false,
+    this.wrap = false,
   });
 
   final int number;
   final String text;
   final double gutter;
   final ScrollController sideways;
+
+  /// Wrapped at the row's width, as many lines as that takes; else one.
+  final bool wrap;
   final List<TextSpan>? colors;
   final bool marked;
 
@@ -1230,9 +1281,9 @@ class _LineRow extends StatelessWidget {
                     children: colors,
                     text: colors == null ? shown : null,
                   ),
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.clip,
+                  maxLines: wrap ? null : 1,
+                  softWrap: wrap,
+                  overflow: wrap ? null : TextOverflow.clip,
                   style: style.copyWith(
                     color: themeColors['editor.foreground'],
                   ),
