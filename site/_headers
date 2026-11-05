@@ -28,6 +28,12 @@
   Access-Control-Allow-Origin: *
   Cross-Origin-Resource-Policy: cross-origin
 
+# The windows drawn for the pages' figures: framed by them, not pages of
+# their own.
+/mocks/*
+  Cache-Control: public, max-age=300
+  X-Robots-Tag: noindex
+
 # The upstreams Settings → Models lists, and their logos
 # (lib/models/featured_upstreams.dart): a site listed shows within minutes.
 /featured/*

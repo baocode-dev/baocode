@@ -15,8 +15,12 @@ import 'package:flutter/widgets.dart';
 class WheelGlide {
   /// Taken up as a notch comes, between frames: timed from the frame shown
   /// last, [frame] long.
-  WheelGlide(this.distance, {required this.frame})
-    : _shownAt = SchedulerBinding.instance.currentSystemFrameTimeStamp;
+  WheelGlide(
+    this.distance, {
+    required this.frame,
+    Duration duration = duration,
+  }) : _glideDuration = duration,
+       _shownAt = SchedulerBinding.instance.currentSystemFrameTimeStamp;
 
   /// The glide a notch's [delta] sets a view at [at] going: on from where
   /// [going], the last notch's, was taking it (adding to what that had
@@ -32,10 +36,15 @@ class WheelGlide {
   }) {
     final distance = (at + (going?.left ?? 0) + delta).clamp(min, max) - at;
     if (distance.abs() < precisionErrorTolerance) return null;
-    return WheelGlide(distance, frame: frame);
+    return WheelGlide(
+      distance,
+      frame: frame,
+      duration: going == null ? duration : fastDuration,
+    );
   }
 
   static const duration = Duration(milliseconds: 120);
+  static const fastDuration = Duration(milliseconds: 80);
 
   /// Whether a wheel's [delta] is a notch to glide: not one of the small
   /// steps a wheel that scrolls smoothly sends (its driver's, a free
@@ -45,6 +54,7 @@ class WheelGlide {
   static bool glides(double delta) => delta.abs() >= 32;
 
   final double distance;
+  final Duration _glideDuration;
 
   /// A frame of the display.
   final Duration frame;
@@ -72,7 +82,7 @@ class WheelGlide {
   double get velocity {
     if (done) return 0;
     final slope = 3 * (1 - _x) * (1 - _x);
-    return distance * slope / (duration.inMicroseconds / 1e6);
+    return distance * slope / (_glideDuration.inMicroseconds / 1e6);
   }
 
   static double _ease(double x) => 1 - (1 - x) * (1 - x) * (1 - x);
@@ -83,11 +93,18 @@ class WheelGlide {
     final started = _startedAt ??= now - frame > _shownAt
         ? now - frame
         : _shownAt;
-    _x = ((now - started).inMicroseconds / duration.inMicroseconds).clamp(
+    _x = ((now - started).inMicroseconds / _glideDuration.inMicroseconds).clamp(
       0.0,
       1.0,
     );
-    final step = distance * _ease(_x) - _moved;
+    final target = distance * _ease(_x);
+    if ((distance - target).abs() < 0.5) {
+      _x = 1.0;
+      final step = distance - _moved;
+      _moved = distance;
+      return step;
+    }
+    final step = target - _moved;
     _moved += step;
     return step;
   }
@@ -106,13 +123,18 @@ class WheelGlide {
 /// Glides a view either way as a mouse wheel's notches come ([WheelGlide]),
 /// on the frames of a ticker from `vsync`.
 class WheelGlider {
-  WheelGlider({required TickerProvider vsync, required this.move}) {
+  WheelGlider({
+    required TickerProvider vsync,
+    required this.move,
+    this.onDone,
+  }) {
     _ticker = vsync.createTicker(_tick);
   }
 
   /// Moves the view by what a frame gives, and says which ways it went all
   /// of that (not stopped at an end), to go on.
   final ({bool x, bool y}) Function(Offset by) move;
+  final VoidCallback? onDone;
 
   late final Ticker _ticker;
   WheelGlide? _x, _y;
@@ -174,7 +196,10 @@ class WheelGlider {
     if (!identical(x, _x) || !identical(y, _y)) return;
     if (x != null && (x.done || !went.x)) _x = null;
     if (y != null && (y.done || !went.y)) _y = null;
-    if (!gliding) _ticker.stop();
+    if (!gliding) {
+      _ticker.stop();
+      onDone?.call();
+    }
   }
 
   void dispose() => _ticker.dispose();

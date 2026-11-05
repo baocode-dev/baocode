@@ -4899,20 +4899,22 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   Widget _chatSlot(double width, {Widget? trailing}) {
     final shown = width > 0;
     final laidOut = shown ? width : _chatWidth;
-    return SizedBox(
-      key: const ValueKey('ide-chat'),
-      width: width,
-      child: OverflowBox(
-        alignment: Alignment.topLeft,
-        minWidth: laidOut,
-        maxWidth: laidOut,
-        child: Offstage(
-          offstage: !shown,
-          child: TickerMode(
-            enabled: shown,
-            child: ExcludeFocus(
-              excluding: !shown,
-              child: _chatPart(trailing: trailing),
+    return RepaintBoundary(
+      child: SizedBox(
+        key: const ValueKey('ide-chat'),
+        width: width,
+        child: OverflowBox(
+          alignment: Alignment.topLeft,
+          minWidth: laidOut,
+          maxWidth: laidOut,
+          child: Offstage(
+            offstage: !shown,
+            child: TickerMode(
+              enabled: shown,
+              child: ExcludeFocus(
+                excluding: !shown,
+                child: _chatPart(trailing: trailing),
+              ),
             ),
           ),
         ),
@@ -5050,10 +5052,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // shows.
     final gitLog =
         !editorHidden && sidebarVisible && _view == IdeSideView.sourceControl;
-    final sidebar = SizedBox(
-      key: const ValueKey('ide-sidebar'),
-      width: columns.sidebar,
-      child: KeyedSubtree(key: _sidebarKey, child: _sidebarPart()),
+    final sidebar = RepaintBoundary(
+      child: SizedBox(
+        key: const ValueKey('ide-sidebar'),
+        width: columns.sidebar,
+        child: KeyedSubtree(key: _sidebarKey, child: _sidebarPart()),
+      ),
     );
     // With the side bar hidden, by the activity bar: dragged out, it opens
     // the side bar.
@@ -5258,9 +5262,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     );
     final panelVisible = rows.panel > 0;
     final debug = _debug;
-    final editor = KeyedSubtree(
-      key: const ValueKey('ide-editor'),
-      child: _editorArea(commands),
+    final editor = RepaintBoundary(
+      child: KeyedSubtree(
+        key: const ValueKey('ide-editor'),
+        child: _editorArea(commands),
+      ),
     );
     final toolbarLocation = debug?.settings().toolBarLocation;
     // In the middle of the gap over the panel's card.

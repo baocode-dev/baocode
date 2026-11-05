@@ -1245,8 +1245,16 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   @override
   void newWindowRequested() => unawaited(newWindow());
 
+  /// The tray's Quit. Chosen again while the app asks whether to quit, it
+  /// quits: the window asked in may show nothing to answer in.
   @override
-  void quitRequested() => unawaited(_quit());
+  void quitRequested() {
+    if (QuitConfirmation.asking) {
+      QuitConfirmation.quitAnyway();
+      return;
+    }
+    unawaited(_quit());
+  }
 
   /// The app's icon clicked with none of its windows shown: the IDE's
   /// window last in front (a new one, if none is open) when the app opens

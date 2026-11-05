@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN" data-w="1100" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>BaoCode</title>
+<link rel="stylesheet" href="mock.css">
+<script src="mock.js"></script>
+</head>
+<body>
+<!-- Settings → Models: an upstream added, its protocol's menu open, its
+     models and the roles Claude Code gives them. -->
+<div class="win setwin" style="--w:1100;--h:720">
+  <div class="setside">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="navrow"><i class="ci ci-arrow-left"></i><span class="z">返回</span><span class="e">Back</span></div>
+    <div class="search"><i class="ci ci-search"></i><span class="z">搜索设置</span><span class="e">Search Settings</span></div>
+    <div class="navrow"><i class="ci ci-settings-gear"></i><span class="z">通用</span><span class="e">General</span></div>
+    <div class="navrow"><i class="ci ci-symbol-color"></i><span class="z">外观</span><span class="e">Appearance</span></div>
+    <div class="navrow on"><i class="ci ci-sparkle"></i><span class="z">模型</span><span class="e">Models</span></div>
+    <div class="navrow"><i class="ci ci-bell"></i><span class="z">通知</span><span class="e">Notifications</span></div>
+    <div class="navrow"><i class="ci ci-globe"></i><span class="z">区域与语言</span><span class="e">Region &amp; Language</span></div>
+    <div class="navrow"><i class="ci ci-keyboard"></i><span class="z">键盘快捷方式</span><span class="e">Keyboard Shortcuts</span></div>
+    <div class="navrow"><i class="ci ci-cloud-download"></i><span class="z">更新</span><span class="e">Updates</span></div>
+  </div>
+  <div class="island setmain" style="position:relative">
+    <div class="back"><i class="ci ci-arrow-left"></i><span class="z">模型</span><span class="e">Models</span></div>
+    <h1>OpenRouter</h1>
+    <div class="gtitle"><span class="z">连接</span><span class="e">Connection</span></div>
+    <div class="group">
+      <div class="srow"><span class="lab"><span class="z">协议</span><span class="e">Protocol</span><small><span class="z">OpenAI 的接口经本地代理转换，Claude Code 的请求和回答都由它翻译。</span><span class="e">OpenAI’s APIs go through the local proxy, which translates Claude Code’s requests and the answers.</span></small></span><span class="select">OpenAI Chat Completions<i class="ci ci-chevron-down"></i></span></div>
+      <div class="srow"><span class="lab">Base URL</span><span class="input">https://openrouter.ai/api/v1</span></div>
+      <div class="srow"><span class="lab"><span class="z">API 密钥</span><span class="e">API Key</span><small><span class="z">存在系统钥匙串里，不写进 settings.json。</span><span class="e">Kept in the system’s keychain, not in settings.json.</span></small></span><span class="input">•••••••••••••••••••••••••••<i class="ci ci-eye"></i></span></div>
+      <div class="srow"><span class="lab"><span class="z">请求头</span><span class="e">Headers</span></span><span class="input" style="width:300px">HTTP-Referer: https://baocode.dev</span></div>
+    </div>
+    <div class="gtitle" style="display:flex;align-items:flex-end"><span><span class="z">模型</span><span class="e">Models</span><small><span class="z">勾选的会出现在模型选择器里。</span><span class="e">Those checked are offered in the model picker.</span></small></span><span class="sp"></span><span class="btn" style="height:28px;margin-right:6px"><i class="ci ci-cloud-download"></i><span class="z">从上游获取</span><span class="e">Fetch from upstream</span></span><span class="btn" style="height:28px"><i class="ci ci-add"></i><span class="z">添加模型</span><span class="e">Add model</span></span></div>
+    <div class="group">
+      <div class="srow" style="min-height:40px"><span class="check"></span><span class="lab">openai/gpt-6-astra <small style="display:inline">· 400K</small></span><span class="btn" style="height:26px"><i class="ci ci-plug"></i><span class="z">测试</span><span class="e">Test</span></span><span class="add" style="font-size:12px">✓ 1.2s</span></div>
+      <div class="srow" style="min-height:40px"><span class="check"></span><span class="lab">deepseek/deepseek-v4.1-flash <small style="display:inline">· 400K</small></span><span class="btn" style="height:26px"><i class="ci ci-plug"></i><span class="z">测试</span><span class="e">Test</span></span><span class="add" style="font-size:12px">✓ 0.8s</span></div>
+      <div class="srow" style="min-height:40px"><span class="check"></span><span class="lab">google/gemini-3.5-pro <small style="display:inline">· 1M</small></span><span class="btn" style="height:26px"><i class="ci ci-plug"></i><span class="z">测试</span><span class="e">Test</span></span><span class="dim" style="font-size:12px;width:38px"></span></div>
+    </div>
+    <div class="gtitle"><span class="z">角色</span><span class="e">Roles</span><small><span class="z">Claude Code 每类工作用哪个模型；不设就用选中的模型。</span><span class="e">Which model Claude Code uses for each part of its work; unset, the one picked.</span></small></div>
+    <div class="group">
+      <div class="srow" style="min-height:44px"><span class="lab"><span class="z">主模型</span><span class="e">Main model</span></span><span class="select">openai/gpt-6-astra<i class="ci ci-chevron-down"></i></span></div>
+      <div class="srow" style="min-height:44px"><span class="lab"><span class="z">快速模型</span><span class="e">Fast model</span></span><span class="select">deepseek/deepseek-v4.1-flash<i class="ci ci-chevron-down"></i></span></div>
+    </div>
+    <div class="menu" style="top:204px;right:40px;width:262px">
+      <div class="mi"><span style="width:14px"></span>Anthropic Messages</div>
+      <div class="mi on"><i class="ci ci-check gold"></i>OpenAI Chat Completions</div>
+      <div class="mi"><span style="width:14px"></span>OpenAI Responses</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
