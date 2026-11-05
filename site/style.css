@@ -54,6 +54,8 @@ a:hover { text-decoration-color: var(--ink); }
 .reel .avatar { display: grid; place-items: center; background: #F8EAD2; color: #7A4E14; font-size: 12px; }
 .reel .avatar svg.ic { width: 14px; height: 14px; }
 .reel blockquote { margin: 0; font: 15px/1.55 var(--serif); color: var(--body); }
+/* A long one wider, so it is no taller than the rest by much. */
+.reel li.long { max-width: 560px; }
 /* On a phone: smaller cards, in two reels (site.js), the second running right. */
 @media (max-width: 640px) {
   .reviews { display: grid; gap: 10px; margin-top: 18px; padding: 6px 0 14px;
@@ -62,6 +64,9 @@ a:hover { text-decoration-color: var(--ink); }
   .reel.back { animation-direction: reverse; }
   @keyframes reel { to { transform: translateX(calc(-50% - 5px)); } }
   .reel li { gap: 6px; min-width: 150px; max-width: 250px; padding: 10px 12px 11px; border-radius: 9px; }
+  .reel li.long { max-width: 330px; }
+  /* No card taller than four lines, so one long one does not stretch its reel. */
+  .reel blockquote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
   .reel .who { gap: 7px; font-size: 12.5px; }
   .reel img, .reel .avatar { width: 22px; height: 22px; }
   .reel .who small { font-size: 11.5px; }
