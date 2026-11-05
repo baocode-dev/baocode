@@ -7,7 +7,6 @@ import 'package:baocode/ide/services/commands.dart';
 import 'package:baocode/ide/services/keybindings.dart';
 import 'package:baocode/ide/workbench/actions.dart';
 import 'package:baocode/ide/workbench/context_keys.dart';
-import 'package:baocode/ide/workbench/contributions.dart';
 import 'package:baocode/ide/workbench/services.dart';
 import 'package:baocode/ide/workbench/statusbar.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';

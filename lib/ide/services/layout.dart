@@ -41,6 +41,9 @@ class LayoutService extends ChangeNotifier
   double chatWidth = IdeColumns.defaultChat;
   double? panelHeight;
 
+  /// A sash dragged or reset: the parts laid out again, the window kept.
+  void resized() => notifyListeners();
+
   /// Whether the panel is maximized (Toggle Maximized Panel); unset as the
   /// panel's sash is dragged.
   bool panelMaximized = false;
