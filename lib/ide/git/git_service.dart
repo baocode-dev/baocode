@@ -1008,11 +1008,19 @@ class IdeGitService {
   }
 
   /// The branches, local and remote, that have [commit]
-  /// (`git branch -a --contains`): a remote's HEAD left out.
+  /// (`git branch -a --contains`): a remote's HEAD left out. Asked of
+  /// for-each-ref, as `git branch --format` needs Git 2.13 (#735).
   Future<List<IdeGitRef>> branchesContaining(String commit) async {
     await _requireRoot();
     final output = _check(
-      await _git(['branch', '-a', '--contains', commit, '--format=%(refname)']),
+      await _git([
+        'for-each-ref',
+        '--contains',
+        commit,
+        '--format=%(refname)',
+        'refs/heads',
+        'refs/remotes',
+      ]),
       'Cannot read the branches.',
     );
     return [
