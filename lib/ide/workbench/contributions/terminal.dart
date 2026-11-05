@@ -4,6 +4,10 @@
 
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
+
+import '../../lsp_ui/problems_panel.dart' show IdePanelTab;
+import '../../services/layout.dart';
 import '../../services/terminal_view.dart';
 import '../../terminal/terminal_instance.dart';
 import '../actions.dart';
@@ -174,5 +178,26 @@ class TerminalContribution extends WorkbenchRegistrations {
       ]),
     );
     add(services.get<ContextKeyService>().addProvider(view.contextKey));
+    if (terminals == null) return;
+    final layout = services.get<LayoutService>();
+    // Focus into Panel on TERMINAL: its terminal (one made) focused.
+    add(layout.focusPanelWith(IdePanelTab.terminal, view.show));
+    // VS Code makes a terminal when its view shows with none: as the
+    // window opens on it, and as it is shown.
+    var shown = layout.panel;
+    void panelChanged() {
+      if (layout.panel == shown) return;
+      shown = layout.panel;
+      if (shown == IdePanelTab.terminal) terminals.ensureTerminal();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (layout.panel == IdePanelTab.terminal &&
+          services.get<WorkbenchHost>().context != null) {
+        terminals.ensureTerminal();
+      }
+    });
+    layout.addListener(panelChanged);
+    add(() => layout.removeListener(panelChanged));
   }
 }

@@ -8,10 +8,12 @@ import '../../explorer_history.dart';
 import '../../ide_explorer.dart';
 import '../../ide_workspace.dart';
 import '../../services/explorer.dart';
+import '../../services/layout.dart';
 import '../actions.dart';
 import '../context_keys.dart';
 import '../contributions.dart';
 import '../services.dart';
+import '../views.dart';
 
 class ExplorerContribution extends WorkbenchRegistrations {
   ExplorerContribution(WorkbenchServices services) {
@@ -127,5 +129,12 @@ class ExplorerContribution extends WorkbenchRegistrations {
       ]),
     );
     add(services.get<ContextKeyService>().addProvider(explorer.contextKey));
+    // Shown, its tree takes the keyboard.
+    add(
+      services.get<LayoutService>().focusViewWith(
+        IdeSideView.explorer,
+        explorer.focusNode.requestFocus,
+      ),
+    );
   }
 }

@@ -8,6 +8,7 @@ import 'editor_panes.dart';
 import 'editor_status.dart';
 import 'explorer.dart';
 import 'language.dart';
+import 'layout.dart';
 import 'lists.dart';
 import 'markdown.dart';
 import 'navigation.dart';
@@ -27,4 +28,5 @@ List<WorkbenchContribution> createWorkbenchContributions(
   LanguageContribution(services),
   ListsContribution(services),
   ExplorerContribution(services),
+  LayoutContribution(services),
 ];
