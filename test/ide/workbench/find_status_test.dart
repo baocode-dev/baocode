@@ -130,7 +130,8 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    expect(find.text('Ln 2, Col 2 (2 selected)'), findsOneWidget);
+    // From between the first line's CR and LF: over two lines.
+    expect(find.text('Ln 2, Col 2 (2 lines, 2 selected)'), findsOneWidget);
 
     await chord(tester, LogicalKeyboardKey.tab, control: true);
     await tester.pump();
