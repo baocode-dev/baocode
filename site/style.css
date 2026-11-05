@@ -56,9 +56,8 @@ a:hover { text-decoration-color: var(--ink); }
 .reel .avatar { display: grid; place-items: center; background: #F8EAD2; color: #7A4E14; font-size: 12px; }
 .reel .avatar svg.ic { width: 14px; height: 14px; }
 .reel blockquote { margin: 0; font: 15px/1.55 var(--serif); color: var(--body); }
-/* A long one wider, so it is no taller than the rest; none over three
-   lines, so one longer still does not stretch its reel. */
-.reel li.long { max-width: 680px; }
+/* None over three lines, so a long one does not stretch its reel; one
+   that would be on a phone's narrower cards is wider there (.long). */
 .reel blockquote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 /* On a phone: smaller cards. */
 @media (max-width: 640px) {
