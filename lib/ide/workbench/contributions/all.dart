@@ -9,6 +9,7 @@ import 'editor_commands.dart';
 import 'editor_status.dart';
 import 'explorer.dart';
 import 'extensions.dart';
+import 'focus_keys.dart';
 import 'language.dart';
 import 'layout.dart';
 import 'lists.dart';
@@ -39,4 +40,6 @@ List<WorkbenchContribution> createWorkbenchContributions(
   EditorCommandsContribution(services),
   WindowContribution(services),
   ExtensionsContribution(services),
+  // Last: the text editor's own keys are asked after every other's.
+  FocusKeysContribution(services),
 ];

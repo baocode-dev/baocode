@@ -5,10 +5,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../base/mouse_navigation.dart';
-import '../chat/chat_keys.dart';
 import '../debug/service/debug_service.dart';
 import '../debug/ui/debug_strings.dart';
 import '../debug/ui/debug_toolbar.dart';
@@ -17,7 +15,6 @@ import '../extensions/theme_extensions.dart';
 import '../chat/composer/composer_files.dart' show CodeReference, ComposerFile;
 import '../chat/open_editor.dart';
 import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
-import '../keybindings/key_chord.dart';
 import '../l10n/l10n.dart';
 import '../keybindings/keybinding_service.dart';
 import '../settings/user_settings.dart';
@@ -32,8 +29,6 @@ import '../workspace/title_bar_double_click.dart';
 import '../workspace/window_controls.dart';
 import '../workspace/workspace.dart';
 
-import 'package:bao_editor/monaco/flutter/editor_keybindings.dart'
-    show editorChordPrefix;
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 
 import 'extensions/ide_extensions.dart';
@@ -89,6 +84,7 @@ import 'services/editors.dart';
 import 'services/explorer.dart';
 import 'services/extensions_view.dart';
 import 'services/language.dart';
+import 'services/keybindings.dart';
 import 'services/layout.dart';
 import 'services/auto_save.dart';
 import 'services/chat.dart';
@@ -311,12 +307,6 @@ class IdeWorkbench extends StatefulWidget {
   ) => searchFolders(roots, query, search);
 }
 
-/// A navigation history entry (Go Back / Go Forward).
-
-/// A chord being typed (see [IdeWorkbenchState._chord]): its label, the
-/// chords pressed and its status message.
-typedef _Chord = ({String label, List<KeyChord> chords, String message});
-
 class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The window's services and what the features add with them (see
   /// docs/workbench-architecture.md): made as the workbench is, gone with
@@ -347,6 +337,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _storage.register(_layoutService);
     _commands = _services.add(
       CommandService(services: _services, actions: _actions),
+    );
+    _keybindings = _services.add(
+      KeybindingDispatchService(
+        host: _host,
+        commands: _commands,
+        contextKeys: _contextKeys,
+        statusbar: _statusbar,
+        focusNode: _workbenchFocus,
+        active: () => widget.visible,
+      ),
     );
     _quickInput = _services.add(
       QuickInputService(
@@ -569,7 +569,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// much is selected: the status bar alone is built again as it moves.
   ValueNotifier<IdeEditorPosition> get _caret => _editors.caret;
   Position get _caretPosition => _editors.position;
-  int get _selectionLength => _caret.value.selectionLength;
   String? _activeKey;
 
   /// Source Control: the repository shown, its sessions, what opens and
@@ -593,9 +592,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   late final CommandService _commands;
   late final QuickInputService _quickInput;
 
-  /// The chord being typed (upstream `_currentChords`).
-  _Chord? _chord;
-  Timer? _chordChecker;
+  /// What a key press runs.
+  late final KeybindingDispatchService _keybindings;
 
   /// Reads the Git status again when the app comes back to the front: a
   /// pull or a commit made elsewhere may have changed it unseen.
@@ -752,8 +750,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     widget.workspace.localHistory ??= IdeLocalHistory.inDataDirectory();
     _createServices();
     _contributions.addAll(createWorkbenchContributions(_services));
-    FocusManager.instance.addEarlyKeyEventHandler(_onChordKey);
-    FocusManager.instance.addLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.addListener(_keybindingsChanged);
     _registerCommandKeybindings();
     widget.agentEdits?.open = _openAgentChange;
@@ -924,15 +920,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (widget.agentEdits?.open == _openAgentChange) {
       widget.agentEdits?.open = null;
     }
-    FocusManager.instance.removeEarlyKeyEventHandler(_onChordKey);
-    FocusManager.instance.removeLateKeyEventHandler(_onLateKey);
     _statusUnderChat.dispose();
     KeybindingService.instance.removeListener(_keybindingsChanged);
     widget.settings?.removeListener(_settingsChanged);
     widget.remote?.removeListener(_remoteChanged);
     _editorViewTimer?.cancel();
     _keepView();
-    _chordChecker?.cancel();
     _lifecycle?.dispose();
     // A quick pick or input box going with the workbench hides (the color
     // themes one applies the theme it started with again).
@@ -1102,228 +1095,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   bool runCommand(String id) => _commands.runById(id);
 
   // --- Keybindings ---------------------------------------------------------
-  // What a key press runs, as the keybindings resolve it (defaults, the
-  // keymap's, the user's; see KeybindingService), with two-chord
-  // keybindings (⌘K ⌘T) ported from VS Code
-  // src/vs/platform/keybinding/common/abstractKeybindingService.ts at
-  // 6a598d4a13031703d483d103c1d934a36ad27971 (`_doDispatch`,
-  // `_expectAnotherChord`, `_scheduleLeaveChordMode`, `_leaveChordMode`),
-  // with the status bar messages of notificationsStatus.ts. A key counts
-  // when the focus lets it bubble here (a terminal keeps its keys, the
-  // editor its own commands'); the key after a first chord is taken before
-  // the focus sees it.
-
-  static final _modifierKeys = {
-    LogicalKeyboardKey.meta,
-    LogicalKeyboardKey.metaLeft,
-    LogicalKeyboardKey.metaRight,
-    LogicalKeyboardKey.control,
-    LogicalKeyboardKey.controlLeft,
-    LogicalKeyboardKey.controlRight,
-    LogicalKeyboardKey.shift,
-    LogicalKeyboardKey.shiftLeft,
-    LogicalKeyboardKey.shiftRight,
-    LogicalKeyboardKey.alt,
-    LogicalKeyboardKey.altLeft,
-    LogicalKeyboardKey.altRight,
-  };
 
   /// The context keys a keybinding's `when` reads, as they are now.
   @visibleForTesting
-  Object? keyContext(String key) {
-    // The services' keys, then those the workbench works out itself.
-    if (_contextKeys.getValue(key) case final value?) return value;
-    final focus = FocusManager.instance.primaryFocus;
-    final editorFocus = _editor?.hasTextFocus ?? false;
-    // A text field, or the chat's input (a rich text editor of its own).
-    final textField =
-        focus?.context?.findAncestorStateOfType<EditableTextState>() != null ||
-        ChatKeys.focusedTargets().any(
-          (target) => target.chatContextKey('inputFocus') == true,
-        );
-    final terminalFocus =
-        _panel == IdePanelTab.terminal &&
-        (_terminals?.active?.focusNode.hasFocus ?? false);
-    return switch (key) {
-      'ideMode' => true,
-      'chatMode' => false,
-      'editorTextFocus' => editorFocus,
-      // The editor or one of its widgets (find, rename).
-      'editorFocus' => _editor?.hasFocus ?? false,
-      'editorHasSelection' => editorFocus && _selectionLength > 0,
-      'editorReadonly' => widget.workspace.active?.readOnly ?? false,
-      'textInputFocus' => editorFocus || textField,
-      'inputFocus' => editorFocus || textField || terminalFocus,
-      'terminalFocus' => terminalFocus,
-      'treestickyScrollFocused' => false,
-      _ => _editor?.contextKey(key),
-    };
-  }
-
-  /// What [event] does after the chords [pending]: a command that is here
-  /// and enabled, among the palette's.
-  KeybindingResolution _resolveKey(
-    KeyEvent event, {
-    List<KeyChord> pending = const [],
-    Map<String, IdeCommand>? commands,
-  }) {
-    final byId = commands ?? _commandsById();
-    return KeybindingService.instance.resolveEvent(
-      event,
-      pending: pending,
-      // The extensions' keys (`setContext`) over the workbench's.
-      context: keyContext,
-      canRun: (item) => byId[item.command]?.enabled ?? false,
-    );
-  }
-
-  Map<String, IdeCommand> _commandsById() => _commands.byId();
-
-  /// For the editor: the command a key runs, [editorChordPrefix] when it
-  /// starts a sequence, null when no keybinding has it.
-  String? _resolveEditorKey(KeyEvent event) => switch (_resolveKey(event)) {
-    KeybindingFound(:final command) => command,
-    MoreChordsNeeded() => editorChordPrefix,
-    NoKeybinding() => null,
-  };
-
-  /// A key the focus let through: the command its keybinding runs, or the
-  /// first chord of a two-chord keybinding, which starts chord mode
-  /// (`ResultKind.KbFound`, `ResultKind.MoreChordsNeeded`).
-  KeyEventResult _onWorkbenchKey(FocusNode node, KeyEvent event) {
-    _offeredKey = event;
-    // An input method composing text has its keys (Enter picks a
-    // candidate); upstream's keyboard events read as `KeyCode.Unknown`.
-    if (_chord != null || event is KeyUpEvent || ChatKeys.isComposing) {
-      return KeyEventResult.ignored;
-    }
-    final commands = _commandsById();
-    switch (_resolveKey(event, commands: commands)) {
-      case KeybindingFound(:final item):
-        commands[item.command]!.invoke(item.entry.args);
-        return KeyEventResult.handled;
-      case MoreChordsNeeded(:final chords):
-        _expectAnotherChord(chords);
-        return KeyEventResult.handled;
-      case NoKeybinding():
-        return KeyEventResult.ignored;
-    }
-  }
-
-  /// The last key [_onWorkbenchKey] was offered, which [_onLateKey]
-  /// leaves.
-  KeyEvent? _offeredKey;
-
-  /// A key that did not reach [_onWorkbenchKey]: one a widget in the
-  /// workbench stopped without handling it (the chat's input keeps its
-  /// rich text editor's shortcuts from it, `skipRemainingHandlers`), or one
-  /// pressed with the focus on none of the workbench's widgets but on the
-  /// window (the focused one went). Upstream's keybinding service listens
-  /// on the window, and hears both (`_registerKeyListeners`); a dialog
-  /// over the workbench, a menu in the overlay, or an input method
-  /// composing text keeps its keys.
-  KeyEventResult _onLateKey(KeyEvent event) {
-    if (identical(event, _offeredKey) || !widget.visible || !mounted) {
-      return KeyEventResult.ignored;
-    }
-    final focus = FocusManager.instance.primaryFocus;
-    if (focus == null ||
-        !(focus.ancestors.contains(_workbenchFocus) ||
-            _workbenchFocus.ancestors.contains(focus)) ||
-        !(ModalRoute.isCurrentOf(context) ?? true)) {
-      return KeyEventResult.ignored;
-    }
-    return _onWorkbenchKey(_workbenchFocus, event);
-  }
-
-  /// The key after a first chord, before the focus sees it: upstream's
-  /// keybinding service takes it wherever the focus is.
-  KeyEventResult _onChordKey(KeyEvent event) {
-    final chord = _chord;
-    if (chord == null ||
-        event is KeyUpEvent ||
-        _modifierKeys.contains(event.logicalKey)) {
-      return KeyEventResult.ignored;
-    }
-    _resolveChord(chord, event);
-    return KeyEventResult.handled;
-  }
-
-  void _expectAnotherChord(List<KeyChord> chords) {
-    final platform = KeybindingService.instance.platform;
-    final label = chords.map((chord) => chord.label(platform)).join(' ');
-    final message = context.l10n.wbChordWaiting(label);
-    _chord = (label: label, chords: chords, message: message);
-    _statusbar.setMessage(message);
-    // `_scheduleLeaveChordMode`: out after 5 seconds, or once the window
-    // is not the active one.
-    _chordChecker?.cancel();
-    _chordChecker = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      final state = WidgetsBinding.instance.lifecycleState;
-      if ((state != null && state != AppLifecycleState.resumed) ||
-          timer.tick * 500 > 5000) {
-        _leaveChordMode();
-      }
-    });
-  }
-
-  /// Runs the keybinding [event] completes, or says there is none.
-  void _resolveChord(_Chord chord, KeyEvent event) {
-    _leaveChordMode();
-    final commands = _commandsById();
-    final result = _resolveKey(
-      event,
-      pending: chord.chords,
-      commands: commands,
-    );
-    if (result case KeybindingFound(:final item)) {
-      commands[item.command]!.invoke(item.entry.args);
-      return;
-    }
-    final platform = KeybindingService.instance.platform;
-    final keypress = KeyChord.fromEvent(event)?.label(platform) ?? '';
-    _statusbar.setMessage(
-      context.l10n.wbChordNotCommand(chord.label, keypress),
-      hideAfter: const Duration(seconds: 10),
-    );
-  }
-
-  void _leaveChordMode() {
-    final chord = _chord;
-    if (chord == null) return;
-    _chord = null;
-    _chordChecker?.cancel();
-    _chordChecker = null;
-    if (identical(_statusbar.message, chord.message)) {
-      _statusbar.setMessage(null);
-    }
-  }
-
-  /// VS Code's custom key event handler for a terminal with the keyboard
-  /// (`TerminalInstance`'s `attachCustomKeyEventHandler`): the workbench
-  /// takes a key that resolves to a command of
-  /// [terminalCommandsToSkipShell] (any, with ⌘ down), or to the first
-  /// chord of a two-chord keybinding but Escape
-  /// (`terminal.integrated.allowChords`); the shell gets the others.
-  bool _terminalSkipsShell(KeyEvent event) {
-    if (event is KeyUpEvent || _modifierKeys.contains(event.logicalKey)) {
-      return false;
-    }
-    return switch (_resolveKey(event)) {
-      KeybindingFound(:final command) =>
-        HardwareKeyboard.instance.isMetaPressed ||
-            terminalCommandsToSkipShell.contains(command),
-      MoreChordsNeeded() => event.logicalKey != LogicalKeyboardKey.escape,
-      NoKeybinding() => false,
-    };
-  }
-
-  /// The command a key in a terminal's find widget runs, as the
-  /// workbench's keybindings resolve it (see [TerminalView.resolveKey]).
-  String? _terminalFindKey(KeyEvent event) => switch (_resolveKey(event)) {
-    KeybindingFound(:final command) => command,
-    _ => null,
-  };
+  Object? keyContext(String key) => _contextKeys.getValue(key);
 
   // --- Commands ------------------------------------------------------------
 
@@ -1341,7 +1116,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Those and the keybinding-only ones (the lists', the quick input's…),
   /// by id, for tests.
   @visibleForTesting
-  Map<String, IdeCommand> get commandsById => _commandsById();
+  Map<String, IdeCommand> get commandsById => _commands.byId();
 
   // --- Widgets -------------------------------------------------------------
 
@@ -1674,7 +1449,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                               controller: _explorer,
                               focusNode: _explorerFocus,
                               isBound: (event) =>
-                                  _resolveEditorKey(event) != null,
+                                  _keybindings.resolveEditorKey(event) != null,
                               git: workspace.git,
                               repositories: [
                                 for (final (_, git) in workspace.repositories)
@@ -1935,7 +1710,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                   onCompare: (path, what) => unawaited(
                                     _scmService.compareWith(path, what),
                                   ),
-                                  keyResolver: _resolveEditorKey,
+                                  keyResolver: _keybindings.resolveEditorKey,
                                   onPaste: _markdown.pasteInEditor,
                                   formatOnSave: _config.formatOnSave,
                                   debug: _debug,
@@ -2498,8 +2273,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                             onShowTask: _terminalView.showTask,
                             onNew: _terminalView.create,
                             onOpenLink: _openTerminalLink,
-                            shouldSkipShell: _terminalSkipsShell,
-                            resolveKey: _terminalFindKey,
+                            shouldSkipShell: _keybindings.terminalSkipsShell,
+                            resolveKey: _keybindings.terminalFindKey,
                             hosts: widget.terminalHosts,
                             place: this,
                             shown: widget.visible,
@@ -2670,7 +2445,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         final commands = _allCommands();
         final focus = Focus(
           focusNode: _workbenchFocus,
-          onKeyEvent: _onWorkbenchKey,
+          onKeyEvent: _keybindings.onKey,
           // The explorer's uploads and downloads show their progress here.
           child: IdeNotificationsScope(
             notifications: _notifications,
@@ -2860,7 +2635,7 @@ class _Host implements WorkbenchHost, WorkbenchEnvironment {
   @override
   bool executeCommand(String id, [Object? args]) {
     if (!_state.mounted) return false;
-    final command = _state._commandsById()[id];
+    final command = _state._commands.byId()[id];
     if (command == null || !command.enabled) return false;
     command.invoke(args);
     return true;
