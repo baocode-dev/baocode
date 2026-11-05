@@ -6701,6 +6701,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsAccountQuotaUnknown => 'Quota not known yet';
 
   @override
+  String get modelsQuotaPlan => 'Plan quota';
+
+  @override
+  String get modelsQuotaPlanRefresh => 'Refresh quota';
+
+  @override
   String get modelsQuotaShortWindow => 'Short window';
 
   @override

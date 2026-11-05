@@ -4769,6 +4769,8 @@
   "modelsAccountDisabled": "Disabled",
   "modelsAccountLimited": "Out of quota",
   "modelsAccountQuotaUnknown": "Quota not known yet",
+  "modelsQuotaPlan": "Plan quota",
+  "modelsQuotaPlanRefresh": "Refresh quota",
   "modelsQuotaShortWindow": "Short window",
   "modelsQuotaLongWindow": "Long window",
   "modelsQuotaLastUpdated": "Last updated {time}",

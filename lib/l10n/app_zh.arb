@@ -1792,6 +1792,8 @@
   "modelsAccountDisabled": "已禁用",
   "modelsAccountLimited": "额度已用尽",
   "modelsAccountQuotaUnknown": "额度尚未获取",
+  "modelsQuotaPlan": "套餐额度",
+  "modelsQuotaPlanRefresh": "刷新额度",
   "modelsQuotaShortWindow": "短周期",
   "modelsQuotaLongWindow": "长周期",
   "modelsQuotaLastUpdated": "上次更新 {time}",

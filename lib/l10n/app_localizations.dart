@@ -10857,6 +10857,18 @@ abstract class AppLocalizations {
   /// **'Quota not known yet'**
   String get modelsAccountQuotaUnknown;
 
+  /// No description provided for @modelsQuotaPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan quota'**
+  String get modelsQuotaPlan;
+
+  /// No description provided for @modelsQuotaPlanRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh quota'**
+  String get modelsQuotaPlanRefresh;
+
   /// No description provided for @modelsQuotaShortWindow.
   ///
   /// In en, this message translates to:

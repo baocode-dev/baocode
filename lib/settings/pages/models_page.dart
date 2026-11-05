@@ -25,6 +25,7 @@ import '../../models/model_provider.dart';
 import '../../models/model_providers.dart';
 import '../../models/model_runtime.dart';
 import '../../models/upstream.dart';
+import '../../models/upstream_quota.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
@@ -589,6 +590,7 @@ class ProviderSettingsPage extends StatefulWidget {
     this.onOpen,
     this.testModel = testModelThroughClaudeCode,
     this.codex,
+    this.quotas,
     this.workspace,
   });
 
@@ -603,6 +605,9 @@ class ProviderSettingsPage extends StatefulWidget {
 
   /// The ChatGPT (Codex) providers' accounts; the app's when null.
   final CodexService? codex;
+
+  /// The upstreams' plan quotas; the app's when null.
+  final UpstreamQuotaService? quotas;
 
   /// See [ModelsSettingsPage.workspace].
   final Workspace? workspace;
@@ -644,6 +649,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   String? _loginError;
   bool _refreshingQuota = false;
   final Set<String> _refreshingAccounts = {};
+  bool _refreshingPlanQuota = false;
   bool _importingAccounts = false;
   List<CodexImportResult>? _importResults;
   String? _importError;
@@ -651,6 +657,8 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   ModelProviders get _providers => widget.providers;
   ModelProvider get _provider => widget.provider;
   CodexService get _codex => widget.codex ?? codexService;
+  UpstreamQuotaService get _quotas =>
+      widget.quotas ?? UpstreamQuotaService.instance;
 
   @override
   void initState() {
@@ -659,6 +667,9 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     unawaited(_readKey());
     if (_provider.protocol.usesAccounts && _provider.accounts.isNotEmpty) {
       unawaited(_refreshQuota());
+    }
+    if (_quotas.supports(_provider)) {
+      unawaited(_quotas.refresh(_provider));
     }
   }
 
@@ -1014,6 +1025,13 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
         Text(provider.name, style: SettingsText.title),
         const SizedBox(height: 16),
         _connection(context),
+        if (_quotas.supports(provider)) ...[
+          const SizedBox(height: 16),
+          ListenableBuilder(
+            listenable: _quotas,
+            builder: (context, _) => _planQuota(context),
+          ),
+        ],
         if (provider.protocol.usesAccounts) ...[
           const SizedBox(height: 16),
           ListenableBuilder(
@@ -1452,6 +1470,66 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
         ),
       ],
     );
+  }
+
+  /// The quota left of the upstream's plan, as its service says of it.
+  Widget _planQuota(BuildContext context) {
+    final l10n = context.l10n;
+    final quota = _quotas.quota(_provider.id);
+    final error = _quotas.error(_provider.id);
+    final now = DateTime.now();
+    return SettingsGroup(
+      title: l10n.modelsQuotaPlan,
+      children: [
+        SettingsRow(
+          label: l10n.modelsQuotaPlan,
+          below: [
+            if (quota == null)
+              Text(
+                error ?? l10n.modelsAccountQuotaUnknown,
+                style: SettingsText.description.copyWith(
+                  color: error != null ? themeColors['errorForeground'] : null,
+                ),
+              )
+            else
+              for (final window in quota.windows)
+                Text(
+                  [
+                    switch (window.type) {
+                      'five_hour' => l10n.modelsQuotaHours(5),
+                      'seven_day' => l10n.modelsQuotaWeek,
+                      final type => type,
+                    },
+                    l10n.modelsQuotaRemaining(window.leftPercent.round()),
+                    if (window.resetsAt case final at?)
+                      quotaResets(l10n, at, now),
+                  ].join(' · '),
+                  style: SettingsText.description,
+                ),
+          ],
+          trailing: IdeButton(
+            label: l10n.modelsQuotaPlanRefresh,
+            icon: Codicons.refresh,
+            secondary: true,
+            spinning: _refreshingPlanQuota,
+            onPressed: _refreshingPlanQuota
+                ? null
+                : () => unawaited(_refreshPlanQuota()),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Asks the upstream's service again how much of its plan's quota is
+  /// left.
+  Future<void> _refreshPlanQuota() async {
+    setState(() => _refreshingPlanQuota = true);
+    try {
+      await _quotas.refresh(_providerNow, force: true);
+    } finally {
+      if (mounted) setState(() => _refreshingPlanQuota = false);
+    }
   }
 
   /// Where its models are listed and its conversations go, given in full,
