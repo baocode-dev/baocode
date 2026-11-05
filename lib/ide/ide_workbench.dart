@@ -14,10 +14,6 @@ import '../debug/ui/debug_strings.dart';
 import '../debug/ui/debug_toolbar.dart';
 import '../debug/ui/debug_view.dart';
 import '../extensions/theme_extensions.dart';
-import '../extensions/ui/extension_detail.dart';
-import '../extensions/ui/extensions_model.dart';
-import '../extensions/ui/extensions_view.dart';
-import '../extensions/ui/vsix_drop.dart';
 import '../chat/composer/composer_files.dart' show CodeReference, ComposerFile;
 import '../chat/open_editor.dart';
 import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
@@ -26,7 +22,6 @@ import '../l10n/l10n.dart';
 import '../keybindings/keybinding_service.dart';
 import '../settings/user_settings.dart';
 import '../theme/codicons.dart';
-import '../theme/file_icon_theme.dart';
 import '../theme/app_theme.dart';
 import '../theme/workbench_theme.dart' show themeColors;
 import '../workspace/back_to_chat_button.dart';
@@ -42,7 +37,6 @@ import 'package:bao_editor/monaco/flutter/editor_keybindings.dart'
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 
 import 'extensions/ide_extensions.dart';
-import 'extensions/ide_extensions_view.dart';
 import 'file_service.dart' show IdeHostFiles, localizedFileError;
 import 'git/commit_message.dart';
 import 'git/git_repository.dart';
@@ -81,7 +75,6 @@ import 'lsp_ui/problems_panel.dart';
 import 'lsp_ui/workspace_edit.dart';
 import 'search/ide_search_view.dart';
 import 'search/text_search.dart';
-import 'tab_strip_scroll.dart';
 import 'terminal/links/terminal_links.dart';
 import 'terminal/terminal_instance.dart';
 import 'terminal/terminal_panel.dart';
@@ -94,6 +87,7 @@ import 'services/scm_service.dart';
 import 'services/debug_view.dart';
 import 'services/editors.dart';
 import 'services/explorer.dart';
+import 'services/extensions_view.dart';
 import 'services/language.dart';
 import 'services/layout.dart';
 import 'services/auto_save.dart';
@@ -110,6 +104,7 @@ import 'services/terminal_view.dart';
 import 'workbench/contributions/all.dart';
 import 'workbench/editor_panes.dart';
 import 'workbench/environment.dart';
+import 'workbench/parts/extensions.dart';
 import 'workbench/parts/quick_input.dart';
 import 'workbench/quick_access.dart';
 import 'workbench/actions.dart';
@@ -119,8 +114,6 @@ import 'workbench/services.dart';
 import 'workbench/statusbar.dart';
 import 'workbench/storage.dart';
 import 'workbench/views.dart';
-
-part 'ide_workbench_extensions.dart';
 
 /// The IDE shell is kept mounted when the user returns to the conversation.
 class IdeWorkbench extends StatefulWidget {
@@ -396,7 +389,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         history: () => _services.find<NavigationHistoryService>(),
         focusWorkbench: _workbenchFocus.requestFocus,
         // The one in front opened again puts the extension page behind.
-        onShowEditor: () => _extensionPageShown = false,
+        onShowEditor: () => _extensionsView.editorShown(),
         onViewChanged: _editorViewChanged,
         revealInExplorer: (path) => _explorerService.reveal(path),
       ),
@@ -469,6 +462,16 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         },
         ignored: () => widget.ignoredRecommendations,
         onIgnore: (id) => widget.onIgnoreRecommendation?.call(id),
+      ),
+    );
+    _extensionsView = _services.add(
+      ExtensionsViewService(
+        host: _host,
+        environment: _host,
+        quickInput: _quickInput,
+        themes: () => widget.themeExtensions,
+        languageServers: () => widget.extensions,
+        notify: (message) => _notifications.notify(IdeSeverity.error, message),
       ),
     );
     _problems = _services.add(
@@ -583,19 +586,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// or moved to the trash.
   bool get _local => widget.workspace.files is! IdeHostFiles;
 
-  /// The Extensions view's language servers and search, made when it
-  /// first shows them.
-  IdeExtensionsSession? _extensions;
-
-  /// What the Extensions view shows: the themes or the language servers.
-  _ExtensionsTab _extensionsTab = _ExtensionsTab.themes;
-
-  /// The theme extension whose page has a tab among the editors', as
-  /// VS Code's extension editor.
-  ExtensionEntry? _extensionPage;
-
-  /// Whether its tab is the one in front: another selected, it stays.
-  bool _extensionPageShown = false;
+  /// The Extensions view, and a theme extension's page.
+  late final ExtensionsViewService _extensionsView;
 
   /// The window's commands, and the quick input (the palette is one).
   late final CommandService _commands;
@@ -753,9 +745,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     return OpenEditor.at(doc.path, doc.model.snapshot, _editor?.selection);
   }
 
-  /// [setState], for ide_workbench_extensions.dart.
-  void _refresh(VoidCallback fn) => setState(fn);
-
   @override
   void initState() {
     super.initState();
@@ -763,8 +752,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     widget.workspace.localHistory ??= IdeLocalHistory.inDataDirectory();
     _createServices();
     _contributions.addAll(createWorkbenchContributions(_services));
-    // The commands not yet the features' actions.
-    _commands.addSource(() => [..._legacyCommands(), ..._extensionCommands()]);
     FocusManager.instance.addEarlyKeyEventHandler(_onChordKey);
     FocusManager.instance.addLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.addListener(_keybindingsChanged);
@@ -804,6 +791,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _layoutService.addListener(_servicesChanged);
     // Format on Save or the blame toggled.
     _config.addListener(_servicesChanged);
+    // An extension's page opened or closed.
+    _extensionsView.addListener(_servicesChanged);
     if (widget.visible) _focusSoon();
   }
 
@@ -955,10 +944,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _editors.removeListener(_servicesChanged);
     _layoutService.removeListener(_servicesChanged);
     _config.removeListener(_servicesChanged);
+    _extensionsView.removeListener(_servicesChanged);
     _detach(widget.workspace);
     disposeContributions(_contributions);
     _services.dispose();
-    _extensions?.dispose();
     _workbenchFocus.dispose();
     _terminalView.removeListener(_terminalsChanged);
     super.dispose();
@@ -1000,8 +989,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     if (active?.key == _activeKey) return;
     // Another editor in front: `onFocusChange` saves the one left.
-    if (_activeKey != null)
+    if (_activeKey != null) {
       unawaited(_autoSave.saveNow(const {'onFocusChange'}));
+    }
     _activeKey = active?.key;
     _history.activeChanged(active);
     if (active == null) return;
@@ -1019,7 +1009,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         }
       });
     }
-    if (!_editors.closing) _extensionPageShown = false;
+    if (!_editors.closing) _extensionsView.editorShown();
     _language.recommendServers();
     _explorerService.follow(path);
   }
@@ -1063,14 +1053,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   void _openAgentChange(String path) => unawaited(_editors.open(path));
 
   void _leaveGitLog() => _scmService.leaveGitLog();
-
-  void _closeActive() {
-    if (_extensionPageShown && _extensionPage != null) {
-      _closeExtensionPage();
-      return;
-    }
-    if (widget.workspace.active case final doc?) unawaited(_editors.close(doc));
-  }
 
   // --- Language features ---------------------------------------------------
 
@@ -1312,8 +1294,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _chord = null;
     _chordChecker?.cancel();
     _chordChecker = null;
-    if (identical(_statusbar.message, chord.message))
+    if (identical(_statusbar.message, chord.message)) {
       _statusbar.setMessage(null);
+    }
   }
 
   /// VS Code's custom key event handler for a terminal with the keyboard
@@ -1344,24 +1327,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   // --- Commands ------------------------------------------------------------
 
-  /// The commands not yet a feature's: Close Editor, which closes an
-  /// extension's page as well.
-  List<IdeCommand> _legacyCommands() => [
-    IdeCommand(
-      id: 'workbench.action.closeActiveEditor',
-      category: 'View',
-      label: 'Close Editor',
-      enabled: widget.workspace.active != null,
-      run: _closeActive,
-    ),
-  ];
-
   /// The palette's commands: the features', the editor's, the app's.
   List<IdeCommand> _allCommands() => _commands.palette();
 
   /// Takes the .vsix files and extension folders among [paths] dropped on
   /// the window: false when there are none.
-  bool dropExtensions(List<String> paths) => _dropExtensions(paths);
+  bool dropExtensions(List<String> paths) => _extensionsView.drop(paths);
 
   /// The commands for the current state, for the palette and for tests.
   @visibleForTesting
@@ -1596,7 +1567,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ),
       null => const SizedBox.shrink(),
     },
-    IdeSideView.extensions => _extensionsView(),
+    IdeSideView.extensions => ExtensionsViewPart(
+      service: _extensionsView,
+      language: _language,
+      islands: IdeWorkbench.islands,
+    ),
   };
 
   /// The Explorer view: the folder's tree, the active editor's outline and
@@ -1806,8 +1781,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   Widget _editorArea(List<IdeCommand> commands) {
     final active = widget.workspace.active;
-    final page = widget.themeExtensions == null ? null : _extensionPage;
-    final pageShown = page != null && _extensionPageShown;
+    final page = _extensionsView.page;
+    final pageShown = _extensionsView.pageShown;
     final debug = _debug;
     final dockedToolbar =
         debug != null && debug.settings().toolBarLocation == 'docked';
@@ -1844,7 +1819,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     : null,
                 onMarkdownPreview: (preview) =>
                     unawaited(_markdown.setPreview(preview)),
-                page: page == null ? null : _extensionPageTab(page),
+                page: page == null
+                    ? null
+                    : ExtensionPageTab(service: _extensionsView),
                 actions: switch (widget.agentEdits) {
                   final edits? when !pageShown && active != null =>
                     ListenableBuilder(
@@ -1970,7 +1947,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                   if (page != null)
                     Offstage(
                       offstage: !pageShown,
-                      child: _extensionPageView(page),
+                      child: ExtensionPageView(service: _extensionsView),
                     ),
                 ],
               ),
