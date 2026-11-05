@@ -20,9 +20,7 @@ import '../extensions/ui/extensions_view.dart';
 import '../extensions/ui/vsix_drop.dart';
 import '../chat/composer/composer_files.dart' show CodeReference, ComposerFile;
 import '../chat/open_editor.dart';
-import '../keybindings/chat_keybindings.dart' show ChatCommandIds;
-import '../keybindings/default_keybindings.dart'
-    show commandCatalog, openSettingsCommandId;
+import '../keybindings/default_keybindings.dart' show openSettingsCommandId;
 import '../keybindings/key_chord.dart';
 import '../l10n/l10n.dart';
 import '../keybindings/keybinding_service.dart';
@@ -81,7 +79,6 @@ import 'lsp_ui/document_symbols.dart';
 import 'lsp_ui/lsp_convert.dart';
 import 'lsp_ui/problems_panel.dart';
 import 'lsp_ui/workspace_edit.dart';
-import 'language_mode.dart';
 import 'search/ide_search_view.dart';
 import 'search/text_search.dart';
 import 'tab_strip_scroll.dart';
@@ -99,6 +96,9 @@ import 'services/editors.dart';
 import 'services/explorer.dart';
 import 'services/language.dart';
 import 'services/layout.dart';
+import 'services/auto_save.dart';
+import 'services/chat.dart';
+import 'services/configuration.dart';
 import 'services/commands.dart';
 import 'services/quick_input.dart';
 import 'services/search_view.dart';
@@ -109,6 +109,7 @@ import 'services/references.dart';
 import 'services/terminal_view.dart';
 import 'workbench/contributions/all.dart';
 import 'workbench/editor_panes.dart';
+import 'workbench/environment.dart';
 import 'workbench/parts/quick_input.dart';
 import 'workbench/quick_access.dart';
 import 'workbench/actions.dart';
@@ -120,7 +121,6 @@ import 'workbench/storage.dart';
 import 'workbench/views.dart';
 
 part 'ide_workbench_extensions.dart';
-part 'ide_workbench_keys.dart';
 
 /// The IDE shell is kept mounted when the user returns to the conversation.
 class IdeWorkbench extends StatefulWidget {
@@ -333,7 +333,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   late final ActionRegistry _actions;
   late final StatusbarService _statusbar;
   late final WorkbenchStorage _storage;
-  late final WorkbenchHost _host = _Host(this);
+  late final _Host _host = _Host(this);
   final List<WorkbenchContribution> _contributions = [];
 
   /// The window's services: those its features use, then the features.
@@ -342,7 +342,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _actions = _services.add(ActionRegistry());
     _statusbar = _services.add(StatusbarService());
     _storage = _services.add(WorkbenchStorage(onChanged: _keepViewSoon));
-    _services.add<WorkbenchHost>(_host);
+    _services
+      ..add<WorkbenchHost>(_host)
+      ..add<WorkbenchEnvironment>(_host);
+    _config = _services.add(
+      ConfigurationService(settings: () => widget.settings),
+    );
     _layoutService = _services.add(
       LayoutService(host: _host, layout: () => widget.workspace.layout),
     );
@@ -393,8 +398,26 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         // The one in front opened again puts the extension page behind.
         onShowEditor: () => _extensionPageShown = false,
         onViewChanged: _editorViewChanged,
+        revealInExplorer: (path) => _explorerService.reveal(path),
       ),
     );
+    _autoSave = _services.add(
+      AutoSaveService(
+        host: _host,
+        config: _config,
+        editors: _editors,
+        workspace: () => widget.workspace,
+      ),
+    );
+    _chat = ChatService(
+      host: _host,
+      layout: _layoutService,
+      editors: _editors,
+      addCode: () => widget.onAddCodeToChat,
+      ask: () => widget.onAskInChat,
+      back: () => widget.onBack,
+    );
+    _services.add(_chat);
     _searchView = _services.add(
       SearchViewService(
         host: _host,
@@ -582,11 +605,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   _Chord? _chord;
   Timer? _chordChecker;
 
-  /// The status bar's message (upstream `INotificationService.status`),
-  /// after the items on the left.
-  String? _statusMessage;
-  Timer? _statusMessageTimer;
-
   /// Reads the Git status again when the app comes back to the front: a
   /// pull or a commit made elsewhere may have changed it unseen.
   AppLifecycleListener? _lifecycle;
@@ -625,95 +643,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// The workspace's debugger as the workbench shows it.
   late final DebugViewService _debugView;
 
-  /// `editor.formatOnSave`, kept in settings.json as VS Code keeps it.
-  bool get _formatOnSave => _setting('editor.formatOnSave', false);
-  set _formatOnSave(bool value) => _setSetting('editor.formatOnSave', value);
-
-  /// The editor's Git blame (`git.blame.editorDecoration.enabled`), kept
-  /// as [_formatOnSave].
-  bool get _gitBlame => _setting('git.blame.editorDecoration.enabled', true);
-  set _gitBlame(bool value) =>
-      _setSetting('git.blame.editorDecoration.enabled', value);
-
-  /// `files.autoSave`, as VS Code's: `off` (the default), `afterDelay`,
-  /// `onFocusChange` or `onWindowChange`.
-  String get _autoSave => switch (widget.settings?['files.autoSave']) {
-    final String mode => mode,
-    _ => 'off',
-  };
-
-  /// `files.autoSaveDelay`: how long after the last edit `afterDelay` saves.
-  Duration get _autoSaveDelay =>
-      switch (widget.settings?['files.autoSaveDelay']) {
-        final int ms when ms >= 0 => Duration(milliseconds: ms),
-        _ => const Duration(seconds: 1),
-      };
-
-  Timer? _autoSaveTimer;
-
-  /// The documents whose auto save failed (changed on disk, say): left to
-  /// be saved by hand, lest the error come back with every edit.
-  final Set<IdeDocument> _autoSaveFailed = Set.identity();
-
-  bool _autoSaves(IdeDocument doc) =>
-      doc.dirty && doc.isFile && !doc.deleted && !_autoSaveFailed.contains(doc);
-
-  /// After an edit: `afterDelay` saves once edits stop for its delay.
-  void _scheduleAutoSave() {
-    if (_autoSave != 'afterDelay' ||
-        !widget.workspace.documents.any(_autoSaves)) {
-      _autoSaveTimer?.cancel();
-      _autoSaveTimer = null;
-      return;
-    }
-    _autoSaveTimer?.cancel();
-    _autoSaveTimer = Timer(_autoSaveDelay, () => unawaited(_autoSaveNow()));
-  }
-
-  /// Saves the documents auto save keeps when it is on in one of [modes];
-  /// none of them formatted, as VS Code's `afterDelay` does not.
-  Future<void> _autoSaveNow([
-    Set<String> modes = const {'afterDelay', 'onFocusChange', 'onWindowChange'},
-  ]) async {
-    _autoSaveTimer?.cancel();
-    _autoSaveTimer = null;
-    if (!mounted || !modes.contains(_autoSave)) return;
-    final workspace = widget.workspace;
-    final dirty = workspace.documents.where(_autoSaves).toList();
-    if (dirty.isEmpty) return;
-    await _editors.flush();
-    for (final doc in dirty) {
-      if (!mounted || !identical(workspace, widget.workspace)) return;
-      try {
-        await workspace.save(doc);
-      } catch (error) {
-        _autoSaveFailed.add(doc);
-        _report(error);
-      }
-    }
-  }
-
-  /// The settings toggled here not written to settings.json yet (or with
-  /// none to write to, under test).
-  final Map<String, bool> _settingsSet = {};
-
-  bool _setting(String key, bool fallback) =>
-      _settingsSet[key] ??
-      switch (widget.settings?[key]) {
-        final bool value => value,
-        _ => fallback,
-      };
-
-  void _setSetting(String key, bool value) {
-    _settingsSet[key] = value;
-    unawaited(
-      widget.settings?.update(key, value).catchError((Object error) {
-        // A settings file that does not parse is left as it is; its error
-        // is shown.
-        debugPrint('$key not kept: $error');
-      }),
-    );
-  }
+  /// Settings as the window reads and toggles them; auto save; the chat
+  /// beside the editor.
+  late final ConfigurationService _config;
+  late final AutoSaveService _autoSave;
+  late final ChatService _chat;
 
   /// Whether the editors kept are being opened again: until they are, the
   /// window is not kept, lest those not open yet be forgotten.
@@ -796,11 +730,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// settings.json read again: what it says now, written here or not.
   void _settingsChanged() {
-    _settingsSet.clear();
+    _config.reloaded();
     // The explorer's exclusions follow the file.
     _explorerService.settingsChanged();
     // Auto save turned on (or its delay changed) saves what is unsaved.
-    _scheduleAutoSave();
+    _autoSave.schedule();
     setState(() {});
   }
 
@@ -819,27 +753,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     return OpenEditor.at(doc.path, doc.model.snapshot, _editor?.selection);
   }
 
-  /// Find in a preview: in its source, as the preview has no find.
-  void _find({bool replace = false}) {
-    if (_markdown.previewing(widget.workspace.active)) {
-      _setStatusMessage(
-        context.l10n.markdownFindInSource,
-        hideAfter: const Duration(seconds: 4),
-      );
-      unawaited(
-        _markdown.setPreview(false).then((_) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            replace ? _editor?.openReplace() : _editor?.openFind();
-          });
-        }),
-      );
-      return;
-    }
-    replace ? _editor?.openReplace() : _editor?.openFind();
-  }
-
-  /// [setState], for the commands of ide_workbench_keys.dart.
+  /// [setState], for ide_workbench_extensions.dart.
   void _refresh(VoidCallback fn) => setState(fn);
 
   @override
@@ -850,17 +764,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _createServices();
     _contributions.addAll(createWorkbenchContributions(_services));
     // The commands not yet the features' actions.
-    _commands
-      ..addSource(
-        () => [
-          ..._workbenchCommands(),
-          ..._editorCommands(),
-          ...?_editor?.editorCommands,
-          ...widget.commands,
-          ..._extensionCommands(),
-        ],
-      )
-      ..addSource(_keyboardCommands, palette: false);
+    _commands.addSource(() => [..._legacyCommands(), ..._extensionCommands()]);
     FocusManager.instance.addEarlyKeyEventHandler(_onChordKey);
     FocusManager.instance.addLateKeyEventHandler(_onLateKey);
     KeybindingService.instance.addListener(_keybindingsChanged);
@@ -874,7 +778,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       onResume: () => unawaited(_git?.refresh()),
       // The window left: `onFocusChange` and `onWindowChange` save.
       onInactive: () {
-        unawaited(_autoSaveNow(const {'onFocusChange', 'onWindowChange'}));
+        unawaited(_autoSave.saveNow(const {'onFocusChange', 'onWindowChange'}));
         // Where the editors are, should the app be quit from elsewhere.
         _keepView();
       },
@@ -898,6 +802,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _editors.addListener(_servicesChanged);
     // A part shown or hidden, here or from the window's header.
     _layoutService.addListener(_servicesChanged);
+    // Format on Save or the blame toggled.
+    _config.addListener(_servicesChanged);
     if (widget.visible) _focusSoon();
   }
 
@@ -955,9 +861,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _debugView.detach(workspace);
     workspace.removeListener(_workspaceChanged);
     workspace.edits.removeListener(_documentEdited);
-    _autoSaveTimer?.cancel();
-    _autoSaveTimer = null;
-    _autoSaveFailed.clear();
+    _autoSave.detach();
     _services.remove<NavigationHistoryService>();
     _services.remove<IdeWorkspace>(owned: false);
     _layoutService.detach();
@@ -1040,8 +944,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _editorViewTimer?.cancel();
     _keepView();
     _chordChecker?.cancel();
-    _statusMessageTimer?.cancel();
-    _autoSaveTimer?.cancel();
     _lifecycle?.dispose();
     // A quick pick or input box going with the workbench hides (the color
     // themes one applies the theme it started with again).
@@ -1052,6 +954,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _explorerService.removeListener(_servicesChanged);
     _editors.removeListener(_servicesChanged);
     _layoutService.removeListener(_servicesChanged);
+    _config.removeListener(_servicesChanged);
     _detach(widget.workspace);
     disposeContributions(_contributions);
     _services.dispose();
@@ -1065,7 +968,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// hear of only when it makes the document dirty or clean again.
   void _documentEdited() {
     _language.documentChanged();
-    _scheduleAutoSave();
+    _autoSave.schedule();
     _searchView.documentsChanged();
   }
 
@@ -1077,11 +980,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _language.documentChanged();
     _history.documentsChanged();
     _searchView.documentsChanged();
-    final documents = widget.workspace.documents;
-    _autoSaveFailed.removeWhere(
-      (doc) => !doc.dirty || !documents.contains(doc),
-    );
-    _scheduleAutoSave();
+    _autoSave.documentsChanged();
     final active = widget.workspace.active;
     if (widget.workspace.takeReveal() case final range? when active != null) {
       final location = IdeLocation(active.path, range);
@@ -1101,7 +1000,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     if (active?.key == _activeKey) return;
     // Another editor in front: `onFocusChange` saves the one left.
-    if (_activeKey != null) unawaited(_autoSaveNow(const {'onFocusChange'}));
+    if (_activeKey != null)
+      unawaited(_autoSave.saveNow(const {'onFocusChange'}));
     _activeKey = active?.key;
     _history.activeChanged(active);
     if (active == null) return;
@@ -1172,57 +1072,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (widget.workspace.active case final doc?) unawaited(_editors.close(doc));
   }
 
-  String _relative(String path) => widget.workspace.isMultiRoot
-      ? widget.workspace.relativePath(path)
-      : widget.workspace.paths.relative(path, from: widget.workspace.root);
-
-  void _tabAction(IdeDocument doc, IdeTabAction action) {
-    final docs = widget.workspace.documents;
-    switch (action) {
-      case IdeTabAction.close:
-        unawaited(_editors.close(doc));
-      case IdeTabAction.closeOthers:
-        unawaited(
-          _editors.closeAll([
-            for (final d in docs)
-              if (!identical(d, doc)) d,
-          ]),
-        );
-      case IdeTabAction.closeToTheRight:
-        unawaited(_editors.closeAll(docs.sublist(docs.indexOf(doc) + 1)));
-      case IdeTabAction.closeSaved:
-        unawaited(
-          _editors.closeAll([
-            for (final d in docs)
-              if (!d.dirty) d,
-          ]),
-        );
-      case IdeTabAction.closeAll:
-        unawaited(_editors.closeAll(docs));
-      case IdeTabAction.copyPath:
-        unawaited(Clipboard.setData(ClipboardData(text: doc.path)));
-      case IdeTabAction.copyRelativePath:
-        unawaited(Clipboard.setData(ClipboardData(text: _relative(doc.path))));
-      case IdeTabAction.saveAs:
-        unawaited(_editors.saveAs(doc));
-      case IdeTabAction.revealInFileManager:
-        unawaited(WindowControls.revealInFileManager(doc.path));
-      case IdeTabAction.openInDefaultApp:
-        unawaited(_openInDefaultApp(doc.path));
-      case IdeTabAction.revealInExplorer:
-        _explorerService.reveal(doc.path);
-    }
-  }
-
-  Future<void> _back() async {
-    try {
-      await _editors.flush();
-      if (mounted) widget.onBack();
-    } catch (error) {
-      _report(error);
-    }
-  }
-
   // --- Language features ---------------------------------------------------
 
   /// Go Back (⌃-) / Go Forward (⌃⇧-), and the mouse's back and forward
@@ -1234,24 +1083,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       if (doc.path == path) return doc.text;
     }
     return widget.workspace.files.read(path);
-  }
-
-  // --- Layout ------------------------------------------------------------
-
-  void _toggleChat() => _layoutService.toggleChat();
-
-  /// The editor's lines selected in the chat's composer, the chat shown
-  /// and the keyboard in it (as Cursor's ⌘L).
-  void _addSelectionToChat() {
-    final code = _editor?.selectedCode() ?? const <CodeReference>[];
-    if (!_chatShown) _toggleChat();
-    widget.onAddCodeToChat?.call(code);
-  }
-
-  /// [text] in the chat's composer, the chat shown.
-  void _askInChat(String text) {
-    widget.onAskInChat?.call(text);
-    if (!_chatShown) _toggleChat();
   }
 
   // --- Quick input ---------------------------------------------------------
@@ -1287,57 +1118,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Runs the command [id] (the palette's, or one of its keybindings'),
   /// as a menu does; false when there is none here, or it cannot run now.
   bool runCommand(String id) => _commands.runById(id);
-
-  /// VS Code's Change End of Line Sequence (`ChangeEOLAction`): LF or CRLF
-  /// for every line of the active document, the current one active.
-  /// Change Language Mode for the active editor's file (see
-  /// [languageModePick]).
-  Future<void> _changeLanguageMode() async {
-    final active = widget.workspace.active;
-    if (active == null || active.isMedia || active.openError != null) return;
-    final l10n = context.l10n;
-    await IdeLanguageNames.load();
-    if (!mounted || !identical(widget.workspace.active, active)) return;
-    _quickInput.showModel(
-      languageModePick(l10n, active.path, onPicked: _editors.focus),
-    );
-  }
-
-  void _changeEndOfLine() {
-    final active = widget.workspace.active;
-    if (active == null || active.isMedia || active.openError != null) return;
-    final l10n = context.l10n;
-    if (active.readOnly) {
-      _quickInput.showModel(
-        IdeQuickPick(items: [IdeQuickPickItem(label: l10n.wbEditorReadOnly)]),
-      );
-      return;
-    }
-    const lf = IdeQuickPickItem(label: 'LF');
-    const crlf = IdeQuickPickItem(label: 'CRLF');
-    _quickInput.showModel(
-      IdeQuickPick(
-        items: const [lf, crlf],
-        placeholder: l10n.wbSelectEol,
-        activeItems: [ideEolLabel(active.model.snapshot) == 'CRLF' ? crlf : lf],
-        onDidAccept: (item) {
-          if (item == null) return;
-          if (!identical(widget.workspace.active, active)) return;
-          _editor?.setEndOfLine(identical(item, crlf) ? '\r\n' : '\n');
-          _editors.focus();
-        },
-      ),
-    );
-  }
-
-  /// Preferences: Color Theme (see [ideColorThemePick]).
-  void _selectColorTheme() {
-    if (widget.colorThemes case final themes?) {
-      _quickInput.showModel(
-        ideColorThemePick(themes, onError: _report, l10n: context.l10n),
-      );
-    }
-  }
 
   // --- Keybindings ---------------------------------------------------------
   // What a key press runs, as the keybindings resolve it (defaults, the
@@ -1492,7 +1272,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final label = chords.map((chord) => chord.label(platform)).join(' ');
     final message = context.l10n.wbChordWaiting(label);
     _chord = (label: label, chords: chords, message: message);
-    _setStatusMessage(message);
+    _statusbar.setMessage(message);
     // `_scheduleLeaveChordMode`: out after 5 seconds, or once the window
     // is not the active one.
     _chordChecker?.cancel();
@@ -1520,7 +1300,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     }
     final platform = KeybindingService.instance.platform;
     final keypress = KeyChord.fromEvent(event)?.label(platform) ?? '';
-    _setStatusMessage(
+    _statusbar.setMessage(
       context.l10n.wbChordNotCommand(chord.label, keypress),
       hideAfter: const Duration(seconds: 10),
     );
@@ -1532,233 +1312,51 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _chord = null;
     _chordChecker?.cancel();
     _chordChecker = null;
-    if (identical(_statusMessage, chord.message)) _setStatusMessage(null);
+    if (identical(_statusbar.message, chord.message))
+      _statusbar.setMessage(null);
   }
 
-  /// Shows [message] in the status bar in place of the last one, for
-  /// [hideAfter] if given (`NotificationsStatus.doSetStatusMessage`).
-  void _setStatusMessage(String? message, {Duration? hideAfter}) {
-    _statusMessageTimer?.cancel();
-    _statusMessageTimer = message != null && hideAfter != null
-        ? Timer(hideAfter, () => _setStatusMessage(null))
-        : null;
-    if (mounted) setState(() => _statusMessage = message);
+  /// VS Code's custom key event handler for a terminal with the keyboard
+  /// (`TerminalInstance`'s `attachCustomKeyEventHandler`): the workbench
+  /// takes a key that resolves to a command of
+  /// [terminalCommandsToSkipShell] (any, with ⌘ down), or to the first
+  /// chord of a two-chord keybinding but Escape
+  /// (`terminal.integrated.allowChords`); the shell gets the others.
+  bool _terminalSkipsShell(KeyEvent event) {
+    if (event is KeyUpEvent || _modifierKeys.contains(event.logicalKey)) {
+      return false;
+    }
+    return switch (_resolveKey(event)) {
+      KeybindingFound(:final command) =>
+        HardwareKeyboard.instance.isMetaPressed ||
+            terminalCommandsToSkipShell.contains(command),
+      MoreChordsNeeded() => event.logicalKey != LogicalKeyboardKey.escape,
+      NoKeybinding() => false,
+    };
   }
+
+  /// The command a key in a terminal's find widget runs, as the
+  /// workbench's keybindings resolve it (see [TerminalView.resolveKey]).
+  String? _terminalFindKey(KeyEvent event) => switch (_resolveKey(event)) {
+    KeybindingFound(:final command) => command,
+    _ => null,
+  };
 
   // --- Commands ------------------------------------------------------------
 
-  List<IdeCommand> _workbenchCommands() {
-    final workspace = widget.workspace;
-    final active = workspace.active;
-    final hasEditors = workspace.documents.isNotEmpty;
-    return [
-      IdeCommand(
-        id: 'workbench.action.editor.changeLanguageMode',
-        label: 'Change Language Mode',
-        enabled: active != null && !active.isMedia && active.openError == null,
-        run: () => unawaited(_changeLanguageMode()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.editor.changeEOL',
-        label: 'Change End of Line Sequence',
-        enabled: active != null && !active.isMedia && active.openError == null,
-        run: _changeEndOfLine,
-      ),
-      IdeCommand(
-        id: 'actions.find',
-        label: 'Find',
-        enabled: active != null,
-        run: _find,
-      ),
-      IdeCommand(
-        id: 'editor.action.startFindReplaceAction',
-        label: 'Replace',
-        enabled: active != null,
-        run: () => _find(replace: true),
-      ),
-      IdeCommand(
-        id: 'workbench.action.files.save',
-        category: 'File',
-        label: 'Save',
-        enabled: active != null,
-        run: () => unawaited(_editors.save()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.files.saveAll',
-        category: 'File',
-        label: 'Save All',
-        enabled: workspace.documents.any((doc) => doc.dirty),
-        run: () => unawaited(_editors.saveAll()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.files.saveAs',
-        category: 'File',
-        label: 'Save As...',
-        enabled:
-            active != null &&
-            (active.isFile || active.isUntitled) &&
-            active.label == null &&
-            workspace.askSavePath != null,
-        run: () => unawaited(_editors.saveAs()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.files.newUntitledFile',
-        category: 'File',
-        label: 'New Text File',
-        run: _editors.newUntitled,
-      ),
-      IdeCommand(
-        id: 'workbench.action.closeActiveEditor',
-        category: 'View',
-        label: 'Close Editor',
-        enabled: active != null,
-        run: _closeActive,
-      ),
-      IdeCommand(
-        id: 'workbench.action.closeOtherEditors',
-        category: 'View',
-        label: 'Close Other Editors',
-        enabled: active != null && workspace.documents.length > 1,
-        run: () => _tabAction(active!, IdeTabAction.closeOthers),
-      ),
-      IdeCommand(
-        id: 'workbench.action.closeEditorsToTheRight',
-        category: 'View',
-        label: 'Close Editors to the Right',
-        enabled: active != null && workspace.documents.last != active,
-        run: () => _tabAction(active!, IdeTabAction.closeToTheRight),
-      ),
-      IdeCommand(
-        id: 'workbench.action.closeUnmodifiedEditors',
-        category: 'View',
-        label: 'Close Saved Editors',
-        enabled: workspace.documents.any((doc) => !doc.dirty),
-        run: () => unawaited(
-          _editors.closeAll([
-            for (final doc in workspace.documents)
-              if (!doc.dirty) doc,
-          ]),
-        ),
-      ),
-      IdeCommand(
-        id: 'workbench.action.closeAllEditors',
-        category: 'View',
-        label: 'Close All Editors',
-        enabled: hasEditors,
-        run: () => unawaited(_editors.closeAll(workspace.documents)),
-      ),
-      IdeCommand(
-        id: 'workbench.action.nextEditor',
-        category: 'View',
-        label: 'Open Next Editor',
-        enabled: workspace.documents.length > 1,
-        run: () => _editors.cycle(1),
-      ),
-      IdeCommand(
-        id: 'workbench.action.previousEditor',
-        category: 'View',
-        label: 'Open Previous Editor',
-        enabled: workspace.documents.length > 1,
-        run: () => _editors.cycle(-1),
-      ),
-      // ⌃9 / Alt+9 opens the last editor when there are fewer.
-      for (var i = 1; i <= 9; i++)
-        IdeCommand(
-          id: 'workbench.action.openEditorAtIndex$i',
-          category: 'View',
-          label: 'Open Editor at Index $i',
-          enabled: hasEditors,
-          run: () => _editors.openAt(i == 9 ? -1 : i - 1),
-        ),
-      IdeCommand(
-        id: 'workbench.action.lastEditorInGroup',
-        category: 'View',
-        label: 'Open Last Editor in Group',
-        enabled: hasEditors,
-        run: () => _editors.openAt(-1),
-      ),
-      IdeCommand(
-        id: ChatCommandIds.attachSelection,
-        category: 'Chat',
-        label: 'Add Selection to Chat',
-        enabled: widget.onAddCodeToChat != null && _editor != null,
-        run: _addSelectionToChat,
-      ),
-      IdeCommand(
-        id: 'copyFilePath',
-        category: 'File',
-        label: 'Copy Path of Active File',
-        enabled: active != null,
-        run: () => _tabAction(active!, IdeTabAction.copyPath),
-      ),
-      IdeCommand(
-        id: 'copyRelativeFilePath',
-        category: 'File',
-        label: 'Copy Relative Path of Active File',
-        enabled: active != null,
-        run: () => _tabAction(active!, IdeTabAction.copyRelativePath),
-      ),
-      IdeCommand(
-        id: ideSelectColorThemeCommandId,
-        category: 'Preferences',
-        label: 'Color Theme',
-        enabled: widget.colorThemes != null,
-        run: _selectColorTheme,
-      ),
-      IdeCommand(
-        id: 'baocode.ide.toggleFormatOnSave',
-        category: 'Preferences',
-        label: _formatOnSave
-            ? 'Turn Off Format on Save'
-            : 'Turn On Format on Save',
-        enabled: _languages != null,
-        run: () => setState(() => _formatOnSave = !_formatOnSave),
-      ),
-      IdeCommand(
-        id: 'baocode.git.toggleAnnotations',
-        category: 'Git',
-        label: _editor?.annotated ?? false
-            ? 'Close Annotations'
-            : 'Annotate with Git Blame',
-        enabled: _editor?.canAnnotate ?? false,
-        run: () => _editor?.toggleAnnotations(),
-      ),
-      IdeCommand(
-        id: 'baocode.git.showFileHistory',
-        category: 'Git',
-        label: 'Show History',
-        enabled: _editor?.canShowHistory ?? false,
-        run: () => _editor?.showHistory(),
-      ),
-      IdeCommand(
-        id: 'baocode.git.showSelectionHistory',
-        category: 'Git',
-        label: 'Show History for Selection',
-        enabled: _editor?.selectionHistoryLines != null,
-        run: () => _editor?.showHistory(selection: true),
-      ),
-      _catalogCommand(
-        'git.blame.toggleEditorDecoration',
-        () => setState(() => _gitBlame = !_gitBlame),
-        enabled: widget.workspace.git != null,
-      ),
-      IdeCommand(
-        id: 'baocode.ide.retryLanguageServices',
-        category: 'Developer',
-        label: 'Retry Language Services',
-        enabled: active != null,
-        run: () => unawaited(_editor?.retryLanguageServer()),
-      ),
-      IdeCommand(
-        id: 'baocode.ide.backToChat',
-        category: 'View',
-        label: 'Back to Chat',
-        run: () => unawaited(_back()),
-      ),
-    ];
-  }
+  /// The commands not yet a feature's: Close Editor, which closes an
+  /// extension's page as well.
+  List<IdeCommand> _legacyCommands() => [
+    IdeCommand(
+      id: 'workbench.action.closeActiveEditor',
+      category: 'View',
+      label: 'Close Editor',
+      enabled: widget.workspace.active != null,
+      run: _closeActive,
+    ),
+  ];
 
-  /// The workbench's commands, then the editor's, then [IdeWorkbench.commands].
+  /// The palette's commands: the features', the editor's, the app's.
   List<IdeCommand> _allCommands() => _commands.palette();
 
   /// Takes the .vsix files and extension folders among [paths] dropped on
@@ -1845,7 +1443,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ];
     // Settings at its foot, as upstream's Manage gear: the chat's sidebar
     // has them, the IDE had no way to them but the palette.
-    final settings = _hostCommand(openSettingsCommandId);
+    final settings = _host.hostCommand(openSettingsCommandId);
     return SizedBox(
       width: IdeModernUI.activityBarWidth,
       // On the window's color, beside the cards; not islands, a part of
@@ -1939,7 +1537,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       notifications: _notifications,
       islands: IdeWorkbench.islands,
       ai: widget.commitMessage,
-      onAsk: widget.onAskInChat == null ? null : _askInChat,
+      onAsk: _chat.canAsk ? _chat.ask : null,
       onFixup: (git, commit) async =>
           _scmService.panelKey.currentState?.fixupInto(git, commit),
       onOpen: (path) {
@@ -1957,7 +1555,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
               },
       ),
       changes: IdeGitCommitPanel(
-        onAsk: widget.onAskInChat == null ? null : _askInChat,
+        onAsk: _chat.canAsk ? _chat.ask : null,
         key: _scmService.panelKey,
         host: widget.workspace,
         session: _scm,
@@ -2035,9 +1633,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                       title: context.l10n.explorerNoFolderTitle,
                       weight: 3,
                       body: _NoFolder(
-                        onOpenFolder: _hostCommand(
-                          'workbench.action.files.openFolder',
-                        )?.run,
+                        onOpenFolder: _host
+                            .hostCommand('workbench.action.files.openFolder')
+                            ?.run,
                       ),
                     )
                   else
@@ -2237,7 +1835,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                 root: widget.workspace.root,
                 onSelect: (doc) => unawaited(_editors.select(doc)),
                 onClose: (doc) => unawaited(_editors.close(doc)),
-                onAction: _tabAction,
+                onAction: _editors.tabAction,
                 onMove: widget.workspace.moveDocument,
                 local: _local,
                 markdownPreview:
@@ -2354,7 +1952,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                       .openLocation(location, center: true),
                                   onShowReferences: _referencesView.show,
                                   onShowCommands: () => _quickInput.show('>'),
-                                  gitBlame: _gitBlame,
+                                  gitBlame: _config.gitBlame,
                                   onShowCommit: _scmService.showCommitInLog,
                                   onShowHistory: _scmService.showHistory,
                                   onCompare: (path, what) => unawaited(
@@ -2362,7 +1960,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                   ),
                                   keyResolver: _resolveEditorKey,
                                   onPaste: _markdown.pasteInEditor,
-                                  formatOnSave: _formatOnSave,
+                                  formatOnSave: _config.formatOnSave,
                                   debug: _debug,
                                   agentEdits: widget.agentEdits,
                                 ),
@@ -3051,7 +2649,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                     ),
                     child: BackToChatButton(
                       label: widget.backLabel,
-                      onPressed: () => unawaited(_back()),
+                      onPressed: () => unawaited(_chat.back()),
                     ),
                   ),
                 ],
@@ -3070,7 +2668,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     // they will have (the greater, the further left).
     final left = <(double, IdeStatusBarItem)>[
       if (widget.remote?.item(context) case final item?) (100, item),
-      if (_statusMessage case final message?) (50, IdeStatusBarItem(message)),
+      if (_statusbar.message case final message?)
+        (50, IdeStatusBarItem(message)),
     ];
     final bell = ideNotificationsStatusItem(_notifications, l10n: l10n);
     final leftItems = mergeStatusbarItems(
@@ -3184,10 +2783,19 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 }
 
 /// What the services need of the workbench's widgets.
-class _Host implements WorkbenchHost {
+class _Host implements WorkbenchHost, WorkbenchEnvironment {
   _Host(this._state);
 
   final IdeWorkbenchState _state;
+
+  @override
+  UserSettings? get settings => _state.widget.settings;
+
+  @override
+  IdeColorThemeController? get colorThemes => _state.widget.colorThemes;
+
+  @override
+  List<IdeCommand> get hostCommands => _state.widget.commands;
 
   @override
   BuildContext? get context => _state.mounted ? _state.context : null;

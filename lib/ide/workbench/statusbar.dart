@@ -5,6 +5,8 @@
 // built as the bar is, in its context (its text is localized there), and
 // the bar is built again when what an entry shows [changes].
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../ide_status_bar.dart';
@@ -120,8 +122,27 @@ class StatusbarService extends ChangeNotifier {
 
   void _changed() => notifyListeners();
 
+  /// The message after the items on the left (upstream
+  /// `INotificationService.status`): a chord's, a command's.
+  String? get message => _message;
+  String? _message;
+  Timer? _messageTimer;
+
+  /// Shows [message] in place of the last one, for [hideAfter] if given
+  /// (`NotificationsStatus.doSetStatusMessage`); null hides it.
+  void setMessage(String? message, {Duration? hideAfter}) {
+    _messageTimer?.cancel();
+    _messageTimer = message != null && hideAfter != null
+        ? Timer(hideAfter, () => setMessage(null))
+        : null;
+    if (_message == message) return;
+    _message = message;
+    _changed();
+  }
+
   @override
   void dispose() {
+    _messageTimer?.cancel();
     for (final entry in _entries) {
       entry.changes?.removeListener(_changed);
     }

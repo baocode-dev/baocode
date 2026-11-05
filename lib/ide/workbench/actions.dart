@@ -22,6 +22,7 @@ class WorkbenchAction {
     this.palette = true,
     this.precondition,
     this.takesArgs = false,
+    this.titleFor,
   });
 
   /// One of the keybindings' catalog, its title and category the
@@ -50,6 +51,10 @@ class WorkbenchAction {
 
   /// As the Command Palette lists it, after [category].
   final String title;
+
+  /// Its title as things are now, for a toggle's (Turn On / Turn Off):
+  /// [title] without.
+  final String Function(WorkbenchServices services)? titleFor;
   final String? category;
 
   /// Keybindings of a command the defaults do not have (see
@@ -74,7 +79,7 @@ class WorkbenchAction {
   /// As the palette and the keybindings run it.
   IdeCommand toCommand(WorkbenchServices services) => IdeCommand(
     id: id,
-    label: title,
+    label: titleFor?.call(services) ?? title,
     category: category,
     keybindings: keybindings,
     keybindingLabel: keybindingLabel,

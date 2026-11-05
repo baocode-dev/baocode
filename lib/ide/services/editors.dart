@@ -9,13 +9,16 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../l10n/l10n.dart';
+import '../../workspace/window_controls.dart';
 import '../save_copy.dart' show saveFileCopyAs;
 import '../ide_dialog.dart';
 import '../ide_editor.dart';
 import '../ide_layout.dart';
+import '../ide_tab_bar.dart' show IdeTabAction;
 import '../ide_workspace.dart';
 import '../lsp/lsp_protocol.dart';
 import '../lsp_ui/lsp_convert.dart';
@@ -33,6 +36,7 @@ class EditorService extends ChangeNotifier {
     required this._focusWorkbench,
     this.onShowEditor,
     this.onViewChanged,
+    this.revealInExplorer,
   });
 
   final WorkbenchHost host;
@@ -52,6 +56,9 @@ class EditorService extends ChangeNotifier {
 
   /// The text editor scrolled, or its caret moved.
   final VoidCallback? onViewChanged;
+
+  /// A tab's file shown in the explorer (Reveal in Explorer View).
+  final ValueChanged<String>? revealInExplorer;
 
   IdeWorkspace get _ws => _workspace();
 
@@ -95,6 +102,56 @@ class EditorService extends ChangeNotifier {
             now.selectionLength != selection.selectionLength ||
             now.selectionLines != selection.selectionLines)) {
       caret.value = selection;
+    }
+  }
+
+  /// [path] as the explorer and Copy Relative Path have it: relative to
+  /// its folder (with the folder's name in a multi-folder workspace).
+  String relativePath(String path) {
+    final workspace = _ws;
+    return workspace.isMultiRoot
+        ? workspace.relativePath(path)
+        : workspace.paths.relative(path, from: workspace.root);
+  }
+
+  /// A tab's context menu's [action] on [doc].
+  void tabAction(IdeDocument doc, IdeTabAction action) {
+    final docs = _ws.documents;
+    switch (action) {
+      case IdeTabAction.close:
+        unawaited(close(doc));
+      case IdeTabAction.closeOthers:
+        unawaited(
+          closeAll([
+            for (final d in docs)
+              if (!identical(d, doc)) d,
+          ]),
+        );
+      case IdeTabAction.closeToTheRight:
+        unawaited(closeAll(docs.sublist(docs.indexOf(doc) + 1)));
+      case IdeTabAction.closeSaved:
+        unawaited(
+          closeAll([
+            for (final d in docs)
+              if (!d.dirty) d,
+          ]),
+        );
+      case IdeTabAction.closeAll:
+        unawaited(closeAll(docs));
+      case IdeTabAction.copyPath:
+        unawaited(Clipboard.setData(ClipboardData(text: doc.path)));
+      case IdeTabAction.copyRelativePath:
+        unawaited(
+          Clipboard.setData(ClipboardData(text: relativePath(doc.path))),
+        );
+      case IdeTabAction.saveAs:
+        unawaited(saveAs(doc));
+      case IdeTabAction.revealInFileManager:
+        unawaited(WindowControls.revealInFileManager(doc.path));
+      case IdeTabAction.openInDefaultApp:
+        unawaited(host.openInDefaultApp(doc.path));
+      case IdeTabAction.revealInExplorer:
+        revealInExplorer?.call(doc.path);
     }
   }
 
