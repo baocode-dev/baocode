@@ -1315,6 +1315,15 @@
       }
     }
   },
+  "chatAgentMessageSent": "sent",
+  "chatAgentMessageSemantics": "Message from subagent {agent}",
+  "@chatAgentMessageSemantics": {
+    "placeholders": {
+      "agent": {
+        "type": "String"
+      }
+    }
+  },
   "chatOpensItsConversation": "Opens its conversation",
   "chatLoadEarlier": "Load earlier messages",
   "chatReload": "Reload (continued elsewhere)",

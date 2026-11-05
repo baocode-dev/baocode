@@ -2226,6 +2226,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get chatAgentMessageSent => '发来消息';
+
+  @override
+  String chatAgentMessageSemantics(String agent) {
+    return '来自子智能体 $agent 的消息';
+  }
+
+  @override
   String get chatOpensItsConversation => '打开其对话';
 
   @override

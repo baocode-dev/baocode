@@ -2311,6 +2311,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get chatAgentMessageSent => 'sent';
+
+  @override
+  String chatAgentMessageSemantics(String agent) {
+    return 'Message from subagent $agent';
+  }
+
+  @override
   String get chatOpensItsConversation => 'Opens its conversation';
 
   @override

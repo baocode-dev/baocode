@@ -33,6 +33,7 @@ import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/kernel/queued_messages.dart';
 import 'package:baocode/kernel/transcript.dart';
+import 'package:baocode/link/chat_codec.dart' show ChatCodec;
 import 'package:baocode/usage/usage_ledger.dart';
 import 'package:baocode/usage/usage_prices.dart';
 
@@ -960,6 +961,77 @@ void main() {
       translator.replaying = true;
       call('w2', 'Write', {'file_path': '/p/d.txt', 'content': 'd'});
       expect(events.whereType<FileEdited>(), isEmpty);
+    });
+
+    test("a subagent's message shows as its, by what it was given to do", () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      );
+      translator
+        ..translate({
+          'type': 'assistant',
+          'parent_tool_use_id': null,
+          'message': {
+            'id': 'msg-agent',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 'agent-1',
+                'name': 'Agent',
+                'input': {
+                  'description': 'Count entries',
+                  'prompt': 'count them',
+                  'run_in_background': true,
+                },
+              },
+            ],
+          },
+        })
+        ..translate({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {
+                'type': 'tool_result',
+                'tool_use_id': 'agent-1',
+                'content': 'launched',
+              },
+            ],
+          },
+          'tool_use_result': {
+            'status': 'async_launched',
+            'agentId': 'amup9hacc',
+          },
+        });
+      void say(String uuid, String text) => translator.translate({
+        'type': 'user',
+        'parent_tool_use_id': null,
+        'uuid': uuid,
+        'message': {'role': 'user', 'content': text},
+      });
+      say(
+        'm1',
+        '<agent-message from="amup9hacc">\nB is done.\n</agent-message>',
+      );
+      say('m2', '<agent-message from="zz9">\nHi\n</agent-message>');
+      final messages = [
+        for (var i = 0; i < transcript.length; i++)
+          if (transcript.itemAt(i) case final UserMessageItem message) message,
+      ];
+      expect(
+        [for (final m in messages) (m.fromAgent, m.text)],
+        [('Count entries', 'B is done.'), ('zz9', 'Hi')],
+      );
+      // As the phone gets it.
+      final decoded =
+          ChatCodec.decode(ChatCodec.encode(messages.first)) as UserMessageItem;
+      expect(decoded.fromAgent, 'Count entries');
     });
 
     test("a Windows path's file shows by its name", () {

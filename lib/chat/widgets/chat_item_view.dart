@@ -6,6 +6,7 @@ import '../../l10n/l10n.dart';
 import '../chat_models.dart';
 import '../edit_detail.dart';
 import 'activity_row.dart';
+import 'agent_message_card.dart';
 import 'agent_step.dart';
 import 'assistant_text.dart';
 import 'command_step.dart';
@@ -61,6 +62,10 @@ class ChatItemView extends StatelessWidget {
 
   Widget _build() {
     return switch (item) {
+      UserMessageItem(:final text, fromAgent: final agent?) => AgentMessageCard(
+        agent: agent,
+        text: text,
+      ),
       UserMessageItem(:final text, :final images) => UserMessageBubble(
         text: text,
         images: images,
@@ -182,6 +187,8 @@ String chatItemPlainText(
   }
 
   return switch (item) {
+    UserMessageItem(:final text, fromAgent: final agent?) =>
+      '$agent: ${inline(text)}',
     UserMessageItem(:final text) => inline(text),
     AssistantTextItem(:final text) => [
       for (final line in text.split('\n'))

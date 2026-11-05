@@ -9,11 +9,13 @@ import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/edit_detail.dart';
 import 'package:baocode/ide/ide_code_diff.dart';
 import 'package:baocode/chat/panels/activity_strip.dart';
+import 'package:baocode/chat/widgets/agent_message_card.dart';
 import 'package:baocode/chat/widgets/agent_step.dart';
 import 'package:baocode/chat/widgets/chat_item_view.dart';
 import 'package:baocode/chat/widgets/shell_highlight.dart';
 import 'package:baocode/chat/widgets/shimmer_text.dart';
 import 'package:baocode/chat/widgets/step_header.dart';
+import 'package:baocode/chat/widgets/user_message_bubble.dart';
 import 'package:baocode/chat/widgets/wheel_latch.dart';
 import 'package:baocode/ide/terminal/terminal_colors.dart';
 import 'package:baocode/kernel/kernel_types.dart';
@@ -42,6 +44,30 @@ Finder header(String text) => find.text(text, findRichText: true);
 
 void main() {
   group('steps', () {
+    testWidgets("a subagent's message: a card under its name, not the "
+        "user's bubble, and not to be edited", (tester) async {
+      var edits = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatItemView(
+              item: const UserMessageItem(
+                text: 'B is **done**.',
+                fromAgent: 'Count entries',
+              ),
+              onEdit: () => edits++,
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(AgentMessageCard), findsOneWidget);
+      expect(find.byType(UserMessageBubble), findsNothing);
+      expect(find.text('Count entries'), findsOneWidget);
+      expect(find.textContaining('<agent-message'), findsNothing);
+      await tester.tap(find.byType(AgentMessageCard));
+      expect(edits, 0);
+    });
+
     testWidgets('a command: its description, opening to the command and '
         'what it printed', (tester) async {
       await pumpStep(

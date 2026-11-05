@@ -863,6 +863,19 @@ class ClaudeTranslator {
       if (replaying) _replayedStopped = true;
       return;
     }
+    // A subagent's message to the agent (SendMessage), not the user's: by
+    // what it was given to do.
+    if (_agentMessage.firstMatch(trimmed) case final match?) {
+      final from = match[1]!;
+      final item = UserMessageItem(
+        text: match[2]!.trim(),
+        sentAt: _sentAt(message),
+        fromAgent: _agents[_agentCalls[from]]?.item.description ?? from,
+      );
+      _put(id, item);
+      if (replaying) _replayPrompt(id, item, message);
+      return;
+    }
     final item = UserMessageItem(
       text: trimmed,
       images: images,
@@ -1893,6 +1906,12 @@ class ClaudeTranslator {
     if (!replaying) goalSaid?.call();
     return true;
   }
+
+  /// A subagent's message as the agent is given it: its id, and what it
+  /// says.
+  static final _agentMessage = RegExp(
+    r'^<agent-message from="([^"]*)">([\s\S]*)</agent-message>$',
+  );
 
   static String? _tag(String text, String tag) {
     final start = text.indexOf('<$tag>');
