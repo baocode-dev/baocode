@@ -20,6 +20,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../base/smooth_scroll.dart';
+import '../../chat/composer/composer_files.dart' show displayPath;
 import '../../debug/ui/debug_strings.dart';
 import '../../keybindings/keybinding_service.dart';
 import '../../l10n/l10n.dart';
@@ -202,6 +203,7 @@ class IdeBottomPanel extends StatelessWidget {
     this.terminal,
     this.terminalActions,
     this.debugConsole,
+    this.onAsk,
   });
 
   final IdePanelTab tab;
@@ -210,6 +212,7 @@ class IdeBottomPanel extends StatelessWidget {
   final IdeReferences? references;
   final ValueChanged<IdePanelTab> onTab;
   final VoidCallback onClose;
+  final ValueChanged<String>? onAsk;
 
   /// Opens a location; [select] selects its range instead of placing the
   /// caret at its start.
@@ -329,6 +332,8 @@ class IdeBottomPanel extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (tab == IdePanelTab.problems && total > 0 && onAsk != null)
+                    _SendToAgentButton(onTap: () => _sendAllToAgent(all)),
                   if (tab == IdePanelTab.terminal) ?terminalActions,
                   IdeActionButton(
                     icon: Codicons.close,
@@ -366,6 +371,35 @@ class IdeBottomPanel extends StatelessWidget {
   }
 
   static final _never = ChangeNotifier();
+
+  void _sendAllToAgent(Map<String, List<LspDiagnostic>> all) {
+    if (onAsk == null) return;
+    final buffer = StringBuffer();
+    buffer.writeln('@problems Please fix the following problems in the workspace:');
+    buffer.writeln();
+
+    for (final (path, problems) in ideProblemsByFile(all)) {
+      final relPath = displayPath(path, root).replaceAll(r'\', '/');
+      for (final problem in problems) {
+        final line = problem.range.start.line + 1;
+        final col = problem.range.start.character + 1;
+        final severity = switch (problem.severity) {
+          LspDiagnosticSeverity.error => 'Error',
+          LspDiagnosticSeverity.warning => 'Warning',
+          LspDiagnosticSeverity.information => 'Info',
+          LspDiagnosticSeverity.hint => 'Hint',
+        };
+        final sourceInfo = [
+          if (problem.source != null) problem.source!,
+          if (problem.code != null) '(${problem.code})',
+        ].join('');
+        final sourceSuffix = sourceInfo.isEmpty ? '' : ' $sourceInfo';
+        buffer.writeln('- @$relPath:$line:$col [$severity] ${problem.message.trim()}$sourceSuffix');
+      }
+    }
+
+    onAsk!(buffer.toString().trim());
+  }
 
   Widget _message(String text) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
@@ -1119,3 +1153,58 @@ class _ReferenceRowState extends State<_ReferenceRow> {
     );
   }
 }
+
+class _SendToAgentButton extends StatefulWidget {
+  const _SendToAgentButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_SendToAgentButton> createState() => _SendToAgentButtonState();
+}
+
+class _SendToAgentButtonState extends State<_SendToAgentButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = themeColors;
+    final bg = _hovered
+        ? colors['button.hoverBackground']
+        : colors['button.background'];
+    final fg = colors['button.foreground'];
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Codicons.sparkle, size: 13, color: fg),
+              const SizedBox(width: 4),
+              Text(
+                'Send to Agent',
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

@@ -4858,6 +4858,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                                   formatOnSave: _formatOnSave,
                                   debug: _debug,
                                   agentEdits: widget.agentEdits,
+                                  onAsk: widget.onAskInChat == null
+                                      ? null
+                                      : _askInChat,
                                 ),
                     ),
                   ),
@@ -5421,6 +5424,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         problemsList: _problemsList,
                         referencesList: _referencesList,
                         textOf: _textOf,
+                        onAsk: widget.onAskInChat == null ? null : _askInChat,
                         terminal: switch (_terminals) {
                           final terminals? => TerminalPanel(
                             terminals: terminals,
