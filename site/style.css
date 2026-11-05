@@ -56,7 +56,7 @@ a:hover { text-decoration-color: var(--ink); }
 .reel blockquote { margin: 0; font: 15px/1.55 var(--serif); color: var(--body); }
 /* On a phone: smaller cards, in two reels (site.js), the second running right. */
 @media (max-width: 640px) {
-  .reviews { display: grid; gap: 10px; margin-top: 0; padding: 6px 0 14px;
+  .reviews { display: grid; gap: 10px; margin-top: 18px; padding: 6px 0 14px;
     --fade: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent); }
   .reel { gap: 10px; }
   .reel.back { animation-direction: reverse; }
