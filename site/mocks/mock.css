@@ -330,17 +330,67 @@ html:not(.show-picker) .qpick { display: none; }
 .thumbs { display: flex; gap: 8px; margin-bottom: 8px; }
 .thumb { position: relative; width: 70px; height: 52px; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; }
 .thumb i { position: absolute; left: 8px; right: 8px; height: 3px; border-radius: 2px; background: currentColor; opacity: .5; }
-.queue { margin: 0 12px 6px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--island-2); }
-.qi { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px 0 12px; white-space: nowrap; }
-.qi + .qi { border-top: 1px solid var(--line); }
+.queue { margin: 0 12px 8px; padding: 0 4px 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--island-2); }
+.queue .qh { display: flex; align-items: center; gap: 6px; padding: 7px 6px 4px; font-size: 12px; font-weight: 500; color: var(--fg-3); }
+.queue .qh .ci { font-size: 13px; }
+.qi { display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 4px; border-radius: 5px; font-size: 12.5px; white-space: nowrap; }
+.qi.hover { background: var(--hover); }
+.qi .grip { font-size: 13px; color: var(--fg-3); opacity: .45; }
+.qi.hover .grip { opacity: .9; }
 .qi .what { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-.qi .ib { width: 24px; height: 24px; }
+.qi .ib { width: 20px; height: 20px; margin-left: 2px; color: var(--fg-3); }
 .qi .ib .ci { font-size: 14px; }
+/* A conversation lined up with the input under it: the boxes' edges on one
+   line, the words in them and out of them on another. */
+.conv.lined { padding: 16px 12px 8px; }
+.conv.lined > :not(.composer) { margin-left: 13px; margin-right: 13px; }
 .goalbar { margin: 0 12px 6px; border: 1px solid var(--gold-line); border-radius: 10px; background: var(--gold-bg); }
 .goalbar .top { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; white-space: nowrap; }
 .goalbar .top .ci { color: var(--gold-text); font-size: 14px; }
 .goalbar .top .what { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .goalbar .why { padding: 0 12px 10px 34px; color: var(--fg-2); font-size: 12.5px; line-height: 1.6; }
+
+/* Settings → Usage: the totals in tiles, a chart of tokens over time, the
+   cost by upstream and by model. */
+.setside .lu { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.usage { padding: 26px 32px; }
+.usage h1 { margin-bottom: 14px; }
+.ufilters { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
+.ufilters .select { height: 28px; background: var(--island-2); }
+.fchip { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: 14px; color: var(--fg-2); font-size: 12.5px; white-space: nowrap; }
+.fchip b { color: var(--fg); font-weight: 500; }
+.fchip .ci { font-size: 12px; }
+.stiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.stile { padding: 9px 12px; border-radius: 12px; background: var(--island-2); }
+.stile .lab { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--fg-2); white-space: nowrap; }
+.stile .lab .ci { font-size: 12px; color: var(--fg-3); }
+.stile .val { display: flex; align-items: flex-end; justify-content: space-between; height: 32px; margin-top: 2px; }
+.stile .val b { font-size: 22px; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.stile .spark { margin-bottom: 4px; }
+.stile .det { font-size: 11.5px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ucard { margin-bottom: 12px; padding: 12px 14px; border-radius: 12px; background: var(--island-2); }
+.uhead { display: flex; align-items: center; margin-bottom: 10px; }
+.uhead b { font-weight: 600; }
+.seg { display: inline-flex; padding: 2px; border-radius: 7px; background: var(--hover); font-size: 12px; }
+.seg span { padding: 2px 9px; border-radius: 5px; color: var(--fg-2); }
+.seg .on { background: var(--island); color: var(--fg); box-shadow: 0 1px 2px var(--shadow); }
+.chart { position: relative; padding: 0 0 18px 44px; }
+.chart svg { display: block; }
+.chart .yax span { position: absolute; left: 0; width: 38px; text-align: right; font-size: 10.5px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.chart .xax span { position: absolute; bottom: 0; margin-left: 44px; transform: translateX(-50%); font-size: 10.5px; color: var(--fg-3); }
+.legend { display: flex; gap: 16px; margin-top: 6px; padding-left: 44px; font-size: 12px; color: var(--fg-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 8px; height: 8px; border-radius: 2px; }
+.ucols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ucols .ucard { margin: 0; }
+.rrow { display: flex; align-items: center; gap: 8px; height: 26px; font-size: 12.5px; }
+.rrow .dot { flex: none; width: 8px; height: 8px; border-radius: 2px; }
+.rrow .nm { width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rrow .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--hover); }
+.rrow .bar i { display: block; height: 100%; border-radius: 3px; }
+.rrow .v { width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.rrow .pc { width: 30px; text-align: right; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.ucard .more { margin-top: 4px; font-size: 12px; color: var(--gold-text); }
 
 /* --- The icons drawn (tool/make_mock_icons.py) --- */
 .ci-add::before { content: "\ea60"; }
@@ -349,6 +399,7 @@ html:not(.show-picker) .qpick { display: none; }
 .ci-arrow-right::before { content: "\ea9c"; }
 .ci-arrow-up::before { content: "\eaa1"; }
 .ci-bell::before { content: "\eaa2"; }
+.ci-calendar::before { content: "\eab0"; }
 .ci-check::before { content: "\eab2"; }
 .ci-check-all::before { content: "\ebb1"; }
 .ci-chevron-down::before { content: "\eab4"; }
@@ -359,8 +410,11 @@ html:not(.show-picker) .qpick { display: none; }
 .ci-cloud-download::before { content: "\eac2"; }
 .ci-comment-discussion::before { content: "\eac7"; }
 .ci-copy::before { content: "\ebcc"; }
+.ci-credit-card::before { content: "\eac9"; }
+.ci-database::before { content: "\eace"; }
 .ci-debug-alt::before { content: "\eb91"; }
 .ci-debug-stop::before { content: "\ead7"; }
+.ci-device-mobile::before { content: "\eadb"; }
 .ci-edit::before { content: "\ea73"; }
 .ci-ellipsis::before { content: "\ea7c"; }
 .ci-error::before { content: "\ea87"; }
@@ -372,6 +426,7 @@ html:not(.show-picker) .qpick { display: none; }
 .ci-folder::before { content: "\ea83"; }
 .ci-git-branch::before { content: "\ec6f"; }
 .ci-globe::before { content: "\eb01"; }
+.ci-gripper::before { content: "\eb04"; }
 .ci-history::before { content: "\ea82"; }
 .ci-inbox::before { content: "\eb09"; }
 .ci-keyboard::before { content: "\ea65"; }
@@ -379,7 +434,6 @@ html:not(.show-picker) .qpick { display: none; }
 .ci-layout-sidebar-left::before { content: "\ebf3"; }
 .ci-layout-sidebar-right::before { content: "\ebf4"; }
 .ci-list-tree::before { content: "\eb86"; }
-.ci-markdown::before { content: "\eb1d"; }
 .ci-new-file::before { content: "\ea7f"; }
 .ci-organization::before { content: "\ea7e"; }
 .ci-person::before { content: "\ea67"; }
@@ -387,15 +441,18 @@ html:not(.show-picker) .qpick { display: none; }
 .ci-pinned::before { content: "\eba0"; }
 .ci-play::before { content: "\eb2c"; }
 .ci-plug::before { content: "\eb2d"; }
+.ci-pulse::before { content: "\eb31"; }
 .ci-refresh::before { content: "\eb37"; }
 .ci-repo::before { content: "\ea62"; }
 .ci-search::before { content: "\ea6d"; }
+.ci-server::before { content: "\eb50"; }
 .ci-settings-gear::before { content: "\eb51"; }
 .ci-shield::before { content: "\eb53"; }
 .ci-source-control::before { content: "\ea68"; }
 .ci-sparkle::before { content: "\ec10"; }
 .ci-symbol-color::before { content: "\eb5c"; }
 .ci-symbol-method::before { content: "\ea8c"; }
+.ci-symbol-numeric::before { content: "\ea90"; }
 .ci-sync::before { content: "\ea77"; }
 .ci-target::before { content: "\ebf8"; }
 .ci-terminal::before { content: "\ea85"; }
