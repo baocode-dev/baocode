@@ -571,10 +571,7 @@ class _IdeGitRebaseDialogState extends State<IdeGitRebaseDialog> {
             width: 70,
             child: Text(
               entry.commit.shortId,
-              style: TextStyle(
-                fontSize: 12,
-                color: description,
-              ),
+              style: TextStyle(fontSize: 12, color: description),
             ),
           ),
           // A commit that goes into the one below it, under it.

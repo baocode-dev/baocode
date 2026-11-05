@@ -135,8 +135,9 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
 
   /// The keyboard back to where the text was typed: [cell], a table's
   /// cell, or the editor.
-  void _refocus(MarkdownEditorState? cell) =>
-      cell != null && cell.mounted ? cell.requestFocus() : _focus.requestFocus();
+  void _refocus(MarkdownEditorState? cell) => cell != null && cell.mounted
+      ? cell.requestFocus()
+      : _focus.requestFocus();
 
   @override
   void didUpdateWidget(MarkdownFormatBar oldWidget) {
@@ -274,10 +275,7 @@ class MarkdownFormatBarState extends State<MarkdownFormatBar> {
   /// [selection]'s bounds (of [cell]'s text, a table's cell's, if given),
   /// in the stack's box: what of it is in the editor's view, none where it
   /// is scrolled out of it.
-  Rect? _selectionBounds(
-    TextSelection selection, [
-    MarkdownEditorState? cell,
-  ]) {
+  Rect? _selectionBounds(TextSelection selection, [MarkdownEditorState? cell]) {
     final editor = widget.editorKey.currentState;
     final stack = _stackKey.currentContext?.findRenderObject() as RenderBox?;
     if (editor == null || stack == null || !stack.attached) return null;

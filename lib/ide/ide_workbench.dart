@@ -113,13 +113,12 @@ import 'terminal/links/terminal_links.dart';
 import 'terminal/terminal_instance.dart';
 import 'terminal/terminal_panel.dart';
 import 'terminal/terminal_tasks.dart';
-import 'terminal/terminal_profile_service.dart';
-import 'terminal/terminal_profiles.dart';
 import 'terminal/terminal_hosts.dart';
 import 'terminal/terminal_service.dart';
 import 'host_paths.dart';
 import 'services/navigation_history.dart';
 import 'services/scm_service.dart';
+import 'services/terminal_view.dart';
 import 'workbench/contributions/all.dart';
 import 'workbench/actions.dart';
 import 'workbench/context_keys.dart';
@@ -408,6 +407,21 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ),
     );
     _storage.register(_scmService);
+    final runs = widget.terminals != null || widget.terminalBackend.supported;
+    _terminalView = _services.add(
+      TerminalViewService(
+        terminals: runs
+            ? widget.terminals ??
+                  TerminalService(
+                    root: widget.workspace.root,
+                    backend: widget.terminalBackend,
+                  )
+            : null,
+        owned: widget.terminals == null,
+        host: _host,
+        layout: () => widget.workspace.layout,
+      ),
+    );
   }
 
   /// The activity bar's badge and the Git log follow Source Control.
@@ -624,11 +638,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   );
 
   /// The panel's terminals; none where they cannot run (the web).
-  TerminalService? _terminals;
-
-  /// Whether [_terminals] are the IDE's own, not the chat's.
-  bool _ownsTerminals = true;
-  List<StreamSubscription<Object?>> _terminalRequests = const [];
+  late final TerminalViewService _terminalView;
+  TerminalService? get _terminals => _terminalView.terminals;
   IdeReferences? _references;
 
   /// The Problems and References lists' focused rows and collapsed files.
@@ -1158,29 +1169,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     widget.agentEdits?.open = _openAgentChange;
     widget.settings?.addListener(_settingsChanged);
     widget.remote?.addListener(_remoteChanged);
-    if (widget.terminals != null || widget.terminalBackend.supported) {
-      _ownsTerminals = widget.terminals == null;
-      final terminals = _terminals =
-          (widget.terminals ??
-                TerminalService(
-                  root: widget.workspace.root,
-                  backend: widget.terminalBackend,
-                ))
-            ..addListener(_terminalsChanged);
-      // An extension's `Terminal.show()` and `hide()`.
-      _terminalRequests = [
-        terminals.onDidRequestShow.listen((preserveFocus) {
-          if (!mounted) return;
-          setState(() => _panel = IdePanelTab.terminal);
-          if (!preserveFocus) _focusTerminalSoon();
-        }),
-        terminals.onDidRequestHide.listen((_) {
-          if (mounted && _panel == IdePanelTab.terminal) {
-            setState(() => _panel = null);
-          }
-        }),
-      ];
-    }
     _restoreView();
     _search.keptChanges.addListener(_keepViewSoon);
     _attach();
@@ -1199,6 +1187,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _scmService
       ..readBranch()
       ..addListener(_scmChanged);
+    _terminalView.addListener(_terminalsChanged);
     if (widget.visible) _focusSoon();
   }
 
@@ -1276,9 +1265,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _attaching = false;
     // New terminals start in the project (a workspace's first folder);
     // those running stay where they are. The chat's start where it says.
-    if (_ownsTerminals) {
-      _terminals?.root = workspace.roots.firstOrNull ?? workspace.root;
-    }
+    _terminalView.root = workspace.roots.firstOrNull ?? workspace.root;
     _attachDebug();
   }
 
@@ -1357,9 +1344,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (workspace.isMultiRoot) {
       _explorer.roots = workspace.roots;
       _fileIndex.roots = workspace.roots;
-      if (_ownsTerminals) {
-        _terminals?.root = workspace.roots.firstOrNull ?? workspace.root;
-      }
+      _terminalView.root = workspace.roots.firstOrNull ?? workspace.root;
     }
     _scmService.rootsChanged();
   }
@@ -1402,18 +1387,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (mounted) setState(() {});
   }
 
-  /// The terminal commands follow them. Once the last terminal is gone,
-  /// the panel hides, as VS Code's `terminal.integrated.hideOnLastClosed`.
+  /// The terminal commands and the panel follow them.
   void _terminalsChanged() {
-    if (!mounted) return;
-    setState(() {
-      if (_panel == IdePanelTab.terminal &&
-          (_terminals?.instances.isEmpty ?? true)) {
-        _panel = null;
-        // Its keyboard went with it, to the editor.
-        _focusSoon();
-      }
-    });
+    if (mounted) setState(() {});
   }
 
   void _symbolsChanged() {
@@ -1514,11 +1490,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     _timeline.dispose();
     _search.keptChanges.removeListener(_keepViewSoon);
     _search.dispose();
-    for (final subscription in _terminalRequests) {
-      unawaited(subscription.cancel());
-    }
-    _terminals?.removeListener(_terminalsChanged);
-    if (_ownsTerminals) _terminals?.dispose();
+    _terminalView.removeListener(_terminalsChanged);
     _panelFocus.dispose();
     _problemsList.dispose();
     _referencesList.dispose();
@@ -2010,110 +1982,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   void _selectPanel(IdePanelTab tab) => setState(() => _panel = tab);
 
-  // --- Terminals -------------------------------------------------------------
-
-  /// Toggle Terminal (⌃`): the panel on TERMINAL, with the keyboard in the
-  /// terminal, or hidden.
-  void _toggleTerminal() {
-    _togglePanel(IdePanelTab.terminal);
-    if (_panel == IdePanelTab.terminal) _focusTerminalSoon();
-  }
-
-  /// Create New Terminal (⌃⇧`), shown and focused: on [profile]'s shell,
-  /// else the default profile's.
-  void _newTerminal({TerminalProfile? profile}) {
-    _terminals?.create(profile: profile);
-    _showTerminal();
-  }
-
-  /// Open in Terminal (the explorer's context menu): a terminal started in
-  /// [folder], shown and focused. As VS Code's `openInTerminal`.
-  void _openInTerminal(String folder) {
-    final terminals = _terminals;
-    if (terminals == null) return;
-    terminals.create(cwd: folder);
-    _showTerminal();
-  }
-
-  /// Create New Terminal (With Profile): the profile [args] names
-  /// (`{"profileName": "bash"}`, upstream's keybinding argument), else the
-  /// one picked.
-  Future<void> _newTerminalWithProfile([Object? args]) async {
-    final profiles = _terminals?.profiles;
-    if (profiles == null) return;
-    await profiles.refresh();
-    if (!mounted) return;
-    if (args case {'profileName': final String name}) {
-      if (profiles.profileNamed(name) case final profile?) {
-        _newTerminal(profile: profile);
-      }
-      return;
-    }
-    _showQuickModel(
-      terminalProfilePick(
-        profiles: profiles.availableProfiles,
-        defaultName: profiles.defaultProfileName,
-        placeholder: context.l10n.termSelectProfileToCreate,
-        onPick: (profile) => _newTerminal(profile: profile),
-        l10n: context.l10n,
-      ),
-    );
-  }
-
-  /// Select Default Profile: the one picked is written to settings.json's
-  /// `terminal.integrated.defaultProfile.<os>`.
-  Future<void> _selectDefaultProfile() async {
-    final profiles = _terminals?.profiles;
-    if (profiles == null || !profiles.canSetDefault) return;
-    await profiles.refresh();
-    if (!mounted) return;
-    _showQuickModel(
-      terminalProfilePick(
-        profiles: profiles.availableProfiles,
-        defaultName: profiles.defaultProfileName,
-        placeholder: context.l10n.termChooseDefaultProfile,
-        onPick: (profile) =>
-            unawaited(profiles.setDefaultProfile(profile).catchError(_report)),
-        l10n: context.l10n,
-      ),
-    );
-  }
-
-  /// The panel on TERMINAL (a terminal made if there is none), the active
-  /// terminal focused, as VS Code's `showPanel(true)`.
-  void _showTerminal() {
-    if (_terminals == null) return;
-    setState(() {
-      _panel = IdePanelTab.terminal;
-      _terminalTask = null;
-    });
-    _focusTerminalSoon();
-  }
-
-  /// Once the panel shows (and lets its terminals have the keyboard).
-  void _focusTerminalSoon() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _terminals?.active?.focus();
-    });
-  }
-
-  /// Focus Next (Previous) Terminal Group.
-  void _cycleTerminal(bool next) {
-    final terminals = _terminals;
-    if (terminals == null) return;
-    next ? terminals.focusNext() : terminals.focusPrevious();
-    _showTerminal();
-  }
-
-  /// Rename...: the active terminal's name, edited in its tab (in the
-  /// panel's title when it is the only one).
-  void _renameTerminal() {
-    final terminals = _terminals;
-    if (terminals?.active == null) return;
-    setState(() => _panel = IdePanelTab.terminal);
-    terminals!.startRename();
-  }
-
   Future<String?> _textOf(String path) async {
     for (final doc in widget.workspace.documents) {
       if (doc.path == path) return doc.text;
@@ -2298,16 +2166,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Shows the chat, if hidden (e.g. for an agent a notification opens).
   void showChat() => _layout.showChat();
 
-  /// The id of the background command (see [IdeWorkbench.terminalTasks])
-  /// whose output shows in the terminal's place; null for the terminal.
-  String? _terminalTask;
-
   /// Shows the output of the background command [id] (one of its chat's)
   /// on the panel's TERMINAL tab.
-  void showTerminalTask(String id) => setState(() {
-    _terminalTask = id;
-    _panel = IdePanelTab.terminal;
-  });
+  void showTerminalTask(String id) => _terminalView.showTask(id);
 
   /// Has the editor's last keys in its document, for what is unsaved to be
   /// all of it (before its window closes, or the app quits).
@@ -2316,17 +2177,8 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
   /// Whether the panel's terminals run: a shell alive, or
   /// ([childProcesses]) one running a command
   /// (`terminal.integrated.confirmOnExit`).
-  bool terminalsRunning({required bool childProcesses}) {
-    for (final terminal
-        in _terminals?.instances ?? const <TerminalInstance>[]) {
-      if (terminal.exited) continue;
-      if (!childProcesses) return true;
-      final command =
-          terminal.shellIntegration?.commandDetection?.executingCommand;
-      if (command != null && command.isNotEmpty) return true;
-    }
-    return false;
-  }
+  bool terminalsRunning({required bool childProcesses}) =>
+      _terminalView.running(childProcesses: childProcesses);
 
   /// Tells of [message] as the IDE's own notifications do.
   void notify(IdeSeverity severity, String message) =>
@@ -2573,7 +2425,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       _ =>
         _listContextKey(key) ??
             _searchContextKey(key) ??
-            _terminalContextKey(key) ??
             _panelContextKey(key) ??
             _quickInputContextKey(key) ??
             _layoutContextKey(key) ??
@@ -2609,7 +2460,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       ..._quickInputCommands(),
       ..._keyboardCommands(),
       ..._searchKeyboardCommands(),
-      ..._terminalKeyboardCommands(),
       ..._panelKeyboardCommands(),
     ]) {
       byId.putIfAbsent(command.id, () => command);
@@ -2844,8 +2694,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     final workspace = widget.workspace;
     final active = workspace.active;
     final hasEditors = workspace.documents.isNotEmpty;
-    final terminals = _terminals;
-    final terminal = terminals?.active;
     return [
       IdeCommand(
         id: 'workbench.action.showCommands',
@@ -3029,72 +2877,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
         category: 'View',
         label: 'Toggle Panel Visibility',
         run: _togglePanelVisibility,
-      ),
-      IdeCommand(
-        id: 'workbench.action.terminal.toggleTerminal',
-        category: 'Terminal',
-        label: 'Toggle Terminal',
-        enabled: terminals != null,
-        run: _toggleTerminal,
-      ),
-      IdeCommand(
-        id: 'workbench.action.terminal.new',
-        category: 'Terminal',
-        label: 'Create New Terminal',
-        enabled: terminals != null,
-        run: _newTerminal,
-      ),
-      IdeCommand(
-        id: 'workbench.action.terminal.newWithProfile',
-        category: 'Terminal',
-        label: 'Create New Terminal (With Profile)',
-        enabled: terminals != null,
-        run: () => unawaited(_newTerminalWithProfile()),
-        runWithArgs: (args) => unawaited(_newTerminalWithProfile(args)),
-      ),
-      IdeCommand(
-        id: 'workbench.action.terminal.selectDefaultShell',
-        category: 'Terminal',
-        label: 'Select Default Profile',
-        enabled: terminals?.profiles.canSetDefault ?? false,
-        run: () => unawaited(_selectDefaultProfile()),
-      ),
-      IdeCommand(
-        id: 'workbench.action.terminal.kill',
-        category: 'Terminal',
-        label: 'Kill the Active Terminal Instance',
-        enabled: terminal != null,
-        run: () => terminals?.kill(),
-      ),
-      IdeCommand(
-        id: 'workbench.action.terminal.rename',
-        category: 'Terminal',
-        label: 'Rename...',
-        enabled: terminal != null,
-        run: _renameTerminal,
-      ),
-      // Their keys are the terminal's own, while it has focus (see
-      // TerminalPanel): elsewhere they switch editors.
-      IdeCommand(
-        id: 'workbench.action.terminal.focusNext',
-        category: 'Terminal',
-        label: 'Focus Next Terminal Group',
-        enabled: terminal != null,
-        run: () => _cycleTerminal(true),
-      ),
-      IdeCommand(
-        id: 'workbench.action.terminal.focusPrevious',
-        category: 'Terminal',
-        label: 'Focus Previous Terminal Group',
-        enabled: terminal != null,
-        run: () => _cycleTerminal(false),
-      ),
-      IdeCommand(
-        id: 'workbench.action.terminal.focus',
-        category: 'Terminal',
-        label: 'Focus Terminal',
-        enabled: terminals != null,
-        run: _showTerminal,
       ),
       IdeCommand(
         id: 'workbench.view.explorer',
@@ -3370,7 +3152,6 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     ..._editorCommands(),
     ..._layoutCommands(),
     ..._searchCommands(),
-    ..._terminalCommands(),
     ..._panelCommands(),
     ...?_editor?.editorCommands,
     ...widget.commands,
@@ -3779,7 +3560,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                               },
                               onOpenInTerminal: _terminals == null
                                   ? null
-                                  : _openInTerminal,
+                                  : _terminalView.openIn,
                               onShowHistory: _scmService.showHistory,
                               onShowLocalHistory: (path) =>
                                   unawaited(_scmService.showLocalHistory(path)),
@@ -4616,7 +4397,7 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         references: _references,
                         // TERMINAL, clicked, gives its terminal the keyboard.
                         onTab: (tab) => tab == IdePanelTab.terminal
-                            ? _showTerminal()
+                            ? _terminalView.show()
                             : _selectPanel(tab),
                         onClose: () => setState(() => _panel = null),
                         onOpen: (location, {select = false}) =>
@@ -4631,10 +4412,9 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                             terminals: terminals,
                             tasks: widget.terminalTasks,
                             files: widget.workspace.files,
-                            shownTask: _terminalTask,
-                            onShowTask: (id) =>
-                                setState(() => _terminalTask = id),
-                            onNew: _newTerminal,
+                            shownTask: _terminalView.task,
+                            onShowTask: _terminalView.showTask,
+                            onNew: _terminalView.create,
                             onOpenLink: _openTerminalLink,
                             shouldSkipShell: _terminalSkipsShell,
                             resolveKey: _terminalFindKey,
@@ -4651,11 +4431,11 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
                         terminalActions: switch (_terminals) {
                           final terminals? => TerminalTitleActions(
                             terminals: terminals,
-                            onNew: _newTerminal,
+                            onNew: _terminalView.create,
                             onNewWithProfile: (profile) =>
-                                _newTerminal(profile: profile),
+                                _terminalView.create(profile: profile),
                             onSelectDefaultProfile: () =>
-                                unawaited(_selectDefaultProfile()),
+                                unawaited(_terminalView.selectDefaultProfile()),
                           ),
                           null => null,
                         },
@@ -5099,6 +4879,18 @@ class _Host implements WorkbenchHost {
 
   @override
   void report(Object error) => _state._report(error);
+
+  @override
+  void focusSoon() => _state._focusSoon();
+
+  @override
+  bool executeCommand(String id, [Object? args]) {
+    if (!_state.mounted) return false;
+    final command = _state._commandsById()[id];
+    if (command == null || !command.enabled) return false;
+    command.invoke(args);
+    return true;
+  }
 }
 
 /// A draggable line between two parts, over it: invisible at rest,

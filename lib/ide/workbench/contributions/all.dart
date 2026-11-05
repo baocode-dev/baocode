@@ -5,7 +5,12 @@ import '../contributions.dart';
 import '../services.dart';
 import 'navigation.dart';
 import 'scm.dart';
+import 'terminal.dart';
 
 List<WorkbenchContribution> createWorkbenchContributions(
   WorkbenchServices services,
-) => [NavigationContribution(services), ScmContribution(services)];
+) => [
+  NavigationContribution(services),
+  ScmContribution(services),
+  TerminalContribution(services),
+];

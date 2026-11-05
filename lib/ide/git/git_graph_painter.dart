@@ -95,7 +95,10 @@ class IdeGraphPainter extends CustomPainter {
           // The base commit's lane curves into its circle: / then -.
           final path = Path()
             ..moveTo(w * (index + 1), 0)
-            ..arcToPoint(Offset(w * index, cy), radius: const Radius.circular(w))
+            ..arcToPoint(
+              Offset(w * index, cy),
+              radius: const Radius.circular(w),
+            )
             ..lineTo(w * (circleIndex + 1), cy);
           canvas.drawPath(path, _stroke(color));
         } else {

@@ -56,6 +56,14 @@ abstract interface class WorkbenchHost {
 
   /// [error] told in the notifications.
   void report(Object error);
+
+  /// The keyboard to the editor, else the workbench, after the frame
+  /// (what had it went).
+  void focusSoon();
+
+  /// Runs the command [id] with [args] (upstream
+  /// `ICommandService.executeCommand`): whether it is here and ran.
+  bool executeCommand(String id, [Object? args]);
 }
 
 /// Disposes [contributions], the last made first.
