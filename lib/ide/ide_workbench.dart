@@ -489,9 +489,10 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
 
   /// Where the caret is (its column as the status bar counts it) and how
   /// much is selected: the status bar alone is built again as it moves.
-  final _caret = ValueNotifier<({Position position, int column, int selected})>(
-    (position: const Position(1, 1), column: 1, selected: 0),
-  );
+  final _caret =
+      ValueNotifier<({Position position, int column, int selected, int lines})>(
+        (position: const Position(1, 1), column: 1, selected: 0, lines: 0),
+      );
   Position get _caretPosition => _caret.value.position;
   int get _statusColumn => _caret.value.column;
   int get _selectionLength => _caret.value.selected;
@@ -4855,11 +4856,13 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
     if (mounted &&
         (!_caretPosition.equals(selection.position) ||
             _statusColumn != selection.statusColumn ||
-            _selectionLength != selection.selectionLength)) {
+            _selectionLength != selection.selectionLength ||
+            _caret.value.lines != selection.selectionLines)) {
       _caret.value = (
         position: selection.position,
         column: selection.statusColumn,
         selected: selection.selectionLength,
+        lines: selection.selectionLines,
       );
     }
   }
@@ -5644,9 +5647,12 @@ class IdeWorkbenchState extends State<IdeWorkbench> {
       right: [
         IdeStatusBarItem(
           l10n.referencesPosition(_caretPosition.lineNumber, _statusColumn) +
-              (_selectionLength > 0
-                  ? ' ${l10n.wbSelectedCount(_selectionLength)}'
-                  : ''),
+              switch ((_selectionLength, _caret.value.lines)) {
+                (0, _) => '',
+                (final count, final lines) when lines > 1 =>
+                  ' ${l10n.wbSelectedLines(lines, count)}',
+                (final count, _) => ' ${l10n.wbSelectedCount(count)}',
+              },
           tooltip: keys.titleWithKeybinding(
             l10n.wbGoToLineColumn,
             'workbench.action.gotoLine',

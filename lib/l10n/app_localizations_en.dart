@@ -5244,6 +5244,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String wbSelectedLines(int lines, int count) {
+    return '($lines lines, $count selected)';
+  }
+
+  @override
   String get wbGoToLineColumn => 'Go to Line/Column';
 
   @override

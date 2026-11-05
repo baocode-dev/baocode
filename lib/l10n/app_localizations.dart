@@ -8505,6 +8505,12 @@ abstract class AppLocalizations {
   /// **'({count} selected)'**
   String wbSelectedCount(int count);
 
+  /// No description provided for @wbSelectedLines.
+  ///
+  /// In en, this message translates to:
+  /// **'({lines} lines, {count} selected)'**
+  String wbSelectedLines(int lines, int count);
+
   /// No description provided for @wbGoToLineColumn.
   ///
   /// In en, this message translates to:

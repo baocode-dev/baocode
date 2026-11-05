@@ -1400,6 +1400,7 @@
   "wbProblemCounts": "错误: {errors}，警告: {warnings}",
   "wbProblemCountsInfos": "错误: {errors}，警告: {warnings}，信息: {infos}",
   "wbSelectedCount": "(已选择 {count})",
+  "wbSelectedLines": "(已选择 {lines} 行，{count} 个字符)",
   "wbGoToLineColumn": "转到行/列",
   "wbSpaces": "空格: {size}",
   "wbTabSize": "制表符长度: {size}",

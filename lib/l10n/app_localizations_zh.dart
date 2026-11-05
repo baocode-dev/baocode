@@ -4902,6 +4902,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String wbSelectedLines(int lines, int count) {
+    return '(已选择 $lines 行，$count 个字符)';
+  }
+
+  @override
   String get wbGoToLineColumn => '转到行/列';
 
   @override
