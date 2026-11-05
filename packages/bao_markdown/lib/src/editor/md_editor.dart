@@ -2377,9 +2377,12 @@ class MarkdownEditorState extends State<MarkdownEditor>
   Widget build(BuildContext context) {
     _reveal = _computeReveal();
     final lines = controller.lines;
+    final behavior = ScrollConfiguration.of(context);
     Widget scroll = CustomScrollView(
       key: _scrollKey,
       controller: scrollController,
+      // Its scrollbar outside the text's cursor: built below.
+      scrollBehavior: behavior.copyWith(scrollbars: false),
       physics: widget.physics,
       shrinkWrap: widget.shrinkWrap,
       slivers: [
@@ -2426,53 +2429,62 @@ class MarkdownEditorState extends State<MarkdownEditor>
       child: Focus(
         focusNode: _focus,
         onKeyEvent: _key,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.text,
-          child: RawGestureDetector(
-            behavior: HitTestBehavior.translucent,
-            gestures: {
-              _MouseSelect: GestureRecognizerFactoryWithHandlers<_MouseSelect>(
-                () => _MouseSelect(_allows),
-                (recognizer) => recognizer
-                  ..dragStartBehavior = DragStartBehavior.down
-                  ..onTapDown = _tapDown
-                  ..onTapUp = _tapUp
-                  ..onDragStart = _dragStart
-                  ..onDragUpdate = _dragUpdate
-                  ..onDragEnd = _dragEnd
-                  ..onCancel = _dragCancel,
-              ),
-              _TouchTap: GestureRecognizerFactoryWithHandlers<_TouchTap>(
-                () => _TouchTap(_allows),
-                (recognizer) => recognizer.onTapUp = (details) {
-                  if (!_focus.hasPrimaryFocus) _focus.requestFocus();
-                  _ensureInput('a tap');
-                  final at = offsetAt(details.globalPosition);
-                  if (at == null || (widget.onClick?.call(at) ?? false)) {
-                    return;
-                  }
-                  _moveTo(at, extend: false);
-                },
-              ),
-              _TouchHold: GestureRecognizerFactoryWithHandlers<_TouchHold>(
-                () => _TouchHold(_allows),
-                (recognizer) => recognizer.onLongPressStart = (details) {
-                  if (!_focus.hasPrimaryFocus) _focus.requestFocus();
-                  final at = offsetAt(details.globalPosition);
-                  if (at == null) return;
-                  final (start, end) = _wordAt(at);
-                  _select(TextSelection(baseOffset: start, extentOffset: end));
-                },
-              ),
-            },
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (_) {
-                _imeGeometrySoon();
-                return false;
+        // The scrollbar the app's (none where it has none), over the text
+        // but not under its cursor: an arrow there, not the I-beam.
+        child: behavior.buildScrollbar(
+          context,
+          MouseRegion(
+            cursor: SystemMouseCursors.text,
+            child: RawGestureDetector(
+              behavior: HitTestBehavior.translucent,
+              gestures: {
+                _MouseSelect:
+                    GestureRecognizerFactoryWithHandlers<_MouseSelect>(
+                      () => _MouseSelect(_allows),
+                      (recognizer) => recognizer
+                        ..dragStartBehavior = DragStartBehavior.down
+                        ..onTapDown = _tapDown
+                        ..onTapUp = _tapUp
+                        ..onDragStart = _dragStart
+                        ..onDragUpdate = _dragUpdate
+                        ..onDragEnd = _dragEnd
+                        ..onCancel = _dragCancel,
+                    ),
+                _TouchTap: GestureRecognizerFactoryWithHandlers<_TouchTap>(
+                  () => _TouchTap(_allows),
+                  (recognizer) => recognizer.onTapUp = (details) {
+                    if (!_focus.hasPrimaryFocus) _focus.requestFocus();
+                    _ensureInput('a tap');
+                    final at = offsetAt(details.globalPosition);
+                    if (at == null || (widget.onClick?.call(at) ?? false)) {
+                      return;
+                    }
+                    _moveTo(at, extend: false);
+                  },
+                ),
+                _TouchHold: GestureRecognizerFactoryWithHandlers<_TouchHold>(
+                  () => _TouchHold(_allows),
+                  (recognizer) => recognizer.onLongPressStart = (details) {
+                    if (!_focus.hasPrimaryFocus) _focus.requestFocus();
+                    final at = offsetAt(details.globalPosition);
+                    if (at == null) return;
+                    final (start, end) = _wordAt(at);
+                    _select(
+                      TextSelection(baseOffset: start, extentOffset: end),
+                    );
+                  },
+                ),
               },
-              child: scroll,
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (_) {
+                  _imeGeometrySoon();
+                  return false;
+                },
+                child: scroll,
+              ),
             ),
           ),
+          ScrollableDetails.vertical(controller: scrollController),
         ),
       ),
     );

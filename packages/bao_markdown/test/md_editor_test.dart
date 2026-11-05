@@ -129,6 +129,46 @@ void main() {
     expect(_shown(tester), ['a bold b', '# Head', 'item']);
   });
 
+  testWidgets('over the scrollbar the cursor is an arrow, over the text an '
+      'I-beam', (tester) async {
+    final controller = MarkdownController(
+      text: [for (var i = 0; i < 100; i++) 'line $i'].join('\n'),
+    );
+    await tester.pumpWidget(
+      WidgetsApp(
+        color: const Color(0xFFFFFFFF),
+        builder: (context, _) => ScrollConfiguration(
+          behavior: const _ShownScrollbar(),
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 400,
+              height: 400,
+              child: MarkdownEditor(controller: controller, style: _style),
+            ),
+          ),
+        ),
+      ),
+    );
+    // The scrollbar shown once it has the list's measures.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 1));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: const Offset(50, 50));
+    await tester.pump();
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.text,
+    );
+    await mouse.moveTo(const Offset(396, 20));
+    await tester.pump();
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.basic,
+    );
+  });
+
   testWidgets('a click puts the caret where it is in the markdown', (
     tester,
   ) async {
@@ -938,4 +978,21 @@ class _Client with TextInputClient {
 
   @override
   void connectionClosed() {}
+}
+
+/// A scrollbar always shown, as the app's are on a desktop.
+class _ShownScrollbar extends ScrollBehavior {
+  const _ShownScrollbar();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => RawScrollbar(
+    controller: details.controller,
+    thumbVisibility: true,
+    thickness: 8,
+    child: child,
+  );
 }
