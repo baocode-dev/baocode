@@ -8549,6 +8549,7 @@
   "ustatSpaceDetail": "{days} days kept, since {oldest}",
   "@ustatSpaceDetail": {"placeholders": {"days": {"type": "int"}, "oldest": {"type": "String"}}},
   "ustatSpaceEmpty": "Nothing kept yet",
+  "ustatLoading": "Reading the calls…",
   "ustatClearEllipsis": "Clear…",
   "ustatClear": "Clear",
   "ustatClearOlderThan": "Clear all but the last {days} days",

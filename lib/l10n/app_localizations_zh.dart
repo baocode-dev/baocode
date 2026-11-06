@@ -12440,6 +12440,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ustatSpaceEmpty => '暂无数据';
 
   @override
+  String get ustatLoading => '正在读取调用记录…';
+
+  @override
   String get ustatClearEllipsis => '清理…';
 
   @override
