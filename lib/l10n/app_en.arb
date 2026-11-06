@@ -1616,6 +1616,15 @@
       }
     }
   },
+  "turnStopped": "Stopped after {duration}",
+  "@turnStopped": {
+    "description": "A turn the user stopped, its work folded, e.g. \"Stopped after 4m 32s\".",
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
   "planCardLabel": "Plan",
   "@planCardLabel": {
     "description": "Over a round of planning's card in the conversation."

@@ -772,6 +772,7 @@
   "turnDurationHint": "本轮耗时",
   "turnCostHint": "本轮花费",
   "turnWorked": "已处理 {duration}",
+  "turnStopped": "处理 {duration} 后停止",
   "planCardLabel": "计划",
   "planCardRound": "v{round}",
   "planDrafting": "起草中",

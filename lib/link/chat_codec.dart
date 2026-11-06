@@ -122,6 +122,7 @@ abstract final class ChatCodec {
       if (item.queued) 'queued': true,
       if (item.images.isNotEmpty) 'images': _images(item.images),
       'worked': ?item.worked?.inMilliseconds,
+      if (item.stopped) 'stopped': true,
       'at': ?item.sentAt?.millisecondsSinceEpoch,
       'agent': ?item.fromAgent,
       if (item.usage case final usage?)
@@ -259,6 +260,7 @@ abstract final class ChatCodec {
         queued: json['queued'] == true,
         images: _decodeImages(json['images']),
         worked: duration('worked'),
+        stopped: json['stopped'] == true,
         sentAt: time('at'),
         fromAgent: json['agent'] as String?,
         usage: switch (json['usage']) {

@@ -1103,7 +1103,9 @@ class ClaudeCodeKernel
       }
     }
     _permissions.clear();
-    if (!interrupted && worked != null) {
+    // Stopped too: its work folds all the same (the session file tells it
+    // was stopped).
+    if (worked != null) {
       if ((_turnStats, _sessionId) case (final stats?, final session?)) {
         stats.write(session, turn, (worked: worked, usage: usage));
       }

@@ -4730,6 +4730,12 @@ abstract class AppLocalizations {
   /// **'Worked for {duration}'**
   String turnWorked(String duration);
 
+  /// A turn the user stopped, its work folded, e.g. "Stopped after 4m 32s".
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped after {duration}'**
+  String turnStopped(String duration);
+
   /// Over a round of planning's card in the conversation.
   ///
   /// In en, this message translates to:

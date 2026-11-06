@@ -2703,6 +2703,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String turnStopped(String duration) {
+    return 'Stopped after $duration';
+  }
+
+  @override
   String get planCardLabel => 'Plan';
 
   @override
