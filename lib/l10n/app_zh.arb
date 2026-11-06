@@ -3566,6 +3566,7 @@
   "ustatSpace": "已占用 {size}",
   "ustatSpaceDetail": "保存了 {days} 天，最早 {oldest}",
   "ustatSpaceEmpty": "暂无数据",
+  "ustatLoading": "正在读取调用记录…",
   "ustatClearEllipsis": "清理…",
   "ustatClear": "清理",
   "ustatClearOlderThan": "只保留最近 {days} 天",

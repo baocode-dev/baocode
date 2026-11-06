@@ -21457,6 +21457,12 @@ abstract class AppLocalizations {
   /// **'Nothing kept yet'**
   String get ustatSpaceEmpty;
 
+  /// No description provided for @ustatLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading the calls…'**
+  String get ustatLoading;
+
   /// No description provided for @ustatClearEllipsis.
   ///
   /// In en, this message translates to:

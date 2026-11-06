@@ -13134,6 +13134,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ustatSpaceEmpty => 'Nothing kept yet';
 
   @override
+  String get ustatLoading => 'Reading the calls…';
+
+  @override
   String get ustatClearEllipsis => 'Clear…';
 
   @override

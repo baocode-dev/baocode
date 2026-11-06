@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../ide/ide_button.dart';
 import '../../ide/ide_dialog.dart';
 import '../../ide/ide_menu.dart';
+import '../../ide/ide_spinning.dart';
 import '../../l10n/l10n.dart';
 import '../../models/model_icons.dart';
 import '../../settings/pages/settings_dropdown.dart';
@@ -596,7 +597,25 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
                   ),
           ),
         ] else
-          const SizedBox(height: 120),
+          UsageCard(
+            child: SizedBox(
+              height: 120,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IdeSpinning(
+                    Icon(
+                      Codicons.loading,
+                      size: 14,
+                      color: UsageText.muted.color,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(l10n.ustatLoading, style: UsageText.muted),
+                ],
+              ),
+            ),
+          ),
         SettingsGroup(
           title: l10n.ustatDataTitle,
           description: l10n.ustatDataDescription,
@@ -656,8 +675,12 @@ class _UsageSettingsPageState extends State<UsageSettingsPage> {
               ),
             ),
             SettingsRow(
-              label: l10n.ustatSpace(UsageFormat.bytes(space?.bytes ?? 0)),
-              description: space == null || space.days == 0
+              label: l10n.ustatSpace(
+                space == null ? '…' : UsageFormat.bytes(space.bytes),
+              ),
+              description: space == null
+                  ? l10n.ustatLoading
+                  : space.days == 0
                   ? l10n.ustatSpaceEmpty
                   : [
                       l10n.ustatSpaceDetail(space.days, space.oldest ?? ''),
