@@ -493,8 +493,37 @@ class _SidebarState extends State<Sidebar>
   bool _collapsed(_Group group) =>
       _collapsible(group) && _workspace.isCollapsed(group.id);
 
+  /// What [thread] needs, its asides' too where they are folded under it:
+  /// the most pressing (see [ThreadStatus]'s order).
+  ThreadStatus _statusOf(AgentThread thread) {
+    var status = thread.shownStatus;
+    if (_workspace.asidesFolded(thread)) {
+      for (final aside in _asides[thread] ?? const <AgentThread>[]) {
+        if (aside.shownStatus.index < status.index) status = aside.shownStatus;
+      }
+    }
+    return status;
+  }
+
+  /// How many of [group]'s agents (and their asides) are at work, waiting
+  /// on the user, or finished unseen: told on its header while it is
+  /// folded, where its rows are not.
+  Map<ThreadStatus, int> _groupStatuses(_Group group) {
+    final counts = <ThreadStatus, int>{};
+    for (final thread in group.threads) {
+      for (final one in [thread, ...?_asides[thread]]) {
+        final status = one.shownStatus;
+        if (status != ThreadStatus.idle) {
+          counts[status] = (counts[status] ?? 0) + 1;
+        }
+      }
+    }
+    return counts;
+  }
+
   /// A project's most recent agents, unless asked for all (the open one
-  /// too, wherever it is).
+  /// too, wherever it is, and those at work or waiting on the user: not to
+  /// be lost under "show more").
   _Rows _rows(_Group group) {
     if (_collapsed(group)) return (threads: const [], more: 0, less: false);
     final all = group.threads;
@@ -507,7 +536,10 @@ class _SidebarState extends State<Sidebar>
     final current = _current;
     final shown = [
       for (final (i, thread) in all.indexed)
-        if (i < _recent || identical(thread, current)) thread,
+        if (i < _recent ||
+            identical(thread, current) ||
+            _statusOf(thread).index <= ThreadStatus.running.index)
+          thread,
     ];
     return (threads: shown, more: all.length - shown.length, less: false);
   }
@@ -1794,6 +1826,7 @@ class _SidebarState extends State<Sidebar>
     final header = _GroupHeader(
       group: group,
       collapsed: _collapsed(group),
+      statuses: _collapsed(group) ? _groupStatuses(group) : const {},
       light: !collapsible,
       // As a row clicked: the list has the keys then (its speed search).
       onToggle: collapsible
@@ -1892,6 +1925,7 @@ class _SidebarState extends State<Sidebar>
   }) {
     return _ThreadRow(
       thread: thread,
+      status: _statusOf(thread),
       model: () => _modelOf(thread),
       height: _rowHeight,
       stashes: switch ((widget.stashes, thread.id)) {
@@ -2671,6 +2705,7 @@ class _GroupHeader extends StatelessWidget {
     required this.group,
     required this.collapsed,
     required this.onToggle,
+    this.statuses = const {},
     this.light = false,
     this.onCreate,
     this.dragNew,
@@ -2685,6 +2720,10 @@ class _GroupHeader extends StatelessWidget {
 
   final _Group group;
   final bool collapsed;
+
+  /// Folded, how many of its agents are at work, waiting on the user, or
+  /// finished unseen (see [_SidebarState._groupStatuses]).
+  final Map<ThreadStatus, int> statuses;
 
   /// The characters of its name the speed search matches.
   final List<int>? speedMatch;
@@ -2843,24 +2882,44 @@ class _GroupHeader extends StatelessWidget {
     return header;
   }
 
-  /// Folded, the dot of the agent in it that most needs attention: one
-  /// waiting on a question, else one finished unseen.
+  /// Folded, what its agents are doing, as their rows would say: a spinner
+  /// while any is at work, and the dot of the one that most needs
+  /// attention (waiting on a question, else finished unseen). How many of
+  /// each over them.
   Widget? _hiddenStatus(BuildContext context) {
-    if (!collapsed) return null;
-    final statuses = {for (final thread in group.threads) thread.status};
-    final (status, label) = switch (statuses) {
-      _ when statuses.contains(ThreadStatus.needsInput) => (
-        ThreadStatus.needsInput,
-        context.l10n.sidebarNeedsInput,
+    if (!collapsed || statuses.isEmpty) return null;
+    final l10n = context.l10n;
+    final told = [
+      for (final (status, label) in [
+        (ThreadStatus.running, l10n.sidebarRunning),
+        (ThreadStatus.needsInput, l10n.sidebarNeedsInput),
+        (ThreadStatus.unread, l10n.sidebarUnread),
+      ])
+        if (statuses[status] case final count?) '$label $count',
+    ].join(' · ');
+    final dot = statuses.containsKey(ThreadStatus.needsInput)
+        ? ThreadStatus.needsInput
+        : statuses.containsKey(ThreadStatus.unread)
+        ? ThreadStatus.unread
+        : null;
+    return _RowHover(
+      content: (context) => Text(told),
+      child: Semantics(
+        label: told,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (statuses.containsKey(ThreadStatus.running))
+              const StatusIndicator(ThreadStatus.running),
+            if (dot != null) ...[
+              if (statuses.containsKey(ThreadStatus.running))
+                const SizedBox(width: 5),
+              StatusIndicator(dot),
+            ],
+          ],
+        ),
       ),
-      _ when statuses.contains(ThreadStatus.unread) => (
-        ThreadStatus.unread,
-        context.l10n.sidebarUnread,
-      ),
-      _ => (null, null),
-    };
-    if (status == null) return null;
-    return Semantics(label: label, child: StatusIndicator(status));
+    );
   }
 
   Widget _label(Project? project) {
@@ -3296,6 +3355,7 @@ class _MoreRow extends StatelessWidget {
 class _ThreadRow extends StatelessWidget {
   const _ThreadRow({
     required this.thread,
+    required this.status,
     required this.model,
     required this.height,
     this.stashes = const [],
@@ -3328,6 +3388,9 @@ class _ThreadRow extends StatelessWidget {
   });
 
   final AgentThread thread;
+
+  /// What it needs, its folded asides' too (see [_SidebarState._statusOf]).
+  final ThreadStatus status;
 
   /// The model it runs on, as its hover shows it; none when unknown.
   final String? Function() model;
@@ -3529,7 +3592,7 @@ class _ThreadRow extends StatelessWidget {
                                     : context.l10n.sidebarFoldAsides,
                                 onTap: asides.onToggle,
                               ),
-                              _ => StatusIndicator(thread.shownStatus),
+                              _ => StatusIndicator(status),
                             },
                           ),
                         ),
