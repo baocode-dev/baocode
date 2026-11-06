@@ -141,6 +141,7 @@ class ClaudeCodeKernel
       emit: emit,
       nextSeq: () => nextSeq,
       goalSaid: _syncGoal,
+      ownModel: _ownModel,
     );
     _providers.addListener(_providersChanged);
     ExtensionSwitches.changes?.addListener(_applySwitches);
@@ -2879,7 +2880,11 @@ class ClaudeCodeKernel
       var seq = 0;
       final items = Transcript();
       final translator =
-          ClaudeTranslator(emit: items.apply, nextSeq: () => ++seq)
+          ClaudeTranslator(
+              emit: items.apply,
+              nextSeq: () => ++seq,
+              ownModel: _ownModel,
+            )
             ..replaying = true
             ..keptTurns = kept;
       var counted = false;
@@ -3056,6 +3061,21 @@ class ClaudeCodeKernel
   };
 
   String get _providerKey => _providerKeyOf(_model);
+
+  /// [model], a bare id an upstream answered with, as the [modelRef] of
+  /// the upstream the conversation is on where that one has it: requests
+  /// of a bare id go there (the proxy sends only `@<id>/` ones elsewhere).
+  String _ownModel(String model) {
+    if (parseModelRef(model) != null) return model;
+    final id = _onProvider.split('|').first;
+    return switch (_providers.provider(id)) {
+      final provider? when provider.model(model) != null => modelRef(
+        provider.id,
+        model,
+      ),
+      _ => model,
+    };
+  }
 
   /// What the conversation is on now: the process's provider while one
   /// runs, whatever is picked since (a model of one removed, say), else

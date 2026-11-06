@@ -19,10 +19,20 @@ import 'turn_stats.dart';
 /// and block, tool use id, message uuid), so translating a message twice,
 /// e.g. streamed and then whole, lands on the same items.
 class ClaudeTranslator {
-  ClaudeTranslator({required this.emit, required this.nextSeq, this.goalSaid});
+  ClaudeTranslator({
+    required this.emit,
+    required this.nextSeq,
+    this.goalSaid,
+    this.ownModel,
+  });
 
   final void Function(KernelEvent event) emit;
   final int Function() nextSeq;
+
+  /// A subagent's model, as its upstream answered it (a bare id), as the
+  /// session's upstream's [modelRef] where that upstream has it: another
+  /// upstream of a model of that id is not the one it ran on.
+  final String Function(String model)? ownModel;
 
   /// Claude Code said something of the goal, live: how it stands is to be
   /// asked afresh (see claude_goal.dart).
@@ -37,6 +47,10 @@ class ClaudeTranslator {
 
   /// The turn changes belong to (the user message uuid that began it).
   String? turnId;
+
+  String _ownModel(String model) => ownModel?.call(model) ?? model;
+
+  String? _ownModelOf(String? model) => model == null ? null : _ownModel(model);
 
   /// What the agent is busy with out of sight (see [ActivityReported]).
   KernelActivity? _activity;
@@ -682,10 +696,13 @@ class ClaudeTranslator {
     final synthetic = body['model'] == '<synthetic>';
     // A subagent's: the model it runs on, as the upstream answered.
     if (_agents[parent] case final agent? when !synthetic) {
-      if (_string(body['model']) case final model?
-          when model.isNotEmpty && model != agent.item.model) {
-        agent.item = agent.item.copyWith(model: model);
-        _putAgent(parent!);
+      if (_string(body['model']) case final answered?
+          when answered.isNotEmpty) {
+        final model = _ownModel(answered);
+        if (model != agent.item.model) {
+          agent.item = agent.item.copyWith(model: model);
+          _putAgent(parent!);
+        }
       }
     }
     for (final (index, raw) in _list(body['content']).indexed) {
@@ -1233,7 +1250,7 @@ class ClaudeTranslator {
             prompt: _string(structured?['prompt']),
             // What the CLI resolved, if its messages did not say.
             model: agent.item.model == null
-                ? _string(structured?['resolvedModel'])
+                ? _ownModelOf(_string(structured?['resolvedModel']))
                 : null,
             background: true,
           );
@@ -1253,7 +1270,7 @@ class ClaudeTranslator {
             _ => null,
           },
           model: agent.item.model == null
-              ? _string(structured?['resolvedModel'])
+              ? _ownModelOf(_string(structured?['resolvedModel']))
               : null,
         );
         _putAgent(id);
