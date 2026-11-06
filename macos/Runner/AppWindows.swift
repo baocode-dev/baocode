@@ -309,18 +309,29 @@ final class AppWindows: NSObject {
 
   // MARK: The windows' events
 
+  /// AppKit may still notify a closed window after its Flutter view is
+  /// removed. Do not ask its controller for viewIdentifier then: Flutter
+  /// asserts that the controller still belongs to the engine.
+  private func liveViewId(of window: NSWindow) -> Int64? {
+    if window === main { return 0 }
+    if let stash, window === stash { return stash.viewId }
+    return windows.first { $0.value === window }?.key
+  }
+
   @objc private func becameKey(_ notification: Notification) {
-    guard started, let window = notification.object as? FlutterHostWindow else { return }
-    tellEngine("windowDidBecomeKey:", window.viewId)
+    guard started, let window = notification.object as? FlutterHostWindow,
+          let viewId = liveViewId(of: window) else { return }
+    tellEngine("windowDidBecomeKey:", viewId)
     // The stash's panel is none of the app's windows (see StashPanel).
     guard window is BaoWindow else { return }
-    channel.invokeMethod("focused", arguments: window.viewId)
+    channel.invokeMethod("focused", arguments: viewId)
     Attention.shared?.refreshTray()
   }
 
   @objc private func resignedKey(_ notification: Notification) {
-    guard started, let window = notification.object as? FlutterHostWindow else { return }
-    tellEngine("windowDidResignKey:", window.viewId)
+    guard started, let window = notification.object as? FlutterHostWindow,
+          let viewId = liveViewId(of: window) else { return }
+    tellEngine("windowDidResignKey:", viewId)
   }
 
   // MARK: The stash's panel
@@ -348,12 +359,12 @@ final class AppWindows: NSObject {
   }
 
   @objc private func frameChanged(_ notification: Notification) {
-    guard started, let window = notification.object as? BaoWindow else { return }
-    let viewId = window.viewId
+    guard started, let window = notification.object as? BaoWindow,
+          let viewId = liveViewId(of: window) else { return }
     frameTimers[viewId]?.invalidate()
     frameTimers[viewId] = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) {
       [weak self, weak window] _ in
-      guard let self, let window else { return }
+      guard let self, let window, self.liveViewId(of: window) == viewId else { return }
       self.frameTimers.removeValue(forKey: viewId)
       var frame = Self.frame(of: window)
       frame["viewId"] = viewId
