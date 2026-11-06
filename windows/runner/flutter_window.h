@@ -70,6 +70,10 @@ class FlutterWindow : public ViewWindow {
 
   // Where Flutter says the logs go (see log_folder.h).
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> logs_;
+
+  // The session ends, or an installer closes the app (WM_ENDSESSION): the
+  // process goes without the engine's teardown (see OnDestroy).
+  bool session_ending_ = false;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_
