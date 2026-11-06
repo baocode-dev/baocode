@@ -84,8 +84,6 @@ class CommandStep extends StatelessWidget {
           StepBody(
             followEnd: _running,
             scrollbar: true,
-            keepWheel: true,
-            latchWheel: false,
             // Clear of the menu button.
             padding: const EdgeInsets.fromLTRB(12, 10, 36, 10),
             overlay: _CommandMenu(

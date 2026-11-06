@@ -259,7 +259,6 @@ class StepBody extends StatefulWidget {
     this.scrollbar = false,
     this.codeBlock = false,
     this.keepWheel = false,
-    this.latchWheel = true,
     this.bottom,
   });
 
@@ -290,10 +289,6 @@ class StepBody extends StatefulWidget {
   /// Whether a wheel over it, once it scrolls at all, is its own at its ends
   /// too ([WheelLatch.keep]).
   final bool keepWheel;
-
-  /// Whether a wheel gesture stays with the view it started in. Without
-  /// the latch, the view under the pointer takes each event it can scroll.
-  final bool latchWheel;
 
   /// Along the bottom of what scrolls, over [child]: scrollbars across it,
   /// say, shown while the mouse is over it ([hovered]).
@@ -345,19 +340,16 @@ class _StepBodyState extends State<StepBody> {
     final StepBody(:child, :maxHeight, :padding, :overlay, :header) = widget;
     // The line between the sidebar and the conversation.
     final line = AppColors.partBorder;
-    Widget content = SizedBox(width: double.infinity, child: child);
-    if (widget.latchWheel || widget.keepWheel) {
-      content = WheelLatch(
-        keep: widget.keepWheel,
-        latch: widget.latchWheel,
-        child: content,
-      );
-    }
     Widget scroll = SingleChildScrollView(
       controller: _controller,
       reverse: widget.followEnd,
       padding: padding,
-      child: FiniteSelectionEdges(child: content),
+      child: FiniteSelectionEdges(
+        child: WheelLatch(
+          keep: widget.keepWheel,
+          child: SizedBox(width: double.infinity, child: child),
+        ),
+      ),
     );
     if (widget.fadeEdges) {
       scroll = ScrollEdgeFade(fadeLength: 12, child: scroll);

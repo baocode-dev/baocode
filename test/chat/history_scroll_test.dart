@@ -108,17 +108,9 @@ Finder _text(String text) => find.textContaining(text, findRichText: true);
 const _frame = Duration(microseconds: 16667);
 
 void main() {
-  group('command output scrolling', () {
-    final platforms = TargetPlatformVariant({
-      TargetPlatform.macOS,
-      TargetPlatform.windows,
-      TargetPlatform.linux,
-    });
-    var clock = const Duration(seconds: 100);
-
-    Future<({Finder view, ScrollPosition inner, ScrollPosition outer})> open(
-      WidgetTester tester,
-    ) async {
+  testWidgets(
+    'expanded command output has a draggable scrollbar on hover',
+    (tester) async {
       final feed = _Feed([
         UserMessageItem(text: 'Check the output'),
         TerminalItem(
@@ -144,105 +136,6 @@ void main() {
       final inner = tester.state<ScrollableState>(view).position;
       expect(inner.maxScrollExtent, greaterThan(0));
       expect(outer.maxScrollExtent, greaterThan(0));
-      return (view: view, inner: inner, outer: outer);
-    }
-
-    Future<void> wheel(
-      WidgetTester tester,
-      Offset at,
-      double delta,
-      PointerDeviceKind kind,
-    ) async {
-      clock += const Duration(milliseconds: 50);
-      tester.binding.handlePointerEvent(
-        PointerScrollEvent(
-          kind: kind,
-          position: at,
-          timeStamp: clock,
-          scrollDelta: Offset(0, delta),
-        ),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
-    }
-
-    for (final kind in [PointerDeviceKind.mouse, PointerDeviceKind.trackpad]) {
-      testWidgets('output under the pointer takes over an outer wheel '
-          'gesture ($kind)', (tester) async {
-        final (:view, :inner, :outer) = await open(tester);
-        clock += const Duration(seconds: 1);
-        await wheel(tester, const Offset(10, 50), 40, kind);
-        final outside = outer.pixels;
-        expect(outside, greaterThan(0));
-        expect(inner.pixels, 0);
-
-        // No pause: moving over the output must not keep scrolling history.
-        await wheel(tester, tester.getCenter(view), 80, kind);
-        expect(inner.pixels, greaterThan(0));
-        expect(outer.pixels, closeTo(outside, 0.5));
-
-        clock += const Duration(seconds: 1);
-        final before = inner.pixels;
-        await wheel(tester, tester.getCenter(view), 80, kind);
-        expect(inner.pixels, greaterThan(before));
-        expect(outer.pixels, closeTo(outside, 0.5));
-
-        // The whole output can be reached, in both directions.
-        await wheel(tester, tester.getCenter(view), 100000, kind);
-        expect(inner.pixels, inner.maxScrollExtent);
-        expect(outer.pixels, closeTo(outside, 0.5));
-        // Continuing at either edge, even after a pause, stays in the output.
-        await wheel(tester, tester.getCenter(view), 80, kind);
-        expect(outer.pixels, closeTo(outside, 0.5));
-        clock += const Duration(seconds: 1);
-        await wheel(tester, tester.getCenter(view), 80, kind);
-        expect(outer.pixels, closeTo(outside, 0.5));
-
-        await wheel(tester, tester.getCenter(view), -100000, kind);
-        expect(inner.pixels, 0);
-        expect(outer.pixels, closeTo(outside, 0.5));
-        await wheel(tester, tester.getCenter(view), -80, kind);
-        expect(outer.pixels, closeTo(outside, 0.5));
-        clock += const Duration(seconds: 1);
-        await wheel(tester, tester.getCenter(view), -80, kind);
-        expect(outer.pixels, closeTo(outside, 0.5));
-
-        // History remains scrollable from outside the output.
-        await wheel(tester, const Offset(10, 50), 40, kind);
-        expect(outer.pixels, greaterThan(outside));
-        await tester.pumpWidget(const SizedBox());
-      }, variant: platforms);
-    }
-
-    testWidgets('a trackpad pan scrolls output rather than history', (
-      tester,
-    ) async {
-      final (:view, :inner, :outer) = await open(tester);
-      final outside = outer.pixels;
-      final at = tester.getCenter(view);
-      final pointer = TestPointer(8, PointerDeviceKind.trackpad);
-      clock += const Duration(seconds: 1);
-      await tester.sendEventToBinding(
-        pointer.panZoomStart(at, timeStamp: clock),
-      );
-      for (var i = 1; i <= 5; i++) {
-        clock += const Duration(milliseconds: 16);
-        await tester.sendEventToBinding(
-          pointer.panZoomUpdate(at, pan: Offset(0, -i * 20), timeStamp: clock),
-        );
-        await tester.pump(const Duration(milliseconds: 16));
-      }
-      await tester.sendEventToBinding(pointer.panZoomEnd(timeStamp: clock));
-      await tester.pump();
-      expect(inner.pixels, greaterThan(0));
-      expect(outer.pixels, outside);
-      await tester.pumpWidget(const SizedBox());
-    }, variant: platforms);
-
-    testWidgets('expanded output has its own draggable scrollbar on hover', (
-      tester,
-    ) async {
-      final (:view, :inner, :outer) = await open(tester);
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: Offset.zero);
       await mouse.moveTo(tester.getCenter(view));
@@ -257,9 +150,8 @@ void main() {
       expect(widget.controller!.position, same(inner));
       final outside = outer.pixels;
       final bounds = tester.getRect(bar);
-      final thumb = Offset(bounds.right - 4, bounds.top + 18);
       await tester.dragFrom(
-        thumb,
+        Offset(bounds.right - 4, bounds.top + 18),
         Offset(0, bounds.height - 36),
         kind: PointerDeviceKind.mouse,
       );
@@ -268,8 +160,13 @@ void main() {
       expect(outer.pixels, outside);
       await mouse.removePointer();
       await tester.pumpWidget(const SizedBox());
-    }, variant: platforms);
-  });
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+      TargetPlatform.linux,
+    }),
+  );
 
   testWidgets('a conversation shown again is where it was left: read up '
       'from its end, there; at its end, followed (#215)', (tester) async {
