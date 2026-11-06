@@ -268,6 +268,79 @@ void main() {
       );
     });
 
+    test('the model set for agents, forced: over inherit and the call\'s, '
+        'as the CLI', () async {
+      h = await Harness.start(
+        environment: {
+          'CLAUDE_CODE_SUBAGENT_MODEL': 'sub-model',
+          'CLAUDE_CODE_SUBAGENT_MODEL_FORCE': '1',
+        },
+      );
+      final main = <ModelRequest>[];
+      final sub = <ModelRequest>[];
+      h.model.route = (request) {
+        if (!jsonEncode((request.body['messages'] as List).first)
+            .contains('SUB:')) {
+          main.add(request);
+          return null;
+        }
+        sub.add(request);
+        return Reply.text('found');
+      };
+      h.model.script.addAll([
+        Reply.tool('Agent', {
+          'description': 'Look',
+          'prompt': 'SUB: look',
+          'subagent_type': 'Explore',
+          'run_in_background': false,
+        }),
+        Reply.tool('Agent', {
+          'description': 'Plan',
+          'prompt': 'SUB: plan',
+          'subagent_type': 'Plan',
+          'model': 'haiku',
+          'run_in_background': false,
+        }),
+        Reply.text('done'),
+      ]);
+      await h.turn('go');
+      expect([for (final r in sub) r.model], ['sub-model', 'sub-model']);
+      final agent = (main.first.body['tools'] as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((tool) => tool['name'] == 'Agent');
+      expect(
+        (agent['input_schema'] as Map)['properties'] as Map,
+        isNot(contains('model')),
+      );
+      expect('${agent['description']}', contains('there is none to pick'));
+    });
+
+    test('unforced, inherit stands: Explore on the session\'s model', () async {
+      h = await Harness.start(
+        environment: {'CLAUDE_CODE_SUBAGENT_MODEL': 'sub-model'},
+      );
+      final sub = <ModelRequest>[];
+      h.model.route = (request) {
+        if (!jsonEncode((request.body['messages'] as List).first)
+            .contains('SUB:')) {
+          return null;
+        }
+        sub.add(request);
+        return Reply.text('found');
+      };
+      h.model.script.addAll([
+        Reply.tool('Agent', {
+          'description': 'Look',
+          'prompt': 'SUB: look',
+          'subagent_type': 'Explore',
+          'run_in_background': false,
+        }),
+        Reply.text('done'),
+      ]);
+      await h.turn('go');
+      expect(sub.single.model, isNot('sub-model'));
+    });
+
     test('stopped with the turn', () async {
       h = await Harness.start();
       h.model.delay = const Duration(milliseconds: 200);

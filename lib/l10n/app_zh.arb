@@ -1892,7 +1892,7 @@
   "modelsRoleHaikuDescription": "ANTHROPIC_DEFAULT_HAIKU_MODEL：Claude Code 的后台任务，以及会话标题生成。",
   "modelsRoleHaikuWarning": "未设置时，后台任务会使用所选模型，可能更慢、更贵。建议选一个小而快的模型。",
   "modelsRoleSubagent": "子 Agent",
-  "modelsRoleSubagentDescription": "CLAUDE_CODE_SUBAGENT_MODEL：所有子 Agent 使用的模型，优先于子 Agent 定义或调用时指定的模型（定义为 inherit 的除外）。",
+  "modelsRoleSubagentDescription": "CLAUDE_CODE_SUBAGENT_MODEL：所有子 Agent 使用的模型，包括内置的 Explore、Plan 和定义为 inherit 的，优先于子 Agent 定义或调用时指定的模型。",
   "modelsRoleMissing": "这个模型已不在它的上游里，用到它的请求会失败。",
   "modelsAdvanced": "高级",
   "modelsAuth": "认证方式",
