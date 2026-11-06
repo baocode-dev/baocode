@@ -253,19 +253,10 @@ class ClaudeCodeKernel
   String? _earlier;
   Future<void>? _earlierLoad;
 
-  /// Whether what was read begins within a turn (a long one is cut so):
-  /// the turn the page before it ends with goes on past it, so is not
-  /// timed.
-  bool _readInTurn = false;
-
-  /// Whether [page] begins within a turn: with a message of the agent's,
-  /// not the user's prompt.
-  static bool _beginsInTurn(ClaudeHistoryPage page) {
-    for (final line in page.entries) {
-      if (line['type'] != 'attachment') return line['type'] == 'assistant';
-    }
-    return false;
-  }
+  /// How what was read begins, where that is within a turn (a long one is
+  /// cut so; see [ClaudeTranslator.head]): the turn the page before it ends
+  /// with goes on past it, and is timed to where it ends.
+  ({DateTime? until, bool stopped})? _readHead;
 
   /// Writes wait on this: for the process to be ready, and for a rewind to
   /// land before the message that follows it.
@@ -2854,7 +2845,6 @@ class ClaudeCodeKernel
       final page = await read(session, turns: _firstTurns);
       final kept = await keptTurns;
       _earlier = page.earlier;
-      _readInTurn = _beginsInTurn(page);
       _translator
         ..replaying = true
         ..keptTurns = kept;
@@ -2863,6 +2853,7 @@ class ClaudeCodeKernel
         if (line['type'] == 'assistant') counted |= _countRequest(line);
         _translator.translate(line);
       }
+      _readHead = _translator.head;
       _translator.endReplay();
       if (counted) _reportStats();
     } on Object catch (error) {
@@ -2919,10 +2910,10 @@ class ClaudeCodeKernel
         if (line['type'] == 'assistant') counted |= _countRequest(line);
         translator.translate(line);
       }
-      if (!_readInTurn) translator.endPage();
+      translator.endPage(after: _readHead);
       if (counted) _reportStats();
       _earlier = page.earlier;
-      _readInTurn = _beginsInTurn(page);
+      _readHead = translator.head;
       emit(HistoryPrepended(nextSeq, [...items.liveItems]));
     } on Object catch (error) {
       if (_disposed) return;
