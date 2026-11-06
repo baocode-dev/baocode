@@ -2,7 +2,8 @@
 // (src/vs/workbench/electron-browser/actions/windowActions.ts and
 // src/vs/workbench/electron-browser/desktop.contribution.ts at
 // 6a598d4a13031703d483d103c1d934a36ad27971): New Window, Close Window (⌘W
-// too, where no editor is open), Switch Window… (⌃W on macOS), Toggle Full
+// too, where no editor is open, and in the chat's window where its last
+// pane is all that shows), Switch Window… (⌃W on macOS), Toggle Full
 // Screen (F11; ⌃⌘F on macOS, as its View menu has it).
 //
 // Zoom In, Zoom Out and Reset Zoom (⌘= / ⌘- / ⌘numpad0, Ctrl elsewhere)
@@ -14,6 +15,7 @@
 
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 
+import 'chat_keybindings.dart' show ChatContextKeys;
 import 'default_keybindings.dart' show CommandInfo;
 
 abstract final class WindowCommandIds {
@@ -70,6 +72,17 @@ final List<KeybindingEntry> windowKeybindings = [
     mac: 'cmd+w',
     command: WindowCommandIds.closeWindow,
     when: '!chatMode && !editorIsOpen && !auxiliaryBarFocus',
+  ),
+  // The chat's window, where its last pane is all that shows: Close Pane
+  // has nothing to close, and the keys close the window — as VS Code's
+  // Close Window with no editor open, and as the window's close button,
+  // whose path the command shares. An agent's window too, its agent out
+  // of the panes.
+  const KeybindingEntry(
+    key: 'ctrl+w',
+    mac: 'cmd+w',
+    command: WindowCommandIds.closeWindow,
+    when: 'chatMode && ${ChatContextKeys.singlePane}',
   ),
   const KeybindingEntry(mac: 'ctrl+w', command: WindowCommandIds.switchWindow),
   const KeybindingEntry(

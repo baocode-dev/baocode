@@ -205,6 +205,12 @@ abstract final class ChatContextKeys {
   /// The focus is in the chat window's side panel (as upstream's
   /// `auxiliaryBarFocus` is in the secondary side bar).
   static const sidePanelFocus = 'sidePanelFocus';
+
+  /// Close Pane has nothing to close: the panes are the one shown — or
+  /// this is an agent's window, its agent out of the panes. Close Pane's
+  /// keys close the window instead, as Close Editor's do with no editor
+  /// open.
+  static const singlePane = 'chatSinglePane';
 }
 
 /// The chat's commands, for the catalog.
@@ -276,6 +282,11 @@ final List<CommandInfo> chatExtraCommands = [
 // chat's in any chat, the IDE's too.
 const _window = 'chatMode';
 const _sidePanel = '$_window && ${ChatContextKeys.sidePanelFocus}';
+
+/// Close Pane's keys, where there is a pane to close. Where the panes are
+/// the one shown — or this is an agent's window, its agent out of the
+/// panes — they close the window instead (see window_keybindings.dart).
+const _paneOfSeveral = '$_window && !${ChatContextKeys.singlePane}';
 const _input = ChatContextKeys.inChatInput;
 const _suggest =
     '${ChatContextKeys.suggestWidgetVisible} && ${ChatContextKeys.inChatInput}';
@@ -334,13 +345,13 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     win: 'ctrl+f4',
     linux: 'ctrl+f4',
     command: ChatCommandIds.closePane,
-    when: _window,
+    when: _paneOfSeveral,
   ),
   const KeybindingEntry(
     key: 'ctrl+w',
     mac: 'cmd+w',
     command: ChatCommandIds.closePane,
-    when: _window,
+    when: _paneOfSeveral,
   ),
   // From the side panel, as Close Editor: its tab in front, not the pane.
   const KeybindingEntry(
@@ -734,4 +745,5 @@ const Set<String> chatContextKeys = {
   ChatContextKeys.asideVisible,
   ChatContextKeys.inInteraction,
   ChatContextKeys.sidePanelFocus,
+  ChatContextKeys.singlePane,
 };

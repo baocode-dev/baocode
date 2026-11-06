@@ -1950,6 +1950,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         focus?.context?.findAncestorStateOfType<EditableTextState>() != null,
       'terminalFocus' || 'terminalFocusInAny' => _terminals?.focused ?? false,
       ChatContextKeys.sidePanelFocus => _sidePanel.hasFocus,
+      ChatContextKeys.singlePane => switch (_workspace.current) {
+        // Close Pane's own guard, turned around: where it has nothing to
+        // close — the one pane is all the window shows, or this is an
+        // agent's window, its agent out of the panes — the keys close the
+        // window instead.
+        final thread? => !_workspace.canClosePane(thread),
+        null => true,
+      },
       'terminalProcessSupported' => _terminals != null,
       'terminalIsOpen' || 'terminalHasBeenCreated' =>
         _terminals?.current?.instances.isNotEmpty ?? false,
