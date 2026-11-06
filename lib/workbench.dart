@@ -2243,7 +2243,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     final folders = <String>[];
     final files = <String>[];
     for (final path in paths) {
-      (await isDirectory(path) ? folders : files).add(path);
+      final directory = RemoteLocation.isRemote(path)
+          ? _workspace.recentFolders.contains(path)
+          : await isDirectory(path);
+      (directory ? folders : files).add(path);
     }
     if (!mounted) return;
     // One window, one folder: the last given.
