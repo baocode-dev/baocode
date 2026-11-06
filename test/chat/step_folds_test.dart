@@ -119,6 +119,28 @@ void main() {
       expect(_folds([_prompt(), _edit, _words, error]), isEmpty);
     });
 
+    test('stopped, all of it folds, an answer or not, but why it stopped', () {
+      final stopped = UserMessageItem(
+        text: 'Fix it',
+        worked: const Duration(seconds: 9),
+        stopped: true,
+      );
+      expect(_folds([stopped, _read, _grep, _edit]), ['work 1-4', 'steps 1-3']);
+      const error = NoticeItem(NoticeKind.error, 'Overloaded');
+      expect(_folds([stopped, _edit, _read, error]), ['work 1-3']);
+      expect(_folds([stopped, _read, _edit, _answer]), ['work 1-3']);
+      expect(_fold([stopped, _read, _edit]).workAt(1)?.stopped, isTrue);
+      // Untimed (stopped before this was kept), it shows as it is.
+      expect(
+        _folds([
+          const UserMessageItem(text: 'Fix it', stopped: true),
+          _edit,
+          _read,
+        ]),
+        isEmpty,
+      );
+    });
+
     test('its answer is all the words after its last step', () {
       expect(_folds([_prompt(), _edit, _read, _words, _thought, _answer]), [
         'work 1-3',

@@ -182,7 +182,9 @@ class Transcript {
         lastTurnInterrupted = interrupted;
         _pending.clear();
         _settleStreaming();
-        if (!interrupted && worked != null) _timeTurn(turnId, worked, usage);
+        if (worked != null) {
+          _timeTurn(turnId, worked, usage, stopped: interrupted);
+        }
       case ItemUpserted(:final id, :final item, :final streaming):
         _put(id, item);
         streaming ? _streaming.add(id) : _streaming.remove(id);
@@ -249,6 +251,7 @@ class Transcript {
             images: taken.images,
             worked: taken.worked,
             usage: taken.usage,
+            stopped: taken.stopped,
             sentAt: sent,
             fromAgent: taken.fromAgent,
           ),
@@ -345,11 +348,20 @@ class Transcript {
     null => null,
   };
 
-  void _timeTurn(String id, Duration worked, TurnUsage? usage) {
+  void _timeTurn(
+    String id,
+    Duration worked,
+    TurnUsage? usage, {
+    required bool stopped,
+  }) {
     final index = _indexOf[id];
     if (index == null) return;
     if (_items[index] case final UserMessageItem message) {
-      _items[index] = message.copyWith(worked: worked, usage: usage);
+      _items[index] = message.copyWith(
+        worked: worked,
+        usage: usage,
+        stopped: stopped,
+      );
     }
   }
 

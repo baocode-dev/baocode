@@ -1432,7 +1432,14 @@ void main() {
         transcript.indexOf(id)!,
       ) as UserMessageItem).worked;
       expect(worked('p1'), const Duration(seconds: 45));
-      expect(worked('p2'), isNull, reason: 'stopped');
+      // Stopped: to where it was, and said so.
+      expect(worked('p2'), const Duration(seconds: 3));
+      expect(
+        (transcript.itemAt(
+          transcript.indexOf('p2')!,
+        ) as UserMessageItem).stopped,
+        isTrue,
+      );
       expect(worked('p3'), const Duration(seconds: 3));
       // When each was sent, as kept: for a chat app's times.
       expect(
@@ -1479,12 +1486,12 @@ void main() {
     });
 
     test('a turn done is kept by its session and prompt, for its footer '
-        'later; one stopped is not', () async {
+        'later; one stopped too, its work to fold', () async {
       final kept = _KeptTurns();
       ClaudeCodeKernel.turnStats = kept;
       addTearDown(() => ClaudeCodeKernel.turnStats = null);
       final cli = FakeCli();
-      final (:kernel, transcript: _, events: _) = claude(cli);
+      final (:kernel, :transcript, events: _) = claude(cli);
       kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
       await pumpEventQueue();
       cli.push({'type': 'system', 'subtype': 'init', 'session_id': 's1'});
@@ -1504,7 +1511,11 @@ void main() {
       await pumpEventQueue();
       kernel.cancel();
       await pumpEventQueue();
-      expect(kept.sessions['s1']!.keys, ['u1']);
+      expect(kept.sessions['s1']!.keys, ['u1', 'u2']);
+      final stopped =
+          transcript.itemAt(transcript.indexOf('u2')!) as UserMessageItem;
+      expect(stopped.stopped, isTrue);
+      expect(stopped.worked, isNotNull);
       kernel.dispose();
     });
 

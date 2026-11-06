@@ -363,7 +363,8 @@ class ClaudeTranslator {
   /// When the replayed turn last showed anything.
   DateTime? _replayedUntil;
 
-  /// The user stopped the replayed turn: it is not timed.
+  /// The user stopped the replayed turn: timed all the same, to where it
+  /// stopped, and marked so (see [UserMessageItem.stopped]).
   bool _replayedStopped = false;
 
   /// What is replayed is still of a turn whose prompt is on an earlier page:
@@ -443,17 +444,20 @@ class ClaudeTranslator {
     _replayed = null;
     _replayedUntil = null;
     _replayedStopped = false;
-    if (turn == null || stopped) return;
+    if (turn == null) return;
     // As its footer showed it when it ended, where that was kept.
     if (keptTurns[turn.id] case (:final worked, :final usage)) {
-      _put(turn.id, turn.item.copyWith(worked: worked, usage: usage));
+      _put(
+        turn.id,
+        turn.item.copyWith(worked: worked, usage: usage, stopped: stopped),
+      );
       return;
     }
     final at = turn.at;
     if (until == null || at == null) return;
     final worked = until.difference(at);
     if (worked > Duration.zero) {
-      _put(turn.id, turn.item.copyWith(worked: worked));
+      _put(turn.id, turn.item.copyWith(worked: worked, stopped: stopped));
     }
   }
 

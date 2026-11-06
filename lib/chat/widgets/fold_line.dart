@@ -127,9 +127,13 @@ class WorkFoldLine extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     this.images = const [],
+    this.stopped = false,
   });
 
   final Duration worked;
+
+  /// The user stopped the turn: "Stopped after 4m 32s".
+  final bool stopped;
   final TurnEdits edits;
   final bool expanded;
   final VoidCallback onToggle;
@@ -143,10 +147,11 @@ class WorkFoldLine extends StatelessWidget {
     Duration worked,
     TurnEdits edits, {
     AppLocalizations? l10n,
+    bool stopped = false,
   }) {
     final strings = l10n ?? englishLocalizations;
     return [
-      strings.turnWorked(AgentStep.formatDuration(worked, l10n: strings)),
+      _worked(strings, worked, stopped: stopped),
       if (edits.files > 0)
         [
           strings.turnFiles(edits.files),
@@ -154,6 +159,15 @@ class WorkFoldLine extends StatelessWidget {
           if (edits.removed > 0) '-${edits.removed}',
         ].join(' '),
     ].join(' · ');
+  }
+
+  static String _worked(
+    AppLocalizations l10n,
+    Duration worked, {
+    required bool stopped,
+  }) {
+    final duration = AgentStep.formatDuration(worked, l10n: l10n);
+    return stopped ? l10n.turnStopped(duration) : l10n.turnWorked(duration);
   }
 
   @override
@@ -166,15 +180,13 @@ class WorkFoldLine extends StatelessWidget {
       fontSize: 11.5,
     );
     final header = StepHeader(
-      verb: text(worked, edits, l10n: l10n),
+      verb: text(worked, edits, l10n: l10n, stopped: stopped),
       expanded: expanded,
       onToggle: onToggle,
       trailingGap: 0,
       trailing: _thumbnails(context, images, expanded: expanded),
       spans: [
-        TextSpan(
-          text: l10n.turnWorked(AgentStep.formatDuration(worked, l10n: l10n)),
-        ),
+        TextSpan(text: _worked(l10n, worked, stopped: stopped)),
         if (edits.files > 0) ...[
           TextSpan(text: ' · ${l10n.turnFiles(edits.files)}', style: faint),
           if (edits.added > 0)

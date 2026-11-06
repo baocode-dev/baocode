@@ -292,7 +292,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     final l10n = context.l10n;
     return [
       if (row.work case StepFold(:final worked?) && final fold)
-        WorkFoldLine.text(worked, turnEdits(_itemsIn(fold)), l10n: l10n),
+        WorkFoldLine.text(
+          worked,
+          turnEdits(_itemsIn(fold)),
+          l10n: l10n,
+          stopped: fold.stopped,
+        ),
       if (row.steps case final fold?)
         StepsFoldLine.text(StepTally(_itemsIn(fold)), l10n: l10n),
       if (row.item)
@@ -2321,6 +2326,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                   if (row.work case StepFold(:final worked?) && final fold) ...[
                     WorkFoldLine(
                       worked: worked,
+                      stopped: fold.stopped,
                       edits: turnEdits(_itemsIn(fold)),
                       images: foldImages(_itemsIn(fold)),
                       expanded: _isFoldOpen(fold),
