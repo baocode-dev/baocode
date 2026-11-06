@@ -327,11 +327,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   /// The editor opening: its placeholder grows from the message's height
   /// to the editor's, and the editor shows as much of itself as it does.
-  late final AnimationController _editorReveal = AnimationController(
-    vsync: this,
-    duration: _motionDuration,
-    value: 1,
-  );
+  late final AnimationController _editorReveal =
+      AnimationController(vsync: this, duration: _motionDuration, value: 1)
+        ..addStatusListener((status) {
+          if (status.isCompleted) _ensureEditorVisible();
+        });
 
   /// The message's height, where the placeholder grows from.
   double _editorFromHeight = 0;
@@ -1714,6 +1714,33 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (height == _editorHeight || _editingIndex == null) return;
     setState(() => _editorHeight = height);
     _editorMoved.value++;
+    if (_editorReveal.isCompleted) _ensureEditorVisible();
+  }
+
+  /// Once the placeholder has its full height, reveal only what extends
+  /// below the history. The editor is painted above the list, so its own
+  /// scrollable cannot bring it into view there.
+  void _ensureEditorVisible() {
+    final index = _editingIndex;
+    if (index == null) return;
+    final key = _editComposerKey;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          _editingIndex != index ||
+          _editComposerKey != key ||
+          !_scrollController.hasClients) {
+        return;
+      }
+      final placeholder = _editorPlaceholderKey.currentContext
+          ?.findRenderObject();
+      if (placeholder == null || !placeholder.attached) return;
+      unawaited(
+        _scrollController.position.ensureVisible(
+          placeholder,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        ),
+      );
+    });
   }
 
   /// Room above the editor stuck to the top of the list: as above the
