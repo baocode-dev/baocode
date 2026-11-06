@@ -392,6 +392,11 @@ class ClaudeCodeKernel
   String _launchedProvider = '';
   String? _reportedModel;
 
+  /// Whether the CLI sends a queued message now on its own (an interrupt
+  /// with `send_now`), sparing the tasks in the background, as its init
+  /// says (`interrupt_send_now_v1`).
+  bool _sendsNow = false;
+
   /// When the usage limit the last turn hit resets (see
   /// [ReportsUsageLimit]): the account's own plan's, or every ChatGPT
   /// account of a provider out of quota; another provider's limits are
@@ -1191,6 +1196,25 @@ class ClaudeCodeKernel
       cancel();
       return;
     }
+    // Given the CLI, none before it there: the CLI makes way for it itself,
+    // the tasks in the background left at work. Taking it back to send it
+    // again could fail (the CLI keeping it), and then nothing was sent.
+    final given = _queued.where((id) => !_held.containsKey(id));
+    if (_sendsNow && given.firstOrNull == turnId) {
+      unawaited(
+        _control!
+            .request('interrupt', {'send_now': true, 'message_uuid': turnId})
+            .then<void>(
+              (_) {},
+              onError: (Object _) {
+                if (_queued.contains(turnId)) {
+                  _resendQueued([turnId, ...others], now: turnId);
+                }
+              },
+            ),
+      );
+      return;
+    }
     // The CLI takes up all it queued as one turn, in the order sent: the
     // others are taken back too, and sent again after it, held until it is
     // taken up. Those held first, for none to be given the CLI meanwhile.
@@ -1837,6 +1861,9 @@ class ClaudeCodeKernel
       case 'system' when message['subtype'] == 'init':
         _sessionId = message['session_id'] as String? ?? _sessionId;
         _reportedModel = message['model'] as String?;
+        _sendsNow = (message['capabilities'] as List? ?? const []).contains(
+          'interrupt_send_now_v1',
+        );
         if (message.containsKey('effort')) {
           _appliedEffort = message['effort'] as String?;
         }
