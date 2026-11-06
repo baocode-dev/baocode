@@ -3695,6 +3695,67 @@ void main() {
         kernel.dispose();
       });
 
+      test('a turn cut between pages is timed to where it ends, on the later '
+          'page; as kept, where it was', () async {
+        Map<String, Object?> at(Map<String, Object?> line, int seconds) => {
+          ...line,
+          'timestamp': DateTime.utc(
+            2026,
+            1,
+            1,
+            10,
+            0,
+            seconds,
+          ).toIso8601String(),
+        };
+        Map<String, Object?> said(String id) => {
+          'type': 'assistant',
+          'uuid': id,
+          'message': {
+            'id': 'm-$id',
+            'role': 'assistant',
+            'content': [
+              {'type': 'text', 'text': id},
+            ],
+          },
+        };
+        ClaudeHistoryPage page(String? before) => before == null
+            ? ClaudeHistoryPage([
+                at(said('a2'), 30),
+                at(said('a3'), 50),
+              ], earlier: 'a2')
+            : ClaudeHistoryPage([at(prompt('u1'), 0), at(said('a1'), 10)]);
+        UserMessageItem u1(Transcript transcript) =>
+            transcript.itemAt(transcript.indexOf('u1')!) as UserMessageItem;
+
+        var kernel = open((session, {required turns, before}) async {
+          return page(before);
+        });
+        var transcript = Transcript();
+        kernel.events.listen(transcript.apply);
+        await pumpEventQueue();
+        await kernel.loadEarlier();
+        await pumpEventQueue();
+        expect(u1(transcript).worked, const Duration(seconds: 50));
+        kernel.dispose();
+
+        ClaudeCodeKernel.turnStats = _KeptTurns()
+          ..sessions['s'] = {
+            'u1': (worked: const Duration(seconds: 7), usage: null),
+          };
+        addTearDown(() => ClaudeCodeKernel.turnStats = null);
+        kernel = open((session, {required turns, before}) async {
+          return page(before);
+        });
+        transcript = Transcript();
+        kernel.events.listen(transcript.apply);
+        await pumpEventQueue();
+        await kernel.loadEarlier();
+        await pumpEventQueue();
+        expect(u1(transcript).worked, const Duration(seconds: 7));
+        kernel.dispose();
+      });
+
       test('asked again while it is read, it is the same reading', () async {
         final read = Completer<ClaudeHistoryPage>();
         var reads = 0;
