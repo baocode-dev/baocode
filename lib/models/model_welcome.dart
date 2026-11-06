@@ -195,7 +195,7 @@ class _ModelWelcomeState extends State<ModelWelcome>
             text: switch (ready) {
               (final ModelProvider provider, final ProviderModel model) =>
                 l10n.modelWelcomeReady(
-                  '${provider.name} · ${model.displayName}',
+                  '${provider.name} · ${provider.labelOf(model)}',
                 ),
               null => l10n.modelWelcomeStep,
             },

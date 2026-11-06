@@ -750,11 +750,57 @@ class ModelProvider {
       if (model.enabled && model.kind.generatesImages) model,
   ];
 
+  /// [model]'s name in a list of this upstream's: its [ProviderModel.
+  /// displayName], unless another of [enabledModels] goes by the same,
+  /// then with what tells their ids apart: `GPT-6.1 Terra (congee)` and
+  /// `GPT-6.1 Terra (github-copilot)` for `congee/gpt-6.1-terra` and
+  /// `github-copilot/gpt-6.1-terra`.
+  String labelOf(ProviderModel model) =>
+      (_labels[this] ??= _distinctLabels(enabledModels))[model.id] ??
+      model.displayName;
+
+  static Map<String, String> _distinctLabels(List<ProviderModel> models) {
+    final byName = <String, List<ProviderModel>>{};
+    for (final model in models) {
+      (byName[model.displayName] ??= []).add(model);
+    }
+    return {
+      for (final MapEntry(key: name, value: same) in byName.entries)
+        if (same.length > 1)
+          for (final (model, tag) in _tags(same)) model.id: '$name ($tag)',
+    };
+  }
+
+  /// What tells [same]'s ids apart: each id less the `/` parts all end
+  /// with (a router's `vendor/model`s), else the whole id.
+  static Iterable<(ProviderModel, String)> _tags(
+    List<ProviderModel> same,
+  ) sync* {
+    final parts = [for (final model in same) model.id.split('/')];
+    var shared = 0;
+    while (parts.every((p) => p.length > shared + 1) &&
+        parts.every(
+          (p) =>
+              p[p.length - 1 - shared] ==
+              parts.first[parts.first.length - 1 - shared],
+        )) {
+      shared++;
+    }
+    for (final (i, model) in same.indexed) {
+      final p = parts[i];
+      yield (
+        model,
+        shared == 0 ? model.id : p.sublist(0, p.length - shared).join('/'),
+      );
+    }
+  }
+
   // Each upstream's, worked out once: it does not change (another is made
   // for a change), and the model picker's choices read them for every
   // event of a conversation streaming.
   static final _sorted = Expando<List<ProviderModel>>();
   static final _enabled = Expando<List<ProviderModel>>();
+  static final _labels = Expando<Map<String, String>>();
 
   ProviderModel? model(String id) =>
       models.where((model) => model.id == id).firstOrNull;

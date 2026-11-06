@@ -40,7 +40,7 @@ List<IdeMenuEntry> auxiliaryModelEntries(
       submenu: [
         for (final model in provider.enabledModels)
           IdeMenuAction(
-            model.displayName,
+            provider.labelOf(model),
             checked: current == modelRef(provider.id, model.id),
             onSelected: () => onPick(modelRef(provider.id, model.id)),
           ),
@@ -60,7 +60,7 @@ String? actionsModelName(AppLocalizations l10n, ModelProviders providers) {
     builtinProviderId => l10n.aiModelAuxiliary,
     _ => switch (providers.resolve(value)) {
       (final provider, final model) =>
-        '${provider.name} · ${model.displayName}',
+        '${provider.name} · ${provider.labelOf(model)}',
       null => value,
     },
   };

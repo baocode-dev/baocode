@@ -316,6 +316,80 @@ void main() {
     expect(h.lastResult['result'], 'resumed');
   });
 
+  test('send now stops the turn for a message waiting, the tasks in the '
+      'background going on', () async {
+    h = await Harness.start(
+      script: [
+        Reply.tool('Bash', {
+          'command': 'sleep 30',
+          'description': 'Serve',
+          'run_in_background': true,
+        }),
+        Reply.tool('Bash', {'command': 'sleep 30', 'description': 'Long'}),
+        Reply.text('never'),
+      ],
+    );
+    final init = await h.request('initialize');
+    expect(init['capabilities'], contains('interrupt_send_now_v1'));
+    final idle = h.nextIdle();
+    h.send('go');
+    await h.messages.firstWhere(
+      (m) => m['type'] == 'assistant' && jsonEncode(m).contains('"Long"'),
+    );
+    expect(
+      (await h.request('interrupt', {
+        'send_now': true,
+        'message_uuid': 'nope',
+      }))['send_now'],
+      'nothing_waiting',
+    );
+    final waiting = h.send('stop and do this');
+    h.model.script
+      ..clear()
+      ..add(Reply.text('doing it'));
+    expect(
+      (await h.request('interrupt', {
+        'send_now': true,
+        'message_uuid': waiting,
+      }))['send_now'],
+      'stopped',
+    );
+    await idle.timeout(const Duration(seconds: 10));
+    expect(h.lastResult['subtype'], 'error_during_execution');
+    await h.nextIdle().timeout(const Duration(seconds: 10));
+    expect(h.lastResult['result'], 'doing it');
+    expect(
+      jsonEncode(h.model.turns.last.body['messages']),
+      contains('stop and do this'),
+    );
+    expect(h.of('system', 'task_started'), hasLength(1));
+    expect(
+      h.of('system').where((m) => m['subtype'] == 'task_notification'),
+      isEmpty,
+    );
+  });
+
+  test('a message of priority now stops the turn running', () async {
+    h = await Harness.start(
+      script: [
+        Reply.tool('Bash', {'command': 'sleep 30', 'description': 'Long'}),
+        Reply.text('never'),
+      ],
+    );
+    final idle = h.nextIdle();
+    h.send('go');
+    await h.messages.firstWhere(
+      (m) => m['type'] == 'assistant' && jsonEncode(m).contains('tool_use'),
+    );
+    h.model.script
+      ..clear()
+      ..add(Reply.text('now then'));
+    h.send('this first', priority: 'now');
+    await idle.timeout(const Duration(seconds: 10));
+    await h.nextIdle().timeout(const Duration(seconds: 10));
+    expect(h.lastResult['result'], 'now then');
+  });
+
   test('an interrupt while streaming text', () async {
     h = await Harness.start(script: [Reply.text('x' * 400)]);
     h.model.delay = const Duration(milliseconds: 100);

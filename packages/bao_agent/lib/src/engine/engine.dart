@@ -151,7 +151,8 @@ class _Queued {
   final String uuid;
 
   /// `next`: taken up within the turn running, between its tool calls;
-  /// `later` (and anything else): once it ends.
+  /// `now`: the turn running stopped for it; `later` (and anything else):
+  /// once it ends.
   final String priority;
 
   /// Written by the agent itself (a background task's notice), not sent.
@@ -332,7 +333,10 @@ class AgentEngine {
     if (_closed) return;
     switch (message['type']) {
       case 'user':
-        _enqueue(_Queued(message));
+        final queued = _Queued(message);
+        _enqueue(queued);
+        // To be taken up at once: the turn running stops for it.
+        if (queued.priority == 'now') _interrupt();
       case 'control_request':
         final id = asString(message['request_id']);
         if (id == null) return;
@@ -407,6 +411,9 @@ class AgentEngine {
   Future<Map<String, Object?>> _answer(Map<String, Object?> request) async {
     final subtype = asString(request['subtype']);
     if (subtype == 'interrupt') {
+      if (request['send_now'] == true && request['cancel_queued'] != true) {
+        return {'send_now': _sendNow(asText(request['message_uuid']))};
+      }
       _interrupt();
       return const {};
     }
@@ -672,7 +679,7 @@ class AgentEngine {
       'fast_mode_state': 'off',
       'fast_mode_disabled_reason': 'unsupported',
       'session_state': _turn == null ? 'idle' : 'running',
-      'capabilities': const ['ui_surface_v1'],
+      'capabilities': const ['interrupt_send_now_v1', 'ui_surface_v1'],
     };
   }
 
@@ -819,7 +826,11 @@ class AgentEngine {
         for (final plugin in session.plugins)
           {'name': plugin.name, 'path': plugin.root},
       ],
-      'capabilities': const ['msg_lifecycle_v1', 'ui_surface_v1'],
+      'capabilities': const [
+        'msg_lifecycle_v1',
+        'interrupt_send_now_v1',
+        'ui_surface_v1',
+      ],
       'analytics_disabled': true,
       'product_feedback_disabled': true,
       if (session.autoMemoryDir case final dir?)
@@ -1037,6 +1048,18 @@ class AgentEngine {
     if (turn == null) return;
     turn.cancel.cancel('interrupted');
     _cancelHostRequests();
+  }
+
+  /// Send now pressed on a message waiting ([uuid]'s, else any of the
+  /// user's): the turn running stopped for it, to be taken up next. Not a
+  /// stop: the tasks in the background go on, as they do past any turn.
+  String _sendNow(String? uuid) {
+    final waiting = _queue.any(
+      (queued) => !queued.own && (uuid == null || queued.uuid == uuid),
+    );
+    if (_turn == null || !waiting) return 'nothing_waiting';
+    _interrupt();
+    return 'stopped';
   }
 
   // --- Mentions ---------------------------------------------------------------------

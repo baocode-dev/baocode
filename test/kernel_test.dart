@@ -2759,6 +2759,50 @@ void main() {
       kernel.dispose();
     });
 
+    test('with a task in the background, a CLI that sends a queued message '
+        'now itself is asked to, the message left where it is', () async {
+      final cli = FakeCli(
+        answers: {
+          'interrupt': {'still_queued': <String>[], 'send_now': 'delivering'},
+        },
+      );
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'first'));
+      await pumpEventQueue();
+      cli
+        ..push({
+          'type': 'system',
+          'subtype': 'init',
+          'session_id': 's1',
+          'capabilities': ['interrupt_send_now_v1'],
+        })
+        ..push({
+          'type': 'system',
+          'subtype': 'task_started',
+          'task_id': 'a1',
+          'task_type': 'local_bash',
+          'description': 'Serve',
+          'is_backgrounded': true,
+        });
+      kernel.send(const KernelTurn(id: 'u2', text: 'second'));
+      await pumpEventQueue();
+      final sent = cli.users.length;
+
+      kernel.sendQueuedNow('u2');
+      await pumpEventQueue();
+      expect(cli.requests('interrupt'), [
+        {'subtype': 'interrupt', 'send_now': true, 'message_uuid': 'u2'},
+      ]);
+      expect(cli.requests('cancel_async_message'), isEmpty);
+      expect(cli.users, hasLength(sent));
+      expect(transcript.activeTurn, 'u1');
+      expect(
+        [for (final (_, item) in transcript.queued) item.text],
+        ['second'],
+      );
+      kernel.dispose();
+    });
+
     test('a turn stopped as soon as sent stays stopped; the CLI\'s notes of '
         'the interruption do not show', () async {
       final cli = FakeCli();
