@@ -763,8 +763,12 @@ class IdeGitLogView extends StatefulWidget {
   final Color? background;
   final Color? border;
 
-  /// Below this width, the details go under the table.
-  static const wideWidth = 760.0;
+  /// Below this width, the details go under the table, unless picked to
+  /// go beside it (see [IdeGitDetailsLayout]).
+  static const wideWidth = 560.0;
+
+  /// The least the table keeps beside the details.
+  static const minLogWidth = 280.0;
 
   static const rowHeight = 26.0;
 
@@ -889,6 +893,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
               listenable: Listenable.merge([
                 git,
                 _log,
+                IdeDiffOptions.instance,
                 for (final (_, repo) in widget.host.repositories) repo,
               ]),
               builder: (context, _) {
@@ -997,7 +1002,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
     IdeGitState state,
   ) => LayoutBuilder(
     builder: (context, constraints) {
-      final wide = constraints.maxWidth >= IdeGitLogView.wideWidth;
+      final wide = _beside(constraints.maxWidth);
       final tree = wide && _branchTreeFits(constraints.maxWidth)
           ? math.min(_log.branchTreeWidth, constraints.maxWidth * .3)
           : null;
@@ -1045,7 +1050,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
       if (wide) {
         final width = math.min(
           _log.detailsWidth,
-          constraints.maxWidth - 360 - (tree ?? 0),
+          _detailsRoom(constraints.maxWidth, tree),
         );
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1113,7 +1118,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
       Expanded(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final wide = constraints.maxWidth >= IdeGitLogView.wideWidth;
+            final wide = _beside(constraints.maxWidth);
             final main = _main(git, state);
             final details = _details(git, state);
             if (wide) {
@@ -1122,7 +1127,7 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
                   : null;
               final width = math.min(
                 _log.detailsWidth,
-                constraints.maxWidth - 360 - (tree ?? 0),
+                _detailsRoom(constraints.maxWidth, tree),
               );
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1187,6 +1192,26 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
 
   /// Whether the branch tree shows beside the log [width] wide: where it
   /// is wanted and leaves the log room.
+  /// Whether the details go beside the table: as picked, else where the
+  /// page is [IdeGitLogView.wideWidth] wide.
+  bool _beside(double width) => switch (IdeDiffOptions.instance.detailsLayout) {
+    IdeGitDetailsLayout.beside => true,
+    IdeGitDetailsLayout.below => false,
+    IdeGitDetailsLayout.auto => width >= IdeGitLogView.wideWidth,
+  };
+
+  /// The most the details take beside the table on a page [width] wide:
+  /// all but [IdeGitLogView.minLogWidth] (and the branch tree), never under
+  /// their least; picked to go beside on a narrower page, not past most of
+  /// it.
+  double _detailsRoom(double width, double? tree) => math.min(
+    math.max(
+      IdeGitLogController.minDetails,
+      width - IdeGitLogView.minLogWidth - (tree ?? 0),
+    ),
+    width * .6,
+  );
+
   bool _branchTreeFits(double width) =>
       _log.branchTreeShown && width >= _branchTreeWidth;
 
@@ -1676,6 +1701,24 @@ class IdeGitLogViewState extends State<IdeGitLogView> {
             IdeMenuAction(
               l10n.scmFetchFromAllRemotes,
               onSelected: () => unawaited(_run(() => git.fetch())),
+            ),
+          ],
+          [
+            IdeMenuAction(
+              l10n.gitDetailsLayout,
+              submenu: [
+                for (final (layout, label) in [
+                  (IdeGitDetailsLayout.auto, l10n.gitDetailsLayoutAuto),
+                  (IdeGitDetailsLayout.beside, l10n.gitDetailsLayoutBeside),
+                  (IdeGitDetailsLayout.below, l10n.gitDetailsLayoutBelow),
+                ])
+                  IdeMenuAction(
+                    label,
+                    checked: IdeDiffOptions.instance.detailsLayout == layout,
+                    onSelected: () =>
+                        IdeDiffOptions.instance.detailsLayout = layout,
+                  ),
+              ],
             ),
           ],
         ]),
@@ -4107,8 +4150,12 @@ class _DiffAreaState extends State<_DiffArea> {
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // Narrow: the counts and the sides' labels go first.
+                // Narrow: the counts and the sides' labels go first; then,
+                // beside the details, the steps through the differences
+                // (F7 and Shift+F7 still step) and which file of how many,
+                // for the file's name to keep room.
                 final wide = constraints.maxWidth >= 620;
+                final narrow = constraints.maxWidth < 380;
                 return Row(
                   children: [
                     // Go to Changed File, from its name.
@@ -4195,18 +4242,20 @@ class _DiffAreaState extends State<_DiffArea> {
                           ),
                         ),
                       ),
-                    IdeActionButton(
-                      icon: Codicons.arrowUp,
-                      tooltip: '${l10n.diffPreviousDifference} (⇧F7)',
-                      onPressed: () => _stepChange(-1),
-                    ),
-                    IdeActionButton(
-                      icon: Codicons.arrowDown,
-                      tooltip: '${l10n.diffNextDifference} (F7)',
-                      onPressed: () => _stepChange(1),
-                    ),
-                    _ToolbarSeparator(color: border),
-                    if (diff.files.length > 1)
+                    if (!narrow) ...[
+                      IdeActionButton(
+                        icon: Codicons.arrowUp,
+                        tooltip: '${l10n.diffPreviousDifference} (⇧F7)',
+                        onPressed: () => _stepChange(-1),
+                      ),
+                      IdeActionButton(
+                        icon: Codicons.arrowDown,
+                        tooltip: '${l10n.diffNextDifference} (F7)',
+                        onPressed: () => _stepChange(1),
+                      ),
+                      _ToolbarSeparator(color: border),
+                    ],
+                    if (diff.files.length > 1 && !narrow)
                       Padding(
                         padding: const EdgeInsets.only(right: 2),
                         child: Text(
