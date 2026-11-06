@@ -3,6 +3,8 @@
 // at the ends of lines or anywhere. One choice for every diff (the Git
 // log's, the side panel's, the editor's diff tabs), kept in settings.json.
 // The changes are marked by whole lines alone, with no choice of it.
+// With them, where the Git page's details (a commit's, the changes to
+// commit) show: beside the log or under it.
 
 import 'package:flutter/foundation.dart';
 
@@ -14,6 +16,10 @@ enum IdeDiffLayout { auto, sideBySide, unified }
 /// What whitespace a diff ignores: none, at the ends of lines, any.
 enum IdeDiffWhitespace { none, trim, all }
 
+/// `baocode.git.detailsLayout`: the Git page's details at the log's right
+/// (beside), under it (below), or by the width (auto).
+enum IdeGitDetailsLayout { auto, beside, below }
+
 class IdeDiffOptions extends ChangeNotifier {
   IdeDiffOptions._();
 
@@ -23,6 +29,7 @@ class IdeDiffOptions extends ChangeNotifier {
   static const _whitespaceKey = 'diffEditor.ignoreTrimWhitespace';
   static const _allWhitespaceKey = 'baocode.diff.ignoreAllWhitespace';
   static const _collapseKey = 'diffEditor.hideUnchangedRegions.enabled';
+  static const _detailsLayoutKey = 'baocode.git.detailsLayout';
 
   UserSettings? _settings;
 
@@ -91,6 +98,14 @@ class IdeDiffOptions extends ChangeNotifier {
     _ => true,
   };
   set collapseUnchanged(bool value) => _set(_collapseKey, value);
+
+  IdeGitDetailsLayout get detailsLayout => switch (_value(_detailsLayoutKey)) {
+    'beside' => IdeGitDetailsLayout.beside,
+    'below' => IdeGitDetailsLayout.below,
+    _ => IdeGitDetailsLayout.auto,
+  };
+  set detailsLayout(IdeGitDetailsLayout value) =>
+      _set(_detailsLayoutKey, value.name);
 
   /// Back to the defaults (tests).
   @visibleForTesting

@@ -11018,6 +11018,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get diffUnified => '单栏查看';
 
   @override
+  String get gitDetailsLayout => '详情位置';
+
+  @override
+  String get gitDetailsLayoutAuto => '够宽时在右侧';
+
+  @override
+  String get gitDetailsLayoutBeside => '右侧';
+
+  @override
+  String get gitDetailsLayoutBelow => '下方';
+
+  @override
   String get diffIgnoreWhitespace => '忽略行首尾空白';
 
   @override

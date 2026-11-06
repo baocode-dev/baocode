@@ -18979,6 +18979,30 @@ abstract class AppLocalizations {
   /// **'Unified Viewer'**
   String get diffUnified;
 
+  /// No description provided for @gitDetailsLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Details Position'**
+  String get gitDetailsLayout;
+
+  /// No description provided for @gitDetailsLayoutAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Right When Wide Enough'**
+  String get gitDetailsLayoutAuto;
+
+  /// No description provided for @gitDetailsLayoutBeside.
+  ///
+  /// In en, this message translates to:
+  /// **'Right'**
+  String get gitDetailsLayoutBeside;
+
+  /// No description provided for @gitDetailsLayoutBelow.
+  ///
+  /// In en, this message translates to:
+  /// **'Bottom'**
+  String get gitDetailsLayoutBelow;
+
   /// No description provided for @diffIgnoreWhitespace.
   ///
   /// In en, this message translates to:

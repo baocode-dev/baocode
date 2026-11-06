@@ -29,6 +29,7 @@ import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/chat/widgets/tool_call_row.dart';
 import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/ide/git/ide_git_commit_panel.dart';
+import 'package:baocode/ide/ide_diff_options.dart';
 import 'package:baocode/ide/git/commit_message.dart';
 import 'package:baocode/ide/git/git_model.dart';
 import 'package:baocode/ide/git/git_repository.dart';
@@ -1613,6 +1614,9 @@ void main() {
 
   testWidgets('under the log, the changes fold to their tabs\' row, and '
       'unfold from it', (tester) async {
+    // Under it as picked: the panel is wide enough to have them beside.
+    IdeDiffOptions.instance.detailsLayout = IdeGitDetailsLayout.below;
+    addTearDown(IdeDiffOptions.instance.reset);
     final fake = FakeGit('/p')
       ..status = '## main\x00 M lib/main.dart\x00'
       ..log = '';
