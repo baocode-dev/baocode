@@ -11460,7 +11460,7 @@ abstract class AppLocalizations {
   /// No description provided for @modelsRoleSubagentDescription.
   ///
   /// In en, this message translates to:
-  /// **'CLAUDE_CODE_SUBAGENT_MODEL: the model every subagent runs on, over the one its definition or the agent\'s call names (but inherit).'**
+  /// **'CLAUDE_CODE_SUBAGENT_MODEL: the model every subagent runs on, the built-in Explore and Plan and those defined as inherit too, over the one its definition or the agent\'s call names.'**
   String get modelsRoleSubagentDescription;
 
   /// Under a role that picks another upstream's model, once that upstream or model is gone.

@@ -6644,7 +6644,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelsRoleSubagentDescription =>
-      'CLAUDE_CODE_SUBAGENT_MODEL：所有子 Agent 使用的模型，优先于子 Agent 定义或调用时指定的模型（定义为 inherit 的除外）。';
+      'CLAUDE_CODE_SUBAGENT_MODEL：所有子 Agent 使用的模型，包括内置的 Explore、Plan 和定义为 inherit 的，优先于子 Agent 定义或调用时指定的模型。';
 
   @override
   String get modelsRoleMissing => '这个模型已不在它的上游里，用到它的请求会失败。';

@@ -96,6 +96,35 @@ When the task fits a kind of agent; when there is work to run side by side; or w
     'additionalProperties': false,
   };
 
+  static const _modelLine =
+      "- A kind's model, effort and tools are its definition's "
+      '(`.claude/agents/*.md`) unless set here.';
+
+  @override
+  String promptFor(AgentSession session) => forced(session)
+      ? description.replaceFirst(
+          _modelLine,
+          "- A kind's effort and tools are its definition's "
+          '(`.claude/agents/*.md`) unless set here. The model is set for '
+          'every agent of this session: there is none to pick.',
+        )
+      : description;
+
+  @override
+  Map<String, Object?> toApi(AgentSession session) {
+    final api = super.toApi(session);
+    if (!forced(session)) return api;
+    final schema = api['input_schema'] as Map<String, Object?>;
+    return {
+      ...api,
+      'input_schema': {
+        ...schema,
+        'properties': {...(schema['properties'] as Map<String, Object?>)}
+          ..remove('model'),
+      },
+    };
+  }
+
   @override
   bool isReadOnly(Map<String, Object?> input) => true;
 
@@ -139,18 +168,23 @@ When the task fits a kind of agent; when there is work to run side by side; or w
   static AgentDefinition _general(AgentSession session) =>
       _definition(session, 'general-purpose') ?? builtInAgents.first;
 
-  /// The model [agent] works with, as an id.
+  /// Whether every agent runs on the model set for agents
+  /// (`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`): the call is not offered `model`.
+  static bool forced(AgentSession session) =>
+      _truthy(session.environment['CLAUDE_CODE_SUBAGENT_MODEL_FORCE']);
+
+  /// The model [agent] works with, as an id: the one [asked] for, else its
+  /// definition's, else the one set for agents. [forced], as the CLI does:
+  /// the one set for agents over both, a definition's `inherit` too; only
+  /// a call's `inherit` stands.
   static String modelFor(
     AgentSession session,
     AgentDefinition agent,
     String? asked,
   ) {
-    final env = session.environment;
-    final subagent = asText(env['CLAUDE_CODE_SUBAGENT_MODEL']);
-    final force = asText(env['CLAUDE_CODE_SUBAGENT_MODEL_FORCE']);
-    final forced = force != null && force != '0' && force != 'false';
-    final alias = forced && subagent != null && agent.model != 'inherit'
-        ? subagent
+    final subagent = asText(session.environment['CLAUDE_CODE_SUBAGENT_MODEL']);
+    final alias = forced(session)
+        ? (asked == 'inherit' ? asked : subagent)
         : asked ?? agent.model ?? subagent;
     if (alias == null || alias == 'inherit') return session.resolvedModel;
     return session.catalog.resolve(alias);
