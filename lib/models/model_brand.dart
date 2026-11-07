@@ -17,6 +17,7 @@ abstract final class ModelBrand {
   /// OpenRouter…; null for a relay of no maker's.
   static String? ofProvider(ModelProvider provider) {
     if (provider.protocol == ProviderProtocol.codex) return 'openai';
+    if (provider.followsMagpie) return 'magpie';
     final uri = Uri.tryParse(provider.baseUrl.trim());
     if (uri == null) return null;
     final host = uri.host.toLowerCase();
@@ -24,6 +25,7 @@ abstract final class ModelBrand {
       return switch (uri.port) {
         11434 => 'ollama',
         1234 => 'lmstudio',
+        3425 => 'magpie',
         _ => null,
       };
     }

@@ -6182,6 +6182,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsAddProvider => '添加上游';
 
   @override
+  String get modelsMagpieJoin => '接入 magpie';
+
+  @override
+  String get modelsMagpieBadge => '跟随 magpie';
+
+  @override
+  String get modelsMagpieGateway => 'magpie 网关';
+
+  @override
+  String get modelsMagpieGatewayDescription =>
+      '模型、账号和路由都在 magpie 里管理，这里的列表跟着它自动更新。新出现的路由组、图片模型，以及 magpie 给 Claude Code 选的模型会自动启用，其他的在下面勾选。';
+
+  @override
+  String get modelsMagpieRunning => '运行中';
+
+  @override
+  String get modelsMagpieNotRunning => 'magpie 未运行';
+
+  @override
+  String get modelsMagpieNotRunningDetail =>
+      '打开 magpie，或运行 magpie serve。它没运行时，用它的模型的会话会失败。';
+
+  @override
+  String get modelsMagpieSync => '同步模型';
+
+  @override
   String get modelsNewProviderName => '新上游';
 
   @override

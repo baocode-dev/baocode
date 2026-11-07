@@ -42,6 +42,7 @@ abstract final class BrandLogos {
     'huggingface': 'Hugging Face',
     'ollama': 'Ollama',
     'lmstudio': 'LM Studio',
+    'magpie': 'magpie',
     'azure': 'Azure AI',
     'bedrock': 'Amazon Bedrock',
     'vertexai': 'Vertex AI',

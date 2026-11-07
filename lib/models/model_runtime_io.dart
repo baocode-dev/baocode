@@ -113,8 +113,15 @@ Future<List<RemoteModel>> _listModels(
   // Anthropic's list comes in pages.
   String? after;
   for (var page = 0; page < 20; page++) {
+    // Its own query kept (magpie's `kind`).
     final pageUrl = provider.protocol == ProviderProtocol.anthropic
-        ? url.replace(queryParameters: {'limit': '1000', 'after_id': ?after})
+        ? url.replace(
+            queryParameters: {
+              ...url.queryParameters,
+              'limit': '1000',
+              'after_id': ?after,
+            },
+          )
         : url;
     final request = await client.getUrl(pageUrl);
     upstreamHeaders(provider, key).forEach(request.headers.set);

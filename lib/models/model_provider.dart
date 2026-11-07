@@ -625,6 +625,7 @@ class ModelProvider {
     this.resetCreditsFiveHours = false,
     this.clientVersion,
     this.icon,
+    this.follows,
   });
 
   /// Its own, made once; models are picked as `@<id>/<model>`.
@@ -698,6 +699,13 @@ class ModelProvider {
   /// (the site's icon among its choices); its maker's logo, as its base URL
   /// says, when null ([ModelBrand.ofProvider]).
   final ProjectIcon? icon;
+
+  /// The app it follows, whose models and address it takes as that app
+  /// has them (`magpie`, its local gateway); null for one set up here.
+  final String? follows;
+
+  /// Whether it follows magpie's gateway (lib/models/magpie.dart).
+  bool get followsMagpie => follows == 'magpie';
 
   /// Whether [text] can be a [clientVersion]: digits, letters, `.+-`.
   static bool isClientVersion(String text) =>
@@ -905,6 +913,7 @@ class ModelProvider {
     resetCreditsFiveHours: resetCreditsFiveHours ?? this.resetCreditsFiveHours,
     clientVersion: clientVersion == null ? this.clientVersion : clientVersion(),
     icon: icon == null ? this.icon : icon(),
+    follows: follows,
   );
 
   /// With [account] in place of the one of its id, or added.
@@ -950,6 +959,7 @@ class ModelProvider {
     if (resetCreditsFiveHours) 'resetCreditsFiveHours': true,
     'clientVersion': ?clientVersion,
     'icon': ?icon?.toJson(),
+    'follows': ?follows,
   };
 
   static ModelProvider? fromJson(Object? json) {
@@ -999,6 +1009,10 @@ class ModelProvider {
         _ => null,
       },
       icon: ProjectIcon.fromJson(json['icon']),
+      follows: switch (json['follows']) {
+        final String app when app.isNotEmpty => app,
+        _ => null,
+      },
     );
   }
 

@@ -11,6 +11,8 @@ import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/claude_code/claude_haiku.dart';
 import 'package:baocode/models/codex/codex_service.dart';
 import 'package:baocode/models/codex/codex_usage.dart';
+import 'package:baocode/models/magpie.dart';
+import 'package:baocode/models/magpie_follow.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
 import 'package:baocode/models/secret_store.dart';
@@ -174,6 +176,7 @@ void main() {
     CodexService? codex,
     ModelTester testModel = testModelThroughClaudeCode,
     Workspace? workspace,
+    MagpieFollow? magpie,
   }) async {
     tester.view.physicalSize = const Size(1000, 1600);
     tester.view.devicePixelRatio = 1;
@@ -187,6 +190,7 @@ void main() {
             testModel: testModel,
             codex: codex,
             workspace: workspace,
+            magpie: magpie,
           ),
         ),
       ),
@@ -1572,5 +1576,69 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     expect(find.text('Address after sign-in'), findsNothing);
+  });
+
+  group('magpie', () {
+    var status = const MagpieStatus(installed: true, version: '0.13.0');
+    MagpieFollow follow() => MagpieFollow(
+      providers: providers,
+      probe: () async => status,
+      list: (provider, key) async => const [
+        RemoteModel('auto/claude-opus-5-5', label: 'Opus · routing group'),
+        RemoteModel('deepseek/deepseek-v4', label: 'DeepSeek V4 · DeepSeek'),
+        RemoteModel('yiyuan/gpt-image-2', kind: ModelKind.image),
+      ],
+      claudeSettings: () async => null,
+    );
+
+    setUp(() {
+      status = const MagpieStatus(installed: true, version: '0.13.0');
+    });
+
+    testWidgets('not here: not offered', (tester) async {
+      status = const MagpieStatus();
+      await pump(tester, magpie: follow());
+      await tester.pump();
+      expect(find.text('Connect magpie'), findsNothing);
+    });
+
+    testWidgets('here: connected in one click, its models followed', (
+      tester,
+    ) async {
+      final magpie = follow();
+      await pump(tester, magpie: magpie);
+      await tester.pump();
+      await tester.tap(find.text('Connect magpie'));
+      await tester.pumpAndSettle();
+      final provider = providers.providers.single;
+      expect(provider.followsMagpie, isTrue);
+      expect(await providers.key(provider.id), Magpie.key);
+      expect(
+        {
+          for (final model in provider.models)
+            if (model.enabled) model.id,
+        },
+        {'auto/claude-opus-5-5', 'yiyuan/gpt-image-2'},
+      );
+      // Its page: the gateway, not an address or a key to fill in.
+      expect(find.text('magpie Gateway'), findsOneWidget);
+      expect(find.textContaining('Running · 127.0.0.1:3425'), findsOneWidget);
+      expect(find.text('Base URL'), findsNothing);
+      expect(find.text('Fetch from Upstream…'), findsNothing);
+      expect(find.text('Add Model…'), findsNothing);
+      // Back in the list: marked as following, and offered no more.
+      await tester.tap(find.byType(IdeBackButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Follows magpie'), findsOneWidget);
+      expect(find.text('Connect magpie'), findsNothing);
+    });
+
+    testWidgets('not running: said so in the list', (tester) async {
+      await providers.save(Magpie.provider('magpie'));
+      status = const MagpieStatus(installed: true);
+      await pump(tester, magpie: follow());
+      await tester.pumpAndSettle();
+      expect(find.textContaining("magpie isn't running"), findsOneWidget);
+    });
   });
 }

@@ -6583,6 +6583,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsAddProvider => 'Add Upstream';
 
   @override
+  String get modelsMagpieJoin => 'Connect magpie';
+
+  @override
+  String get modelsMagpieBadge => 'Follows magpie';
+
+  @override
+  String get modelsMagpieGateway => 'magpie Gateway';
+
+  @override
+  String get modelsMagpieGatewayDescription =>
+      'Models, accounts and routing are set up in magpie, and this list follows it. New routing groups, image models and the models magpie gives Claude Code are turned on as they come; tick any other below.';
+
+  @override
+  String get modelsMagpieRunning => 'Running';
+
+  @override
+  String get modelsMagpieNotRunning => 'magpie isn\'t running';
+
+  @override
+  String get modelsMagpieNotRunningDetail =>
+      'Open magpie, or run magpie serve. Sessions on its models fail until it runs.';
+
+  @override
+  String get modelsMagpieSync => 'Sync Models';
+
+  @override
   String get modelsNewProviderName => 'New Upstream';
 
   @override
