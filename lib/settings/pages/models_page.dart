@@ -10,6 +10,7 @@ import '../../ide/ide_dialog.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_input.dart';
 import '../../ide/ide_menu.dart';
+import '../../icons/brand_logos.dart';
 import '../../icons/project_icon.dart';
 import '../../icons/project_icon_picker.dart';
 import '../../kernel/claude_code/claude_haiku.dart';
@@ -20,6 +21,8 @@ import '../../models/codex/codex_service.dart';
 import '../../models/codex/codex_usage.dart';
 import '../../models/auxiliary_model_menu.dart';
 import '../../models/featured_upstreams.dart';
+import '../../models/magpie.dart';
+import '../../models/magpie_follow.dart';
 import '../../models/model_icons.dart';
 import '../../models/model_provider.dart';
 import '../../models/model_providers.dart';
@@ -78,11 +81,16 @@ class ModelsSettingsPage extends StatefulWidget {
     this.codex,
     this.workspace,
     this.featured,
+    this.magpie,
   });
 
   final ModelProviders providers;
   final ModelLister listModels;
   final ModelTester testModel;
+
+  /// magpie as found here, and the upstream that follows it; the app's
+  /// when null.
+  final MagpieFollow? magpie;
 
   /// The ChatGPT (Codex) providers' accounts; the app's when null.
   final CodexService? codex;
@@ -132,6 +140,11 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
 
   ModelProviders get _providers => widget.providers;
 
+  MagpieFollow get _magpie => widget.magpie ?? MagpieFollow.current;
+
+  /// Adding the upstream that follows magpie, while it is under way.
+  bool _joining = false;
+
   /// The sites listed (see [ModelsSettingsPage.featured]).
   late final Future<List<FeaturedUpstream>> _featured =
       widget.featured ?? FeaturedUpstream.load();
@@ -150,6 +163,13 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
     _reveal();
     ModelsSettingsPage.reveal.addListener(_reveal);
     if (_follows) FeaturedUpstream.known.addListener(_relist);
+    // magpie's models as it has them now; else whether it is here, to be
+    // offered. Not as the page is built: it says so to its listeners.
+    scheduleMicrotask(
+      () => unawaited(
+        _magpie.provider != null ? _magpie.sync() : _magpie.check(),
+      ),
+    );
     unawaited(
       _featured.then((listed) {
         // Not where the new list answered before it.
@@ -193,9 +213,20 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
     if (mounted) setState(() => _open = id);
   }
 
+  /// Adds the upstream that follows magpie, and opens it.
+  Future<void> _join() async {
+    setState(() => _joining = true);
+    try {
+      final id = await _magpie.join();
+      if (mounted) setState(() => _open = id);
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: _providers,
+    listenable: Listenable.merge([_providers, _magpie]),
     builder: (context, _) {
       final open = _providers.provider(_open);
       if (open != null) {
@@ -207,6 +238,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
           testModel: widget.testModel,
           codex: widget.codex ?? codexService,
           workspace: widget.workspace,
+          magpie: _magpie,
           onBack: () => setState(() => _open = null),
           onOpen: (id) => setState(() => _open = id),
         );
@@ -317,6 +349,9 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
     for (final provider in providers) {
       if (_listedHosts.contains(provider.host.toLowerCase())) pinned = provider;
     }
+    final magpie = _magpie.provider;
+    // Known not to answer; not before it is asked.
+    final magpieDown = _magpie.status?.running == false;
     final current = _providers.defaultModel;
     final shown = _defaultName(context, current);
     return SettingsPage(
@@ -394,11 +429,16 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                 onEnabled: (value) =>
                     unawaited(_providers.setBuiltinHidden(!value)),
               ),
-            // The newest at a site BaoCode lists first (one imported later
-            // takes the place of one before); the rest in their order.
+            // The one that follows magpie beside Claude Code's, as it too
+            // is set up elsewhere; then the newest at a site BaoCode lists
+            // (one imported later takes the place of one before); the rest
+            // in their order.
             for (final provider in [
+              ?magpie,
               ?pinned,
-              ...providers.where((provider) => provider != pinned),
+              ...providers.where(
+                (provider) => provider != pinned && provider != magpie,
+              ),
             ])
               _ProviderRow(
                 icon: ProviderIconView(
@@ -407,12 +447,18 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                   size: 16,
                 ),
                 name: provider.name,
-                badge: ModelsSettingsPage.protocolName(
-                  context,
-                  provider.protocol,
-                ),
+                badge: provider.followsMagpie
+                    ? l10n.modelsMagpieBadge
+                    : ModelsSettingsPage.protocolName(
+                        context,
+                        provider.protocol,
+                      ),
                 detail: [
-                  if (provider.protocol.usesAccounts)
+                  if (provider.followsMagpie)
+                    magpieDown
+                        ? l10n.modelsMagpieNotRunning
+                        : _hostAndPort(provider)
+                  else if (provider.protocol.usesAccounts)
                     l10n.modelsAccountCount(provider.accounts.length)
                   else if (provider.host.isEmpty)
                     l10n.modelsProviderNoUrl
@@ -424,7 +470,9 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                     ? _Status.off
                     : _providers.error(provider.id) != null
                     ? _Status.failed
-                    : provider.enabledModels.isEmpty || !provider.connected
+                    : provider.enabledModels.isEmpty ||
+                          !provider.connected ||
+                          (provider.followsMagpie && magpieDown)
                     ? _Status.incomplete
                     : _Status.ready,
                 error: _providers.error(provider.id),
@@ -437,10 +485,27 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
               ),
             SettingsRow(
               label: l10n.modelsAddProvider,
-              trailing: IdeButton(
-                label: l10n.modelsAddProvider,
-                icon: Codicons.add,
-                onPressed: () => unawaited(_add()),
+              trailing: SettingsButtons(
+                children: [
+                  // magpie is here and nothing follows it yet.
+                  if (magpie == null && (_magpie.status?.installed ?? false))
+                    IdeButton(
+                      label: l10n.modelsMagpieJoin,
+                      leading: BrandLogo(
+                        'magpie',
+                        size: 15,
+                        color: IdeButtonColors.secondaryForeground,
+                      ),
+                      secondary: true,
+                      spinning: _joining,
+                      onPressed: _joining ? null : () => unawaited(_join()),
+                    ),
+                  IdeButton(
+                    label: l10n.modelsAddProvider,
+                    icon: Codicons.add,
+                    onPressed: () => unawaited(_add()),
+                  ),
+                ],
               ),
             ),
           ],
@@ -451,6 +516,14 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
 }
 
 enum _Status { ready, incomplete, failed, off }
+
+/// Where [provider] is, its port with its host: `127.0.0.1:3425`.
+String _hostAndPort(ModelProvider provider) =>
+    switch (UpstreamUrls.parse(provider.baseUrl)) {
+      final uri? when uri.hasPort => '${uri.host}:${uri.port}',
+      final uri? => uri.host,
+      null => provider.host,
+    };
 
 /// An upstream in the list: its status, name, protocol and where it is,
 /// and whether the picker offers it; a click opens it.
@@ -590,6 +663,7 @@ class ProviderSettingsPage extends StatefulWidget {
     this.testModel = testModelThroughClaudeCode,
     this.codex,
     this.workspace,
+    this.magpie,
   });
 
   final ModelProviders providers;
@@ -606,6 +680,9 @@ class ProviderSettingsPage extends StatefulWidget {
 
   /// See [ModelsSettingsPage.workspace].
   final Workspace? workspace;
+
+  /// See [ModelsSettingsPage.magpie].
+  final MagpieFollow? magpie;
 
   @override
   State<ProviderSettingsPage> createState() => _ProviderSettingsPageState();
@@ -651,6 +728,10 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   ModelProviders get _providers => widget.providers;
   ModelProvider get _provider => widget.provider;
   CodexService get _codex => widget.codex ?? codexService;
+  MagpieFollow get _magpie => widget.magpie ?? MagpieFollow.current;
+
+  /// Whether it follows magpie: its address and models are magpie's.
+  bool get _follows => _provider.followsMagpie;
 
   @override
   void initState() {
@@ -1324,10 +1405,6 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
   Widget _connection(BuildContext context) {
     final l10n = context.l10n;
     final provider = _provider;
-    final protocol = ModelsSettingsPage.protocolName(
-      context,
-      provider.protocol,
-    );
     final workspace = widget.workspace;
     return SettingsGroup(
       title: l10n.modelsConnection,
@@ -1355,102 +1432,156 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
             },
           ),
         ),
+        // Where it is and how it is spoken to are magpie's.
+        if (_follows) _magpieGateway(context) else ..._reaching(context),
+      ],
+    );
+  }
+
+  /// How it is reached and spoken to: its protocol, address and key, and
+  /// the test of them.
+  List<Widget> _reaching(BuildContext context) {
+    final l10n = context.l10n;
+    final provider = _provider;
+    final protocol = ModelsSettingsPage.protocolName(
+      context,
+      provider.protocol,
+    );
+    return [
+      SettingsRow(
+        label: l10n.modelsProtocol,
+        description: l10n.modelsProtocolDescription,
+        trailing: SettingsDropdown(
+          current: protocol,
+          semanticLabel: l10n.modelsChoiceLabel(l10n.modelsProtocol, protocol),
+          entries: () => [
+            for (final value in ProviderProtocol.values)
+              IdeMenuAction(
+                ModelsSettingsPage.protocolName(context, value),
+                checked: value == provider.protocol,
+                onSelected: () => unawaited(_setProtocol(value)),
+              ),
+          ],
+        ),
+      ),
+      if (!provider.protocol.usesAccounts) ...[
         SettingsRow(
-          label: l10n.modelsProtocol,
-          description: l10n.modelsProtocolDescription,
-          trailing: SettingsDropdown(
-            current: protocol,
-            semanticLabel: l10n.modelsChoiceLabel(
-              l10n.modelsProtocol,
-              protocol,
-            ),
-            entries: () => [
-              for (final value in ProviderProtocol.values)
-                IdeMenuAction(
-                  ModelsSettingsPage.protocolName(context, value),
-                  checked: value == provider.protocol,
-                  onSelected: () => unawaited(_setProtocol(value)),
-                ),
-            ],
+          label: l10n.modelsBaseUrl,
+          description: provider.protocol.proxied
+              ? l10n.modelsBaseUrlOpenAIHint
+              : l10n.modelsBaseUrlAnthropicHint,
+          trailing: _Field(
+            value: provider.baseUrl,
+            label: l10n.modelsBaseUrl,
+            placeholder: provider.protocol.proxied
+                ? 'https://api.openai.com/v1'
+                : 'https://api.anthropic.com',
+            onCommit: (url) =>
+                unawaited(_save(_providerNow.copyWith(baseUrl: url.trim()))),
           ),
         ),
-        if (!provider.protocol.usesAccounts) ...[
-          SettingsRow(
-            label: l10n.modelsBaseUrl,
-            description: provider.protocol.proxied
-                ? l10n.modelsBaseUrlOpenAIHint
-                : l10n.modelsBaseUrlAnthropicHint,
-            trailing: _Field(
-              value: provider.baseUrl,
-              label: l10n.modelsBaseUrl,
-              placeholder: provider.protocol.proxied
-                  ? 'https://api.openai.com/v1'
-                  : 'https://api.anthropic.com',
-              onCommit: (url) =>
-                  unawaited(_save(_providerNow.copyWith(baseUrl: url.trim()))),
-            ),
-          ),
-          SettingsRow(
-            label: l10n.modelsApiKey,
-            description: l10n.modelsApiKeyDescription,
-            below: [
-              if (_keyError case final error?)
-                SelectableText(
-                  l10n.modelsApiKeyError(error),
-                  style: SettingsText.description.copyWith(
-                    color: themeColors['errorForeground'],
-                  ),
-                ),
-            ],
-            trailing: _keyRead
-                ? _Field(
-                    value: _key ?? '',
-                    label: l10n.modelsApiKey,
-                    obscure: !_showKey,
-                    toggles: [
-                      IdeInputToggle(
-                        icon: _showKey ? Codicons.eyeClosed : Codicons.eye,
-                        tooltip: _showKey
-                            ? l10n.modelsApiKeyHide
-                            : l10n.modelsApiKeyShow,
-                        checked: false,
-                        onChanged: (_) => setState(() => _showKey = !_showKey),
-                      ),
-                    ],
-                    onCommit: (key) {
-                      _key = key.trim();
-                      unawaited(_setKey(key));
-                    },
-                  )
-                : const SizedBox(width: _Field.width, height: 26),
-          ),
-          ..._customUrls(context),
-        ],
         SettingsRow(
-          label: l10n.modelsTest,
+          label: l10n.modelsApiKey,
+          description: l10n.modelsApiKeyDescription,
           below: [
-            if (_testing)
-              Text(l10n.modelsTesting, style: SettingsText.description)
-            else if (_testResult case final result?)
+            if (_keyError case final error?)
               SelectableText(
-                result,
+                l10n.modelsApiKeyError(error),
                 style: SettingsText.description.copyWith(
-                  color: _testFailed
-                      ? themeColors['errorForeground']
-                      : AppColors.added,
+                  color: themeColors['errorForeground'],
                 ),
               ),
           ],
-          trailing: IdeButton(
-            label: l10n.modelsTest,
-            icon: Codicons.plug,
-            secondary: true,
-            onPressed: _testing || !provider.connected
-                ? null
-                : () => unawaited(_test()),
-          ),
+          trailing: _keyRead
+              ? _Field(
+                  value: _key ?? '',
+                  label: l10n.modelsApiKey,
+                  obscure: !_showKey,
+                  toggles: [
+                    IdeInputToggle(
+                      icon: _showKey ? Codicons.eyeClosed : Codicons.eye,
+                      tooltip: _showKey
+                          ? l10n.modelsApiKeyHide
+                          : l10n.modelsApiKeyShow,
+                      checked: false,
+                      onChanged: (_) => setState(() => _showKey = !_showKey),
+                    ),
+                  ],
+                  onCommit: (key) {
+                    _key = key.trim();
+                    unawaited(_setKey(key));
+                  },
+                )
+              : const SizedBox(width: _Field.width, height: 26),
         ),
+        ..._customUrls(context),
       ],
+      SettingsRow(
+        label: l10n.modelsTest,
+        below: [
+          if (_testing)
+            Text(l10n.modelsTesting, style: SettingsText.description)
+          else if (_testResult case final result?)
+            SelectableText(
+              result,
+              style: SettingsText.description.copyWith(
+                color: _testFailed
+                    ? themeColors['errorForeground']
+                    : AppColors.added,
+              ),
+            ),
+        ],
+        trailing: IdeButton(
+          label: l10n.modelsTest,
+          icon: Codicons.plug,
+          secondary: true,
+          onPressed: _testing || !provider.connected
+              ? null
+              : () => unawaited(_test()),
+        ),
+      ),
+    ];
+  }
+
+  /// magpie's gateway: whether it runs, where, and its models got again.
+  Widget _magpieGateway(BuildContext context) {
+    final l10n = context.l10n;
+    final status = _magpie.status;
+    final syncing = _magpie.syncing;
+    return SettingsRow(
+      label: l10n.modelsMagpieGateway,
+      description: l10n.modelsMagpieGatewayDescription,
+      below: [
+        if (status case MagpieStatus(:final version?))
+          Text(
+            [
+              l10n.modelsMagpieRunning,
+              _hostAndPort(_provider),
+              if (version.isNotEmpty) 'v$version',
+            ].join(' · '),
+            style: SettingsText.description.copyWith(color: AppColors.added),
+          )
+        else if (status != null)
+          Text(
+            '${l10n.modelsMagpieNotRunning} · '
+            '${l10n.modelsMagpieNotRunningDetail}',
+            style: SettingsText.description.copyWith(color: AppColors.caution),
+          ),
+        if (_magpie.error case final error?)
+          SelectableText(
+            error,
+            style: SettingsText.description.copyWith(
+              color: themeColors['errorForeground'],
+            ),
+          ),
+      ],
+      trailing: IdeButton(
+        label: l10n.modelsMagpieSync,
+        icon: Codicons.refresh,
+        secondary: true,
+        spinning: syncing,
+        onPressed: syncing ? null : () => unawaited(_magpie.sync()),
+      ),
     );
   }
 
@@ -1570,19 +1701,22 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                       secondary: true,
                       onPressed: () => unawaited(_removeMissing()),
                     ),
-                  IdeButton(
-                    label: l10n.modelsFetch,
-                    icon: Codicons.cloudDownload,
-                    onPressed: !provider.connected
-                        ? null
-                        : () => unawaited(_fetch()),
-                  ),
-                  IdeButton(
-                    label: l10n.modelsAddModel,
-                    icon: Codicons.add,
-                    secondary: true,
-                    onPressed: () => unawaited(_editModel()),
-                  ),
+                  // magpie's: got as it has them (its gateway's row).
+                  if (!_follows) ...[
+                    IdeButton(
+                      label: l10n.modelsFetch,
+                      icon: Codicons.cloudDownload,
+                      onPressed: !provider.connected
+                          ? null
+                          : () => unawaited(_fetch()),
+                    ),
+                    IdeButton(
+                      label: l10n.modelsAddModel,
+                      icon: Codicons.add,
+                      secondary: true,
+                      onPressed: () => unawaited(_editModel()),
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -1605,9 +1739,12 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
                 _save(_providerNow.withModel(model.copyWith(enabled: value))),
               ),
               onTest: () => unawaited(_testModels([model])),
-              onEdit: () => unawaited(_editModel(model)),
-              onDuplicate: () => unawaited(_editModel(null, model)),
-              onRemove: () => unawaited(_removeModel(model)),
+              // magpie's say of themselves what they are.
+              onEdit: _follows ? null : () => unawaited(_editModel(model)),
+              onDuplicate: _follows
+                  ? null
+                  : () => unawaited(_editModel(null, model)),
+              onRemove: _follows ? null : () => unawaited(_removeModel(model)),
             ),
       ],
     );
@@ -1752,7 +1889,7 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
     final auth = _authName(context, provider.auth);
     final protocols = provider.protocols;
     return [
-      if (protocols.contains(ProviderProtocol.anthropic))
+      if (protocols.contains(ProviderProtocol.anthropic) && !_follows)
         SettingsRow(
           label: l10n.modelsAuth,
           description: l10n.modelsAuthDescription,
@@ -1851,16 +1988,17 @@ class _ProviderSettingsPageState extends State<ProviderSettingsPage> {
           ),
         ],
       ),
-      SettingsRow(
-        label: l10n.modelsDuplicateProvider,
-        description: l10n.modelsDuplicateProviderDescription,
-        trailing: IdeButton(
+      if (!_follows)
+        SettingsRow(
           label: l10n.modelsDuplicateProvider,
-          icon: Codicons.copy,
-          secondary: true,
-          onPressed: () => unawaited(_duplicate()),
+          description: l10n.modelsDuplicateProviderDescription,
+          trailing: IdeButton(
+            label: l10n.modelsDuplicateProvider,
+            icon: Codicons.copy,
+            secondary: true,
+            onPressed: () => unawaited(_duplicate()),
+          ),
         ),
-      ),
       SettingsRow(
         label: l10n.modelsDelete,
         description: l10n.modelsDeleteDescription,
@@ -1926,9 +2064,9 @@ class _ModelRow extends StatelessWidget {
     required this.test,
     required this.onEnabled,
     required this.onTest,
-    required this.onEdit,
-    required this.onDuplicate,
-    required this.onRemove,
+    this.onEdit,
+    this.onDuplicate,
+    this.onRemove,
   });
 
   final ProviderModel model;
@@ -1938,9 +2076,11 @@ class _ModelRow extends StatelessWidget {
   final _ModelTest? test;
   final ValueChanged<bool> onEnabled;
   final VoidCallback onTest;
-  final VoidCallback onEdit;
-  final VoidCallback onDuplicate;
-  final VoidCallback onRemove;
+
+  /// Null, each, where the model is not the user's to change.
+  final VoidCallback? onEdit;
+  final VoidCallback? onDuplicate;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -2054,12 +2194,15 @@ class _ModelRow extends StatelessWidget {
                     anchor: box.localToGlobal(Offset.zero) & box.size,
                     alignRight: true,
                     entries: [
-                      IdeMenuAction(l10n.modelsEdit, onSelected: onEdit),
-                      IdeMenuAction(
-                        l10n.modelsDuplicate,
-                        onSelected: onDuplicate,
-                      ),
-                      IdeMenuAction(l10n.modelsRemove, onSelected: onRemove),
+                      if (onEdit case final onEdit?)
+                        IdeMenuAction(l10n.modelsEdit, onSelected: onEdit),
+                      if (onDuplicate case final onDuplicate?)
+                        IdeMenuAction(
+                          l10n.modelsDuplicate,
+                          onSelected: onDuplicate,
+                        ),
+                      if (onRemove case final onRemove?)
+                        IdeMenuAction(l10n.modelsRemove, onSelected: onRemove),
                       IdeMenuAction(
                         l10n.modelsTestModel,
                         enabled:

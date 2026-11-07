@@ -280,7 +280,10 @@ String openCodeSession(String? session) {
 
 /// The models in a `/v1/models` answer: OpenAI's `data` (or a bare list),
 /// Anthropic's `data` with `display_name`; a context window where the
-/// upstream says (OpenRouter's `context_length`, and others').
+/// upstream says (OpenRouter's `context_length`, and others'). magpie's
+/// gateway says more: a name with its provider's (`magpie_label`), the
+/// efforts (`reasoning_levels`), whether it reads images and what it
+/// makes (`modalities`, `kind`).
 List<RemoteModel> parseModelList(Object? json) {
   final list = switch (json) {
     {'data': final List data} => data,
@@ -297,7 +300,9 @@ List<RemoteModel> parseModelList(Object? json) {
       _ => null,
     };
     if (id == null || !seen.add(id)) continue;
-    final label = switch (item['display_name'] ?? item['displayName']) {
+    final label = switch (item['magpie_label'] ??
+        item['display_name'] ??
+        item['displayName']) {
       final String label when label.trim().isNotEmpty && label != id =>
         label.trim(),
       _ => null,
@@ -322,21 +327,41 @@ List<RemoteModel> parseModelList(Object? json) {
       }
     }
     models.add(
-      RemoteModel(id, label: label, contextWindow: window, kind: _kindOf(item)),
+      RemoteModel(
+        id,
+        label: label,
+        contextWindow: window,
+        efforts: switch (item['reasoning_levels']) {
+          final List levels when levels.isNotEmpty => [
+            for (final level in levels)
+              if (level is String && level.trim().isNotEmpty) level.trim(),
+          ],
+          _ => null,
+        },
+        images: switch (item['modalities']) {
+          {'input': final List inputs} => inputs.any(
+            (input) => input is String && input.startsWith('image'),
+          ),
+          _ => null,
+        },
+        kind: _kindOf(item),
+      ),
     );
   }
   return models;
 }
 
-/// What a listed model is for, where its entry says: what it answers with
-/// (OpenRouter's `architecture.output_modalities`, others'
-/// `output_modalities`), or its type (SiliconFlow's `image`,
-/// `text-to-image`). Null when it does not say.
+/// What a listed model is for, where its entry says: magpie's `kind`, what
+/// it answers with (OpenRouter's `architecture.output_modalities`, others'
+/// `output_modalities`, magpie's `modalities.output`), or its type
+/// (SiliconFlow's `image`, `text-to-image`). Null when it does not say.
 ModelKind? _kindOf(Map item) {
+  if (item['kind'] == 'image') return ModelKind.image;
   final outputs = switch (item['architecture']) {
     {'output_modalities': final List outputs} => outputs,
-    _ => switch (item['output_modalities']) {
-      final List outputs => outputs,
+    _ => switch ((item['output_modalities'], item['modalities'])) {
+      (final List outputs, _) => outputs,
+      (_, {'output': final List outputs}) => outputs,
       _ => null,
     },
   };
@@ -362,15 +387,30 @@ ModelKind? _kindOf(Map item) {
 /// unless in [enable]; known ones kept as the user set them (on if in
 /// [enable]); those no longer listed marked [ProviderModel.missing] (kept;
 /// added by hand, left alone).
+///
+/// With [follow] (an upstream that follows an app, magpie), known ones take
+/// what the list says of them, its names, window, efforts and kind over
+/// what was there: whether they are on stays the user's.
 List<ProviderModel> mergeModelList(
   List<ProviderModel> models,
   List<RemoteModel> listed, {
   Set<String> enable = const {},
+  bool follow = false,
 }) {
   final byId = {for (final model in listed) model.id: model};
   final merged = <ProviderModel>[
     for (final model in models)
-      if (byId[model.id] case final remote?)
+      if (byId[model.id] case final remote? when follow)
+        model.copyWith(
+          missing: false,
+          label: () => remote.label,
+          contextWindow: () => remote.contextWindow,
+          efforts: () => remote.efforts,
+          images: remote.images ?? true,
+          kind: () => _listedKind(remote),
+          enabled: enable.contains(model.id) ? true : null,
+        )
+      else if (byId[model.id] case final remote?)
         model.copyWith(
           missing: false,
           contextWindow: model.contextWindow == null

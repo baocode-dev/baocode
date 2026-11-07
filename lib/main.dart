@@ -69,6 +69,7 @@ import 'keybindings/keymap.dart';
 import 'keybindings/vscode_import.dart';
 import 'l10n/l10n.dart';
 import 'models/featured_upstreams.dart';
+import 'models/magpie_follow.dart';
 import 'models/model_icons.dart';
 import 'models/model_providers.dart';
 import 'models/model_runtime.dart';
@@ -533,6 +534,9 @@ void followSettingsFiles(SettingsFiles files) {
   ClaudeCore.changes = files.settings;
   // Settings → Models: the upstreams, kept in settings.json.
   ModelProviders.current = ModelProviders.settings(files.settings);
+  // The upstream that follows magpie: its models got again as it starts,
+  // and now and then.
+  MagpieFollow.current = MagpieFollow()..start();
   // Claude Code's own models as it last listed them: in the picker
   // before a session on them starts.
   ClaudeCodeKernel.modelCache = files.storage;
