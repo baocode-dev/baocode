@@ -114,7 +114,7 @@ enum SshFailure {
   /// No such host, or it does not answer.
   unreachable,
 
-  /// Not a Linux, macOS or Windows host on x64 or arm64.
+  /// Not a Linux, macOS or Windows host on x64, arm64 or riscv64.
   unsupported,
 
   /// The server could not be put there, or did not start.
@@ -858,6 +858,7 @@ exit 0
       switch (machine.toLowerCase()) {
         'x86_64' || 'amd64' => 'x64',
         'aarch64' || 'arm64' => 'arm64',
+        'riscv64' => 'riscv64',
         _ => null,
       };
 
@@ -882,7 +883,9 @@ exit 0
       _ => null,
     };
     final arch = architecture(machine);
-    return os == null || arch == null ? null : '$os-$arch';
+    if (os == null || arch == null) return null;
+    if (os != 'linux' && arch == 'riscv64') return null;
+    return '$os-$arch';
   }
 
   /// [platform] for people: `Linux x64`, `macOS arm64`, `Windows x64`.
@@ -1032,8 +1035,8 @@ exit 2
     if (platform == null) {
       throw SshConnectException(
         SshFailure.unsupported,
-        'Only Linux, macOS and Windows hosts on x64 or arm64 are supported, '
-        'not $system $machine',
+        'Only Linux (x64, arm64, riscv64), macOS and Windows (x64, arm64) '
+        'hosts are supported, not $system $machine',
       );
     }
     final windows = platform.startsWith('windows-');

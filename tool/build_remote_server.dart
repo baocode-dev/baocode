@@ -1,6 +1,6 @@
 // Builds baocode-server, the app's side on a remote host (see
-// packages/bao_remote), for Linux, macOS and Windows on x64 and arm64. Run
-// from anywhere in the repository:
+// packages/bao_remote), for Linux (x64, arm64, riscv64), macOS and Windows on
+// x64 and arm64. Run from anywhere in the repository:
 //
 //   dart run tool/build_remote_server.dart              into build/remote/
 //   dart run tool/build_remote_server.dart --out <dir>  into <dir>
@@ -45,6 +45,7 @@ import 'package:crypto/crypto.dart';
 const _platforms = [
   'linux-x64',
   'linux-arm64',
+  'linux-riscv64',
   'darwin-x64',
   'darwin-arm64',
   'windows-x64',

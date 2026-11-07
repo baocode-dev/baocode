@@ -13,6 +13,8 @@ RemotePlatform machinePlatform() {
     Abi.linuxArm64 => ('linux', 'arm64'),
     Abi.linuxX64 => ('linux', 'x64'),
     Abi.linuxArm => ('linux', 'arm'),
+    Abi.linuxRiscv64 => ('linux', 'riscv64'),
+    Abi.linuxRiscv32 => ('linux', 'riscv32'),
     Abi.windowsX64 => ('win', 'x64'),
     Abi.windowsArm64 => ('win', 'arm64'),
     final abi => (Platform.operatingSystem, '$abi'),
