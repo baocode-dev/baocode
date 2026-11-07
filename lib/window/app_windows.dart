@@ -826,15 +826,6 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
       if (request != null) await handleCode(CodeArgs.fromRequestFile(request));
     }
     if (plain.isEmpty) return;
-    // A remote recent folder cannot be classified by the local disk.
-    for (final path in plain.toList()) {
-      if (RemoteLocation.isRemote(path) &&
-          workspace.recentFolders.contains(path)) {
-        await showFolder(path);
-        plain.remove(path);
-      }
-    }
-    if (plain.isEmpty) return;
     await handleCode(
       CodeArgs(paths: [for (final path in plain) CodeTarget(path)]),
     );

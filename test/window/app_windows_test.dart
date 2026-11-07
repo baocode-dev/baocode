@@ -262,19 +262,6 @@ void main() {
       expect(harness.host.created, isEmpty);
     });
 
-    testWidgets('Open Recent opens an SSH folder without local disk lookup', (
-      tester,
-    ) async {
-      final harness = await started(tester);
-      const folder = 'ssh://dev/srv/app';
-      harness.workspace.openIdeFolder(folder);
-      await harness.windows.openRequested([folder]);
-      expect(harness.folders, [folder]);
-      expect(harness.workspace.recentFiles, isNot(contains(folder)));
-      await harness.windows.openRequested([folder]);
-      expect(harness.folders, [folder]);
-    });
-
     testWidgets('code <folder>: its window, opened once', (tester) async {
       final harness = await started(tester);
       await code(harness, ['a']);
