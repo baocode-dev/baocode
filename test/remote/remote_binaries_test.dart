@@ -85,9 +85,12 @@ void main() {
   test('the builds in the folder, when they are there', () async {
     installer();
     File(p.join(remote, 'baocode-server-linux-x64')).writeAsStringSync('raw');
+    File(p.join(remote, 'baocode-server-linux-riscv64'))
+        .writeAsStringSync('riscv');
     final binaries = found();
     expect(binaries, isA<DirectoryServerBinaries>());
     expect(utf8.decode((await binaries!.read('linux-x64'))!), 'raw');
+    expect(utf8.decode((await binaries.read('linux-riscv64'))!), 'riscv');
     expect(requested, isEmpty);
   });
 
