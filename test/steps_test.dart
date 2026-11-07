@@ -885,12 +885,18 @@ void main() {
     }
 
     var clock = Duration.zero;
-    Future<void> wheel(WidgetTester tester, Offset at, double dy) async {
-      clock += const Duration(milliseconds: 50);
+    Future<void> wheel(
+      WidgetTester tester,
+      Offset at,
+      double dy, {
+      double dx = 0,
+      Duration elapsed = const Duration(milliseconds: 50),
+    }) async {
+      clock += elapsed;
       final pointer = TestPointer(1, PointerDeviceKind.mouse);
       await tester.sendEventToBinding(pointer.hover(at, timeStamp: clock));
       await tester.sendEventToBinding(
-        pointer.scroll(Offset(0, dy), timeStamp: clock),
+        pointer.scroll(Offset(dx, dy), timeStamp: clock),
       );
       await tester.pump();
     }
@@ -925,6 +931,84 @@ void main() {
       await wheel(tester, const Offset(400, 200), 30);
       expect(inner.offset, 0);
       expect(outer.offset, 50);
+    });
+
+    for (final elapsed in [Duration.zero, const Duration(milliseconds: 10)]) {
+      for (final dy in [3.0, -3.0]) {
+        testWidgets('a zero-delta start leaves the inner gesture undecided '
+            '($elapsed, $dy)', (tester) async {
+          await pumpNested(tester);
+          inner.jumpTo(20);
+          await tester.pump();
+          pause();
+          const over = Offset(400, 200);
+          await wheel(tester, over, 0);
+          await wheel(tester, over, dy, elapsed: elapsed);
+          expect(inner.offset, 20 + dy);
+          expect(outer.offset, 0);
+        });
+      }
+    }
+
+    testWidgets('a zero-delta event outside does not claim an inner start', (
+      tester,
+    ) async {
+      await pumpNested(tester);
+      pause();
+      await wheel(tester, const Offset(400, 50), 0);
+      await wheel(tester, const Offset(400, 200), 30);
+      expect(inner.offset, 30);
+      expect(outer.offset, 0);
+    });
+
+    testWidgets('zero-delta events do not transfer an outer gesture inward', (
+      tester,
+    ) async {
+      await pumpNested(tester);
+      pause();
+      await wheel(tester, const Offset(400, 50), 20);
+      const over = Offset(400, 200);
+      await wheel(tester, over, 0);
+      await wheel(tester, over, 30, elapsed: Duration.zero);
+      expect(inner.offset, 0);
+      expect(outer.offset, 50);
+    });
+
+    testWidgets('a zero-delta event at the inner end does not release it', (
+      tester,
+    ) async {
+      await pumpNested(tester);
+      pause();
+      const over = Offset(400, 200);
+      await wheel(tester, over, 200);
+      await wheel(tester, over, 0);
+      await wheel(tester, over, 30);
+      expect(inner.offset, 200);
+      expect(outer.offset, 0);
+    });
+
+    testWidgets('zero-delta events do not extend an old gesture', (
+      tester,
+    ) async {
+      await pumpNested(tester);
+      pause();
+      await wheel(tester, const Offset(400, 50), 20);
+      const over = Offset(400, 200);
+      await wheel(tester, over, 0, elapsed: const Duration(milliseconds: 250));
+      await wheel(tester, over, 30, elapsed: const Duration(milliseconds: 100));
+      expect(inner.offset, 30);
+      expect(outer.offset, 20);
+    });
+
+    testWidgets('horizontal wheel events still mark an outer gesture', (
+      tester,
+    ) async {
+      await pumpNested(tester);
+      pause();
+      await wheel(tester, const Offset(400, 50), 0, dx: 20);
+      await wheel(tester, const Offset(400, 200), 30);
+      expect(inner.offset, 0);
+      expect(outer.offset, 30);
     });
 
     testWidgets('a reversed inner view (live output) scrolls the way the '

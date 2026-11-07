@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../base/smooth_scroll.dart';
@@ -8,6 +9,7 @@ import 'finite_selection_edges.dart';
 import 'hover_builder.dart';
 import 'hover_scrollbar.dart';
 import 'image_thumbnails.dart' show PreviewClick, PreviewPressScope;
+import 'own_selection.dart';
 import 'scroll_edge_fade.dart';
 import 'shimmer_text.dart';
 import 'wheel_latch.dart';
@@ -298,6 +300,7 @@ class StepBody extends StatefulWidget {
 
 class _StepBodyState extends State<StepBody> {
   final _controller = SmoothScrollController();
+  final _scrollbarContent = GlobalKey();
 
   @override
   void didUpdateWidget(StepBody old) {
@@ -356,10 +359,28 @@ class _StepBodyState extends State<StepBody> {
         ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxHeight),
           child: widget.scrollbar
-              ? Scrollbar(
-                  controller: _controller,
-                  thumbVisibility: hovered,
-                  child: scroll,
+              ? Listener(
+                  onPointerDown: (event) {
+                    final paint = _scrollbarContent.currentContext
+                        ?.findAncestorRenderObjectOfType<RenderCustomPaint>();
+                    final painter = paint?.foregroundPainter;
+                    if (paint != null &&
+                        painter is ScrollbarPainter &&
+                        painter.hitTestInteractive(
+                          paint.globalToLocal(event.position),
+                          event.kind,
+                        )) {
+                      OwnSelection.takePress(event);
+                    }
+                  },
+                  child: Scrollbar(
+                    controller: _controller,
+                    thumbVisibility: hovered,
+                    child: Builder(
+                      key: _scrollbarContent,
+                      builder: (_) => scroll,
+                    ),
+                  ),
                 )
               : scroll,
         ),

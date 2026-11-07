@@ -11,9 +11,10 @@ import 'package:flutter/widgets.dart';
 /// - Started elsewhere (or with the inner view already at that end): it
 ///   scrolls the outer view, even once the pointer is over the inner one.
 ///
-/// A gesture ends after [gap] without wheel events. Goes inside the inner
-/// scroll view, around its content. (A trackpad pan is a drag, which the
-/// inner view keeps to itself already.)
+/// Zero-delta events neither start nor extend a gesture. A gesture ends
+/// after [gap] without a nonzero wheel event. Goes inside the inner scroll
+/// view, around its content. (A trackpad pan is a drag, which the inner
+/// view keeps to itself already.)
 class WheelLatch extends StatefulWidget {
   const WheelLatch({super.key, required this.child, this.keep = false});
 
@@ -42,6 +43,7 @@ class _WheelLatchState extends State<WheelLatch> {
   /// gesture started anywhere else belongs to no inner view.
   static void _watch(PointerEvent event) {
     if (event is! PointerScrollEvent) return;
+    if (event.scrollDelta == Offset.zero) return;
     final last = _lastWheel;
     final starts = last == null || event.timeStamp - last >= WheelLatch.gap;
     if (starts && _latchedAt != event.timeStamp) _latched = null;
@@ -70,6 +72,7 @@ class _WheelLatchState extends State<WheelLatch> {
 
   void _handleSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
+    if (event.scrollDelta == Offset.zero) return;
     final inner = Scrollable.maybeOf(context);
     if (inner == null) return;
     final delta = _deltaIn(inner, event);

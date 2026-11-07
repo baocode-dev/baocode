@@ -7,6 +7,7 @@ import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer_draft.dart';
 import 'package:baocode/chat/reply_scroll.dart';
+import 'package:baocode/chat/widgets/command_step.dart';
 import 'package:baocode/theme/app_theme.dart';
 
 /// A conversation held in a list, changed by hand.
@@ -107,6 +108,66 @@ Finder _text(String text) => find.textContaining(text, findRichText: true);
 const _frame = Duration(microseconds: 16667);
 
 void main() {
+  testWidgets(
+    'expanded command output has a draggable scrollbar on hover',
+    (tester) async {
+      final feed = _Feed([
+        UserMessageItem(text: 'Check the output'),
+        TerminalItem(
+          command: 'git status',
+          description: 'Scroll the output',
+          output: List.generate(100, (i) => 'output line $i').join('\n'),
+        ),
+        AssistantTextItem(List.filled(30, 'After the command.').join('\n')),
+      ]);
+      addTearDown(feed.dispose);
+      await _pump(tester, feed);
+      final outer = _position(tester);
+      outer.jumpTo(0);
+      await tester.pumpAndSettle();
+      await tester.tap(_text('Ran Scroll the output'));
+      await tester.pumpAndSettle();
+      outer.jumpTo(0);
+      await tester.pumpAndSettle();
+      final view = find.descendant(
+        of: find.byType(CommandStep),
+        matching: find.byType(Scrollable),
+      );
+      final inner = tester.state<ScrollableState>(view).position;
+      expect(inner.maxScrollExtent, greaterThan(0));
+      expect(outer.maxScrollExtent, greaterThan(0));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(view));
+      await tester.pumpAndSettle();
+      final bar = find.descendant(
+        of: find.byType(CommandStep),
+        matching: find.byType(Scrollbar),
+      );
+      expect(bar, findsOneWidget);
+      final widget = tester.widget<Scrollbar>(bar);
+      expect(widget.thumbVisibility, isTrue);
+      expect(widget.controller!.position, same(inner));
+      final outside = outer.pixels;
+      final bounds = tester.getRect(bar);
+      await tester.dragFrom(
+        Offset(bounds.right - 4, bounds.top + 18),
+        Offset(0, bounds.height - 36),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pumpAndSettle();
+      expect(inner.pixels, closeTo(inner.maxScrollExtent, 1));
+      expect(outer.pixels, outside);
+      await mouse.removePointer();
+      await tester.pumpWidget(const SizedBox());
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+      TargetPlatform.linux,
+    }),
+  );
+
   testWidgets('a conversation shown again is where it was left: read up '
       'from its end, there; at its end, followed (#215)', (tester) async {
     final feed = _Feed([for (var n = 0; n < 40; n++) ..._turn(n)]);
