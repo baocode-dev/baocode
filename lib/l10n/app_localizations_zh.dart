@@ -6304,6 +6304,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsAccountQuotaUnknown => '额度尚未获取';
 
   @override
+  String get modelsQuotaPlan => '套餐额度';
+
+  @override
+  String get modelsQuotaPlanRefresh => '刷新额度';
+
+  @override
   String get modelsQuotaShortWindow => '短周期';
 
   @override
