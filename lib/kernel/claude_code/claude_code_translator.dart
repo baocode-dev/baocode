@@ -81,6 +81,13 @@ class ClaudeTranslator {
   String? _messageId;
   final Map<int, String> _streamed = {};
 
+  /// Every block the current message streamed, by its index, ended or not:
+  /// those Claude Code abandons (its stream cut short, asked again) go.
+  final Map<int, String> _messageBlocks = {};
+
+  /// Calls whose start streamed, that no whole message has brought yet.
+  final Set<String> _streamedCalls = {};
+
   /// Since when the model has been at the next block: its message's start,
   /// else the last block's end.
   DateTime? _blockSince;
@@ -335,7 +342,14 @@ class ClaudeTranslator {
     final parent = message['parent_tool_use_id'] as String?;
     switch (message['type']) {
       case 'stream_event' when parent == null:
-        _streamEvent(_map(message['event']));
+        _streamEvent(
+          _map(message['event']),
+          abandoned: _map(message['abandoned_blocks']),
+        );
+      // A message shown that Claude Code took back (its stream failed, and
+      // it asked again): what it showed goes.
+      case 'tombstone' when parent == null:
+        _tombstone(_map(message['message']));
       case 'assistant':
         _assistant(message, parent);
         _replayedAt(message);
@@ -518,12 +532,16 @@ class ClaudeTranslator {
 
   // --- Streaming ---------------------------------------------------------------
 
-  void _streamEvent(Map<String, Object?> event) {
+  void _streamEvent(
+    Map<String, Object?> event, {
+    Map<String, Object?> abandoned = const {},
+  }) {
     switch (event['type']) {
       case 'message_start':
         final message = _map(event['message']);
         _messageId = message['id'] as String?;
         _streamed.clear();
+        _messageBlocks.clear();
         _blockSince = DateTime.now();
         _messageUsage = {..._map(message['usage'])};
         _messageCounted = false;
@@ -543,6 +561,9 @@ class ClaudeTranslator {
           _messageThinking = tokens;
         }
       case 'message_stop':
+        if (claudeInt(abandoned['from_block_index']) case final from?) {
+          _abandon(abandoned['api_message_id'] as String?, from);
+        }
         _endMessage();
       case 'content_block_start':
         final index = claudeInt(event['index']) ?? 0;
@@ -552,6 +573,7 @@ class ClaudeTranslator {
           case 'thinking' || 'redacted_thinking':
             _messageThought = true;
             _streamed[index] = id;
+            _messageBlocks[index] = id;
             (_unclaimed['$_messageId:thinking'] ??= []).add(id);
             _thoughts[id] = StringBuffer();
             // A proxy may hold a whole thought back until it is done.
@@ -568,6 +590,7 @@ class ClaudeTranslator {
           case 'text':
             if (!replaying) _meter.startBlock();
             _streamed[index] = id;
+            _messageBlocks[index] = id;
             (_unclaimed['$_messageId:text'] ??= []).add(id);
             _textLength[id] = 0;
             _put(id, const AssistantTextItem(''), streaming: true);
@@ -576,7 +599,9 @@ class ClaudeTranslator {
             if (!replaying) _meter.startBlock();
             final toolId = block['id'] as String;
             final name = block['name'] as String;
+            _messageBlocks[index] = toolId;
             if (!_tools.containsKey(toolId)) {
+              _streamedCalls.add(toolId);
               _toolUse(toolId, name, const {}, null);
             }
           default:
@@ -772,6 +797,7 @@ class ClaudeTranslator {
             );
           }
         case 'tool_use':
+          _streamedCalls.remove(block['id']);
           _toolUse(
             block['id'] as String,
             block['name'] as String,
@@ -780,6 +806,64 @@ class ClaudeTranslator {
           );
       }
     }
+  }
+
+  /// The blocks of [messageId] (the current message) from [from] on, which
+  /// Claude Code gave up on: shown as they streamed, no whole message will
+  /// bring them. They go, unless one did bring them; what it asks next may
+  /// say them again.
+  void _abandon(String? messageId, int from) {
+    if (messageId != null && messageId != _messageId) return;
+    for (final MapEntry(key: index, value: id) in [..._messageBlocks.entries]) {
+      if (index < from) continue;
+      _messageBlocks.remove(index);
+      _streamed.remove(index);
+      final unclaimed =
+          (_unclaimed['$_messageId:text']?.remove(id) ?? false) ||
+          (_unclaimed['$_messageId:thinking']?.remove(id) ?? false);
+      if (unclaimed) {
+        _thoughts.remove(id);
+        _thinkingStarted.remove(id);
+        _thinkingTokens.remove(id);
+        _textLength.remove(id);
+        emit(ItemRemoved(nextSeq(), id));
+      } else if (_streamedCalls.remove(id)) {
+        _dropCall(id);
+      }
+    }
+  }
+
+  /// The whole message [message] (as Claude Code keeps it) taken back:
+  /// what it brought goes.
+  void _tombstone(Map<String, Object?> message) {
+    final uuid = message['uuid'] as String?;
+    if (uuid == null) return;
+    final body = _map(message['message']);
+    for (final (index, raw) in _list(body['content']).indexed) {
+      final block = _map(raw);
+      if (block['type'] == 'tool_use') {
+        if (block['id'] case final String id when _tools.containsKey(id)) {
+          _streamedCalls.remove(id);
+          _dropCall(id);
+        }
+        continue;
+      }
+      final id = _blockIds.remove('$uuid:$index');
+      if (id == null) continue;
+      _thoughts.remove(id);
+      _thinkingStarted.remove(id);
+      _thinkingTokens.remove(id);
+      _textLength.remove(id);
+      emit(ItemRemoved(nextSeq(), id));
+    }
+  }
+
+  /// The call [id], never made: its card goes.
+  void _dropCall(String id) {
+    _tools.remove(id);
+    _agents.remove(id);
+    _unanswered.remove(id);
+    emit(ItemRemoved(nextSeq(), id));
   }
 
   void _user(Map<String, Object?> message, String? parent) {

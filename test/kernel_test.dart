@@ -1464,6 +1464,134 @@ void main() {
       }
       expect(shown(twice), shown(once));
     });
+
+    group('a stream Claude Code gave up on and asked again', () {
+      late Transcript transcript;
+      late ClaudeTranslator translator;
+      setUp(() {
+        transcript = Transcript();
+        var seq = 0;
+        translator = ClaudeTranslator(
+          emit: transcript.apply,
+          nextSeq: () => ++seq,
+        );
+      });
+      void event(
+        Map<String, Object?> event, {
+        Map<String, Object?>? abandoned,
+      }) => translator.translate({
+        'type': 'stream_event',
+        'parent_tool_use_id': null,
+        'event': event,
+        'abandoned_blocks': ?abandoned,
+      });
+      void streamText(String messageId, int index, String text) {
+        event({
+          'type': 'content_block_start',
+          'index': index,
+          'content_block': {'type': 'text', 'text': ''},
+        });
+        event({
+          'type': 'content_block_delta',
+          'index': index,
+          'delta': {'type': 'text_delta', 'text': text},
+        });
+        event({'type': 'content_block_stop', 'index': index});
+      }
+
+      Map<String, Object?> whole(
+        String uuid,
+        String messageId,
+        List<Map<String, Object?>> content,
+      ) => {
+        'type': 'assistant',
+        'uuid': uuid,
+        'parent_tool_use_id': null,
+        'message': {'id': messageId, 'role': 'assistant', 'content': content},
+      };
+
+      test('what streamed with no whole message goes; the answer asked '
+          'again shows once', () {
+        event({
+          'type': 'message_start',
+          'message': {'id': 'msg-1'},
+        });
+        streamText('msg-1', 0, 'The answer');
+        event({
+          'type': 'content_block_start',
+          'index': 1,
+          'content_block': {'type': 'tool_use', 'id': 'call-1', 'name': 'Read'},
+        });
+        expect(shown(transcript), ['text: The answer', 'tool: read ']);
+        event(
+          {'type': 'message_stop'},
+          abandoned: {'api_message_id': 'msg-1', 'from_block_index': 0},
+        );
+        expect(shown(transcript), isEmpty);
+        // Asked again without streaming: its whole messages, another id.
+        translator.translate(
+          whole('u-2', 'msg-2', [
+            {'type': 'text', 'text': 'The answer'},
+          ]),
+        );
+        expect(shown(transcript), ['text: The answer']);
+      });
+
+      test('a block a whole message brought stays', () {
+        event({
+          'type': 'message_start',
+          'message': {'id': 'msg-1'},
+        });
+        streamText('msg-1', 0, 'Kept');
+        translator.translate(
+          whole('u-1', 'msg-1', [
+            {'type': 'text', 'text': 'Kept'},
+          ]),
+        );
+        streamText('msg-1', 1, 'Cut');
+        event(
+          {'type': 'message_stop'},
+          abandoned: {'api_message_id': 'msg-1', 'from_block_index': 0},
+        );
+        expect(shown(transcript), ['text: Kept']);
+      });
+
+      test('a whole message taken back goes', () {
+        event({
+          'type': 'message_start',
+          'message': {'id': 'msg-1'},
+        });
+        streamText('msg-1', 0, 'The answer');
+        final first = whole('u-1', 'msg-1', [
+          {'type': 'text', 'text': 'The answer'},
+        ]);
+        translator.translate(first);
+        expect(shown(transcript), ['text: The answer']);
+        translator.translate({
+          'type': 'tombstone',
+          'message': first,
+          'uuid': 'u-t',
+          'session_id': 's',
+        });
+        expect(shown(transcript), isEmpty);
+        translator.translate(
+          whole('u-2', 'msg-2', [
+            {'type': 'text', 'text': 'The answer'},
+          ]),
+        );
+        expect(shown(transcript), ['text: The answer']);
+      });
+
+      test('a message_stop of its own takes nothing', () {
+        event({
+          'type': 'message_start',
+          'message': {'id': 'msg-1'},
+        });
+        streamText('msg-1', 0, 'The answer');
+        event({'type': 'message_stop'});
+        expect(shown(transcript), ['text: The answer']);
+      });
+    });
   });
 
   group('Claude Code kernel', () {
