@@ -13,10 +13,12 @@ a detailed review.
 Open an [issue](https://github.com/baocode-dev/baocode/issues) before you
 write code for a new feature, a change in behavior or UI, a refactor, or a
 new dependency, and wait until a maintainer agrees to the change and to how
-it is done. Link that issue in the pull request.
+it is done: they label the issue `accepted`. Link that issue in the pull
+request, as `Issue: #123`.
 
 These can go straight to a pull request: typos, translations, documentation,
-and a bug fix that is small and obvious.
+and a bug fix that is small and obvious (a `fix(…)` title, about 100 changed
+lines at most, not counting tests).
 
 ### Keep it small
 
@@ -27,7 +29,10 @@ and a bug fix that is small and obvious.
   agree on the steps in the issue first.
 
 **Large pull requests, and pull requests for changes not discussed first, are
-not accepted.**
+not accepted.** A check (`PR gate`) comments on a pull request that is missing
+an accepted issue, is too large, has a title not in `type(scope): summary` or
+merge commits in its branch; one still without an accepted issue after seven
+days is closed.
 
 ### Before you open it
 
@@ -54,9 +59,11 @@ not accepted.**
 
 新功能、行为或界面的改动、重构、新增依赖，写代码之前先开
 [Issue](https://github.com/baocode-dev/baocode/issues)，等维护者认可要不要改、
-怎么改之后再动手，并在 PR 里关联这个 Issue。
+怎么改之后再动手（认可后维护者会给 Issue 打上 `accepted` 标签），并在 PR 里
+关联这个 Issue，写成 `Issue: #123`。
 
-以下可以直接提 PR：错别字、翻译、文档，以及小而明确的 bug 修复。
+以下可以直接提 PR：错别字、翻译、文档，以及小而明确的 bug 修复（标题为
+`fix(…)`，改动约 100 行以内，不含测试）。
 
 ### 保持小
 
@@ -64,7 +71,9 @@ not accepted.**
 - 改动不超过约 400 行（不含测试和生成文件）。更大的工作拆成几步，每一步都能
   单独编译、通过测试，并且先在 Issue 里商量好怎么拆。
 
-**太大的 PR、未经讨论的 PR，不会被接受。**
+**太大的 PR、未经讨论的 PR，不会被接受。** 自动检查（`PR gate`）会在 PR 下
+留言指出：没有被认可的 Issue、改动太大、标题不是 `type(scope): summary`、分支
+里有合并提交。7 天后仍没有被认可的 Issue 的 PR 会被自动关闭。
 
 ### 提交之前
 
