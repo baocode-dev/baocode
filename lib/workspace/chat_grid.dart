@@ -214,6 +214,24 @@ class ChatGrid<T extends Object> {
     return true;
   }
 
+  /// [pane]'s tabs again, as [tabs] and [under] gave them: those of [under]
+  /// under it in that order, the tabs in [tabs]' order. Those shown or
+  /// under another already are left out.
+  void restoreTabs(T pane, List<T> tabs, List<T> under) {
+    if (!contains(pane)) return;
+    final taken = {..._cells, ..._under.values.expand((under) => under)};
+    final kept = {
+      for (final covered in under)
+        if (!taken.contains(covered)) covered,
+    }.toList();
+    if (kept.length > maxUnder) kept.removeRange(0, kept.length - maxUnder);
+    if (kept.isNotEmpty) _under[pane] = kept;
+    final slot = {pane, ...kept};
+    for (final tab in {...tabs.where(slot.contains), ...slot}) {
+      _open(tab);
+    }
+  }
+
   /// The pane on [cell] (0 top left, 1 top right, 2 bottom left, 3 bottom
   /// right); null with no pane.
   T? at(int cell) => _cells.elementAtOrNull(cell);
