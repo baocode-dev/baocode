@@ -56,6 +56,25 @@ void main() {
     expect(opened.last, [r'C:\work\app', r'\\server\share\file.txt']);
   });
 
+  test('delivers SSH recent locations kept at launch and sent live', () async {
+    const folder = 'ssh://dev/srv/app';
+    const windowsFolder = 'ssh://win/C:/Users/me/app';
+    const wslFolder = 'ssh://wsl+Ubuntu/home/me/app';
+    pending = [folder];
+    final opened = <List<String>>[];
+    OpenRequests.listen(opened.add);
+    await pumpEventQueue();
+    expect(opened, [
+      [folder],
+    ]);
+
+    await send([folder, windowsFolder, wslFolder, '/abs/file', 'relative']);
+    expect(opened, [
+      [folder],
+      [folder, windowsFolder, wslFolder, '/abs/file'],
+    ]);
+  });
+
   test('nothing kept, nothing delivered', () async {
     final opened = <List<String>>[];
     OpenRequests.listen(opened.add);

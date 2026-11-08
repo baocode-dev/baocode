@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 
+import '../remote/remote_location.dart';
 import '../window/code_args.dart';
 
 /// Files and folders the system asks the app to open, from outside it: the
@@ -107,8 +108,9 @@ abstract final class OpenRequests {
     }
   }
 
-  /// `/…` on macOS; `C:\…` or `\\server\…` on Windows.
+  /// An SSH location, `/…` on macOS; `C:\…` or `\\server\…` on Windows.
   static bool _isAbsolute(String path) =>
+      RemoteLocation.isRemote(path) ||
       path.startsWith('/') ||
       path.startsWith(r'\\') ||
       RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);
