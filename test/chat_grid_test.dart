@@ -303,6 +303,21 @@ void main() {
     expect(grid.tabs('A'), ['A', 'D']);
   });
 
+  test("a pane's tabs given back, in their order, those taken left out", () {
+    final grid = ChatGrid<String>()..restore(['A', 'B', 'A', 'B']);
+    // A shown between C and D, D the next to show again; B shown, so not
+    // A's too.
+    grid.restoreTabs('A', ['C', 'A', 'D'], ['C', 'B', 'D']);
+    expect(grid.under('A'), ['C', 'D']);
+    expect(grid.tabs('A'), ['C', 'A', 'D']);
+    expect(grid.tabs('B'), ['B']);
+    // Under A already: not B's as well.
+    grid.restoreTabs('B', ['B', 'C'], ['C']);
+    expect(grid.tabs('B'), ['B']);
+    expect(grid.uncover('A'), 'D');
+    expect(grid.tabs('D'), ['C', 'D']);
+  });
+
   test('the pane beside one each way, none past the edge', () {
     final grid = ChatGrid<String>()
       ..show('A')

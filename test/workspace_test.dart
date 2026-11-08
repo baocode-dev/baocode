@@ -1142,6 +1142,46 @@ void main() {
       expect(workspace.grid.columnRatios, [.3, .3]);
     });
 
+    testWidgets("each pane's tabs, and the one shown, survive a restart", (
+      tester,
+    ) async {
+      addTearDown(FakeCatalog.started.clear);
+      FakeCatalog.started.addAll([
+        for (final id in ['tab-a', 'tab-b'])
+          SessionRecord(
+            id: id,
+            title: id,
+            updatedAt: DateTime(2026, 9, 28),
+            cwd: '/tmp/project',
+          ),
+      ]);
+      final store = MemoryPreferenceStore();
+      var workspace = await pumpLoaded(tester, preferences: store);
+      AgentThread byId(String id) =>
+          workspace.threads.firstWhere((thread) => thread.id == id);
+      final draft = workspace.selected;
+      final kept = byId(FakeCatalog.kept.id);
+      workspace
+        ..openBeside(kept, draft, PaneSide.right)
+        ..openInPlaceOf(kept, byId('tab-a'))
+        ..openInPlaceOf(byId('tab-a'), byId('tab-b'))
+        ..raiseCovered(byId('tab-b'), byId('tab-a'));
+      List<String?> tabs() => [
+        for (final tab in workspace.grid.tabs(workspace.grid.at(1)!)) tab.id,
+      ];
+      expect(tabs(), [FakeCatalog.kept.id, 'tab-a', 'tab-b']);
+      expect(workspace.grid.at(1)?.id, 'tab-a');
+
+      await tester.pumpWidget(const SizedBox());
+      workspace = await pumpLoaded(tester, preferences: store);
+      expect(workspace.grid.panes, hasLength(2));
+      expect(tabs(), [FakeCatalog.kept.id, 'tab-a', 'tab-b']);
+      expect(workspace.grid.at(1)?.id, 'tab-a');
+      expect(workspace.grid.tabs(workspace.grid.at(0)!), hasLength(1));
+      // The one covered last shows when the shown one closes.
+      expect(workspace.grid.uncover(workspace.grid.at(1)!)?.id, 'tab-b');
+    });
+
     testWidgets("an agent that is no more leaves its pane to the others", (
       tester,
     ) async {

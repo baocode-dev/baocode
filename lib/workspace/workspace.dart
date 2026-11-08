@@ -3038,16 +3038,24 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// The agents shown side by side, the grid's cells, the one focused and
   /// where the lines are; an agent by its session's id, a new one by its
-  /// folder.
+  /// folder. Each pane's other tabs too, by id: those under it ([ChatGrid.
+  /// under]'s order) and all its tabs in their order.
   Map<String, Object?>? get _chatView {
     if (_grid.isEmpty) return null;
     final panes = _grid.panes;
     final focused = _selected;
+    List<List<String>> ids(List<AgentThread> Function(AgentThread) of) => [
+      for (final pane in panes) [for (final thread in of(pane)) ?thread.id],
+    ];
     return {
       'panes': [
         for (final thread in panes) thread.id ?? {'new': thread.project.path},
       ],
       'cells': [for (final pane in _grid.cells) panes.indexOf(pane)],
+      if (panes.any((pane) => _grid.under(pane).isNotEmpty)) ...{
+        'under': ids(_grid.under),
+        'tabs': ids(_grid.tabs),
+      },
       if (focused != null && panes.contains(focused))
         'focused': panes.indexOf(focused),
       'columnRatios': _grid.columnRatios,
@@ -3104,6 +3112,25 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     }
     if (cells.isEmpty) return;
     _grid.restore([for (final cell in cells.cells) shown[cell]!]);
+    // Each pane's other tabs, those whose agent is gone left out.
+    List<AgentThread> keptTabs(String key, int pane) => [
+      if (kept[key] case final List<Object?> lists)
+        if (lists.elementAtOrNull(pane) case final List<Object?> ids)
+          for (final id in ids.whereType<String>())
+            ?_threads
+                .where(
+                  (t) =>
+                      t.id == id && !t.archived && !isAppFolder(t.project.path),
+                )
+                .firstOrNull,
+    ];
+    for (final MapEntry(key: pane, value: thread) in shown.entries) {
+      _grid.restoreTabs(
+        thread,
+        keptTabs('tabs', pane),
+        keptTabs('under', pane),
+      );
+    }
     if (kept['columnsFirst'] case final bool columnsFirst) {
       _grid.columnsFirst = columnsFirst;
     }
