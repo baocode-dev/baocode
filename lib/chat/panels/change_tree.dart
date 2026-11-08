@@ -23,15 +23,16 @@ import '../chat_models.dart';
 /// status letter and its lines added and removed. Hovered, a file or a
 /// folder offers Undo and Keep; a click opens the file's changes.
 ///
-/// At most [maxRows] rows show; the rest scroll, built as they come into
-/// view.
+/// At most [maxRows] rows show, or as many as [height] holds; the rest
+/// scroll, built as they come into view.
 class ChangeTree extends StatefulWidget {
   const ChangeTree({
     super.key,
     required this.root,
     required this.changes,
     this.paths,
-    this.maxRows = 7,
+    this.maxRows = defaultMaxRows,
+    this.height,
     this.onOpen,
     this.onKeep,
     this.onUndo,
@@ -47,6 +48,10 @@ class ChangeTree extends StatefulWidget {
   final p.Context? paths;
   final int maxRows;
 
+  /// How high it is, as dragged (see [maxHeight]); null for [maxRows]
+  /// rows.
+  final double? height;
+
   final ValueChanged<FileChange>? onOpen;
   final ValueChanged<List<FileChange>>? onKeep;
 
@@ -57,8 +62,48 @@ class ChangeTree extends StatefulWidget {
   /// to open it, its path.
   final List<List<IdeMenuEntry>> Function(FileChange file)? fileActions;
 
+  static const defaultMaxRows = 7;
+
+  /// The highest it goes for [rows] rows: all of them, within 0.6 of the
+  /// window's height.
+  static double maxHeight(BuildContext context, int rows) => math.max(
+    IdeListColors.rowHeight,
+    math.min(
+      rows * IdeListColors.rowHeight,
+      MediaQuery.sizeOf(context).height * 0.6,
+    ),
+  );
+
+  /// How many rows [changes] take under [root], every folder open.
+  static int rowCount(
+    String root,
+    List<FileChange> changes, {
+    p.Context? paths,
+  }) {
+    if (changes.isEmpty) return 0;
+    var count = 0;
+    void add(List<IdeScmTreeNode> nodes) {
+      for (final node in nodes) {
+        count++;
+        if (node is IdeScmTreeFolder) add(node.children);
+      }
+    }
+
+    add(
+      ideScmTree(root, [
+        for (final change in changes)
+          IdeGitResource(
+            path: change.path,
+            status: IdeGitStatus.modified,
+            group: IdeGitGroup.workingTree,
+          ),
+      ], paths: paths),
+    );
+    return count;
+  }
+
   @override
-  State<ChangeTree> createState() => _ChangeTreeState();
+  State<ChangeTree> createState() => ChangeTreeState();
 }
 
 sealed class _Row {
@@ -81,7 +126,14 @@ final class _FileRow extends _Row {
   final IdeGitStatus status;
 }
 
-class _ChangeTreeState extends State<ChangeTree> {
+class ChangeTreeState extends State<ChangeTree> {
+  /// The rows it shows now, closed folders' files left out.
+  int get rowCount => _rows.length;
+
+  /// How high [maxRows] rows of them are.
+  double get defaultHeight =>
+      math.min(_rows.length, widget.maxRows) * IdeListColors.rowHeight;
+
   /// The folders closed, by path.
   final Set<String> _collapsed = {};
   List<_Row> _rows = const [];
@@ -161,12 +213,18 @@ class _ChangeTreeState extends State<ChangeTree> {
   @override
   Widget build(BuildContext context) {
     final rows = _rows;
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    final rowHeight = IdeListColors.rowHeight;
     return SizedBox(
-      height: math.min(rows.length, widget.maxRows) * IdeListColors.rowHeight,
+      height: (widget.height ?? defaultHeight).clamp(
+        rowHeight,
+        ChangeTree.maxHeight(context, rows.length),
+      ),
       child: ListView.builder(
         controller: _scroll,
         padding: EdgeInsets.zero,
-        itemExtent: IdeListColors.rowHeight,
+        itemExtent: rowHeight,
         itemCount: rows.length,
         itemBuilder: (context, index) => switch (rows[index]) {
           final _FolderRow row => _folderRow(row),
