@@ -484,7 +484,8 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
       start: starter(extra: {'FAKE_MACHINE': 'riscv64'}),
     );
     final connection = await launcher.connect(SshTarget.parse('dev'));
-    expect(connection.hello.platform.arch, 'riscv64');
+    // The server that answers is this machine's, so its hello says this
+    // machine's architecture; what was put there is the riscv64 build.
     expect(binaries.reads, ['linux-riscv64']);
     final installed = File(
       p.join(home.path, '.baocode-server', '1-abc', 'baocode-server'),

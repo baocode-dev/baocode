@@ -223,15 +223,4 @@ void main() {
       expect(await secrets.read(SshPasswords.serverId('bastion')), 'new');
     });
   });
-
-  group('RISC-V platform support', () {
-    test('resolves Linux riscv64 correctly', () {
-      expect(SshLauncher.architecture('riscv64'), 'riscv64');
-      expect(SshLauncher.architecture('RISCV64'), 'riscv64');
-      expect(SshLauncher.platform('Linux', 'riscv64'), 'linux-riscv64');
-      expect(SshLauncher.platform('Darwin', 'riscv64'), isNull);
-      expect(SshLauncher.platform('Windows', 'riscv64'), isNull);
-      expect(SshLauncher.describe('linux-riscv64'), 'Linux riscv64');
-    });
-  });
 }

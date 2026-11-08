@@ -2,7 +2,7 @@
 
 用 SSH 打开另一台机器上的项目，体验和 VS Code 的 Remote-SSH 一样：界面留在本机；文件、Git、搜索、终端、语言服务器和 Claude Code 都在远端主机上运行。本文说明它怎么工作、怎么构建和发布、出了问题怎么查，以及以后改代码时要注意什么。
 
-- 远端要求：Linux x64 / arm64（glibc），或 macOS（Apple silicon / Intel，要在“系统设置 → 通用 → 共享”里打开“远程登录”）；能用密钥、ssh-agent 或密码登录
+- 远端要求：Linux x64 / arm64 / riscv64（glibc），或 macOS（Apple silicon / Intel，要在“系统设置 → 通用 → 共享”里打开“远程登录”）；能用密钥、ssh-agent 或密码登录
 - 本机要求：系统自带的 OpenSSH 客户端（`ssh`）
 - Windows 上也能打开 WSL 发行版里的项目（`wsl.exe`，不用 ssh），见 4 节“WSL 发行版”
 - 代码：应用侧 `lib/remote/`，服务端和协议 `packages/bao_remote/`，构建工具 `tool/build_remote_server.dart`
@@ -479,7 +479,7 @@ flutter analyze
 | 认证失败（authentication） | 密码不对、取消了登录，或密钥没加载 | 失败页点“编辑”改密码或换私钥；或把密钥加到 ssh-agent，或在 `~/.ssh/config` 里写 `IdentityFile` |
 | 主机密钥未知（hostKey） | 用户的 ssh 配置写了 `StrictHostKeyChecking yes` | 先在终端里 `ssh <主机>` 一次，接受密钥 |
 | 主机密钥变了（hostKeyChanged） | 服务器重装过，或有人在中间 | 确认是重装过的话，失败页点“移除旧指纹并重新连接” |
-| 不支持的系统（unsupported） | 远端不是 Linux 或 macOS 的 x64/arm64 | 不支持 |
+| 不支持的系统（unsupported） | 远端不是 Linux 或 macOS 的 x64/arm64，也不是 Linux riscv64 | 不支持 |
 | WSL 无法启动这个发行版（wsl） | 没装 WSL、发行版被删或改名、WSL 自己起不来 | 在终端里 `wsl --list` 看发行版名，`wsl -d <发行版>` 看它自己的报错 |
 | This build of the app has no server for macOS x64 | 应用是在 Linux / Windows 上、或没给 `--macos-x64-dart` 时打包的，没有这个平台的服务端 | 用 CI 发布的版本，或按 9.1 在 Mac 上补编 |
 | Mac 主机：Connection refused / 连不上 | 没打开“远程登录” | 系统设置 → 通用 → 共享 → 远程登录 |
