@@ -1,0 +1,56 @@
+# Checks a pull request from outside the project against CONTRIBUTING.md:
+# a linked issue a maintainer has agreed to, its size, its title, no merge
+# commits (.github/scripts/pr_gate.js has the rules). Says what is missing
+# in one comment kept up to date, labels (needs-issue, too-large) and the
+# `PR gate` status; closes one still without an accepted issue after seven
+# days.
+#
+#   A pull request opened, edited,   that one checked
+#   pushed to, labelled
+#   An issue labelled                the open ones checked again (an issue
+#                                    now `accepted`)
+#   Each day, Actions → PR gate →    the open ones checked again, those
+#   Run workflow                     past their days closed
+#
+# A maintainer labels a typo or a small obvious fix `trivial`: it needs no
+# issue.
+#
+# pull_request_target, to comment and label on a fork's pull request: so
+# nothing of the pull request is checked out or run, only the script as it
+# is on main.
+name: PR gate
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+  issues:
+    types: [labeled, unlabeled]
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: pr-gate-${{ github.event.pull_request.number || 'all' }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    # An issue's labels other than `accepted` change nothing.
+    if: github.event_name != 'issues' || github.event.label.name == 'accepted'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const gate = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/pr_gate.js`);
+            await gate.run({ github, context, core });
