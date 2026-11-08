@@ -1,5 +1,6 @@
 # Builds the remote server (baocode-server, the app's side on an SSH host)
-# for Linux, macOS and Windows, x64 and arm64, and runs it on each. docs/ssh-remote.md
+# for Linux, macOS and Windows, x64 and arm64 (and Linux riscv64), and runs it
+# on each. docs/ssh-remote.md
 # (9.3) has where the builds go and how the app finds them.
 #
 #   git tag server-foo && git push origin server-foo
@@ -110,7 +111,7 @@ jobs:
           path: build/remote-windows
       # Once, for both apps: they carry its servers.json, and download the
       # build a host needs from dl.baocode.dev (docs/ssh-remote.md, 9.3).
-      - name: Build for Linux and macOS, x64 and arm64, with Windows'
+      - name: Build for Linux and macOS, x64 and arm64, Linux riscv64, with Windows'
         run: |
           dart run tool/build_remote_server.dart --out build/remote --all \
             --macos-x64-dart "$RUNNER_TEMP/dart-x64/dart-sdk/bin/dart" \
@@ -148,7 +149,7 @@ jobs:
           path: build/remote
       - uses: docker/setup-qemu-action@v4
         with:
-          platforms: arm64
+          platforms: arm64,riscv64
       - name: Run it on Linux distributions, in Docker
         run: |
           # Artifacts keep no modes.

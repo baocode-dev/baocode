@@ -58,6 +58,8 @@ class MasonServerProvider implements LspServerProvider {
       Abi.linuxX64 => ('linux', 'x64'),
       Abi.linuxIA32 => ('linux', 'x86'),
       Abi.linuxArm => ('linux', 'arm'),
+      Abi.linuxRiscv64 => ('linux', 'riscv64'),
+      Abi.linuxRiscv32 => ('linux', 'riscv32'),
       Abi.windowsArm64 => ('win', 'arm64'),
       Abi.windowsIA32 => ('win', 'x86'),
       Abi.windowsX64 => ('win', 'x64'),

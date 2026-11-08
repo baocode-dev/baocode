@@ -455,13 +455,16 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
   test('platforms as the builds are named', () {
     expect(SshLauncher.platform('Linux', 'x86_64'), 'linux-x64');
     expect(SshLauncher.platform('Linux', 'aarch64'), 'linux-arm64');
+    expect(SshLauncher.platform('Linux', 'riscv64'), 'linux-riscv64');
     expect(SshLauncher.platform('Darwin', 'arm64'), 'darwin-arm64');
     expect(SshLauncher.platform('Darwin', 'x86_64'), 'darwin-x64');
+    expect(SshLauncher.platform('Darwin', 'riscv64'), isNull);
     expect(SshLauncher.platform('FreeBSD', 'amd64'), isNull);
     // Windows' probe says PROCESSOR_ARCHITECTURE; a Unix shell there
     // (Git's, MSYS2's) its own name for Windows.
     expect(SshLauncher.platform('Windows', 'AMD64'), 'windows-x64');
     expect(SshLauncher.platform('Windows', 'ARM64'), 'windows-arm64');
+    expect(SshLauncher.platform('Windows', 'riscv64'), isNull);
     expect(
       SshLauncher.platform('MINGW64_NT-10.0-26100', 'x86_64'),
       'windows-x64',
@@ -469,8 +472,27 @@ exec '$dartExecutable' '${p.absolute('packages', 'bao_remote', 'bin', 'baocode_s
     expect(SshLauncher.platform('Windows', 'x86'), isNull);
     expect(SshLauncher.describe('darwin-arm64'), 'macOS arm64');
     expect(SshLauncher.describe('linux-x64'), 'Linux x64');
+    expect(SshLauncher.describe('linux-riscv64'), 'Linux riscv64');
     expect(SshLauncher.describe('windows-arm64'), 'Windows arm64');
   });
+
+  test('Linux on riscv64 installs the riscv64 server', () async {
+    final binaries = FakeBinaries('1-abc', {'linux-riscv64': serverScript()});
+    final launcher = SshLauncher(
+      ssh: fakeSsh,
+      binaries: binaries,
+      start: starter(extra: {'FAKE_MACHINE': 'riscv64'}),
+    );
+    final connection = await launcher.connect(SshTarget.parse('dev'));
+    // The server that answers is this machine's, so its hello says this
+    // machine's architecture; what was put there is the riscv64 build.
+    expect(binaries.reads, ['linux-riscv64']);
+    final installed = File(
+      p.join(home.path, '.baocode-server', '1-abc', 'baocode-server'),
+    );
+    expect(installed.existsSync(), isTrue);
+    await connection.close();
+  }, timeout: const Timeout(Duration(minutes: 2)));
 
   test("a Windows host's commands: PowerShell's, encoded, whatever its "
       'shell; the server put there by sftp', () {
