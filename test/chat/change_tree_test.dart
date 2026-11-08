@@ -207,61 +207,69 @@ void main() {
     expect(find.text('f499.txt'), findsOneWidget);
   });
 
-  testWidgets(
-    'dragging the sash stretches the change tree height up to total row count (folders and files)',
-    (tester) async {
-      // 1 file: no sash to stretch beyond content.
-      await pump(tester, [
-        const FileChange(path: '/p/single.txt', added: 1, removed: 0),
-      ]);
-      await expand(tester);
-      expect(find.byKey(const ValueKey('activity-strip-sash')), findsNothing);
-      expect(
-        tester.getSize(find.byType(ChangeTree)).height,
-        1 * IdeListColors.rowHeight,
-      );
+  group('the sash', () {
+    final sash = find.byKey(const ValueKey('activity-strip-sash'));
+    double treeRows(WidgetTester tester) =>
+        tester.getSize(find.byType(ChangeTree)).height /
+        IdeListColors.rowHeight;
 
-      // 3 files in directories: 1 folder row ('lib/src') + 2 file rows ('a.dart', 'b.dart')
-      // + 1 root file row ('README.md') = 4 rows total.
+    testWidgets('none while every row shows', (tester) async {
+      // lib/src, its two files and README.md: four rows.
       await pump(tester, changes);
-      expect(
-        tester.getSize(find.byType(ChangeTree)).height,
-        4 * IdeListColors.rowHeight,
-      );
+      await expand(tester);
+      expect(treeRows(tester), 4);
+      expect(sash, findsNothing);
+    });
 
-      // 10 files in root: default is 7 rows, stretches up to 10 rows maximum.
+    testWidgets('dragged, as high as its rows; double-clicked, seven again', (
+      tester,
+    ) async {
       await pump(tester, [
         for (var i = 0; i < 10; i++)
           FileChange(path: '/p/f$i.txt', added: 1, removed: 0),
       ]);
-      expect(
-        tester.getSize(find.byType(ChangeTree)).height,
-        7 * IdeListColors.rowHeight,
-      );
-
-      final sash = find.byKey(const ValueKey('activity-strip-sash'));
-      expect(sash, findsOneWidget);
-
-      // Drag sash upward far beyond 10 files (e.g. 500px).
+      expect(sash, findsNothing);
+      await expand(tester);
+      expect(treeRows(tester), 7);
       await tester.drag(sash, const Offset(0, -500));
       await tester.pumpAndSettle();
+      expect(treeRows(tester), 10);
 
-      // Height strictly clamps to exactly 10 rows.
-      expect(
-        tester.getSize(find.byType(ChangeTree)).height,
-        10 * IdeListColors.rowHeight,
-      );
+      await tester.drag(sash, Offset(0, IdeListColors.rowHeight * 3));
+      await tester.pumpAndSettle();
+      expect(treeRows(tester), 7);
 
-      // Double tap resets to default height (7 rows).
+      await tester.drag(sash, Offset(0, IdeListColors.rowHeight * 2));
+      await tester.pumpAndSettle();
+      expect(treeRows(tester), 5);
+
       await tester.tap(sash);
       await tester.pump(const Duration(milliseconds: 50));
       await tester.tap(sash);
       await tester.pumpAndSettle();
+      expect(treeRows(tester), 7);
+    });
 
-      expect(
-        tester.getSize(find.byType(ChangeTree)).height,
-        7 * IdeListColors.rowHeight,
-      );
-    },
-  );
+    testWidgets('a folder closed, from the rows still shown', (tester) async {
+      // lib, its ten files and two at the top: thirteen rows.
+      await pump(tester, [
+        for (var i = 0; i < 10; i++)
+          FileChange(path: '/p/lib/f$i.txt', added: 1, removed: 0),
+        const FileChange(path: '/p/a.txt', added: 1, removed: 0),
+        const FileChange(path: '/p/b.txt', added: 1, removed: 0),
+      ]);
+      await expand(tester);
+      await tester.drag(sash, const Offset(0, -1000));
+      await tester.pumpAndSettle();
+      expect(treeRows(tester), 13);
+
+      await tester.tap(find.text('lib'));
+      await tester.pump();
+      expect(treeRows(tester), 3);
+      // Shorter at once, not after the ten rows it no longer has.
+      await tester.drag(sash, Offset(0, IdeListColors.rowHeight));
+      await tester.pumpAndSettle();
+      expect(treeRows(tester), 2);
+    });
+  });
 }

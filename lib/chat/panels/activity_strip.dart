@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -96,71 +95,86 @@ class _ActivityStripState extends State<ActivityStrip> {
   bool _filesExpanded = false;
   bool _tasksExpanded = false;
   Timer? _ticker;
+
+  /// The files' tree's height as dragged; null for its own.
   double? _treeHeight;
-  int? _treeRowCount;
+  final _tree = GlobalKey<ChangeTreeState>();
+
+  /// The tree's rows, every folder open: past [ChangeTree.defaultMaxRows]
+  /// its height can be dragged.
+  int _treeRows = 0;
   bool _dragging = false;
   bool _hoveringSash = false;
-  double? _dragStartY;
-  double? _dragStartHeight;
+  ({double y, double height})? _dragStart;
 
-  int get _rowCount =>
-      _treeRowCount ??
-      ChangeTree.rowCount(widget.root, widget.changes, paths: widget.paths);
+  /// The highest the tree goes for the rows it shows now.
+  double _maxTreeHeight() =>
+      ChangeTree.maxHeight(context, _tree.currentState?.rowCount ?? _treeRows);
 
-  double get _defaultTreeHeight =>
-      math.min(_rowCount, 7) * IdeListColors.rowHeight;
-
-  double _maxTreeHeight(BuildContext context) {
-    final totalHeight = _rowCount * IdeListColors.rowHeight;
-    final screenMax = MediaQuery.sizeOf(context).height * 0.6;
-    return math.max(IdeListColors.rowHeight, math.min(totalHeight, screenMax));
-  }
-
-  Widget _buildSash(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 10),
-    child: MouseRegion(
-      cursor: SystemMouseCursors.resizeRow,
-      onEnter: (_) => setState(() => _hoveringSash = true),
-      onExit: (_) => setState(() => _hoveringSash = false),
-      child: GestureDetector(
-        key: const ValueKey('activity-strip-sash'),
-        behavior: HitTestBehavior.opaque,
-        dragStartBehavior: DragStartBehavior.down,
-        onVerticalDragStart: (details) {
-          setState(() {
-            _dragging = true;
-            _dragStartY = details.globalPosition.dy;
-            _dragStartHeight = _treeHeight ?? _defaultTreeHeight;
-          });
-        },
-        onVerticalDragUpdate: (details) {
-          final startY = _dragStartY;
-          final startH = _dragStartHeight;
-          if (startY == null || startH == null) return;
-          final delta = startY - details.globalPosition.dy;
-          final maxH = _maxTreeHeight(context);
-          setState(() {
-            _treeHeight = (startH + delta).clamp(IdeListColors.rowHeight, maxH);
-          });
-        },
-        onVerticalDragEnd: (_) => setState(() => _dragging = false),
-        onVerticalDragCancel: () => setState(() => _dragging = false),
-        onDoubleTap: () => setState(() => _treeHeight = null),
-        child: SizedBox(
-          height: 6,
-          child: Islands.sashLine(
-            dragging: _dragging || _hoveringSash,
-            axis: Axis.vertical,
-          ),
+  /// On the strip's top edge, taking no room of its own: dragged, the
+  /// files' tree is higher or lower; double-clicked, as high as it was.
+  Widget _sash() => MouseRegion(
+    cursor: SystemMouseCursors.resizeRow,
+    onEnter: (_) => setState(() => _hoveringSash = true),
+    onExit: (_) => setState(() => _hoveringSash = false),
+    child: GestureDetector(
+      key: const ValueKey('activity-strip-sash'),
+      behavior: HitTestBehavior.opaque,
+      dragStartBehavior: DragStartBehavior.down,
+      onVerticalDragStart: (details) {
+        final tree = _tree.currentState;
+        if (tree == null) return;
+        // From the height it shows: one dragged past what it has left no
+        // stretch where the pointer moves and it does not.
+        final height = (_treeHeight ?? tree.defaultHeight).clamp(
+          IdeListColors.rowHeight,
+          _maxTreeHeight(),
+        );
+        setState(() {
+          _dragging = true;
+          _dragStart = (y: details.globalPosition.dy, height: height);
+        });
+      },
+      onVerticalDragUpdate: (details) {
+        final start = _dragStart;
+        if (start == null) return;
+        setState(() {
+          _treeHeight = (start.height + start.y - details.globalPosition.dy)
+              .clamp(IdeListColors.rowHeight, _maxTreeHeight());
+        });
+      },
+      onVerticalDragEnd: (_) => _endDrag(),
+      onVerticalDragCancel: _endDrag,
+      onDoubleTap: () => setState(() => _treeHeight = null),
+      child: SizedBox(
+        height: 6,
+        child: Islands.sashLine(
+          dragging: _dragging || _hoveringSash,
+          axis: Axis.vertical,
         ),
       ),
     ),
+  );
+
+  void _endDrag() {
+    if (!mounted) return;
+    setState(() {
+      _dragging = false;
+      _dragStart = null;
+    });
+  }
+
+  void _countTreeRows() => _treeRows = ChangeTree.rowCount(
+    widget.root,
+    widget.changes,
+    paths: widget.paths,
   );
 
   @override
   void initState() {
     super.initState();
     _syncTicker();
+    _countTreeRows();
   }
 
   @override
@@ -170,7 +184,7 @@ class _ActivityStripState extends State<ActivityStrip> {
     if (!identical(oldWidget.changes, widget.changes) ||
         oldWidget.root != widget.root ||
         oldWidget.paths != widget.paths) {
-      _treeRowCount = null;
+      _countTreeRows();
     }
   }
 
@@ -197,12 +211,8 @@ class _ActivityStripState extends State<ActivityStrip> {
   @override
   Widget build(BuildContext context) {
     final changes = widget.changes;
-    final sash = _filesExpanded && _rowCount > 1 ? _buildSash(context) : null;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Stack(
       children: [
-        ?sash,
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
@@ -268,9 +278,8 @@ class _ActivityStripState extends State<ActivityStrip> {
                       root: widget.root,
                       paths: widget.paths,
                       changes: changes,
+                      key: _tree,
                       height: _treeHeight,
-                      onRowCount: (count) =>
-                          setState(() => _treeRowCount = count),
                       onOpen: widget.onOpenFile,
                       fileActions: widget.fileActions,
                       onKeep: widget.onKeepFiles,
@@ -281,6 +290,9 @@ class _ActivityStripState extends State<ActivityStrip> {
             ],
           ),
         ),
+        if (_filesExpanded && _treeRows > ChangeTree.defaultMaxRows)
+          // Clear of the corners.
+          Positioned(top: 0, left: 20, right: 20, child: _sash()),
       ],
     );
   }

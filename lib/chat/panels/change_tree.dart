@@ -23,17 +23,16 @@ import '../chat_models.dart';
 /// status letter and its lines added and removed. Hovered, a file or a
 /// folder offers Undo and Keep; a click opens the file's changes.
 ///
-/// At most [maxRows] rows show; the rest scroll, built as they come into
-/// view.
+/// At most [maxRows] rows show, or as many as [height] holds; the rest
+/// scroll, built as they come into view.
 class ChangeTree extends StatefulWidget {
   const ChangeTree({
     super.key,
     required this.root,
     required this.changes,
     this.paths,
-    this.maxRows = 7,
+    this.maxRows = defaultMaxRows,
     this.height,
-    this.onRowCount,
     this.onOpen,
     this.onKeep,
     this.onUndo,
@@ -49,12 +48,9 @@ class ChangeTree extends StatefulWidget {
   final p.Context? paths;
   final int maxRows;
 
-  /// Custom height of the tree; null to size by [maxRows].
+  /// How high it is, as dragged (see [maxHeight]); null for [maxRows]
+  /// rows.
   final double? height;
-
-  /// Told the number of visible rows (folders and files) when laid out or
-  /// toggled.
-  final ValueChanged<int>? onRowCount;
 
   final ValueChanged<FileChange>? onOpen;
   final ValueChanged<List<FileChange>>? onKeep;
@@ -66,8 +62,19 @@ class ChangeTree extends StatefulWidget {
   /// to open it, its path.
   final List<List<IdeMenuEntry>> Function(FileChange file)? fileActions;
 
-  /// How many rows [changes] take when laid out under [root] (folders and
-  /// files included).
+  static const defaultMaxRows = 7;
+
+  /// The highest it goes for [rows] rows: all of them, within 0.6 of the
+  /// window's height.
+  static double maxHeight(BuildContext context, int rows) => math.max(
+    IdeListColors.rowHeight,
+    math.min(
+      rows * IdeListColors.rowHeight,
+      MediaQuery.sizeOf(context).height * 0.6,
+    ),
+  );
+
+  /// How many rows [changes] take under [root], every folder open.
   static int rowCount(
     String root,
     List<FileChange> changes, {
@@ -96,7 +103,7 @@ class ChangeTree extends StatefulWidget {
   }
 
   @override
-  State<ChangeTree> createState() => _ChangeTreeState();
+  State<ChangeTree> createState() => ChangeTreeState();
 }
 
 sealed class _Row {
@@ -119,7 +126,14 @@ final class _FileRow extends _Row {
   final IdeGitStatus status;
 }
 
-class _ChangeTreeState extends State<ChangeTree> {
+class ChangeTreeState extends State<ChangeTree> {
+  /// The rows it shows now, closed folders' files left out.
+  int get rowCount => _rows.length;
+
+  /// How high [maxRows] rows of them are.
+  double get defaultHeight =>
+      math.min(_rows.length, widget.maxRows) * IdeListColors.rowHeight;
+
   /// The folders closed, by path.
   final Set<String> _collapsed = {};
   List<_Row> _rows = const [];
@@ -158,7 +172,7 @@ class _ChangeTreeState extends State<ChangeTree> {
 
   p.Context get _paths => widget.paths ?? p.context;
 
-  void _layOut({bool notify = false}) {
+  void _layOut() {
     final byPath = {for (final change in widget.changes) change.path: change};
     final rows = <_Row>[];
     void add(List<IdeScmTreeNode> nodes, int depth) {
@@ -189,12 +203,11 @@ class _ChangeTreeState extends State<ChangeTree> {
       1,
     );
     _rows = rows;
-    if (notify) widget.onRowCount?.call(rows.length);
   }
 
   void _toggle(String folder) => setState(() {
     if (!_collapsed.remove(folder)) _collapsed.add(folder);
-    _layOut(notify: true);
+    _layOut();
   });
 
   @override
@@ -203,14 +216,11 @@ class _ChangeTreeState extends State<ChangeTree> {
     if (rows.isEmpty) return const SizedBox.shrink();
 
     final rowHeight = IdeListColors.rowHeight;
-    final defaultHeight = math.min(rows.length, widget.maxRows) * rowHeight;
-    final totalHeight = rows.length * rowHeight;
-    final screenMax = MediaQuery.sizeOf(context).height * 0.6;
-    final maxHeight = math.max(rowHeight, math.min(totalHeight, screenMax));
-    final height = (widget.height ?? defaultHeight).clamp(rowHeight, maxHeight);
-
     return SizedBox(
-      height: height,
+      height: (widget.height ?? defaultHeight).clamp(
+        rowHeight,
+        ChangeTree.maxHeight(context, rows.length),
+      ),
       child: ListView.builder(
         controller: _scroll,
         padding: EdgeInsets.zero,
