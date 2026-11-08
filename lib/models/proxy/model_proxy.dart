@@ -16,6 +16,7 @@ import '../codex/codex_service.dart';
 import '../launch_environment.dart';
 import '../model_provider.dart';
 import '../upstream.dart';
+import 'cache_control.dart';
 import 'prompt_cache_key.dart';
 import 'translate/openai_chat_request.dart';
 import 'translate/openai_chat_response.dart';
@@ -79,6 +80,10 @@ class ModelProxy {
 
   /// What a request must carry, as a bearer token or `x-api-key`.
   final String token;
+
+  /// The providers' models (`id\nmodel`) that refused the cache's marks:
+  /// asked without them since.
+  final _refusingCacheControl = <String>{};
 
   static String _newToken() {
     final random = Random.secure();
@@ -614,44 +619,68 @@ class ModelProxy {
     ].where((query) => query.isNotEmpty).join('&');
     final url = query.isEmpty ? path : path.replace(query: query);
     final client = await _upstream();
-    final upstreamRequest = await client.postUrl(url);
     final key = await _key(provider.id);
-    upstreamHeaders(provider, key).forEach(upstreamRequest.headers.set);
-    request.headers.forEach((name, values) {
-      if (!_notPassed.contains(name) &&
-          !UsageHeaders.hintsOnly.contains(name)) {
-        upstreamRequest.headers.set(name, values);
+    final unmarked = '${provider.id}\n${body['model'] ?? ''}';
+    var outgoing = _refusingCacheControl.contains(unmarked)
+        ? withoutCacheControl(body)
+        : body;
+    while (true) {
+      final upstreamRequest = await client.postUrl(url);
+      upstreamHeaders(provider, key).forEach(upstreamRequest.headers.set);
+      request.headers.forEach((name, values) {
+        if (!_notPassed.contains(name) &&
+            !UsageHeaders.hintsOnly.contains(name)) {
+          upstreamRequest.headers.set(name, values);
+        }
+      });
+      customUpstreamHeaders(
+        provider,
+        session: sessionId(
+          body,
+          header: request.headers.value(sessionHeaderName),
+        ),
+        model: '${body['model'] ?? ''}',
+      ).forEach(upstreamRequest.headers.set);
+      upstreamRequest.headers.contentType = ContentType.json;
+      final (payload, encoded) = await _encodeJson(outgoing);
+      meter?.trace?.sending(
+        method: 'POST',
+        url: url,
+        headers: UsageTraceMessage.headersOf(upstreamRequest.headers.forEach),
+        body: payload,
+      );
+      upstreamRequest.add(encoded);
+      _dropWithClient(response, upstreamRequest);
+      final answer = await upstreamRequest.close();
+      meter?.answered();
+      meter?.trace?.answered(
+        answer.statusCode,
+        UsageTraceMessage.headersOf(answer.headers.forEach),
+      );
+      if (answer.statusCode < 400) {
+        if (!countTokens) _onError?.call(provider.id, null);
+        _answerAs(response, answer);
+        response.bufferOutput = false;
+        await for (final chunk in _whileClient(answer)) {
+          response.add(chunk);
+          meter?.bytes(chunk);
+          await response.flush();
+        }
+        return response.close();
       }
-    });
-    customUpstreamHeaders(
-      provider,
-      session: sessionId(
-        body,
-        header: request.headers.value(sessionHeaderName),
-      ),
-      model: '${body['model'] ?? ''}',
-    ).forEach(upstreamRequest.headers.set);
-    upstreamRequest.headers.contentType = ContentType.json;
-    final (payload, encoded) = await _encodeJson(body);
-    meter?.trace?.sending(
-      method: 'POST',
-      url: url,
-      headers: UsageTraceMessage.headersOf(upstreamRequest.headers.forEach),
-      body: payload,
-    );
-    upstreamRequest.add(encoded);
-    _dropWithClient(response, upstreamRequest);
-    final answer = await upstreamRequest.close();
-    meter?.answered();
-    meter?.trace?.answered(
-      answer.statusCode,
-      UsageTraceMessage.headersOf(answer.headers.forEach),
-    );
-    if (answer.statusCode >= 400) {
       final text = await utf8.decodeStream(answer);
-      meter?.trace
-        ?..upstreamText(text)
-        ..passedOn = true;
+      meter?.trace?.upstreamText(text);
+      // Its cache's marks refused (OpenCode's DeepSeek): asked again, and
+      // from then on, without them.
+      if (refusesCacheControl(answer.statusCode, text)) {
+        final unmarkedBody = withoutCacheControl(outgoing);
+        if (!identical(unmarkedBody, outgoing)) {
+          _refusingCacheControl.add(unmarked);
+          outgoing = unmarkedBody;
+          continue;
+        }
+      }
+      meter?.trace?.passedOn = true;
       if (countTokens) {
         return _json(response, 200, {'input_tokens': await _estimate(body)});
       }
@@ -662,15 +691,6 @@ class ModelProxy {
       response.write(text);
       return response.close();
     }
-    if (!countTokens) _onError?.call(provider.id, null);
-    _answerAs(response, answer);
-    response.bufferOutput = false;
-    await for (final chunk in _whileClient(answer)) {
-      response.add(chunk);
-      meter?.bytes(chunk);
-      await response.flush();
-    }
-    return response.close();
   }
 
   /// [response] with [upstream]'s status and headers, but those
