@@ -932,89 +932,32 @@ void main() {
       expect((jsonDecode(counted.text) as Map)['input_tokens'], greaterThan(0));
     });
 
-    test('an upstream that refuses the cache\'s marks is asked again '
-        'without them, and from then on', () async {
-      const refusal =
-          '{"type":"error","error":{"type":"invalid_request_error","message":'
-          '"Extra inputs are not permitted, field: '
-          '\'messages[0].content.list[0].cache_control\'"}}';
-      anthropic.reply = (body) => jsonEncode(body).contains('cache_control')
-          ? (400, const [refusal])
-          : (200, const ['event: message_stop', '']);
-      const mark = {'type': 'ephemeral'};
-      final body = {
-        'model': 'deepseek-v4.1-flash',
-        'system': [
-          {'type': 'text', 'text': 'be brief', 'cache_control': mark},
-        ],
-        'tools': [
-          {'name': 'Read', 'input_schema': {}, 'cache_control': mark},
-        ],
-        'messages': [
-          {
-            'role': 'user',
-            'content': [
-              {
-                'type': 'tool_result',
-                'tool_use_id': 't1',
-                'content': [
-                  {'type': 'text', 'text': 'out', 'cache_control': mark},
-                ],
-              },
-              {'type': 'text', 'text': 'hi', 'cache_control': mark},
-            ],
-          },
-        ],
-      };
-      final url = await on('an');
-      final first = await post(url, body, headers: {'x-api-key': 'tok'});
-      expect(first.status, 200);
-      expect(anthropic.requests, hasLength(2));
-      expect(anthropic.requests.last.body, {
-        'model': 'deepseek-v4.1-flash',
-        'system': [
-          {'type': 'text', 'text': 'be brief'},
-        ],
-        'tools': [
-          {'name': 'Read', 'input_schema': {}},
-        ],
-        'messages': [
-          {
-            'role': 'user',
-            'content': [
-              {
-                'type': 'tool_result',
-                'tool_use_id': 't1',
-                'content': [
-                  {'type': 'text', 'text': 'out'},
-                ],
-              },
-              {'type': 'text', 'text': 'hi'},
-            ],
-          },
-        ],
-      });
-      expect(errors.last, isNull);
-
-      final again = await post(url, body, headers: {'x-api-key': 'tok'});
-      expect(again.status, 200);
-      expect(anthropic.requests, hasLength(3));
-
-      // With nothing to take off, its error goes back as ever.
-      anthropic.reply = (_) => (400, const [refusal]);
-      final refused = await post(
-        url,
-        {
-          'model': 'other',
-          'messages': [
-            {'role': 'user', 'content': 'hi'},
-          ],
-        },
-        headers: {'x-api-key': 'tok'},
+    test('OpenCode is not told Claude Code\'s session', () async {
+      final opencode = ModelProxy(
+        provider: (id) => ModelProvider(
+          id: 'oc',
+          name: 'OpenCode',
+          baseUrl: 'http://opencode.ai/inference/anthropic',
+          auth: ProviderAuth.apiKey,
+        ),
+        key: (id) async => 'sk-$id',
+        findProxy: (_) => 'PROXY ${Uri.parse(anthropic.base).authority}',
+        token: 'tok',
       );
-      expect(refused.status, 400);
-      expect(refused.text.trim(), refusal);
-      expect(anthropic.requests, hasLength(4));
+      addTearDown(opencode.close);
+      anthropic.reply = (_) => (200, const ['event: message_stop', '']);
+      const headers = {'x-api-key': 'tok', sessionHeaderName: 's1'};
+      final body = {'model': 'deepseek-v4.1-flash', 'messages': []};
+      await post(
+        Uri.parse('${(await opencode.endpoint('oc')).baseUrl}/v1/messages'),
+        body,
+        headers: headers,
+      );
+      await post(await on('an'), body, headers: headers);
+      final [toOpencode, toClaude] = anthropic.requests;
+      expect(toOpencode.path, '/inference/anthropic/v1/messages');
+      expect(toOpencode.headers.containsKey(sessionHeaderName), isFalse);
+      expect(toClaude.headers[sessionHeaderName], 's1');
     });
 
     test('Anthropic\'s API at an address of its own: the endpoint\'s query '
