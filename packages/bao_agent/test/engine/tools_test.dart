@@ -824,4 +824,39 @@ void main() {
     expect(h.permissionRequests, isEmpty);
     expect(h.of('system', 'init').last['skills'], contains('greet'));
   });
+
+  test(
+    "Skill: a command only where its file lets the model take it up",
+    () async {
+      h = await Harness.start(
+        files: {
+          '.claude/commands/deploy.md':
+              '---\ndescription: What /deploy does.\n---\nPush and publish.\n',
+          '.claude/commands/review.md': '---\ndescription: Reviews the diff\ndisable-model-invocation: false\n---\nReview \$ARGUMENTS.\n',
+        },
+      );
+      h.model.script.addAll([
+        Reply.tool('Skill', {'skill': 'deploy'}),
+        Reply.tool('Skill', {'skill': 'review', 'args': 'main'}),
+        Reply.text('reviewed'),
+      ]);
+      await h.turn('look into the failing build');
+      final listed = sentIn(h.model.turns.first);
+      expect(listed, contains('- review: Reviews the diff'));
+      expect(listed, isNot(contains('- deploy:')));
+      expect(h.toolResults[0]['is_error'], isTrue);
+      expect(
+        (h.toolResults[1]['tool_use_result'] as Map)['commandName'],
+        'review',
+      );
+      final last = sentIn(h.model.turns.last);
+      expect(last, contains('Review main.'));
+      expect(last, isNot(contains('Push and publish.')));
+      // Still the user's to run.
+      expect(
+        h.of('system', 'init').last['slash_commands'],
+        containsAll(['deploy', 'review']),
+      );
+    },
+  );
 }
