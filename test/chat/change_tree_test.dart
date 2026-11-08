@@ -206,4 +206,62 @@ void main() {
     await tester.pump();
     expect(find.text('f499.txt'), findsOneWidget);
   });
+
+  testWidgets(
+    'dragging the sash stretches the change tree height up to total row count (folders and files)',
+    (tester) async {
+      // 1 file: no sash to stretch beyond content.
+      await pump(tester, [
+        const FileChange(path: '/p/single.txt', added: 1, removed: 0),
+      ]);
+      await expand(tester);
+      expect(find.byKey(const ValueKey('activity-strip-sash')), findsNothing);
+      expect(
+        tester.getSize(find.byType(ChangeTree)).height,
+        1 * IdeListColors.rowHeight,
+      );
+
+      // 3 files in directories: 1 folder row ('lib/src') + 2 file rows ('a.dart', 'b.dart')
+      // + 1 root file row ('README.md') = 4 rows total.
+      await pump(tester, changes);
+      expect(
+        tester.getSize(find.byType(ChangeTree)).height,
+        4 * IdeListColors.rowHeight,
+      );
+
+      // 10 files in root: default is 7 rows, stretches up to 10 rows maximum.
+      await pump(tester, [
+        for (var i = 0; i < 10; i++)
+          FileChange(path: '/p/f$i.txt', added: 1, removed: 0),
+      ]);
+      expect(
+        tester.getSize(find.byType(ChangeTree)).height,
+        7 * IdeListColors.rowHeight,
+      );
+
+      final sash = find.byKey(const ValueKey('activity-strip-sash'));
+      expect(sash, findsOneWidget);
+
+      // Drag sash upward far beyond 10 files (e.g. 500px).
+      await tester.drag(sash, const Offset(0, -500));
+      await tester.pumpAndSettle();
+
+      // Height strictly clamps to exactly 10 rows.
+      expect(
+        tester.getSize(find.byType(ChangeTree)).height,
+        10 * IdeListColors.rowHeight,
+      );
+
+      // Double tap resets to default height (7 rows).
+      await tester.tap(sash);
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(sash);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(find.byType(ChangeTree)).height,
+        7 * IdeListColors.rowHeight,
+      );
+    },
+  );
 }

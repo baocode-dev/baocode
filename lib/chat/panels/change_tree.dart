@@ -32,6 +32,8 @@ class ChangeTree extends StatefulWidget {
     required this.changes,
     this.paths,
     this.maxRows = 7,
+    this.height,
+    this.onRowCount,
     this.onOpen,
     this.onKeep,
     this.onUndo,
@@ -47,6 +49,13 @@ class ChangeTree extends StatefulWidget {
   final p.Context? paths;
   final int maxRows;
 
+  /// Custom height of the tree; null to size by [maxRows].
+  final double? height;
+
+  /// Told the number of visible rows (folders and files) when laid out or
+  /// toggled.
+  final ValueChanged<int>? onRowCount;
+
   final ValueChanged<FileChange>? onOpen;
   final ValueChanged<List<FileChange>>? onKeep;
 
@@ -56,6 +65,35 @@ class ChangeTree extends StatefulWidget {
   /// What else a file's menu offers, after opening its changes: the ways
   /// to open it, its path.
   final List<List<IdeMenuEntry>> Function(FileChange file)? fileActions;
+
+  /// How many rows [changes] take when laid out under [root] (folders and
+  /// files included).
+  static int rowCount(
+    String root,
+    List<FileChange> changes, {
+    p.Context? paths,
+  }) {
+    if (changes.isEmpty) return 0;
+    var count = 0;
+    void add(List<IdeScmTreeNode> nodes) {
+      for (final node in nodes) {
+        count++;
+        if (node is IdeScmTreeFolder) add(node.children);
+      }
+    }
+
+    add(
+      ideScmTree(root, [
+        for (final change in changes)
+          IdeGitResource(
+            path: change.path,
+            status: IdeGitStatus.modified,
+            group: IdeGitGroup.workingTree,
+          ),
+      ], paths: paths),
+    );
+    return count;
+  }
 
   @override
   State<ChangeTree> createState() => _ChangeTreeState();
@@ -120,7 +158,7 @@ class _ChangeTreeState extends State<ChangeTree> {
 
   p.Context get _paths => widget.paths ?? p.context;
 
-  void _layOut() {
+  void _layOut({bool notify = false}) {
     final byPath = {for (final change in widget.changes) change.path: change};
     final rows = <_Row>[];
     void add(List<IdeScmTreeNode> nodes, int depth) {
@@ -151,22 +189,32 @@ class _ChangeTreeState extends State<ChangeTree> {
       1,
     );
     _rows = rows;
+    if (notify) widget.onRowCount?.call(rows.length);
   }
 
   void _toggle(String folder) => setState(() {
     if (!_collapsed.remove(folder)) _collapsed.add(folder);
-    _layOut();
+    _layOut(notify: true);
   });
 
   @override
   Widget build(BuildContext context) {
     final rows = _rows;
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    final rowHeight = IdeListColors.rowHeight;
+    final defaultHeight = math.min(rows.length, widget.maxRows) * rowHeight;
+    final totalHeight = rows.length * rowHeight;
+    final screenMax = MediaQuery.sizeOf(context).height * 0.6;
+    final maxHeight = math.max(rowHeight, math.min(totalHeight, screenMax));
+    final height = (widget.height ?? defaultHeight).clamp(rowHeight, maxHeight);
+
     return SizedBox(
-      height: math.min(rows.length, widget.maxRows) * IdeListColors.rowHeight,
+      height: height,
       child: ListView.builder(
         controller: _scroll,
         padding: EdgeInsets.zero,
-        itemExtent: IdeListColors.rowHeight,
+        itemExtent: rowHeight,
         itemCount: rows.length,
         itemBuilder: (context, index) => switch (rows[index]) {
           final _FolderRow row => _folderRow(row),

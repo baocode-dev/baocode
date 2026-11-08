@@ -1,15 +1,19 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 
+import '../../ide/ide_hover.dart';
+import '../../ide/ide_list.dart' show IdeListColors;
+import '../../ide/ide_menu.dart';
+import '../../kernel/kernel_types.dart';
 import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../theme/workbench_theme.dart' show themeColors;
-import '../../ide/ide_hover.dart';
-import '../../ide/ide_menu.dart';
-import '../../kernel/kernel_types.dart';
+import '../../workspace/islands.dart';
 import '../chat_models.dart';
 import '../widgets/flip_switcher.dart';
 import '../widgets/hover_builder.dart';
@@ -92,6 +96,66 @@ class _ActivityStripState extends State<ActivityStrip> {
   bool _filesExpanded = false;
   bool _tasksExpanded = false;
   Timer? _ticker;
+  double? _treeHeight;
+  int? _treeRowCount;
+  bool _dragging = false;
+  bool _hoveringSash = false;
+  double? _dragStartY;
+  double? _dragStartHeight;
+
+  int get _rowCount =>
+      _treeRowCount ??
+      ChangeTree.rowCount(widget.root, widget.changes, paths: widget.paths);
+
+  double get _defaultTreeHeight =>
+      math.min(_rowCount, 7) * IdeListColors.rowHeight;
+
+  double _maxTreeHeight(BuildContext context) {
+    final totalHeight = _rowCount * IdeListColors.rowHeight;
+    final screenMax = MediaQuery.sizeOf(context).height * 0.6;
+    return math.max(IdeListColors.rowHeight, math.min(totalHeight, screenMax));
+  }
+
+  Widget _buildSash(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    child: MouseRegion(
+      cursor: SystemMouseCursors.resizeRow,
+      onEnter: (_) => setState(() => _hoveringSash = true),
+      onExit: (_) => setState(() => _hoveringSash = false),
+      child: GestureDetector(
+        key: const ValueKey('activity-strip-sash'),
+        behavior: HitTestBehavior.opaque,
+        dragStartBehavior: DragStartBehavior.down,
+        onVerticalDragStart: (details) {
+          setState(() {
+            _dragging = true;
+            _dragStartY = details.globalPosition.dy;
+            _dragStartHeight = _treeHeight ?? _defaultTreeHeight;
+          });
+        },
+        onVerticalDragUpdate: (details) {
+          final startY = _dragStartY;
+          final startH = _dragStartHeight;
+          if (startY == null || startH == null) return;
+          final delta = startY - details.globalPosition.dy;
+          final maxH = _maxTreeHeight(context);
+          setState(() {
+            _treeHeight = (startH + delta).clamp(IdeListColors.rowHeight, maxH);
+          });
+        },
+        onVerticalDragEnd: (_) => setState(() => _dragging = false),
+        onVerticalDragCancel: () => setState(() => _dragging = false),
+        onDoubleTap: () => setState(() => _treeHeight = null),
+        child: SizedBox(
+          height: 6,
+          child: Islands.sashLine(
+            dragging: _dragging || _hoveringSash,
+            axis: Axis.vertical,
+          ),
+        ),
+      ),
+    ),
+  );
 
   @override
   void initState() {
@@ -103,6 +167,11 @@ class _ActivityStripState extends State<ActivityStrip> {
   void didUpdateWidget(ActivityStrip oldWidget) {
     super.didUpdateWidget(oldWidget);
     _syncTicker();
+    if (!identical(oldWidget.changes, widget.changes) ||
+        oldWidget.root != widget.root ||
+        oldWidget.paths != widget.paths) {
+      _treeRowCount = null;
+    }
   }
 
   @override
@@ -128,78 +197,91 @@ class _ActivityStripState extends State<ActivityStrip> {
   @override
   Widget build(BuildContext context) {
     final changes = widget.changes;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: AppColors.bubbleFill,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.bubbleBorder()),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (widget.tasks.length > _maxUnfoldedTasks)
-            _TasksHeader(
-              tasks: widget.tasks,
-              expanded: _tasksExpanded,
-              onToggle: () => setState(() => _tasksExpanded = !_tasksExpanded),
-            ),
-          if (widget.tasks.isNotEmpty &&
-              (widget.tasks.length <= _maxUnfoldedTasks || _tasksExpanded))
-            ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxHeight: _StripRow.height * _maxTaskRows,
-              ),
-              child: ListView(
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                children: [
-                  for (final task in widget.tasks)
-                    _TaskRow(
-                      key: ValueKey(task.id),
-                      task: task,
-                      detail: widget.detailOf?.call(task),
-                      onOpen: switch (widget.onOpenTask) {
-                        final open?
-                            when widget.canOpenTask?.call(task) ??
-                                task.kind == KernelTaskKind.agent =>
-                          () => open(task),
-                        _ => null,
-                      },
-                      onStop: switch (widget.onStopTask) {
-                        final stop? => () => stop(task),
-                        null => null,
-                      },
-                    ),
-                ],
-              ),
-            ),
-          if (changes.isNotEmpty) ...[
-            _FilesHeader(
-              changes: changes,
-              expanded: _filesExpanded,
-              onToggle: () => setState(() => _filesExpanded = !_filesExpanded),
-              onUndo: widget.onUndo,
-              onKeep: widget.onKeep,
-            ),
-            if (_filesExpanded)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: ChangeTree(
-                  root: widget.root,
-                  paths: widget.paths,
-                  changes: changes,
-                  onOpen: widget.onOpenFile,
-                  fileActions: widget.fileActions,
-                  onKeep: widget.onKeepFiles,
-                  onUndo: widget.onUndoFiles,
+    final sash = _filesExpanded && _rowCount > 1 ? _buildSash(context) : null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ?sash,
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: AppColors.bubbleFill,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.bubbleBorder()),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.tasks.length > _maxUnfoldedTasks)
+                _TasksHeader(
+                  tasks: widget.tasks,
+                  expanded: _tasksExpanded,
+                  onToggle: () =>
+                      setState(() => _tasksExpanded = !_tasksExpanded),
                 ),
-              ),
-          ],
-        ],
-      ),
+              if (widget.tasks.isNotEmpty &&
+                  (widget.tasks.length <= _maxUnfoldedTasks || _tasksExpanded))
+                ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxHeight: _StripRow.height * _maxTaskRows,
+                  ),
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    children: [
+                      for (final task in widget.tasks)
+                        _TaskRow(
+                          key: ValueKey(task.id),
+                          task: task,
+                          detail: widget.detailOf?.call(task),
+                          onOpen: switch (widget.onOpenTask) {
+                            final open?
+                                when widget.canOpenTask?.call(task) ??
+                                    task.kind == KernelTaskKind.agent =>
+                              () => open(task),
+                            _ => null,
+                          },
+                          onStop: switch (widget.onStopTask) {
+                            final stop? => () => stop(task),
+                            null => null,
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              if (changes.isNotEmpty) ...[
+                _FilesHeader(
+                  changes: changes,
+                  expanded: _filesExpanded,
+                  onToggle: () =>
+                      setState(() => _filesExpanded = !_filesExpanded),
+                  onUndo: widget.onUndo,
+                  onKeep: widget.onKeep,
+                ),
+                if (_filesExpanded)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: ChangeTree(
+                      root: widget.root,
+                      paths: widget.paths,
+                      changes: changes,
+                      height: _treeHeight,
+                      onRowCount: (count) =>
+                          setState(() => _treeRowCount = count),
+                      onOpen: widget.onOpenFile,
+                      fileActions: widget.fileActions,
+                      onKeep: widget.onKeepFiles,
+                      onUndo: widget.onUndoFiles,
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
