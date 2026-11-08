@@ -161,7 +161,9 @@ class PromptCommand {
   final List<String> allowedTools;
   final String? model;
 
-  /// Whether the model may use it (the Skill tool).
+  /// Whether the model may use it (the Skill tool): a skill unless its
+  /// SKILL.md says not (`disable-model-invocation: true`); a command only
+  /// where its file says it may (`disable-model-invocation: false`).
   final bool modelInvocable;
 
   /// Whether the user can run it by name.
@@ -315,9 +317,9 @@ List<PromptCommand> _commands(String folder, String source, Plugin? plugin) {
         argumentHint: front.string('argument-hint'),
         allowedTools: front.list('allowed-tools') ?? const [],
         model: front.string('model'),
-        modelInvocable:
-            !(front.flag('disable-model-invocation') ?? false) &&
-            front.string('description') != null,
+        // A command is the user's to run: taken up by the model, its body
+        // reads as the user's asking. Only one whose file says so.
+        modelInvocable: front.flag('disable-model-invocation') == false,
         plugin: plugin,
       ),
     );
