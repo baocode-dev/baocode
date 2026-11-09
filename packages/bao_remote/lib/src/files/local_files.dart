@@ -317,14 +317,11 @@ class LocalFiles {
     if (length > limit) throw IdeFileTooLargeException(path, length);
   }
 
+  /// [bytes] as text. Binary, as VS Code has it, is a NUL byte or what is
+  /// not UTF-8; other control characters, such as a log's ANSI colour
+  /// escapes, are text.
   static String _decode(String path, List<int> bytes) {
-    if (bytes.any(
-      (byte) =>
-          (byte < 32 && byte != 9 && byte != 10 && byte != 12 && byte != 13) ||
-          byte == 127,
-    )) {
-      throw IdeBinaryFileException(path);
-    }
+    if (bytes.contains(0)) throw IdeBinaryFileException(path);
     try {
       return utf8.decode(bytes, allowMalformed: false);
     } on FormatException {
