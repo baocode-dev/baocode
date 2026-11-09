@@ -30,6 +30,28 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.9.2">
+    <h2 class="plain"><a href="#v1.9.2">1.9.2</a></h2>
+    <p>This release fixes a batch of chat, model and SSH problems, brings SSH remote to Linux hosts on RISC-V, and lets models go through magpie's gateway.</p>
+    <p>New</p>
+    <ul>
+    <li>SSH remote works with Linux hosts on RISC-V.</li>
+    <li>With magpie installed, Settings → Models offers Connect magpie: an upstream that follows magpie's local gateway, nothing filled in by hand.</li>
+    <li>The changed files list in the activity strip can be dragged taller by its edge.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>A log with ANSI colour codes opens as text, not as a binary file.</li>
+    <li>New conversations on OpenCode's DeepSeek no longer fail with a 400.</li>
+    <li>When an upstream's stream breaks off and Claude Code asks again, the reply no longer shows twice.</li>
+    <li>After a restart, every tab open in a chat pane comes back, not only the one shown.</li>
+    <li>Commands in .claude/commands are yours to run; the model runs one only where its file allows it.</li>
+    <li>An unreadable file in .claude/rules is skipped instead of keeping all the project's rules from loading.</li>
+    <li>An expanded command output card scrolls inside itself under the wheel, with a scrollbar you can drag.</li>
+    <li>SSH folders open from recent projects and from the system's open requests.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.9.1">
     <h2 class="plain"><a href="#v1.9.1">1.9.1</a></h2>
     <p>This release fills in the details: themes can follow the system, models can be imported from ChatGPT credentials, the sidebar's projects can be ordered, the browser tools act more like a person, and a batch of Windows and input problems are fixed.</p>

@@ -30,6 +30,28 @@
   <h1>更新日志</h1>
   <p class="subtitle">BaoCode 每个版本的变化。</p>
 
+  <section class="release" id="v1.9.2">
+    <h2 class="plain"><a href="#v1.9.2">1.9.2</a></h2>
+    <p>这一版修了一批对话、模型和 SSH 相关的问题，另外 SSH 远程开始支持 RISC-V 的 Linux 主机，模型可以接入 magpie 的网关。</p>
+    <p>新功能</p>
+    <ul>
+    <li>SSH 远程支持 RISC-V 架构的 Linux 主机。</li>
+    <li>装了 magpie 时，设置 → 模型里可以一键「连接 magpie」，上游跟着 magpie 的本地网关走，不用手填。</li>
+    <li>活动栏里的改动文件列表可以拖动边缘调高。</li>
+    </ul>
+    <p>修复</p>
+    <ul>
+    <li>带 ANSI 颜色码的日志能当文本打开，不再被认成二进制文件。</li>
+    <li>通过 OpenCode 使用 DeepSeek 时，新对话不再报 400 错误。</li>
+    <li>上游流式回复中途断开、Claude Code 重新请求时，回复不再显示两遍。</li>
+    <li>重启后，对话窗格里打开的所有标签页都会恢复，不再只剩当前那个。</li>
+    <li>.claude/commands 里的命令只由你来运行；模型只有在命令文件明确允许时才会自己调用。</li>
+    <li>.claude/rules 里有无法读取的文件时跳过它，不再导致整个项目的规则都没加载。</li>
+    <li>命令输出卡片展开后，滚轮在卡片内滚动，并且有可拖动的滚动条。</li>
+    <li>从最近打开的项目或系统的打开请求打开 SSH 文件夹时能正常打开。</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.9.1">
     <h2 class="plain"><a href="#v1.9.1">1.9.1</a></h2>
     <p>这一版主要补齐细节：主题可以跟随系统，模型能导入 ChatGPT 凭据，侧边栏项目可以排序，浏览器工具更接近真人操作，另外修了一批 Windows 和输入相关的问题。</p>
