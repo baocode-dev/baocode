@@ -323,4 +323,20 @@ void main() {
     verifyTree(buffer, buffer.root);
     expect(buffer.getLength(), value.length - 12);
   });
+
+  test('large insert cuts its chunks in linear time', () {
+    // A file read whole into the editor: 32M code units, 512 chunks. Taking
+    // the rest anew after each chunk copied ~8G code units (1.7 s on an M1,
+    // 14.7 s on a user's Intel Mac with a larger file).
+    final line = '${'x' * 63}\n';
+    final value = line * (1 << 19);
+    final buffer = tree.PieceTreeBase([], '\n', false);
+    final watch = Stopwatch()..start();
+    buffer.insert(0, value);
+    watch.stop();
+    expect(buffer.getLength(), value.length);
+    expect(buffer.getLineCount(), (1 << 19) + 1);
+    expect(buffer.getLineContent(1 << 18), 'x' * 63);
+    expect(watch.elapsedMilliseconds, lessThan(1000));
+  });
 }
