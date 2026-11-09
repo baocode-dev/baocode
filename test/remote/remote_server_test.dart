@@ -87,6 +87,12 @@ void main() {
         throwsA(isA<IdeBinaryFileException>()),
       );
       expect(await client().read(root, at('bin.dat'), force: true), isNotEmpty);
+      // A log's ANSI colours are text.
+      File(at('run.log')).writeAsStringSync('\x1b[36mINFO\x1b[0m done\n');
+      expect(
+        await client().read(root, at('run.log')),
+        '\x1b[36mINFO\x1b[0m done\n',
+      );
       await client().create(root, at('new.txt'));
       await expectLater(
         client().create(root, at('new.txt')),
