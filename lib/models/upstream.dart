@@ -230,8 +230,8 @@ Map<String, String> upstreamHeaders(ModelProvider provider, String? key) => {
 /// from here and no auth header is overwritten, and only whitelisted
 /// variables are replaced ([substituteVariables]).
 ///
-/// OpenCode's gateway is told the conversation too ([openCodeSession]),
-/// unless the user's own headers already name it.
+/// OpenCode Go is told the conversation too ([openCodeSession]), unless
+/// the user's own headers already name it.
 Map<String, String> customUpstreamHeaders(
   ModelProvider provider, {
   String? session,
@@ -245,17 +245,33 @@ Map<String, String> customUpstreamHeaders(
     ).entries)
       key: substituteVariables(value, request, session: session, model: model),
   };
-  if (isOpenCode(provider) &&
+  if (isOpenCodeGo(provider) &&
       !custom.keys.any((name) => name.toLowerCase() == openCodeSessionHeader)) {
     custom[openCodeSessionHeader] = openCodeSession(session);
   }
   return custom;
 }
 
-/// OpenCode's session header: one stable id a conversation, by which its
-/// gateway (Zen, Go, Console) sends a conversation's requests where its
-/// prompt is cached. Go refuses a request without it.
+/// OpenCode's session header: one stable id a conversation. Go refuses a
+/// request without it; the rest of its gateway, told a session (this or
+/// another: [openCodeUntold]), sends the request to a backend that refuses
+/// the cache's marks (`cache_control`), and caches the prompt well enough
+/// without.
 const openCodeSessionHeader = 'x-opencode-session';
+
+/// The headers that name a session, Claude Code's among them: not passed
+/// on to OpenCode (Go is told its own by [customUpstreamHeaders]).
+const openCodeUntold = {
+  'x-claude-code-session-id',
+  'x-session-id',
+  'x-session-affinity',
+  openCodeSessionHeader,
+};
+
+/// Whether [provider] is OpenCode Go (`opencode.ai/zen/go`).
+bool isOpenCodeGo(ModelProvider provider) =>
+    isOpenCode(provider) &&
+    (Uri.tryParse(provider.baseUrl)?.pathSegments.contains('go') ?? false);
 
 /// Whether [provider] is OpenCode's gateway (`opencode.ai/zen`,
 /// `opencode.ai/inference`, with Go's under them).
