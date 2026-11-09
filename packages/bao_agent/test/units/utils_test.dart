@@ -213,6 +213,34 @@ void main() {
         expect(MemoryFile('x', type, 'y').description, isNotEmpty);
       }
     });
+
+    test('a rule not text is passed over, linked ones read', () {
+      write('work/.claude/rules/a.md', 'Rule A.');
+      // As a Finder alias named `.md` is: not UTF-8.
+      File(p.join(root.path, 'work/.claude/rules/alias.md'))
+          .writeAsBytesSync([0x62, 0x6f, 0x6f, 0x6b, 0xff, 0xfe, 0x00, 0x81]);
+      write('work/.claude/rules/z.md', 'Rule Z.');
+      write('work/lib/CLAUDE.md', '');
+      File(p.join(root.path, 'work/lib/CLAUDE.md'))
+          .writeAsBytesSync([0xff, 0xfe, 0x81]);
+      final linked = !Platform.isWindows;
+      if (linked) {
+        write('shared/one.md', 'Linked file.');
+        write('shared/folder/two.md', 'Linked folder.');
+        Link(p.join(root.path, 'work/.claude/rules/one.md'))
+            .createSync(p.join(root.path, 'shared/one.md'));
+        Link(p.join(root.path, 'work/.claude/rules/folder'))
+            .createSync(p.join(root.path, 'shared/folder'));
+      }
+      final cwd = p.join(root.path, 'work');
+      final files = MemoryLoader(paths).load(cwd);
+      expect(files.map((f) => f.content), [
+        'Rule A.',
+        if (linked) ...['Linked folder.', 'Linked file.'],
+        'Rule Z.',
+      ]);
+      expect(MemoryLoader(paths).nested(p.join(cwd, 'lib'), {}), isEmpty);
+    });
   });
 
   group('settings', () {
