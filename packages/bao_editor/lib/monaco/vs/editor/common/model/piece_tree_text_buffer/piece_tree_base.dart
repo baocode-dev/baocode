@@ -347,18 +347,21 @@ class PieceTreeBase {
     // original implementation's append-only change-buffer path.
     if (text.length > averageBufferSize) {
       final pieces = <Piece>[];
-      while (text.isNotEmpty) {
-        var end = text.length < averageBufferSize
+      // Cut by offset: taking the rest anew after each chunk copies it
+      // whole, a large text once per chunk.
+      var start = 0;
+      while (start < text.length) {
+        var end = text.length - start < averageBufferSize
             ? text.length
-            : averageBufferSize;
+            : start + averageBufferSize;
         if (end < text.length) {
           final last = text.codeUnitAt(end - 1);
           if (last == 13 || (last >= 0xd800 && last <= 0xdbff)) end--;
         }
-        final chunk = text.substring(0, end);
+        final chunk = text.substring(start, end);
         _buffers.add(StringBuffer(chunk, createLineStartsFast(chunk)));
         pieces.add(_makePiece(_buffers.length - 1, 0, chunk.length));
-        text = text.substring(end);
+        start = end;
       }
       return pieces;
     }

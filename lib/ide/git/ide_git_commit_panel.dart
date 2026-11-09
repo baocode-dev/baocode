@@ -521,9 +521,16 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
 
   // --- The changes ---------------------------------------------------------
 
+  static final _changes = Expando<Map<_Kind, List<IdeGitResource>>>();
+
   /// [state]'s changes by where they are listed: the conflicts, the tracked
-  /// changes (once each, staged or not), the unversioned files.
-  static Map<_Kind, List<IdeGitResource>> _changesOf(IdeGitState state) {
+  /// changes (once each, staged or not), the unversioned files. Sorted once
+  /// per state: the panel builds again on every change around it (in the
+  /// side panel, on each of the agent's events while it answers).
+  static Map<_Kind, List<IdeGitResource>> _changesOf(IdeGitState state) =>
+      _changes[state] ??= _sortChanges(state);
+
+  static Map<_Kind, List<IdeGitResource>> _sortChanges(IdeGitState state) {
     final tracked = <String, IdeGitResource>{};
     final unversioned = <IdeGitResource>[];
     for (final resource in state.group(IdeGitGroup.staged)) {
@@ -698,7 +705,11 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
         }
 
         add(
-          ideScmTree(state.root, files, paths: git.service.pathContext),
+          _trees[files] ??= ideScmTree(
+            state.root,
+            files,
+            paths: git.service.pathContext,
+          ),
           depth + 1,
           group.key,
         );
@@ -744,13 +755,22 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     });
   }
 
-  static List<IdeGitResource> _filesUnder(IdeScmTreeFolder folder) => [
-    for (final node in folder.children)
-      ...switch (node) {
-        IdeScmTreeFolder() => _filesUnder(node),
-        IdeScmTreeFile(:final resource) => [resource],
-      },
-  ];
+  /// A group's files' tree, built once for the list ([_changesOf]'s, the
+  /// ignored files' as read): a changelist's part alone anew each time.
+  static final _trees = Expando<List<IdeScmTreeNode>>();
+
+  static final _under = Expando<List<IdeGitResource>>();
+
+  /// The files under [folder], gathered once for its tree: each folder
+  /// asked, from its subfolders' own.
+  static List<IdeGitResource> _filesUnder(IdeScmTreeFolder folder) =>
+      _under[folder] ??= [
+        for (final node in folder.children)
+          ...switch (node) {
+            IdeScmTreeFolder() => _filesUnder(node),
+            IdeScmTreeFile(:final resource) => [resource],
+          },
+      ];
 
   bool _hasChildren(_Row row) => row is! _FileRow;
 
@@ -1225,9 +1245,10 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
   }
 
   /// The files Rollback acts on from the toolbar: the row focused's, else
-  /// the checked ones.
-  List<(IdeGitRepository, List<IdeGitResource>)> get _rollbackTargets {
-    final rows = _rows;
+  /// the checked ones; [rows], the tree's.
+  List<(IdeGitRepository, List<IdeGitResource>)> _rollbackTargets(
+    List<_Row> rows,
+  ) {
     final focused = rows.where((row) => row.key == _selected).firstOrNull;
     if (focused != null) return [(focused.git, focused.files)];
     return [
@@ -1595,7 +1616,7 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (widget.onShowDiff != null) _tabs(context),
-                    _toolbar(context),
+                    _toolbar(context, rows),
                     if (git.state?.operation case final operation?)
                       _operationBanner(git, operation),
                     // Past Git's status limit: what is listed is not all.
@@ -1886,10 +1907,11 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
     ),
   );
 
-  Widget _toolbar(BuildContext context) {
+  /// [rows]: the tree's, as the build has them.
+  Widget _toolbar(BuildContext context, List<_Row> rows) {
     final l10n = context.l10n;
     final git = _git;
-    final rows = _rows;
+    final rollback = _rollbackTargets(rows);
     final focused = rows.where((row) => row.key == _selected).firstOrNull;
     final byDirectory = git == null ? true : _sessionOf(git).treeView;
     Widget viewSwitch({required bool labels}) => IdeGitListTreeSwitch(
@@ -1930,10 +1952,10 @@ class IdeGitCommitPanelState extends State<IdeGitCommitPanel>
                   IdeActionButton(
                     icon: Codicons.discard,
                     tooltip: l10n.gitCommitRollback,
-                    onPressed: _rollbackTargets.isEmpty
+                    onPressed: rollback.isEmpty
                         ? null
                         : () => unawaited(() async {
-                            for (final (git, files) in _rollbackTargets) {
+                            for (final (git, files) in rollback) {
                               await _rollback(git, files);
                             }
                           }()),
