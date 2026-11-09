@@ -82,17 +82,29 @@ class MemoryLoader {
     void addRules(String folder, MemoryType type) {
       final dir = Directory(folder);
       if (!dir.existsSync()) return;
-      final rules =
-          dir
-              .listSync(recursive: true, followLinks: true)
-              .whereType<File>()
-              .where((file) => file.path.endsWith('.md'))
-              .toList()
-            ..sort((a, b) => a.path.compareTo(b.path));
+      final List<File> rules;
+      try {
+        rules =
+            dir
+                .listSync(recursive: true, followLinks: true)
+                .whereType<File>()
+                .where((file) => file.path.endsWith('.md'))
+                .toList()
+              ..sort((a, b) => a.path.compareTo(b.path));
+      } on FileSystemException {
+        return;
+      }
       for (final rule in rules) {
         final real = _real(rule.path);
         if (!seen.add(real)) continue;
-        final text = rule.readAsStringSync();
+        // One that can't be read (not text: a Finder alias named `.md`)
+        // is passed over, not the rest with it.
+        final String text;
+        try {
+          text = rule.readAsStringSync();
+        } on FileSystemException {
+          continue;
+        }
         final front = Frontmatter.parse(text);
         final globs = front.list('paths') ?? front.list('globs') ?? const [];
         final content = front.body.trim();
@@ -186,9 +198,13 @@ class MemoryLoader {
     for (final name in const ['CLAUDE.md', 'CLAUDE.local.md']) {
       final path = p.join(folder, name);
       if (loaded.contains(path) || !File(path).existsSync()) continue;
-      final content = expand(path, File(path).readAsStringSync(), {
-        _real(path),
-      }).trim();
+      final String text;
+      try {
+        text = File(path).readAsStringSync();
+      } on FileSystemException {
+        continue;
+      }
+      final content = expand(path, text, {_real(path)}).trim();
       if (content.isEmpty) continue;
       files.add(
         MemoryFile(
