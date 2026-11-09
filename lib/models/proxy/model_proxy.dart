@@ -617,17 +617,21 @@ class ModelProxy {
     final upstreamRequest = await client.postUrl(url);
     final key = await _key(provider.id);
     upstreamHeaders(provider, key).forEach(upstreamRequest.headers.set);
-    // OpenCode, told the session, sends it to a backend that refuses the
-    // cache's marks (`cache_control`).
-    final opencode =
-        url.host == 'opencode.ai' || url.host.endsWith('.opencode.ai');
+    // OpenCode, told a session, sends it to a backend that refuses the
+    // cache's marks (`cache_control`); the one it is sent to untold refuses
+    // an empty list of tools (Claude Code's side requests).
+    final opencode = isOpenCode(provider);
     request.headers.forEach((name, values) {
       if (!_notPassed.contains(name) &&
           !UsageHeaders.hintsOnly.contains(name) &&
-          !(opencode && name == sessionHeaderName)) {
+          !(opencode && openCodeUntold.contains(name))) {
         upstreamRequest.headers.set(name, values);
       }
     });
+    final tools = body['tools'];
+    final outgoing = opencode && tools is List && tools.isEmpty
+        ? ({...body}..remove('tools'))
+        : body;
     customUpstreamHeaders(
       provider,
       session: sessionId(
@@ -637,7 +641,7 @@ class ModelProxy {
       model: '${body['model'] ?? ''}',
     ).forEach(upstreamRequest.headers.set);
     upstreamRequest.headers.contentType = ContentType.json;
-    final (payload, encoded) = await _encodeJson(body);
+    final (payload, encoded) = await _encodeJson(outgoing);
     meter?.trace?.sending(
       method: 'POST',
       url: url,

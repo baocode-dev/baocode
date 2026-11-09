@@ -928,8 +928,8 @@ void main() {
       expect(customUpstreamHeaders(at('https://x.example')), isEmpty);
     });
 
-    test('OpenCode is told the conversation, the same id every request, '
-        'unless the user names it', () {
+    test('OpenCode Go is told the conversation, the same id every request, '
+        'unless the user names it; the rest of OpenCode is not', () {
       final zen = at(
         'https://opencode.ai/zen/go/v1',
         ProviderProtocol.openaiChat,
@@ -959,6 +959,14 @@ void main() {
           session: 's-1',
         ),
         {'X-OpenCode-Session': 's-1'},
+      );
+      // OpenCode but Go: none.
+      expect(
+        customUpstreamHeaders(
+          at('https://opencode.ai/inference/anthropic'),
+          session: 's-1',
+        ),
+        isEmpty,
       );
       // Another upstream: none.
       expect(
