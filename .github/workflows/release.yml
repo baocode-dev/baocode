@@ -387,7 +387,8 @@ jobs:
       BAOCODE_CHANNEL: ${{ matrix.edition == 'channel' && 'true' || '' }}
     steps:
       # The bare image has none of the runner's tools: git first, for the
-      # checkout to be a repository. Root in it, so no sudo.
+      # checkout to be a repository. zstd, for bao_iroh.yml's cache to be
+      # found (it is saved with it). Root in it, so no sudo.
       - name: Install the build's tools
         env:
           DEBIAN_FRONTEND: noninteractive
@@ -405,7 +406,7 @@ jobs:
           done
           apt-get -o Acquire::Retries=5 install -y build-essential ca-certificates curl git jq unzip \
             xz-utils zip file clang cmake ninja-build pkg-config libgtk-3-dev \
-            liblzma-dev python3 procps xvfb xauth dbus-x11
+            liblzma-dev python3 procps xvfb xauth dbus-x11 zstd
           if [ "$BAOCODE_CHANNEL" = true ]; then
             apt-get install -y libwebkit2gtk-4.1-dev libstdc++-12-dev
           fi

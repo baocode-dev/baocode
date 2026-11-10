@@ -57,7 +57,8 @@ jobs:
     container: ${{ matrix.container }}
     steps:
       # The bare image has none of the runner's tools: git first, for the
-      # checkout to be a repository.
+      # checkout to be a repository. zstd, for the cache to be saved as the
+      # runners' (a cache is found only where it is unpacked the same way).
       - name: Install the build's tools
         if: matrix.container
         env:
@@ -74,7 +75,7 @@ jobs:
             [ "$attempt" = 5 ] && exit 1
             sleep 15
           done
-          apt-get -o Acquire::Retries=5 install -y build-essential ca-certificates curl git
+          apt-get -o Acquire::Retries=5 install -y build-essential ca-certificates curl git zstd
       - uses: actions/checkout@v5
       - id: cached
         uses: ./.github/actions/bao-iroh-prebuilt
