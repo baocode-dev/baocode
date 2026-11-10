@@ -170,15 +170,15 @@ void main() {
     }
 
     stream('msg_1', 2837, 74752);
-    stream('msg_fully_cached', 0, 44200);
+    // An upstream whose message_delta gives 0 as a placeholder.
+    stream('msg_zero', 0, 0);
 
     expect(kept, hasLength(2));
     final call = kept.first;
     expect((call.input, call.cacheRead, call.output), (2837, 74752, 379));
     expect(call.cacheRead / call.prompt, closeTo(74752 / (2837 + 74752), 1e-9));
-    final fullyCached = kept.last;
-    expect((fullyCached.input, fullyCached.cacheRead), (0, 44200));
-    expect(fullyCached.cacheRead / fullyCached.prompt, 1);
+    final zero = kept.last;
+    expect((zero.input, zero.cacheRead), (44200, 0));
   });
 
   test("a subagent's calls, seen whole, counted as its kind's and task's, "
