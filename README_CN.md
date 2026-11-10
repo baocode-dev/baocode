@@ -46,7 +46,7 @@ BaoCode 是原生应用，直接通过 GPU 绘制界面。以下为英文 README
 
 ## 系统要求
 
-- macOS 12 或更新版本（Apple 芯片和 Intel 各提供一个下载版本），Windows 10 或更新版本（x64），或 Linux：Ubuntu 22.04 或更新版本及其他基于 Debian 的发行版（x64 和 arm64 各一个 .deb）。
+- macOS 12 或更新版本（Apple 芯片和 Intel 各提供一个下载版本），Windows 10 或更新版本（x64），或 Linux：Ubuntu 20.04 或更新版本及其他基于 Debian 的发行版（x64 和 arm64 各一个 .deb）。
 - 已安装 [Claude Code](https://github.com/anthropics/claude-code)。
 
 ## 从源码构建

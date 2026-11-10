@@ -44,7 +44,7 @@ BaoCode es una aplicación nativa que dibuja directamente su interfaz en la GPU.
 
 ## Requisitos
 
-- macOS 12 o posterior (una descarga para Apple silicon y otra para Intel), Windows 10 o posterior (x64), o Linux: Ubuntu 22.04 o posterior y otras distribuciones basadas en Debian (un .deb para x64 y otro para arm64).
+- macOS 12 o posterior (una descarga para Apple silicon y otra para Intel), Windows 10 o posterior (x64), o Linux: Ubuntu 20.04 o posterior y otras distribuciones basadas en Debian (un .deb para x64 y otro para arm64).
 - [Claude Code](https://github.com/anthropics/claude-code) instalado.
 
 ## Compilar desde el código fuente
