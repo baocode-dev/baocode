@@ -142,6 +142,45 @@ void main() {
     expect(read2.quota, {'five_hour': 0.25, 'seven_day': 0.4});
   });
 
+  test('the final streamed usage replaces placeholder input tokens', () {
+    void stream(String id, int input, int read) {
+      meter
+        ..receive(
+          event({
+            'type': 'message_start',
+            'message': {
+              'id': id,
+              'model': 'claude-opus-5-5',
+              'usage': {'input_tokens': 44200, 'output_tokens': 0},
+            },
+          }),
+        )
+        ..receive(
+          event({
+            'type': 'message_delta',
+            'usage': {
+              'input_tokens': input,
+              'cache_read_input_tokens': read,
+              'cache_creation_input_tokens': 0,
+              'output_tokens': 379,
+            },
+          }),
+        )
+        ..receive(event({'type': 'message_stop'}));
+    }
+
+    stream('msg_1', 2837, 74752);
+    stream('msg_fully_cached', 0, 44200);
+
+    expect(kept, hasLength(2));
+    final call = kept.first;
+    expect((call.input, call.cacheRead, call.output), (2837, 74752, 379));
+    expect(call.cacheRead / call.prompt, closeTo(74752 / (2837 + 74752), 1e-9));
+    final fullyCached = kept.last;
+    expect((fullyCached.input, fullyCached.cacheRead), (0, 44200));
+    expect(fullyCached.cacheRead / fullyCached.prompt, 1);
+  });
+
   test("a subagent's calls, seen whole, counted as its kind's and task's, "
       'not timed; kept at the turn\'s end, the output its messages did not '
       'tell spread over them', () {

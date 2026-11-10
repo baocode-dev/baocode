@@ -3963,6 +3963,7 @@ void main() {
         String model = 'claude-opus-5-5',
         Object? parent,
         bool sidechain = false,
+        bool withCache = true,
       }) => {
         'type': 'assistant',
         'parent_tool_use_id': ?parent,
@@ -3975,9 +3976,9 @@ void main() {
           'usage': {
             'input_tokens': uncached,
             // As the proxy gives a provider's: only what was cached.
-            if (read > 0 || !model.startsWith('p/'))
+            if (withCache && (read > 0 || !model.startsWith('p/')))
               'cache_read_input_tokens': read,
-            if (written > 0 || !model.startsWith('p/'))
+            if (withCache && (written > 0 || !model.startsWith('p/')))
               'cache_creation_input_tokens': written,
           },
         },
@@ -3996,7 +3997,9 @@ void main() {
         ),
         start: (_) async => cli,
         readHistory: (_) async => [
-          // A message comes a content block a line, each with its usage.
+          // A message comes a content block a line, its usage completed by
+          // the last one; identical lines still count once.
+          assistant('m1', 0, 0, uncached: 20002),
           assistant('m1', 0, 20000),
           assistant('m1', 0, 20000),
           assistant('sub', 900, 900, sidechain: true),
@@ -4005,6 +4008,10 @@ void main() {
         ],
       );
       final transcript = Transcript();
+      var statsReports = 0;
+      kernel.events.listen((event) {
+        if (event is StatsReported) statsReports++;
+      });
       kernel.events.listen(transcript.apply);
       await pumpEventQueue();
       var cache = transcript.stats!.cache!;
@@ -4015,8 +4022,10 @@ void main() {
       kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
       await pumpEventQueue();
       cli
+        ..push(assistant('m3', 0, 0, uncached: 30502))
         ..push(assistant('m3', 30000, 500))
-        ..push(assistant('m3', 30000, 500))
+        // A partial line after the complete one leaves the cache intact.
+        ..push(assistant('m3', 0, 0, withCache: false))
         ..push(assistant('agent', 5000, 5000, parent: 'toolu_1'))
         // An API error's: no usage of the model's.
         ..push(assistant('err', 0, 0, uncached: 0));
@@ -4026,6 +4035,12 @@ void main() {
       expect(cache.last.hitRate, closeTo(30000 / 30502, 1e-9));
       expect(cache.conversation.read, 30000);
       expect(cache.conversation.written, 50500);
+
+      // An identical line does not report the same stats again.
+      final beforeDuplicate = statsReports;
+      cli.push(assistant('m3', 30000, 500));
+      await pumpEventQueue();
+      expect(statsReports, beforeDuplicate);
 
       // A provider's model that never says what was cached: not shown,
       // rather than all uncached.

@@ -2615,9 +2615,9 @@ class ClaudeCodeKernel
   );
 
   /// Counts the request to the model [message] answers, if it is the
-  /// conversation's: once, as a message comes a content block at a time,
-  /// each with its request's usage. A subagent's is left out, as its
-  /// transcript is apart. Whether it was not counted yet.
+  /// conversation's: once, as a message comes a content block at a time.
+  /// Later lines update the fields they give. A subagent's is left out, as
+  /// its transcript is apart. Whether it was added or its usage changed.
   bool _countRequest(Map<String, Object?> message) {
     if (message['parent_tool_use_id'] != null ||
         message['isSidechain'] == true) {
@@ -2633,11 +2633,12 @@ class ClaudeCodeKernel
     };
     if (id == null || usage == null) return false;
     final model = (body as Map)['model'] as String?;
-    int count(String key) => claudeInt(usage[key]) ?? 0;
+    final previous = _requests[id];
+    int count(String key, int was) => claudeInt(usage[key]) ?? was;
     final tokens = CacheTokens(
-      read: count('cache_read_input_tokens'),
-      written: count('cache_creation_input_tokens'),
-      uncached: count('input_tokens'),
+      read: count('cache_read_input_tokens', previous?.read ?? 0),
+      written: count('cache_creation_input_tokens', previous?.written ?? 0),
+      uncached: count('input_tokens', previous?.uncached ?? 0),
     );
     // None at all: one of the CLI's own (an API error), not the model's.
     if (tokens.total == 0) return false;
@@ -2647,9 +2648,11 @@ class ClaudeCodeKernel
         usage.containsKey('cache_creation_input_tokens')) {
       _cachingModels.add(model);
     }
-    if (_requests.containsKey(id)) return false;
     _requests[id] = tokens;
-    return true;
+    return previous == null ||
+        previous.read != tokens.read ||
+        previous.written != tokens.written ||
+        previous.uncached != tokens.uncached;
   }
 
   /// The conversation was compacted, maybe mid-turn: the context shown

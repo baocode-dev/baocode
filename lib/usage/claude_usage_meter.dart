@@ -663,13 +663,17 @@ class _Tokens {
         ClaudeUsageMeter._int(usage['cacheCreationInputTokens']) ?? 0;
 
   /// Takes the larger of each it tells: the same message's usage, told
-  /// again as it went on.
+  /// again as it went on. Input is the exception: a later complete count can
+  /// replace an early full prompt with just the part not read from the cache.
   void take(Map<String, Object?> usage) {
     int at(String key, int was) => switch (ClaudeUsageMeter._int(usage[key])) {
       final n? when n > was => n,
       _ => was,
     };
-    input = at('input_tokens', input);
+    if (ClaudeUsageMeter._int(usage['input_tokens']) case final n?
+        when n >= 0) {
+      input = n;
+    }
     output = at('output_tokens', output);
     cacheRead = at('cache_read_input_tokens', cacheRead);
     cacheWrite = at('cache_creation_input_tokens', cacheWrite);
