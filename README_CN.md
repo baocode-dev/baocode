@@ -1,5 +1,7 @@
 # BaoCode
 
+<img width="300" height="356" alt="image" src="https://github.com/user-attachments/assets/d8288f00-a7f6-41fd-8cbb-f99acfe59418" />
+
 [English](README.md) · **简体中文** · [日本語](README_JA.md) · [Français](README_FR.md) · [Español](README_ES.md)
 
 一个出色、易用的 [Claude Code](https://github.com/anthropics/claude-code) 桌面界面，内置毫秒级响应的快速 IDE。
