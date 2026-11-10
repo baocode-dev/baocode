@@ -26,6 +26,7 @@ import 'chat_session.dart';
 import 'composer/composer.dart';
 import 'composer/composer_draft.dart';
 import 'reply_scroll.dart';
+import 'rewind_files_prompt.dart';
 import 'side_panel/file_link_menu.dart';
 import 'steadiness.dart';
 import 'step_folds.dart';
@@ -2101,8 +2102,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                         initialImages: _editingImages,
                                         draft: _feed.editing?.draft,
                                         tapRegionGroupId: _editorTapRegion,
-                                        onSubmit: (message) =>
-                                            _submitEdit(index, message),
+                                        onSubmit: (message) => unawaited(
+                                          _submitEdit(index, message),
+                                        ),
                                         onCancel: _cancelEditing,
                                       ),
                               ),
@@ -2199,7 +2201,23 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
   }
 
-  void _submitEdit(int index, ComposerMessage message) {
+  /// Whether the edited message waits on whether the files go back.
+  bool _askingRewind = false;
+
+  Future<void> _submitEdit(int index, ComposerMessage message) async {
+    if (_askingRewind) return;
+    _askingRewind = true;
+    final feed = _feed;
+    final bool? revertFiles;
+    try {
+      revertFiles = feed is ChatSession
+          ? await askRewindFiles(context, () => feed.rewindPlanAt(index))
+          : false;
+    } finally {
+      _askingRewind = false;
+    }
+    // Turned down: still being edited.
+    if (revertFiles == null || !mounted || _editingIndex != index) return;
     _feed.editing = null;
     if (!_scrolledPast(index)) _animateItem(index);
     setState(() {
@@ -2210,7 +2228,16 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _foldOpen.removeWhere((key, _) => key.$2 > index);
       _unfoldedTurns.clear();
     });
-    _feed.editMessage(index, message, from: UserPlace.computer);
+    if (feed is ChatSession) {
+      feed.editMessage(
+        index,
+        message,
+        from: UserPlace.computer,
+        revertFiles: revertFiles,
+      );
+    } else {
+      feed.editMessage(index, message, from: UserPlace.computer);
+    }
   }
 
   /// Row [index] of the list: [child] in the column, [gap] below the row

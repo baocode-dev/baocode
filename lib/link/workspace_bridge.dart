@@ -12,6 +12,7 @@ import '../bots/bots.dart';
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
 import '../chat/composer/composer_files.dart' show fileReferenceText;
+import '../chat/rewind_files_setting.dart';
 import '../customize/customization_store.dart';
 import '../customize/customizations.dart';
 import '../ide/file_service.dart';
@@ -164,6 +165,26 @@ class WorkspaceBridge {
 
   static String idOf(AgentThread thread) =>
       _ids[thread] ??= thread.id ?? 'new-$_run-${_nextId++}';
+
+  /// The index of [thread]'s user message that [params] names by its
+  /// `index` (counted from the phone's first item, as its updates are).
+  int _messageAt(AgentThread thread, Map<String, Object?> params) {
+    final session = thread.session;
+    if (!session.canEditMessages) {
+      throw const LinkRemoteException(
+        LinkErrors.unsupported,
+        'This agent cannot go back',
+      );
+    }
+    final index =
+        (_follows[idOf(thread)]?.from ?? 0) + (params['index'] as int? ?? -1);
+    if (index < 0 ||
+        index >= session.itemCount ||
+        session.itemAt(index) is! UserMessageItem) {
+      throw const LinkRemoteException(LinkErrors.notFound, 'No message there');
+    }
+    return index;
+  }
 
   AgentThread _thread(Object? id) {
     if (id is String) {
@@ -428,29 +449,27 @@ class WorkspaceBridge {
         }
       case LinkMethods.edit:
         final thread = _thread(params['session']);
-        final session = thread.session;
-        if (!session.canEditMessages) {
-          throw const LinkRemoteException(
-            LinkErrors.unsupported,
-            'This agent cannot go back',
-          );
-        }
-        // Counted from the phone's first item, as its updates are.
-        final index =
-            (_follows[idOf(thread)]?.from ?? 0) +
-            (params['index'] as int? ?? -1);
-        if (index < 0 ||
-            index >= session.itemCount ||
-            session.itemAt(index) is! UserMessageItem) {
-          throw const LinkRemoteException(
-            LinkErrors.notFound,
-            'No message there',
-          );
-        }
+        final index = _messageAt(thread, params);
         final message = _message(thread, params);
         if (message.isEmpty) return null;
-        session.editMessage(index, message, from: _from(thread));
+        thread.session.editMessage(
+          index,
+          message,
+          from: _from(thread),
+          revertFiles: params['revertFiles'] == true,
+        );
         return null;
+      case LinkMethods.rewindPlan:
+        final thread = _thread(params['session']);
+        final index = _messageAt(thread, params);
+        final files = await thread.session.rewindPlanAt(index);
+        return {
+          'files': [
+            for (final file in files)
+              {'name': file.name, 'outcome': file.outcome.name},
+          ],
+          'setting': RewindFilesSetting.current().name,
+        };
       case LinkMethods.stop:
         _thread(params['session']).session.stop();
         return null;

@@ -50,6 +50,59 @@ class _Entry {
 bool _same(ReviewBlob? a, ReviewBlob? b) =>
     a == null ? b == null : a.sameContent(b);
 
+/// What one turn of the agent's did to a file: what it was before the
+/// turn's first edit of it, and what the turn left.
+class _Step {
+  _Step(this.before) : after = before;
+
+  ReviewBlob? before;
+  ReviewBlob? after;
+
+  Map<String, Object?> toJson() => {
+    'before': before?.toJson(),
+    'after': after?.toJson(),
+  };
+
+  static _Step fromJson(Map<String, Object?> json) =>
+      _Step(ReviewBlob.fromJson(json['before']))
+        ..after = ReviewBlob.fromJson(json['after']);
+}
+
+/// What putting a file back as it was before some turns would do.
+enum RewindOutcome {
+  /// Put back as it was: nothing else changed it since.
+  restore,
+
+  /// Those turns' changes taken out of it, what else changed it kept.
+  merge,
+
+  /// Their changes cannot be taken out of it: it is left as it is.
+  conflict,
+}
+
+/// A file that [ChangeReview.rewind] puts back, or would.
+class RewindFile {
+  const RewindFile(
+    this.path,
+    this.outcome, {
+    required this.name,
+    required this.created,
+  });
+
+  /// Absolute.
+  final String path;
+
+  /// [path] as shown: relative to the project, where it is in it.
+  final String name;
+  final RewindOutcome outcome;
+
+  /// The turns created it: put back, it is deleted.
+  final bool created;
+
+  @override
+  String toString() => 'RewindFile($path, ${outcome.name})';
+}
+
 /// What an agent changed, held against what was there before, for the
 /// user to keep or undo file by file: the review behind Keep and Undo.
 ///
@@ -67,6 +120,10 @@ bool _same(ReviewBlob? a, ReviewBlob? b) =>
 ///
 /// Kept, a change is only no longer listed: nothing is written, staged or
 /// committed. Undone, the file is put back.
+///
+/// It also keeps what each turn did, kept or not, by the turn's user
+/// message ([before]'s `turn`): for the files to go back as they were
+/// before a message the user sends again ([rewind]).
 class ChangeReview extends ChangeNotifier {
   /// Its files' paths spelled as [paths] has them: this machine's way
   /// when null.
@@ -135,6 +192,36 @@ class ChangeReview extends ChangeNotifier {
   /// known), by absolute path: listed, to be kept.
   final Map<String, FileChange> _unseen = {};
 
+  /// What each turn did, by its user message's id, in the order they
+  /// came; each file by absolute path.
+  final Map<String, Map<String, _Step>> _turns = {};
+
+  /// The most turns kept: the oldest go past it.
+  static const maxTurns = 200;
+
+  /// [key]'s file is [blob] as [turn] is about to change it: kept as what
+  /// it was before the turn, the first time.
+  void _stepBefore(String? turn, String key, ReviewBlob? blob) {
+    if (turn == null) return;
+    final files = _turns[turn] ??= {};
+    files.putIfAbsent(key, () => _Step(blob));
+    while (_turns.length > maxTurns) {
+      _turns.remove(_turns.keys.first);
+    }
+  }
+
+  /// [key]'s file is [blob] as the agent left it: what [turn] (else the
+  /// last that changed it) left.
+  void _stepAfter(String? turn, String key, ReviewBlob? blob) {
+    final step =
+        _turns[turn]?[key] ??
+        _turns.values.lastWhere(
+          (files) => files.containsKey(key),
+          orElse: () => const {},
+        )[key];
+    step?.after = blob;
+  }
+
   List<FileChange> _changes = const [];
 
   /// The pending changes, one per file, with absolute paths.
@@ -156,7 +243,7 @@ class ChangeReview extends ChangeNotifier {
     unawaited(
       _enqueue(() async {
         // Nothing yet: nothing to keep.
-        if (_entries.isEmpty && _unseen.isEmpty) return;
+        if (_entries.isEmpty && _unseen.isEmpty && _turns.isEmpty) return;
         await _persist();
         if (before != null) await _store.forget(before);
       }),
@@ -189,14 +276,17 @@ class ChangeReview extends ChangeNotifier {
 
   /// The agent is about to write [path]: what is there is kept, the first
   /// time, as what it was; and what changed in it since the agent last
-  /// wrote it is not the agent's.
-  Future<void> before(String path) {
+  /// wrote it is not the agent's. [turn] is the user message whose turn
+  /// it is, for [rewind].
+  Future<void> before(String path, {String? turn}) {
     final key = _key(path);
     return _enqueue(() async {
       final entry = _entries[key];
       if (entry == null) {
         try {
-          _entries[key] = _Entry(await _store.take(key))..writing = 1;
+          final now = await _store.take(key);
+          _entries[key] = _Entry(now)..writing = 1;
+          _stepBefore(turn, key, now);
         } on Exception {
           // Not to be kept (too large): listed once reported, not undone.
         }
@@ -205,10 +295,12 @@ class ChangeReview extends ChangeNotifier {
       // Another edit of the agent's under way: what changed may be its.
       final busy = entry.writing > 0;
       entry.writing++;
-      if (busy) return;
-      final now = await _store.current(key);
-      entry.current = now;
-      if (!_same(now, entry.after)) await _rebase(entry, key);
+      if (!busy) {
+        final now = await _store.current(key);
+        entry.current = now;
+        if (!_same(now, entry.after)) await _rebase(entry, key);
+      }
+      _stepBefore(turn, key, entry.after);
     });
   }
 
@@ -237,26 +329,28 @@ class ChangeReview extends ChangeNotifier {
   }
 
   /// The agent wrote [path], or gave up writing it: what it left is its
-  /// change.
-  Future<void> after(String path) {
+  /// change (and [turn]'s).
+  Future<void> after(String path, {String? turn}) {
     final key = _key(path);
     return _enqueue(() async {
       final entry = _entries[key];
       if (entry == null) return;
       if (entry.writing > 0) entry.writing--;
-      await _taken(entry, key);
+      await _taken(entry, key, turn: turn);
       await _refresh();
       await _persist();
     });
   }
 
-  /// [entry]'s file as it is now is what the agent left.
-  Future<void> _taken(_Entry entry, String key) async {
+  /// [entry]'s file as it is now is what the agent left (in [turn], else
+  /// the last turn that changed it).
+  Future<void> _taken(_Entry entry, String key, {String? turn}) async {
     final now = await _store.take(key);
     entry
       ..after = now
       ..current = now
       ..conflict = false;
+    _stepAfter(turn, key, now);
   }
 
   /// The agent edited [change]'s file, which was [original] before: told
@@ -478,6 +572,155 @@ class ChangeReview extends ChangeNotifier {
     return false;
   }
 
+  // --- Back to before a message ------------------------------------------------
+
+  /// Whether any of [turns] changed a file.
+  bool changedIn(Set<String> turns) =>
+      turns.any((turn) => _turns[turn]?.isNotEmpty ?? false);
+
+  /// What [rewind] would do to the files [turns] changed, writing
+  /// nothing: those not already back as they were.
+  Future<List<RewindFile>> planRewind(Set<String> turns) {
+    final planned = Completer<List<RewindFile>>();
+    unawaited(
+      _enqueue(() async {
+        final files = <RewindFile>[];
+        for (final (path, steps) in _stepsOf(turns)) {
+          if (await _rewound(path, steps) case (final file, _)?) {
+            files.add(file);
+          }
+        }
+        planned.complete(files);
+      }).whenComplete(() {
+        if (!planned.isCompleted) planned.complete(const []);
+      }),
+    );
+    return planned.future;
+  }
+
+  /// Puts the files [turns] changed back as they were before the first of
+  /// them, keeping what else changed them since where it can (where it
+  /// cannot, a file is left as it is: [RewindOutcome.conflict]); [turns]
+  /// are then forgotten. Completes with the files it put back, or could
+  /// not.
+  Future<List<RewindFile>> rewind(Set<String> turns) {
+    final done = Completer<List<RewindFile>>();
+    unawaited(
+      _enqueue(() async {
+        final files = <RewindFile>[];
+        for (final (path, steps) in _stepsOf(turns)) {
+          final rewound = await _rewound(path, steps);
+          if (rewound == null) continue;
+          final (file, blob) = rewound;
+          files.add(file);
+          if (file.outcome == RewindOutcome.conflict) continue;
+          await _store.restore(path, blob, root: root);
+          // What the agent has left of its change, if anything.
+          if (_entries[path] case final entry?) await _taken(entry, path);
+        }
+        _forget(turns);
+        await _refresh();
+        await _persist();
+        done.complete(files);
+      }).whenComplete(() {
+        if (!done.isCompleted) done.complete(const []);
+      }),
+    );
+    return done.future;
+  }
+
+  /// Forgets what [turns] did, leaving the files as they are: the
+  /// conversation goes on without them.
+  Future<void> forgetTurns(Set<String> turns) => _enqueue(() async {
+    if (!_forget(turns)) return;
+    await _persist();
+  });
+
+  bool _forget(Set<String> turns) {
+    final before = _turns.length;
+    _turns.removeWhere((turn, _) => turns.contains(turn));
+    return _turns.length != before;
+  }
+
+  /// Each file [turns] changed, with what each of them did to it in the
+  /// order they came.
+  Iterable<(String, List<_Step>)> _stepsOf(Set<String> turns) {
+    final steps = <String, List<_Step>>{};
+    for (final MapEntry(key: turn, value: files) in _turns.entries) {
+      if (!turns.contains(turn)) continue;
+      for (final MapEntry(key: path, value: step) in files.entries) {
+        (steps[path] ??= []).add(step);
+      }
+    }
+    return [
+      for (final path in steps.keys.toList()..sort()) (path, steps[path]!),
+    ];
+  }
+
+  /// [path] without what [steps] did, the last first: what it would be,
+  /// and the blob to put there (null: none, the file deleted); null when
+  /// it is already that.
+  Future<(RewindFile, ReviewBlob?)?> _rewound(
+    String path,
+    List<_Step> steps,
+  ) async {
+    final created = steps.first.before == null;
+    try {
+      return await _rewoundOr(path, steps, created: created);
+    } on Exception {
+      return (_rewindFile(path, RewindOutcome.conflict, created), null);
+    }
+  }
+
+  Future<(RewindFile, ReviewBlob?)?> _rewoundOr(
+    String path,
+    List<_Step> steps, {
+    required bool created,
+  }) async {
+    final now = await _store.current(path);
+    if (_same(now, steps.first.before)) return null;
+    var at = _same(now, steps.last.after) ? now : await _store.take(path);
+    var merged = false;
+    for (final step in steps.reversed) {
+      if (_same(at, step.before)) continue;
+      if (_same(at, step.after)) {
+        at = step.before;
+        continue;
+      }
+      // Changed since by someone else: the step's change taken out of it.
+      final (from, to) = (step.after, step.before);
+      final bytes = at == null || from == null || to == null
+          ? null
+          : at.isLink || from.isLink || to.isLink
+          ? null
+          : await _store.merge(at, from, to);
+      if (bytes == null) {
+        return (_rewindFile(path, RewindOutcome.conflict, created), now);
+      }
+      at = await _store.store(bytes, mode: at!.mode);
+      merged = true;
+    }
+    if (_same(at, now)) return null;
+    return (
+      _rewindFile(
+        path,
+        merged ? RewindOutcome.merge : RewindOutcome.restore,
+        created,
+      ),
+      at,
+    );
+  }
+
+  RewindFile _rewindFile(String path, RewindOutcome outcome, bool created) =>
+      RewindFile(
+        path,
+        outcome,
+        name: _paths.isWithin(root, path)
+            ? _paths.relative(path, from: root)
+            : path,
+        created: created,
+      );
+
   // --- Part of a file -----------------------------------------------------------
 
   /// Which text [path] (absolute) is held against: the blob of what was
@@ -561,11 +804,11 @@ class ChangeReview extends ChangeNotifier {
       for (final MapEntry(key: path, value: entry) in _entries.entries)
         if (entry.pending) path: entry,
     };
-    final nothing = kept.isEmpty && _unseen.isEmpty;
+    final nothing = kept.isEmpty && _unseen.isEmpty && _turns.isEmpty;
     final data = nothing
         ? ''
         : jsonEncode({
-            'version': 4,
+            'version': 5,
             'entries': {
               for (final MapEntry(key: path, value: entry) in kept.entries)
                 path: entry.toJson(),
@@ -576,6 +819,17 @@ class ChangeReview extends ChangeNotifier {
                   'path': change.path,
                   'added': change.added,
                   'removed': change.removed,
+                },
+            ],
+            'turns': [
+              for (final MapEntry(key: turn, value: files) in _turns.entries)
+                {
+                  'turn': turn,
+                  'files': {
+                    for (final MapEntry(key: path, value: step)
+                        in files.entries)
+                      path: step.toJson(),
+                  },
                 },
             ],
           });
@@ -589,6 +843,8 @@ class ChangeReview extends ChangeNotifier {
         data,
         blobs: [
           for (final entry in kept.values) ...[?entry.base, ?entry.after],
+          for (final files in _turns.values)
+            for (final step in files.values) ...[?step.before, ?step.after],
         ],
       );
     }
@@ -601,7 +857,11 @@ class ChangeReview extends ChangeNotifier {
       final data = await _store.load(session);
       if (data == null) return;
       final json = jsonDecode(data);
-      if (json is! Map<String, Object?> || json['version'] != 4) return;
+      // 4: before the turns were kept.
+      if (json is! Map<String, Object?> ||
+          (json['version'] != 4 && json['version'] != 5)) {
+        return;
+      }
       if (json['entries'] case final Map<String, Object?> entries) {
         for (final MapEntry(key: path, value: entry) in entries.entries) {
           if (entry is Map<String, Object?>) {
@@ -625,12 +885,26 @@ class ChangeReview extends ChangeNotifier {
           }
         }
       }
+      if (json['turns'] case final List<Object?> turns) {
+        for (final turn in turns) {
+          if (turn case {
+            'turn': final String id,
+            'files': final Map<String, Object?> files,
+          }) {
+            _turns[id] = {
+              for (final MapEntry(key: path, value: step) in files.entries)
+                if (step is Map<String, Object?>) path: _Step.fromJson(step),
+            };
+          }
+        }
+      }
       _persisted = '$session\x00$data';
       await _refresh();
     } on Object {
       // Begun anew.
       _entries.clear();
       _unseen.clear();
+      _turns.clear();
     }
   }
 

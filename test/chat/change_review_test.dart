@@ -35,15 +35,25 @@ void main() {
 
   /// The agent of [review] writes [text] to [relative] (null deletes it),
   /// as Claude Code tells it: before, and after.
-  Future<void> edit(ChangeReview review, String relative, String? text) async {
-    await review.before(path(relative));
+  Future<void> edit(
+    ChangeReview review,
+    String relative,
+    String? text, {
+    String? turn,
+  }) async {
+    await review.before(path(relative), turn: turn);
     if (text == null) {
       File(path(relative)).deleteSync();
     } else {
       write(relative, text);
     }
-    await review.after(path(relative));
+    await review.after(path(relative), turn: turn);
   }
+
+  /// What [files] tell, by path relative to the project.
+  Map<String, RewindOutcome> outcomes(List<RewindFile> files) => {
+    for (final file in files) file.name: file.outcome,
+  };
 
   /// The pending changes, by path relative to the project.
   Map<String, FileChange> changesOf(ChangeReview review) => {
@@ -385,5 +395,113 @@ void main() {
     );
     addTearDown(gone.dispose);
     expect(gone.changes, isEmpty);
+  });
+
+  group('back to before a message', () {
+    test('puts back what the turns from it on did, kept or not', () async {
+      final review = open();
+      await edit(review, 'a.txt', 'one\n2\n3\n4\n5\n', turn: 't1');
+      await edit(review, 'a.txt', 'one\n2\n3\n4\nfive\n', turn: 't2');
+      await edit(review, 'lib/c.txt', 'c\n', turn: 't2');
+      await review.keepAll();
+      expect(review.changedIn({'t2'}), isTrue);
+      expect(review.changedIn({'t3'}), isFalse);
+
+      final planned = await review.planRewind({'t2'});
+      expect(outcomes(planned), {
+        'a.txt': RewindOutcome.restore,
+        'lib/c.txt': RewindOutcome.restore,
+      });
+      expect(planned.firstWhere((f) => f.name == 'lib/c.txt').created, isTrue);
+      // Only planned: nothing written.
+      expect(read('a.txt'), 'one\n2\n3\n4\nfive\n');
+
+      await review.rewind({'t2'});
+      expect(read('a.txt'), 'one\n2\n3\n4\n5\n');
+      expect(File(path('lib/c.txt')).existsSync(), isFalse);
+      // Forgotten once put back.
+      expect(review.changedIn({'t2'}), isFalse);
+      expect(await review.planRewind({'t2'}), isEmpty);
+
+      await review.rewind({'t1'});
+      expect(read('a.txt'), '1\n2\n3\n4\n5\n');
+    });
+
+    test('the change still pending is what the turns before left', () async {
+      final review = open();
+      await edit(review, 'a.txt', 'one\n2\n3\n4\n5\n', turn: 't1');
+      await edit(review, 'a.txt', 'one\ntwo\n3\n4\n5\n', turn: 't2');
+      await review.rewind({'t2'});
+      expect(read('a.txt'), 'one\n2\n3\n4\n5\n');
+      final change = changesOf(review)['a.txt']!;
+      expect((change.added, change.removed), (1, 1));
+    });
+
+    test(
+      'keeps what else changed the files since, between turns too',
+      () async {
+        final review = open();
+        await edit(review, 'a.txt', 'one\n2\n3\n4\n5\n', turn: 't1');
+        // Not the agent's: another conversation, the user.
+        write('a.txt', 'one\n2\n3\n4\nFIVE\n');
+        await edit(review, 'a.txt', 'one\n2\nthree\n4\nFIVE\n', turn: 't2');
+        write('a.txt', 'one\n2\nthree\n4\nFIVE\nsix\n');
+
+        expect(outcomes(await review.planRewind({'t1', 't2'})), {
+          'a.txt': RewindOutcome.merge,
+        });
+        await review.rewind({'t1', 't2'});
+        expect(read('a.txt'), '1\n2\n3\n4\nFIVE\nsix\n');
+      },
+    );
+
+    test('leaves a file whose turns\' change cannot be taken out', () async {
+      final review = open();
+      await edit(review, 'a.txt', '1\n2\nthree\n4\n5\n', turn: 't1');
+      write('a.txt', '1\n2\nTHREE\n4\n5\n');
+      await edit(review, 'lib/b.txt', 'B\n', turn: 't1');
+
+      expect(outcomes(await review.planRewind({'t1'})), {
+        'a.txt': RewindOutcome.conflict,
+        'lib/b.txt': RewindOutcome.restore,
+      });
+      final done = await review.rewind({'t1'});
+      expect(outcomes(done)['a.txt'], RewindOutcome.conflict);
+      expect(read('a.txt'), '1\n2\nTHREE\n4\n5\n');
+      expect(read('lib/b.txt'), 'b\n');
+    });
+
+    test('a file already back is not listed', () async {
+      final review = open();
+      await edit(review, 'a.txt', 'one\n', turn: 't1');
+      await review.undoAll();
+      expect(await review.planRewind({'t1'}), isEmpty);
+    });
+
+    test('turns forgotten, their changes stay as they are', () async {
+      final review = open();
+      await edit(review, 'a.txt', 'one\n', turn: 't1');
+      await review.forgetTurns({'t1'});
+      expect(review.changedIn({'t1'}), isFalse);
+      expect(read('a.txt'), 'one\n');
+      expect(changesOf(review).keys, ['a.txt']);
+    });
+
+    test('carries on where the session left off', () async {
+      final review = open(session: 'session-1');
+      await edit(review, 'a.txt', 'one\n2\n3\n4\n5\n', turn: 't1');
+      await review.keepAll();
+
+      final reopened = await ChangeReview.resume(
+        BlobReviewStore.open(checkpoints),
+        'session-1',
+        root: root,
+      );
+      addTearDown(reopened.dispose);
+      expect(reopened.changes, isEmpty);
+      expect(reopened.changedIn({'t1'}), isTrue);
+      await reopened.rewind({'t1'});
+      expect(read('a.txt'), '1\n2\n3\n4\n5\n');
+    });
   });
 }

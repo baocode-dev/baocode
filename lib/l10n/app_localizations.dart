@@ -22410,6 +22410,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Path copied'**
   String get branchBarPathCopied;
+
+  /// No description provided for @rewindFilesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo the file changes made after this message?'**
+  String get rewindFilesTitle;
+
+  /// No description provided for @rewindFilesChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The agent changed {count, plural, =1{1 file} other{{count} files}} after this message:'**
+  String rewindFilesChanged(int count);
+
+  /// No description provided for @rewindFilesMore.
+  ///
+  /// In en, this message translates to:
+  /// **'…and {count} more'**
+  String rewindFilesMore(int count);
+
+  /// No description provided for @rewindFilesMerged.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 of them was} other{{count} of them were}} also changed elsewhere since: those changes are kept.'**
+  String rewindFilesMerged(int count);
+
+  /// No description provided for @rewindFilesConflicts.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 file can\'t} other{{count} files can\'t}} be undone cleanly and will stay as {count, plural, =1{it is} other{they are}}:'**
+  String rewindFilesConflicts(int count);
+
+  /// No description provided for @rewindFilesCommands.
+  ///
+  /// In en, this message translates to:
+  /// **'What commands changed (Bash) isn\'t tracked and stays.'**
+  String get rewindFilesCommands;
+
+  /// No description provided for @rewindFilesRevert.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo and Send'**
+  String get rewindFilesRevert;
+
+  /// No description provided for @rewindFilesKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep and Send'**
+  String get rewindFilesKeep;
+
+  /// No description provided for @rewindFilesRemember.
+  ///
+  /// In en, this message translates to:
+  /// **'Remember my choice'**
+  String get rewindFilesRemember;
+
+  /// No description provided for @generalSettingsRewindFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited Messages'**
+  String get generalSettingsRewindFiles;
+
+  /// No description provided for @generalSettingsRewindFilesDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'When you edit an earlier message and send it again, what happens to the files the agent changed after it. Commands\' (Bash) changes are not tracked. Claude Code and BaoCode agent only.'**
+  String get generalSettingsRewindFilesDescription;
+
+  /// No description provided for @generalSettingsRewindAsk.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask Each Time'**
+  String get generalSettingsRewindAsk;
+
+  /// No description provided for @generalSettingsRewindRevert.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo the Changes'**
+  String get generalSettingsRewindRevert;
+
+  /// No description provided for @generalSettingsRewindKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the Changes'**
+  String get generalSettingsRewindKeep;
 }
 
 class _AppLocalizationsDelegate

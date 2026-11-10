@@ -35,13 +35,14 @@ class _Review extends ChangeReview {
   }
 
   @override
-  Future<void> before(String path) async {
+  Future<void> before(String path, {String? turn}) async {
     calls.add('before $path');
     await holdBefore?.future;
   }
 
   @override
-  Future<void> after(String path) async => calls.add('after $path');
+  Future<void> after(String path, {String? turn}) async =>
+      calls.add('after $path');
 
   @override
   void report(FileChange change, {FileOriginal? original}) =>
