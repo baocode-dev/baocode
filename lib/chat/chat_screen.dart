@@ -1124,6 +1124,12 @@ class _ChatScreenState extends State<ChatScreen>
               final cwd? => !RemoteLocation.isRemote(cwd),
               null => true,
             },
+            host: switch (_session.kernelContext.cwd) {
+              final cwd? => RemoteLocation.hostOf(cwd),
+              null => null,
+            },
+            existsHere: links.existsHere,
+            openOnHost: links.openOnHost,
             child: scoped,
           );
         }

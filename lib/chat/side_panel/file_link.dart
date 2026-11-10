@@ -41,12 +41,30 @@ class FileLineRange {
 /// (`[a.dart](lib/a.dart#L12)`, as `ClaudeLaunch.fileLinks` asks it to
 /// write them), a path in inline code (`lib/a.dart:12`, as Claude Code's
 /// own prompt has it), or a search's match. [path] as written: relative to
-/// where the agent works, or absolute.
+/// where the agent works, or absolute; on another [machine] than that.
 class FileLink {
-  const FileLink(this.path, [this.range]);
+  const FileLink(this.path, [this.range]) : machine = null;
+
+  /// A file of [machine]'s: [userComputer], or an SSH host.
+  const FileLink.on(this.machine, this.path, [this.range]);
 
   final String path;
   final FileLineRange? range;
+
+  /// Where the file is when that is not where the agent works:
+  /// [userComputer] (`local:/a/b.dart`, from an agent on an SSH host), or
+  /// an SSH host (`ssh://host/a/b.dart`, as the app names a host's file,
+  /// see `RemoteLocation`). Null for where the agent works.
+  final String? machine;
+
+  /// The user's own computer, as [machine]: no host is named `''`.
+  static const userComputer = '';
+
+  /// The scheme of a link to a file of the user's own computer.
+  static const userComputerScheme = 'local:';
+
+  /// The scheme of a link to a file of an SSH host.
+  static const sshScheme = 'ssh://';
 
   /// The file a link to [href] goes to; null for a web, mail or any other
   /// scheme's address, a heading's anchor, or nothing.
@@ -57,6 +75,19 @@ class FileLink {
       text = text.substring(1, text.length - 1).trim();
     }
     if (text.isEmpty || text.startsWith('#')) return null;
+    final lower = text.toLowerCase();
+    if (lower.startsWith(userComputerScheme)) {
+      var rest = text.substring(userComputerScheme.length);
+      // `local:///a/b.dart`, as a URL would be.
+      if (rest.startsWith('//')) rest = rest.substring(2);
+      return _on(userComputer, rest);
+    }
+    if (lower.startsWith(sshScheme)) {
+      final rest = text.substring(sshScheme.length);
+      final slash = rest.indexOf('/');
+      if (slash <= 0) return null;
+      return _on(rest.substring(0, slash), rest.substring(slash));
+    }
     if (_scheme.firstMatch(text) case final match?
         when !_drive.hasMatch(text)) {
       if (match[1]!.toLowerCase() != 'file') return null;
@@ -78,6 +109,27 @@ class FileLink {
       return FileLink(path, range);
     }
     return _withSuffix(path);
+  }
+
+  /// The file at [address] (an absolute path, with a line after it or
+  /// not) of [machine]'s; null for none, or a relative path: where it is
+  /// from is not known there.
+  static FileLink? _on(String machine, String address) {
+    final hash = address.indexOf('#');
+    var path = _decode(hash < 0 ? address : address.substring(0, hash));
+    // `/C:/a/b.dart`, a Windows host's, as the app's locations spell it.
+    if (RegExp(r'^/[A-Za-z]:([/\\]|$)').hasMatch(path)) {
+      path = path.substring(1);
+    }
+    final FileLink link;
+    if (hash >= 0) {
+      link = FileLink(path, _fragment(address.substring(hash + 1)));
+    } else {
+      link = _withSuffix(path);
+    }
+    final absolute = link.path.startsWith('/') || _drive.hasMatch(link.path);
+    if (!absolute) return null;
+    return FileLink.on(machine, link.path, link.range);
   }
 
   /// The file inline code names (`lib/a.dart`, `lib/a.dart:12:5`,
@@ -202,11 +254,16 @@ class FileLink {
 
   @override
   bool operator ==(Object other) =>
-      other is FileLink && other.path == path && other.range == range;
+      other is FileLink &&
+      other.path == path &&
+      other.range == range &&
+      other.machine == machine;
 
   @override
-  int get hashCode => Object.hash(path, range);
+  int get hashCode => Object.hash(path, range, machine);
 
   @override
-  String toString() => 'FileLink($path, $range)';
+  String toString() =>
+      'FileLink(${machine == null ? '' : '${machine!.isEmpty ? 'local' : machine}: '}'
+      '$path, $range)';
 }
