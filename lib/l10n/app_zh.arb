@@ -3725,5 +3725,19 @@
   "portsForward": "转发",
   "portsCopied": "已复制 {address}",
   "branchBarFolder": "{path}\n点击复制路径",
-  "branchBarPathCopied": "已复制路径"
+  "branchBarPathCopied": "已复制路径",
+  "rewindFilesTitle": "撤回这条消息之后的文件改动？",
+  "rewindFilesChanged": "这条消息之后，Agent 改了 {count} 个文件：",
+  "rewindFilesMore": "……还有 {count} 个",
+  "rewindFilesMerged": "其中 {count} 个后来在别处也改过，那些改动会保留。",
+  "rewindFilesConflicts": "{count} 个文件无法自动撤回，会保持不变：",
+  "rewindFilesCommands": "命令（Bash）做的改动没有记录，不会撤回。",
+  "rewindFilesRevert": "撤回并发送",
+  "rewindFilesKeep": "保留改动并发送",
+  "rewindFilesRemember": "记住我的选择",
+  "generalSettingsRewindFiles": "修改历史消息",
+  "generalSettingsRewindFilesDescription": "修改之前的消息并重新发送时，Agent 在那之后改过的文件怎么处理。命令（Bash）做的改动没有记录。仅支持 Claude Code 和 BaoCode Agent。",
+  "generalSettingsRewindAsk": "每次询问",
+  "generalSettingsRewindRevert": "撤回改动",
+  "generalSettingsRewindKeep": "保留改动"
 }

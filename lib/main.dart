@@ -26,6 +26,7 @@ import 'chat/user_message_style.dart';
 import 'chat/widgets/chat_minimap.dart';
 import 'chat/widgets/pixel_loader.dart';
 import 'chat/resume_after_reset.dart';
+import 'chat/rewind_files_setting.dart';
 import 'chat/widgets/turn_footer.dart' show LiveTurnStatsSetting;
 import 'customize/customization_store.dart';
 import 'diagnostics/app_event_watch.dart';
@@ -504,6 +505,20 @@ void followSettingsFiles(SettingsFiles files) {
           // A settings file that does not parse is left as it is; its
           // error is shown.
           debugPrint('${ResumeAfterResetSetting.settingKey} not kept: $error');
+        }),
+  );
+  // A message edited and sent again: whether the files changed after it
+  // go back, asked unless set (there, or in its prompt).
+  RewindFilesSetting.current = () =>
+      RewindFilesSetting.parse(files.settings[RewindFilesSetting.settingKey]);
+  RewindFilesSetting.write = (value) => unawaited(
+    files.settings
+        .update(
+          RewindFilesSetting.settingKey,
+          value == RewindFilesSetting.fallback ? null : value.name,
+        )
+        .catchError((Object error) {
+          debugPrint('${RewindFilesSetting.settingKey} not kept: $error');
         }),
   );
   // Settings → Customize's switches: the skills, MCP servers and tools

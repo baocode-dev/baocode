@@ -12,6 +12,7 @@ import '../../kernel/claude_code/claude_path_setting.dart';
 import '../../kernel/commit_attribution.dart';
 import '../../kernel/prompt_suggestions.dart';
 import '../../chat/composer/composer_polish.dart' show ComposerPolishSetting;
+import '../../chat/rewind_files_setting.dart';
 import '../../chat/widgets/turn_footer.dart' show LiveTurnStatsSetting;
 import '../../kernel/queued_messages.dart';
 import '../../l10n/l10n.dart';
@@ -350,6 +351,19 @@ class GeneralSettingsPage extends StatelessWidget {
                         l10n.generalSettingsQueuedAfterTurn,
                     QueuedMessages.duringTurn.name:
                         l10n.generalSettingsQueuedDuringTurn,
+                  },
+                ),
+                _choiceRow(
+                  context,
+                  key: RewindFilesSetting.settingKey,
+                  label: l10n.generalSettingsRewindFiles,
+                  description: l10n.generalSettingsRewindFilesDescription,
+                  values: {
+                    RewindFilesSetting.ask.name: l10n.generalSettingsRewindAsk,
+                    RewindFilesSetting.revert.name:
+                        l10n.generalSettingsRewindRevert,
+                    RewindFilesSetting.keep.name:
+                        l10n.generalSettingsRewindKeep,
                   },
                 ),
                 SettingsSwitchRow(

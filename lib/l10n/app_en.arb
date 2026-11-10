@@ -8804,5 +8804,23 @@
   "branchBarPathCopied": "Path copied",
   "@branchBarPathCopied": {
     "description": "Hover of the project folder under the chat once clicked: its path was copied."
-  }
+  },
+  "rewindFilesTitle": "Undo the file changes made after this message?",
+  "rewindFilesChanged": "The agent changed {count, plural, =1{1 file} other{{count} files}} after this message:",
+  "@rewindFilesChanged": {"placeholders": {"count": {"type": "int"}}},
+  "rewindFilesMore": "…and {count} more",
+  "@rewindFilesMore": {"placeholders": {"count": {"type": "int"}}},
+  "rewindFilesMerged": "{count, plural, =1{1 of them was} other{{count} of them were}} also changed elsewhere since: those changes are kept.",
+  "@rewindFilesMerged": {"placeholders": {"count": {"type": "int"}}},
+  "rewindFilesConflicts": "{count, plural, =1{1 file can't} other{{count} files can't}} be undone cleanly and will stay as {count, plural, =1{it is} other{they are}}:",
+  "@rewindFilesConflicts": {"placeholders": {"count": {"type": "int"}}},
+  "rewindFilesCommands": "What commands changed (Bash) isn't tracked and stays.",
+  "rewindFilesRevert": "Undo and Send",
+  "rewindFilesKeep": "Keep and Send",
+  "rewindFilesRemember": "Remember my choice",
+  "generalSettingsRewindFiles": "Edited Messages",
+  "generalSettingsRewindFilesDescription": "When you edit an earlier message and send it again, what happens to the files the agent changed after it. Commands' (Bash) changes are not tracked. Claude Code and BaoCode agent only.",
+  "generalSettingsRewindAsk": "Ask Each Time",
+  "generalSettingsRewindRevert": "Undo the Changes",
+  "generalSettingsRewindKeep": "Keep the Changes"
 }

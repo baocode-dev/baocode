@@ -455,6 +455,23 @@ void main() {
         throwsA(isA<LinkRemoteException>()),
       );
     });
+
+    test('what sending a message again would put back of the files is '
+        'asked by the same index', () async {
+      await open(3);
+      // Nothing the agent changed is known: nothing to ask.
+      expect(
+        await bridge.handle(LinkMethods.rewindPlan, {
+          'session': id,
+          'index': 1,
+        }),
+        {'files': <Object?>[], 'setting': 'ask'},
+      );
+      expect(
+        bridge.handle(LinkMethods.rewindPlan, {'session': id, 'index': 0}),
+        throwsA(isA<LinkRemoteException>()),
+      );
+    });
   });
 
   group('image', () {

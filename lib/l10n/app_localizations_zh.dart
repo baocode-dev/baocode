@@ -13022,4 +13022,55 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get branchBarPathCopied => '已复制路径';
+
+  @override
+  String get rewindFilesTitle => '撤回这条消息之后的文件改动？';
+
+  @override
+  String rewindFilesChanged(int count) {
+    return '这条消息之后，Agent 改了 $count 个文件：';
+  }
+
+  @override
+  String rewindFilesMore(int count) {
+    return '……还有 $count 个';
+  }
+
+  @override
+  String rewindFilesMerged(int count) {
+    return '其中 $count 个后来在别处也改过，那些改动会保留。';
+  }
+
+  @override
+  String rewindFilesConflicts(int count) {
+    return '$count 个文件无法自动撤回，会保持不变：';
+  }
+
+  @override
+  String get rewindFilesCommands => '命令（Bash）做的改动没有记录，不会撤回。';
+
+  @override
+  String get rewindFilesRevert => '撤回并发送';
+
+  @override
+  String get rewindFilesKeep => '保留改动并发送';
+
+  @override
+  String get rewindFilesRemember => '记住我的选择';
+
+  @override
+  String get generalSettingsRewindFiles => '修改历史消息';
+
+  @override
+  String get generalSettingsRewindFilesDescription =>
+      '修改之前的消息并重新发送时，Agent 在那之后改过的文件怎么处理。命令（Bash）做的改动没有记录。仅支持 Claude Code 和 BaoCode Agent。';
+
+  @override
+  String get generalSettingsRewindAsk => '每次询问';
+
+  @override
+  String get generalSettingsRewindRevert => '撤回改动';
+
+  @override
+  String get generalSettingsRewindKeep => '保留改动';
 }
