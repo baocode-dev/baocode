@@ -95,3 +95,6 @@ own licenses, found next to them in the source tree.
 
 BaoCode is an independent project, not affiliated with or endorsed by
 Anthropic.
+
+<img width="300" height="356" alt="image" src="https://github.com/user-attachments/assets/d8288f00-a7f6-41fd-8cbb-f99acfe59418" />
+
