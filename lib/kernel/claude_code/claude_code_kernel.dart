@@ -454,6 +454,16 @@ class ClaudeCodeKernel
   /// Claude plan's calls' makeup, which no proxy sees.
   ContextDetail? _contextDetail;
 
+  /// What the CLI last counted in the context, by part: told again,
+  /// scaled, as the model tells what its context comes to.
+  ({int total, List<ContextSegment> segments})? _counted;
+
+  /// What the context comes to as the model told it: its last request's
+  /// input and output. The CLI's count is its own estimate for a model
+  /// behind the proxy (images' base64 as text, once). Null with none
+  /// since the context changed under it (compacted, rewound).
+  int? _toldContext;
+
   /// The models' own windows, by the model the CLI resolved them to, as
   /// reported while they were in use.
   static final Map<String, int> _modelWindows = {};
@@ -1322,6 +1332,9 @@ class ClaudeCodeKernel
             );
           }
           emit(Rewound(nextSeq, itemId: itemId, index: index));
+          // Its last request held what is rewound too.
+          _toldContext = null;
+          unawaited(_refreshContext());
           rewound.complete(true);
         })
         .catchError((Object error) {
@@ -1918,7 +1931,9 @@ class ClaudeCodeKernel
         );
         emitInfoChanged();
       case 'assistant':
+        final told = _toldContext;
         if (_countRequest(message)) _reportStats();
+        if (_toldContext != told) _reportContext();
         if (message['error'] == 'rate_limit') {
           _limitSaid(message['message']);
           _accountsLimited();
@@ -2618,7 +2633,8 @@ class ClaudeCodeKernel
   /// conversation's: once, as a message comes a content block at a time.
   /// Later lines update the fields they give. A subagent's is left out, as
   /// its transcript is apart. Whether it was added or its usage changed.
-  bool _countRequest(Map<String, Object?> message) {
+  /// One of an [earlier] page, read after the rest, is not the last.
+  bool _countRequest(Map<String, Object?> message, {bool earlier = false}) {
     if (message['parent_tool_use_id'] != null ||
         message['isSidechain'] == true) {
       return false;
@@ -2642,8 +2658,11 @@ class ClaudeCodeKernel
     );
     // None at all: one of the CLI's own (an API error), not the model's.
     if (tokens.total == 0) return false;
-    _lastRequest = id;
-    _lastModel = model;
+    if (!earlier) {
+      _lastRequest = id;
+      _lastModel = model;
+      _toldContext = tokens.total + (claudeInt(usage['output_tokens']) ?? 0);
+    }
     if (usage.containsKey('cache_read_input_tokens') ||
         usage.containsKey('cache_creation_input_tokens')) {
       _cachingModels.add(model);
@@ -2658,6 +2677,7 @@ class ClaudeCodeKernel
   /// The conversation was compacted, maybe mid-turn: the context shown
   /// drops to what is left at once, then to what the CLI counts.
   void _compacted(Map<String, Object?> message) {
+    _toldContext = null;
     final meta = message['compact_metadata'];
     if (meta is Map && meta['post_tokens'] is int) {
       emit(
@@ -2693,33 +2713,68 @@ class ClaudeCodeKernel
         _modelWindows[model] = raw;
       }
       emitInfoChanged();
-      emit(
-        UsageReported(
-          nextSeq,
-          ContextUsage(
-            window: max,
-            used: usage['totalTokens'] as int? ?? 0,
-            segments: [
-              for (final raw in usage['categories'] as List? ?? const [])
-                if (raw is Map && raw['tokens'] is int)
-                  ContextSegment(
-                    '${raw['name']}',
-                    raw['tokens'] as int,
-                    kind: switch (raw['kind']) {
-                      'free' => ContextKind.free,
-                      'buffer' => ContextKind.buffer,
-                      'deferred' => ContextKind.deferred,
-                      _ => ContextKind.used,
-                    },
-                  ),
-            ],
-            detail: _contextDetail = ContextDetail.parse(usage),
-          ),
-        ),
+      _contextDetail = ContextDetail.parse(usage);
+      _counted = (
+        total: usage['totalTokens'] as int? ?? 0,
+        segments: [
+          for (final raw in usage['categories'] as List? ?? const [])
+            if (raw is Map && raw['tokens'] is int)
+              ContextSegment(
+                '${raw['name']}',
+                raw['tokens'] as int,
+                kind: switch (raw['kind']) {
+                  'free' => ContextKind.free,
+                  'buffer' => ContextKind.buffer,
+                  'deferred' => ContextKind.deferred,
+                  _ => ContextKind.used,
+                },
+              ),
+        ],
       );
+      _reportContext();
     } on Object {
       // Context usage is a nicety: an older CLI may not answer.
     }
+  }
+
+  /// What fills the context: as much as the model last told
+  /// ([_toldContext]), else as the CLI counted it; its parts as the CLI
+  /// counted them, scaled to that. Nothing before the CLI has counted.
+  void _reportContext() {
+    final counted = _counted;
+    if (counted == null) return;
+    final used = _toldContext ?? counted.total;
+    final scale = counted.total > 0 ? used / counted.total : 1.0;
+    final kept = counted.segments
+        .where((s) => s.kind == ContextKind.buffer)
+        .fold(0, (sum, s) => sum + s.tokens);
+    emit(
+      UsageReported(
+        nextSeq,
+        ContextUsage(
+          window: _contextWindow,
+          used: used,
+          segments: scale == 1
+              ? counted.segments
+              : [
+                  for (final s in counted.segments)
+                    switch (s.kind) {
+                      ContextKind.used => ContextSegment(
+                        s.label,
+                        (s.tokens * scale).round(),
+                      ),
+                      ContextKind.free => ContextSegment(
+                        s.label,
+                        math.max(0, _contextWindow - used - kept),
+                        kind: ContextKind.free,
+                      ),
+                      _ => s,
+                    },
+                ],
+          detail: _contextDetail,
+        ),
+      ),
+    );
   }
 
   void _exited(int code, String stderr, {String? executable}) {
@@ -2856,11 +2911,16 @@ class ClaudeCodeKernel
       var counted = false;
       for (final line in page.entries) {
         if (line['type'] == 'assistant') counted |= _countRequest(line);
+        // What the model told before it is no longer what it holds.
+        if (line case {'type': 'system', 'subtype': 'compact_boundary'}) {
+          _toldContext = null;
+        }
         _translator.translate(line);
       }
       _readHead = _translator.head;
       _translator.endReplay();
       if (counted) _reportStats();
+      _reportContext();
     } on Object catch (error) {
       emit(
         ItemUpserted(
@@ -2912,7 +2972,9 @@ class ClaudeCodeKernel
             ..keptTurns = kept;
       var counted = false;
       for (final line in page.entries) {
-        if (line['type'] == 'assistant') counted |= _countRequest(line);
+        if (line['type'] == 'assistant') {
+          counted |= _countRequest(line, earlier: true);
+        }
         translator.translate(line);
       }
       translator.endPage(after: _readHead);

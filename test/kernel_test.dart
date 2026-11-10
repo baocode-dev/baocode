@@ -3551,6 +3551,76 @@ void main() {
       kernel.dispose();
     });
 
+    test('the context is as much as the model told, its parts as the CLI '
+        'counted them', () async {
+      final cli = FakeCli(
+        answers: {
+          'get_context_usage': {
+            'totalTokens': 4000,
+            'maxTokens': 10000,
+            'categories': [
+              {'name': 'System prompt', 'tokens': 1000},
+              {'name': 'Messages', 'tokens': 3000},
+              {'name': 'Free space', 'tokens': 5000, 'kind': 'free'},
+              {'name': 'Autocompact buffer', 'tokens': 1000, 'kind': 'buffer'},
+            ],
+          },
+        },
+      );
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      expect(transcript.usage!.used, 4000, reason: 'the CLI count, at first');
+
+      Map<String, Object?> reply(String id, Map<String, Object?> usage) => {
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': id,
+          'model': 'gpt-5',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'ok'},
+          ],
+          'usage': usage,
+        },
+      };
+      cli.push(
+        reply('m1', {
+          'input_tokens': 300,
+          'cache_read_input_tokens': 1500,
+          'output_tokens': 200,
+        }),
+      );
+      // A subagent's is not the conversation's.
+      cli.push({
+        ...reply('s1', {'input_tokens': 9000, 'output_tokens': 1}),
+        'parent_tool_use_id': 'task1',
+      });
+      await pumpEventQueue();
+      var usage = transcript.usage!;
+      expect(usage.used, 2000);
+      int tokens(String label) =>
+          usage.segments.firstWhere((s) => s.label == label).tokens;
+      expect(tokens('System prompt'), 500);
+      expect(tokens('Messages'), 1500);
+      expect(tokens('Free space'), 7000);
+      expect(tokens('Autocompact buffer'), 1000);
+
+      // Compacted: what it told is gone; the CLI's count until it tells
+      // again.
+      cli.push({
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'compact_metadata': {'trigger': 'auto', 'pre_tokens': 2000},
+      });
+      await pumpEventQueue();
+      usage = transcript.usage!;
+      expect(usage.used, 4000);
+      expect(tokens('Messages'), 3000);
+      kernel.dispose();
+    });
+
     test("keeps the calls on Claude Code's own models, timed, and priced "
         "at Anthropic's as the CLI prices them", () async {
       final ledger = UsageLedger.current = UsageLedger(MemoryUsageStorage());
