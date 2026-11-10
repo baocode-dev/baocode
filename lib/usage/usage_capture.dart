@@ -123,6 +123,31 @@ int _jsonTokens(Object? value) {
 /// A picture or a document: about what one comes to, whatever its size.
 const _mediaTokens = 1500;
 
+/// About how many tokens a tool call's result [content] comes to: an image
+/// or a document as one ([_mediaTokens]), not its base64 as text.
+int estimateToolResultTokens(Object? content) {
+  switch (content) {
+    case null:
+      return 0;
+    case final String text:
+      return estimateTokens(text);
+    case final List<Object?> parts:
+      var tokens = 0;
+      for (final part in parts) {
+        if (part case {'type': 'image' || 'document'}) {
+          tokens += _mediaTokens;
+        } else if (part case {'text': final String text}) {
+          tokens += estimateTokens(text);
+        } else {
+          tokens += _jsonTokens(part);
+        }
+      }
+      return tokens;
+    case final Object other:
+      return _jsonTokens(other);
+  }
+}
+
 /// Claude Code's prompt for a compaction, for a request that does not say
 /// it is one ([UsageHeaders.requestClass]).
 const _compactionMarks = [
@@ -279,23 +304,7 @@ UsageRequestInfo analyzeRequest(
           tally.toolUse += tokens;
           tally.uses[name] = (tally.uses[name] ?? 0) + tokens;
         case 'tool_result' || 'web_search_tool_result':
-          var tokens = 0;
-          switch (block['content']) {
-            case final String text:
-              tokens = estimateTokens(text);
-            case final List<Object?> parts:
-              for (final part in parts) {
-                if (part case {'type': 'image' || 'document'}) {
-                  tokens += _mediaTokens;
-                } else if (part case {'text': final String text}) {
-                  tokens += estimateTokens(text);
-                } else {
-                  tokens += _jsonTokens(part);
-                }
-              }
-            case final Object other:
-              tokens = _jsonTokens(other);
-          }
+          final tokens = estimateToolResultTokens(block['content']);
           tally.toolResult += tokens;
           final name = names['${block['tool_use_id']}'] ?? 'tool';
           tally.results[name] = (tally.results[name] ?? 0) + tokens;

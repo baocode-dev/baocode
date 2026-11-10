@@ -3621,6 +3621,120 @@ void main() {
       kernel.dispose();
     });
 
+    group("the tools' results are counted here, an image as one", () {
+      // As Claude Code counts them: a screenshot's base64 as text.
+      final told = {
+        'totalTokens': 4000,
+        'maxTokens': 10000,
+        'categories': [
+          {'name': 'Messages', 'tokens': 4000},
+        ],
+        'messageBreakdown': {
+          'userMessageTokens': 50,
+          'toolCallTokens': 10,
+          'toolResultTokens': 100000,
+          'toolCallsByType': [
+            {'name': 'Screenshot', 'callTokens': 10, 'resultTokens': 100000},
+          ],
+        },
+      };
+      Map<String, Object?> use(String id, String name) => {
+        'type': 'assistant',
+        'uuid': 'a-$id',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'm-$id',
+          'role': 'assistant',
+          'model': 'gpt-5',
+          'content': [
+            {'type': 'tool_use', 'id': id, 'name': name, 'input': const {}},
+          ],
+          'usage': {'input_tokens': 1000, 'output_tokens': 10},
+        },
+      };
+      Map<String, Object?> result(String id, Object content) => {
+        'type': 'user',
+        'uuid': 'r-$id',
+        'parent_tool_use_id': null,
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'tool_result', 'tool_use_id': id, 'content': content},
+          ],
+        },
+      };
+      final screenshot = [
+        {
+          'type': 'image',
+          'source': {
+            'type': 'base64',
+            'media_type': 'image/png',
+            'data': 'A' * 400000,
+          },
+        },
+      ];
+
+      test('as they come', () async {
+        final cli = FakeCli(answers: {'get_context_usage': told});
+        final (:kernel, :transcript, events: _) = claude(cli);
+        kernel.send(const KernelTurn(id: 'u1', text: 'look'));
+        await pumpEventQueue();
+        cli.push(use('t1', 'Screenshot'));
+        cli.push(result('t1', screenshot));
+        cli.push(use('t2', 'Read'));
+        await pumpEventQueue();
+        var detail = transcript.usage!.detail!;
+        expect(detail.toolResults, 1500);
+        expect(
+          detail.toolUses.map((item) => (item.name, item.results)),
+          [('Screenshot', 1500)],
+        );
+
+        cli.push({'type': 'system', 'subtype': 'compact_boundary'});
+        await pumpEventQueue();
+        detail = transcript.usage!.detail!;
+        expect(detail.toolResults, 0);
+        kernel.dispose();
+      });
+
+      test("a resumed session's, read from its start", () async {
+        final whole = [
+          use('t1', 'Screenshot'),
+          result('t1', screenshot),
+          use('t2', 'Read'),
+          result('t2', 'x' * 400),
+        ];
+        final kernel = ClaudeCodeKernel(
+          MockKernels.claudeCode,
+          KernelContext(
+            cwd: '/p',
+            resume: SessionRecord(
+              id: 's',
+              title: 't',
+              updatedAt: DateTime(2026),
+              cwd: '/p',
+            ),
+          ),
+          start: (_) async => FakeCli(answers: {'get_context_usage': told}),
+          // Its first page has only the last call's.
+          readHistoryPage: (session, {required turns, before}) async =>
+              ClaudeHistoryPage(whole.sublist(2), earlier: 'a-t1'),
+          readHistory: (session) async => whole,
+        );
+        final transcript = Transcript();
+        kernel.events.listen(transcript.apply);
+        kernel.prepare();
+        await pumpEventQueue();
+        final detail = transcript.usage!.detail!;
+        expect(detail.toolResults, 1600);
+        expect(
+          {for (final item in detail.toolUses) item.name: item.results},
+          {'Screenshot': 1500, 'Read': 100},
+        );
+        kernel.dispose();
+      });
+    });
+
     test("keeps the calls on Claude Code's own models, timed, and priced "
         "at Anthropic's as the CLI prices them", () async {
       final ledger = UsageLedger.current = UsageLedger(MemoryUsageStorage());
