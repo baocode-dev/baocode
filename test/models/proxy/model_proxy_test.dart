@@ -207,8 +207,7 @@ void main() {
     final small = estimateInputTokens(screenshot('AAAA'));
     final large = estimateInputTokens(screenshot('A' * 400000));
     expect(large, small);
-    expect(large, greaterThanOrEqualTo(imageTokenEstimate));
-    expect(large, lessThan(imageTokenEstimate + 100));
+    expect(large, inInclusiveRange(1000, 2000));
   });
 
   test('Chat Completions: a tool call goes out and its stream comes back '

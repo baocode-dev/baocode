@@ -38,6 +38,7 @@ import 'claude_sdk_tools.dart';
 import 'turn_stats.dart';
 import 'control_channel.dart';
 import 'local_time_zone.dart';
+import 'tool_result_tally.dart';
 import 'usage_limit.dart';
 
 /// Reads a kept session: its conversation lines, oldest first, along the
@@ -184,6 +185,7 @@ class ClaudeCodeKernel
       required int turns,
       String? before,
     }) async => ClaudeHistoryPage.whole(await readHistory!(session));
+    _readHistory = readHistory;
     final pager = readHistoryPage ?? (readHistory == null ? null : wholePage);
     if ((_context.resume, pager) case (final session?, final read?)) {
       _pager = read;
@@ -464,6 +466,26 @@ class ClaudeCodeKernel
   /// since the context changed under it (compacted, rewound).
   int? _toldContext;
 
+  /// The tool calls' results in the context, counted here: Claude Code's
+  /// breakdown counts an image's base64 as text. Known ([_resultsKnown])
+  /// for a new conversation, and for a resumed one once read from its
+  /// start or its last compaction.
+  var _results = ToolResultTally();
+  late bool _resultsKnown = _context.resume == null;
+
+  /// Reading the whole session for [_results]: the latest, given up on
+  /// as another starts or the context changes under it.
+  int _resultsReading = 0;
+  ClaudeHistoryReader? _readHistory;
+
+  /// [_contextDetail], its tool calls' results as counted here.
+  ContextDetail? get _shownDetail => switch (_contextDetail) {
+    final detail? when _resultsKnown => detail.withToolResults(
+      _results.byTool,
+    ),
+    final detail => detail,
+  };
+
   /// The models' own windows, by the model the CLI resolved them to, as
   /// reported while they were in use.
   static final Map<String, int> _modelWindows = {};
@@ -643,7 +665,7 @@ class ClaudeCodeKernel
               underway: (key, progress) => progress == null
                   ? UsageLedger.current.end(key)
                   : UsageLedger.current.begin(key, progress),
-              makeup: () => _contextDetail,
+              makeup: () => _shownDetail,
               session: () => _sessionId,
               providerName: 'Claude Code',
               quota: () => _quota,
@@ -1025,6 +1047,7 @@ class ClaudeCodeKernel
           turn.now &&
           _queued.contains(turn.id) &&
           _translator.workingInBackground;
+      _results.mark(turn.id);
       transport.write({
         'type': 'user',
         'uuid': turn.id,
@@ -1334,6 +1357,8 @@ class ClaudeCodeKernel
           emit(Rewound(nextSeq, itemId: itemId, index: index));
           // Its last request held what is rewound too.
           _toldContext = null;
+          _resultsReading++;
+          _resultsKnown = _resultsKnown && _results.rewind(itemId);
           unawaited(_refreshContext());
           rewound.complete(true);
         })
@@ -1850,6 +1875,10 @@ class ClaudeCodeKernel
   void _receive(Map<String, Object?> message) {
     if (_control?.receive(message) ?? false) return;
     _usage?.receive(message);
+    if (message['type'] case 'assistant' || 'user'
+        when _results.add(message) && _resultsKnown) {
+      _reportContext();
+    }
     switch (message['type']) {
       case ClaudeExit.type:
         _exited(
@@ -2678,6 +2707,10 @@ class ClaudeCodeKernel
   /// drops to what is left at once, then to what the CLI counts.
   void _compacted(Map<String, Object?> message) {
     _toldContext = null;
+    // None of the results before it are left: known from here on.
+    _results.clear();
+    _resultsKnown = true;
+    _resultsReading++;
     final meta = message['compact_metadata'];
     if (meta is Map && meta['post_tokens'] is int) {
       emit(
@@ -2771,10 +2804,32 @@ class ClaudeCodeKernel
                       _ => s,
                     },
                 ],
-          detail: _contextDetail,
+          detail: _shownDetail,
         ),
       ),
     );
+  }
+
+  /// Counts [_results] from the whole of [session], for a resumed one
+  /// whose first page did not reach back to its start or a compaction.
+  Future<void> _readResults(SessionRecord session) async {
+    final read = _readHistory;
+    if (read == null) return;
+    final reading = ++_resultsReading;
+    try {
+      final lines = await read(session);
+      if (_disposed || reading != _resultsReading) return;
+      final whole = ToolResultTally();
+      for (final line in lines) {
+        whole.add(line);
+      }
+      // And what came while it was read.
+      _results = whole..takeNewer(_results);
+      _resultsKnown = true;
+      _reportContext();
+    } on Object {
+      // Claude Code's breakdown stays shown.
+    }
   }
 
   void _exited(int code, String stderr, {String? executable}) {
@@ -2909,13 +2964,21 @@ class ClaudeCodeKernel
         ..replaying = true
         ..keptTurns = kept;
       var counted = false;
+      var whole = page.earlier == null;
       for (final line in page.entries) {
         if (line['type'] == 'assistant') counted |= _countRequest(line);
+        _results.add(line);
         // What the model told before it is no longer what it holds.
         if (line case {'type': 'system', 'subtype': 'compact_boundary'}) {
           _toldContext = null;
+          whole = true;
         }
         _translator.translate(line);
+      }
+      if (whole) {
+        _resultsKnown = true;
+      } else {
+        unawaited(_readResults(session));
       }
       _readHead = _translator.head;
       _translator.endReplay();

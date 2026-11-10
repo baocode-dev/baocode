@@ -979,36 +979,11 @@ class _ClientGone implements Exception {
   String toString() => 'Claude Code closed the connection';
 }
 
-/// About how many tokens an image comes to: what Claude charges for one
-/// at its largest before it is scaled down (about 1.15 megapixels / 750).
-const imageTokenEstimate = 1600;
-
-/// About how many tokens [request]'s input comes to: a quarter of its
-/// text, as no upstream counts them, and [imageTokenEstimate] an image.
-/// Not an image's base64 as text: a few screenshots would come to
-/// millions.
-int estimateInputTokens(Map<String, Object?> request) {
-  var images = 0;
-  Object? strip(Object? value) => switch (value) {
-    {'type': 'image'} => () {
-      images++;
-      return null;
-    }(),
-    Map() => {
-      for (final MapEntry(:key, :value) in value.entries) key: strip(value),
-    },
-    List() => [for (final item in value) strip(item)],
-    _ => value,
-  };
-  final text = jsonEncode(
-    strip({
-      'system': request['system'],
-      'messages': request['messages'],
-      'tools': request['tools'],
-    }),
-  );
-  return (utf8.encode(text).length / 4).ceil() + images * imageTokenEstimate;
-}
+/// About how many tokens [request]'s input comes to, as no upstream counts
+/// them: as the usage counts a request's context ([analyzeRequest]), an
+/// image or a document as one, not its base64 as text.
+int estimateInputTokens(Map<String, Object?> request) =>
+    analyzeRequest(request, (_) => null).context?.total ?? 0;
 
 /// The header Claude Code names its session in on every request: what
 /// [sessionId] falls back on.
