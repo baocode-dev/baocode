@@ -24,12 +24,25 @@ class TableSelection extends StatefulWidget {
     super.key,
     required this.registrar,
     required this.child,
-  });
+  }) : lines = false;
+
+  /// Lines of code that scroll sideways, the same way, copied a line to a
+  /// line (laid out a few to a paragraph). Under Flutter's handling an
+  /// edge below the code but left of it (where the text after it begins,
+  /// left of the code past its line numbers) was before all of it: a drag
+  /// on that text took the code's lines in, or selected nothing.
+  const TableSelection.lines({
+    super.key,
+    required this.registrar,
+    required this.child,
+  }) : lines = true;
 
   final SelectionRegistrar? registrar;
 
-  /// The table, each cell in a [TableCellSelection].
+  /// The table, each cell in a [TableCellSelection]; or the lines.
   final Widget child;
+
+  final bool lines;
 
   @override
   State<TableSelection> createState() => _TableSelectionState();
@@ -46,7 +59,9 @@ class _TableSelectionState extends State<TableSelection> {
 
   @override
   Widget build(BuildContext context) {
-    _delegate.scrollable = Scrollable.maybeOf(context);
+    _delegate
+      ..scrollable = Scrollable.maybeOf(context)
+      ..joinsLines = widget.lines;
     return SelectionContainer(
       registrar: widget.registrar,
       delegate: _delegate,
@@ -191,6 +206,7 @@ class _TableSelectionDelegate extends FiniteEdgesDelegate {
 
   @override
   SelectedContent? getSelectedContent() {
+    if (joinsLines) return super.getSelectedContent();
     final rows = <List<String>>[];
     Rect? previous;
     for (final cell in selectables) {

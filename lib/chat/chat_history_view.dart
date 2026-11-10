@@ -3345,22 +3345,38 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
     _dragEnd = null;
     if (_reports++ >= 3) return;
     final healed = getSelectedContent()?.plainText.trim().isNotEmpty ?? false;
+    // What the text that holds it made of the drag done again.
+    final held = [
+      for (final (index, selectable) in selectables.indexed)
+        if (_holds(selectable, from) && _holds(selectable, to))
+          '#$index: ${selectable.value.status.name}, '
+              '${selectable.value.hasContent ? '' : 'no '}content, '
+              '${selectable.contentLength} long',
+    ];
     FlutterError.reportError(
       FlutterErrorDetails(
         exception: FlutterError(
           'A drag on text selected nothing '
-          '(${healed ? 'selected' : 'still nothing'} done again).\n$before',
+          '(${healed ? 'selected' : 'still nothing'} done again).\n'
+          'Dragged to ${_offset(to)}; held by ${held.join('; ')}.\n$before',
         ),
         library: 'chat selection',
       ),
     );
   }
 
+  // Rect's and Offset's own toString is not in a release build.
+  static String _offset(Offset offset) =>
+      '(${offset.dx.toStringAsFixed(1)}, ${offset.dy.toStringAsFixed(1)})';
+
+  static String _rect(Rect rect) =>
+      '${_offset(rect.topLeft)}-${_offset(rect.bottomRight)}';
+
   /// The list's text near [position], for the report: kinds and places
   /// only, none of the text.
   String _describeAround(Offset position) {
     final lines = [
-      'Pressed at $position; ${selectables.length} listed '
+      'Pressed at ${_offset(position)}; ${selectables.length} listed '
           '(${selectables.length - selectables.toSet().length} twice), '
           'edges at #$currentSelectionStartIndex, '
           '#$currentSelectionEndIndex.',
@@ -3376,7 +3392,7 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
       lines.add(
         '#$index ${selectable.runtimeType} item ${_itemOf(selectable)}'
         '${_items.containsKey(selectable) ? '' : ' unregistered'} '
-        '${box ?? 'no box'}'
+        '${box == null ? 'no box' : _rect(box)}'
         '${box != null && box.contains(position) ? ' (holds it)' : ''}',
       );
       if (lines.length > 40) break;
