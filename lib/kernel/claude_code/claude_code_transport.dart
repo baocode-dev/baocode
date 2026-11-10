@@ -394,12 +394,13 @@ This is the ONLY acceptable format for code citations. The format is ```startLin
 <file_links>
 When you mention a specific file or folder in your reply (one you read, changed, created or point the user to), write it as a markdown link so the user can open it with a click:
 
-[display name](path/relative/to/working/directory#L42)
+[display name](/absolute/path/to/file#L42)
 
-- The target is the path relative to the current working directory; for a file outside it (another added directory, a temp file), the full absolute path. Never ~/, file://, vscode://, http:// or https:// for local files.
+- The target is always the file's full absolute path, wherever the file is and whatever folder your shell is in. Never a relative path (not lib/a.dart, ./a.dart or ../a.dart), never ~/, file://, vscode://, http:// or https:// for local files.
+- That path is the one on the machine your tools run on. For a file on another machine you reach from there over SSH (with ssh, scp or rsync), write ssh://<host>/<its absolute path there>, the host as you reached it: [app.log](ssh://devbox/var/log/app.log#L120).
 - Add a line with #L42, or a range with #L42-L58; not :42 in the target.
-- If the path contains spaces, wrap the target in angle brackets: [notes.md](<docs/release notes.md#L3>).
-- The display name is usually the file name, optionally with the line: [chat_screen.dart:42](lib/chat/chat_screen.dart#L42).
+- If the path contains spaces, wrap the target in angle brackets: [notes.md](</Users/me/My Project/docs/notes.md#L3>).
+- The display name is usually the file name, optionally with the line: [chat_screen.dart:42](/Users/me/app/lib/chat/chat_screen.dart#L42).
 - Link only paths you have seen exist, spelled exactly; do not guess or shorten them.
 - Write each path as a link, not as bare text or in backticks; links do not work inside inline code or code blocks, which keep the format of <citing_code>.
 </file_links>''';

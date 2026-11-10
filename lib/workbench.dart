@@ -31,8 +31,10 @@ import 'chat/composer/file_drop.dart';
 import 'chat/composer/file_mentions.dart';
 import 'chat/open_editor.dart';
 import 'chat/panels/interaction_panel.dart';
+import 'chat/side_panel/file_link.dart' show FileLineRange;
 import 'chat/side_panel/file_open.dart';
 import 'chat/side_panel/file_preview.dart' show FilePreview;
+import 'chat/side_panel/shown_files.dart' show ShownFiles;
 import 'chat/side_panel/side_panel_controller.dart';
 import 'chat/side_panel/side_panel_view.dart';
 import 'chat/side_panel/web_page_opener.dart';
@@ -52,9 +54,12 @@ import 'ide/file_views.dart';
 import 'ide/file_service.dart'
     show
         IdeFileService,
+        IdeFileTooLargeException,
         byteSizeThrough,
         IdeHostFiles,
         ideIsImagePath,
+        fileByteSize,
+        localizedFileError,
         readBytesThrough,
         readFileBytes;
 import 'ide/ide_agent_edits.dart';
@@ -4355,7 +4360,53 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       roots: () =>
           _workspace.workspaceAt(thread.project.path)?.folders ?? const [],
       home: () => ProjectHost.of(thread.project.path).home,
+      existsHere: _existsHere,
+      openOnHost: (host, path, range) =>
+          unawaited(_openOnHost(thread, embedded, host, path, range)),
     );
+  }
+
+  /// Whether a file of this machine's is at [path].
+  static Future<bool> _existsHere(String path) =>
+      fileByteSize(path).then((_) => true, onError: (_) => false);
+
+  /// What [_openOnHost] reads of a file at most.
+  static const _onHostMax = 8 << 20;
+
+  /// Shows the file at [path] on SSH [host] (a chat's `ssh://` link to a
+  /// host other than its project's), read-only, as a copy of it here: the
+  /// chat's files are its project's host's. A failure is a notification.
+  Future<void> _openOnHost(
+    AgentThread thread,
+    bool embedded,
+    String host,
+    String path,
+    FileLineRange? range,
+  ) async {
+    final l10n = context.l10n;
+    try {
+      final client = await SshHosts.instance[host].ready;
+      final (:bytes, :size) = await client.readRange(path, 0, _onHostMax);
+      if (size > _onHostMax) throw IdeFileTooLargeException(path, size);
+      final name = RemoteLocation.pathsFor(path).basename(path);
+      final shown = ShownFiles.bytes(bytes, name: name);
+      if (shown == null || !mounted) return;
+      _fileLinks(thread, embedded: embedded).open(
+        FileOpenRequest(
+          shown,
+          range: range,
+          local: true,
+          readOnly: true,
+          preview: true,
+        ),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      _notifications.notify(
+        IdeSeverity.error,
+        '${RemoteLocation.hostName(host)}: ${localizedFileError(l10n, error)}',
+      );
+    }
   }
 
   /// [request] for a file's changes as the file itself where [session]'s
