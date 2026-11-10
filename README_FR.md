@@ -44,7 +44,7 @@ BaoCode est une application native qui dessine directement son interface sur le 
 
 ## Prérequis
 
-- macOS 12 ou ultérieur (un téléchargement pour Apple silicon, un pour Intel), Windows 10 ou ultérieur (x64), ou Linux : Ubuntu 22.04 ou ultérieur et les autres distributions basées sur Debian (un .deb pour x64, un pour arm64).
+- macOS 12 ou ultérieur (un téléchargement pour Apple silicon, un pour Intel), Windows 10 ou ultérieur (x64), ou Linux : Ubuntu 20.04 ou ultérieur et les autres distributions basées sur Debian (un .deb pour x64, un pour arm64).
 - [Claude Code](https://github.com/anthropics/claude-code) installé.
 
 ## Compilation depuis les sources

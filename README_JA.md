@@ -44,7 +44,7 @@ BaoCode は GPU に直接 UI を描画するネイティブアプリです。以
 
 ## 必要環境
 
-- macOS 12 以降（Apple silicon と Intel 向けにそれぞれ配布）、Windows 10 以降（x64）、または Linux：Ubuntu 22.04 以降とその他の Debian 系ディストリビューション（x64 と arm64 向けにそれぞれ .deb）。
+- macOS 12 以降（Apple silicon と Intel 向けにそれぞれ配布）、Windows 10 以降（x64）、または Linux：Ubuntu 20.04 以降とその他の Debian 系ディストリビューション（x64 と arm64 向けにそれぞれ .deb）。
 - [Claude Code](https://github.com/anthropics/claude-code) がインストールされていること。
 
 ## ソースからのビルド

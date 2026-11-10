@@ -43,7 +43,7 @@ VS Code and Cursor are built on Electron: each window is a web page, and every c
 
 ## Requirements
 
-- macOS 12 or later (Apple silicon or Intel, one download each), Windows 10 or later (x64), or Linux: Ubuntu 22.04 or later and other Debian-based distributions (x64 or arm64, a .deb each).
+- macOS 12 or later (Apple silicon or Intel, one download each), Windows 10 or later (x64), or Linux: Ubuntu 20.04 or later and other Debian-based distributions (x64 or arm64, a .deb each).
 - [Claude Code](https://github.com/anthropics/claude-code), installed.
 
 ## Building from source

@@ -36,7 +36,7 @@ BaoCode 的版本号怎么定、一个版本怎么发出去、发到哪里、已
                                │          各两种架构），Linux 版在 Docker 里跑一遍
                                ├ macos    构建、签名、公证（macOS 机器）
                                ├ windows  构建、打安装包（Windows 机器）
-                               ├ linux    构建 .deb 和 tar.gz（x64、arm64 各一台 Ubuntu 22.04），装上启动一遍
+                               ├ linux    构建 .deb 和 tar.gz（x64、arm64 各在 Ubuntu 20.04 容器里，渠道版 22.04），装上启动一遍
                                └ publish  签 latest.json，上传 ────────▶ R2 存储桶
                                           建 GitHub Release              │
                                                                          ▼
