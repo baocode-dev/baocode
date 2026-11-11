@@ -13270,7 +13270,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get claudeResetsDetail =>
-      'Granted by Anthropic. Using one sets the limits it lists back to nothing used.';
+      'Granted by Anthropic. Using one sets the limits it lists back to nothing used. With more than one, they are used one at a time, in the order Anthropic sets.';
 
   @override
   String claudeResetClears(String windows) {
@@ -13288,10 +13288,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get claudeResetNext => 'Default';
+  String get claudeResetNext => 'Usable now';
 
   @override
-  String get claudeResetNextHint => 'The one the server would take first';
+  String get claudeResetQueued =>
+      'Waits its turn: usable once the one above is used';
 
   @override
   String get claudeResetUse => 'Use This One…';
@@ -13330,6 +13331,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String claudeResetNotDone(String reason) {
     return 'Not reset: $reason';
   }
+
+  @override
+  String get claudeResetNotNext =>
+      'Another reset is the one usable now; nothing was used. Refresh and try again.';
+
+  @override
+  String get claudeResetNotLimited =>
+      'This reset can only be used once a limit is reached; nothing was used.';
+
+  @override
+  String get claudeResetAlreadyUsed =>
+      'This reset was already used; nothing was used now.';
+
+  @override
+  String get claudeResetCoolingDown =>
+      'A reset was just used; wait a little before the next. Nothing was used.';
 
   @override
   String get claudeResetsRefresh => 'Refresh';

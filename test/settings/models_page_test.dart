@@ -259,12 +259,16 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Default'), findsOneWidget);
-    // Each one its own button: the first is the full reset.
-    expect(find.text('Use This One…'), findsNWidgets(2));
+    expect(find.text('Usable now'), findsOneWidget);
+    // The other one, queued after it, has no button of its own.
+    expect(
+      find.textContaining('Waits its turn: usable once the one above is used'),
+      findsOneWidget,
+    );
+    expect(find.text('Use This One…'), findsOneWidget);
 
     // Cancelled: nothing sent.
-    await tester.tap(find.text('Use This One…').first);
+    await tester.tap(find.text('Use This One…'));
     await tester.pumpAndSettle();
     expect(find.text('Use a Claude limit reset?'), findsOneWidget);
     expect(
@@ -277,17 +281,54 @@ void main() {
 
     await mouse.removePointer();
     await hover();
-    // The other one picked: that one used.
-    await tester.tap(find.text('Use This One…').last);
+    await tester.tap(find.text('Use This One…'));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('New model launch: one Fable reset'),
-      findsWidgets,
+    await tester.tap(find.text('Reset Now'));
+    await tester.pumpAndSettle();
+    expect(api.claims.single.$1, 'full-reset-2611');
+    expect(find.text('Reset: 5h, Weekly'), findsOneWidget);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the usable reset is listed first; the server refusing it '
+      'as not the next one is told in plain words', (tester) async {
+    // The later expiring one is the server's next: it comes first.
+    final api = FakeClaudeResetsApi(
+      claudeUsageWithResets(next: 'launch-2610-fable'),
+    )..claimAnswer = {'result': 'ineligible', 'reason': 'not_next_grant'};
+    final service = ClaudeResetsService(
+      api,
+      now: () => DateTime.utc(2026, 11, 11, 2),
     );
+    await pump(tester, claudeResets: service);
+    await tester.pump();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(find.text('2 resets')));
+    await tester.pump();
+    await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
+    expect(
+      tester.getTopLeft(find.text('New model launch: one Fable reset')).dy,
+      lessThan(
+        tester.getTopLeft(find.text('One full limit reset (November 2026)')).dy,
+      ),
+    );
+    expect(find.text('Use This One…'), findsOneWidget);
+
+    await tester.tap(find.text('Use This One…'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Reset Now'));
     await tester.pumpAndSettle();
     expect(api.claims.single.$1, 'launch-2610-fable');
-    expect(find.text('Reset: 5h, Weekly'), findsOneWidget);
+    expect(
+      find.text(
+        'Another reset is the one usable now; nothing was used. '
+        'Refresh and try again.',
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
   });
