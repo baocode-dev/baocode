@@ -21,6 +21,7 @@ import '../../ide/ide_code_diff.dart';
 import '../../ide/ide_code_editor.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_image_preview.dart';
+import '../../ide/ide_view_state.dart';
 import '../../ide/ide_status_bar.dart' show IdeLanguageNames;
 import '../../ide/language_mode.dart';
 import '../../ide/ide_dialog.dart';
@@ -77,6 +78,8 @@ class FilePreview extends StatefulWidget {
     this.onOpenAgentChange,
     this.diffScroll,
     this.onDiffScrolled,
+    this.viewState,
+    this.onViewStateChanged,
   });
 
   final FileOpenRequest request;
@@ -101,6 +104,10 @@ class FilePreview extends StatefulWidget {
   /// Takes the edit made once the file is read, to keep past the preview;
   /// the preview's own, gone with it, when null.
   final ValueChanged<SidePanelFileEdit>? onEdit;
+
+  /// Where this file was scrolled and left before: restored when shown again.
+  final IdeViewState? viewState;
+  final ValueChanged<IdeViewState>? onViewStateChanged;
 
   /// Where the editor's highlighting is kept past the preview, for its tab
   /// shown again to be colored at once; the editor's own when null.
@@ -233,7 +240,12 @@ class _FilePreviewState extends State<FilePreview> {
   @override
   void initState() {
     super.initState();
-    if (widget.edit case final edit? when _editable) _attach(edit);
+    if (widget.edit case final edit? when _editable) {
+      if (edit.controller.viewState == null && widget.viewState?.editor != null) {
+        edit.controller.viewState = widget.viewState?.editor;
+      }
+      _attach(edit);
+    }
     EditorLanguageOverrides.instance.addListener(_languageModesChanged);
     EditorWordWrap.on.addListener(_editChanged);
     IdeLanguageNames.ensureLoaded(() {
@@ -288,8 +300,23 @@ class _FilePreviewState extends State<FilePreview> {
     }
   }
 
+  int? _markdownLine;
+
+  void _saveViewState() {
+    final edit = _edit;
+    final editor =
+        _editor.currentState?.view?.viewState ?? edit?.controller.viewState ?? widget.viewState?.editor;
+    final state = IdeViewState(
+      editor: editor,
+      selections: edit?.controller.selections ?? widget.viewState?.selections,
+      previewLine: _markdownLine ?? widget.viewState?.previewLine,
+    );
+    if (!state.isEmpty) widget.onViewStateChanged?.call(state);
+  }
+
   @override
   void dispose() {
+    _saveViewState();
     EditorLanguageOverrides.instance.removeListener(_languageModesChanged);
     EditorWordWrap.on.removeListener(_editChanged);
     _dropMarkdown();
@@ -426,11 +453,9 @@ class _FilePreviewState extends State<FilePreview> {
   /// The file's [text], read: in its edit, made now unless there is one.
   void _edited(String text) {
     if (_edit case final edit?) return edit.reload(text);
-    final edit = SidePanelFileEdit(
-      path: _request.path,
-      files: widget.files,
-      text: text,
-    );
+    final edit = SidePanelFileEdit(path: _request.path, files: widget.files, text: text);
+    if (widget.viewState?.editor case final editor?) edit.controller.viewState = editor;
+    if (widget.viewState?.selections case final s? when s.isNotEmpty) edit.controller.setSelections(s);
     _attach(edit);
     widget.onEdit?.call(edit);
   }
@@ -702,7 +727,13 @@ class _FilePreviewState extends State<FilePreview> {
       onEdited: edit?.controller.syncFromDocument,
       // Pictures and files pasted: copied beside it, linked to.
       onPaste: editable ? () => _markdownPaste().paste(_request.path) : null,
-      initialLine: _request.range?.start,
+      initialLine: _request.range?.start ?? widget.viewState?.previewLine,
+      onLeave: (line) {
+        if (line != null) {
+          _markdownLine = line;
+          _saveViewState();
+        }
+      },
       onOpenFile: _openLinked,
       onOpenExternal: (uri) => unawaited(openExternal(uri.toString())),
       // This machine's files only, not a remote project's host's.

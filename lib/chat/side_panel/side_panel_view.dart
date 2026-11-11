@@ -1302,6 +1302,9 @@ class AgentSidePanelView extends StatelessWidget {
     request: tab.request,
     reveal: tab.reveal,
     edit: tab.edit,
+    viewState: panel.viewStatesOf(session)[tab.path],
+    onViewStateChanged: (state) =>
+        panel.keepViewState(session, tab.path, state),
     onEdit: (edit) => panel.keepEdit(tab, edit),
     diffScroll: tab.diffScroll,
     onDiffScrolled: (offset) => tab.diffScroll = offset,

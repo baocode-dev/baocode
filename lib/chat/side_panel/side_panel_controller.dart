@@ -13,7 +13,9 @@ import '../../ide/ide_explorer.dart';
 import '../../ide/search/ide_search_view.dart';
 import '../../ide/search/text_search.dart';
 import '../../ide/ide_diff_options.dart';
+import '../../ide/ide_view_state.dart';
 import '../../settings/user_settings.dart';
+import '../chat_session.dart';
 import 'file_edit.dart';
 import 'file_open.dart';
 
@@ -205,6 +207,13 @@ class AgentSidePanel extends ChangeNotifier {
         if (value is Map) _keptSearches['$key'] = value.cast<String, Object?>();
       }
     }
+    if (state?['viewStates'] case final Map<Object?, Object?> map) {
+      for (final MapEntry(:key, :value) in map.entries) {
+        if (value is List) {
+          _viewStates['$key'] = IdeViewStates()..restore(value);
+        }
+      }
+    }
   }
 
   /// Told when what [toJson] gives changed, to keep it.
@@ -221,6 +230,29 @@ class AgentSidePanel extends ChangeNotifier {
 
   /// The favorite branches, the same in every conversation.
   final IdeGitFavoriteBranches _favoriteBranches = IdeGitFavoriteBranches();
+
+  /// The view states of files opened in each conversation, kept across tab
+  /// switches, closures and app restarts, keyed by the conversation's id.
+  final Map<String, IdeViewStates> _viewStates = {};
+
+  static String _keyOf(Object conversation) => switch (conversation) {
+    ChatSession session => session.sessionId ?? '${session.hashCode}',
+    _ => conversation.toString(),
+  };
+
+  /// Where files were scrolled and left in [conversation].
+  IdeViewStates viewStatesOf(Object conversation) =>
+      _viewStates.putIfAbsent(_keyOf(conversation), IdeViewStates.new);
+
+  /// Where [path] was scrolled and left in [conversation].
+  IdeViewState viewStateOf(Object conversation, String path) =>
+      viewStatesOf(conversation)[path];
+
+  /// Keeps [state] for [path] in [conversation].
+  void keepViewState(Object conversation, String path, IdeViewState state) {
+    viewStatesOf(conversation).keep(path, state);
+    onSave?.call();
+  }
 
   /// [conversation]'s commit message, choices and log of [git]; its
   /// changes as a tree or a list as last picked ([changesAsTree]).
@@ -837,6 +869,11 @@ class AgentSidePanel extends ChangeNotifier {
     'changesAsTree': _changesAsTree,
     if (_layout != ChatLayout.sidebarChatPanel) 'layout': _layout.name,
     if (_keptSearches.isNotEmpty) 'searches': {..._keptSearches},
+    if (_viewStates.isNotEmpty)
+      'viewStates': {
+        for (final MapEntry(:key, :value) in _viewStates.entries)
+          key: value.toJson((_) => true),
+      },
   };
 
   bool _disposed = false;
