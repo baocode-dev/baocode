@@ -60,6 +60,7 @@ dependencies:
   bonsoir: ^7.1.5
   clock: ^1.1.2
   crypto: ^3.0.6
+  csslib: ^1.0.2
   flutter:
     sdk: flutter
   flutter_localizations:
@@ -83,6 +84,7 @@ dependencies:
   # A web page copied, as HTML (WindowControls.readPasteboardHtml).
   quill_native_bridge: ^11.0.0
   super_sliver_list: ^0.4.1
+  xml: ^7.0.1
 
 dev_dependencies:
   flutter_test:
