@@ -99,7 +99,7 @@ class ClaudeResets {
   final String? reason;
   final List<ClaudeResetGrant> grants;
 
-  /// The one the server would have used next: the one used.
+  /// The one the server would take first, of those the user may pick.
   final String? nextGrantId;
   final DateTime? cooldownUntil;
 
@@ -120,16 +120,21 @@ class ClaudeResets {
 
   int get count => live.fold(0, (sum, grant) => sum + grant.left);
 
-  /// The grant a reset is taken from now, if one can be.
-  ClaudeResetGrant? get next {
-    if (!eligible || cooldownUntil?.isAfter(at) == true) return null;
-    for (final grant in live) {
-      if (grant.id == nextGrantId && !grant.paused && grant.usableNow) {
-        return grant;
-      }
-    }
-    return null;
-  }
+  /// Whether a reset can be taken from [grant] now, whichever the user
+  /// picks: while the server names one it would take at all.
+  bool canUse(ClaudeResetGrant grant) =>
+      eligible &&
+      cooldownUntil?.isAfter(at) != true &&
+      nextGrantId != null &&
+      grant.liveAt(at) &&
+      !grant.paused &&
+      grant.usableNow;
+
+  /// Those a reset can be taken from now.
+  List<ClaudeResetGrant> get usable => [
+    for (final grant in live)
+      if (canUse(grant)) grant,
+  ];
 
   /// From a `/api/oauth/usage?cedar_ember=1` answer; null when it has no
   /// such block (not offered to this account, or not asked).
@@ -248,8 +253,11 @@ class ClaudeResetsService extends ChangeNotifier {
   Future<void>? _loading;
   DateTime? _askedAt;
 
-  bool get using => _using;
-  bool _using = false;
+  bool get using => _usingId != null;
+
+  /// The grant one is being used of.
+  String? get usingId => _usingId;
+  String? _usingId;
 
   Future<void> refresh({bool force = false}) {
     if (_loading case final loading?) return loading;
@@ -278,15 +286,15 @@ class ClaudeResetsService extends ChangeNotifier {
     }
   }
 
-  /// Uses one of [grant], as it still is the one next once asked again: what
-  /// the server answered. Never sent twice: a failure is told, not retried.
+  /// Uses one of [grant], as it still can be once asked again: what the
+  /// server answered. Never sent twice: a failure is told, not retried.
   Future<ClaudeResetOutcome> use(ClaudeResetGrant grant) async {
-    if (_using) return const ClaudeResetOutcome('busy');
-    _using = true;
+    if (using) return const ClaudeResetOutcome('busy');
+    _usingId = grant.id;
     notifyListeners();
     try {
       await refresh(force: true);
-      if (_resets?.next?.id != grant.id) {
+      if (_resets?.usable.any((usable) => usable.id == grant.id) != true) {
         return ClaudeResetOutcome(
           'unavailable',
           reason: _error ?? 'no longer offered',
@@ -299,7 +307,7 @@ class ClaudeResetsService extends ChangeNotifier {
     } on ClaudeResetsException catch (error) {
       return ClaudeResetOutcome('error', reason: error.message);
     } finally {
-      _using = false;
+      _usingId = null;
       // What is left of them, and of the windows, now.
       unawaited(refresh(force: true));
     }

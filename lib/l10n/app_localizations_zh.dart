@@ -12573,10 +12573,13 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get claudeResetNext => '下一张';
+  String get claudeResetNext => '默认';
 
   @override
-  String get claudeResetUse => '使用一张…';
+  String get claudeResetNextHint => '服务器默认先用这张';
+
+  @override
+  String get claudeResetUse => '使用这张…';
 
   @override
   String get claudeResetConfirm => '用掉一张 Claude 重置卡？';

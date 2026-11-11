@@ -21676,13 +21676,19 @@ abstract class AppLocalizations {
   /// No description provided for @claudeResetNext.
   ///
   /// In en, this message translates to:
-  /// **'Next'**
+  /// **'Default'**
   String get claudeResetNext;
+
+  /// No description provided for @claudeResetNextHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The one the server would take first'**
+  String get claudeResetNextHint;
 
   /// No description provided for @claudeResetUse.
   ///
   /// In en, this message translates to:
-  /// **'Use One…'**
+  /// **'Use This One…'**
   String get claudeResetUse;
 
   /// No description provided for @claudeResetConfirm.
