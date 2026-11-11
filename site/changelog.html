@@ -30,6 +30,22 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.9.4">
+    <h2 class="plain"><a href="#v1.9.4">1.9.4</a></h2>
+    <p>This release fixes a crash on Windows when other apps read the window, lets New Terminal pick a folder in a multi-folder workspace, and fixes a few smaller problems.</p>
+    <p>New</p>
+    <ul>
+    <li>In a multi-folder workspace, New Terminal (under the conversation, in the side panel and in the IDE) asks which folder it starts in, and the terminal's tab shows that folder.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Windows: the app no longer crashes when another app reads what is on the screen (input methods, translators, screen tools), as could happen when clicking repeatedly in a maximized window.</li>
+    <li>Claude limit resets: the one that can be used now is marked and used; the others wait their turn, and a refusal is explained in plain words.</li>
+    <li>Deleted lines in diffs line up their tabs with the editor's.</li>
+    <li>The phone app keeps showing a conversation's context usage after the conversation changes.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.9.3">
     <h2 class="plain"><a href="#v1.9.3">1.9.3</a></h2>
     <p>This release can put files back when you edit a message, shows and uses Claude subscription limit resets, runs on Kylin and UOS Linux, and fixes how context usage is counted along with a batch of chat problems.</p>
