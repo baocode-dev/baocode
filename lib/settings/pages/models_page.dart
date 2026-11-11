@@ -2607,9 +2607,19 @@ class _ClaudeResetsLabel extends StatelessWidget {
                   _window(l10n, resets, window),
               ].join(l10n.localeName == 'zh' ? '、' : ', '),
             )
-          : l10n.claudeResetNotDone(
-              [outcome.result, ?outcome.reason].join(' · '),
-            ),
+          : switch (outcome) {
+              ClaudeResetOutcome(reason: ClaudeResetOutcome.notNext) =>
+                l10n.claudeResetNotNext,
+              ClaudeResetOutcome(result: 'not_limited') =>
+                l10n.claudeResetNotLimited,
+              ClaudeResetOutcome(result: 'already_used') =>
+                l10n.claudeResetAlreadyUsed,
+              ClaudeResetOutcome(result: 'cooldown') =>
+                l10n.claudeResetCoolingDown,
+              _ => l10n.claudeResetNotDone(
+                [outcome.result, ?outcome.reason].join(' · '),
+              ),
+            },
       buttons: [l10n.commonOk],
       cancel: null,
       type: outcome.reset ? IdeDialogType.info : IdeDialogType.warning,
@@ -2632,9 +2642,10 @@ class _ClaudeResetsLabel extends StatelessWidget {
     final faint = SettingsText.description.copyWith(
       color: SettingsColors.textSecondary,
     );
+    final next = resets.next;
     final why = switch (resets) {
       _ when service.signedOut => l10n.claudeResetSignedOut,
-      _ when resets.usable.isNotEmpty => null,
+      _ when next != null => null,
       ClaudeResets(:final cooldownUntil?)
           when cooldownUntil.isAfter(DateTime.now()) =>
         l10n.claudeResetCooldown(_time(cooldownUntil)),
@@ -2659,9 +2670,14 @@ class _ClaudeResetsLabel extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               Text(l10n.claudeResetsDetail, style: faint),
-              for (final grant in resets.live) ...[
+              // The usable one first: the others wait for it.
+              for (final grant in [
+                ?next,
+                for (final grant in resets.live)
+                  if (grant.id != next?.id) grant,
+              ]) ...[
                 const SizedBox(height: 8),
-                _grant(context, resets, grant),
+                _grant(context, resets, grant, next),
               ],
               if (why != null) ...[
                 const SizedBox(height: 8),
@@ -2699,26 +2715,39 @@ class _ClaudeResetsLabel extends StatelessWidget {
     );
   }
 
-  /// One grant, framed, with the button that uses it while it can be; the
-  /// one the server would take first tagged so.
+  /// One grant, framed: the [next] one, the one a reset is taken from, in
+  /// the accent with the button that uses it; the others dimmed, queued
+  /// after it.
   Widget _grant(
     BuildContext context,
     ClaudeResets resets,
     ClaudeResetGrant grant,
+    ClaudeResetGrant? next,
   ) {
     final l10n = context.l10n;
-    final usable = resets.canUse(grant);
+    final isNext = grant.id == next?.id;
     final faint = SettingsText.description.copyWith(
-      color: SettingsColors.textSecondary,
+      color: isNext
+          ? SettingsColors.textSecondary
+          : SettingsColors.textTertiary,
     );
     final clears = l10n.claudeResetClears(_clears(l10n, resets, grant));
     final meta = [
       if (grant.left > 1) '×${grant.left}',
       if (grant.endsAt case final at?) l10n.modelsResetCreditExpires(_time(at)),
       if (grant.paused) l10n.claudeResetPaused,
+      if (next != null && !isNext) l10n.claudeResetQueued,
     ];
-    return _GrantFrame(
-      lit: usable,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: isNext ? AppColors.accent.withValues(alpha: 0.1) : null,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isNext ? AppColors.accent : SettingsColors.stroke,
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2729,71 +2758,33 @@ class _ClaudeResetsLabel extends StatelessWidget {
                 child: Text(
                   grant.label ?? clears,
                   style: SettingsText.description.copyWith(
-                    color: SettingsColors.textPrimary,
-                    fontWeight: FontWeight.w600,
+                    color: isNext
+                        ? SettingsColors.textPrimary
+                        : SettingsColors.textSecondary,
+                    fontWeight: isNext ? FontWeight.w600 : null,
                   ),
                 ),
               ),
-              if (grant.id == resets.nextGrantId) ...[
+              if (isNext) ...[
                 const SizedBox(width: 6),
-                ModelBadge(
-                  l10n.claudeResetNext,
-                  tooltip: l10n.claudeResetNextHint,
-                ),
+                ModelBadge(l10n.claudeResetNext, color: AppColors.accent),
               ],
             ],
           ),
           if (grant.label != null) Text(clears, style: faint),
           if (meta.isNotEmpty) Text(meta.join(' · '), style: faint),
-          if (usable) ...[
+          if (isNext) ...[
             const SizedBox(height: 8),
             IdeButton(
               label: l10n.claudeResetUse,
               icon: Codicons.debugRestart,
-              spinning: service.usingId == grant.id,
+              spinning: service.using,
               onPressed: service.using
                   ? null
                   : () => unawaited(_use(context, grant)),
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-/// A grant's frame: in the accent under the pointer when [lit], so which
-/// one its button uses is plain.
-class _GrantFrame extends StatefulWidget {
-  const _GrantFrame({required this.lit, required this.child});
-
-  final bool lit;
-  final Widget child;
-
-  @override
-  State<_GrantFrame> createState() => _GrantFrameState();
-}
-
-class _GrantFrameState extends State<_GrantFrame> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final lit = widget.lit && _hovered;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        decoration: BoxDecoration(
-          color: lit ? AppColors.accent.withValues(alpha: 0.1) : null,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: lit ? AppColors.accent : SettingsColors.stroke,
-          ),
-        ),
-        child: widget.child,
       ),
     );
   }

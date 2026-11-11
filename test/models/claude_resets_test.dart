@@ -98,12 +98,7 @@ void main() {
       'launch-2610-fable',
     ]);
     expect(resets.count, 2);
-    expect(resets.nextGrantId, 'full-reset-2611');
-    // Either can be picked.
-    expect(resets.usable.map((g) => g.id), [
-      'full-reset-2611',
-      'launch-2610-fable',
-    ]);
+    expect(resets.next?.id, 'full-reset-2611');
     expect(resets.scopedModel, 'Fable');
     final full = resets.live.first;
     expect(full.clears, [
@@ -116,22 +111,30 @@ void main() {
   });
 
   test('none to use while ineligible, cooling down, or none named next', () {
-    for (final usage in [
-      claudeUsageWithResets(eligible: false),
-      claudeUsageWithResets(cooldownUntil: '2026-11-11T03:00:00Z'),
-      claudeUsageWithResets(next: null),
-    ]) {
-      expect(ClaudeResets.fromUsage(usage, now)!.usable, isEmpty);
-    }
+    expect(
+      ClaudeResets.fromUsage(claudeUsageWithResets(eligible: false), now)!.next,
+      isNull,
+    );
+    expect(
+      ClaudeResets.fromUsage(
+        claudeUsageWithResets(cooldownUntil: '2026-11-11T03:00:00Z'),
+        now,
+      )!.next,
+      isNull,
+    );
+    expect(
+      ClaudeResets.fromUsage(claudeUsageWithResets(next: null), now)!.next,
+      isNull,
+    );
     // No block: not offered to this account.
     expect(ClaudeResets.fromUsage({'five_hour': null}, now), isNull);
   });
 
-  test('a reset is used once, of the grant picked', () async {
+  test('a reset is used once, of the grant still next', () async {
     final api = FakeClaudeResetsApi(claudeUsageWithResets());
     final service = ClaudeResetsService(api, now: () => now);
     await service.refresh();
-    final grant = service.resets!.usable.first;
+    final grant = service.resets!.next!;
     final outcome = await service.use(grant);
     expect(outcome.reset, isTrue);
     expect(outcome.cleared, ['five_hour', 'seven_day']);
@@ -142,24 +145,16 @@ void main() {
     );
   });
 
-  test('one not the server\'s first is used as picked', () async {
+  test('not used when the grant is no longer the next', () async {
     final api = FakeClaudeResetsApi(claudeUsageWithResets());
     final service = ClaudeResetsService(api, now: () => now);
     await service.refresh();
-    final fable = service.resets!.usable.last;
-    expect(fable.id, 'launch-2610-fable');
-    expect((await service.use(fable)).reset, isTrue);
-    expect(api.claims.single.$1, 'launch-2610-fable');
-  });
-
-  test('not used when it can no longer be, asked again', () async {
-    final api = FakeClaudeResetsApi(claudeUsageWithResets());
-    final service = ClaudeResetsService(api, now: () => now);
-    await service.refresh();
-    final grant = service.resets!.usable.first;
-    api.answer = claudeUsageWithResets(cooldownUntil: '2026-11-11T03:00:00Z');
+    final grant = service.resets!.next!;
+    api.answer = claudeUsageWithResets(next: 'launch-2610-fable');
     final outcome = await service.use(grant);
     expect(outcome.reset, isFalse);
+    // As the server would have refused it.
+    expect(outcome.reason, ClaudeResetOutcome.notNext);
     expect(api.claims, isEmpty);
   });
 
@@ -168,7 +163,7 @@ void main() {
       ..claimAnswer = {'result': 'not_limited', 'reason': 'under the limit'};
     final service = ClaudeResetsService(api, now: () => now);
     await service.refresh();
-    final outcome = await service.use(service.resets!.usable.first);
+    final outcome = await service.use(service.resets!.next!);
     expect(outcome.reset, isFalse);
     expect(outcome.result, 'not_limited');
     expect(outcome.reason, 'under the limit');

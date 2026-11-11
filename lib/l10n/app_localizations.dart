@@ -21652,7 +21652,7 @@ abstract class AppLocalizations {
   /// No description provided for @claudeResetsDetail.
   ///
   /// In en, this message translates to:
-  /// **'Granted by Anthropic. Using one sets the limits it lists back to nothing used.'**
+  /// **'Granted by Anthropic. Using one sets the limits it lists back to nothing used. With more than one, they are used one at a time, in the order Anthropic sets.'**
   String get claudeResetsDetail;
 
   /// No description provided for @claudeResetClears.
@@ -21676,14 +21676,14 @@ abstract class AppLocalizations {
   /// No description provided for @claudeResetNext.
   ///
   /// In en, this message translates to:
-  /// **'Default'**
+  /// **'Usable now'**
   String get claudeResetNext;
 
-  /// No description provided for @claudeResetNextHint.
+  /// No description provided for @claudeResetQueued.
   ///
   /// In en, this message translates to:
-  /// **'The one the server would take first'**
-  String get claudeResetNextHint;
+  /// **'Waits its turn: usable once the one above is used'**
+  String get claudeResetQueued;
 
   /// No description provided for @claudeResetUse.
   ///
@@ -21738,6 +21738,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not reset: {reason}'**
   String claudeResetNotDone(String reason);
+
+  /// No description provided for @claudeResetNotNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Another reset is the one usable now; nothing was used. Refresh and try again.'**
+  String get claudeResetNotNext;
+
+  /// No description provided for @claudeResetNotLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'This reset can only be used once a limit is reached; nothing was used.'**
+  String get claudeResetNotLimited;
+
+  /// No description provided for @claudeResetAlreadyUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'This reset was already used; nothing was used now.'**
+  String get claudeResetAlreadyUsed;
+
+  /// No description provided for @claudeResetCoolingDown.
+  ///
+  /// In en, this message translates to:
+  /// **'A reset was just used; wait a little before the next. Nothing was used.'**
+  String get claudeResetCoolingDown;
 
   /// No description provided for @claudeResetsRefresh.
   ///

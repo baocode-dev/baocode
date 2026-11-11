@@ -12555,7 +12555,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get claudeResetsTitle => 'Claude 重置卡';
 
   @override
-  String get claudeResetsDetail => 'Anthropic 赠送。用掉一张，它列出的额度立即清零。';
+  String get claudeResetsDetail =>
+      'Anthropic 赠送。用掉一张，它列出的额度立即清零。有多张时要按 Anthropic 排好的顺序一张一张用。';
 
   @override
   String claudeResetClears(String windows) {
@@ -12573,10 +12574,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get claudeResetNext => '默认';
+  String get claudeResetNext => '现在可用';
 
   @override
-  String get claudeResetNextHint => '服务器默认先用这张';
+  String get claudeResetQueued => '排在后面，用掉上面那张后才能用';
 
   @override
   String get claudeResetUse => '使用这张…';
@@ -12614,6 +12615,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String claudeResetNotDone(String reason) {
     return '没有重置：$reason';
   }
+
+  @override
+  String get claudeResetNotNext => '现在能用的换成了另一张，这次什么都没扣。刷新看看再用。';
+
+  @override
+  String get claudeResetNotLimited => '这张卡要等额度用满了才能用，这次什么都没扣。';
+
+  @override
+  String get claudeResetAlreadyUsed => '这张卡已经用过了，这次什么都没扣。';
+
+  @override
+  String get claudeResetCoolingDown => '刚用过一张，要稍等一会儿才能再用，这次什么都没扣。';
 
   @override
   String get claudeResetsRefresh => '刷新';
