@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../bots/bot.dart';
+import '../bots/bot_group_prompt.dart' show BotGroup;
+import '../bots/bot_groups.dart';
 import '../bots/bots.dart';
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
@@ -109,6 +111,9 @@ class WorkspaceBridge {
 
   final Map<String, _Follow> _follows = {};
 
+  /// The groups the phone has open, each the last of its messages sent.
+  final Map<String, int> _groupsOpen = {};
+
   /// Task outputs the phone watches, by session and task.
   final Map<String, OutputWatch> _watches = {};
   Timer? _stateTimer;
@@ -119,6 +124,7 @@ class WorkspaceBridge {
   void start() {
     workspace.addListener(_stateChanged);
     bots?.addListener(_stateChanged);
+    bots?.groups.addListener(_groupsChanged);
     unawaited(peer.done.then((_) => dispose()));
   }
 
@@ -127,6 +133,7 @@ class WorkspaceBridge {
     _disposed = true;
     workspace.removeListener(_stateChanged);
     bots?.removeListener(_stateChanged);
+    bots?.groups.removeListener(_groupsChanged);
     _stateTimer?.cancel();
     for (final follow in _follows.values) {
       follow.dispose();
@@ -275,7 +282,73 @@ class WorkspaceBridge {
         if (bots case final bots?)
           for (final bot in bots.bots) _linkBot(bots, bot),
       ],
+      groups: [
+        if (bots?.groups case final groups?)
+          for (final group in groups.groups) _linkGroup(groups, group),
+      ],
     );
+  }
+
+  LinkGroup _linkGroup(BotGroups groups, BotGroup group) {
+    final last = groups.messages(group.id).lastOrNull;
+    return LinkGroup(
+      id: group.id,
+      name: group.name,
+      members: group.members,
+      typing: groups.typing(group.id),
+      unread: groups.unread(group.id),
+      last: last,
+      updatedAt: last?.at ?? group.created,
+    );
+  }
+
+  /// The groups changed: what came of those open sent, read as it comes;
+  /// the state told.
+  void _groupsChanged() {
+    if (_disposed) return;
+    final groups = bots?.groups;
+    if (groups != null) {
+      for (final MapEntry(key: id, value: sent) in [..._groupsOpen.entries]) {
+        final fresh = [
+          for (final message in groups.messages(id))
+            if (message.seq > sent) message,
+        ];
+        if (fresh.isEmpty) continue;
+        _groupsOpen[id] = fresh.last.seq;
+        groups.seen(id);
+        peer.emit(LinkEvents.group, {
+          'group': id,
+          'messages': [for (final message in fresh) message.toJson()],
+        });
+      }
+    }
+    _stateChanged();
+  }
+
+  BotGroups _groups() => _bots().groups;
+
+  BotGroup _group(Object? id) =>
+      switch (id) {
+        final String id => _groups().byId(id),
+        _ => null,
+      } ??
+      (throw LinkRemoteException(LinkErrors.notFound, 'No group $id'));
+
+  /// [group]'s messages, [count] at most, before the [before]th if given.
+  Map<String, Object?> _groupPage(
+    BotGroup group, {
+    int? before,
+    int count = 50,
+  }) {
+    final all = [
+      for (final message in _groups().messages(group.id))
+        if (before == null || message.seq < before) message,
+    ];
+    final from = all.length > count ? all.length - count : 0;
+    return {
+      'messages': [for (final message in all.skip(from)) message.toJson()],
+      'more': from > 0,
+    };
   }
 
   LinkBot _linkBot(Bots bots, Bot bot) {
@@ -697,6 +770,67 @@ class WorkspaceBridge {
           restart: true,
         );
         return null;
+      case LinkMethods.saveGroup:
+        final group = _groups().save(
+          id: params['group'] as String?,
+          name: params['name'] as String? ?? '',
+          members: [
+            for (final member in (params['members'] as List?) ?? const [])
+              if (member is String) member,
+          ],
+        );
+        return {'group': _linkGroup(_groups(), group).toJson()};
+      case LinkMethods.deleteGroup:
+        _groups().delete(_group(params['group']).id);
+        _groupsOpen.remove(params['group']);
+        return null;
+      case LinkMethods.openGroup:
+        final group = _group(params['group']);
+        _groupsOpen[group.id] =
+            _groups().messages(group.id).lastOrNull?.seq ?? 0;
+        _groups().seen(group.id);
+        return _groupPage(group, count: params['count'] as int? ?? 50);
+      case LinkMethods.earlierGroup:
+        return _groupPage(
+          _group(params['group']),
+          before: params['before'] as int?,
+          count: params['count'] as int? ?? 50,
+        );
+      case LinkMethods.closeGroup:
+        _groupsOpen.remove(params['group']);
+        return null;
+      case LinkMethods.sendGroup:
+        final group = _group(params['group']);
+        final text = (params['text'] as String? ?? '').trim();
+        final images = _images(params['images']);
+        if (text.isEmpty && images.isEmpty) return null;
+        final key = switch (params['id']) {
+          final String id => '${peer.remote}/group/$id',
+          _ => null,
+        };
+        if (key != null) {
+          if (_taken[key] case final taken?) return taken;
+        }
+        final answer = Future<Object?>.value({
+          'seq': _groups().send(group.id, text: text, images: images),
+        });
+        if (key != null) {
+          _taken[key] = answer;
+          if (_taken.length > _takenKept) _taken.remove(_taken.keys.first);
+        }
+        return answer;
+      case LinkMethods.groupImage:
+        final image = _groups().image(
+          _group(params['group']).id,
+          params['image'] as String? ?? '',
+        );
+        if (image == null) {
+          throw LinkRemoteException(
+            LinkErrors.notFound,
+            'No picture ${params['image']}',
+          );
+        }
+        return {'type': image.type, 'data': base64Encode(image.bytes)};
       case LinkMethods.setMe:
         String text(String key) => switch (params[key]) {
           final String value => value.trim(),
