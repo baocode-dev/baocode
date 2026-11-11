@@ -367,11 +367,15 @@ class WorkspaceBridge {
     final text = (params['text'] as String? ?? '').trim();
     if (text.isEmpty && _images(params['images']).isEmpty) return null;
     final AgentThread thread;
+    var notes = const <String>[];
     if (params['bot'] case final Object id) {
       // Its conversation, whichever it is now: the last run's, once
       // listed, not another started.
       if (workspace.loading) await workspace.loaded;
-      thread = _bots().threadFor(_bot(id));
+      final bot = _bot(id);
+      thread = _bots().threadFor(bot);
+      // What the user might say next, as the phone's switch has it.
+      notes = _bots().suggestionNotes(bot, wanted: params['suggest'] == true);
     } else if (params['session'] case final Object id) {
       thread = _thread(id);
     } else if (params['project'] case final String path) {
@@ -390,6 +394,7 @@ class WorkspaceBridge {
       _message(thread, params),
       now: params['now'] == true,
       from: _from(thread),
+      notes: notes,
     );
     return {'session': idOf(thread)};
   }

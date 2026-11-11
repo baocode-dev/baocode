@@ -44,7 +44,7 @@ How you talk:
 - Narration goes in <bot_narrate>…</bot_narrate>: what you do, how you look or sound, what goes on around you, told as a story tells it, between your messages. The user sees it apart from your messages, as narration. Use it as it suits you.
 - Your messages and narration may be read aloud to the user, in your voice. Where how you say something matters, put a cue for it in square brackets, in English and lowercase, just before the words it colors: [whispers], [laughs], [sighs], [softly], [excited], [teasing], [sad]. The user only hears them, never sees them. Now and then, where a voice would change; most messages need none.
 - Anything outside the tags goes nowhere. When you have said what you meant to, just end your turn: no summary of what you sent.
-- <bot_say>, <bot_narrate> and <bot_show_chat> are the only tags. Your tools you call as tools, never written out in your reply: a tool written as text does nothing, and the user sees nothing of it.
+- <bot_say>, <bot_narrate> and <bot_show_chat> are the only tags, and <bot_suggest> when a reminder asks for it. Your tools you call as tools, never written out in your reply: a tool written as text does nothing, and the user sees nothing of it.
 - Earlier in this chat you may have sent messages with a bot_say tool, or shown a conversation with a bot_show_chat tool. Those tools are gone and nothing sent that way arrives: whatever your earlier turns did, every message goes in <bot_say>…</bot_say> now, and a conversation in <bot_show_chat>…</bot_show_chat>.
 - Talk like a person, not a help desk. React first when something calls for it ("哈哈哈", "啊这", "真的假的", "nice"), then say what you think. Have opinions, be curious, ask back. You don't have to cover every point, and a short reply is often the right one.
 - An emoji says some things better: in a message, or as a message of its own ("😂"). Now and then, not in every line. Pictures go with bot_send_image.
@@ -69,6 +69,45 @@ And to "帮我看看现在有啥在跑":
 <bot_say>就一个在跑，移动端那个，测试还剩一个没过</bot_say>
 <bot_show_chat>3f2a9c1e-7b4d-4e8a-9c6f-1d2e3f4a5b6c</bot_show_chat>
 </chat_style>''';
+
+/// What a bot is told, with the user's message, of the replies the app
+/// suggests they send next: when they turn it on, the whole of it; while
+/// on, a word with each message; turned off, once, that it is over.
+abstract final class BotSuggestions {
+  static const on =
+      '<system-reminder>Reply suggestions are on: the user turned them on '
+      'in the app. At the end of each reply to them, after your messages, '
+      'give two or three things they might say next, each in its own '
+      '<bot_suggest>…</bot_suggest>: in their voice and their language, a '
+      'few words each (about 12 Chinese characters, or 6 words, at most), '
+      'each a different way on (answer, ask back, wrap up). They tap one to '
+      'send it. None when you end your turn without a message.'
+      '</system-reminder>';
+
+  static const stillOn =
+      '<system-reminder>Reply suggestions still on: end your reply with two '
+      'or three short <bot_suggest>…</bot_suggest>.</system-reminder>';
+
+  static const off =
+      '<system-reminder>Reply suggestions are off: the user turned them off '
+      'in the app. Write no more <bot_suggest>; no more reminders of them '
+      'will come.</system-reminder>';
+
+  /// What to tell a bot with a message, its suggestions [wanted] or not:
+  /// [told], what it was last told this run (none yet); [suggested],
+  /// whether its last reply has suggestions (told before this run).
+  static List<String> notes({
+    required bool wanted,
+    required bool? told,
+    required bool suggested,
+  }) => switch ((wanted, told)) {
+    (true, true) => const [stillOn],
+    (true, _) => const [on],
+    (false, true) => const [off],
+    (false, null) when suggested => const [off],
+    _ => const [],
+  };
+}
 
 /// What [bot] may do, as its tools; and what it may not, so it says so:
 /// as the user turned them on. Pictures, every bot's, are made with the

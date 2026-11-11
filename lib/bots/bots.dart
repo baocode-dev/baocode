@@ -540,6 +540,40 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     return latest;
   }
 
+  /// What each bot was last told of reply suggestions, by its id, this
+  /// run: on or off (see [BotSuggestions]).
+  final Map<String, bool> _suggestionsTold = {};
+
+  /// What [bot] is told of reply suggestions with the user's message, as
+  /// they want them or not ([wanted], the phone's switch): notes for
+  /// [ChatSession.send].
+  List<String> suggestionNotes(Bot bot, {required bool wanted}) {
+    final notes = BotSuggestions.notes(
+      wanted: wanted,
+      told: _suggestionsTold[bot.id],
+      suggested: _lastSuggested(bot),
+    );
+    if (notes.isNotEmpty) _suggestionsTold[bot.id] = wanted;
+    return notes;
+  }
+
+  /// Whether [bot]'s last reply suggests what the user say next.
+  bool _lastSuggested(Bot bot) {
+    final thread = threadOf(bot);
+    if (thread == null || !thread.isOpen) return false;
+    final session = thread.session;
+    for (var i = session.itemCount - 1; i >= 0; i--) {
+      switch (session.itemAt(i)) {
+        case AssistantTextItem(:final text):
+          if (ChatCodec.botSuggestions(text).isNotEmpty) return true;
+        case UserMessageItem():
+          return false;
+        default:
+      }
+    }
+    return false;
+  }
+
   /// [bot]'s conversation, started if it has none.
   AgentThread threadFor(Bot bot) {
     final thread =

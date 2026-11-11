@@ -198,6 +198,14 @@ void main() {
       expect(ChatCodec.withoutVoiceCues('[softly] 她笑了'), '她笑了');
     });
 
+    test('what it suggests the user say next: not among what it shows', () {
+      const text =
+          '<bot_say>早点睡</bot_say><bot_suggest>嗯晚安</bot_suggest>'
+          '<bot_suggest> 再聊会 </bot_suggest><bot_suggest>你也';
+      expect(ChatCodec.botParts(text), [(ChatCodec.botSayTag, '早点睡')]);
+      expect(ChatCodec.botSuggestions(text), ['嗯晚安', '再聊会']);
+    });
+
     test('the agents it shows, by their ids, among its messages', () {
       const text =
           '<bot_say>就一个在跑</bot_say>\n<bot_show_chat> s-1 </bot_show_chat>'
