@@ -20,6 +20,10 @@ abstract final class AppPlatform {
   /// WindowControls.hasNativeMenus).
   static bool get isDesktop => isMacOS || isWindows || isLinux;
 
+  /// Windows, and this process really on it: not a test that targets
+  /// Windows from another host.
+  static bool get isWindowsHost => isWindows && hostReportsWindows;
+
   /// Windows 11 (build 22000), whose window carries the system's acrylic
   /// backdrop (see win32_window.cpp). A test that targets Windows from
   /// another host has no build to read, and uses this one.
