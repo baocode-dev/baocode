@@ -42,6 +42,7 @@ class ChatTerminals extends ChangeNotifier {
     required this.rootOf,
     this.backendFor,
     this.pathOf,
+    this.foldersOf,
   });
 
   final TerminalBackend backend;
@@ -53,6 +54,10 @@ class ChatTerminals extends ChangeNotifier {
   /// The folder a project's terminals start in, if not [root] itself (a
   /// remote project's path on its host).
   final String Function(String root)? pathOf;
+
+  /// A workspace's folders, New Terminal asking which one to start in
+  /// (see [TerminalDeck.folders]); none for a project of one folder.
+  final List<String> Function(String root)? foldersOf;
 
   /// The project the window's commands act on: the focused agent's; none
   /// without one.
@@ -184,12 +189,17 @@ class ChatTerminals extends ChangeNotifier {
   }
 
   /// A new terminal for [root] (the focused project) on [profile]'s shell
-  /// (else the default profile's), shown and focused.
-  TerminalInstance? create({TerminalProfile? profile, String? root}) {
+  /// (else the default profile's), in [cwd] (else where the project's
+  /// start), shown and focused.
+  TerminalInstance? create({
+    TerminalProfile? profile,
+    String? root,
+    String? cwd,
+  }) {
     final target = root ?? this.root;
     if (target == null) return null;
     final service = _serviceOf(target);
-    final terminal = service.create(profile: profile);
+    final terminal = service.create(profile: profile, cwd: cwd);
     _shown.add(target);
     _shownTasks.remove(target);
     hosts.claim(terminal, service);
@@ -469,9 +479,10 @@ class _ChatTerminalPanel extends StatelessWidget {
         terminals.showTask(root, task);
       }
     },
-    onNew: () => terminals.create(root: root),
-    onNewWithProfile: (profile) =>
-        terminals.create(profile: profile, root: root),
+    onNew: ({cwd}) => terminals.create(root: root, cwd: cwd),
+    onNewWithProfile: (profile, {cwd}) =>
+        terminals.create(profile: profile, root: root, cwd: cwd),
+    folders: terminals.foldersOf?.call(root) ?? const [],
     tasks: tasks,
     files: files,
     skipShell: chatTerminalSkipShell,

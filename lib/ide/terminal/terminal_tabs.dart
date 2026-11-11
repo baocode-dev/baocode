@@ -28,6 +28,7 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../../chat/chat_models.dart' show CommandStatus;
 import '../../keybindings/keybinding_service.dart';
@@ -65,6 +66,28 @@ String? terminalKeyLabel(List<IdeKeybinding> bindings) {
   }
   return null;
 }
+
+/// [folder]'s name among a workspace's [folders]: its own, else (two of
+/// them named alike) its path.
+String terminalFolderName(String folder, List<String> folders) {
+  final name = p.basename(folder);
+  final alike = folders.where((each) => p.basename(each) == name);
+  return alike.length > 1 ? folder : name;
+}
+
+/// New Terminal in a workspace of several [folders]: which one it starts
+/// in, as VS Code's multi-root workspace asks.
+List<IdeMenuEntry> terminalFolderMenu(
+  List<String> folders,
+  ValueChanged<String> onPick,
+) => [
+  for (final folder in folders)
+    IdeMenuAction(
+      terminalFolderName(folder, folders),
+      icon: const Icon(Codicons.folder),
+      onSelected: () => onPick(folder),
+    ),
+];
 
 /// A tab's context menu: New Terminal ([onNew] where given); Rename...
 /// ([onRename], else in place); Clear; then Kill Terminal, the others and

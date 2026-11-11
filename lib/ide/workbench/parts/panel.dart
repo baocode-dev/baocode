@@ -52,6 +52,8 @@ class PanelPart extends StatelessWidget {
         references,
         terminalView,
         debugView,
+        // New Terminal asks which of a workspace's folders.
+        options.workspace,
         // Labels (the tooltips', the menus') follow the keybindings.
         KeybindingService.instance,
       ]),
@@ -125,8 +127,9 @@ class PanelPart extends StatelessWidget {
                     final terminals? => TerminalTitleActions(
                       terminals: terminals,
                       onNew: terminalView.create,
-                      onNewWithProfile: (profile) =>
-                          terminalView.create(profile: profile),
+                      onNewWithProfile: (profile, {cwd}) =>
+                          terminalView.create(profile: profile, cwd: cwd),
+                      folders: options.workspace.roots,
                       onSelectDefaultProfile: () =>
                           unawaited(terminalView.selectDefaultProfile()),
                     ),

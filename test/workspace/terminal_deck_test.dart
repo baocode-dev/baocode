@@ -80,7 +80,7 @@ void main() {
         terminals: terminals,
         shown: shell,
         onShow: (_) {},
-        onNew: () => null,
+        onNew: ({cwd}) => null,
       ),
     );
     Future<void> pump(List<String> places) => tester.pumpWidget(
@@ -141,7 +141,7 @@ void main() {
             terminals: terminals,
             shown: a,
             onShow: (_) {},
-            onNew: () => null,
+            onNew: ({cwd}) => null,
           ),
         ),
       ),
@@ -210,7 +210,7 @@ void main() {
           terminals: terminals,
           shown: shell,
           onShow: (_) {},
-          onNew: () => null,
+          onNew: ({cwd}) => null,
         ),
       ),
     ]);
@@ -253,7 +253,7 @@ void main() {
             terminals: terminals,
             shown: a,
             onShow: (_) {},
-            onNew: () {
+            onNew: ({cwd}) {
               made++;
               return null;
             },
@@ -281,6 +281,64 @@ void main() {
     await tester.tap(find.text('Kill Other Terminals'));
     await tester.pumpAndSettle();
     expect(terminals.instances, [a]);
+  });
+
+  testWidgets('in a workspace of several folders, New Terminal asks which '
+      'one it starts in; each tab says where', (tester) async {
+    final terminals = TerminalService(
+      root: '/w/app',
+      backend: fakeTerminalBackend(<FakePty>[]),
+    );
+    addTearDown(terminals.dispose);
+    final hosts = TerminalHosts();
+    addTearDown(hosts.dispose);
+    Object? shown;
+    Widget deck(List<String> folders) => MaterialApp(
+      theme: buildAppTheme(),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      home: Material(
+        child: StatefulBuilder(
+          builder: (context, setState) => TerminalDeck(
+            place: 'panel',
+            hosts: hosts,
+            terminals: terminals,
+            shown: shown,
+            onShow: (id) => setState(() => shown = id),
+            onNew: ({cwd}) => terminals.create(cwd: cwd),
+            folders: folders,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(deck(['/w/app', '/w/api']));
+    await tester.tap(find.byKey(const ValueKey('terminal-deck-new')));
+    await tester.pumpAndSettle();
+    expect(terminals.instances, isEmpty, reason: 'it asks first');
+    expect(find.text('app'), findsOneWidget);
+    await tester.tap(find.text('api'));
+    await tester.pumpAndSettle();
+    final shell = terminals.instances.single;
+    expect(shell.cwd, '/w/api');
+    expect(shown, shell);
+    // Its tab says where, after its name.
+    final where = find.textContaining('  api', findRichText: true);
+    expect(where, findsOneWidget);
+
+    // Its tab's New Terminal: in the same folder, not asked.
+    await rightClick(tester, find.byKey(ObjectKey(shell)).first);
+    await tester.tap(find.text('New Terminal'));
+    await tester.pumpAndSettle();
+    expect([for (final each in terminals.instances) each.cwd], [
+      '/w/api',
+      '/w/api',
+    ]);
+
+    // One folder: made at once, nothing said in the tabs.
+    await tester.pumpWidget(deck(['/w/app']));
+    await tester.tap(find.byKey(const ValueKey('terminal-deck-new')));
+    await tester.pumpAndSettle();
+    expect(terminals.instances, hasLength(3));
+    expect(where, findsNothing);
   });
 
   testWidgets('the background commands\' tab menu: stop, run again in a '
@@ -334,7 +392,7 @@ void main() {
               terminals: terminals,
               shown: shown,
               onShow: (id) => setState(() => shown = id),
-              onNew: terminals.create,
+              onNew: ({cwd}) => terminals.create(cwd: cwd),
               tasks: tasks,
               files: _Output(),
             ),
