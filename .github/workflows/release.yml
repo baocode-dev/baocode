@@ -368,7 +368,12 @@ jobs:
     # Kylin V10's and UOS 20's (#851); the channel build's login window needs
     # WebKitGTK 4.1, which only 22.04 has.
     runs-on: ${{ matrix.runner }}
-    container: ${{ matrix.edition == 'channel' && 'ubuntu:22.04' || 'ubuntu:20.04' }}
+    container:
+      image: ${{ matrix.edition == 'channel' && 'ubuntu:22.04' || 'ubuntu:20.04' }}
+      # Public resolvers: the runners' own, as Docker hands it the container,
+      # lost Ubuntu's mirrors (2026-11-11, every Linux build, both arches:
+      # "Could not resolve 'azure.archive.ubuntu.com'"), the host's fine.
+      options: --dns 8.8.8.8 --dns 1.1.1.1
     strategy:
       # One edition failing leaves the other building, to be re-run alone.
       fail-fast: false
