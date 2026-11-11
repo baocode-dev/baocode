@@ -12,6 +12,7 @@ import '../bots/bots.dart';
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
 import '../chat/composer/composer_files.dart' show fileReferenceText;
+import '../chat/panels/context_usage_panel.dart' show ContextUsagePanel;
 import '../customize/customization_store.dart';
 import '../customize/customizations.dart';
 import '../ide/file_service.dart';
@@ -1268,9 +1269,11 @@ class _Follow {
         ? null
         : _from > 0 || session.hasEarlierHistory || session.loadingEarlier;
     final goal = _goal(session.goal);
+    final context = _context(session.context);
     final restText = jsonEncode([
       earlier,
       goal,
+      context,
       session.isStreaming,
       interaction,
       [for (final choice in choices) choice.toJson()],
@@ -1309,7 +1312,29 @@ class _Follow {
       tasks: tasks,
       earlier: earlier,
       goal: goal,
+      context: context,
     );
+  }
+
+  /// [usage] as the phone reads it (see [LinkSessionUpdate.context]).
+  static Map<String, Object?>? _context(ContextUsage? usage) {
+    if (usage == null || usage.window <= 0) return null;
+    final parts = <String, int>{};
+    for (final segment in usage.segments) {
+      if (segment.kind != ContextKind.used || segment.tokens <= 0) continue;
+      final part = ContextUsagePanel.partOf(segment.label) ?? segment.label;
+      parts[part] = (parts[part] ?? 0) + segment.tokens;
+    }
+    return {
+      'window': usage.window,
+      'used': usage.used,
+      if (parts.isNotEmpty)
+        'parts': [
+          for (final MapEntry(:key, :value) in parts.entries)
+            {'part': key, 'tokens': value},
+        ],
+      'compactAt': ?usage.detail?.autoCompactAt,
+    };
   }
 
   /// [goal] as the phone reads it (see [LinkSessionUpdate.goal]).
