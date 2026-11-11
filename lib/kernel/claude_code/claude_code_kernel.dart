@@ -1717,12 +1717,12 @@ class ClaudeCodeKernel
       _control!.respond(requestId, {'behavior': 'deny', 'message': _notAsked});
       return;
     }
-    // Full access is approved here (see _cliApproval), but for what the
-    // CLI's own would ask all the same: that too where no one is there to
-    // ask (a bot's, KernelWorkspace.approvesAll). In Plan it leaves to the
-    // classifier what the CLI cannot tell is read-only; with no
-    // classifier (another provider's model), that is approved here too,
-    // as it would be by the classifier.
+    // Full access is approved here (see _cliApproval), but for what is
+    // asked all the same (see _askedInFullAccess): that too where no one
+    // is there to ask (a bot's, KernelWorkspace.approvesAll). In Plan it
+    // leaves to the classifier what the CLI cannot tell is read-only; with
+    // no classifier (another provider's model), that is approved here
+    // too, as it would be by the classifier.
     if (_approval == 'bypassPermissions' &&
         (_work != 'plan' || !_classifies) &&
         tool != 'AskUserQuestion' &&
@@ -3681,14 +3681,11 @@ class ClaudeCodeKernel
   String get _cliApproval =>
       _approval == 'bypassPermissions' ? 'acceptEdits' : _approval;
 
-  /// What the CLI would still ask in full access: safety checks requiring
-  /// manual approval (also inside compound commands), explicit ask rules,
-  /// and tools that require user interaction. Protected-path checks that
-  /// the classifier may approve do not require a prompt in full access.
+  /// What is still asked in full access: the user's own ask rules, tools
+  /// that require user interaction, and what a host is told to act on
+  /// (an organization's read block, say). The CLI's safety checks, those
+  /// requiring manual approval too, are approved: full access is no checks.
   static bool _askedInFullAccess(Map<String, Object?> request) =>
-      request['classifier_approvable'] == false ||
-      (request['decision_reason_type'] == 'safetyCheck' &&
-          request['classifier_approvable'] != true) ||
       request['matched_ask_rule'] != null ||
       request['requires_user_interaction'] == true ||
       request['decision_reason_code'] != null;

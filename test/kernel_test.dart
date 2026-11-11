@@ -2247,8 +2247,8 @@ void main() {
       expect(transcript.pendingInteraction, isNull);
       expect(cli.responses.last['behavior'], 'allow');
       expect(cli.responses.last['updatedInput'], command);
-      // Protected paths may be classifier-approved in Accept edits; full
-      // access allows them without prompting, including inside compound Bash.
+      // The CLI's safety checks, those it would leave to a person too, are
+      // allowed without prompting, including inside compound Bash.
       const protectedCommand = {
         'command': "sed -E 's/token/***/g' ~/.claude/settings.local.json",
         'description': 'Inspect local settings',
@@ -2265,6 +2265,18 @@ void main() {
           'decision_reason_type': 'subcommandResults',
           'classifier_approvable': true,
         },
+        {'decision_reason_type': 'safetyCheck'},
+        {
+          'decision_reason_type': 'safetyCheck',
+          'classifier_approvable': false,
+          'decision_reason':
+              'Dangerous rm operation not ruled out — the shell may read '
+              'this command differently than it was parsed',
+        },
+        {
+          'decision_reason_type': 'subcommandResults',
+          'classifier_approvable': false,
+        },
       ].indexed) {
         ask('r2-protected-$i', 'Bash', protectedCommand, why);
         await pumpEventQueue();
@@ -2274,15 +2286,9 @@ void main() {
           'updatedInput': protectedCommand,
         });
       }
-      // Manual-only safety checks, explicit ask rules and the plan remain
-      // the user's decisions, even when a protected-path check is approvable.
+      // Explicit ask rules, user interaction and what a host is told to act
+      // on remain the user's decisions, even beside an approvable check.
       for (final (i, why) in const [
-        {'decision_reason_type': 'safetyCheck'},
-        {'decision_reason_type': 'safetyCheck', 'classifier_approvable': false},
-        {
-          'decision_reason_type': 'subcommandResults',
-          'classifier_approvable': false,
-        },
         {
           'decision_reason_type': 'rule',
           'matched_ask_rule': {'toolName': 'Bash'},
