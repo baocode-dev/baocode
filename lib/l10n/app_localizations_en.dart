@@ -13288,10 +13288,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get claudeResetNext => 'Next';
+  String get claudeResetNext => 'Default';
 
   @override
-  String get claudeResetUse => 'Use One…';
+  String get claudeResetNextHint => 'The one the server would take first';
+
+  @override
+  String get claudeResetUse => 'Use This One…';
 
   @override
   String get claudeResetConfirm => 'Use a Claude limit reset?';

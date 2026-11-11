@@ -2632,10 +2632,9 @@ class _ClaudeResetsLabel extends StatelessWidget {
     final faint = SettingsText.description.copyWith(
       color: SettingsColors.textSecondary,
     );
-    final next = resets.next;
     final why = switch (resets) {
       _ when service.signedOut => l10n.claudeResetSignedOut,
-      _ when next != null => null,
+      _ when resets.usable.isNotEmpty => null,
       ClaudeResets(:final cooldownUntil?)
           when cooldownUntil.isAfter(DateTime.now()) =>
         l10n.claudeResetCooldown(_time(cooldownUntil)),
@@ -2662,31 +2661,7 @@ class _ClaudeResetsLabel extends StatelessWidget {
               Text(l10n.claudeResetsDetail, style: faint),
               for (final grant in resets.live) ...[
                 const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        l10n.claudeResetClears(_clears(l10n, resets, grant)),
-                        style: SettingsText.description,
-                      ),
-                    ),
-                    if (grant.id == next?.id) ...[
-                      const SizedBox(width: 6),
-                      ModelBadge(l10n.claudeResetNext),
-                    ],
-                  ],
-                ),
-                Text(
-                  [
-                    ?grant.label,
-                    if (grant.left > 1) '×${grant.left}',
-                    if (grant.endsAt case final at?)
-                      l10n.modelsResetCreditExpires(_time(at)),
-                    if (grant.paused) l10n.claudeResetPaused,
-                  ].join(' · '),
-                  style: faint,
-                ),
+                _grant(context, resets, grant),
               ],
               if (why != null) ...[
                 const SizedBox(height: 8),
@@ -2698,27 +2673,13 @@ class _ClaudeResetsLabel extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IdeButton(
-                    label: l10n.claudeResetUse,
-                    icon: Codicons.debugRestart,
-                    spinning: service.using,
-                    onPressed: next == null || service.using
-                        ? null
-                        : () => unawaited(_use(context, next)),
-                  ),
-                  const SizedBox(width: 8),
-                  IdeButton(
-                    label: l10n.claudeResetsRefresh,
-                    secondary: true,
-                    spinning: service.loading && !service.using,
-                    onPressed: service.loading
-                        ? null
-                        : () => unawaited(service.refresh(force: true)),
-                  ),
-                ],
+              IdeButton(
+                label: l10n.claudeResetsRefresh,
+                secondary: true,
+                spinning: service.loading && !service.using,
+                onPressed: service.loading
+                    ? null
+                    : () => unawaited(service.refresh(force: true)),
               ),
             ],
           ),
@@ -2734,6 +2695,105 @@ class _ClaudeResetsLabel extends StatelessWidget {
             decorationColor: SettingsColors.textSecondary,
           ),
         ),
+      ),
+    );
+  }
+
+  /// One grant, framed, with the button that uses it while it can be; the
+  /// one the server would take first tagged so.
+  Widget _grant(
+    BuildContext context,
+    ClaudeResets resets,
+    ClaudeResetGrant grant,
+  ) {
+    final l10n = context.l10n;
+    final usable = resets.canUse(grant);
+    final faint = SettingsText.description.copyWith(
+      color: SettingsColors.textSecondary,
+    );
+    final clears = l10n.claudeResetClears(_clears(l10n, resets, grant));
+    final meta = [
+      if (grant.left > 1) '×${grant.left}',
+      if (grant.endsAt case final at?) l10n.modelsResetCreditExpires(_time(at)),
+      if (grant.paused) l10n.claudeResetPaused,
+    ];
+    return _GrantFrame(
+      lit: usable,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  grant.label ?? clears,
+                  style: SettingsText.description.copyWith(
+                    color: SettingsColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (grant.id == resets.nextGrantId) ...[
+                const SizedBox(width: 6),
+                ModelBadge(
+                  l10n.claudeResetNext,
+                  tooltip: l10n.claudeResetNextHint,
+                ),
+              ],
+            ],
+          ),
+          if (grant.label != null) Text(clears, style: faint),
+          if (meta.isNotEmpty) Text(meta.join(' · '), style: faint),
+          if (usable) ...[
+            const SizedBox(height: 8),
+            IdeButton(
+              label: l10n.claudeResetUse,
+              icon: Codicons.debugRestart,
+              spinning: service.usingId == grant.id,
+              onPressed: service.using
+                  ? null
+                  : () => unawaited(_use(context, grant)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A grant's frame: in the accent under the pointer when [lit], so which
+/// one its button uses is plain.
+class _GrantFrame extends StatefulWidget {
+  const _GrantFrame({required this.lit, required this.child});
+
+  final bool lit;
+  final Widget child;
+
+  @override
+  State<_GrantFrame> createState() => _GrantFrameState();
+}
+
+class _GrantFrameState extends State<_GrantFrame> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final lit = widget.lit && _hovered;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: lit ? AppColors.accent.withValues(alpha: 0.1) : null,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: lit ? AppColors.accent : SettingsColors.stroke,
+          ),
+        ),
+        child: widget.child,
       ),
     );
   }

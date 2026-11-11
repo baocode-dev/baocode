@@ -259,10 +259,12 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Next'), findsOneWidget);
+    expect(find.text('Default'), findsOneWidget);
+    // Each one its own button: the first is the full reset.
+    expect(find.text('Use This One…'), findsNWidgets(2));
 
     // Cancelled: nothing sent.
-    await tester.tap(find.text('Use One…'));
+    await tester.tap(find.text('Use This One…').first);
     await tester.pumpAndSettle();
     expect(find.text('Use a Claude limit reset?'), findsOneWidget);
     expect(
@@ -275,11 +277,16 @@ void main() {
 
     await mouse.removePointer();
     await hover();
-    await tester.tap(find.text('Use One…'));
+    // The other one picked: that one used.
+    await tester.tap(find.text('Use This One…').last);
     await tester.pumpAndSettle();
+    expect(
+      find.textContaining('New model launch: one Fable reset'),
+      findsWidgets,
+    );
     await tester.tap(find.text('Reset Now'));
     await tester.pumpAndSettle();
-    expect(api.claims.single.$1, 'full-reset-2611');
+    expect(api.claims.single.$1, 'launch-2610-fable');
     expect(find.text('Reset: 5h, Weekly'), findsOneWidget);
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
