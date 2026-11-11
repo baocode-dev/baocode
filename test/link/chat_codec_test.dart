@@ -188,6 +188,16 @@ void main() {
       expect(ChatCodec.botSays(text), ['在呢', '怎么啦']);
     });
 
+    test('how its words sound, cued for them read aloud, not shown', () {
+      const text =
+          '<bot_narrate>[softly] 她笑了</bot_narrate>'
+          '<bot_say>[laughs] 真的假的 [whispers]别告诉别人</bot_say>'
+          '<bot_say>[sighs]</bot_say><bot_say>[Image #3]</bot_say>';
+      expect(ChatCodec.botParts(text).first.$2, '[softly] 她笑了');
+      expect(ChatCodec.botSays(text), ['真的假的 别告诉别人', '[Image #3]']);
+      expect(ChatCodec.withoutVoiceCues('[softly] 她笑了'), '她笑了');
+    });
+
     test('the agents it shows, by their ids, among its messages', () {
       const text =
           '<bot_say>就一个在跑</bot_say>\n<bot_show_chat> s-1 </bot_show_chat>'
