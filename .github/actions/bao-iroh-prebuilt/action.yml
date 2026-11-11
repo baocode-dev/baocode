@@ -32,9 +32,9 @@ runs:
       uses: actions/cache/restore@v5
       with:
         path: ${{ inputs.root }}/packages/bao_iroh/build/prebuilt
-        key: bao-iroh-v1-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/packages/bao_iroh/rust/**', inputs.root)) }}
+        key: bao-iroh-v2-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/packages/bao_iroh/rust/**', inputs.root)) }}
     - if: inputs.save == 'true'
       uses: actions/cache/save@v5
       with:
         path: ${{ inputs.root }}/packages/bao_iroh/build/prebuilt
-        key: bao-iroh-v1-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/packages/bao_iroh/rust/**', inputs.root)) }}
+        key: bao-iroh-v2-${{ inputs.kind }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles(format('{0}/packages/bao_iroh/rust/**', inputs.root)) }}

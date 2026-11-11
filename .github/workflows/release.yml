@@ -363,9 +363,12 @@ jobs:
     # Not after the remote server: its artifact is waited for once the app
     # is built (wait-for-artifact), the two built side by side.
     needs: check
-    # The oldest Ubuntu built on: its glibc and GTK are what the package
-    # runs on from there up.
+    # Built in a container of the oldest Ubuntu it is for: its glibc and GTK
+    # are what the package runs on from there up. 20.04's glibc 2.31 is
+    # Kylin V10's and UOS 20's (#851); the channel build's login window needs
+    # WebKitGTK 4.1, which only 22.04 has.
     runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.edition == 'channel' && 'ubuntu:22.04' || 'ubuntu:20.04' }}
     strategy:
       # One edition failing leaves the other building, to be re-run alone.
       fail-fast: false
@@ -383,6 +386,32 @@ jobs:
       # (linux/runner/CMakeLists.txt).
       BAOCODE_CHANNEL: ${{ matrix.edition == 'channel' && 'true' || '' }}
     steps:
+      # The bare image has none of the runner's tools: git first, for the
+      # checkout to be a repository. zstd, for bao_iroh.yml's cache to be
+      # found (it is saved with it). Root in it, so no sudo.
+      - name: Install the build's tools
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          # The mirror the runners use (an x64 image's; an Arm one's is
+          # ports.ubuntu.com), and again where a fetch failed: apt-get
+          # update only warns of it.
+          sed -i 's#http://\(archive\|security\)\.ubuntu\.com#http://azure.archive.ubuntu.com#' \
+            /etc/apt/sources.list
+          for attempt in 1 2 3 4 5; do
+            apt-get -o Acquire::Retries=5 update 2>&1 | tee "$RUNNER_TEMP/apt.log" || true
+            grep -q '^[WE]: Failed to fetch' "$RUNNER_TEMP/apt.log" || break
+            [ "$attempt" = 5 ] && exit 1
+            sleep 15
+          done
+          apt-get -o Acquire::Retries=5 install -y build-essential ca-certificates curl git jq unzip \
+            xz-utils zip file clang cmake ninja-build pkg-config libgtk-3-dev \
+            liblzma-dev python3 procps xvfb xauth dbus-x11 zstd
+          if [ "$BAOCODE_CHANNEL" = true ]; then
+            apt-get install -y libwebkit2gtk-4.1-dev libstdc++-12-dev
+          fi
+          # The checkout and Flutter's SDK are another user's than root.
+          git config --global --add safe.directory '*'
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         if: matrix.arch == 'x64'
@@ -398,14 +427,6 @@ jobs:
             https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/flutter/bin/flutter" --version
-      - name: Install GTK's build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev \
-            liblzma-dev libstdc++-12-dev xvfb dbus-x11
-          if [ "$BAOCODE_CHANNEL" = true ]; then
-            sudo apt-get install -y libwebkit2gtk-4.1-dev
-          fi
       # bao_iroh's Rust (the phones' link), built by its build hook where
       # main's build of it is not in the cache (Rust set up for it then).
       - id: iroh
@@ -432,9 +453,21 @@ jobs:
           dpkg-deb --info build/installers/BaoCode-*.deb
           # The phones' link (bao_iroh's Rust) is in it.
           dpkg-deb --contents build/installers/BaoCode-*.deb | grep -q 'lib/libbao_iroh.so$'
+          # Nothing in it needs a newer glibc than the image's (#851), as a
+          # library built elsewhere (a cache's) would.
+          need=$(dpkg-deb --field build/installers/BaoCode-*.deb Depends \
+            | sed -n 's/.*libc6 (>= \([0-9.]*\)).*/\1/p')
+          have=$(ldd --version | head -1 | grep -o '[0-9.]*$')
+          echo "glibc needed: $need, the image's: $have"
+          if [ -z "$need" ] || [ "$(printf '%s\n' "$need" "$have" | sort -V | tail -1)" != "$have" ]; then
+            echo "::error::The package needs glibc $need, newer than the image's $have"
+            exit 1
+          fi
       - name: Install the package and launch it
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get install -y ./build/installers/BaoCode-*.deb
+          apt-get install -y ./build/installers/BaoCode-*.deb
           log="$RUNNER_TEMP/launch.log"
           # A browser's folder, for the host's manifest to be written in; the
           # socket in a runtime folder of the user's alone, as on a desktop.

@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/widgets/code_citation.dart';
-import 'package:baocode/chat/widgets/finite_selection_edges.dart';
+import 'package:baocode/chat/widgets/table_selection.dart';
 import 'package:baocode/chat/widgets/markdown_view.dart';
 import 'package:baocode/theme/codicons.dart';
 import 'package:baocode/theme/workbench_theme.dart';
@@ -464,9 +464,10 @@ void main() {}
         );
         final paragraph = tester.renderObject<RenderParagraph>(finder);
         final lineStart = code.indexOf('  line_14');
+        // In what shows: past its edge, the code scrolls on toward the drag.
         final selection = TextSelection(
-          baseOffset: lineStart + 25,
-          extentOffset: lineStart + 40,
+          baseOffset: lineStart + 20,
+          extentOffset: lineStart + 27,
         );
         final rect = paragraph.getBoxesForSelection(selection).single.toRect();
         final start = paragraph.localToGlobal(
@@ -502,7 +503,7 @@ void main() {}
     List<RichText> paragraphs(WidgetTester tester) => tester
         .widgetList<RichText>(
           find.descendant(
-            of: find.byType(FiniteSelectionEdges),
+            of: find.byType(TableSelection),
             matching: find.byType(RichText),
           ),
         )

@@ -23,8 +23,50 @@ runs:
   using: composite
   steps:
     # PowerShell: on every runner, and reads JSON (jq may not be on Arm
-    # Windows).
+    # Windows). Not in a Linux job's container (release.yml's), so there
+    # the same in bash, with curl and jq.
     - name: Wait for ${{ inputs.name }}
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        TOKEN: ${{ github.token }}
+        NAME: ${{ inputs.name }}
+        JOB: ${{ inputs.job }}
+        MINUTES: ${{ inputs.minutes }}
+      run: |
+        run="$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        ask() {
+          curl -fsSL -H "Authorization: Bearer $TOKEN" \
+            -H 'Accept: application/vnd.github+json' "$run/$1"
+        }
+        deadline=$(( $(date +%s) + MINUTES * 60 ))
+        while true; do
+          if artifacts=$(ask "artifacts?name=$NAME"); then
+            if [ "$(jq .total_count <<< "$artifacts")" -gt 0 ]; then
+              echo "$NAME is there"
+              break
+            fi
+            # This attempt's jobs: a run again makes the job again.
+            if [ -n "$JOB" ] && jobs=$(ask 'jobs?filter=latest&per_page=100'); then
+              ended=$(jq -r --arg job "$JOB" '[.jobs[] | select(.name == $job)][0]
+                | select(.status == "completed" and .conclusion != "success")
+                | .conclusion' <<< "$jobs")
+              if [ -n "$ended" ]; then
+                echo "::error::$JOB ended ($ended) without uploading $NAME"
+                exit 1
+              fi
+            fi
+          else
+            echo "Asking GitHub failed, asking again"
+          fi
+          if [ "$(date +%s)" -gt "$deadline" ]; then
+            echo "::error::$NAME was not uploaded within $MINUTES minutes"
+            exit 1
+          fi
+          sleep 10
+        done
+    - name: Wait for ${{ inputs.name }}
+      if: runner.os != 'Linux'
       shell: pwsh
       env:
         TOKEN: ${{ github.token }}

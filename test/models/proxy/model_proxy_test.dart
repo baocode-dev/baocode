@@ -179,6 +179,37 @@ void main() {
     expect(upstream.requests, isEmpty);
   });
 
+  test('an image is estimated as one, not as its base64', () {
+    Map<String, Object?> screenshot(String data) => {
+      'messages': [
+        {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'tool_result',
+              'tool_use_id': 't1',
+              'content': [
+                {'type': 'text', 'text': 'shot'},
+                {
+                  'type': 'image',
+                  'source': {
+                    'type': 'base64',
+                    'media_type': 'image/png',
+                    'data': data,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    final small = estimateInputTokens(screenshot('AAAA'));
+    final large = estimateInputTokens(screenshot('A' * 400000));
+    expect(large, small);
+    expect(large, inInclusiveRange(1000, 2000));
+  });
+
   test('Chat Completions: a tool call goes out and its stream comes back '
       'as Anthropic\'s', () async {
     upstream.reply = (_) => (

@@ -44,14 +44,38 @@ jobs:
           - runner: windows-11-arm
             targets: aarch64-pc-windows-msvc
             lib: bao_iroh.dll
-          # The oldest Ubuntu built on, for its glibc (release.yml).
+          # In the oldest Ubuntu built in, for its glibc (release.yml's
+          # container): one built on the runner's would ask for its newer one.
           - runner: ubuntu-22.04
+            container: ubuntu:20.04
             targets: x86_64-unknown-linux-gnu
             lib: libbao_iroh.so
           - runner: ubuntu-22.04-arm
+            container: ubuntu:20.04
             targets: aarch64-unknown-linux-gnu
             lib: libbao_iroh.so
+    container: ${{ matrix.container }}
     steps:
+      # The bare image has none of the runner's tools: git first, for the
+      # checkout to be a repository. zstd, for the cache to be saved as the
+      # runners' (a cache is found only where it is unpacked the same way).
+      - name: Install the build's tools
+        if: matrix.container
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          # The mirror the runners use (an x64 image's; an Arm one's is
+          # ports.ubuntu.com), and again where a fetch failed: apt-get
+          # update only warns of it.
+          sed -i 's#http://\(archive\|security\)\.ubuntu\.com#http://azure.archive.ubuntu.com#' \
+            /etc/apt/sources.list
+          for attempt in 1 2 3 4 5; do
+            apt-get -o Acquire::Retries=5 update 2>&1 | tee "$RUNNER_TEMP/apt.log" || true
+            grep -q '^[WE]: Failed to fetch' "$RUNNER_TEMP/apt.log" || break
+            [ "$attempt" = 5 ] && exit 1
+            sleep 15
+          done
+          apt-get -o Acquire::Retries=5 install -y build-essential ca-certificates curl git zstd
       - uses: actions/checkout@v5
       - id: cached
         uses: ./.github/actions/bao-iroh-prebuilt

@@ -207,6 +207,12 @@ class _MarkdownViewState extends State<MarkdownView> {
       return MarkdownBlocks(nodes: nodes, style: style ?? baseStyle);
     }
     Widget? icon(FileLink? link) {
+      // Another machine's (see FileLink.machine): not looked for here.
+      if (link != null && link.machine != null) {
+        return _isFolder(link.path, null)
+            ? FolderIcon(link.path, size: _fileIconSize)
+            : FileIcon(link.path, size: _fileIconSize);
+      }
       final path = link == null ? null : files.resolve(link.path);
       if (path == null) return null;
       return _isFolder(link!.path, files.existence.known(path))
@@ -224,7 +230,7 @@ class _MarkdownViewState extends State<MarkdownView> {
       // An image as an attached one's tag.
       fileTag: (href, label) {
         final link = FileLink.parseHref(href);
-        final path = link == null || link.range != null
+        final path = link == null || link.range != null || link.machine != null
             ? null
             : files.resolveShown(link.path);
         if (path == null || !files.showsImage(path)) return null;

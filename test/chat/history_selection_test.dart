@@ -446,6 +446,65 @@ void main() {
     expect(copied, answer);
   });
 
+  testWidgets('a drag on the text below a code block, begun left of the '
+      'code, selects that text alone', (tester) async {
+    const after = 'The parser drops the last token.';
+    final feed = _Feed([
+      const UserMessageItem(text: 'Why does it fail?'),
+      const AssistantTextItem(
+        'It reads:\n\n```dart\nfinal token = next(); // the last one\n```'
+        '\n\n$after',
+      ),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final delegate = tester
+        .widgetList<SelectionContainer>(
+          find.ancestor(
+            of: find.byType(SuperListView),
+            matching: find.byType(SelectionContainer),
+          ),
+        )
+        .map((container) => container.delegate)
+        .whereType<StaticSelectionContainerDelegate>()
+        .first;
+    RenderParagraph paragraphOf(String text) =>
+        tester.renderObject<RenderParagraph>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is RichText &&
+                widget.text.toPlainText().startsWith(text),
+          ),
+        );
+    final paragraph = paragraphOf(after);
+    final from = paragraph.localToGlobal(const Offset(0.5, 6));
+    // The text begins left of the code (past its line numbers).
+    expect(
+      from.dx,
+      lessThan(paragraphOf('final token').localToGlobal(Offset.zero).dx),
+    );
+
+    final mouse = await tester.startGesture(
+      from,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await mouse.moveTo(
+      paragraph.localToGlobal(Offset(paragraph.size.width - 0.5, 6)),
+    );
+    await tester.pump();
+    await mouse.up();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(delegate.getSelectedContent()?.plainText, after);
+  });
+
   testWidgets('a release the list did not see (the button let go outside '
       'the window) ends the drag: the wheel then leaves the selection', (
     tester,

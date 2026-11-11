@@ -979,16 +979,11 @@ class _ClientGone implements Exception {
   String toString() => 'Claude Code closed the connection';
 }
 
-/// About how many tokens [request]'s input comes to: a quarter of its
-/// text, as no upstream counts them.
-int estimateInputTokens(Map<String, Object?> request) {
-  final text = jsonEncode({
-    'system': request['system'],
-    'messages': request['messages'],
-    'tools': request['tools'],
-  });
-  return (utf8.encode(text).length / 4).ceil();
-}
+/// About how many tokens [request]'s input comes to, as no upstream counts
+/// them: as the usage counts a request's context ([analyzeRequest]), an
+/// image or a document as one, not its base64 as text.
+int estimateInputTokens(Map<String, Object?> request) =>
+    analyzeRequest(request, (_) => null).context?.total ?? 0;
 
 /// The header Claude Code names its session in on every request: what
 /// [sessionId] falls back on.

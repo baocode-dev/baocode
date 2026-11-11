@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../../ide/file_service.dart';
 import '../../ide/file_views.dart';
+import '../../ide/host_paths.dart';
 import '../../workspace/window_controls.dart';
 import '../chat_models.dart';
 import 'file_link.dart';
@@ -110,9 +111,22 @@ class FileLinkTarget {
     this.inPanel = false,
     this.openInIde,
     this.openFolder,
+    this.existsHere,
+    this.openOnHost,
   });
 
   final ValueChanged<FileOpenRequest> open;
+
+  /// Whether the file at an absolute path is there on this machine: one an
+  /// agent on an SSH host names by this machine's path, though it should
+  /// say `local:` (see [FileLink.machine]).
+  final Future<bool> Function(String path)? existsHere;
+
+  /// Shows a file of an SSH host other than the project's (an
+  /// `ssh://host/path` link, see [FileLink.machine]), read-only: none
+  /// where those cannot be read.
+  final void Function(String host, String path, FileLineRange? range)?
+  openOnHost;
 
   /// The home folder of the project's host, where `~` goes; null while it
   /// is not known (a remote host not reached yet).
@@ -246,8 +260,22 @@ class FileOpenScope extends InheritedWidget {
     this.inPanel = false,
     this.onOpenInIde,
     this.onOpenFolder,
+    this.host,
+    this.existsHere,
+    this.openOnHost,
     required super.child,
   });
+
+  /// The SSH host the project is on (as `RemoteLocation.hostOf` names
+  /// it); null for this machine's.
+  final String? host;
+
+  /// See [FileLinkTarget.existsHere].
+  final Future<bool> Function(String path)? existsHere;
+
+  /// See [FileLinkTarget.openOnHost].
+  final void Function(String host, String path, FileLineRange? range)?
+  openOnHost;
 
   /// See [FileLinkTarget.openFolder].
   final ValueChanged<String>? onOpenFolder;
@@ -314,9 +342,10 @@ class FileOpenScope extends InheritedWidget {
     final full = resolve(path);
     if (full == null) return null;
     final context = paths ?? p.context;
-    final inside = [...roots, root].any(
-      (folder) => folder == full || context.isWithin(folder, full),
-    );
+    final inside = [
+      ...roots,
+      root,
+    ].any((folder) => folder == full || context.isWithin(folder, full));
     if (inside) return full;
     final seenFile = _seen(path);
     return seenFile != null && context.equals(seenFile, full) ? full : null;
@@ -338,7 +367,9 @@ class FileOpenScope extends InheritedWidget {
 
   /// The file of [seen] that [path] names: that one (absolute, or relative
   /// to [root]), or the one it ends with (as whole names, `b.dart` not
-  /// `ab.dart`); the last read of those.
+  /// `ab.dart`); the last read of those. A path going up (`../../a/b.dart`,
+  /// relative to a folder the agent's shell went into) ends with what is
+  /// left of it once out of the `..`s, when that is a folder and a file.
   String? _seen(String path) {
     final context = paths ?? p.context;
     if (path.isEmpty || path.startsWith('~')) return null;
@@ -346,8 +377,13 @@ class FileOpenScope extends InheritedWidget {
     final index = _SeenIndex.of(seen, context);
     final full = context.normalize(context.join(root, path));
     if (index.byPath[context.canonicalize(full)] case final file?) return file;
-    final parts = context.split(normalized);
-    if (context.isAbsolute(normalized) || parts.contains('..')) return null;
+    if (context.isAbsolute(normalized)) return null;
+    var parts = context.split(normalized);
+    final up = parts.takeWhile((part) => part == '..').length;
+    if (up > 0) {
+      parts = parts.sublist(up);
+      if (parts.length < 2) return null;
+    }
     for (final (:file, :names)
         in index.byName[parts.last] ?? const <_SeenFile>[]) {
       if (names.length <= parts.length) continue;
@@ -369,7 +405,8 @@ class FileOpenScope extends InheritedWidget {
         onOpen(FileOpenRequest(path, range: link.range, diff: diff));
     final check = existence.check;
     final candidates = _candidates(link.path);
-    if (candidates.length < 2 ||
+    final here = _hereToo(link.path);
+    if ((candidates.length < 2 && here == null) ||
         check == null ||
         existence.known(path) == true) {
       open(path);
@@ -381,9 +418,55 @@ class FileOpenScope extends InheritedWidget {
             .then((found) => found, onError: (_) => false);
         if (found) return open(candidate);
       }
+      if (here != null &&
+          await here(link.path).then((found) => found, onError: (_) => false)) {
+        return showLocal(link.path, range: link.range);
+      }
       open(path);
     }());
     return true;
+  }
+
+  /// Whether [path] is a file of this machine, where an agent on an SSH
+  /// host may name one of the user's computer by its path alone: for an
+  /// absolute path of a remote project's, as it is not on the host.
+  Future<bool> Function(String path)? _hereToo(String path) =>
+      !local && p.context.isAbsolute(path) ? existsHere : null;
+
+  /// [link] as a file where the agent works: one of [FileLink.machine]'s
+  /// that is the project's (`local:` in a local project, `ssh://` to its
+  /// host) by its path; null for one of another machine.
+  FileLink? _here(FileLink link) {
+    final machine = link.machine;
+    if (machine == null) return link;
+    final own = machine == FileLink.userComputer ? local : machine == host;
+    return own ? FileLink(link.path, link.range) : null;
+  }
+
+  /// What a click on [link], a file of another machine than the
+  /// project's, does: one of the user's computer shows here, read-only;
+  /// one of another SSH host is read from it (see [openOnHost]).
+  GestureRecognizer _elsewhere(FileLink link) {
+    final machine = link.machine!;
+    final VoidCallback? open;
+    if (machine == FileLink.userComputer) {
+      open = () => showLocal(link.path, range: link.range);
+    } else if (openOnHost case final onHost?) {
+      open = () => onHost(machine, link.path, link.range);
+    } else {
+      open = null;
+    }
+    final mine = machine == FileLink.userComputer;
+    return FileLinkRecognizer(
+      FileLinkMenu(
+        path: link.path,
+        // Its path copied whole, there being no project of it to be in.
+        root: link.path,
+        paths: mine ? p.context : hostPathsFor(link.path),
+        local: mine,
+        onOpen: open,
+      ),
+    )..onTap = open;
   }
 
   /// What a click on a markdown link to [href] does: opens the file it goes
@@ -391,8 +474,10 @@ class FileOpenScope extends InheritedWidget {
   /// menu (see [FileLinkMenu]). An image shows enlarged, over [context]'s
   /// window, and a web page here opens in the browser (see [activate]).
   GestureRecognizer? linkRecognizer(String? href, {BuildContext? context}) {
-    final link = FileLink.parseHref(href);
-    if (link == null) return null;
+    final parsed = FileLink.parseHref(href);
+    if (parsed == null) return null;
+    final link = _here(parsed);
+    if (link == null) return _elsewhere(parsed);
     final path = resolve(link.path);
     if (path == null) return null;
     return FileLinkRecognizer(
@@ -558,6 +643,7 @@ class FileOpenScope extends InheritedWidget {
       paths != oldWidget.paths ||
       home != oldWidget.home ||
       local != oldWidget.local ||
+      host != oldWidget.host ||
       readBytes != oldWidget.readBytes ||
       inPanel != oldWidget.inPanel ||
       onOpenInIde != oldWidget.onOpenInIde ||

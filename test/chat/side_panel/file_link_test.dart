@@ -114,6 +114,46 @@ void main() {
         expect(FileLink.parseHref(href), isNull, reason: '$href');
       }
     });
+
+    test('another machine\'s: the user\'s computer, an SSH host', () {
+      expect(
+        FileLink.parseHref('local:/Users/me/Downloads/a.pdf'),
+        const FileLink.on(FileLink.userComputer, '/Users/me/Downloads/a.pdf'),
+      );
+      expect(
+        FileLink.parseHref('<local:///Users/me/My Files/a.md#L3>'),
+        const FileLink.on(
+          FileLink.userComputer,
+          '/Users/me/My Files/a.md',
+          FileLineRange(3),
+        ),
+      );
+      expect(
+        FileLink.parseHref('local:C:/Users/me/a.txt'),
+        const FileLink.on(FileLink.userComputer, 'C:/Users/me/a.txt'),
+      );
+      expect(
+        FileLink.parseHref('ssh://devbox/var/log/app.log#L120-L130'),
+        const FileLink.on(
+          'devbox',
+          '/var/log/app.log',
+          FileLineRange(120, 130),
+        ),
+      );
+      expect(
+        FileLink.parseHref('ssh://me@10.0.0.2:2222/srv/a.py:7'),
+        const FileLink.on('me@10.0.0.2:2222', '/srv/a.py', FileLineRange(7)),
+      );
+      expect(
+        FileLink.parseHref('ssh://win/C:/app/a.cs'),
+        const FileLink.on('win', 'C:/app/a.cs'),
+      );
+      // Where a relative one is from is not known there; a host alone is
+      // no file.
+      for (final href in ['local:a/b.md', 'ssh://devbox', 'ssh:///a.md']) {
+        expect(FileLink.parseHref(href), isNull, reason: href);
+      }
+    });
   });
 
   group('inline code', () {
@@ -261,18 +301,21 @@ see also `pubspec.yaml` and [the site](https://baocode.dev).
     expect(ClaudeLaunch.formatting, contains(r'\(...\)'));
     // Its examples parse as it asks them to be written.
     expect(
-      FileLink.parseHref('path/relative/to/working/directory#L42'),
-      const FileLink('path/relative/to/working/directory', FileLineRange(42)),
+      FileLink.parseHref('/absolute/path/to/file#L42'),
+      const FileLink('/absolute/path/to/file', FileLineRange(42)),
     );
     final (:hrefs, code: _) = _parsed(
-      '[notes.md](<docs/release notes.md#L3>) '
-      '[chat_screen.dart:42](lib/chat/chat_screen.dart#L42)',
+      '[notes.md](</Users/me/My Project/docs/notes.md#L3>) '
+      '[chat_screen.dart:42](/Users/me/app/lib/chat/chat_screen.dart#L42)',
     );
     expect(
       [for (final href in hrefs) FileLink.parseHref(href)],
       [
-        const FileLink('docs/release notes.md', FileLineRange(3)),
-        const FileLink('lib/chat/chat_screen.dart', FileLineRange(42)),
+        const FileLink('/Users/me/My Project/docs/notes.md', FileLineRange(3)),
+        const FileLink(
+          '/Users/me/app/lib/chat/chat_screen.dart',
+          FileLineRange(42),
+        ),
       ],
     );
   });

@@ -55,6 +55,13 @@ abstract final class LocalTools {
       ? 'Windows'
       : 'Linux';
 
+  /// A file of this machine, as the instructions' example of a link.
+  static String get _exampleHere => Platform.isWindows
+      ? r'C:/Users/me/Downloads/report.pdf'
+      : Platform.isMacOS
+      ? '/Users/me/Downloads/report.pdf'
+      : '/home/me/Downloads/report.pdf';
+
   static String _hostSystem(String host) =>
       switch (SshHosts.instance[host].hello?.platform.os) {
         'win' => 'Windows',
@@ -102,7 +109,12 @@ abstract final class LocalTools {
         'reached from $name. A server you start on $name that prints its '
         'http://localhost:<port> address is forwarded to their computer on '
         'its own. Where ADB_SERVER_SOCKET is set on $name, adb there uses '
-        'the phones plugged into their computer.';
+        'the phones plugged into their computer. Linking to files: one on '
+        '$name by its absolute path there; one on their computer (one '
+        '$pull copied there, or $run showed) as local:'
+        '<its absolute path there>, e.g. '
+        '[report.pdf](local:$_exampleHere), never '
+        'by its path alone: that would be a file of $name\'s.';
   }
 
   static bool _offered(String cwd) => hostOffered(cwd) != null;

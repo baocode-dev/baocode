@@ -2247,8 +2247,8 @@ void main() {
       expect(transcript.pendingInteraction, isNull);
       expect(cli.responses.last['behavior'], 'allow');
       expect(cli.responses.last['updatedInput'], command);
-      // Protected paths may be classifier-approved in Accept edits; full
-      // access allows them without prompting, including inside compound Bash.
+      // The CLI's safety checks, those it would leave to a person too, are
+      // allowed without prompting, including inside compound Bash.
       const protectedCommand = {
         'command': "sed -E 's/token/***/g' ~/.claude/settings.local.json",
         'description': 'Inspect local settings',
@@ -2265,6 +2265,18 @@ void main() {
           'decision_reason_type': 'subcommandResults',
           'classifier_approvable': true,
         },
+        {'decision_reason_type': 'safetyCheck'},
+        {
+          'decision_reason_type': 'safetyCheck',
+          'classifier_approvable': false,
+          'decision_reason':
+              'Dangerous rm operation not ruled out — the shell may read '
+              'this command differently than it was parsed',
+        },
+        {
+          'decision_reason_type': 'subcommandResults',
+          'classifier_approvable': false,
+        },
       ].indexed) {
         ask('r2-protected-$i', 'Bash', protectedCommand, why);
         await pumpEventQueue();
@@ -2274,15 +2286,9 @@ void main() {
           'updatedInput': protectedCommand,
         });
       }
-      // Manual-only safety checks, explicit ask rules and the plan remain
-      // the user's decisions, even when a protected-path check is approvable.
+      // Explicit ask rules, user interaction and what a host is told to act
+      // on remain the user's decisions, even beside an approvable check.
       for (final (i, why) in const [
-        {'decision_reason_type': 'safetyCheck'},
-        {'decision_reason_type': 'safetyCheck', 'classifier_approvable': false},
-        {
-          'decision_reason_type': 'subcommandResults',
-          'classifier_approvable': false,
-        },
         {
           'decision_reason_type': 'rule',
           'matched_ask_rule': {'toolName': 'Bash'},
@@ -3551,6 +3557,190 @@ void main() {
       kernel.dispose();
     });
 
+    test('the context is as much as the model told, its parts as the CLI '
+        'counted them', () async {
+      final cli = FakeCli(
+        answers: {
+          'get_context_usage': {
+            'totalTokens': 4000,
+            'maxTokens': 10000,
+            'categories': [
+              {'name': 'System prompt', 'tokens': 1000},
+              {'name': 'Messages', 'tokens': 3000},
+              {'name': 'Free space', 'tokens': 5000, 'kind': 'free'},
+              {'name': 'Autocompact buffer', 'tokens': 1000, 'kind': 'buffer'},
+            ],
+          },
+        },
+      );
+      final (:kernel, :transcript, events: _) = claude(cli);
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      expect(transcript.usage!.used, 4000, reason: 'the CLI count, at first');
+
+      Map<String, Object?> reply(String id, Map<String, Object?> usage) => {
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': id,
+          'model': 'gpt-5',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'ok'},
+          ],
+          'usage': usage,
+        },
+      };
+      cli.push(
+        reply('m1', {
+          'input_tokens': 300,
+          'cache_read_input_tokens': 1500,
+          'output_tokens': 200,
+        }),
+      );
+      // A subagent's is not the conversation's.
+      cli.push({
+        ...reply('s1', {'input_tokens': 9000, 'output_tokens': 1}),
+        'parent_tool_use_id': 'task1',
+      });
+      await pumpEventQueue();
+      var usage = transcript.usage!;
+      expect(usage.used, 2000);
+      int tokens(String label) =>
+          usage.segments.firstWhere((s) => s.label == label).tokens;
+      expect(tokens('System prompt'), 500);
+      expect(tokens('Messages'), 1500);
+      expect(tokens('Free space'), 7000);
+      expect(tokens('Autocompact buffer'), 1000);
+
+      // Compacted: what it told is gone; the CLI's count until it tells
+      // again.
+      cli.push({
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'compact_metadata': {'trigger': 'auto', 'pre_tokens': 2000},
+      });
+      await pumpEventQueue();
+      usage = transcript.usage!;
+      expect(usage.used, 4000);
+      expect(tokens('Messages'), 3000);
+      kernel.dispose();
+    });
+
+    group("the tools' results are counted here, an image as one", () {
+      // As Claude Code counts them: a screenshot's base64 as text.
+      final told = {
+        'totalTokens': 4000,
+        'maxTokens': 10000,
+        'categories': [
+          {'name': 'Messages', 'tokens': 4000},
+        ],
+        'messageBreakdown': {
+          'userMessageTokens': 50,
+          'toolCallTokens': 10,
+          'toolResultTokens': 100000,
+          'toolCallsByType': [
+            {'name': 'Screenshot', 'callTokens': 10, 'resultTokens': 100000},
+          ],
+        },
+      };
+      Map<String, Object?> use(String id, String name) => {
+        'type': 'assistant',
+        'uuid': 'a-$id',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'm-$id',
+          'role': 'assistant',
+          'model': 'gpt-5',
+          'content': [
+            {'type': 'tool_use', 'id': id, 'name': name, 'input': const {}},
+          ],
+          'usage': {'input_tokens': 1000, 'output_tokens': 10},
+        },
+      };
+      Map<String, Object?> result(String id, Object content) => {
+        'type': 'user',
+        'uuid': 'r-$id',
+        'parent_tool_use_id': null,
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'tool_result', 'tool_use_id': id, 'content': content},
+          ],
+        },
+      };
+      final screenshot = [
+        {
+          'type': 'image',
+          'source': {
+            'type': 'base64',
+            'media_type': 'image/png',
+            'data': 'A' * 400000,
+          },
+        },
+      ];
+
+      test('as they come', () async {
+        final cli = FakeCli(answers: {'get_context_usage': told});
+        final (:kernel, :transcript, events: _) = claude(cli);
+        kernel.send(const KernelTurn(id: 'u1', text: 'look'));
+        await pumpEventQueue();
+        cli.push(use('t1', 'Screenshot'));
+        cli.push(result('t1', screenshot));
+        cli.push(use('t2', 'Read'));
+        await pumpEventQueue();
+        var detail = transcript.usage!.detail!;
+        expect(detail.toolResults, 1500);
+        expect(
+          detail.toolUses.map((item) => (item.name, item.results)),
+          [('Screenshot', 1500)],
+        );
+
+        cli.push({'type': 'system', 'subtype': 'compact_boundary'});
+        await pumpEventQueue();
+        detail = transcript.usage!.detail!;
+        expect(detail.toolResults, 0);
+        kernel.dispose();
+      });
+
+      test("a resumed session's, read from its start", () async {
+        final whole = [
+          use('t1', 'Screenshot'),
+          result('t1', screenshot),
+          use('t2', 'Read'),
+          result('t2', 'x' * 400),
+        ];
+        final kernel = ClaudeCodeKernel(
+          MockKernels.claudeCode,
+          KernelContext(
+            cwd: '/p',
+            resume: SessionRecord(
+              id: 's',
+              title: 't',
+              updatedAt: DateTime(2026),
+              cwd: '/p',
+            ),
+          ),
+          start: (_) async => FakeCli(answers: {'get_context_usage': told}),
+          // Its first page has only the last call's.
+          readHistoryPage: (session, {required turns, before}) async =>
+              ClaudeHistoryPage(whole.sublist(2), earlier: 'a-t1'),
+          readHistory: (session) async => whole,
+        );
+        final transcript = Transcript();
+        kernel.events.listen(transcript.apply);
+        kernel.prepare();
+        await pumpEventQueue();
+        final detail = transcript.usage!.detail!;
+        expect(detail.toolResults, 1600);
+        expect(
+          {for (final item in detail.toolUses) item.name: item.results},
+          {'Screenshot': 1500, 'Read': 100},
+        );
+        kernel.dispose();
+      });
+    });
+
     test("keeps the calls on Claude Code's own models, timed, and priced "
         "at Anthropic's as the CLI prices them", () async {
       final ledger = UsageLedger.current = UsageLedger(MemoryUsageStorage());
@@ -3963,6 +4153,7 @@ void main() {
         String model = 'claude-opus-5-5',
         Object? parent,
         bool sidechain = false,
+        bool withCache = true,
       }) => {
         'type': 'assistant',
         'parent_tool_use_id': ?parent,
@@ -3975,9 +4166,9 @@ void main() {
           'usage': {
             'input_tokens': uncached,
             // As the proxy gives a provider's: only what was cached.
-            if (read > 0 || !model.startsWith('p/'))
+            if (withCache && (read > 0 || !model.startsWith('p/')))
               'cache_read_input_tokens': read,
-            if (written > 0 || !model.startsWith('p/'))
+            if (withCache && (written > 0 || !model.startsWith('p/')))
               'cache_creation_input_tokens': written,
           },
         },
@@ -3996,7 +4187,9 @@ void main() {
         ),
         start: (_) async => cli,
         readHistory: (_) async => [
-          // A message comes a content block a line, each with its usage.
+          // A message comes a content block a line, its usage completed by
+          // the last one; identical lines still count once.
+          assistant('m1', 0, 0, uncached: 20002),
           assistant('m1', 0, 20000),
           assistant('m1', 0, 20000),
           assistant('sub', 900, 900, sidechain: true),
@@ -4005,6 +4198,10 @@ void main() {
         ],
       );
       final transcript = Transcript();
+      var statsReports = 0;
+      kernel.events.listen((event) {
+        if (event is StatsReported) statsReports++;
+      });
       kernel.events.listen(transcript.apply);
       await pumpEventQueue();
       var cache = transcript.stats!.cache!;
@@ -4015,8 +4212,10 @@ void main() {
       kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
       await pumpEventQueue();
       cli
+        ..push(assistant('m3', 0, 0, uncached: 30502))
         ..push(assistant('m3', 30000, 500))
-        ..push(assistant('m3', 30000, 500))
+        // A partial line after the complete one leaves the cache intact.
+        ..push(assistant('m3', 0, 0, withCache: false))
         ..push(assistant('agent', 5000, 5000, parent: 'toolu_1'))
         // An API error's: no usage of the model's.
         ..push(assistant('err', 0, 0, uncached: 0));
@@ -4026,6 +4225,12 @@ void main() {
       expect(cache.last.hitRate, closeTo(30000 / 30502, 1e-9));
       expect(cache.conversation.read, 30000);
       expect(cache.conversation.written, 50500);
+
+      // An identical line does not report the same stats again.
+      final beforeDuplicate = statsReports;
+      cli.push(assistant('m3', 30000, 500));
+      await pumpEventQueue();
+      expect(statsReports, beforeDuplicate);
 
       // A provider's model that never says what was cached: not shown,
       // rather than all uncached.

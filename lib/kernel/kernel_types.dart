@@ -207,6 +207,41 @@ class ContextDetail {
       toolResults +
       attachmentTokens;
 
+  /// As told, but the tool calls' results as [results] (by tool) has
+  /// them.
+  ContextDetail withToolResults(Map<String, int> results) {
+    final told = {for (final item in toolUses) item.name};
+    return ContextDetail(
+      systemPrompt: systemPrompt,
+      systemTools: systemTools,
+      deferredTools: deferredTools,
+      mcpTools: mcpTools,
+      agents: agents,
+      memoryFiles: memoryFiles,
+      skills: skills,
+      toolUses: [
+        for (final item in toolUses)
+          ContextItem(
+            item.name,
+            item.tokens,
+            group: item.group,
+            source: item.source,
+            loaded: item.loaded,
+            results: results[item.name] ?? 0,
+          ),
+        for (final MapEntry(:key, :value) in results.entries)
+          if (!told.contains(key)) ContextItem(key, 0, results: value),
+      ],
+      attachments: attachments,
+      userMessages: userMessages,
+      assistantMessages: assistantMessages,
+      toolCalls: toolCalls,
+      toolResults: results.values.fold(0, (sum, tokens) => sum + tokens),
+      attachmentTokens: attachmentTokens,
+      autoCompactAt: autoCompactAt,
+    );
+  }
+
   /// From Claude Code's `get_context_usage` answer; null without one
   /// thing in it.
   static ContextDetail? parse(Map<Object?, Object?> usage) {

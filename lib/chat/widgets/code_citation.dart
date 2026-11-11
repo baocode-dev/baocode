@@ -16,8 +16,8 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../chat_find.dart' show ChatFindMarks;
 import '../side_panel/file_link.dart' show FileLineRange, FileLink;
 import '../side_panel/file_open.dart' show FileOpenScope;
-import 'finite_selection_edges.dart';
 import 'hover_builder.dart';
+import 'table_selection.dart';
 import 'will_change_paint.dart';
 
 /// Code the agent cited from a file, as it is asked to
@@ -740,14 +740,17 @@ class _CodeCardState extends State<_CodeCard> {
             children: [
               numbers,
               Expanded(
-                child: SingleChildScrollView(
-                  controller: _horizontal,
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(right: 12),
-                  // Copied a line to a line, as one paragraph was.
-                  child: FiniteSelectionEdges(
-                    joinsLines: true,
-                    child: WillChangePaint(child: code),
+                // The code's selection is its own, not the scroll view's.
+                child: SelectionContainer.disabled(
+                  child: SingleChildScrollView(
+                    controller: _horizontal,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(right: 12),
+                    // Copied a line to a line, as one paragraph was.
+                    child: TableSelection.lines(
+                      registrar: SelectionContainer.maybeOf(context),
+                      child: WillChangePaint(child: code),
+                    ),
                   ),
                 ),
               ),
