@@ -219,6 +219,18 @@ LRESULT CALLBACK ViewWindow::ViewProc(HWND hwnd, UINT const message,
   auto* that =
       static_cast<ViewWindow*>(GetThisFromHandle(::GetParent(hwnd)));
 
+  // Other apps asking for the view's accessibility objects (screen readers,
+  // and input methods, translators and the like that read what is on screen)
+  // get the system's plain answer for a window, not the engine's. The engine
+  // turns Flutter's semantics on at the first such question and keeps them on,
+  // which costs every frame (PipelineOwner.flushSemantics), and its hit test
+  // over that tree crashes on a child it has no node for
+  // (FlutterPlatformNodeDelegateWindows::HitTestSync, flutter/flutter#195653).
+  // The app makes no claim to work with screen readers.
+  if (message == WM_GETOBJECT) {
+    return ::DefWindowProcW(hwnd, message, wparam, lparam);
+  }
+
   // The cursor's position, over the parts of the window that are the
   // window's own, is this window's to answer — its buttons, and the strip
   // Flutter draws the header in. The view is a child window over the whole
