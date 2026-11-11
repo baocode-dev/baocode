@@ -749,6 +749,7 @@ class LinkSessionUpdate {
     this.tasks = const [],
     this.earlier,
     this.goal,
+    this.context,
   });
 
   factory LinkSessionUpdate.fromJson(Map<String, Object?> json) =>
@@ -776,6 +777,10 @@ class LinkSessionUpdate {
         ],
         earlier: json['earlier'] as bool?,
         goal: switch (json['goal']) {
+          final Map<String, Object?> map => map,
+          _ => null,
+        },
+        context: switch (json['context']) {
           final Map<String, Object?> map => map,
           _ => null,
         },
@@ -814,6 +819,13 @@ class LinkSessionUpdate {
   /// "duration", "tokens"}`, its times in milliseconds.
   final Map<String, Object?>? goal;
 
+  /// How full the agent's context is, if its kernel says: `{"window",
+  /// "used", "parts": [{"part", "tokens"}], "compactAt"}`, a part by the
+  /// desktop's key for it (`system`, `tools`, `mcp`, `memory`, `skills`,
+  /// `messages`) or the kernel's own name, `compactAt` where it is
+  /// compacted, in tokens.
+  final Map<String, Object?>? context;
+
   Map<String, Object?> toJson() => {
     'session': session,
     'start': start,
@@ -826,6 +838,7 @@ class LinkSessionUpdate {
     if (tasks.isNotEmpty) 'tasks': [for (final task in tasks) task.toJson()],
     'earlier': ?earlier,
     'goal': ?goal,
+    'context': ?context,
   };
 }
 

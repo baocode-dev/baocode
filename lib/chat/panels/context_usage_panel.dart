@@ -46,8 +46,7 @@ class ContextUsagePanel extends StatefulWidget {
   /// Claude Code's categories (by their English names, as it reports
   /// them) as the usage views' parts: an agent's definition is in the
   /// Agent tool's, the servers' instructions with their tools, the slash
-  /// commands with the skills.
-  @visibleForTesting
+  /// commands with the skills. The phone is told them so too.
   static String? partOf(String category) =>
       switch (category.toLowerCase().trim()) {
         'system prompt' => 'system',
