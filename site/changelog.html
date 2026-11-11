@@ -30,6 +30,28 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.9.3">
+    <h2 class="plain"><a href="#v1.9.3">1.9.3</a></h2>
+    <p>This release can put files back when you edit a message, shows and uses Claude subscription limit resets, runs on Kylin and UOS Linux, and fixes how context usage is counted along with a batch of chat problems.</p>
+    <p>New</p>
+    <ul>
+    <li>When you edit an earlier message and send it again, the files the agent changed from that message on can go back as they were; what you or another conversation changed since is kept. Settings → General → Edited Messages: Ask Each Time, Undo the Changes or Keep the Changes. For Claude Code and BaoCode Agent; changes made by commands (Bash) are not tracked.</li>
+    <li>Settings → Models shows, on the Claude Code row, the limit resets your subscription has: how many, what each clears, how much is used and until when. One is used only after you confirm.</li>
+    <li>The Linux .deb runs on glibc 2.31 systems such as Kylin V10 SP1 and UOS 20.</li>
+    <li>The phone app shows how full a conversation's context is (phone app 0.1.10).</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Context usage shows what the model reported: a conversation full of screenshots no longer counts as millions of tokens, and tool results are counted by call, an image as one.</li>
+    <li>Full access no longer asks about the safety checks Claude Code leaves to a person; your own ask rules still apply.</li>
+    <li>File links an agent writes after changing folders open, and tell a file of your computer from one on the SSH host.</li>
+    <li>When an upstream reports 0 input tokens, usage no longer shows every call as fully cached.</li>
+    <li>The commit panel no longer stalls while the agent answers (hangs of seconds on Intel Macs).</li>
+    <li>Dragging from the start of the text below a code block selects that text.</li>
+    <li>The side panel's buttons no longer cover the chat find bar's close button.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.9.2">
     <h2 class="plain"><a href="#v1.9.2">1.9.2</a></h2>
     <p>This release fixes a batch of chat, model and SSH problems, brings SSH remote to Linux hosts on RISC-V, and lets models go through magpie's gateway.</p>
