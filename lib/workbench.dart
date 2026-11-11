@@ -438,6 +438,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         final multi? => multi.folders.firstOrNull ?? location,
         null => RemoteLocation.pathOf(location),
       },
+      // New Terminal there asks which of them.
+      foldersOf: (location) =>
+          _workspace.workspaceAt(location)?.folders ?? const [],
     )..onLastClosed = _focusCurrentChat,
     _ => null,
   }?..addListener(_terminalsChanged);

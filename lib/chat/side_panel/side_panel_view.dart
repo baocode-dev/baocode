@@ -1013,9 +1013,10 @@ class AgentSidePanelView extends StatelessWidget {
       shown: tabs.terminal,
       onShow: (id) => panel.openTerminal(session, id),
       // Shown here, the panel's own left as it was.
-      onNew: () => terminals?.create(activate: false),
-      onNewWithProfile: (profile) =>
-          terminals?.create(profile: profile, activate: false),
+      onNew: ({cwd}) => terminals?.create(cwd: cwd, activate: false),
+      onNewWithProfile: (profile, {cwd}) =>
+          terminals?.create(profile: profile, cwd: cwd, activate: false),
+      folders: roots,
       tasks: SessionTerminalTasks(session),
       files: files,
       skipShell: terminalSkipShell,
