@@ -80,6 +80,20 @@ void main() {
         FileLink.parseHref('file:///C:/p/a.dart'),
         const FileLink('C:/p/a.dart'),
       );
+      // A Windows model's, after the prompt's `/absolute/path`: opened as
+      // `\D:\Desktop\…`, not found, before.
+      expect(
+        FileLink.parseHref('/D:/Desktop/ctf/pelican_bicycle.svg'),
+        const FileLink('D:/Desktop/ctf/pelican_bicycle.svg'),
+      );
+      expect(
+        FileLink.parseHref(r'/D:\p\a.dart#L4'),
+        const FileLink(r'D:\p\a.dart', FileLineRange(4)),
+      );
+      expect(
+        FileLink.parseHref('</D:/My Project/a.dart>'),
+        const FileLink('D:/My Project/a.dart'),
+      );
     });
 
     test('spaces, escaped or in angle brackets', () {
@@ -245,6 +259,17 @@ void main() {
             .resolveIn(r'C:\p', paths: windows, home: r'C:\Users\me'),
         r'C:\Users\me\a.dart',
       );
+      // Another user's, not this one's.
+      expect(
+        const FileLink(r'~bob\a.dart')
+            .resolveIn(r'C:\p', paths: windows, home: r'C:\Users\me'),
+        isNull,
+      );
+      // A code citation's `/D:/…`, the drive's.
+      expect(
+        const FileLink('/D:/other/a.dart').resolveIn(r'C:\p', paths: windows),
+        r'D:\other\a.dart',
+      );
     });
   });
 
@@ -303,6 +328,10 @@ see also `pubspec.yaml` and [the site](https://baocode.dev).
     expect(
       FileLink.parseHref('/absolute/path/to/file#L42'),
       const FileLink('/absolute/path/to/file', FileLineRange(42)),
+    );
+    expect(
+      FileLink.parseHref('C:/Users/me/app/Program.cs#L12'),
+      const FileLink('C:/Users/me/app/Program.cs', FileLineRange(12)),
     );
     final (:hrefs, code: _) = _parsed(
       '[notes.md](</Users/me/My Project/docs/notes.md#L3>) '
