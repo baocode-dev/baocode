@@ -24,7 +24,13 @@ void main() {
     final semantics = tester.ensureSemantics();
     await pumpApp(tester);
     expect(find.bySemanticsLabel('Open a project folder'), findsNothing);
-    final root = tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode;
+    final root = tester
+        .binding
+        .renderViews
+        .single
+        .owner!
+        .semanticsOwner!
+        .rootSemanticsNode;
     expect(root?.childrenCount ?? 0, 0);
     semantics.dispose();
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
