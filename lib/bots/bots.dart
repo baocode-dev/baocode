@@ -22,6 +22,7 @@ import '../workspace/workspace.dart';
 import 'bot.dart';
 import 'bot_files.dart';
 import 'bot_folders.dart';
+import 'bot_groups.dart';
 import 'bot_pacer.dart';
 import 'bot_permissions.dart';
 import 'bot_prompt.dart';
@@ -51,6 +52,13 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   final Workspace workspace;
   final BotFolders folders;
+
+  /// The user's group chats with them.
+  late final BotGroups groups = BotGroups(this);
+
+  /// What a bot is told of the group chat its conversation in [cwd] is
+  /// of, if it is one's ([BotGroups]).
+  String? Function(Bot bot, String cwd)? groupPrompt;
 
   /// Where what the app keeps of them besides their files is: the agents
   /// each is told of.
@@ -163,6 +171,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     if (_disposed) return;
     // Each with its conversation, for the phones to open from the first.
     _bots.forEach(threadFor);
+    groups.start();
     workspace.addListener(_watch);
     _watch();
     _schedule();
@@ -174,6 +183,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   @override
   void dispose() {
     _disposed = true;
+    groups.dispose();
     if (_started) {
       workspace.removeListener(_watch);
       if (identical(ClaudeSdkTools.gate, this)) ClaudeSdkTools.gate = null;
@@ -454,26 +464,37 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   Bot? byId(String id) => _bots.where((bot) => bot.id == id).firstOrNull;
 
-  /// The bot whose folder [cwd] is.
-  Bot? botAt(String cwd) => _bots.where((bot) => bot.folder == cwd).firstOrNull;
+  /// The bot whose folder [cwd] is: its chat with the user's, or one of
+  /// its group chats' ([BotGroups.memberFolder]).
+  Bot? botAt(String cwd) => _bots
+      .where(
+        (bot) =>
+            bot.folder == cwd ||
+            BotGroups.groupAt(cwd) != null &&
+                p.dirname(p.dirname(cwd)) == bot.folder,
+      )
+      .firstOrNull;
 
   AgentSetup? _setup(String path) => switch (botAt(path)) {
     final bot? => AgentSetup(
       workspace: () => KernelWorkspace(
         folders: const [],
-        instructions: botInstructions(
-          bot,
-          user: _me,
-          memory: memory(bot),
-          self: selfNotes(bot),
-          computer: computer,
-          now: _clock(),
-          imageModel:
-              ClaudeSdkTools.called(
-                'mcp__${ClaudeSdkTools.server}__${ImageTools.name}',
-              ) !=
-              null,
-        ),
+        instructions: [
+          botInstructions(
+            bot,
+            user: _me,
+            memory: memory(bot),
+            self: selfNotes(bot),
+            computer: computer,
+            now: _clock(),
+            imageModel:
+                ClaudeSdkTools.called(
+                  'mcp__${ClaudeSdkTools.server}__${ImageTools.name}',
+                ) !=
+                null,
+          ),
+          if (path != bot.folder) ?groupPrompt?.call(bot, path),
+        ].join('\n\n'),
         // Told only who it is and how it talks: no coding agent's prompt.
         ownPrompt: true,
         // An agent's, but for what waits on someone at the computer
@@ -481,7 +502,11 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         // it only chats (with the tool search, for the browser's, which
         // are deferred). All of it unasked: the user is on their phone,
         // not at the computer.
-        tools: BotPermissions.tools(bot),
+        // In a group, its chat read with Read, even one that only chats.
+        tools: [
+          ...BotPermissions.tools(bot),
+          if (path != bot.folder && bot.chatOnly) 'Read',
+        ],
         // An agent's has the user's MCP servers, as an agent does.
         userServers: !bot.chatOnly,
         approvesAll: true,

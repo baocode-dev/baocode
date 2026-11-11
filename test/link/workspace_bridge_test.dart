@@ -619,6 +619,83 @@ void main() {
     );
   });
 
+  test('a group: made, its messages sent and read, its new ones as they '
+      'come to a phone that has it open', () async {
+    final workspace = Workspace();
+    addTearDown(workspace.dispose);
+    final bots = Bots(workspace: workspace, folders: MemoryBotFolders());
+    await bots.start();
+    addTearDown(bots.dispose);
+    bots.groups
+      ..quiet = Duration.zero
+      ..stagger = Duration.zero
+      ..tell = (_, _, _) {};
+    final mia = bots.save(name: 'Mia', identity: '', abilities: {});
+    final (phone, desktop) = await peers();
+    final withBots = WorkspaceBridge(
+      workspace: workspace,
+      peer: desktop,
+      device: () => const DeviceInfo(name: 'Mac', kind: 'mac', system: 'macOS'),
+      bots: bots,
+    )..start();
+    addTearDown(withBots.dispose);
+    final made = LinkGroup.fromJson(
+      ((await withBots.handle(LinkMethods.saveGroup, {
+                'name': '江湖',
+                'members': ['assistant', mia.id],
+              }))!
+              as Map)['group']
+          as Map<String, Object?>,
+    );
+    expect(made.members, ['assistant', mia.id]);
+    expect(withBots.state().groups.single.name, '江湖');
+    final png = base64.encode([137, 80, 78, 71]);
+    final send = {
+      'group': made.id,
+      'text': ' 你们好 ',
+      'images': [
+        {'data': png, 'type': 'image/png'},
+      ],
+      'id': 'm1',
+    };
+    expect(await withBots.handle(LinkMethods.sendGroup, send), {'seq': 1});
+    // Sent again, as when the link dropped: once.
+    expect(await withBots.handle(LinkMethods.sendGroup, send), {'seq': 1});
+    expect(withBots.state().groups.single.unread, 0);
+    final opened =
+        (await withBots.handle(LinkMethods.openGroup, {'group': made.id}))!
+            as Map;
+    expect(opened['more'], isFalse);
+    final first = LinkGroupMessage.fromJson(
+      (opened['messages'] as List).single as Map<String, Object?>,
+    );
+    expect((first.text, first.mine), ('你们好', true));
+    expect(
+      await withBots.handle(LinkMethods.groupImage, {
+        'group': made.id,
+        'image': first.images.single,
+      }),
+      {'type': 'image/png', 'data': png},
+    );
+    // Mia told of it, and answers.
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final came = phone.events
+        .firstWhere((e) => e.name == LinkEvents.group)
+        .timeout(const Duration(seconds: 5));
+    bots.groups.turnEnded(made.id, mia.id, '<bot_say>嗨</bot_say>');
+    final event = (await came).data! as Map;
+    expect(event['group'], made.id);
+    expect(
+      [
+        for (final m in event['messages'] as List)
+          LinkGroupMessage.fromJson(m as Map<String, Object?>).from,
+      ],
+      [mia.id],
+    );
+    await withBots.handle(LinkMethods.deleteGroup, {'group': made.id});
+    expect(withBots.state().groups, isEmpty);
+  });
+
   test('a bot\'s files open from its chat: by their full path', () async {
     final workspace = Workspace();
     addTearDown(workspace.dispose);

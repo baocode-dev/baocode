@@ -1,4 +1,5 @@
 import 'bots.dart';
+import 'groups.dart';
 
 /// What a phone asks a desktop ([LinkPeer.call]).
 abstract final class LinkMethods {
@@ -217,9 +218,48 @@ abstract final class LinkMethods {
   /// none). Sent when it changes, and on connecting.
   static const setMe = 'setMe';
 
+  /// `{"group"?, "name", "members"}`: the group chat changed, or a new
+  /// one (no `group`), of the bots [members] names (their ids) and the
+  /// user: `{"group": LinkGroup}`. `unknown` from a desktop before groups.
+  static const saveGroup = 'saveGroup';
+
+  /// `{"group"}`: the group deleted, its messages with it.
+  static const deleteGroup = 'deleteGroup';
+
+  /// `{"group", "count"?}`: its last `count` messages (50 if not said),
+  /// `{"messages": [LinkGroupMessage], "more"}` (`more`: there are
+  /// earlier ones); and those that come after, as they come
+  /// ([LinkEvents.group]), till [closeGroup]. Read by the user.
+  static const openGroup = 'openGroup';
+
+  /// `{"group", "before", "count"?}`: its `count` messages (50 if not
+  /// said) before the `before`th: `{"messages", "more"}`.
+  static const earlierGroup = 'earlierGroup';
+
+  /// `{"group"}`: its messages no longer sent as they come.
+  static const closeGroup = 'closeGroup';
+
+  /// `{"group", "text", "images"?, "id"?}` (`images` as [send]'s): the
+  /// user's message to the group: `{"seq"}`. Sent again with the same
+  /// `id`, taken once.
+  static const sendGroup = 'sendGroup';
+
+  /// `{"group", "image"}`: a picture of one of its messages
+  /// ([LinkGroupMessage.images]): `{"type", "data"}`.
+  static const groupImage = 'groupImage';
+
   /// Those whose answers can be large: each goes on a stream of its own
   /// (see [LinkPeer]), holding up nothing else.
-  static const bulk = {read, image, icon, files, folder, botAvatar, extensions};
+  static const bulk = {
+    read,
+    image,
+    icon,
+    files,
+    folder,
+    botAvatar,
+    extensions,
+    groupImage,
+  };
 }
 
 /// How much of what a phone asks for it gets, at most.
@@ -363,6 +403,10 @@ abstract final class LinkEvents {
 
   /// The desktop unpaired the phone; the connection ends.
   static const unpaired = 'unpaired';
+
+  /// `{"group", "messages": [LinkGroupMessage]}`: a group's messages that
+  /// came, of a group opened ([LinkMethods.openGroup]).
+  static const group = 'group';
 
   /// A [LinkOutput]: what a task watched ([LinkMethods.watchOutput]) wrote.
   static const output = 'output';
@@ -634,6 +678,7 @@ class LinkState {
     this.projects = const [],
     this.sessions = const [],
     this.bots = const [],
+    this.groups = const [],
   });
 
   factory LinkState.fromJson(Map<String, Object?> json) => LinkState(
@@ -650,6 +695,10 @@ class LinkState {
       for (final bot in (json['bots'] as List?) ?? const [])
         LinkBot.fromJson(_map(bot)),
     ],
+    groups: [
+      for (final group in (json['groups'] as List?) ?? const [])
+        LinkGroup.fromJson(_map(group)),
+    ],
   );
 
   final DeviceInfo device;
@@ -660,11 +709,16 @@ class LinkState {
   /// [sessions].
   final List<LinkBot> bots;
 
+  /// The group chats of the user and their [bots].
+  final List<LinkGroup> groups;
+
   Map<String, Object?> toJson() => {
     'device': device.toJson(),
     'projects': [for (final project in projects) project.toJson()],
     'sessions': [for (final session in sessions) session.toJson()],
     if (bots.isNotEmpty) 'bots': [for (final bot in bots) bot.toJson()],
+    if (groups.isNotEmpty)
+      'groups': [for (final group in groups) group.toJson()],
   };
 }
 
