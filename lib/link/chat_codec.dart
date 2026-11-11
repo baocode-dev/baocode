@@ -33,6 +33,10 @@ abstract final class ChatCodec {
   /// its chat as a card that opens it.
   static const botCardTag = 'bot_show_chat';
 
+  /// The tag a bot wraps each of what the user might say next in, at the
+  /// end of its reply, when they turned that on: a tap away from sent.
+  static const botSuggestTag = 'bot_suggest';
+
   /// What the app told a bot in [item], if it is such a note.
   static String? botEvent(UserMessageItem item) {
     // The pictures that came with it referred to after it, if they are.
@@ -84,6 +88,18 @@ abstract final class ChatCodec {
 
   static final _botParts = RegExp(
     '<($botSayTag|$botNarrateTag|$botCardTag)>(.*?)</\\1>',
+    dotAll: true,
+  );
+
+  /// What a bot's reply [text] suggests the user say next
+  /// ([botSuggestTag]), each once closed: not among what it shows.
+  static List<String> botSuggestions(String text) => [
+    for (final match in _botSuggestions.allMatches(text))
+      if (match[1]!.trim() case final said when said.isNotEmpty) said,
+  ];
+
+  static final _botSuggestions = RegExp(
+    '<$botSuggestTag>(.*?)</$botSuggestTag>',
     dotAll: true,
   );
 
