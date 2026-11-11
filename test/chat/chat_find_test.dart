@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_feed.dart';
+import 'package:baocode/chat/chat_column.dart';
 import 'package:baocode/chat/chat_find.dart';
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_models.dart';
@@ -60,23 +61,41 @@ List<ChatItem> _turn(int n) => [
 
 final _historyKey = GlobalKey();
 
+const _railWidth = 40.0;
+
 Future<void> _pump(
   WidgetTester tester,
   ChatFeed feed, {
   VoidCallback? onClosed,
+  Widget? rail,
 }) async {
   tester.view.physicalSize = const Size(1000, 700);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  final history = ChatHistoryView(
+    key: _historyKey,
+    feed: feed,
+    onFindClosed: onClosed,
+  );
   await tester.pumpWidget(
     MaterialApp(
       theme: buildAppTheme(),
       home: Scaffold(
-        body: ChatHistoryView(
-          key: _historyKey,
-          feed: feed,
-          onFindClosed: onClosed,
-        ),
+        // As the side panel's rail floats over the chat's top right.
+        body: rail == null
+            ? history
+            : Stack(
+                children: [
+                  ChatColumnInset(right: _railWidth + 8, child: history),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    width: _railWidth,
+                    height: 200,
+                    child: rail,
+                  ),
+                ],
+              ),
       ),
     ),
   );
@@ -198,6 +217,41 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
+    expect(find.byType(IdeFindWidget), findsNothing);
+    expect(closed, 1);
+  });
+
+  testWidgets('the bar is over the side panel\'s rail, not under it', (
+    tester,
+  ) async {
+    var railTaps = 0;
+    var closed = 0;
+    await _pump(
+      tester,
+      _Feed(_turn(0)),
+      onClosed: () => closed++,
+      rail: GestureDetector(
+        onTap: () => railTaps++,
+        child: const ColoredBox(color: Color(0xFF00FF00)),
+      ),
+    );
+    ChatHistoryView.find(_historyKey, query: 'Question');
+    await tester.pump();
+    final bar = tester.getRect(find.byType(IdeFindWidget));
+    final rail = Rect.fromLTWH(1000 - _railWidth, 0, _railWidth, 200);
+    expect(bar.overlaps(rail), isTrue);
+
+    // Its keys its own still.
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(find.byType(IdeFindWidget), findsOneWidget);
+
+    // A press where the two meet is the bar's: its close button, there.
+    final where = Offset((bar.right + rail.left) / 2, bar.center.dy);
+    expect(rail.contains(where) && bar.contains(where), isTrue);
+    await tester.tapAt(where);
+    await tester.pump();
+    expect(railTaps, 0);
     expect(find.byType(IdeFindWidget), findsNothing);
     expect(closed, 1);
   });
