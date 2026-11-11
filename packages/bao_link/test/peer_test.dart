@@ -147,6 +147,7 @@ void main() {
       bool live = true,
       List<Map<String, Object?>> changes = const [],
       bool? earlier,
+      Map<String, Object?>? context,
     }) => LinkSessionUpdate(
       session: 's',
       start: start,
@@ -155,6 +156,7 @@ void main() {
       live: live,
       changes: changes,
       earlier: earlier,
+      context: context,
     );
 
     test('a message streaming in goes as what is added', () async {
@@ -248,6 +250,31 @@ void main() {
       expect(wire.containsKey('earlier'), isTrue);
       expect(wire['earlier'], isNull);
       expect(LinkSessionUpdate.fromJson(mirror.apply(wire)!).earlier, isNull);
+    });
+
+    test('how full the context is stays, and goes when it changes', () {
+      final slimmer = LinkSessionSlimmer();
+      const half = {'window': 200000, 'used': 100000};
+      final mirror = LinkSessionMirror()
+        ..opened(
+          slimmer.encode(
+            update(0, [message('a')], 1, context: half),
+            full: true,
+          ),
+        );
+
+      // A message streaming in: the context as it was, not sent again.
+      final wire = slimmer.encode(
+        update(0, [message('ab')], 1, context: half),
+        before: message('a'),
+      );
+      expect(wire.containsKey('context'), isFalse);
+      expect(LinkSessionUpdate.fromJson(mirror.apply(wire)!).context, half);
+
+      const more = {'window': 200000, 'used': 150000};
+      final grown = slimmer.encode(update(1, const [], 1, context: more));
+      expect(grown['context'], more);
+      expect(LinkSessionUpdate.fromJson(mirror.apply(grown)!).context, more);
     });
 
     test('earlier items move what follows along', () {
