@@ -21637,6 +21637,108 @@ abstract class AppLocalizations {
   /// **'Its quota starts over at once. The credit can\'t be given back, and whatever quota is left now is lost.'**
   String get modelsResetCreditConfirmDetail;
 
+  /// No description provided for @claudeResets.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 reset} other{{count} resets}}'**
+  String claudeResets(int count);
+
+  /// No description provided for @claudeResetsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Claude limit resets'**
+  String get claudeResetsTitle;
+
+  /// No description provided for @claudeResetsDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Granted by Anthropic. Using one sets the limits it lists back to nothing used.'**
+  String get claudeResetsDetail;
+
+  /// No description provided for @claudeResetClears.
+  ///
+  /// In en, this message translates to:
+  /// **'Clears {windows}'**
+  String claudeResetClears(String windows);
+
+  /// No description provided for @claudeResetWindowUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'{window} ({percent}% used)'**
+  String claudeResetWindowUsed(String window, int percent);
+
+  /// No description provided for @claudeResetWeeklyOf.
+  ///
+  /// In en, this message translates to:
+  /// **'{model} weekly'**
+  String claudeResetWeeklyOf(String model);
+
+  /// No description provided for @claudeResetNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get claudeResetNext;
+
+  /// No description provided for @claudeResetUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Use One…'**
+  String get claudeResetUse;
+
+  /// No description provided for @claudeResetConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a Claude limit reset?'**
+  String get claudeResetConfirm;
+
+  /// No description provided for @claudeResetConfirmDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'“{label}” sets {windows} back to nothing used, at once. The reset can\'t be given back, and what is left of these limits now is lost.'**
+  String claudeResetConfirmDetail(String label, String windows);
+
+  /// No description provided for @claudeResetPaused.
+  ///
+  /// In en, this message translates to:
+  /// **'Paused'**
+  String get claudeResetPaused;
+
+  /// No description provided for @claudeResetCooldown.
+  ///
+  /// In en, this message translates to:
+  /// **'Usable again {time}'**
+  String claudeResetCooldown(String time);
+
+  /// No description provided for @claudeResetUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not usable now ({reason})'**
+  String claudeResetUnavailable(String reason);
+
+  /// No description provided for @claudeResetSignedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'The Claude.ai sign-in has expired; Claude Code renews it as it next runs.'**
+  String get claudeResetSignedOut;
+
+  /// No description provided for @claudeResetDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset: {windows}'**
+  String claudeResetDone(String windows);
+
+  /// No description provided for @claudeResetNotDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Not reset: {reason}'**
+  String claudeResetNotDone(String reason);
+
+  /// No description provided for @claudeResetsRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get claudeResetsRefresh;
+
   /// No description provided for @resetCreditsHint.
   ///
   /// In en, this message translates to:

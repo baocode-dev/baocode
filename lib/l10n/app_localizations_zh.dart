@@ -12547,6 +12547,75 @@ class AppLocalizationsZh extends AppLocalizations {
       '额度会立即重置，卡用掉后不能退回；现在还没用完的额度也就作废了。';
 
   @override
+  String claudeResets(int count) {
+    return '重置卡 $count 张';
+  }
+
+  @override
+  String get claudeResetsTitle => 'Claude 重置卡';
+
+  @override
+  String get claudeResetsDetail => 'Anthropic 赠送。用掉一张，它列出的额度立即清零。';
+
+  @override
+  String claudeResetClears(String windows) {
+    return '清零：$windows';
+  }
+
+  @override
+  String claudeResetWindowUsed(String window, int percent) {
+    return '$window（已用 $percent%）';
+  }
+
+  @override
+  String claudeResetWeeklyOf(String model) {
+    return '$model 每周';
+  }
+
+  @override
+  String get claudeResetNext => '下一张';
+
+  @override
+  String get claudeResetUse => '使用一张…';
+
+  @override
+  String get claudeResetConfirm => '用掉一张 Claude 重置卡？';
+
+  @override
+  String claudeResetConfirmDetail(String label, String windows) {
+    return '「$label」会把 $windows 立即清零。卡用掉后不能退回，这些额度现在还没用完的部分也就作废了。';
+  }
+
+  @override
+  String get claudeResetPaused => '已暂停';
+
+  @override
+  String claudeResetCooldown(String time) {
+    return '$time 后可再用';
+  }
+
+  @override
+  String claudeResetUnavailable(String reason) {
+    return '现在不能使用（$reason）';
+  }
+
+  @override
+  String get claudeResetSignedOut => 'Claude.ai 登录已过期，Claude Code 下次运行时会自动续上。';
+
+  @override
+  String claudeResetDone(String windows) {
+    return '已重置：$windows';
+  }
+
+  @override
+  String claudeResetNotDone(String reason) {
+    return '没有重置：$reason';
+  }
+
+  @override
+  String get claudeResetsRefresh => '刷新';
+
+  @override
   String resetCreditsHint(int count) {
     return '有 $count 张重置卡将在一周内过期。建议按这个计划用 Codex 模型，额度用满后再重置，别让它们白白过期：';
   }

@@ -15,6 +15,8 @@ import '../../icons/project_icon.dart';
 import '../../icons/project_icon_picker.dart';
 import '../../kernel/claude_code/claude_haiku.dart';
 import '../../l10n/l10n.dart';
+import '../../models/claude_resets.dart';
+import '../../models/claude_resets_io.dart';
 import '../../models/codex/codex_api.dart' show codexClientVersion;
 import '../../models/codex/codex_quota_format.dart';
 import '../../models/codex/codex_service.dart';
@@ -82,11 +84,15 @@ class ModelsSettingsPage extends StatefulWidget {
     this.workspace,
     this.featured,
     this.magpie,
+    this.claudeResets,
   });
 
   final ModelProviders providers;
   final ModelLister listModels;
   final ModelTester testModel;
+
+  /// The limit resets of Claude Code's sign-in here; the app's when null.
+  final ClaudeResetsService? claudeResets;
 
   /// magpie as found here, and the upstream that follows it; the app's
   /// when null.
@@ -142,6 +148,9 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
 
   MagpieFollow get _magpie => widget.magpie ?? MagpieFollow.current;
 
+  ClaudeResetsService get _claudeResets =>
+      widget.claudeResets ?? claudeResetsService;
+
   /// Adding the upstream that follows magpie, while it is under way.
   bool _joining = false;
 
@@ -163,6 +172,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
     _reveal();
     ModelsSettingsPage.reveal.addListener(_reveal);
     if (_follows) FeaturedUpstream.known.addListener(_relist);
+    if (_providers.builtinAvailable) unawaited(_claudeResets.refresh());
     // magpie's models as it has them now; else whether it is here, to be
     // offered. Not as the page is built: it says so to its listeners.
     scheduleMicrotask(
@@ -428,6 +438,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
                 switchLabel: l10n.modelsEnableProvider(l10n.modelsBuiltinName),
                 onEnabled: (value) =>
                     unawaited(_providers.setBuiltinHidden(!value)),
+                trailing: _ClaudeResetsLabel(_claudeResets),
               ),
             // The one that follows magpie beside Claude Code's, as it too
             // is set up elsewhere; then the newest at a site BaoCode lists
@@ -539,6 +550,7 @@ class _ProviderRow extends StatelessWidget {
     required this.onEnabled,
     this.error,
     this.onOpen,
+    this.trailing,
   });
 
   /// What the picker heads its models with.
@@ -552,6 +564,9 @@ class _ProviderRow extends StatelessWidget {
   final String switchLabel;
   final ValueChanged<bool> onEnabled;
   final VoidCallback? onOpen;
+
+  /// Shown before the switch.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -616,6 +631,10 @@ class _ProviderRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
+          if (trailing case final trailing?) ...[
+            trailing,
+            const SizedBox(width: 16),
+          ],
           SettingsSwitch(
             value: enabled,
             semanticLabel: switchLabel,
@@ -2504,6 +2523,211 @@ class _ResetCredits extends StatelessWidget {
         cursor: SystemMouseCursors.help,
         child: Text(
           l10n.modelsResetCredits(count),
+          style: SettingsText.description.copyWith(
+            decoration: TextDecoration.underline,
+            decorationStyle: TextDecorationStyle.dotted,
+            decorationColor: SettingsColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// How many limit resets Claude Code's sign-in has, in small text;
+/// hovered, what each clears and until when, and a button that uses the
+/// next, once confirmed. Nothing while there are none.
+class _ClaudeResetsLabel extends StatelessWidget {
+  const _ClaudeResetsLabel(this.service);
+
+  final ClaudeResetsService service;
+
+  static String _time(DateTime at) {
+    final local = at.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${local.month}/${local.day} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  /// A window a reset clears, as the quota names it.
+  static String _window(
+    AppLocalizations l10n,
+    ClaudeResets resets,
+    String window,
+  ) => switch (window) {
+    'five_hour' => l10n.modelsQuotaHours(5),
+    'seven_day' => l10n.modelsQuotaWeek,
+    'seven_day_opus' => l10n.claudeResetWeeklyOf('Opus'),
+    'seven_day_sonnet' => l10n.claudeResetWeeklyOf('Sonnet'),
+    'seven_day_overage_included' => l10n.claudeResetWeeklyOf(
+      resets.scopedModel ?? 'Fable',
+    ),
+    _ => window,
+  };
+
+  /// What [grant] clears, with how much of each is used now.
+  static String _clears(
+    AppLocalizations l10n,
+    ClaudeResets resets,
+    ClaudeResetGrant grant,
+  ) => [
+    for (final window in grant.clears)
+      switch (grant.used[window]) {
+        final used? => l10n.claudeResetWindowUsed(
+          _window(l10n, resets, window),
+          used,
+        ),
+        null => _window(l10n, resets, window),
+      },
+  ].join(l10n.localeName == 'zh' ? '、' : ', ');
+
+  Future<void> _use(BuildContext context, ClaudeResetGrant grant) async {
+    final l10n = context.l10n;
+    final resets = service.resets;
+    if (resets == null) return;
+    final choice = await showIdeDialog(
+      context,
+      message: l10n.claudeResetConfirm,
+      detail: l10n.claudeResetConfirmDetail(
+        grant.label ?? grant.id,
+        _clears(l10n, resets, grant),
+      ),
+      buttons: [l10n.modelsResetCreditUse],
+      type: IdeDialogType.question,
+    );
+    if (choice != 0) return;
+    final outcome = await service.use(grant);
+    if (!context.mounted) return;
+    await showIdeDialog(
+      context,
+      message: outcome.reset
+          ? l10n.claudeResetDone(
+              [
+                for (final window
+                    in outcome.cleared.isEmpty ? grant.clears : outcome.cleared)
+                  _window(l10n, resets, window),
+              ].join(l10n.localeName == 'zh' ? '、' : ', '),
+            )
+          : l10n.claudeResetNotDone(
+              [outcome.result, ?outcome.reason].join(' · '),
+            ),
+      buttons: [l10n.commonOk],
+      cancel: null,
+      type: outcome.reset ? IdeDialogType.info : IdeDialogType.warning,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: service,
+    builder: (context, _) {
+      final resets = service.resets;
+      final count = resets?.count ?? 0;
+      if (resets == null || count == 0) return const SizedBox.shrink();
+      return _hover(context, resets, count);
+    },
+  );
+
+  Widget _hover(BuildContext context, ClaudeResets resets, int count) {
+    final l10n = context.l10n;
+    final faint = SettingsText.description.copyWith(
+      color: SettingsColors.textSecondary,
+    );
+    final next = resets.next;
+    final why = switch (resets) {
+      _ when service.signedOut => l10n.claudeResetSignedOut,
+      _ when next != null => null,
+      ClaudeResets(:final cooldownUntil?)
+          when cooldownUntil.isAfter(DateTime.now()) =>
+        l10n.claudeResetCooldown(_time(cooldownUntil)),
+      ClaudeResets(eligible: false, :final reason) =>
+        l10n.claudeResetUnavailable(reason ?? '—'),
+      _ => l10n.claudeResetUnavailable(service.error ?? '—'),
+    };
+    return IdeHover(
+      interactive: true,
+      compact: false,
+      message: l10n.claudeResets(count),
+      content: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 220, maxWidth: 340),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.claudeResetsTitle,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(l10n.claudeResetsDetail, style: faint),
+              for (final grant in resets.live) ...[
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.claudeResetClears(_clears(l10n, resets, grant)),
+                        style: SettingsText.description,
+                      ),
+                    ),
+                    if (grant.id == next?.id) ...[
+                      const SizedBox(width: 6),
+                      ModelBadge(l10n.claudeResetNext),
+                    ],
+                  ],
+                ),
+                Text(
+                  [
+                    ?grant.label,
+                    if (grant.left > 1) '×${grant.left}',
+                    if (grant.endsAt case final at?)
+                      l10n.modelsResetCreditExpires(_time(at)),
+                    if (grant.paused) l10n.claudeResetPaused,
+                  ].join(' · '),
+                  style: faint,
+                ),
+              ],
+              if (why != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  why,
+                  style: SettingsText.description.copyWith(
+                    color: AppColors.caution,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IdeButton(
+                    label: l10n.claudeResetUse,
+                    icon: Codicons.debugRestart,
+                    spinning: service.using,
+                    onPressed: next == null || service.using
+                        ? null
+                        : () => unawaited(_use(context, next)),
+                  ),
+                  const SizedBox(width: 8),
+                  IdeButton(
+                    label: l10n.claudeResetsRefresh,
+                    secondary: true,
+                    spinning: service.loading && !service.using,
+                    onPressed: service.loading
+                        ? null
+                        : () => unawaited(service.refresh(force: true)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.help,
+        child: Text(
+          l10n.claudeResets(count),
           style: SettingsText.description.copyWith(
             decoration: TextDecoration.underline,
             decorationStyle: TextDecorationStyle.dotted,
