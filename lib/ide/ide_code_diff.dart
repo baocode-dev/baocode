@@ -686,6 +686,7 @@ class IdeCodeDiffState extends State<IdeCodeDiff> {
       modifiedNumbersEnd: () => _view?.lineNumbersArea?.right,
       unchangedLabel: context.l10n.diffUnchangedLines,
       keepVisible: widget.line,
+      tabSize: _modified.tabSize,
       overlay: overlay ? _overlay : null,
       original: (context, side) {
         final controller = _diff.controller;

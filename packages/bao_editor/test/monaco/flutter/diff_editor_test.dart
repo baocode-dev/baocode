@@ -162,4 +162,30 @@ void main() {
     // Moved with the pointer, but for the drag's start.
     expect(tester.getTopLeft(modified).dx, greaterThan(left + 20));
   });
+
+  test('deleted code\'s tabs reach the tab stops, as the editor\'s do, '
+      'the inner changes\' columns moved with them', () {
+    final plain = expandDiffTabs('\t\t"a":\tb', null, 4);
+    expect(plain.text, '        "a":    b');
+    expect(plain.offsets, [0, 4, 8, 9, 10, 11, 12, 16, 17]);
+
+    final styled = expandDiffTabs('\tx\ty', const [
+      TextSpan(
+        text: '\tx',
+        style: TextStyle(color: Color(0xff000001)),
+      ),
+      TextSpan(
+        children: [TextSpan(text: '\ty', style: TextStyle(fontSize: 3))],
+        style: TextStyle(color: Color(0xff000002)),
+      ),
+    ], 4);
+    expect(styled.text, '    x   y');
+    expect(styled.spans!.map((span) => span.text), ['    x', '   y']);
+    expect(styled.spans![1].style!.color, const Color(0xff000002));
+    expect(styled.spans![1].style!.fontSize, 3);
+
+    final none = expandDiffTabs('abc', null, 4);
+    expect(none.text, 'abc');
+    expect(none.offsets, isNull);
+  });
 }

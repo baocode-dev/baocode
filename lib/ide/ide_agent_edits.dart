@@ -595,6 +595,7 @@ class IdeAgentDiff {
       colors,
       style,
       textScaler,
+      controller.tabSize,
     );
     if (_parts case final parts? when key == _key) return parts;
     _key = key;
@@ -607,6 +608,7 @@ class IdeAgentDiff {
       // Whole lines, as the conversation's diffs are: the characters'
       // marks over them are too busy in the text being edited.
       highlight: DiffHighlight.lines,
+      tabSize: controller.tabSize,
     );
   }
 
