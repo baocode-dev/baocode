@@ -251,6 +251,17 @@ void main() {
       expect(botChatStyle, isNot(contains('bot_send_sticker')));
       expect(botChatStyle, contains('bot_send_image'));
     });
+
+    test('a chat from the bot_say tool\'s days is told it is gone', () {
+      expect(
+        botChatStyle,
+        contains(
+          'Earlier in this chat you may have sent messages with a '
+          'bot_say tool',
+        ),
+      );
+      expect(botChatStyle, contains('Those tools are gone'));
+    });
   });
 
   group('Bots', () {
