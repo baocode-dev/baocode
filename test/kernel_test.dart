@@ -57,6 +57,34 @@ Map<String, Object?> recordedResponse(String name, bool Function(Map) match) {
   throw StateError('no such response in $name');
 }
 
+/// A CLI that can hold `get_context_usage` answers until [answerContexts].
+class _DelayedContextCli extends FakeCli {
+  _DelayedContextCli({super.answers});
+
+  bool delayed = false;
+  final _pending = <Map<String, Object?>>[];
+
+  @override
+  void write(Map<String, Object?> message) {
+    final request = message['request'];
+    if (delayed &&
+        request is Map &&
+        request['subtype'] == 'get_context_usage') {
+      _pending.add(message);
+      return;
+    }
+    super.write(message);
+  }
+
+  void answerContexts() {
+    delayed = false;
+    for (final message in _pending) {
+      super.write(message);
+    }
+    _pending.clear();
+  }
+}
+
 /// Claude Code as the test speaks it: answers control requests the way the
 /// CLI does (from recordings), and records what the kernel wrote.
 /// A CLI that answers nothing: one that exits before it does.
@@ -194,11 +222,17 @@ class _SlowStartCli extends FakeCli {
 
 /// A kernel on [cli], with its events applied to a transcript.
 ({ClaudeCodeKernel kernel, Transcript transcript, List<KernelEvent> events})
-claude(FakeCli cli, {KernelContext context = const KernelContext(cwd: '/p')}) {
+claude(
+  FakeCli cli, {
+  KernelContext context = const KernelContext(cwd: '/p'),
+  ModelProviders? providers,
+}) {
   final kernel = ClaudeCodeKernel(
     MockKernels.claudeCode,
     context,
     start: (_) async => cli,
+    providers: providers,
+    providerEnvironment: (_, _) async => const {},
   );
   final transcript = Transcript();
   final events = <KernelEvent>[];
@@ -3625,6 +3659,272 @@ void main() {
       expect(usage.used, 4000);
       expect(tokens('Messages'), 3000);
       kernel.dispose();
+    });
+
+    Future<void> checkContextSequence({
+      required int provisional,
+      required Map<String, Object?> finalUsage,
+      required int finalTotal,
+      required int resultTotal,
+      bool custom = false,
+      bool finalAfterStop = false,
+      bool nextRequest = false,
+    }) async {
+      Map<String, Object?> counted(int total) => {
+        'totalTokens': total,
+        'maxTokens': 200000,
+        'categories': [
+          {'name': 'Messages', 'tokens': total},
+          {'name': 'Free space', 'tokens': 200000 - total, 'kind': 'free'},
+        ],
+      };
+      final answers = {'get_context_usage': counted(1000)};
+      final cli = _DelayedContextCli(answers: answers);
+      final providers = custom
+          ? ModelProviders.memory(
+              providers: [
+                ModelProvider.fromJson({
+                  'id': 'od',
+                  'name': 'open-design',
+                  'protocol': 'anthropic',
+                  'baseUrl': 'https://example.com',
+                  'models': [
+                    {'id': 'kimi-k3.1-pro', 'label': 'Kimi'},
+                  ],
+                })!,
+              ],
+            )
+          : null;
+      final (:kernel, :transcript, events: _) = claude(
+        cli,
+        providers: providers,
+        context: custom
+            ? const KernelContext(
+                cwd: '/p',
+                settings: {'model': '@od/kimi-k3.1-pro'},
+              )
+            : const KernelContext(cwd: '/p'),
+      );
+      kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
+      await pumpEventQueue();
+      expect(transcript.usage!.used, 1000);
+
+      Future<void> push(Map<String, Object?> message) async {
+        cli.push(message);
+        await pumpEventQueue();
+      }
+
+      await push({
+        'type': 'stream_event',
+        'parent_tool_use_id': null,
+        'event': {
+          'type': 'message_start',
+          'message': {
+            'id': 'm1',
+            'model': 'claude-opus-5-5',
+            'usage': {'input_tokens': provisional, 'output_tokens': 0},
+          },
+        },
+      });
+      final provisionalUsage = {
+        'input_tokens': provisional,
+        'output_tokens': 0,
+      };
+      Map<String, Object?> reply(
+        Map<String, Object?> usage, {
+        String? stopReason,
+      }) => {
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'm1',
+          'model': 'claude-opus-5-5',
+          'role': 'assistant',
+          'content': const [],
+          'stop_reason': stopReason,
+          'usage': usage,
+        },
+      };
+      await push(reply(provisionalUsage));
+      expect(
+        transcript.usage!.used,
+        1000,
+        reason: 'a streamed provisional snapshot does not move the total',
+      );
+
+      await push({
+        'type': 'stream_event',
+        'parent_tool_use_id': null,
+        'event': {
+          'type': 'message_delta',
+          'delta': {'stop_reason': 'end_turn'},
+          'usage': finalAfterStop ? const {'output_tokens': 0} : finalUsage,
+        },
+      });
+      if (!finalAfterStop) {
+        expect(
+          transcript.usage!.used,
+          finalTotal,
+          reason: 'the final merged request replaces its provisional usage',
+        );
+      }
+      await push({
+        'type': 'stream_event',
+        'parent_tool_use_id': null,
+        'event': {'type': 'message_stop'},
+      });
+      await push(
+        finalAfterStop
+            ? reply(finalUsage, stopReason: 'end_turn')
+            : reply(provisionalUsage, stopReason: 'end_turn'),
+      );
+      expect(
+        transcript.usage!.used,
+        finalTotal,
+        reason: finalAfterStop
+            ? 'a late final assistant replaces its provisional usage'
+            : 'a late provisional snapshot cannot undo the final usage',
+      );
+      answers['get_context_usage'] = counted(resultTotal);
+      cli.delayed = true;
+      await push({'type': 'result', 'subtype': 'success'});
+      if (nextRequest) {
+        await push({
+          'type': 'stream_event',
+          'parent_tool_use_id': null,
+          'event': {
+            'type': 'message_start',
+            'message': {
+              'id': 'm2',
+              'model': 'claude-opus-5-5',
+              'usage': {'input_tokens': 7000, 'output_tokens': 0},
+            },
+          },
+        });
+        cli.answerContexts();
+        await pumpEventQueue();
+        expect(
+          transcript.usage!.used,
+          finalTotal,
+          reason: 'the previous result cannot clear the next request',
+        );
+        await push({
+          'type': 'stream_event',
+          'parent_tool_use_id': null,
+          'event': {
+            'type': 'message_delta',
+            'delta': {'stop_reason': 'end_turn'},
+            'usage': {
+              'input_tokens': 2000,
+              'cache_read_input_tokens': 10000,
+              'output_tokens': 100,
+            },
+          },
+        });
+        expect(transcript.usage!.used, 12100);
+      } else {
+        await push({
+          'type': 'user',
+          'parent_tool_use_id': null,
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'tool_result', 'tool_use_id': 'tool1', 'content': 'ok'},
+            ],
+          },
+        });
+        expect(
+          transcript.usage!.used,
+          finalTotal,
+          reason: 'a result waiting for fresh CLI usage keeps the final total',
+        );
+        cli.answerContexts();
+        await pumpEventQueue();
+        expect(
+          transcript.usage!.used,
+          custom ? finalTotal : resultTotal,
+          reason: custom
+              ? 'a proxy result keeps the model total, not the proxy estimate'
+              : 'the result lets the CLI recalibrate the completed request',
+        );
+      }
+      kernel.dispose();
+    }
+
+    test('final streamed usage corrects a provisional context below it, '
+        'then the result recalibrates it', () async {
+      await checkContextSequence(
+        provisional: 51981,
+        finalUsage: {
+          'input_tokens': 6359,
+          'cache_read_input_tokens': 148480,
+          'cache_creation_input_tokens': 0,
+          'output_tokens': 5613,
+        },
+        finalTotal: 160452,
+        resultTotal: 160000,
+      );
+    });
+
+    test('final streamed usage corrects a provisional context above it, '
+        'then the result recalibrates it', () async {
+      await checkContextSequence(
+        provisional: 200000,
+        finalUsage: {
+          'input_tokens': 1000,
+          'cache_read_input_tokens': 50000,
+          'cache_creation_input_tokens': 0,
+          'output_tokens': 100,
+        },
+        finalTotal: 51100,
+        resultTotal: 50000,
+      );
+    });
+
+    test('custom upstream final usage survives the result', () async {
+      await checkContextSequence(
+        custom: true,
+        provisional: 51981,
+        finalUsage: {
+          'input_tokens': 6359,
+          'cache_read_input_tokens': 148480,
+          'cache_creation_input_tokens': 0,
+          'output_tokens': 5613,
+        },
+        finalTotal: 160452,
+        resultTotal: 3400000,
+      );
+    });
+
+    test('a late final assistant after message_stop replaces provisional '
+        'usage', () async {
+      await checkContextSequence(
+        finalAfterStop: true,
+        provisional: 51981,
+        finalUsage: {
+          'input_tokens': 6359,
+          'cache_read_input_tokens': 148480,
+          'cache_creation_input_tokens': 0,
+          'output_tokens': 5613,
+        },
+        finalTotal: 160452,
+        resultTotal: 160000,
+      );
+    });
+
+    test('a delayed result does not clear the next request', () async {
+      await checkContextSequence(
+        nextRequest: true,
+        provisional: 51981,
+        finalUsage: {
+          'input_tokens': 6359,
+          'cache_read_input_tokens': 148480,
+          'cache_creation_input_tokens': 0,
+          'output_tokens': 5613,
+        },
+        finalTotal: 160452,
+        resultTotal: 160000,
+      );
     });
 
     group("the tools' results are counted here, an image as one", () {
