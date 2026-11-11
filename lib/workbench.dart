@@ -556,6 +556,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// in a terminal) meanwhile.
   AppLifecycleListener? _lifecycle;
 
+  /// Picks up those sessions while the app stays in front too (beside a
+  /// terminal, say: nothing is resumed to notice), looking every so often.
+  Timer? _sessionScan;
+
   /// Notifies of the agents that want the user, keeps the count on the
   /// app's icon and the tray icon (see lib/notifications/): the main
   /// window's, once for the app. One picked shows in the IDE window it is
@@ -630,6 +634,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       _lifecycle = AppLifecycleListener(
         onResume: () => unawaited(_workspace.refresh()),
       );
+      _sessionScan = Timer.periodic(const Duration(seconds: 30), (_) {
+        // Only while the app is there to show it: not in the background,
+        // where the platform may pause timers anyway.
+        if (WidgetsBinding.instance.lifecycleState ==
+            AppLifecycleState.resumed) {
+          unawaited(_workspace.refresh());
+        }
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) => _afterFirstFrame());
       _stopUpdateOffers = widget.settings?.updates?.listen(
         _notifications,
@@ -648,6 +660,23 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _workspace.addListener(_restoreSidePanel);
     _restoreSidePanel();
     _workspace.addListener(_syncWorkspaceFolders);
+    _workspace.addListener(_reloadedElsewhere);
+  }
+
+  /// A conversation read anew elsewhere in the workspace (its session
+  /// swapped under a thread that stays): its chat and side panel as they
+  /// were (see [_reload]).
+  void _reloadedElsewhere() {
+    for (final thread in _workspace.threads) {
+      final was = _chatSessions[thread];
+      if (was == null || identical(was, thread.session)) continue;
+      _chatSessions[thread] = thread.session;
+      _sidePanel.carryOver(was, thread.session);
+      // A chat of the conversation before is not shown again: built anew.
+      _chatKeys[thread] = GlobalKey();
+      _ideChatWidgets.remove(thread);
+      if (mounted) setState(() {});
+    }
   }
 
   /// The IDE and side panel of a multi-folder workspace show the folders
@@ -848,6 +877,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _chatCode?.dispose();
     _workspace.removeListener(_restoreSidePanel);
     _workspace.removeListener(_syncWorkspaceFolders);
+    _workspace.removeListener(_reloadedElsewhere);
     _givingWayTimer?.cancel();
     _sidePanel
       ..removeListener(_sidePanelChanged)
@@ -860,6 +890,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _looseChatFolder.dispose();
     _ideHistory.dispose();
     _lifecycle?.dispose();
+    _sessionScan?.cancel();
     _attention?.dispose();
     _starPrompt?.dispose();
     _stopUpdateOffers?.call();
@@ -3470,6 +3501,10 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   GlobalKey _chatKey(AgentThread thread) => _chatKeys[thread] ??= GlobalKey();
   final Expando<GlobalKey> _chatKeys = Expando();
 
+  /// Each thread's session as last carried over into its chat (see
+  /// [_reloadedElsewhere]).
+  final Expando<ChatSession> _chatSessions = Expando();
+
   void _endDrag() {
     setState(() {
       _dragging = false;
@@ -4913,6 +4948,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       ],
     ];
     final draggable = !embedded && !place.alone && _agentThread == null;
+    // The session as built with, for the reload to tell a swap from (see
+    // [_reloadedElsewhere]).
+    _chatSessions[thread] = thread.session;
     // The layout's context keys, for the chat's keybindings (see ChatKeys).
     final chat = ChatKeyScope(
       lookup: embedded ? _ideChatKeyContext : _chatKeyContext,
@@ -5075,15 +5113,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   );
 
   /// Reads [thread]'s kept session anew, its chat and side panel as they
-  /// were.
+  /// were. What a reload swaps under the thread — by hand here, by itself
+  /// in the workspace (see [_reloadedElsewhere]) — is carried over there.
   void _reload(AgentThread thread) {
     final was = thread.session;
     _workspace.reload(thread);
     if (identical(thread.session, was)) return;
-    _sidePanel.carryOver(was, thread.session);
-    // A chat of the conversation before is not shown again: built anew.
-    _chatKeys[thread] = GlobalKey();
-    _ideChatWidgets.remove(thread);
+    _reloadedElsewhere();
   }
 
   // --- Asides (/btw) -------------------------------------------------------

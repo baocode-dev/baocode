@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/chat_session.dart';
+import 'package:baocode/chat/chat_find.dart';
 import 'package:baocode/chat/composer/composer_embeds.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
@@ -179,9 +180,9 @@ class _Renames implements ClaudeCodeTransport {
 }
 
 void main() {
-  testWidgets('a kept session talked in elsewhere is read anew, in place', (
-    tester,
-  ) async {
+  testWidgets(
+    'a kept session talked in elsewhere is read anew by itself, in place',
+    (tester) async {
     final workspace = await pumpLoaded(tester);
     await tester.tap(inSidebar(find.text('Write a.txt and read it back')));
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
@@ -231,21 +232,19 @@ void main() {
       path: kept.path,
     );
     addTearDown(() => FakeCatalog.keptNow = null);
-    await tester.runAsync(workspace.refresh);
-    await tester.pump();
-    expect(thread.goneOnElsewhere, isTrue);
-    expect(reload(), findsOneWidget);
 
-    // Typed and not sent: goes on in the conversation read anew.
+    // Typed and not sent: goes on in the conversation read anew, which
+    // the refresh itself reads, in place, with no one asking for it.
     was.draft.save(
       'Half a question',
       const TextSelection.collapsed(offset: 4),
       const [],
     );
-    await tester.tap(reload());
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-    await tester.pump();
+    await tester.runAsync(workspace.refresh);
+    for (var i = 0; i < 5; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
 
     // The same thread in its place, its conversation read anew.
     expect(identical(workspace.selected, thread), isTrue);
@@ -255,7 +254,15 @@ void main() {
       tester.widget<ChatScreen>(find.byType(ChatScreen)).session,
       thread.session,
     );
-    expect(find.textContaining('Said in a terminal since'), findsOneWidget);
+    // In the list — the sticky copy of the message at the top (the tests'
+    // style) may show it again above.
+    expect(
+      find.descendant(
+        of: find.byWidgetPredicate((w) => w is ChatFindRow),
+        matching: find.textContaining('Said in a terminal since'),
+      ),
+      findsOneWidget,
+    );
     expect(find.textContaining('Answered there and then.'), findsOneWidget);
     expect(thread.session.draft.content, 'Half a question');
     expect(thread.goneOnElsewhere, isFalse);

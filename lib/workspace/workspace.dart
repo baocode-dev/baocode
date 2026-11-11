@@ -420,7 +420,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   Future<void>? _refreshing;
 
   /// Picks up sessions the kernels kept since [load] (e.g. ones started in
-  /// a terminal). What is listed stays as it is.
+  /// a terminal). What is listed stays as it is, except one talked in
+  /// elsewhere while idle: it is read anew right away (see [reload]).
   Future<void> refresh() =>
       _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
 
@@ -451,6 +452,12 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       }
     }
     if (_threads.length != before || goneOn) notifyListeners();
+    // Ones talked in elsewhere since they were read here are read anew
+    // as they are come to, not left for the user to ask for (a reload
+    // notifies itself; the threads are only swapped, not moved).
+    for (final thread in [..._threads]) {
+      if (thread._goneOnElsewhere && canReload(thread)) reload(thread);
+    }
   }
 
   /// A message of the conversation's own may be timed a moment after its
@@ -487,6 +494,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// Reads [thread]'s kept session anew, in its place: what was said in it
   /// elsewhere since it was read here (gone on with in a terminal) shows.
+  /// Asked for by the sidebar's reload button, and by [refresh] once it
+  /// notes the conversation went on elsewhere while the agent was idle.
   /// The thread stays the same, its marks, draft and place with it; only
   /// its conversation is opened again, the one before stopped.
   void reload(AgentThread thread) {
