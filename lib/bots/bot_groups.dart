@@ -87,6 +87,9 @@ class BotGroups extends ChangeNotifier {
   /// How many of each group's messages the world was told of.
   final Map<String, int> _worldTold = {};
 
+  /// The most of a group's messages the world is told of at first.
+  static const _worldFirst = 8;
+
   bool _started = false;
   bool _disposed = false;
 
@@ -626,10 +629,14 @@ class BotGroups extends ChangeNotifier {
       }
     }
     final messages = _messages[group] ?? const <LinkGroupMessage>[];
-    final from = (_worldTold[group] ?? 0).clamp(0, messages.length);
+    // The first time this run, the latest few: the rest in the chat's file.
+    final from = (_worldTold[group] ?? messages.length - _worldFirst).clamp(
+      0,
+      messages.length,
+    );
     _worldTold[group] = messages.length;
     world.ask(group, [
-      '- In the group "${found.name}" (group $group: ${[_nameOf(linkGroupUser), for (final id in found.members) _nameOf(id, found)].join(', ')}):',
+      '- In the group "${found.name}" (group $group: ${[_nameOf(linkGroupUser), for (final id in found.members) _nameOf(id, found)].join(', ')}; all of it in ${chatFile(group)}):',
       for (final message in messages.skip(from)) ...[
         '  ## #${message.seq} · ${_nameOf(message.from, found)} · ${botTimeOf(message.at)}',
         for (final line in _lines(found, message)) '  $line',
