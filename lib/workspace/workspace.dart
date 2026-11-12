@@ -420,7 +420,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   Future<void>? _refreshing;
 
   /// Picks up sessions the kernels kept since [load] (e.g. ones started in
-  /// a terminal). What is listed stays as it is.
+  /// a terminal). What is listed stays as it is, except one talked in
+  /// elsewhere while idle: it is read anew right away (see [reload]).
   Future<void> refresh() =>
       _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
 
@@ -451,6 +452,47 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       }
     }
     if (_threads.length != before || goneOn) notifyListeners();
+    _reloadGoneOn();
+  }
+
+  /// Reads anew the ones talked in elsewhere since they were read here, as
+  /// they are come to, not left for the user to ask for (a reload notifies
+  /// itself; the threads are only swapped, not moved).
+  void _reloadGoneOn() {
+    for (final thread in [..._threads]) {
+      if (thread._goneOnElsewhere && canReload(thread)) reload(thread);
+    }
+  }
+
+  /// When each open conversation's kept file was last seen changed (see
+  /// [refreshIfChanged]).
+  final Expando<DateTime> _seenModified = Expando();
+
+  /// [refresh], only once an open conversation's kept file changed since it
+  /// was last looked at and since its agent went quiet, as [modified] tells
+  /// (null for none): cheap enough to ask every so often, where [refresh]
+  /// reads every kept session. The file is written to besides what is said
+  /// (titles, the last prompt), so [refresh] still tells whether it was.
+  Future<void> refreshIfChanged(
+    Future<DateTime?> Function(String path) modified,
+  ) async {
+    if (_loading) return;
+    var changed = false;
+    for (final thread in [..._threads]) {
+      final path = thread.record?.path;
+      final quiet = thread._quietSince;
+      if (path == null || !thread.isOpen || quiet == null) continue;
+      final at = await modified(path);
+      if (at == null || at == _seenModified[thread]) continue;
+      _seenModified[thread] = at;
+      if (at.isAfter(quiet.add(_ownMessageLag))) changed = true;
+    }
+    if (changed) {
+      await refresh();
+    } else {
+      // Noted while its agent was at work: read anew once it is done.
+      _reloadGoneOn();
+    }
   }
 
   /// A message of the conversation's own may be timed a moment after its
@@ -487,6 +529,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
 
   /// Reads [thread]'s kept session anew, in its place: what was said in it
   /// elsewhere since it was read here (gone on with in a terminal) shows.
+  /// Asked for by the sidebar's reload button, and by [refresh] once it
+  /// notes the conversation went on elsewhere while the agent was idle.
   /// The thread stays the same, its marks, draft and place with it; only
   /// its conversation is opened again, the one before stopped.
   void reload(AgentThread thread) {

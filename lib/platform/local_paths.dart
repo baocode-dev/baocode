@@ -9,3 +9,6 @@ Future<bool> exists(String path) async => false;
 
 /// No local files (the web).
 Future<String?> takeFile(String path) async => null;
+
+/// No local files (the web).
+Future<DateTime?> modifiedAt(String path) async => null;
