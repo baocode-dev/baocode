@@ -59,8 +59,8 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   /// conversation with its chat with the user.
   late final BotGroups groups = BotGroups(this);
 
-  /// Their world: who wakes when, how everyone is ([BotWorld]); on with
-  /// a model for it picked.
+  /// Their world: who wakes when ([BotWorld]); on with a model for it
+  /// picked.
   late final BotWorld world = BotWorld(this)..decided = groups.decided;
 
   /// Where what the app keeps of them besides their files is: the agents
@@ -177,7 +177,6 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     if (_disposed) return;
     // Each with its conversation, for the phones to open from the first.
     _bots.forEach(threadFor);
-    world.start();
     groups.start();
     workspace.addListener(_watch);
     _watch();
@@ -550,7 +549,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   };
 
   /// The world's conversation: its instructions its whole prompt, Read
-  /// its only tool, nothing asked.
+  /// and its own tool ([BotWorld.wakeTool]) its only ones, nothing asked.
   AgentSetup _worldSetup() => AgentSetup(
     workspace: () => KernelWorkspace(
       folders: const [],
@@ -568,10 +567,11 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   @override
   bool offersTool(String cwd, String tool) {
-    // The world's: none of the app's.
-    if (cwd == world.folder) return false;
-    final bot = botAt(cwd);
     final ability = BotTools.abilityOf(tool);
+    // The world's: its own alone; for no one else.
+    if (cwd == world.folder) return ability?.world ?? false;
+    if (ability?.world ?? false) return false;
+    final bot = botAt(cwd);
     if (bot == null) return ability == null;
     if (ability != null) return ability.allows(bot);
     // The app's other tools: pictures made; the browser's, if it may use
@@ -1211,29 +1211,29 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
             if (item.images.isNotEmpty) chinese ? '[图片]' : '[picture]',
           ].join(' ');
           live(bot, place: privatePlace, who: userName, text: text);
-          _toWorld(bot, userName, text);
+          _toWorld(bot, text);
           world.heardUser();
         case AssistantTextItem(:final text):
           final says = BotLife.saysOf(text);
           live(bot, place: privatePlace, who: bot.name, text: says, mine: true);
-          _toWorld(bot, bot.name, says);
+          _toWorld(bot, says);
         // Sent from a group's turn.
         case final ToolCallItem item when ChatCodec.botSentToUser(item) != null:
           final says = ChatCodec.botSentToUser(item)!;
           live(bot, place: privatePlace, who: bot.name, text: says, mine: true);
-          _toWorld(bot, bot.name, says);
+          _toWorld(bot, says);
         default:
       }
     }
     return count;
   }
 
-  /// What [who] said in [bot]'s chat with the user, told the world.
-  void _toWorld(Bot bot, String who, String text) {
+  /// Something said in [bot]'s chat with the user ([text]), just put in
+  /// its timeline: where, told the world.
+  void _toWorld(Bot bot, String text) {
     if (text.trim().isEmpty) return;
-    world.note(
-      BotLife.line(_clock(), '${bot.name} ↔ $userName, in private', who, text),
-    );
+    final path = timelineFile(bot);
+    world.private(bot, path, _readText(path).trimRight().split('\n').length);
   }
 
   // --- The user ---------------------------------------------------------

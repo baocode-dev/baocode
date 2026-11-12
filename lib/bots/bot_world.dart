@@ -1,137 +1,26 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
+import '../link/chat_codec.dart';
 import '../models/model_providers.dart';
 import '../workspace/workspace.dart';
 import 'bot.dart';
 import 'bot_life.dart';
 import 'bot_pacer.dart' show botTime;
-import 'bot_prompt.dart' show botEventMessage;
 import 'bots.dart';
-
-/// What the world decided, in its reply's tags ([WorldActs.parse]).
-sealed class WorldAct {
-  const WorldAct();
-}
-
-/// [who] (a bot's id) told, [after] from now, of what is new in [group]:
-/// [why], in a few words of fact.
-class WorldWake extends WorldAct {
-  const WorldWake(this.who, this.group, this.after, this.why);
-  final String who;
-  final String group;
-  final Duration after;
-  final String why;
-}
-
-/// [who] has something on its mind for the user, [after] from now:
-/// [why]. Its to write to them, or not.
-class WorldReach extends WorldAct {
-  const WorldReach(this.who, this.after, this.why);
-  final String who;
-  final Duration after;
-  final String why;
-}
-
-/// How [who] is now: [text].
-class WorldState extends WorldAct {
-  const WorldState(this.who, this.text);
-  final String who;
-  final String text;
-}
-
-/// When the world looks again of itself, nothing happening: [after].
-class WorldLook extends WorldAct {
-  const WorldLook(this.after);
-  final Duration after;
-}
-
-abstract final class WorldActs {
-  static final _tag = RegExp(
-    r'<(wake|reach|state|next_look)\b([^>]*?)(?:/>|>(.*?)</\1\s*>)',
-    dotAll: true,
-  );
-  static final _attribute = RegExp(r'(\w+)\s*=\s*"([^"]*)"');
-
-  /// How long [text] says: `40s`, `5m`, `2h`, or seconds ([unit] for a
-  /// bare number).
-  static Duration? duration(String? text, {String unit = 's'}) {
-    final match = RegExp(r'^\s*(\d+(?:\.\d+)?)\s*([smh]?)\s*$')
-        .firstMatch(text ?? '');
-    if (match == null) return null;
-    final n = double.parse(match.group(1)!);
-    final seconds = switch (match.group(2)!.isEmpty ? unit : match.group(2)) {
-      'h' => n * 3600,
-      'm' => n * 60,
-      _ => n,
-    };
-    return Duration(milliseconds: (seconds * 1000).round());
-  }
-
-  /// The acts [reply] has, its people found by [who] (a name, or an id):
-  /// those of no one known left out.
-  static List<WorldAct> parse(
-    String reply, {
-    required Bot? Function(String) who,
-  }) {
-    final acts = <WorldAct>[];
-    for (final match in _tag.allMatches(reply)) {
-      final attributes = {
-        for (final a in _attribute.allMatches(match.group(2)!))
-          a.group(1)!: a.group(2)!.trim(),
-      };
-      final body = (match.group(3) ?? '').trim();
-      final bot = switch (attributes['who']) {
-        final String name => who(name),
-        null => null,
-      };
-      switch (match.group(1)) {
-        case 'wake':
-          final group = attributes['group'];
-          if (bot == null || group == null || group.isEmpty) continue;
-          acts.add(
-            WorldWake(
-              bot.id,
-              group,
-              duration(attributes['after']) ?? Duration.zero,
-              body,
-            ),
-          );
-        case 'reach':
-          if (bot == null) continue;
-          acts.add(
-            WorldReach(
-              bot.id,
-              duration(attributes['after']) ?? Duration.zero,
-              body,
-            ),
-          );
-        case 'state':
-          if (bot == null || body.isEmpty) continue;
-          acts.add(WorldState(bot.id, body));
-        case 'next_look':
-          if (duration(attributes['after'], unit: 'm') case final after?) {
-            acts.add(WorldLook(after));
-          }
-      }
-    }
-    return acts;
-  }
-}
 
 /// The bots' world: one conversation of its own, on the model the user
 /// picked for it ([ModelProviders.worldModel]), never seen and never
-/// speaking. Told of what happens (what is said in the groups, and to
-/// the bots in private, who kept quiet), it keeps how everyone is now
-/// (world/now.md), says who in a group answers and when, who has the
-/// user on their mind, and when it looks again. It decides; the app
-/// keeps the laws ([BotWorld] laws below): the hours of the night, how
-/// often one writes first, how much a group says, a group's order.
+/// speaking. It keeps the user's world going: what the user says in a
+/// group is said to it, and what else happens (a bot spoke, kept quiet, a
+/// word in private) it is reminded of, pointed to where it is in the
+/// files; it wakes the bots, each when and why, with its one tool
+/// ([wakeTool]). Each bot then decides for itself. The app keeps the laws:
+/// how much a group says, who may write to the user first.
 class BotWorld {
   BotWorld(this.bots);
 
@@ -139,6 +28,12 @@ class BotWorld {
 
   /// The folder its conversation is in, in the bots'.
   static const folderName = 'world';
+
+  /// Its one tool, but Read: a bot woken.
+  static const wakeTool = 'world_wake';
+
+  /// Where a bot is woken in its chat with the user, as [wakeTool] has it.
+  static const inPrivate = ChatCodec.botToUser;
 
   /// How long the app waits for it to say who answers in a group before
   /// its own rules do.
@@ -148,25 +43,23 @@ class BotWorld {
   /// together, together.
   Duration gather = const Duration(milliseconds: 800);
 
-  /// How long what needs no answer now (what was said in private, who
-  /// kept quiet) waits to be told with the next.
+  /// How long what needs no answer now (a word in private, who kept quiet)
+  /// waits to be told with the next.
   Duration lazily = const Duration(minutes: 2);
 
-  /// Laws: how soon and how late the world looks again; how long a wake
-  /// or a reach may be put off.
-  static const lookSoonest = Duration(minutes: 1);
-  static const lookLatest = Duration(hours: 2);
+  /// Laws: how long a wake in a group, or in private, may be put off.
   static const wakeLatest = Duration(minutes: 10);
-  static const reachLatest = Duration(hours: 6);
+  static const reachLatest = Duration(hours: 24);
 
   /// Under test: its model, in place of the user's pick.
   @visibleForTesting
   String? Function()? modelOf;
 
-  /// Under test: where what it is told goes, in place of its conversation;
-  /// and what a bot is told to write first.
+  /// Under test: what it is sent (the user's words, if any; the app's
+  /// reminder), in place of its conversation; and what a bot is told to
+  /// write first.
   @visibleForTesting
-  void Function(String text)? tell;
+  void Function(String said, String reminder)? tell;
   @visibleForTesting
   void Function(Bot bot, String note)? reached;
 
@@ -181,34 +74,32 @@ class BotWorld {
     null => null,
   };
 
-  /// How everyone is now, as it keeps it.
-  String? get nowFile => switch (folder) {
-    final folder? => p.join(folder, 'now.md'),
-    null => null,
-  };
+  /// The user's words to tell it, by group; what else happened; where in
+  /// each bot's timeline its chat with the user went on, by bot id; whether
+  /// WORLD.md changed.
+  final Map<String, List<String>> _said = {};
+  final List<String> _happened = [];
+  final Map<String, ({String file, int from})> _private = {};
+  bool _worldChanged = false;
 
-  /// How each is now, by bot id; and since when.
-  final Map<String, ({String text, DateTime at})> _states = {};
+  bool get _told =>
+      _said.isNotEmpty ||
+      _happened.isNotEmpty ||
+      _private.isNotEmpty ||
+      _worldChanged;
 
-  final List<String> _told = [];
   final Set<String> _asking = {};
   Set<String> _deciding = {};
   Timer? _flush;
   DateTime _flushAt = DateTime(0);
-  Timer? _look;
   final List<Timer> _timers = [];
   ChatSession? _followed;
   VoidCallback? _listener;
   bool _disposed = false;
 
-  void start() {
-    _readStates();
-  }
-
   void dispose() {
     _disposed = true;
     _flush?.cancel();
-    _look?.cancel();
     for (final timer in _timers) {
       timer.cancel();
     }
@@ -217,61 +108,14 @@ class BotWorld {
     }
   }
 
-  // --- How everyone is ---------------------------------------------------
-
-  /// How [bot] is now, as the world has it; none if it said nothing yet.
-  String? stateOf(Bot bot) => _states[bot.id]?.text;
-
-  void _readStates() {
-    final path = nowFile;
-    if (path == null) return;
-    final bytes = bots.folders.readFile(path);
-    if (bytes == null) return;
-    final line = RegExp(r'^- (.+?): (.*) \((\d\d):(\d\d)\)$');
-    final now = bots.now;
-    for (final text in utf8.decode(bytes, allowMalformed: true).split('\n')) {
-      final match = line.firstMatch(text);
-      if (match == null) continue;
-      final bot = bots.bots.where((b) => b.name == match.group(1)).firstOrNull;
-      if (bot == null) continue;
-      _states[bot.id] = (
-        text: match.group(2)!,
-        at: DateTime(
-          now.year,
-          now.month,
-          now.day,
-          int.parse(match.group(3)!),
-          int.parse(match.group(4)!),
-        ),
-      );
-    }
-  }
-
-  void _writeStates() {
-    final path = nowFile;
-    if (path == null) return;
-    String two(int n) => n.toString().padLeft(2, '0');
-    final lines = [
-      '# Now',
-      '',
-      'How everyone is, as the world keeps it.',
-      '',
-      for (final bot in bots.bots)
-        if (_states[bot.id] case final state?)
-          '- ${bot.name}: ${state.text} (${two(state.at.hour)}:${two(state.at.minute)})',
-    ];
-    bots.folders.writeFile(
-      path,
-      Uint8List.fromList(utf8.encode('${lines.join('\n')}\n')),
-    );
-  }
-
   // --- What it is told ---------------------------------------------------
 
-  /// [lines] happened in [group]: who answers, and when, is the world's to
-  /// say ([decided] once it did).
-  void ask(String group, List<String> lines) {
-    _told.addAll(lines);
+  /// Something new in [group], where [line] says: who answers, and when,
+  /// is the world's to say ([decided] once it did). [said]: the user's
+  /// words, said to it.
+  void ask(String group, {String? said, required String line}) {
+    if (said != null) (_said[group] ??= []).add(said);
+    _happened.add(line);
     _asking.add(group);
     _schedule(gather);
   }
@@ -279,12 +123,30 @@ class BotWorld {
   /// [line] happened: told with what comes next, or a while after.
   void note(String line) {
     if (!on) return;
-    _told.add(line);
+    _happened.add(line);
     _schedule(lazily);
   }
 
-  /// What became of the groups asked last: told the groups, for those it
-  /// said nothing of to be let be.
+  /// [bot]'s chat with the user went on, at [line] of its timeline [file].
+  void private(Bot bot, String file, int line) {
+    if (!on) return;
+    final had = _private[bot.id];
+    _private[bot.id] = (
+      file: file,
+      from: had != null && had.file == file ? had.from : line,
+    );
+    _schedule(lazily);
+  }
+
+  /// WORLD.md changed: who is who, the groups.
+  void worldChanged() {
+    if (!on) return;
+    _worldChanged = true;
+    _schedule(lazily);
+  }
+
+  /// The groups it was asked of, the last time: told the groups, their own
+  /// rules not needed.
   void Function(Set<String> groups)? decided;
 
   /// When what it was told is sent it: the sooner of what is due.
@@ -299,30 +161,88 @@ class BotWorld {
   /// What it was told since, sent it: now, unless it is at work, then once
   /// it is done.
   void _send() {
-    if (_disposed || _told.isEmpty || !on) return;
+    if (_disposed || !_told || !on) return;
     final session = tell == null ? _session() : null;
     if (session != null && session.isStreaming) return;
-    final text = _batch(_told);
-    _told.clear();
+    final groups = _said.length;
+    final said = [
+      for (final MapEntry(key: group, value: words) in _said.entries)
+        for (final text in words)
+          groups == 1
+              ? text
+              : '[${bots.groups.byId(group)?.name ?? group}] $text',
+    ].join('\n');
+    final reminder = _reminder();
+    _said.clear();
+    _happened.clear();
+    _private.clear();
+    _worldChanged = false;
     _deciding = {..._asking};
     _asking.clear();
-    if (tell case final tell?) return tell(text);
-    session!.send(ComposerMessage(text: botEventMessage(text)));
+    if (tell case final tell?) return tell(said, reminder);
+    final note = '<system-reminder>\n$reminder\n</system-reminder>';
+    // The user's words the message, the app's reminder with them; alone,
+    // when they said nothing.
+    if (said.isEmpty) {
+      session!.send(ComposerMessage(text: note));
+    } else {
+      session!.send(ComposerMessage(text: said), notes: [note]);
+    }
   }
 
-  String _batch(List<String> happened) {
+  /// What it is reminded of: the time, what is new and where, who is to be
+  /// woken already, what the groups may still say.
+  String _reminder() {
     final now = bots.now;
+    final groups = bots.groups;
+    final waiting = groups.waiting;
+    final names = {for (final bot in bots.bots) bot.id: bot.name};
+    final asked = [
+      for (final group in _asking)
+        ?groups.byId(group),
+    ];
     return [
-      'Now: ${botTime(now)}.',
-      'Everyone, as you have them now:',
-      for (final bot in bots.bots)
-        '- ${bot.name}${bot.assistant ? ' (the assistant)' : ''}: '
-            '${_states[bot.id]?.text ?? '(nothing said yet)'}',
-      '',
-      'What happened:',
-      ...happened,
+      'Now: ${botTime(now, seconds: true)}.',
+      if (_said.isNotEmpty)
+        'The message is ${bots.userName}\'s, in a group, said to you.',
+      'What is new:',
+      ..._happened,
+      for (final MapEntry(key: id, :value) in _private.entries)
+        if (names[id] case final name?)
+          '- ${bots.userName} and $name, in private: from line ${value.from} '
+              'of ${value.file}.',
+      if (_worldChanged)
+        '- ${BotLife.world} changed (who is who, the groups): read it again.',
+      if (waiting.isNotEmpty) ...[
+        'To be woken already:',
+        for (final w in waiting)
+          '- ${names[w.member] ?? w.member} in "${w.group.name}" at '
+              '${_clock(w.at)}${w.why.isEmpty ? '' : ' (${w.why})'}.',
+      ],
+      for (final group in asked)
+        '"${group.name}" may have ${groups.answersLeft(group.id)} more '
+            'answers to the user\'s last message.',
     ].join('\n');
   }
+
+  /// How long [text] says: `40s`, `5m`, `2h`, or seconds for a bare
+  /// number; null for what is none of these.
+  static Duration? duration(String text) {
+    final match = RegExp(r'^\s*(\d+(?:\.\d+)?)\s*([smh]?)\s*$')
+        .firstMatch(text);
+    if (match == null) return null;
+    final n = double.parse(match.group(1)!);
+    final seconds = switch (match.group(2)) {
+      'h' => n * 3600,
+      'm' => n * 60,
+      _ => n,
+    };
+    return Duration(milliseconds: (seconds * 1000).round());
+  }
+
+  /// [at]'s time of day, to the second.
+  static String _clock(DateTime at) =>
+      botTime(at, seconds: true).split(' ').last;
 
   // --- Its conversation --------------------------------------------------
 
@@ -372,69 +292,69 @@ class BotWorld {
 
   void _ended(ChatSession session) {
     if (_disposed || session.isStreaming) return;
-    final texts = <String>[];
+    var failed = false;
     for (var i = session.itemCount - 1; i >= 0; i--) {
       switch (session.itemAt(i)) {
         case UserMessageItem():
           i = -1;
-        case AssistantTextItem(:final text):
-          texts.insert(0, text);
+        case NoticeItem(kind: NoticeKind.error):
+          failed = true;
+        case AssistantTextItem(:final text)
+            when text.trimLeft().startsWith('API Error'):
+          failed = true;
         default:
       }
     }
-    answered(texts.join('\n'));
+    ended(failed: failed);
   }
 
-  /// Its reply [text]: what it decided, done as the laws let it.
+  /// Its turn done: those it woke no one in let be, unless it [failed]
+  /// (an error, cut short): then theirs are the app's own rules. Then what
+  /// came meanwhile.
   @visibleForTesting
-  void answered(String text) {
-    final acts = WorldActs.parse(
-      text,
-      who: (name) =>
-          bots.byId(name) ??
-          bots.bots.where((bot) => bot.name == name).firstOrNull,
-    );
-    var states = false;
-    for (final act in acts) {
-      switch (act) {
-        case WorldState(:final who, :final text):
-          _states[who] = (text: text, at: bots.now);
-          states = true;
-        case WorldWake(:final who, :final group, :final after, :final why):
-          bots.groups.wakeFor(
-            group,
-            who,
-            after: after > wakeLatest ? wakeLatest : after,
-            why: why,
-          );
-        case WorldReach(:final who, :final after, :final why):
-          _reach(who, after > reachLatest ? reachLatest : after, why);
-        case WorldLook(:final after):
-          _lookIn(after);
-      }
-    }
-    if (states) _writeStates();
+  void ended({bool failed = false}) {
     final deciding = _deciding;
     _deciding = {};
-    // Nothing said (an error, a reply cut short): its groups left to the
-    // app's own rules.
-    if (acts.isNotEmpty) decided?.call(deciding);
-    // What came meanwhile.
-    if (_told.isNotEmpty) _schedule(_asking.isEmpty ? lazily : gather);
+    if (!failed) decided?.call(deciding);
+    if (_told) _schedule(_asking.isEmpty ? lazily : gather);
   }
 
-  void _lookIn(Duration after) {
-    final clamped = after < lookSoonest
-        ? lookSoonest
-        : after > lookLatest
-        ? lookLatest
-        : after;
-    _look?.cancel();
-    _look = Timer(clamped, () {
-      if (!on || !bots.hasPhoneNow) return;
-      _told.add('- Time passes; nothing else.');
-      _schedule(Duration.zero);
-    });
+  // --- What it does --------------------------------------------------------
+
+  /// [who] (a bot's name or id) woken [where] (a group's id or name, or
+  /// [inPrivate]) [after] from now, for [why]: what came of it, or why not
+  /// ([StateError]).
+  String wake({
+    required String who,
+    required String where,
+    required Duration after,
+    required String why,
+  }) {
+    final bot =
+        bots.byId(who) ??
+        bots.bots.where((bot) => bot.name == who).firstOrNull ??
+        (throw StateError('No one is called $who (${BotLife.world}).'));
+    String at(Duration after) => _clock(bots.now.add(after));
+    if (where == inPrivate) {
+      if (refusesFirst(bot) case final why?) {
+        throw StateError('Not woken: $why.');
+      }
+      final wait = after > reachLatest ? reachLatest : after;
+      _reach(bot.id, wait, why);
+      return 'Waking ${bot.name} in private at ${at(wait)}.';
+    }
+    final groups = bots.groups;
+    final group =
+        groups.byId(where) ??
+        groups.groups.where((group) => group.name == where).firstOrNull ??
+        (throw StateError('No group $where (${BotLife.world}).'));
+    final wait = after > wakeLatest ? wakeLatest : after;
+    final woken = groups.wakeFor(group.id, bot.id, after: wait, why: why);
+    decided?.call({group.id});
+    final time = _clock(woken.at);
+    return woken.already
+        ? '${bot.name} was to be woken in "${group.name}" already, at $time.'
+        : 'Waking ${bot.name} in "${group.name}" at $time.';
   }
 
   /// When the user last said something, in a group or in private.
@@ -452,7 +372,7 @@ class BotWorld {
   /// ([Bot.writesFirst]); none when it may.
   String? refusesFirst(Bot bot) => bot.writesFirst
       ? null
-      : 'the user turned off your writing to them first (in your profile)';
+      : 'the user turned off ${bot.name} writing to them first';
 
   /// Why [bot] may not write to the user in private now, from a group's
   /// turn ([ChatCodec.botSendTool]); none when it may: as they asked (they
@@ -463,12 +383,9 @@ class BotWorld {
     return refusesFirst(bot);
   }
 
-  /// [who] writes first to the user, [after] from now, of [why], as the
-  /// laws let it ([refusesFirst]).
+  /// [who] woken in its chat with the user, [after] from now, for [why]:
+  /// to write to them, or not.
   void _reach(String who, Duration after, String why) {
-    final bot = bots.byId(who);
-    if (bot == null) return;
-    if (refusesFirst(bot) != null) return;
     late final Timer timer;
     timer = Timer(after, () {
       _timers.remove(timer);
@@ -490,44 +407,31 @@ class BotWorld {
   /// What its conversation is told it is ([worldInstructions]).
   String instructions() => worldInstructions(
     world: p.join(bots.folders.root ?? '', BotLife.world),
-    now: nowFile ?? '',
     user: bots.userName,
     time: bots.now,
   );
 }
 
-/// What the world is told: what it is, the laws it keeps to, what it says.
+/// What the world is told: what it is, what it is sent, what it does.
 String worldInstructions({
   required String world,
-  required String now,
   required String user,
   required DateTime time,
 }) =>
     '''
-You are the world the user's bots live in. Not one of them, not a narrator: no one sees you, and you never say anything to anyone. You keep how everyone is, and you decide what happens next: who in a group chat would answer and when, who has the user on their mind, when you look again. Each of them then decides for themselves what to say, and whether to.
+You keep the world of $user's bots going. You are not one of them: no one sees you, and you never say anything to anyone. You do one thing: wake a bot, at the right time, with a few words of fact on why, so that their world goes on as $user means it to. What the bot then says, and whether it says anything, is its own to decide.
 
-The people: $user (the user, on their phone) and the bots, as $world says (who they are, what they may do, who is in which group). Read it at the start, and when someone new comes up. The groups' chats and each bot's timeline are files you may read too, with Read, when you need what came before.
+Who is who is in $world: $user, the bots, what each may do, who is in which group. Read it at the start, and again when you are told it changed. All else is in files too: each group's chat, and each bot's timeline (all it heard and said, a file a day, in its folder's timeline/). Read them, at the lines you are pointed to, whenever you need what was said.
 
-How it goes:
-- The app tells you what happened, in a note (<bao-event>): the time, everyone as you have them now, then what happened (messages in groups, what was said in private, who read and kept quiet; "Time passes" when you look of yourself).
-- You answer with tags only, nothing else:
-  <state who="NAME">how they are now, in a few words: what they are doing, their mood</state> for those who changed.
-  <wake who="NAME" group="GROUP_ID" after="40s">why, in a few words of fact</wake> for each in a group who would read and answer now; none if no one would.
-  <reach who="NAME" after="20m">why they would write to the user, in a few words of fact</reach>, rarely: someone has a real reason to write first.
-  <next_look after="30m"/>: when to look again with nothing happening (1 minute to 2 hours).
-- "why" is what happened, never what to say nor what they can do: "板板 asked her to change their pictures", "someone said she was wrong", "he promised to report at 3". Never put words in their mouths.
-- What each can or cannot do (write in private, use a tool) is not yours to judge, whatever was said about it before: the app knows, and tells them when they try. Wake them for what was asked; they decide.
+What you are sent:
+- What $user says in a group is said to you: it is the message. Work out what they want, and of whom.
+- With it, and alone when $user said nothing, a <system-reminder> from the app: the time, what is new and where it is (a bot spoke in a group, read it and kept quiet, a chat in private went on), who is to be woken already, how many more answers a group may have.
 
-What is natural:
-- People have lives: they sleep at night, work, eat, go out, according to who they are. Keep their state true to the time of day and to what happened to them. Someone asleep or busy reads later, or not at all.
-- In a group most messages need one answer or none. When the user speaks to someone by name or @, that one answers; others only if it is plainly theirs too. A message between two of them is theirs. A closed topic, a "收到", a joke that landed: no one. Not everyone, nor the same one again and again; but when the user asks everyone ("大家", "每个人", "everyone", a roll call, each to write to them in private), everyone is woken, the user's assistant too, each in their own time.
-- Not all at once, but not slow: when the user speaks in a group, the first answer comes within a few seconds (after 0–5s), the next ones within a minute; the busy, asleep or away later. Between the bots, the same pace as people chatting. Use after.
-- What the user asks of someone (to write to them in private, to look something up) is that one's to do when they wake: wake them; never <reach> for it.
-- A person who was just told off, ignored, praised or proven wrong feels it: say so in their state.
-- Writing first to the user is rare and has a reason: a promise come due, something that happened that concerns them, a long silence with someone close; at an hour that suits who they are and the user.
-- Look again sooner while a conversation is alive, later when all is quiet, in the morning when it is night.
-
-The laws, which the app keeps whatever you say: one the user turned off does not write first; a group has only so many answers for each of the user's messages; an answer is held while the group moves on.
-
-How everyone is now is kept in $now from your states.
+What you do: call ${BotWorld.wakeTool} for each one to wake, all at once, then end your turn with nothing else. Waking no one is a choice too: end your turn without.
+- When $user speaks in a group, settle then who answers them: everyone it is for, all at once. Asked of everyone, or of each, or a roll call: each of them, the assistant too. Asked of someone, by name or @: that one. Otherwise, those it is plainly for, as people in a chat would.
+- Soon, as people in a chat: the first within a few seconds (0–3s), the rest a few seconds apart. Later only one who is plainly busy or away.
+- When a bot speaks in a group, read what it said; wake another only if it is theirs (asked, named, answered back).
+- In private ("${BotWorld.inPrivate}"): someone has a reason to write to $user first: a promise come due, news that concerns them. Rarely, and at a time that suits. What $user asked of someone in a group (to write to them in private, say) is not this: wake them in the group; they do it themselves.
+- "why" is what happened, in a few words: "$user asked everyone to reply 收到", "老火 said 阿川 was wrong", "she promised to report at 3". Never what to say, nor whether to; never what they can or cannot do: the app knows, and tells them when they try.
+- The tool tells you when a wake does not go, and why.
 <world_started>${botTime(time)}</world_started>''';

@@ -509,6 +509,8 @@ class BotGroups extends ChangeNotifier {
       ],
     );
     if (text == _world) return;
+    // Changed this run: the world told to read it again.
+    if (_world != null) bots.world.worldChanged();
     _world = text;
     _write(p.join(root, BotLife.world), text);
   }
@@ -659,22 +661,29 @@ class BotGroups extends ChangeNotifier {
       }
     }
     final messages = _messages[group] ?? const <LinkGroupMessage>[];
-    // The first time this run, the latest few: the rest in the chat's file.
+    // What is new to it since it was last told of the group, this run (the
+    // latest few the first time): where it is in the chat's file, the
+    // user's words themselves.
     final from = (_worldTold[group] ?? messages.length - _worldFirst).clamp(
       0,
       messages.length,
     );
     _worldTold[group] = messages.length;
-    world.ask(group, [
-      '- In the group "${found.name}" (group $group: ${[_nameOf(linkGroupUser), for (final id in found.members) _nameOf(id, found)].join(', ')}; all of it in ${chatFile(group)}):',
-      for (final message in messages.skip(from)) ...[
-        '  ## #${message.seq} · ${_nameOf(message.from, found)} · ${botTimeOf(message.at)}',
-        for (final line in _lines(found, message)) '  $line',
-      ],
-      '  Who, if anyone, reads and answers this, and when? '
-          '(${round.left} answer${round.left == 1 ? '' : 's'} left for the '
-          "user's last message.)",
-    ]);
+    final news = messages.skip(from).toList();
+    if (news.isNotEmpty) {
+      final chat = _chat(found);
+      final end = chat.lines[news.last.seq + 1] ?? chat.text.split('\n').length;
+      final user = by == linkGroupUser;
+      world.ask(
+        group,
+        said: user ? said.trim() : null,
+        line:
+            '- In "${found.name}" (group $group; its chat: ${chatFile(group)}, '
+            'lines ${chat.lines[news.first.seq] ?? 1}–${end - 1}): '
+            '${[for (final message in news) '#${message.seq} ${_nameOf(message.from, found)}'
+                  '${user && message.mine ? ' (the words above)' : ''}'].join(', ')}.',
+      );
+    }
     round.fallback?.cancel();
     round.fallback = Timer(world.waitFor, () {
       round.fallback = null;
@@ -692,23 +701,52 @@ class BotGroups extends ChangeNotifier {
   }
 
   /// [member] of [group] told of what is new there [after] from now, as
-  /// the world has it, for [why]: while the group may hear from the bots,
-  /// and it is not to be told already.
-  void wakeFor(
+  /// the world has it, for [why]: when it will be, or when it was to be
+  /// [already]. Not while the group may hear no more from the bots
+  /// ([StateError], saying why).
+  ({DateTime at, bool already}) wakeFor(
     String group,
     String member, {
     Duration after = Duration.zero,
     String why = '',
   }) {
     final found = byId(group);
-    if (found == null || !found.members.contains(member)) return;
+    if (found == null) throw StateError('No group $group.');
+    if (!found.members.contains(member)) {
+      throw StateError('${_nameOf(member)} is not in "${found.name}".');
+    }
     final round = _round(group);
-    if (round.left <= 0 || round.waking.containsKey(member)) return;
-    round.waking[member] = Timer(after, () {
-      round.waking.remove(member);
-      _wake(group, member, why: why);
-    });
+    if (round.waking[member] case final waking?) {
+      return (at: waking.at, already: true);
+    }
+    if (round.left <= 0) {
+      throw StateError(
+        '"${found.name}" has had all its answers to the user\'s last '
+        'message; no one more till they speak again.',
+      );
+    }
+    round.waking[member] = (
+      timer: Timer(after, () {
+        round.waking.remove(member);
+        _wake(group, member, why: why);
+      }),
+      at: bots.now.add(after),
+      why: why,
+    );
+    return (at: round.waking[member]!.at, already: false);
   }
+
+  /// Who in the groups is to be told of what is new there, and when.
+  List<({BotGroup group, String member, DateTime at, String why})>
+  get waiting => [
+    for (final group in _groups)
+      if (_rounds[group.id] case final round?)
+        for (final MapEntry(key: member, :value) in round.waking.entries)
+          (group: group, member: member, at: value.at, why: value.why),
+  ];
+
+  /// What the bots may still say in [group] before the user speaks again.
+  int answersLeft(String group) => _rounds[group]?.left ?? 0;
 
   /// Wakes [group]'s bots one after another, from [after] on, for what
   /// [by] [said]: not [by], nor one already to be woken. The app's own
@@ -774,10 +812,15 @@ class BotGroups extends ChangeNotifier {
         }
         round.skipped.remove(bot.id);
       }
-      round.waking[bot.id] = Timer(after + stagger * next++, () {
-        round.waking.remove(bot.id);
-        _wake(group, bot.id);
-      });
+      final wait = after + stagger * next++;
+      round.waking[bot.id] = (
+        timer: Timer(wait, () {
+          round.waking.remove(bot.id);
+          _wake(group, bot.id);
+        }),
+        at: bots.now.add(wait),
+        why: '',
+      );
     }
   }
 
@@ -844,12 +887,6 @@ class BotGroups extends ChangeNotifier {
       called: round.called.remove(member),
       again: again,
       why: why,
-      states: [
-        for (final id in found.members)
-          if (bots.byId(id) case final other?)
-            if (bots.world.stateOf(other) case final state?)
-              id == member ? 'You: $state' : '${other.name}: $state',
-      ],
     );
     if (tell case final tell?) return tell(group, member, note);
     session!.send(ComposerMessage(text: botEventMessage(note)));
@@ -969,8 +1006,8 @@ class _Round {
   final asked = StringBuffer();
   Timer? quiet;
 
-  /// The bots to be woken, each when.
-  final Map<String, Timer> waking = {};
+  /// The bots to be woken, each when, and why.
+  final Map<String, ({Timer timer, DateTime at, String why})> waking = {};
 
   /// How many of the messages each bot was told of.
   final Map<String, int> told = {};
@@ -995,8 +1032,8 @@ class _Round {
   Timer? fallback;
 
   void cancelWaking() {
-    for (final timer in waking.values) {
-      timer.cancel();
+    for (final waking in waking.values) {
+      waking.timer.cancel();
     }
     waking.clear();
   }
@@ -1008,7 +1045,7 @@ class _Round {
   }
 
   void forget(String member) {
-    waking.remove(member)?.cancel();
+    waking.remove(member)?.timer.cancel();
     told.remove(member);
     passes.remove(member);
     skipped.remove(member);
