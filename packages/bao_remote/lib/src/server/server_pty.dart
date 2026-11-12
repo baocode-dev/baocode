@@ -35,6 +35,11 @@ class ServerPty {
       _ptys[args['id']]?.write(decodeBytes(args['data']));
       return null;
     };
+    handlers[RemoteProtocol.ptyAck] = (params, _) {
+      final args = paramsOf(params);
+      _ptys[args['id']]?.acked(args['bytes'] as int? ?? 0);
+      return null;
+    };
     handlers[RemoteProtocol.ptyResize] = (params, _) {
       final args = paramsOf(params);
       _ptys[args['id']]?.resize(args['columns'] as int, args['rows'] as int);
@@ -197,13 +202,15 @@ class ServerPty {
           );
     final id = ++_nextId;
     _ptys[id] = pty;
-    pty.output.listen(
-      (data) => _peer.notify(RemoteProtocol.ptyOutput, {
+    // An app that acknowledges what it took in: none read past it.
+    pty.flow = args['flow'] == true;
+    pty.output.listen((data) {
+      _peer.notify(RemoteProtocol.ptyOutput, {
         'id': id,
         'data': encodeBytes(data),
-      }),
-      onError: (Object error) => _log('Terminal $id: $error'),
-    );
+      });
+      pty.sent(data.length);
+    }, onError: (Object error) => _log('Terminal $id: $error'));
     unawaited(
       pty.exitCode.then((code) {
         _ptys.remove(id);
@@ -216,6 +223,7 @@ class ServerPty {
       'executable': shell.executable,
       'arguments': arguments,
       'nonce': nonce,
+      'flow': pty.flow,
     };
   }
 
@@ -247,6 +255,38 @@ sealed class _Terminal {
   /// [signal] (a hangup by default); on Windows, which has none, the
   /// process ends, with every process it started.
   void kill([int signal = 1]);
+
+  /// Whether the app acknowledges its output ([RemoteProtocol.ptyAck]):
+  /// then no more than [RemoteProtocol.ptyHighWatermark] of it is out
+  /// unacknowledged.
+  bool get flow => _flow;
+  bool _flow = false;
+  set flow(bool on) {
+    _flow = on;
+    if (on) _flowed();
+  }
+
+  /// [count] bytes more of its output sent.
+  void sent(int count) {
+    if (!_flow) return;
+    _unacked += count;
+    _flowed();
+  }
+
+  /// [count] bytes of its output taken in by the app.
+  void acked(int count) {
+    if (!_flow) return;
+    _unacked = (_unacked - count).clamp(0, _unacked);
+    _acked += count;
+    _flowed();
+  }
+
+  /// Sent and not yet acknowledged; acknowledged all told.
+  int _unacked = 0;
+  int _acked = 0;
+
+  /// What [sent] and [acked] changed, carried to the process.
+  void _flowed();
 }
 
 class _PosixTerminal extends _Terminal {
@@ -266,6 +306,11 @@ class _PosixTerminal extends _Terminal {
   void resize(int columns, int rows) => _pty.resize(columns, rows);
   @override
   void kill([int signal = 1]) => _pty.kill(signal);
+
+  /// Read no further than what was acknowledged and the window after it:
+  /// held at the source, not after what was read waits to be sent.
+  @override
+  void _flowed() => _pty.allow(_acked + RemoteProtocol.ptyHighWatermark);
 }
 
 class _WindowsTerminal extends _Terminal {
@@ -289,5 +334,20 @@ class _WindowsTerminal extends _Terminal {
     // apart from it: the tree, as Windows has no process groups to signal.
     killProcessTree(_pty.pid);
     _pty.kill(PtySignal.kill);
+  }
+
+  bool _paused = false;
+
+  /// Paused past the high watermark unacknowledged, resumed under the
+  /// low one (the pseudo console is read here, so it stops at once).
+  @override
+  void _flowed() {
+    if (!_paused && _unacked > RemoteProtocol.ptyHighWatermark) {
+      _paused = true;
+      _pty.pause();
+    } else if (_paused && _unacked < RemoteProtocol.ptyLowWatermark) {
+      _paused = false;
+      _pty.resume();
+    }
   }
 }

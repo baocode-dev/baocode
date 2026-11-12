@@ -42,6 +42,43 @@ class RemotePty {
   /// The shell integration's nonce (`VSCODE_NONCE`); empty without it.
   final String nonce;
 
+  /// Whether the server waits for what was taken in to be acknowledged
+  /// ([RemoteProtocol.ptyAck]): one from before does not.
+  bool _flow = false;
+
+  /// Taken in and not yet acknowledged; whether [pause]d.
+  int _unacked = 0;
+  bool _held = false;
+
+  /// Acknowledged in steps of this much.
+  static const _ackEvery = 8 * 1024;
+
+  /// [count] bytes of its output taken in: acknowledged, unless [pause]d.
+  void _took(int count) {
+    if (!_flow) return;
+    _unacked += count;
+    if (!_held && _unacked >= _ackEvery) _ack();
+  }
+
+  void _ack() {
+    if (_unacked == 0 || exited) return;
+    final bytes = _unacked;
+    _unacked = 0;
+    _client.peer.notifyOrRequest(RemoteProtocol.ptyAck, {
+      'id': id,
+      'bytes': bytes,
+    });
+  }
+
+  /// What it prints waits to be parsed: no more acknowledged, so that the
+  /// server stops reading it, until [resume].
+  void pause() => _held = true;
+
+  void resume() {
+    _held = false;
+    _ack();
+  }
+
   final StreamController<Uint8List> _output = StreamController();
   final Completer<int> _exitCode = Completer();
 
@@ -213,9 +250,15 @@ class RemoteClient {
       final data = decodeBytes(args['data']);
       final pty = _ptys[id];
       if (pty == null) {
-        (_early[('pty', id)] ??= []).add(() => _ptys[id]?._output.add(data));
+        (_early[('pty', id)] ??= []).add(() {
+          _ptys[id]
+            ?.._output.add(data)
+            .._took(data.length);
+        });
       } else if (!pty.exited) {
-        pty._output.add(data);
+        pty
+          .._output.add(data)
+          .._took(data.length);
       }
     };
     handlers[RemoteProtocol.ptyExit] = (params) {
@@ -793,6 +836,7 @@ class RemoteClient {
         'locale': ?locale,
         'version': ?version,
         'nonce': ?nonce,
+        'flow': true,
       }),
     );
     final id = started['id'] as int;
@@ -804,6 +848,7 @@ class RemoteClient {
       arguments: (started['arguments'] as List? ?? const []).cast(),
       nonce: started['nonce'] as String? ?? '',
     );
+    pty._flow = started['flow'] == true;
     _ptys[id] = pty;
     _flushEarly('pty', id);
     if (peer.isClosed) pty._exit(RemoteProcess.lostExitCode);
