@@ -229,6 +229,64 @@ void main() {
     });
   });
 
+  test('GitCode issues and pull requests, its older merge requests too '
+      '(#825)', () {
+    final issue = ForgeRef.parse('https://gitcode.com/baocode/app/issues/7')!;
+    expect(issue.repo.kind, ForgeKind.gitcode);
+    expect(issue.repo.path, 'baocode/app');
+    expect(issue.kind, ForgeItemKind.issue);
+    expect(issue.number, 7);
+    expect(issue.url.toString(), 'https://gitcode.com/baocode/app/issues/7');
+    final pull = ForgeRef.parse('https://gitcode.com/o/r/pull/12')!;
+    expect(pull.kind, ForgeItemKind.pull);
+    expect(pull.url.toString(), 'https://gitcode.com/o/r/pull/12');
+    expect(ForgeRef.parse('https://gitcode.com/o/r/merge_requests/12'), pull);
+    expect(ForgeRef.parse('https://gitcode.com/o/r/tree/main'), isNull);
+    expect(
+      ForgeRepo.fromRemote('git@gitcode.com:baocode/app.git'),
+      const ForgeRepo(
+        kind: ForgeKind.gitcode,
+        host: 'gitcode.com',
+        path: 'baocode/app',
+      ),
+    );
+  });
+
+  test('GitCodeApi asks api.gitcode.com, the token in the query', () async {
+    final http = FakeForgeHttp();
+    final api = GitCodeApi(
+      host: 'gitcode.com',
+      http: http,
+      token: () async => 't',
+    );
+    http.on(
+      'GET',
+      'https://api.gitcode.com/api/v5/repos/o/r/issues/7',
+      (_) => {
+        'number': '7',
+        'title': 'Uploads fail',
+        'state': 'open',
+        'user': {'login': 'ann'},
+        'comments': 0,
+        'updated_at': '2026-11-12T10:00:00+08:00',
+      },
+    );
+    final repo = const ForgeRepo(
+      kind: ForgeKind.gitcode,
+      host: 'gitcode.com',
+      path: 'o/r',
+    );
+    final item = await api.item(
+      ForgeRef(repo: repo, kind: ForgeItemKind.issue, number: 7),
+    );
+    expect(item.title, 'Uploads fail');
+    expect(
+      item.ref,
+      ForgeRef(repo: repo, kind: ForgeItemKind.issue, number: 7),
+    );
+    expect(http.requests.single.url.queryParameters['access_token'], 't');
+  });
+
   group('GitHubApi', () {
     late FakeForgeHttp http;
     late GitHubApi api;

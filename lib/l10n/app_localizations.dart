@@ -16101,6 +16101,12 @@ abstract class AppLocalizations {
   /// **'gitee.com, with a personal access token'**
   String get accountsGiteeHosts;
 
+  /// No description provided for @accountsGitCodeHosts.
+  ///
+  /// In en, this message translates to:
+  /// **'gitcode.com, with a personal access token'**
+  String get accountsGitCodeHosts;
+
   /// No description provided for @accountsSignInBrowser.
   ///
   /// In en, this message translates to:
@@ -16190,6 +16196,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'A personal access token with the user_info, projects, pull_requests, issues and notes scopes.'**
   String get accountsTokenGiteeScopes;
+
+  /// No description provided for @accountsTokenGitCodeScopes.
+  ///
+  /// In en, this message translates to:
+  /// **'A personal access token that can read your user info, and read and write repositories, issues and pull requests.'**
+  String get accountsTokenGitCodeScopes;
 
   /// No description provided for @accountsTokenCreate.
   ///

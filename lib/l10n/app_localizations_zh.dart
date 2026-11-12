@@ -9341,6 +9341,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accountsGiteeHosts => 'gitee.com，使用私人令牌登录';
 
   @override
+  String get accountsGitCodeHosts => 'gitcode.com，使用个人访问令牌登录';
+
+  @override
   String get accountsSignInBrowser => '在浏览器中登录';
 
   @override
@@ -9394,6 +9397,9 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get accountsTokenGiteeScopes =>
       '需要勾选 user_info、projects、pull_requests、issues、notes 权限的私人令牌。';
+
+  @override
+  String get accountsTokenGitCodeScopes => '需要能读取用户信息、读写仓库、Issue 和合并请求的个人访问令牌。';
 
   @override
   String accountsTokenCreate(String host) {
