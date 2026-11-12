@@ -286,6 +286,14 @@ void main() {
       null,
     ]);
     expect(ChatCodec.botSentToUser(items[4]), '私下跟你说');
+    // What it says to the group after it, its reply all the same.
+    expect(
+      BotGroups.replyTo([
+        ...items.take(5),
+        AssistantTextItem('<bot_say>发过去了</bot_say>'),
+      ], 'g1'),
+      '<bot_say>大家好</bot_say><bot_say>发过去了</bot_say>',
+    );
     // As the phone has it.
     expect(
       ChatCodec.botSentToUser(ChatCodec.decode(ChatCodec.encode(items[4]))!),

@@ -84,6 +84,12 @@ class BotGroups extends ChangeNotifier {
   /// WORLD.md as last written.
   String? _world;
 
+  /// What the user says to everyone in a group: each of them called on.
+  static final rollCall = RegExp(
+    r'每个人|每一个人|所有人|你们每|everyone|every one of you|all of you',
+    caseSensitive: false,
+  );
+
   /// How many of each group's messages the world was told of.
   final Map<String, int> _worldTold = {};
 
@@ -470,9 +476,15 @@ class BotGroups extends ChangeNotifier {
       (item) => item is UserMessageItem && ChatCodec.botGroupOf(item) == group,
     );
     if (from < 0) return '';
+    // Till what it heard next; what it sent the user meanwhile, not.
     final texts = [
-      for (var i = from + 1; i < items.length && places[i] == group; i++)
-        if (items[i] case AssistantTextItem(:final text)) text,
+      for (
+        var i = from + 1;
+        i < items.length && items[i] is! UserMessageItem;
+        i++
+      )
+        if (places[i] == group)
+          if (items[i] case AssistantTextItem(:final text)) text,
     ];
     return [
       for (final (tag, text) in ChatCodec.botParts(texts.join('\n')))
@@ -622,11 +634,28 @@ class BotGroups extends ChangeNotifier {
     if (by == linkGroupUser) world.heardUser();
     if (!world.on) return _planByRules(group, said: said, by: by, after: after);
     if (by == linkGroupUser) {
+      // Asked of everyone: each told, one after another, as if called on;
+      // the group's answers enough for all.
+      final everyone = rollCall.hasMatch(said);
+      if (everyone && round.left < found.members.length) {
+        round.left = found.members.length;
+      }
+      var next = after;
       for (final id in found.members) {
         final bot = bots.byId(id);
-        if (bot == null || !said.contains('@${bot.name}')) continue;
-        round.called.add(id);
-        wakeFor(group, id, after: after, why: '${_nameOf(by)} called on you');
+        if (bot == null) continue;
+        final named = said.contains('@${bot.name}');
+        if (!named && !everyone) continue;
+        if (named) round.called.add(id);
+        wakeFor(
+          group,
+          id,
+          after: next,
+          why: named
+              ? '${_nameOf(by)} called on you'
+              : '${_nameOf(by)} asked everyone',
+        );
+        if (everyone) next += stagger;
       }
     }
     final messages = _messages[group] ?? const <LinkGroupMessage>[];
