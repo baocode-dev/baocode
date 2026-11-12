@@ -23,6 +23,12 @@ using Microsoft::WRL::ComPtr;
 constexpr UINT kTrayMessage = WM_APP + 0x41;
 constexpr UINT kTrayId = 1;
 
+// While the tray icon is asked for, how often it is looked for, and put
+// back if gone (or put up, if it could not be: the taskbar not there yet,
+// at sign-in). Explorer's TaskbarCreated alone was not enough (#860).
+constexpr UINT_PTR kTrayTimer = 0x4244;
+constexpr UINT kTrayCheckMilliseconds = 15000;
+
 // The tray menu's commands; an agent's is kAgentCommand plus its place, a
 // window's kWindowCommand plus its.
 constexpr UINT kShowCommand = 1;
@@ -295,6 +301,12 @@ Attention::Attention(flutter::BinaryMessenger* messenger, HWND window,
       taskbar_created_(::RegisterWindowMessageW(L"TaskbarCreated")),
       taskbar_button_created_(
           ::RegisterWindowMessageW(L"TaskbarButtonCreated")) {
+  // Let through from Explorer even with the app run as administrator: the
+  // system keeps lower-integrity messages from it otherwise.
+  if (taskbar_created_ != 0) {
+    ::ChangeWindowMessageFilterEx(window_, taskbar_created_, MSGFLT_ALLOW,
+                                  nullptr);
+  }
   channel_->SetMethodCallHandler(
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
@@ -427,11 +439,20 @@ std::optional<LRESULT> Attention::HandleMessage(HWND window, UINT message,
   }
   if (message == taskbar_created_ && taskbar_created_ != 0) {
     // Explorer started again: the tray is new, and empty.
-    if (icon_added_) {
+    if (icon_added_ || tray_) {
       icon_added_ = false;
       ShowIcon();
     }
     return std::nullopt;
+  }
+  if (message == WM_TIMER && wparam == kTrayTimer) {
+    if (!tray_) {
+      ::KillTimer(window_, kTrayTimer);
+    } else if (!icon_added_ || !IconThere()) {
+      icon_added_ = false;
+      ShowIcon();
+    }
+    return 0;
   }
   if (message == taskbar_button_created_ && taskbar_button_created_ != 0) {
     // A taskbar button made anew (the window shown again) has no count.
@@ -527,12 +548,21 @@ void Attention::ShowIcon() {
   const std::wstring tooltip =
       tray_ && !tray_->tooltip.empty() ? tray_->tooltip : L"BaoCode";
   wcsncpy_s(data.szTip, tooltip.c_str(), _TRUNCATE);
-  if (icon_added_) {
-    ::Shell_NotifyIconW(NIM_MODIFY, &data);
-  } else if (::Shell_NotifyIconW(NIM_ADD, &data)) {
-    icon_added_ = true;
-    data.uVersion = NOTIFYICON_VERSION_4;
-    ::Shell_NotifyIconW(NIM_SETVERSION, &data);
+  bool shown = icon_added_ && ::Shell_NotifyIconW(NIM_MODIFY, &data);
+  if (!shown) {
+    // Not up, or gone from under it: put up anew. Up after all (a modify
+    // that failed otherwise), it is changed instead.
+    if (::Shell_NotifyIconW(NIM_ADD, &data)) {
+      shown = true;
+      data.uVersion = NOTIFYICON_VERSION_4;
+      ::Shell_NotifyIconW(NIM_SETVERSION, &data);
+    } else {
+      shown = ::Shell_NotifyIconW(NIM_MODIFY, &data) != FALSE;
+    }
+  }
+  icon_added_ = shown;
+  if (tray_) {
+    ::SetTimer(window_, kTrayTimer, kTrayCheckMilliseconds, nullptr);
   }
   if (icon_ != nullptr) {
     ::DestroyIcon(icon_);
@@ -540,7 +570,19 @@ void Attention::ShowIcon() {
   icon_ = icon;
 }
 
+bool Attention::IconThere() const {
+  NOTIFYICONIDENTIFIER identifier = {};
+  identifier.cbSize = sizeof(identifier);
+  identifier.hWnd = window_;
+  identifier.uID = kTrayId;
+  RECT rect = {};
+  return SUCCEEDED(::Shell_NotifyIconGetRect(&identifier, &rect));
+}
+
 void Attention::RemoveIcon() {
+  if (!tray_) {
+    ::KillTimer(window_, kTrayTimer);
+  }
   if (!icon_added_) {
     return;
   }
