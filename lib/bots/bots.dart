@@ -14,6 +14,7 @@ import '../images/image_tools.dart' show ImageTools;
 import '../kernel/agent_kernel.dart';
 import '../kernel/claude_code/claude_sdk_tools.dart';
 import '../kernel/kernel_registry.dart';
+import '../kernel/kernel_types.dart' show KernelOption;
 import '../kernel/queued_messages.dart';
 import '../link/chat_codec.dart';
 import '../link/link_platform.dart';
@@ -774,6 +775,30 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   // --- Made, changed, deleted -----------------------------------------------
 
+  /// The models a new bot runs on, the first the computer offers: those
+  /// [newBotModel] fits (DeepSeek's), by id or name.
+  static final newBotModel = RegExp('deepseek', caseSensitive: false);
+
+  /// Of [options], the model a new bot runs on ([newBotModel]); none.
+  @visibleForTesting
+  static String? newBotModelOf(Iterable<KernelOption> options) => options
+      .where((o) => newBotModel.hasMatch(o.id) || newBotModel.hasMatch(o.label))
+      .firstOrNull
+      ?.id;
+
+  /// What a new bot runs on, of the models the bots' conversations offer
+  /// ([newBotModelOf]); none fits, the app's.
+  String? _newBotModel() {
+    for (final bot in _bots) {
+      final thread = threadOf(bot);
+      if (thread == null || !thread.isOpen) continue;
+      if (thread.session.models?.options case final options?) {
+        if (newBotModelOf(options) case final model?) return model;
+      }
+    }
+    return null;
+  }
+
   /// [id]'s bot changed as given, or a new one (no [id]).
   Bot save({
     String? id,
@@ -812,6 +837,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         created: _clock(),
         chatOnly: chatOnly ?? false,
         writesFirst: writesFirst ?? true,
+        model: _newBotModel(),
       );
       _writeBot(bot);
       _bots.add(bot);
