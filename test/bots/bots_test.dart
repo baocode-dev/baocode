@@ -501,6 +501,32 @@ void main() {
       expect(bots.unread(bot), 0);
     });
 
+    test('when its chat with the user went on: not when a group did', () async {
+      final bot = bots.bots.single;
+      final session = bots.threadFor(bot).session;
+      Future<void> told(String text) async {
+        final had = session.itemCount;
+        session.send(ComposerMessage(text: text));
+        for (var i = 0; i < 300 && session.itemCount == had; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        session.stop();
+        for (var i = 0; i < 300 && session.isStreaming; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      }
+
+      expect(bots.chattedAt(bot), isNull);
+      await told(
+        botEventMessage('[group g1] The group chat "Team": you.\nNew in it.'),
+      );
+      expect(bots.chattedAt(bot), isNull);
+      final before = DateTime.now();
+      await told('在吗');
+      expect(bots.chattedAt(bot), isNotNull);
+      expect(bots.chattedAt(bot)!.isBefore(before), isFalse);
+    });
+
     test('its agent is told who it is, with all an agent has', () async {
       final bot = bots.bots.single;
       bots.threadFor(bot).session.send(const ComposerMessage(text: '在吗'));

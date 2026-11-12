@@ -784,6 +784,38 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     return null;
   }
 
+  /// When [bot]'s chat with the user last went on: what either said there
+  /// (or the bot sent there from a group), as its turn was sent; none if
+  /// nothing was. Not its groups': the phone's chat list has its chat by it.
+  DateTime? chattedAt(Bot bot) {
+    final thread = threadOf(bot);
+    if (thread == null || !thread.isOpen) return null;
+    final session = thread.session;
+    final places = _places(session);
+    for (var i = session.itemCount - 1; i >= 0; i--) {
+      if (places[i] != null) continue;
+      final said = switch (session.itemAt(i)) {
+        AssistantTextItem(:final text) => ChatCodec.botSays(text).isNotEmpty,
+        final ToolCallItem item =>
+          ChatCodec.botSentToUser(item) != null ||
+              item.status != ToolStatus.failed &&
+                  (item.images.isNotEmpty ||
+                      ChatCodec.botImageUrl(item) != null),
+        final UserMessageItem item =>
+          !item.queued && ChatCodec.botEvent(item) == null,
+        _ => false,
+      };
+      if (!said) continue;
+      for (var j = i; j >= 0; j--) {
+        if (session.itemAt(j) case UserMessageItem(:final sentAt?)) {
+          return sentAt;
+        }
+      }
+      return thread.updatedAt;
+    }
+    return null;
+  }
+
   // --- Made, changed, deleted -----------------------------------------------
 
   /// [id]'s bot changed as given, or a new one (no [id]).
