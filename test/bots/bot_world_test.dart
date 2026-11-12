@@ -151,6 +151,14 @@ void main() {
     expect(kept, contains('- Leo: 在加班，烦躁 (14:00)'));
   });
 
+  test('asked of everyone: each told in turn, the world or not', () async {
+    final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
+    groups.send(group.id, text: '每个人给我私发一条消息');
+    await wait(60);
+    expect(toldNames(), ['Mia', 'Leo']);
+    expect(told.last.$2, contains('asked everyone'));
+  });
+
   test('the world says nothing in time: the app\'s rules', () async {
     final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
     groups.send(group.id, text: '大家好');
