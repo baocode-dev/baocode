@@ -1300,6 +1300,7 @@
   "@agentStateRunningInBackground": {
     "description": "Lowercase, after a subagent's name."
   },
+  "agentElapsedHint": "How long it has been at work: the times it was continued add up",
   "agentStateRunning": "running",
   "@agentStateRunning": {
     "description": "Lowercase, after a subagent's name."

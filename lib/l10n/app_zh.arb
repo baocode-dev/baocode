@@ -671,6 +671,7 @@
   "durationMinutesSeconds": "{minutes}分{seconds}秒",
   "durationHoursMinutes": "{hours}小时{minutes}分",
   "agentStateRunningInBackground": "在后台运行",
+  "agentElapsedHint": "已运行时长：续跑的各次累计在内",
   "agentStateRunning": "运行中",
   "agentStateDone": "已完成",
   "agentStateFailed": "失败",

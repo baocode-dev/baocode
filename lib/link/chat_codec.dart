@@ -164,9 +164,7 @@ abstract final class ChatCodec {
         (
           tag: match[1]!,
           text: part,
-          ref: int.tryParse(
-            _botRef.firstMatch(match[2] ?? '')?.group(1) ?? '',
-          ),
+          ref: int.tryParse(_botRef.firstMatch(match[2] ?? '')?.group(1) ?? ''),
         ),
   ];
 
@@ -311,6 +309,7 @@ abstract final class ChatCodec {
       'activity': ?item.activity,
       'startedAt': ?item.startedAt?.millisecondsSinceEpoch,
       'duration': ?item.duration?.inMilliseconds,
+      'ranBefore': ?item.ranBefore?.inMilliseconds,
       'model': ?item.model,
       if (item.children.isNotEmpty)
         'children': [for (final child in item.children) encode(child)],
@@ -453,6 +452,7 @@ abstract final class ChatCodec {
         ],
         result: optional('result'),
         background: json['background'] == true,
+        ranBefore: duration('ranBefore'),
       ),
       'notice' => NoticeItem(
         named(NoticeKind.values, 'kind', NoticeKind.info),

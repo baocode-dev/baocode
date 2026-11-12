@@ -651,6 +651,87 @@ void main() {
       ));
     });
 
+    test('a workflow is a card, its subagents in it as they go (#836)', () {
+      final transcript = Transcript();
+      var seq = 0;
+      final translator = ClaudeTranslator(
+        emit: transcript.apply,
+        nextSeq: () => ++seq,
+      )..turnId = '11111111-1111-4111-8111-111111111111';
+      AgentItem card() =>
+          [for (var i = 0; i < transcript.length; i++) transcript.itemAt(i)]
+              .whereType<AgentItem>()
+              .single;
+      var queued = false;
+      for (final message in recorded('workflow')) {
+        translator.translate(message);
+        if (message['subtype'] == 'task_progress' &&
+            message['workflow_progress'] != null &&
+            !queued) {
+          // The first look: one started, the other waiting its turn.
+          queued = true;
+          final [a, b] = card().children.cast<AgentItem>();
+          expect(a.status, CommandStatus.running);
+          expect(a.startedAt, isNotNull);
+          expect(a.prompt, startsWith('Read the file at /p/a.txt'));
+          expect(b.activity, 'Queued');
+        }
+      }
+      expect(queued, isTrue);
+      final workflow = card();
+      expect(workflow.agentType, ClaudeTranslator.workflowAgentType);
+      expect(
+        workflow.description,
+        'Fan out two agents in parallel to read a.txt and b.txt and return '
+        'their contents',
+      );
+      expect(workflow.background, isTrue);
+      expect(workflow.status, CommandStatus.succeeded);
+      expect(workflow.duration, const Duration(milliseconds: 14722));
+      expect(workflow.prompt, contains('export const meta'));
+      expect(
+        [
+          for (final agent in workflow.children.cast<AgentItem>())
+            (agent.description, agent.status, agent.result?.trim()),
+        ],
+        [
+          ('read:a.txt', CommandStatus.succeeded, 'hello'),
+          ('read:b.txt', CommandStatus.succeeded, 'world'),
+        ],
+      );
+      expect(transcript.tasks.single.background, isTrue);
+    });
+
+    test('a subagent continued once it ended counts the time it ran '
+        'before (#751)', () {
+      final done = AgentItem(
+        description: 'Read',
+        status: CommandStatus.succeeded,
+        duration: const Duration(seconds: 40),
+        startedAt: DateTime(2026),
+      );
+      final again = done.continuedAt(DateTime(2026, 1, 1, 0, 10));
+      expect(again.status, CommandStatus.running);
+      expect(again.ranBefore, const Duration(seconds: 40));
+      expect(
+        AgentStep.elapsed(again, now: DateTime(2026, 1, 1, 0, 10, 5)),
+        const Duration(seconds: 45),
+      );
+      final ended = again.copyWith(
+        status: CommandStatus.succeeded,
+        duration: const Duration(seconds: 20),
+      );
+      expect(AgentStep.elapsed(ended), const Duration(seconds: 60));
+      expect(
+        AgentStep.elapsed(
+          ended
+              .continuedAt(DateTime(2026, 1, 2))
+              .copyWith(duration: const Duration(seconds: 1)),
+        ),
+        const Duration(seconds: 61),
+      );
+    });
+
     test('a subagent shows the model its messages ran on, as it runs; '
         'the one the CLI resolved only without them', () {
       final transcript = Transcript();

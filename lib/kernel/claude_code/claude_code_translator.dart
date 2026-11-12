@@ -40,6 +40,9 @@ class ClaudeTranslator {
 
   /// What a question was answered with in full access, the user not asked,
   /// as earlier versions did: a question so answered shows as skipped.
+  /// A workflow's card's [AgentItem.agentType] (see [_workflowProgress]).
+  static const workflowAgentType = 'workflow';
+
   static const unattendedAnswer =
       'The user has given full access and is not here to answer questions. '
       'Do not ask again: go with what seems best, say what you assumed, '
@@ -1071,6 +1074,29 @@ class ClaudeTranslator {
         }
         _putAgent(id);
         return;
+      // A workflow (a script running subagents, in the background): a
+      // card as a subagent's, the ones it runs in it (see
+      // [_workflowProgress]).
+      case 'Workflow':
+        final agent = _agents[id] ??= _Agent(
+          AgentItem(
+            description: _workflowTitle(input) ?? 'Workflow',
+            id: id,
+            agentType: workflowAgentType,
+            status: replaying ? CommandStatus.succeeded : CommandStatus.running,
+            startedAt: replaying ? null : tool.startedAt,
+            background: true,
+          ),
+        );
+        // The streamed start has no input: the whole message fills it in.
+        if (agent.item.prompt == null) {
+          agent.item = agent.item.copyWith(
+            description: _workflowTitle(input),
+            prompt: _string(input['script']) ?? _string(input['name']),
+          );
+        }
+        _putAgent(id);
+        return;
       // Not written to a file (see [_planCall]): the plan is said.
       case 'ExitPlanMode':
         if (_string(input['plan']) case final plan?) {
@@ -1396,6 +1422,19 @@ class ClaudeTranslator {
               : null,
         );
         _putAgent(id);
+        return;
+      // Launched, it reports in a notification; one that failed to start
+      // says why.
+      case 'Workflow':
+        final agent = _agents[id];
+        if (agent == null) return;
+        if (outcome != _Outcome.done) {
+          agent.item = agent.item.copyWith(
+            status: CommandStatus.failed,
+            result: text,
+          );
+          _putAgent(id);
+        }
         return;
       case 'Edit' || 'MultiEdit' || 'Write' || 'NotebookEdit'
           when outcome == _Outcome.done && structured != null:
@@ -1811,10 +1850,18 @@ class ClaudeTranslator {
       case 'task_started' when !replaying:
         final taskId = message['task_id'] as String;
         final agent = message['task_type'] == 'local_agent';
+        final workflow = message['task_type'] == 'local_workflow';
         final call = message['tool_use_id'] as String?;
-        // A subagent's task is its card's, continued or not.
-        final card = agent ? _agentCard(taskId, call) : null;
+        // A subagent's task is its card's, continued or not; a workflow's
+        // too.
+        final card = agent || workflow ? _agentCard(taskId, call) : null;
         if (card != null) _agentCalls[taskId] = card;
+        if (_agents[card] case final run? when workflow) {
+          run.item = run.item.copyWith(
+            description: _string(message['description']),
+          );
+          _putAgent(card!);
+        }
         _tasks[taskId] = KernelTask(
           id: taskId,
           description: _string(message['description']) ?? '',
@@ -1826,15 +1873,16 @@ class ClaudeTranslator {
           status: CommandStatus.running,
           startedAt: DateTime.now(),
           toolUseId: card ?? call,
-          background: message['is_backgrounded'] == true,
+          // A workflow runs in the background, whatever it says.
+          background: workflow || message['is_backgrounded'] == true,
           outputFile: _string(message['output_file']) ?? _taskOutputs[taskId],
         );
         _reportTasks();
         // Continued: at work again, in its card.
         if (_agents[card] case final continued? when card != call) {
-          continued.item = continued.item.copyWith(
-            status: CommandStatus.running,
-          );
+          continued.item = continued.item.status == CommandStatus.running
+              ? continued.item
+              : continued.item.continuedAt(DateTime.now());
           _putAgent(card!);
         }
         if (message['is_backgrounded'] == true) {
@@ -1851,7 +1899,10 @@ class ClaudeTranslator {
         }
         final toolUseId = _agentCard(taskId, message['tool_use_id'] as String?);
         final agent = toolUseId == null ? null : _agents[toolUseId];
-        if (agent != null) {
+        if (agent != null && agent.item.agentType == workflowAgentType) {
+          _workflowProgress(agent, message);
+          _putAgent(toolUseId!);
+        } else if (agent != null) {
           agent.item = agent.item.copyWith(
             tokens: claudeInt(usage['total_tokens']),
             toolUses: claudeInt(usage['tool_uses']),
@@ -1956,6 +2007,14 @@ class ClaudeTranslator {
     final tool = toolUseId == null ? null : _tools[toolUseId];
     final card = _agentCard(taskId, toolUseId);
     if (_agents[card] case final agent?) {
+      // A workflow's subagents still at work when it ended end with it.
+      if (agent.item.agentType == workflowAgentType) {
+        for (final MapEntry(:key, :value) in [...agent.children.entries]) {
+          if (value is AgentItem && value.status == CommandStatus.running) {
+            agent.children[key] = value.copyWith(status: status);
+          }
+        }
+      }
       agent.item = agent.item.copyWith(
         status: status,
         tokens: claudeInt(usage['total_tokens']),
@@ -1984,6 +2043,69 @@ class ClaudeTranslator {
   }
 
   void _reportTasks() => emit(TasksReported(nextSeq(), [..._tasks.values]));
+
+  /// What a workflow's card says it is: the workflow's name, else its
+  /// script's `meta` description.
+  static String? _workflowTitle(Map<String, Object?> input) {
+    if (_string(input['name']) case final name? when name.isNotEmpty) {
+      return name;
+    }
+    final script = _string(input['script']);
+    if (script == null) return null;
+    return RegExp(r'''description\s*:\s*(['"`])((?:(?!\1).)+)\1''')
+        .firstMatch(script)
+        ?.group(2);
+  }
+
+  /// A workflow's progress on its card: what it does now, and its
+  /// subagents as the CLI lists them (each time all of them), each as a
+  /// subagent's card in it.
+  void _workflowProgress(_Agent workflow, Map<String, Object?> message) {
+    final usage = _map(message['usage']);
+    workflow.item = workflow.item.copyWith(
+      tokens: claudeInt(usage['total_tokens']),
+      toolUses: claudeInt(usage['tool_uses']),
+      activity: _string(message['description']),
+    );
+    final listed = _list(message['workflow_progress']);
+    if (listed.isEmpty) return;
+    DateTime? at(Object? ms) => switch (claudeInt(ms)) {
+      final ms? => DateTime.fromMillisecondsSinceEpoch(ms),
+      _ => null,
+    };
+    workflow.children.clear();
+    for (final raw in listed) {
+      final agent = _map(raw);
+      if (agent['type'] != 'workflow_agent') continue;
+      final state = _string(agent['state']);
+      final startedAt = at(agent['startedAt']);
+      final ended = state == 'done' || state == 'error';
+      final last = at(agent['lastProgressAt']);
+      final id = '${workflow.item.id}/${agent['index']}';
+      workflow.children[id] = AgentItem(
+        description: _string(agent['label']) ?? 'Subagent',
+        id: id,
+        agentType: _string(agent['agentType']),
+        prompt: _string(agent['promptPreview']),
+        status: switch (state) {
+          'done' => CommandStatus.succeeded,
+          'error' => CommandStatus.failed,
+          _ => CommandStatus.running,
+        },
+        // Queued until it starts.
+        activity: startedAt == null && !ended
+            ? 'Queued'
+            : _string(agent['phaseTitle']),
+        startedAt: ended ? null : startedAt,
+        duration: ended && startedAt != null && last != null
+            ? last.difference(startedAt)
+            : null,
+        model: _ownModelOf(_string(agent['model'])),
+        result: _string(agent['resultPreview']) ?? _string(agent['error']),
+        background: true,
+      );
+    }
+  }
 
   // --- Helpers ------------------------------------------------------------------------
 

@@ -282,6 +282,7 @@ class AgentItem extends ChatItem {
     this.children = const [],
     this.result,
     this.background = false,
+    this.ranBefore,
   });
 
   final String description;
@@ -303,8 +304,12 @@ class AgentItem extends ChatItem {
   /// When it started, while it runs (live sessions only).
   final DateTime? startedAt;
 
-  /// How long it took, once done.
+  /// How long it took, once done: this time it ran (see [ranBefore]).
   final Duration? duration;
+
+  /// How long it ran the times before, continued once it had ended (sent
+  /// a message, SendMessage): null for none.
+  final Duration? ranBefore;
   final String? model;
   final List<ChatItem> children;
 
@@ -344,6 +349,29 @@ class AgentItem extends ChatItem {
     children: children ?? this.children,
     result: result ?? this.result,
     background: background ?? this.background,
+    ranBefore: ranBefore,
+  );
+
+  /// At work again from [at], continued once it had ended: how long it
+  /// ran so far kept in [ranBefore].
+  AgentItem continuedAt(DateTime at) => AgentItem(
+    description: description,
+    id: id,
+    agentType: agentType,
+    prompt: prompt,
+    tokens: tokens,
+    toolUses: toolUses,
+    lastTool: lastTool,
+    activity: activity,
+    startedAt: at,
+    model: model,
+    children: children,
+    result: result,
+    background: background,
+    ranBefore: switch ((ranBefore, duration)) {
+      (final before?, final ran?) => before + ran,
+      (final before, final ran) => before ?? ran,
+    },
   );
 }
 
