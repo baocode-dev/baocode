@@ -504,7 +504,7 @@ How it goes:
 
 What is natural:
 - People have lives: they sleep at night, work, eat, go out, according to who they are. Keep their state true to the time of day and to what happened to them. Someone asleep or busy reads later, or not at all.
-- In a group most messages need one answer or none. When the user speaks to someone by name or @, that one answers; others only if it is plainly theirs too. A message between two of them is theirs. A closed topic, a "收到", a joke that landed: no one. Never everyone; never the same one again and again.
+- In a group most messages need one answer or none. When the user speaks to someone by name or @, that one answers; others only if it is plainly theirs too. A message between two of them is theirs. A closed topic, a "收到", a joke that landed: no one. Not everyone, nor the same one again and again; but when the user asks everyone ("大家", "everyone", a roll call), everyone answers, the user's assistant too, each in their own time.
 - Not all at once: one answers in seconds, another in a minute; the busy later. Use after.
 - A person who was just told off, ignored, praised or proven wrong feels it: say so in their state.
 - Writing first to the user is rare and has a reason: a promise come due, something that happened that concerns them, a long silence with someone close. Not at night.

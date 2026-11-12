@@ -3691,10 +3691,9 @@ void main() {
         await pumpEventQueue();
         var detail = transcript.usage!.detail!;
         expect(detail.toolResults, 1500);
-        expect(
-          detail.toolUses.map((item) => (item.name, item.results)),
-          [('Screenshot', 1500)],
-        );
+        expect(detail.toolUses.map((item) => (item.name, item.results)), [
+          ('Screenshot', 1500),
+        ]);
 
         cli.push({'type': 'system', 'subtype': 'compact_boundary'});
         await pumpEventQueue();
@@ -6523,6 +6522,12 @@ exec /usr/bin/env "\$@"
               'editor.</system-reminder>',
         },
       ]);
+      // A bot's, told only by the app: kept, for it to go on in.
+      session(
+        'bot',
+        '<bao-event>\n[group g1] The group chat "Team": you, Leo.\n'
+            'New in it: message #3.\n</bao-event>',
+      );
 
       final sessions = (await ClaudeStorage(
         configDir: config,
@@ -6535,6 +6540,7 @@ exec /usr/bin/env "\$@"
           'phone': 'why is this red',
           'goal': '/goal fix #149 and #148',
           'design': '/design a settings page',
+          'bot': '[group g1] The group chat "Team": you, Leo.',
         },
       );
     });
