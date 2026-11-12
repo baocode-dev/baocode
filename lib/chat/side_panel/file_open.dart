@@ -111,6 +111,7 @@ class FileLinkTarget {
     this.inPanel = false,
     this.openInIde,
     this.openFolder,
+    this.folderExists,
     this.existsHere,
     this.openOnHost,
   });
@@ -158,6 +159,11 @@ class FileLinkTarget {
   /// file is a link only once it is known to be. None: never a link.
   final Future<bool> Function(String path)? exists;
 
+  /// Whether a folder is at an absolute path: a link to one shows it (see
+  /// [openFolder]), and inline code naming one is a link once it is known
+  /// to be. None: a link opens it as a file.
+  final Future<bool> Function(String path)? folderExists;
+
   /// How the project's host spells paths; this machine's when null.
   final p.Context? paths;
 }
@@ -168,6 +174,18 @@ class FileLinkTarget {
 Future<bool> Function(String path) fileExistsIn(
   IdeFileService files, {
   p.Context? paths,
+}) => _listedIn(files, paths: paths, folders: false);
+
+/// Whether a folder is in [files], as [fileExistsIn] tells a file.
+Future<bool> Function(String path) folderExistsIn(
+  IdeFileService files, {
+  p.Context? paths,
+}) => _listedIn(files, paths: paths, folders: true);
+
+Future<bool> Function(String path) _listedIn(
+  IdeFileService files, {
+  p.Context? paths,
+  required bool folders,
 }) {
   final context = paths ?? p.context;
   final listings = <String, ({DateTime at, Future<Set<String>> names})>{};
@@ -183,7 +201,7 @@ Future<bool> Function(String path) fileExistsIn(
             .then(
               (entries) => {
                 for (final entry in entries)
-                  if (!entry.isDirectory) entry.name,
+                  if (entry.isDirectory == folders) entry.name,
               },
             ),
       );
@@ -250,6 +268,7 @@ class FileOpenScope extends InheritedWidget {
     required this.root,
     required this.onOpen,
     required this.existence,
+    this.folders,
     this.paths,
     this.roots = const [],
     this.seen = const [],
@@ -299,6 +318,10 @@ class FileOpenScope extends InheritedWidget {
   final bool local;
   final ValueChanged<FileOpenRequest> onOpen;
   final FileExistence existence;
+
+  /// Which folders exist (see [FileLinkTarget.folderExists]); none: a
+  /// link to one opens it as a file.
+  final FileExistence? folders;
   final p.Context? paths;
 
   /// A multi-folder workspace's folders, its files' ([root], the agent's
@@ -481,7 +504,14 @@ class FileOpenScope extends InheritedWidget {
     final path = resolve(link.path);
     if (path == null) return null;
     return FileLinkRecognizer(
-      menuFor(path, () => openLink(link), context: context),
+      menuFor(
+        path,
+        // A folder's shows it, as a click does.
+        () => _mayBeFolder(link, path)
+            ? activate(link, path, null)
+            : openLink(link),
+        context: context,
+      ),
     )..onTap = () => activate(link, path, context);
   }
 
@@ -491,17 +521,73 @@ class FileOpenScope extends InheritedWidget {
     final link = FileLink.parseText(code);
     if (link == null) return null;
     final path = resolve(link.path);
-    if (path == null || existence.known(path) != true) return null;
+    if (path == null) return null;
+    final file = existence.known(path);
+    // A folder named with its folders (`lib/chat`, not a word alone),
+    // once it is no file.
+    if (file == false &&
+        link.range == null &&
+        link.path.contains(RegExp(r'[/\\]')) &&
+        folders?.known(path) == true) {
+      return FileLinkRecognizer(
+        menuFor(path, () => openFolder(path), context: context),
+      )..onTap = () => openFolder(path);
+    }
+    if (file != true) return null;
     return FileLinkRecognizer(
       menuFor(path, () => openLink(link), context: context),
     )..onTap = () => activate(link, path, context);
   }
 
+  /// Whether [path] may name a folder, not a file: none known there, and
+  /// with no extension (`.github` has none) or a separator at its end.
+  bool _mayBeFolder(FileLink link, String path) {
+    if (folders == null || link.range != null) return false;
+    if (existence.known(path) == true) return false;
+    final written = link.path;
+    if (written.endsWith('/') || written.endsWith(r'\')) return true;
+    return (paths ?? p.context).basename(written).lastIndexOf('.') <= 0;
+  }
+
+  /// Shows the folder at [path]: in the side panel's tree when it is in
+  /// the project ([onOpenFolder]); elsewhere on this machine in the file
+  /// manager.
+  void openFolder(String path) {
+    final context = paths ?? p.context;
+    final inside = [
+      ...roots,
+      root,
+    ].any((folder) => folder == path || context.isWithin(folder, path));
+    if (onOpenFolder case final open? when inside || !local) {
+      open(path);
+    } else if (local) {
+      unawaited(WindowControls.revealInFileManager(path));
+    }
+  }
+
   /// A click on [link], to the file at [path]: one opened outside the app
   /// opens there ([openerOf], a web page here in the browser); an image
-  /// shows enlarged over [context]'s window ([preview]); anything else
-  /// opens (see [openLink]).
+  /// shows enlarged over [context]'s window ([preview]); a folder shows
+  /// ([openFolder]); anything else opens (see [openLink]).
   void activate(FileLink link, String path, BuildContext? context) {
+    if (_mayBeFolder(link, path)) {
+      final folders = this.folders!;
+      if (folders.known(path) case final known?) {
+        return known ? openFolder(path) : _activateFile(link, path, context);
+      }
+      unawaited(() async {
+        final folder = await (folders.check?.call(path) ?? Future.value(false))
+            .then((found) => found, onError: (_) => false);
+        if (folder) return openFolder(path);
+        if (context == null) return _activateFile(link, path, null);
+        if (context.mounted) _activateFile(link, path, context);
+      }());
+      return;
+    }
+    _activateFile(link, path, context);
+  }
+
+  void _activateFile(FileLink link, String path, BuildContext? context) {
     if (context != null && link.range == null && showsImage(path)) {
       unawaited(preview(context, path, orElse: () => openLink(link)));
     } else if (link.range == null ? openerOf(path) : null case final opener?) {
@@ -640,6 +726,7 @@ class FileOpenScope extends InheritedWidget {
       root != oldWidget.root ||
       onOpen != oldWidget.onOpen ||
       existence != oldWidget.existence ||
+      folders != oldWidget.folders ||
       paths != oldWidget.paths ||
       home != oldWidget.home ||
       local != oldWidget.local ||

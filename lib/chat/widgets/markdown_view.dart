@@ -260,10 +260,14 @@ class _MarkdownViewState extends State<MarkdownView> {
       style: style ?? baseStyle,
       options: options,
     );
-    // Code is a link, and a link's icon a file's, once the file is found.
+    // Code is a link, and a link's icon a file's, once the file (or the
+    // folder) is found.
     if (!data.contains('`') && !data.contains('](')) return blocks(context);
     return ListenableBuilder(
-      listenable: files.existence,
+      listenable: switch (files.folders) {
+        final folders? => Listenable.merge([files.existence, folders]),
+        null => files.existence,
+      },
       builder: (context, _) => blocks(context),
     );
   }

@@ -517,6 +517,7 @@ class _ChatScreenState extends State<ChatScreen>
     ChatWidth.current.removeListener(_widthChanged);
     ChatMinimap.enabled.removeListener(_widthChanged);
     _existence?.dispose();
+    _folderExistence?.dispose();
     _keyScope.dispose();
     for (final layer in _layers) {
       layer.dispose();
@@ -970,6 +971,15 @@ class _ChatScreenState extends State<ChatScreen>
     (path) => widget.fileLinks?.exists?.call(path) ?? Future.value(false),
   );
 
+  /// And which folders, those of its links too.
+  FileExistence? _folderExistence;
+  FileExistence? get _folders => widget.fileLinks?.folderExists == null
+      ? null
+      : _folderExistence ??= FileExistence(
+          (path) =>
+              widget.fileLinks?.folderExists?.call(path) ?? Future.value(false),
+        );
+
   /// Opens [request] where [ChatScreen.fileLinks] says: a file's changes
   /// with what the session knows of them.
   void _openFile(FileOpenRequest request) {
@@ -1112,6 +1122,7 @@ class _ChatScreenState extends State<ChatScreen>
             paths: links.paths,
             onOpen: _openFile,
             existence: _files,
+            folders: _folders,
             readBytes: links.readBytes,
             sizeOf: links.sizeOf,
             inPanel: links.inPanel,
