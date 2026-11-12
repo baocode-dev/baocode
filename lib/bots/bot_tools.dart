@@ -368,9 +368,9 @@ abstract final class BotTools {
                 if ((only == null ||
                         thread.project.name == only ||
                         thread.project.path == only) &&
-                    (status == 'all' || _status(thread) == status))
+                    (status == 'all' || statusOf(thread) == status))
                   '${idOf(thread)} | ${thread.project.name} | ${thread.title}'
-                      ' | ${_status(thread)} | ${_ago(thread.updatedAt)}',
+                      ' | ${statusOf(thread)} | ${ago(thread.updatedAt)}',
             ];
             if (lines.isEmpty) return 'None.';
             return lines.take(limit.clamp(1, 100)).join('\n');
@@ -406,12 +406,12 @@ abstract final class BotTools {
               i >= 0 && lines.length < count;
               i--
             ) {
-              if (_line(session.itemAt(i)) case final line?) {
+              if (lineOf(session.itemAt(i)) case final line?) {
                 lines.add(line);
               }
             }
             return [
-              '"${thread.title}" in ${thread.project.name}, ${_status(thread)}:',
+              '"${thread.title}" in ${thread.project.name}, ${statusOf(thread)}:',
               ...lines.reversed,
             ].join('\n');
           },
@@ -1253,7 +1253,8 @@ abstract final class BotTools {
   /// The largest side of a picture a bot is given as its own.
   static const avatarSide = 512;
 
-  static String _status(AgentThread thread) => switch (thread.status) {
+  /// [thread] in a word: waiting, running, failed or idle.
+  static String statusOf(AgentThread thread) => switch (thread.status) {
     ThreadStatus.needsInput => 'waiting',
     ThreadStatus.running => 'running',
     _ when _lastIsError(thread) => 'failed',
@@ -1275,7 +1276,8 @@ abstract final class BotTools {
     return false;
   }
 
-  static String _ago(DateTime at) {
+  /// How long ago [at] was, in short.
+  static String ago(DateTime at) {
     final minutes = DateTime.now().difference(at).inMinutes;
     if (minutes < 1) return 'just now';
     if (minutes < 60) return '${minutes}m ago';
@@ -1290,7 +1292,7 @@ abstract final class BotTools {
 
   /// [item] in a line or so, for the bot to read; null for what is not
   /// worth it.
-  static String? _line(ChatItem item) => switch (item) {
+  static String? lineOf(ChatItem item) => switch (item) {
     UserMessageItem(:final text, fromAgent: final agent?) =>
       'Subagent "$agent": ${_clip(text)}',
     UserMessageItem(:final text) => 'User: ${_clip(text)}',

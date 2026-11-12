@@ -8884,5 +8884,7 @@
   "settingsTransferImported": "Imported. Some settings take effect once BaoCode restarts.",
   "settingsTransferNotAFile": "This is not a settings file BaoCode exported.",
   "settingsTransferFailed": "Not done: {error}",
-  "@settingsTransferFailed": {"placeholders": {"error": {"type": "String"}}}
+  "@settingsTransferFailed": {"placeholders": {"error": {"type": "String"}}},
+  "generalSettingsSessionTools": "Agents can coordinate other conversations",
+  "generalSettingsSessionToolsDescription": "An agent can list your other conversations, read where they stand without waking them, hand them work (resumed if stopped, queued if busy) and wait for them. For one conversation that coordinates the others; agents started after the change have it."
 }

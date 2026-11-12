@@ -14028,4 +14028,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String settingsTransferFailed(String error) {
     return 'Not done: $error';
   }
+
+  @override
+  String get generalSettingsSessionTools =>
+      'Agents can coordinate other conversations';
+
+  @override
+  String get generalSettingsSessionToolsDescription =>
+      'An agent can list your other conversations, read where they stand without waking them, hand them work (resumed if stopped, queued if busy) and wait for them. For one conversation that coordinates the others; agents started after the change have it.';
 }

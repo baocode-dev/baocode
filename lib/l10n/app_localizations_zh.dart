@@ -13233,4 +13233,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String settingsTransferFailed(String error) {
     return '没能完成：$error';
   }
+
+  @override
+  String get generalSettingsSessionTools => 'Agent 可以统筹其他对话';
+
+  @override
+  String get generalSettingsSessionToolsDescription =>
+      'Agent 能列出你的其他对话、在不唤醒的情况下查看进展、给它们派活（没在运行的会恢复，正忙的会排队）并等待结果。适合用一个对话统筹其他对话；改动后新启动的 Agent 才有。';
 }

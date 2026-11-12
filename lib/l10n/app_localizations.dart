@@ -22752,6 +22752,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not done: {error}'**
   String settingsTransferFailed(String error);
+
+  /// No description provided for @generalSettingsSessionTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Agents can coordinate other conversations'**
+  String get generalSettingsSessionTools;
+
+  /// No description provided for @generalSettingsSessionToolsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'An agent can list your other conversations, read where they stand without waking them, hand them work (resumed if stopped, queued if busy) and wait for them. For one conversation that coordinates the others; agents started after the change have it.'**
+  String get generalSettingsSessionToolsDescription;
 }
 
 class _AppLocalizationsDelegate

@@ -63,6 +63,7 @@ import 'kernel/claude_code/turn_stats_stub.dart'
 import 'kernel/commit_attribution.dart';
 import 'kernel/extension_switches.dart';
 import 'kernel/prompt_suggestions.dart';
+import 'workspace/session_tools.dart';
 import 'chat/composer/composer_polish.dart' show ComposerPolishSetting;
 import 'kernel/queued_messages.dart';
 import 'keybindings/keybindings_sync.dart';
@@ -478,6 +479,9 @@ void followSettingsFiles(SettingsFiles files) {
   QueuedMessages.current = () =>
       QueuedMessages.parse(files.settings[QueuedMessages.settingKey]);
   // Read as each agent starts, and as each message is sent.
+  SessionToolsSetting.current = () => SessionToolsSetting.enabled(
+    files.settings[SessionToolsSetting.settingKey],
+  );
   PromptSuggestions.current = () =>
       PromptSuggestions.enabled(files.settings[PromptSuggestions.settingKey]);
   // The composer's Polish button, shown or not as it changes.
