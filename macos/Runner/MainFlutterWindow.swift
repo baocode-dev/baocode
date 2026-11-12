@@ -111,6 +111,52 @@ class BaoWindow: NSWindow {
     ] {
       center.addObserver(self, selector: #selector(placeTrafficLights), name: name, object: self)
     }
+    // Its place kept over the displays' sleep (see keepFrame).
+    let workspace = NSWorkspace.shared.notificationCenter
+    workspace.addObserver(
+      self, selector: #selector(keepFrame), name: NSWorkspace.screensDidSleepNotification,
+      object: nil)
+    workspace.addObserver(
+      self, selector: #selector(restoreFrame), name: NSWorkspace.screensDidWakeNotification,
+      object: nil)
+    center.addObserver(
+      self, selector: #selector(restoreFrame),
+      name: NSApplication.didChangeScreenParametersNotification, object: nil)
+  }
+
+  /// Where the window was as the displays went to sleep, and until when
+  /// after they woke it is put back there.
+  private var frameBeforeSleep: NSRect?
+  private var restoreUntil: Date?
+
+  /// Notes where the window is as the displays sleep: with the lid closed
+  /// on an external display, the system takes the display away meanwhile
+  /// and squeezes the window into what is left (a zoomed one comes back
+  /// shorter, its top lower), and does not give it back on waking (#890).
+  @objc private func keepFrame() {
+    guard !styleMask.contains(.fullScreen) else { return }
+    frameBeforeSleep = frame
+    restoreUntil = nil
+  }
+
+  /// The window put back where it was as the displays slept: on waking,
+  /// and as the displays come back in the seconds after, once its place
+  /// is on one again. Left be if moved meanwhile off what is there now.
+  @objc private func restoreFrame(_ notification: Notification) {
+    guard let kept = frameBeforeSleep else { return }
+    if notification.name == NSWorkspace.screensDidWakeNotification {
+      restoreUntil = Date().addingTimeInterval(10)
+    }
+    guard let until = restoreUntil else { return }
+    if Date() > until {
+      frameBeforeSleep = nil
+      restoreUntil = nil
+      return
+    }
+    guard !styleMask.contains(.fullScreen), frame != kept,
+          NSScreen.screens.contains(where: { $0.frame.contains(kept) })
+    else { return }
+    setFrame(kept, display: true)
   }
 
   /// How much lower than AppKit puts them the traffic lights are kept, so
