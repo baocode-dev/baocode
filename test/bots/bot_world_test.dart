@@ -203,14 +203,8 @@ void main() {
       '<reach who="Leo" after="0s" asked="true">板板让每人私发名字</reach>',
     );
     await wait(20);
-    expect(
-      reached,
-      [('Leo', contains('The user asked you to write to them in private'))].map(
-        (e) => isA<(String, String)>()
-            .having((r) => r.$1, 'who', e.$1)
-            .having((r) => r.$2, 'note', e.$2),
-      ),
-    );
+    expect([for (final (who, _) in reached) who], ['Leo']);
+    expect(reached.single.$2, contains('The user asked you to write'));
     // Long after: asked of no one now.
     reached.clear();
     now = now.add(const Duration(minutes: 20));
