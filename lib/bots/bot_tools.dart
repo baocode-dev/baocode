@@ -15,23 +15,30 @@ import '../link/workspace_bridge.dart' show WorkspaceBridge;
 import '../models/image_api.dart' show imageMediaType;
 import '../workspace/workspace.dart';
 import 'bot.dart';
+import 'bot_life.dart';
 import 'bot_pacer.dart' show BotEventKind, botTime;
 import 'bot_watch.dart';
+import 'bot_world.dart';
 import 'bots.dart';
 
 /// Which bots a tool of theirs is for: those trusted with [level]; only
 /// the assistant, if [assistant]. One that keeps what is in a bot's files
 /// ([files]) is not for a bot that works on the computer: it keeps its
-/// files itself, with Claude Code's tools.
+/// files itself, with Claude Code's tools. The world's ([world]) is for
+/// none of them.
 class BotToolAccess {
-  const BotToolAccess({this.ability, this.assistant = false});
+  const BotToolAccess({this.ability, this.assistant = false}) : world = false;
+  const BotToolAccess.world() : ability = null, assistant = false, world = true;
 
   /// What a bot needs on for it; none for any bot.
   final BotAbility? ability;
   final bool assistant;
+  final bool world;
 
   bool allows(Bot bot) =>
-      (!assistant || bot.assistant) && (ability == null || bot.can(ability!));
+      !world &&
+      (!assistant || bot.assistant) &&
+      (ability == null || bot.can(ability!));
 }
 
 /// The bots' tools (`mcp__baocode__bot_*`): the user's agents seen,
@@ -657,6 +664,53 @@ abstract final class BotTools {
           summary: (input, _) => '${input['to'] ?? ''}',
         ),
         const BotToolAccess(),
+      ),
+      (
+        tool(
+          BotWorld.wakeTool,
+          'Wakes a bot: in a group, to read what is new there and answer if '
+          'it will; or in private, with something on its mind for the user. '
+          'It is told why, and decides itself. Tells you if it does not go, '
+          'and why.',
+          {
+            'who': {
+              'type': 'string',
+              'description': 'The bot, by name (${BotLife.world}).',
+            },
+            'where': {
+              'type': 'string',
+              'description':
+                  'A group, by its id or name; "${BotWorld.inPrivate}" for its '
+                  'chat with the user.',
+            },
+            'after': {
+              'type': 'string',
+              'description':
+                  'How long from now: "0s", "3s", "2m", "3h". Now if none.',
+            },
+            'why': {
+              'type': 'string',
+              'description': 'What happened, in a few words of fact.',
+            },
+          },
+          (input, call) async => bots.world.wake(
+            who: text(input, 'who'),
+            where: text(input, 'where'),
+            after: switch (input['after']) {
+              null => Duration.zero,
+              final after =>
+                BotWorld.duration('$after') ??
+                    (throw ArgumentError(
+                      'after: "$after" is not a time from now ("5s", "2m").',
+                    )),
+            },
+            why: (input['why'] as String? ?? '').trim(),
+          ),
+          required: ['who', 'where', 'why'],
+          summary: (input, _) =>
+              '${input['who'] ?? ''} · ${input['where'] ?? ''}',
+        ),
+        const BotToolAccess.world(),
       ),
       (
         tool(

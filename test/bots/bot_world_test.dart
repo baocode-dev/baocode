@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:baocode/bots/bot.dart';
@@ -33,10 +32,11 @@ void main() {
   late DateTime now;
   late Bot mia, leo;
 
-  /// What each bot was told in a group, in turn; what the world was told;
-  /// who was moved to write to the user.
+  /// What each bot was told in a group, in turn; what the world was sent
+  /// (the user's words, the app's reminder); who was moved to write to the
+  /// user.
   late List<(String, String)> told;
-  late List<String> worldTold;
+  late List<({String said, String reminder})> worldTold;
   late List<(String, String)> reached;
 
   setUp(() async {
@@ -78,7 +78,8 @@ void main() {
       ..gather = const Duration(milliseconds: 5)
       ..lazily = const Duration(milliseconds: 5)
       ..waitFor = const Duration(milliseconds: 150)
-      ..tell = worldTold.add
+      ..tell = ((said, reminder) =>
+          worldTold.add((said: said, reminder: reminder)))
       ..reached = (bot, note) => reached.add((bot.name, note));
   });
 
@@ -88,35 +89,64 @@ void main() {
   });
 
   Future<void> wait(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
+
+  /// What the world was sent of the groups (not of WORLD.md alone).
+  List<({String said, String reminder})> asked() => [
+    for (final told in worldTold)
+      if (told.reminder.contains('- In "')) told,
+  ];
   List<String> toldNames() => [
     for (final (who, _) in told) bots.byId(who)!.name,
   ];
 
-  test('its reply read: its acts, by names or ids, durations as said; '
-      'those of no one known left out', () {
-    final acts = WorldActs.parse(
-      '<state who="Mia">在午睡，有点烦</state>\n'
-      '<wake who="Leo" group="g1" after="40s">Mia 说他错了</wake>\n'
-      '<wake who="Nobody" group="g1">x</wake>\n'
-      '<reach who="${mia.id}" after="2h">答应三点汇报</reach>\n'
-      '<next_look after="30m"/>',
-      who: (name) =>
-          bots.byId(name) ?? bots.bots.where((b) => b.name == name).firstOrNull,
+  /// What a tool of the app's called from [cwd] with [arguments] gave:
+  /// its text, and whether it was an error.
+  Future<({String text, bool error})> call(
+    String cwd,
+    String tool,
+    Map<String, Object?> arguments,
+  ) async {
+    final result =
+        (await ClaudeSdkTools.handle({
+              'jsonrpc': '2.0',
+              'id': 1,
+              'method': 'tools/call',
+              'params': {'name': tool, 'arguments': arguments},
+            }, ClaudeSdkCall(cwd: cwd)))['result']
+            as Map;
+    return (
+      text: [
+        for (final part in result['content'] as List) (part as Map)['text'],
+      ].join(),
+      error: result['isError'] == true,
     );
-    expect(acts, hasLength(4));
-    final state = acts[0] as WorldState;
-    expect((state.who, state.text), (mia.id, '在午睡，有点烦'));
-    final wake = acts[1] as WorldWake;
-    expect(
-      (wake.who, wake.group, wake.after, wake.why),
-      (leo.id, 'g1', const Duration(seconds: 40), 'Mia 说他错了'),
-    );
-    final reach = acts[2] as WorldReach;
-    expect((reach.who, reach.after), (mia.id, const Duration(hours: 2)));
-    expect((acts[3] as WorldLook).after, const Duration(minutes: 30));
-    expect(WorldActs.duration('5'), const Duration(seconds: 5));
-    expect(WorldActs.duration('1.5m'), const Duration(seconds: 90));
-    expect(WorldActs.duration('soon'), isNull);
+  }
+
+  Future<({String text, bool error})> wake(
+    String who,
+    String where, {
+    String after = '0s',
+    String why = 'x',
+  }) => call(world.folder!, BotWorld.wakeTool, {
+    'who': who,
+    'where': where,
+    'after': after,
+    'why': why,
+  });
+
+  test('how long a wake is put off, as it says', () {
+    expect(BotWorld.duration('5'), const Duration(seconds: 5));
+    expect(BotWorld.duration('40s'), const Duration(seconds: 40));
+    expect(BotWorld.duration('1.5m'), const Duration(seconds: 90));
+    expect(BotWorld.duration('2h'), const Duration(hours: 2));
+    expect(BotWorld.duration('soon'), isNull);
+  });
+
+  test('its tool for it alone; Read and its tool its only ones', () {
+    expect(bots.offersTool(world.folder!, BotWorld.wakeTool), isTrue);
+    expect(bots.offersTool(world.folder!, 'bot_send'), isFalse);
+    expect(bots.offersTool(mia.folder, BotWorld.wakeTool), isFalse);
+    expect(bots.offersTool('/some/project', BotWorld.wakeTool), isFalse);
   });
 
   test('off without a model: the app\'s own rules', () async {
@@ -128,32 +158,73 @@ void main() {
     expect(told, isNotEmpty);
   });
 
-  test('a group\'s message told the world, who says who answers and when: '
-      'only them, told why; the one called on told at once', () async {
+  test('the user\'s words in a group said to the world, the rest a reminder '
+      'of where it is; it wakes whom it will, each told why', () async {
     final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
     groups.send(group.id, text: '@Mia 在吗');
     await wait(40);
     // Called on: told at once, the world or not.
     expect(toldNames(), ['Mia']);
-    expect(worldTold, hasLength(1));
-    expect(worldTold.single, contains('Now: '));
-    expect(worldTold.single, contains('- Mia: (nothing said yet)'));
-    expect(worldTold.single, contains('In the group "江湖" (group ${group.id}'));
-    expect(worldTold.single, contains('@Mia 在吗'));
-    world.answered(
-      '<state who="Leo">在加班，烦躁</state>'
-      '<wake who="Leo" group="${group.id}" after="0s">用户在群里问人</wake>',
+    expect(asked(), hasLength(1));
+    final first = asked().single;
+    expect(first.said, '@Mia 在吗');
+    expect(first.reminder, contains('Now: Thursday 2026-11-12 14:00.'));
+    expect(first.reminder, contains('said to you'));
+    expect(
+      first.reminder,
+      contains(
+        '- In "江湖" (group ${group.id}; its chat: ${groups.chatFile(group.id)}, lines ',
+      ),
     );
+    expect(first.reminder, contains('#1 用户 (the words above)'));
+    expect(first.reminder, contains('"江湖" may have'));
+    final woken = await wake('Leo', group.id, why: '板板在群里问人');
+    expect(woken.error, isFalse);
+    expect(woken.text, contains('Waking Leo in "江湖"'));
     await wait(20);
     expect(toldNames(), ['Mia', 'Leo']);
-    expect(told.last.$2, contains('Why you read it now: 用户在群里问人.'));
-    expect(told.last.$2, contains('How they are now: You: 在加班，烦躁.'));
-    // Decided: the rules not called on after it.
+    expect(told.last.$2, contains('Why you read it now: 板板在群里问人.'));
+    // Decided: the rules not called on after it, the turn done.
+    world.ended();
     await wait(200);
     expect(toldNames(), ['Mia', 'Leo']);
-    // How everyone is, kept.
-    final kept = utf8.decode(folders.files[world.nowFile]!);
-    expect(kept, contains('- Leo: 在加班，烦躁 (14:00)'));
+  });
+
+  test('woken already: said so, when', () async {
+    final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
+    groups.send(group.id, text: '大家好');
+    await wait(30);
+    expect((await wake('Leo', '江湖', after: '30s')).text, contains('Waking'));
+    final again = await wake('Leo', group.id);
+    expect(again.text, contains('already'));
+    groups.send(group.id, text: '还有人吗');
+    await wait(30);
+    // A new message of the user's: what was to be is no more.
+    expect(worldTold.last.reminder, isNot(contains('To be woken already')));
+    await wake('Leo', group.id, after: '30s', why: '板板又问');
+    world.note('- Mia read "江湖" and kept quiet.');
+    await wait(30);
+    expect(worldTold.last.said, isEmpty);
+    expect(worldTold.last.reminder, contains('To be woken already:'));
+    expect(
+      worldTold.last.reminder,
+      contains('- Leo in "江湖" at 14:00:30 (板板又问).'),
+    );
+  });
+
+  test('a wake that does not go: told why', () async {
+    final group = groups.save(name: '江湖', members: [mia.id]);
+    groups.send(group.id, text: '你好');
+    await wait(30);
+    final outsider = await wake('Leo', group.id);
+    expect(outsider.error, isTrue);
+    expect(outsider.text, contains('not in "江湖"'));
+    expect((await wake('Nobody', group.id)).text, contains('No one'));
+    expect((await wake('Mia', 'nowhere')).text, contains('No group'));
+    expect(
+      (await wake('Mia', group.id, after: 'soon')).text,
+      contains('not a time'),
+    );
   });
 
   test('asked of everyone: each told in turn, the world or not', () async {
@@ -168,30 +239,51 @@ void main() {
     final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
     groups.send(group.id, text: '大家好');
     await wait(60);
-    expect(worldTold, hasLength(1));
+    expect(asked(), hasLength(1));
     expect(told, isEmpty);
     await wait(200);
     expect(told, isNotEmpty);
   });
 
-  test(
-    'a reply with nothing in it (an error) leaves it to the rules too',
-    () async {
-      final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
-      groups.send(group.id, text: '大家好');
-      await wait(40);
-      world.answered('API Error: overloaded');
-      await wait(200);
-      expect(told, isNotEmpty);
-    },
-  );
+  test('its turn ends in an error: the app\'s rules; ends waking no one: '
+      'no one', () async {
+    final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
+    groups.send(group.id, text: '大家好');
+    await wait(40);
+    world.ended(failed: true);
+    await wait(200);
+    expect(told, isNotEmpty);
 
-  test('one moved to write first: if it may, at any hour', () async {
+    told.clear();
+    groups.send(group.id, text: '收到');
+    await wait(40);
+    world.ended();
+    await wait(200);
+    expect(told, isEmpty);
+  });
+
+  test('a chat in private, and WORLD.md changed: where, told lazily', () async {
+    final file = bots.timelineFile(mia);
+    world.private(mia, file, 7);
+    world.private(mia, file, 9);
+    groups.save(name: '江湖', members: [mia.id, leo.id]);
+    await wait(30);
+    final reminder = worldTold.last.reminder;
+    expect(
+      reminder,
+      contains('- 用户 and Mia, in private: from line 7 of $file.'),
+    );
+    expect(reminder, contains('WORLD.md changed'));
+  });
+
+  test('woken in private: if it may write first, at any hour', () async {
     now = DateTime(2026, 11, 13, 23, 30);
-    world.answered('<reach who="Leo" after="0s">x</reach>');
-    world.answered('<reach who="Mia" after="0s">答应三点汇报</reach>');
+    final refused = await wake('Leo', BotWorld.inPrivate);
+    expect(refused.error, isTrue);
+    expect(refused.text, contains('turned off Leo writing to them first'));
+    final sent = await wake('Mia', BotWorld.inPrivate, why: '答应三点汇报');
+    expect(sent.text, contains('Waking Mia in private'));
     await wait(20);
-    // Leo turned off; Mia, at night too.
     expect([for (final (who, _) in reached) who], ['Mia']);
     expect(reached.first.$2, contains('答应三点汇报'));
   });
@@ -199,37 +291,25 @@ void main() {
   test('asked in a group to write in private, a bot sends it itself: '
       'even one not let write first, while the user spoke lately; else it '
       'is told why not', () async {
-    Future<Map> send(Bot bot, String to, String text) async =>
-        (await ClaudeSdkTools.handle({
-              'jsonrpc': '2.0',
-              'id': 1,
-              'method': 'tools/call',
-              'params': {
-                'name': 'bot_send',
-                'arguments': {'to': to, 'text': text},
-              },
-            }, ClaudeSdkCall(cwd: bot.folder)))['result']
-            as Map;
-    String said(Map result) =>
-        [for (final part in result['content'] as List) (part as Map)['text']]
-            .join();
     final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
     now = DateTime(2026, 11, 12, 23, 40);
     groups.send(group.id, text: '你们每个人私发我一条消息');
-    await wait(20);
-    world.answered(
-      '<wake who="Leo" group="${group.id}" after="0s">板板让每人私发</wake>',
-    );
-    await wait(20);
+    await wait(60);
     expect(groups.answering(leo.id), group.id);
-    final sent = await send(leo, 'private', '我是 Leo');
-    expect(sent['isError'], isNot(true));
-    expect(said(sent), contains('Sent to the user'));
+    final sent = await call(leo.folder, 'bot_send', {
+      'to': 'private',
+      'text': '我是 Leo',
+    });
+    expect(sent.error, isFalse);
+    expect(sent.text, contains('Sent to the user'));
     // Long after the user spoke, and Leo not let write first: told why.
     now = now.add(const Duration(minutes: 20));
-    final held = await send(leo, 'private', '还是我');
-    expect(held['isError'], isTrue);
-    expect(said(held), contains('turned off your writing to them first'));
+    final held = await call(leo.folder, 'bot_send', {
+      'to': 'private',
+      'text': '还是我',
+    });
+    expect(held.error, isTrue);
+    expect(held.text, contains('turned off Leo writing to them first'));
   });
 
   test(
