@@ -1830,6 +1830,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarArchived => '已归档';
 
   @override
+  String sidebarArchivedIn(String folder) {
+    return '$folder · 已归档';
+  }
+
+  @override
   String get sidebarOpenFolder => '打开文件夹…';
 
   @override
