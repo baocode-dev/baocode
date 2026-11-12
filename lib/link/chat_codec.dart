@@ -58,6 +58,20 @@ abstract final class ChatCodec {
   /// its chat as a card that opens it.
   static const botCardTag = 'bot_show_chat';
 
+  /// The tag a bot that has a group's conversation wraps the name of the
+  /// one it passes it to in.
+  static const botNextTag = 'bot_next';
+
+  /// Whom a bot's reply [text] passes a group's conversation to
+  /// ([botNextTag]): the last it names, if it does.
+  static String? botNext(String text) => switch (RegExp(
+    '<$botNextTag>(.*?)</$botNextTag>',
+    dotAll: true,
+  ).allMatches(text).lastOrNull?[1]?.trim()) {
+    final name? when name.isNotEmpty => name,
+    _ => null,
+  };
+
   /// The tag a bot wraps each of what the user might say next in, at the
   /// end of its reply, when they turned that on: a tap away from sent.
   static const botSuggestTag = 'bot_suggest';

@@ -6,6 +6,7 @@ import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
 import 'package:baocode/chat/chat_session.dart' show ComposerMessage, UserPlace;
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/bots/bot_folders.dart';
+import 'package:baocode/bots/bot_groups.dart';
 import 'package:baocode/bots/bots.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
@@ -626,10 +627,7 @@ void main() {
     final bots = Bots(workspace: workspace, folders: MemoryBotFolders());
     await bots.start();
     addTearDown(bots.dispose);
-    bots.groups
-      ..glance = Duration.zero
-      ..random = null
-      ..tell = (_, _, _) {};
+    bots.groups.tell = (_, _, _) {};
     final mia = bots.save(name: 'Mia', identity: '', abilities: {});
     final (phone, desktop) = await peers();
     final withBots = WorkspaceBridge(
@@ -662,38 +660,10 @@ void main() {
     // Sent again, as when the link dropped: once.
     expect(await withBots.handle(LinkMethods.sendGroup, send), {'seq': 1});
     expect(withBots.state().groups.single.unread, 0);
-    // Mia pulled by it, as the phone sees: how much, and why.
+    // Mia has its conversation, as the phone sees.
     final room = withBots.state().groups.single;
-    expect(room.lively, 0.6);
-    final attention = room.attention.firstWhere((a) => a.member == mia.id);
-    expect(attention.value, 1);
-    expect(attention.why, contains('#1'));
-    await withBots.handle(LinkMethods.setGroupLively, {
-      'group': made.id,
-      'lively': 2,
-    });
-    expect(withBots.state().groups.single.lively, LinkGroup.livelyMost);
-    // Its attention model: one of those offered, or none.
-    final offered =
-        ((await withBots.handle(LinkMethods.attentionModels, {}))!
-                as Map)['options']
-            as List;
-    // Haiku, or an upstream's: not Claude Code's other models.
-    for (final option in offered) {
-      final id = (option as Map)['id'] as String;
-      expect(id == 'haiku' || id.startsWith('@'), isTrue);
-    }
-    await expectLater(
-      withBots.handle(LinkMethods.setGroupAttentionModel, {
-        'group': made.id,
-        'model': '@up/none',
-      }),
-      throwsA(isA<LinkRemoteException>()),
-    );
-    await withBots.handle(LinkMethods.setGroupAttentionModel, {
-      'group': made.id,
-    });
-    expect(withBots.state().groups.single.attentionModel, isNull);
+    expect(['assistant', mia.id], contains(room.holder));
+    expect(room.passesLeft, BotGroups.passes);
     final opened =
         (await withBots.handle(LinkMethods.openGroup, {'group': made.id}))!
             as Map;

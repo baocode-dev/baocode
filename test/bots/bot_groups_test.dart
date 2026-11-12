@@ -1,12 +1,12 @@
-import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:bao_link/bao_link.dart' show linkGroupUser;
 import 'package:baocode/bots/bot.dart';
-import 'package:baocode/bots/bot_attention_model.dart';
 import 'package:baocode/bots/bot_folders.dart';
+import 'package:baocode/bots/bot_group_prompt.dart';
 import 'package:baocode/bots/bot_groups.dart';
 import 'package:baocode/bots/bot_prompt.dart' show botEventMessage;
 import 'package:baocode/bots/bots.dart';
@@ -60,11 +60,8 @@ void main() {
     leo = bots.save(name: 'Leo', identity: '', abilities: {});
     ann = bots.save(name: 'Ann', identity: '', abilities: {});
     told = [];
-    // Looked at in 10ms at full attention, 160ms at none; as worked out.
     groups = bots.groups
-      ..glance = const Duration(milliseconds: 10)
-      ..glanceSpan = 16
-      ..random = null
+      ..random = Random(1)
       ..tell = (group, member, note) => told.add((member, note));
   });
 
@@ -117,167 +114,152 @@ void main() {
     expect(groups.image(group.id, '../groups.json'), isNull);
     final chat = utf8.decode(folders.files[groups.chatFile(group.id)]!);
     expect(chat, contains('# 江湖'));
-    expect(chat, contains('## #1 · 用户 · 2026-11-12 14:00\n你们好\n![picture]('));
-    expect(chat, contains('## #2 · Mia · 2026-11-12 14:00\n嗨\n*她挥挥手*'));
+    expect(
+      chat,
+      contains('## #1 · 用户 · 2026-11-12 14:00:00\n你们好\n![picture]('),
+    );
+    expect(chat, contains('## #2 · Mia · 2026-11-12 14:00:00\n嗨\n*她挥挥手*'));
     // Kept: there again when the app starts again.
     final again = BotGroups(bots)..start();
     addTearDown(again.dispose);
     expect(again.messages(group.id), hasLength(2));
   });
 
-  BotAttention attentionOf(String group, Bot bot) =>
-      groups.attention(group).firstWhere((a) => a.member == bot.id);
+  String? holder(BotGroup group) => groups.relay(group.id).holder;
 
-  test('called on, at once, the others not pulled; else everyone looks '
-      'soon, told the time and when they last looked', () async {
+  test('the user speaks: it goes to whom they call on; else to the bot '
+      'that spoke last; else to one at random', () async {
     final group = groups.save(name: 'g', members: [mia.id, leo.id, ann.id]);
-    groups.send(group.id, text: '@Ann 你先说');
-    await wait(5);
-    expect(toldNames(), ['Ann']);
-    expect(told.single.$2, contains('You were called on'));
-    expect(told.single.$2, contains('Now: Thursday 2026-11-12 14:00.'));
-    expect(attentionOf(group.id, ann).value, 1);
-    expect(attentionOf(group.id, ann).why, '被用户 @（#1）');
-    final mias = attentionOf(group.id, mia);
-    expect((mias.value, mias.glance), (0, null));
-    await wait(40);
-    expect(toldNames(), ['Ann']);
-    groups.turnEnded(group.id, ann.id, '');
-    now = now.add(const Duration(minutes: 20));
-    groups.send(group.id, text: '人呢');
-    await wait(30);
-    expect(toldNames(), unorderedEquals(['Ann', 'Mia', 'Leo', 'Ann']));
+    groups.send(group.id, text: '你好 @Leo @Ann');
+    expect(toldNames(), ['Leo']);
+    expect(holder(group), leo.id);
+    final note = told.single.$2;
+    expect(note, contains('Now: 2026-11-12 14:00:00.'));
+    expect(note, contains('## #1 · 用户 · 2026-11-12 14:00:00 · new\n你好'));
+    expect(note, contains('It is your turn: 用户 called on you (@).'));
+    expect(note, contains('It may be passed 8 more times.'));
+    expect(note, contains('<bot_next>name</bot_next>'));
+    groups.turnEnded(group.id, leo.id, '<bot_say>好</bot_say>');
+    expect(holder(group), isNull);
+    now = now.add(const Duration(minutes: 5));
+    groups.send(group.id, text: '在吗');
+    expect(toldNames(), ['Leo', 'Leo']);
+    expect(told.last.$2, contains('you spoke last here'));
     expect(
       told.last.$2,
-      contains('you last looked at it Thursday 2026-11-12 14:00'),
+      contains('You last looked at it: 2026-11-12 14:00:00.'),
     );
+    // #1 seen before; #2 its own; #3 new.
+    expect(told.last.$2, contains('· 2026-11-12 14:00:00\n你好'));
+    expect(told.last.$2, contains('## #3 · 用户 · 2026-11-12 14:05:00 · new'));
+    final fresh = groups.save(name: 'h', members: [mia.id, ann.id]);
+    groups.send(fresh.id, text: '大家好');
+    expect([mia.id, ann.id], contains(holder(fresh)));
+    expect(told.last.$2, contains('you were picked to start'));
   });
 
-  test("the attention model scores how much the user's words draw each; "
-      'one it leaves out, or too faint, not pulled', () async {
-    final group = groups.save(name: 'g', members: [mia.id, leo.id, ann.id]);
-    groups.score = (group, message) async => {
-      mia.id: (pull: 1.0, why: '点名问她'),
-      leo.id: (pull: 0.05, why: '与他无关'),
-    };
-    groups.send(group.id, text: 'Mia 你觉得呢');
-    await wait(40);
-    expect(toldNames(), ['Mia']);
-    expect(attentionOf(group.id, mia).why, '注意力模型：点名问她，1.00（#1）');
-    expect(attentionOf(group.id, leo).value, 0);
-    expect(attentionOf(group.id, ann).value, 0);
-    // It fails: everyone, fully.
-    groups.score = (group, message) async => throw StateError('down');
-    groups.send(group.id, text: '哈哈');
-    await wait(40);
-    expect(toldNames(), unorderedEquals(['Mia', 'Leo', 'Ann']));
-  });
+  test(
+    'passed on as it says, as many times as it may; then it stops',
+    () async {
+      final group = groups.save(name: 'g', members: [mia.id, leo.id]);
+      groups.send(group.id, text: '@Mia 聊聊');
+      var turns = 0;
+      for (var who = holder(group); who != null; who = holder(group)) {
+        turns++;
+        groups.turnEnded(
+          group.id,
+          who,
+          '<bot_say>$turns</bot_say>',
+          next: who == mia.id ? 'Leo' : 'Mia',
+        );
+      }
+      // The user's, then eight passes.
+      expect(turns, 9);
+      expect(told[1].$2, contains('It is your turn: Mia passed it to you.'));
+      expect(told[1].$2, contains('It may be passed 7 more times.'));
+      expect(told.last.$2, contains('It may not be passed on'));
+      expect(told.last.$2, isNot(contains('<bot_next>')));
+    },
+  );
 
-  test("the attention model's answer read: by name, clamped, others out", () {
-    final pulls = readAttentionAnswer(
-      '好的：{"pulls": [{"name": "Mia", "pull": 1.4, "why": "问她"}, '
-      '{"name": "Nobody", "pull": 1}, {"name": "Leo", "pull": 0.2}]}',
-      [mia, leo],
-    );
-    expect(pulls[mia.id], (pull: 1.0, why: '问她'));
-    expect(pulls[leo.id], (pull: 0.2, why: ''));
-    expect(pulls, hasLength(2));
-    expect(() => readAttentionAnswer('no', [mia]), throwsFormatException);
-  });
-
-  test('asked of everyone: each at once', () async {
+  test('passed to no one, to one not there, or to itself: it stops', () {
     final group = groups.save(name: 'g', members: [mia.id, leo.id]);
-    groups.send(group.id, text: '所有人报个到');
-    await wait(5);
-    expect(toldNames(), unorderedEquals(['Mia', 'Leo']));
-    expect(attentionOf(group.id, leo).why, '用户叫了所有人（#1）');
-  });
-
-  test('what a bot says pulls the others as warm as its group is lively, '
-      'of what it answered; one at work reads it once done', () async {
-    final group = groups.save(name: 'g', members: [mia.id, leo.id]);
-    groups.send(group.id, text: '@Mia 你好');
-    await wait(5);
-    expect(toldNames(), ['Mia']);
-    groups.turnEnded(group.id, mia.id, '<bot_say>你好呀</bot_say>');
-    final leos = attentionOf(group.id, leo);
-    expect(leos.value, closeTo(0.6, 1e-9));
-    expect(leos.why, 'Mia说话了（#2，热度 0.60）');
-    await wait(60);
-    // Told of both at once.
-    expect(toldNames(), ['Mia', 'Leo']);
-    expect(told.last.$2, contains('#1–#2'));
-    // Mia, called on before, still all attention: looks in 10ms.
-    groups.turnEnded(group.id, leo.id, '<bot_say>嗨</bot_say>');
-    expect(attentionOf(group.id, mia).value, 1);
-    expect(attentionOf(group.id, mia).glance, isNotNull);
-    await wait(30);
-    expect(toldNames(), ['Mia', 'Leo', 'Mia']);
-    // Less lively now: her answer to Leo's 0.6 is 0.18, too faint to pull.
-    groups
-      ..setLively(group.id, 0.3)
-      ..faint = 0.2
-      ..turnEnded(group.id, mia.id, '<bot_say>聊啥</bot_say>');
-    expect(attentionOf(group.id, leo).glance, isNull);
-    expect(groups.byId(group.id)!.lively, 0.3);
-  });
-
-  test('bots answering bots fade out', () async {
-    final group = groups.save(name: 'g', members: [mia.id, leo.id]);
-    var n = 0;
-    groups.tell = (group, member, note) {
-      told.add((member, note));
-      // Each answers what it is told, a moment after.
-      Timer(const Duration(milliseconds: 2), () {
-        groups.turnEnded(group, member, '<bot_say>${n++}</bot_say>');
-      });
-    };
-    groups.send(group.id, text: '聊聊');
-    await wait(900);
-    final said = groups.messages(group.id).length;
-    // They talked among themselves a while, then stopped.
-    expect(said, greaterThan(4));
-    await wait(300);
-    expect(groups.messages(group.id).length, said);
-  });
-
-  test('one that keeps quiet is pulled less by the bots each time; by the '
-      'user, fully', () async {
-    final group = groups.save(name: 'g', members: [mia.id, leo.id]);
-    for (var i = 0; i < 4; i++) {
-      groups.send(group.id, text: 'x$i');
-      await wait(30);
-      expect(toldNames().where((n) => n == 'Mia'), hasLength(i + 1));
-      groups
-        ..turnEnded(group.id, mia.id, '')
-        ..turnEnded(group.id, leo.id, '');
+    for (final next in [null, 'Nobody', 'Mia']) {
+      told.clear();
+      groups.send(group.id, text: '@Mia 嗯');
+      groups.turnEnded(group.id, mia.id, '', next: next);
+      expect(holder(group), isNull);
+      expect(toldNames(), ['Mia']);
     }
-    expect(attentionOf(group.id, mia).why, '看了没说话（连续 4 次）');
-    // Leo's 0.6, a sixteenth as pulling: too faint.
-    groups.say(group.id, leo.id, '有人吗');
-    expect(attentionOf(group.id, mia).glance, isNull);
-    groups.send(group.id, text: 'y');
-    expect(attentionOf(group.id, mia).value, 1);
   });
 
-  test('replies that crossed: each sent as it is; each reads the other\'s '
-      'once done', () async {
-    final group = groups.save(name: 'g', members: [mia.id, leo.id]);
-    groups.send(group.id, text: '@Mia @Leo 嗨');
-    await wait(5);
-    expect(toldNames(), unorderedEquals(['Mia', 'Leo']));
-    told.clear();
-    groups.turnEnded(group.id, leo.id, '<bot_say>嗨嗨</bot_say>');
-    // Mia wrote hers meanwhile: sent too, not held.
-    groups.turnEnded(group.id, mia.id, '<bot_say>嗨</bot_say>');
+  test('one that cannot take it, busy elsewhere or its turn failed: '
+      'another who is free has it, told why', () {
+    final group = groups.save(name: 'g', members: [mia.id, leo.id, ann.id]);
+    final other = groups.save(name: '别处', members: [leo.id, mia.id]);
+    groups.send(other.id, text: '@Leo 忙吗');
+    groups.send(group.id, text: '@Mia 你先');
+    groups.turnEnded(group.id, mia.id, '<bot_say>好</bot_say>', next: 'Leo');
+    // Leo at work in the other: Ann, not Mia who passed it.
+    expect(holder(group), ann.id);
     expect(
-      [for (final message in groups.messages(group.id)) message.text],
-      ['@Mia @Leo 嗨', '<bot_say>嗨嗨</bot_say>', '<bot_say>嗨</bot_say>'],
+      told.last.$2,
+      contains(
+        'It is your turn: Mia passed it to Leo, but Leo is busy in "别处"; '
+        'so it is yours. It may be passed 6 more times.',
+      ),
     );
-    await wait(60);
-    final notes = {for (final (who, note) in told) name(who): note};
-    expect(notes['Mia'], contains('## #2 · Leo'));
-    expect(notes['Leo'], contains('## #3 · Mia'));
+    groups.turnEnded(group.id, ann.id, '', failed: true);
+    expect(holder(group), mia.id);
+    expect(told.last.$2, contains('but Ann ran into an error; so it is yours'));
+  });
+
+  test(
+    'one not done in time: another has it; its words still said after',
+    () async {
+      groups.stuck = const Duration(milliseconds: 30);
+      final group = groups.save(name: 'g', members: [mia.id, leo.id]);
+      groups.send(group.id, text: '@Mia 在吗');
+      await wait(60);
+      expect(holder(group), leo.id);
+      expect(
+        told.last.$2,
+        contains('用户 called on Mia, but Mia did not answer in 0 seconds'),
+      );
+      groups.turnEnded(group.id, mia.id, '<bot_say>来了</bot_say>', next: 'Leo');
+      expect(groups.messages(group.id).last.text, '<bot_say>来了</bot_say>');
+      expect(holder(group), leo.id);
+      expect(toldNames(), ['Mia', 'Leo']);
+    },
+  );
+
+  test('the user speaking while one is at work on it: once it is done, it '
+      'goes as when they spoke', () {
+    final group = groups.save(name: 'g', members: [mia.id, leo.id, ann.id]);
+    groups.send(group.id, text: '@Mia 一');
+    groups.send(group.id, text: '@Leo 二');
+    expect(toldNames(), ['Mia']);
+    groups.turnEnded(group.id, mia.id, '<bot_say>嗯</bot_say>', next: 'Ann');
+    expect(toldNames(), ['Mia', 'Leo']);
+    expect(told.last.$2, contains('用户 called on you'));
+    expect(told.last.$2, contains('## #3 · Mia · 2026-11-12 14:00:00 · new'));
+  });
+
+  test('told the latest twenty, each cut past its length, where all of it '
+      'is said', () {
+    final group = groups.save(name: 'g', members: [mia.id]);
+    for (var i = 1; i <= 24; i++) {
+      groups.say(group.id, mia.id, i == 20 ? 'x' * 600 : '$i');
+    }
+    groups.send(group.id, text: '@Mia 看看');
+    final note = told.single.$2;
+    expect(
+      note,
+      contains('The latest messages (#6–#25), the new ones marked:'),
+    );
+    expect(note, isNot(contains('## #5 ·')));
+    expect(note, contains('${'x' * 500}… (cut: all of it at lines'));
+    expect(note, isNot(contains('x' * 501)));
   });
 
   test('one bot, one conversation: told of its life, its files and how '
@@ -315,7 +297,7 @@ void main() {
         '[group ${group.id}] The group chat "江湖": you, 用户 (the user), Leo.',
       ),
     );
-    expect(note, contains('## #1 · 用户 · 2026-11-12 14:00\n@Mia 晚上吃啥'));
+    expect(note, contains('## #1 · 用户 · 2026-11-12 14:00:00 · new\n@Mia 晚上吃啥'));
     expect(note, contains(groups.chatFile(group.id)));
     expect(
       ChatCodec.botGroupOf(UserMessageItem(text: botEventMessage(note))),
@@ -410,13 +392,13 @@ void main() {
     expect(said.images, ['3-1.png']);
   });
 
-  test('a bot says something in a group of itself: the others told', () async {
+  test('a bot says something in a group of itself: there for whoever has '
+      'it next, no one woken', () {
     final group = groups.save(name: 'g', members: [mia.id, leo.id]);
     final said = groups.say(group.id, mia.id, '今晚八点开会');
     expect(said.from, mia.id);
     expect(groups.messages(group.id).single.text, '<bot_say>今晚八点开会</bot_say>');
-    await wait(60);
-    expect(toldNames(), ['Leo']);
+    expect(told, isEmpty);
     expect(() => groups.say(group.id, ann.id, 'x'), throwsStateError);
   });
 

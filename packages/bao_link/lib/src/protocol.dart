@@ -226,20 +226,6 @@ abstract final class LinkMethods {
   /// `{"group"}`: the group deleted, its messages with it.
   static const deleteGroup = 'deleteGroup';
 
-  /// `{"group", "lively"}`: how lively the group is
-  /// ([LinkGroup.lively]), within what it may be. `unknown` from a desktop
-  /// before it.
-  static const setGroupLively = 'setGroupLively';
-
-  /// `{}`: the models a group's attention model may be:
-  /// `{"options": [LinkOption]}`. `unknown` from a desktop before it.
-  static const attentionModels = 'attentionModels';
-
-  /// `{"group", "model"?}`: the group's attention model
-  /// ([LinkGroup.attentionModel]), one of [attentionModels]' options;
-  /// none, the user's messages pull every bot alike.
-  static const setGroupAttentionModel = 'setGroupAttentionModel';
-
   /// `{"group", "count"?}`: its last `count` messages (50 if not said),
   /// `{"messages": [LinkGroupMessage], "more"}` (`more`: there are
   /// earlier ones); and those that come after, as they come
