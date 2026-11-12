@@ -300,6 +300,42 @@ void main() {
     expect(BotGroups.replyTo(items, 'g2'), '');
   });
 
+  test('pictures a bot made in its turn at a group: with its reply there', () {
+    final png = Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10, 1, 2]);
+    final made = ImageAttachment(bytes: png, mediaType: 'image/png');
+    final items = <ChatItem>[
+      UserMessageItem(text: botEventMessage('[group g1] new')),
+      ToolCallItem(
+        kind: ToolKind.image,
+        target: '',
+        tool: 'generate_image',
+        images: [made],
+      ),
+      // A picture read is not one sent.
+      ToolCallItem(kind: ToolKind.read, target: 'a.png', images: [made]),
+      ToolCallItem(
+        kind: ToolKind.image,
+        target: '',
+        status: ToolStatus.failed,
+        images: [made],
+      ),
+      AssistantTextItem('<bot_say>就这张</bot_say>'),
+    ];
+    expect(BotGroups.picturesTo(items, 'g1'), [made]);
+    expect(BotGroups.picturesTo(items, 'g2'), isEmpty);
+
+    final group = groups.save(name: 'g', members: [mia.id, leo.id]);
+    groups.send(group.id, text: '@Mia 发张图');
+    groups.turnEnded(group.id, mia.id, '', images: [made]);
+    final sent = groups.messages(group.id).last;
+    expect((sent.from, sent.text), (mia.id, ''));
+    expect(sent.images, ['2-1.png']);
+    expect(groups.image(group.id, '2-1.png')!.bytes, png);
+    // Of itself, with a picture.
+    final said = groups.say(group.id, leo.id, '看', images: [made]);
+    expect(said.images, ['3-1.png']);
+  });
+
   test('a bot says something in a group of itself: the others told', () async {
     final group = groups.save(name: 'g', members: [mia.id, leo.id]);
     final said = groups.say(group.id, mia.id, '今晚八点开会');

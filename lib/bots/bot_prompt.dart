@@ -124,7 +124,7 @@ ${bot.chatOnly ? "- You do not change files nor run commands: the user set you t
 ${line(bot.can(BotAbility.browser), "You can use the user's browser.", "You cannot use the browser.")}
 ${line(bot.can(BotAbility.proactive), "The app tells you of the user's agents as your rules say (bot_watch; WATCH.md in your folder): what they fit with tell wakes you; with notify, the phone tells the user for you, you not woken; the rest is only kept, for you to look at (bot_recent_events) when the user asks how things went. When they ask you to keep an eye on something, or to stop telling them of something, change your rules (bot_watch), and say so in a word.", "The app does not tell you what the user's agents do: to know, look (bot_list_chats, bot_read_chat), if you may.")}
 - You can search the web (WebSearch) and read a page (WebFetch): for news, facts, prices, the weather, anything you would look up. Say what you found in your own words, briefly.
-- ${imageModel ? 'You can make pictures (generate_image): they show in the chat by themselves.' : 'You could make pictures, but the computer has no image model turned on: when asked, say the user can turn one on in BaoCode, Settings → Models.'}
+- ${imageModel ? 'You can make pictures (generate_image): they show by themselves where you are answering, your chat with the user or a group. To show again one made before (its file), send it with bot_send and its images.' : 'You could make pictures, but the computer has no image model turned on: when asked, say the user can turn one on in BaoCode, Settings → Models.'}
 When asked for something you may not do, say so simply, and that the user can turn it on in your profile.
 </abilities>''';
 }

@@ -459,11 +459,6 @@ class BotGroups extends ChangeNotifier {
     session.addListener(listener);
   }
 
-  /// What [session] said to [group] last ([replyTo]).
-  static String _reply(ChatSession session, String group) => replyTo([
-    for (var i = 0; i < session.itemCount; i++) session.itemAt(i),
-  ], group);
-
   /// What a bot's conversation's [items] said to [group] last: its
   /// messages and narration after the group's last note to it, till the
   /// user wrote to it, in their tags; empty for nothing.
@@ -490,6 +485,33 @@ class BotGroups extends ChangeNotifier {
             text.trim().isNotEmpty)
           '<$tag>${text.trim()}</$tag>',
     ].join();
+  }
+
+  /// The pictures a bot's conversation's [items] made for [group] in its
+  /// turn there ([replyTo]'s): an image model's, as they came.
+  @visibleForTesting
+  static List<ImageAttachment> picturesTo(List<ChatItem> items, String group) {
+    final places = ChatCodec.botPlaces(items);
+    final from = items.lastIndexWhere(
+      (item) => item is UserMessageItem && ChatCodec.botGroupOf(item) == group,
+    );
+    if (from < 0) return const [];
+    return [
+      for (
+        var i = from + 1;
+        i < items.length && items[i] is! UserMessageItem;
+        i++
+      )
+        if (places[i] == group)
+          if (items[i]
+              case ToolCallItem(
+                kind: ToolKind.image,
+                :final images,
+                :final status,
+              )
+              when status != ToolStatus.failed)
+            ...images,
+    ];
   }
 
   // --- The world ----------------------------------------------------------
@@ -527,15 +549,7 @@ class BotGroups extends ChangeNotifier {
     final found = byId(group);
     if (found == null) throw StateError('No group $group');
     final seq = _nextSeq(group);
-    final names = <String>[];
-    for (final (n, image) in images.indexed) {
-      final name = '$seq-${n + 1}${_extensions[image.mediaType] ?? '.png'}';
-      bots.folders.writeFile(
-        p.join(_folderOf(group), 'images', name),
-        image.bytes,
-      );
-      names.add(name);
-    }
+    final names = _keepImages(group, seq, images);
     _add(
       found,
       LinkGroupMessage(
@@ -588,6 +602,34 @@ class BotGroups extends ChangeNotifier {
   }
 
   int _nextSeq(String group) => (_messages[group]?.lastOrNull?.seq ?? 0) + 1;
+
+  /// [images], of message [seq] of [group], kept in its folder: their
+  /// names there.
+  List<String> _keepImages(
+    String group,
+    int seq,
+    List<ImageAttachment> images,
+  ) => [
+    for (final (n, image) in images.indexed)
+      () {
+        final name = '$seq-${n + 1}${_extensions[image.mediaType] ?? '.png'}';
+        bots.folders.writeFile(
+          p.join(_folderOf(group), 'images', name),
+          image.bytes,
+        );
+        return name;
+      }(),
+  ];
+
+  /// Pictures a bot sent in its turn at a group, from the web
+  /// ([ChatCodec.botImageTool]) or its files: to go with its reply, by its
+  /// id.
+  final Map<String, List<ImageAttachment>> _webPictures = {};
+
+  /// [member] sent [picture] in its turn at the group it is answering: it
+  /// goes with its reply.
+  void sentPicture(String member, ImageAttachment picture) =>
+      (_webPictures[member] ??= []).add(picture);
 
   void _add(BotGroup group, LinkGroupMessage message) {
     (_messages[group.id] ??= []).add(message);
@@ -890,7 +932,12 @@ class BotGroups extends ChangeNotifier {
   /// [member] says [text] to [group], of itself (not answering it): a bot's
   /// message, which the others hear as they would another's. Not the group
   /// it is answering: that is its reply's, in its turn.
-  LinkGroupMessage say(String group, String member, String text) {
+  LinkGroupMessage say(
+    String group,
+    String member,
+    String text, {
+    List<ImageAttachment> images = const [],
+  }) {
     final found = byId(group);
     if (found == null || !found.members.contains(member)) {
       throw StateError('Not in the group $group');
@@ -901,11 +948,15 @@ class BotGroups extends ChangeNotifier {
         '<bot_say>, not with this tool.',
       );
     }
+    final seq = _nextSeq(group);
     final message = LinkGroupMessage(
-      seq: _nextSeq(group),
+      seq: seq,
       at: bots.now,
       from: member,
-      text: '<${ChatCodec.botSayTag}>${text.trim()}</${ChatCodec.botSayTag}>',
+      text: text.trim().isEmpty
+          ? ''
+          : '<${ChatCodec.botSayTag}>${text.trim()}</${ChatCodec.botSayTag}>',
+      images: _keepImages(group, seq, images),
     );
     _add(found, message);
     final round = _round(group)
@@ -925,12 +976,19 @@ class BotGroups extends ChangeNotifier {
   /// it is; or it kept quiet. Told of what came meanwhile if it is to be
   /// woken for it.
   @visibleForTesting
-  void turnEnded(String group, String member, String reply) {
+  void turnEnded(
+    String group,
+    String member,
+    String reply, {
+    List<ImageAttachment> images = const [],
+  }) {
     final found = byId(group);
     if (found == null || !found.members.contains(member)) return;
     final round = _round(group);
     if (_answering[member] == group) _answering.remove(member);
-    if (reply.isEmpty) {
+    // With those it sent from files or the web meanwhile.
+    images = [...images, ...?_webPictures.remove(member)];
+    if (reply.isEmpty && images.isEmpty) {
       bots.world.note(
         '- ${_nameOf(member, found)} read "${found.name}" (group $group) '
         'and kept quiet.',
@@ -942,13 +1000,15 @@ class BotGroups extends ChangeNotifier {
     round
       ..passes[member] = 0
       ..left -= 1;
+    final seq = _nextSeq(group);
     _add(
       found,
       LinkGroupMessage(
-        seq: _nextSeq(group),
+        seq: seq,
         at: bots.now,
         from: member,
         text: reply,
+        images: _keepImages(group, seq, images),
       ),
     );
     if (round.left <= 0) {
@@ -963,7 +1023,15 @@ class BotGroups extends ChangeNotifier {
   void _turnEnded(String member, ChatSession session) {
     if (_disposed || session.isStreaming) return;
     if (_answering[member] case final group?) {
-      turnEnded(group, member, _reply(session, group));
+      final items = [
+        for (var i = 0; i < session.itemCount; i++) session.itemAt(i),
+      ];
+      turnEnded(
+        group,
+        member,
+        replyTo(items, group),
+        images: picturesTo(items, group),
+      );
     }
     for (final group in [..._groups]) {
       if (_answering.containsKey(member)) return;

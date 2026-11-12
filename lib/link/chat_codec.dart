@@ -27,12 +27,20 @@ abstract final class ChatCodec {
   static const botToUser = 'private';
 
   /// What [item] sent the user in private, if it is a bot's message so
-  /// ([botSendTool]), sent.
+  /// ([botSendTool]), sent: its words; empty for pictures alone (in its
+  /// images).
   static String? botSentToUser(ChatItem item) => switch (item) {
-    ToolCallItem(tool: botSendTool, :final input, status: ToolStatus.succeeded)
+    ToolCallItem(
+      tool: botSendTool,
+      :final input,
+      :final images,
+      status: ToolStatus.succeeded,
+    )
         when input['to'] == botToUser =>
       switch (input['text']) {
         final String text when text.trim().isNotEmpty => text.trim(),
+        // Pictures alone.
+        _ when images.isNotEmpty => '',
         _ => null,
       },
     _ => null,

@@ -771,6 +771,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
           if (firstLine(ChatCodec.botSentToUser(item)!) case final line?) {
             return line;
           }
+          return chinese ? '[图片]' : '[Picture]';
         case final ToolCallItem item
             when item.status != ToolStatus.failed &&
                 (item.images.isNotEmpty || ChatCodec.botImageUrl(item) != null):
@@ -1248,7 +1249,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
           _toWorld(bot, says);
         // Sent from a group's turn.
         case final ToolCallItem item when ChatCodec.botSentToUser(item) != null:
-          final says = ChatCodec.botSentToUser(item)!;
+          final says = [
+            ChatCodec.botSentToUser(item)!,
+            if (item.images.isNotEmpty) chinese ? '[图片]' : '[picture]',
+          ].where((t) => t.isNotEmpty).join(' ');
           live(bot, place: privatePlace, who: bot.name, text: says, mine: true);
           _toWorld(bot, says);
         default:
