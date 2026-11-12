@@ -1458,6 +1458,29 @@ class _ShapeCache {
   }
 }
 
+/// Visible columns advanced by each tab of [content], like Monaco's
+/// renderLine (a tab reaches the next multiple of [tabSize]).
+List<int> tabAdvances(String content, int tabSize) {
+  final size = tabSize < 1 ? 1 : tabSize;
+  final result = <int>[];
+  var column = 0;
+  var segmentStart = 0;
+  for (var i = 0; i < content.length; i++) {
+    if (content.codeUnitAt(i) != 0x09) continue;
+    final segment = content.substring(segmentStart, i);
+    column += CursorColumns.visibleColumnFromColumn(
+      segment,
+      segment.length + 1,
+      size,
+    );
+    final advance = size - column % size;
+    result.add(advance);
+    column += advance;
+    segmentStart = i + 1;
+  }
+  return result;
+}
+
 /// Measured, document-position-independent paragraph geometry. Only identical
 /// text, styled spans and injections can share it.
 ///
@@ -1561,7 +1584,7 @@ class _LineShape {
           ? TextSpan(text: content, style: style)
           : TextSpan(style: style, children: spans);
     }
-    final tabColumns = tabs ? _tabColumns(content, tabSize) : const <int>[];
+    final tabColumns = tabs ? tabAdvances(content, tabSize) : const <int>[];
     final runs = <(String, TextStyle?)>[];
     void flatten(InlineSpan span, TextStyle? inherited) {
       if (span is! TextSpan) return;
@@ -1630,29 +1653,6 @@ class _LineShape {
     }
     _kinds = kinds;
     return TextSpan(style: style, children: children);
-  }
-
-  /// Visible columns advanced by each tab of [content], like Monaco's
-  /// renderLine (a tab reaches the next multiple of [tabSize]).
-  static List<int> _tabColumns(String content, int tabSize) {
-    final size = tabSize < 1 ? 1 : tabSize;
-    final result = <int>[];
-    var column = 0;
-    var segmentStart = 0;
-    for (var i = 0; i < content.length; i++) {
-      if (content.codeUnitAt(i) != 0x09) continue;
-      final segment = content.substring(segmentStart, i);
-      column += CursorColumns.visibleColumnFromColumn(
-        segment,
-        segment.length + 1,
-        size,
-      );
-      final advance = size - column % size;
-      result.add(advance);
-      column += advance;
-      segmentStart = i + 1;
-    }
-    return result;
   }
 
   final String content;

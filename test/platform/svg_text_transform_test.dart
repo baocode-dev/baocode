@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:baocode/platform/svg_text_transform.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_graphics_compiler/vector_graphics_compiler.dart';
@@ -37,6 +40,19 @@ void main() {
     expect(transform.d, closeTo(.1, 1e-9));
     expect(transform.c, isNot(0));
     expect(transform.c, closeTo(0, 1e-6));
+  });
+
+  test('the bytes loader applies styles and preserves text transforms', () {
+    const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg">'
+        '<style>.label { fill: #fff; font-size: 100px; }</style>'
+        '<text class="label" transform="scale(.1)" x="10" y="20">a</text>'
+        '</svg>';
+    final loader = SvgTextBytesLoader(Uint8List.fromList(utf8.encode(svg)));
+    final prepared = loader.provideSvg(null);
+    expect(prepared, contains('fill:#fff'));
+    expect(prepared, contains('font-size:100px'));
+    expect(prepared, contains('scale(.1) skewX(0.000001)'));
   });
 
   test('an SVG without text or transforms is itself', () {

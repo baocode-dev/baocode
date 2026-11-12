@@ -30,6 +30,77 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.9.6">
+    <h2 class="plain"><a href="#v1.9.6">1.9.6</a></h2>
+    <p>This release changes how bots talk in group chats: one answers at a time and hands the conversation on, and each group gets its own rules, pass limit and reply interval.</p>
+    <p>New</p>
+    <ul>
+    <li>Group chats pass the conversation along: one bot answers at a time, then hands it to whoever should speak next, or stops and waits for you. The one you @mention or quote goes first.</li>
+    <li>Each group has its own rules, a limit on how many times the bots pass it on after each of your messages (8 by default, at least 2, or no limit), and a reply interval between bots. Set them from the phone app.</li>
+    <li>Bots can quote a message they answer, narrate and send pictures in groups, and the phone app can read groups aloud in each bot's voice.</li>
+    <li>The assistant can list, make, rename and delete your group chats, add or remove members and set their rules; it asks before deleting.</li>
+    <li>Bots keep one life across their own chat and their groups, and a switch lets each one message you first.</li>
+    <li>New bots use a DeepSeek model when one is available.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>SVG style rules now apply in the Markdown preview.</li>
+    <li>The side panel remembers where a file's tab was left.</li>
+    <li>Deleting a bot also removes its conversations.</li>
+    </ul>
+  </section>
+
+  <section class="release" id="v1.9.5">
+    <h2 class="plain"><a href="#v1.9.5">1.9.5</a></h2>
+    <p>This release brings group chats with your bots, lets bots suggest what you might say next, and lets them color how they sound when read aloud.</p>
+    <p>New</p>
+    <ul>
+    <li>Group chats: put two or more bots in one chat with you. After you stop typing, they take turns deciding whether to answer, the ones you @mention first, and keep it to a few replies for each message of yours. Made and used from the phone app.</li>
+    <li>Bots can suggest two or three short replies at the end of their message, when the phone app has suggestions turned on.</li>
+    <li>Bots can mark how a line sounds ([whispers], [laughs]) when the phone app reads their messages aloud; the cues are left out of the chat and notifications.</li>
+    </ul>
+  </section>
+
+  <section class="release" id="v1.9.4">
+    <h2 class="plain"><a href="#v1.9.4">1.9.4</a></h2>
+    <p>This release fixes a crash on Windows when other apps read the window, lets New Terminal pick a folder in a multi-folder workspace, and fixes a few smaller problems.</p>
+    <p>New</p>
+    <ul>
+    <li>In a multi-folder workspace, New Terminal (under the conversation, in the side panel and in the IDE) asks which folder it starts in, and the terminal's tab shows that folder.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Windows: the app no longer crashes when another app reads what is on the screen (input methods, translators, screen tools), as could happen when clicking repeatedly in a maximized window.</li>
+    <li>Claude limit resets: the one that can be used now is marked and used; the others wait their turn, and a refusal is explained in plain words.</li>
+    <li>Deleted lines in diffs line up their tabs with the editor's.</li>
+    <li>The phone app keeps showing a conversation's context usage after the conversation changes.</li>
+    <li>Windows: file links an agent writes as /D:/path open, rather than saying the file cannot be found.</li>
+    <li>Bots from before their messages became tags speak in the chat again, rather than to tools that are gone.</li>
+    </ul>
+  </section>
+
+  <section class="release" id="v1.9.3">
+    <h2 class="plain"><a href="#v1.9.3">1.9.3</a></h2>
+    <p>This release can put files back when you edit a message, shows and uses Claude subscription limit resets, runs on Kylin and UOS Linux, and fixes how context usage is counted along with a batch of chat problems.</p>
+    <p>New</p>
+    <ul>
+    <li>When you edit an earlier message and send it again, the files the agent changed from that message on can go back as they were; what you or another conversation changed since is kept. Settings → General → Edited Messages: Ask Each Time, Undo the Changes or Keep the Changes. For Claude Code and BaoCode Agent; changes made by commands (Bash) are not tracked.</li>
+    <li>Settings → Models shows, on the Claude Code row, the limit resets your subscription has: how many, what each clears, how much is used and until when. One is used only after you confirm.</li>
+    <li>The Linux .deb runs on glibc 2.31 systems such as Kylin V10 SP1 and UOS 20.</li>
+    <li>The phone app shows how full a conversation's context is (phone app 0.1.10).</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Context usage shows what the model reported: a conversation full of screenshots no longer counts as millions of tokens, and tool results are counted by call, an image as one.</li>
+    <li>Full access no longer asks about the safety checks Claude Code leaves to a person; your own ask rules still apply.</li>
+    <li>File links an agent writes after changing folders open, and tell a file of your computer from one on the SSH host.</li>
+    <li>When an upstream reports 0 input tokens, usage no longer shows every call as fully cached.</li>
+    <li>The commit panel no longer stalls while the agent answers (hangs of seconds on Intel Macs).</li>
+    <li>Dragging from the start of the text below a code block selects that text.</li>
+    <li>The side panel's buttons no longer cover the chat find bar's close button.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.9.2">
     <h2 class="plain"><a href="#v1.9.2">1.9.2</a></h2>
     <p>This release fixes a batch of chat, model and SSH problems, brings SSH remote to Linux hosts on RISC-V, and lets models go through magpie's gateway.</p>

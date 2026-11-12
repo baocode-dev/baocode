@@ -55,6 +55,32 @@ void main() {
     }
   });
 
+  test('a session update carries how full the context is, when told', () {
+    const plain = LinkSessionUpdate(
+      session: 's',
+      start: 0,
+      items: [],
+      count: 0,
+    );
+    expect(plain.toJson().containsKey('context'), isFalse);
+    const context = {
+      'window': 200000,
+      'used': 52000,
+      'parts': [
+        {'part': 'messages', 'tokens': 40000},
+      ],
+      'compactAt': 167000,
+    };
+    const update = LinkSessionUpdate(
+      session: 's',
+      start: 0,
+      items: [],
+      count: 0,
+      context: context,
+    );
+    expect(LinkSessionUpdate.fromJson(update.toJson()).context, context);
+  });
+
   test('a bot\'s picture is told from an emoji by its file\'s name', () {
     expect(isAvatarImage('avatar-0a1b2c3d4e5f.jpg'), isTrue);
     expect(isAvatarImage('avatar-0a1b2c3d4e5f.PNG'), isFalse);

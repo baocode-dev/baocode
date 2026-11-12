@@ -463,7 +463,7 @@ class ClaudeCodeKernel
   /// What the context comes to as the model told it: its last request's
   /// input and output. The CLI's count is its own estimate for a model
   /// behind the proxy (images' base64 as text, once). Null with none
-  /// since the context changed under it (compacted, rewound).
+  /// since the context changed (compacted, rewound) or a result recalibrated it.
   int? _toldContext;
 
   /// The tool calls' results in the context, counted here: Claude Code's
@@ -480,9 +480,7 @@ class ClaudeCodeKernel
 
   /// [_contextDetail], its tool calls' results as counted here.
   ContextDetail? get _shownDetail => switch (_contextDetail) {
-    final detail? when _resultsKnown => detail.withToolResults(
-      _results.byTool,
-    ),
+    final detail? when _resultsKnown => detail.withToolResults(_results.byTool),
     final detail => detail,
   };
 
@@ -657,6 +655,7 @@ class ClaudeCodeKernel
         return;
       }
       _transport = transport;
+      // Share the request merger; custom providers record their calls already.
       _usage = custom == null
           ? ClaudeUsageMeter(
               record: (call, {trace}) =>
@@ -670,7 +669,10 @@ class ClaudeCodeKernel
               providerName: 'Claude Code',
               quota: () => _quota,
             )
-          : null;
+          : ClaudeUsageMeter(
+              record: (call, {trace}) {},
+              session: () => _sessionId,
+            );
       final control = _control = ControlChannel(transport.write);
       _subscription = transport.messages.listen(_receive);
       _applyInitialize(
@@ -1356,6 +1358,7 @@ class ClaudeCodeKernel
           }
           emit(Rewound(nextSeq, itemId: itemId, index: index));
           // Its last request held what is rewound too.
+          _usage?.clearContext();
           _toldContext = null;
           _resultsReading++;
           _resultsKnown = _resultsKnown && _results.rewind(itemId);
@@ -1717,12 +1720,12 @@ class ClaudeCodeKernel
       _control!.respond(requestId, {'behavior': 'deny', 'message': _notAsked});
       return;
     }
-    // Full access is approved here (see _cliApproval), but for what the
-    // CLI's own would ask all the same: that too where no one is there to
-    // ask (a bot's, KernelWorkspace.approvesAll). In Plan it leaves to the
-    // classifier what the CLI cannot tell is read-only; with no
-    // classifier (another provider's model), that is approved here too,
-    // as it would be by the classifier.
+    // Full access is approved here (see _cliApproval), but for what is
+    // asked all the same (see _askedInFullAccess): that too where no one
+    // is there to ask (a bot's, KernelWorkspace.approvesAll). In Plan it
+    // leaves to the classifier what the CLI cannot tell is read-only; with
+    // no classifier (another provider's model), that is approved here
+    // too, as it would be by the classifier.
     if (_approval == 'bypassPermissions' &&
         (_work != 'plan' || !_classifies) &&
         tool != 'AskUserQuestion' &&
@@ -1875,6 +1878,11 @@ class ClaudeCodeKernel
   void _receive(Map<String, Object?> message) {
     if (_control?.receive(message) ?? false) return;
     _usage?.receive(message);
+    if (message['type'] == 'stream_event') {
+      final told = _toldContext;
+      _toldContext = _usage?.mainContextTokens ?? _toldContext;
+      if (_toldContext != told) _reportContext();
+    }
     if (message['type'] case 'assistant' || 'user'
         when _results.add(message) && _resultsKnown) {
       _reportContext();
@@ -1962,6 +1970,9 @@ class ClaudeCodeKernel
       case 'assistant':
         final told = _toldContext;
         if (_countRequest(message)) _reportStats();
+        if (_usage case final usage?) {
+          _toldContext = usage.mainContextTokens ?? told;
+        }
         if (_toldContext != told) _reportContext();
         if (message['error'] == 'rate_limit') {
           _limitSaid(message['message']);
@@ -2253,7 +2264,7 @@ class ClaudeCodeKernel
         _ => TurnUsage(costUsd: turnCost),
       },
     );
-    unawaited(_refreshContext());
+    unawaited(_refreshContext(completed: _custom == null));
   }
 
   // --- Goal ------------------------------------------------------------------------
@@ -2726,9 +2737,10 @@ class ClaudeCodeKernel
     unawaited(_refreshContext());
   }
 
-  Future<void> _refreshContext() async {
+  Future<void> _refreshContext({bool completed = false}) async {
     final control = _control;
     if (control == null) return;
+    final contextRequest = _usage?.mainContextRequest;
     try {
       // In full: each part's things too (the system prompt's sections,
       // the built-in tools, the messages by tool), counted where it runs.
@@ -2764,6 +2776,11 @@ class ClaudeCodeKernel
               ),
         ],
       );
+      // Only the same request's fresh count supersedes its final total.
+      if (completed && identical(_usage?.mainContextRequest, contextRequest)) {
+        _usage?.clearContext();
+        _toldContext = null;
+      }
       _reportContext();
     } on Object {
       // Context usage is a nicety: an older CLI may not answer.
@@ -3681,14 +3698,11 @@ class ClaudeCodeKernel
   String get _cliApproval =>
       _approval == 'bypassPermissions' ? 'acceptEdits' : _approval;
 
-  /// What the CLI would still ask in full access: safety checks requiring
-  /// manual approval (also inside compound commands), explicit ask rules,
-  /// and tools that require user interaction. Protected-path checks that
-  /// the classifier may approve do not require a prompt in full access.
+  /// What is still asked in full access: the user's own ask rules, tools
+  /// that require user interaction, and what a host is told to act on
+  /// (an organization's read block, say). The CLI's safety checks, those
+  /// requiring manual approval too, are approved: full access is no checks.
   static bool _askedInFullAccess(Map<String, Object?> request) =>
-      request['classifier_approvable'] == false ||
-      (request['decision_reason_type'] == 'safetyCheck' &&
-          request['classifier_approvable'] != true) ||
       request['matched_ask_rule'] != null ||
       request['requires_user_interaction'] == true ||
       request['decision_reason_code'] != null;

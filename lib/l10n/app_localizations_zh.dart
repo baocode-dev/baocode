@@ -12547,6 +12547,91 @@ class AppLocalizationsZh extends AppLocalizations {
       '额度会立即重置，卡用掉后不能退回；现在还没用完的额度也就作废了。';
 
   @override
+  String claudeResets(int count) {
+    return '重置卡 $count 张';
+  }
+
+  @override
+  String get claudeResetsTitle => 'Claude 重置卡';
+
+  @override
+  String get claudeResetsDetail =>
+      'Anthropic 赠送。用掉一张，它列出的额度立即清零。有多张时要按 Anthropic 排好的顺序一张一张用。';
+
+  @override
+  String claudeResetClears(String windows) {
+    return '清零：$windows';
+  }
+
+  @override
+  String claudeResetWindowUsed(String window, int percent) {
+    return '$window（已用 $percent%）';
+  }
+
+  @override
+  String claudeResetWeeklyOf(String model) {
+    return '$model 每周';
+  }
+
+  @override
+  String get claudeResetNext => '现在可用';
+
+  @override
+  String get claudeResetQueued => '排在后面，用掉上面那张后才能用';
+
+  @override
+  String get claudeResetUse => '使用这张…';
+
+  @override
+  String get claudeResetConfirm => '用掉一张 Claude 重置卡？';
+
+  @override
+  String claudeResetConfirmDetail(String label, String windows) {
+    return '「$label」会把 $windows 立即清零。卡用掉后不能退回，这些额度现在还没用完的部分也就作废了。';
+  }
+
+  @override
+  String get claudeResetPaused => '已暂停';
+
+  @override
+  String claudeResetCooldown(String time) {
+    return '$time 后可再用';
+  }
+
+  @override
+  String claudeResetUnavailable(String reason) {
+    return '现在不能使用（$reason）';
+  }
+
+  @override
+  String get claudeResetSignedOut => 'Claude.ai 登录已过期，Claude Code 下次运行时会自动续上。';
+
+  @override
+  String claudeResetDone(String windows) {
+    return '已重置：$windows';
+  }
+
+  @override
+  String claudeResetNotDone(String reason) {
+    return '没有重置：$reason';
+  }
+
+  @override
+  String get claudeResetNotNext => '现在能用的换成了另一张，这次什么都没扣。刷新看看再用。';
+
+  @override
+  String get claudeResetNotLimited => '这张卡要等额度用满了才能用，这次什么都没扣。';
+
+  @override
+  String get claudeResetAlreadyUsed => '这张卡已经用过了，这次什么都没扣。';
+
+  @override
+  String get claudeResetCoolingDown => '刚用过一张，要稍等一会儿才能再用，这次什么都没扣。';
+
+  @override
+  String get claudeResetsRefresh => '刷新';
+
+  @override
   String resetCreditsHint(int count) {
     return '有 $count 张重置卡将在一周内过期。建议按这个计划用 Codex 模型，额度用满后再重置，别让它们白白过期：';
   }

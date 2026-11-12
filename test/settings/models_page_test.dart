@@ -9,6 +9,7 @@ import 'package:baocode/ide/ide_back_button.dart';
 import 'package:baocode/ide/ide_spinning.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/claude_code/claude_haiku.dart';
+import 'package:baocode/models/claude_resets.dart';
 import 'package:baocode/models/codex/codex_service.dart';
 import 'package:baocode/models/codex/codex_usage.dart';
 import 'package:baocode/models/magpie.dart';
@@ -21,11 +22,14 @@ import 'package:baocode/settings/pages/model_dialogs.dart';
 import 'package:baocode/settings/pages/models_page.dart';
 import 'package:baocode/settings/pages/settings_widgets.dart';
 import 'package:baocode/workspace/workspace.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/widgets/pixel_loader.dart';
+
+import '../models/claude_resets_test.dart';
 
 /// Accounts signed in to by hand: [finish] ends the sign-in under way.
 class _FakeCodex extends CodexService {
@@ -177,6 +181,7 @@ void main() {
     ModelTester testModel = testModelThroughClaudeCode,
     Workspace? workspace,
     MagpieFollow? magpie,
+    ClaudeResetsService? claudeResets,
   }) async {
     tester.view.physicalSize = const Size(1000, 1600);
     tester.view.devicePixelRatio = 1;
@@ -191,6 +196,7 @@ void main() {
             codex: codex,
             workspace: workspace,
             magpie: magpie,
+            claudeResets: claudeResets,
           ),
         ),
       ),
@@ -223,6 +229,108 @@ void main() {
     await tester.pump();
     // No page of its own to open, nor delete.
     expect(find.text('Connection'), findsNothing);
+  });
+
+  testWidgets('the built-in provider shows its limit resets; one is used '
+      'only once confirmed', (tester) async {
+    final api = FakeClaudeResetsApi(claudeUsageWithResets());
+    final service = ClaudeResetsService(
+      api,
+      now: () => DateTime.utc(2026, 11, 11, 2),
+    );
+    await pump(tester, claudeResets: service);
+    await tester.pump();
+    expect(find.text('2 resets'), findsOneWidget);
+
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    Future<void> hover() async {
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.text('2 resets')));
+      await tester.pump();
+      await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
+    }
+
+    await hover();
+    expect(find.text('Claude limit resets'), findsOneWidget);
+    expect(
+      find.text(
+        'Clears 5h (6% used), Weekly (43% used), Fable weekly (0% used)',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Usable now'), findsOneWidget);
+    // The other one, queued after it, has no button of its own.
+    expect(
+      find.textContaining('Waits its turn: usable once the one above is used'),
+      findsOneWidget,
+    );
+    expect(find.text('Use This One…'), findsOneWidget);
+
+    // Cancelled: nothing sent.
+    await tester.tap(find.text('Use This One…'));
+    await tester.pumpAndSettle();
+    expect(find.text('Use a Claude limit reset?'), findsOneWidget);
+    expect(
+      find.textContaining('One full limit reset (November 2026)'),
+      findsWidgets,
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(api.claims, isEmpty);
+
+    await mouse.removePointer();
+    await hover();
+    await tester.tap(find.text('Use This One…'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reset Now'));
+    await tester.pumpAndSettle();
+    expect(api.claims.single.$1, 'full-reset-2611');
+    expect(find.text('Reset: 5h, Weekly'), findsOneWidget);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the usable reset is listed first; the server refusing it '
+      'as not the next one is told in plain words', (tester) async {
+    // The later expiring one is the server's next: it comes first.
+    final api = FakeClaudeResetsApi(
+      claudeUsageWithResets(next: 'launch-2610-fable'),
+    )..claimAnswer = {'result': 'ineligible', 'reason': 'not_next_grant'};
+    final service = ClaudeResetsService(
+      api,
+      now: () => DateTime.utc(2026, 11, 11, 2),
+    );
+    await pump(tester, claudeResets: service);
+    await tester.pump();
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(find.text('2 resets')));
+    await tester.pump();
+    await tester.pump(ideHoverDelay + const Duration(milliseconds: 150));
+    expect(
+      tester.getTopLeft(find.text('New model launch: one Fable reset')).dy,
+      lessThan(
+        tester.getTopLeft(find.text('One full limit reset (November 2026)')).dy,
+      ),
+    );
+    expect(find.text('Use This One…'), findsOneWidget);
+
+    await tester.tap(find.text('Use This One…'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reset Now'));
+    await tester.pumpAndSettle();
+    expect(api.claims.single.$1, 'launch-2610-fable');
+    expect(
+      find.text(
+        'Another reset is the one usable now; nothing was used. '
+        'Refresh and try again.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('on BaoCode\'s own core there is no built-in provider: '

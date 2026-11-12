@@ -491,7 +491,7 @@ class _SummaryCache {
   _SummaryCache._(this._path, this._root, this._old);
 
   /// Raise it whenever [_Summary] makes something else of a file.
-  static const _version = 3;
+  static const _version = 5;
 
   factory _SummaryCache.load(String path, String root) {
     var old = const <String, Object?>{};
@@ -809,7 +809,23 @@ String? _promptText(Map<String, Object?> entry) {
   final trimmed = text.trim();
   if (trimmed.isEmpty) {
     final images = blocks.any((b) => b is Map && b['type'] == 'image');
-    return images ? '' : null;
+    // The app's note alone, nothing typed, as the bots' world is sent when
+    // the user said nothing: a turn of its own, as the bots' notes are.
+    final noted = blocks.any(
+      (b) =>
+          b is Map &&
+          b['type'] == 'text' &&
+          (b['text'] as String? ?? '').trimLeft().startsWith(
+            '<system-reminder>',
+          ),
+    );
+    return images || noted ? '' : null;
+  }
+  // The app's note to one of its bots (what happened in a group, say):
+  // a turn of its own, as what was typed is. A bot's conversation may have
+  // nothing else: not listed, it would be started anew each run.
+  if (_botEvent.firstMatch(trimmed) case final event?) {
+    return event[1]!.trim();
   }
   if (trimmed.startsWith('<')) {
     final name = _commandName.firstMatch(trimmed)?[1]?.trim();
@@ -823,6 +839,9 @@ String? _promptText(Map<String, Object?> entry) {
 
 /// A text block that is only an image's name, as the CLI puts ahead of it.
 final _imageName = RegExp(r'^\s*\[Image #\d+\]\s*$');
+
+/// A note of the app's to a bot (`bot_prompt.dart`'s `botEventMessage`).
+final _botEvent = RegExp(r'^<bao-event>([\s\S]*?)(?:</bao-event>|$)');
 
 /// A command the CLI ran, as it keeps it.
 final _commandName = RegExp(r'<command-name>([\s\S]*?)</command-name>');

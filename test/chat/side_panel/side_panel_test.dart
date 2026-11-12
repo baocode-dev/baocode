@@ -2373,6 +2373,50 @@ void main() {
     expect(find.text('Select a file to preview it'), findsOneWidget);
   });
 
+  testWidgets('a file closed and opened again shows where it was left, on '
+      'the next run too; lines asked for show over it', (tester) async {
+    const path = '/p/lib/long.dart';
+    final (:panel, :session, files: _) = await _pumpChat(
+      tester,
+      texts: {path: _lines(400, 'long line')},
+    );
+    final editor = find.descendant(
+      of: find.byType(FilePreview),
+      matching: find.byType(IdeCodeEditor),
+    );
+    int? top() =>
+        tester.state<IdeCodeEditorState>(editor).view?.viewState?.firstLine;
+    Future<void> reopen([FileLineRange? range]) async {
+      panel.close(session, panel.tabsOf(session).active!);
+      await tester.pumpAndSettle();
+      expect(editor, findsNothing);
+      panel.open(session, FileOpenRequest(path, range: range));
+      await tester.pumpAndSettle();
+    }
+
+    panel.open(session, const FileOpenRequest(path));
+    await tester.pumpAndSettle();
+    expect(top(), 1);
+    tester.binding.handlePointerEvent(
+      PointerScrollEvent(
+        position: tester.getCenter(editor),
+        scrollDelta: const Offset(0, 3000),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final scrolled = top()!;
+    expect(scrolled, greaterThan(50));
+
+    await reopen();
+    expect(top(), scrolled);
+    final next = AgentSidePanel(state: panel.toJson());
+    addTearDown(next.dispose);
+    expect(next.viewStateOf(path).editor?.firstLine, scrolled);
+
+    await reopen(const FileLineRange(5));
+    expect(top(), lessThan(5));
+  });
+
   testWidgets('a link to a file in the project opens it in the side panel, '
       'at its lines', (tester) async {
     final (:panel, :session) = await _pumpReply(

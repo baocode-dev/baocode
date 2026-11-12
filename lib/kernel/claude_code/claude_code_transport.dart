@@ -397,6 +397,7 @@ When you mention a specific file or folder in your reply (one you read, changed,
 [display name](/absolute/path/to/file#L42)
 
 - The target is always the file's full absolute path, wherever the file is and whatever folder your shell is in. Never a relative path (not lib/a.dart, ./a.dart or ../a.dart), never ~/, file://, vscode://, http:// or https:// for local files.
+- On Windows the path starts with its drive, no slash before it: [Program.cs](C:/Users/me/app/Program.cs#L12).
 - That path is the one on the machine your tools run on. For a file on another machine you reach from there over SSH (with ssh, scp or rsync), write ssh://<host>/<its absolute path there>, the host as you reached it: [app.log](ssh://devbox/var/log/app.log#L120).
 - Add a line with #L42, or a range with #L42-L58; not :42 in the target.
 - If the path contains spaces, wrap the target in angle brackets: [notes.md](</Users/me/My Project/docs/notes.md#L3>).

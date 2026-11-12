@@ -7,6 +7,7 @@ library;
 export 'src/bots.dart';
 export 'src/connection.dart';
 export 'src/discovery.dart';
+export 'src/groups.dart';
 export 'src/identity.dart';
 export 'src/node.dart';
 export 'src/pairing.dart';

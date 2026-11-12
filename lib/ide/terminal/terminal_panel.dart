@@ -320,20 +320,29 @@ class TerminalTitleActions extends StatelessWidget {
     required this.onNew,
     this.onNewWithProfile,
     this.onSelectDefaultProfile,
+    this.folders = const [],
   });
 
   final TerminalService terminals;
-  final VoidCallback onNew;
+
+  /// New Terminal, in [cwd] (else where the workspace's start).
+  final void Function({String? cwd}) onNew;
 
   /// A new terminal on a profile picked in the dropdown; none: no dropdown.
-  final ValueChanged<TerminalProfile>? onNewWithProfile;
+  final void Function(TerminalProfile profile, {String? cwd})? onNewWithProfile;
 
   /// Select Default Profile, from the dropdown.
   final VoidCallback? onSelectDefaultProfile;
 
+  /// A multi-folder workspace's folders: with more than one, New Terminal
+  /// (and each profile of the dropdown) asks which it starts in.
+  final List<String> folders;
+
+  bool get _askFolder => folders.length > 1;
+
   Future<List<IdeMenuEntry>> _profileEntries(
     AppLocalizations l10n,
-    ValueChanged<TerminalProfile> onNewWithProfile,
+    void Function(TerminalProfile profile, {String? cwd}) onNewWithProfile,
   ) async {
     final profiles = terminals.profiles;
     await profiles.refresh();
@@ -348,7 +357,13 @@ class TerminalTitleActions extends StatelessWidget {
             profile.name == defaultName
                 ? l10n.termProfileDefault(profile.name)
                 : profile.name,
-            onSelected: () => onNewWithProfile(profile),
+            onSelected: _askFolder ? null : () => onNewWithProfile(profile),
+            submenu: _askFolder
+                ? terminalFolderMenu(
+                    folders,
+                    (folder) => onNewWithProfile(profile, cwd: folder),
+                  )
+                : null,
           ),
       ],
       [
@@ -367,6 +382,12 @@ class TerminalTitleActions extends StatelessWidget {
     builder: (context, _) {
       final instances = terminals.instances;
       final single = instances.length == 1 ? instances.single : null;
+      final newTooltip = switch (KeybindingService.instance.labelFor(
+        'workbench.action.terminal.new',
+      )) {
+        final keys? => context.l10n.termNewTerminalKeys(keys),
+        null => context.l10n.termNewTerminal,
+      };
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -385,16 +406,19 @@ class TerminalTitleActions extends StatelessWidget {
                   )
                 : _SingleTab(terminals: terminals, instance: single),
           const SizedBox(width: 2),
-          IdeActionButton(
-            icon: Codicons.add,
-            tooltip: switch (KeybindingService.instance.labelFor(
-              'workbench.action.terminal.new',
-            )) {
-              final keys? => context.l10n.termNewTerminalKeys(keys),
-              null => context.l10n.termNewTerminal,
-            },
-            onPressed: onNew,
-          ),
+          if (_askFolder)
+            IdeMenuButton(
+              icon: Codicons.add,
+              tooltip: newTooltip,
+              entries: () =>
+                  terminalFolderMenu(folders, (folder) => onNew(cwd: folder)),
+            )
+          else
+            IdeActionButton(
+              icon: Codicons.add,
+              tooltip: newTooltip,
+              onPressed: onNew,
+            ),
           if (onNewWithProfile case final onNewWithProfile?)
             IdeMenuButton(
               icon: Codicons.chevronDown,

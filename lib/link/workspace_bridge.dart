@@ -8,10 +8,13 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as p;
 
 import '../bots/bot.dart';
+import '../bots/bot_group_prompt.dart' show BotGroup;
+import '../bots/bot_groups.dart';
 import '../bots/bots.dart';
 import '../chat/chat_models.dart';
 import '../chat/chat_session.dart';
 import '../chat/composer/composer_files.dart' show fileReferenceText;
+import '../chat/panels/context_usage_panel.dart' show ContextUsagePanel;
 import '../chat/rewind_files_setting.dart';
 import '../customize/customization_store.dart';
 import '../customize/customizations.dart';
@@ -108,6 +111,9 @@ class WorkspaceBridge {
 
   final Map<String, _Follow> _follows = {};
 
+  /// The groups the phone has open, each the last of its messages sent.
+  final Map<String, int> _groupsOpen = {};
+
   /// Task outputs the phone watches, by session and task.
   final Map<String, OutputWatch> _watches = {};
   Timer? _stateTimer;
@@ -118,6 +124,7 @@ class WorkspaceBridge {
   void start() {
     workspace.addListener(_stateChanged);
     bots?.addListener(_stateChanged);
+    bots?.groups.addListener(_groupsChanged);
     unawaited(peer.done.then((_) => dispose()));
   }
 
@@ -126,6 +133,7 @@ class WorkspaceBridge {
     _disposed = true;
     workspace.removeListener(_stateChanged);
     bots?.removeListener(_stateChanged);
+    bots?.groups.removeListener(_groupsChanged);
     _stateTimer?.cancel();
     for (final follow in _follows.values) {
       follow.dispose();
@@ -274,7 +282,78 @@ class WorkspaceBridge {
         if (bots case final bots?)
           for (final bot in bots.bots) _linkBot(bots, bot),
       ],
+      groups: [
+        if (bots?.groups case final groups?)
+          for (final group in groups.groups) _linkGroup(groups, group),
+      ],
     );
+  }
+
+  LinkGroup _linkGroup(BotGroups groups, BotGroup group) {
+    final last = groups.messages(group.id).lastOrNull;
+    return LinkGroup(
+      id: group.id,
+      name: group.name,
+      members: group.members,
+      typing: groups.typing(group.id),
+      unread: groups.unread(group.id),
+      last: last,
+      updatedAt: last?.at ?? group.created,
+      holder: groups.relay(group.id).holder,
+      passesLeft: groups.relay(group.id).left,
+      passes: group.passes,
+      rules: group.rules,
+      gap: group.gap,
+    );
+  }
+
+  /// The groups changed: what came of those open sent, read as it comes;
+  /// the state told.
+  void _groupsChanged() {
+    if (_disposed) return;
+    final groups = bots?.groups;
+    if (groups != null) {
+      for (final MapEntry(key: id, value: sent) in [..._groupsOpen.entries]) {
+        final fresh = [
+          for (final message in groups.messages(id))
+            if (message.seq > sent) message,
+        ];
+        if (fresh.isEmpty) continue;
+        _groupsOpen[id] = fresh.last.seq;
+        groups.seen(id);
+        peer.emit(LinkEvents.group, {
+          'group': id,
+          'messages': [for (final message in fresh) message.toJson()],
+        });
+      }
+    }
+    _stateChanged();
+  }
+
+  BotGroups _groups() => _bots().groups;
+
+  BotGroup _group(Object? id) =>
+      switch (id) {
+        final String id => _groups().byId(id),
+        _ => null,
+      } ??
+      (throw LinkRemoteException(LinkErrors.notFound, 'No group $id'));
+
+  /// [group]'s messages, [count] at most, before the [before]th if given.
+  Map<String, Object?> _groupPage(
+    BotGroup group, {
+    int? before,
+    int count = 50,
+  }) {
+    final all = [
+      for (final message in _groups().messages(group.id))
+        if (before == null || message.seq < before) message,
+    ];
+    final from = all.length > count ? all.length - count : 0;
+    return {
+      'messages': [for (final message in all.skip(from)) message.toJson()],
+      'more': from > 0,
+    };
   }
 
   LinkBot _linkBot(Bots bots, Bot bot) {
@@ -295,11 +374,13 @@ class WorkspaceBridge {
       model: bots.modelOf(bot),
       assistant: bot.assistant,
       chatOnly: bot.chatOnly,
+      writesFirst: bot.writesFirst,
       session: session,
       status: bots.typing(bot) ? BotStatus.typing : BotStatus.idle,
       unread: bots.unread(bot),
       last: bots.lastLine(bot),
-      updatedAt: thread?.updatedAt,
+      // Its chat's, not its groups'.
+      updatedAt: bots.chattedAt(bot),
       notices: bots.notices(bot),
     );
   }
@@ -366,11 +447,15 @@ class WorkspaceBridge {
     final text = (params['text'] as String? ?? '').trim();
     if (text.isEmpty && _images(params['images']).isEmpty) return null;
     final AgentThread thread;
+    var notes = const <String>[];
     if (params['bot'] case final Object id) {
       // Its conversation, whichever it is now: the last run's, once
       // listed, not another started.
       if (workspace.loading) await workspace.loaded;
-      thread = _bots().threadFor(_bot(id));
+      final bot = _bot(id);
+      thread = _bots().threadFor(bot);
+      // What the user might say next, as the phone's switch has it.
+      notes = _bots().suggestionNotes(bot, wanted: params['suggest'] == true);
     } else if (params['session'] case final Object id) {
       thread = _thread(id);
     } else if (params['project'] case final String path) {
@@ -389,6 +474,7 @@ class WorkspaceBridge {
       _message(thread, params),
       now: params['now'] == true,
       from: _from(thread),
+      notes: notes,
     );
     return {'session': idOf(thread)};
   }
@@ -657,6 +743,7 @@ class WorkspaceBridge {
           avatarImage: _avatarImage(params['avatarImage']),
           // Not said (a phone from before): as it was.
           chatOnly: params['chatOnly'] as bool?,
+          writesFirst: params['writesFirst'] as bool?,
         );
         return {'bot': _linkBot(bots, saved).toJson()};
       case LinkMethods.botAvatar:
@@ -691,6 +778,75 @@ class WorkspaceBridge {
           restart: true,
         );
         return null;
+      case LinkMethods.saveGroup:
+        final group = _groups().save(
+          id: params['group'] as String?,
+          name: params['name'] as String? ?? '',
+          members: [
+            for (final member in (params['members'] as List?) ?? const [])
+              if (member is String) member,
+          ],
+          passes: (params['passes'] as num?)?.toInt(),
+          rules: params['rules'] as String?,
+          gap: (params['gap'] as num?)?.toInt(),
+        );
+        return {'group': _linkGroup(_groups(), group).toJson()};
+      case LinkMethods.deleteGroup:
+        _groups().delete(_group(params['group']).id);
+        _groupsOpen.remove(params['group']);
+        return null;
+      case LinkMethods.openGroup:
+        final group = _group(params['group']);
+        _groupsOpen[group.id] =
+            _groups().messages(group.id).lastOrNull?.seq ?? 0;
+        _groups().seen(group.id);
+        return _groupPage(group, count: params['count'] as int? ?? 50);
+      case LinkMethods.earlierGroup:
+        return _groupPage(
+          _group(params['group']),
+          before: params['before'] as int?,
+          count: params['count'] as int? ?? 50,
+        );
+      case LinkMethods.closeGroup:
+        _groupsOpen.remove(params['group']);
+        return null;
+      case LinkMethods.sendGroup:
+        final group = _group(params['group']);
+        final text = (params['text'] as String? ?? '').trim();
+        final images = _images(params['images']);
+        if (text.isEmpty && images.isEmpty) return null;
+        final key = switch (params['id']) {
+          final String id => '${peer.remote}/group/$id',
+          _ => null,
+        };
+        if (key != null) {
+          if (_taken[key] case final taken?) return taken;
+        }
+        final answer = Future<Object?>.value({
+          'seq': _groups().send(
+            group.id,
+            text: text,
+            images: images,
+            ref: (params['ref'] as num?)?.toInt(),
+          ),
+        });
+        if (key != null) {
+          _taken[key] = answer;
+          if (_taken.length > _takenKept) _taken.remove(_taken.keys.first);
+        }
+        return answer;
+      case LinkMethods.groupImage:
+        final image = _groups().image(
+          _group(params['group']).id,
+          params['image'] as String? ?? '',
+        );
+        if (image == null) {
+          throw LinkRemoteException(
+            LinkErrors.notFound,
+            'No picture ${params['image']}',
+          );
+        }
+        return {'type': image.type, 'data': base64Encode(image.bytes)};
       case LinkMethods.setMe:
         String text(String key) => switch (params[key]) {
           final String value => value.trim(),
@@ -1287,9 +1443,11 @@ class _Follow {
         ? null
         : _from > 0 || session.hasEarlierHistory || session.loadingEarlier;
     final goal = _goal(session.goal);
+    final context = _context(session.context);
     final restText = jsonEncode([
       earlier,
       goal,
+      context,
       session.isStreaming,
       interaction,
       [for (final choice in choices) choice.toJson()],
@@ -1328,7 +1486,29 @@ class _Follow {
       tasks: tasks,
       earlier: earlier,
       goal: goal,
+      context: context,
     );
+  }
+
+  /// [usage] as the phone reads it (see [LinkSessionUpdate.context]).
+  static Map<String, Object?>? _context(ContextUsage? usage) {
+    if (usage == null || usage.window <= 0) return null;
+    final parts = <String, int>{};
+    for (final segment in usage.segments) {
+      if (segment.kind != ContextKind.used || segment.tokens <= 0) continue;
+      final part = ContextUsagePanel.partOf(segment.label) ?? segment.label;
+      parts[part] = (parts[part] ?? 0) + segment.tokens;
+    }
+    return {
+      'window': usage.window,
+      'used': usage.used,
+      if (parts.isNotEmpty)
+        'parts': [
+          for (final MapEntry(:key, :value) in parts.entries)
+            {'part': key, 'tokens': value},
+        ],
+      'compactAt': ?usage.detail?.autoCompactAt,
+    };
   }
 
   /// [goal] as the phone reads it (see [LinkSessionUpdate.goal]).

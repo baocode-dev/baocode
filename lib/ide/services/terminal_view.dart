@@ -94,9 +94,10 @@ class TerminalViewService extends ChangeNotifier {
   }
 
   /// Create New Terminal (⌃⇧`), shown and focused: on [profile]'s shell,
-  /// else the default profile's.
-  void create({TerminalProfile? profile}) {
-    terminals?.create(profile: profile);
+  /// else the default profile's; in [cwd], else the workspace's first
+  /// folder.
+  void create({TerminalProfile? profile, String? cwd}) {
+    terminals?.create(profile: profile, cwd: cwd);
     show();
   }
 

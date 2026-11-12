@@ -19,7 +19,7 @@
 // the gutter's edge by the changed lines and no signs. The overview has
 // one lane and is the editors' scrollbar. No gutter menu, lightbulb on
 // deleted code, accessible diff viewer or moved code; deleted code is not
-// selectable, and draws tabs as the text engine shapes them. Unchanged
+// selectable, its tabs drawn as spaces to the tab stops. Unchanged
 // lines are hidden (VS Code's hideUnchangedRegions, [DiffEditor.hideUnchanged])
 // behind a bar that shows them all, not by steps or by the code's outline.
 // Revert arrows and the like are the embedder's, laid over the editors
@@ -39,7 +39,7 @@ import 'document_snapshot.dart';
 import 'editor_scrollbar.dart';
 import 'editor_surface.dart';
 import 'editor_view_painters.dart';
-import 'viewport_layout.dart' show HiddenLineRanges;
+import 'viewport_layout.dart' show HiddenLineRanges, tabAdvances;
 import 'wheel_glide.dart';
 
 /// What the diff gives one of a diff editor's editors. Its editor shows no
@@ -130,7 +130,11 @@ class DiffEditor extends StatefulWidget {
     this.modifiedLineNumberOf,
     this.overview = true,
     this.modifiedNumbersEnd,
+    this.tabSize = 4,
   });
+
+  /// The modified editor's tab size, the deleted code's tabs' too.
+  final int tabSize;
 
   /// How far into the modified editor its line numbers go, once laid out:
   /// side by side, the split's sash reaches to there, both sides' line
@@ -456,6 +460,7 @@ class _DiffEditorState extends State<DiffEditor> {
       widget.keepVisible,
       widget.originalLineNumberOf,
       widget.modifiedLineNumberOf,
+      widget.tabSize,
       _shownVersion,
     );
     if (_sides case final sides? when key == _key) return sides;
@@ -476,6 +481,7 @@ class _DiffEditorState extends State<DiffEditor> {
             styledLines: widget.originalStyledLines,
             highlight: widget.highlight,
             numberOf: widget.originalLineNumberOf,
+            tabSize: widget.tabSize,
           ),
       ];
       if (widget.hideUnchanged && mappings != null) {
@@ -810,6 +816,7 @@ inlineDiffParts(
   required TextScaler textScaler,
   Map<int, List<TextSpan>>? originalStyledLines,
   DiffHighlight highlight = DiffHighlight.characters,
+  int tabSize = 4,
 }) {
   final original = model.originalSnapshot;
   final mappings = model.mappings;
@@ -827,6 +834,7 @@ inlineDiffParts(
           textScaler: textScaler,
           styledLines: originalStyledLines,
           highlight: highlight,
+          tabSize: tabSize,
         ),
     ],
     decorations: computeDiffDecorations(
@@ -1520,6 +1528,7 @@ EditorViewZone _deletedCodeZone(
   Map<int, List<TextSpan>>? styledLines,
   DiffHighlight highlight = DiffHighlight.characters,
   int Function(int line)? numberOf,
+  int tabSize = 4,
 }) => EditorViewZone(
   afterLineNumber: zone.afterLineNumber,
   heightInLines: zone.heightInLines,
@@ -1535,6 +1544,7 @@ EditorViewZone _deletedCodeZone(
       styledLines: styledLines,
       style: style,
       textScaler: textScaler,
+      tabSize: tabSize,
       lineBackground: highlight == DiffHighlight.none
           ? null
           : colors.removedLine,
@@ -1567,6 +1577,7 @@ class _DeletedCodePainter extends CustomPainter {
     required this.lineBackground,
     required this.textBackground,
     this.words = false,
+    this.tabSize = 4,
   });
 
   final DocumentSnapshot original;
@@ -1580,6 +1591,9 @@ class _DeletedCodePainter extends CustomPainter {
 
   /// The inner changes grown to the words they are in.
   final bool words;
+
+  /// Tabs reach the next multiple of it, as in the editor.
+  final int tabSize;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1620,11 +1634,12 @@ class _DeletedCodePainter extends CustomPainter {
       final matches =
           spans != null &&
           spans.map((span) => span.toPlainText()).join() == text;
+      final shown = expandDiffTabs(text, matches ? spans : null, tabSize);
       final painter = TextPainter(
         text: TextSpan(
           style: style,
-          children: matches ? spans : null,
-          text: matches ? null : text,
+          children: shown.spans,
+          text: shown.spans == null ? shown.text : null,
         ),
         textDirection: TextDirection.ltr,
         textScaler: textScaler,
@@ -1643,12 +1658,16 @@ class _DeletedCodePainter extends CustomPainter {
               ? range.endColumn - 1
               : text.length;
           if (words) (start, end) = diffWordRange(text, start, end);
-          double x(int column) => painter
-              .getOffsetForCaret(
-                TextPosition(offset: column.clamp(0, text.length)),
-                Rect.zero,
-              )
-              .dx;
+          double x(int column) {
+            final at = column.clamp(0, text.length);
+            return painter
+                .getOffsetForCaret(
+                  TextPosition(offset: shown.offsets?[at] ?? at),
+                  Rect.zero,
+                )
+                .dx;
+          }
+
           // Past the line's end, to the zone's (`shouldFillLineOnLineBreak`).
           final right = line < range.endLineNumber ? size.width : x(end);
           if (right <= x(start) && start == end) {
@@ -1680,7 +1699,65 @@ class _DeletedCodePainter extends CustomPainter {
       old.textScaler != textScaler ||
       old.lineBackground != lineBackground ||
       old.textBackground != textBackground ||
-      old.words != words;
+      old.words != words ||
+      old.tabSize != tabSize;
+}
+
+/// [text] and its [spans] with each tab as the spaces to the next tab stop
+/// (the editor's [tabAdvances]), and where each offset of [text] went;
+/// [text] itself, [offsets] null, without tabs.
+@visibleForTesting
+({String text, List<TextSpan>? spans, List<int>? offsets}) expandDiffTabs(
+  String text,
+  List<TextSpan>? spans,
+  int tabSize,
+) {
+  if (!text.contains('\t')) return (text: text, spans: spans, offsets: null);
+  final advances = tabAdvances(text, tabSize);
+  final offsets = List<int>.filled(text.length + 1, 0);
+  final buffer = StringBuffer();
+  var tab = 0;
+  var at = 0;
+  // A run of [text] from [at], its tabs expanded.
+  String expand(String run) {
+    final out = StringBuffer();
+    for (var i = 0; i < run.length; i++) {
+      offsets[at++] = buffer.length + out.length;
+      final unit = run.codeUnitAt(i);
+      if (unit == 0x09) {
+        out.write(' ' * advances[tab++]);
+      } else {
+        out.writeCharCode(unit);
+      }
+    }
+    buffer.write(out);
+    return out.toString();
+  }
+
+  List<TextSpan>? expanded;
+  if (spans != null) {
+    expanded = [];
+    void flatten(InlineSpan span, TextStyle? inherited) {
+      if (span is! TextSpan) return;
+      final own = span.style;
+      final merged = inherited == null ? own : inherited.merge(own);
+      final run = span.text;
+      if (run != null && run.isNotEmpty) {
+        expanded!.add(TextSpan(text: expand(run), style: merged));
+      }
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        flatten(child, merged);
+      }
+    }
+
+    for (final span in spans) {
+      flatten(span, null);
+    }
+  } else {
+    expand(text);
+  }
+  offsets[text.length] = buffer.length;
+  return (text: buffer.toString(), spans: expanded, offsets: offsets);
 }
 
 /// The deleted code's margin: the removed gutter background, and a bar at

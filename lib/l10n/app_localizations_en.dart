@@ -13255,6 +13255,103 @@ class AppLocalizationsEn extends AppLocalizations {
       'Its quota starts over at once. The credit can\'t be given back, and whatever quota is left now is lost.';
 
   @override
+  String claudeResets(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count resets',
+      one: '1 reset',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get claudeResetsTitle => 'Claude limit resets';
+
+  @override
+  String get claudeResetsDetail =>
+      'Granted by Anthropic. Using one sets the limits it lists back to nothing used. With more than one, they are used one at a time, in the order Anthropic sets.';
+
+  @override
+  String claudeResetClears(String windows) {
+    return 'Clears $windows';
+  }
+
+  @override
+  String claudeResetWindowUsed(String window, int percent) {
+    return '$window ($percent% used)';
+  }
+
+  @override
+  String claudeResetWeeklyOf(String model) {
+    return '$model weekly';
+  }
+
+  @override
+  String get claudeResetNext => 'Usable now';
+
+  @override
+  String get claudeResetQueued =>
+      'Waits its turn: usable once the one above is used';
+
+  @override
+  String get claudeResetUse => 'Use This One…';
+
+  @override
+  String get claudeResetConfirm => 'Use a Claude limit reset?';
+
+  @override
+  String claudeResetConfirmDetail(String label, String windows) {
+    return '“$label” sets $windows back to nothing used, at once. The reset can\'t be given back, and what is left of these limits now is lost.';
+  }
+
+  @override
+  String get claudeResetPaused => 'Paused';
+
+  @override
+  String claudeResetCooldown(String time) {
+    return 'Usable again $time';
+  }
+
+  @override
+  String claudeResetUnavailable(String reason) {
+    return 'Not usable now ($reason)';
+  }
+
+  @override
+  String get claudeResetSignedOut =>
+      'The Claude.ai sign-in has expired; Claude Code renews it as it next runs.';
+
+  @override
+  String claudeResetDone(String windows) {
+    return 'Reset: $windows';
+  }
+
+  @override
+  String claudeResetNotDone(String reason) {
+    return 'Not reset: $reason';
+  }
+
+  @override
+  String get claudeResetNotNext =>
+      'Another reset is the one usable now; nothing was used. Refresh and try again.';
+
+  @override
+  String get claudeResetNotLimited =>
+      'This reset can only be used once a limit is reached; nothing was used.';
+
+  @override
+  String get claudeResetAlreadyUsed =>
+      'This reset was already used; nothing was used now.';
+
+  @override
+  String get claudeResetCoolingDown =>
+      'A reset was just used; wait a little before the next. Nothing was used.';
+
+  @override
+  String get claudeResetsRefresh => 'Refresh';
+
+  @override
   String resetCreditsHint(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

@@ -2864,20 +2864,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                       onPointerPanZoomEnd: _endForwardedPan,
                     ),
                   ),
-                // Over the history's top right, as the editor's.
+                // Over the history's top right, as the editor's; over the
+                // side panel's rail too, where it floats there.
                 Positioned(
                   top: 0,
                   left: _gutter,
                   right: _gutter,
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: IdeFindWidget.width,
-                      ),
-                      child: ChatFindBar(find: _find),
-                    ),
-                  ),
+                  child: _inset > 0 ? _OverRail(child: _findBar()) : _findBar(),
                 ),
               ],
             ),
@@ -2886,6 +2879,51 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       ),
     );
   }
+
+  Widget _findBar() => Align(
+    alignment: Alignment.topRight,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: IdeFindWidget.width),
+      child: ChatFindBar(find: _find),
+    ),
+  );
+}
+
+/// [child] where it would be laid out, but in the overlay: over what floats
+/// over the chat (the side panel's rail, which is outside it).
+class _OverRail extends StatefulWidget {
+  const _OverRail({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_OverRail> createState() => _OverRailState();
+}
+
+class _OverRailState extends State<_OverRail> {
+  final _portal = OverlayPortalController()..show();
+
+  @override
+  Widget build(BuildContext context) => OverlayPortal.overlayChildLayoutBuilder(
+    controller: _portal,
+    overlayChildBuilder: (context, info) {
+      final rect = MatrixUtils.transformRect(
+        info.childPaintTransform,
+        Offset.zero & info.childSize,
+      );
+      return Stack(
+        children: [
+          Positioned(
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            child: widget.child,
+          ),
+        ],
+      );
+    },
+    child: const SizedBox(height: 0),
+  );
 }
 
 /// The conversation's side margin at [width]: roomy in a wide window, and

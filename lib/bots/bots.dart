@@ -14,6 +14,7 @@ import '../images/image_tools.dart' show ImageTools;
 import '../kernel/agent_kernel.dart';
 import '../kernel/claude_code/claude_sdk_tools.dart';
 import '../kernel/kernel_registry.dart';
+import '../kernel/kernel_types.dart' show KernelOption;
 import '../kernel/queued_messages.dart';
 import '../link/chat_codec.dart';
 import '../link/link_platform.dart';
@@ -22,6 +23,8 @@ import '../workspace/workspace.dart';
 import 'bot.dart';
 import 'bot_files.dart';
 import 'bot_folders.dart';
+import 'bot_groups.dart';
+import 'bot_life.dart';
 import 'bot_pacer.dart';
 import 'bot_permissions.dart';
 import 'bot_prompt.dart';
@@ -52,6 +55,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   final Workspace workspace;
   final BotFolders folders;
 
+  /// The user's group chats with them: each bot's, in its one
+  /// conversation with its chat with the user.
+  late final BotGroups groups = BotGroups(this);
+
   /// Where what the app keeps of them besides their files is: the agents
   /// each is told of.
   final PreferenceStore? store;
@@ -74,6 +81,9 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   bool Function()? hasPhone;
 
   bool get _hasPhone => hasPhone?.call() ?? true;
+
+  /// Whether a phone is paired now ([hasPhone]).
+  bool get hasPhoneNow => _hasPhone;
 
   /// A phone was paired or unpaired: what is due, delivered, or held.
   void phonesChanged() {
@@ -163,6 +173,8 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     if (_disposed) return;
     // Each with its conversation, for the phones to open from the first.
     _bots.forEach(threadFor);
+    groups.start();
+    _dropWorld(root);
     workspace.addListener(_watch);
     _watch();
     _schedule();
@@ -174,6 +186,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   @override
   void dispose() {
     _disposed = true;
+    groups.dispose();
     if (_started) {
       workspace.removeListener(_watch);
       if (identical(ClaudeSdkTools.gate, this)) ClaudeSdkTools.gate = null;
@@ -454,26 +467,39 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   Bot? byId(String id) => _bots.where((bot) => bot.id == id).firstOrNull;
 
-  /// The bot whose folder [cwd] is.
-  Bot? botAt(String cwd) => _bots.where((bot) => bot.folder == cwd).firstOrNull;
+  /// The bot whose folder [cwd] is: its conversation's, or one of a group
+  /// chat's it had before its groups came to it there
+  /// ([BotGroups.memberFolder]).
+  Bot? botAt(String cwd) => _bots
+      .where(
+        (bot) =>
+            bot.folder == cwd ||
+            BotGroups.groupAt(cwd) != null &&
+                p.dirname(p.dirname(cwd)) == bot.folder,
+      )
+      .firstOrNull;
 
   AgentSetup? _setup(String path) => switch (botAt(path)) {
     final bot? => AgentSetup(
       workspace: () => KernelWorkspace(
         folders: const [],
-        instructions: botInstructions(
-          bot,
-          user: _me,
-          memory: memory(bot),
-          self: selfNotes(bot),
-          computer: computer,
-          now: _clock(),
-          imageModel:
-              ClaudeSdkTools.called(
-                'mcp__${ClaudeSdkTools.server}__${ImageTools.name}',
-              ) !=
-              null,
-        ),
+        instructions: [
+          botInstructions(
+            bot,
+            user: _me,
+            memory: memory(bot),
+            self: selfNotes(bot),
+            people: people(bot),
+            life: _life(bot),
+            computer: computer,
+            now: _clock(),
+            imageModel:
+                ClaudeSdkTools.called(
+                  'mcp__${ClaudeSdkTools.server}__${ImageTools.name}',
+                ) !=
+                null,
+          ),
+        ].join('\n\n'),
         // Told only who it is and how it talks: no coding agent's prompt.
         ownPrompt: true,
         // An agent's, but for what waits on someone at the computer
@@ -481,7 +507,9 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         // it only chats (with the tool search, for the browser's, which
         // are deferred). All of it unasked: the user is on their phone,
         // not at the computer.
-        tools: BotPermissions.tools(bot),
+        // Its files and its groups' chats read with Read, even one that
+        // only chats.
+        tools: [...BotPermissions.tools(bot), if (bot.chatOnly) 'Read'],
         // An agent's has the user's MCP servers, as an agent does.
         userServers: !bot.chatOnly,
         approvesAll: true,
@@ -501,8 +529,8 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   @override
   bool offersTool(String cwd, String tool) {
-    final bot = botAt(cwd);
     final ability = BotTools.abilityOf(tool);
+    final bot = botAt(cwd);
     if (bot == null) return ability == null;
     if (ability != null) return ability.allows(bot);
     // The app's other tools: pictures made; the browser's, if it may use
@@ -528,6 +556,12 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   // --- Its conversation --------------------------------------------------
 
+  /// Where each of [session]'s items is: a group's id, for those of a
+  /// group's turn; null for [bot]'s chat with the user's.
+  static List<String?> _places(ChatSession session) => ChatCodec.botPlaces([
+    for (var i = 0; i < session.itemCount; i++) session.itemAt(i),
+  ]);
+
   /// [bot]'s conversation, if it has one.
   AgentThread? threadOf(Bot bot) {
     AgentThread? latest;
@@ -538,6 +572,42 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       }
     }
     return latest;
+  }
+
+  /// What each bot was last told of reply suggestions, by its id, this
+  /// run: on or off (see [BotSuggestions]).
+  final Map<String, bool> _suggestionsTold = {};
+
+  /// What [bot] is told of reply suggestions with the user's message, as
+  /// they want them or not ([wanted], the phone's switch): notes for
+  /// [ChatSession.send].
+  List<String> suggestionNotes(Bot bot, {required bool wanted}) {
+    final notes = BotSuggestions.notes(
+      wanted: wanted,
+      told: _suggestionsTold[bot.id],
+      suggested: _lastSuggested(bot),
+    );
+    if (notes.isNotEmpty) _suggestionsTold[bot.id] = wanted;
+    return notes;
+  }
+
+  /// Whether [bot]'s last reply suggests what the user say next.
+  bool _lastSuggested(Bot bot) {
+    final thread = threadOf(bot);
+    if (thread == null || !thread.isOpen) return false;
+    final session = thread.session;
+    final places = _places(session);
+    for (var i = session.itemCount - 1; i >= 0; i--) {
+      if (places[i] != null) continue;
+      switch (session.itemAt(i)) {
+        case AssistantTextItem(:final text):
+          if (ChatCodec.botSuggestions(text).isNotEmpty) return true;
+        case UserMessageItem():
+          return false;
+        default:
+      }
+    }
+    return false;
   }
 
   /// [bot]'s conversation, started if it has none.
@@ -569,16 +639,18 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   }
 
   /// How many messages [bot] sent since the user last read it: each of
-  /// its messages, stickers, cards and pictures, as a chat app counts.
+  /// its messages, stickers, cards and pictures, as a chat app counts; in
+  /// its chat with them, not its groups'.
   int unread(Bot bot) {
     final thread = threadOf(bot);
     if (thread == null || !thread.isOpen) return 0;
     final session = thread.session;
     final count = session.itemCount;
     final seen = (_seen[bot.id] ??= count).clamp(0, count);
+    final places = _places(session);
     var unread = 0;
     for (var i = seen; i < count; i++) {
-      unread += _shown(session.itemAt(i));
+      if (places[i] == null) unread += _shown(session.itemAt(i));
     }
     return unread;
   }
@@ -602,32 +674,33 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     _ => ChatCodec.botSent(item) ? 1 : 0,
   };
 
-  /// Whether [bot] is writing to the user: at work; not while it was woken
-  /// by the app and has not said a word yet, which may come to nothing.
+  /// Whether [bot] is at work in its chat with the user: whatever comes
+  /// of it, as it is; not while at a group's.
   bool typing(Bot bot) {
     final thread = threadOf(bot);
     if (thread == null || thread.status != ThreadStatus.running) return false;
-    return !thread.isOpen || !_wokenSilent(thread.session);
+    if (!thread.isOpen) return true;
+    return _places(thread.session).lastOrNull == null;
   }
 
-  /// Whether [session]'s turn under way is the app's waking it (none of
-  /// the user's words), with nothing said to the user yet.
-  static bool _wokenSilent(ChatSession session) {
+  /// Where [bot] is at work now ([group]'s, or null for its chat with the
+  /// user), since its turn was sent; none when it is not.
+  ({String? group, DateTime? since})? atWork(Bot bot) {
+    final thread = threadOf(bot);
+    if (thread == null || thread.status != ThreadStatus.running) return null;
+    if (!thread.isOpen) return (group: null, since: null);
+    final session = thread.session;
+    DateTime? since;
     for (var i = session.itemCount - 1; i >= 0; i--) {
-      switch (session.itemAt(i)) {
-        case AssistantTextItem(:final text)
-            when ChatCodec.botParts(text)
-                .any((part) => part.$1 != ChatCodec.botNarrateTag):
-          return false;
-        case final ToolCallItem item when ChatCodec.botSent(item):
-          return false;
-        case final UserMessageItem item:
-          return ChatCodec.botEvent(item) != null &&
-              ChatCodec.withoutBotEvents(item.text).isEmpty;
-        default:
+      if (session.itemAt(i) case UserMessageItem(
+        :final sentAt,
+        queued: false,
+      )) {
+        since = sentAt;
+        break;
       }
     }
-    return false;
+    return (group: _places(session).lastOrNull, since: since);
   }
 
   /// The last [bot] said: its first line; a picture or a sticker, as a
@@ -636,6 +709,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     final thread = threadOf(bot);
     if (thread == null || !thread.isOpen) return null;
     final session = thread.session;
+    final places = _places(session);
     String? firstLine(String text) {
       final line = text
           .split('\n')
@@ -646,11 +720,17 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     }
 
     for (var i = session.itemCount - 1; i >= 0; i--) {
+      if (places[i] != null) continue;
       switch (session.itemAt(i)) {
         case AssistantTextItem(:final text):
           if (ChatCodec.botSays(text).lastOrNull case final said?) {
             if (firstLine(said) case final line?) return line;
           }
+        case final ToolCallItem item when ChatCodec.botSentToUser(item) != null:
+          if (firstLine(ChatCodec.botSentToUser(item)!) case final line?) {
+            return line;
+          }
+          return chinese ? '[图片]' : '[Picture]';
         case final ToolCallItem item
             when item.status != ToolStatus.failed &&
                 (item.images.isNotEmpty || ChatCodec.botImageUrl(item) != null):
@@ -661,7 +741,63 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     return null;
   }
 
+  /// When [bot]'s chat with the user last went on: what either said there
+  /// (or the bot sent there from a group), as its turn was sent; none if
+  /// nothing was. Not its groups': the phone's chat list has its chat by it.
+  DateTime? chattedAt(Bot bot) {
+    final thread = threadOf(bot);
+    if (thread == null || !thread.isOpen) return null;
+    final session = thread.session;
+    final places = _places(session);
+    for (var i = session.itemCount - 1; i >= 0; i--) {
+      if (places[i] != null) continue;
+      final said = switch (session.itemAt(i)) {
+        AssistantTextItem(:final text) => ChatCodec.botSays(text).isNotEmpty,
+        final ToolCallItem item =>
+          ChatCodec.botSentToUser(item) != null ||
+              item.status != ToolStatus.failed &&
+                  (item.images.isNotEmpty ||
+                      ChatCodec.botImageUrl(item) != null),
+        final UserMessageItem item =>
+          !item.queued && ChatCodec.botEvent(item) == null,
+        _ => false,
+      };
+      if (!said) continue;
+      for (var j = i; j >= 0; j--) {
+        if (session.itemAt(j) case UserMessageItem(:final sentAt?)) {
+          return sentAt;
+        }
+      }
+      return thread.updatedAt;
+    }
+    return null;
+  }
+
   // --- Made, changed, deleted -----------------------------------------------
+
+  /// The models a new bot runs on, the first the computer offers: those
+  /// [newBotModel] fits (DeepSeek's), by id or name.
+  static final newBotModel = RegExp('deepseek', caseSensitive: false);
+
+  /// Of [options], the model a new bot runs on ([newBotModel]); none.
+  @visibleForTesting
+  static String? newBotModelOf(Iterable<KernelOption> options) => options
+      .where((o) => newBotModel.hasMatch(o.id) || newBotModel.hasMatch(o.label))
+      .firstOrNull
+      ?.id;
+
+  /// What a new bot runs on, of the models the bots' conversations offer
+  /// ([newBotModelOf]); none fits, the app's.
+  String? _newBotModel() {
+    for (final bot in _bots) {
+      final thread = threadOf(bot);
+      if (thread == null || !thread.isOpen) continue;
+      if (thread.session.models?.options case final options?) {
+        if (newBotModelOf(options) case final model?) return model;
+      }
+    }
+    return null;
+  }
 
   /// [id]'s bot changed as given, or a new one (no [id]).
   Bot save({
@@ -677,6 +813,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     BotAvatarImage? avatarImage,
     Bot? by,
     bool? chatOnly,
+    bool? writesFirst,
   }) {
     final root = folders.root;
     if (root == null) throw StateError('No bots here');
@@ -699,6 +836,8 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         proactive: proactive,
         created: _clock(),
         chatOnly: chatOnly ?? false,
+        writesFirst: writesFirst ?? true,
+        model: _newBotModel(),
       );
       _writeBot(bot);
       _bots.add(bot);
@@ -724,6 +863,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       abilities: abilities,
       proactive: proactive,
       chatOnly: chatOnly,
+      writesFirst: writesFirst,
     );
     // What it was to be told, dropped with being told of the agents.
     if (had.can(BotAbility.proactive) && !bot.can(BotAbility.proactive)) {
@@ -858,14 +998,80 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     return id;
   }
 
+  /// Where the bots' world had its conversation, when there was one to
+  /// say who answers in a group: what is left of it gone.
+  void _dropWorld(String root) {
+    final path = p.join(root, 'world');
+    final threads = [
+      for (final thread in workspace.threads)
+        if (thread.project.path == path) thread,
+    ];
+    if (threads.isEmpty && !folders.folders().contains(path)) return;
+    if (threads.isNotEmpty) workspace.deleteAll(threads);
+    folders.delete(path);
+    unawaited(forgetSessions(path));
+  }
+
   /// Deletes [id]'s bot, its conversation and memory: not the assistant's.
+  /// Nothing of it left: its folder, and every session the kernels kept
+  /// of it ([forgetSessions]).
   void delete(String id) {
     final bot = byId(id);
     if (bot == null) return;
     if (bot.assistant) throw StateError('The assistant stays');
     folders.delete(bot.folder);
     _forget(bot);
+    unawaited(forgetSessions(bot.folder));
     notifyListeners();
+  }
+
+  /// How long a conversation deleted is given to stop before what its
+  /// kernel kept of it goes: else it might write its last lines after.
+  @visibleForTesting
+  static Duration stopping = const Duration(seconds: 3);
+
+  /// Deletes every session the kernels keep of a conversation in [folder]
+  /// or under it, but those open now: not only the ones its threads are
+  /// on (one a restart left behind, an older one), so nothing of what was
+  /// said there is left for anyone to read.
+  Future<void> forgetSessions(String folder) async {
+    Set<String> open() => {
+      for (final thread in workspace.threads) ?thread.record?.id,
+      for (final thread in workspace.threads)
+        if (thread.isOpen) ?thread.session.sessionId,
+    };
+    final wasOpen = open();
+    final gone = <(SessionCatalog, String)>[];
+    for (final kernel in workspace.kernels) {
+      final catalog = kernel.catalog;
+      if (catalog == null) continue;
+      try {
+        for (final project in await catalog.projects()) {
+          if (project.path != folder && !p.isWithin(folder, project.path)) {
+            continue;
+          }
+          for (final session in project.sessions) {
+            if (!wasOpen.contains(session.id)) {
+              gone.add((catalog, session.id));
+            }
+          }
+        }
+      } on Object catch (error) {
+        debugPrint('bots: sessions of $folder not listed: $error');
+      }
+    }
+    if (gone.isEmpty) return;
+    await Future<void>.delayed(stopping);
+    // One started meanwhile, on a session listed: kept.
+    final nowOpen = open();
+    for (final (catalog, id) in gone) {
+      if (nowOpen.contains(id)) continue;
+      try {
+        await catalog.delete(id);
+      } on Object catch (error) {
+        debugPrint('bots: session $id not deleted: $error');
+      }
+    }
   }
 
   /// [bot]'s conversation deleted, and a new one started: it chats again
@@ -877,6 +1083,8 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       for (final thread in workspace.threads)
         if (thread.project.path == bot.folder) thread,
     ]);
+    // Those its threads were not on too; not the one it starts now.
+    unawaited(forgetSessions(bot.folder));
     _followed.removeWhere((session, _) => !_sessionOf(session));
     _pacers.remove(bot.id);
     _restartWhenIdle.remove(bot.id);
@@ -928,6 +1136,148 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   String memory(Bot bot) =>
       _readText(p.join(bot.folder, BotFiles.memory)).trim();
+
+  // --- Its life -----------------------------------------------------------
+
+  /// What [bot] thinks of the people it knows: its PEOPLE.md.
+  String people(Bot bot) =>
+      _readText(p.join(bot.folder, BotLife.people)).trim();
+
+  /// [bot]'s note [note] of [who], kept: by itself, as it goes.
+  void notePerson(Bot bot, String who, String note) {
+    final path = p.join(bot.folder, BotLife.people);
+    _writeText(path, BotLife.withPersonNote(_readText(path), who, note));
+  }
+
+  /// [bot] is [now]: its mood, what it is up to, SELF.md's first line.
+  void setNow(Bot bot, String now) =>
+      setSelfNotes(bot, BotLife.withNow(selfNotes(bot), now));
+
+  /// Where [bot]'s timeline of today is, in full.
+  String timelineFile(Bot bot) => p.join(bot.folder, BotLife.dayFile(_clock()));
+
+  /// The last [count] lines of [bot]'s timeline today, and how many it
+  /// has.
+  ({List<String> lines, int count}) timeline(Bot bot, {int count = 12}) {
+    final lines = [
+      for (final line in _readText(timelineFile(bot)).split('\n'))
+        if (line.startsWith('- ')) line,
+    ];
+    return (
+      lines: lines.skip(math.max(0, lines.length - count)).toList(),
+      count: lines.length,
+    );
+  }
+
+  /// What [bot] heard or said: in [place], by [who] (itself, if [mine]),
+  /// [text]; a line of its timeline.
+  void live(
+    Bot bot, {
+    required String place,
+    required String who,
+    required String text,
+    bool mine = false,
+  }) {
+    if (text.trim().isEmpty) return;
+    final path = timelineFile(bot);
+    final had = _readText(path);
+    final line = BotLife.line(
+      _clock(),
+      place,
+      mine ? (chinese ? '我' : 'me') : who,
+      text,
+      max: mine ? BotLife.said : BotLife.heard,
+    );
+    _writeText(
+      path,
+      had.trim().isEmpty
+          ? '# ${p.basenameWithoutExtension(path)}\n\n$line'
+          : '${had.trimRight()}\n$line',
+    );
+  }
+
+  /// The name the bots know the user by.
+  String get userName =>
+      _me.name.isEmpty ? (chinese ? '用户' : 'the user') : _me.name;
+
+  /// Where [bot]'s chat with the user is, as its timeline says.
+  String get privatePlace => chinese ? '私聊' : 'private';
+
+  /// What [bot] is told of its one life, its files and its timeline.
+  String? _life(Bot bot) {
+    final root = folders.root;
+    if (root == null) return null;
+    final today = timeline(bot);
+    return botLife(
+      bot,
+      folder: bot.folder,
+      world: p.join(root, BotLife.world),
+      timelineFile: timelineFile(bot),
+      lines: today.count,
+      timeline: today.lines,
+    );
+  }
+
+  /// [session]'s items from [from] on, of [bot]'s chat with the user, kept
+  /// in its timeline: the user's words, its messages. Up to what is still
+  /// to be taken up (a message queued); where it got to.
+  int _livePrivate(Bot bot, ChatSession session, int from) {
+    final count = session.itemCount;
+    final items = [for (var i = 0; i < count; i++) session.itemAt(i)];
+    final places = ChatCodec.botPlaces(items);
+    for (var i = from.clamp(0, count); i < count; i++) {
+      if (places[i] != null) continue;
+      switch (items[i]) {
+        case UserMessageItem(queued: true):
+          return i;
+        case final UserMessageItem item when ChatCodec.botEvent(item) == null:
+          final words = ChatCodec.withoutBotEvents(
+            item.text.replaceAll(imageReferencePattern, ''),
+          );
+          final text = [
+            if (words.isNotEmpty) words,
+            if (item.images.isNotEmpty) chinese ? '[图片]' : '[picture]',
+          ].join(' ');
+          live(bot, place: privatePlace, who: userName, text: text);
+          heardUser();
+        case AssistantTextItem(:final text):
+          final says = BotLife.saysOf(text);
+          live(bot, place: privatePlace, who: bot.name, text: says, mine: true);
+        // Sent from a group's turn.
+        case final ToolCallItem item when ChatCodec.botSentToUser(item) != null:
+          final says = [
+            ChatCodec.botSentToUser(item)!,
+            if (item.images.isNotEmpty) chinese ? '[图片]' : '[picture]',
+          ].where((t) => t.isNotEmpty).join(' ');
+          live(bot, place: privatePlace, who: bot.name, text: says, mine: true);
+        default:
+      }
+    }
+    return count;
+  }
+
+  /// When the user last said something, in a group or in private.
+  DateTime? _userSaidAt;
+
+  /// The user said something: what they asked for (a word in private) is
+  /// theirs for a while ([askedWithin]).
+  void heardUser() => _userSaidAt = now;
+
+  /// How long after the user last spoke a bot may write to them in
+  /// private as they asked, whatever it may of writing first.
+  static const askedWithin = Duration(minutes: 10);
+
+  /// Why [bot] may not write to the user in private now, from a group's
+  /// turn ([ChatCodec.botSendTool]); none when it may: as they asked (they
+  /// spoke lately), or first, unless they turned that off
+  /// ([Bot.writesFirst]).
+  String? sendsPrivately(Bot bot) {
+    final said = _userSaidAt;
+    if (said != null && now.difference(said) <= askedWithin) return null;
+    return bot.writesFirst
+        ? null
+        : 'the user turned off ${bot.name} writing to them first';
+  }
 
   // --- The user ---------------------------------------------------------
 
@@ -1054,7 +1404,18 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
             for (final image in images) ?image.number,
       };
       var count = session.itemCount;
+      // Its timeline kept from here: not what came before, nor the history
+      // its conversation reads meanwhile, nor what is read of it earlier.
+      var lived = count;
+      var loading = session.loadingHistory;
+      var prepended = session.prependedCount;
       void listener() {
+        if (session.prependedCount != prepended) {
+          lived += session.prependedCount - prepended;
+          prepended = session.prependedCount;
+        }
+        if (loading || session.loadingHistory) lived = session.itemCount;
+        loading = session.loadingHistory;
         if (session.itemCount != count) {
           count = session.itemCount;
           // A message comes in near the end (before what it shows of the
@@ -1069,9 +1430,11 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
             }
           }
         }
-        // Its turn done: what it changed of its files, taken up.
+        // Its turn done: what it changed of its files, taken up; what was
+        // said with the user, in its timeline.
         if (streaming && !session.isStreaming) {
           scheduleMicrotask(() => reload(by: byId(bot.id) ?? bot));
+          lived = _livePrivate(byId(bot.id) ?? bot, session, lived);
         }
         streaming = session.isStreaming;
         if (!session.isStreaming && _restartWhenIdle.remove(bot.id)) {
