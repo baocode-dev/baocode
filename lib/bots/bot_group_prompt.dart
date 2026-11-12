@@ -68,15 +68,18 @@ typedef BotGroupMessage = ({
   bool fresh,
 });
 
-/// What the bot that has [group]'s conversation is told: who is in it
-/// ([members], [user]), the time [now] and when it last looked ([looked]),
-/// the latest [messages] (each cut past [longest] characters, the rest in
-/// [chat]), how it came to have it ([by]) and how many times it may still
-/// be passed ([left]). Its first line says the group's
-/// ([ChatCodec.botGroupOf]).
+/// What the bot that has [group]'s conversation is told, plainly enough
+/// for a simple model to follow: where it is (a group chat: who is in it,
+/// [me] among them, [user] too), the time [now] and when it last looked
+/// ([looked]), the latest [messages] (each cut past [longest] characters,
+/// the rest in [chat]), how it came to have it ([by]); then what to do,
+/// what `<bot_next>` means and when to use it, and that the conversation is
+/// in its hands. Whether it may pass it on: [left] times more. Its first
+/// line says the group's ([ChatCodec.botGroupOf]).
 String botGroupTurn({
   required BotGroup group,
   required String chat,
+  required String me,
   required List<String> members,
   required String user,
   required String now,
@@ -98,9 +101,19 @@ String botGroupTurn({
       ? null
       : messages.first.heading.split(' ').first;
   final last = messages.isEmpty ? null : messages.last.heading.split(' ').first;
+  const next = ChatCodec.botNextTag;
+  const narrate = ChatCodec.botNarrateTag;
+  final names = members.join(', ');
   return [
-    '${ChatCodec.botGroupLine(group.id)} The group chat "${group.name}": '
-        'you, $user (the user)${members.isEmpty ? '' : ', ${members.join(', ')}'}.',
+    '${ChatCodec.botGroupLine(group.id)} The group chat "${group.name}".',
+    '',
+    'Where you are: a group chat, on your phones. In it: you ($me), $user '
+        '(the user)${members.isEmpty ? '' : ', $names'}. Everyone here sees '
+        'every message.',
+    'Who you are: $me, as always: who you are, how you talk, your own life. '
+        'Talk the way you would to these people, in a group. This is people '
+        'chatting: never speak of the app, the computer, turns, passing it '
+        'on, or being told to answer.',
     'Now: $now.${looked == null ? '' : ' You last looked at it: $looked.'}',
     '',
     if (messages.isNotEmpty) ...[
@@ -110,22 +123,35 @@ String botGroupTurn({
     ],
     'Earlier ones, and all of each: $chat.',
     '',
-    'It is your turn: $by. '
-        '${left > 0 ? 'It may be passed $left more times.' : 'It may not be passed on: after you, it is for $user to speak.'}',
+    'Why you are told now: $by.',
     '',
-    'The conversation in this group is in your hands now: once you have '
-        'spoken, where it goes and who speaks next is yours to decide.',
-    '- Say something if you want to, as you would in a group: a message or '
-        'two. Or nothing, if you have nothing to say.',
+    'What to do now:',
+    '1. Read the new messages. If you have something to say, say it as '
+        'yourself: one or two short messages, as in a chat, not a speech. If '
+        'you have nothing to say, say nothing.',
+    '2. Narration (<$narrate>…</$narrate>: what you do, how you look, where '
+        'you are) and pictures (generate_image) reach the group too: everyone '
+        'sees them. Use them now and then, when they fit.',
     if (left > 0) ...[
-      '- Then think who the conversation needs next: the one asked, the one '
-          'who knows this best, the one $user wants to hear from; and pass '
-          'it to them, by name: <${ChatCodec.botNextTag}>name</${ChatCodec.botNextTag}>.',
-      '- If the topic is done, or it is for $user to speak, pass it to no '
-          'one: it stops with you.',
-      "Don't let the conversation drop where it shouldn't, and don't pass "
-          'it on just to keep things busy.',
-    ],
+      '3. Then decide who speaks next.',
+      '   <$next>name</$next> hands the conversation to one member: they are '
+          'told it is their turn, and they answer next. No one sees the tag. '
+          'Write one name, as in this list: $names.',
+      '   No <$next> means the conversation stops: the group goes quiet, and '
+          'no one says anything more until $user speaks again. Only do that '
+          'when you really mean it to stop: the topic has come to a natural '
+          'end, or what was said is for $user alone to answer.',
+      '   Otherwise hand it to whoever would naturally answer now: the one you '
+          'spoke to, asked or spoke of; the one $user asked for; the one who '
+          'plainly has something to add. Not to $user (they speak when they '
+          'like), nor to yourself.',
+    ] else
+      '3. Hand it to no one now: after you, it is for $user to speak.',
+    '',
+    'The conversation in this group is in your hands until you hand it on or '
+        'stop it. Keep it alive the way a good group chat is: do not let it '
+        'die while someone would still answer; do not drag it on once it is '
+        'done, nor hand it on just to keep things busy.',
   ].join('\n');
 }
 
