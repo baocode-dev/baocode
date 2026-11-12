@@ -100,6 +100,7 @@ class CustomizationStore {
           ),
       ],
       CustomizationKind.rules => await _rules(config, project),
+      CustomizationKind.memory => await _memories(config, project),
       CustomizationKind.mcps => await _servers(project),
       CustomizationKind.hooks => await _hooks(config, project),
       CustomizationKind.plugins => await _plugins(config, project),
@@ -404,16 +405,7 @@ class CustomizationStore {
         config,
       ),
       if (project != null) ...[
-        ?await memory(
-          CustomizationScope.project,
-          _paths.join(project, 'CLAUDE.md'),
-          project,
-        ),
-        ?await memory(
-          CustomizationScope.project,
-          _paths.join(project, '.claude', 'CLAUDE.md'),
-          project,
-        ),
+        ...await _projectInstructions(memory, project),
         ...await folder(
           CustomizationScope.project,
           _paths.join(project, '.claude', 'rules'),
@@ -425,6 +417,54 @@ class CustomizationStore {
           project,
         ),
       ],
+    ];
+  }
+
+  /// [project]'s CLAUDE.md, at its root and in `.claude/`; with none, its
+  /// AGENTS.md there, which Claude Code reads in their place.
+  Future<List<Customization>> _projectInstructions(
+    Future<Customization?> Function(CustomizationScope, String, String) read,
+    String project,
+  ) async {
+    Future<List<Customization>> named(String name) async => [
+      ?await read(
+        CustomizationScope.project,
+        _paths.join(project, name),
+        project,
+      ),
+      ?await read(
+        CustomizationScope.project,
+        _paths.join(project, '.claude', name),
+        project,
+      ),
+    ];
+    final claude = await named('CLAUDE.md');
+    return claude.isNotEmpty ? claude : await named('AGENTS.md');
+  }
+
+  /// What Claude Code remembers of [project] (its auto memory): the
+  /// markdown files of `<config>/projects/<project, dashed>/memory/`, the
+  /// index `MEMORY.md` among them.
+  Future<List<Customization>> _memories(String config, String? project) async {
+    if (project == null) return const [];
+    final folder = _paths.join(
+      config,
+      'projects',
+      claudeProjectDirName(project),
+      'memory',
+    );
+    return [
+      for (final child in await _files.children(folder))
+        if (!child.directory && child.path.endsWith('.md'))
+          if (await _files.read(child.path) case final text?)
+            Customization(
+              kind: CustomizationKind.memory,
+              scope: CustomizationScope.project,
+              name: _paths.basename(child.path),
+              description: describeMarkdown(text),
+              path: child.path,
+              removePath: child.path,
+            ),
     ];
   }
 
@@ -638,4 +678,18 @@ class CustomizationStore {
       enabled: enabled,
     );
   }
+}
+
+/// The folder Claude Code keeps [cwd]'s sessions and memory in, under its
+/// config's `projects/`: the path with all but letters and digits dashed,
+/// a long one cut, a hash of the whole after (as bao_agent's
+/// `AgentPaths.projectDirName`).
+String claudeProjectDirName(String cwd) {
+  final dashed = cwd.replaceAll(RegExp('[^a-zA-Z0-9]'), '-');
+  if (dashed.length <= 200) return dashed;
+  var hash = 0;
+  for (final unit in cwd.codeUnits) {
+    hash = (hash * 31 + unit) & 0x7fffffff;
+  }
+  return '${dashed.substring(0, 200)}-${hash.toRadixString(36)}';
 }

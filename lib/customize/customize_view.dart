@@ -41,6 +41,7 @@ extension CustomizationKindLabels on CustomizationKind {
     CustomizationKind.skills => l10n.customizeKindSkills,
     CustomizationKind.subagents => l10n.customizeKindSubagents,
     CustomizationKind.rules => l10n.customizeKindRules,
+    CustomizationKind.memory => l10n.customizeKindMemory,
     CustomizationKind.commands => l10n.customizeKindCommands,
     CustomizationKind.hooks => l10n.customizeKindHooks,
   };
@@ -51,6 +52,7 @@ extension CustomizationKindLabels on CustomizationKind {
     CustomizationKind.skills => Codicons.zap,
     CustomizationKind.subagents => Codicons.hubot,
     CustomizationKind.rules => Codicons.law,
+    CustomizationKind.memory => Codicons.book,
     CustomizationKind.commands => Codicons.terminal,
     CustomizationKind.hooks => Codicons.link,
   };
@@ -524,6 +526,9 @@ class CustomizeViewState extends State<CustomizeView> {
     final scopes = [
       if (_kind == CustomizationKind.plugins)
         CustomizationScope.plugin
+      // Claude's memories are a project's alone.
+      else if (_kind == CustomizationKind.memory)
+        ?(_project == null ? null : CustomizationScope.project)
       else ...[
         CustomizationScope.user,
         if (_kind == CustomizationKind.skills ||
@@ -645,6 +650,7 @@ class CustomizeViewState extends State<CustomizeView> {
         creatable ||
         configurable ||
         _kind == CustomizationKind.plugins ||
+        _kind == CustomizationKind.memory ||
         (_kind == CustomizationKind.mcps && scope != CustomizationScope.synced);
     final searching = _query.text.trim().isNotEmpty;
     if (items.isEmpty && (searching || !shownEmpty)) return const [];
@@ -840,6 +846,7 @@ class CustomizeViewState extends State<CustomizeView> {
   String _emptyText(AppLocalizations l10n, CustomizationScope scope) =>
       switch ((_kind, scope)) {
         (CustomizationKind.plugins, _) => l10n.customizeEmptyPlugins,
+        (CustomizationKind.memory, _) => l10n.customizeEmptyMemory,
         (CustomizationKind.mcps, CustomizationScope.user) =>
           l10n.customizeEmptyMcpsUser,
         (CustomizationKind.mcps, CustomizationScope.local) =>

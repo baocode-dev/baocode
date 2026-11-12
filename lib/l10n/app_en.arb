@@ -4547,6 +4547,7 @@
   "customizeKindSkills": "Skills",
   "customizeKindSubagents": "Subagents",
   "customizeKindRules": "Rules",
+  "customizeKindMemory": "Memory",
   "customizeKindCommands": "Commands",
   "customizeKindHooks": "Hooks",
   "customizeScopeUser": "User",
@@ -4627,6 +4628,7 @@
     }
   },
   "customizeEmptyPlugins": "None installed. Install plugins with /plugin in Claude Code.",
+  "customizeEmptyMemory": "Nothing remembered yet. Claude Code saves what it learns about you and this project here as it works (its auto memory), and reads it back in later conversations.",
   "customizeEmptyMcpsUser": "None yet. Add one with: claude mcp add --scope user <name> -- <command>",
   "customizeEmptyMcpsLocal": "None yet. Add one with claude mcp add, run in the project.",
   "customizeEmptyMcpsProject": "None yet. Servers shared with the project go in its .mcp.json.",

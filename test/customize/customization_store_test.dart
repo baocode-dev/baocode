@@ -177,6 +177,61 @@ void main() {
     );
   });
 
+  test('a project\'s memories, and its AGENTS.md where it has no CLAUDE.md '
+      '(#852)', () async {
+    final memory = p.join(
+      config,
+      'projects',
+      claudeProjectDirName(project),
+      'memory',
+    );
+    write(p.join(memory, 'MEMORY.md'), '- [Tabs](tabs.md) — use tabs\n');
+    write(
+      p.join(memory, 'tabs.md'),
+      '---\nname: tabs\ndescription: The user wants tabs\n---\n\nTabs.\n',
+    );
+    write(p.join(memory, 'notes.txt'), 'not one');
+    final memories = await store.list(
+      CustomizationKind.memory,
+      project: project,
+    );
+    expect(
+      [for (final m in memories) (m.scope, m.name, m.description)],
+      [
+        (
+          CustomizationScope.project,
+          'MEMORY.md',
+          '- [Tabs](tabs.md) — use tabs',
+        ),
+        (CustomizationScope.project, 'tabs.md', 'The user wants tabs'),
+      ],
+    );
+    expect(memories.last.removePath, p.join(memory, 'tabs.md'));
+    expect(await store.list(CustomizationKind.memory), isEmpty);
+
+    write(p.join(project, 'AGENTS.md'), '# Agents\n\nUse Dart.\n');
+    List<String> rules(List<Customization> all) => [
+      for (final r in all)
+        if (r.scope == CustomizationScope.project) r.name,
+    ];
+    expect(rules(await store.list(CustomizationKind.rules, project: project)), [
+      'AGENTS.md',
+    ]);
+    // CLAUDE.md there: read in its place.
+    write(p.join(project, '.claude', 'CLAUDE.md'), 'Use Dart.\n');
+    expect(rules(await store.list(CustomizationKind.rules, project: project)), [
+      p.join('.claude', 'CLAUDE.md'),
+    ]);
+  });
+
+  test('a project\'s folder under Claude Code\'s, as it names it', () {
+    expect(claudeProjectDirName('/Users/me/my app'), '-Users-me-my-app');
+    expect(claudeProjectDirName(r'C:\Users\me\app'), 'C--Users-me-app');
+    final long = claudeProjectDirName('/${'a' * 300}');
+    expect(long.length, greaterThan(200));
+    expect(long, startsWith('-${'a' * 199}-'));
+  });
+
   test('lists servers, hooks and plugins from their JSON files', () async {
     write(
       p.join(temp.path, 'home', '.claude.json'),
