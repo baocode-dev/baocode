@@ -9873,6 +9873,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountsGiteeHosts => 'gitee.com, with a personal access token';
 
   @override
+  String get accountsGitCodeHosts =>
+      'gitcode.com, with a personal access token';
+
+  @override
   String get accountsSignInBrowser => 'Sign in with Browser';
 
   @override
@@ -9927,6 +9931,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get accountsTokenGiteeScopes =>
       'A personal access token with the user_info, projects, pull_requests, issues and notes scopes.';
+
+  @override
+  String get accountsTokenGitCodeScopes =>
+      'A personal access token that can read your user info, and read and write repositories, issues and pull requests.';
 
   @override
   String accountsTokenCreate(String host) {

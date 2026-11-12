@@ -1,6 +1,7 @@
 // What BaoCode asks a forge, signed in as the user (see forge_accounts):
 // GitHub's REST API (api.github.com, a GitHub Enterprise's /api/v3),
-// GitLab's (/api/v4) and Gitee's (/api/v5). Over [ForgeHttp], which tests
+// GitLab's (/api/v4), Gitee's (/api/v5) and GitCode's (Gitee's, at
+// api.gitcode.com). Over [ForgeHttp], which tests
 // answer themselves.
 
 import 'dart:convert';
@@ -1355,4 +1356,23 @@ class GiteeApi extends ForgeApi {
     }
     _branched.add(repo);
   }
+}
+
+/// GitCode's REST API (v5): Gitee's, as GitCode copies it, served from its
+/// own host (`api.gitcode.com`).
+class GitCodeApi extends GiteeApi {
+  GitCodeApi({
+    required super.host,
+    super.scheme,
+    required super.http,
+    required super.token,
+  });
+
+  @override
+  ForgeKind get kind => ForgeKind.gitcode;
+
+  @override
+  Uri get _base => host == ForgeKind.gitcode.publicHost
+      ? Uri.https('api.gitcode.com', '/api/v5')
+      : super._base;
 }
