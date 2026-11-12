@@ -13,6 +13,7 @@ class BotGroup {
     this.created,
     this.names = const {},
     this.lively = BotGroups.livelyAtFirst,
+    this.attentionModel,
   });
 
   factory BotGroup.fromJson(Map<String, Object?> json) => BotGroup(
@@ -32,6 +33,10 @@ class BotGroup {
           if (value is String) key: value,
     },
     lively: (json['lively'] as num?)?.toDouble() ?? BotGroups.livelyAtFirst,
+    attentionModel: switch (json['attentionModel']) {
+      final String model when model.isNotEmpty => model,
+      _ => null,
+    },
   );
 
   final String id;
@@ -44,11 +49,16 @@ class BotGroup {
   /// livelier, the longer they go on among themselves.
   final double lively;
 
+  /// The model that scores how much what the user says in it draws each
+  /// bot ([BotGroups]), a model option's id; none, all alike.
+  final String? attentionModel;
+
   BotGroup copyWith({
     String? name,
     List<String>? members,
     Map<String, String>? names,
     double? lively,
+    String? Function()? attentionModel,
   }) => BotGroup(
     id: id,
     name: name ?? this.name,
@@ -56,6 +66,9 @@ class BotGroup {
     created: created,
     names: names ?? this.names,
     lively: lively ?? this.lively,
+    attentionModel: attentionModel == null
+        ? this.attentionModel
+        : attentionModel(),
   );
 
   Map<String, Object?> toJson() => {
@@ -65,6 +78,7 @@ class BotGroup {
     'created': ?created?.millisecondsSinceEpoch,
     if (names.isNotEmpty) 'names': names,
     if (lively != BotGroups.livelyAtFirst) 'lively': lively,
+    'attentionModel': ?attentionModel,
   };
 }
 
@@ -79,7 +93,8 @@ const botGroupToldMost = 4000;
 /// What the app tells [group]'s bot of messages it has not seen: [from] to
 /// [to], the lines of [chat] they are at ([lines]), and themselves
 /// ([messages]); who else is in it ([members], [user]); whether it was
-/// called on ([called]). Its first line says the group's ([ChatCodec.botGroupOf]).
+/// called on ([called]); the time [now], and when it last looked at the
+/// group ([looked]), this run. Its first line says the group's ([ChatCodec.botGroupOf]).
 String botGroupWake({
   required BotGroup group,
   required String chat,
@@ -90,6 +105,8 @@ String botGroupWake({
   required List<String> members,
   required String user,
   bool called = false,
+  required String now,
+  String? looked,
 }) {
   final count = to - from + 1;
   final which = count == 1 ? 'message #$from' : 'messages #$from–#$to';
@@ -106,7 +123,7 @@ String botGroupWake({
   return [
     '${ChatCodec.botGroupLine(group.id)} The group chat "${group.name}": '
         'you, $user (the user)${members.isEmpty ? '' : ', ${members.join(', ')}'}.',
-    'New in it: $which.',
+    'New in it: $which. Now: $now${looked == null ? '' : '; you last looked at it $looked'}.',
     if (cut) '(The earlier of them in the file.)',
     '',
     ...shown,

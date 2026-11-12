@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:bao_link/bao_link.dart' show linkGroupUser;
 import 'package:baocode/bots/bot.dart';
+import 'package:baocode/bots/bot_attention_model.dart';
 import 'package:baocode/bots/bot_folders.dart';
 import 'package:baocode/bots/bot_groups.dart';
 import 'package:baocode/bots/bot_prompt.dart' show botEventMessage;
@@ -127,23 +128,61 @@ void main() {
   BotAttention attentionOf(String group, Bot bot) =>
       groups.attention(group).firstWhere((a) => a.member == bot.id);
 
-  test('pulled by what the user says, each looks soon; called on, at '
-      'once; the rest overhear', () async {
+  test('called on, at once, the others not pulled; else everyone looks '
+      'soon, told the time and when they last looked', () async {
     final group = groups.save(name: 'g', members: [mia.id, leo.id, ann.id]);
     groups.send(group.id, text: '@Ann 你先说');
     await wait(5);
     expect(toldNames(), ['Ann']);
     expect(told.single.$2, contains('You were called on'));
+    expect(told.single.$2, contains('Now: Thursday 2026-11-12 14:00.'));
     expect(attentionOf(group.id, ann).value, 1);
     expect(attentionOf(group.id, ann).why, '被用户 @（#1）');
-    // Half as pulled: in 40ms.
     final mias = attentionOf(group.id, mia);
-    expect(mias.value, 0.5);
-    expect(mias.why, '旁听：用户 @ 了别人（#1）');
-    expect(mias.glance, isNotNull);
-    await wait(70);
-    expect(toldNames(), unorderedEquals(['Ann', 'Mia', 'Leo']));
-    expect(attentionOf(group.id, mia).glance, isNull);
+    expect((mias.value, mias.glance), (0, null));
+    await wait(40);
+    expect(toldNames(), ['Ann']);
+    groups.turnEnded(group.id, ann.id, '');
+    now = now.add(const Duration(minutes: 20));
+    groups.send(group.id, text: '人呢');
+    await wait(30);
+    expect(toldNames(), unorderedEquals(['Ann', 'Mia', 'Leo', 'Ann']));
+    expect(
+      told.last.$2,
+      contains('you last looked at it Thursday 2026-11-12 14:00'),
+    );
+  });
+
+  test("the attention model scores how much the user's words draw each; "
+      'one it leaves out, or too faint, not pulled', () async {
+    final group = groups.save(name: 'g', members: [mia.id, leo.id, ann.id]);
+    groups.score = (group, message) async => {
+      mia.id: (pull: 1.0, why: '点名问她'),
+      leo.id: (pull: 0.05, why: '与他无关'),
+    };
+    groups.send(group.id, text: 'Mia 你觉得呢');
+    await wait(40);
+    expect(toldNames(), ['Mia']);
+    expect(attentionOf(group.id, mia).why, '注意力模型：点名问她，1.00（#1）');
+    expect(attentionOf(group.id, leo).value, 0);
+    expect(attentionOf(group.id, ann).value, 0);
+    // It fails: everyone, fully.
+    groups.score = (group, message) async => throw StateError('down');
+    groups.send(group.id, text: '哈哈');
+    await wait(40);
+    expect(toldNames(), unorderedEquals(['Mia', 'Leo', 'Ann']));
+  });
+
+  test("the attention model's answer read: by name, clamped, others out", () {
+    final pulls = readAttentionAnswer(
+      '好的：{"pulls": [{"name": "Mia", "pull": 1.4, "why": "问她"}, '
+      '{"name": "Nobody", "pull": 1}, {"name": "Leo", "pull": 0.2}]}',
+      [mia, leo],
+    );
+    expect(pulls[mia.id], (pull: 1.0, why: '问她'));
+    expect(pulls[leo.id], (pull: 0.2, why: ''));
+    expect(pulls, hasLength(2));
+    expect(() => readAttentionAnswer('no', [mia]), throwsFormatException);
   });
 
   test('asked of everyone: each at once', () async {
@@ -202,27 +241,24 @@ void main() {
     expect(groups.messages(group.id).length, said);
   });
 
-  test(
-    'one that keeps quiet is pulled less each time, till called on',
-    () async {
-      final group = groups.save(name: 'g', members: [mia.id]);
-      for (var i = 0; i < 4; i++) {
-        groups.send(group.id, text: 'x$i');
-        await wait(150);
-        expect(told, hasLength(i + 1));
-        groups.turnEnded(group.id, mia.id, '');
-      }
-      expect(attentionOf(group.id, mia).why, '看了没说话（连续 4 次）');
-      // A sixteenth as pulled: too faint.
-      groups.send(group.id, text: 'y');
-      await wait(200);
-      expect(told, hasLength(4));
-      groups.send(group.id, text: '@Mia 在吗');
-      await wait(5);
-      expect(told, hasLength(5));
-      expect(told.last.$2, contains('#5–#6'));
-    },
-  );
+  test('one that keeps quiet is pulled less by the bots each time; by the '
+      'user, fully', () async {
+    final group = groups.save(name: 'g', members: [mia.id, leo.id]);
+    for (var i = 0; i < 4; i++) {
+      groups.send(group.id, text: 'x$i');
+      await wait(30);
+      expect(toldNames().where((n) => n == 'Mia'), hasLength(i + 1));
+      groups
+        ..turnEnded(group.id, mia.id, '')
+        ..turnEnded(group.id, leo.id, '');
+    }
+    expect(attentionOf(group.id, mia).why, '看了没说话（连续 4 次）');
+    // Leo's 0.6, a sixteenth as pulling: too faint.
+    groups.say(group.id, leo.id, '有人吗');
+    expect(attentionOf(group.id, mia).glance, isNull);
+    groups.send(group.id, text: 'y');
+    expect(attentionOf(group.id, mia).value, 1);
+  });
 
   test('replies that crossed: each sent as it is; each reads the other\'s '
       'once done', () async {

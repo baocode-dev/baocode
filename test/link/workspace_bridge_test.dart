@@ -673,6 +673,27 @@ void main() {
       'lively': 2,
     });
     expect(withBots.state().groups.single.lively, LinkGroup.livelyMost);
+    // Its attention model: one of those offered, or none.
+    final offered =
+        ((await withBots.handle(LinkMethods.attentionModels, {}))!
+                as Map)['options']
+            as List;
+    // Haiku, or an upstream's: not Claude Code's other models.
+    for (final option in offered) {
+      final id = (option as Map)['id'] as String;
+      expect(id == 'haiku' || id.startsWith('@'), isTrue);
+    }
+    await expectLater(
+      withBots.handle(LinkMethods.setGroupAttentionModel, {
+        'group': made.id,
+        'model': '@up/none',
+      }),
+      throwsA(isA<LinkRemoteException>()),
+    );
+    await withBots.handle(LinkMethods.setGroupAttentionModel, {
+      'group': made.id,
+    });
+    expect(withBots.state().groups.single.attentionModel, isNull);
     final opened =
         (await withBots.handle(LinkMethods.openGroup, {'group': made.id}))!
             as Map;
