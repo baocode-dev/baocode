@@ -31,12 +31,14 @@ class PosixPtyException implements Exception {
 
 /// A process on a pseudo terminal.
 class PosixPty {
-  PosixPty._(this.pid, this._master, this._receive) {
+  PosixPty._(this.pid, this._master, this._receive, this._counts) {
     _receive.listen((message) {
       switch (message) {
         case TransferableTypedData data:
           _output.add(data.materialize().asUint8List());
         case int code:
+          // The helper isolate is done with them.
+          _Libc.instance.free(_counts.cast());
           _closeMaster();
           unawaited(_output.close());
           _exitCode.complete(code);
@@ -142,8 +144,16 @@ class PosixPty {
       // macOS keeps no size given before the other end first opened.
       if (Platform.isMacOS) _resize(master, columns, rows);
       final receive = ReceivePort();
-      await Isolate.spawn(_watch, (receive.sendPort, master, pid));
-      return PosixPty._(pid, master, receive);
+      final counts = libc.malloc(16).cast<Int64>();
+      counts[0] = _unlimited;
+      counts[1] = 0;
+      await Isolate.spawn(_watch, (
+        receive.sendPort,
+        master,
+        pid,
+        counts.address,
+      ));
+      return PosixPty._(pid, master, receive, counts);
     } on Object {
       if (master >= 0) libc.close(master);
       rethrow;
@@ -155,6 +165,12 @@ class PosixPty {
   final int pid;
   int _master;
   final ReceivePort _receive;
+
+  /// How much of the output may be read, all told (written here only),
+  /// and how much was (by the helper isolate only): it reads no further.
+  final Pointer<Int64> _counts;
+
+  static const _unlimited = 0x7fffffffffffffff;
   final StreamController<Uint8List> _output = StreamController();
   final Completer<int> _exitCode = Completer();
 
@@ -196,9 +212,18 @@ class PosixPty {
     if (_master >= 0) _resize(_master, columns, rows);
   }
 
+  /// Reads no more than [total] bytes of [output] all told, until allowed
+  /// more: the terminal's buffer fills and the process waits to print (VS
+  /// Code's flow control). Unlimited at first.
+  void allow(int total) {
+    if (!_exitCode.isCompleted) _counts[0] = total;
+  }
+
   /// Sends [signal] (a hangup by default) to the process and its group.
   void kill([int signal = 1]) {
     if (_exitCode.isCompleted) return;
+    // Read on, to see it end.
+    allow(_unlimited);
     final libc = _Libc.instance;
     // The session's group first (the shell and its jobs), then the process.
     libc.kill(-pid, signal);
@@ -243,15 +268,23 @@ class PosixPty {
 
 /// The helper isolate: the output until the terminal closes, then the exit
 /// code.
-void _watch((SendPort, int, int) arguments) {
-  final (port, master, pid) = arguments;
+void _watch((SendPort, int, int, int) arguments) {
+  final (port, master, pid, countsAddress) = arguments;
+  final counts = Pointer<Int64>.fromAddress(countsAddress);
   final libc = _Libc.instance;
   const size = 64 * 1024;
   final buffer = libc.malloc(size).cast<Uint8>();
   try {
     while (true) {
-      final count = libc.read(master, buffer.cast(), size);
+      // Read as far as allowed ([PosixPty.allow]), then waiting for more.
+      var room = counts[0] - counts[1];
+      while (room <= 0) {
+        sleep(const Duration(milliseconds: 5));
+        room = counts[0] - counts[1];
+      }
+      final count = libc.read(master, buffer.cast(), room < size ? room : size);
       if (count > 0) {
+        counts[1] += count;
         port.send(
           TransferableTypedData.fromList([
             Uint8List.fromList(buffer.asTypedList(count)),

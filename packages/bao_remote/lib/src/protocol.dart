@@ -85,6 +85,14 @@ abstract final class RemoteProtocol {
   static const ptyResize = 'pty/resize';
   static const ptyKill = 'pty/kill';
   static const ptyOutput = 'pty/output';
+
+  /// `{id, bytes}`: of a terminal started with `flow`, how much of its
+  /// output the app took in. Past [ptyHighWatermark] not taken in, the
+  /// server reads no more of it until it is down to [ptyLowWatermark]:
+  /// what it prints does not crowd out the rest of the connection.
+  static const ptyAck = 'pty/ack';
+  static const ptyHighWatermark = 128 * 1024;
+  static const ptyLowWatermark = 32 * 1024;
   static const ptyExit = 'pty/exit';
   static const ptyProfiles = 'pty/profiles';
 
