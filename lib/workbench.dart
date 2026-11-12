@@ -559,8 +559,9 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// in a terminal) meanwhile.
   AppLifecycleListener? _lifecycle;
 
-  /// Picks up those sessions while the app stays in front too (beside a
-  /// terminal, say: nothing is resumed to notice), looking every so often.
+  /// Picks up the open ones talked in elsewhere while the app stays in
+  /// front too (beside a terminal, say: nothing is resumed to notice),
+  /// looking at their files every so often.
   Timer? _sessionScan;
 
   /// Notifies of the agents that want the user, keeps the count on the
@@ -637,12 +638,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       _lifecycle = AppLifecycleListener(
         onResume: () => unawaited(_workspace.refresh()),
       );
-      _sessionScan = Timer.periodic(const Duration(seconds: 30), (_) {
+      _sessionScan = Timer.periodic(const Duration(seconds: 15), (_) {
         // Only while the app is there to show it: not in the background,
         // where the platform may pause timers anyway.
         if (WidgetsBinding.instance.lifecycleState ==
             AppLifecycleState.resumed) {
-          unawaited(_workspace.refresh());
+          unawaited(_workspace.refreshIfChanged(modifiedAt));
         }
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _afterFirstFrame());

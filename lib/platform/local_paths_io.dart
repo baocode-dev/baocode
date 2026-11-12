@@ -16,6 +16,12 @@ Future<bool> isDirectory(String path) => FileSystemEntity.isDirectory(path);
 Future<bool> exists(String path) async =>
     await FileSystemEntity.type(path) != FileSystemEntityType.notFound;
 
+/// When the file at [path] last changed; null if there is none.
+Future<DateTime?> modifiedAt(String path) async {
+  final stat = await FileStat.stat(path);
+  return stat.type == FileSystemEntityType.notFound ? null : stat.modified;
+}
+
 /// [path]'s text, the file deleted once read (a request the `code` command
 /// left for the app); null if it cannot be read.
 Future<String?> takeFile(String path) async {

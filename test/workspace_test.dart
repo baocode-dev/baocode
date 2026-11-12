@@ -183,93 +183,110 @@ void main() {
   testWidgets(
     'a kept session talked in elsewhere is read anew by itself, in place',
     (tester) async {
-    final workspace = await pumpLoaded(tester);
-    await tester.tap(inSidebar(find.text('Write a.txt and read it back')));
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-    final thread = workspace.selected;
-    final was = thread.session;
-    expect(thread.record, FakeCatalog.kept);
-    Finder reload() => find.byWidgetPredicate(
-      (widget) =>
-          widget is SidebarIconButton &&
-          widget.tooltip == 'Reload (continued elsewhere)',
-    );
-
-    // Nothing said elsewhere: nothing to read anew.
-    await tester.runAsync(workspace.refresh);
-    await tester.pump();
-    expect(thread.goneOnElsewhere, isFalse);
-    expect(reload(), findsNothing);
-
-    // Gone on with in a terminal: the session's file grew, its last
-    // message after the conversation here was read.
-    final file = File(FakeCatalog.kept.path!);
-    final original = file.readAsStringSync();
-    addTearDown(() => file.writeAsStringSync(original));
-    // In fake async, only synchronous IO runs: the lines go in as text.
-    const since =
-        '\n'
-        '{"parentUuid":"d23f2137-f51f-4a22-af0c-05760c529c4e","isSidechain":'
-        'false,"type":"user","uuid":"11111111-2222-4333-8444-555555555555",'
-        '"message":{"role":"user","content":[{"type":"text","text":'
-        '"Said in a terminal since"}]},"cwd":"/tmp/project","sessionId":'
-        '"eafc328b-0be0-4b23-bbaa-962b545ecb51","version":"2.0.0"}\n'
-        '{"parentUuid":"11111111-2222-4333-8444-555555555555","isSidechain":'
-        'false,"type":"assistant","uuid":"22222222-3333-4444-8555-666666666666"'
-        ',"message":{"id":"msg_terminal_since","type":"message","role":'
-        '"assistant","model":"claude-sonnet-5","content":[{"type":"text",'
-        '"text":"Answered there and then."}]},"cwd":"/tmp/project",'
-        '"sessionId":"eafc328b-0be0-4b23-bbaa-962b545ecb51","version":"2.0.0"}'
-        '\n';
-    file.writeAsStringSync('$original$since', flush: true);
-    final kept = FakeCatalog.kept;
-    FakeCatalog.keptNow = SessionRecord(
-      id: kept.id,
-      title: kept.title,
-      updatedAt: DateTime.now().add(const Duration(minutes: 1)),
-      cwd: kept.cwd,
-      path: kept.path,
-    );
-    addTearDown(() => FakeCatalog.keptNow = null);
-
-    // Typed and not sent: goes on in the conversation read anew, which
-    // the refresh itself reads, in place, with no one asking for it.
-    was.draft.save(
-      'Half a question',
-      const TextSelection.collapsed(offset: 4),
-      const [],
-    );
-    await tester.runAsync(workspace.refresh);
-    for (var i = 0; i < 5; i++) {
+      final workspace = await pumpLoaded(tester);
+      await tester.tap(inSidebar(find.text('Write a.txt and read it back')));
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump();
-    }
+      final thread = workspace.selected;
+      final was = thread.session;
+      expect(thread.record, FakeCatalog.kept);
+      Finder reload() => find.byWidgetPredicate(
+        (widget) =>
+            widget is SidebarIconButton &&
+            widget.tooltip == 'Reload (continued elsewhere)',
+      );
 
-    // The same thread in its place, its conversation read anew.
-    expect(identical(workspace.selected, thread), isTrue);
-    expect(identical(thread.session, was), isFalse);
-    expect(thread.record, kept);
-    expect(
-      tester.widget<ChatScreen>(find.byType(ChatScreen)).session,
-      thread.session,
-    );
-    // In the list — the sticky copy of the message at the top (the tests'
-    // style) may show it again above.
-    expect(
-      find.descendant(
-        of: find.byWidgetPredicate((w) => w is ChatFindRow),
-        matching: find.textContaining('Said in a terminal since'),
-      ),
-      findsOneWidget,
-    );
-    expect(find.textContaining('Answered there and then.'), findsOneWidget);
-    expect(thread.session.draft.content, 'Half a question');
-    expect(thread.goneOnElsewhere, isFalse);
-    expect(reload(), findsNothing);
-    thread.session.stop();
-    await tester.pump(const Duration(seconds: 1));
-  });
+      // Nothing said elsewhere: nothing to read anew.
+      await tester.runAsync(workspace.refresh);
+      await tester.pump();
+      expect(thread.goneOnElsewhere, isFalse);
+      expect(reload(), findsNothing);
+
+      // Gone on with in a terminal: the session's file grew, its last
+      // message after the conversation here was read.
+      final file = File(FakeCatalog.kept.path!);
+      final original = file.readAsStringSync();
+      addTearDown(() => file.writeAsStringSync(original));
+      // In fake async, only synchronous IO runs: the lines go in as text.
+      const since =
+          '\n'
+          '{"parentUuid":"d23f2137-f51f-4a22-af0c-05760c529c4e","isSidechain":'
+          'false,"type":"user","uuid":"11111111-2222-4333-8444-555555555555",'
+          '"message":{"role":"user","content":[{"type":"text","text":'
+          '"Said in a terminal since"}]},"cwd":"/tmp/project","sessionId":'
+          '"eafc328b-0be0-4b23-bbaa-962b545ecb51","version":"2.0.0"}\n'
+          '{"parentUuid":"11111111-2222-4333-8444-555555555555","isSidechain":'
+          'false,"type":"assistant","uuid":"22222222-3333-4444-8555-666666666666"'
+          ',"message":{"id":"msg_terminal_since","type":"message","role":'
+          '"assistant","model":"claude-sonnet-5","content":[{"type":"text",'
+          '"text":"Answered there and then."}]},"cwd":"/tmp/project",'
+          '"sessionId":"eafc328b-0be0-4b23-bbaa-962b545ecb51","version":"2.0.0"}'
+          '\n';
+      file.writeAsStringSync('$original$since', flush: true);
+      final kept = FakeCatalog.kept;
+      FakeCatalog.keptNow = SessionRecord(
+        id: kept.id,
+        title: kept.title,
+        updatedAt: DateTime.now().add(const Duration(minutes: 1)),
+        cwd: kept.cwd,
+        path: kept.path,
+      );
+      addTearDown(() => FakeCatalog.keptNow = null);
+
+      // Typed and not sent: goes on in the conversation read anew, which
+      // the refresh itself reads, in place, with no one asking for it.
+      was.draft.save(
+        'Half a question',
+        const TextSelection.collapsed(offset: 4),
+        const [],
+      );
+      // Looked at every so often: its file as it was last seen, nothing
+      // listed anew.
+      final before = DateTime.now().subtract(const Duration(minutes: 1));
+      await tester.runAsync(
+        () => workspace.refreshIfChanged((_) async => before),
+      );
+      await tester.runAsync(
+        () => workspace.refreshIfChanged((_) async => before),
+      );
+      await tester.pump();
+      expect(identical(thread.session, was), isTrue);
+      expect(thread.goneOnElsewhere, isFalse);
+      // Its file changed since: listed anew, and read anew.
+      final after = DateTime.now().add(const Duration(minutes: 1));
+      await tester.runAsync(
+        () => workspace.refreshIfChanged((_) async => after),
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        await tester.pump();
+      }
+
+      // The same thread in its place, its conversation read anew.
+      expect(identical(workspace.selected, thread), isTrue);
+      expect(identical(thread.session, was), isFalse);
+      expect(thread.record, kept);
+      expect(
+        tester.widget<ChatScreen>(find.byType(ChatScreen)).session,
+        thread.session,
+      );
+      // In the list — the sticky copy of the message at the top (the tests'
+      // style) may show it again above.
+      expect(
+        find.descendant(
+          of: find.byWidgetPredicate((w) => w is ChatFindRow),
+          matching: find.textContaining('Said in a terminal since'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Answered there and then.'), findsOneWidget);
+      expect(thread.session.draft.content, 'Half a question');
+      expect(thread.goneOnElsewhere, isFalse);
+      expect(reload(), findsNothing);
+      thread.session.stop();
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
 
   testWidgets('lists the kept sessions; one opens with its history', (
     tester,

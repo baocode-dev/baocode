@@ -452,11 +452,46 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       }
     }
     if (_threads.length != before || goneOn) notifyListeners();
-    // Ones talked in elsewhere since they were read here are read anew
-    // as they are come to, not left for the user to ask for (a reload
-    // notifies itself; the threads are only swapped, not moved).
+    _reloadGoneOn();
+  }
+
+  /// Reads anew the ones talked in elsewhere since they were read here, as
+  /// they are come to, not left for the user to ask for (a reload notifies
+  /// itself; the threads are only swapped, not moved).
+  void _reloadGoneOn() {
     for (final thread in [..._threads]) {
       if (thread._goneOnElsewhere && canReload(thread)) reload(thread);
+    }
+  }
+
+  /// When each open conversation's kept file was last seen changed (see
+  /// [refreshIfChanged]).
+  final Expando<DateTime> _seenModified = Expando();
+
+  /// [refresh], only once an open conversation's kept file changed since it
+  /// was last looked at and since its agent went quiet, as [modified] tells
+  /// (null for none): cheap enough to ask every so often, where [refresh]
+  /// reads every kept session. The file is written to besides what is said
+  /// (titles, the last prompt), so [refresh] still tells whether it was.
+  Future<void> refreshIfChanged(
+    Future<DateTime?> Function(String path) modified,
+  ) async {
+    if (_loading) return;
+    var changed = false;
+    for (final thread in [..._threads]) {
+      final path = thread.record?.path;
+      final quiet = thread._quietSince;
+      if (path == null || !thread.isOpen || quiet == null) continue;
+      final at = await modified(path);
+      if (at == null || at == _seenModified[thread]) continue;
+      _seenModified[thread] = at;
+      if (at.isAfter(quiet.add(_ownMessageLag))) changed = true;
+    }
+    if (changed) {
+      await refresh();
+    } else {
+      // Noted while its agent was at work: read anew once it is done.
+      _reloadGoneOn();
     }
   }
 
