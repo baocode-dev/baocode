@@ -152,11 +152,8 @@ class BotWorld {
   /// kept quiet) waits to be told with the next.
   Duration lazily = const Duration(minutes: 2);
 
-  /// Laws: the night, when no one writes first; how many times a day each
-  /// may; how soon and how late the world looks again; how long a wake or
-  /// a reach may be put off.
-  static const nightFrom = 23, nightTo = 8;
-  static const reachesADay = 3;
+  /// Laws: how soon and how late the world looks again; how long a wake
+  /// or a reach may be put off.
   static const lookSoonest = Duration(minutes: 1);
   static const lookLatest = Duration(hours: 2);
   static const wakeLatest = Duration(minutes: 10);
@@ -200,7 +197,6 @@ class BotWorld {
   DateTime _flushAt = DateTime(0);
   Timer? _look;
   final List<Timer> _timers = [];
-  final Map<String, ({String day, int count})> _reaches = {};
   ChatSession? _followed;
   VoidCallback? _listener;
   bool _disposed = false;
@@ -452,44 +448,19 @@ class BotWorld {
   /// private as they asked, whatever the laws of writing first.
   static const askedWithin = Duration(minutes: 10);
 
-  /// Why [bot] may not write first to the user at [at] (now): not let
-  /// ([Bot.writesFirst]), at night, past [reachesADay] times today; none
-  /// when it may.
-  String? refusesFirst(Bot bot, {DateTime? at}) {
-    at ??= bots.now;
-    if (!bot.writesFirst) {
-      return 'the user turned off your writing to them first (in your '
-          'profile)';
-    }
-    if (at.hour >= nightFrom || at.hour < nightTo) {
-      return 'it is night ($worldNight): no one writes first to the user '
-          'then';
-    }
-    final had = _reaches[bot.id];
-    if (had?.day == _day(at) && had!.count >= reachesADay) {
-      return 'you wrote first to the user $reachesADay times today already';
-    }
-    return null;
-  }
-
-  static String _day(DateTime at) => '${at.year}-${at.month}-${at.day}';
-
-  void _wroteFirst(Bot bot, DateTime at) {
-    final had = _reaches[bot.id];
-    final count = had?.day == _day(at) ? had!.count : 0;
-    _reaches[bot.id] = (day: _day(at), count: count + 1);
-  }
+  /// Why [bot] may not write first to the user: the user turned it off
+  /// ([Bot.writesFirst]); none when it may.
+  String? refusesFirst(Bot bot) => bot.writesFirst
+      ? null
+      : 'the user turned off your writing to them first (in your profile)';
 
   /// Why [bot] may not write to the user in private now, from a group's
   /// turn ([ChatCodec.botSendTool]); none when it may: as they asked (they
-  /// spoke lately), or first, as the laws let it, counted.
+  /// spoke lately), or first, if it may ([refusesFirst]).
   String? sendsPrivately(Bot bot) {
     final said = _userSaidAt;
     if (said != null && bots.now.difference(said) <= askedWithin) return null;
-    final why = refusesFirst(bot);
-    if (why != null) return why;
-    _wroteFirst(bot, bots.now);
-    return null;
+    return refusesFirst(bot);
   }
 
   /// [who] writes first to the user, [after] from now, of [why], as the
@@ -497,9 +468,7 @@ class BotWorld {
   void _reach(String who, Duration after, String why) {
     final bot = bots.byId(who);
     if (bot == null) return;
-    final at = bots.now.add(after);
-    if (refusesFirst(bot, at: at) != null) return;
-    _wroteFirst(bot, at);
+    if (refusesFirst(bot) != null) return;
     late final Timer timer;
     timer = Timer(after, () {
       _timers.remove(timer);
@@ -555,14 +524,10 @@ What is natural:
 - Not all at once, but not slow: when the user speaks in a group, the first answer comes within a few seconds (after 0–5s), the next ones within a minute; the busy, asleep or away later. Between the bots, the same pace as people chatting. Use after.
 - What the user asks of someone (to write to them in private, to look something up) is that one's to do when they wake: wake them; never <reach> for it.
 - A person who was just told off, ignored, praised or proven wrong feels it: say so in their state.
-- Writing first to the user is rare and has a reason: a promise come due, something that happened that concerns them, a long silence with someone close. Not at night.
+- Writing first to the user is rare and has a reason: a promise come due, something that happened that concerns them, a long silence with someone close; at an hour that suits who they are and the user.
 - Look again sooner while a conversation is alive, later when all is quiet, in the morning when it is night.
 
-The laws, which the app keeps whatever you say: no one writes first at night ($worldNight), nor more than ${BotWorld.reachesADay} times a day; a group has only so many answers for each of the user's messages; an answer is held while the group moves on.
+The laws, which the app keeps whatever you say: one the user turned off does not write first; a group has only so many answers for each of the user's messages; an answer is held while the group moves on.
 
 How everyone is now is kept in $now from your states.
 <world_started>${botTime(time)}</world_started>''';
-
-/// The night of the laws, as the world is told it.
-const worldNight =
-    '${BotWorld.nightFrom}:00–${BotWorld.nightTo < 10 ? '0' : ''}${BotWorld.nightTo}:00';
