@@ -22668,6 +22668,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keep the Changes'**
   String get generalSettingsRewindKeep;
+
+  /// No description provided for @settingsTransferTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Another Computer'**
+  String get settingsTransferTitle;
+
+  /// No description provided for @settingsTransferDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Your settings, keybindings and upstreams with their models, in one file to import on the other computer.'**
+  String get settingsTransferDescription;
+
+  /// No description provided for @settingsTransferLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings file'**
+  String get settingsTransferLabel;
+
+  /// No description provided for @settingsTransferExport.
+  ///
+  /// In en, this message translates to:
+  /// **'Export…'**
+  String get settingsTransferExport;
+
+  /// No description provided for @settingsTransferImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import…'**
+  String get settingsTransferImport;
+
+  /// No description provided for @settingsTransferExportQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Export your settings?'**
+  String get settingsTransferExportQuestion;
+
+  /// No description provided for @settingsTransferExportDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings, keybindings and upstreams go into the file. The upstreams\' API keys only if you tick the box below: they are then in the file as plain text, so keep it to yourself and delete it once imported.'**
+  String get settingsTransferExportDetail;
+
+  /// No description provided for @settingsTransferWithKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'Include the upstreams\' API keys'**
+  String get settingsTransferWithKeys;
+
+  /// No description provided for @settingsTransferExported.
+  ///
+  /// In en, this message translates to:
+  /// **'Exported to {path}'**
+  String settingsTransferExported(String path);
+
+  /// No description provided for @settingsTransferImportQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Import the settings in {file}?'**
+  String settingsTransferImportQuestion(String file);
+
+  /// No description provided for @settingsTransferImportDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Its settings, keybindings and upstreams replace yours; settings it does not have stay as they are.'**
+  String get settingsTransferImportDetail;
+
+  /// No description provided for @settingsTransferImported.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported. Some settings take effect once BaoCode restarts.'**
+  String get settingsTransferImported;
+
+  /// No description provided for @settingsTransferNotAFile.
+  ///
+  /// In en, this message translates to:
+  /// **'This is not a settings file BaoCode exported.'**
+  String get settingsTransferNotAFile;
+
+  /// No description provided for @settingsTransferFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not done: {error}'**
+  String settingsTransferFailed(String error);
 }
 
 class _AppLocalizationsDelegate

@@ -13183,4 +13183,54 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get generalSettingsRewindKeep => '保留改动';
+
+  @override
+  String get settingsTransferTitle => '迁移到另一台电脑';
+
+  @override
+  String get settingsTransferDescription => '把设置、快捷键和上游（含模型）导出成一个文件，到另一台电脑上导入。';
+
+  @override
+  String get settingsTransferLabel => '设置文件';
+
+  @override
+  String get settingsTransferExport => '导出…';
+
+  @override
+  String get settingsTransferImport => '导入…';
+
+  @override
+  String get settingsTransferExportQuestion => '导出设置？';
+
+  @override
+  String get settingsTransferExportDetail =>
+      '设置、快捷键和上游都会写进文件。上游的 API Key 只有勾选下面一项才会带上，而且是明文，所以文件别给别人，导入后就删掉。';
+
+  @override
+  String get settingsTransferWithKeys => '包含上游的 API Key';
+
+  @override
+  String settingsTransferExported(String path) {
+    return '已导出到 $path';
+  }
+
+  @override
+  String settingsTransferImportQuestion(String file) {
+    return '导入 $file 里的设置？';
+  }
+
+  @override
+  String get settingsTransferImportDetail =>
+      '文件里的设置、快捷键和上游会替换现有的；文件里没有的设置保持不变。';
+
+  @override
+  String get settingsTransferImported => '已导入。部分设置要重启 BaoCode 后生效。';
+
+  @override
+  String get settingsTransferNotAFile => '这不是 BaoCode 导出的设置文件。';
+
+  @override
+  String settingsTransferFailed(String error) {
+    return '没能完成：$error';
+  }
 }
