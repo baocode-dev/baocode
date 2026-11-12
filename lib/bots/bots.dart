@@ -715,36 +715,33 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     _ => ChatCodec.botSent(item) ? 1 : 0,
   };
 
-  /// Whether [bot] is writing to the user: at work; not while it was woken
-  /// by the app and has not said a word yet, which may come to nothing;
-  /// nor while it is at a group's.
+  /// Whether [bot] is at work in its chat with the user: whatever comes
+  /// of it, as it is; not while at a group's.
   bool typing(Bot bot) {
     final thread = threadOf(bot);
     if (thread == null || thread.status != ThreadStatus.running) return false;
     if (!thread.isOpen) return true;
-    final session = thread.session;
-    if (_places(session).lastOrNull != null) return false;
-    return !_wokenSilent(session);
+    return _places(thread.session).lastOrNull == null;
   }
 
-  /// Whether [session]'s turn under way is the app's waking it (none of
-  /// the user's words), with nothing said to the user yet.
-  static bool _wokenSilent(ChatSession session) {
+  /// Where [bot] is at work now ([group]'s, or null for its chat with the
+  /// user), since its turn was sent; none when it is not.
+  ({String? group, DateTime? since})? atWork(Bot bot) {
+    final thread = threadOf(bot);
+    if (thread == null || thread.status != ThreadStatus.running) return null;
+    if (!thread.isOpen) return (group: null, since: null);
+    final session = thread.session;
+    DateTime? since;
     for (var i = session.itemCount - 1; i >= 0; i--) {
-      switch (session.itemAt(i)) {
-        case AssistantTextItem(:final text)
-            when ChatCodec.botParts(text)
-                .any((part) => part.$1 != ChatCodec.botNarrateTag):
-          return false;
-        case final ToolCallItem item when ChatCodec.botSent(item):
-          return false;
-        case final UserMessageItem item:
-          return ChatCodec.botEvent(item) != null &&
-              ChatCodec.withoutBotEvents(item.text).isEmpty;
-        default:
+      if (session.itemAt(i) case UserMessageItem(
+        :final sentAt,
+        queued: false,
+      )) {
+        since = sentAt;
+        break;
       }
     }
-    return false;
+    return (group: _places(session).lastOrNull, since: since);
   }
 
   /// The last [bot] said: its first line; a picture or a sticker, as a

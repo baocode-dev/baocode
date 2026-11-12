@@ -197,10 +197,14 @@ class BotWorld {
     final groups = bots.groups;
     final waiting = groups.waiting;
     final names = {for (final bot in bots.bots) bot.id: bot.name};
-    final asked = [
-      for (final group in _asking)
-        ?groups.byId(group),
+    final busy = [
+      for (final bot in bots.bots)
+        if (bots.atWork(bot) case (:final group, :final since))
+          '- ${bot.name}, '
+              '${group == null ? 'in private with ${bots.userName}' : 'for "${groups.byId(group)?.name ?? group}"'}'
+              '${since == null ? '' : ' since ${_clock(since)}'}.',
     ];
+    final asked = [for (final group in _asking) ?groups.byId(group)];
     return [
       'Now: ${botTime(now, seconds: true)}.',
       if (_said.isNotEmpty)
@@ -213,6 +217,7 @@ class BotWorld {
               'of ${value.file}.',
       if (_worldChanged)
         '- ${BotLife.world} changed (who is who, the groups): read it again.',
+      if (busy.isNotEmpty) ...['At work now:', ...busy],
       if (waiting.isNotEmpty) ...[
         'To be woken already:',
         for (final w in waiting)
@@ -425,11 +430,12 @@ Who is who is in $world: $user, the bots, what each may do, who is in which grou
 
 What you are sent:
 - What $user says in a group is said to you: it is the message. Work out what they want, and of whom.
-- With it, and alone when $user said nothing, a <system-reminder> from the app: the time, what is new and where it is (a bot spoke in a group, read it and kept quiet, a chat in private went on), who is to be woken already, how many more answers a group may have.
+- With it, and alone when $user said nothing, a <system-reminder> from the app: the time, what is new and where it is (a bot spoke in a group, read it and kept quiet, a chat in private went on), who is at work now and on what, who is to be woken already, how many more answers a group may have.
 
 What you do: call ${BotWorld.wakeTool} for each one to wake, all at once, then end your turn with nothing else. Waking no one is a choice too: end your turn without.
 - When $user speaks in a group, settle then who answers them: everyone it is for, all at once. Asked of everyone, or of each, or a roll call: each of them, the assistant too. Asked of someone, by name or @: that one. Otherwise, those it is plainly for, as people in a chat would.
 - Soon, as people in a chat: the first within a few seconds (0–3s), the rest a few seconds apart. Later only one who is plainly busy or away.
+- One at work reads what is new only once done. Asked of them by name, wake them all the same; what anyone may answer, wake one who is free.
 - When a bot speaks in a group, read what it said; wake another only if it is theirs (asked, named, answered back).
 - In private ("${BotWorld.inPrivate}"): someone has a reason to write to $user first: a promise come due, news that concerns them. Rarely, and at a time that suits. What $user asked of someone in a group (to write to them in private, say) is not this: wake them in the group; they do it themselves.
 - "why" is what happened, in a few words: "$user asked everyone to reply 收到", "老火 said 阿川 was wrong", "she promised to report at 3". Never what to say, nor whether to; never what they can or cannot do: the app knows, and tells them when they try.
