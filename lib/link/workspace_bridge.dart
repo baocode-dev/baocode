@@ -375,7 +375,8 @@ class WorkspaceBridge {
       status: bots.typing(bot) ? BotStatus.typing : BotStatus.idle,
       unread: bots.unread(bot),
       last: bots.lastLine(bot),
-      updatedAt: thread?.updatedAt,
+      // Its chat's, not its groups'.
+      updatedAt: bots.chattedAt(bot),
       notices: bots.notices(bot),
     );
   }
