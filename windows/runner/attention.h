@@ -112,6 +112,9 @@ class Attention {
   // The tray icon's picture, for the taskbar's theme now.
   HICON TrayIcon(bool dot) const;
 
+  // Whether the tray has the icon, as far as the shell says.
+  bool IconThere() const;
+
   HWND window_;
   AppWindows* windows_;
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> channel_;
