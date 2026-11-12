@@ -250,6 +250,13 @@ void main() {
         BotFiles.read('/bots/b1', BotFiles.cardText(bot({})))!.chatOnly,
         isFalse,
       );
+      // Writing first: on unless turned off, and only then said.
+      final plain = BotFiles.cardText(bot({}));
+      expect(plain, isNot(contains('writes_first')));
+      expect(BotFiles.read('/bots/b1', plain)!.writesFirst, isTrue);
+      final quiet = BotFiles.cardText(bot({}).copyWith(writesFirst: false));
+      expect(quiet, contains('writes_first: false'));
+      expect(BotFiles.read('/bots/b1', quiet)!.writesFirst, isFalse);
       // Its files not shown it: its tools keep them.
       final told = botInstructions(bot(BotAbility.values.toSet()), memory: '');
       expect(told, contains('bot_remember'));

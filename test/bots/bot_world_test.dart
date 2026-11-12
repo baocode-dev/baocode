@@ -60,7 +60,12 @@ void main() {
       abilities: {BotAbility.proactive},
       chatOnly: true,
     );
-    leo = bots.save(name: 'Leo', identity: '', abilities: {});
+    leo = bots.save(
+      name: 'Leo',
+      identity: '',
+      abilities: {},
+      writesFirst: false,
+    );
     told = [];
     worldTold = [];
     reached = [];
@@ -235,7 +240,7 @@ void main() {
     now = now.add(const Duration(minutes: 20));
     final held = await send(leo, 'private', '还是我');
     expect(held['isError'], isTrue);
-    expect(said(held), contains('not let you write to them first'));
+    expect(said(held), contains('turned off your writing to them first'));
   });
 
   test(

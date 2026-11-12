@@ -800,6 +800,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     BotAvatarImage? avatarImage,
     Bot? by,
     bool? chatOnly,
+    bool? writesFirst,
   }) {
     final root = folders.root;
     if (root == null) throw StateError('No bots here');
@@ -822,6 +823,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
         proactive: proactive,
         created: _clock(),
         chatOnly: chatOnly ?? false,
+        writesFirst: writesFirst ?? true,
       );
       _writeBot(bot);
       _bots.add(bot);
@@ -847,6 +849,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       abilities: abilities,
       proactive: proactive,
       chatOnly: chatOnly,
+      writesFirst: writesFirst,
     );
     // What it was to be told, dropped with being told of the agents.
     if (had.can(BotAbility.proactive) && !bot.can(BotAbility.proactive)) {
