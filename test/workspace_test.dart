@@ -707,6 +707,47 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
+  testWidgets('a provider\'s model\'s context, kept as shown before #914, is '
+      'let go once: kept as picked since', (tester) async {
+    final store = MemoryPreferenceStore({
+      'settings': {
+        modelSettingKey(KernelChoiceKind.context, '@gw/m'): '200000',
+        modelSettingKey(KernelChoiceKind.context, 'opus'): '1m',
+        modelSettingKey(KernelChoiceKind.effort, '@gw/m'): 'high',
+      },
+    });
+    var workspace = await pumpLoaded(tester, preferences: store);
+    workspace.create();
+    await tester.pump();
+    var settings = workspace.selected.session.kernelContext.settings;
+    expect(
+      settings,
+      isNot(contains(modelSettingKey(KernelChoiceKind.context, '@gw/m'))),
+    );
+    expect(settings[modelSettingKey(KernelChoiceKind.context, 'opus')], '1m');
+    expect(
+      settings[modelSettingKey(KernelChoiceKind.effort, '@gw/m')],
+      'high',
+    );
+
+    // Once: one picked since stays.
+    (store.preferences['settings'] as Map)[modelSettingKey(
+          KernelChoiceKind.context,
+          '@gw/m',
+        )] =
+        '400000';
+    expect(store.preferences['contextPicks'], 1);
+    await tester.pumpWidget(const SizedBox.shrink());
+    workspace = await pumpLoaded(tester, preferences: store);
+    workspace.create();
+    await tester.pump();
+    settings = workspace.selected.session.kernelContext.settings;
+    expect(
+      settings[modelSettingKey(KernelChoiceKind.context, '@gw/m')],
+      '400000',
+    );
+  });
+
   testWidgets('Fast stays with its conversation, not the next agent', (
     tester,
   ) async {

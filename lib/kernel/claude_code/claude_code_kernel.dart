@@ -180,6 +180,14 @@ class ClaudeCodeKernel
     if (_model case final model? when !_pickedFast.containsKey(model)) {
       _pickedFast[model] = settings[KernelChoiceKind.fast.name] == 'fast';
     }
+    // A provider's model goes by what was picked for it, else its own
+    // (#914): a session resumed on one, on the context it had; a new one
+    // not on the context another model was last on.
+    if ((_context.resume, _model, _window)
+        case (_?, final model?, final window?)
+        when _providers.resolve(model) != null) {
+      _pickedWindows[model] = window;
+    }
     Future<ClaudeHistoryPage> wholePage(
       SessionRecord session, {
       required int turns,
@@ -3365,11 +3373,12 @@ class ClaudeCodeKernel
     final current = model.selected;
     if (current == null) return;
     if (effort.selected case final level?) _pickedEfforts[current] = level;
-    final window = switch (_custom) {
-      (_, final info) => _windowFor(info),
-      null => _windows[contextSize.selected],
-    };
-    if (window != null) _pickedWindows[current] = window;
+    // A provider's model's is noted as it is picked: else it is its own,
+    // as its upstream says (see _windowFor).
+    if (_custom != null) return;
+    if (_windows[contextSize.selected] case final window?) {
+      _pickedWindows[current] = window;
+    }
   }
 
   /// [model]'s variant with the long context or without, as there is one.
@@ -3404,10 +3413,13 @@ class ClaudeCodeKernel
   String? _effortFor(ProviderModel info) =>
       info.effortLevels.contains(_effort) ? _effort : info.initialEffort;
 
-  /// The context a provider's model fills before compacting: the one
-  /// picked, if it offers it, else its own.
-  int _windowFor(ProviderModel info) =>
-      info.contextOptions.contains(_window) ? _window! : info.initialContext;
+  /// The context a provider's model (the one in use) fills before
+  /// compacting: the one picked for it, if it offers it, else its own (as
+  /// its upstream says, else as set): not one picked with another model.
+  int _windowFor(ProviderModel info) => switch (_pickedWindows[_model]) {
+    final picked? when info.contextOptions.contains(picked) => picked,
+    _ => info.initialContext,
+  };
 
   /// The context the session compacts at: a provider's model's, else as
   /// picked (null for the CLI's own).
@@ -3562,10 +3574,11 @@ class ClaudeCodeKernel
     },
     selectedFor: (model) {
       if (model == this.model.selected) return contextSize.selected;
-      final window = _pickedWindows[model] ?? _window;
       if (_providers.resolve(model) case (_, final info)) {
-        return '${info.contextOptions.contains(window) ? window : info.initialContext}';
+        final picked = _pickedWindows[model];
+        return '${info.contextOptions.contains(picked) ? picked : info.initialContext}';
       }
+      final window = _pickedWindows[model] ?? _window;
       return _windows.entries
           .where((entry) => entry.value == window)
           .firstOrNull
