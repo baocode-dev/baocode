@@ -412,7 +412,8 @@ class BotGroups extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Those of [group]'s bots writing to it now.
+  /// Those of [group]'s bots at work on it now: whatever comes of it, as
+  /// it is.
   List<String> typing(String group) {
     final found = byId(group);
     if (found == null) return const [];
@@ -421,8 +422,7 @@ class BotGroups extends ChangeNotifier {
         if (bots.byId(member) case final bot?)
           if (_answering[member] == group)
             if (bots.threadOf(bot) case final thread?)
-              if (thread.isOpen && thread.session.isStreaming)
-                if (_reply(thread.session, group).isNotEmpty) member,
+              if (thread.isOpen && thread.session.isStreaming) member,
     ];
   }
 
@@ -437,8 +437,8 @@ class BotGroups extends ChangeNotifier {
 
   /// [member]'s conversation followed: the end of a turn it was told of a
   /// group in is its reply there, or its keeping quiet; what came while it
-  /// was at work, told it after; and while it writes to a group, it is
-  /// typing there.
+  /// was at work, told it after; and while it is at work on a group, it
+  /// is typing there.
   void _follow(String member, ChatSession session) {
     if (_followed.containsKey(session)) return;
     var streaming = session.isStreaming;
@@ -448,9 +448,7 @@ class BotGroups extends ChangeNotifier {
         scheduleMicrotask(() => _turnEnded(member, session));
       }
       streaming = session.isStreaming;
-      final group = _answering[member];
-      final now =
-          streaming && group != null && _reply(session, group).isNotEmpty;
+      final now = streaming && _answering[member] != null;
       if (now != typing) {
         typing = now;
         notifyListeners();

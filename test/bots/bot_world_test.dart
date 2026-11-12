@@ -5,6 +5,7 @@ import 'package:baocode/bots/bot_folders.dart';
 import 'package:baocode/bots/bot_groups.dart';
 import 'package:baocode/bots/bot_world.dart';
 import 'package:baocode/bots/bots.dart';
+import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_sdk_tools.dart';
@@ -274,6 +275,21 @@ void main() {
       contains('- 用户 and Mia, in private: from line 7 of $file.'),
     );
     expect(reminder, contains('WORLD.md changed'));
+  });
+
+  test('reminded who is at work, and where', () async {
+    final session = bots.threadFor(mia).session;
+    session.send(const ComposerMessage(text: '在吗'));
+    for (var i = 0; i < 300 && !session.isStreaming; i++) {
+      await wait(10);
+    }
+    world.note('- Leo read "江湖" and kept quiet.');
+    await wait(30);
+    expect(
+      worldTold.last.reminder,
+      contains('At work now:\n- Mia, in private with 用户 since '),
+    );
+    session.stop();
   });
 
   test('woken in private: if it may write first, at any hour', () async {
