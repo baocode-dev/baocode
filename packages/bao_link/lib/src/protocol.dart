@@ -218,9 +218,12 @@ abstract final class LinkMethods {
   /// none). Sent when it changes, and on connecting.
   static const setMe = 'setMe';
 
-  /// `{"group"?, "name", "members"}`: the group chat changed, or a new
-  /// one (no `group`), of the bots [members] names (their ids) and the
-  /// user: `{"group": LinkGroup}`. `unknown` from a desktop before groups.
+  /// `{"group"?, "name", "members", "passes"?, "rules"?}`: the group chat
+  /// changed, or a new one (no `group`), of the bots [members] names
+  /// (their ids) and the user; `passes`, how many times its conversation
+  /// may be passed on ([LinkGroup.passes]), `rules` its rules (each none,
+  /// as it was): `{"group": LinkGroup}`.
+  /// `unknown` from a desktop before groups.
   static const saveGroup = 'saveGroup';
 
   /// `{"group"}`: the group deleted, its messages with it.
@@ -239,9 +242,9 @@ abstract final class LinkMethods {
   /// `{"group"}`: its messages no longer sent as they come.
   static const closeGroup = 'closeGroup';
 
-  /// `{"group", "text", "images"?, "id"?}` (`images` as [send]'s): the
-  /// user's message to the group: `{"seq"}`. Sent again with the same
-  /// `id`, taken once.
+  /// `{"group", "text", "images"?, "id"?, "ref"?}` (`images` as [send]'s;
+  /// `ref`, the number of the message it quotes): the user's message to
+  /// the group: `{"seq"}`. Sent again with the same `id`, taken once.
   static const sendGroup = 'sendGroup';
 
   /// `{"group", "image"}`: a picture of one of its messages
