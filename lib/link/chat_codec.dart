@@ -21,6 +21,23 @@ abstract final class ChatCodec {
   /// (the item's images), or one on the web (its input's `url`).
   static const botImageTool = 'bot_send_image';
 
+  /// The bots' tool to send a message where they are not answering: to
+  /// the user in private ([botToUser]), or to a group.
+  static const botSendTool = 'bot_send';
+  static const botToUser = 'private';
+
+  /// What [item] sent the user in private, if it is a bot's message so
+  /// ([botSendTool]), sent.
+  static String? botSentToUser(ChatItem item) => switch (item) {
+    ToolCallItem(tool: botSendTool, :final input, status: ToolStatus.succeeded)
+        when input['to'] == botToUser =>
+      switch (input['text']) {
+        final String text when text.trim().isNotEmpty => text.trim(),
+        _ => null,
+      },
+    _ => null,
+  };
+
   /// The tag a bot wraps each message of its reply in: what it says to the
   /// user. What it writes outside them is not for the user.
   static const botSayTag = 'bot_say';
@@ -67,7 +84,13 @@ abstract final class ChatCodec {
     String? place;
     return [
       for (final item in items)
-        if (item is UserMessageItem) place = botGroupOf(item) else place,
+        if (item is UserMessageItem)
+          place = botGroupOf(item)
+        // Sent the user from a group's turn: theirs.
+        else if (botSentToUser(item) != null)
+          null
+        else
+          place,
     ];
   }
 
@@ -132,11 +155,12 @@ abstract final class ChatCodec {
   /// a picture (one being made too). Its messages and cards are in its
   /// texts (see [botParts]).
   static bool botSent(ChatItem item) =>
+      botSentToUser(item) != null ||
       item is ToolCallItem &&
-      item.status != ToolStatus.failed &&
-      (botImageUrl(item) != null ||
-          item.kind == ToolKind.image ||
-          item.images.isNotEmpty);
+          item.status != ToolStatus.failed &&
+          (botImageUrl(item) != null ||
+              item.kind == ToolKind.image ||
+              item.images.isNotEmpty);
 
   /// The picture on the web [item] sent, if it is the bot's tool that did.
   static String? botImageUrl(ToolCallItem item) =>
@@ -208,6 +232,7 @@ abstract final class ChatCodec {
       'output': ?_head(item.output),
       'tool': ?item.tool,
       'url': ?botImageUrl(item),
+      'sent': ?botSentToUser(item),
       // What a browser's call does, for its line to say.
       if (item.kind == ToolKind.browser)
         'browse': {
@@ -349,6 +374,10 @@ abstract final class ChatCodec {
         input: switch ((json['making'], json['browse'])) {
           _ when json['sticker'] is String => {'sticker': json['sticker']},
           _ when json['url'] is String => {'url': json['url']},
+          _ when json['sent'] is String => {
+            'to': botToUser,
+            'text': json['sent'],
+          },
           (final Map<String, Object?> making, _) => {
             'prompt': '',
             'count': ?making['count'],

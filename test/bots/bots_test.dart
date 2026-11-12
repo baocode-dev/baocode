@@ -578,7 +578,7 @@ void main() {
           'bot_cancel_later',
           'bot_send_image',
           'bot_remember',
-          'bot_group_say',
+          'bot_send',
           'bot_my_picture',
           'bot_user_picture',
           'bot_edit_me',

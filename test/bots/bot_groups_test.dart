@@ -266,10 +266,31 @@ void main() {
       AssistantTextItem('<bot_say>在</bot_say>'),
       UserMessageItem(text: botEventMessage('[group g1] new')),
       AssistantTextItem('<bot_say>大家好</bot_say>'),
+      // Sent the user in private from the group's turn: theirs.
+      const ToolCallItem(
+        kind: ToolKind.other,
+        target: '',
+        tool: 'bot_send',
+        input: {'to': 'private', 'text': '私下跟你说'},
+      ),
       UserMessageItem(text: '你在群里说啥了'),
       AssistantTextItem('<bot_say>打了个招呼</bot_say>'),
     ];
-    expect(ChatCodec.botPlaces(items), [null, null, 'g1', 'g1', null, null]);
+    expect(ChatCodec.botPlaces(items), [
+      null,
+      null,
+      'g1',
+      'g1',
+      null,
+      null,
+      null,
+    ]);
+    expect(ChatCodec.botSentToUser(items[4]), '私下跟你说');
+    // As the phone has it.
+    expect(
+      ChatCodec.botSentToUser(ChatCodec.decode(ChatCodec.encode(items[4]))!),
+      '私下跟你说',
+    );
     expect(BotGroups.replyTo(items, 'g1'), '<bot_say>大家好</bot_say>');
     expect(BotGroups.replyTo(items, 'g2'), '');
   });
