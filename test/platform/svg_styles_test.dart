@@ -55,10 +55,21 @@ void main() {
       expect(_style(svg, 'a'), contains('fill:#f00'));
       expect(_style(svg, 'a'), contains('stroke:#00f'));
       expect(_style(svg, 'a'), contains('stroke-width:3'));
-      expect(_style(svg, 'b'), contains('fill:#800080'));
+      expect(_style(svg, 'b'), contains('fill:purple'));
+      expect(_style(svg, 'b'), isNot(contains('fill:#008000')));
       expect(_style(svg, 'b'), contains('opacity:.5'));
     },
   );
+
+  test('the style comes after presentation attributes it overrides', () {
+    // The compiler lets a later attribute override an earlier one.
+    final svg = svgWithStyles('''
+<svg><style>.a { fill: blue; }</style>
+<rect id="a" style="stroke:red" class="a" fill="yellow"/></svg>''');
+    final attributes = _element(svg, 'a').attributes;
+    expect(attributes.last.name.local, 'style');
+    expect(attributes.last.value, 'fill:#00f;stroke:red');
+  });
 
   test('important declarations outrank normal inline styles', () {
     final svg = svgWithStyles('''
@@ -67,7 +78,7 @@ void main() {
 </style><rect id="a" class="button"
   style="fill:blue;stroke:purple !important"/></svg>''');
     expect(_style(svg, 'a'), contains('fill:#f00'));
-    expect(_style(svg, 'a'), contains('stroke:#800080'));
+    expect(_style(svg, 'a'), contains('stroke:purple'));
     expect(_style(svg, 'a'), isNot(contains('!important')));
   });
 
@@ -161,26 +172,37 @@ void main() {
     expect(svg, isNot(contains('alert')));
   });
 
-  test('sanitizes inline styles without a stylesheet or matching rule', () {
-    for (final prefix in ['', '<style>.other { fill: red; }</style>']) {
-      final svg = svgWithStyles('''
-<svg>$prefix<rect id="a" style="fill:url(data:image/svg+xml,evil);stroke:red;
-  opacity:expression(alert(1));behavior:url(https://attacker.example/x)"/>
-<rect id="b" style="fill:url(file:///etc/passwd)"/></svg>''');
-      expect(_style(svg, 'a'), 'stroke:#f00');
-      expect(_style(svg, 'b'), isNull);
-      expect(svg, isNot(contains('attacker.example')));
-      expect(svg, isNot(contains('passwd')));
-    }
+  test('leaves inline styles as written', () {
+    // Exported drawings often carry declarations outside the stylesheet
+    // allowlist that flutter_svg draws, such as blend modes and transforms.
+    const inline =
+        '<rect id="a" style="mix-blend-mode:multiply;'
+        'transform:translate(5px,5px);fill:rgb(10 20 30 / 50%)"/>';
+    const alone = '<svg>$inline</svg>';
+    expect(identical(svgWithStyles(alone), alone), isTrue);
+    final svg = svgWithStyles(
+      '<svg><style>.other { fill: red; }</style>$inline</svg>',
+    );
+    expect(
+      _style(svg, 'a'),
+      'mix-blend-mode:multiply;transform:translate(5px,5px);'
+      'fill:rgb(10 20 30 / 50%)',
+    );
   });
 
-  test('rejects escaped and entity-encoded malicious CSS', () {
+  test('takes blend modes from the stylesheet', () {
+    final svg = svgWithStyles('''
+<svg><style>.a { mix-blend-mode: multiply; }</style>
+<rect id="a" class="a"/></svg>''');
+    expect(_style(svg, 'a'), 'mix-blend-mode:multiply');
+  });
+
+  test('rejects escaped malicious CSS', () {
     final svg = svgWithStyles(r'''
 <svg><style>
   .button { fill: u\72l("https://attacker.example/x");
     opacity: e\78pression(alert(1)); stroke: blue; }
-</style><rect id="a" class="button"
-  style="fill:url(&quot;javascript:alert(1)&quot;)"/></svg>''');
+</style><rect id="a" class="button"/></svg>''');
     expect(_style(svg, 'a'), 'stroke:#00f');
     expect(svg, isNot(contains('alert')));
     expect(svg, isNot(contains('attacker.example')));
@@ -199,50 +221,37 @@ void main() {
     expect(_style(svg, 'a'), contains('PingFang SC'));
   });
 
-  test('rejects excessive stylesheet input before CSS parsing', () {
-    final padding = List.filled(256 * 1024 + 1, ' ').join();
-    expect(
-      () => svgWithStyles('<svg><style>$padding</style></svg>'),
-      throwsA(
-        isA<FormatException>().having(
-          (error) => error.message,
-          'reason',
-          contains('CSS input limit'),
-        ),
-      ),
-    );
-    expect(
-      () => svgWithStyles('<svg style="$padding"/>'),
-      throwsA(isA<FormatException>()),
-    );
-  });
-
-  test('rejects oversized styled SVGs and excessive element counts', () {
-    final padding = List.filled(8 * 1024 * 1024, ' ').join();
-    expect(
-      () => svgWithStyles('<svg><style/>$padding</svg>'),
-      throwsA(isA<FormatException>()),
-    );
+  test('gives back drawings past the limits as they are', () {
+    final css = List.filled(256 * 1024 + 1, ' ').join();
+    final big = List.filled(8 * 1024 * 1024, ' ').join();
     final shapes = List.filled(20000, '<rect/>').join();
-    expect(
-      () => svgWithStyles('<svg><style/>$shapes</svg>'),
-      throwsA(isA<FormatException>()),
-    );
+    final rules = List.filled(500, '.a { fill: red; }').join();
+    final expensive = List.filled(1200, '<rect class="a"/>').join();
+    for (final svg in [
+      '<svg><style>$css</style></svg>',
+      '<svg><style/>$big</svg>',
+      '<svg><style/>$shapes</svg>',
+      '<svg><style>$rules</style>$expensive</svg>',
+    ]) {
+      expect(identical(svgWithStyles(svg), svg), isTrue);
+    }
   });
 
-  test('bounds selector expansion on small but expensive stylesheets', () {
-    final rules = List.filled(500, '.a { fill: red; }').join();
-    final shapes = List.filled(1200, '<rect class="a"/>').join();
-    expect(
-      () => svgWithStyles('<svg><style>$rules</style>$shapes</svg>'),
-      throwsA(
-        isA<FormatException>().having(
-          (error) => error.message,
-          'reason',
-          contains('CSS processing limit'),
-        ),
-      ),
-    );
+  test('styles large exported drawings within the limits', () {
+    // Illustrator names its classes st0, st1, …; each element tries only the
+    // rules for its own classes.
+    final rules = List.generate(60, (i) => '.st$i { fill: red; }').join();
+    final shapes = List.generate(
+      17000,
+      (i) => '<path id="p$i" class="st${i % 60}"/>',
+    ).join();
+    final svg = svgWithStyles('<svg><style>$rules</style>$shapes</svg>');
+    expect(_style(svg, 'p16999'), 'fill:#f00');
+  });
+
+  test('gives back malformed drawings for the compiler to report', () {
+    const svg = '<svg><style>.a { fill: red; }</style><rect class="a">';
+    expect(identical(svgWithStyles(svg), svg), isTrue);
   });
 
   test('leaves drawings without stylesheets unchanged', () {
