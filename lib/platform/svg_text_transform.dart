@@ -8,14 +8,16 @@
 
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// [SvgBytesLoader] with [svgWithTextTransforms] applied (in the loader's
-/// isolate, and cached as the SVG it gives).
+import 'svg_styles.dart';
+
+/// [SvgBytesLoader] with [svgWithStyles] and [svgWithTextTransforms] applied
+/// in the loader's isolate, and cached as the SVG it gives.
 class SvgTextBytesLoader extends SvgBytesLoader {
   const SvgTextBytesLoader(super.bytes);
 
   @override
   String provideSvg(void message) =>
-      svgWithTextTransforms(super.provideSvg(message));
+      svgWithTextTransforms(svgWithStyles(super.provideSvg(message)));
 
   @override
   int get hashCode => Object.hash(SvgTextBytesLoader, super.hashCode);
