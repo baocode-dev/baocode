@@ -6,7 +6,9 @@ import 'package:bao_link/bao_link.dart' show linkGroupUser;
 import 'package:baocode/bots/bot.dart';
 import 'package:baocode/bots/bot_folders.dart';
 import 'package:baocode/bots/bot_groups.dart';
+import 'package:baocode/bots/bot_prompt.dart' show botEventMessage;
 import 'package:baocode/bots/bots.dart';
+import 'package:baocode/link/chat_codec.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
@@ -207,22 +209,88 @@ void main() {
     expect(toldNames(), ['Mia']);
   });
 
-  test('a bot\'s conversation of a group: told of the group with who it '
-      'is, its chat read even if it only chats; not the sidebar\'s', () {
+  test('one bot, one conversation: told of its life, its files and how '
+      'groups go, its chats read even if it only chats', () {
     final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
-    final path = BotGroups.memberFolder(mia, group.id);
-    expect(bots.botAt(path)?.id, mia.id);
-    final setup = workspace.agentSetup!(path)!.workspace();
+    final setup = workspace.agentSetup!(mia.folder)!.workspace();
     expect(setup.instructions, contains('Your name is Mia.'));
-    expect(setup.instructions, contains('<group_chat>'));
-    expect(setup.instructions, contains('"江湖"'));
-    expect(setup.instructions, contains('- Leo'));
-    expect(setup.instructions, contains(groups.chatFile(group.id)));
+    expect(setup.instructions, contains('<your_life>'));
+    expect(setup.instructions, contains('<group_chats>'));
+    expect(setup.instructions, contains('/bots/WORLD.md'));
+    expect(
+      setup.instructions,
+      contains('/bots/${mia.id}/timeline/2026-11-12.md'),
+    );
     expect(setup.tools, contains('Read'));
-    // Its own chat: no group in it.
-    final own = workspace.agentSetup!(mia.folder)!.workspace();
-    expect(own.instructions, isNot(contains('<group_chat>')));
-    expect(own.tools, isNot(contains('Read')));
+    // The world they share: everyone, and who is in which group.
+    final world = utf8.decode(folders.files['/bots/WORLD.md']!);
+    expect(world, contains('- Mia'));
+    expect(world, contains('[only chats]'));
+    expect(
+      world,
+      contains('- "江湖": 用户, Mia, Leo. Its chat: ${groups.chatFile(group.id)}'),
+    );
+  });
+
+  test('told of a group with what is new in it, its first line the '
+      "group's; what each heard and said, in its timeline", () async {
+    final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
+    groups.send(group.id, text: '@Mia 晚上吃啥');
+    await wait(20);
+    final note = told.single.$2;
+    expect(
+      note,
+      startsWith(
+        '[group ${group.id}] The group chat "江湖": you, 用户 (the user), Leo.',
+      ),
+    );
+    expect(note, contains('## #1 · 用户 · 2026-11-12 14:00\n@Mia 晚上吃啥'));
+    expect(note, contains(groups.chatFile(group.id)));
+    expect(
+      ChatCodec.botGroupOf(UserMessageItem(text: botEventMessage(note))),
+      group.id,
+    );
+    groups.turnEnded(group.id, mia.id, '<bot_say>火锅！</bot_say>');
+    String timeline(Bot bot) =>
+        utf8.decode(folders.files['/bots/${bot.id}/timeline/2026-11-12.md']!);
+    expect(timeline(mia), contains('- 14:00 [群·江湖 #1] 用户: @Mia 晚上吃啥'));
+    expect(timeline(mia), contains('- 14:00 [群·江湖 #2] 我: 火锅！'));
+    expect(timeline(leo), contains('- 14:00 [群·江湖 #2] Mia: 火锅！'));
+    expect(bots.timeline(leo).count, 2);
+  });
+
+  test("what a bot said to a group: after the group's note, till the user "
+      'wrote to it', () {
+    final items = <ChatItem>[
+      UserMessageItem(text: '在吗'),
+      AssistantTextItem('<bot_say>在</bot_say>'),
+      UserMessageItem(text: botEventMessage('[group g1] new')),
+      AssistantTextItem('<bot_say>大家好</bot_say>'),
+      UserMessageItem(text: '你在群里说啥了'),
+      AssistantTextItem('<bot_say>打了个招呼</bot_say>'),
+    ];
+    expect(ChatCodec.botPlaces(items), [null, null, 'g1', 'g1', null, null]);
+    expect(BotGroups.replyTo(items, 'g1'), '<bot_say>大家好</bot_say>');
+    expect(BotGroups.replyTo(items, 'g2'), '');
+  });
+
+  test('a bot says something in a group of itself: the others told', () async {
+    final group = groups.save(name: 'g', members: [mia.id, leo.id]);
+    final said = groups.say(group.id, mia.id, '今晚八点开会');
+    expect(said.from, mia.id);
+    expect(groups.messages(group.id).single.text, '<bot_say>今晚八点开会</bot_say>');
+    await wait(60);
+    expect(toldNames(), ['Leo']);
+    expect(() => groups.say(group.id, ann.id, 'x'), throwsStateError);
+  });
+
+  test('one gone from a group: what it said there still under its name', () {
+    final group = groups.save(name: 'g', members: [mia.id, leo.id]);
+    groups.say(group.id, leo.id, '我先走了');
+    bots.delete(leo.id);
+    groups.send(group.id, text: '再见');
+    final chat = utf8.decode(folders.files[groups.chatFile(group.id)]!);
+    expect(chat, contains('## #1 · Leo · '));
   });
 
   test('deleted: its messages and its bots\' conversations of it gone; a '

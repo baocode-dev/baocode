@@ -46,6 +46,31 @@ abstract final class ChatCodec {
     return text.substring(open.length, text.length - close.length).trim();
   }
 
+  /// The group chat a note of the app's to a bot ([botEvent]) is from: its
+  /// first line `[group <id>] …`. None for one of its own chat's.
+  static String? botGroupOf(UserMessageItem item) => switch (botEvent(item)) {
+    final event? => _botGroup.firstMatch(event)?.group(1),
+    null => null,
+  };
+
+  static final _botGroup = RegExp(r'^\[group ([\w-]+)\]');
+
+  /// The first line of a note of the app's to a bot from [group]'s chat.
+  static String botGroupLine(String group) => '[group $group]';
+
+  /// Where each of a bot's conversation's [items] is: its group chats' ids
+  /// for those of a turn of theirs (from a note of a group's, till a
+  /// message of the user's or a note of its own chat's), null for its own
+  /// chat's. One bot, one conversation: what it says goes where the last
+  /// it heard came from.
+  static List<String?> botPlaces(Iterable<ChatItem> items) {
+    String? place;
+    return [
+      for (final item in items)
+        if (item is UserMessageItem) place = botGroupOf(item) else place,
+    ];
+  }
+
   /// [text] (a message of the user's to a bot) without the app's notes
   /// in it: taken up with one, the two are one message.
   static String withoutBotEvents(String text) =>

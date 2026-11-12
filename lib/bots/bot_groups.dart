@@ -11,15 +11,18 @@ import '../link/chat_codec.dart';
 import '../workspace/workspace.dart';
 import 'bot.dart';
 import 'bot_group_prompt.dart';
+import 'bot_life.dart';
 import 'bot_prompt.dart' show botEventMessage;
 import 'bots.dart';
 
 /// The user's group chats with their bots: each its messages, kept on the
 /// computer as they are said (`groups/<id>/messages.jsonl`), and as the
-/// bots read them (`chat.md`). Each bot in one has a conversation of its
-/// own for it, apart from its chat with the user, in which it is told of
-/// what is new and reads the chat as it needs; its reply, if it makes
-/// one, is the group's.
+/// bots read them (`chat.md`). A bot has one conversation, its chat with
+/// the user's: it is told there of what is new in a group, with the new
+/// messages, and reads the chat as it needs; what it says after, till the
+/// user writes to it, is the group's ([ChatCodec.botPlaces]). What it
+/// hears and says in each, its timeline keeps ([BotLife]); and the world
+/// they share is the bots' WORLD.md.
 ///
 /// Who is told when, as people in a group chat go:
 /// - What the user says is taken up once they stop for [quiet]: what they
@@ -66,8 +69,20 @@ class BotGroups extends ChangeNotifier {
   /// The last of each group's messages the user has seen, by its id.
   final Map<String, int> _seen = {};
 
-  /// The members' conversations followed, by group and bot.
+  /// The members' conversations followed.
   final Map<ChatSession, VoidCallback> _followed = {};
+
+  /// The group each bot was told of last, while it has not answered it;
+  /// and since when.
+  final Map<String, String> _answering = {};
+  final Map<String, DateTime> _answeringSince = {};
+
+  /// How long a bot told of a group, but not at work on it, is waited for
+  /// before it is told of another: its turn never came (not sent).
+  static const _lost = Duration(seconds: 30);
+
+  /// WORLD.md as last written.
+  String? _world;
 
   bool _started = false;
   bool _disposed = false;
@@ -82,11 +97,12 @@ class BotGroups extends ChangeNotifier {
   /// Where [group]'s chat is, as its bots read it.
   String chatFile(String group) => p.join(_folderOf(group), 'chat.md');
 
-  /// [bot]'s conversation's folder for [group].
+  /// Where [bot] had a conversation of [group]'s, before its groups came
+  /// to its one conversation: gone as the app starts.
   static String memberFolder(Bot bot, String group) =>
       p.join(bot.folder, folder, group);
 
-  /// The group whose conversation, a bot's, is in [cwd].
+  /// The group whose conversation, a bot's of before, is in [cwd].
   static String? groupAt(String cwd) =>
       p.basename(p.dirname(cwd)) == folder ? p.basename(cwd) : null;
 
@@ -113,17 +129,20 @@ class BotGroups extends ChangeNotifier {
       }
       _seen[group.id] = messages.lastOrNull?.seq ?? 0;
     }
-    bots.groupPrompt = _prompt;
+    // The conversations each bot had of its groups, before: its one now.
+    for (final group in _groups) {
+      for (final member in group.members) {
+        if (bots.byId(member) case final bot?) _dropOld(bot, group.id);
+      }
+    }
     bots.addListener(_botsChanged);
+    _writeWorld();
   }
 
   @override
   void dispose() {
     _disposed = true;
-    if (_started) {
-      bots.removeListener(_botsChanged);
-      if (bots.groupPrompt == _prompt) bots.groupPrompt = null;
-    }
+    if (_started) bots.removeListener(_botsChanged);
     for (final round in _rounds.values) {
       round.cancel();
     }
@@ -179,7 +198,7 @@ class BotGroups extends ChangeNotifier {
       lines[message.seq] = out.length + 1;
       out
         ..add(
-          '## #${message.seq} · ${_nameOf(message.from)} · ${botTimeOf(message.at)}',
+          '## #${message.seq} · ${_nameOf(message.from, group)} · ${botTimeOf(message.at)}',
         )
         ..addAll(_lines(group, message))
         ..add('');
@@ -208,9 +227,11 @@ class BotGroups extends ChangeNotifier {
         '${two(at.hour)}:${two(at.minute)}';
   }
 
-  String _nameOf(String from) => from == linkGroupUser
+  /// Who [from] is, by name: the user, a bot, or one gone from the group,
+  /// by the name it had there.
+  String _nameOf(String from, [BotGroup? group]) => from == linkGroupUser
       ? (bots.me.name.isEmpty ? (bots.chinese ? '用户' : 'User') : bots.me.name)
-      : bots.byId(from)?.name ?? from;
+      : bots.byId(from)?.name ?? group?.names[from] ?? from;
 
   // --- The groups -------------------------------------------------------
 
@@ -235,6 +256,7 @@ class BotGroups extends ChangeNotifier {
     if (name.isEmpty) {
       name = [for (final m in kept) bots.byId(m)!.name].join('、');
     }
+    final names = {for (final member in kept) member: bots.byId(member)!.name};
     final BotGroup group;
     if (id == null) {
       group = BotGroup(
@@ -242,6 +264,7 @@ class BotGroups extends ChangeNotifier {
         name: name,
         members: kept,
         created: bots.now,
+        names: names,
       );
       _groups.add(group);
       _messages[group.id] = [];
@@ -249,7 +272,11 @@ class BotGroups extends ChangeNotifier {
       final at = _groups.indexWhere((g) => g.id == id);
       if (at < 0) throw StateError('No group $id');
       final had = _groups[at];
-      group = _groups[at] = had.copyWith(name: name, members: kept);
+      group = _groups[at] = had.copyWith(
+        name: name,
+        members: kept,
+        names: {...had.names, ...names},
+      );
       for (final gone in had.members.where((m) => !kept.contains(m))) {
         _leave(group.id, gone);
       }
@@ -261,6 +288,7 @@ class BotGroups extends ChangeNotifier {
     }
     _saveGroups();
     _saveMessages(group);
+    _writeWorld();
     notifyListeners();
     return group;
   }
@@ -287,14 +315,20 @@ class BotGroups extends ChangeNotifier {
     _seen.remove(id);
     bots.folders.delete(_folderOf(id));
     _saveGroups();
+    _writeWorld();
     notifyListeners();
   }
 
-  /// [member] out of [group]: its conversation of it gone.
+  /// [member] out of [group]: not told of it any more.
   void _leave(String group, String member) {
     _rounds[group]?.forget(member);
+    if (_answering[member] == group) _answering.remove(member);
     final bot = bots.byId(member);
-    if (bot == null) return;
+    if (bot != null) _dropOld(bot, group);
+  }
+
+  /// [bot]'s conversation of [group] from before, gone, if it had one.
+  void _dropOld(Bot bot, String group) {
     final path = memberFolder(bot, group);
     final threads = [
       for (final thread in _workspace.threads)
@@ -308,13 +342,26 @@ class BotGroups extends ChangeNotifier {
         }
       }
     }
-    _workspace.deleteAll(threads);
+    if (threads.isNotEmpty) _workspace.deleteAll(threads);
     bots.folders.delete(path);
   }
 
-  /// The bots gone: out of their groups.
+  /// The bots gone: out of their groups, their names kept for what they
+  /// said there. The world as it is now.
   void _botsChanged() {
+    _writeWorld();
     var changed = false;
+    for (final (at, group) in _groups.indexed.toList()) {
+      final names = {
+        ...group.names,
+        for (final member in group.members)
+          if (bots.byId(member) case final bot?) member: bot.name,
+      };
+      if (!mapEquals(names, group.names)) {
+        _groups[at] = group.copyWith(names: names);
+        changed = true;
+      }
+    }
     for (final (at, group) in _groups.indexed.toList()) {
       final kept = [
         for (final member in group.members)
@@ -322,6 +369,9 @@ class BotGroups extends ChangeNotifier {
       ];
       if (kept.length == group.members.length) continue;
       _groups[at] = group.copyWith(members: kept);
+      _answering.removeWhere(
+        (member, id) => id == group.id && !kept.contains(member),
+      );
       for (final gone in group.members.where((m) => !kept.contains(m))) {
         _rounds[group.id]?.forget(gone);
       }
@@ -356,67 +406,38 @@ class BotGroups extends ChangeNotifier {
     return [
       for (final member in found.members)
         if (bots.byId(member) case final bot?)
-          if (_threadOf(bot, group) case final thread?)
-            if (thread.isOpen && thread.session.isStreaming)
-              if (_reply(thread.session).isNotEmpty) member,
+          if (_answering[member] == group)
+            if (bots.threadOf(bot) case final thread?)
+              if (thread.isOpen && thread.session.isStreaming)
+                if (_reply(thread.session, group).isNotEmpty) member,
     ];
   }
 
   // --- Its bots' conversations -----------------------------------------
 
-  /// What [bot] is told of [cwd]'s group, in its conversation there.
-  String? _prompt(Bot bot, String cwd) {
-    final id = groupAt(cwd);
-    final group = id == null ? null : byId(id);
-    if (group == null) return null;
-    return botGroupSection(
-      bot,
-      group: group,
-      others: [
-        for (final member in group.members)
-          if (member != bot.id) ?bots.byId(member),
-      ],
-      user: _nameOf(linkGroupUser),
-      chat: chatFile(group.id),
-    );
+  /// [bot]'s conversation, followed: the one it has.
+  ChatSession _sessionOf(Bot bot) {
+    final session = bots.threadFor(bot).session;
+    _follow(bot.id, session);
+    return session;
   }
 
-  AgentThread? _threadOf(Bot bot, String group) {
-    final path = memberFolder(bot, group);
-    AgentThread? latest;
-    for (final thread in _workspace.threads) {
-      if (thread.project.path != path || thread.archived) continue;
-      if (latest == null || thread.updatedAt.isAfter(latest.updatedAt)) {
-        latest = thread;
-      }
-    }
-    return latest;
-  }
-
-  AgentThread _threadFor(Bot bot, String group) {
-    final thread =
-        _threadOf(bot, group) ??
-        (() {
-          final path = memberFolder(bot, group);
-          bots.folders.make(path);
-          return _workspace.startAgent(_workspace.projectAt(path));
-        })();
-    _follow(bot.id, group, thread.session);
-    return thread;
-  }
-
-  /// [member]'s conversation of [group] followed: its turn's end is its
-  /// reply, or its keeping quiet; and while it writes, it is typing.
-  void _follow(String member, String group, ChatSession session) {
+  /// [member]'s conversation followed: the end of a turn it was told of a
+  /// group in is its reply there, or its keeping quiet; what came while it
+  /// was at work, told it after; and while it writes to a group, it is
+  /// typing there.
+  void _follow(String member, ChatSession session) {
     if (_followed.containsKey(session)) return;
     var streaming = session.isStreaming;
     var typing = false;
     void listener() {
       if (streaming && !session.isStreaming) {
-        scheduleMicrotask(() => _turnEnded(group, member, session));
+        scheduleMicrotask(() => _turnEnded(member, session));
       }
       streaming = session.isStreaming;
-      final now = streaming && _reply(session).isNotEmpty;
+      final group = _answering[member];
+      final now =
+          streaming && group != null && _reply(session, group).isNotEmpty;
       if (now != typing) {
         typing = now;
         notifyListeners();
@@ -427,25 +448,50 @@ class BotGroups extends ChangeNotifier {
     session.addListener(listener);
   }
 
-  /// What [session]'s last turn said to the group: its messages and
-  /// narration, in their tags; empty for nothing.
-  static String _reply(ChatSession session) {
-    final texts = <String>[];
-    for (var i = session.itemCount - 1; i >= 0; i--) {
-      switch (session.itemAt(i)) {
-        case UserMessageItem():
-          i = -1;
-        case AssistantTextItem(:final text):
-          texts.insert(0, text);
-        default:
-      }
-    }
+  /// What [session] said to [group] last ([replyTo]).
+  static String _reply(ChatSession session, String group) => replyTo([
+    for (var i = 0; i < session.itemCount; i++) session.itemAt(i),
+  ], group);
+
+  /// What a bot's conversation's [items] said to [group] last: its
+  /// messages and narration after the group's last note to it, till the
+  /// user wrote to it, in their tags; empty for nothing.
+  @visibleForTesting
+  static String replyTo(List<ChatItem> items, String group) {
+    final places = ChatCodec.botPlaces(items);
+    final from = items.lastIndexWhere(
+      (item) => item is UserMessageItem && ChatCodec.botGroupOf(item) == group,
+    );
+    if (from < 0) return '';
+    final texts = [
+      for (var i = from + 1; i < items.length && places[i] == group; i++)
+        if (items[i] case AssistantTextItem(:final text)) text,
+    ];
     return [
       for (final (tag, text) in ChatCodec.botParts(texts.join('\n')))
         if ((tag == ChatCodec.botSayTag || tag == ChatCodec.botNarrateTag) &&
             text.trim().isNotEmpty)
           '<$tag>${text.trim()}</$tag>',
     ].join();
+  }
+
+  // --- The world ----------------------------------------------------------
+
+  /// The bots' WORLD.md, written if it changed: who the user is, everyone,
+  /// the groups.
+  void _writeWorld() {
+    final root = bots.folders.root;
+    if (root == null || !_started) return;
+    final text = botWorld(
+      user: _nameOf(linkGroupUser),
+      bots: bots.bots,
+      groups: [
+        for (final group in _groups) (group: group, chat: chatFile(group.id)),
+      ],
+    );
+    if (text == _world) return;
+    _world = text;
+    _write(p.join(root, BotLife.world), text);
   }
 
   // --- What is said, and who is told -----------------------------------
@@ -527,7 +573,29 @@ class BotGroups extends ChangeNotifier {
   void _add(BotGroup group, LinkGroupMessage message) {
     (_messages[group.id] ??= []).add(message);
     _saveMessages(group);
+    _live(group, message);
     notifyListeners();
+  }
+
+  /// [message] in the timeline of each of [group]'s bots: heard, or said.
+  void _live(BotGroup group, LinkGroupMessage message) {
+    final text = message.mine
+        ? [
+            message.text,
+            if (message.images.isNotEmpty) bots.chinese ? '[图片]' : '[picture]',
+          ].where((t) => t.trim().isNotEmpty).join(' ')
+        : BotLife.saysOf(message.text);
+    for (final member in group.members) {
+      final bot = bots.byId(member);
+      if (bot == null) continue;
+      bots.live(
+        bot,
+        place: '${bots.chinese ? '群' : 'group'}·${group.name} #${message.seq}',
+        who: _nameOf(message.from, group),
+        text: text,
+        mine: message.from == member,
+      );
+    }
   }
 
   /// Wakes [group]'s bots one after another, from [after] on, for what
@@ -617,8 +685,15 @@ class BotGroups extends ChangeNotifier {
         if (message.from != member) message,
     ];
     if (unseen.isEmpty) return;
-    final session = tell == null ? _threadFor(bot, group).session : null;
-    if (session != null && session.isStreaming) {
+    final session = tell == null ? _sessionOf(bot) : null;
+    // At work, here or elsewhere, or about to be: told once it is done.
+    final other = _answering[member];
+    final since = _answeringSince[member];
+    if (session != null && (session.isStreaming || !session.canSend) ||
+        other != null &&
+            other != group &&
+            since != null &&
+            bots.now.difference(since) < _lost) {
       round.dirty.add(member);
       return;
     }
@@ -627,17 +702,54 @@ class BotGroups extends ChangeNotifier {
     final last = unseen.last.seq;
     final end = chat.lines[last + 1] ?? chat.text.split('\n').length;
     round.told[member] = messages.length;
+    _answering[member] = group;
+    _answeringSince[member] = bots.now;
     final note = botGroupWake(
+      group: found,
       chat: chatFile(group),
       from: first,
       to: last,
       lines: (chat.lines[first] ?? 1, end - 1),
-      senders: {for (final m in unseen) _nameOf(m.from)}.toList(),
+      messages: [
+        for (final message in unseen)
+          (
+            heading:
+                '#${message.seq} · ${_nameOf(message.from, found)} · ${botTimeOf(message.at)}',
+            lines: _lines(found, message),
+          ),
+      ],
+      members: [
+        for (final id in found.members)
+          if (id != member) ?bots.byId(id)?.name,
+      ],
+      user: _nameOf(linkGroupUser),
       called: round.called.remove(member),
       again: again,
     );
     if (tell case final tell?) return tell(group, member, note);
     session!.send(ComposerMessage(text: botEventMessage(note)));
+  }
+
+  /// [member] says [text] to [group], of itself (not answering it): a bot's
+  /// message, which the others hear as they would another's.
+  LinkGroupMessage say(String group, String member, String text) {
+    final found = byId(group);
+    if (found == null || !found.members.contains(member)) {
+      throw StateError('Not in the group $group');
+    }
+    final message = LinkGroupMessage(
+      seq: _nextSeq(group),
+      at: bots.now,
+      from: member,
+      text: '<${ChatCodec.botSayTag}>${text.trim()}</${ChatCodec.botSayTag}>',
+    );
+    _add(found, message);
+    final round = _round(group)
+      ..told[member] = (_messages[group] ?? const []).length
+      ..passes[member] = 0;
+    if (round.left < budget ~/ 2) round.left = budget ~/ 2;
+    _plan(group, said: message.text, by: member, after: stagger ~/ 3);
+    return message;
   }
 
   /// Under test: where what a bot is told goes, in place of its
@@ -652,6 +764,7 @@ class BotGroups extends ChangeNotifier {
     final found = byId(group);
     if (found == null || !found.members.contains(member)) return;
     final round = _round(group);
+    if (_answering[member] == group) _answering.remove(member);
     if (reply.isEmpty) {
       round.passes[member] = (round.passes[member] ?? 0) + 1;
       round.held.remove(member);
@@ -689,9 +802,19 @@ class BotGroups extends ChangeNotifier {
     _plan(group, said: reply, by: member, after: stagger ~/ 3);
   }
 
-  void _turnEnded(String group, String member, ChatSession session) {
-    if (_disposed) return;
-    turnEnded(group, member, _reply(session));
+  /// [member]'s turn done: its reply to the group it was told of, if it
+  /// was; then the groups that went on meanwhile, told it.
+  void _turnEnded(String member, ChatSession session) {
+    if (_disposed || session.isStreaming) return;
+    if (_answering[member] case final group?) {
+      turnEnded(group, member, _reply(session, group));
+    }
+    for (final group in [..._groups]) {
+      if (_answering.containsKey(member)) return;
+      if (_rounds[group.id]?.dirty.remove(member) ?? false) {
+        _wake(group.id, member);
+      }
+    }
   }
 }
 
