@@ -58,6 +58,7 @@ class Customization {
     this.detail,
     this.enabled,
     this.server,
+    this.unreachable = false,
   });
 
   final CustomizationKind kind;
@@ -92,6 +93,11 @@ class Customization {
   /// An MCP server's entry (`command`, `args`, `env`, or `url`): what is
   /// started to ask whether it answers. Null for a claude.ai connector's.
   final Map<String, Object?>? server;
+
+  /// A skill whose folder is a link that cannot be followed (one leading
+  /// nowhere the system can reach): listed, so it is not missed without
+  /// a word, though nothing of it can be read.
+  final bool unreachable;
 }
 
 /// The front matter of a markdown file (`---` lines around `key: value`

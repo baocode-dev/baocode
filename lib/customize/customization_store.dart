@@ -283,7 +283,20 @@ class CustomizationStore {
   Future<Customization?> _skill(CustomizationScope scope, String folder) async {
     final path = _paths.join(folder, 'SKILL.md');
     final text = await _files.read(path);
-    if (text == null) return null;
+    if (text == null) {
+      // Listed, yet not there: a link that cannot be followed.
+      if (await _files.isDirectory(folder) != null) return null;
+      return Customization(
+        kind: CustomizationKind.skills,
+        scope: scope,
+        name: _paths.basename(folder),
+        path: path,
+        editable: false,
+        detail: '',
+        removePath: folder,
+        unreachable: true,
+      );
+    }
     final synced = scope == CustomizationScope.synced;
     return Customization(
       kind: CustomizationKind.skills,

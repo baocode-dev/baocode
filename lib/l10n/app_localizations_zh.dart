@@ -5981,6 +5981,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get customizeDisabled => '已停用';
 
   @override
+  String get customizeLinkUnreachable =>
+      '未加载：这是个系统无法打开的链接。请把技能装成真实文件夹，或重新创建链接。';
+
+  @override
   String get customizeBack => '返回';
 
   @override

@@ -10347,6 +10347,12 @@ abstract class AppLocalizations {
   /// **'Disabled'**
   String get customizeDisabled;
 
+  /// No description provided for @customizeLinkUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'Not loaded: this is a link the system cannot follow. Install the skill as a real folder, or link it again.'**
+  String get customizeLinkUnreachable;
+
   /// No description provided for @customizeBack.
   ///
   /// In en, this message translates to:

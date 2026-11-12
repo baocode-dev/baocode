@@ -1707,6 +1707,7 @@
   "customizeReadOnly": "只读：此文件由 Claude Code 自行维护。",
   "customizeEnabled": "已启用",
   "customizeDisabled": "已停用",
+  "customizeLinkUnreachable": "未加载：这是个系统无法打开的链接。请把技能装成真实文件夹，或重新创建链接。",
   "customizeBack": "返回",
   "customizeClose": "关闭自定义",
   "customizeDeleteTitle": "删除 {name}？",
