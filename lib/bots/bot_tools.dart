@@ -965,8 +965,8 @@ abstract final class BotTools {
         tool(
           'bot_list_groups',
           "Lists the user's group chats: id, name, who is in them, how many "
-              'times their conversation may be passed on, when someone last '
-              'spoke there.',
+              'times their conversation may be passed on, how long each '
+              'waits before answering, when someone last spoke there.',
           const {},
           (input, call) async {
             final groups = bots.groups;
@@ -976,6 +976,7 @@ abstract final class BotTools {
                 '${group.id} | ${group.name} | '
                     '${[for (final id in group.members) bots.byId(id)?.name ?? id].join(', ')}'
                     ' | ${group.passes == 0 ? 'passed on without bound' : 'passed on at most ${group.passes} times'}'
+                    ' | ${group.gap == 0 ? 'answered at once' : 'each waits ${group.gap}s before answering'}'
                     ' | ${switch (groups.messages(group.id).lastOrNull) {
                       final last? => 'last spoke ${BotGroups.botTimeOf(last.at)}',
                       null => 'nothing said yet',
@@ -991,7 +992,7 @@ abstract final class BotTools {
           'Makes a group chat of the user and some of their contacts (no '
               'group), or changes one: its name, who joins (add), who leaves '
               '(remove), its rules, how many times its conversation may be '
-              'passed on. '
+              'passed on, how long each waits before answering. '
               'What you give changes, the rest stays. Who joins or leaves, '
               'and a new name, show in the group as done by you. You need not '
               'be in it yourself.',
@@ -1028,6 +1029,13 @@ abstract final class BotTools {
                   'on after each of the user\'s messages: '
                   '$linkGroupLeastPasses or more; 0 for no bound. '
                   '$linkGroupPasses for a new one, if none.',
+            },
+            'gap': {
+              'type': 'integer',
+              'description':
+                  'Seconds each bot handed the conversation by another waits '
+                  'before it answers: 0 for at once (a new one\'s), no upper '
+                  'bound.',
             },
           },
           (input, call) async {
@@ -1070,6 +1078,7 @@ abstract final class BotTools {
               members: members,
               passes: (input['passes'] as num?)?.toInt(),
               rules: input['rules'] as String?,
+              gap: (input['gap'] as num?)?.toInt(),
               by: me.id,
             );
             final who = [

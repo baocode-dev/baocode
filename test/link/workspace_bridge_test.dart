@@ -641,11 +641,13 @@ void main() {
       ((await withBots.handle(LinkMethods.saveGroup, {
                 'name': '江湖',
                 'members': ['assistant', mia.id],
+                'gap': 30,
               }))!
               as Map)['group']
           as Map<String, Object?>,
     );
     expect(made.members, ['assistant', mia.id]);
+    expect(made.gap, 30);
     expect(withBots.state().groups.single.name, '江湖');
     final png = base64.encode([137, 80, 78, 71]);
     final send = {

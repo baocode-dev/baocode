@@ -7,7 +7,8 @@ import 'bot.dart';
 /// their ids, as they joined; [names], the names they had in it, those
 /// gone from it too, for what they said there. Its conversation passed
 /// on at most [passes] times after each of the user's messages (0, as
-/// many as the bots like).
+/// many as the bots like); each bot handed it waiting [gap] seconds
+/// before it answers.
 class BotGroup {
   const BotGroup({
     required this.id,
@@ -17,6 +18,7 @@ class BotGroup {
     this.names = const {},
     this.passes = linkGroupPasses,
     this.rules = '',
+    this.gap = 0,
   });
 
   factory BotGroup.fromJson(Map<String, Object?> json) => BotGroup(
@@ -37,6 +39,7 @@ class BotGroup {
     },
     passes: (json['passes'] as num?)?.toInt() ?? linkGroupPasses,
     rules: json['rules'] as String? ?? '',
+    gap: (json['gap'] as num?)?.toInt() ?? 0,
   );
 
   final String id;
@@ -49,12 +52,17 @@ class BotGroup {
   /// Its rules, as the user (or the assistant) wrote them.
   final String rules;
 
+  /// Seconds a bot handed the conversation by another waits before it
+  /// answers: 0, at once.
+  final int gap;
+
   BotGroup copyWith({
     String? name,
     List<String>? members,
     Map<String, String>? names,
     int? passes,
     String? rules,
+    int? gap,
   }) => BotGroup(
     id: id,
     name: name ?? this.name,
@@ -63,6 +71,7 @@ class BotGroup {
     names: names ?? this.names,
     passes: passes ?? this.passes,
     rules: rules ?? this.rules,
+    gap: gap ?? this.gap,
   );
 
   Map<String, Object?> toJson() => {
@@ -73,6 +82,7 @@ class BotGroup {
     if (names.isNotEmpty) 'names': names,
     if (passes != linkGroupPasses) 'passes': passes,
     if (rules.isNotEmpty) 'rules': rules,
+    if (gap > 0) 'gap': gap,
   };
 }
 

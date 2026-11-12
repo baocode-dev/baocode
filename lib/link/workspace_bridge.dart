@@ -303,6 +303,7 @@ class WorkspaceBridge {
       passesLeft: groups.relay(group.id).left,
       passes: group.passes,
       rules: group.rules,
+      gap: group.gap,
     );
   }
 
@@ -787,6 +788,7 @@ class WorkspaceBridge {
           ],
           passes: (params['passes'] as num?)?.toInt(),
           rules: params['rules'] as String?,
+          gap: (params['gap'] as num?)?.toInt(),
         );
         return {'group': _linkGroup(_groups(), group).toJson()};
       case LinkMethods.deleteGroup:

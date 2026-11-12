@@ -31,6 +31,7 @@ class LinkGroup {
     this.passesLeft = 0,
     this.passes = linkGroupPasses,
     this.rules = '',
+    this.gap = 0,
   });
 
   factory LinkGroup.fromJson(Map<String, Object?> json) => LinkGroup(
@@ -57,6 +58,7 @@ class LinkGroup {
     passesLeft: (json['passesLeft'] as num?)?.toInt() ?? 0,
     passes: (json['passes'] as num?)?.toInt() ?? linkGroupPasses,
     rules: json['rules'] as String? ?? '',
+    gap: (json['gap'] as num?)?.toInt() ?? 0,
   );
 
   final String id;
@@ -89,6 +91,10 @@ class LinkGroup {
   /// keep to there.
   final String rules;
 
+  /// How many seconds a bot waits, handed the conversation by another,
+  /// before it answers: 0, at once.
+  final int gap;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
@@ -101,6 +107,7 @@ class LinkGroup {
     if (passesLeft > 0) 'passesLeft': passesLeft,
     if (passes != linkGroupPasses) 'passes': passes,
     if (rules.isNotEmpty) 'rules': rules,
+    if (gap > 0) 'gap': gap,
   };
 }
 
