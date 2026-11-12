@@ -84,6 +84,9 @@ class BotGroups extends ChangeNotifier {
   /// WORLD.md as last written.
   String? _world;
 
+  /// How many of each group's messages the world was told of.
+  final Map<String, int> _worldTold = {};
+
   bool _started = false;
   bool _disposed = false;
 
@@ -599,9 +602,81 @@ class BotGroups extends ChangeNotifier {
     }
   }
 
-  /// Wakes [group]'s bots one after another, from [after] on, for what
-  /// [by] [said]: not [by], nor one already to be woken.
+  /// Who in [group] is told of what [by] [said], and when: the world's to
+  /// say, while there is one ([BotWorld]), but for those the user called
+  /// on, told at once; its own rules if it says nothing in time.
   void _plan(
+    String group, {
+    required String said,
+    required String by,
+    required Duration after,
+  }) {
+    final found = byId(group);
+    if (found == null) return;
+    final round = _round(group);
+    if (round.left <= 0) return;
+    final world = bots.world;
+    if (!world.on) return _planByRules(group, said: said, by: by, after: after);
+    if (by == linkGroupUser) {
+      for (final id in found.members) {
+        final bot = bots.byId(id);
+        if (bot == null || !said.contains('@${bot.name}')) continue;
+        round.called.add(id);
+        wakeFor(group, id, after: after, why: '${_nameOf(by)} called on you');
+      }
+    }
+    final messages = _messages[group] ?? const <LinkGroupMessage>[];
+    final from = (_worldTold[group] ?? 0).clamp(0, messages.length);
+    _worldTold[group] = messages.length;
+    world.ask(group, [
+      '- In the group "${found.name}" (group $group: ${[_nameOf(linkGroupUser), for (final id in found.members) _nameOf(id, found)].join(', ')}):',
+      for (final message in messages.skip(from)) ...[
+        '  ## #${message.seq} · ${_nameOf(message.from, found)} · ${botTimeOf(message.at)}',
+        for (final line in _lines(found, message)) '  $line',
+      ],
+      '  Who, if anyone, reads and answers this, and when? '
+          '(${round.left} answer${round.left == 1 ? '' : 's'} left for the '
+          "user's last message.)",
+    ]);
+    round.fallback?.cancel();
+    round.fallback = Timer(world.waitFor, () {
+      round.fallback = null;
+      _planByRules(group, said: said, by: by, after: Duration.zero);
+    });
+  }
+
+  /// The world said what became of [groups]: their own rules not needed.
+  void decided(Set<String> groups) {
+    for (final group in groups) {
+      final round = _rounds[group];
+      round?.fallback?.cancel();
+      round?.fallback = null;
+    }
+  }
+
+  /// [member] of [group] told of what is new there [after] from now, as
+  /// the world has it, for [why]: while the group may hear from the bots,
+  /// and it is not to be told already.
+  void wakeFor(
+    String group,
+    String member, {
+    Duration after = Duration.zero,
+    String why = '',
+  }) {
+    final found = byId(group);
+    if (found == null || !found.members.contains(member)) return;
+    final round = _round(group);
+    if (round.left <= 0 || round.waking.containsKey(member)) return;
+    round.waking[member] = Timer(after, () {
+      round.waking.remove(member);
+      _wake(group, member, why: why);
+    });
+  }
+
+  /// Wakes [group]'s bots one after another, from [after] on, for what
+  /// [by] [said]: not [by], nor one already to be woken. The app's own
+  /// rules, with no world to say.
+  void _planByRules(
     String group, {
     required String said,
     required String by,
@@ -671,7 +746,12 @@ class BotGroups extends ChangeNotifier {
 
   /// [member] told of what is new in [group], if there is, and the group
   /// may still hear from the bots: later, if it is at work.
-  void _wake(String group, String member, {bool again = false}) {
+  void _wake(
+    String group,
+    String member, {
+    bool again = false,
+    String why = '',
+  }) {
     final found = byId(group);
     final bot = bots.byId(member);
     if (found == null || bot == null || !found.members.contains(member)) {
@@ -726,17 +806,34 @@ class BotGroups extends ChangeNotifier {
       user: _nameOf(linkGroupUser),
       called: round.called.remove(member),
       again: again,
+      why: why,
+      states: [
+        for (final id in found.members)
+          if (bots.byId(id) case final other?)
+            if (bots.world.stateOf(other) case final state?)
+              id == member ? 'You: $state' : '${other.name}: $state',
+      ],
     );
     if (tell case final tell?) return tell(group, member, note);
     session!.send(ComposerMessage(text: botEventMessage(note)));
   }
 
+  /// The group [member] is answering now, if it is.
+  String? answering(String member) => _answering[member];
+
   /// [member] says [text] to [group], of itself (not answering it): a bot's
-  /// message, which the others hear as they would another's.
+  /// message, which the others hear as they would another's. Not the group
+  /// it is answering: that is its reply's, in its turn.
   LinkGroupMessage say(String group, String member, String text) {
     final found = byId(group);
     if (found == null || !found.members.contains(member)) {
       throw StateError('Not in the group $group');
+    }
+    if (_answering[member] == group) {
+      throw StateError(
+        'You are answering this group now: say it in your reply, in '
+        '<bot_say>, not with this tool.',
+      );
     }
     final message = LinkGroupMessage(
       seq: _nextSeq(group),
@@ -767,6 +864,10 @@ class BotGroups extends ChangeNotifier {
     final round = _round(group);
     if (_answering[member] == group) _answering.remove(member);
     if (reply.isEmpty) {
+      bots.world.note(
+        '- ${_nameOf(member, found)} read "${found.name}" (group $group) '
+        'and kept quiet.',
+      );
       round.passes[member] = (round.passes[member] ?? 0) + 1;
       round.held.remove(member);
       if (round.dirty.remove(member)) _wake(group, member);
@@ -853,6 +954,9 @@ class _Round {
   /// Those called on (@), till they are told.
   final Set<String> called = {};
 
+  /// The app's own rules, if the world says nothing of it in time.
+  Timer? fallback;
+
   void cancelWaking() {
     for (final timer in waking.values) {
       timer.cancel();
@@ -863,6 +967,7 @@ class _Round {
   void cancel() {
     cancelWaking();
     quiet?.cancel();
+    fallback?.cancel();
   }
 
   void forget(String member) {
