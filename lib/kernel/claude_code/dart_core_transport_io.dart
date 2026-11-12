@@ -7,6 +7,7 @@ import '../../models/launch_environment.dart';
 import '../../network/network_proxy_io.dart';
 import 'claude_code_transport.dart';
 import 'claude_environment.dart';
+import 'core_ripgrep_io.dart';
 
 /// A session on BaoCode's own core: package:bao_agent's engine in an
 /// isolate of its own, speaking what the CLI speaks on its stdin and
@@ -59,6 +60,7 @@ class DartCoreTransport implements ClaudeCodeTransport {
     environment
       ..addAll(ClaudeLaunch.environment)
       ..addAll(ClaudeEnvironment.stateDirectory(base));
+    await CoreRipgrep.addTo(environment);
     final instructions = launch.instructions;
     return EngineOptions(
       cwd: launch.cwd,

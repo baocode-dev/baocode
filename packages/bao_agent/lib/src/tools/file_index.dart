@@ -17,15 +17,45 @@ class FileIndex {
   /// The most a folder that is no repository is walked for.
   static const maxWalked = 100000;
 
-  /// ripgrep, where installed: null when not.
-  late final String? ripgrep = which('rg');
+  /// Names a program that is ripgrep when run with `ARGV0=rg` (Claude
+  /// Code's own build, which carries one): the app's, where the machine
+  /// has no `rg` of its own.
+  static const multicallVariable = 'BAOCODE_RIPGREP';
 
-  /// [program]'s path on `PATH`; null when it is not there.
-  String? which(String program) {
-    final path = environment['PATH'] ?? Platform.environment['PATH'] ?? '';
+  /// ripgrep, where there is one: installed, else Claude Code's
+  /// ([multicallVariable]); null when neither.
+  late final String? ripgrep = which('rg', scripts: false) ?? _multicall?.$1;
+
+  /// What ripgrep is run with: `ARGV0` where it is Claude Code's.
+  late final Map<String, String> _ripgrepEnvironment = switch (_multicall) {
+    (_, final environment) => environment,
+    null => environment,
+  };
+
+  late final (String, Map<String, String>)? _multicall =
+      switch (environment[multicallVariable]) {
+        final path? when path.isNotEmpty && File(path).existsSync() => (
+          path,
+          {...environment, 'ARGV0': 'rg'},
+        ),
+        _ => null,
+      };
+
+  /// [program]'s path on `PATH`; null when it is not there. On Windows,
+  /// a `.cmd` (or one with no extension) only with [scripts]: those are
+  /// not started as a program is.
+  String? which(String program, {bool scripts = true}) {
+    final path =
+        environment['PATH'] ??
+        environment['Path'] ??
+        Platform.environment['PATH'] ??
+        '';
     final separator = Platform.isWindows ? ';' : ':';
     final names = Platform.isWindows
-        ? ['$program.exe', '$program.cmd', program]
+        ? [
+            '$program.exe',
+            if (scripts) ...['$program.cmd', program],
+          ]
         : [program];
     for (final dir in path.split(separator)) {
       if (dir.isEmpty) continue;
@@ -86,7 +116,7 @@ class FileIndex {
         executable,
         arguments,
         workingDirectory: root,
-        environment: environment,
+        environment: executable == ripgrep ? _ripgrepEnvironment : environment,
       );
       unawaited(cancel?.whenCancelled.then((_) => process.kill()));
       final stdout = process.stdout.transform(utf8.decoder).join();
