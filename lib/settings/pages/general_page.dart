@@ -24,6 +24,7 @@ import '../../tips/feature_tips_controller.dart';
 import '../../tips/feature_tips_view.dart';
 import '../../window/window_settings.dart';
 import '../../workspace/main_window.dart';
+import '../../workspace/session_tools.dart';
 import '../shell_command_actions.dart';
 import '../user_settings.dart';
 import 'settings_dropdown.dart';
@@ -376,6 +377,15 @@ class GeneralSettingsPage extends StatelessWidget {
                     PromptSuggestions.settingKey,
                     on ? null : PromptSuggestions.off,
                   ),
+                ),
+                SettingsSwitchRow(
+                  label: l10n.generalSettingsSessionTools,
+                  description: l10n.generalSettingsSessionToolsDescription,
+                  value: SessionToolsSetting.enabled(
+                    settings?[SessionToolsSetting.settingKey],
+                  ),
+                  onChanged: (on) =>
+                      _write(SessionToolsSetting.settingKey, on ? true : null),
                 ),
                 SettingsSwitchRow(
                   label: l10n.generalSettingsComposerPolish,

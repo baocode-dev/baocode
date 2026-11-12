@@ -28,6 +28,7 @@ import 'bot_life.dart';
 import 'bot_pacer.dart';
 import 'bot_permissions.dart';
 import 'bot_prompt.dart';
+import '../workspace/session_tools.dart';
 import 'bot_tools.dart';
 import 'bot_watch.dart';
 
@@ -167,6 +168,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     workspace.agentSetup = _setup;
     ClaudeSdkTools.gate = this;
     BotTools.register(this);
+    SessionTools.register(workspace);
     // The conversations kept from the last run listed first: else each
     // bot, finding none yet, would start another and go on in that.
     if (workspace.loading) await workspace.loaded;
@@ -191,6 +193,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       workspace.removeListener(_watch);
       if (identical(ClaudeSdkTools.gate, this)) ClaudeSdkTools.gate = null;
       BotTools.unregister();
+      SessionTools.unregister();
       workspace.agentSetup = null;
       if (workspace.appFolderRoot == folders.root) {
         workspace.appFolderRoot = null;

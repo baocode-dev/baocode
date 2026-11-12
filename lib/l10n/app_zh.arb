@@ -3782,5 +3782,7 @@
   "settingsTransferImportDetail": "文件里的设置、快捷键和上游会替换现有的；文件里没有的设置保持不变。",
   "settingsTransferImported": "已导入。部分设置要重启 BaoCode 后生效。",
   "settingsTransferNotAFile": "这不是 BaoCode 导出的设置文件。",
-  "settingsTransferFailed": "没能完成：{error}"
+  "settingsTransferFailed": "没能完成：{error}",
+  "generalSettingsSessionTools": "Agent 可以统筹其他对话",
+  "generalSettingsSessionToolsDescription": "Agent 能列出你的其他对话、在不唤醒的情况下查看进展、给它们派活（没在运行的会恢复，正忙的会排队）并等待结果。适合用一个对话统筹其他对话；改动后新启动的 Agent 才有。"
 }
