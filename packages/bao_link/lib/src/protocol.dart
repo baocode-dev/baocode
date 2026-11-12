@@ -218,6 +218,16 @@ abstract final class LinkMethods {
   /// none). Sent when it changes, and on connecting.
   static const setMe = 'setMe';
 
+  /// `{}`: the model the bots' world runs on (who of them wakes when, how
+  /// each is), and those it may: `{"model"?, "options": [LinkOption]}`,
+  /// no `model` while it is off (the desktop's own rules). `unknown` from
+  /// a desktop before it.
+  static const worldModel = 'worldModel';
+
+  /// `{"model"?}`: the world's model, one of [worldModel]'s options; none
+  /// turns it off.
+  static const setWorldModel = 'setWorldModel';
+
   /// `{"group"?, "name", "members"}`: the group chat changed, or a new
   /// one (no `group`), of the bots [members] names (their ids) and the
   /// user: `{"group": LinkGroup}`. `unknown` from a desktop before groups.

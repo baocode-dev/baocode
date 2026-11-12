@@ -21,6 +21,7 @@ import '../customize/customizations.dart';
 import '../ide/file_service.dart';
 import '../kernel/agent_kernel.dart' show KernelChoiceKind;
 import '../kernel/kernel_types.dart';
+import '../models/model_providers.dart';
 import '../remote/project_host.dart';
 import '../remote/ssh_host.dart';
 import '../workspace/workspace.dart';
@@ -381,6 +382,15 @@ class WorkspaceBridge {
   Bots _bots() =>
       bots ??
       (throw const LinkRemoteException(LinkErrors.unsupported, 'No bots'));
+
+  /// The models the bots' world may run on: a bot's conversation's (the
+  /// assistant's).
+  List<KernelOption> _worldModels() {
+    final bots = _bots();
+    final assistant = bots.bots.where((bot) => bot.assistant).firstOrNull;
+    if (assistant == null) return const [];
+    return bots.threadFor(assistant).session.models?.options ?? const [];
+  }
 
   Bot _bot(Object? id) =>
       switch (id) {
@@ -762,6 +772,22 @@ class WorkspaceBridge {
         return {'text': _bots().memory(bot), 'self': _bots().selfNotes(bot)};
       case LinkMethods.setBotMemory:
         _bots().setMemory(_bot(params['bot']), params['text'] as String? ?? '');
+        return null;
+      case LinkMethods.worldModel:
+        if (workspace.loading) await workspace.loaded;
+        return {
+          'model': ?_bots().world.model,
+          'options': [
+            for (final option in _worldModels())
+              _Follow._option(option).toJson(),
+          ],
+        };
+      case LinkMethods.setWorldModel:
+        final model = params['model'] as String?;
+        if (model != null && !_worldModels().any((o) => o.id == model)) {
+          throw LinkRemoteException(LinkErrors.notFound, 'No model $model');
+        }
+        await ModelProviders.current.setWorldModel(model);
         return null;
       case LinkMethods.setBotSelf:
         _bots().setSelfNotes(

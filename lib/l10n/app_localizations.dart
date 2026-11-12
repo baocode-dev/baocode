@@ -11937,24 +11937,6 @@ abstract class AppLocalizations {
   /// **'None turned on'**
   String get modelsImageNone;
 
-  /// No description provided for @modelsWorld.
-  ///
-  /// In en, this message translates to:
-  /// **'World model'**
-  String get modelsWorld;
-
-  /// No description provided for @modelsWorldDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'What runs your bots\' world: how each is now, who in a group would answer and when, who writes to you first. It never speaks, only decides: a fast, cheap one does. Off, they are woken by fixed rules.'**
-  String get modelsWorldDescription;
-
-  /// No description provided for @modelsWorldOff.
-  ///
-  /// In en, this message translates to:
-  /// **'Off'**
-  String get modelsWorldOff;
-
   /// No description provided for @modelsSave.
   ///
   /// In en, this message translates to:

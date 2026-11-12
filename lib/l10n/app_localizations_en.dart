@@ -7351,16 +7351,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsImageNone => 'None turned on';
 
   @override
-  String get modelsWorld => 'World model';
-
-  @override
-  String get modelsWorldDescription =>
-      'What runs your bots\' world: how each is now, who in a group would answer and when, who writes to you first. It never speaks, only decides: a fast, cheap one does. Off, they are woken by fixed rules.';
-
-  @override
-  String get modelsWorldOff => 'Off';
-
-  @override
   String get modelsSave => 'Save';
 
   @override
