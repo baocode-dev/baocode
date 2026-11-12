@@ -328,6 +328,38 @@ void main() {
     expect(held.text, contains('turned off Leo writing to them first'));
   });
 
+  test('a picture from a file sent with bot_send: to a group with the '
+      'message; to the group it answers, with its reply', () async {
+    final dir = Directory.systemTemp.createTempSync('world-pictures');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final file = File('${dir.path}/a.png')
+      ..writeAsBytesSync([137, 80, 78, 71, 13, 10, 26, 10, 1, 2]);
+    final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
+    final sent = await call(mia.folder, 'bot_send', {
+      'to': '江湖',
+      'images': [file.path],
+    });
+    expect(sent.error, isFalse);
+    expect(groups.messages(group.id).last.images, ['1-1.png']);
+    expect(
+      (await call(mia.folder, 'bot_send', {
+        'to': '江湖',
+        'images': ['${dir.path}/none.png'],
+      })).text,
+      contains('No file'),
+    );
+    groups.send(group.id, text: '@Mia 图呢');
+    await wait(40);
+    expect(groups.answering(mia.id), group.id);
+    final held = await call(mia.folder, 'bot_send', {
+      'to': group.id,
+      'images': [file.path],
+    });
+    expect(held.text, contains('go with your reply'));
+    groups.turnEnded(group.id, mia.id, '<bot_say>这张</bot_say>');
+    expect(groups.messages(group.id).last.images, ['3-1.png']);
+  });
+
   test(
     'saying in a group with the tool: not the one it is answering',
     () async {

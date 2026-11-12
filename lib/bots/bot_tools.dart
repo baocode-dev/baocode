@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -548,6 +549,11 @@ abstract final class BotTools {
                 uri.host.isEmpty) {
               throw ArgumentError('Not a web address: $url');
             }
+            // In a group's turn: fetched, to go with its reply there.
+            final bot = bots.botAt(call.cwd);
+            if (bot != null && bots.groups.answering(bot.id) != null) {
+              bots.groups.sentPicture(bot.id, await _fetchPicture(uri));
+            }
             return 'Sent.';
           },
           required: ['url'],
@@ -621,8 +627,10 @@ abstract final class BotTools {
           'now: to the user in private while you are in a group (they '
           'asked you to write to them, say), or to one of your groups '
           'from your chat with the user (they asked you to pass '
-          'something on). It may not go: then you are told why, and it '
-          'is yours to say so, or not.',
+          'something on); with pictures from files, if you like. It may '
+          'not go: then you are told why, and it is yours to say so, or '
+          'not. Pictures for the group you are answering go with your '
+          'reply: send them here with no text.',
           {
             'to': {
               'type': 'string',
@@ -634,11 +642,25 @@ abstract final class BotTools {
               'type': 'string',
               'description': 'What you say: a line or two, as in a chat.',
             },
+            'images': {
+              'type': 'array',
+              'items': {'type': 'string'},
+              'description':
+                  'Pictures to send with it: their files (absolute paths, '
+                  'or in your folder), as generate_image saved them, say.',
+            },
           },
           (input, call) async {
             final bot = botOf(call);
             final to = text(input, 'to');
-            final said = text(input, 'text');
+            final said = (input['text'] as String? ?? '').trim();
+            final pictures = [
+              for (final path in (input['images'] as List? ?? const []))
+                await _pictureFrom(bots, bot, '$path'),
+            ];
+            if (said.isEmpty && pictures.isEmpty) {
+              throw ArgumentError('Nothing to send: text is empty');
+            }
             if (to == ChatCodec.botToUser) {
               if (bots.groups.answering(bot.id) == null) {
                 throw StateError(
@@ -649,7 +671,14 @@ abstract final class BotTools {
               if (bots.world.sendsPrivately(bot) case final why?) {
                 throw StateError('Not sent: $why.');
               }
-              return 'Sent to the user, in your chat with them.';
+              return [
+                claudeSdkText('Sent to the user, in your chat with them.'),
+                for (final picture in pictures)
+                  claudeSdkImage(
+                    base64Encode(picture.bytes),
+                    picture.mediaType,
+                  ),
+              ];
             }
             final group =
                 bots.groups.byId(to) ??
@@ -657,10 +686,24 @@ abstract final class BotTools {
                     .where((g) => g.name == to && g.members.contains(bot.id))
                     .firstOrNull ??
                 (throw StateError('You are in no group $to.'));
-            final message = bots.groups.say(group.id, bot.id, said);
+            // The group it answers: its pictures with its reply.
+            if (bots.groups.answering(bot.id) == group.id &&
+                pictures.isNotEmpty) {
+              for (final picture in pictures) {
+                bots.groups.sentPicture(bot.id, picture);
+              }
+              return 'The pictures go with your reply to "${group.name}"'
+                  '${said.isEmpty ? '' : '; say your words in it'}.';
+            }
+            final message = bots.groups.say(
+              group.id,
+              bot.id,
+              said,
+              images: pictures,
+            );
             return 'Said in "${group.name}" (#${message.seq}).';
           },
-          required: ['to', 'text'],
+          required: ['to'],
           summary: (input, _) => '${input['to'] ?? ''}',
         ),
         const BotToolAccess(),
@@ -987,6 +1030,50 @@ abstract final class BotTools {
         : bots.folders.readFile(p.join(bot.folder, path));
     if (bytes == null) throw StateError('No file $path');
     return squarePicture(bytes);
+  }
+
+  /// The picture in file [path] (absolute, or in [bot]'s folder), as it is.
+  static Future<ImageAttachment> _pictureFrom(
+    Bots bots,
+    Bot bot,
+    String path,
+  ) async {
+    final bytes = p.isAbsolute(path)
+        ? switch (File(path)) {
+            final file when file.existsSync() => await file.readAsBytes(),
+            _ => null,
+          }
+        : bots.folders.readFile(p.join(bot.folder, path));
+    if (bytes == null) throw StateError('No file $path');
+    final type = imageMediaType(bytes);
+    if (type == null) throw StateError('Not a picture: $path');
+    return ImageAttachment(bytes: bytes, mediaType: type, name: path);
+  }
+
+  /// The picture at [uri], fetched: no larger than 20 MB.
+  static Future<ImageAttachment> _fetchPicture(Uri uri) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15);
+    try {
+      final request = await client.getUrl(uri);
+      final response = await request.close().timeout(
+        const Duration(seconds: 30),
+      );
+      if (response.statusCode != 200) {
+        throw StateError('Not sent: the page answered ${response.statusCode}');
+      }
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in response.timeout(const Duration(seconds: 30))) {
+        bytes.add(chunk);
+        if (bytes.length > 20 << 20) throw StateError('Not sent: too large');
+      }
+      final data = bytes.takeBytes();
+      final type = imageMediaType(data);
+      if (type == null) throw StateError('Not sent: not a picture');
+      return ImageAttachment(bytes: data, mediaType: type);
+    } finally {
+      client.close(force: true);
+    }
   }
 
   /// The picture [bytes] as a bot's: its middle, square, no larger than
