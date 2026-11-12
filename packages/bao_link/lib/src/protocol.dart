@@ -23,11 +23,16 @@ abstract final class LinkMethods {
   /// `{}`: the [LinkState] now; [LinkEvents.state] follows each change.
   static const state = 'state';
 
-  /// `{"session", "window"?}`: follows the session, [LinkEvents.session]
-  /// bringing all of it at once, then what changes. With `window` (an
-  /// int N), only the last N items at first, and more as it asks
-  /// ([earlier]); `start` and `count` of every update are then counted
-  /// from the first item the phone has, not the session's first.
+  /// `{"session", "window"?, "have"?}`: follows the session,
+  /// [LinkEvents.session] bringing all of it at once, then what changes.
+  /// With `window` (an int N), only the last N items at first, and more as
+  /// it asks ([earlier]); `start` and `count` of every update are then
+  /// counted from the first item the phone has, not the session's first.
+  /// With `have` (the [linkDigest]s of the items the phone still has of
+  /// it, from a connection before), its first update starts where the
+  /// phone's first item is, and leaves out those it has as they are: its
+  /// `start` is how many. [LinkPeer] sends it, and makes the update whole
+  /// again, by itself ([LinkSessionMirror]).
   static const open = 'open';
 
   /// `{"session", "count"?}` -> `{"items": [...], "earlier"}`: up to

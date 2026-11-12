@@ -521,7 +521,12 @@ class WorkspaceBridge {
           window: params['window'] as int?,
           pathOf: (full) => _phonePath(thread.project, full),
         );
-        return follow.start();
+        return follow.start(
+          have: [
+            for (final digest in (params['have'] as List?) ?? const [])
+              if (digest is String) digest,
+          ],
+        );
       case LinkMethods.earlier:
         final follow = _follows[params['session']];
         if (follow == null) {
@@ -1449,7 +1454,11 @@ class _Follow {
   /// [_update] when it was sent.
   Object? _before;
 
-  Map<String, Object?> start() {
+  /// Follows [session]: all of it at first, or the last of it with a
+  /// [window]. What the phone [have]s of it from before ([linkDigest]s of
+  /// its items, its first to its last), where it is found: from there,
+  /// those that are still as it has them left out.
+  Map<String, Object?> start({List<String> have = const []}) {
     _prependedSeen = session.prependedCount;
     if (window case final window?) {
       _from = math.max(0, session.itemCount - window);
@@ -1457,7 +1466,45 @@ class _Follow {
     session
       ..attach()
       ..addListener(_changed);
+    if (_had(have) case (:final from, :final same)) {
+      _from = from;
+      _sent = [for (var i = from; i < from + same; i++) session.itemAt(i)];
+      _sentJson = [
+        for (final item in _sent) jsonEncode(ChatCodec.encode(item)),
+      ];
+      _restSent = null;
+      if (_update() case final update?) {
+        return _slimmer.encode(update, full: true);
+      }
+    }
     return _slimmer.encode(_update(full: true)!, full: true);
+  }
+
+  /// Where the phone's first item ([have]'s) is in the session, and how
+  /// many from there are as it has them: the most; null where none is
+  /// (or the phone has nothing).
+  ({int from, int same})? _had(List<String> have) {
+    if (have.isEmpty) return null;
+    final total = session.itemCount;
+    // Looked for among the last items: as many as the phone has and as
+    // came since, and a window more.
+    final lowest = math.max(0, total - have.length - (window ?? 0) - 200);
+    final digests = <int, String>{};
+    String digestAt(int i) =>
+        digests[i] ??= linkDigest(ChatCodec.encode(session.itemAt(i)));
+    ({int from, int same})? best;
+    for (var from = total - 1; from >= lowest; from--) {
+      if (digestAt(from) != have.first) continue;
+      var same = 1;
+      while (same < have.length &&
+          from + same < total &&
+          digestAt(from + same) == have[same]) {
+        same++;
+      }
+      if (best == null || same > best.same) best = (from: from, same: same);
+      if (same == have.length) break;
+    }
+    return best;
   }
 
   void _changed() {

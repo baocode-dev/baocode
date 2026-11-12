@@ -182,6 +182,41 @@ void main() {
       expect(opened.earlier, isTrue);
     });
 
+    test(
+      'opened again with what the phone has: only what is new comes',
+      () async {
+        final first = await open(4);
+        final have = [for (final item in first.items) linkDigest(item)];
+        final session = workspace.threads.first.session;
+        session.send(const ComposerMessage(text: 'more'));
+        await settle();
+        final again = LinkSessionUpdate.fromJson(
+          (await bridge.handle(LinkMethods.open, {
+                'session': id,
+                'window': 4,
+                'have': have,
+              }))!
+              as Map<String, Object?>,
+        );
+        // From where the phone's first item is: its four left out.
+        expect(again.start, 4);
+        expect(again.count, greaterThan(4));
+        expect(texts(again.items).first, 'more');
+        expect(again.earlier, isTrue);
+        // What the desktop does not have (another conversation's): all of it.
+        final other = LinkSessionUpdate.fromJson(
+          (await bridge.handle(LinkMethods.open, {
+                'session': id,
+                'window': 4,
+                'have': [linkDigest('elsewhere')],
+              }))!
+              as Map<String, Object?>,
+        );
+        expect(other.start, 0);
+        expect(other.count, 4);
+      },
+    );
+
     test('a window beyond the items has all, and no earlier', () async {
       final opened = await open(100);
       expect(opened.count, 6);

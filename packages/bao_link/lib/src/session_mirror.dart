@@ -73,24 +73,109 @@ class LinkSessionSlimmer {
   }
 }
 
+/// A short digest of [json] (an item of a session), the same on either
+/// end for the same JSON: for the phone to tell the desktop what it still
+/// has ([LinkMethods.open]'s `have`). Two 32-bit hashes of its text, in
+/// hex.
+String linkDigest(Object? json) {
+  final text = jsonEncode(json);
+  // FNV-1a, and the other as djb2's xor kind: apart, not one of the other.
+  var a = 0x811c9dc5;
+  var b = 5381;
+  for (var i = 0; i < text.length; i++) {
+    final unit = text.codeUnitAt(i);
+    a = _times((a ^ unit) & 0xffffffff, 0x01000193);
+    b = (_times(b, 33) ^ unit) & 0xffffffff;
+  }
+  return a.toRadixString(16).padLeft(8, '0') +
+      b.toRadixString(16).padLeft(8, '0');
+}
+
+/// [a] × [b] in 32 bits, without going past 2^53 on the way (the web's
+/// numbers).
+int _times(int a, int b) {
+  final low = (a & 0xffff) * b;
+  final high = ((a >>> 16) * b) & 0xffff;
+  return (low + (high << 16)) & 0xffffffff;
+}
+
 /// The phone's copy of each session it follows, as the desktop told it, to
-/// make whole updates of slim ones (see [LinkSessionWire]).
+/// make whole updates of slim ones (see [LinkSessionWire]). Kept for a
+/// desktop across its connections: a session opened again on another
+/// brings only what changed meanwhile ([have]).
 class LinkSessionMirror {
   final Map<String, _Mirrored> _sessions = {};
+
+  /// What was had of sessions no longer followed (closed, or kept by the
+  /// app from before: [keep]), the latest last: for [have].
+  final Map<String, List<Object?>> _kept = {};
+  static const _keptMost = 32;
+
+  /// What [have] offered of each session being opened, for its answer.
+  final Map<String, List<Object?>> _offered = {};
+
+  /// [items] had of [session] from before (the app's copy, kept between
+  /// runs), unless followed: offered when it is opened ([have]).
+  void keep(String session, List<Object?> items) {
+    if (_sessions.containsKey(session) || items.isEmpty) return;
+    _keepAside(session, items);
+  }
+
+  void _keepAside(String session, List<Object?> items) {
+    _kept
+      ..remove(session)
+      ..[session] = items;
+    while (_kept.length > _keptMost) {
+      _kept.remove(_kept.keys.first);
+    }
+  }
+
+  /// The digests ([linkDigest]) of what is had of [session], its first
+  /// item to its last, as it is opened ([LinkMethods.open]'s `have`);
+  /// null when nothing is.
+  List<String>? have(String session) {
+    final items = _sessions[session]?.items ?? _kept[session];
+    if (items == null || items.isEmpty) {
+      _offered.remove(session);
+      return null;
+    }
+    final offered = _offered[session] = [...items];
+    return [for (final item in offered) linkDigest(item)];
+  }
 
   /// Those closed since they were last opened: what still comes of them
   /// was sent before the desktop heard, and is let go.
   final Set<String> _closed = {};
 
-  /// The whole update an `open` answered with.
-  void opened(Map<String, Object?> update) {
+  /// The update an `open` answered with, made whole: the items offered
+  /// ([have]) that it leaves out before its own. Null when it does not fit
+  /// them: the session should be opened again (nothing offered then).
+  Map<String, Object?>? opened(Map<String, Object?> update) {
     final session = update['session'];
-    if (session is! String) return;
+    if (session is! String) return null;
     _closed.remove(session);
+    final offered = _offered.remove(session) ?? const [];
+    final start = update['start'];
+    final count = update['count'];
+    final items = [...?(update['items'] as List?)];
+    if (start is! int || start < 0 || start > offered.length) {
+      _sessions.remove(session);
+      _kept.remove(session);
+      return null;
+    }
+    final all = [...offered.take(start), ...items];
+    if (count is int && count != all.length) {
+      _sessions.remove(session);
+      _kept.remove(session);
+      return null;
+    }
+    _kept.remove(session);
+    // Its own copy: the update's goes to the app as it is.
     _sessions[session] = _Mirrored(
-      [...?(update['items'] as List?)],
+      [...all],
       {for (final key in LinkSessionWire.rest) key: update[key]},
     );
+    return {...update, 'start': 0, 'items': all};
   }
 
   /// [items] put before the first (an `earlier` answer).
@@ -100,7 +185,9 @@ class LinkSessionMirror {
   }
 
   void closed(String session) {
-    _sessions.remove(session);
+    if (_sessions.remove(session) case final mirrored?) {
+      _keepAside(session, mirrored.items);
+    }
     _closed.add(session);
   }
 
