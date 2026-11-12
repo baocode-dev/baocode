@@ -165,6 +165,7 @@ class BotGroups extends ChangeNotifier {
     _followed.clear();
     for (final room in _rooms.values) {
       room.stuck?.cancel();
+      room.waiting?.cancel();
     }
     super.dispose();
   }
@@ -300,15 +301,16 @@ class BotGroups extends ChangeNotifier {
 
   /// [id]'s group changed as given, or a new one (no [id]): of the bots
   /// [members] names, those there are; its conversation passed on at most
-  /// [passes] times (0, unbounded; none, as it was). Who joined or left,
-  /// and a new name, said in it, as done [by] (a bot's id; none, the
-  /// user).
+  /// [passes] times (0, unbounded; none, as it was), each bot handed it
+  /// waiting [gap] seconds before it answers. Who joined or left, and a
+  /// new name, said in it, as done [by] (a bot's id; none, the user).
   BotGroup save({
     String? id,
     required String name,
     required List<String> members,
     int? passes,
     String? rules,
+    int? gap,
     String by = linkGroupUser,
   }) {
     if (_root == null) throw StateError('No bots here');
@@ -324,6 +326,7 @@ class BotGroups extends ChangeNotifier {
     if (passes != null && passes != 0) {
       passes = passes.clamp(linkGroupLeastPasses, 1 << 20);
     }
+    if (gap != null && gap < 0) gap = 0;
     final BotGroup group;
     final List<String> joined;
     final List<String> left;
@@ -338,6 +341,7 @@ class BotGroups extends ChangeNotifier {
         names: names,
         passes: passes ?? linkGroupPasses,
         rules: rules?.trim() ?? '',
+        gap: gap ?? 0,
       );
       _groups.add(group);
       _messages[group.id] = [];
@@ -356,6 +360,7 @@ class BotGroups extends ChangeNotifier {
         names: {...had.names, ...names},
         passes: passes,
         rules: rules?.trim(),
+        gap: gap,
       );
       if (rules != null && rules.trim() != had.rules) rulesChanged = true;
       joined = [
@@ -895,12 +900,23 @@ class BotGroups extends ChangeNotifier {
 
   /// [member] has [group]'s conversation, as [by] has it: told now, or
   /// once it is done elsewhere.
+  /// Handed it by another, [member] is told after the group's
+  /// [BotGroup.gap]: the user speaking meanwhile, it goes as they say.
   void _give(BotGroup group, String member, {required _By by, String? from}) {
-    _room(group.id)
+    final room = _room(group.id)
       ..holder = member
       ..by = by
       ..from = from;
+    room.waiting?.cancel();
+    room.waiting = null;
     notifyListeners();
+    if (by == _By.passed && group.gap > 0) {
+      room.waiting = Timer(Duration(seconds: group.gap), () {
+        room.waiting = null;
+        _wake(group.id, member);
+      });
+      return;
+    }
     _wake(group.id, member);
   }
 
@@ -1223,11 +1239,15 @@ class BotGroups extends ChangeNotifier {
     _caughtUp(member);
   }
 
-  /// [member] free: told of a group's conversation it has, that waited.
+  /// [member] free: told of a group's conversation it has, that waited;
+  /// not before its time ([_Room.waiting]).
   void _caughtUp(String member) {
     for (final group in [..._groups]) {
       if (_answering.containsKey(member)) return;
-      if (_rooms[group.id]?.holder == member) _wake(group.id, member);
+      final room = _rooms[group.id];
+      if (room?.holder == member && room?.waiting == null) {
+        _wake(group.id, member);
+      }
     }
   }
 }
@@ -1263,6 +1283,9 @@ class _Room {
   /// Past it, the one who has it took too long: another has it.
   Timer? stuck;
 
+  /// Till it, the one who has it waits ([BotGroup.gap]) before it is told.
+  Timer? waiting;
+
   /// How many of the messages each was shown as new.
   final Map<String, int> told = {};
 
@@ -1275,6 +1298,7 @@ class _Room {
     if (holder == member) {
       holder = null;
       stuck?.cancel();
+      waiting?.cancel();
     }
   }
 }

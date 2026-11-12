@@ -288,6 +288,32 @@ void main() {
     },
   );
 
+  test('handed on by a bot: told after the group\'s gap; the user speaking '
+      'meanwhile, it goes as they say', () async {
+    final group = groups.save(
+      name: 'g',
+      members: [mia.id, leo.id, ann.id],
+      gap: 1,
+    );
+    expect(group.gap, 1);
+    // The user's: at once.
+    groups.send(group.id, text: '@Mia 聊');
+    expect(toldNames(), ['Mia']);
+    groups.turnEnded(group.id, mia.id, '<bot_say>嗯</bot_say>', next: 'Leo');
+    expect(holder(group), leo.id);
+    expect(toldNames(), ['Mia']);
+    expect(groups.typing(group.id), isEmpty);
+    await wait(1100);
+    expect(toldNames(), ['Mia', 'Leo']);
+
+    groups.turnEnded(group.id, leo.id, '<bot_say>好</bot_say>', next: 'Mia');
+    groups.send(group.id, text: '@Ann 你呢');
+    expect(toldNames(), ['Mia', 'Leo', 'Ann']);
+    await wait(1100);
+    expect(toldNames(), ['Mia', 'Leo', 'Ann']);
+    expect(holder(group), ann.id);
+  });
+
   test('one that cannot take it, busy elsewhere or its turn failed: '
       'another who is free has it, told why', () {
     final group = groups.save(name: 'g', members: [mia.id, leo.id, ann.id]);

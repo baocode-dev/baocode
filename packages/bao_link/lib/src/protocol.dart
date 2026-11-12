@@ -218,11 +218,12 @@ abstract final class LinkMethods {
   /// none). Sent when it changes, and on connecting.
   static const setMe = 'setMe';
 
-  /// `{"group"?, "name", "members", "passes"?, "rules"?}`: the group chat
-  /// changed, or a new one (no `group`), of the bots [members] names
-  /// (their ids) and the user; `passes`, how many times its conversation
-  /// may be passed on ([LinkGroup.passes]), `rules` its rules (each none,
-  /// as it was): `{"group": LinkGroup}`.
+  /// `{"group"?, "name", "members", "passes"?, "rules"?, "gap"?}`: the
+  /// group chat changed, or a new one (no `group`), of the bots [members]
+  /// names (their ids) and the user; `passes`, how many times its
+  /// conversation may be passed on ([LinkGroup.passes]), `rules` its
+  /// rules, `gap` the seconds between its bots' answers ([LinkGroup.gap])
+  /// (each none, as it was): `{"group": LinkGroup}`.
   /// `unknown` from a desktop before groups.
   static const saveGroup = 'saveGroup';
 
