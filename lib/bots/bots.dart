@@ -1301,9 +1301,18 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
             for (final image in images) ?image.number,
       };
       var count = session.itemCount;
-      // Its timeline kept from here: what came before, before it was.
+      // Its timeline kept from here: not what came before, nor the history
+      // its conversation reads meanwhile, nor what is read of it earlier.
       var lived = count;
+      var loading = session.loadingHistory;
+      var prepended = session.prependedCount;
       void listener() {
+        if (session.prependedCount != prepended) {
+          lived += session.prependedCount - prepended;
+          prepended = session.prependedCount;
+        }
+        if (loading || session.loadingHistory) lived = session.itemCount;
+        loading = session.loadingHistory;
         if (session.itemCount != count) {
           count = session.itemCount;
           // A message comes in near the end (before what it shows of the
