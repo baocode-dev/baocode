@@ -177,6 +177,14 @@ abstract final class LinkMethods {
   /// [LinkLimits.download].
   static const download = 'download';
 
+  /// `{"project"?, "bot"?, "name", "data"}` (base64): a file of the
+  /// phone's (one the user picked there, one another app shared) put where
+  /// the project's agent, or the bot's, reads it without asking: on its
+  /// host, apart from the project. Answered with `{"path"}`, full, for a
+  /// message to name (`@path`, in its mentions); with `{"tooLarge": true}`
+  /// past [LinkLimits.upload].
+  static const upload = 'upload';
+
   /// `{"bot"?, "name", "avatar"?, "avatarImage"?, "identity", "abilities",
   /// "proactive", "chatOnly"?, "writesFirst"?}` (as [LinkBot]'s JSON;
   /// `chatOnly`, `writesFirst` not said, as they were): the bot changed, or a new one (no
@@ -286,6 +294,10 @@ abstract final class LinkLimits {
   /// A file's bytes, opened in another app: base64, under the relay's
   /// burst (16 MiB).
   static const download = 8 * 1024 * 1024;
+
+  /// A file's bytes, from the phone ([LinkMethods.upload]): as
+  /// [download].
+  static const upload = 8 * 1024 * 1024;
 }
 
 /// A task an agent left running beside the conversation: a command, a
