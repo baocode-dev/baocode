@@ -2303,6 +2303,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get agentStateRunningInBackground => 'running in the background';
 
   @override
+  String get agentElapsedHint =>
+      'How long it has been at work: the times it was continued add up';
+
+  @override
   String get agentStateRunning => 'running';
 
   @override

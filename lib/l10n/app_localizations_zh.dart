@@ -2218,6 +2218,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get agentStateRunningInBackground => '在后台运行';
 
   @override
+  String get agentElapsedHint => '已运行时长：续跑的各次累计在内';
+
+  @override
   String get agentStateRunning => '运行中';
 
   @override

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -52,14 +54,21 @@ class AgentStep extends StatefulWidget {
     ].join(' · ');
   }
 
-  /// How long it ran, or has been running.
-  static Duration? elapsed(AgentItem item, {DateTime? now}) =>
-      item.duration ??
-      switch ((item.status, item.startedAt)) {
-        (CommandStatus.running, final start?) =>
-          (now ?? DateTime.now()).difference(start),
-        _ => null,
-      };
+  /// How long it ran, or has been running: the times before too, where
+  /// it was continued once it had ended.
+  static Duration? elapsed(AgentItem item, {DateTime? now}) {
+    final ran =
+        item.duration ??
+        switch ((item.status, item.startedAt)) {
+          (CommandStatus.running, final start?) =>
+            (now ?? DateTime.now()).difference(start),
+          _ => null,
+        };
+    return switch ((item.ranBefore, ran)) {
+      (final before?, final ran?) => before + ran,
+      (final before, final ran) => before ?? ran,
+    };
+  }
 
   /// "46s", "2m 14s", "1h 5m"; in [l10n]'s language (English when null).
   static String formatDuration(Duration time, {AppLocalizations? l10n}) {
@@ -264,6 +273,8 @@ class _AgentStepState extends State<AgentStep> {
               ),
             ),
           ),
+          // How long it has run, as it goes; once done, its line says.
+          if (running && item.startedAt != null) _Elapsed(item),
           if (item.model case final model?) _Model(model),
           // Its buttons take their own presses (see _down).
           Listener(
@@ -365,6 +376,55 @@ class _AgentStepState extends State<AgentStep> {
 
 /// The model it runs on, at the card's end ("Haiku 5.5"); its upstream and
 /// its id in full on hover.
+/// How long a running subagent has been at work, each second.
+class _Elapsed extends StatefulWidget {
+  const _Elapsed(this.item);
+
+  final AgentItem item;
+
+  @override
+  State<_Elapsed> createState() => _ElapsedState();
+}
+
+class _ElapsedState extends State<_Elapsed> {
+  late final Timer _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tick.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final time = AgentStep.elapsed(widget.item);
+    if (time == null) return const SizedBox.shrink();
+    final l10n = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: IdeHover(
+        message: l10n.agentElapsedHint,
+        child: Text(
+          AgentStep.formatDuration(time, l10n: l10n),
+          strutStyle: _lineStrut,
+          maxLines: 1,
+          style: TextStyle(
+            color: AppColors.textFaint,
+            fontSize: 12,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Model extends StatelessWidget {
   const _Model(this.model);
 

@@ -4124,6 +4124,12 @@ abstract class AppLocalizations {
   /// **'running in the background'**
   String get agentStateRunningInBackground;
 
+  /// No description provided for @agentElapsedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'How long it has been at work: the times it was continued add up'**
+  String get agentElapsedHint;
+
   /// Lowercase, after a subagent's name.
   ///
   /// In en, this message translates to:
