@@ -31,8 +31,8 @@ import 'bots.dart';
 ///   on (@name) first, then those named, the one the user answered, the
 ///   quietest. Each sees what those before it said, and mostly need not
 ///   say more.
-/// - A reply is sent once the bot is done: if others spoke meanwhile, it is
-///   held and the bot told of them, to send it still, change it, or not.
+/// - A reply is sent once the bot is done, as it is: if others spoke
+///   meanwhile, they crossed, as messages do in any chat.
 /// - Each thing the user says lets the bots say [budget] things at most
 ///   before it is theirs again: what a bot says tells the others, while
 ///   there is some left.
@@ -826,19 +826,14 @@ class BotGroups extends ChangeNotifier {
 
   /// [member] told of what is new in [group], if there is, and the group
   /// may still hear from the bots: later, if it is at work.
-  void _wake(
-    String group,
-    String member, {
-    bool again = false,
-    String why = '',
-  }) {
+  void _wake(String group, String member, {String why = ''}) {
     final found = byId(group);
     final bot = bots.byId(member);
     if (found == null || bot == null || !found.members.contains(member)) {
       return;
     }
     final round = _round(group);
-    if (round.left <= 0 && !again) return;
+    if (round.left <= 0) return;
     final messages = _messages[group] ?? const <LinkGroupMessage>[];
     final told = (round.told[member] ?? 0).clamp(0, messages.length);
     final unseen = [
@@ -885,7 +880,6 @@ class BotGroups extends ChangeNotifier {
       ],
       user: _nameOf(linkGroupUser),
       called: round.called.remove(member),
-      again: again,
       why: why,
     );
     if (tell case final tell?) return tell(group, member, note);
@@ -929,8 +923,9 @@ class BotGroups extends ChangeNotifier {
   @visibleForTesting
   void Function(String group, String member, String note)? tell;
 
-  /// [member]'s turn in [group] done: what it said sent to the group, or
-  /// held if the group went on meanwhile; or it kept quiet.
+  /// [member]'s turn in [group] done: what it said sent to the group, as
+  /// it is; or it kept quiet. Told of what came meanwhile if it is to be
+  /// woken for it.
   @visibleForTesting
   void turnEnded(String group, String member, String reply) {
     final found = byId(group);
@@ -943,23 +938,10 @@ class BotGroups extends ChangeNotifier {
         'and kept quiet.',
       );
       round.passes[member] = (round.passes[member] ?? 0) + 1;
-      round.held.remove(member);
       if (round.dirty.remove(member)) _wake(group, member);
       return;
     }
-    final messages = _messages[group] ?? const <LinkGroupMessage>[];
-    final told = (round.told[member] ?? 0).clamp(0, messages.length);
-    final missed = messages.skip(told).any((m) => m.from != member);
-    final held = round.held[member] ?? 0;
-    if (missed && held < 2) {
-      round.held[member] = held + 1;
-      round.dirty.remove(member);
-      _wake(group, member, again: true);
-      return;
-    }
     round
-      ..held.remove(member)
-      ..dirty.remove(member)
       ..passes[member] = 0
       ..left -= 1;
     _add(
@@ -1022,9 +1004,6 @@ class _Round {
   /// Those with something new while at work: woken again after.
   final Set<String> dirty = {};
 
-  /// How many times each one's reply was held, this turn of it.
-  final Map<String, int> held = {};
-
   /// Those called on (@), till they are told.
   final Set<String> called = {};
 
@@ -1050,7 +1029,6 @@ class _Round {
     passes.remove(member);
     skipped.remove(member);
     dirty.remove(member);
-    held.remove(member);
     called.remove(member);
   }
 }

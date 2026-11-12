@@ -69,10 +69,8 @@ const botGroupToldMost = 4000;
 /// What the app tells [group]'s bot of messages it has not seen: [from] to
 /// [to], the lines of [chat] they are at ([lines]), and themselves
 /// ([messages]); who else is in it ([members], [user]); whether it was
-/// called on ([called]). [again]: what it wrote meanwhile is held, for it
-/// to send or not. [why] it is told now, as the world has it. Its first
-/// line says the group's
-/// ([ChatCodec.botGroupOf]).
+/// called on ([called]). [why] it is told now, as the world has it. Its
+/// first line says the group's ([ChatCodec.botGroupOf]).
 String botGroupWake({
   required BotGroup group,
   required String chat,
@@ -83,7 +81,6 @@ String botGroupWake({
   required List<String> members,
   required String user,
   bool called = false,
-  bool again = false,
   String why = '',
 }) {
   final count = to - from + 1;
@@ -101,22 +98,15 @@ String botGroupWake({
   return [
     '${ChatCodec.botGroupLine(group.id)} The group chat "${group.name}": '
         'you, $user (the user)${members.isEmpty ? '' : ', ${members.join(', ')}'}.',
-    if (again)
-      'While you wrote your reply, the group went on: $which. Your reply is '
-          'held, not sent. Look at what was said: then reply with what to '
-          'send now (what you wrote, or changed to fit), or with nothing at '
-          'all if it no longer needs saying.'
-    else
-      'New in it: $which.',
+    'New in it: $which.',
     if (cut) '(The earlier of them in the file.)',
     '',
     ...shown,
     '',
     'All of it: $chat (these are lines ${lines.$1}–${lines.$2}). Read what '
         'came before if you need it.',
-    if (!again)
-      'Reply to the group if you have something to say, or end your turn '
-          'with nothing.',
+    'Reply to the group if you have something to say, or end your turn '
+        'with nothing.',
     if (called) 'You were called on (@): answer.',
     if (why.isNotEmpty) 'Why you read it now: $why.',
   ].join('\n');

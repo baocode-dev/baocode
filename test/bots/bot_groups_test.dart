@@ -148,23 +148,20 @@ void main() {
     expect(groups.messages(group.id).last.text, '<bot_say>你好呀</bot_say>');
   });
 
-  test('a reply held if the group went on while it wrote: told what came, '
-      'to send it or not', () async {
+  test('replies that crossed: each sent as it is, none told again', () async {
     final group = groups.save(name: 'g', members: [mia.id, leo.id]);
     groups.send(group.id, text: '@Mia @Leo 嗨');
     await wait(80);
     expect(toldNames(), unorderedEquals(['Mia', 'Leo']));
     told.clear();
     groups.turnEnded(group.id, leo.id, '<bot_say>嗨嗨</bot_say>');
-    told.clear();
-    // Mia wrote the same meanwhile: held, told of Leo's.
+    // Mia wrote hers meanwhile: sent too, not held.
     groups.turnEnded(group.id, mia.id, '<bot_say>嗨</bot_say>');
-    expect(groups.messages(group.id), hasLength(2));
-    expect(toldNames(), ['Mia']);
-    expect(told.single.$2, contains('Your reply is held'));
-    // Its answer then: sent.
-    groups.turnEnded(group.id, mia.id, '<bot_say>Leo 说得对</bot_say>');
-    expect(groups.messages(group.id).last.from, mia.id);
+    expect(
+      [for (final message in groups.messages(group.id)) message.text],
+      ['@Mia @Leo 嗨', '<bot_say>嗨嗨</bot_say>', '<bot_say>嗨</bot_say>'],
+    );
+    expect(told, isEmpty);
   });
 
   test('the bots say so much, then wait for the user', () async {
