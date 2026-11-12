@@ -95,6 +95,27 @@ class ClaudeUsageMeter {
     _syncUnderway();
   }
 
+  /// The main request whose usage fills the current context, kept after
+  /// the call closes so a late duplicate cannot restore provisional usage.
+  _Call? _contextCall;
+
+  /// The request owning [mainContextTokens], for rejecting stale async replies.
+  Object? get mainContextRequest => _contextCall;
+
+  /// The main agent's latest usable request: its input and output as the
+  /// merged usage tells them. A streamed request waits for its stop event,
+  /// so a provisional snapshot cannot make the current context jump.
+  int? get mainContextTokens {
+    final call = _contextCall;
+    if (call == null || call.usage.total == 0) return null;
+    if (call.streamed && !call.usageFinal) return null;
+    return call.usage.total;
+  }
+
+  /// Forgets the model's total after the context changes or the CLI's own
+  /// completed count supersedes it. The next request starts a new snapshot.
+  void clearContext() => _contextCall = null;
+
   void receive(Map<String, Object?> message) {
     final parent = message['parent_tool_use_id'] as String?;
     switch (message['type']) {
@@ -224,6 +245,7 @@ class ClaudeUsageMeter {
         _requestedAt = _clock();
       case 'compact_boundary':
         _compacted = true;
+        clearContext();
       // A request that failed, to be tried again: kept as failed.
       case 'api_retry':
         final now = _clock();
@@ -266,6 +288,7 @@ class ClaudeUsageMeter {
           ..events = tracing?.call() ?? false ? StringBuffer() : null
           ..usage.take(_map(message['usage']))
           ..event(event);
+        if (parent == null) _contextCall = _open[id];
       case 'content_block_start':
         final call = _streaming(parent)?..event(event);
         final block = _map(event['content_block']);
@@ -281,12 +304,18 @@ class ClaudeUsageMeter {
         call.usage.take(_map(event['usage']));
         if (_map(event['delta'])['stop_reason'] case final String reason) {
           call.stopReason = reason;
+          if (parent == null && identical(call, _contextCall)) {
+            call.usageFinal = true;
+          }
         }
       case 'content_block_stop':
         _streaming(parent)?.event(event);
       case 'message_stop':
         if (_streaming(parent) case final call?) {
           call.event(event);
+          if (parent == null && identical(call, _contextCall)) {
+            call.usageFinal = true;
+          }
           _close(call.id);
         }
     }
@@ -328,8 +357,14 @@ class ClaudeUsageMeter {
       }
     }
     final id = body['id'] as String?;
-    if (id == null || _kept.contains(id)) return;
+    if (id == null) return;
     final usage = _map(body['usage']);
+    if (_kept.contains(id)) {
+      final call = _contextCall;
+      if (parent != null || call == null || call.id != id) return;
+      _takeAssistantUsage(call, usage, body['stop_reason'] as String?);
+      return;
+    }
     var call = _open[id];
     if (call == null) {
       // None at all: one of the CLI's own (an API error), not the model's.
@@ -340,12 +375,35 @@ class ClaudeUsageMeter {
         ..model = body['model'] as String? ?? _model
         ..events = tracing?.call() ?? false ? StringBuffer() : null;
     }
+    if (parent == null) _contextCall = call;
     // Seen only whole: its messages (a block each) as they came.
     if (!call.streamed) call.events?.writeln(jsonEncode(body));
-    call.usage.take(usage);
-    if (body['stop_reason'] case final String reason) call.stopReason = reason;
+    _takeAssistantUsage(call, usage, body['stop_reason'] as String?);
     for (final block in blocks) {
       call.tool(block['name'] as String?, block['id'] as String?);
+    }
+  }
+
+  /// A whole assistant message refines a call. Once the main request is
+  /// final, only advancing usage fields refine its context: a stop reason
+  /// says the message is complete, not that its usage is newer.
+  void _takeAssistantUsage(
+    _Call call,
+    Map<String, Object?> usage,
+    String? stopReason,
+  ) {
+    final context = identical(call, _contextCall);
+    bool advances(String key, int was) => (_int(usage[key]) ?? 0) > was;
+    if (!context ||
+        !call.usageFinal ||
+        advances('output_tokens', call.usage.output) ||
+        advances('cache_read_input_tokens', call.usage.cacheRead) ||
+        advances('cache_creation_input_tokens', call.usage.cacheWrite)) {
+      call.usage.take(usage);
+    }
+    if (stopReason != null) {
+      call.stopReason = stopReason;
+      if (context) call.usageFinal = true;
     }
   }
 
@@ -617,6 +675,9 @@ class _Call {
   Duration? headers;
   Duration? firstToken;
   String? stopReason;
+
+  /// Complete enough for the current context, not a provisional snapshot.
+  bool usageFinal = false;
   final _Tokens usage = _Tokens();
   final Map<String, int> tools = {};
 
