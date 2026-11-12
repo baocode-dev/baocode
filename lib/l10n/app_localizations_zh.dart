@@ -6912,16 +6912,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsImageNone => '未启用图片模型';
 
   @override
-  String get modelsWorld => '世界模型';
-
-  @override
-  String get modelsWorldDescription =>
-      'Bot 们的世界由它来推演：每个人此刻在做什么、群里谁会接话、什么时候、谁会主动找你。它不说话，只做判断，选个又快又便宜的就行。关闭时按固定规则轮流叫醒。';
-
-  @override
-  String get modelsWorldOff => '关闭';
-
-  @override
   String get modelsSave => '保存';
 
   @override
