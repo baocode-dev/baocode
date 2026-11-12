@@ -551,15 +551,24 @@ abstract final class BotTools {
       (
         tool(
           'bot_remember',
-          'Keeps what you remember across conversations: about the user, or '
+          'Keeps what you remember across conversations: about the user; '
               'about yourself (what you said you like, did or think; what '
-              'your picture shows), to stay the same person. "add" a line, '
-              'or "replace" all of it with what you give.',
+              'your picture shows), to stay the same person; how you are '
+              'now ("now": your mood, what you are up to, in a line, in place '
+              'of the last); or about a person you know ("person", named in '
+              '"who": what you think of them, what happened between you). '
+              '"add" a line, or "replace" all of it with what you give.',
           {
             'about': {
               'type': 'string',
-              'enum': ['user', 'self'],
-              'description': 'Whose: the user\'s (if none) or yours.',
+              'enum': ['user', 'self', 'now', 'person'],
+              'description':
+                  'Whose: the user\'s (if none), yours, how you '
+                  'are now, or a person\'s.',
+            },
+            'who': {
+              'type': 'string',
+              'description': 'The person, by name (for "person").',
             },
             'action': {
               'type': 'string',
@@ -569,8 +578,17 @@ abstract final class BotTools {
           },
           (input, call) async {
             final bot = botOf(call);
-            final self = input['about'] == 'self';
             final given = (input['text'] as String? ?? '').trim();
+            switch (input['about']) {
+              case 'now':
+                bots.setNow(bot, given);
+                return 'Noted.';
+              case 'person':
+                final who = text(input, 'who');
+                bots.notePerson(bot, who, given);
+                return 'Noted, of $who.';
+            }
+            final self = input['about'] == 'self';
             final kept = (self ? bots.selfNotes(bot) : bots.memory(bot)).trim();
             final memory = input['action'] == 'replace'
                 ? given
@@ -586,6 +604,39 @@ abstract final class BotTools {
             return 'Remembered.';
           },
           required: ['text'],
+        ),
+        const BotToolAccess(),
+      ),
+      (
+        tool(
+          'bot_group_say',
+          'Says something in one of your group chats, when you are not '
+              'answering it now: what the user asked you in private to pass '
+              'on, say. Everyone in it sees it, as your message.',
+          {
+            'group': {
+              'type': 'string',
+              'description': 'The group, by its name or id (WORLD.md).',
+            },
+            'text': {
+              'type': 'string',
+              'description': 'What you say: a line or two, as in a chat.',
+            },
+          },
+          (input, call) async {
+            final bot = botOf(call);
+            final asked = text(input, 'group');
+            final group =
+                bots.groups.byId(asked) ??
+                bots.groups.groups
+                    .where((g) => g.name == asked && g.members.contains(bot.id))
+                    .firstOrNull ??
+                (throw StateError('You are in no group $asked.'));
+            final said = bots.groups.say(group.id, bot.id, text(input, 'text'));
+            return 'Said in "${group.name}" (#${said.seq}).';
+          },
+          required: ['group', 'text'],
+          summary: (input, _) => '${input['group'] ?? ''}',
         ),
         const BotToolAccess(),
       ),

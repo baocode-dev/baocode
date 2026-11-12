@@ -192,7 +192,7 @@ void main() {
             chatOnly: true,
           ),
         ),
-        contains('You do not read or change files'),
+        contains('You do not change files nor run commands'),
       );
       expect(
         botAbilities(const Bot(id: 'q', name: 'Q', folder: '/bots/q')),
@@ -449,6 +449,22 @@ void main() {
       expect(workspace.agentSetup!(app), isNull);
     });
 
+    test('what is said with the user, in its timeline once its turn is '
+        'done', () async {
+      final bot = bots.bots.single;
+      final session = bots.threadFor(bot).session;
+      session.send(const ComposerMessage(text: '在吗'));
+      for (var i = 0; i < 300 && !session.isStreaming; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      session.stop();
+      for (var i = 0; i < 300 && bots.timeline(bot).count == 0; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(bots.timeline(bot).lines.first, '- 14:00 [私聊] 用户: 在吗');
+      expect(bots.unread(bot), 0);
+    });
+
     test('its agent is told who it is, with all an agent has', () async {
       final bot = bots.bots.single;
       bots.threadFor(bot).session.send(const ComposerMessage(text: '在吗'));
@@ -533,6 +549,7 @@ void main() {
           'bot_cancel_later',
           'bot_send_image',
           'bot_remember',
+          'bot_group_say',
           'bot_my_picture',
           'bot_user_picture',
           'bot_edit_me',
