@@ -70,7 +70,9 @@ const botGroupToldMost = 4000;
 /// [to], the lines of [chat] they are at ([lines]), and themselves
 /// ([messages]); who else is in it ([members], [user]); whether it was
 /// called on ([called]). [again]: what it wrote meanwhile is held, for it
-/// to send or not. Its first line says the group's ([ChatCodec.botGroupOf]).
+/// to send or not. [why] it is told now, and how they are ([states]), as
+/// the world has it. Its first line says the group's
+/// ([ChatCodec.botGroupOf]).
 String botGroupWake({
   required BotGroup group,
   required String chat,
@@ -82,6 +84,8 @@ String botGroupWake({
   required String user,
   bool called = false,
   bool again = false,
+  String why = '',
+  List<String> states = const [],
 }) {
   final count = to - from + 1;
   final which = count == 1 ? 'message #$from' : 'messages #$from–#$to';
@@ -115,6 +119,8 @@ String botGroupWake({
       'Reply to the group if you have something to say, or end your turn '
           'with nothing.',
     if (called) 'You were called on (@): answer.',
+    if (why.isNotEmpty) 'Why you read it now: $why.',
+    if (states.isNotEmpty) 'How they are now: ${states.join('; ')}.',
   ].join('\n');
 }
 

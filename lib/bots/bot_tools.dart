@@ -811,9 +811,20 @@ abstract final class BotTools {
             },
             'identity': {
               'type': 'string',
-              'description': 'Who it is, to it: "you are…".',
+              'description':
+                  'Who it is, to it: "you are…". A whole person, not a '
+                  'line: their age, what they do and where, what their days '
+                  'are like (when they sleep, work, go out), what they care '
+                  'about and dislike, their habits and flaws, what they are '
+                  'to the user. A few paragraphs.',
             },
-            'style': {'type': 'string', 'description': 'How it talks.'},
+            'style': {
+              'type': 'string',
+              'description':
+                  'How it talks: how long its messages, its words and '
+                  'tics, its emoji or none, how it is when it is busy, '
+                  'tired, annoyed.',
+            },
           },
           (input, call) async {
             final me = freshOf(call);
@@ -847,6 +858,8 @@ abstract final class BotTools {
               abilities: had?.abilities ?? const {},
               proactive: had?.proactive ?? const BotProactive(),
               by: me,
+              // A new one only chats, as the user is told (they say more).
+              chatOnly: had == null ? true : null,
             );
             return had == null
                 ? 'Made ${saved.name} (${saved.id}). It may do nothing more '

@@ -351,6 +351,45 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
     );
   }
 
+  /// The world model: what runs the bots' world (who wakes when).
+  Widget _worldRow(BuildContext context) {
+    final l10n = context.l10n;
+    final current = _providers.worldModel;
+    final shown = current == null
+        ? l10n.modelsWorldOff
+        : _defaultName(context, current);
+    void set(String? model) => unawaited(_providers.setWorldModel(model));
+    return SettingsRow(
+      label: l10n.modelsWorld,
+      description: l10n.modelsWorldDescription,
+      trailing: SettingsDropdown(
+        current: shown,
+        semanticLabel: l10n.modelsChoiceLabel(l10n.modelsWorld, shown),
+        entries: () => [
+          IdeMenuAction(
+            l10n.modelsWorldOff,
+            checked: current == null,
+            onSelected: () => set(null),
+          ),
+          const IdeMenuSeparator(),
+          for (final provider in _providers.enabled)
+            IdeMenuAction(
+              provider.name,
+              checked: parseModelRef(current)?.provider == provider.id,
+              submenu: [
+                for (final model in provider.enabledModels)
+                  IdeMenuAction(
+                    provider.labelOf(model),
+                    checked: current == modelRef(provider.id, model.id),
+                    onSelected: () => set(modelRef(provider.id, model.id)),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _list(BuildContext context) {
     final l10n = context.l10n;
     // The newest such: one imported later takes the place of one before.
@@ -420,6 +459,7 @@ class _ModelsSettingsPageState extends State<ModelsSettingsPage> {
             ),
             _auxiliaryRow(context),
             _imageRow(context),
+            _worldRow(context),
           ],
         ),
         SettingsGroup(
