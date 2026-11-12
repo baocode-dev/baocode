@@ -770,6 +770,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
           if (ChatCodec.botSays(text).lastOrNull case final said?) {
             if (firstLine(said) case final line?) return line;
           }
+        case final ToolCallItem item when ChatCodec.botSentToUser(item) != null:
+          if (firstLine(ChatCodec.botSentToUser(item)!) case final line?) {
+            return line;
+          }
         case final ToolCallItem item
             when item.status != ToolStatus.failed &&
                 (item.images.isNotEmpty || ChatCodec.botImageUrl(item) != null):
@@ -1208,6 +1212,11 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
           world.heardUser();
         case AssistantTextItem(:final text):
           final says = BotLife.saysOf(text);
+          live(bot, place: privatePlace, who: bot.name, text: says, mine: true);
+          _toWorld(bot, bot.name, says);
+        // Sent from a group's turn.
+        case final ToolCallItem item when ChatCodec.botSentToUser(item) != null:
+          final says = ChatCodec.botSentToUser(item)!;
           live(bot, place: privatePlace, who: bot.name, text: says, mine: true);
           _toWorld(bot, bot.name, says);
         default:

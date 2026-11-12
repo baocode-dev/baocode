@@ -8,6 +8,7 @@ import 'package:baocode/bots/bot_world.dart';
 import 'package:baocode/bots/bots.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
+import 'package:baocode/kernel/claude_code/claude_sdk_tools.dart';
 import 'package:baocode/kernel/claude_code/mock_claude_code_transport.dart';
 import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/workspace/workspace.dart';
@@ -193,26 +194,40 @@ void main() {
     expect(reached, isEmpty);
   });
 
-  test('asked by the user to write in private: even one not let write '
-      'first, at night too; not long after they spoke', () async {
+  test('asked in a group to write in private, a bot sends it itself: '
+      'even one not let write first, at night too, while the user spoke '
+      'lately; else it is told why not', () async {
+    Future<Map> send(Bot bot, String to, String text) async =>
+        (await ClaudeSdkTools.handle({
+              'jsonrpc': '2.0',
+              'id': 1,
+              'method': 'tools/call',
+              'params': {
+                'name': 'bot_send',
+                'arguments': {'to': to, 'text': text},
+              },
+            }, ClaudeSdkCall(cwd: bot.folder)))['result']
+            as Map;
+    String said(Map result) =>
+        [for (final part in result['content'] as List) (part as Map)['text']]
+            .join();
     final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
     now = DateTime(2026, 11, 12, 23, 40);
     groups.send(group.id, text: '你们每个人私发我一条消息');
     await wait(20);
     world.answered(
-      '<reach who="Leo" after="0s" asked="true">板板让每人私发名字</reach>',
+      '<wake who="Leo" group="${group.id}" after="0s">板板让每人私发</wake>',
     );
     await wait(20);
-    expect([for (final (who, _) in reached) who], ['Leo']);
-    expect(reached.single.$2, contains('The user asked you to write'));
-    // Long after: asked of no one now.
-    reached.clear();
+    expect(groups.answering(leo.id), group.id);
+    final sent = await send(leo, 'private', '我是 Leo');
+    expect(sent['isError'], isNot(true));
+    expect(said(sent), contains('Sent to the user'));
+    // Long after the user spoke, and Leo not let write first: told why.
     now = now.add(const Duration(minutes: 20));
-    world.answered(
-      '<reach who="Leo" after="0s" asked="true">板板让每人私发名字</reach>',
-    );
-    await wait(20);
-    expect(reached, isEmpty);
+    final held = await send(leo, 'private', '还是我');
+    expect(held['isError'], isTrue);
+    expect(said(held), contains('not let you write to them first'));
   });
 
   test(

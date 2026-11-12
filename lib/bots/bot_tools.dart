@@ -609,14 +609,19 @@ abstract final class BotTools {
       ),
       (
         tool(
-          'bot_group_say',
-          'Says something in one of your group chats, when you are not '
-              'answering it now: what the user asked you in private to pass '
-              'on, say. Everyone in it sees it, as your message.',
+          ChatCodec.botSendTool,
+          'Sends a message somewhere other than where you are answering '
+          'now: to the user in private while you are in a group (they '
+          'asked you to write to them, say), or to one of your groups '
+          'from your chat with the user (they asked you to pass '
+          'something on). It may not go: then you are told why, and it '
+          'is yours to say so, or not.',
           {
-            'group': {
+            'to': {
               'type': 'string',
-              'description': 'The group, by its name or id (WORLD.md).',
+              'description':
+                  '"${ChatCodec.botToUser}": the user, in your chat with '
+                  'them. Else a group, by its name or id (WORLD.md).',
             },
             'text': {
               'type': 'string',
@@ -625,18 +630,31 @@ abstract final class BotTools {
           },
           (input, call) async {
             final bot = botOf(call);
-            final asked = text(input, 'group');
+            final to = text(input, 'to');
+            final said = text(input, 'text');
+            if (to == ChatCodec.botToUser) {
+              if (bots.groups.answering(bot.id) == null) {
+                throw StateError(
+                  'You are in your chat with the user now: say it in your '
+                  'reply, not with this tool.',
+                );
+              }
+              if (bots.world.sendsPrivately(bot) case final why?) {
+                throw StateError('Not sent: $why.');
+              }
+              return 'Sent to the user, in your chat with them.';
+            }
             final group =
-                bots.groups.byId(asked) ??
+                bots.groups.byId(to) ??
                 bots.groups.groups
-                    .where((g) => g.name == asked && g.members.contains(bot.id))
+                    .where((g) => g.name == to && g.members.contains(bot.id))
                     .firstOrNull ??
-                (throw StateError('You are in no group $asked.'));
-            final said = bots.groups.say(group.id, bot.id, text(input, 'text'));
-            return 'Said in "${group.name}" (#${said.seq}).';
+                (throw StateError('You are in no group $to.'));
+            final message = bots.groups.say(group.id, bot.id, said);
+            return 'Said in "${group.name}" (#${message.seq}).';
           },
-          required: ['group', 'text'],
-          summary: (input, _) => '${input['group'] ?? ''}',
+          required: ['to', 'text'],
+          summary: (input, _) => '${input['to'] ?? ''}',
         ),
         const BotToolAccess(),
       ),
