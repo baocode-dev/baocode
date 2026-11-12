@@ -932,13 +932,65 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   }
 
   /// Deletes [id]'s bot, its conversation and memory: not the assistant's.
+  /// Nothing of it left: its folder, and every session the kernels kept
+  /// of it ([forgetSessions]).
   void delete(String id) {
     final bot = byId(id);
     if (bot == null) return;
     if (bot.assistant) throw StateError('The assistant stays');
     folders.delete(bot.folder);
     _forget(bot);
+    unawaited(forgetSessions(bot.folder));
     notifyListeners();
+  }
+
+  /// How long a conversation deleted is given to stop before what its
+  /// kernel kept of it goes: else it might write its last lines after.
+  @visibleForTesting
+  static Duration stopping = const Duration(seconds: 3);
+
+  /// Deletes every session the kernels keep of a conversation in [folder]
+  /// or under it, but those open now: not only the ones its threads are
+  /// on (one a restart left behind, an older one), so nothing of what was
+  /// said there is left for anyone to read.
+  Future<void> forgetSessions(String folder) async {
+    Set<String> open() => {
+      for (final thread in workspace.threads) ?thread.record?.id,
+      for (final thread in workspace.threads)
+        if (thread.isOpen) ?thread.session.sessionId,
+    };
+    final wasOpen = open();
+    final gone = <(SessionCatalog, String)>[];
+    for (final kernel in workspace.kernels) {
+      final catalog = kernel.catalog;
+      if (catalog == null) continue;
+      try {
+        for (final project in await catalog.projects()) {
+          if (project.path != folder && !p.isWithin(folder, project.path)) {
+            continue;
+          }
+          for (final session in project.sessions) {
+            if (!wasOpen.contains(session.id)) {
+              gone.add((catalog, session.id));
+            }
+          }
+        }
+      } on Object catch (error) {
+        debugPrint('bots: sessions of $folder not listed: $error');
+      }
+    }
+    if (gone.isEmpty) return;
+    await Future<void>.delayed(stopping);
+    // One started meanwhile, on a session listed: kept.
+    final nowOpen = open();
+    for (final (catalog, id) in gone) {
+      if (nowOpen.contains(id)) continue;
+      try {
+        await catalog.delete(id);
+      } on Object catch (error) {
+        debugPrint('bots: session $id not deleted: $error');
+      }
+    }
   }
 
   /// [bot]'s conversation deleted, and a new one started: it chats again
@@ -950,6 +1002,8 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
       for (final thread in workspace.threads)
         if (thread.project.path == bot.folder) thread,
     ]);
+    // Those its threads were not on too; not the one it starts now.
+    unawaited(forgetSessions(bot.folder));
     _followed.removeWhere((session, _) => !_sessionOf(session));
     _pacers.remove(bot.id);
     _restartWhenIdle.remove(bot.id);

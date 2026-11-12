@@ -344,6 +344,7 @@ class BotGroups extends ChangeNotifier {
     }
     if (threads.isNotEmpty) _workspace.deleteAll(threads);
     bots.folders.delete(path);
+    unawaited(bots.forgetSessions(path));
   }
 
   /// The bots gone: out of their groups, their names kept for what they
