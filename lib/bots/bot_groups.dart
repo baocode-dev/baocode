@@ -2,7 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:bao_link/bao_link.dart' show LinkGroupMessage, linkGroupUser;
+import 'package:bao_link/bao_link.dart'
+    show
+        LinkGroupMessage,
+        linkGroupApp,
+        linkGroupLeastPasses,
+        linkGroupPasses,
+        linkGroupUser;
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
@@ -46,7 +52,10 @@ class BotGroups extends ChangeNotifier {
   Random random;
 
   /// How many times the conversation may be passed after the user spoke.
-  static const passes = 8;
+  static const passes = linkGroupPasses;
+
+  /// What a group of no bound may be passed on: more than any will.
+  static const unbounded = 1 << 30;
 
   /// How many of the latest messages the one who has it is told; how long
   /// each may be, past it cut.
@@ -214,19 +223,58 @@ class BotGroups extends ChangeNotifier {
   }
 
   /// [message] as the bots read it: what the user wrote and the pictures
-  /// they sent; a bot's messages, its narration in italics.
+  /// they sent; a bot's messages, its narration in italics; the app's
+  /// line in brackets. What a message quotes, a line before it.
   List<String> _lines(BotGroup group, LinkGroupMessage message) => [
-    if (message.mine)
-      ...message.text.split('\n')
+    if (message.mine) ...[
+      if (message.ref case final ref?) _quote(group, ref),
+      ...message.text.split('\n'),
+    ] else if (message.notice)
+      '(${message.text})'
     else
-      for (final (tag, text) in ChatCodec.botParts(message.text))
+      for (final (:tag, :text, :ref) in ChatCodec.botPartsOf(message.text))
         if (tag == ChatCodec.botNarrateTag)
           '*${ChatCodec.withoutVoiceCues(text).trim()}*'
-        else if (tag == ChatCodec.botSayTag)
+        else if (tag == ChatCodec.botSayTag) ...[
+          if (ref != null) _quote(group, ref),
           ChatCodec.withoutVoiceCues(text).trim(),
+        ],
     for (final image in message.images)
       '![picture](${p.join(_folderOf(group.id), 'images', image)})',
   ];
+
+  /// The line before a message quoting [group]'s message [seq]: whose it
+  /// is and how it starts.
+  String _quote(BotGroup group, int seq) {
+    final quoted = _message(group.id, seq);
+    if (quoted == null) return '> re #$seq';
+    final text = quotedText(
+      quoted,
+      picture: bots.chinese ? '[图片]' : '[picture]',
+    );
+    final cut = text.length > 40 ? '${text.substring(0, 40)}…' : text;
+    return '> re #$seq · ${_nameOf(quoted.from, group)}: $cut';
+  }
+
+  /// What of [message] shows quoted: its words (a bot's messages, else its
+  /// narration), on one line; else that it is a [picture].
+  static String quotedText(LinkGroupMessage message, {String picture = ''}) {
+    final words = message.mine || message.notice
+        ? message.text
+        : [
+            for (final (tag, text) in ChatCodec.botParts(message.text))
+              if (tag == ChatCodec.botSayTag) ChatCodec.withoutVoiceCues(text),
+          ].join(' ');
+    final line = words.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (line.isNotEmpty) return line;
+    return message.images.isNotEmpty ? picture : '';
+  }
+
+  /// [group]'s [seq]th message, if it has it.
+  LinkGroupMessage? _message(String group, int seq) =>
+      (_messages[group] ?? const <LinkGroupMessage>[])
+          .where((m) => m.seq == seq)
+          .firstOrNull;
 
   static String botTimeOf(DateTime at) {
     String two(int n) => n.toString().padLeft(2, '0');
@@ -236,9 +284,12 @@ class BotGroups extends ChangeNotifier {
 
   /// Who [from] is, by name: the user, a bot, or one gone from the group,
   /// by the name it had there.
-  String _nameOf(String from, [BotGroup? group]) => from == linkGroupUser
-      ? (bots.me.name.isEmpty ? (bots.chinese ? '用户' : 'User') : bots.me.name)
-      : bots.byId(from)?.name ?? group?.names[from] ?? from;
+  String _nameOf(String from, [BotGroup? group]) => switch (from) {
+    linkGroupUser =>
+      bots.me.name.isEmpty ? (bots.chinese ? '用户' : 'User') : bots.me.name,
+    linkGroupApp => bots.chinese ? '群通知' : 'Notice',
+    _ => bots.byId(from)?.name ?? group?.names[from] ?? from,
+  };
 
   // --- The groups -------------------------------------------------------
 
@@ -248,11 +299,17 @@ class BotGroups extends ChangeNotifier {
       List.unmodifiable(_messages[group] ?? const <LinkGroupMessage>[]);
 
   /// [id]'s group changed as given, or a new one (no [id]): of the bots
-  /// [members] names, those there are.
+  /// [members] names, those there are; its conversation passed on at most
+  /// [passes] times (0, unbounded; none, as it was). Who joined or left,
+  /// and a new name, said in it, as done [by] (a bot's id; none, the
+  /// user).
   BotGroup save({
     String? id,
     required String name,
     required List<String> members,
+    int? passes,
+    String? rules,
+    String by = linkGroupUser,
   }) {
     if (_root == null) throw StateError('No bots here');
     final kept = [
@@ -264,7 +321,14 @@ class BotGroups extends ChangeNotifier {
       name = [for (final m in kept) bots.byId(m)!.name].join('、');
     }
     final names = {for (final member in kept) member: bots.byId(member)!.name};
+    if (passes != null && passes != 0) {
+      passes = passes.clamp(linkGroupLeastPasses, 1 << 20);
+    }
     final BotGroup group;
+    final List<String> joined;
+    final List<String> left;
+    String? renamed;
+    var rulesChanged = false;
     if (id == null) {
       group = BotGroup(
         id: _newId(),
@@ -272,9 +336,16 @@ class BotGroups extends ChangeNotifier {
         members: kept,
         created: bots.now,
         names: names,
+        passes: passes ?? linkGroupPasses,
+        rules: rules?.trim() ?? '',
       );
       _groups.add(group);
       _messages[group.id] = [];
+      // The user knows whom they asked in; whom a bot did, said.
+      (joined, left) = (
+        by == linkGroupUser ? const <String>[] : kept,
+        const [],
+      );
     } else {
       final at = _groups.indexWhere((g) => g.id == id);
       if (at < 0) throw StateError('No group $id');
@@ -283,10 +354,40 @@ class BotGroups extends ChangeNotifier {
         name: name,
         members: kept,
         names: {...had.names, ...names},
+        passes: passes,
+        rules: rules?.trim(),
       );
-      for (final gone in had.members.where((m) => !kept.contains(m))) {
+      if (rules != null && rules.trim() != had.rules) rulesChanged = true;
+      joined = [
+        for (final m in kept)
+          if (!had.members.contains(m)) m,
+      ];
+      left = [
+        for (final m in had.members)
+          if (!kept.contains(m)) m,
+      ];
+      if (had.name != name) renamed = name;
+      for (final gone in left) {
         _leave(group.id, gone);
       }
+    }
+    for (final notice in _notices(
+      group,
+      by,
+      joined,
+      left,
+      renamed,
+      rulesChanged: rulesChanged,
+    )) {
+      _add(
+        group,
+        LinkGroupMessage(
+          seq: _nextSeq(group.id),
+          at: bots.now,
+          from: linkGroupApp,
+          text: notice,
+        ),
+      );
     }
     final room = _room(group.id);
     final count = _messages[group.id]!.length;
@@ -298,6 +399,36 @@ class BotGroups extends ChangeNotifier {
     _writeWorld();
     notifyListeners();
     return group;
+  }
+
+  /// What is said in [group] of who [by] had join it ([joined]) or leave
+  /// it ([left]), and of its new name ([renamed]): in the user's language.
+  List<String> _notices(
+    BotGroup group,
+    String by,
+    List<String> joined,
+    List<String> left,
+    String? renamed, {
+    bool rulesChanged = false,
+  }) {
+    final who = _nameOf(by, group);
+    String list(List<String> ids) =>
+        [for (final id in ids) _nameOf(id, group)]
+            .join(bots.chinese ? '、' : ', ');
+    final zh = bots.chinese;
+    return [
+      if (joined.isNotEmpty)
+        zh
+            ? '$who 邀请 ${list(joined)} 加入了群聊'
+            : '$who added ${list(joined)} to the group',
+      if (left.isNotEmpty)
+        zh
+            ? '$who 将 ${list(left)} 移出了群聊'
+            : '$who removed ${list(left)} from the group',
+      if (renamed != null)
+        zh ? '$who 修改群名为「$renamed」' : '$who renamed the group "$renamed"',
+      if (rulesChanged) zh ? '$who 修改了群规' : '$who changed the group rules',
+    ];
   }
 
   String _newId() {
@@ -475,10 +606,11 @@ class BotGroups extends ChangeNotifier {
           if (items[i] case AssistantTextItem(:final text)) text,
     ];
     return [
-      for (final (tag, text) in ChatCodec.botParts(texts.join('\n')))
+      for (final (:tag, :text, :ref) in ChatCodec.botPartsOf(texts.join('\n')))
         if ((tag == ChatCodec.botSayTag || tag == ChatCodec.botNarrateTag) &&
             text.trim().isNotEmpty)
-          '<$tag>${text.trim()}</$tag>',
+          '<$tag${ref != null && tag == ChatCodec.botSayTag ? ' ${ChatCodec.botRefAttribute}="$ref"' : ''}>'
+              '${text.trim()}</$tag>',
     ].join();
   }
 
@@ -586,6 +718,7 @@ class BotGroups extends ChangeNotifier {
     String group, {
     required String text,
     List<ImageAttachment> images = const [],
+    int? ref,
   }) {
     final found = byId(group);
     if (found == null) throw StateError('No group $group');
@@ -597,6 +730,7 @@ class BotGroups extends ChangeNotifier {
       from: linkGroupUser,
       text: text.trim(),
       images: names,
+      ref: ref != null && ref < seq ? ref : null,
     );
     _add(found, message);
     _seen[group] = seq;
@@ -626,6 +760,10 @@ class BotGroups extends ChangeNotifier {
     ];
     if (members.isEmpty) return;
     final called = _called(message.text, members);
+    final quoted = switch (message.ref) {
+      final ref? => _message(group.id, ref)?.from,
+      null => null,
+    };
     final last = (_messages[group.id] ?? const <LinkGroupMessage>[])
         .lastWhere(
           (m) => members.contains(m.from),
@@ -635,10 +773,11 @@ class BotGroups extends ChangeNotifier {
         .from;
     final (first, by) = switch ((called, last)) {
       (final called?, _) => (called, _By.called),
+      _ when quoted != null && members.contains(quoted) => (quoted, _By.quoted),
       (null, final last) when last != linkGroupUser => (last, _By.last),
       _ => (members[random.nextInt(members.length)], _By.picked),
     };
-    _room(group.id).left = passes;
+    _room(group.id).left = group.passes == 0 ? unbounded : group.passes;
     _give(group, first, by: by);
   }
 
@@ -837,6 +976,7 @@ class BotGroups extends ChangeNotifier {
       longest: longest,
       by: switch (room.by) {
         _By.called => '$user called on you (@)',
+        _By.quoted => '$user answered your message (quoted it)',
         _By.last => '$user spoke, and you were the last to speak here',
         _By.picked => '$user spoke, and no one here has yet: you start',
         _By.passed =>
@@ -845,6 +985,7 @@ class BotGroups extends ChangeNotifier {
         _By.missed => room.instead,
       },
       left: room.left,
+      chinese: bots.chinese,
     );
     if (tell case final tell?) return tell(group, member, note);
     session!.send(ComposerMessage(text: botEventMessage(note)));
@@ -1094,6 +1235,7 @@ class BotGroups extends ChangeNotifier {
 /// How one came to have a group's conversation.
 enum _By {
   called,
+  quoted,
   last,
   picked,
   passed,

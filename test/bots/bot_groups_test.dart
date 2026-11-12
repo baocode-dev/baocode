@@ -220,6 +220,74 @@ void main() {
     expect(groups.relay(group.id).left, BotGroups.passes - 3);
   });
 
+  test('quoting: the user quoting a bot has it answer; a bot quotes by its '
+      'number; each read with what it quotes', () {
+    final group = groups.save(name: 'g', members: [mia.id, leo.id]);
+    groups.say(group.id, leo.id, '我昨天吃了布丁');
+    groups.send(group.id, text: '真的吗', ref: 1);
+    expect(holder(group), leo.id);
+    expect(told.last.$2, contains('用户 answered your message (quoted it)'));
+    expect(told.last.$2, contains('> re #1 · Leo: 我昨天吃了布丁\n真的吗'));
+    final reply = BotGroups.replyTo([
+      UserMessageItem(text: botEventMessage(told.last.$2)),
+      const AssistantTextItem(
+        '<bot_say ref="2">真的</bot_say><bot_narrate>他点头</bot_narrate>',
+      ),
+    ], group.id);
+    expect(
+      reply,
+      '<bot_say ref="2">真的</bot_say><bot_narrate>他点头</bot_narrate>',
+    );
+    groups.turnEnded(group.id, leo.id, reply, next: 'Mia');
+    expect(told.last.$2, contains('> re #2 · 用户: 真的吗\n真的'));
+    expect(groups.messages(group.id)[1].ref, 1);
+    // One quoting none before it: none.
+    groups.send(group.id, text: '嗯', ref: 99);
+    expect(groups.messages(group.id).last.ref, isNull);
+  });
+
+  test("told the group's rules, and a reply as an example", () {
+    final group = groups.save(
+      name: 'g',
+      members: [mia.id, leo.id],
+      rules: '只说中文',
+    );
+    groups.send(group.id, text: '@Mia 嗨');
+    final note = told.last.$2;
+    expect(
+      note,
+      contains("The group's rules, which everyone here keeps to:\n只说中文"),
+    );
+    expect(note, contains('<bot_say ref="1">哈哈 才不是我</bot_say>'));
+    expect(note, contains('<bot_next>Leo</bot_next>'));
+    expect(groups.messages(group.id).where((m) => m.notice), isEmpty);
+    groups.save(id: group.id, name: 'g', members: [mia.id, leo.id], rules: '');
+    expect(groups.messages(group.id).last.text, '用户 修改了群规');
+  });
+
+  test(
+    'passed on at most as the group says: at least two; none, unbounded',
+    () {
+      final group = groups.save(
+        name: 'g',
+        members: [mia.id, leo.id],
+        passes: 1,
+      );
+      expect(group.passes, 2);
+      groups.send(group.id, text: '@Mia 聊');
+      expect(groups.relay(group.id).left, 2);
+      groups.save(
+        id: group.id,
+        name: 'g',
+        members: [mia.id, leo.id],
+        passes: 0,
+      );
+      groups.turnEnded(group.id, mia.id, '');
+      groups.send(group.id, text: '@Mia 再聊');
+      expect(groups.relay(group.id).left, BotGroups.unbounded);
+    },
+  );
+
   test('one that cannot take it, busy elsewhere or its turn failed: '
       'another who is free has it, told why', () {
     final group = groups.save(name: 'g', members: [mia.id, leo.id, ann.id]);

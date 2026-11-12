@@ -1,9 +1,13 @@
+import 'package:bao_link/bao_link.dart' show linkGroupPasses;
+
 import '../link/chat_codec.dart';
 import 'bot.dart';
 
 /// A group chat of the user and some of their bots: its [members] by
 /// their ids, as they joined; [names], the names they had in it, those
-/// gone from it too, for what they said there.
+/// gone from it too, for what they said there. Its conversation passed
+/// on at most [passes] times after each of the user's messages (0, as
+/// many as the bots like).
 class BotGroup {
   const BotGroup({
     required this.id,
@@ -11,6 +15,8 @@ class BotGroup {
     required this.members,
     this.created,
     this.names = const {},
+    this.passes = linkGroupPasses,
+    this.rules = '',
   });
 
   factory BotGroup.fromJson(Map<String, Object?> json) => BotGroup(
@@ -29,6 +35,8 @@ class BotGroup {
         for (final MapEntry(:key, :value) in names.entries)
           if (value is String) key: value,
     },
+    passes: (json['passes'] as num?)?.toInt() ?? linkGroupPasses,
+    rules: json['rules'] as String? ?? '',
   );
 
   final String id;
@@ -36,17 +44,25 @@ class BotGroup {
   final List<String> members;
   final DateTime? created;
   final Map<String, String> names;
+  final int passes;
+
+  /// Its rules, as the user (or the assistant) wrote them.
+  final String rules;
 
   BotGroup copyWith({
     String? name,
     List<String>? members,
     Map<String, String>? names,
+    int? passes,
+    String? rules,
   }) => BotGroup(
     id: id,
     name: name ?? this.name,
     members: members ?? this.members,
     created: created,
     names: names ?? this.names,
+    passes: passes ?? this.passes,
+    rules: rules ?? this.rules,
   );
 
   Map<String, Object?> toJson() => {
@@ -55,6 +71,8 @@ class BotGroup {
     'members': members,
     'created': ?created?.millisecondsSinceEpoch,
     if (names.isNotEmpty) 'names': names,
+    if (passes != linkGroupPasses) 'passes': passes,
+    if (rules.isNotEmpty) 'rules': rules,
   };
 }
 
@@ -88,6 +106,7 @@ String botGroupTurn({
   int longest = 500,
   required String by,
   required int left,
+  bool chinese = false,
 }) {
   String shown(BotGroupMessage message) {
     final text = message.lines.join('\n');
@@ -103,7 +122,23 @@ String botGroupTurn({
   final last = messages.isEmpty ? null : messages.last.heading.split(' ').first;
   const next = ChatCodec.botNextTag;
   const narrate = ChatCodec.botNarrateTag;
+  const say = ChatCodec.botSayTag;
+  const ref = ChatCodec.botRefAttribute;
   final names = members.join(', ');
+  final rules = group.rules.trim();
+  // An example reply, with the last message's number and a member's name.
+  final quoted = switch (last) {
+    final last? => int.tryParse(last.replaceFirst('#', '')),
+    null => null,
+  };
+  final someone = members.isEmpty ? user : members.first;
+  final example = [
+    '<$say${quoted == null ? '' : ' $ref="$quoted"'}>'
+        '${chinese ? '哈哈 才不是我' : 'Ha, it was not me'}</$say>',
+    '<$narrate>${chinese ? '她笑着把手机扣在桌上' : 'She laughs and puts her phone face down'}</$narrate>',
+    '<$say>${chinese ? '$someone，你说呢' : '$someone, what do you think?'}</$say>',
+    if (left > 0 && members.isNotEmpty) '<$next>$someone</$next>',
+  ];
   return [
     '${ChatCodec.botGroupLine(group.id)} The group chat "${group.name}".',
     '',
@@ -114,6 +149,10 @@ String botGroupTurn({
         'Talk the way you would to these people, in a group. This is people '
         'chatting: never speak of the app, the computer, turns, passing it '
         'on, or being told to answer.',
+    if (rules.isNotEmpty) ...[
+      "The group's rules, which everyone here keeps to:",
+      rules,
+    ],
     'Now: $now.${looked == null ? '' : ' You last looked at it: $looked.'}',
     '',
     if (messages.isNotEmpty) ...[
@@ -129,6 +168,10 @@ String botGroupTurn({
     '1. Read the new messages. If you have something to say, say it as '
         'yourself: one or two short messages, as in a chat, not a speech. If '
         'you have nothing to say, say nothing.',
+    '   Each message in its own <$say>…</$say>. To answer one message in '
+        'particular, give its number: <$say $ref="74">…</$say> shows #74 '
+        'quoted under yours. Only when it helps to say which one you answer; '
+        'most need none.',
     '2. Narration (<$narrate>…</$narrate>: what you do, how you look, where '
         'you are) and pictures (generate_image) reach the group too: everyone '
         'sees them. Use them now and then, when they fit.',
@@ -147,6 +190,10 @@ String botGroupTurn({
           'like), nor to yourself.',
     ] else
       '3. Hand it to no one now: after you, it is for $user to speak.',
+    '',
+    'A reply may look like this (the words are only an example; yours are '
+        'your own, and most replies are shorter):',
+    ...example,
     '',
     'The conversation in this group is in your hands until you hand it on or '
         'stop it. Keep it alive the way a good group chat is: do not let it '

@@ -5,6 +5,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:bao_link/bao_link.dart'
+    show linkGroupLeastPasses, linkGroupPasses;
 import 'package:path/path.dart' as p;
 
 import '../chat/chat_models.dart';
@@ -16,6 +18,7 @@ import '../link/workspace_bridge.dart' show WorkspaceBridge;
 import '../models/image_api.dart' show imageMediaType;
 import '../workspace/workspace.dart';
 import 'bot.dart';
+import 'bot_groups.dart' show BotGroups;
 import 'bot_pacer.dart' show BotEventKind, botTime;
 import 'bot_watch.dart';
 import 'bots.dart';
@@ -958,7 +961,171 @@ abstract final class BotTools {
         ),
         const BotToolAccess(assistant: true),
       ),
+      (
+        tool(
+          'bot_list_groups',
+          "Lists the user's group chats: id, name, who is in them, how many "
+              'times their conversation may be passed on, when someone last '
+              'spoke there.',
+          const {},
+          (input, call) async {
+            final groups = bots.groups;
+            if (groups.groups.isEmpty) return 'No groups.';
+            return [
+              for (final group in groups.groups)
+                '${group.id} | ${group.name} | '
+                    '${[for (final id in group.members) bots.byId(id)?.name ?? id].join(', ')}'
+                    ' | ${group.passes == 0 ? 'passed on without bound' : 'passed on at most ${group.passes} times'}'
+                    ' | ${switch (groups.messages(group.id).lastOrNull) {
+                      final last? => 'last spoke ${BotGroups.botTimeOf(last.at)}',
+                      null => 'nothing said yet',
+                    }}',
+            ].join('\n');
+          },
+        ),
+        const BotToolAccess(assistant: true),
+      ),
+      (
+        tool(
+          'bot_save_group',
+          'Makes a group chat of the user and some of their contacts (no '
+              'group), or changes one: its name, who joins (add), who leaves '
+              '(remove), its rules, how many times its conversation may be '
+              'passed on. '
+              'What you give changes, the rest stays. Who joins or leaves, '
+              'and a new name, show in the group as done by you. You need not '
+              'be in it yourself.',
+          {
+            'group': {
+              'type': 'string',
+              'description':
+                  'Its id or name (bot_list_groups); none for a '
+                  'new one.',
+            },
+            'name': {'type': 'string'},
+            'add': {
+              'type': 'array',
+              'items': {'type': 'string'},
+              'description':
+                  'Contacts to join it, by name or id '
+                  '(bot_list_bots); you too, by your name.',
+            },
+            'remove': {
+              'type': 'array',
+              'items': {'type': 'string'},
+              'description': 'Members to leave it, by name or id.',
+            },
+            'rules': {
+              'type': 'string',
+              'description':
+                  'Its rules, all of them, as they are to read: what everyone '
+                  'in it keeps to. Empty for none.',
+            },
+            'passes': {
+              'type': 'integer',
+              'description':
+                  'How many times its conversation may be passed '
+                  'on after each of the user\'s messages: '
+                  '$linkGroupLeastPasses or more; 0 for no bound. '
+                  '$linkGroupPasses for a new one, if none.',
+            },
+          },
+          (input, call) async {
+            final me = freshOf(call);
+            final groups = bots.groups;
+            List<String> named(String key) => [
+              for (final name in (input[key] as List?) ?? const [])
+                if (name is String && name.trim().isNotEmpty)
+                  _contact(bots, name.trim()),
+            ];
+            final which = switch (input['group']) {
+              final String id when id.trim().isNotEmpty => id.trim(),
+              _ => null,
+            };
+            final had = which == null
+                ? null
+                : groups.byId(which) ??
+                      groups.groups.where((g) => g.name == which).firstOrNull ??
+                      (throw StateError(
+                        'No group $which. List them with bot_list_groups.',
+                      ));
+            final add = named('add');
+            final remove = named('remove');
+            final members = [
+              for (final id in [...?had?.members, ...add])
+                if (!remove.contains(id)) id,
+            ];
+            if (members.isEmpty) {
+              throw ArgumentError(
+                'A group needs someone in it besides the user',
+              );
+            }
+            final name = switch (input['name']) {
+              final String name when name.trim().isNotEmpty => name.trim(),
+              _ => had?.name ?? '',
+            };
+            final saved = groups.save(
+              id: had?.id,
+              name: name,
+              members: members,
+              passes: (input['passes'] as num?)?.toInt(),
+              rules: input['rules'] as String?,
+              by: me.id,
+            );
+            final who = [
+              for (final id in saved.members) bots.byId(id)?.name ?? id,
+            ].join(', ');
+            return had == null
+                ? 'Made "${saved.name}" (${saved.id}): the user, $who.'
+                : 'Saved "${saved.name}": the user, $who.';
+          },
+          summary: (input, _) => '${input['name'] ?? input['group'] ?? ''}',
+        ),
+        const BotToolAccess(assistant: true),
+      ),
+      (
+        tool(
+          'bot_delete_group',
+          'Deletes a group chat and all that was said in it, for good: only '
+              'when the user has said to, plainly; ask them first.',
+          {
+            'group': {
+              'type': 'string',
+              'description': 'Its id or name (bot_list_groups).',
+            },
+          },
+          (input, call) async {
+            final which = text(input, 'group');
+            final groups = bots.groups;
+            final group =
+                groups.byId(which) ??
+                groups.groups.where((g) => g.name == which).firstOrNull ??
+                (throw StateError(
+                  'No group $which. List them with bot_list_groups.',
+                ));
+            groups.delete(group.id);
+            return 'Deleted "${group.name}".';
+          },
+          required: ['group'],
+          summary: (input, _) => '${input['group'] ?? ''}',
+        ),
+        const BotToolAccess(assistant: true),
+      ),
     ];
+  }
+
+  /// The contact [name] names: by its id, its name, or its name without
+  /// what is in brackets.
+  static String _contact(Bots bots, String name) {
+    String bare(String n) => n.replaceAll(RegExp(r'[（(][^）)]*[）)]'), '').trim();
+    final found =
+        bots.byId(name) ??
+        bots.bots.where((b) => b.name == name).firstOrNull ??
+        bots.bots.where((b) => bare(b.name) == bare(name)).firstOrNull;
+    if (found == null) {
+      throw StateError('No contact $name. List them with bot_list_bots.');
+    }
+    return found.id;
   }
 
   /// The picture file at [path] (in [bot]'s folder, if not a full path)

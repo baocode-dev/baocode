@@ -301,6 +301,8 @@ class WorkspaceBridge {
       updatedAt: last?.at ?? group.created,
       holder: groups.relay(group.id).holder,
       passesLeft: groups.relay(group.id).left,
+      passes: group.passes,
+      rules: group.rules,
     );
   }
 
@@ -783,6 +785,8 @@ class WorkspaceBridge {
             for (final member in (params['members'] as List?) ?? const [])
               if (member is String) member,
           ],
+          passes: (params['passes'] as num?)?.toInt(),
+          rules: params['rules'] as String?,
         );
         return {'group': _linkGroup(_groups(), group).toJson()};
       case LinkMethods.deleteGroup:
@@ -817,7 +821,12 @@ class WorkspaceBridge {
           if (_taken[key] case final taken?) return taken;
         }
         final answer = Future<Object?>.value({
-          'seq': _groups().send(group.id, text: text, images: images),
+          'seq': _groups().send(
+            group.id,
+            text: text,
+            images: images,
+            ref: (params['ref'] as num?)?.toInt(),
+          ),
         });
         if (key != null) {
           _taken[key] = answer;
