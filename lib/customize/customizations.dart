@@ -1,6 +1,6 @@
 // What Claude Code is customized with, as the Customize page lists it:
-// skills, subagents, slash commands, rules (CLAUDE.md and `rules/`), MCP
-// servers, hooks and plugins, each the user's own (under its config folder)
+// skills, subagents, slash commands, rules (CLAUDE.md and `rules/`), the
+// memories Claude keeps of a project, MCP servers, hooks and plugins, each the user's own (under its config folder)
 // or a project's (under `<project>/.claude/`). See customization_store.dart
 // for where each is read from.
 
@@ -11,6 +11,7 @@ enum CustomizationKind {
   skills,
   subagents,
   rules,
+  memory,
   commands,
   hooks;
 
@@ -18,7 +19,7 @@ enum CustomizationKind {
   /// and edited as text.
   bool get creatable => switch (this) {
     skills || subagents || commands || rules => true,
-    plugins || mcps || hooks => false,
+    plugins || mcps || hooks || memory => false,
   };
 
   /// Kept in a JSON file of [scope]'s meant to be edited by hand, among
@@ -228,5 +229,6 @@ String template(CustomizationKind kind, String name) => switch (kind) {
   CustomizationKind.rules => '# $name\n\n- A rule Claude keeps to.\n',
   CustomizationKind.plugins ||
   CustomizationKind.mcps ||
-  CustomizationKind.hooks => '',
+  CustomizationKind.hooks ||
+  CustomizationKind.memory => '',
 };

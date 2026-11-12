@@ -6318,6 +6318,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get customizeKindRules => 'Rules';
 
   @override
+  String get customizeKindMemory => 'Memory';
+
+  @override
   String get customizeKindCommands => 'Commands';
 
   @override
@@ -6449,6 +6452,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get customizeEmptyPlugins =>
       'None installed. Install plugins with /plugin in Claude Code.';
+
+  @override
+  String get customizeEmptyMemory =>
+      'Nothing remembered yet. Claude Code saves what it learns about you and this project here as it works (its auto memory), and reads it back in later conversations.';
 
   @override
   String get customizeEmptyMcpsUser =>

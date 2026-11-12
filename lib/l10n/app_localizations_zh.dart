@@ -5927,6 +5927,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get customizeKindRules => '规则';
 
   @override
+  String get customizeKindMemory => '记忆';
+
+  @override
   String get customizeKindCommands => '命令';
 
   @override
@@ -6053,6 +6056,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get customizeEmptyPlugins => '还没有安装插件。在 Claude Code 里用 /plugin 安装。';
+
+  @override
+  String get customizeEmptyMemory =>
+      '还没有记忆。Claude Code 工作时会把了解到的你和这个项目的信息存在这里（自动记忆），之后的对话会读回来。';
 
   @override
   String get customizeEmptyMcpsUser =>

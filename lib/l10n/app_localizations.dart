@@ -10239,6 +10239,12 @@ abstract class AppLocalizations {
   /// **'Rules'**
   String get customizeKindRules;
 
+  /// No description provided for @customizeKindMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory'**
+  String get customizeKindMemory;
+
   /// No description provided for @customizeKindCommands.
   ///
   /// In en, this message translates to:
@@ -10466,6 +10472,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'None installed. Install plugins with /plugin in Claude Code.'**
   String get customizeEmptyPlugins;
+
+  /// No description provided for @customizeEmptyMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing remembered yet. Claude Code saves what it learns about you and this project here as it works (its auto memory), and reads it back in later conversations.'**
+  String get customizeEmptyMemory;
 
   /// No description provided for @customizeEmptyMcpsUser.
   ///
