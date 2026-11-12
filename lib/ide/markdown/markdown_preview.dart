@@ -30,6 +30,9 @@ import '../../l10n/l10n.dart';
 import '../../workspace/window_controls.dart';
 import '../ide_hover.dart';
 import '../ide_menu.dart';
+import '../../platform/app_platform.dart';
+import '../ide_find_widget.dart';
+import 'markdown_find.dart';
 import 'markdown_format_bar.dart';
 import 'markdown_front_matter.dart';
 import 'markdown_links.dart';
@@ -217,9 +220,47 @@ class IdeMarkdownPreviewState extends State<IdeMarkdownPreview> {
     });
   }
 
+  // --- Find (⌘F) ------------------------------------------------------------
+
+  late final _find = MarkdownFind(() => _controller.text)..addListener(_found);
+
+  /// The last of [MarkdownFind.reveals] shown.
+  int _revealed = 0;
+
+  /// The match at hand selected, and scrolled to, once asked to be shown.
+  void _found() {
+    if (_find.reveals == _revealed) return;
+    _revealed = _find.reveals;
+    final match = _find.currentMatch;
+    if (match == null) return;
+    _controller.selection = TextSelection(
+      baseOffset: match.start,
+      extentOffset: match.end,
+    );
+    _editor?.ensureVisible(match.start);
+  }
+
+  /// The find bar, looking for what is selected (on one line).
+  void _showFind() {
+    final selection = _controller.selection;
+    final selected = selection.isValid && !selection.isCollapsed
+        ? _controller.selectedText
+        : null;
+    _find.show(
+      query: selected == null || selected.contains('\n') ? null : selected,
+      from: selection.isValid ? selection.start : 0,
+    );
+  }
+
+  void _hideFind() {
+    _find.hide();
+    _focus.requestFocus();
+  }
+
   @override
   void dispose() {
     widget.onLeave?.call(_restedAt);
+    _find.dispose();
     _focus.dispose();
     _scroll.dispose();
     _controller.dispose();
@@ -545,7 +586,7 @@ class IdeMarkdownPreviewState extends State<IdeMarkdownPreview> {
                 ? Brightness.dark
                 : Brightness.light,
           );
-          return NotificationListener<ScrollEndNotification>(
+          final shown = NotificationListener<ScrollEndNotification>(
             onNotification: (_) {
               _restSoon();
               return false;
@@ -562,6 +603,52 @@ class IdeMarkdownPreviewState extends State<IdeMarkdownPreview> {
               onOpenLink: _openHref,
               contextMenu: _contextMenu,
               child: editor,
+            ),
+          );
+          // ⌘F (Ctrl+F) finds in it, as in its source, the editor's bar
+          // over its top right.
+          return CallbackShortcuts(
+            bindings: {
+              SingleActivator(
+                LogicalKeyboardKey.keyF,
+                meta: AppPlatform.isMacOS,
+                control: !AppPlatform.isMacOS,
+              ): _showFind,
+            },
+            child: Stack(
+              children: [
+                Positioned.fill(child: shown),
+                Positioned(
+                  top: 0,
+                  right: 16,
+                  child: ListenableBuilder(
+                    listenable: _find,
+                    builder: (context, _) {
+                      if (!_find.visible) return const SizedBox.shrink();
+                      return ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: IdeFindWidget.width,
+                        ),
+                        child: IdeFindWidget(
+                          findController: _find.text,
+                          findFocusNode: _find.focusNode,
+                          matchCase: _find.matchCase,
+                          wholeWord: _find.wholeWord,
+                          regex: _find.regex,
+                          matchCount: _find.matches.length,
+                          currentIndex: _find.current,
+                          onToggleMatchCase: _find.toggleMatchCase,
+                          onToggleWholeWord: _find.toggleWholeWord,
+                          onToggleRegex: _find.toggleRegex,
+                          onPrevious: _find.previous,
+                          onNext: _find.next,
+                          onClose: _hideFind,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           );
         },
