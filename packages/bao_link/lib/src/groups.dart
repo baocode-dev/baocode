@@ -21,6 +21,7 @@ class LinkGroup {
     this.lively,
     this.halfLife,
     this.attention = const [],
+    this.attentionModel,
   });
 
   factory LinkGroup.fromJson(Map<String, Object?> json) => LinkGroup(
@@ -52,6 +53,7 @@ class LinkGroup {
       for (final one in (json['attention'] as List?) ?? const [])
         if (one is Map<String, Object?>) LinkAttention.fromJson(one),
     ],
+    attentionModel: json['attentionModel'] as String?,
   );
 
   final String id;
@@ -83,6 +85,10 @@ class LinkGroup {
   /// How much each of its bots attends to it.
   final List<LinkAttention> attention;
 
+  /// The model that scores how much the user's messages draw each bot
+  /// ([LinkMethods.setGroupAttentionModel]); none, all alike.
+  final String? attentionModel;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
@@ -95,6 +101,7 @@ class LinkGroup {
     'halfLife': ?halfLife?.inMilliseconds,
     if (attention.isNotEmpty)
       'attention': [for (final one in attention) one.toJson()],
+    'attentionModel': ?attentionModel,
   };
 }
 

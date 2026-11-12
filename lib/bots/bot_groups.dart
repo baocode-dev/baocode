@@ -12,8 +12,10 @@ import '../chat/chat_session.dart';
 import '../link/chat_codec.dart';
 import '../workspace/workspace.dart';
 import 'bot.dart';
+import 'bot_attention_model.dart';
 import 'bot_group_prompt.dart';
 import 'bot_life.dart';
+import 'bot_pacer.dart' show botTime;
 import 'bot_prompt.dart' show botEventMessage;
 import 'bots.dart';
 
@@ -30,11 +32,12 @@ import 'bots.dart';
 /// its bots attends to it ([attention]): from 0 to 1, fading by half each
 /// [halfLife], with what it came of. No one decides it: it is worked out
 /// of what happens, as it happens.
-/// - Each message pulls those who did not say it, as warm as it is: the
-///   user's 1; a bot's its group's [BotGroup.lively] times the warmest of
-///   what it answered. Their attention comes up to that, less for one that
-///   kept quiet (by half for each time running), or overheard (the user
-///   called on others).
+/// - Each message pulls those who did not say it, as warm as it is. The
+///   user's: those it calls on (@) alone, at once; else each as much as
+///   the group's attention model ([BotGroup.attentionModel]) scores it,
+///   or fully without one. A bot's: its group's [BotGroup.lively] times
+///   the warmest of what it answered, less for one that kept quiet (by
+///   half for each time running).
 /// - Pulled, one looks at the group in a while ([glance] at full
 ///   attention; [glanceSpan] times longer at none), and reads all that is
 ///   new since; called on (@), at once. At work, here or elsewhere: once
@@ -68,8 +71,14 @@ class BotGroups extends ChangeNotifier {
   static const livelyLeast = LinkGroup.livelyLeast;
   static const livelyMost = LinkGroup.livelyMost;
 
-  /// How much what the user said to others pulls the rest.
-  static const overheard = 0.5;
+  /// How long the attention model is waited for: past it, the user's
+  /// message pulls everyone fully.
+  Duration scoreWithin = const Duration(seconds: 10);
+
+  /// Under test: how much the user's message pulls each, in place of the
+  /// group's attention model.
+  @visibleForTesting
+  Future<BotPulls> Function(BotGroup group, LinkGroupMessage message)? score;
 
   Workspace get _workspace => bots.workspace;
 
@@ -568,9 +577,58 @@ class BotGroups extends ChangeNotifier {
     _add(found, message);
     _seen[group] = seq;
     bots.heardUser();
-    _pull(found, message, 1);
+    _heard(found, message);
     return seq;
   }
+
+  /// The user's [message] to [group] pulls its bots: those it calls on,
+  /// at once; else as the group's attention model scores it, if it has
+  /// one, or fully.
+  void _heard(BotGroup group, LinkGroupMessage message) {
+    final calls =
+        rollCall.hasMatch(message.text) ||
+        group.members.any((member) => _calls(message.text, member));
+    final model = group.attentionModel;
+    final score = this.score ?? (model == null ? null : _scoreWith(model));
+    if (calls || score == null) return _pull(group, message, 1);
+    unawaited(() async {
+      BotPulls? scored;
+      try {
+        scored = await score(group, message).timeout(scoreWithin);
+      } on Object catch (error) {
+        debugPrint('groups: attention not scored: $error');
+      }
+      if (_disposed) return;
+      final now = byId(group.id);
+      if (now == null) return;
+      _pull(now, message, 1, scored: scored);
+    }());
+  }
+
+  /// The group's attention model [model] scoring the user's message: told
+  /// who is in it, and what was said before.
+  Future<BotPulls> Function(BotGroup, LinkGroupMessage) _scoreWith(
+    String model,
+  ) => (group, message) {
+    final before = (_messages[group.id] ?? const <LinkGroupMessage>[])
+        .where((m) => m.seq < message.seq)
+        .toList();
+    return scoreMessage(
+      model: model,
+      chinese: bots.chinese,
+      group: group.name,
+      user: _nameOf(linkGroupUser),
+      members: [for (final id in group.members) ?bots.byId(id)],
+      recent: [
+        for (final m in before.skip(
+          before.length > 12 ? before.length - 12 : 0,
+        ))
+          (_nameOf(m.from, group), m.mine ? m.text : BotLife.saysOf(m.text)),
+      ],
+      seq: message.seq,
+      said: message.text,
+    );
+  };
 
   static const _extensions = {
     'image/png': '.png',
@@ -668,6 +726,17 @@ class BotGroups extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// [group]'s attention model, a model option's id; none, all alike.
+  void setAttentionModel(String group, String? model) {
+    final at = _groups.indexWhere((g) => g.id == group);
+    if (at < 0) throw StateError('No group $group');
+    if (model != null && model.isEmpty) model = null;
+    if (_groups[at].attentionModel == model) return;
+    _groups[at] = _groups[at].copyWith(attentionModel: () => model);
+    _saveGroups();
+    notifyListeners();
+  }
+
   /// How much each of [group]'s bots attends to it, as of [BotAttention.at]
   /// ([BotAttention.now] for now); when it looks next, if it will.
   List<BotAttention> attention(String group) {
@@ -721,8 +790,14 @@ class BotGroups extends ChangeNotifier {
 
   /// [message], said in [group] as [warmth] as it is, pulls those who did
   /// not say it: each to look at the group in a while, or at once if
-  /// called on; not one it would pull too faintly.
-  void _pull(BotGroup group, LinkGroupMessage message, double warmth) {
+  /// called on; not one it would pull too faintly. The user's pulls each
+  /// as much as [scored] says, if it says.
+  void _pull(
+    BotGroup group,
+    LinkGroupMessage message,
+    double warmth, {
+    BotPulls? scored,
+  }) {
     final room = _room(group.id);
     room.warmth[message.seq] = warmth;
     final zh = bots.chinese;
@@ -741,20 +816,25 @@ class BotGroups extends ChangeNotifier {
     for (final member in group.members) {
       if (member == message.from || bots.byId(member) == null) continue;
       final call = called.contains(member);
+      // The user called on others: theirs.
+      if (!call && user && called.isNotEmpty) continue;
       var pull = warmth;
-      var why = switch ((call, everyone, user && called.isNotEmpty)) {
-        (true, true, _) =>
+      var why = switch ((call, everyone)) {
+        (true, true) =>
           zh ? '$who叫了所有人（$where）' : '$who asked everyone ($where)',
-        (true, false, _) =>
-          zh ? '被$who @（$where）' : 'called on by $who ($where)',
-        (false, _, true) =>
-          zh
-              ? '旁听：$who @ 了别人（$where）'
-              : 'overheard: $who called on others ($where)',
+        (true, false) => zh ? '被$who @（$where）' : 'called on by $who ($where)',
         _ => zh ? '$who说话了（$where）' : '$who spoke ($where)',
       };
-      if (!call) {
-        if (user && called.isNotEmpty) pull *= overheard;
+      if (!call && user && scored != null) {
+        // Scored: as much as the model has it; left out, not at all.
+        final one = scored[member];
+        pull = one?.pull ?? 0;
+        final said = one == null || one.why.isEmpty ? '' : '${one.why}，';
+        why = zh
+            ? '注意力模型：$said${_warmth(pull)}（$where）'
+            : 'attention model: ${said.replaceAll('，', ', ')}${_warmth(pull)} ($where)';
+      }
+      if (!call && !user) {
         final passes = room.passes[member] ?? 0;
         if (passes > 0) {
           pull *= pow(0.5, passes);
@@ -821,6 +901,8 @@ class BotGroups extends ChangeNotifier {
     final last = unseen.last.seq;
     final end = chat.lines[last + 1] ?? chat.text.split('\n').length;
     room.told[member] = messages.length;
+    final looked = room.looked[member];
+    room.looked[member] = bots.now;
     // What it answers as warm as the warmest of what it reads.
     room.drive[member] = unseen
         .map((message) => room.warmth[message.seq] ?? 0)
@@ -847,6 +929,8 @@ class BotGroups extends ChangeNotifier {
       ],
       user: _nameOf(linkGroupUser),
       called: room.called.remove(member),
+      now: botTime(bots.now),
+      looked: looked == null ? null : botTime(looked),
     );
     if (tell case final tell?) return tell(group, member, note);
     session!.send(ComposerMessage(text: botEventMessage(note)));
@@ -1039,6 +1123,9 @@ class _Room {
   /// Those called on (@), till they are told.
   final Set<String> called = {};
 
+  /// When each last looked at the group, this run.
+  final Map<String, DateTime> looked = {};
+
   /// How warm each message of this run was, by its number.
   final Map<int, double> warmth = {};
 
@@ -1060,5 +1147,6 @@ class _Room {
     dirty.remove(member);
     called.remove(member);
     drive.remove(member);
+    looked.remove(member);
   }
 }
