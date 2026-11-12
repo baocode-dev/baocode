@@ -30,12 +30,14 @@ class WorldWake extends WorldAct {
 }
 
 /// [who] has something on its mind for the user, [after] from now:
-/// [why]. Its to write to them, or not.
+/// [why]. Its to write to them, or not; or, [asked], the user asked it to
+/// (in a group, say).
 class WorldReach extends WorldAct {
-  const WorldReach(this.who, this.after, this.why);
+  const WorldReach(this.who, this.after, this.why, {this.asked = false});
   final String who;
   final Duration after;
   final String why;
+  final bool asked;
 }
 
 /// How [who] is now: [text].
@@ -109,6 +111,7 @@ abstract final class WorldActs {
               bot.id,
               duration(attributes['after']) ?? Duration.zero,
               body,
+              asked: attributes['asked'] == 'true',
             ),
           );
         case 'state':
@@ -411,8 +414,13 @@ class BotWorld {
             after: after > wakeLatest ? wakeLatest : after,
             why: why,
           );
-        case WorldReach(:final who, :final after, :final why):
-          _reach(who, after > reachLatest ? reachLatest : after, why);
+        case WorldReach(:final who, :final after, :final why, :final asked):
+          _reach(
+            who,
+            after > reachLatest ? reachLatest : after,
+            why,
+            asked: asked,
+          );
         case WorldLook(:final after):
           _lookIn(after);
       }
@@ -441,29 +449,48 @@ class BotWorld {
     });
   }
 
-  /// [who] writes first to the user, [after] from now, of [why]: not at
+  /// When the user last said something, in a group or in private.
+  DateTime? _userSaidAt;
+
+  /// The user said something: what they asked for (a word in private) is
+  /// theirs for a while ([askedWithin]).
+  void heardUser() => _userSaidAt = bots.now;
+
+  /// How long after the user last spoke a bot is let write to them as
+  /// they asked.
+  static const askedWithin = Duration(minutes: 10);
+
+  /// [who] writes to the user in private, [after] from now, of [why]. As
+  /// the user [asked], if they spoke lately; else first, of itself: not at
   /// night, nor more than [reachesADay] times a day, nor without being let
   /// ([BotAbility.proactive]).
-  void _reach(String who, Duration after, String why) {
+  void _reach(String who, Duration after, String why, {bool asked = false}) {
     final bot = bots.byId(who);
-    if (bot == null || !bot.can(BotAbility.proactive)) return;
-    final at = bots.now.add(after);
-    if (at.hour >= nightFrom || at.hour < nightTo) return;
-    final day = '${at.year}-${at.month}-${at.day}';
-    final had = _reaches[who];
-    final count = had?.day == day ? had!.count : 0;
-    if (count >= reachesADay) return;
-    _reaches[who] = (day: day, count: count + 1);
+    if (bot == null) return;
+    final said = _userSaidAt;
+    asked = asked && said != null && bots.now.difference(said) <= askedWithin;
+    if (!asked) {
+      if (!bot.can(BotAbility.proactive)) return;
+      final at = bots.now.add(after);
+      if (at.hour >= nightFrom || at.hour < nightTo) return;
+      final day = '${at.year}-${at.month}-${at.day}';
+      final had = _reaches[who];
+      final count = had?.day == day ? had!.count : 0;
+      if (count >= reachesADay) return;
+      _reaches[who] = (day: day, count: count + 1);
+    }
     late final Timer timer;
     timer = Timer(after, () {
       _timers.remove(timer);
       final now = bots.byId(who);
       if (now == null || _disposed) return;
-      final note =
-          'Something is on your mind (the world, not the user, brings it '
-          'up): $why\n'
-          'If it is worth it, write to the user now, as you would, in your '
-          'own words; if not, end your turn with nothing.';
+      final note = asked
+          ? 'The user asked you to write to them in private: $why\n'
+                'Write to them now, here, in your own words.'
+          : 'Something is on your mind (the world, not the user, brings it '
+                'up): $why\n'
+                'If it is worth it, write to the user now, as you would, in '
+                'your own words; if not, end your turn with nothing.';
       if (reached case final reached?) return reached(now, note);
       bots.reach(now, note);
     });
@@ -499,6 +526,7 @@ How it goes:
   <state who="NAME">how they are now, in a few words: what they are doing, their mood</state> for those who changed.
   <wake who="NAME" group="GROUP_ID" after="40s">why, in a few words of fact</wake> for each in a group who would read and answer now; none if no one would.
   <reach who="NAME" after="20m">why they would write to the user, in a few words of fact</reach>, rarely: someone has a real reason to write first.
+  <reach who="NAME" after="15s" asked="true">what the user asked for</reach> when the user asked someone (in a group, say) to write to them in private: each one asked, in their own time.
   <next_look after="30m"/>: when to look again with nothing happening (1 minute to 2 hours).
 - "why" is what happened, never what to say: "板板 asked her to change their pictures", "someone said she was wrong", "he promised to report at 3". Never put words in their mouths.
 
@@ -510,7 +538,7 @@ What is natural:
 - Writing first to the user is rare and has a reason: a promise come due, something that happened that concerns them, a long silence with someone close. Not at night.
 - Look again sooner while a conversation is alive, later when all is quiet, in the morning when it is night.
 
-The laws, which the app keeps whatever you say: no one writes first at night ($worldNight), nor more than ${BotWorld.reachesADay} times a day; a group has only so many answers for each of the user's messages; an answer is held while the group moves on.
+The laws, which the app keeps whatever you say: no one writes first (unasked) at night ($worldNight), nor more than ${BotWorld.reachesADay} times a day; a group has only so many answers for each of the user's messages; an answer is held while the group moves on.
 
 How everyone is now is kept in $now from your states.
 <world_started>${botTime(time)}</world_started>''';

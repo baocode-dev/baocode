@@ -1205,6 +1205,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
           ].join(' ');
           live(bot, place: privatePlace, who: userName, text: text);
           _toWorld(bot, userName, text);
+          world.heardUser();
         case AssistantTextItem(:final text):
           final says = BotLife.saysOf(text);
           live(bot, place: privatePlace, who: bot.name, text: says, mine: true);

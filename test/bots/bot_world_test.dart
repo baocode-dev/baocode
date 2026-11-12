@@ -193,6 +193,28 @@ void main() {
     expect(reached, isEmpty);
   });
 
+  test('asked by the user to write in private: even one not let write '
+      'first, at night too; not long after they spoke', () async {
+    final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
+    now = DateTime(2026, 11, 12, 23, 40);
+    groups.send(group.id, text: '你们每个人私发我一条消息');
+    await wait(20);
+    world.answered(
+      '<reach who="Leo" after="0s" asked="true">板板让每人私发名字</reach>',
+    );
+    await wait(20);
+    expect([for (final (who, _) in reached) who], ['Leo']);
+    expect(reached.single.$2, contains('The user asked you to write'));
+    // Long after: asked of no one now.
+    reached.clear();
+    now = now.add(const Duration(minutes: 20));
+    world.answered(
+      '<reach who="Leo" after="0s" asked="true">板板让每人私发名字</reach>',
+    );
+    await wait(20);
+    expect(reached, isEmpty);
+  });
+
   test(
     'saying in a group with the tool: not the one it is answering',
     () async {
