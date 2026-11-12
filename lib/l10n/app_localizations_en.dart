@@ -13975,4 +13975,57 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get generalSettingsRewindKeep => 'Keep the Changes';
+
+  @override
+  String get settingsTransferTitle => 'Move to Another Computer';
+
+  @override
+  String get settingsTransferDescription =>
+      'Your settings, keybindings and upstreams with their models, in one file to import on the other computer.';
+
+  @override
+  String get settingsTransferLabel => 'Settings file';
+
+  @override
+  String get settingsTransferExport => 'Export…';
+
+  @override
+  String get settingsTransferImport => 'Import…';
+
+  @override
+  String get settingsTransferExportQuestion => 'Export your settings?';
+
+  @override
+  String get settingsTransferExportDetail =>
+      'Settings, keybindings and upstreams go into the file. The upstreams\' API keys only if you tick the box below: they are then in the file as plain text, so keep it to yourself and delete it once imported.';
+
+  @override
+  String get settingsTransferWithKeys => 'Include the upstreams\' API keys';
+
+  @override
+  String settingsTransferExported(String path) {
+    return 'Exported to $path';
+  }
+
+  @override
+  String settingsTransferImportQuestion(String file) {
+    return 'Import the settings in $file?';
+  }
+
+  @override
+  String get settingsTransferImportDetail =>
+      'Its settings, keybindings and upstreams replace yours; settings it does not have stay as they are.';
+
+  @override
+  String get settingsTransferImported =>
+      'Imported. Some settings take effect once BaoCode restarts.';
+
+  @override
+  String get settingsTransferNotAFile =>
+      'This is not a settings file BaoCode exported.';
+
+  @override
+  String settingsTransferFailed(String error) {
+    return 'Not done: $error';
+  }
 }

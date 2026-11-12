@@ -17,6 +17,7 @@ import '../../theme/workbench_theme.dart' show themeColors;
 import '../../workspace/quit_confirmation.dart';
 import '../../workspace/window_controls.dart';
 import '../data_dir_service.dart';
+import 'settings_transfer_group.dart';
 import 'settings_widgets.dart';
 
 /// Settings → Data Folder: where the app keeps the user's settings and its
@@ -373,6 +374,7 @@ class _DataDirectoryPageState extends State<DataDirectoryPage> {
             ),
           ],
         ),
+        const SettingsTransferGroup(),
         SettingsGroup(
           title: l10n.checkpointsTitle,
           description: l10n.checkpointsDescription,

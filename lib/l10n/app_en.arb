@@ -8867,5 +8867,22 @@
   "generalSettingsRewindFilesDescription": "When you edit an earlier message and send it again, what happens to the files the agent changed after it. Commands' (Bash) changes are not tracked. Claude Code and BaoCode agent only.",
   "generalSettingsRewindAsk": "Ask Each Time",
   "generalSettingsRewindRevert": "Undo the Changes",
-  "generalSettingsRewindKeep": "Keep the Changes"
+  "generalSettingsRewindKeep": "Keep the Changes",
+  "settingsTransferTitle": "Move to Another Computer",
+  "settingsTransferDescription": "Your settings, keybindings and upstreams with their models, in one file to import on the other computer.",
+  "settingsTransferLabel": "Settings file",
+  "settingsTransferExport": "Export…",
+  "settingsTransferImport": "Import…",
+  "settingsTransferExportQuestion": "Export your settings?",
+  "settingsTransferExportDetail": "Settings, keybindings and upstreams go into the file. The upstreams' API keys only if you tick the box below: they are then in the file as plain text, so keep it to yourself and delete it once imported.",
+  "settingsTransferWithKeys": "Include the upstreams' API keys",
+  "settingsTransferExported": "Exported to {path}",
+  "@settingsTransferExported": {"placeholders": {"path": {"type": "String"}}},
+  "settingsTransferImportQuestion": "Import the settings in {file}?",
+  "@settingsTransferImportQuestion": {"placeholders": {"file": {"type": "String"}}},
+  "settingsTransferImportDetail": "Its settings, keybindings and upstreams replace yours; settings it does not have stay as they are.",
+  "settingsTransferImported": "Imported. Some settings take effect once BaoCode restarts.",
+  "settingsTransferNotAFile": "This is not a settings file BaoCode exported.",
+  "settingsTransferFailed": "Not done: {error}",
+  "@settingsTransferFailed": {"placeholders": {"error": {"type": "String"}}}
 }
