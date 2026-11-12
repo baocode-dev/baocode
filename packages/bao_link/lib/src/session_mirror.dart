@@ -171,9 +171,10 @@ class LinkSessionMirror {
     }
     _kept.remove(session);
     // Its own copy: the update's goes to the app as it is.
-    _sessions[session] = _Mirrored([...all], {
-      for (final key in LinkSessionWire.rest) key: update[key],
-    });
+    _sessions[session] = _Mirrored(
+      [...all],
+      {for (final key in LinkSessionWire.rest) key: update[key]},
+    );
     return {...update, 'start': 0, 'items': all};
   }
 
