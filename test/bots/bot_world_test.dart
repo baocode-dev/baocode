@@ -186,30 +186,19 @@ void main() {
     },
   );
 
-  test('one moved to write first: by day, if it may, not past the day\'s '
-      'count', () async {
-    world.answered('<reach who="Leo" after="0s">x</reach>');
-    for (var i = 0; i < 4; i++) {
-      world.answered('<reach who="Mia" after="0s">答应三点汇报</reach>');
-    }
-    await wait(20);
-    // Leo may not write first; Mia so many times a day.
-    expect(
-      [for (final (who, _) in reached) who],
-      [for (var i = 0; i < BotWorld.reachesADay; i++) 'Mia'],
-    );
-    expect(reached.first.$2, contains('答应三点汇报'));
-    // At night, no one.
-    reached.clear();
+  test('one moved to write first: if it may, at any hour', () async {
     now = DateTime(2026, 11, 13, 23, 30);
-    world.answered('<reach who="Mia" after="0s">想他了</reach>');
+    world.answered('<reach who="Leo" after="0s">x</reach>');
+    world.answered('<reach who="Mia" after="0s">答应三点汇报</reach>');
     await wait(20);
-    expect(reached, isEmpty);
+    // Leo turned off; Mia, at night too.
+    expect([for (final (who, _) in reached) who], ['Mia']);
+    expect(reached.first.$2, contains('答应三点汇报'));
   });
 
   test('asked in a group to write in private, a bot sends it itself: '
-      'even one not let write first, at night too, while the user spoke '
-      'lately; else it is told why not', () async {
+      'even one not let write first, while the user spoke lately; else it '
+      'is told why not', () async {
     Future<Map> send(Bot bot, String to, String text) async =>
         (await ClaudeSdkTools.handle({
               'jsonrpc': '2.0',
