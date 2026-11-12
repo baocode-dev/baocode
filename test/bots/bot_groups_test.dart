@@ -136,15 +136,16 @@ void main() {
     final note = told.single.$2;
     expect(note, contains('Now: 2026-11-12 14:00:00.'));
     expect(note, contains('## #1 · 用户 · 2026-11-12 14:00:00 · new\n你好'));
-    expect(note, contains('It is your turn: 用户 called on you (@).'));
-    expect(note, contains('It may be passed 8 more times.'));
+    expect(note, contains('Why you are told now: 用户 called on you (@).'));
+    expect(note, contains('In it: you (Leo), 用户 (the user), Mia, Ann.'));
     expect(note, contains('<bot_next>name</bot_next>'));
+    expect(note, contains('No <bot_next> means the conversation stops'));
     groups.turnEnded(group.id, leo.id, '<bot_say>好</bot_say>');
     expect(holder(group), isNull);
     now = now.add(const Duration(minutes: 5));
     groups.send(group.id, text: '在吗');
     expect(toldNames(), ['Leo', 'Leo']);
-    expect(told.last.$2, contains('you spoke last here'));
+    expect(told.last.$2, contains('you were the last to speak here'));
     expect(
       told.last.$2,
       contains('You last looked at it: 2026-11-12 14:00:00.'),
@@ -155,7 +156,7 @@ void main() {
     final fresh = groups.save(name: 'h', members: [mia.id, ann.id]);
     groups.send(fresh.id, text: '大家好');
     expect([mia.id, ann.id], contains(holder(fresh)));
-    expect(told.last.$2, contains('you were picked to start'));
+    expect(told.last.$2, contains('no one here has yet: you start'));
   });
 
   test(
@@ -175,22 +176,48 @@ void main() {
       }
       // The user's, then eight passes.
       expect(turns, 9);
-      expect(told[1].$2, contains('It is your turn: Mia passed it to you.'));
-      expect(told[1].$2, contains('It may be passed 7 more times.'));
-      expect(told.last.$2, contains('It may not be passed on'));
-      expect(told.last.$2, isNot(contains('<bot_next>')));
+      expect(
+        told[1].$2,
+        contains('Why you are told now: Mia handed the conversation to you.'),
+      );
+      expect(told.last.$2, contains('Hand it to no one now'));
+      expect(told.last.$2, isNot(contains('<bot_next>name')));
     },
   );
 
-  test('passed to no one, to one not there, or to itself: it stops', () {
+  test('passed to no one, to the user, or to itself: it stops', () {
     final group = groups.save(name: 'g', members: [mia.id, leo.id]);
-    for (final next in [null, 'Nobody', 'Mia']) {
+    for (final next in [null, '用户', 'Mia', ' ']) {
       told.clear();
       groups.send(group.id, text: '@Mia 嗯');
       groups.turnEnded(group.id, mia.id, '', next: next);
       expect(holder(group), isNull);
       expect(toldNames(), ['Mia']);
     }
+  });
+
+  test('passed by a name without what is in brackets, or by its start: '
+      'to them; to one not there: back, told who is', () {
+    final bo = bots.save(name: '小包（私人助理）', identity: '', abilities: {});
+    final group = groups.save(name: 'g', members: [mia.id, leo.id, bo.id]);
+    groups.send(group.id, text: '@Mia 嗯');
+    groups.turnEnded(group.id, mia.id, '<bot_say>好</bot_say>', next: '@小包');
+    expect(holder(group), bo.id);
+    groups.turnEnded(group.id, bo.id, '<bot_say>在</bot_say>', next: 'Le');
+    expect(holder(group), leo.id);
+    groups.turnEnded(group.id, leo.id, '<bot_say>嗯</bot_say>', next: '苏九娘');
+    expect(holder(group), leo.id);
+    expect(
+      told.last.$2,
+      contains(
+        'Why you are told now: you wrote <bot_next>苏九娘</bot_next>, but '
+        'there is no 苏九娘 in this group, so it reached no one.',
+      ),
+    );
+    expect(told.last.$2, contains('Hand it to one of Mia, 小包（私人助理）'));
+    groups.turnEnded(group.id, leo.id, '');
+    expect(holder(group), isNull);
+    expect(groups.relay(group.id).left, BotGroups.passes - 3);
   });
 
   test('one that cannot take it, busy elsewhere or its turn failed: '
@@ -205,8 +232,8 @@ void main() {
     expect(
       told.last.$2,
       contains(
-        'It is your turn: Mia passed it to Leo, but Leo is busy in "别处"; '
-        'so it is yours. It may be passed 6 more times.',
+        'Why you are told now: Mia passed it to Leo, but Leo is busy in '
+        '"别处"; so it is yours.',
       ),
     );
     groups.turnEnded(group.id, ann.id, '', failed: true);
@@ -291,12 +318,8 @@ void main() {
     groups.send(group.id, text: '@Mia 晚上吃啥');
     await wait(20);
     final note = told.single.$2;
-    expect(
-      note,
-      startsWith(
-        '[group ${group.id}] The group chat "江湖": you, 用户 (the user), Leo.',
-      ),
-    );
+    expect(note, startsWith('[group ${group.id}] The group chat "江湖".'));
+    expect(note, contains('In it: you (Mia), 用户 (the user), Leo.'));
     expect(note, contains('## #1 · 用户 · 2026-11-12 14:00:00 · new\n@Mia 晚上吃啥'));
     expect(note, contains(groups.chatFile(group.id)));
     expect(

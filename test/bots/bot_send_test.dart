@@ -100,7 +100,7 @@ void main() {
       'is told why not', () async {
     final group = groups.save(name: '江湖', members: [mia.id, leo.id]);
     now = DateTime(2026, 11, 12, 23, 40);
-    groups.send(group.id, text: '你们每个人私发我一条消息');
+    groups.send(group.id, text: '@Leo 你们每个人私发我一条消息');
     await wait(60);
     expect(groups.answering(leo.id), group.id);
     final sent = await call(leo.folder, 'bot_send', {

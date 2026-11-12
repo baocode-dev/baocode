@@ -811,6 +811,7 @@ class BotGroups extends ChangeNotifier {
     final note = botGroupTurn(
       group: found,
       chat: chatFile(group),
+      me: bot.name,
       members: [
         for (final id in found.members)
           if (id != member) ?bots.byId(id)?.name,
@@ -836,10 +837,12 @@ class BotGroups extends ChangeNotifier {
       longest: longest,
       by: switch (room.by) {
         _By.called => '$user called on you (@)',
-        _By.last => 'you spoke last here',
-        _By.picked => 'no one spoke here yet; you were picked to start',
-        _By.passed => '${_nameOf(room.from ?? '', found)} passed it to you',
+        _By.last => '$user spoke, and you were the last to speak here',
+        _By.picked => '$user spoke, and no one here has yet: you start',
+        _By.passed =>
+          '${_nameOf(room.from ?? '', found)} handed the conversation to you',
         _By.instead => '${room.instead}; so it is yours',
+        _By.missed => room.instead,
       },
       left: room.left,
     );
@@ -984,12 +987,15 @@ class BotGroups extends ChangeNotifier {
       _instead(found, member, 'ran into an error');
     } else if (room.holder == member) {
       room.holder = null;
-      final to = next == null
-          ? null
-          : [
-              for (final id in found.members)
-                if (id != member && bots.byId(id)?.name == next.trim()) id,
-            ].firstOrNull;
+      final named = next?.trim().replaceFirst(RegExp('^@'), '') ?? '';
+      final to = named.isEmpty ? null : _memberNamed(found, member, named);
+      // Whom it named not there (not the user, nor itself): it picks
+      // again, told who is.
+      final missed =
+          to == null &&
+          named.isNotEmpty &&
+          !_sameName(named, _nameOf(linkGroupUser)) &&
+          !_sameName(named, _nameOf(member, found));
       if (room.again) {
         room.again = false;
         final said = (_messages[group] ?? const <LinkGroupMessage>[]).lastWhere(
@@ -1000,11 +1006,54 @@ class BotGroups extends ChangeNotifier {
       } else if (to != null && room.left > 0) {
         room.left -= 1;
         _give(found, to, by: _By.passed, from: member);
+      } else if (missed && room.left > 0) {
+        room.left -= 1;
+        final others = [
+          for (final id in found.members)
+            if (id != member) _nameOf(id, found),
+        ];
+        room.instead =
+            'you wrote <${ChatCodec.botNextTag}>$named</${ChatCodec.botNextTag}>, '
+            'but there is no $named in this group, so it reached no one. '
+            'You have spoken already: say nothing more unless you want to. '
+            'Hand it to one of ${others.join(', ')} if they should answer '
+            'now, or to no one';
+        _give(found, member, by: _By.missed, from: member);
       }
     }
     notifyListeners();
     _caughtUp(member);
   }
+
+  /// The member of [group] other than [member] that [name] names: by its
+  /// name; else by it without what is in brackets ("小包" for "小包（私人
+  /// 助理）"), or as the start of one name only.
+  String? _memberNamed(BotGroup group, String member, String name) {
+    final others = [
+      for (final id in group.members)
+        if (id != member) (id: id, name: _nameOf(id, group)),
+    ];
+    for (final other in others) {
+      if (other.name == name) return other.id;
+    }
+    final bare = [
+      for (final other in others)
+        if (_sameName(other.name, name)) other.id,
+    ];
+    if (bare.length == 1) return bare.single;
+    final starting = [
+      for (final other in others)
+        if (other.name.startsWith(name) || name.startsWith(other.name))
+          other.id,
+    ];
+    return starting.length == 1 ? starting.single : null;
+  }
+
+  /// Whether [a] and [b] are one name, what is in brackets aside.
+  static bool _sameName(String a, String b) => _bare(a) == _bare(b);
+
+  static String _bare(String name) =>
+      name.replaceAll(RegExp(r'[（(][^）)]*[）)]'), '').trim();
 
   static final _none = LinkGroupMessage(
     seq: 0,
@@ -1043,7 +1092,16 @@ class BotGroups extends ChangeNotifier {
 }
 
 /// How one came to have a group's conversation.
-enum _By { called, last, picked, passed, instead }
+enum _By {
+  called,
+  last,
+  picked,
+  passed,
+  instead,
+
+  /// Its own again: whom it named is not in the group ([_Room.instead]).
+  missed,
+}
 
 /// Where a group's conversation is: who has it, and what each was told.
 class _Room {
