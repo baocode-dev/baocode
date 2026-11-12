@@ -370,6 +370,7 @@ class WorkspaceBridge {
       model: bots.modelOf(bot),
       assistant: bot.assistant,
       chatOnly: bot.chatOnly,
+      writesFirst: bot.writesFirst,
       session: session,
       status: bots.typing(bot) ? BotStatus.typing : BotStatus.idle,
       unread: bots.unread(bot),
@@ -746,6 +747,7 @@ class WorkspaceBridge {
           avatarImage: _avatarImage(params['avatarImage']),
           // Not said (a phone from before): as it was.
           chatOnly: params['chatOnly'] as bool?,
+          writesFirst: params['writesFirst'] as bool?,
         );
         return {'bot': _linkBot(bots, saved).toJson()};
       case LinkMethods.botAvatar:

@@ -85,6 +85,7 @@ class LinkBot {
     this.last,
     this.updatedAt,
     this.chatOnly = false,
+    this.writesFirst = true,
     this.notices = const [],
   });
 
@@ -115,6 +116,7 @@ class LinkBot {
       _ => null,
     },
     chatOnly: json['chatOnly'] == true,
+    writesFirst: json['writesFirst'] != false,
     notices: [
       for (final notice in (json['notices'] as List?) ?? const [])
         if (notice is Map<String, Object?>) LinkBotNotice.fromJson(notice),
@@ -157,6 +159,9 @@ class LinkBot {
   /// web's and its own only). Else it has all an agent has.
   final bool chatOnly;
 
+  /// Whether it may write to the user first (a desktop before it: yes).
+  final bool writesFirst;
+
   /// Its conversation's id ([SessionSummary.id]'s kind).
   final String? session;
   final BotStatus status;
@@ -190,6 +195,7 @@ class LinkBot {
     'model': ?model,
     if (assistant) 'assistant': true,
     if (chatOnly) 'chatOnly': true,
+    if (!writesFirst) 'writesFirst': false,
     'session': ?session,
     'status': status.name,
     if (unread > 0) 'unread': unread,

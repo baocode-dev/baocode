@@ -453,13 +453,13 @@ class BotWorld {
   static const askedWithin = Duration(minutes: 10);
 
   /// Why [bot] may not write first to the user at [at] (now): not let
-  /// ([BotAbility.proactive]), at night, past [reachesADay] times today;
-  /// none when it may.
+  /// ([Bot.writesFirst]), at night, past [reachesADay] times today; none
+  /// when it may.
   String? refusesFirst(Bot bot, {DateTime? at}) {
     at ??= bots.now;
-    if (!bot.can(BotAbility.proactive)) {
-      return 'the user has not let you write to them first (in your '
-          'profile, it is off)';
+    if (!bot.writesFirst) {
+      return 'the user turned off your writing to them first (in your '
+          'profile)';
     }
     if (at.hour >= nightFrom || at.hour < nightTo) {
       return 'it is night ($worldNight): no one writes first to the user '
