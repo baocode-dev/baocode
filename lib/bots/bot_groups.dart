@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
-import 'package:bao_link/bao_link.dart' show LinkGroupMessage, linkGroupUser;
+import 'package:bao_link/bao_link.dart'
+    show LinkGroup, LinkGroupMessage, linkGroupUser;
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
@@ -24,36 +26,50 @@ import 'bots.dart';
 /// hears and says in each, its timeline keeps ([BotLife]); and the world
 /// they share is the bots' WORLD.md.
 ///
-/// Who is told when, as people in a group chat go:
-/// - What the user says is taken up once they stop for [quiet]: what they
-///   say together is one.
-/// - The bots are told one after another, [stagger] apart: those called
-///   on (@name) first, then those named, the one the user answered, the
-///   quietest. Each sees what those before it said, and mostly need not
-///   say more.
-/// - A reply is sent once the bot is done, as it is: if others spoke
-///   meanwhile, they crossed, as messages do in any chat.
-/// - Each thing the user says lets the bots say [budget] things at most
-///   before it is theirs again: what a bot says tells the others, while
-///   there is some left.
-/// - One that kept quiet [lurk] times running is told every third time,
-///   unless called on, till it speaks.
+/// Who is told when, as people in a group chat go, by how much each of
+/// its bots attends to it ([attention]): from 0 to 1, fading by half each
+/// [halfLife], with what it came of. No one decides it: it is worked out
+/// of what happens, as it happens.
+/// - Each message pulls those who did not say it, as warm as it is: the
+///   user's 1; a bot's its group's [BotGroup.lively] times the warmest of
+///   what it answered. Their attention comes up to that, less for one that
+///   kept quiet (by half for each time running), or overheard (the user
+///   called on others).
+/// - Pulled, one looks at the group in a while ([glance] at full
+///   attention; [glanceSpan] times longer at none), and reads all that is
+///   new since; called on (@), at once. At work, here or elsewhere: once
+///   it is done.
+/// - What is too faint ([faint]) pulls no one: it is read when one next
+///   looks. So bots answering bots fade out, in a livelier group later.
 class BotGroups extends ChangeNotifier {
   BotGroups(
     this.bots, {
-    this.quiet = const Duration(seconds: 2),
-    this.stagger = const Duration(seconds: 3),
-    this.budget = 4,
-    this.lurk = 3,
-  });
+    this.glance = const Duration(seconds: 2),
+    this.glanceSpan = 900,
+    this.halfLife = const Duration(minutes: 3),
+    this.faint = 0.1,
+    Random? random,
+  }) : random = random ?? Random();
 
   final Bots bots;
 
-  /// As the class says; shorter under test.
-  Duration quiet;
-  Duration stagger;
-  int budget;
-  int lurk;
+  /// As the class says; other under test.
+  Duration glance;
+  double glanceSpan;
+  Duration halfLife;
+  double faint;
+
+  /// How long one looks after, about: from half to one and a half of it;
+  /// as worked out, without one.
+  Random? random;
+
+  /// How lively a group is at first, and the most and least it may be.
+  static const livelyAtFirst = 0.6;
+  static const livelyLeast = LinkGroup.livelyLeast;
+  static const livelyMost = LinkGroup.livelyMost;
+
+  /// How much what the user said to others pulls the rest.
+  static const overheard = 0.5;
 
   Workspace get _workspace => bots.workspace;
 
@@ -64,7 +80,7 @@ class BotGroups extends ChangeNotifier {
   List<BotGroup> get groups => List.unmodifiable(_groups);
 
   final Map<String, List<LinkGroupMessage>> _messages = {};
-  final Map<String, _Round> _rounds = {};
+  final Map<String, _Room> _rooms = {};
 
   /// The last of each group's messages the user has seen, by its id.
   final Map<String, int> _seen = {};
@@ -89,12 +105,6 @@ class BotGroups extends ChangeNotifier {
     r'每个人|每一个人|所有人|你们每|everyone|every one of you|all of you',
     caseSensitive: false,
   );
-
-  /// How many of each group's messages the world was told of.
-  final Map<String, int> _worldTold = {};
-
-  /// The most of a group's messages the world is told of at first.
-  static const _worldFirst = 8;
 
   bool _started = false;
   bool _disposed = false;
@@ -134,10 +144,10 @@ class BotGroups extends ChangeNotifier {
           if (line.trim().isNotEmpty)
             LinkGroupMessage.fromJson(jsonDecode(line) as Map<String, Object?>),
       ];
-      final round = _round(group.id);
+      final room = _room(group.id);
       // What came before this run, theirs to read: not told again.
       for (final member in group.members) {
-        round.told[member] = messages.length;
+        room.told[member] = messages.length;
       }
       _seen[group.id] = messages.lastOrNull?.seq ?? 0;
     }
@@ -155,8 +165,8 @@ class BotGroups extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     if (_started) bots.removeListener(_botsChanged);
-    for (final round in _rounds.values) {
-      round.cancel();
+    for (final room in _rooms.values) {
+      room.cancel();
     }
     for (final MapEntry(key: session, value: listener) in _followed.entries) {
       session.removeListener(listener);
@@ -293,10 +303,10 @@ class BotGroups extends ChangeNotifier {
         _leave(group.id, gone);
       }
     }
-    final round = _round(group.id);
+    final room = _room(group.id);
     final count = _messages[group.id]!.length;
     for (final member in kept) {
-      round.told.putIfAbsent(member, () => count);
+      room.told.putIfAbsent(member, () => count);
     }
     _saveGroups();
     _saveMessages(group);
@@ -321,7 +331,7 @@ class BotGroups extends ChangeNotifier {
     for (final member in group.members) {
       _leave(id, member);
     }
-    _rounds.remove(id)?.cancel();
+    _rooms.remove(id)?.cancel();
     _groups.removeWhere((g) => g.id == id);
     _messages.remove(id);
     _seen.remove(id);
@@ -333,7 +343,7 @@ class BotGroups extends ChangeNotifier {
 
   /// [member] out of [group]: not told of it any more.
   void _leave(String group, String member) {
-    _rounds[group]?.forget(member);
+    _rooms[group]?.forget(member);
     if (_answering[member] == group) _answering.remove(member);
     final bot = bots.byId(member);
     if (bot != null) _dropOld(bot, group);
@@ -386,7 +396,7 @@ class BotGroups extends ChangeNotifier {
         (member, id) => id == group.id && !kept.contains(member),
       );
       for (final gone in group.members.where((m) => !kept.contains(m))) {
-        _rounds[group.id]?.forget(gone);
+        _rooms[group.id]?.forget(gone);
       }
       changed = true;
     }
@@ -529,15 +539,13 @@ class BotGroups extends ChangeNotifier {
       ],
     );
     if (text == _world) return;
-    // Changed this run: the world told to read it again.
-    if (_world != null) bots.world.worldChanged();
     _world = text;
     _write(p.join(root, BotLife.world), text);
   }
 
-  // --- What is said, and who is told -----------------------------------
+  // --- What is said ------------------------------------------------------
 
-  _Round _round(String group) => _rounds[group] ??= _Round();
+  _Room _room(String group) => _rooms[group] ??= _Room();
 
   /// The user's [text] (and [images], as files' bytes) to [group]: its
   /// number.
@@ -550,29 +558,17 @@ class BotGroups extends ChangeNotifier {
     if (found == null) throw StateError('No group $group');
     final seq = _nextSeq(group);
     final names = _keepImages(group, seq, images);
-    _add(
-      found,
-      LinkGroupMessage(
-        seq: seq,
-        at: bots.now,
-        from: linkGroupUser,
-        text: text.trim(),
-        images: names,
-      ),
+    final message = LinkGroupMessage(
+      seq: seq,
+      at: bots.now,
+      from: linkGroupUser,
+      text: text.trim(),
+      images: names,
     );
+    _add(found, message);
     _seen[group] = seq;
-    final round = _round(group)
-      ..left = budget
-      ..number += 1
-      ..cancelWaking()
-      ..asked.write('\n$text');
-    round.quiet?.cancel();
-    round.quiet = Timer(quiet, () {
-      round.quiet = null;
-      final asked = round.asked.toString();
-      round.asked.clear();
-      _plan(found.id, said: asked, by: linkGroupUser, after: Duration.zero);
-    });
+    bots.heardUser();
+    _pull(found, message, 1);
     return seq;
   }
 
@@ -659,223 +655,153 @@ class BotGroups extends ChangeNotifier {
     }
   }
 
-  /// Who in [group] is told of what [by] [said], and when: the world's to
-  /// say, while there is one ([BotWorld]), but for those the user called
-  /// on, told at once; its own rules if it says nothing in time.
-  void _plan(
-    String group, {
-    required String said,
-    required String by,
-    required Duration after,
-  }) {
-    final found = byId(group);
-    if (found == null) return;
-    final round = _round(group);
-    if (round.left <= 0) return;
-    final world = bots.world;
-    if (by == linkGroupUser) world.heardUser();
-    if (!world.on) return _planByRules(group, said: said, by: by, after: after);
-    if (by == linkGroupUser) {
-      // Asked of everyone: each told, one after another, as if called on;
-      // the group's answers enough for all.
-      final everyone = rollCall.hasMatch(said);
-      if (everyone && round.left < found.members.length) {
-        round.left = found.members.length;
-      }
-      var next = after;
-      for (final id in found.members) {
-        final bot = bots.byId(id);
-        if (bot == null) continue;
-        final named = said.contains('@${bot.name}');
-        if (!named && !everyone) continue;
-        if (named) round.called.add(id);
-        wakeFor(
-          group,
-          id,
-          after: next,
-          why: named
-              ? '${_nameOf(by)} called on you'
-              : '${_nameOf(by)} asked everyone',
-        );
-        if (everyone) next += stagger;
-      }
-    }
-    final messages = _messages[group] ?? const <LinkGroupMessage>[];
-    // What is new to it since it was last told of the group, this run (the
-    // latest few the first time): where it is in the chat's file, the
-    // user's words themselves.
-    final from = (_worldTold[group] ?? messages.length - _worldFirst).clamp(
-      0,
-      messages.length,
-    );
-    _worldTold[group] = messages.length;
-    final news = messages.skip(from).toList();
-    if (news.isNotEmpty) {
-      final chat = _chat(found);
-      final end = chat.lines[news.last.seq + 1] ?? chat.text.split('\n').length;
-      final user = by == linkGroupUser;
-      world.ask(
-        group,
-        said: user ? said.trim() : null,
-        line:
-            '- In "${found.name}" (group $group; its chat: ${chatFile(group)}, '
-            'lines ${chat.lines[news.first.seq] ?? 1}–${end - 1}): '
-            '${[for (final message in news) '#${message.seq} ${_nameOf(message.from, found)}'
-                  '${user && message.mine ? ' (the words above)' : ''}'].join(', ')}.',
-      );
-    }
-    round.fallback?.cancel();
-    round.fallback = Timer(world.waitFor, () {
-      round.fallback = null;
-      _planByRules(group, said: said, by: by, after: Duration.zero);
-    });
+  // --- Attention ------------------------------------------------------------
+
+  /// How lively [group] is: how warm what a bot says is of what it answers.
+  void setLively(String group, double lively) {
+    final at = _groups.indexWhere((g) => g.id == group);
+    if (at < 0) throw StateError('No group $group');
+    lively = lively.clamp(livelyLeast, livelyMost).toDouble();
+    if (_groups[at].lively == lively) return;
+    _groups[at] = _groups[at].copyWith(lively: lively);
+    _saveGroups();
+    notifyListeners();
   }
 
-  /// The world said what became of [groups]: their own rules not needed.
-  void decided(Set<String> groups) {
-    for (final group in groups) {
-      final round = _rounds[group];
-      round?.fallback?.cancel();
-      round?.fallback = null;
-    }
+  /// How much each of [group]'s bots attends to it, as of [BotAttention.at]
+  /// ([BotAttention.now] for now); when it looks next, if it will.
+  List<BotAttention> attention(String group) {
+    final found = byId(group);
+    final room = _rooms[group];
+    if (found == null) return const [];
+    return [
+      for (final member in found.members)
+        if (bots.byId(member) != null)
+          (room?.attention[member] ??
+                  BotAttention(member: member, value: 0, at: bots.now))
+              .copyWith(glance: room?.glances[member]?.at),
+    ];
   }
 
-  /// [member] of [group] told of what is new there [after] from now, as
-  /// the world has it, for [why]: when it will be, or when it was to be
-  /// [already]. Not while the group may hear no more from the bots
-  /// ([StateError], saying why).
-  ({DateTime at, bool already}) wakeFor(
-    String group,
-    String member, {
-    Duration after = Duration.zero,
-    String why = '',
-  }) {
-    final found = byId(group);
-    if (found == null) throw StateError('No group $group.');
-    if (!found.members.contains(member)) {
-      throw StateError('${_nameOf(member)} is not in "${found.name}".');
-    }
-    final round = _round(group);
-    if (round.waking[member] case final waking?) {
-      return (at: waking.at, already: true);
-    }
-    if (round.left <= 0) {
-      throw StateError(
-        '"${found.name}" has had all its answers to the user\'s last '
-        'message; no one more till they speak again.',
-      );
-    }
-    round.waking[member] = (
-      timer: Timer(after, () {
-        round.waking.remove(member);
-        _wake(group, member, why: why);
-      }),
-      at: bots.now.add(after),
+  /// [member]'s attention to [room]'s group now: faded since.
+  double _attentionOf(_Room room, String member) =>
+      room.attention[member]?.now(bots.now, halfLife) ?? 0;
+
+  /// [member]'s attention up to [value], if it is less now, for [why].
+  void _attend(_Room room, String member, double value, String why) {
+    if (value <= _attentionOf(room, member)) return;
+    room.attention[member] = BotAttention(
+      member: member,
+      value: value,
+      at: bots.now,
       why: why,
     );
-    return (at: round.waking[member]!.at, already: false);
   }
 
-  /// Who in the groups is to be told of what is new there, and when.
-  List<({BotGroup group, String member, DateTime at, String why})>
-  get waiting => [
-    for (final group in _groups)
-      if (_rounds[group.id] case final round?)
-        for (final MapEntry(key: member, :value) in round.waking.entries)
-          (group: group, member: member, at: value.at, why: value.why),
-  ];
+  /// How long one with [attention] takes to look at a group.
+  Duration _glanceAfter(double attention) {
+    final spread = switch (random) {
+      final random? => 0.5 + random.nextDouble(),
+      null => 1.0,
+    };
+    final ms =
+        glance.inMilliseconds *
+        pow(glanceSpan, 1 - attention.clamp(0, 1)) *
+        spread;
+    return Duration(milliseconds: ms.round());
+  }
 
-  /// What the bots may still say in [group] before the user speaks again.
-  int answersLeft(String group) => _rounds[group]?.left ?? 0;
+  /// Whether [text] calls on [member] (@its name).
+  bool _calls(String text, String member) => switch (bots.byId(member)) {
+    final bot? => text.contains('@${bot.name}'),
+    null => false,
+  };
 
-  /// Wakes [group]'s bots one after another, from [after] on, for what
-  /// [by] [said]: not [by], nor one already to be woken. The app's own
-  /// rules, with no world to say.
-  void _planByRules(
-    String group, {
-    required String said,
-    required String by,
-    required Duration after,
-  }) {
-    final found = byId(group);
-    if (found == null) return;
-    final round = _round(group);
-    if (round.left <= 0) return;
-    final members = [
-      for (final id in found.members)
-        if (id != by) ?bots.byId(id),
-    ];
-    bool calls(Bot bot) => said.contains('@${bot.name}');
-    bool names(Bot bot) => said.contains(bot.name);
-    final messages = _messages[group] ?? const <LinkGroupMessage>[];
-    // When each last spoke: the one the user answers, the latest.
-    int spoke(Bot bot) =>
-        messages.lastIndexWhere((message) => message.from == bot.id);
-    final answered = by == linkGroupUser
-        ? messages
-              .lastWhere(
-                (m) => !m.mine,
-                orElse: () => LinkGroupMessage(
-                  seq: 0,
-                  at: DateTime(0),
-                  from: linkGroupUser,
-                ),
-              )
-              .from
-        : null;
-    int rank(Bot bot) => calls(bot)
-        ? 0
-        : names(bot)
-        ? 1
-        : bot.id == answered
-        ? 2
-        : 3;
-    final order = [...members]
-      ..sort((a, b) {
-        final byRank = rank(a).compareTo(rank(b));
-        if (byRank != 0) return byRank;
-        // The quietest first, so all have a say.
-        return spoke(a).compareTo(spoke(b));
-      });
-    var next = 0;
-    for (final bot in order) {
-      final called = calls(bot);
-      if (called) round.called.add(bot.id);
-      if (round.waking.containsKey(bot.id)) continue;
-      // Quiet a while: now and then, unless called on or named.
-      if ((round.passes[bot.id] ?? 0) >= lurk && rank(bot) > 1) {
-        // Of the user's words, every third; of the bots', none.
-        final skipped = round.skipped[bot.id] ?? 0;
-        if (by != linkGroupUser || skipped < 2) {
-          if (by == linkGroupUser) round.skipped[bot.id] = skipped + 1;
-          continue;
+  String _warmth(double warmth) => warmth.toStringAsFixed(2);
+
+  /// [message], said in [group] as [warmth] as it is, pulls those who did
+  /// not say it: each to look at the group in a while, or at once if
+  /// called on; not one it would pull too faintly.
+  void _pull(BotGroup group, LinkGroupMessage message, double warmth) {
+    final room = _room(group.id);
+    room.warmth[message.seq] = warmth;
+    final zh = bots.chinese;
+    final user = message.mine;
+    final who = _nameOf(message.from, group);
+    final words = message.text;
+    final everyone = user && rollCall.hasMatch(words);
+    final called = {
+      for (final member in group.members)
+        if (member != message.from && (everyone || _calls(words, member)))
+          member,
+    };
+    final where = user
+        ? '#${message.seq}'
+        : '#${message.seq}${zh ? '，热度 ' : ', warmth '}${_warmth(warmth)}';
+    for (final member in group.members) {
+      if (member == message.from || bots.byId(member) == null) continue;
+      final call = called.contains(member);
+      var pull = warmth;
+      var why = switch ((call, everyone, user && called.isNotEmpty)) {
+        (true, true, _) =>
+          zh ? '$who叫了所有人（$where）' : '$who asked everyone ($where)',
+        (true, false, _) =>
+          zh ? '被$who @（$where）' : 'called on by $who ($where)',
+        (false, _, true) =>
+          zh
+              ? '旁听：$who @ 了别人（$where）'
+              : 'overheard: $who called on others ($where)',
+        _ => zh ? '$who说话了（$where）' : '$who spoke ($where)',
+      };
+      if (!call) {
+        if (user && called.isNotEmpty) pull *= overheard;
+        final passes = room.passes[member] ?? 0;
+        if (passes > 0) {
+          pull *= pow(0.5, passes);
+          why += zh
+              ? '，连续 $passes 次没说话，被吸引的程度 ×${_warmth(pow(0.5, passes).toDouble())}'
+              : ', quiet $passes times running, pulled ×${_warmth(pow(0.5, passes).toDouble())}';
         }
-        round.skipped.remove(bot.id);
       }
-      final wait = after + stagger * next++;
-      round.waking[bot.id] = (
-        timer: Timer(wait, () {
-          round.waking.remove(bot.id);
-          _wake(group, bot.id);
-        }),
-        at: bots.now.add(wait),
-        why: '',
+      if (pull < faint) continue;
+      if (call) room.called.add(member);
+      _attend(room, member, pull, why);
+      _lookAt(
+        group.id,
+        member,
+        call ? Duration.zero : _glanceAfter(_attentionOf(room, member)),
       );
     }
+    notifyListeners();
   }
 
-  /// [member] told of what is new in [group], if there is, and the group
-  /// may still hear from the bots: later, if it is at work.
-  void _wake(String group, String member, {String why = ''}) {
+  /// [member] to look at [group] [after] from now, unless it will sooner.
+  void _lookAt(String group, String member, Duration after) {
+    final room = _room(group);
+    final at = bots.now.add(after);
+    if (room.glances[member] case final had? when !had.at.isAfter(at)) return;
+    room.glances.remove(member)?.timer.cancel();
+    room.glances[member] = (
+      timer: Timer(after, () {
+        room.glances.remove(member);
+        _wake(group, member);
+        notifyListeners();
+      }),
+      at: at,
+    );
+  }
+
+  /// [member] told of what is new in [group], if there is: later, if it is
+  /// at work.
+  void _wake(String group, String member) {
     final found = byId(group);
     final bot = bots.byId(member);
     if (found == null || bot == null || !found.members.contains(member)) {
       return;
     }
-    final round = _round(group);
-    if (round.left <= 0) return;
+    final room = _room(group);
     final messages = _messages[group] ?? const <LinkGroupMessage>[];
-    final told = (round.told[member] ?? 0).clamp(0, messages.length);
+    final told = (room.told[member] ?? 0).clamp(0, messages.length);
     final unseen = [
       for (final message in messages.skip(told))
         if (message.from != member) message,
@@ -886,18 +812,19 @@ class BotGroups extends ChangeNotifier {
     final other = _answering[member];
     final since = _answeringSince[member];
     if (session != null && (session.isStreaming || !session.canSend) ||
-        other != null &&
-            other != group &&
-            since != null &&
-            bots.now.difference(since) < _lost) {
-      round.dirty.add(member);
+        other != null && since != null && bots.now.difference(since) < _lost) {
+      room.dirty.add(member);
       return;
     }
     final chat = _chat(found);
     final first = unseen.first.seq;
     final last = unseen.last.seq;
     final end = chat.lines[last + 1] ?? chat.text.split('\n').length;
-    round.told[member] = messages.length;
+    room.told[member] = messages.length;
+    // What it answers as warm as the warmest of what it reads.
+    room.drive[member] = unseen
+        .map((message) => room.warmth[message.seq] ?? 0)
+        .fold(0.0, max);
     _answering[member] = group;
     _answeringSince[member] = bots.now;
     final note = botGroupWake(
@@ -919,8 +846,7 @@ class BotGroups extends ChangeNotifier {
           if (id != member) ?bots.byId(id)?.name,
       ],
       user: _nameOf(linkGroupUser),
-      called: round.called.remove(member),
-      why: why,
+      called: room.called.remove(member),
     );
     if (tell case final tell?) return tell(group, member, note);
     session!.send(ComposerMessage(text: botEventMessage(note)));
@@ -959,12 +885,27 @@ class BotGroups extends ChangeNotifier {
       images: _keepImages(group, seq, images),
     );
     _add(found, message);
-    final round = _round(group)
-      ..told[member] = (_messages[group] ?? const []).length
-      ..passes[member] = 0;
-    if (round.left < budget ~/ 2) round.left = budget ~/ 2;
-    _plan(group, said: message.text, by: member, after: stagger ~/ 3);
+    _spoke(found, member, message, found.lively);
     return message;
+  }
+
+  /// [member] said [message] in [group], as warm as [warmth]: it attends
+  /// to it as much, and the others are pulled. What came while it wrote,
+  /// it has not read: a reply may cross another.
+  void _spoke(
+    BotGroup group,
+    String member,
+    LinkGroupMessage message,
+    double warmth,
+  ) {
+    final room = _room(group.id)..passes.remove(member);
+    _attend(
+      room,
+      member,
+      warmth,
+      bots.chinese ? '刚说过话（#${message.seq}）' : 'just spoke (#${message.seq})',
+    );
+    _pull(group, message, warmth);
   }
 
   /// Under test: where what a bot is told goes, in place of its
@@ -973,8 +914,7 @@ class BotGroups extends ChangeNotifier {
   void Function(String group, String member, String note)? tell;
 
   /// [member]'s turn in [group] done: what it said sent to the group, as
-  /// it is; or it kept quiet. Told of what came meanwhile if it is to be
-  /// woken for it.
+  /// it is; or it kept quiet, and attends to it the less.
   @visibleForTesting
   void turnEnded(
     String group,
@@ -984,38 +924,35 @@ class BotGroups extends ChangeNotifier {
   }) {
     final found = byId(group);
     if (found == null || !found.members.contains(member)) return;
-    final round = _round(group);
+    final room = _room(group);
     if (_answering[member] == group) _answering.remove(member);
+    final drive = room.drive.remove(member) ?? 0;
     // With those it sent from files or the web meanwhile.
     images = [...images, ...?_webPictures.remove(member)];
     if (reply.isEmpty && images.isEmpty) {
-      bots.world.note(
-        '- ${_nameOf(member, found)} read "${found.name}" (group $group) '
-        'and kept quiet.',
-      );
-      round.passes[member] = (round.passes[member] ?? 0) + 1;
-      if (round.dirty.remove(member)) _wake(group, member);
-      return;
-    }
-    round
-      ..passes[member] = 0
-      ..left -= 1;
-    final seq = _nextSeq(group);
-    _add(
-      found,
-      LinkGroupMessage(
-        seq: seq,
+      final passes = room.passes[member] = (room.passes[member] ?? 0) + 1;
+      room.attention[member] = BotAttention(
+        member: member,
+        value: _attentionOf(room, member) / 2,
         at: bots.now,
-        from: member,
-        text: reply,
-        images: _keepImages(group, seq, images),
-      ),
-    );
-    if (round.left <= 0) {
-      round.cancelWaking();
-      return;
+        why: bots.chinese
+            ? '看了没说话（连续 $passes 次）'
+            : 'read it and kept quiet ($passes times running)',
+      );
+      notifyListeners();
+      return _caughtUp(member);
     }
-    _plan(group, said: reply, by: member, after: stagger ~/ 3);
+    final seq = _nextSeq(group);
+    final message = LinkGroupMessage(
+      seq: seq,
+      at: bots.now,
+      from: member,
+      text: reply,
+      images: _keepImages(group, seq, images),
+    );
+    _add(found, message);
+    _spoke(found, member, message, found.lively * drive);
+    _caughtUp(member);
   }
 
   /// [member]'s turn done: its reply to the group it was told of, if it
@@ -1033,68 +970,95 @@ class BotGroups extends ChangeNotifier {
         images: picturesTo(items, group),
       );
     }
+    _caughtUp(member);
+  }
+
+  /// [member] free: told of a group that went on while it was at work.
+  void _caughtUp(String member) {
     for (final group in [..._groups]) {
       if (_answering.containsKey(member)) return;
-      if (_rounds[group.id]?.dirty.remove(member) ?? false) {
+      if (_rooms[group.id]?.dirty.remove(member) ?? false) {
         _wake(group.id, member);
       }
     }
   }
 }
 
-/// Where a group is at, since the user last spoke.
-class _Round {
-  /// What the bots may still say before the user speaks again.
-  int left = 0;
+/// How much [member] attends to a group: [value] as of [at], fading by
+/// half each [BotGroups.halfLife]; [why], what it came of; when it looks at
+/// the group next ([glance]), if it will.
+class BotAttention {
+  const BotAttention({
+    required this.member,
+    required this.value,
+    required this.at,
+    this.why = '',
+    this.glance,
+  });
 
-  /// How many times the user spoke, this run.
-  int number = 0;
+  final String member;
+  final double value;
+  final DateTime at;
+  final String why;
+  final DateTime? glance;
 
-  /// The user's words while they still write ([BotGroups.quiet]).
-  final asked = StringBuffer();
-  Timer? quiet;
+  /// As of [time]: faded since [at].
+  double now(DateTime time, Duration halfLife) {
+    final since = time.difference(at).inMilliseconds;
+    if (since <= 0 || halfLife <= Duration.zero) return value;
+    return value * pow(0.5, since / halfLife.inMilliseconds);
+  }
 
-  /// The bots to be woken, each when, and why.
-  final Map<String, ({Timer timer, DateTime at, String why})> waking = {};
+  BotAttention copyWith({DateTime? glance}) => BotAttention(
+    member: member,
+    value: value,
+    at: at,
+    why: why,
+    glance: glance,
+  );
+}
 
+/// Where a group is at: what its bots were told, and how much they attend
+/// to it.
+class _Room {
   /// How many of the messages each bot was told of.
   final Map<String, int> told = {};
+
+  /// How much each attends to the group, and why.
+  final Map<String, BotAttention> attention = {};
 
   /// How many times running each kept quiet.
   final Map<String, int> passes = {};
 
-  /// Of those quiet a while, how many times running the user spoke and
-  /// they were let be.
-  final Map<String, int> skipped = {};
+  /// When each is to look at the group.
+  final Map<String, ({Timer timer, DateTime at})> glances = {};
 
-  /// Those with something new while at work: woken again after.
+  /// Those with something new while at work: told once done.
   final Set<String> dirty = {};
 
   /// Those called on (@), till they are told.
   final Set<String> called = {};
 
-  /// The app's own rules, if the world says nothing of it in time.
-  Timer? fallback;
+  /// How warm each message of this run was, by its number.
+  final Map<int, double> warmth = {};
 
-  void cancelWaking() {
-    for (final waking in waking.values) {
-      waking.timer.cancel();
-    }
-    waking.clear();
-  }
+  /// How warm what each answers now was: the warmest it read.
+  final Map<String, double> drive = {};
 
   void cancel() {
-    cancelWaking();
-    quiet?.cancel();
-    fallback?.cancel();
+    for (final glance in glances.values) {
+      glance.timer.cancel();
+    }
+    glances.clear();
   }
 
   void forget(String member) {
-    waking.remove(member)?.timer.cancel();
+    glances.remove(member)?.timer.cancel();
     told.remove(member);
+    attention.remove(member);
     passes.remove(member);
-    skipped.remove(member);
     dirty.remove(member);
     called.remove(member);
+    drive.remove(member);
   }
 }

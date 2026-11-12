@@ -1,5 +1,6 @@
 import '../link/chat_codec.dart';
 import 'bot.dart';
+import 'bot_groups.dart';
 
 /// A group chat of the user and some of their bots: its [members] by
 /// their ids, as they joined; [names], the names they had in it, those
@@ -11,6 +12,7 @@ class BotGroup {
     required this.members,
     this.created,
     this.names = const {},
+    this.lively = BotGroups.livelyAtFirst,
   });
 
   factory BotGroup.fromJson(Map<String, Object?> json) => BotGroup(
@@ -29,6 +31,7 @@ class BotGroup {
         for (final MapEntry(:key, :value) in names.entries)
           if (value is String) key: value,
     },
+    lively: (json['lively'] as num?)?.toDouble() ?? BotGroups.livelyAtFirst,
   );
 
   final String id;
@@ -37,16 +40,22 @@ class BotGroup {
   final DateTime? created;
   final Map<String, String> names;
 
+  /// How warm what its bots say is of what they answer ([BotGroups]): the
+  /// livelier, the longer they go on among themselves.
+  final double lively;
+
   BotGroup copyWith({
     String? name,
     List<String>? members,
     Map<String, String>? names,
+    double? lively,
   }) => BotGroup(
     id: id,
     name: name ?? this.name,
     members: members ?? this.members,
     created: created,
     names: names ?? this.names,
+    lively: lively ?? this.lively,
   );
 
   Map<String, Object?> toJson() => {
@@ -55,6 +64,7 @@ class BotGroup {
     'members': members,
     'created': ?created?.millisecondsSinceEpoch,
     if (names.isNotEmpty) 'names': names,
+    if (lively != BotGroups.livelyAtFirst) 'lively': lively,
   };
 }
 
@@ -69,8 +79,7 @@ const botGroupToldMost = 4000;
 /// What the app tells [group]'s bot of messages it has not seen: [from] to
 /// [to], the lines of [chat] they are at ([lines]), and themselves
 /// ([messages]); who else is in it ([members], [user]); whether it was
-/// called on ([called]). [why] it is told now, as the world has it. Its
-/// first line says the group's ([ChatCodec.botGroupOf]).
+/// called on ([called]). Its first line says the group's ([ChatCodec.botGroupOf]).
 String botGroupWake({
   required BotGroup group,
   required String chat,
@@ -81,7 +90,6 @@ String botGroupWake({
   required List<String> members,
   required String user,
   bool called = false,
-  String why = '',
 }) {
   final count = to - from + 1;
   final which = count == 1 ? 'message #$from' : 'messages #$from–#$to';
@@ -107,8 +115,7 @@ String botGroupWake({
         'came before if you need it.',
     'Reply to the group if you have something to say, or end your turn '
         'with nothing.',
-    if (called) 'You were called on (@): answer.',
-    if (why.isNotEmpty) 'Why you read it now: $why.',
+    if (called) 'You were called on (@).',
   ].join('\n');
 }
 
