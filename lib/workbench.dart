@@ -4350,6 +4350,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   final Map<String, Future<bool> Function(String)> _projectFileChecks = {};
+  final Map<String, Future<bool> Function(String)> _projectFolderChecks = {};
   final Map<String, Future<Uint8List> Function(String)> _projectByteReaders =
       {};
 
@@ -4391,6 +4392,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         files,
         paths: paths,
       ),
+      folderExists: _projectFolderChecks[thread.project.path] ??=
+          folderExistsIn(files, paths: paths),
       // The same each build: the chat's images are kept by it.
       readBytes: _projectByteReaders[thread.project.path] ??= (path) =>
           readBytesThrough(files, path),
