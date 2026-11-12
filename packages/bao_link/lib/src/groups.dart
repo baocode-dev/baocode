@@ -1,8 +1,6 @@
 // The desktop's group chats: the user and some of their bots, together
 // (see LinkMethods.saveGroup and the others of theirs).
 
-import 'dart:math';
-
 /// Who sent a group's message that is the user's.
 const linkGroupUser = 'user';
 
@@ -18,10 +16,8 @@ class LinkGroup {
     this.unread = 0,
     this.last,
     this.updatedAt,
-    this.lively,
-    this.halfLife,
-    this.attention = const [],
-    this.attentionModel,
+    this.holder,
+    this.passesLeft = 0,
   });
 
   factory LinkGroup.fromJson(Map<String, Object?> json) => LinkGroup(
@@ -44,16 +40,8 @@ class LinkGroup {
       final num ms => DateTime.fromMillisecondsSinceEpoch(ms.toInt()),
       _ => null,
     },
-    lively: (json['lively'] as num?)?.toDouble(),
-    halfLife: switch (json['halfLife']) {
-      final num ms => Duration(milliseconds: ms.toInt()),
-      _ => null,
-    },
-    attention: [
-      for (final one in (json['attention'] as List?) ?? const [])
-        if (one is Map<String, Object?>) LinkAttention.fromJson(one),
-    ],
-    attentionModel: json['attentionModel'] as String?,
+    holder: json['holder'] as String?,
+    passesLeft: (json['passesLeft'] as num?)?.toInt() ?? 0,
   );
 
   final String id;
@@ -72,22 +60,10 @@ class LinkGroup {
   final LinkGroupMessage? last;
   final DateTime? updatedAt;
 
-  /// How lively it is: how warm what its bots say is of what they answer,
-  /// [livelyLeast] to [livelyMost]; the livelier, the longer they go on
-  /// among themselves. None from a desktop before it.
-  final double? lively;
-  static const livelyLeast = 0.1;
-  static const livelyMost = 0.85;
-
-  /// How long its bots' attention takes to fade by half.
-  final Duration? halfLife;
-
-  /// How much each of its bots attends to it.
-  final List<LinkAttention> attention;
-
-  /// The model that scores how much the user's messages draw each bot
-  /// ([LinkMethods.setGroupAttentionModel]); none, all alike.
-  final String? attentionModel;
+  /// The bot that has its conversation now, if one does: one speaks at
+  /// a time, and passes it on; and how many times it may still be passed.
+  final String? holder;
+  final int passesLeft;
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -97,59 +73,8 @@ class LinkGroup {
     if (unread > 0) 'unread': unread,
     'last': ?last?.toJson(),
     'updated': ?updatedAt?.millisecondsSinceEpoch,
-    'lively': ?lively,
-    'halfLife': ?halfLife?.inMilliseconds,
-    if (attention.isNotEmpty)
-      'attention': [for (final one in attention) one.toJson()],
-    'attentionModel': ?attentionModel,
-  };
-}
-
-/// How much [member] (a bot's id) attends to a group: [value], 0 to 1, as
-/// of [at], fading by half each [LinkGroup.halfLife]; [why], what it came
-/// of, in the user's words; when it looks at the group next ([glance]), if
-/// it will.
-class LinkAttention {
-  const LinkAttention({
-    required this.member,
-    required this.value,
-    required this.at,
-    this.why = '',
-    this.glance,
-  });
-
-  factory LinkAttention.fromJson(Map<String, Object?> json) => LinkAttention(
-    member: json['member'] as String? ?? '',
-    value: (json['value'] as num?)?.toDouble() ?? 0,
-    at: DateTime.fromMillisecondsSinceEpoch((json['at'] as num?)?.toInt() ?? 0),
-    why: json['why'] as String? ?? '',
-    glance: switch (json['glance']) {
-      final num ms => DateTime.fromMillisecondsSinceEpoch(ms.toInt()),
-      _ => null,
-    },
-  );
-
-  final String member;
-  final double value;
-  final DateTime at;
-  final String why;
-  final DateTime? glance;
-
-  /// As of [time]: faded since [at].
-  double valueAt(DateTime time, Duration? halfLife) {
-    final since = time.difference(at).inMilliseconds;
-    if (since <= 0 || halfLife == null || halfLife <= Duration.zero) {
-      return value;
-    }
-    return value * pow(0.5, since / halfLife.inMilliseconds);
-  }
-
-  Map<String, Object?> toJson() => {
-    'member': member,
-    'value': value,
-    'at': at.millisecondsSinceEpoch,
-    if (why.isNotEmpty) 'why': why,
-    'glance': ?glance?.millisecondsSinceEpoch,
+    'holder': ?holder,
+    if (passesLeft > 0) 'passesLeft': passesLeft,
   };
 }
 

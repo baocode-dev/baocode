@@ -299,19 +299,8 @@ class WorkspaceBridge {
       unread: groups.unread(group.id),
       last: last,
       updatedAt: last?.at ?? group.created,
-      lively: group.lively,
-      attentionModel: group.attentionModel,
-      halfLife: groups.halfLife,
-      attention: [
-        for (final one in groups.attention(group.id))
-          LinkAttention(
-            member: one.member,
-            value: one.value,
-            at: one.at,
-            why: one.why,
-            glance: one.glance,
-          ),
-      ],
+      holder: groups.relay(group.id).holder,
+      passesLeft: groups.relay(group.id).left,
     );
   }
 
@@ -339,20 +328,6 @@ class WorkspaceBridge {
   }
 
   BotGroups _groups() => _bots().groups;
-
-  /// The models a group's attention model may be: Claude Code's Haiku, and
-  /// the upstreams' models, as a bot's conversation (the assistant's) has
-  /// them.
-  List<KernelOption> _attentionModels() {
-    final bots = _bots();
-    final assistant = bots.bots.where((bot) => bot.assistant).firstOrNull;
-    if (assistant == null) return const [];
-    return [
-      for (final option
-          in bots.threadFor(assistant).session.models?.options ?? const [])
-        if (option.id == 'haiku' || option.id.startsWith('@')) option,
-    ];
-  }
 
   BotGroup _group(Object? id) =>
       switch (id) {
@@ -810,27 +785,6 @@ class WorkspaceBridge {
           ],
         );
         return {'group': _linkGroup(_groups(), group).toJson()};
-      case LinkMethods.setGroupLively:
-        _groups().setLively(
-          _group(params['group']).id,
-          (params['lively'] as num?)?.toDouble() ?? BotGroups.livelyAtFirst,
-        );
-        return null;
-      case LinkMethods.attentionModels:
-        if (workspace.loading) await workspace.loaded;
-        return {
-          'options': [
-            for (final option in _attentionModels())
-              _Follow._option(option).toJson(),
-          ],
-        };
-      case LinkMethods.setGroupAttentionModel:
-        final model = params['model'] as String?;
-        if (model != null && !_attentionModels().any((o) => o.id == model)) {
-          throw LinkRemoteException(LinkErrors.notFound, 'No model $model');
-        }
-        _groups().setAttentionModel(_group(params['group']).id, model);
-        return null;
       case LinkMethods.deleteGroup:
         _groups().delete(_group(params['group']).id);
         _groupsOpen.remove(params['group']);

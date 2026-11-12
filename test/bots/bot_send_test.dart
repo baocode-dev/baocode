@@ -62,8 +62,6 @@ void main() {
     );
     told = [];
     groups = bots.groups
-      ..glance = const Duration(milliseconds: 5)
-      ..random = null
       ..tell = (group, member, note) => told.add((member, note));
   });
 

@@ -1,6 +1,5 @@
 import '../link/chat_codec.dart';
 import 'bot.dart';
-import 'bot_groups.dart';
 
 /// A group chat of the user and some of their bots: its [members] by
 /// their ids, as they joined; [names], the names they had in it, those
@@ -12,8 +11,6 @@ class BotGroup {
     required this.members,
     this.created,
     this.names = const {},
-    this.lively = BotGroups.livelyAtFirst,
-    this.attentionModel,
   });
 
   factory BotGroup.fromJson(Map<String, Object?> json) => BotGroup(
@@ -32,11 +29,6 @@ class BotGroup {
         for (final MapEntry(:key, :value) in names.entries)
           if (value is String) key: value,
     },
-    lively: (json['lively'] as num?)?.toDouble() ?? BotGroups.livelyAtFirst,
-    attentionModel: switch (json['attentionModel']) {
-      final String model when model.isNotEmpty => model,
-      _ => null,
-    },
   );
 
   final String id;
@@ -45,30 +37,16 @@ class BotGroup {
   final DateTime? created;
   final Map<String, String> names;
 
-  /// How warm what its bots say is of what they answer ([BotGroups]): the
-  /// livelier, the longer they go on among themselves.
-  final double lively;
-
-  /// The model that scores how much what the user says in it draws each
-  /// bot ([BotGroups]), a model option's id; none, all alike.
-  final String? attentionModel;
-
   BotGroup copyWith({
     String? name,
     List<String>? members,
     Map<String, String>? names,
-    double? lively,
-    String? Function()? attentionModel,
   }) => BotGroup(
     id: id,
     name: name ?? this.name,
     members: members ?? this.members,
     created: created,
     names: names ?? this.names,
-    lively: lively ?? this.lively,
-    attentionModel: attentionModel == null
-        ? this.attentionModel
-        : attentionModel(),
   );
 
   Map<String, Object?> toJson() => {
@@ -77,62 +55,77 @@ class BotGroup {
     'members': members,
     'created': ?created?.millisecondsSinceEpoch,
     if (names.isNotEmpty) 'names': names,
-    if (lively != BotGroups.livelyAtFirst) 'lively': lively,
-    'attentionModel': ?attentionModel,
   };
 }
 
 /// One of a group's messages, as a bot is told it: its heading (number,
-/// who, when) and its lines, as the chat's file has them.
-typedef BotGroupMessage = ({String heading, List<String> lines});
+/// who, when), its lines, the lines of the chat's file it is at, and
+/// whether it is new to the bot.
+typedef BotGroupMessage = ({
+  String heading,
+  List<String> lines,
+  (int, int) lineRange,
+  bool fresh,
+});
 
-/// The most of the new messages a bot is told with, in characters: past
-/// it, the latest that fit, the rest in the file.
-const botGroupToldMost = 4000;
-
-/// What the app tells [group]'s bot of messages it has not seen: [from] to
-/// [to], the lines of [chat] they are at ([lines]), and themselves
-/// ([messages]); who else is in it ([members], [user]); whether it was
-/// called on ([called]); the time [now], and when it last looked at the
-/// group ([looked]), this run. Its first line says the group's ([ChatCodec.botGroupOf]).
-String botGroupWake({
+/// What the bot that has [group]'s conversation is told: who is in it
+/// ([members], [user]), the time [now] and when it last looked ([looked]),
+/// the latest [messages] (each cut past [longest] characters, the rest in
+/// [chat]), how it came to have it ([by]) and how many times it may still
+/// be passed ([left]). Its first line says the group's
+/// ([ChatCodec.botGroupOf]).
+String botGroupTurn({
   required BotGroup group,
   required String chat,
-  required int from,
-  required int to,
-  required (int, int) lines,
-  required List<BotGroupMessage> messages,
   required List<String> members,
   required String user,
-  bool called = false,
   required String now,
   String? looked,
+  required List<BotGroupMessage> messages,
+  int longest = 500,
+  required String by,
+  required int left,
 }) {
-  final count = to - from + 1;
-  final which = count == 1 ? 'message #$from' : 'messages #$from–#$to';
-  // The latest that fit.
-  final shown = <String>[];
-  var size = 0;
-  for (final message in messages.reversed) {
-    final text = ['## ${message.heading}', ...message.lines].join('\n');
-    if (shown.isNotEmpty && size + text.length > botGroupToldMost) break;
-    size += text.length;
-    shown.insert(0, text);
+  String shown(BotGroupMessage message) {
+    final text = message.lines.join('\n');
+    final head = '## ${message.heading}${message.fresh ? ' · new' : ''}';
+    if (text.length <= longest) return '$head\n$text';
+    return '$head\n${text.substring(0, longest)}… (cut: all of it at lines '
+        '${message.lineRange.$1}–${message.lineRange.$2} of the chat\'s file)';
   }
-  final cut = shown.length < messages.length;
+
+  final first = messages.isEmpty
+      ? null
+      : messages.first.heading.split(' ').first;
+  final last = messages.isEmpty ? null : messages.last.heading.split(' ').first;
   return [
     '${ChatCodec.botGroupLine(group.id)} The group chat "${group.name}": '
         'you, $user (the user)${members.isEmpty ? '' : ', ${members.join(', ')}'}.',
-    'New in it: $which. Now: $now${looked == null ? '' : '; you last looked at it $looked'}.',
-    if (cut) '(The earlier of them in the file.)',
+    'Now: $now.${looked == null ? '' : ' You last looked at it: $looked.'}',
     '',
-    ...shown,
+    if (messages.isNotEmpty) ...[
+      'The latest messages ($first–$last), the new ones marked:',
+      for (final message in messages) shown(message),
+      '',
+    ],
+    'Earlier ones, and all of each: $chat.',
     '',
-    'All of it: $chat (these are lines ${lines.$1}–${lines.$2}). Read what '
-        'came before if you need it.',
-    'Reply to the group if you have something to say, or end your turn '
-        'with nothing.',
-    if (called) 'You were called on (@).',
+    'It is your turn: $by. '
+        '${left > 0 ? 'It may be passed $left more times.' : 'It may not be passed on: after you, it is for $user to speak.'}',
+    '',
+    'The conversation in this group is in your hands now: once you have '
+        'spoken, where it goes and who speaks next is yours to decide.',
+    '- Say something if you want to, as you would in a group: a message or '
+        'two. Or nothing, if you have nothing to say.',
+    if (left > 0) ...[
+      '- Then think who the conversation needs next: the one asked, the one '
+          'who knows this best, the one $user wants to hear from; and pass '
+          'it to them, by name: <${ChatCodec.botNextTag}>name</${ChatCodec.botNextTag}>.',
+      '- If the topic is done, or it is for $user to speak, pass it to no '
+          'one: it stops with you.',
+      "Don't let the conversation drop where it shouldn't, and don't pass "
+          'it on just to keep things busy.',
+    ],
   ].join('\n');
 }
 
