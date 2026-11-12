@@ -27,9 +27,22 @@ class _QuietViewState extends State<QuietView> {
   late final _owner = PipelineOwner(
     onNeedVisualUpdate: _changed,
     onSemanticsOwnerCreated: () => _renderView.scheduleInitialSemantics(),
-    onSemanticsUpdate: (update) => widget.view.updateSemantics(update),
+    onSemanticsUpdate: (update) {
+      if (_sendsSemantics) return widget.view.updateSemantics(update);
+      update.dispose();
+    },
     onSemanticsOwnerDisposed: () => _renderView.clearSemantics(),
   );
+
+  /// Whether what it holds is told to the system's accessibility: the
+  /// implicit view's alone. The macOS engine takes every view's update as
+  /// the implicit view's (FlutterEngine.mm: "only supports single-view"),
+  /// so another window's tree (the stash's panel, made at start) took the
+  /// main window's place, its nodes freed under the objects macOS still
+  /// asked of: a crash in isAccessibilitySelectorAllowed (#891).
+  bool get _sendsSemantics =>
+      widget.view.viewId ==
+      (WidgetsBinding.instance.platformDispatcher.implicitView?.viewId ?? 0);
 
   /// Something in it is to be laid out or painted again: a frame for it.
   void _changed() {

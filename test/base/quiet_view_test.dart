@@ -14,12 +14,13 @@ class _CountedView implements FlutterView {
   final int viewId;
 
   int frames = 0;
+  int semanticsUpdates = 0;
 
   @override
   void render(Scene scene, {Size? size}) => frames++;
 
   @override
-  void updateSemantics(SemanticsUpdate update) {}
+  void updateSemantics(SemanticsUpdate update) => semanticsUpdates++;
 
   @override
   PlatformDispatcher get platformDispatcher => _view.platformDispatcher;
@@ -120,5 +121,32 @@ void main() {
       wrapWithView: false,
       const ViewCollection(views: []),
     );
+  });
+
+  testWidgets('only the implicit view tells the system its semantics: the '
+      'macOS engine takes any view\'s as its own (#891)', (tester) async {
+    final semantics = tester.ensureSemantics();
+    final main = _CountedView(tester.view, tester.view.viewId);
+    final other = _CountedView(tester.view, 101);
+    await tester.pumpWidget(
+      wrapWithView: false,
+      ViewCollection(
+        views: [
+          for (final view in [main, other])
+            QuietView(
+              view: view,
+              child: const Text('a', textDirection: TextDirection.ltr),
+            ),
+        ],
+      ),
+    );
+    expect(main.semanticsUpdates, greaterThan(0));
+    expect(other.semanticsUpdates, 0);
+
+    await tester.pumpWidget(
+      wrapWithView: false,
+      const ViewCollection(views: []),
+    );
+    semantics.dispose();
   });
 }
