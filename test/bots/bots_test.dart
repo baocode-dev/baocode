@@ -449,6 +449,35 @@ void main() {
       expect(workspace.agentSetup!(app), isNull);
     });
 
+    test('a bot deleted: every session kept of it gone, its groups\' of '
+        'before too; not another\'s', () async {
+      final catalog = _KeptSessions({
+        '/bots/b1': ['s1', 's2'],
+        '/bots/b1/groups/g1': ['s3'],
+        '/bots/b10': ['s4'],
+        app: ['s5'],
+      });
+      final kept = Workspace(
+        kernels: [
+          KernelDescriptor(
+            id: 'claude-code',
+            label: 'Claude Code',
+            icon: Icons.auto_awesome_rounded,
+            description: '',
+            create: kernel.create,
+            catalog: catalog,
+          ),
+        ],
+        projects: [Project('app', app)],
+      );
+      addTearDown(kept.dispose);
+      final own = Bots(workspace: kept, folders: MemoryBotFolders());
+      Bots.stopping = Duration.zero;
+      addTearDown(() => Bots.stopping = const Duration(seconds: 3));
+      await own.forgetSessions('/bots/b1');
+      expect(catalog.deleted, unorderedEquals(['s1', 's2', 's3']));
+    });
+
     test('what is said with the user, in its timeline once its turn is '
         'done', () async {
       final bot = bots.bots.single;
@@ -1734,4 +1763,37 @@ class _Catalog implements SessionCatalog {
 
   @override
   Future<void> delete(String id) async {}
+}
+
+/// Sessions kept by folder; those deleted.
+class _KeptSessions implements SessionCatalog {
+  _KeptSessions(this.kept);
+
+  final Map<String, List<String>> kept;
+  final deleted = <String>[];
+
+  @override
+  Future<List<ProjectRecord>> projects() async => [
+    for (final MapEntry(key: path, value: ids) in kept.entries)
+      ProjectRecord(
+        path: path,
+        sessions: [
+          for (final id in ids)
+            SessionRecord(
+              id: id,
+              title: '',
+              updatedAt: DateTime(2026),
+              cwd: path,
+            ),
+        ],
+      ),
+  ];
+
+  @override
+  Future<List<SessionRecord>> sessionsIn(String cwd) async =>
+      (await projects()).where((p) => p.path == cwd).firstOrNull?.sessions ??
+      const [];
+
+  @override
+  Future<void> delete(String id) async => deleted.add(id);
 }
