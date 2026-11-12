@@ -619,6 +619,7 @@ class BotGroups extends ChangeNotifier {
     final round = _round(group);
     if (round.left <= 0) return;
     final world = bots.world;
+    if (by == linkGroupUser) world.heardUser();
     if (!world.on) return _planByRules(group, said: said, by: by, after: after);
     if (by == linkGroupUser) {
       for (final id in found.members) {
