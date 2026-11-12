@@ -46,11 +46,19 @@ class BashTool extends Tool {
 - End commit messages and pull request descriptions with the attribution lines the conversation gives in a <system-reminder>, when it gives any.''';
 
   /// How to search, with what this machine has: a model told of `rg`
-  /// where there is none spends a call finding that out.
-  static String _search(AgentSession session) =>
-      session.fileIndex.ripgrep != null
-      ? "To find files and what is in them, search here: `rg` (or `grep -rn`) for text, `rg --files -g '<glob>'` (or `find`) for names."
-      : 'To find files and what is in them, search here: `grep -rn` for text, `find` for names (ripgrep is not installed: no `rg`).';
+  /// where there is none spends a call finding that out, and one left to
+  /// cmd.exe's own writes scripts to search with.
+  static String _search(AgentSession session) {
+    final posix = session.shell.posix;
+    if (session.fileIndex.ripgrep != null) {
+      return posix
+          ? "To find files and what is in them, search here: `rg` (or `grep -rn`) for text, `rg --files -g '<glob>'` (or `find`) for names. Search rather than write a script to."
+          : "To find files and what is in them, search here: `rg` for text, `rg --files -g \"<glob>\"` for names (the shell is cmd.exe: double quotes). Search rather than write a script to.";
+    }
+    return posix
+        ? 'To find files and what is in them, search here: `grep -rn` for text, `find` for names (ripgrep is not installed: no `rg`). Search rather than write a script to.'
+        : 'To find files and what is in them, search here (the shell is cmd.exe, ripgrep is not installed): `findstr /s /n /i /c:"text" *.ext` for text, `dir /s /b *name*` for names. Search rather than write a script to.';
+  }
 
   @override
   Map<String, Object?> get inputSchema => const {
