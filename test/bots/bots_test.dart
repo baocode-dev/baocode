@@ -15,6 +15,7 @@ import 'package:baocode/bots/bots.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
+import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/queued_messages.dart';
 import 'package:baocode/link/chat_codec.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
@@ -29,6 +30,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  test('a new bot runs on the first DeepSeek model offered; none, the '
+      "app's", () {
+    KernelOption model(String id, String label) =>
+        KernelOption(id, label, Icons.circle, '');
+    expect(
+      Bots.newBotModelOf([
+        model('sonnet', 'Sonnet'),
+        model('@ds/deepseek-v4', 'DeepSeek V4'),
+        model('@ds/deepseek-chat', 'DeepSeek Chat'),
+      ]),
+      '@ds/deepseek-v4',
+    );
+    expect(Bots.newBotModelOf([model('@x/m1', 'DeepSeek R1')]), '@x/m1');
+    expect(Bots.newBotModelOf([model('sonnet', 'Sonnet')]), isNull);
+  });
+
   group('BotSuggestions', () {
     List<String> notes(bool wanted, bool? told, {bool suggested = false}) =>
         BotSuggestions.notes(wanted: wanted, told: told, suggested: suggested);
