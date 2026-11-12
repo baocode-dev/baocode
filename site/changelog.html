@@ -30,6 +30,26 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v1.9.6">
+    <h2 class="plain"><a href="#v1.9.6">1.9.6</a></h2>
+    <p>This release changes how bots talk in group chats: one answers at a time and hands the conversation on, and each group gets its own rules, pass limit and reply interval.</p>
+    <p>New</p>
+    <ul>
+    <li>Group chats pass the conversation along: one bot answers at a time, then hands it to whoever should speak next, or stops and waits for you. The one you @mention or quote goes first.</li>
+    <li>Each group has its own rules, a limit on how many times the bots pass it on after each of your messages (8 by default, at least 2, or no limit), and a reply interval between bots. Set them from the phone app.</li>
+    <li>Bots can quote a message they answer, narrate and send pictures in groups, and the phone app can read groups aloud in each bot's voice.</li>
+    <li>The assistant can list, make, rename and delete your group chats, add or remove members and set their rules; it asks before deleting.</li>
+    <li>Bots keep one life across their own chat and their groups, and a switch lets each one message you first.</li>
+    <li>New bots use a DeepSeek model when one is available.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>SVG style rules now apply in the Markdown preview.</li>
+    <li>The side panel remembers where a file's tab was left.</li>
+    <li>Deleting a bot also removes its conversations.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v1.9.5">
     <h2 class="plain"><a href="#v1.9.5">1.9.5</a></h2>
     <p>This release brings group chats with your bots, lets bots suggest what you might say next, and lets them color how they sound when read aloud.</p>
