@@ -6373,6 +6373,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get customizeDisabled => 'Disabled';
 
   @override
+  String get customizeLinkUnreachable =>
+      'Not loaded: this is a link the system cannot follow. Install the skill as a real folder, or link it again.';
+
+  @override
   String get customizeBack => 'Back';
 
   @override

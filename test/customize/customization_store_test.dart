@@ -151,6 +151,32 @@ void main() {
     );
   });
 
+  test('a skill linked in is listed; a link leading nowhere says so, '
+      'and is deleted (#859)', () async {
+    final elsewhere = p.join(temp.path, 'manager', 'pdf');
+    write(
+      p.join(elsewhere, 'SKILL.md'),
+      '---\nname: pdf\ndescription: Reads PDFs\n---\n',
+    );
+    Directory(p.join(config, 'skills')).createSync(recursive: true);
+    Link(p.join(config, 'skills', 'pdf')).createSync(elsewhere);
+    final dead = p.join(config, 'skills', 'gone');
+    Link(dead).createSync(p.join(temp.path, 'nowhere'));
+
+    final skills = await store.list(CustomizationKind.skills);
+    expect(
+      [for (final s in skills) (s.name, s.description, s.unreachable)],
+      [('gone', '', true), ('pdf', 'Reads PDFs', false)],
+    );
+    expect(skills.first.editable, isFalse);
+    await store.delete(skills.first);
+    expect(Link(dead).existsSync(), isFalse);
+    expect(
+      [for (final s in await store.list(CustomizationKind.skills)) s.name],
+      ['pdf'],
+    );
+  });
+
   test('lists servers, hooks and plugins from their JSON files', () async {
     write(
       p.join(temp.path, 'home', '.claude.json'),

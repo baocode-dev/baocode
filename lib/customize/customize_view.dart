@@ -1151,7 +1151,10 @@ class _ItemRow extends StatelessWidget {
                         ),
                       ],
                       // Why it failed, at a glance: the whole in its log.
-                      if (status?.reason(l10n) case final reason?) ...[
+                      if (item.unreachable
+                              ? l10n.customizeLinkUnreachable
+                              : status?.reason(l10n)
+                          case final reason?) ...[
                         const SizedBox(height: 2),
                         Text(
                           reason,

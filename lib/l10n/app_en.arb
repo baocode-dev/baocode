@@ -4565,6 +4565,7 @@
   "customizeReadOnly": "Read only: Claude Code keeps this file itself.",
   "customizeEnabled": "Enabled",
   "customizeDisabled": "Disabled",
+  "customizeLinkUnreachable": "Not loaded: this is a link the system cannot follow. Install the skill as a real folder, or link it again.",
   "customizeBack": "Back",
   "customizeClose": "Close Customize",
   "customizeDeleteTitle": "Delete {name}?",

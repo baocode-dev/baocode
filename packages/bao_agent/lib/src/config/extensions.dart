@@ -331,9 +331,15 @@ List<PromptCommand> _skills(String folder, String source, Plugin? plugin) {
   final dir = Directory(folder);
   if (!dir.existsSync()) return const [];
   final out = <PromptCommand>[];
-  final entries =
-      dir.listSync(followLinks: true).whereType<Directory>().toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+  final entries = [
+    for (final entry in dir.listSync(followLinks: true))
+      if (entry is Directory)
+        entry
+      // One the listing could not follow (a Windows junction or link to a
+      // folder, as some skill managers install them), followed once more.
+      else if (entry is Link && FileSystemEntity.isDirectorySync(entry.path))
+        Directory(entry.path),
+  ]..sort((a, b) => a.path.compareTo(b.path));
   for (final skillDir in entries) {
     final file = File(p.join(skillDir.path, 'SKILL.md'));
     if (!file.existsSync()) continue;

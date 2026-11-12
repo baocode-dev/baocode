@@ -26,8 +26,8 @@ abstract interface class CustomizationDisk {
   /// [path]'s text; null for none, or one that cannot be read.
   Future<String?> read(String path);
 
-  /// The files and folders in [directory], links followed; none for no
-  /// such folder.
+  /// The files and folders in [directory], links followed (one leading
+  /// nowhere as a folder); none for no such folder.
   Future<List<({String path, bool directory})>> children(String directory);
 
   /// Whether [path] is a folder (true) or a file (false); null where

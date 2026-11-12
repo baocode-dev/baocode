@@ -41,7 +41,18 @@ class _LocalDisk implements CustomizationDisk {
       return [
         await for (final entry in Directory(directory).list())
           if (entry is Directory || entry is File)
-            (path: entry.path, directory: entry is Directory),
+            (path: entry.path, directory: entry is Directory)
+          // One the listing could not follow (a Windows junction or link
+          // to a folder, as some skill managers install them): followed
+          // once more; one leading nowhere as a folder, for its skill to
+          // say so (see CustomizationStore).
+          else if (entry is Link)
+            (
+              path: entry.path,
+              directory:
+                  await FileSystemEntity.type(entry.path) !=
+                  FileSystemEntityType.file,
+            ),
       ];
     } on FileSystemException {
       return const [];
@@ -70,6 +81,9 @@ class _LocalDisk implements CustomizationDisk {
         await Directory(path).delete(recursive: true);
       case false:
         await File(path).delete();
+      // A link leading nowhere: the link.
+      case null when await FileSystemEntity.isLink(path):
+        await Link(path).delete();
       case null:
     }
   }
