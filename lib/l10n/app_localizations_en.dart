@@ -1885,6 +1885,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarArchived => 'Archived';
 
   @override
+  String sidebarArchivedIn(String folder) {
+    return '$folder · archived';
+  }
+
+  @override
   String get sidebarOpenFolder => 'Open folder…';
 
   @override

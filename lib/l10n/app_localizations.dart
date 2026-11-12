@@ -3458,6 +3458,12 @@ abstract class AppLocalizations {
   /// **'Archived'**
   String get sidebarArchived;
 
+  /// No description provided for @sidebarArchivedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'{folder} · archived'**
+  String sidebarArchivedIn(String folder);
+
   /// No description provided for @sidebarOpenFolder.
   ///
   /// In en, this message translates to:

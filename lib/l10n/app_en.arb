@@ -937,6 +937,14 @@
   },
   "sidebarDone": "Done",
   "sidebarArchived": "Archived",
+  "sidebarArchivedIn": "{folder} · archived",
+  "@sidebarArchivedIn": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
   "sidebarOpenFolder": "Open folder…",
   "sidebarAgents": "Agents",
   "sidebarCollapseAll": "Collapse All",

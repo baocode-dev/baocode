@@ -560,6 +560,7 @@
   "sidebarHoverModel": "模型：{model}",
   "sidebarDone": "已完成",
   "sidebarArchived": "已归档",
+  "sidebarArchivedIn": "{folder} · 已归档",
   "sidebarOpenFolder": "打开文件夹…",
   "sidebarAgents": "智能体",
   "sidebarCollapseAll": "全部折叠",

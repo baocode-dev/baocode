@@ -1891,13 +1891,18 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     notifyListeners();
   }
 
-  /// Archives [project]'s agents (not a new one nothing was sent to).
+  /// Archives [project]'s agents (not a new one nothing was sent to): the
+  /// folder goes with them, off the sidebar, its agents under Archived
+  /// (back once one is unarchived, or the folder opened).
   void archiveAll(Project project) {
     setArchivedAll([
       for (final thread in [..._threads])
         if (thread.project == project && !thread.archived && !thread.untouched)
           thread,
     ], true);
+    if (_threads.any((t) => t.project == project && t.archived)) {
+      hideProject(project);
+    }
   }
 
   /// Unarchives every archived agent ([where] there is one, those it takes).
@@ -1906,6 +1911,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       if (!thread.archived || !(where?.call(thread) ?? true)) continue;
       thread.archived = false;
       _keepMarks(thread);
+      _unhide(thread.project.path);
     }
     notifyListeners();
   }
@@ -3906,6 +3912,8 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     final changed = thread.archived != archived || (archived && thread.pinned);
     thread.archived = archived;
     if (archived) thread.pinned = false;
+    // Its folder, archived with it, back on the sidebar with it.
+    if (!archived && changed) _unhide(thread.project.path);
     final kept = _keepMarks(thread, save: save);
     if (archived && leave) _leave(thread);
     return changed || kept;
