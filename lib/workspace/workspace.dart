@@ -2645,6 +2645,16 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       _layout = WorkspaceLayout.ide;
     }
     _settings.addAll(strings(kept['settings']));
+    // A provider's model's context (by its number of tokens) was kept as
+    // shown, picked or not, before #914: let go once, for each to follow
+    // its upstream until one is picked.
+    if (kept['contextPicks'] != 1) {
+      _settings.removeWhere(
+        (key, value) =>
+            key.startsWith(modelSettingKey(KernelChoiceKind.context, '')) &&
+            int.tryParse(value) != null,
+      );
+    }
     if (kept['ignoredRecommendations'] case final List<Object?> ignored) {
       _ignoredRecommendations.addAll(ignored.whereType<String>());
     }
@@ -2796,6 +2806,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'layout': _layout.name,
       if (_paneTabs) 'paneTabs': true,
       'settings': _settings,
+      'contextPicks': 1,
       'agents': _agentSettings,
       'ignoredRecommendations': [..._ignoredRecommendations],
       'sidebar': {
@@ -3012,11 +3023,15 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       remember(KernelChoiceKind.model, before.model, snapshot.model);
       remember(KernelChoiceKind.effort, before.effort, snapshot.effort);
       remember(KernelChoiceKind.context, before.context, snapshot.context);
-      // And each model's own, for it to go back to (see modelSettingKey).
+      // And each model's own, for it to go back to (see modelSettingKey):
+      // its context only as picked with it, not as it came with a switch
+      // to it (its upstream's, else another model's), for it to follow its
+      // upstream until one is (#914).
       if (snapshot.model case final model?) {
         for (final (kind, value) in [
           (KernelChoiceKind.effort, snapshot.effort),
-          (KernelChoiceKind.context, snapshot.context),
+          if (before.model == model)
+            (KernelChoiceKind.context, snapshot.context),
         ]) {
           final key = modelSettingKey(kind, model);
           if (value != null && _settings[key] != value) {

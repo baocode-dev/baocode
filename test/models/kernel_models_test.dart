@@ -455,6 +455,28 @@ void main() {
     kernel.dispose();
   });
 
+  test('a provider\'s model is on its own context until one is picked '
+      'for it, not on another model\'s (#914)', () async {
+    final (:kernel, :launches, clis: _, environments: _) = start(providers, {
+      'model': '@gw/gpt-5',
+      // The last picked, with another model.
+      'context': '200000',
+    });
+    kernel.prepare();
+    await pumpEventQueue();
+    final contextSize = (kernel as SelectsContextSize).contextSize;
+    expect(contextSize.selected, '400000');
+    expect(launches.single.autocompact, 400000);
+
+    contextSize.select('@other/m', '1000000');
+    await pumpEventQueue();
+    expect(contextSize.selectedFor('@gw/gpt-5'), '400000');
+    kernel.model.select('@gw/gpt-5');
+    await pumpEventQueue();
+    expect(contextSize.selected, '400000');
+    kernel.dispose();
+  });
+
   test('each model keeps its own effort and context: switched back to, it '
       'takes them up, not the ones before\'s', () async {
     final (:kernel, :launches, :clis, environments: _) = start(providers, {
