@@ -1128,11 +1128,12 @@ class WorkspaceBridge {
   }
 
   /// The folders [project]'s files are in, each with the name the phone
-  /// gives it: a folder's project, its own, unnamed; a workspace's, each of
-  /// its folders under its name, as VS Code's Explorer has them (not the
-  /// workspace's own folder, which holds only its settings).
+  /// gives it: a folder's project, its own, unnamed; a workspace's (or a
+  /// project's with folders added to it), each of its folders under its
+  /// name, as VS Code's Explorer has them (not the workspace's own folder,
+  /// which holds only its settings).
   List<(String, String)> _rootsOf(Project project) {
-    final folders = workspace.workspaceOf(project)?.folders ?? const [];
+    final folders = workspace.multiRootAt(project.path)?.folders ?? const [];
     if (folders.isEmpty) return [('', project.root)];
     final paths = _filesOf(project).paths;
     final taken = <String>{};

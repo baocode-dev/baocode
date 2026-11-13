@@ -13479,6 +13479,24 @@ abstract class AppLocalizations {
   /// **'Work across several folders'**
   String get newChatCreateWorkspaceDetail;
 
+  /// The menu's choice, in the menu of where a new chat works, that picks a folder in the file manager and adds it to the project picked: its agents work in it too.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Folder to {name}…'**
+  String newChatAddFolderTo(String name);
+
+  /// No description provided for @newChatAddFolderToDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Its agents work there too'**
+  String get newChatAddFolderToDetail;
+
+  /// Under a project with folders added to it in the menu of where a new chat works: where it is, and how many folders were added to it.
+  ///
+  /// In en, this message translates to:
+  /// **'{path} · {count, plural, =1{1 more folder} other{{count} more folders}}'**
+  String newChatProjectAddedFolders(String path, int count);
+
   /// The title of the dialog that makes a workspace of several folders.
   ///
   /// In en, this message translates to:
@@ -13581,6 +13599,12 @@ abstract class AppLocalizations {
   /// **'Edit Project…'**
   String get sidebarEditProject;
 
+  /// A project's menu item: picks a folder in the file manager and adds it to the project, its agents working in it too.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Folder…'**
+  String get sidebarAddFolder;
+
   /// No description provided for @projectEditTitle.
   ///
   /// In en, this message translates to:
@@ -13598,6 +13622,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Moved or renamed the folder? Point the project at it here, and its conversations move along. The folder itself is not moved.'**
   String get projectLocationDescription;
+
+  /// No description provided for @projectFoldersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Agents working in this project can read and change the files in the folders added to it too. Conversations already started see them once they start again.'**
+  String get projectFoldersDescription;
 
   /// No description provided for @projectChooseFolder.
   ///

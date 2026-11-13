@@ -1806,7 +1806,9 @@ class IdeExplorerState extends State<IdeExplorer>
     final path = row?.path ?? _controller.defaultFolder;
     final isFolder = row == null || row.isDirectory;
     final isRoot = row == null || row.isRoot;
-    final workspaceFolder = row != null && row.isRoot;
+    // Not a project's own folder, the first of those added to it.
+    final workspaceFolder =
+        row != null && row.isRoot && row.path != _controller.root;
     final targets = row == null ? const <IdeExplorerRow>[] : _targets(row);
     final canPaste = isFolder && await _toPaste() != null;
     if (!mounted) return;

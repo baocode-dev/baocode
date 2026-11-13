@@ -8350,6 +8350,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newChatCreateWorkspaceDetail => 'Work across several folders';
 
   @override
+  String newChatAddFolderTo(String name) {
+    return 'Add Folder to $name…';
+  }
+
+  @override
+  String get newChatAddFolderToDetail => 'Its agents work there too';
+
+  @override
+  String newChatProjectAddedFolders(String path, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count more folders',
+      one: '1 more folder',
+    );
+    return '$path · $_temp0';
+  }
+
+  @override
   String get workspaceCreateTitle => 'Create Workspace';
 
   @override
@@ -8410,6 +8429,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sidebarEditProject => 'Edit Project…';
 
   @override
+  String get sidebarAddFolder => 'Add Folder…';
+
+  @override
   String get projectEditTitle => 'Edit Project';
 
   @override
@@ -8418,6 +8440,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get projectLocationDescription =>
       'Moved or renamed the folder? Point the project at it here, and its conversations move along. The folder itself is not moved.';
+
+  @override
+  String get projectFoldersDescription =>
+      'Agents working in this project can read and change the files in the folders added to it too. Conversations already started see them once they start again.';
 
   @override
   String projectChooseFolder(String app) {
