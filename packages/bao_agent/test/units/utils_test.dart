@@ -468,6 +468,29 @@ void main() {
     });
   });
 
+  group('caseFoldedEnvironment', () {
+    const environment = {
+      'Path': r'C:\Windows',
+      'NO_PROXY': 'localhost',
+      'HTTPS_PROXY': 'http://127.0.0.1:7897',
+      'https_proxy': 'http://127.0.0.1:7897',
+      'PATH': r'C:\rg;C:\Windows',
+      'no_proxy': 'localhost,127.0.0.1',
+    };
+
+    test('on Windows, one of names that differ only in case: the last', () {
+      expect(caseFoldedEnvironment(environment, windows: true), {
+        'https_proxy': 'http://127.0.0.1:7897',
+        'PATH': r'C:\rg;C:\Windows',
+        'no_proxy': 'localhost,127.0.0.1',
+      });
+    });
+
+    test('elsewhere, as it is', () {
+      expect(caseFoldedEnvironment(environment, windows: false), environment);
+    });
+  });
+
   group('killTree', () {
     test('a command and what it started, ended', () async {
       final process = await Process.start('/bin/sh', [

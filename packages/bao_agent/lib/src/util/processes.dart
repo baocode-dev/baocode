@@ -32,6 +32,28 @@ Future<void> killTree(int pid, {bool force = false, bool? windows}) async {
   );
 }
 
+/// [environment] as a process is given it on Windows (when [windows];
+/// where this runs, when not given), where a name is the same in any case:
+/// of names that differ only in case, the last, as it is spelled. Both in
+/// one environment (`NO_PROXY` and `no_proxy`) break .NET Framework's
+/// programs, MSBuild among them (#976).
+Map<String, String> caseFoldedEnvironment(
+  Map<String, String> environment, {
+  bool? windows,
+}) {
+  if (!(windows ?? Platform.isWindows)) return environment;
+  final names = <String, String>{};
+  final folded = <String, String>{};
+  for (final MapEntry(:key, :value) in environment.entries) {
+    if (names[key.toUpperCase()] case final earlier? when earlier != key) {
+      folded.remove(earlier);
+    }
+    names[key.toUpperCase()] = key;
+    folded[key] = value;
+  }
+  return folded;
+}
+
 /// A process's output, read to [stdout] and [stderr] as it comes.
 class ProcessOutput {
   ProcessOutput(

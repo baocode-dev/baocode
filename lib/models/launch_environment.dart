@@ -46,6 +46,16 @@ Map<String, String> launchEnvironment({
       token = key ?? '';
     }
   }
+  // The proxy is on this machine: never through the user's HTTP proxy.
+  // Both spellings, as the user's proxy is given ([ProxyRoute.environment]):
+  // some programs read the one and some the other.
+  final localNoProxy = {
+    if (noProxy case final list? when list.trim().isNotEmpty)
+      for (final entry in list.split(','))
+        if (entry.trim().isNotEmpty) entry.trim(),
+    '127.0.0.1',
+    'localhost',
+  }.join(',');
   final roles = provider.roles;
   // This upstream's own model by its id; another's as it is picked.
   String? role(String? value) => switch (parseModelRef(value)) {
@@ -76,13 +86,7 @@ Map<String, String> launchEnvironment({
     // What each request is for (a subagent's, a compaction), for the
     // calls kept: the proxy does not pass it on.
     if (recordUsage) UsageHeaders.gatewayHintsVariable: '1',
-    // The proxy is on this machine: never through the user's HTTP proxy.
-    if (proxied)
-      'NO_PROXY': [
-        if (noProxy case final list? when list.trim().isNotEmpty) list.trim(),
-        '127.0.0.1',
-        'localhost',
-      ].join(','),
+    if (proxied) ...{'NO_PROXY': localNoProxy, 'no_proxy': localNoProxy},
     // A provider spoken to directly carries its own headers in Claude
     // Code's variable (a proxied one goes through the proxy, which sets
     // them itself): `Name: Value` a line, only the names that may be set.
