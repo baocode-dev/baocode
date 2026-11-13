@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../../base/list_selection.dart';
 import '../../base/smooth_scroll.dart';
 import '../../theme/app_theme.dart';
 import 'finite_selection_edges.dart';
@@ -340,14 +341,23 @@ class _StepBodyState extends State<StepBody> {
     final StepBody(:child, :maxHeight, :padding, :overlay, :header) = widget;
     // The line between the sidebar and the conversation.
     final line = AppColors.partBorder;
-    Widget scroll = SingleChildScrollView(
+    // The selection's ends kept as points in the content, not the scroll
+    // view's own: under UI zoom those land away from the pointer once
+    // scrolled (see [ListSelection]).
+    Widget scroll = ListSelection(
       controller: _controller,
-      reverse: widget.followEnd,
-      padding: padding,
-      child: FiniteSelectionEdges(
-        child: WheelLatch(
-          keep: widget.keepWheel,
-          child: SizedBox(width: double.infinity, child: child),
+      child: SingleChildScrollView(
+        controller: _controller,
+        reverse: widget.followEnd,
+        padding: padding,
+        child: ListSelectionItem(
+          index: 0,
+          child: FiniteSelectionEdges(
+            child: WheelLatch(
+              keep: widget.keepWheel,
+              child: SizedBox(width: double.infinity, child: child),
+            ),
+          ),
         ),
       ),
     );
