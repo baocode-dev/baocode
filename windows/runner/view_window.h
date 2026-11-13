@@ -107,6 +107,10 @@ class ViewWindow : public Win32Window {
   // for the character messages that follow one sent without them.
   LPARAM key_down_scancode_bits_ = 0;
 
+  // True while ViewProc is forwarding a wheel message to view_proc_,
+  // to prevent DefWindowProc from bubbling it back to MessageHandler.
+  bool handling_wheel_ = false;
+
   // Who is told what happens to the window, and as which.
   WindowObserver* observer_ = nullptr;
   int64_t view_id_ = 0;

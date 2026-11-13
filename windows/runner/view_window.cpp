@@ -319,6 +319,19 @@ LRESULT CALLBACK ViewWindow::ViewProc(HWND hwnd, UINT const message,
   if (that == nullptr || that->view_proc_ == nullptr) {
     return ::DefWindowProcW(hwnd, message, wparam, lparam);
   }
+
+  if (message == WM_MOUSEWHEEL || message == WM_MOUSEHWHEEL) {
+    if (that != nullptr) {
+      that->handling_wheel_ = true;
+    }
+    LRESULT result = ::CallWindowProcW(that->view_proc_, hwnd, message, wparam,
+                                       key_lparam);
+    if (that != nullptr) {
+      that->handling_wheel_ = false;
+    }
+    return result;
+  }
+
   return ::CallWindowProcW(that->view_proc_, hwnd, message, wparam,
                            key_lparam);
 }
@@ -457,10 +470,28 @@ ViewWindow::MessageHandler(HWND hwnd, UINT const message,
       }
       break;
 
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL:
+      if (handling_wheel_) {
+        return 0;
+      }
+      if (view_ != nullptr) {
+        return ::SendMessageW(view_, message, wparam, lparam);
+      }
+      break;
+
     case WM_ACTIVATE:
       if (LOWORD(wparam) != WA_INACTIVE) {
         if (view_ != nullptr) {
           ReleaseModifiersLetGoElsewhere(view_);
+          POINT pt = {};
+          if (::GetCursorPos(&pt) && ::ScreenToClient(view_, &pt)) {
+            RECT client_rect = {};
+            if (::GetClientRect(view_, &client_rect) &&
+                ::PtInRect(&client_rect, pt)) {
+              ::PostMessageW(view_, WM_MOUSEMOVE, 0, MAKELPARAM(pt.x, pt.y));
+            }
+          }
         }
         if (observer_ != nullptr) {
           observer_->WindowActivated(view_id_);
