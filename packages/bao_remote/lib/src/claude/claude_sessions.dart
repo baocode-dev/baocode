@@ -120,11 +120,32 @@ class ClaudeSessions {
   }
 
   /// The projects with sessions, the most recently talked in first.
+  ///
+  /// One listing at a time: asked again meanwhile (each remote project of a
+  /// host asks as the app starts), it is listed once more after, for all
+  /// who asked. A listing each had every long session read as many times
+  /// at once, and took a server's memory whole.
   Future<List<ClaudeProjectSummary>> projects() async {
     final root = '${await _config()}/projects';
     final cache = cacheFile;
-    return Isolate.run(() => _scan(root, cache));
+    final key = '$cache\n$root';
+    Future<List<ClaudeProjectSummary>> scan() =>
+        _scanning[key] = Isolate.run(() => _scan(root, cache)).whenComplete(() {
+          // Not returned: it is this very future, which would be waited for.
+          _scanning.remove(key);
+        });
+    final running = _scanning[key];
+    if (running == null) return scan();
+    return _scanNext[key] ??= running.then<void>((_) {}, onError: (_) {}).then((
+      _,
+    ) {
+      _scanNext.remove(key);
+      return scan();
+    });
   }
+
+  static final _scanning = <String, Future<List<ClaudeProjectSummary>>>{};
+  static final _scanNext = <String, Future<List<ClaudeProjectSummary>>>{};
 
   /// The session's conversation along the branch it ended on.
   static Future<List<Map<String, Object?>>> read(String path) =>
@@ -537,19 +558,32 @@ class _SummaryCache {
     final summary = read.at(size: size, modified: modified);
     _fresh[file.path] = summary.toJson();
     _changed = true;
+    // A first listing of many long sessions takes minutes: what was read is
+    // kept as it goes, lest a run cut short (the server killed) leave
+    // nothing, and the next read it all again.
+    if (_sinceWritten.elapsed > const Duration(seconds: 5)) {
+      _write({..._old, ..._fresh});
+    }
     return summary.session(file.path);
   }
+
+  final _sinceWritten = Stopwatch()..start();
 
   /// Writes it, if anything changed: whole, so a run cut short leaves the
   /// old one rather than half of a new one.
   void save() {
     if (!_changed && _fresh.length == _old.length) return;
+    _write(_fresh);
+  }
+
+  void _write(Map<String, Object?> files) {
+    _sinceWritten.reset();
     // Its own: two listings may save at once.
     final temp = File('$_path.$pid.${DateTime.now().microsecondsSinceEpoch}');
     try {
       temp.parent.createSync(recursive: true);
       temp.writeAsStringSync(
-        jsonEncode({'version': _version, 'root': _root, 'files': _fresh}),
+        jsonEncode({'version': _version, 'root': _root, 'files': files}),
       );
       temp.renameSync(_path);
     } on Object {
@@ -686,101 +720,163 @@ class _Summary {
   /// last ([_Summary()] for nothing), with what came after. Null when it
   /// was not only appended to since, or could not be read.
   static _Summary? readOn(File file, _Summary kept) {
-    final mark = base64Decode(kept.mark);
-    final from = kept.scanned - mark.length;
-    if (from < 0) return null;
-    final Uint8List bytes;
+    final RandomAccessFile opened;
     try {
-      final opened = file.openSync();
-      try {
-        final length = opened.lengthSync();
-        if (length < kept.scanned) return null;
-        opened.setPositionSync(from);
-        bytes = opened.readSync(length - from);
-      } finally {
-        opened.closeSync();
-      }
+      opened = file.openSync();
     } on FileSystemException {
       return null;
     }
-    if (bytes.length < mark.length) return null;
-    for (var i = 0; i < mark.length; i++) {
-      if (bytes[i] != mark[i]) return null;
+    try {
+      return _readOn(opened, kept);
+    } on FileSystemException {
+      return null;
+    } finally {
+      opened.closeSync();
     }
-    final added = Uint8List.sublistView(bytes, mark.length);
-    final end = added.lastIndexOf(0x0a) + 1;
-    final before = Uint8List.sublistView(
-      bytes,
-      math.max(0, mark.length + end - _markLength),
-      mark.length + end,
-    );
-    // A line written halfway counts as far as it reads; it is read again,
-    // whole, next time.
-    final text = utf8.decode(added, allowMalformed: true);
-    String? lastTitle(String type, String key) {
-      final at = text.lastIndexOf('"type":"$type"');
-      if (at < 0) return null;
-      final start = text.lastIndexOf('\n', at) + 1;
-      final end = text.indexOf('\n', at);
-      final line = text.substring(start, end < 0 ? text.length : end);
-      try {
-        return ((jsonDecode(line) as Map)[key] as String?)?.trim() ?? '';
-      } on Object {
-        return '';
+  }
+
+  /// How much of a file is read at once: a session may be GBs, a server's
+  /// memory not.
+  static const _chunk = 4 << 20;
+
+  static _Summary? _readOn(RandomAccessFile file, _Summary kept) {
+    final mark = base64Decode(kept.mark);
+    final from = kept.scanned - mark.length;
+    if (from < 0) return null;
+    final length = file.lengthSync();
+    if (length < kept.scanned) return null;
+    file.setPositionSync(from);
+    final head = file.readSync(mark.length);
+    if (head.length < mark.length) return null;
+    for (var i = 0; i < mark.length; i++) {
+      if (head[i] != mark[i]) return null;
+    }
+    var cwd = kept.cwd;
+    var prompt = kept.prompt;
+    // Where the lines that may tell the rest are, read once all are seen:
+    // only the last that does counts.
+    (int, int)? named;
+    (int, int)? generated;
+    final said = ListQueue<(int, int)>();
+    void line(Uint8List bytes, int start, int end) {
+      if (prompt == null && _has(bytes, _userType)) {
+        if (_Lines._decode(bytes, 0, bytes.length) case final entry?) {
+          cwd ??= entry['cwd'] as String?;
+          if (entry['isSidechain'] != true && entry['isMeta'] != true) {
+            if (_promptText(entry) case final typed?) {
+              final first = typed.trim().split('\n').first;
+              prompt = first.length > 120
+                  ? '${first.substring(0, 120)}…'
+                  : first;
+            }
+          }
+        }
+      }
+      if (_has(bytes, _customTitleType)) named = (start, end);
+      if (_has(bytes, _aiTitleType)) generated = (start, end);
+      if (_has(bytes, _timestamp) &&
+          (_has(bytes, _userType) || _has(bytes, _assistantType))) {
+        said.add((start, end));
+        // Each one reads, but for a line cut short.
+        if (said.length > 16) said.removeFirst();
       }
     }
 
-    final lines = const LineSplitter().convert(text);
-    var cwd = kept.cwd;
-    var prompt = kept.prompt;
-    for (final line in lines) {
-      if (prompt != null) break;
-      if (!line.contains('"type":"user"')) continue;
-      final Map<String, Object?> entry;
-      try {
-        entry = (jsonDecode(line) as Map).cast<String, Object?>();
-      } on Object {
-        continue;
+    // Where the bytes in [carry] begin: the line not yet ended there.
+    var at = kept.scanned;
+    var carry = Uint8List(0);
+    for (var read = kept.scanned; read < length;) {
+      final chunk = file.readSync(math.min(_chunk, length - read));
+      if (chunk.isEmpty) break;
+      read += chunk.length;
+      final bytes = carry.isEmpty
+          ? chunk
+          : (BytesBuilder(copy: false)
+                  ..add(carry)
+                  ..add(chunk))
+                .takeBytes();
+      var start = 0;
+      for (
+        var end = bytes.indexOf(0x0a, carry.length);
+        end >= 0;
+        end = bytes.indexOf(0x0a, start)
+      ) {
+        line(Uint8List.sublistView(bytes, start, end), at + start, at + end);
+        start = end + 1;
       }
-      cwd ??= entry['cwd'] as String?;
-      if (entry['isSidechain'] == true || entry['isMeta'] == true) continue;
-      if (_promptText(entry) case final typed?) {
-        final first = typed.trim().split('\n').first;
-        prompt = first.length > 120 ? '${first.substring(0, 120)}…' : first;
-      }
+      carry = Uint8List.sublistView(bytes, start);
+      at += start;
     }
+    // A line written halfway counts as far as it reads; it is read again,
+    // whole, next time.
+    if (carry.isNotEmpty) line(carry, at, at + carry.length);
+    final scanned = at;
+
+    Map<String, Object?>? entryAt((int, int) where) {
+      final (start, end) = where;
+      file.setPositionSync(start);
+      final bytes = file.readSync(end - start);
+      return _Lines._decode(bytes, 0, bytes.length);
+    }
+
+    String? title((int, int)? where, String key) {
+      if (where == null) return null;
+      return switch (entryAt(where)?[key]) {
+        final String title => title.trim(),
+        _ => '',
+      };
+    }
+
+    int? lastSaid() {
+      for (final where in said.toList().reversed) {
+        final entry = entryAt(where);
+        if (entry == null) continue;
+        if (entry['type'] != 'user' && entry['type'] != 'assistant') continue;
+        if (entry['timestamp'] case final String time) {
+          if (DateTime.tryParse(time) case final parsed?) {
+            return parsed.toLocal().microsecondsSinceEpoch;
+          }
+        }
+      }
+      return null;
+    }
+
+    final markFrom = math.max(from, scanned - _markLength);
+    file.setPositionSync(markFrom);
+    final before = file.readSync(scanned - markFrom);
     return _Summary(
       cwd: cwd,
       prompt: prompt,
-      named: lastTitle('custom-title', 'customTitle') ?? kept.named,
-      generated: lastTitle('ai-title', 'aiTitle') ?? kept.generated,
-      said: _lastMessageTime(lines)?.microsecondsSinceEpoch ?? kept.said,
-      scanned: kept.scanned + end,
+      named: title(named, 'customTitle') ?? kept.named,
+      generated: title(generated, 'aiTitle') ?? kept.generated,
+      said: lastSaid() ?? kept.said,
+      scanned: scanned,
       mark: base64Encode(before),
     );
   }
+
+  static final _userType = utf8.encode('"type":"user"');
+  static final _assistantType = utf8.encode('"type":"assistant"');
+  static final _customTitleType = utf8.encode('"type":"custom-title"');
+  static final _aiTitleType = utf8.encode('"type":"ai-title"');
+  static final _timestamp = utf8.encode('"timestamp"');
 }
 
-/// The time of the last message, user's or Claude's, in [lines]; null
-/// when none has one.
-DateTime? _lastMessageTime(List<String> lines) {
-  for (final line in lines.reversed) {
-    if (!line.contains('"timestamp"')) continue;
-    if (!line.contains('"type":"user"') &&
-        !line.contains('"type":"assistant"')) {
-      continue;
-    }
-    try {
-      final entry = jsonDecode(line) as Map;
-      if (entry['type'] != 'user' && entry['type'] != 'assistant') continue;
-      if (entry['timestamp'] case final String time) {
-        if (DateTime.tryParse(time) case final parsed?) return parsed.toLocal();
+/// Whether [marker] is in [bytes].
+bool _has(Uint8List bytes, List<int> marker) {
+  final first = marker.first;
+  final last = bytes.length - marker.length;
+  search:
+  for (var at = bytes.indexOf(first); at >= 0 && at <= last;) {
+    for (var i = 1; i < marker.length; i++) {
+      if (bytes[at + i] != marker[i]) {
+        at = bytes.indexOf(first, at + 1);
+        continue search;
       }
-    } on Object {
-      continue;
     }
+    return true;
   }
-  return null;
+  return false;
 }
 
 /// The text of a message the user typed: empty for images alone, null for
