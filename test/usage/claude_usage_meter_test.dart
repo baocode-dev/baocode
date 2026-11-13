@@ -550,4 +550,42 @@ void main() {
     // A subagent's context is its own, not counted.
     expect(kept.last.context, isNull);
   });
+
+  test('a stream cut off does not take the next one\'s usage: the context '
+      'goes on with each request (#971)', () {
+    Map<String, Object?> start(String id) => event({
+      'type': 'message_start',
+      'message': {
+        'id': id,
+        'model': 'gpt-6.1-sol',
+        // The proxy's: told only at the end.
+        'usage': {'input_tokens': 0, 'output_tokens': 0},
+      },
+    });
+    Map<String, Object?> end(int input) => event({
+      'type': 'message_delta',
+      'delta': {'stop_reason': 'tool_use'},
+      'usage': {'input_tokens': input, 'output_tokens': 100},
+    });
+
+    meter
+      ..receive(start('msg_1'))
+      ..receive(end(140000))
+      ..receive(event({'type': 'message_stop'}));
+    expect(meter.mainContextTokens, 140100);
+
+    // Cut off: no end, then asked again.
+    meter
+      ..receive(start('msg_2'))
+      ..receive(start('msg_3'))
+      ..receive(end(150000))
+      ..receive(event({'type': 'message_stop'}));
+    expect(meter.mainContextTokens, 150100);
+
+    meter
+      ..receive(start('msg_4'))
+      ..receive(end(239000))
+      ..receive(event({'type': 'message_stop'}));
+    expect(meter.mainContextTokens, 239100);
+  });
 }
