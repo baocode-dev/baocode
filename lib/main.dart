@@ -227,6 +227,7 @@ Future<void> main(List<String> arguments) async {
         ? null
         : PreferenceStore.file(
             p.join(DataDirectory.current.stateDir, 'drafts.json'),
+            true,
           ),
     // The data folder's icons/, the upstreams of models' pictures too.
     icons: IconLibrary.current = IconLibrary(storage: IconStorage.directory()),

@@ -2494,13 +2494,27 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     'images': [
       for (final image in draft.images)
         {
-          'bytes': base64Encode(image.bytes),
+          'bytes': _base64Of(image.bytes),
           'mediaType': image.mediaType,
           'name': ?image.name,
           'number': ?image.number,
         },
     ],
   };
+
+  /// Each picture's bytes as base64, made once: a draft is encoded again
+  /// on every key, its pictures (megabytes each) with it (E0A7T8YQ).
+  static final _base64 = Expando<String>();
+
+  static String _base64Of(Uint8List bytes) =>
+      _base64[bytes] ??= base64Encode(bytes);
+
+  /// [base64]'s bytes, it kept for them.
+  static Uint8List _bytesOf(String base64) {
+    final bytes = base64Decode(base64);
+    _base64[bytes] = base64;
+    return bytes;
+  }
 
   /// Into [draft]; nothing of one that cannot be read.
   static void _decodeDraft(Map<String, Object?> kept, ComposerDraft draft) {
@@ -2512,7 +2526,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
             'mediaType': final String mediaType,
           })
             ImageAttachment(
-              bytes: base64Decode(bytes),
+              bytes: _bytesOf(bytes),
               mediaType: mediaType,
               name: image['name'] as String?,
               number: image['number'] as int?,
