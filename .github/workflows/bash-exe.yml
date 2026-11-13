@@ -104,14 +104,24 @@ jobs:
           # GPL: where its source is, exactly.
           "BaoCode Bash ${{ steps.version.outputs.version }}`nSource: https://github.com/baocode-dev/bash-exe/tree/${{ steps.version.outputs.commit }}`n" |
             Set-Content -NoNewline "$out/SOURCE.txt"
+          # For people, with its license; the app takes bash.exe alone,
+          # gzipped (dart:io has gzip, not zip).
           Compress-Archive -Path "$out/*" -DestinationPath "dist/bash-exe-windows-${{ matrix.arch }}.zip"
-          (Get-Item bash-exe/target/${{ matrix.target }}/release/bash.exe).Length, (Get-Item "dist/bash-exe-windows-${{ matrix.arch }}.zip").Length |
-            ForEach-Object { "{0:N1} MB" -f ($_ / 1MB) }
+          $gz = "dist/bash-windows-${{ matrix.arch }}.exe.gz"
+          $in = [IO.File]::OpenRead((Resolve-Path "$out/bash.exe"))
+          $file = [IO.File]::Create((Join-Path $PWD $gz))
+          $zip = New-Object IO.Compression.GZipStream($file, [IO.Compression.CompressionLevel]::SmallestSize)
+          $in.CopyTo($zip)
+          $zip.Dispose(); $file.Dispose(); $in.Dispose()
+          "$out/bash.exe", "dist/bash-exe-windows-${{ matrix.arch }}.zip", $gz |
+            ForEach-Object { "{0}: {1:N1} MB" -f $_, ((Get-Item $_).Length / 1MB) }
       - uses: actions/upload-artifact@v6
         with:
           name: bash-exe-windows-${{ matrix.arch }}
           if-no-files-found: error
-          path: dist/bash-exe-windows-${{ matrix.arch }}.zip
+          path: |
+            dist/bash-exe-windows-${{ matrix.arch }}.zip
+            dist/bash-windows-${{ matrix.arch }}.exe.gz
 
   publish:
     name: Publish to dl.baocode.dev/tools/bash-exe/
@@ -147,23 +157,26 @@ jobs:
             --recursive --cache-control 'public, max-age=31536000, immutable'
       - name: Check they are served
         run: |
-          for zip in dist/*.zip; do
-            url="https://dl.baocode.dev/tools/bash-exe/$VERSION/$(basename "$zip")"
-            expected=$(stat -c %s "$zip")
+          for file in dist/*; do
+            url="https://dl.baocode.dev/tools/bash-exe/$VERSION/$(basename "$file")"
+            expected=$(stat -c %s "$file")
             served=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')
             echo "$url: $served bytes (expected $expected)"
             [ "$served" = "$expected" ] || { echo "::error::$url is not served as uploaded"; exit 1; }
           done
       - name: Name them in latest.json, last
         run: |
+          # What the app downloads: bash.exe gzipped, by architecture; the
+          # size and SHA-256 of the download, and the size unpacked.
           files='{}'
           for arch in x64 arm64; do
-            zip="dist/bash-exe-windows-$arch.zip"
+            gz="dist/bash-windows-$arch.exe.gz"
             files=$(jq --arg arch "$arch" \
-              --arg url "https://dl.baocode.dev/tools/bash-exe/$VERSION/$(basename "$zip")" \
-              --argjson size "$(stat -c %s "$zip")" \
-              --arg sha256 "$(sha256sum "$zip" | cut -d' ' -f1)" \
-              '.[$arch] = {url: $url, size: $size, sha256: $sha256}' <<< "$files")
+              --arg url "https://dl.baocode.dev/tools/bash-exe/$VERSION/$(basename "$gz")" \
+              --argjson size "$(stat -c %s "$gz")" \
+              --arg sha256 "$(sha256sum "$gz" | cut -d' ' -f1)" \
+              --argjson unpacked "$(gzip -dc "$gz" | wc -c)" \
+              '.[$arch] = {url: $url, size: $size, sha256: $sha256, unpacked: $unpacked}' <<< "$files")
           done
           jq -n --arg version "$VERSION" --arg commit "$COMMIT" --argjson files "$files" \
             '{version: $version, commit: $commit, files: $files}' > latest.json

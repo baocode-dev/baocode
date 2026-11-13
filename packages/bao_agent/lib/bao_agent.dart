@@ -18,4 +18,5 @@ export 'src/engine/isolate.dart' show AgentIsolate;
 export 'src/engine/session.dart' show EngineOptions, MissingCredentials;
 export 'src/engine/session_store.dart' show agentVersion;
 export 'src/tools/file_index.dart' show FileIndex;
+export 'src/util/processes.dart' show Shell;
 export 'src/util/cancel.dart' show CancelToken, Cancelled;

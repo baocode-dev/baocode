@@ -93,6 +93,22 @@ try {
   Test-Bash '/mnt/c/ path' "test -f '/mnt$msys/System32/cmd.exe' && echo yes" '^yes\n$'
   Test-Bash 'cd /c/' "cd '$msys' && ls -d System32" '^System32\n$'
 
+  Test-Bash 'pwd, in Windows spelling' "cd '$msys' && pwd -P" '(?i)^[a-z]:[\\/]windows\n$'
+
+  # As bao_agent's Bash tool runs a command (Shell.arguments in
+  # packages/bao_agent/lib/src/util/processes.dart): where it ended up is
+  # written to a file, for the next.
+  $cwdFile = Join-Path $work 'cwd.txt'
+  $script = 'eval "$1" < /dev/null; __bao_status=$?; pwd -P >| "$2" 2>/dev/null; exit $__bao_status'
+  $agent = Invoke-Bash @('-c', $script, 'bash', "cd '$msys' && echo moved && exit 3", $cwdFile)
+  $ended = if (Test-Path -LiteralPath $cwdFile) { (Get-Content -LiteralPath $cwdFile -Raw).Trim() } else { '' }
+  if ($agent.Status -ne 3 -or $agent.Out -ne "moved`n" -or $ended -notmatch '(?i)^[a-z]:[\\/]windows$') {
+    Write-Host "FAIL as the agent runs it: $($agent.Status) '$($agent.Out)' '$ended' $($agent.Err)"
+    $failed++
+  } else {
+    Write-Host "ok   as the agent runs it ($ended)"
+  }
+
   Test-Bash 'Windows programs' 'cmd.exe /c echo from-cmd' '^from-cmd\s*$'
   Test-Bash 'a program on PATH' 'git --version' '^git version'
   Test-Bash 'Windows find, as written for it' 'find /c "foo" a.txt' '(?i)a\.txt: 1'

@@ -16,10 +16,12 @@ import 'package:bao_editor/monaco/flutter/language_assets.dart';
 
 import 'base/quiet_view.dart';
 import 'base/smooth_scroll.dart' show BaoScrollBehavior;
+import 'bash_exe/bao_bash.dart';
 import 'bots/bots.dart';
 import 'browser/browser_bridge.dart';
 import 'browser/browser_tools.dart' show BrowserHistory;
 import 'chat/composer/composer_files.dart' show ComposerFile, pastedAsPicture;
+import 'chat/chat_session.dart';
 import 'chat/chat_width.dart';
 import 'chat/reply_scroll.dart';
 import 'chat/edit_detail.dart';
@@ -418,6 +420,10 @@ Future<void> main(List<String> arguments) async {
       link: link,
       customizations: customizations,
     );
+    // Before the feature tips start: they tell it whether the app ran
+    // here before.
+    BaoBash.current = settings.bash?..noteStart();
+    ChatSession.userSent = BaoBash.current?.countSent;
     _startTelemetry(files, link);
   }
   // The theme extensions (lib/extensions/): color and file icon themes

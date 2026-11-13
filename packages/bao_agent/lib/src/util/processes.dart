@@ -90,14 +90,25 @@ Future<List<int>> _descendants(int pid) async {
 }
 
 /// The shell commands are run in: the user's, when it is bash or zsh;
-/// else bash; on Windows, Git's bash where it is installed.
+/// else bash; on Windows, the one set by `CLAUDE_CODE_GIT_BASH_PATH`, else
+/// BaoCode Bash where the app installed it ([baoBashVariable]), else Git's
+/// bash where it is installed, else cmd.exe.
 class Shell {
-  const Shell(this.executable, {this.posix = true});
+  const Shell(this.executable, {this.posix = true, this.baoBash = false});
+
+  /// The variable the app names BaoCode Bash's `bash.exe` in
+  /// (github.com/baocode-dev/bash-exe): bash 5.3 with `rg`, `grep`, `sed`,
+  /// `awk`, `find`, `jq` and the like built in, that takes `C:\x` and
+  /// `/c/x` alike.
+  static const baoBashVariable = 'BAOCODE_BASH';
 
   final String executable;
 
   /// Whether it takes POSIX shell commands (not cmd.exe).
   final bool posix;
+
+  /// Whether it is BaoCode Bash, its tools there whatever is installed.
+  final bool baoBash;
 
   /// The shell for [environment]'s user, on Windows when [windows] (where
   /// this runs, when not given); [exists] says whether a file is there.
@@ -109,8 +120,14 @@ class Shell {
     exists ??= (path) => File(path).existsSync();
     if (windows ?? Platform.isWindows) {
       final path = p.windows;
+      if (environment['CLAUDE_CODE_GIT_BASH_PATH'] case final set?
+          when exists(set)) {
+        return Shell(set);
+      }
+      if (environment[baoBashVariable] case final bao? when exists(bao)) {
+        return Shell(bao, baoBash: true);
+      }
       final candidates = [
-        environment['CLAUDE_CODE_GIT_BASH_PATH'],
         // Git's own, by the git on the PATH (`Git\cmd\git.exe`).
         for (final dir
             in (environment['PATH'] ?? environment['Path'] ?? '').split(';'))
@@ -121,7 +138,7 @@ class Shell {
         if (environment['LOCALAPPDATA'] case final local?)
           path.join(local, 'Programs', 'Git', 'bin', 'bash.exe'),
       ];
-      for (final candidate in candidates.whereType<String>()) {
+      for (final candidate in candidates) {
         if (exists(candidate)) return Shell(candidate);
       }
       return Shell(environment['COMSPEC'] ?? 'cmd.exe', posix: false);

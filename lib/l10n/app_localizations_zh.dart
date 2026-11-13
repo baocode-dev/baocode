@@ -13271,4 +13271,62 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get generalSettingsSessionToolsDescription =>
       'Agent 能列出你的其他对话、在不唤醒的情况下查看进展、给它们派活（没在运行的会恢复，正忙的会排队）并等待结果。适合用一个对话统筹其他对话；改动后新启动的 Agent 才有。';
+
+  @override
+  String get generalSettingsCommandLine => '命令行';
+
+  @override
+  String get baoBashRecommended => 'BaoCode Bash（推荐）';
+
+  @override
+  String get baoBashDescription =>
+      '让智能体在 Windows 上用上完整的 bash：自带 rg、grep、sed、awk、find、jq、tar 等八十多个常用命令，不需要装 Git for Windows；C:\\ 和 /c/ 两种路径都认。内置内核会用它运行命令。';
+
+  @override
+  String get baoBashNotInstalled =>
+      '未安装：智能体现在用 Git Bash 运行命令，没装 Git Bash 时用 cmd.exe。';
+
+  @override
+  String baoBashInstalled(String version) {
+    return '已安装 $version。';
+  }
+
+  @override
+  String baoBashUpdateAvailable(String version) {
+    return '有新版本 $version。';
+  }
+
+  @override
+  String baoBashDownloading(int percent) {
+    return '正在下载… $percent%';
+  }
+
+  @override
+  String get baoBashInstall => '安装';
+
+  @override
+  String baoBashInstallSize(String size) {
+    return '安装（$size）';
+  }
+
+  @override
+  String get baoBashUpdate => '更新';
+
+  @override
+  String get baoBashUninstall => '卸载';
+
+  @override
+  String baoBashFailed(String error) {
+    return '安装失败：$error';
+  }
+
+  @override
+  String get baoBashNoticeTitle => '在 Windows 上，推荐安装 BaoCode Bash';
+
+  @override
+  String get baoBashNoticeBody =>
+      '智能体运行命令会更稳。它自带 bash 和 rg、grep、sed、awk、find、jq、tar 等八十多个常用命令，不需要装 Git for Windows；C:\\ 和 /c/ 两种路径都认，不会再因为 cmd 和 PowerShell 写法不同而出错。';
+
+  @override
+  String get baoBashNoticeLater => '暂不';
 }

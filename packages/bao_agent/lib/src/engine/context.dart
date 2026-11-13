@@ -174,10 +174,14 @@ class SessionContext {
   static String _date(DateTime now) =>
       '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
+  /// The user's shell, as `SHELL` names it; else (Windows) the one
+  /// commands run in.
   String get _shell {
     final shell = session.environment['SHELL'];
-    if (shell == null || shell.isEmpty) return 'unknown';
-    return p.basename(shell);
+    if (shell != null && shell.isNotEmpty) return p.basename(shell);
+    final runs = session.shell;
+    if (runs.baoBash) return 'bash (BaoCode Bash)';
+    return runs.posix ? 'bash' : 'cmd.exe';
   }
 
   String _environment(String model) {
