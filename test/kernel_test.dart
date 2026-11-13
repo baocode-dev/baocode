@@ -1706,6 +1706,50 @@ void main() {
         event({'type': 'message_stop'});
         expect(shown(transcript), ['text: The answer']);
       });
+
+      test('a text block only blank never shows; one that goes on to say '
+          'something shows from then, all of it', () {
+        event({
+          'type': 'message_start',
+          'message': {'id': 'msg-1'},
+        });
+        streamText('msg-1', 0, '\n\n');
+        expect(shown(transcript), isEmpty);
+        event({
+          'type': 'content_block_start',
+          'index': 1,
+          'content_block': {'type': 'text', 'text': ''},
+        });
+        event({
+          'type': 'content_block_delta',
+          'index': 1,
+          'delta': {'type': 'text_delta', 'text': '\n'},
+        });
+        expect(shown(transcript), isEmpty);
+        event({
+          'type': 'content_block_delta',
+          'index': 1,
+          'delta': {'type': 'text_delta', 'text': 'Hi'},
+        });
+        event({
+          'type': 'content_block_delta',
+          'index': 1,
+          'delta': {'type': 'text_delta', 'text': ' there'},
+        });
+        event({'type': 'content_block_stop', 'index': 1});
+        expect(transcript.length, 1);
+        expect(transcript.itemAt(0), isA<AssistantTextItem>());
+        expect((transcript.itemAt(0) as AssistantTextItem).text, '\nHi there');
+        translator.translate(
+          whole('u-1', 'msg-1', [
+            {'type': 'text', 'text': '\n\n'},
+            {'type': 'text', 'text': '\nHi there'},
+          ]),
+        );
+        event({'type': 'message_stop'});
+        expect(transcript.length, 1);
+        expect((transcript.itemAt(0) as AssistantTextItem).text, '\nHi there');
+      });
     });
   });
 
