@@ -705,6 +705,45 @@ void main() {
     );
   });
 
+  testWidgets('what an input method put in a while ago it replaces there', (
+    tester,
+  ) async {
+    final controller = MarkdownController(text: 'one\ntwo\nthree');
+    final state = await _pump(tester, controller);
+    state.requestFocus();
+    await tester.pump();
+    // As WeType sends its dictation: what was heard put in, a new line in
+    // it, then, once tidied, replaced at the offsets it was put in at.
+    // The platform's text: what it was told last, as it changed it since.
+    var told = tester.testTextInput.editingState!['text'] as String;
+    final at = told.length;
+    const heard = '说的话\n第二段';
+    tester.testTextInput.log.clear();
+    told += heard;
+    tester.testTextInput.updateEditingValue(
+      TextEditingValue(
+        text: told,
+        selection: TextSelection.collapsed(offset: at + heard.length),
+      ),
+    );
+    await tester.pump();
+    if (tester.testTextInput.log.any(
+      (call) => call.method == 'TextInput.setEditingState',
+    )) {
+      told = tester.testTextInput.editingState!['text'] as String;
+    }
+    const tidied = '说的话。\n第二段。';
+    expect(told.substring(at, at + heard.length), heard);
+    tester.testTextInput.updateEditingValue(
+      TextEditingValue(
+        text: told.replaceRange(at, at + heard.length, tidied),
+        selection: TextSelection.collapsed(offset: at + tidied.length),
+      ),
+    );
+    await tester.pump();
+    expect(controller.text, 'one\ntwo\nthree说的话。\n第二段。');
+  });
+
   testWidgets('copied as it shows, pasted back as its markdown', (
     tester,
   ) async {
