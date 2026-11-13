@@ -1,6 +1,6 @@
 // Creating a multi-folder workspace, or changing one: its name and its
 // folders, added from the projects listed or picked in the file manager.
-// And a project's own: its name, and the folder it is.
+// And a project's own: its name, the folder it is, and those added to it.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -120,33 +120,13 @@ class _WorkspaceDialogState extends State<WorkspaceDialog> {
     });
   }
 
-  Future<void> _showProjects() async {
-    final box = _addProject.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final anchor = box.localToGlobal(Offset.zero) & box.size;
-    final projects = _projects;
-    final names = <String, int>{};
-    for (final project in projects) {
-      names[project.name] = (names[project.name] ?? 0) + 1;
-    }
-    await showIdeMenu(
-      context,
-      anchor: anchor,
-      entries: [
-        if (projects.isEmpty)
-          IdeMenuAction(context.l10n.workspaceNoProjects, enabled: false),
-        for (final project in projects)
-          IdeMenuAction(
-            // Two of one name: told apart by where they are.
-            names[project.name]! > 1
-                ? '${project.name} — ${project.path}'
-                : project.name,
-            checked: _folders.contains(project.path),
-            onSelected: () => _toggle(project.path),
-          ),
-      ],
-    );
-  }
+  Future<void> _showProjects() => _showProjectsMenu(
+    context,
+    button: _addProject,
+    projects: _projects,
+    chosen: _folders,
+    onToggle: _toggle,
+  );
 
   void _save() {
     if (_folders.isEmpty) {
@@ -314,6 +294,16 @@ class _ProjectDialogState extends State<ProjectDialog> {
   )..addListener(_pathChanged);
   late final bool _movable = _workspace.canRelocate(_project);
 
+  /// Whether folders can be added to it: one of this machine.
+  late final bool _extensible =
+      _project.host == null && _workspace.canAddFolders(_project.path);
+
+  /// The folders added to its own.
+  late final List<String> _added = [
+    ...?_workspace.multiRootAt(_project.path)?.added,
+  ];
+  final _addProject = GlobalKey();
+
   /// Its conversations are being moved.
   bool _moving = false;
   String? _error;
@@ -345,6 +335,34 @@ class _ProjectDialogState extends State<ProjectDialog> {
     _path.text = folder;
   }
 
+  void _toggle(String folder) => setState(() {
+    if (!_added.remove(folder)) _added.add(folder);
+  });
+
+  Future<void> _pickAdded() async {
+    final folder = await WorkspaceDialog.pickDirectory();
+    if (folder == null || !mounted) return;
+    setState(() {
+      if (folder != _typedPath && !_added.contains(folder)) _added.add(folder);
+    });
+  }
+
+  /// The projects of this machine that may be added: folders, not
+  /// workspaces, nor this one.
+  Future<void> _showProjects() => _showProjectsMenu(
+    context,
+    button: _addProject,
+    projects: [
+      for (final project in _workspace.sidebarProjects)
+        if (project.host == null &&
+            _workspace.workspaceOf(project) == null &&
+            project.path != _project.path)
+          project,
+    ],
+    chosen: _added,
+    onToggle: _toggle,
+  );
+
   Future<void> _save() async {
     if (_moving) return;
     final l10n = context.l10n;
@@ -375,6 +393,7 @@ class _ProjectDialogState extends State<ProjectDialog> {
       project = _workspace.projectAt(path);
     }
     _workspace.renameProject(project, _name.text);
+    if (_extensible) _workspace.setAddedFolders(project.path, _added);
     Navigator.pop(context, _workspace.projectAt(project.path));
   }
 
@@ -437,6 +456,56 @@ class _ProjectDialogState extends State<ProjectDialog> {
               ],
             ] else
               Text(_project.path, style: _muted()),
+            if (_extensible) ...[
+              const SizedBox(height: 14),
+              Text(l10n.workspaceFolders, style: _text(size: 12)),
+              const SizedBox(height: 2),
+              Text(l10n.projectFoldersDescription, style: _muted()),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: themeColors['input.border']),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Column(
+                  children: [
+                    // Its own, which stays.
+                    _FolderRow(
+                      workspace: _workspace,
+                      folder: _typedPath.isEmpty ? _project.path : _typedPath,
+                    ),
+                    for (final folder in _added)
+                      _FolderRow(
+                        key: ValueKey(folder),
+                        workspace: _workspace,
+                        folder: folder,
+                        onRemove: () => _toggle(folder),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  IdeButton(
+                    key: _addProject,
+                    icon: Codicons.add,
+                    label: l10n.workspaceAddProject,
+                    secondary: true,
+                    onPressed: _showProjects,
+                  ),
+                  if (WorkspaceDialog.canPickDirectory())
+                    IdeButton(
+                      icon: Codicons.folderOpened,
+                      label: l10n.workspaceAddFolder(l10n.fileManager),
+                      secondary: true,
+                      onPressed: () => unawaited(_pickAdded()),
+                    ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -444,19 +513,54 @@ class _ProjectDialogState extends State<ProjectDialog> {
   }
 }
 
+/// The menu of [projects] under [button], those [chosen] checked: one
+/// picked is [onToggle]d in or out.
+Future<void> _showProjectsMenu(
+  BuildContext context, {
+  required GlobalKey button,
+  required List<Project> projects,
+  required List<String> chosen,
+  required ValueChanged<String> onToggle,
+}) async {
+  final box = button.currentContext?.findRenderObject() as RenderBox?;
+  if (box == null) return;
+  final anchor = box.localToGlobal(Offset.zero) & box.size;
+  final names = <String, int>{};
+  for (final project in projects) {
+    names[project.name] = (names[project.name] ?? 0) + 1;
+  }
+  await showIdeMenu(
+    context,
+    anchor: anchor,
+    entries: [
+      if (projects.isEmpty)
+        IdeMenuAction(context.l10n.workspaceNoProjects, enabled: false),
+      for (final project in projects)
+        IdeMenuAction(
+          // Two of one name: told apart by where they are.
+          names[project.name]! > 1
+              ? '${project.name} — ${project.path}'
+              : project.name,
+          checked: chosen.contains(project.path),
+          onSelected: () => onToggle(project.path),
+        ),
+    ],
+  );
+}
+
 /// A folder of the workspace: its project's icon and name, where it is,
-/// and an × to take it out.
+/// and an × to take it out (none for a project's own).
 class _FolderRow extends StatelessWidget {
   const _FolderRow({
     super.key,
     required this.workspace,
     required this.folder,
-    required this.onRemove,
+    this.onRemove,
   });
 
   final Workspace workspace;
   final String folder;
-  final VoidCallback onRemove;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -488,12 +592,15 @@ class _FolderRow extends StatelessWidget {
               ],
             ),
           ),
-          IdeActionButton(
-            icon: Codicons.close,
-            iconSize: 14,
-            tooltip: context.l10n.workspaceRemoveFolder(name),
-            onPressed: onRemove,
-          ),
+          if (onRemove case final remove?)
+            IdeActionButton(
+              icon: Codicons.close,
+              iconSize: 14,
+              tooltip: context.l10n.workspaceRemoveFolder(name),
+              onPressed: remove,
+            )
+          else
+            const SizedBox.square(dimension: 22),
         ],
       ),
     );

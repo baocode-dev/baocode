@@ -192,6 +192,7 @@ Future<IdeWorkspace> pumpWorkbench(
   ValueChanged<Map<String, Object?>>? onViewState,
   List<String>? roots,
   IdeGitRepository? Function(String root)? gitOf,
+  bool projectFolder = false,
   IdeRepositoryDetection? repositoryDetection,
   IdeGitRepository? Function(String path)? openWorktree,
   VoidCallback? onAddFolder,
@@ -215,7 +216,8 @@ Future<IdeWorkspace> pumpWorkbench(
     git: git,
     // A multi-folder workspace's: its folders (in the project).
     roots: [for (final root in roots ?? const <String>[]) inRoot(root)],
-    gitOf: roots == null ? null : (root) => gitOf?.call(root),
+    gitOf: roots == null && !projectFolder ? null : (root) => gitOf?.call(root),
+    projectFolder: projectFolder,
     repositoryDetection: repositoryDetection,
     openWorktree: openWorktree,
   );

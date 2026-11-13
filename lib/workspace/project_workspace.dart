@@ -12,22 +12,37 @@ import 'project_workspace_dir_stub.dart'
 /// it as a project's path names a folder (the sidebar, what is kept, the
 /// sessions Claude Code keeps there) and is where its agents start: their
 /// [folders] are given to them besides. Only folders of this machine.
+///
+/// Or a project's folder with folders added to it ([inProject]): the
+/// project stays as it is, its agents starting in its folder, the first
+/// of [folders] (see [Workspace.multiRootAt]).
 class ProjectWorkspace {
   const ProjectWorkspace({
     required this.id,
     required this.name,
     required this.path,
     this.folders = const [],
+    this.inProject = false,
   });
 
   final String id;
   final String name;
 
-  /// Its own folder: `<data dir>/workspaces/<id>`.
+  /// Its own folder: `<data dir>/workspaces/<id>`. A project's folder, for
+  /// one [inProject].
   final String path;
 
-  /// The folders in it, in the order the user added them.
+  /// The folders in it, in the order the user added them; [path] first,
+  /// for one [inProject].
   final List<String> folders;
+
+  /// Whether it is a project's folder with folders added to it, nothing
+  /// of its own in the data directory.
+  final bool inProject;
+
+  /// The folders added to the project's, for one [inProject]; all of them
+  /// otherwise.
+  List<String> get added => inProject ? folders.skip(1).toList() : folders;
 
   ProjectWorkspace copyWith({String? name, List<String>? folders}) =>
       ProjectWorkspace(
@@ -35,6 +50,7 @@ class ProjectWorkspace {
         name: name ?? this.name,
         path: path,
         folders: folders ?? this.folders,
+        inProject: inProject,
       );
 
   Map<String, Object?> toJson() => {
@@ -67,8 +83,17 @@ class ProjectWorkspace {
   /// its work is in [folders], not the empty folder it starts in.
   String get systemPrompt {
     final listed = [
-      for (final folder in folders) '- ${p.basename(folder)}: $folder',
+      for (final folder in added) '- ${p.basename(folder)}: $folder',
     ].join('\n');
+    if (inProject) {
+      return '''
+<workspace>
+You are working in the project "$name", your working directory. The user added these folders to it (each also given to you with --add-dir):
+$listed
+
+When the user refers to one of them, look there, by absolute path. Run commands that act on one folder (git, builds, tests) in that folder.
+</workspace>''';
+    }
     return '''
 <workspace>
 You are working in the multi-folder workspace "$name". The user's files are in these folders (each also given to you with --add-dir), not in your working directory, which is only the workspace's own folder:
@@ -84,10 +109,12 @@ When the user refers to a file, a folder or "the project", look in these folders
       other.id == id &&
       other.name == name &&
       other.path == path &&
+      other.inProject == inProject &&
       _sameFolders(other.folders, folders);
 
   @override
-  int get hashCode => Object.hash(id, name, path, Object.hashAll(folders));
+  int get hashCode =>
+      Object.hash(id, name, path, inProject, Object.hashAll(folders));
 
   static bool _sameFolders(List<String> a, List<String> b) {
     if (a.length != b.length) return false;

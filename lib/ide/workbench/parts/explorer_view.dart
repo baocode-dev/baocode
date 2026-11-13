@@ -63,6 +63,8 @@ class ExplorerViewPart extends StatelessWidget {
     LanguageService language,
   ) {
     final workspace = options.workspace;
+    // A workspace's folders, or a project's (its own and those added).
+    final addsFolders = workspace.isMultiRoot || workspace.projectFolder;
     final host = services.get<WorkbenchHost>();
     final environment = services.get<WorkbenchEnvironment>();
     final scm = services.get<ScmService>();
@@ -110,7 +112,7 @@ class ExplorerViewPart extends StatelessWidget {
                       weight: 3,
                       actions: [
                         if (options.onAddFolder case final add?
-                            when workspace.isMultiRoot)
+                            when addsFolders)
                           IdePaneAction(
                             icon: Codicons.rootFolder,
                             tooltip: context.l10n.ideAddFolderToWorkspace,
@@ -170,7 +172,7 @@ class ExplorerViewPart extends StatelessWidget {
                                 for (final (_, git) in workspace.repositories)
                                   git,
                               ],
-                              onAddFolder: workspace.isMultiRoot
+                              onAddFolder: addsFolders
                                   ? options.onAddFolder
                                   : null,
                               onRemoveFolder: workspace.isMultiRoot

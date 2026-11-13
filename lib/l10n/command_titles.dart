@@ -40,6 +40,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     'baocode.remote.openFolder' => l10n.cmdOpenRemoteFolder,
     'baocode.remote.openFile' => l10n.cmdOpenRemoteFile,
     'baocode.workspace.create' => l10n.cmdCreateWorkspace,
+    'workbench.action.addRootFolder' => l10n.ideAddFolderToWorkspace,
     'workbench.action.openRecent' => l10n.cmdOpenRecent,
     'workbench.action.clearRecentlyOpened' => l10n.cmdClearRecentlyOpened,
     'workbench.action.closeFolder' => l10n.cmdCloseFolder,

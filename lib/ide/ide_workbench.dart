@@ -146,8 +146,13 @@ class IdeWorkbench extends StatefulWidget implements WorkbenchOptions {
   static const createWorkspaceCommandId =
       WorkbenchOptions.createWorkspaceCommandId;
 
-  /// Add Folder to Workspace...: of a multi-folder workspace (see
-  /// [IdeWorkspace.isMultiRoot]), the host asking for the folder.
+  /// Add Folder to Workspace...: the host's command, which asks for a
+  /// folder and adds it to the workspace, or to the project's folder.
+  static const addRootFolderCommandId = 'workbench.action.addRootFolder';
+
+  /// Add Folder to Workspace...: of a multi-folder workspace, or of a
+  /// project's folder (see [IdeWorkspace.projectFolder]), the host asking
+  /// for the folder.
   @override
   final VoidCallback? onAddFolder;
 

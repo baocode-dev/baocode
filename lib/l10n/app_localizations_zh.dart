@@ -7864,6 +7864,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get newChatCreateWorkspaceDetail => '在多个文件夹中工作';
 
   @override
+  String newChatAddFolderTo(String name) {
+    return '将文件夹添加到 $name…';
+  }
+
+  @override
+  String get newChatAddFolderToDetail => '智能体也能在那里工作';
+
+  @override
+  String newChatProjectAddedFolders(String path, int count) {
+    return '$path · 另有 $count 个文件夹';
+  }
+
+  @override
   String get workspaceCreateTitle => '创建工作区';
 
   @override
@@ -7923,6 +7936,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get sidebarEditProject => '编辑项目…';
 
   @override
+  String get sidebarAddFolder => '添加文件夹…';
+
+  @override
   String get projectEditTitle => '编辑项目';
 
   @override
@@ -7931,6 +7947,10 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get projectLocationDescription =>
       '文件夹搬走或改名后，把地址改成新位置，这个项目的对话会一起迁移过去。不会移动文件夹本身。';
+
+  @override
+  String get projectFoldersDescription =>
+      '智能体在这个项目中工作时，也可以读写添加进来的文件夹。已开始的对话在下次启动时生效。';
 
   @override
   String projectChooseFolder(String app) {

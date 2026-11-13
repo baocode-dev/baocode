@@ -98,6 +98,73 @@ void main() {
     expect(added, 1);
   });
 
+  testWidgets('a project\'s folder is a workspace\'s while folders are '
+      'added to it, its own first and not taken out; theirs alone again '
+      'without', (tester) async {
+    final own = FakeGit(testRoot);
+    final api = FakeGit(inRoot('api'));
+    final removed = <String>[];
+    var added = 0;
+    final workspace = await pumpWorkbench(
+      tester,
+      _files,
+      git: own.repository(),
+      gitOf: (_) => api.repository(),
+      projectFolder: true,
+      project: _web,
+      onAddFolder: () => added++,
+      onRemoveFolder: removed.add,
+    );
+    await tester.pumpAndSettle();
+    final git = workspace.git;
+    expect(workspace.isMultiRoot, isFalse);
+    expect(find.text('web (Workspace)'), findsNothing);
+    expect(find.text('site'), findsOneWidget);
+    // A folder is added from the empty space below its rows.
+    final explorer = tester.getRect(find.byType(IdeExplorer));
+    await tester.tapAt(
+      Offset(explorer.center.dx, explorer.bottom - 20),
+      buttons: kSecondaryButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Folder to Workspace…'));
+    await tester.pumpAndSettle();
+    expect(added, 1);
+
+    workspace.roots = [testRoot, inRoot('api')];
+    await tester.pumpAndSettle();
+    expect(workspace.isMultiRoot, isTrue);
+    expect(find.text('web (Workspace)'), findsOneWidget);
+    // Its own repository is the first of its folders'.
+    expect(identical(workspace.repositories.first.$2, git), isTrue);
+    expect(workspace.repositories, hasLength(2));
+
+    await tester.tap(_row('project'), buttons: kSecondaryButton);
+    await tester.pumpAndSettle();
+    expect(find.text('Remove Folder from Workspace'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    // The root, after the project's own (which has an api folder too).
+    await tester.tap(
+      find.ancestor(
+        of: find.text('api').last,
+        matching: find.byType(IdeListRow),
+      ),
+      buttons: kSecondaryButton,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove Folder from Workspace'));
+    await tester.pumpAndSettle();
+    expect(removed, [inRoot('api')]);
+
+    workspace.roots = const [];
+    await tester.pumpAndSettle();
+    expect(workspace.isMultiRoot, isFalse);
+    expect(find.text('web (Workspace)'), findsNothing);
+    // Its repository kept, not let go with the folders.
+    expect(identical(workspace.git, git), isTrue);
+  });
+
   testWidgets('with no folders yet, the explorer asks for one', (tester) async {
     var added = 0;
     await pumpWorkbench(

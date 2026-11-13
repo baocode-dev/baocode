@@ -6095,6 +6095,30 @@
     "description": "The menu's choice that makes a workspace of several folders for a new chat to work in."
   },
   "newChatCreateWorkspaceDetail": "Work across several folders",
+  "newChatAddFolderTo": "Add Folder to {name}…",
+  "@newChatAddFolderTo": {
+    "description": "The menu's choice, in the menu of where a new chat works, that picks a folder in the file manager and adds it to the project picked: its agents work in it too.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "monad"
+      }
+    }
+  },
+  "newChatAddFolderToDetail": "Its agents work there too",
+  "newChatProjectAddedFolders": "{path} · {count, plural, =1{1 more folder} other{{count} more folders}}",
+  "@newChatProjectAddedFolders": {
+    "description": "Under a project with folders added to it in the menu of where a new chat works: where it is, and how many folders were added to it.",
+    "placeholders": {
+      "path": {
+        "type": "String",
+        "example": "/Users/me/monad"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "workspaceCreateTitle": "Create Workspace",
   "@workspaceCreateTitle": {
     "description": "The title of the dialog that makes a workspace of several folders."
@@ -6160,6 +6184,10 @@
     "description": "Forgets a workspace; its folders and sessions are kept."
   },
   "sidebarEditProject": "Edit Project…",
+  "sidebarAddFolder": "Add Folder…",
+  "@sidebarAddFolder": {
+    "description": "A project's menu item: picks a folder in the file manager and adds it to the project, its agents working in it too."
+  },
   "@sidebarEditProject": {
     "description": "A project's menu item: its name and folder, in a dialog."
   },
@@ -6169,6 +6197,7 @@
     "description": "The label of a project's folder in its dialog."
   },
   "projectLocationDescription": "Moved or renamed the folder? Point the project at it here, and its conversations move along. The folder itself is not moved.",
+  "projectFoldersDescription": "Agents working in this project can read and change the files in the folders added to it too. Conversations already started see them once they start again.",
   "projectChooseFolder": "Choose in {app}…",
   "@projectChooseFolder": {
     "placeholders": {

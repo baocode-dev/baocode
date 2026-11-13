@@ -434,13 +434,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       // A remote project's on its host.
       backendFor: (location) => ProjectHost.of(location).terminals(backend),
       // A workspace's in its first folder (its own is only its settings).
-      pathOf: (location) => switch (_workspace.workspaceAt(location)) {
+      pathOf: (location) => switch (_workspace.multiRootAt(location)) {
         final multi? => multi.folders.firstOrNull ?? location,
         null => RemoteLocation.pathOf(location),
       },
       // New Terminal there asks which of them.
       foldersOf: (location) =>
-          _workspace.workspaceAt(location)?.folders ?? const [],
+          _workspace.multiRootAt(location)?.folders ?? const [],
     )..onLastClosed = _focusCurrentChat,
     _ => null,
   }?..addListener(_terminalsChanged);
@@ -683,18 +683,32 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
   }
 
-  /// The IDE and side panel of a multi-folder workspace show the folders
-  /// it has now.
+  /// The IDE and side panel of a multi-folder workspace, or of a project
+  /// with folders added to it, show the folders it has now.
   void _syncWorkspaceFolders() {
     for (final MapEntry(key: folder, value: space) in _ideSpaces.entries) {
-      if (_workspace.workspaceAt(folder) case final multi?) {
+      if (_workspace.multiRootAt(folder) case final multi?) {
         space.roots = multi.folders;
+      } else if (space.projectFolder) {
+        space.roots = const [];
       }
     }
     for (final multi in _workspace.workspaces) {
       _sidePanel.setRoots(multi.path, multi.folders);
     }
+    // Those folders were taken out of too, theirs alone again.
+    final added = {..._workspace.projectsWithFolders};
+    for (final path in {..._projectsWithFolders, ...added}) {
+      _sidePanel.setRoots(
+        path,
+        _workspace.multiRootAt(path)?.folders ?? const [],
+      );
+    }
+    _projectsWithFolders = added;
   }
+
+  /// The projects with folders added to them, as last synced.
+  Set<String> _projectsWithFolders = const {};
 
   /// Create Workspace...: asks for its name and folders, then opens it in
   /// the IDE ([inIde]) or has a new agent work in it.
@@ -708,13 +722,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
   }
 
-  /// Add Folder to Workspace...: one picked in the file manager.
+  /// Add Folder to Workspace...: one picked in the file manager, added
+  /// to the workspace, or to the project's folder.
   Future<void> _addWorkspaceFolder(String location) async {
     final path = await WindowControls.pickDirectory();
     if (path == null || !mounted) return;
-    if (_workspace.workspaceAt(location) case final multi?) {
-      _workspace.addWorkspaceFolder(multi, path);
-    }
+    _workspace.addFolder(location, path);
   }
 
   IdeRecentWorkspace? _recentWorkspace(String path) =>
@@ -1390,7 +1403,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       project.root,
       pathContext: RemoteLocation.pathsOf(project.path),
     ),
-  )..roots = _workspace.workspaceOf(project)?.folders;
+  )..roots = _workspace.multiRootAt(project.path)?.folders;
 
   final Map<String, FileMentions> _fileMentions = {};
 
@@ -2126,6 +2139,16 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
               category: 'Workspaces',
               label: 'Create Workspace...',
               run: () => unawaited(_createWorkspace(inIde: true)),
+            ),
+          // To a workspace, or to a project's folder (see
+          // [Workspace.multiRootAt]).
+          if (folder != _noFolder && _workspace.canAddFolders(folder))
+            IdeCommand(
+              id: IdeWorkbench.addRootFolderCommandId,
+              category: 'Workspaces',
+              label: 'Add Folder to Workspace...',
+              enabled: WindowControls.canPickDirectory,
+              run: () => unawaited(_addWorkspaceFolder(folder)),
             ),
           command('workbench.action.openRecent', _showOpenRecent),
           command(
@@ -2934,16 +2957,12 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             commands: _ideCommandsFor(path),
             recentFolders: _workspace.recentFolders,
             recentWorkspaceOf: _recentWorkspace,
-            onAddFolder: _workspace.workspaceAt(path) == null
-                ? null
-                : () => unawaited(_addWorkspaceFolder(path)),
-            onRemoveFolder: switch (_workspace.workspaceAt(path)) {
-              final multi? => (folder) => _workspace.removeWorkspaceFolder(
-                multi,
-                folder,
-              ),
-              null => null,
-            },
+            onAddFolder: _workspace.canAddFolders(path)
+                ? () => unawaited(_addWorkspaceFolder(path))
+                : null,
+            onRemoveFolder: _workspace.canAddFolders(path)
+                ? (folder) => _workspace.removeFolder(path, folder)
+                : null,
             onOpenRecent: (folder) =>
                 _openIdeFolder(folder, held: _newWindowHeld),
             settings: widget.settings?.files?.settings,
@@ -3325,6 +3344,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             files: host.files(root),
             languages: widget.languagesFor?.call(folder),
             git: widget.gitFor?.call(folder),
+            // A folder of this machine's: those added to it its roots
+            // besides (see [Workspace.multiRootAt]).
+            roots: _workspace.multiRootAt(folder)?.folders ?? const [],
+            gitOf: host.name == null
+                ? (folder) => widget.gitFor?.call(folder)
+                : null,
+            projectFolder: host.name == null,
             repositoryDetection: _repositoryDetection(host),
             openWorktree: (path) =>
                 widget.gitFor?.call(RemoteLocation.of(host.name, path)),
@@ -3997,7 +4023,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   );
 
   Widget _sidePanelRailOf(AgentThread thread) {
-    final multi = _workspace.workspaceAt(thread.project.path);
+    final multi = _workspace.multiRootAt(thread.project.path);
     return SidePanelRail(
       onSelect: (section) {
         if (_agentThread == null && !identical(thread, _workspace.current)) {
@@ -4025,7 +4051,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     bool windowTitleBar = true,
   }) {
     final location = thread.project.path;
-    final multi = _workspace.workspaceAt(location);
+    final multi = _workspace.multiRootAt(location);
     // Its IDE's repositories, found in the folders' subfolders as they are
     // looked for.
     if (_ideSpaces[multi?.path ?? location] case final space?) {
@@ -4070,7 +4096,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }) {
     final (:files, :paths) = _projectFiles(thread);
     final location = thread.project.path;
-    final multi = _workspace.workspaceAt(location);
+    final multi = _workspace.multiRootAt(location);
     return AgentSidePanelView(
       panel: _sidePanel,
       session: thread.session,
@@ -4131,7 +4157,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           : () => unawaited(_addWorkspaceFolder(location)),
       onRemoveFolder: multi == null
           ? null
-          : (folder) => _workspace.removeWorkspaceFolder(multi, folder),
+          : (folder) => _workspace.removeFolder(location, folder),
       titleBarInset: titleBarInset,
       leading: leading,
       windowTitleBar: windowTitleBar,
@@ -4243,7 +4269,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     listenable: _worktreeSignals(thread),
     builder: (context, _) {
       final project = thread.project;
-      final multi = _workspace.workspaceOf(project);
+      final multi = _workspace.multiRootAt(project.path);
       final git = multi == null ? _shownGit(thread) : null;
       return ChatQuotaBar(
         session: thread.session,
@@ -4276,7 +4302,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// What changes which worktree [thread]'s repositories show: where its
   /// agent works, the worktree picked, and the worktrees read.
   Listenable _worktreeSignals(AgentThread thread) {
-    final multi = _workspace.workspaceAt(thread.project.path);
+    final multi = _workspace.multiRootAt(thread.project.path);
     return Listenable.merge([
       _agentWorkPathOf(thread),
       _sidePanel,
@@ -4400,7 +4426,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       sizeOf: (path) async => await byteSizeThrough(files, path) ?? 0,
       paths: paths,
       roots: () =>
-          _workspace.workspaceAt(thread.project.path)?.folders ?? const [],
+          _workspace.multiRootAt(thread.project.path)?.folders ?? const [],
       home: () => ProjectHost.of(thread.project.path).home,
       existsHere: _existsHere,
       openOnHost: (host, path, range) =>

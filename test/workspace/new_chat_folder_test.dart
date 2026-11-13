@@ -132,6 +132,32 @@ void main() {
     );
   }, variant: _mac);
 
+  testWidgets('a folder is added to the project picked: how many after '
+      'its name, its agent working in it too', (tester) async {
+    final workspace = await _pumpNew(tester);
+    final project = workspace.selected.project;
+    NewChatFolderBar.pickDirectory = () async => '/tmp/extra';
+    await tester.tap(find.descendant(of: _bar, matching: find.text('baocode')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add Folder to baocode…'));
+    await tester.pumpAndSettle();
+
+    expect(workspace.selected.project.path, project.path);
+    expect(workspace.multiRootAt(project.path)!.added, ['/tmp/extra']);
+    expect(workspace.selected.session.kernelContext.workspace!()!.folders, [
+      '/tmp/extra',
+    ]);
+    expect(
+      find.descendant(of: _bar, matching: find.text('baocode +1')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.descendant(of: _bar, matching: find.text('baocode +1')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('${project.path} · 1 more folder'), findsOneWidget);
+  }, variant: _mac);
+
   testWidgets('it goes once a message is sent, the input to the bottom', (
     tester,
   ) async {

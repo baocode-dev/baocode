@@ -1876,6 +1876,9 @@ class _SidebarState extends State<Sidebar>
       folders: project == null
           ? null
           : _workspace.workspaceOf(project)?.folders,
+      added: project == null
+          ? const []
+          : _workspace.multiRootAt(project.path)?.added ?? const [],
       dragged: project != null && identical(project, _draggedProject),
       speedMatch: _speedHits[group.id],
       // The one the speed search found; else one folded over the agent open.
@@ -2047,6 +2050,13 @@ class _SidebarState extends State<Sidebar>
             showProjectDialog(context, workspace: _workspace, project: project),
           ),
         ),
+      if (_workspace.canAddFolders(project.path) &&
+          WindowControls.canPickDirectory)
+        SidebarMenuItem(
+          l10n.sidebarAddFolder,
+          icon: Icons.create_new_folder_outlined,
+          onSelected: () => unawaited(_addFolder(project)),
+        ),
       SidebarMenuItem(
         l10n.sidebarRevealIn(Editor.folder.localizedPlatformLabel(l10n)),
         icon: Editor.folder.icon,
@@ -2098,6 +2108,14 @@ class _SidebarState extends State<Sidebar>
           onSelected: () => _workspace.deleteWorkspace(multi),
         ),
     ];
+  }
+
+  /// Adds a folder picked in the file manager to [project]: its agents
+  /// work in it too from then on.
+  Future<void> _addFolder(Project project) async {
+    final folder = await WindowControls.pickDirectory();
+    if (folder == null || !mounted) return;
+    _workspace.addFolder(project.path, folder);
   }
 
   static Object _iconSlot(Project project) => (#icon, project.path);
@@ -2749,6 +2767,7 @@ class _GroupHeader extends StatelessWidget {
     this.pinned = false,
     this.icon,
     this.folders,
+    this.added = const [],
   });
 
   final _Group group;
@@ -2808,6 +2827,10 @@ class _GroupHeader extends StatelessWidget {
   /// The folders of the project, a multi-folder workspace's; null for a
   /// folder's.
   final List<String>? folders;
+
+  /// The folders added to a folder's project, its agents working in them
+  /// too.
+  final List<String> added;
 
   @override
   Widget build(BuildContext context) {
@@ -3004,12 +3027,29 @@ class _GroupHeader extends StatelessWidget {
       // Where the project is: its name says only which. Over the name
       // alone, not the buttons beside it, which come and go with the
       // pointer.
+      // With folders added to it: how many after its name, which they are
+      // under where it is.
+      final color = AppColors.textFaint;
       return _RowHover(
-        content: (context) => Text(project.path),
+        content: (context) => Text(
+          [project.path, for (final folder in added) '+ $folder'].join('\n'),
+        ),
         child: Align(
           alignment: Alignment.centerLeft,
           widthFactor: 1,
-          child: label,
+          child: added.isEmpty
+              ? label
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(child: label),
+                    const SizedBox(width: 6),
+                    Text(
+                      '+${added.length}',
+                      style: TextStyle(color: color, fontSize: 11),
+                    ),
+                  ],
+                ),
         ),
       );
     }
