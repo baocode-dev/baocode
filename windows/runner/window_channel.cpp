@@ -776,6 +776,8 @@ void WindowChannel::HandleMethodCall(
     result->Success();
     if (::GetAsyncKeyState(VK_LBUTTON) & 0x8000) {
       ::ReleaseCapture();
+      // In front as it moves (see ViewWindow's caption press).
+      ::SetWindowPos(window_, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
       ::SendMessageW(window_, WM_SYSCOMMAND, SC_MOVE | HTCAPTION, 0);
       if (view_ != nullptr) {
         POINT point = {};
