@@ -231,6 +231,21 @@ abstract final class LinkMethods {
   /// none). Sent when it changes, and on connecting.
   static const setMe = 'setMe';
 
+  /// `{"token"?, "sandbox"?, "needsInput"?, "done"?, "bots"?, "notices"?}`:
+  /// what the desktop pushes the phone (through APNs) while it is [away]:
+  /// its token (hex; none stops them), `sandbox` for a development build,
+  /// and in its own words what it says of an agent asking (`needsInput`)
+  /// or done (`done`), `{device}` the desktop's name in them; `bots` to be
+  /// told of what bots write, and of their `notices` (by kind, `{title}`
+  /// the agent's). A kind with no words is not pushed. Sent on connecting,
+  /// and when it changes; kept by the desktop. `unknown` from one before.
+  static const push = 'push';
+
+  /// `{"away": bool}`: the phone's app in the background (or in front
+  /// again): the desktop pushes it ([push]) what it would have told of
+  /// itself. A phone not connected is away too.
+  static const away = 'away';
+
   /// `{"group"?, "name", "members", "passes"?, "rules"?, "gap"?}`: the
   /// group chat changed, or a new one (no `group`), of the bots [members]
   /// names (their ids) and the user; `passes`, how many times its
