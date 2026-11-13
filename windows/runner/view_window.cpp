@@ -362,6 +362,11 @@ ViewWindow::MessageHandler(HWND hwnd, UINT const message,
       return 0;
     }
     if (part == HTCAPTION) {
+      // In front of every other window as it is pressed, as a caption the
+      // system runs brings it: the press activates the window only if it
+      // was not already, and an active window can be under another that
+      // came up without taking the keyboard (a chat app's new message).
+      ::SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
       // A double click on the strip is the system's own shortcut for
       // maximizing, and its other way round again.
       const WPARAM command =
