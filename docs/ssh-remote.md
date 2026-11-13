@@ -2,7 +2,7 @@
 
 用 SSH 打开另一台机器上的项目，体验和 VS Code 的 Remote-SSH 一样：界面留在本机；文件、Git、搜索、终端、语言服务器和 Claude Code 都在远端主机上运行。本文说明它怎么工作、怎么构建和发布、出了问题怎么查，以及以后改代码时要注意什么。
 
-- 远端要求：Linux x64 / arm64 / riscv64（glibc），或 macOS（Apple silicon / Intel，要在“系统设置 → 通用 → 共享”里打开“远程登录”）；能用密钥、ssh-agent 或密码登录
+- 远端要求：Linux x64 / arm64 / riscv64（glibc），macOS（Apple silicon / Intel，要在“系统设置 → 通用 → 共享”里打开“远程登录”），或 Windows 10 / 11 x64 / arm64（要装好并启动 OpenSSH 服务器，见 4 节“Windows 主机”）；能用密钥、ssh-agent 或密码登录
 - 本机要求：系统自带的 OpenSSH 客户端（`ssh`）
 - Windows 上也能打开 WSL 发行版里的项目（`wsl.exe`，不用 ssh），见 4 节“WSL 发行版”
 - 代码：应用侧 `lib/remote/`，服务端和协议 `packages/bao_remote/`，构建工具 `tool/build_remote_server.dart`
@@ -42,10 +42,11 @@
 | Windows 打包带上服务端 | 已完成：`tool/build_windows.dart` |
 | macOS 打包带上服务端 | 写在 `tool/build_macos.dart` 里，**还没实际跑过** |
 | macOS 远端主机 | 已完成：服务端编成 macOS arm64 / x64 两份（只能在 Mac 上编，见 9.1），探测到 `Darwin` 就推送对应那份；有假 ssh 的测试，**还没在真 Mac 主机上验证** |
+| Windows 远端主机 | 已完成（#678、#680）：服务端编成 Windows x64 / arm64 两份，经 sftp 安装；文件、Git、搜索、PowerShell 终端（ConPTY）、语言服务器、Claude Code、断线重连。见 4 节“Windows 主机”；真机端到端：`tool/e2e/ssh_windows_app.dart`（#683） |
 | Windows 客户端打开远程项目 | **有已知问题**：见第 15 节 |
-| 真实主机端到端验证 | 连接部分已自动化：`tool/ssh_e2e.sh`（Docker sshd，macOS 和 Windows 都跑过）；其余见第 13 节 |
+| 真实主机端到端验证 | 连接部分已自动化：`tool/ssh_e2e.sh`（Docker sshd，macOS 和 Windows 都跑过）；Windows 主机见 `tool/e2e/ssh_windows.md`；其余见第 13 节 |
 
-不在范围内：Codex、Windows 远端、在访达中显示、用外部编辑器打开、往远程项目里拖文件。
+不在范围内：Codex、在访达中显示、用外部编辑器打开、往远程项目里拖文件。
 
 ---
 
@@ -139,7 +140,7 @@
 要点：
 
 - **只有一条连接**：每台主机只建一条 `ssh` 连接，这台主机上所有项目、所有功能都复用它。
-- **服务端是纯 Dart 程序**（`packages/bao_remote/bin/baocode_server.dart`），用 `dart compile exe` 编译成 Linux 和 macOS 二进制，不依赖远端装任何东西。
+- **服务端是纯 Dart 程序**（`packages/bao_remote/bin/baocode_server.dart`），用 `dart compile exe` 编译成 Linux、macOS 和 Windows 二进制，不依赖远端装任何东西。
 - **项目的身份是 location 字符串**：远程项目的路径存成 `ssh://<主机>/<绝对路径>`，例如 `ssh://dev/home/me/app`、`ssh://me@10.0.0.2:2222/srv/x`。工作区里存的、侧栏显示的、会话归属的都是它。真正调用远端时再拆成“主机 + 远端路径”。
 - **`bao_remote` 包不依赖 Flutter**，因为服务端要能用 `dart compile exe` 编译。本地项目用到的文件、Git、搜索、Claude 存储、终端 shell 集成等代码也放在这个包里，应用和服务端共用同一份实现。
 
@@ -177,7 +178,7 @@
 1. **找 ssh**：在本机 PATH 里找 `ssh`，找不到就是 `noSsh` 失败。
 2. **找服务端二进制**：先找应用目录里的（见第 9 节）；安装包里只有 `servers.json` 时，第一次用到某个平台才从 dl.baocode.dev 下载；开发时没有就从源码编译。都没有就报错。
 3. **探测**：执行 `ssh <参数> <主机> sh -s`，通过 stdin 送一段脚本，返回：
-   - `uname -s` 和 `uname -m`：换成平台名 `linux-x64`、`linux-arm64`、`darwin-x64`、`darwin-arm64`（`SshLauncher.platform`），都不是就报 `unsupported`；是但应用没有这个平台的构建（比如在 Apple silicon 上本地打包、没编 Intel 版），报 `This build of the app has no server for macOS x64` 这类 `server` 失败，什么都不上传；
+   - `uname -s` 和 `uname -m`：换成平台名 `linux-x64`、`linux-arm64`、`darwin-x64`、`darwin-arm64`、`windows-x64`、`windows-arm64`（`SshLauncher.platform`），都不是就报 `unsupported`；没有 `sh` 回答（Windows 的 cmd / PowerShell），或 `uname -s` 是 Git Bash、MSYS2、Cygwin 这类 Windows 上的 Unix shell，就改用 PowerShell 再探测一次，之后按 Windows 主机走（见下面“Windows 主机”）；是但应用没有这个平台的构建（比如在 Apple silicon 上本地打包、没编 Intel 版），报 `This build of the app has no server for macOS x64` 这类 `server` 失败，什么都不上传；
    - `~/.baocode-server/<VERSION>/baocode-server` 是否已经存在；
    - 远端有没有 `gzip`。
 4. **上传**（只在远端还没有这个版本时）：经 ssh 的 stdin 发送二进制，有 gzip 时先压缩，先写到临时文件 `.upload-<随机串>`，`chmod 755` 后再改名就位。所以连接中途断开也不会留下半个文件。
@@ -211,6 +212,34 @@ ssh 参数固定为：
 - 保存的设置（`SshServer`）按主机名存在 `Workspace.sshServers`（状态文件 `sidebar.sshServers`）。新增时主机名就是 `user@host[:port]`；编辑后主机名不变（远程项目的位置 `ssh://<主机名>/…` 不受影响），连接用表单里的新地址。
 - 连接已保存的服务器时，`SshHosts` 把所有已保存的服务器写成一份 ssh 配置（数据目录 `state/ssh_config`，`sshServersConfig`），每台一个 `Host baocode-…`，末尾 `Include` 用户的 `~/.ssh/config` 和系统的配置，然后用 `-F` 连这个别名。跳板机写成 `ProxyCommand`，用同一个 ssh 和同一份配置连跳板机的别名（`ProxyJump` 会去 PATH 里找 ssh，而且 `-F` 的路径不加引号，带空格就坏）；跳板机绕回自己的不写。
 - 表单里的密码存在钥匙串 `ssh-server:<主机名>:password`。ssh 问密码时，按提示里的 `user@host` 认出是目标还是跳板机，取对应的密码（`SshHosts._savedPasswordId`）；被拒就删掉，弹窗重问。
+
+### Windows 主机
+
+主机上要准备的（管理员 PowerShell）：
+
+```powershell
+Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+Start-Service sshd
+Set-Service sshd -StartupType Automatic
+```
+
+或在“设置 → 系统 → 可选功能”里添加“OpenSSH 服务器”。安装时一般会建好放行 22 端口的防火墙规则。sshd 默认带 sftp 子系统、允许端口转发，这两样都要用到，不要关掉。
+
+- **登录**：Windows 账户的密码直接能用（弹窗问，可记在本机钥匙串）。用密钥时，**管理员账户**的公钥要放进 `C:\ProgramData\ssh\administrators_authorized_keys`（只许 Administrators 和 SYSTEM 访问），放在 `~\.ssh\authorized_keys` 不生效；普通账户才放 `%USERPROFILE%\.ssh\authorized_keys`。
+- **主机的默认 shell**：cmd（OpenSSH 的默认）或改成了 PowerShell 都行：要在主机上执行的脚本一律包成 `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand <UTF-16LE 的 base64>`（`SshLauncher.powershellCommand`），两种 shell 都不会去解析里面的引号。所以主机上要有系统自带的 Windows PowerShell。
+- **按需装**：Git（Git 面板、改动和 diff）；Node.js、Python（对应语言服务器要在主机上装）。
+
+和 Unix 主机不同的地方（代码都在 `ssh_launcher.dart`）：
+
+1. **探测**（`windowsProbeScript`）：从注册表读机器本身的架构（不是这个 PowerShell 进程的，x64 的 PowerShell 跑在 Arm 机器上也认成 `arm64`），再看 `%USERPROFILE%\.baocode-server\<VERSION>\baocode-server.exe` 在不在。
+2. **上传**（`_uploadWindows`）：用 ssh 旁边的 `sftp` 跑一个批处理：建目录，`put` 成 `.upload-<随机串>`，再改名成 `baocode-server.exe`。不走 stdin，因为 Windows 上命令从 stdin 读到的数据会被截断。
+3. **启动**（`windowsSessionScript`、`_launchWindows`）：用 WMI 的 `Win32_Process.Create` 拉起守护进程 `baocode-server.exe --daemon <id> --run <run 目录>`。这样它不属于 sshd 的进程树，ssh 断了也不会跟着结束（Windows 没有 SIGHUP 可躲）。守护进程监听本机回环的 TCP 端口，把 `<端口> <口令>` 写进 `%USERPROFILE%\.baocode-server\run\<id>.port`，脚本读到后打印 `BAOCODE-SESSION <端口> <口令>`。
+4. **连接与重连**：不用桥，直接 `ssh -W 127.0.0.1:<端口>` 转发到守护进程，先发口令（主机上别的用户连不进来），之后同样是可续传通道。重连还是转发到同一个端口；没人监听了（`open failed`、`stdio forwarding failed`，或 Windows 的 sshd 一个字节都没回就关掉转发）就当作 `BAOCODE-GONE`，重新建会话。守护进程的日志在 `run\<id>.log`。
+5. **终端**：走 ConPTY（`bao_conpty`）。shell 和 VS Code 一样挑第一个装了的 PowerShell（PowerShell 7 优先，最后是 Windows PowerShell），都没有才用 `ComSpec`（cmd）。
+6. **进程**：按名字启动程序时，和 cmd.exe 一样按 `PATHEXT` 找 `.exe`、`.cmd`、`.bat`（#680）；结束进程时连同它启动的整棵进程树一起结束（`process_tree.dart`）。
+7. **Claude Code**：自动安装下载 `win32-x64` / `win32-arm64` 的 `claude.exe`（`ClaudeRelease`），其余同 6.2。内置内核在主机上执行命令时用主机自己的 shell：Git Bash，没有就是 cmd.exe。本机那份 BaoCode Bash 不会传到主机上。
+
+真机端到端：`tool/e2e/ssh_windows_app.dart`（说明见 `tool/e2e/ssh_windows.md`），从 Mac 连 Windows 主机，走一遍文件、PowerShell 终端、Git、搜索、智能体、杀掉 ssh 后接回会话、端口转发和语言服务器；服务端二进制本身在 CI 里由 `tool/test_remote_server_windows.ps1` 跑一遍。
 
 ### WSL 发行版
 
@@ -358,7 +387,8 @@ Haiku 起标题和提交信息**不会**触发自动安装：内核是“自动�
 - `VERSION` = 应用版本 + 两个二进制合起来的 sha256 前 12 位。所以同一个应用版本、源码不同的构建，也会是不同的目录。开发时从源码编译的版本叫 `dev-<源码哈希>`。
 - **应用和服务端严格一一对应**：应用只用自己构建时生成的那份服务端（`VERSION` 完全相同），不做跨版本兼容。协议是内部协议，几乎每次提交都会变，`protocol` 版本号不保证跟着改；严格对应能保证主机上不会跑着过期的服务端。代价是每个发出去的构建，它的服务端都必须已经上传（见 9.3）。
 - 旧版本的 `<VERSION>/` 目录目前**不会自动清理**（见第 15 节）。
-- 想彻底清掉：在远端 `rm -rf ~/.baocode-server`。下次连接会重新上传，影子仓库和 BaoCode 装的 claude 也会一起没掉。
+- Windows 主机上是 `%USERPROFILE%\.baocode-server\`，结构相同，二进制叫 `baocode-server.exe`，另有 `run\`（每个会话的 `<id>.port` 和 `<id>.log`），终端里的 `code` 是 `remote-cli\code.cmd`。
+- 想彻底清掉：在远端 `rm -rf ~/.baocode-server`（Windows 主机上删掉 `%USERPROFILE%\.baocode-server`）。下次连接会重新上传，影子仓库和 BaoCode 装的 claude 也会一起没掉。
 
 ---
 
@@ -395,13 +425,16 @@ Haiku 起标题和提交信息**不会**触发自动安装：内核是“自动�
 dart run tool/build_remote_server.dart              # 输出到 build/remote/
 dart run tool/build_remote_server.dart --out <目录>
 dart run tool/build_remote_server.dart --macos-x64-dart <x64 的 dart>   # 在 Apple silicon 上也编 Intel 版
-dart run tool/build_remote_server.dart --all        # 四份没编全就失败（CI 用）
+dart run tool/build_remote_server.dart --only windows-x64   # 只编这一份（在对应的 Windows 上，CI 用）
+dart run tool/build_remote_server.dart --from <目录>        # 把别的机器编好的几份一起算进来
+dart run tool/build_remote_server.dart --all        # 七份没编全就失败（CI 用）
 ```
 
-会生成 `baocode-server-<平台>`（`linux-x64`、`linux-arm64`、`darwin-x64`、`darwin-arm64`）和 `VERSION`。版本号通过 `-Dbaocode.version=<pubspec 版本>` 传给服务端。
+会生成 `baocode-server-<平台>`（`linux-x64`、`linux-arm64`、`linux-riscv64`、`darwin-x64`、`darwin-arm64`、`windows-x64`、`windows-arm64`）和 `VERSION`。版本号通过 `-Dbaocode.version=<pubspec 版本>` 传给服务端。
 
 - **Linux**：`dart compile exe --target-os linux` 交叉编译，在 macOS 或 Windows 上都能编。
 - **macOS**：`dart compile exe` 不能交叉编译到 macOS，**只能在 Mac 上编、而且只能编运行它的那个 `dart` 的架构**。所以在 Apple silicon 上默认只编 `darwin-arm64`；要编 `darwin-x64`，下载同版本的 x64 Dart SDK（`https://storage.googleapis.com/dart-archive/channels/stable/release/<版本>/sdk/dartsdk-macos-x64-release.zip`），用 `--macos-x64-dart <sdk>/bin/dart` 指定，它经 Rosetta 运行（Intel Mac 上反过来用 `--macos-arm64-dart`）。在 Linux / Windows 上不编 macOS 版，连 Mac 主机时报没有这个平台的服务端。
+- **Windows**：同样不能交叉编译，**只能在 Windows 上编、只能编运行它的那个 `dart` 的架构**。CI（`remote.yml`）在 `windows-latest` 和 `windows-11-arm` 上各用 `--only windows-<架构>` 编一份，用 `tool/test_remote_server_windows.ps1` 跑一遍，再交给编其余几份的那台机器 `--from` 合进同一个 `VERSION`。在 macOS / Linux 上不编 Windows 版，开发时连 Windows 主机会报错，提示去那种 Windows 上编。
 - macOS 版是 `dart compile exe` 自带的 ad hoc 签名（linker-signed），Apple silicon 上能直接运行；经 ssh 的 stdin 写进去的文件没有隔离属性（quarantine），Gatekeeper 不拦，不需要 Developer ID 签名和公证。
 - `VERSION` 的哈希覆盖这次编出来的所有二进制。
 
@@ -425,7 +458,7 @@ dart run tool/build_remote_server.dart --all        # 四份没编全就失败�
 
 ### 9.3 打包与按需下载
 
-安装包**不带服务端二进制**，只带 `VERSION` 和 `servers.json`。四个二进制原本占 30 多 MB，大多数用户不连远程，而每台主机只需要其中一个平台。
+安装包**不带服务端二进制**，只带 `VERSION` 和 `servers.json`。七个二进制合起来有几十 MB，大多数用户不连远程，而每台主机只需要其中一个平台。
 
 - **打包**：`tool/build_macos.dart` 和 `tool/build_windows.dart` 先编译到 `build/remote/`（CI 里由单独的 `remote` 任务在 macOS 机器上把四份都编一次，在那台 Mac 上直接跑一遍两份 macOS 版（`tool/test_remote_server_macos.sh`，Intel 版经 Rosetta），再由 `remote-linux` 任务在 Docker 里的几个 Linux 发行版上各跑一遍 `tool/test_remote_server.sh`，两个打包脚本带 `--remote-built` 直接用它），再只把 `VERSION`、`servers.json` 放进 `BaoCode.app/Contents/Resources/remote/`（Windows 是 `<bundle>\remote\`），`.gz` 放到 `build/installers/remote/<VERSION>/`。
 - **单独发布**：推一个 `server-*` 标签，CI（`remote.yml`）编译、测试并上传到 `releases/remote/<VERSION>/`，更新 `releases/remote/latest.json`；本机打包时用 `--remote-release [VERSION]` 带上这份的 `servers.json`，不在本机编译（docs/release.md 第 3 节）。
@@ -492,7 +525,11 @@ flutter analyze
 | 认证失败（authentication） | 密码不对、取消了登录，或密钥没加载 | 失败页点“编辑”改密码或换私钥；或把密钥加到 ssh-agent，或在 `~/.ssh/config` 里写 `IdentityFile` |
 | 主机密钥未知（hostKey） | 用户的 ssh 配置写了 `StrictHostKeyChecking yes` | 先在终端里 `ssh <主机>` 一次，接受密钥 |
 | 主机密钥变了（hostKeyChanged） | 服务器重装过，或有人在中间 | 确认是重装过的话，失败页点“移除旧指纹并重新连接” |
-| 不支持的系统（unsupported） | 远端不是 Linux 或 macOS 的 x64/arm64，也不是 Linux riscv64 | 不支持 |
+| 不支持的系统（unsupported） | 远端不是 Linux、macOS 或 Windows 的 x64/arm64，也不是 Linux riscv64 | 不支持 |
+| Windows 主机：Connection refused / 连不上 | 没装 OpenSSH 服务器、sshd 没启动，或防火墙没放行 22 端口 | 按 4 节“Windows 主机”装好并启动 sshd；`Get-Service sshd` 看状态 |
+| Windows 主机：密钥登录不上，密码可以 | 管理员账户的公钥放在了 `~\.ssh\authorized_keys` | 改放 `C:\ProgramData\ssh\administrators_authorized_keys`，只许 Administrators 和 SYSTEM 访问 |
+| The server could not be installed on xxx（Windows 主机） | sftp 子系统被关掉了，或用户目录不可写 | 在主机的 `sshd_config` 里留着 `Subsystem sftp sftp-server.exe`；看详情里 sftp 的输出 |
+| The server on xxx did not start / The server did not start (see …log) | 守护进程起不来（被安全软件拦下、WMI 不可用） | 看主机上 `%USERPROFILE%\.baocode-server\run\<id>.log`；在主机上手动运行 `baocode-server.exe` 看报错 |
 | WSL 无法启动这个发行版（wsl） | 没装 WSL、发行版被删或改名、WSL 自己起不来 | 在终端里 `wsl --list` 看发行版名，`wsl -d <发行版>` 看它自己的报错 |
 | This build of the app has no server for macOS x64 | 应用是在 Linux / Windows 上、或没给 `--macos-x64-dart` 时打包的，没有这个平台的服务端 | 用 CI 发布的版本，或按 9.1 在 Mac 上补编 |
 | Mac 主机：Connection refused / 连不上 | 没打开“远程登录” | 系统设置 → 通用 → 共享 → 远程登录 |
@@ -507,7 +544,7 @@ flutter analyze
 | 远端会话列表是空的 | 远端 `~/.claude/projects` 下没有这个路径的会话 | 确认远端的 claude 用的是同一个用户 |
 | 语言服务器起不来 | 远端缺语言服务器的运行时（如 node），或 mason 安装失败 | 看语言状态里的提示；在远端装好对应的运行时 |
 
-调试时可以在远端手动执行服务端：`~/.baocode-server/<VERSION>/baocode-server`（不带 `--session`）。它从 stdin 读 JSON-RPC，可以手动发 `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol":1}}` 看回复。远端在跑的会话：`pgrep -fa 'baocode-server --daemon'`；它的日志在 `~/.baocode-server/run/<id>.log`。
+调试时可以在远端手动执行服务端：`~/.baocode-server/<VERSION>/baocode-server`（不带 `--session`）。它从 stdin 读 JSON-RPC，可以手动发 `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol":1}}` 看回复。远端在跑的会话：`pgrep -fa 'baocode-server --daemon'`；它的日志在 `~/.baocode-server/run/<id>.log`。Windows 主机上：`Get-CimInstance Win32_Process -Filter "Name='baocode-server.exe'" | Select ProcessId, CommandLine`，日志在 `%USERPROFILE%\.baocode-server\run\<id>.log`。
 
 ---
 
@@ -537,6 +574,7 @@ flutter analyze
 10. **打包**：用 `tool/build_windows.dart` / `tool/build_macos.dart` 打包，确认包里有 `remote/VERSION`，安装后不需要源码目录也能连接。
 11. **Windows 客户端**：打开远程项目，重点检查文件树、标签页、搜索、Git 的路径（见第 15 节）。
 12. **Mac 主机**：Apple silicon 和 Intel 各连一次，确认推送的是 `darwin-arm64` / `darwin-x64`；终端是 zsh、shell 集成正常；文件监听（FSEvents）在远端另开 shell 改文件时会刷新；没装 Xcode 命令行工具的 Mac 上 Git 面板的表现；远端自动安装的是 `darwin-<arch>` 的 Claude Code。
+13. **Windows 主机**：x64 和 arm64 各连一次（按 4 节“Windows 主机”准备好 sshd），确认推送的是 `windows-<arch>`，装在 `%USERPROFILE%\.baocode-server\`；主机默认 shell 是 cmd 和改成 PowerShell 时都能连上；终端是 PowerShell、shell 集成正常；密码登录和管理员账户的密钥登录；杀掉本机的 ssh 后接回同一个会话（终端里的命令没断）；退出后主机上没有残留的 `baocode-server.exe`。大部分已由 `tool/e2e/ssh_windows_app.dart` 自动化。
 
 ---
 
@@ -554,7 +592,7 @@ flutter analyze
 ### 14.2 注意事项
 
 - **`bao_remote` 不能依赖 Flutter**，否则服务端编不出来。改完后执行一下 `cd packages/bao_remote && dart analyze`。
-- **路径**：远端一律是 POSIX 路径。应用里要处理远端路径时，用 `RemoteLocation.pathsOf(location)` 或 `ProjectHost.paths`，**不要直接用 `package:path` 的顶层函数**（Windows 客户端上会按 Windows 路径处理，见第 15 节）。
+- **路径**：远端路径按主机的写法：Linux、macOS 主机是 POSIX 路径，Windows 主机是 Windows 路径（`SshHost.paths` 按握手时 `RemoteHello` 报的系统选）。应用里要处理远端路径时，用 `RemoteLocation.pathsOf(location)` 或 `ProjectHost.paths`，**不要直接用 `package:path` 的顶层函数**（那是本机的写法，Windows 客户端连 Linux 主机、Mac 连 Windows 主机都会错，见第 15 节）。
 - **location 和主机上的路径**：存储和显示用 location（`ssh://...`）；传给远端服务和 IDE 内部用 `RemoteLocation.pathOf`。两者别混。
 - **断线**：长连接类的功能（监听）要用 `resilientStream` 包一层；有状态的功能（语言服务器）要监听 `SshHost.reconnected` 自己恢复。
 - **密钥**：任何带凭据的东西都不能进命令行参数，也不能长期写在远端磁盘上。要传就走 `claude/start` 的 `settings` 那条路，或者放环境变量。
@@ -576,3 +614,4 @@ flutter analyze
 9. **会话守护进程会被 `KillUserProcesses=yes` 杀掉**：少数发行版的 systemd-logind 在用户最后一个登录会话结束时杀掉他的所有进程，断线就等于会话失效（退回到旧的“重建会话”行为）。需要的话在主机上 `loginctl enable-linger <用户>`。
 10. **应用崩溃或被强退时**，远端会话等满 3 小时才结束，期间终端和 Claude 继续跑。应用重启后用的是新会话，不会接回旧的。
 11. **单条很大的消息**（几十 MB 的文件）在频繁断线的网络上可能总传不完：断线后整条重发。
+12. **Windows 主机上没有 BaoCode Bash**：本机装的 BaoCode Bash 只给本机的内置内核用；Windows 主机上的智能体执行命令时用主机的 Git Bash，没有就是 cmd.exe。可以像服务端那样连接时把 bash.exe 传过去（或让主机从 dl.baocode.dev 下载），再交给主机上的内置内核。
