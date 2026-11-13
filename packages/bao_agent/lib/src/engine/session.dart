@@ -402,22 +402,24 @@ class AgentSession {
 
   /// The environment the API's settings are read from: the user's shell's,
   /// with the settings' `env` over it.
-  Map<String, String> get environment =>
-      _environment ??= {...options.environment, ...settings.env};
+  Map<String, String> get environment => _environment ??= caseFoldedEnvironment(
+    {...options.environment, ...settings.env},
+  );
 
   Map<String, String>? _commandEnvironment;
 
   /// The environment commands run in: [environment], but for the keys a
   /// provider was given (they are the session's, not the user's), and
   /// with what tells a program it runs under the agent.
-  Map<String, String> get commandEnvironment => _commandEnvironment ??= {
-    ...options.environment,
-    for (final MapEntry(:key, :value) in settings.env.entries)
-      if (!_secret(key) || options.environment[key] == value) key: value,
-    'CLAUDECODE': '1',
-    'CLAUDE_CODE_ENTRYPOINT': 'baocode-dart',
-    'GIT_EDITOR': 'true',
-  };
+  Map<String, String> get commandEnvironment =>
+      _commandEnvironment ??= caseFoldedEnvironment({
+        ...options.environment,
+        for (final MapEntry(:key, :value) in settings.env.entries)
+          if (!_secret(key) || options.environment[key] == value) key: value,
+        'CLAUDECODE': '1',
+        'CLAUDE_CODE_ENTRYPOINT': 'baocode-dart',
+        'GIT_EDITOR': 'true',
+      });
 
   /// The effort of a turn, as hooks and commands are told it: none for a
   /// model known to take none; a model not known is sent none, and works

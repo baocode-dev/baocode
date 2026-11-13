@@ -1130,14 +1130,17 @@ void main() {
         model: 'gpt-5(high)',
         key: 'sk-never-given',
         proxy: (baseUrl: 'http://127.0.0.1:5000/p/gw', token: 'tok'),
-        noProxy: 'corp.example',
+        // This machine already in it, as the user's proxy gives it.
+        noProxy: 'localhost,127.0.0.1,::1,corp.example',
       );
       expect(env['ANTHROPIC_BASE_URL'], 'http://127.0.0.1:5000/p/gw');
       expect(env['ANTHROPIC_AUTH_TOKEN'], 'tok');
       expect(env['ANTHROPIC_API_KEY'], '');
       expect(env.containsKey('CLAUDE_CODE_ALWAYS_ENABLE_EFFORT'), isFalse);
       expect(env.values, isNot(contains('sk-never-given')));
-      expect(env['NO_PROXY'], 'corp.example,127.0.0.1,localhost');
+      // Both spellings alike, this machine once (#976).
+      expect(env['NO_PROXY'], 'localhost,127.0.0.1,::1,corp.example');
+      expect(env['no_proxy'], env['NO_PROXY']);
       expect(env['ANTHROPIC_DEFAULT_HAIKU_MODEL'], 'mini');
       // A proxied provider carries its own headers itself, not through
       // Claude Code's variable.

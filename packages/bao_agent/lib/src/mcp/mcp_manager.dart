@@ -9,6 +9,7 @@ import '../engine/session.dart';
 import '../hooks/hooks.dart';
 import '../util/cancel.dart';
 import '../util/json.dart';
+import '../util/processes.dart';
 import 'jsonrpc.dart';
 import 'oauth.dart';
 import 'transports.dart';
@@ -304,10 +305,10 @@ class McpManager {
           arguments: [
             for (final arg in asList(config['args'])) expandEnv('$arg', env),
           ],
-          environment: {
+          environment: caseFoldedEnvironment({
             ...session.commandEnvironment,
             ...strings(config['env']),
-          },
+          }),
           workingDirectory: session.cwd,
         );
     }
