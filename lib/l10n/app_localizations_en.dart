@@ -14073,4 +14073,62 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get generalSettingsSessionToolsDescription =>
       'An agent can list your other conversations, read where they stand without waking them, hand them work (resumed if stopped, queued if busy) and wait for them. For one conversation that coordinates the others; agents started after the change have it.';
+
+  @override
+  String get generalSettingsCommandLine => 'Command Line';
+
+  @override
+  String get baoBashRecommended => 'BaoCode Bash (recommended)';
+
+  @override
+  String get baoBashDescription =>
+      'A complete bash for agents on Windows: rg, grep, sed, awk, find, jq, tar and some 80 other common commands built in, no Git for Windows needed, and C:\\ and /c/ paths alike. The built-in core runs its agents\' commands with it.';
+
+  @override
+  String get baoBashNotInstalled =>
+      'Not installed: agents run commands with Git Bash, or with cmd.exe where there is none.';
+
+  @override
+  String baoBashInstalled(String version) {
+    return 'Version $version installed.';
+  }
+
+  @override
+  String baoBashUpdateAvailable(String version) {
+    return 'Version $version is out.';
+  }
+
+  @override
+  String baoBashDownloading(int percent) {
+    return 'Downloading… $percent%';
+  }
+
+  @override
+  String get baoBashInstall => 'Install';
+
+  @override
+  String baoBashInstallSize(String size) {
+    return 'Install ($size)';
+  }
+
+  @override
+  String get baoBashUpdate => 'Update';
+
+  @override
+  String get baoBashUninstall => 'Uninstall';
+
+  @override
+  String baoBashFailed(String error) {
+    return 'Could not install it: $error';
+  }
+
+  @override
+  String get baoBashNoticeTitle => 'On Windows, BaoCode Bash is recommended';
+
+  @override
+  String get baoBashNoticeBody =>
+      'Agents run commands more reliably with it. It brings bash with rg, grep, sed, awk, find, jq, tar and some 80 other common commands, no Git for Windows needed; it takes C:\\ and /c/ paths alike, so commands no longer fail on the differences between cmd and PowerShell.';
+
+  @override
+  String get baoBashNoticeLater => 'Not Now';
 }

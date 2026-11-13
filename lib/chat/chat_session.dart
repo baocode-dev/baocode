@@ -1133,6 +1133,7 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     List<String> notes = const [],
   }) {
     if (message.isEmpty || !canSend) return;
+    if (from != null) userSent?.call();
     final turn = KernelTurn(
       id: newTurnId(),
       // Pastes too long to send, kept in files the agent reads; a remote
@@ -1152,6 +1153,10 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     );
     _kernel.send(turn);
   }
+
+  /// Told of each message the user sends (not the app): main() counts
+  /// them for [BaoBash.newUser].
+  static void Function()? userSent;
 
   static final _random = math.Random.secure();
 

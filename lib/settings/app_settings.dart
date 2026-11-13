@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
+import '../bash_exe/bao_bash.dart';
+import '../bash_exe/bao_bash_view.dart';
 import '../channel/channel_gate.dart';
 import '../channel/channel_setup.dart' show ChannelSetup;
 import '../diagnostics/diagnostics_upload.dart';
@@ -118,6 +120,13 @@ class AppSettings {
     null => null,
   };
 
+  /// BaoCode Bash, where it is offered (Windows, with settings files);
+  /// main() makes it the app's ([BaoBash.current]).
+  late final BaoBash? bash = switch (files?.storage) {
+    final storage? => BaoBash.forPlatform(_TipStorage(storage)),
+    null => null,
+  };
+
   /// Writes the keyboard page's changes into keybindings.json: one for
   /// the app, so they are made one at a time.
   late final KeybindingsEditingService editing = KeybindingsEditingService(
@@ -137,12 +146,19 @@ class AppSettings {
     ];
   }
 
-  /// What the settings dialog says above every page: the browser's
-  /// debugging history grown large.
+  /// What the settings dialog says above every page: BaoCode Bash
+  /// recommended, on Windows; the browser's debugging history grown large.
   Widget buildNotice(
     BuildContext context,
     void Function(SettingsSection section) open,
-  ) => BrowserHistoryNotice(open: () => open(SettingsSection.browser));
+  ) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (bash case final bash?) BaoBashNotice(bash: bash),
+      BrowserHistoryNotice(open: () => open(SettingsSection.browser)),
+    ],
+  );
 
   /// [section]'s page of the settings dialog.
   Widget buildPage(BuildContext context, SettingsSection section) {
@@ -152,6 +168,7 @@ class AppSettings {
           settings: files?.settings,
           tips: tips,
           claudeStatus: claudeStatus,
+          bash: bash,
         );
       case SettingsSection.appearance:
         final themes = WorkbenchThemeService.instance;

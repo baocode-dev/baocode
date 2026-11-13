@@ -1,0 +1,186 @@
+# Builds BaoCode Bash (bash.exe, github.com/baocode-dev/bash-exe) for
+# Windows x64 and arm64, and runs it on each (tool/test_bash_exe.ps1). The
+# app offers it on Windows (lib/bash_exe/) and downloads it from
+# dl.baocode.dev/tools/bash-exe/.
+#
+#   git tag bash-exe-0.2.0 && git push origin bash-exe-0.2.0
+#                                      build bash-exe's tag v0.2.0 (its
+#                                      version has to be 0.2.0), and publish
+#                                      the builds at dl.baocode.dev/tools/
+#                                      bash-exe/0.2.0/, then latest.json
+#                                      there naming them, for the app
+#   Actions → BaoCode Bash → Run workflow
+#                                      build a branch, tag or commit of it,
+#                                      to try it
+name: BaoCode Bash
+
+on:
+  push:
+    tags: ['bash-exe-*']
+  # Its main, with this workflow and its test changed.
+  pull_request:
+    paths:
+      - .github/workflows/bash-exe.yml
+      - tool/test_bash_exe.ps1
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: The branch, tag or commit of baocode-dev/bash-exe to build
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build for Windows (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Which bash-exe
+        id: ref
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            echo "ref=v${GITHUB_REF_NAME#bash-exe-}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ inputs.ref || 'main' }}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v5
+        with:
+          repository: baocode-dev/bash-exe
+          ref: ${{ steps.ref.outputs.ref }}
+          path: bash-exe
+      - uses: ./.github/actions/setup-rust
+        with:
+          dir: bash-exe
+      - name: Its version
+        id: version
+        shell: bash
+        working-directory: bash-exe
+        run: |
+          version=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+          echo "bash-exe $version, $(git rev-parse HEAD)"
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "bash-exe-$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::$GITHUB_REF_NAME, but bash-exe's ${{ steps.ref.outputs.ref }} is version $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            bash-exe/target
+          key: bash-exe-${{ matrix.target }}-${{ hashFiles('bash-exe/Cargo.lock', 'bash-exe/rust-toolchain.toml') }}
+          restore-keys: bash-exe-${{ matrix.target }}-
+      - name: Build
+        working-directory: bash-exe
+        run: cargo build --locked --release -p bash-exe --target ${{ matrix.target }}
+      - name: Run it here
+        shell: pwsh
+        run: ./tool/test_bash_exe.ps1 bash-exe/target/${{ matrix.target }}/release/bash.exe
+      - name: Package it
+        shell: pwsh
+        run: |
+          $out = "dist/bash-exe-windows-${{ matrix.arch }}"
+          New-Item -ItemType Directory -Path $out | Out-Null
+          Copy-Item bash-exe/target/${{ matrix.target }}/release/bash.exe, bash-exe/LICENSE, bash-exe/LICENSE-MIT, bash-exe/README.md $out
+          # GPL: where its source is, exactly.
+          "BaoCode Bash ${{ steps.version.outputs.version }}`nSource: https://github.com/baocode-dev/bash-exe/tree/${{ steps.version.outputs.commit }}`n" |
+            Set-Content -NoNewline "$out/SOURCE.txt"
+          # For people, with its license; the app takes bash.exe alone,
+          # gzipped (dart:io has gzip, not zip).
+          Compress-Archive -Path "$out/*" -DestinationPath "dist/bash-exe-windows-${{ matrix.arch }}.zip"
+          $gz = "dist/bash-windows-${{ matrix.arch }}.exe.gz"
+          $in = [IO.File]::OpenRead((Resolve-Path "$out/bash.exe"))
+          $file = [IO.File]::Create((Join-Path $PWD $gz))
+          $zip = New-Object IO.Compression.GZipStream($file, [IO.Compression.CompressionLevel]::SmallestSize)
+          $in.CopyTo($zip)
+          $zip.Dispose(); $file.Dispose(); $in.Dispose()
+          "$out/bash.exe", "dist/bash-exe-windows-${{ matrix.arch }}.zip", $gz |
+            ForEach-Object { "{0}: {1:N1} MB" -f $_, ((Get-Item $_).Length / 1MB) }
+      - uses: actions/upload-artifact@v6
+        with:
+          name: bash-exe-windows-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            dist/bash-exe-windows-${{ matrix.arch }}.zip
+            dist/bash-windows-${{ matrix.arch }}.exe.gz
+
+  publish:
+    name: Publish to dl.baocode.dev/tools/bash-exe/
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # The release environment's R2 token (it has to let bash-exe-* tags in).
+    environment: release
+    concurrency:
+      group: bash-exe-publish
+      cancel-in-progress: false
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      COMMIT: ${{ needs.build.outputs.commit }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      # R2 does not take every checksum newer AWS CLIs send by default.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: bash-exe-windows-*
+          merge-multiple: true
+          path: dist
+      - name: Upload the builds
+        run: |
+          # Named by the version, so never changed once there.
+          aws s3 cp dist "s3://$R2_BUCKET/tools/bash-exe/$VERSION/" \
+            --recursive --cache-control 'public, max-age=31536000, immutable'
+      - name: Check they are served
+        run: |
+          for file in dist/*; do
+            url="https://dl.baocode.dev/tools/bash-exe/$VERSION/$(basename "$file")"
+            expected=$(stat -c %s "$file")
+            served=$(curl -fsSI "$url" | tr -d '\r' | awk 'tolower($1) == "content-length:" { print $2 }')
+            echo "$url: $served bytes (expected $expected)"
+            [ "$served" = "$expected" ] || { echo "::error::$url is not served as uploaded"; exit 1; }
+          done
+      - name: Name them in latest.json, last
+        run: |
+          # What the app downloads: bash.exe gzipped, by architecture; the
+          # size and SHA-256 of the download, and the size unpacked.
+          files='{}'
+          for arch in x64 arm64; do
+            gz="dist/bash-windows-$arch.exe.gz"
+            files=$(jq --arg arch "$arch" \
+              --arg url "https://dl.baocode.dev/tools/bash-exe/$VERSION/$(basename "$gz")" \
+              --argjson size "$(stat -c %s "$gz")" \
+              --arg sha256 "$(sha256sum "$gz" | cut -d' ' -f1)" \
+              --argjson unpacked "$(gzip -dc "$gz" | wc -c)" \
+              '.[$arch] = {url: $url, size: $size, sha256: $sha256, unpacked: $unpacked}' <<< "$files")
+          done
+          jq -n --arg version "$VERSION" --arg commit "$COMMIT" --argjson files "$files" \
+            '{version: $version, commit: $commit, files: $files}' > latest.json
+          cat latest.json
+          aws s3 cp latest.json "s3://$R2_BUCKET/tools/bash-exe/latest.json" \
+            --cache-control 'public, max-age=60' --content-type application/json
+          echo "## BaoCode Bash \`$VERSION\` (bash-exe ${COMMIT::7})" >> "$GITHUB_STEP_SUMMARY"
