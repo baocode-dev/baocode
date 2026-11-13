@@ -45,6 +45,7 @@ import 'panels/health_banner.dart';
 import 'panels/interaction_panel.dart';
 import 'panels/limit_reset_panel.dart';
 import 'panels/context_usage_panel.dart';
+import 'panels/mcp_servers_panel.dart';
 import 'panels/goal_panel.dart';
 import 'panels/queue_panel.dart';
 import 'panels/reset_credits_hint.dart';
@@ -325,6 +326,7 @@ class _ChatScreenState extends State<ChatScreen>
   final GlobalKey<ChatComposerState> _composerKey = GlobalKey();
   final GlobalKey _historyKey = GlobalKey();
   bool _contextPanelOpen = false;
+  bool _mcpPanelOpen = false;
   bool _renaming = false;
 
   /// Nothing was sent yet: the composer is in the middle, under [start].
@@ -528,8 +530,39 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   void _toggleContextPanel() {
-    setState(() => _contextPanelOpen = !_contextPanelOpen);
+    setState(() {
+      _contextPanelOpen = !_contextPanelOpen;
+      if (_contextPanelOpen) _mcpPanelOpen = false;
+    });
     if (_contextPanelOpen) _session.refreshUsage();
+  }
+
+  void _toggleMcpPanel() {
+    if (_mcpPanelOpen) {
+      setState(() => _mcpPanelOpen = false);
+    } else {
+      _openMcpPanel();
+    }
+  }
+
+  void _openMcpPanel() {
+    setState(() {
+      _mcpPanelOpen = true;
+      _contextPanelOpen = false;
+    });
+    _session.refreshMcpServers();
+  }
+
+  /// Signs in to [server] in the browser, then reports where it stands.
+  Future<void> _signInMcpServer(McpServer server) async {
+    try {
+      final url = await _session.authenticateMcpServer(server);
+      if (url != null) await openExternal(url.toString());
+    } on Object {
+      // The panel's status says why; ask for it below.
+    } finally {
+      _session.refreshMcpServers();
+    }
   }
 
   void _answer(InteractionAnswer answer) {
@@ -850,8 +883,12 @@ class _ChatScreenState extends State<ChatScreen>
   /// The kernel's commands as suggestions, kept while its list is the same.
   List<Suggestion> _commandSuggestions() {
     final commands = _session.commands;
-    if (!identical(commands, _commandSource)) {
+    final mcpServers = _session.mcpServers;
+    final hasMcp = mcpServers != null && mcpServers.isNotEmpty;
+    if (!identical(commands, _commandSource) ||
+        !identical(mcpServers, _mcpSource)) {
       _commandSource = commands;
+      _mcpSource = mcpServers;
       final aside = widget.onSideQuestion != null;
       final fork = widget.onFork != null;
       _commands = [
@@ -872,9 +909,19 @@ class _ChatScreenState extends State<ChatScreen>
             detail: context.l10n.forkCommandDetail,
             icon: Codicons.repoForked,
           ),
+        // The kernel's servers, and the way to sign in to one: `/mcp` in
+        // this run has no panel of its own (see [_interceptMcp]).
+        if (hasMcp)
+          Suggestion(
+            kind: SuggestionKind.command,
+            label: _mcpCommand,
+            detail: context.l10n.mcpServers,
+            icon: Codicons.server,
+          ),
         for (final command in commands)
           if ((!aside || command.name != _asideCommand) &&
-              (!fork || command.name != _forkCommand))
+              (!fork || command.name != _forkCommand) &&
+              (!hasMcp || command.name != _mcpCommand))
             Suggestion(
               kind: SuggestionKind.command,
               label: command.name,
@@ -926,10 +973,26 @@ class _ChatScreenState extends State<ChatScreen>
     return true;
   }
 
+  static const _mcpCommand = 'mcp';
+
+  /// Takes `/mcp` for the kernel's servers: true when it was, showing
+  /// their panel (and the way to sign in) rather than asking the agent,
+  /// which has no such command in this run.
+  bool _interceptMcp(ComposerMessage message) {
+    if (_session.mcpServers?.isNotEmpty != true) return false;
+    final text = message.text.trimLeft();
+    if (!text.startsWith(RegExp('^/$_mcpCommand(\\s|\$)'))) return false;
+    _openMcpPanel();
+    return true;
+  }
+
   bool _intercept(ComposerMessage message) =>
-      _interceptSideQuestion(message) || _interceptFork(message);
+      _interceptSideQuestion(message) ||
+      _interceptFork(message) ||
+      _interceptMcp(message);
 
   List<KernelCommand>? _commandSource;
+  List<McpServer>? _mcpSource;
   List<Suggestion> _commands = const [];
 
   /// [ChatScreen.commandFile]'s answers, asked once each while the
@@ -1581,6 +1644,19 @@ class _ChatScreenState extends State<ChatScreen>
             _ => null,
           },
         ),
+        _PanelSlot(
+          child: switch ((_session.mcpServers, _mcpPanelOpen)) {
+            (final servers?, true) => McpServersPanel(
+              servers: servers,
+              onClose: _toggleMcpPanel,
+              onRefresh: _session.refreshMcpServers,
+              onSetEnabled: _session.setMcpServerEnabled,
+              onReconnect: _session.reconnectMcpServer,
+              onSignIn: (server) => unawaited(_signInMcpServer(server)),
+            ),
+            _ => null,
+          },
+        ),
         // Last over the composer: what is sent next.
         _PanelSlot(
           child: switch (_session.queued) {
@@ -1608,9 +1684,7 @@ class _ChatScreenState extends State<ChatScreen>
           },
           contextPanelOpen: _contextPanelOpen,
           onToggleContextPanel: _meterInFoot ? null : _toggleContextPanel,
-          onIntercept: widget.onSideQuestion == null && widget.onFork == null
-              ? null
-              : _intercept,
+          onIntercept: _intercept,
         ),
         // On a card, it is under the card (see [_buildScaffold]); a pane's
         // on it, here, in the row under the card's.
