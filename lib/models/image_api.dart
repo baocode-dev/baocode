@@ -382,7 +382,12 @@ Map<String, Object?> responsesImageBody(String model, ImageRequest request) {
         'content': [
           {'type': 'input_text', 'text': request.prompt},
           for (final image in request.references)
-            {'type': 'input_image', 'image_url': image.dataUrl},
+            // `detail` spelled out: strict servers ask for it (#974).
+            {
+              'type': 'input_image',
+              'image_url': image.dataUrl,
+              'detail': 'auto',
+            },
         ],
       },
     ],
