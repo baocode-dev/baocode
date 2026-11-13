@@ -277,6 +277,16 @@ class ClaudeUsageMeter {
         final message = _map(event['message']);
         final id = message['id'] as String?;
         if (id == null || _kept.contains(id)) return;
+        // Its agent's one before, cut off (an error, asked again): done.
+        // Left open, it would take this one's events, and the context
+        // shown would wait on it for the rest of the turn (#971).
+        for (
+          var stale = _streaming(parent);
+          stale != null;
+          stale = _streaming(parent)
+        ) {
+          _close(stale.id);
+        }
         final now = _clock();
         // Its asking known for the main agent's only.
         final asked = parent == null ? _requestedAt : null;
