@@ -11000,10 +11000,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutDeviceId => 'Device ID';
 
   @override
-  String get aboutDeviceIdDetail =>
-      'This computer\'s ID on the network. A relay that admits only listed devices needs it on its list.';
-
-  @override
   String get aboutCopy => 'Copy';
 
   @override

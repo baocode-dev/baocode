@@ -192,7 +192,6 @@ class _DeviceIdRowState extends State<_DeviceIdRow> {
         if (id.isEmpty) return const SizedBox.shrink();
         return SettingsRow(
           label: l10n.aboutDeviceId,
-          description: l10n.aboutDeviceIdDetail,
           below: [
             Text(
               id,

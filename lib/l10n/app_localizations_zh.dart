@@ -10406,9 +10406,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutDeviceId => '设备 ID';
 
   @override
-  String get aboutDeviceIdDetail => '这台电脑在网络上的 ID。中继只放行名单里的设备时，需要把它加进名单。';
-
-  @override
   String get aboutCopy => '复制';
 
   @override

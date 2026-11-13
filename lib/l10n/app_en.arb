@@ -7649,7 +7649,6 @@
   "aboutFeedbackDetail": "Open an issue on GitHub, or see those others opened",
   "aboutOpen": "Open",
   "aboutDeviceId": "Device ID",
-  "aboutDeviceIdDetail": "This computer's ID on the network. A relay that admits only listed devices needs it on its list.",
   "aboutCopy": "Copy",
   "stashSettingsIssueSync": "Issues as stashes",
   "stashSettingsIssueSyncDescription": "A project that is a Git repository on GitHub, GitLab or Gitee (signed in under Accounts): its open issues are stashes, each once, kept in step both ways. A stash deleted, or unlinked from its issue, does not come back.",
