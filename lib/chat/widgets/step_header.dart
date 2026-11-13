@@ -341,7 +341,9 @@ class _StepBodyState extends State<StepBody> {
     final StepBody(:child, :maxHeight, :padding, :overlay, :header) = widget;
     // The line between the sidebar and the conversation.
     final line = AppColors.partBorder;
-    // Keep selection in content coordinates under UI zoom, as previews do.
+    // The selection's ends kept as points in the content, not the scroll
+    // view's own: under UI zoom those land away from the pointer once
+    // scrolled (see [ListSelection]).
     Widget scroll = ListSelection(
       controller: _controller,
       child: SingleChildScrollView(
