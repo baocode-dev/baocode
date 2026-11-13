@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../ide/ide_button.dart';
 import '../../l10n/l10n.dart';
+import '../../link/link_host.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/codicons.dart';
 import '../../tips/star_prompt.dart' show StarPrompt;
@@ -14,9 +16,13 @@ import 'settings_widgets.dart';
 
 /// Settings → About: what BaoCode is, which build this is, and where it
 /// is made in the open: its repository (a star there helps others find
-/// it), its site, its changelog, and where to tell of a problem.
+/// it), its site, its changelog, and where to tell of a problem; and this
+/// computer's device id, for a relay's list of devices admitted.
 class AboutSettingsPage extends StatelessWidget {
-  const AboutSettingsPage({super.key});
+  const AboutSettingsPage({super.key, this.host});
+
+  /// The phones' link, whose key is the device id; none, none shown.
+  final LinkHost? host;
 
   static final website = Uri.parse('https://baocode.dev');
   static final issues = StarPrompt.repository.replace(
@@ -138,9 +144,74 @@ class AboutSettingsPage extends StatelessWidget {
                 onPressed: () => _open(issues),
               ),
             ),
+            if (host case final host?) _DeviceIdRow(host: host),
           ],
         ),
       ],
+    );
+  }
+}
+
+/// This computer's id on the network, copied with a click: what a relay
+/// that admits only the devices listed needs on its list.
+class _DeviceIdRow extends StatefulWidget {
+  const _DeviceIdRow({required this.host});
+
+  final LinkHost host;
+
+  @override
+  State<_DeviceIdRow> createState() => _DeviceIdRowState();
+}
+
+class _DeviceIdRowState extends State<_DeviceIdRow> {
+  bool _copied = false;
+  Timer? _copiedTimer;
+
+  @override
+  void dispose() {
+    _copiedTimer?.cancel();
+    super.dispose();
+  }
+
+  void _copy(String id) {
+    unawaited(Clipboard.setData(ClipboardData(text: id)));
+    _copiedTimer?.cancel();
+    setState(() => _copied = true);
+    _copiedTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    return ListenableBuilder(
+      listenable: widget.host,
+      builder: (context, _) {
+        final id = widget.host.id;
+        if (id.isEmpty) return const SizedBox.shrink();
+        return SettingsRow(
+          label: l10n.aboutDeviceId,
+          description: l10n.aboutDeviceIdDetail,
+          below: [
+            Text(
+              id,
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 12,
+                fontFamily: AppFonts.mono,
+                fontFamilyFallback: AppFonts.monoFallbacks,
+              ),
+            ),
+          ],
+          trailing: IdeButton(
+            label: _copied ? l10n.mobilePairCopied : l10n.aboutCopy,
+            icon: _copied ? Codicons.check : Codicons.copy,
+            secondary: true,
+            onPressed: () => _copy(id),
+          ),
+        );
+      },
     );
   }
 }
