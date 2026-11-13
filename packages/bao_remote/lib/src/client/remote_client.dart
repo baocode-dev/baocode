@@ -298,10 +298,26 @@ class RemoteClient {
       _sockets.remove(conn)?.destroy();
       _closedEarly.add(conn);
     };
+    peer.handlers[RemoteProtocol.cliOpen] = (params, _) async {
+      final args = _map(params);
+      final open = onCode;
+      final error = open == null
+          ? 'BaoCode cannot open files from here.'
+          : await open(args['cwd'] as String? ?? '', [
+              for (final arg in args['args'] as List? ?? const [])
+                if (arg is String) arg,
+            ]);
+      return error == null ? null : {'error': error};
+    };
     unawaited(peer.done.then((_) => _lost()));
   }
 
   final RpcPeer peer;
+
+  /// Opens what the `code` command was given in a terminal there: its
+  /// folder and its arguments; says what went wrong, for the command to
+  /// print, or null.
+  Future<String?> Function(String cwd, List<String> args)? onCode;
 
   /// What the server said of itself; set by [initialize].
   RemoteHello? hello;
@@ -465,6 +481,20 @@ class RemoteClient {
     RemoteProtocol.fsWriteBytes,
     {'root': root, 'path': path, 'data': encodeBytes(bytes)},
   );
+
+  /// Adds [bytes] to the end of [path], made by [writeBytes] and [offset]
+  /// bytes long so far.
+  Future<void> appendBytes(
+    String root,
+    String path,
+    int offset,
+    List<int> bytes,
+  ) => _call(RemoteProtocol.fsAppendBytes, {
+    'root': root,
+    'path': path,
+    'offset': offset,
+    'data': encodeBytes(bytes),
+  });
 
   Future<Uint8List> readBytes(String path) async => decodeBytes(
     await _call<String>(RemoteProtocol.fsReadBytes, {'path': path}),

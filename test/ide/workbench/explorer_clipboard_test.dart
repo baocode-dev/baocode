@@ -39,6 +39,18 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Frames and real time in turn, for what reads and writes files here
+  /// (the menu's choice is made once it has closed).
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 10; i++) {
+      await tester.pumpAndSettle();
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+    }
+    await tester.pumpAndSettle();
+  }
+
   /// The system's clipboard: what it holds, as files.
   List<String> clipboard(WidgetTester tester) {
     final held = <String>[];
@@ -211,7 +223,7 @@ void main() {
     expect(held, isEmpty);
     expect(
       notifications.notifications.single.message,
-      'Downloading files... 0/1',
+      'Downloading files... 0/1 0%',
     );
     gate.complete();
     await tester.runAsync(
@@ -231,6 +243,46 @@ void main() {
     });
     await tester.pumpAndSettle();
     expect(host.bytes[inRoot('notes.txt')], 'hi'.codeUnits);
+  }, variant: windows);
+
+  testWidgets('Download...: a remote project\'s folder into one picked here, '
+      'what is there by its name written over once agreed', (tester) async {
+    final into = (await tester.runAsync(
+      () => Directory.systemTemp.createTemp('explorer_download'),
+    ))!;
+    addTearDown(() => into.deleteSync(recursive: true));
+    final messenger = tester.binding.defaultBinaryMessenger;
+    const channel = MethodChannel('baocode/window');
+    messenger.setMockMethodCallHandler(
+      channel,
+      (call) async => call.method == 'pickDirectory' ? into.path : null,
+    );
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+    await _pumpTree(
+      tester,
+      files,
+      local: false,
+      host: _HostFiles({
+        for (final MapEntry(:key, :value) in files.entries) inRoot(key): value,
+      }),
+    );
+    Future<void> download() async {
+      await rightClick(tester, row('lib'));
+      await tester.tap(find.text('Download...'));
+      await settle(tester);
+    }
+
+    await download();
+    expect(File(p.join(into.path, 'lib', 'a.dart')).readAsStringSync(), 'a');
+    expect(File(p.join(into.path, 'lib', 'util.dart')).readAsStringSync(), 'u');
+
+    // Again: asked first.
+    File(p.join(into.path, 'lib', 'a.dart')).writeAsStringSync('mine');
+    await download();
+    expect(find.textContaining('Replace them?'), findsOneWidget);
+    await tester.tap(find.text('Replace'));
+    await settle(tester);
+    expect(File(p.join(into.path, 'lib', 'a.dart')).readAsStringSync(), 'a');
   }, variant: windows);
 
   testWidgets('a remote project\'s file dragged out of the window is '
@@ -451,4 +503,9 @@ class _RangeHostFiles extends _HostFiles implements IdeRangeFiles {
   @override
   Future<int> sizeOf(List<String> paths, {int? limit}) async =>
       paths.length * size;
+
+  @override
+  Future<void> appendBytes(String path, int offset, Uint8List data) async {
+    bytes[path] = Uint8List.fromList([...bytes[path]!, ...data]);
+  }
 }

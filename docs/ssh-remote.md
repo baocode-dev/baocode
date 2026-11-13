@@ -92,6 +92,8 @@
 | `SSH: dev（正在安装 Claude Code 45%）` | 正在往这台主机装 Claude Code |
 
   点它（任何状态下）弹出远程菜单：切换到别的主机（打开它上面某个文件夹）、断开连接/重新连接、在本机（当前主机）上打开文件夹、打开文件、添加 SSH 主机。
+- **终端里的 `code`**（#249）：BaoCode 打开的远程终端里，`code 文件或文件夹` 在 BaoCode 里打开主机上的它们，用法和本机的 `code` 命令一样（`-n`、`-r`、`-g file:line[:col]`；文件夹开它的窗口，文件在包含它的窗口打开）。`code --version` 之类只问编辑器本身的参数会报错退出。只在 BaoCode 的终端里有，用户自己 `ssh` 上去的终端里没有（和 VS Code 一样）。见 6.4。
+- **上传、下载的进度**（#722）：拖进/粘贴到远程项目的本机文件、从远程项目复制/拖出/“下载...”/“另存为...”到本机的文件，超过 0.3 秒就在通知里显示进度（文件数和百分比，大文件按 512 KB 一段算进度），可以取消；取消时正传到一半的那个文件会被删掉。远程项目资源管理器的右键菜单里，“另存为...”换成“下载...”：单个文件弹保存框，文件夹或多选时选一个本机文件夹，里面已有同名的先问是否替换。
 - **打开文件（远程）**：远程项目里，菜单栏的“打开文件...”浏览的是远端服务器的目录（从该项目所在目录开始），选中的文件按它在那里的路径打开，而不是只能开本机文件（VS Code 的 Remote-SSH 一样）。命令面板里也有“打开远程文件...”（`baocode.remote.openFile`）。
 
 ### 2.3 断线与重连
@@ -325,6 +327,15 @@ Haiku 起标题和提交信息**不会**触发自动安装：内核是“自动�
 - 这个临时文件放在 `XDG_RUNTIME_DIR`（通常是 `/run/user/<uid>`，在内存里）。**远端没有 `XDG_RUNTIME_DIR` 时，会退回系统临时目录**，也就是会短暂落在磁盘上，进程退出后删除。
 - 应用自己的模型相关环境变量会显式清空（`cleared`），避免远端 shell 里同名的变量干扰。
 
+### 6.4 终端里的 `code` 命令
+
+和 VS Code 远程终端里的 `code` 一个做法（`ServerCli`）：
+
+- 服务端第一次开终端时，在 `~/.baocode-server/data/remote-cli/` 写一个 `code`（Windows 主机上是 `code.cmd`）脚本，并在本机回环地址上监听一个随机端口。脚本对所有版本都一样，只做一件事：执行 `$BAOCODE_CLI code "$PWD" "$@"`，即服务端二进制自己的 `code` 子命令。
+- 每个终端的环境里加 `BAOCODE_CLI`（服务端二进制路径）和 `BAOCODE_IPC_HOOK_CLI`（`端口:随机口令`），`remote-cli` 目录放在 PATH **最前面**（终端里的 `code` 就是 BaoCode 的），并加进 `VSCODE_PATH_PREFIX`，login shell 重设 PATH 后由 shell integration 再加回来。
+- `baocode-server code <cwd> <参数…>` 连上那个端口，发一行 `{secret, cwd, args}`；口令不对直接断开（主机上别的用户连不进来）。服务端向应用发请求 `cli/open`，应用按本机 `code` 的规则解析参数，用 `fs/stat` 分辨文件和文件夹，转成 `ssh://主机/路径` 打开（`AppWindows.handleRemoteCode`）；出错时回一句话，命令打印到 stderr 并以 1 退出。应用 15 秒没回（断线了）也报错退出。
+- 从源码直接 `dart bin/baocode_server.dart` 跑的服务端没有可执行文件可调，就不提供 `code`。
+
 ---
 
 ## 7. 远端主机上的文件
@@ -336,6 +347,7 @@ Haiku 起标题和提交信息**不会**触发自动安装：内核是“自动�
 └── data/                       服务端的数据目录（各版本共用）
     ├── checkpoints/            Keep/Undo 的影子 git 仓库
     ├── lsp/servers/            mason 装的语言服务器
+    ├── remote-cli/code         终端里的 `code` 命令（见 6.4）
     ├── claude/                 BaoCode 装的 Claude Code（只在用户自己没有时）
     │   ├── CURRENT             在用的版本号
     │   ├── claude-<版本>
@@ -434,6 +446,7 @@ dart run tool/build_remote_server.dart --all        # 四份没编全就失败�
 | `XDG_RUNTIME_DIR` | 远端 | 存放带密钥的临时 settings 文件的目录（在内存里） |
 | `DISABLE_AUTOUPDATER=1` | 远端（服务端自动设置） | 只对 BaoCode 装的那份 claude 设置 |
 | `VSCODE_NONCE` | 远端（服务端自动设置） | 终端 shell 集成用的 nonce |
+| `BAOCODE_CLI`、`BAOCODE_IPC_HOOK_CLI` | 远端终端（服务端自动设置） | 终端里的 `code` 命令调用的服务端二进制，和它连回服务端的 `端口:口令`（见 6.4） |
 
 远端进程的环境取自远端用户的**登录 shell**（`ClaudeEnvironment.of()`），所以写在 `~/.profile`、`~/.bashrc`、`~/.zshrc` 里的 PATH 都能生效。
 

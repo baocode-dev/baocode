@@ -2561,6 +2561,7 @@ class IdeScmViewState extends State<IdeScmView>
               saveFileCopyAs(
                 widget.host.files,
                 path,
+                context: context,
               ).then<void>((_) {}, onError: _report),
             ),
           ),

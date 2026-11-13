@@ -227,6 +227,28 @@ class LocalFiles {
     }
   });
 
+  /// Adds [bytes] to the end of the file [path], which [writeBytes] made
+  /// of its first stretch: an upload a stretch at a time. Throws when the
+  /// file is not [offset] bytes long, as it is when a stretch went
+  /// missing.
+  Future<void> appendBytes(String path, int offset, List<int> bytes) =>
+      _serialize(() async {
+        final target = await _regularFile(path);
+        final handle = await File(target).open(mode: FileMode.append);
+        try {
+          if (await handle.length() != offset) {
+            throw FileSystemException(
+              'The upload is out of step with the file',
+              path,
+            );
+          }
+          await handle.writeFrom(bytes);
+          await handle.flush();
+        } finally {
+          await handle.close();
+        }
+      });
+
   Future<void> rename(String from, String to) => _serialize(() async {
     final source = await _newPath(from);
     final target = await _newPath(to);

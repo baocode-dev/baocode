@@ -19,6 +19,9 @@ import '../chat/composer/file_drop.dart';
 import '../keybindings/keybinding_service.dart';
 import '../l10n/l10n.dart';
 import '../platform/app_paths.dart';
+import '../platform/local_paths.dart'
+    if (dart.library.io) '../platform/local_paths_io.dart'
+    as local;
 import '../theme/app_theme.dart' show AppColors;
 import '../theme/codicons.dart';
 import 'host_paths.dart';
@@ -40,8 +43,8 @@ import 'ide_dialog.dart';
 import 'ide_input.dart';
 import 'ide_list.dart';
 import 'ide_menu.dart';
-import 'ide_notifications.dart';
 import 'save_copy.dart';
+import 'transfer_progress.dart';
 
 /// One visible row of the explorer tree.
 @immutable
@@ -699,7 +702,11 @@ class IdeExplorerState extends State<IdeExplorer>
     }
   }
 
-  void _report(Object error) => widget.onError?.call(error);
+  void _report(Object error) {
+    // Given up by the user: nothing to tell.
+    if (error is TransferCancelledException) return;
+    widget.onError?.call(error);
+  }
 
   void _scheduleReveal() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1069,11 +1076,20 @@ class IdeExplorerState extends State<IdeExplorer>
         case ExplorerCopied(:final copies, :final upload):
           if (upload) {
             final uploading = context.l10n.explorerUploading;
-            await _withProgress(
+            await withTransferProgress(
+              context,
               uploading,
-              (transfer) => uploadTo(files, [
-                for (final (:source, :copy) in copies) (from: source, to: copy),
-              ], onProgress: transfer.onProgress),
+              (transfer) => uploadTo(
+                files,
+                [
+                  for (final (:source, :copy) in copies)
+                    (from: source, to: copy),
+                ],
+                onProgress: transfer.onProgress,
+                onFile: transfer.onFile,
+                cancel: transfer.cancel,
+              ),
+              cancellable: true,
             );
             reveal = copies.lastOrNull?.copy;
           } else {
@@ -1291,84 +1307,6 @@ class IdeExplorerState extends State<IdeExplorer>
 
   // --- Between this machine and a remote host --------------------------------
 
-  /// Runs [transfer] (an upload, a download), how far it is shown in a
-  /// notification once it takes a moment: [message] of the files done, and
-  /// how far the file on is. [cancellable], the notification can give it
-  /// up (the [_Transfer.cancel] it is given completes).
-  Future<T> _withProgress<T>(
-    String Function(int done, int total) message,
-    Future<T> Function(_Transfer transfer) transfer, {
-    bool cancellable = false,
-  }) async {
-    final notifications = IdeNotificationsScope.maybeOf(context);
-    final l10n = context.l10n;
-    final preparing = l10n.explorerPreparingTransfer;
-    final cancel = Completer<void>();
-    void giveUp() {
-      if (!cancel.isCompleted) cancel.complete();
-    }
-
-    var done = 0;
-    int? total;
-    // Of the file on: what part of it is there.
-    var part = 0.0;
-    String text() => total == null ? preparing : message(done, total!);
-    IdeNotificationProgress progress() => switch (total) {
-      final total? when total > 0 => IdeNotificationProgress(
-        done + part,
-        total: total.toDouble(),
-      ),
-      _ => const IdeNotificationProgress.infinite(),
-    };
-    IdeNotification? shown;
-    void update() {
-      if (shown case final shown?) {
-        notifications!.update(shown, message: text(), progress: progress());
-      }
-    }
-
-    // Not for what is done at once.
-    final timer = notifications == null
-        ? null
-        : Timer(const Duration(milliseconds: 300), () {
-            shown = notifications.notify(
-              IdeSeverity.info,
-              text(),
-              progress: progress(),
-              sticky: true,
-              primary: [
-                if (cancellable)
-                  IdeNotificationAction(l10n.commonCancel, giveUp),
-              ],
-              onClose: cancellable ? giveUp : null,
-            );
-          });
-    var lastPart = 0.0;
-    try {
-      return await transfer(
-        _Transfer(
-          onProgress: (worked, of) {
-            done = worked;
-            total = of;
-            part = lastPart = 0;
-            update();
-          },
-          onFile: (read, size) {
-            part = size == 0 ? 1 : read / size;
-            // A notification a percent, not one a stretch.
-            if (part - lastPart < 0.01 && part < 1) return;
-            lastPart = part;
-            update();
-          },
-          cancel: cancel.future,
-        ),
-      );
-    } finally {
-      timer?.cancel();
-      if (shown case final shown?) notifications!.close(shown);
-    }
-  }
-
   /// [rows] as this machine's files, for other apps (Finder's paste, a drag
   /// out): a remote project's downloaded to a folder here first. Null when
   /// they cannot be had (a remote project's files that do not download).
@@ -1390,7 +1328,8 @@ class IdeExplorerState extends State<IdeExplorer>
     }
     if (!mounted) return const [];
     try {
-      await _withProgress(
+      await withTransferProgress(
+        context,
         downloading,
         (transfer) => downloadFrom(
           files,
@@ -1405,6 +1344,60 @@ class IdeExplorerState extends State<IdeExplorer>
       return null;
     }
     return [for (final item in items) item.to];
+  }
+
+  /// Download…: a remote project's [rows] to this machine. One file goes
+  /// where the save panel says; more, or a folder, into a folder picked,
+  /// what is there by their names written over once the user agrees. How
+  /// far shown, and cancellable.
+  Future<void> _downloadTo(List<IdeExplorerRow> rows) async {
+    final files = _controller.files;
+    if (files is! IdeHostFiles || rows.isEmpty) return;
+    if (rows case [final row] when !row.isDirectory) {
+      await saveFileCopyAs(files, row.path, context: context);
+      return;
+    }
+    final folder = await WindowControls.pickDirectory();
+    if (folder == null || !mounted) return;
+    final items = <({String from, String to, bool directory})>[];
+    final taken = <String>{};
+    for (final row in rows) {
+      final name = _controller.paths.basename(row.path);
+      // The same name from two folders: the first one's.
+      if (!taken.add(name)) continue;
+      items.add((
+        from: row.path,
+        to: p.join(folder, name),
+        directory: row.isDirectory,
+      ));
+    }
+    var there = false;
+    for (final item in items) {
+      if (await local.exists(item.to)) there = true;
+    }
+    if (!mounted) return;
+    final l10n = context.l10n;
+    if (there) {
+      final choice = await showIdeDialog(
+        context,
+        type: IdeDialogType.question,
+        message: l10n.explorerDownloadExists(folder),
+        buttons: [l10n.explorerDownloadReplace],
+      );
+      if (choice != 0 || !mounted) return;
+    }
+    await withTransferProgress(
+      context,
+      l10n.explorerDownloading,
+      (transfer) => downloadFrom(
+        files,
+        items,
+        onProgress: transfer.onProgress,
+        onFile: transfer.onFile,
+        cancel: transfer.cancel,
+      ),
+      cancellable: true,
+    );
   }
 
   /// The most of a remote project's files a copy downloads onto the
@@ -1763,10 +1756,18 @@ class IdeExplorerState extends State<IdeExplorer>
         }
       }
       if (uploads.isNotEmpty) {
-        await _withProgress(
+        if (!mounted) return;
+        await withTransferProgress(
+          context,
           uploading,
-          (transfer) =>
-              uploadTo(files, uploads, onProgress: transfer.onProgress),
+          (transfer) => uploadTo(
+            files,
+            uploads,
+            onProgress: transfer.onProgress,
+            onFile: transfer.onFile,
+            cancel: transfer.cancel,
+          ),
+          cancellable: true,
         );
         for (final (:from, :to) in uploads) {
           copied.add((source: from, copy: to));
@@ -1869,14 +1870,27 @@ class IdeExplorerState extends State<IdeExplorer>
                 !isFolder ? _controller.paths.dirname(path) : path,
               ),
             ),
-          // To this machine, from a remote project's host too.
-          if (!isFolder && !multiple && canSaveFileCopy)
+          // To this machine: a remote project's files and folders, as
+          // VS Code's remote explorer downloads them; a file of this
+          // machine's, elsewhere on it.
+          if (!widget.local &&
+              row != null &&
+              canSaveFileCopy &&
+              WindowControls.canPickDirectory)
+            IdeMenuAction(
+              l10n.explorerDownload,
+              onSelected: () => unawaited(
+                _downloadTo(targets).then<void>((_) {}, onError: _report),
+              ),
+            )
+          else if (!isFolder && !multiple && canSaveFileCopy)
             IdeMenuAction(
               l10n.cmdSaveAs,
               onSelected: () => unawaited(
                 saveFileCopyAs(
                   _controller.files,
                   path,
+                  context: context,
                 ).then<void>((_) {}, onError: _report),
               ),
             ),
@@ -2613,18 +2627,4 @@ class _IndentGuidesPainter extends CustomPainter {
   @override
   bool shouldRepaint(_IndentGuidesPainter oldDelegate) =>
       oldDelegate.depth != depth || oldDelegate.color != color;
-}
-
-/// What a transfer run by [IdeExplorerState._withProgress] tells how far it
-/// is, and when it is to stop.
-class _Transfer {
-  const _Transfer({
-    required this.onProgress,
-    required this.onFile,
-    required this.cancel,
-  });
-
-  final TransferProgress onProgress;
-  final FileProgress onFile;
-  final Future<void> cancel;
 }

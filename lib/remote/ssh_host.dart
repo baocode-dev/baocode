@@ -47,13 +47,28 @@ typedef SshConnector = Future<SshConnection> Function(
   void Function(String message)? onProgress,
 });
 
+/// Opens what the `code` command was given in a terminal of [host]'s: its
+/// folder there and its arguments, [client] its connection; says what went
+/// wrong, for the command to print, or null.
+typedef SshCodeHandler = Future<String?> Function(
+  String host,
+  RemoteClient client,
+  String cwd,
+  List<String> args,
+);
+
 /// A host reached over SSH, and its projects' services ([ProjectHost]).
 /// The connection is made when first asked for, and shared by all that
 /// host's projects. Lost, it is made again to the same session there
 /// (see [SshConnection]): what ran goes on. A session gone, a new one is
 /// made (after 1, 2, 4… seconds, up to a minute), and [reconnected] says so.
 class SshHost extends ChangeNotifier implements ProjectHost {
-  SshHost(this.host, {required this._connect, this.maxBackoff = _max});
+  SshHost(
+    this.host, {
+    required this._connect,
+    this.maxBackoff = _max,
+    this.onCode,
+  });
 
   static const _max = Duration(minutes: 1);
 
@@ -108,6 +123,10 @@ class SshHost extends ChangeNotifier implements ProjectHost {
   TerminalBackend? _terminals;
   final SshConnector _connect;
   final Duration maxBackoff;
+
+  /// Opens what the `code` command was given in a terminal of the host's
+  /// (see [RemoteClient.onCode]), asking [client] of its paths.
+  final SshCodeHandler? onCode;
 
   SshHostState get state => _state;
   SshHostState _state = SshHostState.idle;
@@ -204,6 +223,10 @@ class SshHost extends ChangeNotifier implements ProjectHost {
         throw const SshConnectException(SshFailure.server, 'Closed');
       }
       _connection = connection;
+      if (onCode case final onCode?) {
+        final client = connection.client;
+        client.onCode = (cwd, args) => onCode(host, client, cwd, args);
+      }
       _failures = 0;
       _permanent = false;
       _error = null;
@@ -358,6 +381,10 @@ class SshHosts extends ChangeNotifier {
 
   final SshConnector? _connectOverride;
 
+  /// Opens what the `code` command was given in the hosts' terminals (the
+  /// app's windows do, see AppWindows.handleRemoteCode).
+  SshCodeHandler? onCode;
+
   /// What `ssh` asks while signing in to the hosts.
   final SshPasswords passwords;
   final Map<String, SshHost> _hosts = {};
@@ -464,8 +491,16 @@ class SshHosts extends ChangeNotifier {
 
   /// The host named [host] (connected when first asked for).
   SshHost operator [](String host) => _hosts.putIfAbsent(host, () {
-    final made = SshHost(host, connect: _connectTo)
-      ..addListener(notifyListeners);
+    final made = SshHost(
+      host,
+      connect: _connectTo,
+      onCode: (host, client, cwd, args) async {
+        final open = onCode;
+        return open == null
+            ? 'BaoCode cannot open files from here.'
+            : open(host, client, cwd, args);
+      },
+    )..addListener(notifyListeners);
     return made;
   });
 

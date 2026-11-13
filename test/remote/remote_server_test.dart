@@ -146,6 +146,17 @@ void main() {
       );
     });
 
+    test('a file uploaded a stretch at a time, in step only', () async {
+      await client().writeBytes(root, at('up.bin'), [1, 2]);
+      await client().appendBytes(root, at('up.bin'), 2, [3]);
+      expect(File(at('up.bin')).readAsBytesSync(), [1, 2, 3]);
+      await expectLater(
+        client().appendBytes(root, at('up.bin'), 2, [4]),
+        throwsA(isA<RemoteException>()),
+      );
+      expect(File(at('up.bin')).readAsBytesSync(), [1, 2, 3]);
+    });
+
     test('made, renamed, copied and deleted', () async {
       await client().create(root, at('dir'), directory: true);
       await client().create(root, at('dir/a.txt'));

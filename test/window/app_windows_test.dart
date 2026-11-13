@@ -370,6 +370,41 @@ void main() {
       expect(harness.order.first, '/w/a');
     });
 
+    testWidgets('code in a remote host\'s terminal: its folders and files '
+        'there, told apart by the host', (tester) async {
+      final harness = await started(tester);
+      const types = {
+        '/srv/app': 'directory',
+        '/srv/app/x.vue': 'file',
+        '/srv/app/y.txt': 'file',
+      };
+      Future<String?> remote(List<String> args) =>
+          harness.windows.handleRemoteCode(
+            'dev@box',
+            '/srv',
+            args,
+            stat: (path) async => types[path],
+          );
+
+      expect(await remote(['app']), isNull);
+      await tester.pump();
+      expect(harness.folders, ['ssh://dev@box/srv/app']);
+
+      // `file:line:col` without -g, as launch-editor gives it.
+      expect(await remote(['app/x.vue:58:11', 'app/y.txt']), isNull);
+      await tester.pump();
+      expect(harness.delegateOf('ssh://dev@box/srv/app').opened, [
+        [
+          const CodeTarget('ssh://dev@box/srv/app/x.vue', line: 58, column: 11),
+          const CodeTarget('ssh://dev@box/srv/app/y.txt'),
+        ],
+      ]);
+
+      // Said back to the terminal, nothing opened.
+      expect(await remote(['--version']), contains('only opens'));
+      expect(harness.host.created, hasLength(1));
+    });
+
     testWidgets('requests: the marker and arguments (Windows), the script\'s '
         'file (macOS), plain paths (the Dock, Finder)', (tester) async {
       final harness = _Harness(

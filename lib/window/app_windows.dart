@@ -770,6 +770,58 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
       final target = await _located(path);
       (await _isDirectory(target.path) ? folders : files).add(target);
     }
+    await _openCode(args, folders, files);
+  }
+
+  /// What the `code` command asks in a terminal of [host]'s (see
+  /// ServerCli): its arguments read from [cwd] there, [stat] telling its
+  /// files (`file`, `directory`, null for none) from its folders. What went
+  /// wrong, for the command to print, or null; the windows open after.
+  Future<String?> handleRemoteCode(
+    String host,
+    String cwd,
+    List<String> arguments, {
+    required Future<String?> Function(String path) stat,
+  }) async {
+    final args = CodeArgs.parse(arguments, cwd: cwd);
+    if (args.opensNothing) {
+      return "BaoCode's code command only opens files and folders.";
+    }
+    Future<String?> typeOf(String path) =>
+        stat(path).then((type) => type, onError: (Object _) => null);
+    final folders = <CodeTarget>[], files = <CodeTarget>[];
+    for (var target in args.paths) {
+      var type = await typeOf(target.path);
+      // `a.vue:58:11` without `-g`, as below.
+      final at = type == null ? target.atLine : null;
+      if (at != null) {
+        if (await typeOf(at.path) case final there?) {
+          (target, type) = (at, there);
+        }
+      }
+      final location = CodeTarget(
+        RemoteLocation.of(host, target.path),
+        line: target.line,
+        column: target.column,
+      );
+      (type == 'directory' ? folders : files).add(location);
+    }
+    unawaited(
+      _openCode(
+        args,
+        folders,
+        files,
+      ).catchError((Object error) => debugPrint('code: $error')),
+    );
+    return null;
+  }
+
+  /// Opens [folders] and [files] as [args] asks (see [handleCode]).
+  Future<void> _openCode(
+    CodeArgs args,
+    List<CodeTarget> folders,
+    List<CodeTarget> files,
+  ) async {
     if (folders.isEmpty && files.isEmpty) {
       if (!multi) {
         await _showInMain(null);

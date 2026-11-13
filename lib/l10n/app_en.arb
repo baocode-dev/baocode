@@ -2440,6 +2440,16 @@
       }
     }
   },
+  "explorerDownload": "Download...",
+  "explorerDownloadExists": "Some of them are already in {folder}. Replace them?",
+  "@explorerDownloadExists": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
+  "explorerDownloadReplace": "Replace",
   "explorerPreparingTransfer": "Preparing files...",
   "composerCopyToHostFailed": "Couldn't copy the files to the remote host: {error}",
   "@composerCopyToHostFailed": {

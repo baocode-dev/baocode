@@ -83,9 +83,14 @@ abstract interface class IdeRangeFiles {
   /// How many bytes the files and folders at [paths] take; counted only
   /// until over [limit].
   Future<int> sizeOf(List<String> paths, {int? limit});
+
+  /// Adds [bytes] to the end of [path], which [IdeFileService.writeBytes]
+  /// made and is [offset] bytes long so far: a big file uploaded a stretch
+  /// at a time.
+  Future<void> appendBytes(String path, int offset, Uint8List bytes);
 }
 
-/// A download given up (see [downloadFrom]'s `cancel`).
+/// A download or an upload given up (see [downloadFrom]'s `cancel`).
 class TransferCancelledException implements Exception {
   const TransferCancelledException();
 
@@ -140,13 +145,24 @@ typedef FileProgress = void Function(int read, int size);
 
 /// Copies each of [items] (this machine's files and folders) to its place
 /// on a remote project's host through [files], the folders first, then
-/// the files one by one, [onProgress] told after each. Links to folders
-/// are left out.
+/// the files one by one, [onProgress] told after each: a file a stretch at
+/// a time where [files] writes so ([IdeRangeFiles]), how far told to
+/// [onFile]. Once [cancel] completes it stops, with a
+/// [TransferCancelledException], the file it was on left out. Links to
+/// folders are left out.
 Future<void> uploadTo(
   IdeFileService files,
   List<({String from, String to})> items, {
   TransferProgress? onProgress,
-}) => platform.uploadTo(files, items, onProgress: onProgress);
+  FileProgress? onFile,
+  Future<void>? cancel,
+}) => platform.uploadTo(
+  files,
+  items,
+  onProgress: onProgress,
+  onFile: onFile,
+  cancel: cancel,
+);
 
 /// Copies each of [items] (files and folders of a remote host, [files]')
 /// to its place on this machine, as [uploadTo] the other way: a file a
@@ -175,13 +191,23 @@ Future<String> newDownloadFolder() => platform.newDownloadFolder();
 /// Save As… of a file shown: writes it to [to] on this machine, written
 /// over (the save panel asked). [text] when given (an editor's, unsaved
 /// changes and all), else [from]'s bytes as read through [files]: from a
-/// remote project's host, a download.
+/// remote project's host, a download, how far told to [onFile] and given
+/// up once [cancel] completes (see [downloadFrom]).
 Future<void> saveCopyTo(
   IdeFileService files,
   String from,
   String to, {
   String? text,
-}) => platform.saveCopyTo(files, from, to, text: text);
+  FileProgress? onFile,
+  Future<void>? cancel,
+}) => platform.saveCopyTo(
+  files,
+  from,
+  to,
+  text: text,
+  onFile: onFile,
+  cancel: cancel,
+);
 
 /// Changes to the entries of [directory] (not of its subfolders): files
 /// written, made, moved or deleted there, by anything. Empty where it
