@@ -146,7 +146,7 @@ Map<String, Object?> convertClaudeRequestToResponses(
             case 'image':
               flushReminders();
               if (_dataUrl(content.get('source')) case final url?) {
-                contentItems.add({'type': 'input_image', 'image_url': url});
+                contentItems.add(inputImage(url));
               }
             case 'document':
               flushReminders();
@@ -189,7 +189,7 @@ Map<String, Object?> convertClaudeRequestToResponses(
                   switch (part.get('type').string) {
                     case 'image':
                       if (_dataUrl(part.get('source')) case final url?) {
-                        parts.add({'type': 'input_image', 'image_url': url});
+                        parts.add(inputImage(url));
                       }
                     case 'text':
                       parts.add({
@@ -332,6 +332,15 @@ Map<String, Object?> convertClaudeRequestToResponses(
   out['input'] = inputItems;
   return out;
 }
+
+/// A Responses `input_image` of [url], its `detail` the default (`auto`)
+/// spelled out: servers that check against the OpenAI SDK's types (vLLM)
+/// turn the request down without it (#974).
+Map<String, Object?> inputImage(String url) => {
+  'type': 'input_image',
+  'image_url': url,
+  'detail': 'auto',
+};
 
 String? _dataUrl(JsonValue source) {
   if (!source.exists) return null;

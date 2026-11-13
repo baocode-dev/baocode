@@ -402,7 +402,19 @@ void main() {
       items[6].get('output.1.image_url').string,
       'data:image/png;base64,aW1hZ2U=',
     );
+    expect(items[6].get('output.1.detail').string, 'auto');
     expect(items[7].get('content.0.text').string, 'continue');
+  });
+
+  test('a user image carries its detail, as strict servers ask (#974)', () {
+    final image = convert(
+      model: 'gpt-5.4',
+      '''{"messages":[{"role":"user","content":[
+      {"type":"image","source":{"type":"base64","media_type":"image/png","data":"aW1hZ2U="}}]}]}''',
+    ).get('input.0.content.0');
+    expect(image.get('type').string, 'input_image');
+    expect(image.get('image_url').string, 'data:image/png;base64,aW1hZ2U=');
+    expect(image.get('detail').string, 'auto');
   });
 
   String grokPayload({String model = ''}) => jsonEncode({
