@@ -22,10 +22,19 @@ Future<void> uploadTo(
   IdeFileService files,
   List<({String from, String to})> items, {
   TransferProgress? onProgress,
+  FileProgress? onFile,
+  Future<void>? cancel,
 }) async {
+  var cancelled = false;
+  unawaited(cancel?.then((_) => cancelled = true));
+  void check() {
+    if (cancelled) throw const TransferCancelledException();
+  }
+
   final folders = <String>[];
   final copies = <({String from, String to})>[];
   Future<void> walk(String from, String to) async {
+    check();
     switch (await FileSystemEntity.type(from)) {
       case FileSystemEntityType.directory:
         folders.add(to);
@@ -50,12 +59,61 @@ Future<void> uploadTo(
     await walk(from, to);
   }
   for (final folder in folders) {
+    check();
     await files.create(folder, directory: true);
   }
   onProgress?.call(0, copies.length);
   for (final (i, (:from, :to)) in copies.indexed) {
-    await files.writeBytes(to, await File(from).readAsBytes());
+    check();
+    await _upload(
+      files,
+      from,
+      to,
+      onFile: onFile,
+      isCancelled: () => cancelled,
+    );
     onProgress?.call(i + 1, copies.length);
+  }
+}
+
+/// Writes [from], a file here, to [to] through [files]: a stretch at a
+/// time where it can be, nothing left of it when given up or failed.
+Future<void> _upload(
+  IdeFileService files,
+  String from,
+  String to, {
+  FileProgress? onFile,
+  required bool Function() isCancelled,
+}) async {
+  final ranges = files is IdeRangeFiles ? files as IdeRangeFiles : null;
+  final handle = await File(from).open();
+  var made = false;
+  try {
+    final size = await handle.length();
+    if (ranges == null || size <= _rangeLength) {
+      await files.writeBytes(to, await handle.read(size));
+      onFile?.call(size, size);
+      return;
+    }
+    var offset = 0;
+    while (offset < size) {
+      if (isCancelled()) throw const TransferCancelledException();
+      final bytes = await handle.read(_rangeLength);
+      if (bytes.isEmpty) break;
+      if (offset == 0) {
+        await files.writeBytes(to, bytes);
+        made = true;
+      } else {
+        await ranges.appendBytes(to, offset, bytes);
+      }
+      offset += bytes.length;
+      onFile?.call(offset, size);
+    }
+    made = false;
+  } finally {
+    await handle.close();
+    // Part of it there: gone again.
+    if (made) await files.delete(to).catchError((Object _) {});
   }
 }
 
@@ -186,12 +244,14 @@ Future<void> saveCopyTo(
   String from,
   String to, {
   String? text,
+  FileProgress? onFile,
+  Future<void>? cancel,
 }) async {
   final file = File(to);
   if (text != null) {
     await file.writeAsString(text);
   } else if (files is IdeHostFiles) {
-    await _download(files, from, to);
+    await _download(files, from, to, onFile: onFile, cancel: cancel);
   } else if (!p.equals(from, to)) {
     await File(from).copy(to);
   }

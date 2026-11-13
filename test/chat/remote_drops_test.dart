@@ -1,7 +1,9 @@
 @TestOn('vm')
 library;
 
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:bao_markdown/bao_markdown.dart';
 import 'package:baocode/chat/chat_session.dart';
@@ -9,6 +11,7 @@ import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/composer/composer_embeds.dart';
 import 'package:baocode/chat/composer/composer_files.dart';
 import 'package:baocode/chat/composer/remote_drops.dart';
+import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -31,6 +34,39 @@ void main() {
     file.writeAsStringSync(text);
     return file.path;
   }
+
+  test('a big file goes up a stretch at a time, how far told', () async {
+    final host = _RangeTree();
+    final big = File(p.join(temp.path, 'big.bin'))
+      ..writeAsBytesSync(List.generate(1200000, (i) => i % 251));
+    final told = <int>[];
+    final copies = await RemoteDrops.copy(host, [
+      ComposerFile(big.path),
+    ], onFile: (read, size) => told.add(read));
+    final copy = copies.single.path;
+    expect(host.bytes[copy], big.readAsBytesSync());
+    expect(host.appended, 2);
+    expect(told, [524288, 1048576, 1200000]);
+  });
+
+  test('given up partway, the file it was on is gone from the host', () async {
+    final host = _RangeTree();
+    final big = File(p.join(temp.path, 'big.bin'))
+      ..writeAsBytesSync(List.filled(1200000, 1));
+    final cancel = Completer<void>();
+    await expectLater(
+      RemoteDrops.copy(
+        host,
+        [ComposerFile(big.path)],
+        onFile: (read, size) {
+          if (!cancel.isCompleted) cancel.complete();
+        },
+        cancel: cancel.future,
+      ),
+      throwsA(isA<TransferCancelledException>()),
+    );
+    expect(host.contents.keys.where((path) => path.endsWith('big.bin')), []);
+  });
 
   test('copies files and folders to a folder of their own on the host, '
       'the same name from two folders numbered', () async {
@@ -132,4 +168,30 @@ void main() {
       expect(tags(tester), ['@$file']);
     });
   });
+}
+
+/// A host's files written a stretch at a time.
+class _RangeTree extends TreeFiles implements IdeRangeFiles {
+  _RangeTree() : super({});
+
+  int appended = 0;
+
+  @override
+  Future<void> appendBytes(String path, int offset, Uint8List data) async {
+    expect(bytes[path]!.length, offset);
+    appended++;
+    bytes[path] = Uint8List.fromList([...bytes[path]!, ...data]);
+  }
+
+  @override
+  Future<({Uint8List bytes, int size})> readRange(
+    String path,
+    int offset,
+    int length, {
+    Future<void>? cancel,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<int> sizeOf(List<String> paths, {int? limit}) =>
+      throw UnimplementedError();
 }

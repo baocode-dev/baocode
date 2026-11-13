@@ -28,13 +28,16 @@ abstract final class RemoteDrops {
   /// them without asking (see [ClaudeLaunch.readable]).
   static const folders = [folder, '/private$folder'];
 
-  /// Copies [files] onto the host through [host], [onProgress] told how
-  /// far; what the agent is to read of them there, in their order.
+  /// Copies [files] onto the host through [host], [onProgress] and
+  /// [onFile] told how far, given up once [cancel] completes (see
+  /// [uploadTo]); what the agent is to read of them there, in their order.
   static Future<List<ComposerFile>> copy(
     IdeFileService host,
     List<ComposerFile> files, {
     DateTime? now,
     TransferProgress? onProgress,
+    FileProgress? onFile,
+    Future<void>? cancel,
   }) async {
     final folder = folderOf(host);
     final paths = hostPathsFor(folder);
@@ -64,7 +67,13 @@ abstract final class RemoteDrops {
         // Made for files put in before.
       }
     }
-    await uploadTo(host, items, onProgress: onProgress);
+    await uploadTo(
+      host,
+      items,
+      onProgress: onProgress,
+      onFile: onFile,
+      cancel: cancel,
+    );
     return copies;
   }
 }

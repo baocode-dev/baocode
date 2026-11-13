@@ -43,8 +43,10 @@ import 'suggestion_menu.dart';
 import '../../ide/ide_hover.dart';
 import '../../ide/ide_spinning.dart';
 import '../../theme/codicons.dart';
-import '../../ide/file_service.dart' show IdeFileService;
+import '../../ide/file_service.dart'
+    show IdeFileService, TransferCancelledException;
 import '../../ide/ide_notifications.dart';
+import '../../ide/transfer_progress.dart';
 import 'remote_drops.dart';
 
 /// An open query: a /command's (a slash starting a word), or a mention's
@@ -509,46 +511,27 @@ class ChatComposerState extends State<ChatComposer>
   Future<List<ComposerFile>?> _copyToHost(List<ComposerFile> files) async {
     final notifications = IdeNotificationsScope.maybeOf(context);
     final l10n = context.l10n;
-    var done = 0;
-    var total = files.length;
-    IdeNotification? shown;
-    IdeNotificationProgress progress() =>
-        IdeNotificationProgress(done.toDouble(), total: total.toDouble());
-    final timer = notifications == null
-        ? null
-        : Timer(const Duration(milliseconds: 300), () {
-            shown = notifications.notify(
-              IdeSeverity.info,
-              l10n.explorerUploading(done, total),
-              progress: progress(),
-              sticky: true,
-            );
-          });
     try {
-      return await RemoteDrops.copy(
-        widget.hostFiles!,
-        files,
-        onProgress: (worked, of) {
-          done = worked;
-          total = of;
-          if (shown case final shown?) {
-            notifications!.update(
-              shown,
-              message: l10n.explorerUploading(done, total),
-              progress: progress(),
-            );
-          }
-        },
+      return await withTransferProgress(
+        context,
+        l10n.explorerUploading,
+        (transfer) => RemoteDrops.copy(
+          widget.hostFiles!,
+          files,
+          onProgress: transfer.onProgress,
+          onFile: transfer.onFile,
+          cancel: transfer.cancel,
+        ),
+        cancellable: true,
       );
+    } on TransferCancelledException {
+      return null;
     } on Object catch (error) {
       notifications?.notify(
         IdeSeverity.error,
         l10n.composerCopyToHostFailed('$error'),
       );
       return null;
-    } finally {
-      timer?.cancel();
-      if (shown case final shown?) notifications!.close(shown);
     }
   }
 

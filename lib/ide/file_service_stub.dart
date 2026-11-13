@@ -49,6 +49,8 @@ Future<void> uploadTo(
   IdeFileService files,
   List<({String from, String to})> items, {
   TransferProgress? onProgress,
+  FileProgress? onFile,
+  Future<void>? cancel,
 }) => Future.error(UnsupportedError('Local editing requires the desktop app'));
 
 Future<void> downloadFrom(
@@ -67,6 +69,8 @@ Future<void> saveCopyTo(
   String from,
   String to, {
   String? text,
+  FileProgress? onFile,
+  Future<void>? cancel,
 }) => Future.error(UnsupportedError('Local editing requires the desktop app'));
 
 Future<IdeFileListing> walkProjectFiles(

@@ -3576,6 +3576,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get explorerDownload => 'Download...';
+
+  @override
+  String explorerDownloadExists(String folder) {
+    return 'Some of them are already in $folder. Replace them?';
+  }
+
+  @override
+  String get explorerDownloadReplace => 'Replace';
+
+  @override
   String get explorerPreparingTransfer => 'Preparing files...';
 
   @override

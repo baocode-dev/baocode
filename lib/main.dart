@@ -312,6 +312,9 @@ Future<void> main(List<String> arguments) async {
         AttentionSettings.parse(files?.settings.values ?? const {}).tray,
   );
   await windows.start();
+  // The `code` command of the remote hosts' terminals (see ServerCli).
+  SshHosts.instance.onCode = (host, client, cwd, args) =>
+      windows.handleRemoteCode(host, cwd, args, stat: client.stat);
   // The stash (docs/stash.md): its shortcut works from any app, its panel
   // made hidden a moment after the windows, to show at once.
   if (files != null) {

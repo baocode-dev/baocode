@@ -13,8 +13,9 @@ class RemoteHarness {
   RemoteHarness._(this.server, this.client, this.dataDir, this._lines);
 
   /// A server with its state in a new temporary folder, and a client
-  /// talking to it (initialized).
-  static Future<RemoteHarness> start() async {
+  /// talking to it (initialized); [cliExecutable], what its terminals'
+  /// `code` command runs.
+  static Future<RemoteHarness> start({String? cliExecutable}) async {
     final dataDir = Directory.systemTemp.createTempSync('baocode-remote-');
     final toServer = StreamController<String>();
     final toClient = StreamController<String>();
@@ -23,6 +24,7 @@ class RemoteHarness {
       RpcPeer(toServer.stream, toClient.add),
       dataDir: dataDir.path,
       version: 'test',
+      cliExecutable: cliExecutable,
     );
     final client = RemoteClient(
       RpcPeer(toClient.stream, (line) {

@@ -966,6 +966,7 @@ class AgentSidePanelView extends StatelessWidget {
         files,
         path,
         text: edit != null && edit.dirty ? edit.controller.document.text : null,
+        context: context,
       ).then<void>(
         (_) {},
         onError: (Object error) {

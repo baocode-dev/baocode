@@ -161,6 +161,10 @@ class RemoteIdeFileService implements IdeHostFiles, IdeRangeFiles {
       (await _client).sizeOf(paths, limit: limit);
 
   @override
+  Future<void> appendBytes(String path, int offset, Uint8List bytes) async =>
+      (await _client).appendBytes(root, path, offset, bytes);
+
+  @override
   Stream<void> watchDirectory(String directory) => resilientStream(
     host,
     (client) => client.watchDirectory(directory),

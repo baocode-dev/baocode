@@ -15,7 +15,7 @@ import 'search/text_query.dart';
 abstract final class RemoteProtocol {
   /// Raise it whenever a method or a shape changes: an app and a server of
   /// another version do not talk, and the app puts its own server in place.
-  static const version = 9;
+  static const version = 10;
 
   static const initialize = 'initialize';
   static const shutdown = 'shutdown';
@@ -43,6 +43,11 @@ abstract final class RemoteProtocol {
   /// How many bytes files and folders take, counted up to a limit.
   static const fsSize = 'fs/size';
   static const fsWriteBytes = 'fs/writeBytes';
+
+  /// `{path, offset, data}`: bytes added to the end of a file
+  /// [fsWriteBytes] made, which is [offset] long: a big file is uploaded a
+  /// stretch at a time, as [fsReadRange] downloads it.
+  static const fsAppendBytes = 'fs/appendBytes';
   static const fsWalk = 'fs/walk';
   static const fsWatch = 'fs/watch';
   static const fsStat = 'fs/stat';
@@ -110,6 +115,12 @@ abstract final class RemoteProtocol {
   static const tcpConnect = 'tcp/connect';
   static const tcpData = 'tcp/data';
   static const tcpClose = 'tcp/close';
+
+  /// The server's request of the app: `{cwd, args}`, what the `code`
+  /// command was given in a terminal there (see ServerCli), to open as the
+  /// app's own `code` command would; answered with `{error}` for the
+  /// command to print, or null.
+  static const cliOpen = 'cli/open';
 }
 
 /// Bytes as JSON carries them.

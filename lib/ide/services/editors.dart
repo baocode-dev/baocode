@@ -465,7 +465,7 @@ class EditorService extends ChangeNotifier
     if (doc == null) return;
     try {
       if (!doc.isFile && !doc.isUntitled) {
-        await saveFileCopyAs(workspace.files, doc.path);
+        await saveFileCopyAs(workspace.files, doc.path, context: host.context);
         return;
       }
       if (identical(doc, workspace.active)) await flush();

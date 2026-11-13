@@ -3426,6 +3426,17 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get explorerDownload => '下载...';
+
+  @override
+  String explorerDownloadExists(String folder) {
+    return '$folder 里已有同名的文件或文件夹，要替换吗？';
+  }
+
+  @override
+  String get explorerDownloadReplace => '替换';
+
+  @override
   String get explorerPreparingTransfer => '正在准备文件…';
 
   @override

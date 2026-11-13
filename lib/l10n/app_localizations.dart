@@ -6026,6 +6026,24 @@ abstract class AppLocalizations {
   /// **'Downloading files... {done}/{total}'**
   String explorerDownloading(int done, int total);
 
+  /// No description provided for @explorerDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Download...'**
+  String get explorerDownload;
+
+  /// No description provided for @explorerDownloadExists.
+  ///
+  /// In en, this message translates to:
+  /// **'Some of them are already in {folder}. Replace them?'**
+  String explorerDownloadExists(String folder);
+
+  /// No description provided for @explorerDownloadReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace'**
+  String get explorerDownloadReplace;
+
   /// No description provided for @explorerPreparingTransfer.
   ///
   /// In en, this message translates to:
