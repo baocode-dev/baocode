@@ -10,6 +10,7 @@ import 'package:baocode/ide/file_service.dart';
 import 'package:baocode/kernel/agent_kernel.dart' show KernelChoiceKind;
 import 'package:baocode/link/chat_codec.dart';
 import 'package:baocode/link/link_host.dart';
+import 'package:baocode/link/phone_push.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/workspace/project_workspace.dart';
 import 'package:baocode/workspace/workspace.dart';
@@ -922,6 +923,74 @@ void main() {
     await peer.done;
     expect(host.phones, isEmpty);
     expect(host.offer, isNull);
+  });
+
+  test('a phone away is pushed what its agents did, in its words', () async {
+    final peer = await pair();
+    final token = 'ab' * 32;
+    await peer.call(LinkMethods.push, {
+      'token': token,
+      'needsInput': '在 {device} 上等你处理',
+      'done': '在 {device} 上完成了',
+    });
+    // Kept with the phone.
+    expect(host.phones.single.push?.token, token);
+    expect(
+      ((platform.kept['phones']! as List).single as Map)['push'],
+      containsPair('token', token),
+    );
+    final state = LinkState.fromJson(
+      (await peer.call(LinkMethods.state))! as Map<String, Object?>,
+    );
+    final session = state.sessions.firstWhere(
+      (s) => s.title == 'Sticky user message on scroll',
+    );
+    final thread = workspace.threads.firstWhere(
+      (t) => t.title == session.title,
+    );
+    Future<void> turn(String text) async {
+      await peer.call(LinkMethods.send, {'session': session.id, 'text': text});
+      await _until(() => thread.shownStatus == ThreadStatus.running);
+      // Done with it sooner than its script would be.
+      await peer.call(LinkMethods.stop, {'session': session.id});
+      await _until(() => thread.shownStatus != ThreadStatus.running);
+    }
+
+    // In front: the phone tells of it itself.
+    await turn('one');
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    expect(platform.posted, isEmpty);
+
+    // In the background: pushed, once.
+    await peer.call(LinkMethods.away, {'away': true});
+    await turn('two');
+    await _until(() => platform.posted.isNotEmpty);
+    final (url, body) = platform.posted.single;
+    expect(url.toString(), 'https://push.baocode.dev/v1/push');
+    final key = '${host.id}/${session.id}';
+    expect(body, {
+      'token': token,
+      'id': notificationIdOf(key),
+      'key': key,
+      'title': 'Sticky user message on scroll',
+      'body': '在 Test Mac 上完成了',
+    });
+
+    // Gone from the phone: forgotten, nothing more sent.
+    platform.answer = (_, _) => (410, {'gone': true});
+    await turn('three');
+    await _until(() => host.phones.single.push == null);
+    final sent = platform.posted.length;
+    await turn('four');
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    expect(platform.posted, hasLength(sent));
+  });
+
+  test('a notification\'s number is the phone\'s', () {
+    // FNV-1a of the key's UTF-8, 31 bits: as the phone counts it.
+    expect(notificationIdOf(''), 0x811c9dc5 & 0x7fffffff);
+    expect(notificationIdOf('a'), 0xe40c292c & 0x7fffffff);
+    expect(notificationIdOf('bot:桌面/1'), notificationIdOf('bot:桌面/1'));
   });
 
   test('unpaired on the desktop, the phone is told and let go', () async {

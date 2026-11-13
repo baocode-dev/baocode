@@ -56,6 +56,17 @@ class FakeLinkPlatform implements LinkPlatform {
 
   @override
   String? branchOf(String folder) => 'main';
+
+  /// What was posted ([postJson]), the latest last; answered with
+  /// [answer] (204 by default).
+  final List<(Uri, Map<String, Object?>)> posted = [];
+  (int, Object?) Function(Uri url, Map<String, Object?> body)? answer;
+
+  @override
+  Future<(int, Object?)> postJson(Uri url, Map<String, Object?> body) async {
+    posted.add((url, body));
+    return answer?.call(url, body) ?? (204, null);
+  }
 }
 
 class _Advertising implements LinkAdvertising {
