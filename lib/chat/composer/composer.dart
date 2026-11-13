@@ -22,6 +22,7 @@ import '../stop_confirmation.dart';
 import '../floating/floating_layer.dart';
 import '../floating/floating_placement.dart';
 import '../floating/floating_registry.dart';
+import '../../diagnostics/input_lag.dart';
 import '../../workspace/window_controls.dart';
 import '../widgets/context_meter.dart';
 import '../widgets/hover_builder.dart';
@@ -155,6 +156,18 @@ class ChatComposerState extends State<ChatComposer>
   final FocusNode _focusNode = FocusNode(debugLabel: 'Composer');
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<MarkdownEditorState> _editorKey = GlobalKey();
+
+  /// Keys and edits, timed to the frame that shows them: typing fast
+  /// stuck for seconds on an Intel Mac with no frame or hang written
+  /// (E0A7T8YQ).
+  late final InputLag _lag = InputLag(
+    'chat input',
+    describe: () => [
+      'text ${_controller.length} chars, '
+          '${_controller.lines.lineCount} lines',
+      if (_pool.isNotEmpty) '${_pool.length} images',
+    ].join('; '),
+  );
   final GlobalKey _boxKey = GlobalKey();
   final GlobalKey<ComposerPickerState> _modePickerKey = GlobalKey();
   final GlobalKey<ComposerPickerState> _modelPickerKey = GlobalKey();
@@ -838,12 +851,14 @@ class ChatComposerState extends State<ChatComposer>
   int? _wordsVersion;
   bool _words = false;
 
-  void _handleEditorChanged() {
+  void _handleEditorChanged() => _lag.time('edit', _editorChanged);
+
+  void _editorChanged() {
     // The placeholder of a drag coming and going: not the user's edit.
     if (_ghosting) return;
     if (_padTrailingTokens()) return; // Re-entered with the fixed text.
     _images = _referredImages();
-    _saveDraft();
+    _lag.time('draft', _saveDraft);
     final text = _controller.text;
     // Edited, a message recalled from the history is the one typed.
     if (_historyAt != null && !_recalling && text != _historyShown) {
@@ -1068,6 +1083,7 @@ class ChatComposerState extends State<ChatComposer>
   // --- Keyboard ------------------------------------------------------------
 
   KeyEventResult _handleKey(KeyEvent event) {
+    if (event is! KeyUpEvent) _lag.begin('key');
     if (event is KeyUpEvent || _isComposing) return KeyEventResult.ignored;
     // Run by the window's keybindings (it sees keys first).
     if (ChatKeys.isHandled(event)) return KeyEventResult.handled;

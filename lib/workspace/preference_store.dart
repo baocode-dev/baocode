@@ -6,8 +6,10 @@ import 'preference_store_stub.dart'
 /// agents start with.
 abstract interface class PreferenceStore {
   /// `state/state.json` in the app's data folder, or at [path] (none on
-  /// the web).
-  factory PreferenceStore.file([String? path]) = platform.FilePreferenceStore;
+  /// the web). [encodeAside]: made into JSON off the UI thread, for one
+  /// large and written often (the drafts, their pictures in them).
+  factory PreferenceStore.file([String? path, bool encodeAside]) =
+      platform.FilePreferenceStore;
 
   /// What was kept; empty the first time, or when it cannot be read.
   Future<Map<String, Object?>> read();

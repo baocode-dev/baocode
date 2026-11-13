@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io' show ProcessInfo;
-import 'dart:ui' show FrameTiming, PlatformDispatcher;
+import 'dart:ui' show FramePhase, FrameTiming, PlatformDispatcher;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -118,8 +118,11 @@ class FrameWatch {
 
   void _timings(List<FrameTiming> timings) {
     for (final timing in timings) {
+      // The frame's own time, not now: a release build's engine tells of
+      // them a second's worth at a time, each batch a "pause" since the
+      // last, and no span was ever whole (E0A7T8YQ: none in weeks).
       final summary = _jank.add(
-        _clock.elapsedMicroseconds,
+        timing.timestampInMicroseconds(FramePhase.vsyncStart),
         ui: timing.buildDuration.inMicroseconds,
         raster: timing.rasterDuration.inMicroseconds,
       );

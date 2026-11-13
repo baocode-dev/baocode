@@ -53,4 +53,23 @@ void main() {
     await File(path).writeAsString('{not json');
     expect(await store.read(), isEmpty);
   });
+
+  test('made into JSON aside: as they were when written, in their '
+      'order', () async {
+    final folder = await Directory.systemTemp.createTemp('baocode-prefs');
+    addTearDown(() => folder.delete(recursive: true));
+    final path = '${folder.path}/drafts.json';
+    final store = PreferenceStore.file(path, true);
+    final drafts = <String, Object?>{'a': 'x' * 4000000};
+    final written = store.write(drafts);
+    drafts['a'] = 'changed after';
+    await written;
+    expect((await store.read())['a'], hasLength(4000000));
+
+    // The large one first, the small after it: the small one last.
+    final large = store.write({'a': 'y' * 4000000});
+    final small = store.write({'b': 1});
+    await Future.wait([large, small]);
+    expect(await store.read(), {'b': 1});
+  });
 }
