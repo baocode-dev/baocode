@@ -10403,6 +10403,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutOpen => '打开';
 
   @override
+  String get aboutDeviceId => '设备 ID';
+
+  @override
+  String get aboutDeviceIdDetail => '这台电脑在网络上的 ID。中继只放行名单里的设备时，需要把它加进名单。';
+
+  @override
+  String get aboutCopy => '复制';
+
+  @override
   String get stashSettingsIssueSync => 'Issue 同步为 Stash';
 
   @override

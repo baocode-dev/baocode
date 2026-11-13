@@ -242,7 +242,7 @@ class AppSettings {
           diagnostics: diagnostics,
         );
       case SettingsSection.about:
-        return const AboutSettingsPage();
+        return AboutSettingsPage(host: link);
       case SettingsSection.dataDirectory:
         return const DataDirectoryPage();
     }

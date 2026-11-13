@@ -17977,6 +17977,24 @@ abstract class AppLocalizations {
   /// **'Open'**
   String get aboutOpen;
 
+  /// No description provided for @aboutDeviceId.
+  ///
+  /// In en, this message translates to:
+  /// **'Device ID'**
+  String get aboutDeviceId;
+
+  /// No description provided for @aboutDeviceIdDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'This computer\'s ID on the network. A relay that admits only listed devices needs it on its list.'**
+  String get aboutDeviceIdDetail;
+
+  /// No description provided for @aboutCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get aboutCopy;
+
   /// No description provided for @stashSettingsIssueSync.
   ///
   /// In en, this message translates to:
