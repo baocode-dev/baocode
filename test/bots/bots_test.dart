@@ -1134,6 +1134,43 @@ void main() {
       expect(bots.threadOf(bot), now);
     });
 
+    test('its chat deleted, its timeline of it goes too, and what it was '
+        'up to: not to be read back; its groups\' kept', () async {
+      final bot = bots.save(name: 'Mia', identity: '', abilities: {});
+      bots.live(bot, place: bots.privatePlace, who: 'Leo', text: 'My cat Tom');
+      bots.live(bot, place: '群·Tea #1', who: 'Bo', text: 'hello all');
+      bots.live(
+        bot,
+        place: bots.privatePlace,
+        who: 'Mia',
+        text: 'Hi',
+        mine: true,
+      );
+      bots.setNow(bot, 'waiting to hear of Tom');
+      bots.setSelfNotes(bot, '${bots.selfNotes(bot)}\nLikes rain');
+      bots.clearChat(bot);
+      final today = bots.timeline(bot).lines;
+      expect(today, hasLength(1));
+      expect(today.single, contains('hello all'));
+      expect(bots.selfNotes(bot), 'Likes rain');
+      // Nothing but it said that day: the day's file gone.
+      final other = bots.save(name: 'Bo', identity: '', abilities: {});
+      bots.live(other, place: bots.privatePlace, who: 'Leo', text: 'secret');
+      bots.clearChat(other);
+      expect(folders.files, isNot(contains(bots.timelineFile(other))));
+    });
+
+    test('what it remembers of the user cleared, what it thinks of them '
+        'goes too; of others kept', () {
+      final bot = bots.save(name: 'Mia', identity: '', abilities: {});
+      bots.notePerson(bot, bots.userName, 'has a cat, Tom');
+      bots.notePerson(bot, 'Bo', 'funny');
+      bots.setMemory(bot, '- Has a cat');
+      expect(bots.people(bot), contains('Tom'));
+      bots.setMemory(bot, '');
+      expect(bots.people(bot), '## Bo\n- funny');
+    });
+
     test('it drops what it meant to come back to', () async {
       final bot = bots.save(name: 'Mia', identity: '', abilities: {});
       await call(bot, 'bot_later', {'seconds': 180, 'note': 'Remind of tea'});

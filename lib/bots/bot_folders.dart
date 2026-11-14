@@ -22,6 +22,9 @@ abstract interface class BotFolders {
   void make(String folder);
   void delete(String folder);
 
+  /// The files right in [folder]; none when there is no such folder.
+  List<String> filesIn(String folder);
+
   /// The file at [path]; null when there is none.
   Uint8List? readFile(String path);
 
@@ -54,6 +57,12 @@ class MemoryBotFolders implements BotFolders {
     made.remove(folder);
     files.removeWhere((path, _) => p.isWithin(folder, path));
   }
+
+  @override
+  List<String> filesIn(String folder) => [
+    for (final path in files.keys)
+      if (p.dirname(path) == folder) path,
+  ]..sort();
 
   @override
   Uint8List? readFile(String path) => files[path];

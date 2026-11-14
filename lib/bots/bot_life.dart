@@ -44,6 +44,44 @@ abstract final class BotLife {
     return '- ${_two(at.hour)}:${_two(at.minute)} [$place] $who: $cut';
   }
 
+  /// [text] (a day of a timeline) without its lines in any of [places]:
+  /// null when it has none, empty when nothing else was said that day.
+  static String? withoutPlaces(String text, Set<String> places) {
+    final kept = <String>[];
+    var dropped = false;
+    var said = false;
+    for (final line in text.split('\n')) {
+      final place = RegExp(r'^- \d\d:\d\d \[([^\]]*)\]').firstMatch(line);
+      if (place != null && places.contains(place[1])) {
+        dropped = true;
+        continue;
+      }
+      if (place != null) said = true;
+      kept.add(line);
+    }
+    if (!dropped) return null;
+    return said ? kept.join('\n') : '';
+  }
+
+  /// [text] (PEOPLE.md) without the sections of any of [names].
+  static String withoutPeople(String text, Set<String> names) {
+    final kept = <String>[];
+    var skipping = false;
+    for (final line in text.split('\n')) {
+      if (line.startsWith('## ')) {
+        skipping = names.contains(line.substring(3).trim());
+      }
+      if (!skipping) kept.add(line);
+    }
+    return kept.join('\n');
+  }
+
+  /// [text] (SELF.md) without its `Now:` line.
+  static String withoutNow(String text) => [
+    for (final line in text.trim().split('\n'))
+      if (!line.startsWith('Now:')) line,
+  ].join('\n').trim();
+
   /// A bot's reply [text] as its timeline has it: its messages, not its
   /// narration nor how they sound.
   static String saysOf(String text) => ChatCodec.botSays(text).join(' / ');
