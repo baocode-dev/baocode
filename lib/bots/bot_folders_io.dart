@@ -41,6 +41,18 @@ class DataBotFolders implements BotFolders {
   }
 
   @override
+  List<String> filesIn(String folder) {
+    try {
+      return [
+        for (final entry in Directory(folder).listSync())
+          if (entry is File) entry.path,
+      ]..sort();
+    } on FileSystemException {
+      return const [];
+    }
+  }
+
+  @override
   Uint8List? readFile(String path) {
     try {
       return File(path).readAsBytesSync();

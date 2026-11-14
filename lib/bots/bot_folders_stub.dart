@@ -17,6 +17,9 @@ class DataBotFolders implements BotFolders {
   List<String> folders() => const [];
 
   @override
+  List<String> filesIn(String folder) => const [];
+
+  @override
   Uint8List? readFile(String path) => null;
 
   @override

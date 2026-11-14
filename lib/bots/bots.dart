@@ -1080,7 +1080,9 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   /// [bot]'s conversation deleted, and a new one started: it chats again
   /// from nothing said, who it is and what it remembers (MEMORY.md,
   /// SELF.md) kept. What it meant to come back to, and was to be told of,
-  /// was of that conversation: gone with it.
+  /// was of that conversation: gone with it; so are its timeline's lines
+  /// of it (its groups' kept), and what it was up to (SELF.md's `Now:`),
+  /// else it would read them back.
   void clearChat(Bot bot) {
     workspace.deleteAll([
       for (final thread in workspace.threads)
@@ -1088,6 +1090,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     ]);
     // Those its threads were not on too; not the one it starts now.
     unawaited(forgetSessions(bot.folder));
+    _forgetPrivate(bot);
+    final self = selfNotes(bot);
+    final now = BotLife.withoutNow(self);
+    if (now != self) setSelfNotes(bot, now);
     _followed.removeWhere((session, _) => !_sessionOf(session));
     _pacers.remove(bot.id);
     _restartWhenIdle.remove(bot.id);
@@ -1097,6 +1103,19 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     _save();
     _schedule();
     notifyListeners();
+  }
+
+  /// [bot]'s chat with the user gone from its timeline, every day of it:
+  /// in either language's name of the place, the app's might have changed.
+  void _forgetPrivate(Bot bot) {
+    final folder = p.join(bot.folder, BotLife.timeline);
+    for (final path in folders.filesIn(folder)) {
+      if (p.extension(path) != '.md') continue;
+      if (BotLife.withoutPlaces(_readText(path), const {'私聊', 'private'})
+          case final left?) {
+        _writeText(path, left);
+      }
+    }
   }
 
   /// Whether [session] is a bot's conversation's still.
@@ -1322,9 +1341,22 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
 
   /// [bot]'s memory of the user now [text]: the user's, which it is told
   /// from its next message; else by itself, as it goes ([restart] false).
+  /// Cleared by the user, what it thinks of them (PEOPLE.md) goes too.
   void setMemory(Bot bot, String text, {bool restart = true}) {
     _writeText(p.join(bot.folder, BotFiles.memory), text);
     if (!restart) return;
+    if (text.trim().isEmpty) {
+      final path = p.join(bot.folder, BotLife.people);
+      final had = _readText(path);
+      final left = BotLife.withoutPeople(had, {
+        userName,
+        if (_me.name.isNotEmpty) _me.name,
+        '用户',
+        'the user',
+        'user',
+      });
+      if (left != had) _writeText(path, left);
+    }
     _restart(bot);
     notifyListeners();
   }
