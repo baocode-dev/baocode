@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../chat/chat_models.dart';
 import '../chat/composer/composer_files.dart';
@@ -23,6 +24,7 @@ import 'emoji_catalog.dart';
 import 'emoji_sheet.dart';
 import 'icon_library.dart';
 import 'project_icon.dart';
+import 'project_icon_scanner.dart';
 import 'project_icon_view.dart';
 import 'site_icon.dart';
 
@@ -36,6 +38,7 @@ class IconPickerTarget {
     this.changes,
     this.site,
     this.brands = false,
+    this.folder,
   });
 
   /// [project]'s, kept by [workspace].
@@ -43,6 +46,9 @@ class IconPickerTarget {
       IconPickerTarget(
         icon: () => workspace.iconOf(project),
         setIcon: (icon) => workspace.setIcon(project, icon, remember: false),
+        // A local project's folder, its pictures offered as icons; a
+        // remote one's is not looked into.
+        folder: project.host == null ? project.root : null,
       );
 
   /// Its icon now; null for none.
@@ -59,6 +65,10 @@ class IconPickerTarget {
 
   /// Offers the logos of models' makers ([BrandLogos]), first.
   final bool brands;
+
+  /// Its folder on this machine, whose pictures may be its icon; null for
+  /// an upstream of models, or a remote project.
+  final String? folder;
 }
 
 /// The icon picker, as Notion's: emoji, VS Code's icons in a theme color,
@@ -90,6 +100,12 @@ class ProjectIconPicker extends StatefulWidget {
   @visibleForTesting
   static Future<List<ComposerFile>> Function() pickFiles =
       WindowControls.pickFiles;
+
+  /// Looks in a folder for pictures that may be the icon; replaceable
+  /// under test.
+  @visibleForTesting
+  static Future<List<String>> Function(String folder) scanFolder =
+      ProjectIconScanner.scan;
 
   /// The clipboard's images and files; replaceable under test.
   @visibleForTesting
@@ -267,7 +283,21 @@ enum _Action { upload, site }
 /// One choice of the grid: [icon], or [action] when null.
 @immutable
 class _Cell {
-  const _Cell(this.icon, this.label, [this.action = _Action.upload]);
+  const _Cell(this.icon, this.label, [this.action = _Action.upload])
+    : candidate = null,
+      preview = null;
+
+  /// The file a candidate is in; null for the others. Set only while it
+  /// is not kept yet — picked, it is kept and its [icon] (a
+  /// [LibraryIcon] of the id it then has) is the one picked.
+  final String? candidate;
+
+  /// The candidate as previewed, drawn for it is not in the library yet;
+  /// null for the others.
+  final IconImage? preview;
+
+  const _Cell.found(this.candidate, this.preview, this.icon, this.label)
+    : action = _Action.upload;
 
   final ProjectIcon? icon;
   final String label;
@@ -309,6 +339,12 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
   /// Its site's icon is being fetched.
   bool _fetching = false;
   String? _error;
+
+  /// The pictures found in the target's folder, offered in the custom
+  /// tab before they are kept; null while they are looked for, empty
+  /// when there are none (or its folder cannot be looked into).
+  List<_Cell>? _found;
+  bool _foundSearched = false;
 
   /// A right click on an uploaded picture: where, and which.
   ({Offset at, IconImage image})? _menu;
@@ -362,6 +398,7 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _search.requestFocus();
     });
+    if (_tab == IconPickerTab.custom) unawaited(_findCandidates());
   }
 
   @override
@@ -406,6 +443,36 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
     });
     if (_scroll.hasClients) _scroll.jumpTo(0);
     _search.requestFocus();
+    if (tab == IconPickerTab.custom) unawaited(_findCandidates());
+  }
+
+  /// Looks in the target's folder for pictures that may be its icon,
+  /// once: their previews as cells, kept only when the picker still
+  /// shows and the tab is still the custom one.
+  Future<void> _findCandidates() async {
+    final folder = _target.folder;
+    if (folder == null || _foundSearched) return;
+    _foundSearched = true;
+    final found = await ProjectIconPicker.scanFolder(folder);
+    final cells = <_Cell>[];
+    for (final path in found) {
+      final image = await _library.previewFile(path);
+      if (image == null) continue;
+      cells.add(
+        _Cell.found(
+          path,
+          image,
+          LibraryIcon(image.id),
+          p.basenameWithoutExtension(path),
+        ),
+      );
+    }
+    if (!mounted) return;
+    if (_tab != IconPickerTab.custom) return;
+    setState(() {
+      _found = cells;
+      _build();
+    });
   }
 
   // --- What shows ----------------------------------------------------------
@@ -516,8 +583,15 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
         if (image.name.toLowerCase().contains(query))
           _Cell(LibraryIcon(image.id), image.name),
     ];
-    if (query.isNotEmpty) return [_Section(null, images)];
+    // The candidates answer a search by their file's name as well.
+    final found = [
+      for (final cell in _found ?? const <_Cell>[])
+        if (cell.label.toLowerCase().contains(query)) cell,
+    ];
+    if (query.isNotEmpty) return [_Section(null, [...found, ...images])];
     return [
+      if (found.isNotEmpty)
+        _Section(l10n.iconPickerFoundInProject, found),
       _Section(l10n.iconPickerUploaded, [
         _Cell(null, l10n.iconPickerUpload),
         if (_target.site != null)
@@ -538,6 +612,41 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
       });
       return;
     }
+    // A found picture is kept before the target takes it; the one there
+    // already when it was picked from the library before.
+    if (cell.candidate != null) {
+      unawaited(_keepFound(cell));
+      return;
+    }
+    _set(icon);
+    widget.onClose();
+  }
+
+  /// Keeps the candidate the user picked, from its file again, and the
+  /// target takes it; or it says why it could not be read.
+  Future<void> _keepFound(_Cell cell) async {
+    final path = cell.candidate;
+    final icon = cell.icon;
+    if (path == null || icon is! LibraryIcon) return;
+    setState(() {
+      _uploading = true;
+      _error = null;
+    });
+    try {
+      await _library.addFile(path);
+    } on IconUploadException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _uploading = false;
+        _error = switch (e.error) {
+          IconUploadError.tooLarge => context.l10n.iconUploadTooLarge,
+          IconUploadError.unreadable => context.l10n.iconUploadUnreadable,
+          _ => context.l10n.iconUploadUnsupported,
+        };
+      });
+      return;
+    }
+    if (!mounted) return;
     _set(icon);
     widget.onClose();
   }
@@ -560,7 +669,9 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
       for (final section in _sections)
         if (section.title != context.l10n.iconPickerRecent)
           for (final cell in section.cells)
-            if (cell.icon != null) cell,
+            // A found picture would have to be kept first; not one for
+            // random.
+            if (cell.icon != null && cell.candidate == null) cell,
     ];
     if (cells.isEmpty) return;
     final cell = cells[math.Random().nextInt(cells.length)];
@@ -1097,17 +1208,22 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
                     (_tab == IconPickerTab.custom
                         ? l10n.iconPickerUploadHint
                         : '');
+          final Widget? glyph;
+          if (_dropping || cell?.icon == null) {
+            glyph = null;
+          } else if (cell?.preview case final preview?) {
+            glyph = IconImageView(preview, size: 20);
+          } else {
+            glyph = ProjectIconView(
+              icon: cell!.icon!,
+              library: _library,
+              size: 20,
+              color: AppColors.text,
+            );
+          }
           return Row(
             children: [
-              if (cell?.icon case final icon? when !_dropping) ...[
-                ProjectIconView(
-                  icon: icon,
-                  library: _library,
-                  size: 20,
-                  color: AppColors.text,
-                ),
-                const SizedBox(width: 8),
-              ],
+              if (glyph != null) ...[glyph, const SizedBox(width: 8)],
               Expanded(
                 child: Text(
                   text,
@@ -1236,19 +1352,24 @@ class _CellView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = cell.icon;
-    final glyph = switch (icon) {
-      null => Icon(
+    final Widget glyph;
+    if (icon == null) {
+      glyph = Icon(
         cell.action == _Action.site ? Icons.public_rounded : Icons.add_rounded,
         size: 20,
         color: AppColors.textMuted,
-      ),
-      _ => ProjectIconView(
+      );
+    } else if (cell.preview case final preview?) {
+      // A candidate, drawn from its preview: it is not in the library yet.
+      glyph = IconImageView(preview, size: 28);
+    } else {
+      glyph = ProjectIconView(
         icon: icon,
         library: library,
         size: 28,
         color: AppColors.text,
-      ),
-    };
+      );
+    }
     return Semantics(
       button: true,
       selected: icon != null && icon == current,

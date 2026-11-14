@@ -3890,6 +3890,12 @@ abstract class AppLocalizations {
   /// **'Uploaded'**
   String get iconPickerUploaded;
 
+  /// No description provided for @iconPickerFoundInProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Found in this project'**
+  String get iconPickerFoundInProject;
+
   /// No description provided for @iconPickerDeleteFromLibrary.
   ///
   /// In en, this message translates to:

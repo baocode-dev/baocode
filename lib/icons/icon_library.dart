@@ -145,6 +145,42 @@ class IconLibrary extends ChangeNotifier {
     return add(bytes, name: p.basenameWithoutExtension(path));
   }
 
+  /// The file at [path] as a candidate shown before it is kept, the
+  /// [IconImage.id] it will have once taken: none when there is none, it
+  /// is too large, or it is not a picture taken. Nothing is kept — the
+  /// picture is read again when the user picks it.
+  Future<IconImage?> previewFile(String path) async {
+    final size = await storage.userFileSize(path);
+    if (size == null || size > maxBytes) return null;
+    final bytes = await storage.readUserFile(path);
+    if (bytes == null) return null;
+    final format = _sniff(bytes);
+    if (format == null) return null;
+    // The id the picture will be kept under: of the bytes as given, be
+    // they squared as kept or not (as [add] gives it).
+    final id = sha256.convert(bytes).toString().substring(0, 20);
+    var kept = bytes;
+    if (format != _Format.gif && format != _Format.svg) {
+      try {
+        kept = await _square(bytes);
+      } on Object {
+        return null;
+      }
+    }
+    return IconImage(
+      id: id,
+      kind: switch (format) {
+        _Format.gif => IconImageKind.gif,
+        _Format.svg => IconImageKind.svg,
+        _ => IconImageKind.png,
+      },
+      name: p.basenameWithoutExtension(path),
+      bytes: kept,
+    );
+    // Not kept: not in _images, not written. addFile gives it, as kept,
+    // once the user picks it.
+  }
+
   /// Uploads [bytes]: the picture as kept, the one there already when it
   /// was uploaded before (to the front again).
   Future<IconImage> add(Uint8List bytes, {String name = ''}) async {
