@@ -1182,6 +1182,7 @@
   "iconPickerUploadHint": "Upload, drop or paste an image: PNG, JPG, WebP, GIF or SVG, up to 5 MB",
   "iconPickerDropHere": "Drop the image here",
   "iconPickerUploaded": "Uploaded",
+  "iconPickerFoundInProject": "Found in this project",
   "iconPickerDeleteFromLibrary": "Delete from Library",
   "iconPickerBrands": "Logos",
   "iconPickerSiteIcon": "Use the site's icon",

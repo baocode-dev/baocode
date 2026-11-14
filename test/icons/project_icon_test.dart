@@ -10,6 +10,7 @@ import 'package:baocode/icons/icon_library.dart';
 import 'package:baocode/icons/icon_storage.dart';
 import 'package:baocode/icons/project_icon.dart';
 import 'package:baocode/icons/project_icon_picker.dart';
+import 'package:baocode/icons/project_icon_scanner.dart';
 import 'package:baocode/icons/project_icon_view.dart';
 import 'package:baocode/ide/terminal/terminal_colors.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
@@ -259,6 +260,37 @@ void main() {
         for (final image in images.reversed) image.id,
       ]);
       expect(next.images.last.bytes, images.first.bytes);
+    });
+
+    testWidgets('a candidate is previewed without being kept', (tester) async {
+      final storage = MemoryIconStorage(
+        userFiles: {
+          '/in/wide.jpg': fixture('wide.jpg'),
+          '/in/logo.svg': fixture('logo.svg'),
+          '/in/notes.txt': Uint8List.fromList('hello'.codeUnits),
+          '/missing.png': Uint8List(0),
+        },
+      );
+      final library = IconLibrary(storage: storage);
+      await tester.runAsync(() async {
+        final jpg = await library.previewFile('/in/wide.jpg');
+        final svg = await library.previewFile('/in/logo.svg');
+        // Not a picture, or not there: none.
+        expect(await library.previewFile('/in/notes.txt'), isNull);
+        expect(await library.previewFile('/missing.png'), isNull);
+        // Nothing kept by previewing.
+        expect(library.images, isEmpty);
+        expect(storage.files, isEmpty);
+        // As they will be kept: squared with the same id and bytes, an
+        // SVG as given.
+        expect(jpg?.kind, IconImageKind.png);
+        final kept = await library.addFile('/in/wide.jpg');
+        expect(jpg?.id, kept.id);
+        expect(jpg?.bytes, kept.bytes);
+        expect(svg?.kind, IconImageKind.svg);
+        final keptSvg = await library.addFile('/in/logo.svg');
+        expect(svg?.id, keptSvg.id);
+      });
     });
 
     testWidgets('the same picture uploaded again is kept once, to the front', (
@@ -635,6 +667,36 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
       expect(headerShows(tester), isNull);
+    });
+
+    testWidgets('a picture found in the project is offered and picked', (
+      tester,
+    ) async {
+      final storage = MemoryIconStorage(
+        userFiles: {'/tmp/project/logo.svg': fixture('logo.svg')},
+      );
+      final workspace = await pumpApp(tester, storage: storage);
+      ProjectIconPicker.scanFolder = (folder) async =>
+          folder == '/tmp/project' ? ['/tmp/project/logo.svg'] : const [];
+      addTearDown(() {
+        ProjectIconPicker.scanFolder = ProjectIconScanner.scan;
+      });
+      await openPicker(tester);
+      await tester.tap(inPicker(find.text('Custom')));
+      await settle(tester);
+      // Offered in its own section, before what is uploaded.
+      expect(inPicker(find.text('Found in this project')), findsOneWidget);
+      expect(cell('logo'), findsOneWidget);
+      expect(workspace.icons.images, isEmpty);
+      await tester.tap(cell('logo'));
+      await settle(tester);
+      expect(picker, findsNothing);
+      final icon = workspace.iconOf(project(workspace))! as LibraryIcon;
+      expect(workspace.icons[icon.id]!.kind, IconImageKind.svg);
+      expect(
+        find.descendant(of: headerIcon, matching: find.byType(SvgPicture)),
+        findsOneWidget,
+      );
     });
 
     testWidgets('an image pasted is uploaded; a file too large is refused', (

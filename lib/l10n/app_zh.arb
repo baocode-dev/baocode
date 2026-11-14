@@ -632,6 +632,7 @@
   "iconPickerUploadHint": "上传、拖入或粘贴图片：PNG、JPG、WebP、GIF、SVG，5 MB 以内",
   "iconPickerDropHere": "将图片拖到这里",
   "iconPickerUploaded": "已上传",
+  "iconPickerFoundInProject": "项目里找到的",
   "iconPickerDeleteFromLibrary": "从图库删除",
   "iconPickerBrands": "品牌",
   "iconPickerSiteIcon": "使用网站图标",
