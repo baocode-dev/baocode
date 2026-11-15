@@ -400,8 +400,10 @@ class ChatComposerState extends State<ChatComposer>
 
   // --- Images --------------------------------------------------------------
 
-  /// At most this many per message.
-  static const _maxImages = 20;
+  /// At most this many per message: the API takes 100 a request on its
+  /// 200K-context models (600 on the others), each made small enough
+  /// ([prepareImage]) for its limit on requests of over 20.
+  static const _maxImages = 100;
 
   /// The numbers of the images the text refers to, in its order, with
   /// where each reference is.
