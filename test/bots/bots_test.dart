@@ -474,6 +474,25 @@ void main() {
       expect(workspace.agentSetup!(app), isNull);
     });
 
+    test('the bots\' folders are off the sidebar as soon as they start, '
+        'nothing waited for first', () async {
+      final fresh = Workspace(kernels: [kernel]);
+      addTearDown(fresh.dispose);
+      final named = Completer<String?>();
+      final starting = Bots(
+        workspace: fresh,
+        folders: MemoryBotFolders(),
+        store: MemoryPreferenceStore(),
+        computer: () => named.future,
+      );
+      addTearDown(starting.dispose);
+      final started = starting.start();
+      // The computer's name not told yet: the sidebar shows meanwhile.
+      expect(fresh.isAppFolder('/bots/left-behind'), isTrue);
+      named.complete('Leo 的 MacBook');
+      await started;
+    });
+
     test('a bot deleted: every session kept of it gone, its groups\' of '
         'before too; not another\'s', () async {
       final catalog = _KeptSessions({
