@@ -91,6 +91,10 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
 
   @override
   void dispose() {
+    // Out before this goes, in the same frame it would be torn down with
+    // its anchor's semantics already sent as gone — an update the desktop
+    // engines reject (see FloatingLayer's comment).
+    if (_portal.isShowing) _portal.hide();
     _controller.dispose();
     _focus.dispose();
     super.dispose();
