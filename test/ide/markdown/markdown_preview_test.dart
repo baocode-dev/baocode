@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:bao_editor/monaco/flutter/editor_document_model.dart';
 import 'package:bao_markdown/bao_markdown.dart';
+import 'package:baocode/chat/widgets/markdown_math.dart';
 import 'package:baocode/ide/ide_find_widget.dart';
 import 'package:baocode/ide/markdown/markdown_preview.dart';
 import 'package:baocode/ide/markdown/markdown_task_box.dart';
@@ -182,6 +183,36 @@ void main() {
     await tester.pumpAndSettle();
     expect(model.text, '- [ ] write\n\nText.');
   });
+
+  for (final readOnly in [false, true]) {
+    testWidgets('a table\'s formulas show typeset, no cell typed in '
+        '(readOnly: $readOnly, #998)', (tester) async {
+      final model = EditorDocumentModel(
+        '| Use | How |\n'
+        '| :--- | :--- |\n'
+        r'| Threshold | The valley is $T$ |'
+        '\n'
+        r'| Entropy | $H=-\sum p_i\log_2 p_i$; **flatter, larger** |'
+        '\n',
+      );
+      await pumpPreview(tester, model, readOnly: readOnly);
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is MathView && widget.tex == 'T',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is MathView && widget.tex == r'H=-\sum p_i\log_2 p_i',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining(r'\sum', findRichText: true), findsNothing);
+    });
+  }
 
   testWidgets('a file dropped goes after the block it is let go on', (
     tester,
