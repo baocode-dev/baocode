@@ -4,11 +4,14 @@
 #                                    Dart files changed formatted
 #   Each night, Actions → Checks →   the tests: the app's in shards, each
 #   Run workflow                     package's on its own
+#   A night's tests failing         an issue, on the run that failed, open
+#                                   until the next night passes
 #
 # On Linux, the cheapest runner and the one least queued: the tests whose
 # platform matters run under TargetPlatformVariant anyway. The whole suite
 # is too slow for every pull request; a night's failure mails whoever last
-# changed the schedule.
+# changed the schedule — and opens an issue, which stays: GitHub's mail is
+# easy to lose, and one night's failure went unnoticed for days.
 name: Checks
 
 on:
@@ -28,6 +31,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 # A pull request's run gives way to its next push.
 concurrency:
@@ -115,4 +119,46 @@ jobs:
             flutter test --total-shards 4 --shard-index "$SHARD"
           else
             flutter test
+          fi
+
+  # A night's tests failing: an issue of its own, updated each night it
+  # goes on failing and closed by the first that passes. Scheduled runs
+  # mail whoever last changed the schedule; that mail is easy to lose —
+  # one failure went unnoticed for days.
+  nightly-failure:
+    name: Nightly failure issue
+    if: always() && github.event_name == 'schedule' && needs.test.result == 'failure'
+    needs: test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RUN_ID: ${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$RUN_ID"
+          body="The nightly test run failed: $run_url
+
+          This issue updates each failing night and closes when one passes."
+          # One issue for the streak: an open one titled for this check.
+          number=$(gh issue list --state open --search 'in:title "Nightly tests failing"' --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Still failing: $run_url"
+          else
+            gh issue create --title 'Nightly tests failing' --body "$body"
+          fi
+
+  nightly-passed:
+    name: Close the nightly failure issue
+    if: always() && github.event_name == 'schedule' && needs.test.result == 'success'
+    needs: test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number=$(gh issue list --state open --search 'in:title "Nightly tests failing"' --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue close "$number" --comment "Green again: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           fi
