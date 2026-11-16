@@ -859,6 +859,34 @@ void main() {
     expect(session.mcpServers!.first.status, McpServerStatus.disabled);
   });
 
+  testWidgets('the MCP servers panel opens with /mcp', (tester) async {
+    final session = await pumpSession(tester, MockKernels.claudeCode);
+    session.refreshMcpServers();
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+
+    await tester.tap(find.byType(MarkdownEditor).last);
+    final editor = tester.widget<MarkdownEditor>(
+      find.byType(MarkdownEditor).last,
+    );
+    editor.controller.text = '/mcp ';
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(find.byType(McpServersPanel), findsOneWidget);
+    expect(find.text('1 of 3 connected'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(McpServersPanel),
+        matching: find.byIcon(Icons.close_rounded),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(McpServersPanel), findsNothing);
+  });
+
   testWidgets('images sent show in the message', (tester) async {
     final session = await pumpSession(tester, MockKernels.claudeCode);
     expect(session.acceptsImages, isTrue);
