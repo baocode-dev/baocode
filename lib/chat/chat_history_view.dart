@@ -1398,6 +1398,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
   }
 
+  /// Moves after the selection's gesture has (the list's [Listener] is
+  /// above it): what that drag made of the move is in by now.
+  void _handlePointerMove(PointerMoveEvent event) {
+    final from = _dragFrom;
+    if (from == null ||
+        _pointersDown != 1 ||
+        _selectionDelegate.suspended ||
+        _selectionDelegate.extending) {
+      return;
+    }
+    _selectionDelegate.followDrag(from, event.position);
+  }
+
   /// A device moving with no button down, though its release never came
   /// here (let go outside the window, or as another window took the
   /// focus): released now. Held on, its drag's end went on being put back
@@ -2674,6 +2687,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         onPointerDown: _handlePointerDown,
         onPointerUp: _handlePointerUp,
         onPointerCancel: _handlePointerUp,
+        onPointerMove: _handlePointerMove,
         onPointerHover: _handlePointerHover,
         // Runs before the list handles the signal (that is resolved after
         // every target has seen it).
@@ -3338,6 +3352,7 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
         _refreshEdgeLocations();
         result = super.dispatchSelectionEvent(event);
       case SelectionEdgeUpdateEvent():
+        if (!_dispatchingOwn) _endSeen = true;
         _all = false;
         _end = _edgeAt(event.globalPosition, event.granularity);
         _dragEnd = event;
@@ -3389,24 +3404,71 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
 
   static int _reports = 0;
 
-  /// After a drag from [from] to [to] within one piece of text: when nothing
-  /// came of it, drags again on the list rid of text listed twice or no
-  /// longer registered, in order.
-  void checkDrag(Offset from, Offset to) {
-    if ((to - from).distance < 12) return;
-    if (!selectables.any((s) => _holds(s, from) && _holds(s, to))) return;
-    if (getSelectedContent()?.plainText.trim().isNotEmpty ?? false) return;
-    final before = _describeAround(from);
+  /// The drag held now was done again here ([followDrag]): its end follows
+  /// the pointer from here too, when the selection's own gesture does not.
+  bool _following = false;
+
+  /// An end update came from elsewhere (the selection's gesture) since the
+  /// pointer last moved.
+  bool _endSeen = false;
+  bool _dispatchingOwn = false;
+
+  /// Drags again from [from] to [to] on the list rid of text listed twice
+  /// or no longer registered, in order.
+  void _dragAgain(Offset from, Offset to) {
     final seen = <Selectable>{};
     selectables = [
       for (final selectable in selectables)
         if (_items.containsKey(selectable) && seen.add(selectable)) selectable,
     ]..sort(compareOrder);
-    dispatchSelectionEvent(const ClearSelectionEvent());
-    dispatchSelectionEvent(
-      SelectionEdgeUpdateEvent.forStart(globalPosition: from),
-    );
-    dispatchSelectionEvent(SelectionEdgeUpdateEvent.forEnd(globalPosition: to));
+    _dispatchingOwn = true;
+    try {
+      dispatchSelectionEvent(const ClearSelectionEvent());
+      dispatchSelectionEvent(
+        SelectionEdgeUpdateEvent.forStart(globalPosition: from),
+      );
+      dispatchSelectionEvent(
+        SelectionEdgeUpdateEvent.forEnd(globalPosition: to),
+      );
+    } finally {
+      _dispatchingOwn = false;
+    }
+  }
+
+  /// While a drag pressed on text from [from] is held, the pointer at [to]:
+  /// when it has selected nothing by now, done again there and then (see
+  /// [checkDrag]), not only once let go; and its end kept under the pointer
+  /// when nothing else moves it.
+  void followDrag(Offset from, Offset to) {
+    final seen = _endSeen;
+    _endSeen = false;
+    // Done again once, unless cleared since (its gesture given up on).
+    if (!_following || value.status == SelectionStatus.none) {
+      if (value.status == SelectionStatus.uncollapsed) return;
+      if ((to - from).distance < 12) return;
+      if (!selectables.any((s) => _holds(s, from))) return;
+      _dragAgain(from, to);
+      _following = true;
+    } else if (!seen) {
+      _dispatchingOwn = true;
+      try {
+        dispatchSelectionEvent(
+          SelectionEdgeUpdateEvent.forEnd(globalPosition: to),
+        );
+      } finally {
+        _dispatchingOwn = false;
+      }
+    }
+  }
+
+  /// After a drag from [from] to [to] within one piece of text: when nothing
+  /// came of it, drags again on a clean list ([_dragAgain]).
+  void checkDrag(Offset from, Offset to) {
+    if ((to - from).distance < 12) return;
+    if (!selectables.any((s) => _holds(s, from) && _holds(s, to))) return;
+    if (getSelectedContent()?.plainText.trim().isNotEmpty ?? false) return;
+    final before = _describeAround(from);
+    _dragAgain(from, to);
     _dragEnd = null;
     if (_reports++ >= 3) return;
     final healed = getSelectedContent()?.plainText.trim().isNotEmpty ?? false;
@@ -3545,7 +3607,11 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
     );
   }
 
-  void endDrag() => _dragEnd = null;
+  void endDrag() {
+    _dragEnd = null;
+    _following = false;
+    _endSeen = false;
+  }
 
   /// [count] items came in before all the others (earlier history): the
   /// selection's ends are in the items [count] on.

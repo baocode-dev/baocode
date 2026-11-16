@@ -376,7 +376,7 @@ void main() {
   }
 
   testWidgets('a drag on text that selects nothing is done again on a '
-      'clean list, and reported', (tester) async {
+      'clean list as it is dragged', (tester) async {
     String? copied;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -432,18 +432,66 @@ void main() {
       ),
     );
     await tester.pump();
+    // Done again as it is dragged, not only once let go.
+    expect(delegate.getSelectedContent()?.plainText, answer);
     await mouse.up();
     await tester.pump();
-    expect(
-      tester.takeException().toString(),
-      contains('A drag on text selected nothing (selected done again)'),
-    );
+    expect(tester.takeException(), isNull);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
     await tester.pump();
     expect(copied, answer);
+  });
+
+  testWidgets('a drag whose selection is cleared while held selects from '
+      'where it was pressed again', (tester) async {
+    const answer = 'The parser drops the last token.';
+    final feed = _Feed([
+      const UserMessageItem(text: 'Why does it fail?'),
+      const AssistantTextItem(answer),
+    ])..streaming = false;
+    addTearDown(feed.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(),
+        home: Scaffold(body: ChatHistoryView(feed: feed)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final delegate = tester
+        .widgetList<SelectionContainer>(
+          find.ancestor(
+            of: find.byType(SuperListView),
+            matching: find.byType(SelectionContainer),
+          ),
+        )
+        .map((container) => container.delegate)
+        .whereType<StaticSelectionContainerDelegate>()
+        .first;
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.byWidgetPredicate(
+        (widget) => widget is RichText && widget.text.toPlainText() == answer,
+      ),
+    );
+    Offset at(double x) =>
+        paragraph.localToGlobal(Offset(x, paragraph.size.height / 2));
+    final mouse = await tester.startGesture(
+      at(0.5),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await mouse.moveTo(at(paragraph.size.width / 2));
+    await tester.pump();
+    // As the selection's gesture does when it gives up on the drag.
+    delegate.dispatchSelectionEvent(const ClearSelectionEvent());
+    await mouse.moveTo(at(paragraph.size.width - 0.5));
+    await tester.pump();
+    expect(delegate.getSelectedContent()?.plainText, answer);
+    await mouse.up();
+    await tester.pump();
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a drag on the text below a code block, begun left of the '
