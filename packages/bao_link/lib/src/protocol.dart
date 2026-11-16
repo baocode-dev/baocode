@@ -280,8 +280,10 @@ abstract final class LinkMethods {
   /// ([LinkGroupMessage.images]): `{"type", "data"}`.
   static const groupImage = 'groupImage';
 
-  /// Those whose answers can be large: each goes on a stream of its own
-  /// (see [LinkPeer]), holding up nothing else.
+  /// Those whose answers, or requests, can be large: each goes on a stream
+  /// of its own (see [LinkPeer]), holding up nothing else. A picture sent
+  /// (the user's, a bot's) is up to a megabyte: on the control stream, an
+  /// agent opened after it waited seconds over a relay.
   static const bulk = {
     read,
     image,
@@ -291,6 +293,8 @@ abstract final class LinkMethods {
     botAvatar,
     extensions,
     groupImage,
+    setMe,
+    saveBot,
   };
 }
 
