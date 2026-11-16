@@ -452,9 +452,7 @@ class GeneralSettingsPage extends StatelessWidget {
             if (bash case final bash?)
               SettingsGroup(
                 title: l10n.generalSettingsCommandLine,
-                children: [
-                  SettingsCard(children: [BaoBashSetting(bash: bash)]),
-                ],
+                children: [CommandLineSettings(bash: bash)],
               ),
             SettingsGroup(
               title: l10n.generalSettingsWindows,

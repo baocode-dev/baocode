@@ -22852,7 +22852,7 @@ abstract class AppLocalizations {
   /// No description provided for @baoBashNotInstalled.
   ///
   /// In en, this message translates to:
-  /// **'Not installed: agents run commands with Git Bash, or with cmd.exe where there is none.'**
+  /// **'Not installed yet.'**
   String get baoBashNotInstalled;
 
   /// No description provided for @baoBashInstalled.
@@ -22920,6 +22920,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not Now'**
   String get baoBashNoticeLater;
+
+  /// No description provided for @baoBashSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Open source:'**
+  String get baoBashSource;
+
+  /// No description provided for @baoBashHintInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Install and Use'**
+  String get baoBashHintInstall;
+
+  /// No description provided for @commandLineShell.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell'**
+  String get commandLineShell;
+
+  /// No description provided for @commandLineShellDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'What agents run their commands in on Windows. Claude Code\'s CLI core takes bash alone: with cmd or PowerShell picked, it runs Git Bash.'**
+  String get commandLineShellDescription;
+
+  /// No description provided for @commandLineShellCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom…'**
+  String get commandLineShellCustom;
+
+  /// No description provided for @commandLineShellInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'In use: {path}'**
+  String commandLineShellInUse(String path);
+
+  /// No description provided for @commandLineShellFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'{shell} is not ready yet: commands run in {path} meanwhile.'**
+  String commandLineShellFallback(String shell, String path);
+
+  /// No description provided for @commandLineCustomPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom shell'**
+  String get commandLineCustomPath;
+
+  /// No description provided for @commandLineCustomPathDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The program to run commands with: a bash.exe, cmd.exe, powershell.exe or pwsh.exe.'**
+  String get commandLineCustomPathDescription;
 }
 
 class _AppLocalizationsDelegate

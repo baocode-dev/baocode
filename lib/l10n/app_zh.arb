@@ -3799,7 +3799,7 @@
   "generalSettingsCommandLine": "命令行",
   "baoBashRecommended": "BaoCode Bash（推荐）",
   "baoBashDescription": "让智能体在 Windows 上用上完整的 bash：自带 rg、grep、sed、awk、find、jq、tar 等八十多个常用命令，不需要装 Git for Windows；C:\\ 和 /c/ 两种路径都认。内置内核和 Claude Code 内核都会用它运行命令。",
-  "baoBashNotInstalled": "未安装：智能体现在用 Git Bash 运行命令，没装 Git Bash 时用 cmd.exe。",
+  "baoBashNotInstalled": "还没安装。",
   "baoBashInstalled": "已安装 {version}。",
   "baoBashUpdateAvailable": "有新版本 {version}。",
   "baoBashDownloading": "正在下载… {percent}%",
@@ -3810,5 +3810,14 @@
   "baoBashFailed": "安装失败：{error}",
   "baoBashNoticeTitle": "在 Windows 上，推荐安装 BaoCode Bash",
   "baoBashNoticeBody": "智能体运行命令会更稳。它自带 bash 和 rg、grep、sed、awk、find、jq、tar 等八十多个常用命令，不需要装 Git for Windows；C:\\ 和 /c/ 两种路径都认，不会再因为 cmd 和 PowerShell 写法不同而出错。",
-  "baoBashNoticeLater": "暂不"
+  "baoBashNoticeLater": "暂不",
+  "baoBashSource": "开源地址：",
+  "baoBashHintInstall": "安装并使用",
+  "commandLineShell": "运行命令的 Shell",
+  "commandLineShellDescription": "智能体在 Windows 上用它运行命令。Claude Code CLI 内核只能用 bash：选了 cmd 或 PowerShell 时，它仍用 Git Bash。",
+  "commandLineShellCustom": "自定义…",
+  "commandLineShellInUse": "正在使用：{path}",
+  "commandLineShellFallback": "{shell} 还不能用，命令暂时用 {path} 运行。",
+  "commandLineCustomPath": "自定义 Shell",
+  "commandLineCustomPathDescription": "运行命令的程序：bash.exe、cmd.exe、powershell.exe 或 pwsh.exe。"
 }

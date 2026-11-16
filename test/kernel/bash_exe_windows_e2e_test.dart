@@ -81,6 +81,15 @@ class _Installed implements BaoBashHost {
 
   @override
   Future<void> uninstall() async {}
+
+  @override
+  String? gitBash() => null;
+
+  @override
+  String cmd() => 'cmd.exe';
+
+  @override
+  String powershell() => 'powershell.exe';
 }
 
 void main() {

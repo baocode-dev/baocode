@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:bao_agent/bao_agent.dart' show Shell;
+
 import '../tips/feature_tip.dart' show TipStorage;
-import '../tips/feature_tips_controller.dart';
 import 'bao_bash_stub.dart' if (dart.library.io) 'bao_bash_io.dart' as platform;
 
 /// The build of BaoCode Bash `latest.json` names for this machine
@@ -63,9 +64,53 @@ class BaoBashRelease {
 /// BaoCode Bash as installed: its version, and its `bash.exe`.
 typedef BaoBashInstall = ({String version, String executable});
 
+/// Settings → General → Command Line (Windows): what agents run their
+/// commands in (`commandLine.shell` in settings.json; [custom] the file
+/// `commandLine.shellPath` names).
+enum WindowsShell {
+  /// BaoCode Bash, downloaded the first time it is picked.
+  baoBash,
+
+  /// Git for Windows' bash, where it is installed.
+  gitBash,
+  cmd,
+  powershell,
+  custom;
+
+  static const settingKey = 'commandLine.shell';
+  static const pathKey = 'commandLine.shellPath';
+
+  /// The pick a setting's [value] names; null for none.
+  static WindowsShell? parse(Object? value) =>
+      values.where((shell) => shell.name == value).firstOrNull;
+
+  /// Whether it takes bash's commands, as Claude Code's CLI needs: a custom
+  /// one when its file is a `bash.exe` or `sh.exe`.
+  static bool takesBash(WindowsShell shell, String executable) =>
+      switch (shell) {
+        baoBash || gitBash => true,
+        cmd || powershell => false,
+        custom => RegExp(
+          r'(^|[\\/])(bash|sh)(\.exe)?$',
+          caseSensitive: false,
+        ).hasMatch(executable),
+      };
+}
+
+/// The shell agents run commands in now, and its file.
+typedef WindowsShellInUse = ({WindowsShell shell, String executable});
+
+/// Where the pick is kept: settings.json (app_settings.dart), told as it
+/// changes.
+abstract interface class ShellSettings implements Listenable {
+  Object? operator [](String key);
+
+  Future<void> update(String key, Object? value);
+}
+
 /// Where BaoCode Bash is installed, and what fetches it: the data
 /// directory's `tools/bash-exe/` and dl.baocode.dev (bao_bash_io.dart);
-/// replaceable under test.
+/// replaceable under test. It also finds the other shells to pick from.
 abstract interface class BaoBashHost {
   /// This machine's architecture as the builds are named (`x64`,
   /// `arm64`); null where there is none for it.
@@ -87,67 +132,95 @@ abstract interface class BaoBashHost {
   /// Removes what is installed; a `bash.exe` an agent is running is
   /// removed the next time.
   Future<void> uninstall();
+
+  /// Git for Windows' `bash.exe`; null where it is not installed.
+  String? gitBash();
+
+  /// cmd.exe.
+  String cmd();
+
+  /// PowerShell 7's `pwsh.exe` where it is installed, else Windows
+  /// PowerShell's `powershell.exe`.
+  String powershell();
 }
 
 /// BaoCode Bash (github.com/baocode-dev/bash-exe), offered on Windows:
 /// bash 5.3 with `rg`, `grep`, `sed`, `awk`, `find`, `jq` and the like
-/// built in, that takes `C:\x` and `/c/x` alike. Installed, both cores run
-/// their agents' commands with it ahead of Git Bash: the built-in one
-/// ([executable]; `Shell.find` in bao_agent), Claude Code's CLI
-/// ([cliEnvironment]).
+/// built in, that takes `C:\x` and `/c/x` alike; and the pick of the shell
+/// agents run commands in ([inUse]). Both cores run their agents'
+/// commands in it: the built-in one ([coreEnvironment]; `Shell.find` in
+/// bao_agent), Claude Code's CLI ([cliEnvironment]) where it takes bash.
 ///
-/// Settings → General installs, updates and removes it. Above every page
-/// the settings dialog recommends it ([showsNotice]) to all but a new user
-/// ([newUser]: the app first run here less than [newUserDays] ago, or
-/// fewer than [newUserMessages] messages sent), until put off for good.
+/// Settings → General → Command Line picks the shell, and installs,
+/// updates and removes BaoCode Bash. Over the composer it is recommended
+/// ([showsHint]) to whoever runs commands in neither it nor Git Bash,
+/// until put off for good.
 class BaoBash extends ChangeNotifier {
-  BaoBash({required this.host, this.storage, DateTime Function()? now})
-    : _now = now ?? DateTime.now,
-      _installed = host.installed();
+  BaoBash({required this.host, this.storage, this.settings})
+    : _installed = host.installed() {
+    settings?.addListener(_notify);
+  }
 
   /// The app's, made in main(); null where it is not offered: anywhere
   /// but Windows, and under test.
   static BaoBash? current;
 
-  /// The platform's, with what is kept in [storage]; null where it is not
-  /// offered.
-  static BaoBash? forPlatform(TipStorage? storage) {
+  /// The platform's, with what is kept in [storage] and [settings]; null
+  /// where it is not offered.
+  static BaoBash? forPlatform(TipStorage? storage, {ShellSettings? settings}) {
     final host = platform.baoBashHost();
     if (host == null || host.arch == null) return null;
-    return BaoBash(host: host, storage: storage);
+    return BaoBash(host: host, storage: storage, settings: settings);
   }
 
-  /// The `bash.exe` the agents run commands with, where it is installed.
-  static String? get executable => current?.installed?.executable;
+  /// What the built-in core's environment gets for its commands to run in
+  /// the shell in use (`BAOCODE_SHELL`), BaoCode Bash told as such
+  /// (`BAOCODE_BASH`); nothing where it is not offered.
+  static Map<String, String> coreEnvironment() {
+    final bash = current;
+    if (bash == null) return const {};
+    return {
+      if (bash.installed case final installed?)
+        Shell.baoBashVariable: installed.executable,
+      Shell.chosenVariable: bash.inUse.executable,
+    };
+  }
 
   /// The variable Claude Code's CLI takes the bash its Bash tool runs from
   /// (on Windows; a file called `bash.exe` or `sh.exe`, else it goes back
   /// to Git Bash).
   static const cliBashVariable = 'CLAUDE_CODE_GIT_BASH_PATH';
 
-  /// What the CLI's [environment] gets, for it to run commands with
-  /// BaoCode Bash ([bash], the installed one by default): [cliBashVariable],
-  /// unless [environment] names a bash already. The user's choice stays,
-  /// as does one in their settings.json's `env`, which the CLI reads after.
-  static Map<String, String> cliEnvironment(
-    Map<String, String> environment, {
-    String? bash,
-  }) {
-    bash ??= executable;
+  /// What the CLI's [environment] gets, for it to run commands in the
+  /// shell in use where that takes bash (else it finds Git Bash itself):
+  /// [cliBashVariable]. Unless a shell was picked, one the user names in
+  /// [environment] stays, as does one in their settings.json's `env`,
+  /// which the CLI reads after.
+  static Map<String, String> cliEnvironment(Map<String, String> environment) {
+    final bash = current;
     if (bash == null) return const {};
+    final (:shell, :executable) = bash.inUse;
+    if (!WindowsShell.takesBash(shell, executable)) return const {};
     // Windows' names are any case.
     final named = environment.entries.any(
       (entry) =>
           entry.key.toUpperCase() == cliBashVariable && entry.value.isNotEmpty,
     );
-    return named ? const {} : {cliBashVariable: bash};
+    if (named && bash.chosen == null) return const {};
+    return {cliBashVariable: executable};
   }
+
+  /// Whether [cliEnvironment] gave the CLI BaoCode Bash.
+  static bool givesBaoBash(Map<String, String> cli) =>
+      cli.isNotEmpty && cli[cliBashVariable] == current?.installed?.executable;
 
   final BaoBashHost host;
 
-  /// Where [newUser] and the notice put off are kept; none under test.
+  /// Where the hint put off is kept; none under test.
   final TipStorage? storage;
-  final DateTime Function() _now;
+
+  /// Where the pick is kept; none under test.
+  final ShellSettings? settings;
 
   BaoBashInstall? _installed;
   BaoBashInstall? get installed => _installed;
@@ -185,8 +258,82 @@ class BaoBash extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    settings?.removeListener(_notify);
     super.dispose();
   }
+
+  // --- The shell agents run commands in -------------------------------------
+
+  /// The shell picked in Settings; null for none.
+  WindowsShell? get chosen =>
+      WindowsShell.parse(settings?[WindowsShell.settingKey]);
+
+  /// The file a [WindowsShell.custom] pick runs; null for none.
+  String? get customPath => switch (settings?[WindowsShell.pathKey]) {
+    final String path when path.trim().isNotEmpty => path.trim(),
+    _ => null,
+  };
+
+  /// Git Bash, as looked for once.
+  late final String? gitBash = host.gitBash();
+
+  /// The shell agents run commands in: the one picked, where it can run
+  /// (BaoCode Bash installed, Git Bash found, a custom file named); else,
+  /// as with none picked, BaoCode Bash where installed, else Git Bash, else
+  /// cmd.exe.
+  WindowsShellInUse get inUse {
+    final picked = switch (chosen) {
+      WindowsShell.baoBash => installed?.executable,
+      WindowsShell.gitBash => gitBash,
+      WindowsShell.cmd => host.cmd(),
+      WindowsShell.powershell => host.powershell(),
+      WindowsShell.custom => customPath,
+      null => null,
+    };
+    if ((chosen, picked) case (final shell?, final executable?)) {
+      return (shell: shell, executable: executable);
+    }
+    if (installed case final installed?) {
+      return (shell: WindowsShell.baoBash, executable: installed.executable);
+    }
+    if (gitBash case final git?) {
+      return (shell: WindowsShell.gitBash, executable: git);
+    }
+    return (shell: WindowsShell.cmd, executable: host.cmd());
+  }
+
+  /// What Settings shows picked: the pick, else the shell in use.
+  WindowsShell get shown => chosen ?? inUse.shell;
+
+  /// Picks [shell], BaoCode Bash downloaded the first time.
+  Future<void> choose(WindowsShell shell) async {
+    final settings = this.settings;
+    if (settings != null) {
+      try {
+        await settings.update(WindowsShell.settingKey, shell.name);
+      } on Object catch (error) {
+        // A settings file that does not parse is left as it is; its
+        // error is shown.
+        debugPrint('${WindowsShell.settingKey} not kept: $error');
+      }
+    }
+    _notify();
+    if (shell == WindowsShell.baoBash && installed == null) await install();
+  }
+
+  /// Sets the file a [WindowsShell.custom] pick runs.
+  Future<void> setCustomPath(String path) async {
+    try {
+      await settings?.update(
+        WindowsShell.pathKey,
+        path.trim().isEmpty ? null : path.trim(),
+      );
+    } on Object catch (error) {
+      debugPrint('${WindowsShell.pathKey} not kept: $error');
+    }
+  }
+
+  // --- BaoCode Bash itself ----------------------------------------------------
 
   /// Looks for the latest build, at most once an hour unless [force]d.
   /// Offline, there is none to show.
@@ -194,10 +341,10 @@ class BaoBash extends ChangeNotifier {
     final checkedAt = _checkedAt;
     if (!force &&
         checkedAt != null &&
-        _now().difference(checkedAt) < const Duration(hours: 1)) {
+        DateTime.now().difference(checkedAt) < const Duration(hours: 1)) {
       return;
     }
-    _checkedAt = _now();
+    _checkedAt = DateTime.now();
     try {
       _latest = BaoBashRelease.parse(await host.fetchLatest(), host.arch!);
     } on Object catch (error) {
@@ -251,80 +398,38 @@ class BaoBash extends ChangeNotifier {
   // --- Whom to recommend it to ----------------------------------------------
 
   static const storageKey = 'baoBash';
-  static const newUserDays = 7;
-  static const newUserMessages = 5;
 
-  /// What [firstSeen] is for an install that ran before it was kept.
-  static const _longAgo = '2000-01-01T00:00:00.000Z';
-
-  Map<String, Object?> get _kept => switch (storage?.get(storageKey)) {
-    final Map<Object?, Object?> map => {
-      for (final MapEntry(:key, :value) in map.entries)
-        if (key is String) key: value,
-    },
-    _ => {},
+  /// Whether the hint was put off for good.
+  bool get hintDismissed => switch (storage?.get(storageKey)) {
+    {'dismissed': true} => true,
+    _ => false,
   };
 
-  void _keep(Map<String, Object?> kept) {
+  void dismissHint() {
     final storage = this.storage;
-    if (storage == null) return;
-    unawaited(
-      storage
-          .set(storageKey, kept)
-          .catchError((Object error) => debugPrint('$storageKey: $error')),
-    );
-  }
-
-  /// At the app's start, before the feature tips have: when the app first
-  /// ran here is now, unless it ran before (the tips kept the version that
-  /// ran last), long ago then.
-  void noteStart() {
-    final kept = _kept;
-    if (kept['firstSeen'] is String) return;
-    final ranBefore = switch (storage?.get(FeatureTipsController.storageKey)) {
-      {'lastVersion': String _} => true,
-      _ => false,
-    };
-    kept['firstSeen'] = ranBefore ? _longAgo : _now().toUtc().toIso8601String();
-    _keep(kept);
-  }
-
-  /// The user sent a message: counted up to [newUserMessages].
-  void countSent() {
-    final kept = _kept;
-    final sent = _sent(kept);
-    if (sent >= newUserMessages) return;
-    kept['sent'] = sent + 1;
-    _keep(kept);
-    if (sent + 1 == newUserMessages) _notify();
-  }
-
-  static int _sent(Map<String, Object?> kept) => switch (kept['sent']) {
-    final int sent => sent,
-    _ => 0,
-  };
-
-  /// Whether the user is new here: the app first ran less than
-  /// [newUserDays] ago, or fewer than [newUserMessages] messages sent.
-  bool get newUser {
-    final kept = _kept;
-    final firstSeen = switch (kept['firstSeen']) {
-      final String at => DateTime.tryParse(at),
-      _ => null,
-    };
-    return firstSeen == null ||
-        _now().difference(firstSeen) < const Duration(days: newUserDays) ||
-        _sent(kept) < newUserMessages;
-  }
-
-  /// Whether the notice was put off for good.
-  bool get noticeDismissed => _kept['dismissed'] == true;
-
-  void dismissNotice() {
-    _keep(_kept..['dismissed'] = true);
+    if (storage != null) {
+      unawaited(
+        storage
+            .set(storageKey, {'dismissed': true})
+            .catchError((Object error) => debugPrint('$storageKey: $error')),
+      );
+    }
+    _dismissed = true;
     _notify();
   }
 
-  /// Whether the settings dialog recommends it above every page.
-  bool get showsNotice => installed == null && !newUser && !noticeDismissed;
+  /// Put off in this run, where nothing keeps it.
+  bool _dismissed = false;
+
+  /// Whether the composer recommends it: commands run in neither it nor
+  /// Git Bash, and it was not put off. While it downloads from the hint,
+  /// the hint shows how far it got.
+  bool get showsHint {
+    if (_dismissed || hintDismissed) return false;
+    if (busy || error != null) return inUse.shell != WindowsShell.baoBash;
+    return switch (inUse.shell) {
+      WindowsShell.baoBash || WindowsShell.gitBash => false,
+      _ => true,
+    };
+  }
 }

@@ -13292,8 +13292,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '让智能体在 Windows 上用上完整的 bash：自带 rg、grep、sed、awk、find、jq、tar 等八十多个常用命令，不需要装 Git for Windows；C:\\ 和 /c/ 两种路径都认。内置内核和 Claude Code 内核都会用它运行命令。';
 
   @override
-  String get baoBashNotInstalled =>
-      '未安装：智能体现在用 Git Bash 运行命令，没装 Git Bash 时用 cmd.exe。';
+  String get baoBashNotInstalled => '还没安装。';
 
   @override
   String baoBashInstalled(String version) {
@@ -13338,4 +13337,37 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get baoBashNoticeLater => '暂不';
+
+  @override
+  String get baoBashSource => '开源地址：';
+
+  @override
+  String get baoBashHintInstall => '安装并使用';
+
+  @override
+  String get commandLineShell => '运行命令的 Shell';
+
+  @override
+  String get commandLineShellDescription =>
+      '智能体在 Windows 上用它运行命令。Claude Code CLI 内核只能用 bash：选了 cmd 或 PowerShell 时，它仍用 Git Bash。';
+
+  @override
+  String get commandLineShellCustom => '自定义…';
+
+  @override
+  String commandLineShellInUse(String path) {
+    return '正在使用：$path';
+  }
+
+  @override
+  String commandLineShellFallback(String shell, String path) {
+    return '$shell 还不能用，命令暂时用 $path 运行。';
+  }
+
+  @override
+  String get commandLineCustomPath => '自定义 Shell';
+
+  @override
+  String get commandLineCustomPathDescription =>
+      '运行命令的程序：bash.exe、cmd.exe、powershell.exe 或 pwsh.exe。';
 }

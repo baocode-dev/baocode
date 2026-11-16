@@ -522,7 +522,7 @@ class AgentSession {
     try {
       final result = Process.runSync(
         shell.executable,
-        shell.posix ? ['-c', helper] : ['/c', helper],
+        shell.run(helper),
         environment: commandEnvironment,
         includeParentEnvironment: false,
       );

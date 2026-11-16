@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../bash_exe/bao_bash.dart';
-import '../bash_exe/bao_bash_view.dart';
 import '../channel/channel_gate.dart';
 import '../channel/channel_setup.dart' show ChannelSetup;
 import '../diagnostics/diagnostics_upload.dart';
@@ -120,10 +119,14 @@ class AppSettings {
     null => null,
   };
 
-  /// BaoCode Bash, where it is offered (Windows, with settings files);
-  /// main() makes it the app's ([BaoBash.current]).
-  late final BaoBash? bash = switch (files?.storage) {
-    final storage? => BaoBash.forPlatform(_TipStorage(storage)),
+  /// BaoCode Bash and the shell agents run commands in, where they are
+  /// offered (Windows, with settings files); main() makes it the app's
+  /// ([BaoBash.current]).
+  late final BaoBash? bash = switch (files) {
+    final files? => BaoBash.forPlatform(
+      _TipStorage(files.storage),
+      settings: _ShellSettings(files.settings),
+    ),
     null => null,
   };
 
@@ -146,18 +149,15 @@ class AppSettings {
     ];
   }
 
-  /// What the settings dialog says above every page: BaoCode Bash
-  /// recommended, on Windows; the browser's debugging history grown large.
+  /// What the settings dialog says above every page: the browser's
+  /// debugging history grown large.
   Widget buildNotice(
     BuildContext context,
     void Function(SettingsSection section) open,
   ) => Column(
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      if (bash case final bash?) BaoBashNotice(bash: bash),
-      BrowserHistoryNotice(open: () => open(SettingsSection.browser)),
-    ],
+    children: [BrowserHistoryNotice(open: () => open(SettingsSection.browser))],
   );
 
   /// [section]'s page of the settings dialog.
@@ -289,6 +289,26 @@ class AppSettings {
 }
 
 /// The app's global storage, as the tips remember themselves in it.
+/// The pick of the shell, in settings.json.
+class _ShellSettings implements ShellSettings {
+  _ShellSettings(this.settings);
+
+  final UserSettings settings;
+
+  @override
+  Object? operator [](String key) => settings[key];
+
+  @override
+  Future<void> update(String key, Object? value) => settings.update(key, value);
+
+  @override
+  void addListener(VoidCallback listener) => settings.addListener(listener);
+
+  @override
+  void removeListener(VoidCallback listener) =>
+      settings.removeListener(listener);
+}
+
 class _TipStorage implements TipStorage {
   _TipStorage(this.storage);
 

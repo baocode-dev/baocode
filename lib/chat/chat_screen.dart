@@ -14,6 +14,8 @@ import '../kernel/kernel_types.dart';
 import '../keybindings/chat_keybindings.dart';
 import '../l10n/l10n.dart';
 import '../models/model_welcome.dart';
+import '../bash_exe/bao_bash.dart';
+import '../bash_exe/bao_bash_view.dart' show BaoBashHint;
 import '../remote/remote_location.dart';
 import '../remote/remote_status.dart' show ClaudeInstallBanner, SshHostBanner;
 import '../stash/stash_actions.dart';
@@ -1436,6 +1438,13 @@ class _ChatScreenState extends State<ChatScreen>
               // Claude Code being downloaded for this machine, or put on
               // a remote project's host.
               ClaudeInstallBanner(location: _session.kernelContext.cwd),
+              // Windows: BaoCode Bash recommended to whoever runs commands
+              // in neither it nor Git Bash, for a project on this machine.
+              if (BaoBash.current case final bash?
+                  when !RemoteLocation.isRemote(
+                    _session.kernelContext.cwd ?? '',
+                  ))
+                BaoBashHint(bash: bash),
               // Reset credits of the model's ChatGPT accounts about to
               // expire: a plan to use them.
               ResetCreditsHint(model: _session.models?.selected.id),

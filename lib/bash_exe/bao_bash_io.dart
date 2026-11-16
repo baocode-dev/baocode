@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:bao_agent/bao_agent.dart' show Shell;
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -138,6 +139,35 @@ class IoBaoBashHost implements BaoBashHost {
     } finally {
       client.close();
     }
+  }
+
+  @override
+  String? gitBash() => Shell.gitBash(_environment);
+
+  String get _systemRoot =>
+      _environment['SystemRoot'] ?? _environment['SYSTEMROOT'] ?? r'C:\Windows';
+
+  @override
+  String cmd() =>
+      _environment['ComSpec'] ??
+      _environment['COMSPEC'] ??
+      p.windows.join(_systemRoot, 'System32', 'cmd.exe');
+
+  @override
+  String powershell() {
+    final path = _environment['PATH'] ?? _environment['Path'] ?? '';
+    for (final dir in path.split(';')) {
+      if (dir.isEmpty) continue;
+      final pwsh = p.windows.join(dir, 'pwsh.exe');
+      if (File(pwsh).existsSync()) return pwsh;
+    }
+    return p.windows.join(
+      _systemRoot,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe',
+    );
   }
 
   @override
