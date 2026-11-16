@@ -207,3 +207,36 @@ abstract final class ClaudeModelVariables {
     ...cleared,
   ];
 }
+
+/// What Claude Code is told runs it: `claude -p` names itself `sdk-cli`
+/// otherwise, whose use a Claude plan's 5-hour limit counts at about
+/// twice the interactive CLI's (anthropics/claude-code#97074).
+abstract final class ClaudeEntrypoint {
+  static const variable = 'CLAUDE_CODE_ENTRYPOINT';
+  static const name = 'baocode';
+
+  /// What the CLI goes with other than the user's Claude sign-in: a key,
+  /// a server not Anthropic's, a cloud's.
+  static const _elsewhere = [
+    ClaudeModelVariables.baseUrl,
+    ClaudeModelVariables.authToken,
+    ClaudeModelVariables.apiKey,
+    'CLAUDE_CODE_USE_BEDROCK',
+    'CLAUDE_CODE_USE_VERTEX',
+    'CLAUDE_CODE_USE_FOUNDRY',
+  ];
+
+  /// [name], for a session on the user's own Claude sign-in: none on a
+  /// provider ([env]), nor where [base] (the environment it starts in)
+  /// has it go elsewhere.
+  static Map<String, String> of(
+    Map<String, String>? env, [
+    Map<String, String> base = const {},
+  ]) {
+    if (env != null) return const {};
+    if (_elsewhere.any((name) => base[name]?.isNotEmpty ?? false)) {
+      return const {};
+    }
+    return const {variable: name};
+  }
+}

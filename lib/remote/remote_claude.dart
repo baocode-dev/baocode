@@ -387,7 +387,11 @@ class RemoteClaudeTransport implements ClaudeCodeTransport {
               : started.arguments,
           settings: started.hasSecrets ? started.settings : null,
           cleared: [if (env != null) ...ClaudeModelVariables.inherited],
-          environment: {...ClaudeLaunch.environment, ...forwarded},
+          environment: {
+            ...ClaudeLaunch.environment,
+            ...ClaudeEntrypoint.of(env),
+            ...forwarded,
+          },
           core: core,
         ),
       );
