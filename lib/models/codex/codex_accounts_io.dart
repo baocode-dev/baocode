@@ -5,6 +5,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../../network/tls.dart';
 import '../model_provider.dart';
 import '../model_providers.dart';
 import '../model_runtime.dart' show UpstreamException;
@@ -958,7 +959,7 @@ class CodexAccounts extends CodexService {
     } on TimeoutException {
       throw CodexException('${url.host} did not answer in time.');
     } on HandshakeException catch (error) {
-      throw CodexException('TLS failed: ${error.message}');
+      throw CodexException('TLS failed: ${handshakeFailure(error)}');
     }
   }
 

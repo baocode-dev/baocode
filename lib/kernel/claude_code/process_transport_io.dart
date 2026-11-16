@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 import '../../bash_exe/bao_bash.dart';
 import '../../models/launch_environment.dart';
 import '../../network/network_proxy_io.dart';
+import '../../network/tls.dart';
 import '../../platform/data_dir.dart';
 import '../../platform/child_process_registry.dart';
 import 'claude_code_transport.dart';
@@ -126,6 +127,9 @@ class ProcessTransport implements ClaudeCodeTransport {
     };
     // The proxy as it is now: Clash may have been turned on since.
     final proxy = await NetworkProxy.instance.environment();
+    // The machine's own certificates, as the app's requests trust them:
+    // Node bundles Mozilla's roots alone.
+    final certificates = await nodeCertificatesEnvironment(cli.environment);
     try {
       final process = await Process.start(
         cli.executable,
@@ -134,6 +138,7 @@ class ProcessTransport implements ClaudeCodeTransport {
         environment: {
           ...cli.environment,
           ...proxy,
+          ...certificates,
           ...bash,
           // A provider's session: none of the user's own model setup.
           if (launch.env != null)
