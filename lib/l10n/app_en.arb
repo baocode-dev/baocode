@@ -1420,6 +1420,7 @@
   "imagePickDecline": "Skip",
   "imageSetDefault": "Set as default",
   "imageDefaultSet": "Set as default image model",
+  "imageCopyPrompt": "Copy prompt",
   "toolProposingGoal": "Proposing a goal",
   "toolProposedGoal": "Proposed a goal",
   "goalAdopt": "Set as goal",

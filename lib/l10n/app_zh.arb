@@ -730,6 +730,7 @@
   "imagePickDecline": "不生成",
   "imageSetDefault": "设为默认",
   "imageDefaultSet": "已设为默认图片模型",
+  "imageCopyPrompt": "复制提示词",
   "toolProposingGoal": "正在提议目标",
   "toolProposedGoal": "提议目标",
   "goalAdopt": "设为目标",

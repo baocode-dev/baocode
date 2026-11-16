@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/widgets/content_image.dart';
+import 'package:baocode/chat/widgets/copy_button.dart';
 import 'package:baocode/images/image_picks.dart';
 import 'package:baocode/images/image_steps.dart';
 import 'package:baocode/images/image_tools.dart';
@@ -12,7 +13,9 @@ import 'package:baocode/kernel/claude_code/claude_sdk_tools.dart';
 import 'package:baocode/kernel/transcript.dart';
 import 'package:baocode/models/model_provider.dart';
 import 'package:baocode/models/model_providers.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -145,6 +148,57 @@ void main() {
       expect(find.byType(ContentImage), findsOneWidget);
       // What it answered, only as it opens.
       expect(find.textContaining('saved to'), findsNothing);
+    });
+
+    testWidgets('copies its prompt from a button shown while hovered', (
+      tester,
+    ) async {
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await pump(
+        tester,
+        ToolCallItem(
+          kind: ToolKind.image,
+          target: 'a fox',
+          input: const {'prompt': 'a fox\nin snow, at dusk'},
+          output: 'Generated an image with X, saved to:\n- /p/fox.png',
+          images: [
+            ImageAttachment(bytes: base64Decode(_png), mediaType: 'image/png'),
+          ],
+        ),
+      );
+      final button = find.byType(CopyButton);
+      double opacity() => tester
+          .widget<AnimatedOpacity>(
+            find.ancestor(of: button, matching: find.byType(AnimatedOpacity)),
+          )
+          .opacity;
+      expect(opacity(), 0, reason: 'out of sight till hovered');
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(
+        location: tester.getCenter(find.byType(ImageStep)),
+      );
+      await tester.pumpAndSettle();
+      expect(opacity(), 1);
+      await tester.tap(button);
+      await tester.pump();
+      expect(copied, 'a fox\nin snow, at dusk', reason: 'the whole prompt');
+      await mouse.removePointer();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('says it failed, and opens to why', (tester) async {

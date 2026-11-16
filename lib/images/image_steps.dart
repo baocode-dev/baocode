@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../chat/chat_models.dart';
 import '../chat/composer/composer_picker.dart';
 import '../chat/widgets/content_image.dart';
+import '../chat/widgets/copy_button.dart';
 import '../chat/widgets/hover_builder.dart';
 import '../chat/widgets/step_header.dart';
 import '../chat/widgets/tool_call_row.dart' show toolVerb;
@@ -28,8 +30,9 @@ const imageIcon = 'assets/icons/image-line.svg';
 /// show them. While no image model is the default, it first asks which to
 /// make them with ([ImagePicks]); while they are made, their places, as big
 /// as they will be, a light sweeping across. Made with a model that is not
-/// the default, its line offers to make it so. It opens to what it answered
-/// (where they were saved, or why it failed).
+/// the default, its line offers to make it so; while the mouse is over it,
+/// a faint button copies its prompt. It opens to what it answered (where
+/// they were saved, or why it failed).
 class ImageStep extends StatefulWidget {
   const ImageStep({
     super.key,
@@ -50,12 +53,29 @@ class _ImageStepState extends State<ImageStep> {
   /// Made the default from this step: it says so.
   bool _madeDefault = false;
 
+  /// Whether the mouse is over it: its prompt's copy button shows. Not a
+  /// rebuild of it all, which would lose a selection in its line.
+  final _hovered = ValueNotifier(false);
+
   ToolCallItem get item => widget.item;
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([ImagePicks.instance, ModelProviders.current]),
-    builder: (context, _) => _build(context),
+  void dispose() {
+    _hovered.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => _hovered.value = true,
+    onExit: (_) => _hovered.value = false,
+    child: ListenableBuilder(
+      listenable: Listenable.merge([
+        ImagePicks.instance,
+        ModelProviders.current,
+      ]),
+      builder: (context, _) => _build(context),
+    ),
   );
 
   Widget _build(BuildContext context) {
@@ -96,6 +116,10 @@ class _ImageStepState extends State<ImageStep> {
     } else {
       action = null;
     }
+    final prompt = switch (item.input['prompt']) {
+      final String text when text.trim().isNotEmpty => text.trim(),
+      _ => null,
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -115,7 +139,18 @@ class _ImageStepState extends State<ImageStep> {
             height: 14,
             colorFilter: ColorFilter.mode(AppColors.textMuted, BlendMode.srcIn),
           ),
-          action: action,
+          action: prompt == null || asking
+              ? action
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (action case final action?) ...[
+                      action,
+                      const SizedBox(width: 4),
+                    ],
+                    _PromptCopy(prompt: prompt, hovered: _hovered),
+                  ],
+                ),
         ),
         if (widget.expanded && output.isNotEmpty)
           StepBody(child: Text(output, style: stepMono)),
@@ -304,6 +339,31 @@ class _PickCardState extends State<_PickCard> {
       ),
     );
   }
+}
+
+/// Copies a step's prompt: there while the mouse is over the step, kept in
+/// place (and its "copied" with it) while not.
+class _PromptCopy extends StatelessWidget {
+  const _PromptCopy({required this.prompt, required this.hovered});
+
+  final String prompt;
+  final ValueListenable<bool> hovered;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: hovered,
+    builder: (context, shown, child) => IgnorePointer(
+      ignoring: !shown,
+      child: AnimatedOpacity(
+        opacity: shown ? 1 : 0,
+        duration: const Duration(milliseconds: 120),
+        child: child,
+      ),
+    ),
+    child: SelectionContainer.disabled(
+      child: CopyButton(text: prompt, tooltip: context.l10n.imageCopyPrompt),
+    ),
+  );
 }
 
 /// Makes the model a step's pictures were made with the default.
