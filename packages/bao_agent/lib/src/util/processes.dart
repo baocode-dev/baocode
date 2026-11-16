@@ -163,9 +163,12 @@ class Shell {
       'The shell is bash (BaoCode Bash), with the usual Unix tools built in: '
       '`rg`, `grep`, `sed`, `awk`, `find`, `xargs`, `jq`, `tar`, `diff`, '
       '`timeout`, `sha256sum`, the coreutils and more (`type -t NAME` says '
-      '`builtin` for one). Write paths as `C:\\x`, `C:/x` or `/c/x`: all name '
-      'the same file, and `/tmp` is the temporary folder. Windows programs on '
-      'the PATH run as usual and write UTF-8.';
+      '`builtin` for one). Paths print as `C:/x` (`pwd`, `\$PWD`, `\$HOME`, '
+      '`realpath`); write them that way too, as bash and Windows programs '
+      'both read it. `C:\\x` and `/c/x` name the same file, `/tmp` is the '
+      'temporary folder, `cygpath -w`/`-u` converts, and '
+      '`PATH="\$PATH:/c/tools"` adds a folder. Windows programs on the PATH '
+      'run as usual and write UTF-8.';
 
   /// What a model is told of PowerShell, where it would write bash.
   static const powershellNote =

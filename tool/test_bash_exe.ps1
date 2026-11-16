@@ -148,6 +148,11 @@ try {
   Test-Bash '/bin and /usr/bin paths' '/bin/bash -c "echo ok"; /usr/bin/env A=1 node -e "console.log(process.env.A)"; /bin/sh -c "type -t rg"' '^ok\n1\nbuiltin\n$'
   Test-Bash 'env -i' 'env -i bash -c "echo clean:\$A"; env -i node -e "console.log(1)"' '^clean:\n1\n$'
   Test-Bash 'pwd -W and rev' 'cd /c/Windows && pwd -W; echo abc | rev' '(?i)^c:/windows\ncba\n$'
+  Test-Bash 'paths print as C:/x' 'cd /c/Windows && echo "$PWD/x"; pwd -P; realpath .; cd /tmp && [[ $PWD == ?:/* && $PWD != *\\* ]] && echo tmp; [[ $HOME == ?:/* ]] && echo home' '(?i)^c:/windows/x\nc:/windows\nc:/windows\ntmp\nhome\n$'
+  Test-Bash 'cygpath' 'cygpath -u "C:\Windows"; cygpath -w /c/Windows; cygpath -m /c/x; cygpath -wp /c/a:/d/b' '(?i)^/c/Windows\nC:\\Windows\nC:/x\nC:\\a;D:\\b\n$'
+  Test-Bash 'PATH="$PATH:/dir"' 'mkdir -p bin && printf "#!/bin/sh\necho appended\n" > bin/tool && PATH="$PATH:$(cygpath -u "$PWD")/bin" && tool && cmd //c "echo %PATH%" | tr ";" "\n" | tail -1' '(?i)^appended\n[a-z]:/.*/bin\r?\n$'
+  Test-Bash '$PPID' '[ "$PPID" -gt 0 ] && echo ok' '^ok\n$'
+  Test-Bash 'exec bash, exec env script' '(exec bash -c "echo in"); printf "#!/usr/bin/env bash\necho ran\n" > e.sh && chmod +x e.sh && (exec env A=1 "$PWD/e.sh")' '^in\nran\n$'
 
   # A script run as `bash script.sh` has the tools ahead of PATH, as `-c`
   # has (System32's `sort`, Git's `xargs` came first).
