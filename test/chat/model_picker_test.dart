@@ -180,7 +180,6 @@ void main() {
     await tester.pump();
 
     // Composing text: Enter is ignored by the menu, nothing is picked.
-    final search = find.byType(EditableText);
     tester.testTextInput.updateEditingValue(
       const TextEditingValue(
         text: 'model 1',
