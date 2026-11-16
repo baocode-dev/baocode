@@ -9,6 +9,7 @@ import '../ide/file_service_io.dart';
 import '../kernel/claude_code/claude_sdk_tools.dart';
 import '../kernel/kernel_types.dart';
 import '../l10n/app_localizations.dart';
+import '../platform/shell_command_io.dart' show windowsPowerShell;
 import 'port_forwards.dart';
 import 'remote_host_settings.dart';
 import 'remote_location.dart';
@@ -242,7 +243,7 @@ abstract final class LocalTools {
     final Process process;
     if (Platform.isWindows) {
       process = await Process.start(
-        'powershell.exe',
+        windowsPowerShell,
         [
           '-NoProfile',
           '-NonInteractive',
