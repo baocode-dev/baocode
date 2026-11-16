@@ -1638,4 +1638,28 @@ void main() {
       expect(asked, ['/anthropic/v1/models', '/v1/models']);
     });
   });
+
+  group('ClaudeEntrypoint', () {
+    test('names BaoCode on the user\'s own Claude sign-in', () {
+      expect(ClaudeEntrypoint.of(null), {'CLAUDE_CODE_ENTRYPOINT': 'baocode'});
+      expect(
+        ClaudeEntrypoint.of(null, {'PATH': '/bin', 'ANTHROPIC_API_KEY': ''}),
+        {'CLAUDE_CODE_ENTRYPOINT': 'baocode'},
+      );
+    });
+
+    test('not on a provider, a key, another server or a cloud', () {
+      expect(ClaudeEntrypoint.of({'ANTHROPIC_BASE_URL': 'http://x'}), isEmpty);
+      for (final name in [
+        'ANTHROPIC_BASE_URL',
+        'ANTHROPIC_AUTH_TOKEN',
+        'ANTHROPIC_API_KEY',
+        'CLAUDE_CODE_USE_BEDROCK',
+        'CLAUDE_CODE_USE_VERTEX',
+        'CLAUDE_CODE_USE_FOUNDRY',
+      ]) {
+        expect(ClaudeEntrypoint.of(null, {name: '1'}), isEmpty, reason: name);
+      }
+    });
+  });
 }

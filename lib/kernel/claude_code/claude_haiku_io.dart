@@ -175,6 +175,7 @@ Future<(String, int)> _run(
         ...proxy,
         if (env != null)
           for (final name in ClaudeModelVariables.inherited) name: '',
+        ...ClaudeEntrypoint.of(env, cli.environment),
         ...ClaudeEnvironment.stateDirectory(cli.environment),
       },
       includeParentEnvironment: Platform.isWindows,

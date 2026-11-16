@@ -139,6 +139,7 @@ class ProcessTransport implements ClaudeCodeTransport {
           if (launch.env != null)
             for (final name in ClaudeModelVariables.inherited) name: '',
           ...ClaudeLaunch.environment,
+          ...ClaudeEntrypoint.of(launch.env, cli.environment),
           ...ClaudeEnvironment.stateDirectory(cli.environment),
         },
         // The login shell's environment is the whole of it; on Windows it
