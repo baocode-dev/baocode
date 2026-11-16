@@ -4478,6 +4478,12 @@ abstract class AppLocalizations {
   /// **'Set as default image model'**
   String get imageDefaultSet;
 
+  /// No description provided for @imageCopyPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy prompt'**
+  String get imageCopyPrompt;
+
   /// No description provided for @toolProposingGoal.
   ///
   /// In en, this message translates to:

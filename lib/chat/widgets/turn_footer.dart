@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../ide/ide_hover.dart';
@@ -10,12 +9,10 @@ import '../../l10n/l10n.dart';
 import '../../theme/app_theme.dart';
 import '../chat_models.dart';
 import 'agent_step.dart';
-import 'hover_builder.dart';
+import 'copy_button.dart';
 import 'rolling_text.dart';
 
 /// Lucide's icons the footer uses.
-const _copyIcon = 'assets/icons/lucide-copy.svg';
-const _checkIcon = 'assets/icons/lucide-check.svg';
 const _zapIcon = 'assets/icons/lucide-zap.svg';
 const _clockIcon = 'assets/icons/lucide-clock.svg';
 const _arrowDownIcon = 'assets/icons/lucide-arrow-down.svg';
@@ -86,7 +83,8 @@ class TurnFooter extends StatelessWidget {
     if (live == null) {
       return _padded(
         _line([
-          if (answer case final answer?) _CopyButton(text: answer),
+          if (answer case final answer?)
+            CopyButton(text: answer, tooltip: l10n.turnCopy),
           ..._stats(l10n),
         ]),
       );
@@ -275,66 +273,6 @@ class _Stat extends StatelessWidget {
           else
             Text(text, style: TextStyle(color: color, fontSize: 12)),
         ],
-      ),
-    );
-  }
-}
-
-class _CopyButton extends StatefulWidget {
-  const _CopyButton({required this.text});
-
-  final String text;
-
-  @override
-  State<_CopyButton> createState() => _CopyButtonState();
-}
-
-class _CopyButtonState extends State<_CopyButton> {
-  bool _copied = false;
-  Timer? _copiedTimer;
-
-  void _copy() {
-    unawaited(Clipboard.setData(ClipboardData(text: widget.text)));
-    _copiedTimer?.cancel();
-    setState(() => _copied = true);
-    _copiedTimer = Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) setState(() => _copied = false);
-    });
-  }
-
-  @override
-  void dispose() {
-    _copiedTimer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    return IdeHover(
-      message: _copied ? l10n.turnCopied : l10n.turnCopy,
-      child: HoverBuilder(
-        cursor: SystemMouseCursors.click,
-        builder: (context, hovered) => GestureDetector(
-          onTap: _copy,
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: hovered ? AppColors.hover : null,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: SvgPicture.asset(
-              _copied ? _checkIcon : _copyIcon,
-              width: 13,
-              height: 13,
-              colorFilter: ColorFilter.mode(
-                hovered || _copied ? AppColors.text : AppColors.textFaint,
-                BlendMode.srcIn,
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

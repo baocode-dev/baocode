@@ -2489,6 +2489,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imageDefaultSet => 'Set as default image model';
 
   @override
+  String get imageCopyPrompt => 'Copy prompt';
+
+  @override
   String get toolProposingGoal => 'Proposing a goal';
 
   @override
