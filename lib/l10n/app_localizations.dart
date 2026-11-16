@@ -22840,7 +22840,7 @@ abstract class AppLocalizations {
   /// No description provided for @baoBashDescription.
   ///
   /// In en, this message translates to:
-  /// **'A complete bash for agents on Windows: rg, grep, sed, awk, find, jq, tar and some 80 other common commands built in, no Git for Windows needed, and C:\\ and /c/ paths alike. The built-in core runs its agents\' commands with it.'**
+  /// **'A complete bash for agents on Windows: rg, grep, sed, awk, find, jq, tar and some 80 other common commands built in, no Git for Windows needed, and C:\\ and /c/ paths alike. Both the built-in core and Claude Code\'s run their agents\' commands with it.'**
   String get baoBashDescription;
 
   /// No description provided for @baoBashNotInstalled.

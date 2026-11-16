@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../ide/ide_button.dart';
-import '../kernel/claude_code/claude_core_setting.dart';
 import '../l10n/l10n.dart';
 import '../settings/pages/settings_widgets.dart';
 import '../theme/codicons.dart';
@@ -101,25 +100,18 @@ class _BaoBashSettingState extends State<BaoBashSetting> {
 }
 
 /// Above every page of the settings dialog: BaoCode Bash recommended, as
-/// [BaoBash.showsNotice] says, to those whose agents would run it (the
-/// built-in core's: Claude Code's CLI is not given it yet). Install, or
-/// Not Now for good; the Command Line setting stays.
+/// [BaoBash.showsNotice] says (both cores run their agents' commands with
+/// it). Install, or Not Now for good; the Command Line setting stays.
 class BaoBashNotice extends StatelessWidget {
-  const BaoBashNotice({super.key, required this.bash, this.core});
+  const BaoBashNotice({super.key, required this.bash});
 
   final BaoBash bash;
-
-  /// The core new sessions run on; the setting's by default.
-  final ClaudeCore Function()? core;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: bash,
     builder: (context, _) {
-      if (!bash.showsNotice ||
-          (core ?? ClaudeCore.current)() != ClaudeCore.builtin) {
-        return const SizedBox.shrink();
-      }
+      if (!bash.showsNotice) return const SizedBox.shrink();
       final l10n = context.l10n;
       final colors = themeColors;
       final progress = bash.progress;

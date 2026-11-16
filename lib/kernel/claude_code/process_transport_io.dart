@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
+import '../../bash_exe/bao_bash.dart';
 import '../../models/launch_environment.dart';
 import '../../network/network_proxy_io.dart';
 import '../../platform/data_dir.dart';
@@ -108,6 +109,12 @@ class ProcessTransport implements ClaudeCodeTransport {
         environment: {
           ...cli.environment,
           ...proxy,
+          // Its commands run with BaoCode Bash, where it is installed
+          // (Windows), unless the user named a bash.
+          ...BaoBash.cliEnvironment({
+            ...Platform.environment,
+            ...cli.environment,
+          }),
           // A provider's session: none of the user's own model setup.
           if (launch.env != null)
             for (final name in ClaudeModelVariables.inherited) name: '',

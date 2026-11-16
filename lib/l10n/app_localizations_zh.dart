@@ -13286,7 +13286,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get baoBashDescription =>
-      '让智能体在 Windows 上用上完整的 bash：自带 rg、grep、sed、awk、find、jq、tar 等八十多个常用命令，不需要装 Git for Windows；C:\\ 和 /c/ 两种路径都认。内置内核会用它运行命令。';
+      '让智能体在 Windows 上用上完整的 bash：自带 rg、grep、sed、awk、find、jq、tar 等八十多个常用命令，不需要装 Git for Windows；C:\\ 和 /c/ 两种路径都认。内置内核和 Claude Code 内核都会用它运行命令。';
 
   @override
   String get baoBashNotInstalled =>
