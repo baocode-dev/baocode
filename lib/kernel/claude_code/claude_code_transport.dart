@@ -181,11 +181,12 @@ class ClaudeLaunch {
   ClaudeLaunch withSettingsFile(String path) => copyWith(settingsPath: path);
 
   /// This launch in [cwd], or with [env], or its flag settings in the file
-  /// at [settingsPath].
+  /// at [settingsPath], or with [instructions].
   ClaudeLaunch copyWith({
     String? cwd,
     Map<String, String>? env,
     String? settingsPath,
+    String? instructions,
   }) => ClaudeLaunch(
     cwd: cwd ?? this.cwd,
     resume: resume,
@@ -202,7 +203,7 @@ class ClaudeLaunch {
     directories: directories,
     folderInstructions: folderInstructions,
     readable: readable,
-    instructions: instructions,
+    instructions: instructions ?? this.instructions,
     ownPrompt: ownPrompt,
     models: models,
     sdkServers: sdkServers,

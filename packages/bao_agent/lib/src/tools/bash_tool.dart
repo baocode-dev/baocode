@@ -47,9 +47,8 @@ ${_shellNote(session)}- ${_search(session)} Keep a search narrow (a folder, a fi
 
   /// What the shell is, where it is not what a model expects of the
   /// platform: BaoCode Bash on Windows.
-  static String _shellNote(AgentSession session) => session.shell.baoBash
-      ? '- The shell is bash (BaoCode Bash), with `rg`, `grep`, `sed`, `awk`, `find`, `xargs`, `jq`, `tar` and the other usual Unix tools built in. Write paths as `C:\\x`, `C:/x` or `/c/x`: all name the same file. Windows programs on the PATH run as usual.\n'
-      : '';
+  static String _shellNote(AgentSession session) =>
+      session.shell.baoBash ? '- ${Shell.baoBashNote}\n' : '';
 
   /// How to search, with what this machine has: a model told of `rg`
   /// where there is none spends a call finding that out, and one left to
