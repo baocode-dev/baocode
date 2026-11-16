@@ -148,7 +148,12 @@ void main() {
       if (skip != null) return markTestSkipped(skip);
       ClaudeCore.current = () => core;
       final kernel = KernelRegistry.claudeCode.create(
-        KernelContext(cwd: cwd, settings: const {'mode': 'default'}),
+        KernelContext(
+          cwd: cwd,
+          // The upstream's, not the user's own Claude Code setup
+          // (the CLI's default).
+          settings: {'mode': 'default', 'model': modelRef('oc', model)},
+        ),
       ) as ClaudeCodeKernel;
       addTearDown(kernel.dispose);
       final transcript = Transcript();
