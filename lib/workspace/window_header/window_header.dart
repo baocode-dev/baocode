@@ -23,6 +23,7 @@ import '../../theme/codicons.dart';
 import '../../theme/app_theme.dart';
 import '../back_to_chat_button.dart';
 import '../chat_terminal.dart';
+import '../islands.dart';
 import '../open_in_editor_button.dart';
 import '../pin_window_button.dart';
 import '../window_controls.dart';
@@ -127,8 +128,9 @@ class WindowHeader extends StatefulWidget {
 
   /// Over the chat, the session's title, after the sidebar's toggle and
   /// the menus' button, in place of a row of the chat's own: the narrow window's, as macOS's
-  /// title bar has it. The strip is then the conversation's, its background
-  /// and no line under it.
+  /// title bar has it. With no line under it; of the window's color, as
+  /// around the conversation's card (islands, see [Islands.on]), or else the
+  /// conversation's own, its top.
   final String? title;
 
   /// The settings dialog is over the window: the sidebar's toggle, the
@@ -255,7 +257,8 @@ class _WindowHeaderState extends State<WindowHeader> {
     // too (on Windows 10, where there is none, that tint is opaque).
     // Over the IDE it is the IDE's title bar: its color, and the way back
     // to the chat on the right, as on macOS. With the session's title, it
-    // is the top of the conversation.
+    // is the top of the conversation: of the window's color all across, as
+    // around its card, where it is one (islands); else of its own.
     final menus = KeyedSubtree(
       key: _menus,
       child: HeaderMenuBar(items: _items, compact: widget.compact),
@@ -286,7 +289,7 @@ class _WindowHeaderState extends State<WindowHeader> {
     return Material(
       color: ide
           ? IdeModernUI.shell
-          : title != null
+          : title != null && !Islands.on(context)
           ? AppColors.conversationSurface
           : AppColors.sidebarSurface,
       // No line under it: in the IDE its tabs' strip is under it, and the
