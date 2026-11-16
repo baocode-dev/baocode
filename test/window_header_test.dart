@@ -261,8 +261,10 @@ void main() {
   }, variant: _windows);
 
   testWidgets('narrow, the session\'s title is in the header, as macOS\'s '
-      'title bar has it: the menus folded into one button, the '
-      'conversation\'s background, no line', (tester) async {
+      'title bar has it: the menus folded into one button, the window\'s '
+      'color all across as around the conversation\'s card, no line', (
+    tester,
+  ) async {
     final (workspace, _) = await pumpWindowsApp(tester);
     tester.view.physicalSize = const Size(520, 760);
     await tester.pump();
@@ -296,7 +298,8 @@ void main() {
     final material = tester.widget<Material>(
       find.descendant(of: header, matching: find.byType(Material)).first,
     );
-    expect(material.color, AppColors.conversationSurface);
+    // Not the card's own: the strip and the window around the card are one.
+    expect(material.color, AppColors.sidebarSurface);
     // The sidebar's toggle first, as by macOS's traffic lights, then the
     // menus' button, then the title.
     final menu = find.descendant(
