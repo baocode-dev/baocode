@@ -3721,9 +3721,11 @@ class ClaudeCodeKernel
       request['decision_reason_code'] != null;
 
   /// Plan's commands are left to the classifier with the approvals that
-  /// approve for the user; asked about with the others.
+  /// approve for the user, where it runs on the model: on another
+  /// provider's there is none to leave them to (see [_permission]), and
+  /// the CLI, told to use it all the same, refuses what it cannot check.
   bool get _reviewsPlan =>
-      _approval == 'auto' || _approval == 'bypassPermissions';
+      _classifies && (_approval == 'auto' || _approval == 'bypassPermissions');
 
   /// Whether the auto mode classifier runs on the model: not on another
   /// provider's.

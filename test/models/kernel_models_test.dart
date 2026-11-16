@@ -909,7 +909,7 @@ void main() {
 
   test('full access in Plan approves on a provider\'s model, with no '
       'classifier to leave commands to', () async {
-    final (:kernel, launches: _, :clis, environments: _) = start(providers, {
+    final (:kernel, :launches, :clis, environments: _) = start(providers, {
       'model': '@other/m',
       'permission': 'bypassPermissions',
       'mode': 'plan',
@@ -918,6 +918,9 @@ void main() {
     kernel.events.listen(transcript.apply);
     kernel.send(const KernelTurn(id: 'u1', text: 'go'));
     await pumpEventQueue();
+    // No classifier on the provider's model: Plan's commands are not left
+    // to one (the CLI refuses what it cannot check there).
+    expect(launches.single.autoModeDuringPlan, isFalse);
     final cli = clis.single;
     void ask(String id, String tool, Map<String, Object?> input) => cli.push({
       'type': 'control_request',
@@ -951,19 +954,22 @@ void main() {
     kernel.dispose();
   });
 
-  test('a provider gone since, Claude Code\'s own left out of the picker, '
-      'falls back to the first upstream\'s model, as the picker shows', () async {
-    await providers.setBuiltinHidden(true);
-    final (:kernel, :launches, clis: _, :environments) = start(providers, {
-      'model': '@removed/x',
-    });
-    kernel.prepare();
-    await pumpEventQueue();
-    expect(kernel.model.selected, '@gw/gpt-5');
-    expect(launches.single.model, startsWith('gpt-5'));
-    expect(environments.single.$1, 'gw');
-    kernel.dispose();
-  });
+  test(
+    'a provider gone since, Claude Code\'s own left out of the picker, '
+    'falls back to the first upstream\'s model, as the picker shows',
+    () async {
+      await providers.setBuiltinHidden(true);
+      final (:kernel, :launches, clis: _, :environments) = start(providers, {
+        'model': '@removed/x',
+      });
+      kernel.prepare();
+      await pumpEventQueue();
+      expect(kernel.model.selected, '@gw/gpt-5');
+      expect(launches.single.model, startsWith('gpt-5'));
+      expect(environments.single.$1, 'gw');
+      kernel.dispose();
+    },
+  );
 
   test('the model in use removed mid-conversation: the CLI started on it '
       'is let go, and the next message resumes on the model the picker '
