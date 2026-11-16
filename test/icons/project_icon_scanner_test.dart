@@ -26,8 +26,10 @@ void main() {
       expect(best.map((c) => c.path), contains('favicon.ico'));
       expect(
         best.map((c) => c.path),
-        contains('ios/Runner/Assets.xcassets/AppIcon.appiconset/'
-            'AppIcon-512@2x.png'),
+        contains(
+          'ios/Runner/Assets.xcassets/AppIcon.appiconset/'
+          'AppIcon-512@2x.png',
+        ),
       );
     });
 
@@ -44,10 +46,7 @@ void main() {
         'ios/AppIcon.appiconset/AppIcon-40@2x.png',
       ]);
       expect(best.where((c) => c.path.contains('mipmap')).length, 1);
-      expect(
-        best.where((c) => c.path.contains('appiconset')).length,
-        2,
-      );
+      expect(best.where((c) => c.path.contains('appiconset')).length, 2);
     });
 
     test('answers with at most maxCandidates', () {
@@ -62,10 +61,7 @@ void main() {
     });
 
     test('scores shallower deeper than deeper', () {
-      final best = ProjectIconScanner.rank([
-        'a/b/logo.png',
-        'logo.png',
-      ]);
+      final best = ProjectIconScanner.rank(['a/b/logo.png', 'logo.png']);
       expect(best.first.path, 'logo.png');
     });
   });
@@ -74,9 +70,8 @@ void main() {
     test('walks a folder, skipping what is not looked into', () async {
       final root = await Directory.systemTemp.createTemp('icons');
       addTearDown(() => root.delete(recursive: true));
-      Future<void> put(String relative) => File(
-        p.join(root.path, relative),
-      ).create(recursive: true);
+      Future<void> put(String relative) =>
+          File(p.join(root.path, relative)).create(recursive: true);
       await put('logo.png');
       await put('assets/icon.png');
       await put('node_modules/pkg/logo.png');
@@ -91,10 +86,7 @@ void main() {
     });
 
     test('answers none for a missing folder', () async {
-      expect(
-        await ProjectIconScanner.scan('/no/such/folder'),
-        isEmpty,
-      );
+      expect(await ProjectIconScanner.scan('/no/such/folder'), isEmpty);
     });
   });
 }

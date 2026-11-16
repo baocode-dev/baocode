@@ -588,10 +588,12 @@ class _ProjectIconPickerState extends State<ProjectIconPicker>
       for (final cell in _found ?? const <_Cell>[])
         if (cell.label.toLowerCase().contains(query)) cell,
     ];
-    if (query.isNotEmpty) return [_Section(null, [...found, ...images])];
+    if (query.isNotEmpty)
+      return [
+        _Section(null, [...found, ...images]),
+      ];
     return [
-      if (found.isNotEmpty)
-        _Section(l10n.iconPickerFoundInProject, found),
+      if (found.isNotEmpty) _Section(l10n.iconPickerFoundInProject, found),
       _Section(l10n.iconPickerUploaded, [
         _Cell(null, l10n.iconPickerUpload),
         if (_target.site != null)

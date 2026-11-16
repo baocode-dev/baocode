@@ -63,9 +63,7 @@ class ProjectIconScanner {
     if (!await directory.exists()) return const [];
     final found = <ProjectIconCandidate>[];
     await _walk(root, directory, 0, found);
-    return [
-      for (final candidate in _best(found)) p.join(root, candidate.path),
-    ];
+    return [for (final candidate in _best(found)) p.join(root, candidate.path)];
   }
 
   static Future<void> _walk(
