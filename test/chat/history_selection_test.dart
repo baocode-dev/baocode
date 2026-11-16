@@ -10,6 +10,7 @@ import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer_draft.dart';
+import 'package:baocode/chat/selection_recorder.dart';
 import 'package:baocode/chat/widgets/step_header.dart';
 import 'package:baocode/platform/event_log.dart';
 import 'package:baocode/theme/app_theme.dart';
@@ -382,8 +383,13 @@ void main() {
       'clean list as it is dragged, and logged', (tester) async {
     final folder = Directory.systemTemp.createTempSync('history_selection');
     EventLog.current = EventLog(folder.path);
+    SelectionRecorder.debugReset();
+    final written = <String, String>{};
+    SelectionRecorder.write = (hangs, name, text) async =>
+        written['hangs/$name'] = text;
     addTearDown(() {
       EventLog.current = null;
+      SelectionRecorder.debugReset();
       folder.deleteSync(recursive: true);
     });
     String? copied;
@@ -453,9 +459,18 @@ void main() {
           contains('a drag on text had selected nothing (while held'),
           contains('done again, selected'),
           contains('1 unregistered'),
+          contains('steps in ${written.keys.single}'),
         ),
       ],
     );
+    // The steps before it: the press, and the start sent first to the text
+    // left on the list (no item), which answered it was before it all.
+    final steps = written.values.single;
+    expect(steps, contains('== Steps, the newest last'));
+    expect(steps, contains('press '));
+    expect(steps, matches(RegExp(r'got start .*asked #0/-1:prev')));
+    expect(steps, contains('drag done again (while held)'));
+    expect(steps, contains('off since'));
     await mouse.up();
     await tester.pump();
     expect(tester.takeException(), isNull);

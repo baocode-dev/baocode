@@ -27,6 +27,7 @@ import 'chat_session.dart';
 import 'composer/composer.dart';
 import 'composer/composer_draft.dart';
 import 'reply_scroll.dart';
+import 'selection_recorder.dart';
 import 'rewind_files_prompt.dart';
 import 'side_panel/file_link_menu.dart';
 import 'steadiness.dart';
@@ -658,6 +659,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   @override
   void initState() {
     super.initState();
+    _selectionFocusNode.addListener(_recordFocus);
     _scrollController
       ..laidOut = _keepShownLaidOut
       ..stopAt = _replyStart;
@@ -1275,7 +1277,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     _syncEdgeFades();
     _scheduleStickyUpdate();
-    if (_pointersDown > 0) _scheduleDragReselect();
+    if (_pointersDown > 0) {
+      if (_recordNow()) {
+        _selectionDelegate.recorder.step('scroll ${_scrollOffset()}');
+      }
+      _scheduleDragReselect();
+    }
     _wantEarlier();
   }
 
@@ -1365,10 +1372,48 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         event.kind == PointerDeviceKind.mouse &&
         event.buttons == kPrimaryMouseButton &&
         HardwareKeyboard.instance.isShiftPressed;
+    _selectionDelegate.recorder.step(
+      'press ${_ChatSelectionDelegate._offset(event.position)} '
+      '${event.kind.name} buttons ${event.buttons}'
+      '${_dragFrom == null ? ', no text drag' : ''}'
+      '${onBar ? ', on the bar' : ''}${own ? ', in its own selection' : ''}'
+      '${_selectionDelegate.extending ? ', shift' : ''}; '
+      '$_pointersDown held, focus '
+      '${_selectionFocusNode.hasFocus ? 'here' : 'elsewhere'}, '
+      'scroll ${_scrollOffset()}',
+    );
   }
+
+  String _scrollOffset() => _scrollController.hasClients
+      ? _scrollController.position.pixels.toStringAsFixed(1)
+      : '-';
+
+  /// When a move or a scroll was last recorded: not more than one each
+  /// 50 ms of either.
+  DateTime _lastRecorded = DateTime(0);
+
+  bool _recordNow() {
+    final now = DateTime.now();
+    if (now.difference(_lastRecorded) < const Duration(milliseconds: 50)) {
+      return false;
+    }
+    _lastRecorded = now;
+    return true;
+  }
+
+  void _recordFocus() => _selectionDelegate.recorder.step(
+    'focus ${_selectionFocusNode.hasFocus ? 'here' : 'gone'}',
+  );
 
   void _handlePointerUp(PointerEvent event) {
     if (!_pressedDevices.remove(event.device)) return;
+    _selectionDelegate.recorder.step(
+      '${switch (event) {
+        PointerUpEvent() => 'release',
+        PointerCancelEvent() => 'cancel',
+        _ => 'release unseen, moved',
+      }} ${_ChatSelectionDelegate._offset(event.position)}',
+    );
     final from = _dragFrom;
     _dragFrom = null;
     if (from != null &&
@@ -1403,6 +1448,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// Checks what the drag made of a move once the selection's gesture has
   /// seen it too: gestures see a move after every [Listener].
   void _handlePointerMove(PointerMoveEvent event) {
+    if (_pointersDown > 0 && _recordNow()) {
+      _selectionDelegate.recorder.step(
+        'move ${_ChatSelectionDelegate._offset(event.position)}',
+      );
+    }
     final from = _dragFrom;
     if (from == null) return;
     final to = event.position;
@@ -3145,6 +3195,9 @@ class _ItemSelectionScopeState extends State<_ItemSelectionScope> {
   @override
   void didUpdateWidget(_ItemSelectionScope oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (_registrar.index != widget.index) {
+      widget.delegate._renumbered(_registrar.index, widget.index);
+    }
     _registrar.index = widget.index;
   }
 
@@ -3244,11 +3297,109 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
   void _addItemSelectable(Selectable selectable, _ItemRegistrar item) {
     _items[selectable] = item;
     add(selectable);
+    _noteList(added: item.index);
   }
 
   void _removeItemSelectable(Selectable selectable) {
-    _items.remove(selectable);
+    final item = _items.remove(selectable)?.index ?? -1;
     remove(selectable);
+    _noteList(removed: item);
+  }
+
+  // --- The list of text, as recorded -------------------------------------
+
+  /// What a drag on the text went through, for when it goes wrong.
+  final SelectionRecorder recorder = SelectionRecorder();
+
+  // The list's changes since they were last recorded: text added, taken
+  // off, items numbered anew (the first few of each).
+  final List<int> _added = [];
+  final List<int> _removed = [];
+  final List<String> _renumberings = [];
+  int _addCount = 0;
+  int _removeCount = 0;
+  int _renumberCount = 0;
+  bool _listNoted = false;
+
+  void _noteList({int? added, int? removed}) {
+    if (added != null && _addCount++ < 6) _added.add(added);
+    if (removed != null && _removeCount++ < 6) _removed.add(removed);
+    if (_listNoted || _disposed) return;
+    _listNoted = true;
+    scheduleMicrotask(_recordList);
+  }
+
+  void _renumbered(int from, int to) {
+    if (_renumberCount++ < 4) _renumberings.add('$from→$to');
+    _noteList();
+  }
+
+  /// Records the list's changes, and whether it is still whole: each text
+  /// listed once, registered, in the order of its items. (Within an item
+  /// the order is by where the text is, checked only when written out.)
+  void _recordList() {
+    _listNoted = false;
+    if (_disposed) return;
+    String some(List<Object> listed, int count) =>
+        '${listed.join(',')}${count > listed.length ? ',…' : ''}';
+    recorder.listChanged(
+      [
+        if (_addCount > 0) '+$_addCount (items ${some(_added, _addCount)})',
+        if (_removeCount > 0)
+          '-$_removeCount (items ${some(_removed, _removeCount)})',
+        if (_renumberCount > 0)
+          'items renumbered $_renumberCount '
+              '(${some(_renumberings, _renumberCount)})',
+        '${selectables.length} listed',
+      ].join(' '),
+    );
+    _added.clear();
+    _removed.clear();
+    _renumberings.clear();
+    _addCount = _removeCount = _renumberCount = 0;
+    _checkList();
+  }
+
+  void _checkList() {
+    final off = _listOff(geometry: false);
+    if (off == null) {
+      recorder.listWhole();
+    } else {
+      recorder.listOff(off);
+    }
+  }
+
+  /// What is off in the list, or null when it is whole: text listed twice,
+  /// no longer registered, out of order (by item; with [geometry], within
+  /// an item too).
+  String? _listOff({required bool geometry}) {
+    final seen = <Selectable>{};
+    var twice = 0;
+    var unregistered = 0;
+    final misordered = <String>[];
+    var misorders = 0;
+    for (final (index, selectable) in selectables.indexed) {
+      if (!seen.add(selectable)) twice++;
+      if (!_items.containsKey(selectable)) unregistered++;
+      if (index == 0) continue;
+      final previous = selectables[index - 1];
+      final a = _itemOf(previous);
+      final b = _itemOf(selectable);
+      final off =
+          a > b ||
+          (geometry && a == b && compareOrder(previous, selectable) > 0);
+      if (off && misorders++ < 5) {
+        misordered.add('#${index - 1} (item $a) > #$index (item $b)');
+      }
+    }
+    if (twice == 0 && unregistered == 0 && misorders == 0) return null;
+    return [
+      if (twice > 0) '$twice listed twice',
+      if (unregistered > 0) '$unregistered unregistered',
+      if (misorders > 0)
+        '$misorders out of order: ${misordered.join(', ')}'
+            '${misorders > misordered.length ? ', …' : ''}',
+    ].join('; ');
   }
 
   int _itemOf(Selectable selectable) => _items[selectable]?.index ?? -1;
@@ -3315,6 +3466,90 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
 
   @override
   SelectionResult dispatchSelectionEvent(SelectionEvent event) {
+    final outer = _walk;
+    final walk = _walk = event is SelectionEdgeUpdateEvent ? [] : null;
+    _lastAsked = null;
+    final SelectionResult result;
+    try {
+      result = _dispatch(event);
+    } finally {
+      _walk = outer;
+    }
+    final asked = _lastAsked;
+    recorder.step(
+      '${_dispatchingOwn ? 'own' : 'got'} ${_describeEvent(event)} → '
+      '${result.name}; edges #$currentSelectionStartIndex, '
+      '#$currentSelectionEndIndex, ${value.status.name}'
+      '${walk == null || walk.isEmpty ? '' : '; asked ${walk.join(' ')}'}'
+      '${walk != null && walk.length >= _walkMost ? ' …' : ''}'
+      '${asked == null ? '' : ', the last ${_describeSelectable(asked)}'}',
+    );
+    return result;
+  }
+
+  /// The text an edge update asked, in order, and what each answered: where
+  /// the edge went and why.
+  List<String>? _walk;
+  Selectable? _lastAsked;
+  static const _walkMost = 40;
+
+  @override
+  SelectionResult dispatchSelectionEventToChild(
+    Selectable selectable,
+    SelectionEvent event,
+  ) {
+    final result = super.dispatchSelectionEventToChild(selectable, event);
+    if (_walk case final walk? when walk.length < _walkMost) {
+      final answer = switch (result) {
+        SelectionResult.next => 'next',
+        SelectionResult.previous => 'prev',
+        SelectionResult.end => 'END',
+        SelectionResult.pending => 'pending',
+        SelectionResult.none => 'none',
+      };
+      walk.add(
+        '#${selectables.indexOf(selectable)}/${_itemOf(selectable)}:$answer',
+      );
+      _lastAsked = selectable;
+    }
+    return result;
+  }
+
+  static String _describeEvent(SelectionEvent event) => switch (event) {
+    SelectionEdgeUpdateEvent(
+      :final type,
+      :final globalPosition,
+      :final granularity,
+    ) =>
+      '${type == SelectionEventType.startEdgeUpdate ? 'start' : 'end'} '
+          '${_offset(globalPosition)}'
+          '${granularity == TextGranularity.character ? '' : ' ${granularity.name}'}',
+    ClearSelectionEvent() => 'clear',
+    SelectAllSelectionEvent() => 'select all',
+    SelectWordSelectionEvent(:final globalPosition) =>
+      'word ${_offset(globalPosition)}',
+    SelectParagraphSelectionEvent(:final globalPosition) =>
+      'paragraph ${_offset(globalPosition)}',
+    GranularlyExtendSelectionEvent(:final isEnd, :final forward) =>
+      'extend ${isEnd ? 'end' : 'start'} ${forward ? 'forward' : 'back'}',
+    DirectionallyExtendSelectionEvent(:final isEnd, :final direction) =>
+      'extend ${isEnd ? 'end' : 'start'} ${direction.name}',
+    _ => event.type.name,
+  };
+
+  /// [selectable]'s place and selection, kinds only.
+  String _describeSelectable(Selectable selectable) {
+    final box = _globalBoxes(selectable)
+        .fold<Rect?>(null, (all, rect) => all?.expandToInclude(rect) ?? rect);
+    final geometry = selectable.value;
+    return '#${selectables.indexOf(selectable)} '
+        '${selectable.runtimeType} item ${_itemOf(selectable)}'
+        '${_items.containsKey(selectable) ? '' : ' unregistered'} '
+        '${box == null ? 'no box' : _rect(box)} '
+        '${geometry.status.name}, ${selectable.contentLength} long';
+  }
+
+  SelectionResult _dispatch(SelectionEvent event) {
     if (suspended &&
         (event is SelectionEdgeUpdateEvent ||
             event is ClearSelectionEvent ||
@@ -3405,11 +3640,11 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
 
   // --- A drag on text that selects nothing ---------------------------------
   //
-  // Seen on users' machines: in one stretch of a conversation a drag selects
-  // nothing, for as long as the app runs (the stretch moving with the
-  // text). The selection's edges go, in list order, to the text under them;
-  // there they went elsewhere, so the list was off. The drag is done again
-  // on a clean list, and what was off reported (errors.log).
+  // Seen on users' machines (#928): now and then a drag on the text selects
+  // nothing. Its edges go, in list order, to the text under them; there
+  // they went elsewhere, or nowhere. The drag is done again on a clean
+  // list, as it is dragged; and what led to it is written out ([recorder]):
+  // a line in the event log, the steps before it in hangs/selection-*.txt.
 
   static Iterable<Rect> _globalBoxes(Selectable selectable) {
     final transform = selectable.getTransformTo(null);
@@ -3421,8 +3656,6 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
   static bool _holds(Selectable selectable, Offset position) =>
       _globalBoxes(selectable).any((box) => box.contains(position));
 
-  static int _reports = 0;
-
   /// The drag held now was done again here ([followDrag]): its end follows
   /// the pointer from here too, when the selection's own gesture does not.
   bool _following = false;
@@ -3432,70 +3665,50 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
   bool _endSeen = false;
   bool _dispatchingOwn = false;
 
-  // What led to it, for the log ([_trace]): the selection events from
-  // elsewhere (the selection's gesture, keys, wheel steps) since the press,
-  // and the listed text the last start from elsewhere went to.
+  // The selection events from elsewhere (the selection's gesture, keys,
+  // wheel steps) since the press, and the listed text the last start from
+  // elsewhere went to: a gesture given up on clears; one that never came
+  // sends nothing.
   int _clears = 0;
   int _starts = 0;
   int _ends = 0;
   int _startWent = -1;
   static int _logged = 0;
 
-  /// A press on the list: the events counted from here.
+  /// A press on the list: the events counted from here, and the list
+  /// checked (it may have changed where nothing tells, in Flutter's own).
   void beginDrag() {
     _clears = _starts = _ends = 0;
     _startWent = -1;
+    _checkList();
   }
 
-  /// Where the drag pressed at [from] stands, before it is done again:
-  /// which text it was pressed in and where its start went, the events since
-  /// the press (a gesture given up on clears it; one that never came sends
-  /// nothing), and how the list is kept. Kinds and places only, none of the
-  /// text.
+  /// Where the drag pressed at [from] stands, before it is done again.
   String _trace(Offset from) {
     String at(int index) => index < 0 || index >= selectables.length
         ? '#$index'
         : '#$index (item ${_itemOf(selectables[index])})';
-    final misordered = [
-      for (var index = 0; index + 1 < selectables.length; index++)
-        if (compareOrder(selectables[index], selectables[index + 1]) > 0)
-          '${at(index)} > ${at(index + 1)}',
-    ];
-    final unregistered = selectables
-        .where((selectable) => !_items.containsKey(selectable))
-        .length;
     return 'pressed in ${at(selectables.indexWhere((s) => _holds(s, from)))}, '
         'its start went to ${at(_startWent)}, edges at '
         '#$currentSelectionStartIndex, #$currentSelectionEndIndex; since the '
         'press $_clears clears, $_starts starts, $_ends ends from elsewhere; '
-        '${selectables.length} listed '
-        '(${selectables.length - selectables.toSet().length} twice, '
-        '$unregistered unregistered, ${misordered.length} out of order'
-        '${misordered.isEmpty ? '' : ': ${misordered.take(5).join(', ')}'})';
-  }
-
-  /// Writes a drag done again ([when] noticed) to the event log, with
-  /// [trace] from before it was.
-  void _logDrag(String when, Offset from, Offset to, String trace) {
-    if (_logged++ >= 20) return;
-    final healed = value.status == SelectionStatus.uncollapsed;
-    appEvent(
-      'selection',
-      'a drag on text had selected nothing ($when, '
-          '${(to - from).distance.round()} px from ${_offset(from)} to '
-          '${_offset(to)}); done again, '
-          '${healed ? 'selected' : 'still nothing'}: $trace',
-    );
+        '${selectables.length} listed, '
+        '${_listOff(geometry: true) ?? 'whole'}';
   }
 
   /// Drags again from [from] to [to] on the list rid of text listed twice
-  /// or no longer registered, in order.
-  void _dragAgain(Offset from, Offset to) {
+  /// or no longer registered, in order; then writes what led to it, [when]
+  /// it was noticed: a line in the event log, and when that put it right
+  /// (it was no drag on blank space), the steps before it.
+  void _dragAgain(String when, Offset from, Offset to) {
+    final trace = _trace(from);
+    final around = _describeAround(from);
     final seen = <Selectable>{};
     selectables = [
       for (final selectable in selectables)
         if (_items.containsKey(selectable) && seen.add(selectable)) selectable,
     ]..sort(compareOrder);
+    recorder.step('drag done again ($when)');
     _dispatchingOwn = true;
     try {
       dispatchSelectionEvent(const ClearSelectionEvent());
@@ -3508,7 +3721,28 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
     } finally {
       _dispatchingOwn = false;
     }
+    if (_logged++ >= 20) return;
+    final healed = value.status == SelectionStatus.uncollapsed;
+    final headline =
+        'a drag on text had selected nothing ($when, '
+        '${(to - from).distance.round()} px from ${_offset(from)} to '
+        '${_offset(to)}); done again, '
+        '${healed ? 'selected' : 'still nothing'}';
+    final file = healed
+        ? recorder.dump(headline, [trace, around, ..._describeHeld(from)])
+        : null;
+    appEvent(
+      'selection',
+      '$headline: $trace${file == null ? '' : '; steps in $file'}',
+    );
   }
+
+  /// The text that holds [position], and what is selected in it now.
+  List<String> _describeHeld(Offset position) => [
+    for (final selectable in selectables)
+      if (_holds(selectable, position))
+        'now ${_describeSelectable(selectable)}',
+  ];
 
   /// While a drag pressed on text from [from] is held, the pointer at [to]:
   /// when it has selected nothing by now, done again there and then (see
@@ -3522,10 +3756,8 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
       if (value.status == SelectionStatus.uncollapsed) return;
       if ((to - from).distance < 12) return;
       if (!selectables.any((s) => _holds(s, from))) return;
-      final before = _trace(from);
-      _dragAgain(from, to);
+      _dragAgain('while held', from, to);
       _following = true;
-      _logDrag('while held', from, to, before);
     } else if (!seen) {
       _dispatchingOwn = true;
       try {
@@ -3539,36 +3771,13 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
   }
 
   /// After a drag from [from] to [to] within one piece of text: when nothing
-  /// came of it, drags again on a clean list ([_dragAgain]).
+  /// came of it, drags again ([_dragAgain]).
   void checkDrag(Offset from, Offset to) {
     if ((to - from).distance < 12) return;
     if (!selectables.any((s) => _holds(s, from) && _holds(s, to))) return;
     if (getSelectedContent()?.plainText.trim().isNotEmpty ?? false) return;
-    final before = _describeAround(from);
-    final trace = _trace(from);
-    _dragAgain(from, to);
+    _dragAgain('let go', from, to);
     _dragEnd = null;
-    _logDrag('let go', from, to, trace);
-    if (_reports++ >= 3) return;
-    final healed = getSelectedContent()?.plainText.trim().isNotEmpty ?? false;
-    // What the text that holds it made of the drag done again.
-    final held = [
-      for (final (index, selectable) in selectables.indexed)
-        if (_holds(selectable, from) && _holds(selectable, to))
-          '#$index: ${selectable.value.status.name}, '
-              '${selectable.value.hasContent ? '' : 'no '}content, '
-              '${selectable.contentLength} long',
-    ];
-    FlutterError.reportError(
-      FlutterErrorDetails(
-        exception: FlutterError(
-          'A drag on text selected nothing '
-          '(${healed ? 'selected' : 'still nothing'} done again).\n'
-          'Dragged to ${_offset(to)}; held by ${held.join('; ')}.\n$before',
-        ),
-        library: 'chat selection',
-      ),
-    );
   }
 
   // Rect's and Offset's own toString is not in a release build.
@@ -3640,6 +3849,7 @@ class _ChatSelectionDelegate extends StaticSelectionContainerDelegate
       _refreshEdgeLocations();
       super.didChangeSelectables();
       _rememberEndText();
+      _checkList();
     });
   }
 
