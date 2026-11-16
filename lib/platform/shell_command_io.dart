@@ -538,7 +538,7 @@ Future<ProcessResult> runPowerShell(
     bytes[2 * i] = units[i] & 0xff;
     bytes[2 * i + 1] = units[i] >> 8;
   }
-  return run('powershell.exe', [
+  return run(windowsPowerShell, [
     '-NoProfile',
     '-NonInteractive',
     '-ExecutionPolicy',
@@ -547,6 +547,26 @@ Future<ProcessResult> runPowerShell(
     base64Encode(bytes),
   ], environment: environment);
 }
+
+/// Windows PowerShell by its full path, where Windows keeps it, not by
+/// the PATH: a `powershell.exe` before it there may be an app execution
+/// alias whose app is gone, which no process starts from ("the system
+/// cannot find the path specified", 6FMBDDY1). The bare name where it is
+/// not there.
+final String windowsPowerShell = () {
+  final root =
+      Platform.environment['SystemRoot'] ??
+      Platform.environment['windir'] ??
+      r'C:\Windows';
+  final path = p.windows.join(
+    root,
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'powershell.exe',
+  );
+  return File(path).existsSync() ? path : 'powershell.exe';
+}();
 
 /// Runs [executable] as [ShellCommandRunner]s do by default: to its end,
 /// its output read as UTF-8.

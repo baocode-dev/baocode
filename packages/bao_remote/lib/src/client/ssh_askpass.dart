@@ -70,10 +70,14 @@ esac
 ''';
 
   /// [script] on Windows: `ssh` runs `askpass.cmd`, which hands the prompt
-  /// to [powershellScript] (no `sh` there).
+  /// to [powershellScript] (no `sh` there). Windows PowerShell by its full
+  /// path where it is there: a `powershell.exe` before it on the PATH may
+  /// be an alias that no longer opens (6FMBDDY1).
   static const windowsScript =
       '@echo off\r\n'
-      'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass '
+      'set "ps=%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"\r\n'
+      'if not exist "%ps%" set "ps=powershell.exe"\r\n'
+      '"%ps%" -NoProfile -NonInteractive -ExecutionPolicy Bypass '
       '-File "%~dp0askpass.ps1" %*\r\n'
       'exit /b %ERRORLEVEL%\r\n';
 
