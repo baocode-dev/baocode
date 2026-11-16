@@ -24,6 +24,8 @@ function Invoke-Bash([string[]] $Arguments, [string] $Stdin = '', [int] $Seconds
   $info.RedirectStandardInput = $true
   $info.RedirectStandardOutput = $true
   $info.RedirectStandardError = $true
+  $info.StandardOutputEncoding = [Text.UTF8Encoding]::new($false)
+  $info.StandardErrorEncoding = [Text.UTF8Encoding]::new($false)
   $info.UseShellExecute = $false
   $process = [Diagnostics.Process]::Start($info)
   $out = $process.StandardOutput.ReadToEndAsync()
@@ -113,6 +115,23 @@ try {
   Test-Bash 'a program on PATH' 'git --version' '^git version'
   Test-Bash 'Windows find, as written for it' 'find /c "foo" a.txt' '(?i)a\.txt: 1'
   Test-Bash 'a redirection to a file' 'echo written > out.txt && cat out.txt' '^written\n$'
+  Test-Bash '/tmp, redirected to and read' 'echo kept > /tmp/bash-exe-test-$$ && cat /tmp/bash-exe-test-$$ && rm /tmp/bash-exe-test-$$' '^kept\n$'
+
+  # A Windows program gets its arguments as Git Bash passes them: POSIX
+  # paths in Windows spelling, `//x` as `/x`, switches as they are.
+  Test-Bash 'a doubled slash, to a Windows program' 'cmd //c echo from-cmd' '^from-cmd\s*$'
+  Test-Bash 'POSIX paths, to a Windows program' "cmd //c echo '$msys' --file='$msys'" '(?i)^[a-z]:/windows --file=[a-z]:/windows\s*$'
+  Test-Bash '/tmp, to a Windows program' 'cmd //c echo /tmp/x' '(?i)^[a-z]:/\S+/x\s*$'
+  Test-Bash 'switches, to a Windows program' 'cmd /c echo /s /nologo' '^/s /nologo\s*$'
+  Test-Bash 'MSYS_NO_PATHCONV' "MSYS_NO_PATHCONV=1 cmd /c echo '$msys'" '(?i)^/[a-z]/windows\s*$'
+
+  # What programs write reaches the agent as UTF-8.
+  Test-Bash 'a console program writes UTF-8' 'cmd //c echo 中文' '^中文\s*$'
+  Test-Bash 'PowerShell writes UTF-8' "powershell -NoProfile -Command 'Write-Output 中文'" '^中文\s*$'
+  Test-Bash 'Python in UTF-8 mode' 'echo "$PYTHONUTF8"' '^1\n$'
+  Test-Bash 'SHELL' '"$SHELL" -c "echo nested"' '^nested\s*$'
+  # `bash`, `sh` are this bash (with its tools), not WSL's or Git's.
+  Test-Bash 'bash script.sh' 'echo "type -t rg" > nested.sh && bash nested.sh && sh -c "type -t rg"' '^builtin\nbuiltin\n$'
 
   # A job left in the background is not waited for, as bash's are not.
   $started = Get-Date
