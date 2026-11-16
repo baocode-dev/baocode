@@ -14094,8 +14094,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'A complete bash for agents on Windows: rg, grep, sed, awk, find, jq, tar and some 80 other common commands built in, no Git for Windows needed, and C:\\ and /c/ paths alike. Both the built-in core and Claude Code\'s run their agents\' commands with it.';
 
   @override
-  String get baoBashNotInstalled =>
-      'Not installed: agents run commands with Git Bash, or with cmd.exe where there is none.';
+  String get baoBashNotInstalled => 'Not installed yet.';
 
   @override
   String baoBashInstalled(String version) {
@@ -14140,4 +14139,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get baoBashNoticeLater => 'Not Now';
+
+  @override
+  String get baoBashSource => 'Open source:';
+
+  @override
+  String get baoBashHintInstall => 'Install and Use';
+
+  @override
+  String get commandLineShell => 'Shell';
+
+  @override
+  String get commandLineShellDescription =>
+      'What agents run their commands in on Windows. Claude Code\'s CLI core takes bash alone: with cmd or PowerShell picked, it runs Git Bash.';
+
+  @override
+  String get commandLineShellCustom => 'Custom…';
+
+  @override
+  String commandLineShellInUse(String path) {
+    return 'In use: $path';
+  }
+
+  @override
+  String commandLineShellFallback(String shell, String path) {
+    return '$shell is not ready yet: commands run in $path meanwhile.';
+  }
+
+  @override
+  String get commandLineCustomPath => 'Custom shell';
+
+  @override
+  String get commandLineCustomPathDescription =>
+      'The program to run commands with: a bash.exe, cmd.exe, powershell.exe or pwsh.exe.';
 }

@@ -62,10 +62,9 @@ class DartCoreTransport implements ClaudeCodeTransport {
       ..addAll(ClaudeLaunch.environment)
       ..addAll(ClaudeEnvironment.stateDirectory(base));
     await CoreRipgrep.addTo(environment);
-    // Its commands run with BaoCode Bash, where it is installed (Windows).
-    if (BaoBash.executable case final bash?) {
-      environment[Shell.baoBashVariable] = bash;
-    }
+    // Its commands run in the shell Settings → General → Command Line
+    // picks (Windows): BaoCode Bash where installed, unless another.
+    environment.addAll(BaoBash.coreEnvironment());
     final instructions = launch.instructions;
     return EngineOptions(
       cwd: launch.cwd,

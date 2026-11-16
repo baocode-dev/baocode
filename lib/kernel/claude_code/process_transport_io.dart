@@ -84,14 +84,14 @@ class ProcessTransport implements ClaudeCodeTransport {
     }
   }
 
-  /// [launch] with what BaoCode Bash has told, when [bash] (its
-  /// [BaoBash.cliEnvironment]) gives it to the CLI: ahead of the launch's
-  /// own instructions, unless they are all its prompt.
+  /// [launch] with what BaoCode Bash has told, when the CLI runs its
+  /// commands in it ([baoBash]): ahead of the launch's own instructions,
+  /// unless they are all its prompt.
   @visibleForTesting
   static ClaudeLaunch toldOfBash(
-    ClaudeLaunch launch,
-    Map<String, String> bash,
-  ) => bash.isEmpty || launch.ownPrompt
+    ClaudeLaunch launch, {
+    required bool baoBash,
+  }) => !baoBash || launch.ownPrompt
       ? launch
       : launch.copyWith(
           instructions: [
@@ -112,13 +112,14 @@ class ProcessTransport implements ClaudeCodeTransport {
     final settingsFile = launch.hasSecrets
         ? await ClaudeSettingsFile.write(launch.settings)
         : null;
-    // Its commands run with BaoCode Bash, where it is installed (Windows),
-    // unless the user named a bash; then it is told what that bash has.
+    // Its commands run in the shell Settings → General → Command Line
+    // picks, where that is a bash (Windows), unless the user named one and
+    // picked none; told what BaoCode Bash has when it is that.
     final bash = BaoBash.cliEnvironment({
       ...Platform.environment,
       ...cli.environment,
     });
-    final told = toldOfBash(launch, bash);
+    final told = toldOfBash(launch, baoBash: BaoBash.givesBaoBash(bash));
     final started = switch (settingsFile) {
       final path? => told.withSettingsFile(path),
       null => told,

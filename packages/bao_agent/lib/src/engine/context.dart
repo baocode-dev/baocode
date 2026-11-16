@@ -8,6 +8,7 @@ import '../config/output_styles.dart';
 import '../prompts/bundled_skills.dart';
 import '../prompts/system_prompt.dart';
 import '../tools/skill_tool.dart';
+import '../util/processes.dart' show ShellKind;
 import 'agent_loop.dart';
 import 'session.dart';
 
@@ -181,7 +182,11 @@ class SessionContext {
     if (shell != null && shell.isNotEmpty) return p.basename(shell);
     final runs = session.shell;
     if (runs.baoBash) return 'bash (BaoCode Bash)';
-    return runs.posix ? 'bash' : 'cmd.exe';
+    return switch (runs.kind) {
+      ShellKind.posix => 'bash',
+      ShellKind.cmd => 'cmd.exe',
+      ShellKind.powershell => 'PowerShell',
+    };
   }
 
   String _environment(String model) {

@@ -445,6 +445,57 @@ void main() {
       );
     });
 
+    test('on Windows: the shell the app\'s settings pick, before all', () {
+      const bao =
+          r'C:\Users\me\AppData\Roaming\BaoCode\tools\bash-exe\bash.exe';
+      const git = r'C:\Program Files\Git\bin\bash.exe';
+      const ps = r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe';
+      final env = {
+        Shell.baoBashVariable: bao,
+        'CLAUDE_CODE_GIT_BASH_PATH': git,
+      };
+      final picked = windows({...env, Shell.chosenVariable: bao}, {bao, git});
+      expect((picked.executable, picked.baoBash), (bao, true));
+      final cmd = windows(
+        {...env, Shell.chosenVariable: r'C:\Windows\system32\cmd.exe'},
+        {bao, git, r'C:\Windows\system32\cmd.exe'},
+      );
+      expect(cmd.kind, ShellKind.cmd);
+      final powershell = windows(
+        {...env, Shell.chosenVariable: ps},
+        {bao, git, ps},
+      );
+      expect(
+        (powershell.kind, powershell.posix),
+        (ShellKind.powershell, false),
+      );
+      // A bare name is looked for on the PATH.
+      expect(
+        windows({Shell.chosenVariable: 'pwsh.exe'}, {}).kind,
+        ShellKind.powershell,
+      );
+      // Gone since: as if none were picked.
+      expect(
+        windows({...env, Shell.chosenVariable: ps}, {bao, git}).executable,
+        git,
+      );
+    });
+
+    test('PowerShell runs the command as a string, as written', () {
+      const shell = Shell('powershell.exe', kind: ShellKind.powershell);
+      final args = shell.arguments("echo 'it''s' \"x\"", r'C:\t\cwd');
+      expect(args.take(5), [
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+      ]);
+      expect(args.last, contains("Invoke-Expression 'echo ''it''''s'' \"x\"'"));
+      expect(args.last, contains(r"WriteAllText('C:\t\cwd'"));
+      expect(shell.run('dir').last, isNot(contains('WriteAllText')));
+    });
+
     test('elsewhere: the user\'s bash or zsh, else bash, else sh', () {
       Shell find(Map<String, String> env, Set<String> files) =>
           Shell.find(env, windows: false, exists: files.contains);

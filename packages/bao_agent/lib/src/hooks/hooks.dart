@@ -489,7 +489,7 @@ class HookRunner {
     final command = hook.plugin?.expand(hook.text) ?? hook.text;
     final process = await Process.start(
       shell.executable,
-      shell.posix ? ['-c', command] : ['/d', '/s', '/c', command],
+      shell.run(command),
       workingDirectory: session.cwd,
       environment: {
         ...session.shellEnvironment,

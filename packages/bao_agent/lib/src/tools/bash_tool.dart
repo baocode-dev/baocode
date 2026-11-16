@@ -46,15 +46,23 @@ ${_shellNote(session)}- ${_search(session)} Keep a search narrow (a folder, a fi
 - End commit messages and pull request descriptions with the attribution lines the conversation gives in a <system-reminder>, when it gives any.''';
 
   /// What the shell is, where it is not what a model expects of the
-  /// platform: BaoCode Bash on Windows.
-  static String _shellNote(AgentSession session) =>
-      session.shell.baoBash ? '- ${Shell.baoBashNote}\n' : '';
+  /// platform: BaoCode Bash or PowerShell on Windows.
+  static String _shellNote(AgentSession session) => switch (session.shell) {
+    Shell(baoBash: true) => '- ${Shell.baoBashNote}\n',
+    Shell(kind: ShellKind.powershell) => '- ${Shell.powershellNote}\n',
+    _ => '',
+  };
 
   /// How to search, with what this machine has: a model told of `rg`
   /// where there is none spends a call finding that out, and one left to
   /// cmd.exe's own writes scripts to search with.
   static String _search(AgentSession session) {
     final posix = session.shell.posix;
+    if (session.shell.kind == ShellKind.powershell) {
+      return session.fileIndex.ripgrep != null
+          ? "To find files and what is in them, search here: `rg` for text, `rg --files -g '<glob>'` for names. Search rather than write a script to."
+          : 'To find files and what is in them, search here (ripgrep is not installed): `Get-ChildItem -Recurse -File | Select-String -Pattern "text"` for text, `Get-ChildItem -Recurse -Filter "*name*"` for names. Search rather than write a script to.';
+    }
     if (session.shell.baoBash || session.fileIndex.ripgrep != null) {
       return posix
           ? "To find files and what is in them, search here: `rg` (or `grep -rn`) for text, `rg --files -g '<glob>'` (or `find`) for names. Search rather than write a script to."

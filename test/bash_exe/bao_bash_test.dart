@@ -1,6 +1,6 @@
-// BaoCode Bash, offered on Windows: the build latest.json names, whom the
-// settings dialog recommends it to, installing it, and its Settings → General
-// row and notice.
+// BaoCode Bash, offered on Windows: the build latest.json names, the shell
+// agents run commands in, whom the composer recommends it to, installing it,
+// and Settings → General → Command Line.
 
 import 'dart:async';
 import 'dart:convert';
@@ -10,7 +10,6 @@ import 'package:baocode/bash_exe/bao_bash.dart';
 import 'package:baocode/bash_exe/bao_bash_io.dart';
 import 'package:baocode/bash_exe/bao_bash_view.dart';
 import 'package:baocode/tips/feature_tip.dart';
-import 'package:baocode/tips/feature_tips_controller.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,7 +62,38 @@ class _Host implements BaoBashHost {
 
   @override
   Future<void> uninstall() async => kept = null;
+
+  String? git;
+
+  @override
+  String? gitBash() => git;
+
+  @override
+  String cmd() => r'C:\Windows\system32\cmd.exe';
+
+  @override
+  String powershell() =>
+      r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe';
 }
+
+class _Settings extends ChangeNotifier implements ShellSettings {
+  final Map<String, Object?> values = {};
+
+  @override
+  Object? operator [](String key) => values[key];
+
+  @override
+  Future<void> update(String key, Object? value) async {
+    if (value == null) {
+      values.remove(key);
+    } else {
+      values[key] = value;
+    }
+    notifyListeners();
+  }
+}
+
+const _git = r'C:\Program Files\Git\bin\bash.exe';
 
 Map<String, Object?> _latest(String version) => {
   'version': version,
@@ -89,61 +119,88 @@ void main() {
     expect(BaoBashRelease.parse('nonsense', 'x64'), isNull);
   });
 
-  group('recommended to', () {
-    var now = DateTime.utc(2026, 11, 13);
-    BaoBash make(_Storage storage) =>
-        BaoBash(host: _Host(), storage: storage, now: () => now);
+  group('the shell in use', () {
+    test(
+      'none picked: BaoCode Bash where installed, else Git Bash, else cmd',
+      () async {
+        final host = _Host(latest: _latest('0.1.0'));
+        final bash = BaoBash(host: host, settings: _Settings());
+        expect(bash.inUse, (
+          shell: WindowsShell.cmd,
+          executable: r'C:\Windows\system32\cmd.exe',
+        ));
+        final withGit = BaoBash(host: host..git = _git, settings: _Settings());
+        expect(withGit.inUse, (shell: WindowsShell.gitBash, executable: _git));
+        await withGit.install();
+        expect(withGit.inUse.shell, WindowsShell.baoBash);
+        expect(withGit.shown, WindowsShell.baoBash);
+      },
+    );
 
-    setUp(() => now = DateTime.utc(2026, 11, 13));
-
-    test('one who ran the app before, once they have sent five messages', () {
-      final storage = _Storage()
-        ..values[FeatureTipsController.storageKey] = {'lastVersion': '1.0.0'};
-      final bash = make(storage)..noteStart();
-      expect(bash.newUser, isTrue);
-      for (var i = 0; i < 4; i++) {
-        bash.countSent();
-      }
-      expect(bash.newUser, isTrue);
-      bash.countSent();
-      expect(bash.newUser, isFalse);
-      expect(bash.showsNotice, isTrue);
-      // Kept: the next run knows.
-      expect(make(storage).showsNotice, isTrue);
-
-      bash.dismissNotice();
-      expect(bash.showsNotice, isFalse);
-      expect(make(storage).showsNotice, isFalse);
+    test('the one picked, where it can run', () async {
+      final settings = _Settings();
+      final host = _Host(latest: _latest('0.1.0'))..git = _git;
+      final bash = BaoBash(host: host, settings: settings);
+      await bash.choose(WindowsShell.powershell);
+      expect(bash.inUse.executable, endsWith('powershell.exe'));
+      expect(bash.shown, WindowsShell.powershell);
+      // No file named yet: as if none were picked.
+      await bash.choose(WindowsShell.custom);
+      expect(
+        (bash.shown, bash.inUse.shell),
+        (WindowsShell.custom, WindowsShell.gitBash),
+      );
+      await bash.setCustomPath(r' D:\msys64\usr\bin\bash.exe ');
+      expect(bash.inUse, (
+        shell: WindowsShell.custom,
+        executable: r'D:\msys64\usr\bin\bash.exe',
+      ));
     });
 
-    test('a new install, a week on', () {
+    test('BaoCode Bash downloaded the first time it is picked', () async {
+      final host = _Host(latest: _latest('0.1.0'))
+        ..git = _git
+        ..downloading = Completer<void>();
+      final bash = BaoBash(host: host, settings: _Settings());
+      final picking = bash.choose(WindowsShell.baoBash);
+      await Future<void>.delayed(Duration.zero);
+      // Git Bash meanwhile.
+      expect(
+        (bash.shown, bash.inUse.shell, bash.busy),
+        (WindowsShell.baoBash, WindowsShell.gitBash, true),
+      );
+      host.downloading!.complete();
+      await picking;
+      expect(bash.inUse.shell, WindowsShell.baoBash);
+    });
+  });
+
+  group('recommended over the composer', () {
+    test('to whoever runs commands in neither it nor Git Bash', () async {
       final storage = _Storage();
-      final bash = make(storage)..noteStart();
-      for (var i = 0; i < 10; i++) {
-        bash.countSent();
-      }
-      expect(bash.newUser, isTrue);
-      now = now.add(const Duration(days: 6));
-      expect(bash.newUser, isTrue);
-      now = now.add(const Duration(days: 2));
-      expect(bash.newUser, isFalse);
-      // The first run is kept as it was, the tips having run since.
-      storage.values[FeatureTipsController.storageKey] = {'lastVersion': '2'};
-      make(storage).noteStart();
-      expect(make(storage).newUser, isFalse);
+      final host = _Host(latest: _latest('0.1.0'));
+      final bash = BaoBash(host: host, storage: storage, settings: _Settings());
+      expect(bash.showsHint, isTrue);
+      expect(
+        BaoBash(host: _Host()..git = _git, settings: _Settings()).showsHint,
+        isFalse,
+      );
+      // A Git Bash user who picked PowerShell.
+      final settings = _Settings();
+      final picked = BaoBash(host: _Host()..git = _git, settings: settings);
+      await picked.choose(WindowsShell.powershell);
+      expect(picked.showsHint, isTrue);
+
+      await bash.install();
+      expect(bash.showsHint, isFalse);
     });
 
-    test('nobody, once it is installed', () async {
-      final storage = _Storage()
-        ..values[BaoBash.storageKey] = {
-          'firstSeen': '2000-01-01T00:00:00.000Z',
-          'sent': 5,
-        };
-      final host = _Host(latest: _latest('0.1.0'));
-      final bash = BaoBash(host: host, storage: storage);
-      expect(bash.showsNotice, isTrue);
-      await bash.install();
-      expect(bash.showsNotice, isFalse);
+    test('until put off for good', () {
+      final storage = _Storage();
+      final bash = BaoBash(host: _Host(), storage: storage);
+      bash.dismissHint();
+      expect(bash.showsHint, isFalse);
+      expect(BaoBash(host: _Host(), storage: storage).showsHint, isFalse);
     });
   });
 
@@ -180,36 +237,69 @@ void main() {
     expect(bash.busy, isFalse);
   });
 
-  group("for Claude Code's CLI", () {
-    const bash =
-        r'C:\Users\me\AppData\Roaming\BaoCode\tools\bash-exe\0.2.1\bash.exe';
+  group('for the cores', () {
+    tearDown(() => BaoBash.current = null);
 
-    test('names the installed bash, not one the user named', () {
-      expect(BaoBash.cliEnvironment({'PATH': r'C:\x'}, bash: bash), {
-        'CLAUDE_CODE_GIT_BASH_PATH': bash,
+    test("Claude Code's CLI: the shell in use where it is a bash", () async {
+      final settings = _Settings();
+      final host = _Host(latest: _latest('0.2.1'))..git = _git;
+      final bash = BaoBash.current = BaoBash(host: host, settings: settings);
+      // None picked: Git Bash, unless the user named one.
+      expect(BaoBash.cliEnvironment({'PATH': r'C:\x'}), {
+        'CLAUDE_CODE_GIT_BASH_PATH': _git,
       });
-      expect(
-        BaoBash.cliEnvironment({
-          'CLAUDE_CODE_GIT_BASH_PATH': r'D:\Git\bin\bash.exe',
-        }, bash: bash),
-        isEmpty,
-      );
       // Windows' names are any case; an empty one names none.
       expect(
-        BaoBash.cliEnvironment({
-          'claude_code_git_bash_path': r'D:\Git\bin\bash.exe',
-        }, bash: bash),
+        BaoBash.cliEnvironment({'claude_code_git_bash_path': r'D:\b.exe'}),
         isEmpty,
       );
+      expect(BaoBash.cliEnvironment({'CLAUDE_CODE_GIT_BASH_PATH': ''}), {
+        'CLAUDE_CODE_GIT_BASH_PATH': _git,
+      });
+      await bash.choose(WindowsShell.baoBash);
+      final installed = bash.installed!.executable;
+      // Picked: before the one named.
+      final cli = BaoBash.cliEnvironment({
+        'CLAUDE_CODE_GIT_BASH_PATH': r'D:\b.exe',
+      });
+      expect(cli, {'CLAUDE_CODE_GIT_BASH_PATH': installed});
+      expect(BaoBash.givesBaoBash(cli), isTrue);
+      await bash.choose(WindowsShell.gitBash);
+      expect(BaoBash.givesBaoBash(BaoBash.cliEnvironment(const {})), isFalse);
+      // cmd, PowerShell: it finds Git Bash itself.
+      await bash.choose(WindowsShell.cmd);
+      expect(BaoBash.cliEnvironment(const {}), isEmpty);
+      await bash.choose(WindowsShell.custom);
+      await bash.setCustomPath(r'D:\msys64\usr\bin\bash.exe');
+      expect(BaoBash.cliEnvironment(const {}), {
+        'CLAUDE_CODE_GIT_BASH_PATH': r'D:\msys64\usr\bin\bash.exe',
+      });
+      await bash.setCustomPath(r'D:\nu\nu.exe');
+      expect(BaoBash.cliEnvironment(const {}), isEmpty);
+    });
+
+    test('the built-in core: the shell in use, BaoCode Bash told', () async {
+      final host = _Host(latest: _latest('0.2.1'));
+      final bash = BaoBash.current = BaoBash(host: host, settings: _Settings());
+      expect(BaoBash.coreEnvironment(), {
+        'BAOCODE_SHELL': r'C:\Windows\system32\cmd.exe',
+      });
+      await bash.install();
+      final installed = bash.installed!.executable;
+      expect(BaoBash.coreEnvironment(), {
+        'BAOCODE_BASH': installed,
+        'BAOCODE_SHELL': installed,
+      });
+      await bash.choose(WindowsShell.powershell);
       expect(
-        BaoBash.cliEnvironment({'CLAUDE_CODE_GIT_BASH_PATH': ''}, bash: bash),
-        {'CLAUDE_CODE_GIT_BASH_PATH': bash},
+        BaoBash.coreEnvironment()['BAOCODE_SHELL'],
+        endsWith('powershell.exe'),
       );
     });
 
-    test('nothing where it is not installed', () {
-      BaoBash.current = null;
+    test('nothing where it is not offered', () {
       expect(BaoBash.cliEnvironment(const {}), isEmpty);
+      expect(BaoBash.coreEnvironment(), isEmpty);
     });
   });
 
@@ -292,7 +382,7 @@ void main() {
     });
   });
 
-  group('in the settings', () {
+  group('on screen', () {
     Future<void> pump(WidgetTester tester, Widget child) async {
       tester.view.physicalSize = const Size(1000, 800);
       tester.view.devicePixelRatio = 1;
@@ -305,73 +395,58 @@ void main() {
       await tester.pump();
     }
 
-    BaoBash oldUser(_Host host) => BaoBash(
-      host: host,
-      storage: _Storage()
-        ..values[BaoBash.storageKey] = {
-          'firstSeen': '2000-01-01T00:00:00.000Z',
-          'sent': 5,
-        },
-    );
+    const title = 'On Windows, BaoCode Bash is recommended';
 
-    testWidgets('the notice installs it, or is put off for good', (
+    testWidgets('the hint installs it and picks it, or is put off', (
       tester,
     ) async {
       final host = _Host(latest: _latest('0.1.0'))
         ..downloading = Completer<void>();
-      final bash = oldUser(host);
-      await pump(tester, BaoBashNotice(bash: bash));
-      expect(find.text('On Windows, BaoCode Bash is recommended'), findsOne);
+      final settings = _Settings();
+      final bash = BaoBash(host: host, storage: _Storage(), settings: settings);
+      await pump(tester, BaoBashHint(bash: bash));
+      expect(find.text(title), findsOne);
 
-      await tester.tap(find.text('Install'));
+      await tester.tap(find.text('Install and Use'));
       await tester.pump();
       await tester.pump();
       expect(find.text('Downloading… 50%'), findsOne);
+      expect(settings[WindowsShell.settingKey], 'baoBash');
       host.downloading!.complete();
       await tester.pump();
       await tester.pump();
-      expect(
-        find.text('On Windows, BaoCode Bash is recommended'),
-        findsNothing,
-      );
+      expect(find.text(title), findsNothing);
 
-      final later = oldUser(_Host());
-      await pump(tester, BaoBashNotice(bash: later));
+      final later = BaoBash(host: _Host(), storage: _Storage());
+      await pump(tester, BaoBashHint(bash: later));
       await tester.tap(find.text('Not Now'));
       await tester.pump();
-      expect(
-        find.text('On Windows, BaoCode Bash is recommended'),
-        findsNothing,
-      );
-      expect(later.noticeDismissed, isTrue);
+      expect(find.text(title), findsNothing);
+      expect(later.hintDismissed, isTrue);
     });
 
-    testWidgets('no notice to a new user', (tester) async {
-      await pump(
-        tester,
-        BaoBashNotice(
-          bash: BaoBash(host: _Host(), storage: _Storage()),
-        ),
-      );
-      expect(
-        find.text('On Windows, BaoCode Bash is recommended'),
-        findsNothing,
-      );
-    });
-
-    testWidgets('the row: its size to install, its version once installed', (
+    testWidgets('Command Line: the shells to pick, BaoCode Bash under it', (
       tester,
     ) async {
       final host = _Host(latest: _latest('0.1.0'));
-      final bash = BaoBash(host: host);
-      await pump(tester, BaoBashSetting(bash: bash));
+      final opened = <Uri>[];
+      final bash = BaoBash(host: host, settings: _Settings());
+      await pump(
+        tester,
+        SizedBox(
+          width: 900,
+          child: CommandLineSettings(bash: bash, open: opened.add),
+        ),
+      );
       await tester.pump();
-      expect(find.text('BaoCode Bash (recommended)'), findsOne);
-      expect(find.text('Install (13 MB)'), findsOne);
-
-      await tester.tap(find.text('Install (13 MB)'));
-      await tester.pump();
-      await tester.pump();
+      // cmd in use: no Git Bash here.
+      expect(find.text(r'In use: C:\Windows\system32\cmd.exe'), findsOne);
+      await tester.tap(find.text('cmd'));
+      await tester.pumpAndSettle();
+      expect(find.text('Git Bash'), findsNothing);
+      expect(find.text('PowerShell'), findsOne);
+      await tester.tap(find.text('BaoCode Bash (recommended)'));
+      await tester.pumpAndSettle();
       expect(find.text('Version 0.1.0 installed.'), findsOne);
       expect(find.text('Uninstall'), findsOne);
       expect(find.text('Update'), findsNothing);
@@ -384,6 +459,12 @@ void main() {
         findsOne,
       );
       expect(find.text('Update'), findsOne);
+
+      await tester.tap(find.textContaining('github.com/baocode-dev/bash-exe'));
+      expect(
+        opened.single.toString(),
+        'https://github.com/baocode-dev/bash-exe',
+      );
     });
   });
 }
