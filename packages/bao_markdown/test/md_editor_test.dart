@@ -257,6 +257,57 @@ void main() {
     expect(state.caretRect(4)!.height, moreOrLessEquals(before.height));
   }, skip: !File(system).existsSync());
 
+  const chinese = '/System/Library/Fonts/Hiragino Sans GB.ttc';
+  testWidgets('a space after Chinese (another font, other metrics) moves '
+      'neither the text nor its caret', (tester) async {
+    await tester.runAsync(() async {
+      for (final (family, path) in [('System', system), ('Chinese', chinese)]) {
+        final bytes = File(path).readAsBytesSync();
+        await (FontLoader(
+          family,
+        )..addFont(Future.value(ByteData.sublistView(bytes)))).load();
+      }
+    });
+    final controller = MarkdownController(
+      text: '你好',
+      selection: const TextSelection.collapsed(offset: 2),
+    );
+    final state = await _pump(
+      tester,
+      controller,
+      style: const MarkdownEditorStyle(
+        text: TextStyle(
+          fontFamily: 'System',
+          fontFamilyFallback: ['Chinese'],
+          fontSize: 13.5,
+          height: 1.5,
+          leadingDistribution: TextLeadingDistribution.even,
+          color: Color(0xFF000000),
+        ),
+      ),
+    );
+    Rect glyph() {
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.byType(RichText).first,
+      );
+      final box = paragraph
+          .getBoxesForSelection(
+            const TextSelection(baseOffset: 0, extentOffset: 1),
+          )
+          .single
+          .toRect();
+      return box.shift(paragraph.localToGlobal(Offset.zero));
+    }
+
+    final text = glyph();
+    final caret = state.caretRect(0)!;
+    controller.replace(2, 2, ' ');
+    await tester.pump();
+    expect(controller.text, '你好 ');
+    expect(glyph(), text);
+    expect(state.caretRect(0), caret);
+  }, skip: !File(system).existsSync() || !File(chinese).existsSync());
+
   testWidgets('code\'s ground is painted under the selection, not with its '
       'text (which would cover the selection)', (tester) async {
     final controller = MarkdownController(text: 'a `code` b');
