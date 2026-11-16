@@ -168,6 +168,38 @@ void main() {
     expect(picked, ['@gw/m1x']);
   });
 
+  testWidgets('an input method composing ignores Enter; submitting picks', (
+    tester,
+  ) async {
+    await pump(tester, [
+      _option('default', 'Default', _builtin),
+      for (var i = 0; i < 12; i++) _option('@gw/m$i', 'Model $i', _gateway),
+    ]);
+    await open(tester, 'Default');
+    await tester.tap(find.text('Search models'));
+    await tester.pump();
+
+    // Composing text: Enter is ignored by the menu, nothing is picked.
+    final search = find.byType(EditableText);
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'model 1',
+        selection: TextSelection.collapsed(offset: 7),
+        composing: TextRange(start: 0, end: 7),
+      ),
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(picked, isEmpty);
+    expect(find.text('Model 1'), findsOneWidget);
+
+    // Submitting (e.g. from an IME action) picks.
+    tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(picked, ['@gw/m1']);
+  });
+
   testWidgets('a hover redraws the rows it moves between, not the menu; '
       'each option\'s settings are asked for once', (tester) async {
     var drawn = 0;
