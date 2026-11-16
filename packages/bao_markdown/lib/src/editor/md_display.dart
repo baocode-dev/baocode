@@ -34,10 +34,14 @@ class MdGroundSpan extends TextSpan {
 
 /// What a line shows: its text's spans, and where its columns are in them.
 class MdLineDisplay {
-  const MdLineDisplay(this.span, this.offsets);
+  const MdLineDisplay(this.span, this.offsets, {this.hasWidgets = false});
 
   final TextSpan span;
   final MdOffsets offsets;
+
+  /// A widget shows in it (a picture, a formula, a chip), its line as high
+  /// as it needs.
+  final bool hasWidgets;
 
   /// Nothing of the line shows (a fence's, a table's line where the caret
   /// is not in it): only what lays its caret out.
@@ -430,9 +434,13 @@ class _Builder {
       );
       _shown++;
     }
+    final span = TextSpan(style: base, children: _spans);
+    var hasWidgets = false;
+    span.visitChildren((child) => !(hasWidgets = child is PlaceholderSpan));
     return MdLineDisplay(
-      TextSpan(style: base, children: _spans),
+      span,
       MdOffsets(_pieces, length, _shown),
+      hasWidgets: hasWidgets,
     );
   }
 }
