@@ -31,6 +31,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
+import '../kernel_test.dart' show shown;
+
 final _env = Platform.environment;
 
 /// The commands asked for, one Bash call each, and what each one's output
@@ -189,6 +191,11 @@ void main() {
           if (transcript.itemAt(i) case final TerminalItem item) item,
       ];
       print('--- ${core.name}: ${ran.length} commands');
+      if (ran.length < _commands.length) {
+        final health = kernel.health;
+        print('health: ${health.status} ${health.message}\n${health.detail}');
+        shown(transcript).forEach(print);
+      }
       for (final item in ran) {
         print('\$ ${item.command}\n${item.output.trim()}\n');
       }
