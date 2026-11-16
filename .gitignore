@@ -63,3 +63,10 @@ app.*.map.json
 
 # npm dependencies of the extension host code generators.
 tool/exthost_codegen/node_modules/
+
+# Wrangler (the site's deploys): its cache names the Cloudflare account it
+# last ran as; local secrets for it go in .dev.vars or .env.
+.wrangler/
+.dev.vars*
+.env
+.env.*
