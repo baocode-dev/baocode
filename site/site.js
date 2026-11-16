@@ -316,7 +316,7 @@ for (const button of document.querySelectorAll('[data-sound]')) {
 
 // The phone app's, as the desktop's: its own manifest, its own version.
 (async () => {
-  if (!document.querySelector('[data-file="android"], [data-file="ios"]')) return;
+  if (!document.querySelector('[data-file^="android"], [data-file="ios"]')) return;
   try {
     const ctl = new AbortController();
     setTimeout(() => ctl.abort(), 4000);

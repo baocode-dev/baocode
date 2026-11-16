@@ -6,6 +6,10 @@
 // /dl/android to the phone app's in releases/mobile/latest.json, so
 // a page's links work before site.js swaps them, and without it: a page
 // cached by a browser, a fetch of the manifest too slow or blocked.
+// /dl/android is the arm64 APK, which nearly every phone runs (half the
+// size, and the one some phones' installers take where the larger one
+// fails); /dl/android-universal the one of all kinds, for 32-bit phones
+// and x86 emulators.
 // /dl/ios redirects to the TestFlight beta.
 // /dl/browser-extension redirects to the browser extension's zip, and
 // /dl/chrome-web-store to its page in the store (releases/extension/
@@ -18,7 +22,9 @@
 const MANIFEST = 'https://dl.baocode.dev/releases/latest.json';
 const MOBILE_MANIFEST = 'https://dl.baocode.dev/releases/mobile/latest.json';
 const EXTENSION_MANIFEST = 'https://dl.baocode.dev/releases/extension/latest.json';
-const MOBILE = new Set(['android', 'ios']);
+const MOBILE = new Set(['android', 'android-universal', 'ios']);
+// A link's file in its manifest's downloads, where the names differ.
+const MANIFEST_KEYS = { android: ['androidArm64', 'android'], 'android-universal': ['android'] };
 // A phone app off the site: its link goes to the download page instead of
 // to a build. None now.
 const MOBILE_OFFLINE = new Set();
@@ -73,7 +79,7 @@ export default {
         headers: { Location: manifest?.store || `https://chromewebstore.google.com/detail/${manifest?.id || EXTENSION_ID}`, 'Cache-Control': 'no-store' },
       });
     }
-    const file = manifest?.downloads?.[os];
+    const file = (MANIFEST_KEYS[os] || [os]).map((key) => manifest?.downloads?.[key]).find((f) => f?.url);
     if (!file?.url) {
       const [status, text] = manifest ? [404, 'Not found'] : [502, 'The release could not be read; try again shortly.'];
       return new Response(text, { status, headers: { 'Cache-Control': 'no-store' } });

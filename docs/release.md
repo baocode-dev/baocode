@@ -380,7 +380,7 @@ macOS 本机签名时用的环境变量：
 
 ## 10. 手机版
 
-手机版（Android 的 APK、iOS 走 TestFlight）由 `.github/workflows/mobile.yml` 构建，和桌面版分开发布，版本号也分开（手机版 `pubspec.yaml` 里的版本，`0.x` 算 Beta）。官网下载页的 Android 按钮是 `/dl/android`，由 `site-worker/index.js` 按 `releases/mobile/latest.json` 跳转到当前版本。
+手机版（Android 的 APK、iOS 走 TestFlight）由 `.github/workflows/mobile.yml` 构建，和桌面版分开发布，版本号也分开（手机版 `pubspec.yaml` 里的版本，`0.x` 算 Beta）。官网下载页的 Android 主按钮是 `/dl/android`，由 `site-worker/index.js` 按 `releases/mobile/latest.json` 跳转到当前版本的 arm64 包（`downloads.androidArm64`，体积不到一半，有些手机的安装器装不了全架构的大包）；旁边的「通用版」是 `/dl/android-universal`，跳到全架构包（`downloads.android`），给 32 位老手机和模拟器。
 
 ```sh
 git tag mobile-v0.1.0 && git push origin mobile-v0.1.0      # 发布：标签要和手机版的版本一致
