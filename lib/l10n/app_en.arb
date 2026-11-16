@@ -8930,7 +8930,7 @@
   "generalSettingsSessionToolsDescription": "An agent can list your other conversations, read where they stand without waking them, hand them work (resumed if stopped, queued if busy) and wait for them. For one conversation that coordinates the others; agents started after the change have it.",
   "generalSettingsCommandLine": "Command Line",
   "baoBashRecommended": "BaoCode Bash (recommended)",
-  "baoBashDescription": "A complete bash for agents on Windows: rg, grep, sed, awk, find, jq, tar and some 80 other common commands built in, no Git for Windows needed, and C:\\ and /c/ paths alike. The built-in core runs its agents' commands with it.",
+  "baoBashDescription": "A complete bash for agents on Windows: rg, grep, sed, awk, find, jq, tar and some 80 other common commands built in, no Git for Windows needed, and C:\\ and /c/ paths alike. Both the built-in core and Claude Code's run their agents' commands with it.",
   "baoBashNotInstalled": "Not installed: agents run commands with Git Bash, or with cmd.exe where there is none.",
   "baoBashInstalled": "Version {version} installed.",
   "@baoBashInstalled": {

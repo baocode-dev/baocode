@@ -91,9 +91,10 @@ abstract interface class BaoBashHost {
 
 /// BaoCode Bash (github.com/baocode-dev/bash-exe), offered on Windows:
 /// bash 5.3 with `rg`, `grep`, `sed`, `awk`, `find`, `jq` and the like
-/// built in, that takes `C:\x` and `/c/x` alike. Installed, the built-in
-/// core runs its agents' commands with it ahead of Git Bash
-/// ([executable]; `Shell.find` in bao_agent).
+/// built in, that takes `C:\x` and `/c/x` alike. Installed, both cores run
+/// their agents' commands with it ahead of Git Bash: the built-in one
+/// ([executable]; `Shell.find` in bao_agent), Claude Code's CLI
+/// ([cliEnvironment]).
 ///
 /// Settings → General installs, updates and removes it. Above every page
 /// the settings dialog recommends it ([showsNotice]) to all but a new user
@@ -118,6 +119,29 @@ class BaoBash extends ChangeNotifier {
 
   /// The `bash.exe` the agents run commands with, where it is installed.
   static String? get executable => current?.installed?.executable;
+
+  /// The variable Claude Code's CLI takes the bash its Bash tool runs from
+  /// (on Windows; a file called `bash.exe` or `sh.exe`, else it goes back
+  /// to Git Bash).
+  static const cliBashVariable = 'CLAUDE_CODE_GIT_BASH_PATH';
+
+  /// What the CLI's [environment] gets, for it to run commands with
+  /// BaoCode Bash ([bash], the installed one by default): [cliBashVariable],
+  /// unless [environment] names a bash already. The user's choice stays,
+  /// as does one in their settings.json's `env`, which the CLI reads after.
+  static Map<String, String> cliEnvironment(
+    Map<String, String> environment, {
+    String? bash,
+  }) {
+    bash ??= executable;
+    if (bash == null) return const {};
+    // Windows' names are any case.
+    final named = environment.entries.any(
+      (entry) =>
+          entry.key.toUpperCase() == cliBashVariable && entry.value.isNotEmpty,
+    );
+    return named ? const {} : {cliBashVariable: bash};
+  }
 
   final BaoBashHost host;
 

@@ -614,4 +614,4 @@ flutter analyze
 9. **会话守护进程会被 `KillUserProcesses=yes` 杀掉**：少数发行版的 systemd-logind 在用户最后一个登录会话结束时杀掉他的所有进程，断线就等于会话失效（退回到旧的“重建会话”行为）。需要的话在主机上 `loginctl enable-linger <用户>`。
 10. **应用崩溃或被强退时**，远端会话等满 3 小时才结束，期间终端和 Claude 继续跑。应用重启后用的是新会话，不会接回旧的。
 11. **单条很大的消息**（几十 MB 的文件）在频繁断线的网络上可能总传不完：断线后整条重发。
-12. **Windows 主机上没有 BaoCode Bash**：本机装的 BaoCode Bash 只给本机的内置内核用；Windows 主机上的智能体执行命令时用主机的 Git Bash，没有就是 cmd.exe。可以像服务端那样连接时把 bash.exe 传过去（或让主机从 dl.baocode.dev 下载），再交给主机上的内置内核。
+12. **Windows 主机上没有 BaoCode Bash**：本机装的 BaoCode Bash 只给本机的内核用（内置内核和 Claude Code 内核）；Windows 主机上的智能体执行命令时用主机的 Git Bash，没有就是 cmd.exe。可以像服务端那样连接时把 bash.exe 传过去（或让主机从 dl.baocode.dev 下载），再交给主机上的内置内核。

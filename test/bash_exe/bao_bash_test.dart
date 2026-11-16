@@ -9,7 +9,6 @@ import 'dart:io';
 import 'package:baocode/bash_exe/bao_bash.dart';
 import 'package:baocode/bash_exe/bao_bash_io.dart';
 import 'package:baocode/bash_exe/bao_bash_view.dart';
-import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/tips/feature_tip.dart';
 import 'package:baocode/tips/feature_tips_controller.dart';
 import 'package:crypto/crypto.dart' as crypto;
@@ -181,6 +180,39 @@ void main() {
     expect(bash.busy, isFalse);
   });
 
+  group("for Claude Code's CLI", () {
+    const bash =
+        r'C:\Users\me\AppData\Roaming\BaoCode\tools\bash-exe\0.2.1\bash.exe';
+
+    test('names the installed bash, not one the user named', () {
+      expect(BaoBash.cliEnvironment({'PATH': r'C:\x'}, bash: bash), {
+        'CLAUDE_CODE_GIT_BASH_PATH': bash,
+      });
+      expect(
+        BaoBash.cliEnvironment({
+          'CLAUDE_CODE_GIT_BASH_PATH': r'D:\Git\bin\bash.exe',
+        }, bash: bash),
+        isEmpty,
+      );
+      // Windows' names are any case; an empty one names none.
+      expect(
+        BaoBash.cliEnvironment({
+          'claude_code_git_bash_path': r'D:\Git\bin\bash.exe',
+        }, bash: bash),
+        isEmpty,
+      );
+      expect(
+        BaoBash.cliEnvironment({'CLAUDE_CODE_GIT_BASH_PATH': ''}, bash: bash),
+        {'CLAUDE_CODE_GIT_BASH_PATH': bash},
+      );
+    });
+
+    test('nothing where it is not installed', () {
+      BaoBash.current = null;
+      expect(BaoBash.cliEnvironment(const {}), isEmpty);
+    });
+  });
+
   group('on disk', () {
     late Directory root;
     late HttpServer server;
@@ -288,10 +320,7 @@ void main() {
       final host = _Host(latest: _latest('0.1.0'))
         ..downloading = Completer<void>();
       final bash = oldUser(host);
-      await pump(
-        tester,
-        BaoBashNotice(bash: bash, core: () => ClaudeCore.builtin),
-      );
+      await pump(tester, BaoBashNotice(bash: bash));
       expect(find.text('On Windows, BaoCode Bash is recommended'), findsOne);
 
       await tester.tap(find.text('Install'));
@@ -307,10 +336,7 @@ void main() {
       );
 
       final later = oldUser(_Host());
-      await pump(
-        tester,
-        BaoBashNotice(bash: later, core: () => ClaudeCore.builtin),
-      );
+      await pump(tester, BaoBashNotice(bash: later));
       await tester.tap(find.text('Not Now'));
       await tester.pump();
       expect(
@@ -320,22 +346,11 @@ void main() {
       expect(later.noticeDismissed, isTrue);
     });
 
-    testWidgets('no notice where the CLI runs the agents, nor to a new user', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        BaoBashNotice(bash: oldUser(_Host()), core: () => ClaudeCore.cli),
-      );
-      expect(
-        find.text('On Windows, BaoCode Bash is recommended'),
-        findsNothing,
-      );
+    testWidgets('no notice to a new user', (tester) async {
       await pump(
         tester,
         BaoBashNotice(
           bash: BaoBash(host: _Host(), storage: _Storage()),
-          core: () => ClaudeCore.builtin,
         ),
       );
       expect(
