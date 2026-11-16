@@ -133,9 +133,12 @@ jobs:
           # the one nearly every phone updates itself with (a smaller
           # download). Both of the same versionCode: not --split-per-abi,
           # whose codes the next one of all kinds would not install over.
-          flutter build apk --release
+          # Its names left out of the app, kept apart (an artifact) to read
+          # a stack trace by.
+          flutter build apk --release --obfuscate --split-debug-info=../symbols/android
           cp build/app/outputs/flutter-apk/app-release.apk "../out/BaoCode-$MARKETING-android.apk"
-          flutter build apk --release --target-platform android-arm64
+          flutter build apk --release --target-platform android-arm64 \
+            --obfuscate --split-debug-info=../symbols/android-arm64
           cp build/app/outputs/flutter-apk/app-release.apk "../out/BaoCode-$MARKETING-android-arm64.apk"
       - name: Check they are signed with the release key
         run: |
@@ -163,6 +166,11 @@ jobs:
           name: android
           if-no-files-found: error
           path: out/BaoCode-*-android*.apk
+      - uses: actions/upload-artifact@v6
+        with:
+          name: symbols-android
+          if-no-files-found: error
+          path: symbols/
       - name: Forget the key
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
@@ -277,6 +285,7 @@ jobs:
         run: |
           xcodebuild -version
           flutter build ipa --release --build-number "$GITHUB_RUN_NUMBER" \
+            --obfuscate --split-debug-info=../symbols/ios \
             --export-options-plist "$RUNNER_TEMP/ExportOptions.plist"
           mkdir -p ../out
           cp build/ios/ipa/*.ipa "../out/BaoCode-$MARKETING-ios.ipa"
@@ -289,6 +298,11 @@ jobs:
             echo
             echo "Apple processes it for a few minutes before testers see it (App Store Connect → BaoCode → TestFlight)."
           } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: symbols-ios
+          if-no-files-found: error
+          path: symbols/
       - name: Forget the certificate and the key
         if: always()
         run: |
