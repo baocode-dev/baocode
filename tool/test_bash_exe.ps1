@@ -144,6 +144,10 @@ try {
   Test-Bash 'sed, on input not in UTF-8' 'printf "caf\xe9 x\n" | sed s/x/y/ | od -An -tx1' '^\s*63 61 66 e9 20 79 0a\n$'
   Test-Bash 'a #! line' 'printf "#!/usr/bin/env node\nconsole.log(process.argv[2])\n" > shebang.js && ./shebang.js arg' '^arg\n$'
   Test-Bash 'chmod' 'touch ro.txt && chmod 444 ro.txt && [ ! -w ro.txt ] && chmod u+w ro.txt && [ -w ro.txt ] && echo ok' '^ok\n$'
+  Test-Bash 'an EXIT trap when a nested shell ends' 'bash -c ''trap "echo bye" EXIT; echo body''; printf "trap \"echo bye2\" EXIT\necho body2\n" > trap.sh && bash trap.sh' '^body\nbye\nbody2\nbye2\n$'
+  Test-Bash '/bin and /usr/bin paths' '/bin/bash -c "echo ok"; /usr/bin/env A=1 node -e "console.log(process.env.A)"; /bin/sh -c "type -t rg"' '^ok\n1\nbuiltin\n$'
+  Test-Bash 'env -i' 'env -i bash -c "echo clean:\$A"; env -i node -e "console.log(1)"' '^clean:\n1\n$'
+  Test-Bash 'pwd -W and rev' 'cd /c/Windows && pwd -W; echo abc | rev' '(?i)^c:/windows\ncba\n$'
 
   # A script run as `bash script.sh` has the tools ahead of PATH, as `-c`
   # has (System32's `sort`, Git's `xargs` came first).
