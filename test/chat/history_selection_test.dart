@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -9,6 +11,7 @@ import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer_draft.dart';
 import 'package:baocode/chat/widgets/step_header.dart';
+import 'package:baocode/platform/event_log.dart';
 import 'package:baocode/theme/app_theme.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
@@ -376,7 +379,13 @@ void main() {
   }
 
   testWidgets('a drag on text that selects nothing is done again on a '
-      'clean list as it is dragged', (tester) async {
+      'clean list as it is dragged, and logged', (tester) async {
+    final folder = Directory.systemTemp.createTempSync('history_selection');
+    EventLog.current = EventLog(folder.path);
+    addTearDown(() {
+      EventLog.current = null;
+      folder.deleteSync(recursive: true);
+    });
     String? copied;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -434,6 +443,19 @@ void main() {
     await tester.pump();
     // Done again as it is dragged, not only once let go.
     expect(delegate.getSelectedContent()?.plainText, answer);
+    // What led to it: the text left on the list.
+    expect(
+      File(EventLog.current!.path)
+          .readAsLinesSync()
+          .where((line) => line.contains(' [selection] ')),
+      [
+        allOf(
+          contains('a drag on text had selected nothing (while held'),
+          contains('done again, selected'),
+          contains('1 unregistered'),
+        ),
+      ],
+    );
     await mouse.up();
     await tester.pump();
     expect(tester.takeException(), isNull);
