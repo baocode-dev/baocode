@@ -49,6 +49,7 @@ class EngineOptions {
     this.appendSystemPrompt,
     this.promptSuggestions = false,
     this.environment = const {},
+    this.rootCertificates = const [],
     this.configDir,
     this.productName = 'BaoCode',
     this.systemPrompt,
@@ -78,6 +79,7 @@ class EngineOptions {
       for (final MapEntry(:key, :value) in asMap(json['environment']).entries)
         if (value is String) key: value,
     },
+    rootCertificates: [...asList(json['rootCertificates']).whereType<String>()],
     configDir: asText(json['configDir']),
     productName: asText(json['productName']) ?? 'BaoCode',
     systemPrompt: asString(json['systemPrompt']),
@@ -126,6 +128,11 @@ class EngineOptions {
   /// API's settings are read from.
   final Map<String, String> environment;
 
+  /// The machine's own roots (PEM, each a block), trusted beside the ones
+  /// Dart bundles: a provider may chain to one of those, which Mozilla's
+  /// list does not have.
+  final List<String> rootCertificates;
+
   /// Where Claude Code's files are, if not where the environment says.
   final String? configDir;
 
@@ -168,6 +175,7 @@ class EngineOptions {
     'appendSystemPrompt': ?appendSystemPrompt,
     'promptSuggestions': promptSuggestions,
     'environment': environment,
+    'rootCertificates': rootCertificates,
     'configDir': ?configDir,
     'productName': productName,
     'systemPrompt': ?systemPrompt,

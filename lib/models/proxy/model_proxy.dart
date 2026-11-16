@@ -7,6 +7,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
+import '../../network/tls.dart';
 import '../../usage/usage_capture.dart';
 import '../../usage/usage_ledger.dart';
 import '../../usage/usage_trace.dart';
@@ -114,7 +115,7 @@ class ModelProxy {
 
   Future<HttpClient> _upstream() async {
     if (_client case final client?) return client;
-    return _client = HttpClient()
+    return _client = HttpClient(context: await upstreamSecurityContext())
       ..connectionTimeout = const Duration(seconds: 30)
       ..idleTimeout = const Duration(seconds: 30)
       ..findProxy = _findProxy ?? (_) => 'DIRECT';

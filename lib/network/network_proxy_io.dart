@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../kernel/claude_code/claude_environment.dart';
 import 'connection_test.dart';
 import 'proxy_settings.dart';
+import 'tls.dart';
 import 'windows_internet_settings.dart';
 
 /// The proxy the app's requests and the Claude Code it starts go through,
@@ -247,6 +248,10 @@ Future<void> startNetworkProxy(
   // A Future<void> of its own: a Future<ProxyRoute> passed on as one
   // would refuse main's `timeout(onTimeout: () {})` as it runs.
   await proxy.resolve();
+  // Read in the background: the machine's certificates, which the first
+  // request to an upstream would otherwise wait for (PowerShell's a while
+  // on Windows).
+  unawaited(systemCertificatesPem());
 }
 
 Future<ProxyRoute> currentProxyRoute() => NetworkProxy.instance.resolve();

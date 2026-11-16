@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:isolate';
 
 import 'engine.dart';
@@ -110,10 +112,13 @@ class AgentIsolate {
     final (outbox, options) = start;
     final inbox = ReceivePort();
     outbox.send(inbox.sendPort);
-    final engine = AgentEngine(
-      EngineOptions.fromJson(options),
-      send: outbox.send,
-    );
+    final parsed = EngineOptions.fromJson(options);
+    // The host's own roots, as its own requests trust them: an upstream
+    // may chain to one Mozilla's bundled ones do not have.
+    if (parsed.rootCertificates.isNotEmpty) {
+      HttpOverrides.global = _MachineCertificates(parsed.rootCertificates);
+    }
+    final engine = AgentEngine(parsed, send: outbox.send);
     // Ended by the host, or on its own (`end_session`): the isolate too.
     unawaited(
       engine.done.then((_) {
@@ -129,4 +134,25 @@ class AgentIsolate {
       }
     });
   }
+}
+
+/// Every client the isolate makes trusts [certificates] (PEM) beside the
+/// ones Dart bundles: the host's machine trusts more than Mozilla, and a
+/// provider may chain to one of those (a company's CA, a proxy's).
+class _MachineCertificates extends HttpOverrides {
+  _MachineCertificates(List<String> certificates) {
+    for (final certificate in certificates) {
+      try {
+        _context.setTrustedCertificatesBytes(utf8.encode(certificate));
+      } on TlsException {
+        // Among the bundled ones already: it is trusted either way.
+      }
+    }
+  }
+
+  final SecurityContext _context = SecurityContext(withTrustedRoots: true);
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) =>
+      super.createHttpClient(_context);
 }
