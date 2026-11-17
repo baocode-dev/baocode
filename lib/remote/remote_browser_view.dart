@@ -462,48 +462,40 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
                     if (shadow != null) BoxShadow(color: shadow, blurRadius: 8),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Islands.gap,
-                        ),
-                        child: Row(
+                // The sidebar the window's height, as a Mac's open panel's;
+                // the toolbar, the card and the foot beside it, their edges
+                // in line.
+                child: Padding(
+                  padding: const EdgeInsets.only(right: Islands.gap),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _sidebar(l10n),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _sidebar(l10n),
+                            _toolbar(l10n),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  _toolbar(l10n),
-                                  Expanded(
-                                    child: _card(switch (_model.phase) {
-                                      RemoteBrowserPhase.connecting => _Status(
-                                        icon: const IdeSpinning(
-                                          Icon(Codicons.loading, size: 20),
-                                        ),
-                                        message: l10n.remoteConnecting(
-                                          widget.hostLabel,
-                                        ),
-                                      ),
-                                      RemoteBrowserPhase.failed => _failure(
-                                        l10n,
-                                      ),
-                                      RemoteBrowserPhase.ready => _list(l10n),
-                                    }),
+                              child: _card(switch (_model.phase) {
+                                RemoteBrowserPhase.connecting => _Status(
+                                  icon: const IdeSpinning(
+                                    Icon(Codicons.loading, size: 20),
                                   ),
-                                ],
-                              ),
+                                  message: l10n.remoteConnecting(
+                                    widget.hostLabel,
+                                  ),
+                                ),
+                                RemoteBrowserPhase.failed => _failure(l10n),
+                                RemoteBrowserPhase.ready => _list(l10n),
+                              }),
                             ),
+                            _footer(l10n),
                           ],
                         ),
                       ),
-                    ),
-                    _footer(l10n),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -554,6 +546,12 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     final roots = _model.roots;
     final home = _model.home;
     final ready = _model.phase == RemoteBrowserPhase.ready;
+    // Not again what is a place already: home, a drive.
+    final places = {home, for (final root in roots) root.path};
+    final recent = _model.locations
+        .where((path) => !places.contains(path))
+        .take(10)
+        .toList();
     // On the window's color, as the agents' window's sidebar; what it is
     // for at its top, beside the toolbar, in place of a title bar.
     return SizedBox(
@@ -571,7 +569,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
           if (ready)
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(4, 4, 10, 8),
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
                 children: [
                   _SectionLabel(l10n.remoteBrowserPlaces),
                   if (home.isNotEmpty)
@@ -597,10 +595,10 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
                       selected: directory == root.path,
                       onTap: () => unawaited(_model.open(root.path)),
                     ),
-                  if (_model.locations.isNotEmpty) ...[
+                  if (recent.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     _SectionLabel(l10n.remoteBrowserRecent),
-                    for (final path in _model.locations.take(10))
+                    for (final path in recent)
                       _Place(
                         icon: const FinderFolderIcon(size: 18),
                         label: _model.paths.basename(path).isEmpty
@@ -619,20 +617,16 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     );
   }
 
-  /// Back, forward, up; where it is; refresh, the view, the filter.
+  /// Back, forward, up; where it is; refresh, the view, the filter. No
+  /// close: Cancel at the foot, and Esc.
   Widget _toolbar(AppLocalizations l10n) {
-    final close = IdeActionButton(
-      icon: Codicons.close,
-      tooltip: l10n.dialogCloseDialog,
-      onPressed: _close,
-    );
     // About the card, so over it on the window's color.
     return Container(
       height: _toolbarHeight,
       padding: const EdgeInsets.only(top: 8, bottom: Islands.gap),
       child: Row(
         children: _model.phase != RemoteBrowserPhase.ready
-            ? [const Spacer(), close]
+            ? const []
             : [
                 IdeActionButton(
                   icon: Codicons.arrowLeft,
@@ -704,8 +698,6 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
                     shortcuts: _keys,
                   ),
                 ),
-                const SizedBox(width: 2),
-                close,
               ],
       ),
     );
@@ -919,17 +911,12 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     final colors = themeColors;
     final ready = _model.phase == RemoteBrowserPhase.ready;
     final target = _model.target;
-    // Under the cards, on the window's color.
+    // Under the card, on the window's color, its edges the card's.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        Islands.gap * 2,
-        Islands.gap,
-        Islands.gap * 2,
-        Islands.gap + 2,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: Islands.gap + 2),
       child: Row(
         children: [
-          if (!widget.request.files && ready)
+          if (!widget.request.files && ready) ...[
             IdeButton(
               label: l10n.remoteBrowserNewFolder,
               leading: Opacity(
@@ -941,7 +928,16 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
               padding: _buttonPadding,
               onPressed: _canMakeFolder ? _startNewFolder : null,
             ),
-          const SizedBox(width: 12),
+            const SizedBox(width: 14),
+          ],
+          // What Open takes, by its icon as in the list.
+          if (target != null) ...[
+            if (widget.request.files)
+              FinderFileIcon(target, size: 16)
+            else
+              const FinderFolderIcon(size: 16),
+            const SizedBox(width: 6),
+          ],
           Expanded(
             child: _FitText(
               target ?? '',
@@ -1116,7 +1112,7 @@ class _Heading extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     height: height,
-    padding: const EdgeInsets.fromLTRB(12, 8, 8, Islands.gap),
+    padding: const EdgeInsets.fromLTRB(18, 8, 8, Islands.gap),
     alignment: Alignment.centerLeft,
     child: Column(
       mainAxisSize: MainAxisSize.min,
