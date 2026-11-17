@@ -95,6 +95,7 @@ void main() {
     expect(mac(ChatCommandIds.cancelEdit), 'Escape');
     expect(mac(ChatCommandIds.showPreviousPrompt), '↑');
     expect(linux(ChatCommandIds.showNextPrompt), 'DownArrow');
+    expect(linux(ChatCommandIds.acceptPromptSuggestion), 'Tab');
     expect(mac(ChatCommandIds.openModePicker), '⌘.');
     expect(linux(ChatCommandIds.openModePicker), 'Ctrl+.');
     expect(mac(ChatCommandIds.openModelPicker), '⌥⌘.');

@@ -222,6 +222,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cmdChatShowNextPrompt => '显示下一条提示';
 
   @override
+  String get cmdChatAcceptPromptSuggestion => '接受建议的提示';
+
+  @override
   String get cmdChatOpenModePicker => '打开模式选择器';
 
   @override
@@ -3622,7 +3625,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get generalSettingsPromptSuggestionsDescription =>
-      '每轮结束后，在输入框上方给出两三句你可能想发的话：单击放进输入框润色，双击直接发送。由 Agent 在回复末尾顺手写出，不额外请求模型。从下一条消息起生效。';
+      '每轮结束后，在输入框上方给出两三句你可能想发的话：单击放进输入框润色，双击直接发送；输入框空着时按 Tab 采用第一句。由 Agent 在回复末尾顺手写出，不额外请求模型。从下一条消息起生效。';
 
   @override
   String generalSettingsCommitAttributionLabel(String name) {
