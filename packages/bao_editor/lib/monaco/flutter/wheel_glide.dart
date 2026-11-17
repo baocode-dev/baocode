@@ -95,9 +95,15 @@ class WheelGlide {
   /// A frame of the display [context] is on (144 a second, say); of one at
   /// 60 a second where that is not known.
   static Duration frameOf(BuildContext? context) {
-    final rate = context == null
-        ? null
-        : View.maybeOf(context)?.display.refreshRate;
+    final view = context == null ? null : View.maybeOf(context);
+    double? rate;
+    try {
+      rate = view?.display.refreshRate;
+    } catch (_) {
+      // FlutterView.display throws while the engine knows no display of that
+      // id (on Windows, after a monitor or sleep change, until the window is
+      // resized), and every wheel notch would go unscrolled.
+    }
     if (rate == null || rate < 24) return const Duration(microseconds: 16667);
     return Duration(microseconds: (1e6 / rate).round());
   }
