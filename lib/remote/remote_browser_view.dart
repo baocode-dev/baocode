@@ -697,28 +697,34 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
             border: Border.all(color: IdeInputColors.border),
             borderRadius: BorderRadius.circular(6),
           ),
-          child: ClipRect(
-            child: SingleChildScrollView(
+          // Scrolled to its end when long, at its start when short.
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               reverse: true,
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                children: [
-                  for (final (i, (label, path, icon)) in crumbs.indexed) ...[
-                    if (i > 0)
-                      Icon(
-                        Codicons.chevronRight,
-                        size: 14,
-                        color: themeColors['descriptionForeground'],
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minWidth: math.max(0, constraints.maxWidth - 8),
+                ),
+                child: Row(
+                  children: [
+                    for (final (i, (label, path, icon)) in crumbs.indexed) ...[
+                      if (i > 0)
+                        Icon(
+                          Codicons.chevronRight,
+                          size: 14,
+                          color: themeColors['descriptionForeground'],
+                        ),
+                      _Crumb(
+                        label: label,
+                        icon: icon,
+                        current: i == crumbs.length - 1,
+                        onTap: () => unawaited(_model.open(path)),
                       ),
-                    _Crumb(
-                      label: label,
-                      icon: icon,
-                      current: i == crumbs.length - 1,
-                      onTap: () => unawaited(_model.open(path)),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
