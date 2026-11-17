@@ -201,10 +201,24 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       (fold.kind == StepFoldKind.work && _unfoldedTurns.contains(fold.start));
 
   void _toggleFold(StepFold fold) {
+    final open = !_isFoldOpen(fold);
     for (var index = fold.start; index < fold.end; index++) {
       _animateItem(index);
     }
-    setState(() => _foldOpen[fold.key] = !_isFoldOpen(fold));
+    if (!MediaQuery.disableAnimationsOf(context)) {
+      final items = [for (var i = fold.start; i < fold.end; i++) i];
+      if (open) {
+        _entering.addAll(items);
+        WidgetsBinding.instance.addPostFrameCallback((_) => _entering.clear());
+      } else {
+        _leaving.addAll(items);
+        _leavingDone?.cancel();
+        _leavingDone = Timer(_motionDuration * 2, () {
+          if (mounted) setState(_leaving.clear);
+        });
+      }
+    }
+    setState(() => _foldOpen[fold.key] = open);
   }
 
   /// What row [index] shows. Of a run under way the user has not opened
@@ -647,8 +661,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       });
     } else if (_listController.isAttached) {
       // In view, its marks bring the match into view themselves.
-      final (first, last) = _listController.visibleRange ?? (-1, -1);
-      if (index >= first && index <= last) return;
+      if (_listController.visibleRange case (final first, final last)
+          when index >= _itemOfRow(first) && index <= _itemOfRow(last)) {
+        return;
+      }
     }
     // Brought near, its marks bring the match into view once built.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -783,6 +799,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       _closingIndex = null;
       _foldOpen.clear();
       _unfoldedTurns.clear();
+      // Another conversation's rows: the list takes them as it finds them.
+      _rows = const [];
+      _leaving.clear();
+      _entering.clear();
       _wasLive = widget.feed.isStreaming;
       _refold();
       _seeItems();
@@ -858,6 +878,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     UserMessageStyle.current.removeListener(_handleStyleChanged);
     _reselectTimer?.cancel();
     _scrubEnded?.cancel();
+    _leavingDone?.cancel();
     _autoScroller?.stopAutoScroll();
     _editorMoved.dispose();
     _editorReveal.dispose();
@@ -1040,7 +1061,11 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _motions
       ..clear()
       ..addAll(motions);
-    _hiddenRows.clear();
+    // The same rows, of the items now at their indexes; the new ones come
+    // with the next [_syncRows].
+    _rows = [for (final index in _rows) index + count];
+    _leaving.clear();
+    _entering.clear();
     _seenItems += count;
     _appearing.clear();
     _endHandoff();
@@ -1066,22 +1091,28 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     if (!_scrollController.hasClients ||
         !_listController.isAttached ||
         _listController.isLocked ||
-        _listController.numberOfItems + count != _feed.itemCount) {
+        _listController.numberOfItems != _rows.length) {
       return false;
     }
     final position = _scrollController.position;
     if (!position.hasPixels) return false;
-    var above = 0.0;
-    for (var i = 0; i < count; i++) {
-      // Estimated as row i.
-      _listController.addItem(i);
-      above += _listController.extentForIndex(i).$1;
+    final shown = _firstShown();
+    // Still laid out as it was, at its row before.
+    final shownRow = shown == null ? null : _rowOf(shown.index);
+    // The new rows, estimated.
+    _syncRows();
+    var added = 0;
+    while (added < _rows.length && _rows[added] < count) {
+      added++;
     }
-    if (_firstShown() case (:final index, above: _)) {
-      // Still laid out as it was, at its index before.
-      _keepShown = switch (_endAboveOf(index + count, laidOutAt: index)) {
+    var above = 0.0;
+    for (var row = 0; row < added; row++) {
+      above += _listController.extentForIndex(row).$1;
+    }
+    if (shown case (:final index, above: _)) {
+      _keepShown = switch (_endAboveOf(index, laidOutRow: shownRow)) {
         final end? => (
-          index: index + count,
+          index: index,
           above: end,
           scrolled: _scrollController.scrolled,
         ),
@@ -1119,18 +1150,20 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// by where the list has it, so also while it is laid out. Its end, not
   /// its top: the room above it is not the same when a turn comes before
   /// it.
-  double? _endAboveOf(int index, {int? laidOutAt}) {
+  double? _endAboveOf(int index, {int? laidOutRow}) {
     final sliver = _findSliver();
     if (sliver == null || !_scrollController.hasClients) return null;
     for (var child = sliver.firstChild; child != null;) {
       final data = child.parentData! as SliverMultiBoxAdaptorParentData;
-      if (data.index == (laidOutAt ?? index)) {
+      if (laidOutRow == null
+          ? _indexOf(child) == index
+          : data.index == laidOutRow) {
         final offset = data.layoutOffset;
         if (offset == null) return null;
         return _scrollController.position.pixels -
             sliver.constraints.precedingScrollExtent -
             offset -
-            _listController.extentForIndex(index).$1;
+            _listController.extentForIndex(_rowOf(index)).$1;
       }
       child = sliver.childAfter(child);
     }
@@ -1167,10 +1200,10 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// view's, once the rows put before it are laid out.
   void _keepAt(int index, double above) {
     if (!_scrollController.hasClients || !_listController.isAttached) return;
-    if (index >= _feed.itemCount) return;
+    if (index >= _feed.itemCount || _rows.isEmpty) return;
     final height = _scrollController.position.viewportDimension;
     _listController.jumpToItem(
-      index: index,
+      index: _rowOf(index),
       scrollController: _scrollController,
       alignment: above < 0 && height > 0 ? -above / height : 0,
       rect: Rect.fromLTWH(0, math.max(above, 0), 0, 0),
@@ -1540,8 +1573,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     return false;
   }
 
-  static int _indexOf(RenderBox item) =>
-      (item.parentData! as SliverMultiBoxAdaptorParentData).index!;
+  /// The item of a laid-out row.
+  int _indexOf(RenderBox item) =>
+      _itemOfRow((item.parentData! as SliverMultiBoxAdaptorParentData).index!);
 
   /// The item under (or nearest to) [globalPosition] and the point within it.
   _ItemPoint? _locateItemPoint(Offset globalPosition) {
@@ -2328,42 +2362,95 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           ),
           child: ChatFindRow(
             index: index,
-            child: _HeightMotion(motion: _motions[index] ?? 0, child: child),
+            child: _HeightMotion(
+              motion: _motions[index] ?? 0,
+              fromNothing: _entering.contains(index),
+              child: child,
+            ),
           ),
         ),
       );
 
-  /// The rows folded away, as last built, by what they were built from.
-  final Map<int, (Object, Widget)> _hiddenRows = {};
+  // --- Rows ------------------------------------------------------------------
+  //
+  // The list has a row for each item that shows; a closed fold's items have
+  // none. A long conversation is mostly turns' work folded away, thousands
+  // of items: rows of no height for them would all be within the list's
+  // reach, all built and laid out each time the history is (a second a
+  // frame for 5,600 of them). So the list's rows are numbered apart from
+  // the items: [_rows] has the item of each.
 
-  /// Row [index], folded away: the very widget it was last built as while
-  /// nothing it is made of changed, which Flutter then does not rebuild. A
-  /// long conversation has hundreds of these rows within the list's reach,
-  /// of no height; each rebuild of the history (a word streamed, the pointer
-  /// coming in) would otherwise build and lay them all out again. The same
-  /// rows as shown ones, all the same: a fold opening or closing animates
-  /// them in place.
-  Widget _hiddenRow(int index) {
-    final made = (
-      widget.maxContentWidth,
-      _columnRight,
-      _columnLeft,
-      _room,
-      ChatMinimap.roomFrom,
-      _insetOf(index),
-      _motions[index] ?? 0,
-    );
-    if (_hiddenRows[index] case (final from, final row) when from == made) {
-      return row;
+  /// The item of each row of the list, in order.
+  List<int> _rows = const [];
+
+  /// Items a fold closing hides: rows still while they shrink to nothing.
+  final Set<int> _leaving = {};
+  Timer? _leavingDone;
+
+  /// Items a fold opening shows: their rows, new, grow from nothing.
+  final Set<int> _entering = {};
+
+  bool _hasRow(int index) =>
+      !_isHidden(index) ||
+      index == _editingIndex ||
+      _leaving.contains(index) ||
+      widget.after?.call(index) != null;
+
+  /// The row of item [index]; for one with none, the row before it (the
+  /// first, if none is).
+  int _rowOf(int index) {
+    var low = 0;
+    var high = _rows.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (_rows[mid] <= index) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
     }
-    final row = _row(
-      index,
-      gap: 0,
-      child: const SizedBox(width: double.infinity),
-    );
-    _hiddenRows[index] = (made, row);
-    return row;
+    return math.max(0, low - 1);
   }
+
+  /// The item of [row]; past the last item for one past the last row.
+  int _itemOfRow(int row) => row < _rows.length ? _rows[row] : _feed.itemCount;
+
+  /// The rows as the items show now. The list is told of each row come or
+  /// gone, so the extents it measured stay with their rows.
+  void _syncRows() {
+    final rows = [
+      for (var index = 0; index < _feed.itemCount; index++)
+        if (_hasRow(index)) index,
+    ];
+    if (listEquals(rows, _rows)) return;
+    final before = _rows;
+    _rows = rows;
+    // Not laid out yet, or with other rows (another conversation's): it
+    // takes them as it finds them.
+    if (!_listController.isAttached ||
+        _listController.numberOfItems != before.length) {
+      return;
+    }
+    var old = 0;
+    var row = 0;
+    while (old < before.length || row < rows.length) {
+      if (row == rows.length ||
+          (old < before.length && before[old] < rows[row])) {
+        _listController.removeItem(row);
+        old++;
+      } else if (old == before.length || rows[row] < before[old]) {
+        _listController.addItem(row);
+        row++;
+      } else {
+        old++;
+        row++;
+      }
+    }
+  }
+
+  /// Row [index], folded away while it shrinks to nothing (see [_leaving]).
+  Widget _hiddenRow(int index) =>
+      _row(index, gap: 0, child: const SizedBox(width: double.infinity));
 
   double _insetOf(int index) =>
       _feed.itemAt(index) is UserMessageItem ? 0 : UserMessageBubble.radius;
@@ -2487,16 +2574,13 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     );
   }
 
-  /// The height taken for item [index] until it is laid out, toward the
-  /// list's extent (and so its scrollbar): none for one a closed fold
-  /// hides. A long conversation is mostly turns' work folded away; taken at
-  /// the list's default for each, the bar would stand for many times the
-  /// height there is, a small drag on it going far, and the list correcting
-  /// itself all the way up. (Asked with no index, the list wants one height
-  /// for all, unless none: 0.)
-  double _estimateExtent(int? index, double crossAxisExtent) => switch (index) {
+  /// The height taken for [row] until it is laid out, toward the list's
+  /// extent (and so its scrollbar): none for one a closed fold hides (see
+  /// [_leaving]). (Asked with no row, the list wants one height for all,
+  /// unless none: 0.)
+  double _estimateExtent(int? row, double crossAxisExtent) => switch (row) {
     null => 0,
-    _ when index < _feed.itemCount && _isHidden(index) => 0,
+    _ when row < _rows.length && _isHidden(_rows[row]) => 0,
     _ => 100,
   };
 
@@ -2602,11 +2686,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   /// down it, laid out yet or not.
   void _seek(int index, double fraction) {
     if (!_scrollController.hasClients || !_listController.isAttached) return;
-    if (index >= _feed.itemCount) return;
+    if (index >= _feed.itemCount || _rows.isEmpty) return;
     _setAnchored(false);
-    final (extent, _) = _listController.extentForIndex(index);
+    final row = _rowOf(index);
+    final (extent, _) = _listController.extentForIndex(row);
     _listController.jumpToItem(
-      index: index,
+      index: row,
       scrollController: _scrollController,
       alignment: 0,
       rect: Rect.fromLTWH(0, fraction * extent, 0, 0),
@@ -2696,6 +2781,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   @override
   Widget build(BuildContext context) {
     _built = null;
+    _syncRows();
     if (widget.minimapRoom case final room? when room.value != _keepsRoom) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) room.value = _keepsRoom;
@@ -2830,7 +2916,19 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                         child: SuperListView.builder(
                                           controller: _scrollController,
                                           listController: _listController,
-                                          itemCount: _feed.itemCount,
+                                          itemCount: _rows.length,
+                                          // Rows come and go before others
+                                          // (folds opening and closing):
+                                          // each keeps its own.
+                                          findChildIndexCallback: (key) =>
+                                              switch (key) {
+                                                ValueKey<int>(:final value)
+                                                    when _rows.isNotEmpty &&
+                                                        _rows[_rowOf(value)] ==
+                                                            value =>
+                                                  _rowOf(value),
+                                                _ => null,
+                                              },
                                           extentEstimation: _estimateExtent,
                                           cacheExtent: _cache,
                                           padding: EdgeInsets.fromLTRB(
@@ -2842,17 +2940,25 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                                             _gutter,
                                             24,
                                           ),
-                                          itemBuilder: (context, index) =>
-                                              _isHidden(index) &&
-                                                  index != _editingIndex &&
-                                                  widget.after?.call(index) ==
-                                                      null
-                                              ? _hiddenRow(index)
-                                              : _row(
-                                                  index,
-                                                  gap: _gapBefore(index),
-                                                  child: _buildItem(index),
-                                                ),
+                                          itemBuilder: (context, row) {
+                                            final index = _rows[row];
+                                            return KeyedSubtree(
+                                              key: ValueKey(index),
+                                              child:
+                                                  _isHidden(index) &&
+                                                      index != _editingIndex &&
+                                                      widget.after?.call(
+                                                            index,
+                                                          ) ==
+                                                          null
+                                                  ? _hiddenRow(index)
+                                                  : _row(
+                                                      index,
+                                                      gap: _gapBefore(index),
+                                                      child: _buildItem(index),
+                                                    ),
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),
@@ -4227,9 +4333,17 @@ class _AppearState extends State<_Appear> with SingleTickerProviderStateMixin {
 /// over a moment rather than at once; any other change at once. Moving
 /// already, it takes a new height in its stride.
 class _HeightMotion extends StatefulWidget {
-  const _HeightMotion({required this.motion, required this.child});
+  const _HeightMotion({
+    required this.motion,
+    this.fromNothing = false,
+    required this.child,
+  });
 
   final int motion;
+
+  /// New, it grows from no height (with [motion] changed, as it would
+  /// have, had it been there).
+  final bool fromNothing;
   final Widget child;
 
   @override
@@ -4253,6 +4367,7 @@ class _HeightMotionState extends State<_HeightMotion>
   @override
   Widget build(BuildContext context) => _HeightMotionBox(
     motion: widget.motion,
+    fromNothing: widget.fromNothing,
     progress: _progress,
     onStart: () {
       if (mounted) _progress.forward(from: 0);
@@ -4264,18 +4379,25 @@ class _HeightMotionState extends State<_HeightMotion>
 class _HeightMotionBox extends SingleChildRenderObjectWidget {
   const _HeightMotionBox({
     required this.motion,
+    required this.fromNothing,
     required this.progress,
     required this.onStart,
     super.child,
   });
 
   final int motion;
+  final bool fromNothing;
   final Animation<double> progress;
   final VoidCallback onStart;
 
   @override
   _RenderHeightMotion createRenderObject(BuildContext context) =>
-      _RenderHeightMotion(motion, progress, onStart: onStart);
+      _RenderHeightMotion(
+        motion,
+        progress,
+        onStart: onStart,
+        fromNothing: fromNothing,
+      );
 
   @override
   void updateRenderObject(
@@ -4290,7 +4412,17 @@ class _HeightMotionBox extends SingleChildRenderObjectWidget {
 }
 
 class _RenderHeightMotion extends RenderProxyBox {
-  _RenderHeightMotion(this._motion, this._progress, {required this.onStart});
+  _RenderHeightMotion(
+    this._motion,
+    this._progress, {
+    required this.onStart,
+    bool fromNothing = false,
+  }) {
+    if (fromNothing) {
+      _from = _to = 0;
+      _armed = true;
+    }
+  }
 
   VoidCallback onStart;
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_feed.dart';
+import 'package:baocode/chat/chat_find.dart';
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
@@ -128,6 +129,36 @@ void main() {
     expect(_text('Found it.'), findsNothing);
     expect(_text('a.dart'), findsNothing);
     expect(_text('Done, fixed.'), findsOneWidget);
+  });
+
+  testWidgets('what a fold opening shows grows from nothing; closed, it '
+      'shrinks away and the list lets its rows go', (tester) async {
+    await _pump(tester, _Feed(_turn(worked: const Duration(seconds: 65))));
+    final rows = find.byType(ChatFindRow, skipOffstage: false);
+    final closed = rows.evaluate().length;
+
+    await tester.tap(find.byType(WorkFoldLine));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 60));
+    double height() => tester
+        .getSize(
+          find.ancestor(
+            of: _text('Found it.'),
+            matching: find.byType(ChatFindRow),
+          ),
+        )
+        .height;
+    final growing = height();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(growing, greaterThan(0));
+    expect(growing, lessThan(height()));
+    expect(rows.evaluate().length, greaterThan(closed));
+
+    await _toggle(tester, find.byType(WorkFoldLine));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    expect(rows.evaluate().length, closed);
   });
 
   testWidgets('a run under way shows the step it is on once it has run a '
