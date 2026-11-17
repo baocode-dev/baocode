@@ -354,6 +354,27 @@ void main() {
       }, from: boss.id),
     );
     expect(quick.session.selected(KernelChoiceKind.model), 'sonnet');
+    // Those there are, as the user picks them; it says which it is on.
+    expect(
+      await call('session_models', const {}, from: boss.id),
+      allOf(contains('sonnet | Sonnet 5'), contains('haiku | Haiku 4.5')),
+    );
+    expect(
+      await call('session_list', const {}, from: boss.id),
+      contains('Sonnet 5 (sonnet)'),
+    );
+    // Moved to another with what it is sent.
+    await until(() => fromAgents(boss).isNotEmpty);
+    await settle(quick);
+    expect(
+      await call('session_send', {
+        'session': SessionTools.idOf(quick),
+        'text': 'another look (quick)',
+        'model': 'haiku',
+      }, from: boss.id),
+      startsWith('Sent'),
+    );
+    expect(quick.session.selected(KernelChoiceKind.model), 'haiku');
 
     Future<void> git(List<String> arguments) async {
       final result = await Process.run('git', arguments, workingDirectory: app);

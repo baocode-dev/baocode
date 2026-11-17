@@ -55,6 +55,12 @@ class SessionStep extends StatelessWidget {
       _ => item.target,
     };
     final opens = ids.length == 1 && names.single != null && links != null;
+    // The model it works on, faint after its name, for work handed on.
+    final model = switch (item.tool) {
+      'session_new' ||
+      'session_send' when ids.length == 1 => links?.modelOf(ids.single),
+      _ => null,
+    };
     final sent = switch (item.input['text']) {
       final String text when text.trim().isNotEmpty => text.trim(),
       _ => null,
@@ -74,6 +80,7 @@ class SessionStep extends StatelessWidget {
               ? l10n.sessionStepRunning(action)
               : l10n.sessionStepDone(action),
           object: object,
+          detail: model,
           running: running,
           expanded: expanded,
           onToggle: sent == null && output.isEmpty ? null : onToggle,

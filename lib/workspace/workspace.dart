@@ -1295,6 +1295,12 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// The mode, model, context and effort a new agent starts with: the
   /// last ones picked.
   Map<String, String> get _preferredSettings => Map.unmodifiable(_settings);
+
+  /// The model a new agent starts on: Settings → Models' pick, else the
+  /// one last picked; null for its kernel's own.
+  String? get newAgentModel =>
+      ModelProviders.current.defaultModel ??
+      _settings[KernelChoiceKind.model.name];
   final Map<String, String> _settings = {};
 
   /// Language servers the Fast Ide is not to recommend installing again.

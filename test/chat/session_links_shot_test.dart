@@ -76,8 +76,17 @@ class _Host implements SessionLinkHost {
     's-docs': HandedStatus.running,
   };
 
+  final _models = {
+    's-login': 'Sonnet 5',
+    's-dark': 'Haiku 4.5',
+    's-docs': 'GLM-5',
+  };
+
   @override
   String? titleOf(String id) => _titles[id];
+
+  @override
+  String? modelOf(String id) => _models[id];
 
   @override
   HandedStatus? statusOf(String id) => _statuses[id];
@@ -90,7 +99,12 @@ class _Host implements SessionLinkHost {
 
   List<HandedConversation> get handed => [
     for (final id in _titles.keys)
-      HandedConversation(id: id, title: _titles[id]!, status: _statuses[id]!),
+      HandedConversation(
+        id: id,
+        title: _titles[id]!,
+        status: _statuses[id]!,
+        model: _models[id],
+      ),
   ];
 
   @override

@@ -42,6 +42,7 @@ abstract final class SessionTools {
     'session_read',
     'session_new',
     'session_send',
+    'session_models',
     'session_wait',
     'session_stop',
     'session_changes',
@@ -61,7 +62,8 @@ abstract final class SessionTools {
       'it comes rather than waiting (session_wait only when there is '
       'nothing else to do). Only the user answers what one waits on them '
       'for: tell them. session_changes lists the files one edited, to '
-      'check its work.';
+      'check its work; session_models, the models one can be on, as the '
+      'user picks them.';
 
   /// What was sent lately, by whom to whom: the same task not sent twice.
   static final Map<(String?, String), (String, DateTime)> _sent = {};
@@ -182,8 +184,8 @@ abstract final class SessionTools {
         'session_list',
         "Lists the user's other agent conversations in BaoCode, latest "
             'first: id | project | title | status (waiting = on the user; '
-            'running; failed; idle) | when it last moved, and "yours" for '
-            'one you started or wrote to. Those with no process now are '
+            'running; failed; idle) | when it last moved | its model, and '
+            '"yours" for one you started or wrote to. Those with no process now are '
             'listed too. Only for when the user has you coordinate other '
             'conversations: do not look through them unasked.',
         {
@@ -224,6 +226,10 @@ abstract final class SessionTools {
                 '${idOf(thread)} | ${thread.project.name} | '
                     '${thread.title} | ${BotTools.statusOf(thread)} | '
                     '${BotTools.ago(thread.updatedAt)}'
+                    '${switch (_modelOf(thread)) {
+                      final model? => ' | $model',
+                      null => '',
+                    }}'
                     '${yours.contains(thread) ? ' | yours' : ''}',
           ];
           return lines.isEmpty ? 'None.' : lines.take(limit).join('\n');
@@ -276,7 +282,11 @@ abstract final class SessionTools {
           return [
             '"${thread.title}" in ${thread.project.name} '
                 '(${thread.project.path}): ${BotTools.statusOf(thread)}, '
-                'last moved ${BotTools.ago(thread.updatedAt)}.',
+                'last moved ${BotTools.ago(thread.updatedAt)}'
+                '${switch (_modelOf(thread)) {
+                  final model? => ', on $model',
+                  null => '',
+                }}.',
             if (_waitsFor(session) case final asked?)
               '$asked Only the user can answer it.',
             for (final (_, message) in session.queued)
@@ -291,7 +301,9 @@ abstract final class SessionTools {
         'session_new',
         'Starts a new conversation on a task, its first message [text] as '
             "from the user: in a project of theirs (this one's if none), "
-            'with their approvals as yours are. It reports back to you by '
+            'with their approvals as yours are, on the model given '
+            "(session_models lists them) or else the user's default for new "
+            'conversations. It reports back to you by '
             'itself once it is done, fails or waits on the user. Only for '
             'work the user has you hand out.',
         {
@@ -307,8 +319,9 @@ abstract final class SessionTools {
           'model': {
             'type': 'string',
             'description':
-                "Its model's id (as an error lists them); the user's "
-                'default for new conversations if none.',
+                "Its model's id, as session_models lists them; the user's "
+                'default for new conversations if none. Pick one only for '
+                'a reason (the user asked, or the task is light or hard).',
           },
           'worktree': {
             'type': 'string',
@@ -358,7 +371,10 @@ abstract final class SessionTools {
           });
           return [
             'Started: ${idOf(thread)} in ${project.name}'
-                '${model == null ? '' : ', on ${model.id}'}.',
+                '${switch (_modelOf(thread)) {
+                  final model? => ', on $model',
+                  null => '',
+                }}.',
             if (worktree case (:final path, :final branch))
               'It works in $path, on the new branch $branch.',
             'It reports back to you by itself: go on meanwhile.',
@@ -375,10 +391,17 @@ abstract final class SessionTools {
             'turn not cut short. It reports back to you by itself once it '
             'is done, fails or waits on the user. Not given while it waits '
             'on the user (they decide that), nor the same message twice. '
-            'Only what the user has you hand on.',
+            'With [model], it goes on on that model (as the user would pick '
+            'it). Only what the user has you hand on.',
         {
           'session': sessionId,
           'text': {'type': 'string'},
+          'model': {
+            'type': 'string',
+            'description':
+                'The model it goes on on, its id as session_models lists '
+                'them; the one it is on if none.',
+          },
         },
         (input, call) async {
           final thread = chat(input['session'], call);
@@ -402,6 +425,19 @@ abstract final class SessionTools {
                 'until its turn ends. Try again then (session_wait).';
           }
           final working = session.isStreaming;
+          if (input['model'] case final String name
+              when name.trim().isNotEmpty) {
+            final model = _modelNamed(
+              session.models?.options ?? const [],
+              name.trim(),
+            );
+            if (working && session.switchRestarts(model.id)) {
+              return 'Not delivered: it is at work, and ${model.id} would '
+                  'restart it on another upstream. Try again once its turn '
+                  'ends (session_wait).';
+            }
+            _select(session.models, model.id);
+          }
           _hand(workspace, call, thread, text);
           _sent[key] = (text, now);
           return working
@@ -411,6 +447,37 @@ abstract final class SessionTools {
         },
         required: ['session', 'text'],
         summary: titled,
+      ),
+      tool(
+        'session_models',
+        'The models a conversation can be on, as the user picks them in '
+            'BaoCode (by upstream): id | name, and which new conversations '
+            'start on and which you are on. For session_new and '
+            "session_send's model.",
+        const {},
+        (input, call) async {
+          final caller = _callerOf(workspace, call);
+          final options =
+              caller?.session.models?.options ?? const <KernelOption>[];
+          if (options.isEmpty) return 'No models known yet.';
+          final mine = caller?.session.selected(KernelChoiceKind.model);
+          final fresh = workspace.newAgentModel;
+          final lines = <String>[];
+          String? group;
+          for (final option in options) {
+            final heading = option.group?.label;
+            if (heading != null && heading != group) {
+              group = heading;
+              lines.add('$heading:');
+            }
+            lines.add(
+              '${heading == null ? '' : '  '}${option.id} | ${option.label}'
+              '${option.id == fresh ? ' | new conversations start on it' : ''}'
+              '${option.id == mine ? ' | you are on it' : ''}',
+            );
+          }
+          return lines.join('\n');
+        },
       ),
       tool(
         'session_wait',
@@ -579,6 +646,22 @@ abstract final class SessionTools {
       '<agent-message from="${from.replaceAll('"', "'")}"'
       '${session == null ? '' : ' session="${session.replaceAll('"', '')}"'}>'
       '$text</agent-message>';
+
+  /// The model [thread] is on, for the agent: its name and id.
+  static String? _modelOf(AgentThread thread) => switch (modelOf(thread)) {
+    (:final id, :final label) => label == id ? id : '$label ($id)',
+    null => null,
+  };
+
+  /// The model [thread] is on: its id, and its name as the user sees it;
+  /// null for one not open, or a kernel without models.
+  static ({String id, String label})? modelOf(AgentThread thread) {
+    if (!thread.isOpen) return null;
+    final choice = thread.session.models;
+    if (choice == null) return null;
+    final option = choice.selected;
+    return (id: option.id, label: option.label);
+  }
 
   /// [thread]'s id for these tools: its session's once it has one (kept
   /// from run to run), else the one it goes by until then.

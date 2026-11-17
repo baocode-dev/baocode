@@ -19,21 +19,26 @@ class HandedConversation {
     required this.id,
     required this.title,
     required this.status,
+    this.model,
   });
 
   final String id;
   final String title;
   final HandedStatus status;
 
+  /// The model it is on, by its name; null where not known.
+  final String? model;
+
   @override
   bool operator ==(Object other) =>
       other is HandedConversation &&
       other.id == id &&
       other.title == title &&
-      other.status == status;
+      other.status == status &&
+      other.model == model;
 
   @override
-  int get hashCode => Object.hash(id, title, status);
+  int get hashCode => Object.hash(id, title, status, model);
 }
 
 /// The user's conversations, by their ids as the `session_*` tools give
@@ -44,6 +49,10 @@ abstract interface class SessionLinkHost {
 
   /// How it stands; null for none there is.
   HandedStatus? statusOf(String id);
+
+  /// The model it is on, by its name as the user sees it; null where not
+  /// known.
+  String? modelOf(String id);
 
   /// Told as how they stand changes.
   Listenable get statuses;

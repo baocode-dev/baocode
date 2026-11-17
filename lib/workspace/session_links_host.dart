@@ -19,8 +19,9 @@ class WorkspaceSessionLinks extends ChangeNotifier implements SessionLinkHost {
   /// What each conversation's strip shows, by conversation.
   final Map<ChatSession, _Handed> _handed = Map.identity();
 
-  /// How each stood when last told: [statuses] told only as one changes.
-  Map<AgentThread, HandedStatus> _was = const {};
+  /// How each stood, and on which model, when last told: [statuses] told
+  /// only as one changes.
+  Map<AgentThread, (HandedStatus, String?)> _was = const {};
 
   @override
   Listenable get statuses => this;
@@ -34,6 +35,12 @@ class WorkspaceSessionLinks extends ChangeNotifier implements SessionLinkHost {
         final thread? => _status(thread),
         null => null,
       };
+
+  @override
+  String? modelOf(String id) => switch (SessionTools.threadOf(workspace, id)) {
+    final thread? => SessionTools.modelOf(thread)?.label,
+    null => null,
+  };
 
   @override
   void open(String id) {
@@ -56,7 +63,8 @@ class WorkspaceSessionLinks extends ChangeNotifier implements SessionLinkHost {
   void _changed() {
     final now = {
       for (final thread in workspace.threads)
-        if (thread.isOpen) thread: _status(thread),
+        if (thread.isOpen)
+          thread: (_status(thread), SessionTools.modelOf(thread)?.label),
     };
     if (!mapEquals(now, _was)) {
       _was = now;
@@ -116,6 +124,7 @@ class _Handed extends ValueNotifier<List<HandedConversation>> {
           id: SessionTools.idOf(thread),
           title: thread.title,
           status: WorkspaceSessionLinks._status(thread),
+          model: SessionTools.modelOf(thread)?.label,
         ),
     ];
     if (!listEquals(now, value)) value = now;

@@ -136,6 +136,25 @@ class _AgentMessageCardState extends State<AgentMessageCard> {
                   child: Row(
                     children: [
                       Flexible(child: name),
+                      if (switch (session) {
+                            final session? => links?.modelOf(session),
+                            null => null,
+                          }
+                          case final model?)
+                        Flexible(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 6),
+                            child: Text(
+                              model,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.textFaint,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
                       Padding(
                         padding: const EdgeInsets.only(left: 6),
                         child: Text(
