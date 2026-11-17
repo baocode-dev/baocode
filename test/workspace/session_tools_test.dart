@@ -108,6 +108,9 @@ void main() {
       );
       on = false;
       expect(await offered(app), isNot(contains('session_list')));
+      // On unless turned off.
+      expect(SessionToolsSetting.enabled(null), isTrue);
+      expect(SessionToolsSetting.enabled(SessionToolsSetting.off), isFalse);
     },
   );
 
@@ -414,6 +417,24 @@ void main() {
       fromAgents(fixing).single.$2,
       startsWith('Work in $worktree (branch fix/login'),
     );
+  });
+
+  test('turned off, an agent at work can no longer act on the others, '
+      'and those it handed work report nothing', () async {
+    final boss = await lead();
+    final tests = started(
+      await call('session_new', {'text': 'fix the input'}, from: boss.id),
+    );
+    await until(() => tests.session.isStreaming);
+    on = false;
+    expect(
+      await call('session_list', const {}, from: boss.id),
+      'No tool session_list.',
+    );
+    // Its turn over: not told.
+    await settle(tests);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(fromAgents(boss), isEmpty);
   });
 }
 

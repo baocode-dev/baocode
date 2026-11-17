@@ -389,8 +389,10 @@ class GeneralSettingsPage extends StatelessWidget {
                   value: SessionToolsSetting.enabled(
                     settings?[SessionToolsSetting.settingKey],
                   ),
-                  onChanged: (on) =>
-                      _write(SessionToolsSetting.settingKey, on ? true : null),
+                  onChanged: (on) => _write(
+                    SessionToolsSetting.settingKey,
+                    on ? null : SessionToolsSetting.off,
+                  ),
                 ),
                 SettingsSwitchRow(
                   label: l10n.generalSettingsComposerPolish,
