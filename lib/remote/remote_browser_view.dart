@@ -28,13 +28,15 @@ import 'remote_browser.dart';
 import 'remote_status.dart' show sshErrorText;
 
 /// Shows the browser for [request]: the path picked, or null. [hostLabel]
-/// is the host's name in the title; [recent], the folders opened there
-/// lately; [view], what it shows, told [onView] as it changes.
+/// is the host's name in the title; [locations], the folders it was in
+/// there lately, told [onLocations] as it closes; [view], what it shows,
+/// told [onView] as it changes.
 Future<String?> showRemoteBrowser(
   BuildContext context,
   RemoteBrowseRequest request, {
   required String hostLabel,
-  List<String> recent = const [],
+  List<String> locations = const [],
+  ValueChanged<List<String>>? onLocations,
   RemoteBrowserView view = const RemoteBrowserView(),
   ValueChanged<RemoteBrowserView>? onView,
 }) => showGeneralDialog<String>(
@@ -50,7 +52,8 @@ Future<String?> showRemoteBrowser(
   pageBuilder: (context, _, _) => RemoteBrowserDialog(
     request: request,
     hostLabel: hostLabel,
-    recent: recent,
+    locations: locations,
+    onLocations: onLocations,
     view: view,
     onView: onView,
   ),
@@ -61,14 +64,20 @@ class RemoteBrowserDialog extends StatefulWidget {
     super.key,
     required this.request,
     required this.hostLabel,
-    this.recent = const [],
+    this.locations = const [],
+    this.onLocations,
     this.view = const RemoteBrowserView(),
     this.onView,
   });
 
   final RemoteBrowseRequest request;
   final String hostLabel;
-  final List<String> recent;
+
+  /// The folders it was in there lately (see [RemoteBrowserModel.locations]),
+  /// at the left; told [onLocations] as it closes, the one it was in and
+  /// the one picked first.
+  final List<String> locations;
+  final ValueChanged<List<String>>? onLocations;
   final RemoteBrowserView view;
   final ValueChanged<RemoteBrowserView>? onView;
 
@@ -86,6 +95,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
   late final RemoteBrowserModel _model = RemoteBrowserModel(
     widget.request,
     view: widget.view,
+    locations: widget.locations,
   );
   final _filter = TextEditingController();
   final _filterFocus = FocusNode();
@@ -132,7 +142,16 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     setState(() {});
   }
 
-  void _close([String? path]) => Navigator.of(context).pop(path);
+  void _close([String? path]) {
+    // Where it was, then what was picked (a file's folder): the latest
+    // locations.
+    if (_model.directory case final directory?) _model.remember(directory);
+    if (path != null) {
+      _model.remember(widget.request.files ? _model.paths.dirname(path) : path);
+    }
+    widget.onLocations?.call(_model.locations);
+    Navigator.of(context).pop(path);
+  }
 
   void _accept() {
     final target = _model.target;
@@ -503,7 +522,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     );
   }
 
-  /// Home, the drives, and the folders opened there lately.
+  /// Home, the drives, and the folders it was in there lately.
   Widget _sidebar(AppLocalizations l10n) {
     final colors = themeColors;
     final border = colors.get('widget.border');
@@ -545,10 +564,10 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
               selected: directory == root.path,
               onTap: () => unawaited(_model.open(root.path)),
             ),
-          if (widget.recent.isNotEmpty) ...[
+          if (_model.locations.isNotEmpty) ...[
             const SizedBox(height: 10),
             _SectionLabel(l10n.remoteBrowserRecent),
-            for (final path in widget.recent.take(8))
+            for (final path in _model.locations.take(10))
               _Place(
                 icon: const FinderFolderIcon(size: 18),
                 label: _model.paths.basename(path).isEmpty

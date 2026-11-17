@@ -1222,6 +1222,26 @@ printf '%s\n' "$line"
       expect(model.target, root);
     });
 
+    test('recent locations: the latest first, each once, so many kept', () {
+      final model = RemoteBrowserModel(
+        RemoteBrowseRequest(
+          host: 'dev',
+          connect: () => throw UnimplementedError(),
+        ),
+        locations: ['/a', '/b'],
+      );
+      addTearDown(model.dispose);
+      model
+        ..remember('/b')
+        ..remember('/c');
+      expect(model.locations, ['/c', '/b', '/a']);
+      for (var i = 0; i < 30; i++) {
+        model.remember('/x$i');
+      }
+      expect(model.locations, hasLength(remoteRecentLocationsKept));
+      expect(model.locations.first, '/x29');
+    });
+
     test('names sorted as Finder sorts them', () {
       final names = ['file10', 'File2', 'file1', 'b', 'A'];
       expect(names..sort(compareNames), ['A', 'b', 'file1', 'File2', 'file10']);

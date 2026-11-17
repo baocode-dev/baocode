@@ -911,6 +911,17 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     _save();
   }
 
+  /// The folders the remote browser was in on [host] lately, the latest
+  /// first.
+  List<String> remoteLocations(String host) =>
+      List.unmodifiable(_remoteLocations[host] ?? const <String>[]);
+  final Map<String, List<String>> _remoteLocations = {};
+
+  void keepRemoteLocations(String host, List<String> paths) {
+    _remoteLocations[host] = [...paths];
+    _save();
+  }
+
   /// [path]'s project: the listed one, or one that is not (yet) listed.
   Project projectAt(String path) {
     for (final project in _projects) {
@@ -2895,6 +2906,13 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
     if (kept['remoteBrowser'] case final Map<Object?, Object?> view) {
       _remoteBrowserView = view.cast<String, Object?>();
     }
+    if (kept['remoteLocations'] case final Map<Object?, Object?> hosts) {
+      for (final MapEntry(:key, :value) in hosts.entries) {
+        if (key is String && value is List) {
+          _remoteLocations[key] = [...value.whereType<String>()];
+        }
+      }
+    }
     if (!_colorThemeStored) {
       _autoDetectColorScheme = kept['autoDetectColorScheme'] == true;
       if (kept['colorTheme'] case final String setting) _colorTheme = setting;
@@ -2983,6 +3001,7 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
       'chat': ?_chatViewToSave(),
       'sidePanel': ?_sidePanelView,
       'remoteBrowser': ?_remoteBrowserView,
+      if (_remoteLocations.isNotEmpty) 'remoteLocations': _remoteLocations,
       'colorTheme': ?_colorTheme,
       'colorThemeData': ?_colorThemeData,
       if (_autoDetectColorScheme) 'autoDetectColorScheme': true,

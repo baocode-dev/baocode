@@ -51,6 +51,7 @@ void main() {
     Directory(p.join(root, 'app', 'lib')).createSync(recursive: true);
     Directory(p.join(root, '.cache')).createSync();
     final views = <RemoteBrowserView>[];
+    final locations = <List<String>>[];
     String? picked;
     await tester.pumpWidget(
       MaterialApp(
@@ -68,8 +69,9 @@ void main() {
                     connect: hosts['dev'].reconnect,
                   ),
                   hostLabel: 'dev',
-                  recent: [p.join(root, 'app')],
                   onView: views.add,
+                  locations: ['/srv/old'],
+                  onLocations: locations.add,
                 );
               },
               child: const Text('browse'),
@@ -121,5 +123,7 @@ void main() {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
     expect(picked, p.join(root, 'app'));
+    // What was picked, the latest of the recent locations.
+    expect(locations.single, [p.join(root, 'app'), '/srv/old']);
   });
 }
