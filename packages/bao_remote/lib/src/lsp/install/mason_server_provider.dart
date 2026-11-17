@@ -118,7 +118,7 @@ class MasonServerProvider implements LspServerProvider {
   /// An absolute command if it exists; a bare one on the login shell's
   /// PATH, then among installed packages ([LspServerDefinition.masonPackage]
   /// first). Missing: the package that would install it, if it installs
-  /// here, and a runtime that is not on PATH.
+  /// here, and a runtime that is missing.
   @override
   Future<LspServerLocation> locate(LspServerDefinition server) async {
     final command = server.command;
@@ -155,7 +155,7 @@ class MasonServerProvider implements LspServerProvider {
     }
     String? missing;
     for (final runtime in _runtimes(plan, installing: false)) {
-      if (await which(runtime, environment) == null) {
+      if (await _runtime(plan, runtime, environment) == null) {
         missing = runtime;
         break;
       }
@@ -192,7 +192,7 @@ class MasonServerProvider implements LspServerProvider {
     }
     for (final runtime in _runtimes(plan, installing: false)) {
       if (!tools.containsKey(runtime) &&
-          await which(runtime, environment) == null) {
+          await _runtime(plan, runtime, environment) == null) {
         progress('Note: $name runs with $runtime, which is not on PATH');
       }
     }
@@ -246,6 +246,27 @@ class MasonServerProvider implements LspServerProvider {
       if (error is LspInstallException) rethrow;
       throw LspInstallException('Installing $name failed', detail: '$error');
     }
+  }
+
+  /// jdtls's launcher uses JAVA_HOME before PATH, even when that home is
+  /// invalid. Other wrappers run their runtime from PATH.
+  Future<String?> _runtime(
+    MasonInstallPlan plan,
+    String runtime,
+    Map<String, String> environment,
+  ) async {
+    if (plan.package.name == 'jdtls' && runtime == 'java') {
+      final home = environment['JAVA_HOME'];
+      if (home != null && home.isNotEmpty) {
+        final java = p.join(
+          home,
+          'bin',
+          platform.isWindows ? 'java.exe' : 'java',
+        );
+        return await _isExecutable(java) ? java : null;
+      }
+    }
+    return which(runtime, environment);
   }
 
   /// Runtimes to install with ([installing]) or to run the bins with.
