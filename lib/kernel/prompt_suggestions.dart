@@ -1,8 +1,7 @@
-/// Whether Claude Code suggests the next prompt after each turn (greyed out
-/// in the composer, Tab to take it): the `chat.promptSuggestions` setting.
-/// Each suggestion is a request of its own, with the whole conversation, so
-/// it can be turned off to spare the tokens. Read as the agent starts, and
-/// as each message is sent: a change restarts the agent with the next one.
+/// Whether the agent suggests what the user might send next, at the end of
+/// its reply (see ReplySuggestions): the `chat.promptSuggestions` setting.
+/// Written by the agent in its reply, no request of their own. Read as each
+/// message is sent: the agent is told when it changes.
 abstract final class PromptSuggestions {
   static const settingKey = 'chat.promptSuggestions';
 

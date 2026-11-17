@@ -95,7 +95,6 @@ class DartCoreTransport implements ClaudeCodeTransport {
           : instructions == null || instructions.isEmpty
           ? ClaudeLaunch.appendedSystemPrompt
           : '${ClaudeLaunch.appendedSystemPrompt}\n\n$instructions',
-      promptSuggestions: launch.promptSuggestions,
       environment: environment,
       // The machine's own certificates, as the app's requests trust them:
       // the core bundles Mozilla's roots alone.

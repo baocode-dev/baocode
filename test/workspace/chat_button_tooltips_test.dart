@@ -8,11 +8,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/chat/chat_screen.dart';
 import 'package:baocode/chat/chat_session.dart';
-import 'package:baocode/chat/composer/composer.dart';
 import 'package:baocode/chat/panels/interaction_panel.dart';
+import 'package:baocode/chat/panels/reply_suggestion_bar.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/kernel/kernel_types.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
+import 'package:baocode/kernel/mock/mock_script.dart';
 import 'package:baocode/keybindings/chat_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
@@ -238,7 +239,7 @@ void main() {
     }, variant: _mac);
   });
 
-  testWidgets('the suggested prompt shows the key that takes it, as the '
+  testWidgets('the suggested reply shows the key that takes it, as the '
       'keybindings have it', (tester) async {
     final session = ChatSession(
       kernel: MockKernels.claudeCode,
@@ -264,21 +265,21 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     await tester.pump(const Duration(milliseconds: 300));
-    expect(session.promptSuggestion, 'Run the tests');
-    Finder placeholder(String text) => find.descendant(
-      of: find.byType(ChatComposer),
+    final first = MockScript.suggestions.first;
+    Finder pill(String text) => find.descendant(
+      of: find.byType(ReplySuggestionBar),
       matching: find.text(text, findRichText: true),
     );
-    expect(placeholder('Run the tests    Tab'), findsOneWidget);
+    expect(pill('$first  Tab'), findsOneWidget);
 
     KeybindingService.instance.userEntries = const [
       KeybindingEntry(command: '-${ChatCommandIds.acceptPromptSuggestion}'),
     ];
     // As the window builds again.
-    tester.element(find.byType(ChatComposer)).markNeedsBuild();
+    tester.element(find.byType(ChatScreen)).markNeedsBuild();
     await tester.pump();
-    expect(placeholder('Run the tests    Tab'), findsNothing);
-    expect(placeholder('Run the tests'), findsOneWidget);
+    expect(pill('$first  Tab'), findsNothing);
+    expect(pill(first), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
   });
 }

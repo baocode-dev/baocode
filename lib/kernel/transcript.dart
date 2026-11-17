@@ -313,7 +313,7 @@ class Transcript {
     if (index == null) return false;
     final item = _items[index];
     final current = switch (item) {
-      AssistantTextItem(:final text) => text,
+      AssistantTextItem(:final raw) => raw,
       ThinkingItem(:final text) => text,
       _ => null,
     };

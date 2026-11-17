@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../chat/chat_models.dart';
+import '../chat/reply_suggestions.dart';
 
 /// The history's items as JSON, for the phones paired with the desktop
 /// (see `package:bao_link`). The phone has this file as it is (its
@@ -253,7 +254,13 @@ abstract final class ChatCodec {
           'cost': ?usage.costUsd,
         },
     },
-    AssistantTextItem() => {'t': 'text', 'text': item.text},
+    // Without the suggestions in it: a phone's app before them would show
+    // their tags.
+    AssistantTextItem(:final text, :final suggestions) => {
+      't': 'text',
+      'text': text,
+      if (suggestions.isNotEmpty) 'suggest': suggestions,
+    },
     ThinkingItem() => {
       't': 'thinking',
       'text': item.text,
@@ -395,7 +402,12 @@ abstract final class ChatCodec {
           _ => null,
         },
       ),
-      'text' => AssistantTextItem(text('text')),
+      'text' => AssistantTextItem(
+        ReplySuggestions.write(text('text'), [
+          for (final said in json['suggest'] as List? ?? const [])
+            if (said is String) said,
+        ]),
+      ),
       'thinking' => ThinkingItem(
         text: text('text'),
         tokens: number('tokens') ?? 0,

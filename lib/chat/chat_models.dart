@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'reply_suggestions.dart';
+
 /// UI-only view models for the conversation history.
 sealed class ChatItem {
   const ChatItem();
@@ -139,9 +141,17 @@ final imageReferencePattern = RegExp(r'\[Image #(\d+)\]');
 
 /// Plain assistant prose. Supports `inline code` and `- ` bullet lines.
 class AssistantTextItem extends ChatItem {
-  const AssistantTextItem(this.text);
+  const AssistantTextItem(this.raw);
 
-  final String text;
+  /// All of it, as the agent wrote it.
+  final String raw;
+
+  /// What it said: without what it suggests the user send next, at its end
+  /// ([suggestions]).
+  String get text => ReplySuggestions.strip(raw);
+
+  /// What it suggests the user send next (see [ReplySuggestions]).
+  List<String> get suggestions => ReplySuggestions.of(raw);
 }
 
 /// [text] (what an agent said, or asks) on one line, its markup's marks

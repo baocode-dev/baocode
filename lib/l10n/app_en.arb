@@ -2522,11 +2522,11 @@
   "@generalSettingsQueuedDuringTurn": {
     "description": "Queued messages choice: the agent reads it in the turn running, between its tool calls, as Claude Code does in its own terminal."
   },
-  "generalSettingsPromptSuggestions": "Suggest Next Prompt",
+  "generalSettingsPromptSuggestions": "Suggest Replies",
   "@generalSettingsPromptSuggestions": {
-    "description": "Settings → General switch: whether Claude Code suggests the next prompt in the composer after each turn."
+    "description": "Settings → General switch: whether the agent suggests, at the end of each turn, what the user might send next, shown over the composer."
   },
-  "generalSettingsPromptSuggestionsDescription": "After each turn, a greyed-out suggestion for your next message, taken with Tab. Each one is an extra request with the whole conversation; turn it off to save tokens. Applies from the next message; Claude Code only.",
+  "generalSettingsPromptSuggestionsDescription": "After each turn, two or three things you might send next, over the composer: click one to put it in and edit it before sending; Tab takes the first. The agent writes them at the end of its reply, with no extra request. Applies from the next message.",
   "generalSettingsCommitAttributionLabel": "Commit Attribution: {name}",
   "@generalSettingsCommitAttributionLabel": {
     "description": "The commit attribution dropdown, as read out: its setting and the choice in effect.",

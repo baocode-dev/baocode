@@ -49,6 +49,7 @@ import 'panels/limit_reset_panel.dart';
 import 'panels/context_usage_panel.dart';
 import 'panels/goal_panel.dart';
 import 'panels/queue_panel.dart';
+import 'panels/reply_suggestion_bar.dart';
 import 'panels/reset_credits_hint.dart';
 import 'side_panel/file_link.dart';
 import 'side_panel/file_open.dart';
@@ -798,6 +799,23 @@ class _ChatScreenState extends State<ChatScreen>
           ),
         ),
       ),
+    );
+  }
+
+  /// What the agent suggests the user send next, while nothing is typed:
+  /// one picked is put in the composer, to be edited and sent.
+  Widget? _buildReplySuggestions() {
+    final suggestions = _session.replySuggestions;
+    if (suggestions.isEmpty) return null;
+    final draft = _session.draft;
+    if ((draft.content?.trim().isNotEmpty ?? false) ||
+        draft.images.isNotEmpty) {
+      return null;
+    }
+    return ReplySuggestionBar(
+      suggestions: suggestions,
+      firstKey: replySuggestionKey(),
+      onPick: (said) => draft.restore(said, const []),
     );
   }
 
@@ -1604,6 +1622,11 @@ class _ChatScreenState extends State<ChatScreen>
           },
         ),
         _PanelSlot(child: _buildActivityStrip()),
+        // Right over the composer: what the agent suggests to put in it.
+        ListenableBuilder(
+          listenable: _session.draft,
+          builder: (context, _) => _PanelSlot(child: _buildReplySuggestions()),
+        ),
         ChatComposer(
           key: _composerKey,
           session: _session,
