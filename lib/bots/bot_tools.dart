@@ -1291,13 +1291,13 @@ abstract final class BotTools {
   }
 
   /// [item] in a line or so, for the bot to read; null for what is not
-  /// worth it.
-  static String? lineOf(ChatItem item) => switch (item) {
+  /// worth it. Messages and replies clipped at [max].
+  static String? lineOf(ChatItem item, {int max = 600}) => switch (item) {
     UserMessageItem(:final text, fromAgent: final agent?) =>
-      'Subagent "$agent": ${_clip(text)}',
-    UserMessageItem(:final text) => 'User: ${_clip(text)}',
+      'From "$agent": ${_clip(text, max)}',
+    UserMessageItem(:final text) => 'User: ${_clip(text, max)}',
     AssistantTextItem(:final text) when text.trim().isNotEmpty =>
-      'Agent: ${_clip(text)}',
+      'Agent: ${_clip(text, max)}',
     ToolCallItem(:final kind, :final target) =>
       '[${kind.name}${target.isEmpty ? '' : ' ${_clip(target, 80)}'}]',
     TerminalItem(:final command, :final status) =>
