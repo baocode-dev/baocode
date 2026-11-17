@@ -729,6 +729,11 @@ void main() {
     expect(session.replySuggestions, MockScript.suggestions);
     final bar = find.byType(ReplySuggestionBar);
     expect(bar, findsOneWidget);
+    // On top of all over the composer: the changes under it.
+    expect(
+      tester.getBottomLeft(bar).dy,
+      lessThan(tester.getTopLeft(find.byType(ActivityStrip)).dy),
+    );
     expect(
       find.descendant(
         of: bar,
@@ -764,9 +769,34 @@ void main() {
         ),
       ),
     );
+    // Once it is no double click.
+    await tester.pump(kDoubleTapTimeout);
     await tester.pump();
     expect(editor.controller.text, MockScript.suggestions[1]);
     expect(bar, findsNothing);
+    expect(session.isStreaming, isFalse);
+
+    // A double click sends it as it is.
+    editor.controller.replace(0, editor.controller.length, '');
+    await tester.pump();
+    final last = find.descendant(
+      of: bar,
+      matching: find.textContaining(
+        MockScript.suggestions.last,
+        findRichText: true,
+      ),
+    );
+    await tester.tap(last);
+    await tester.pump(kDoubleTapMinTime);
+    await tester.tap(last);
+    await tester.pump();
+    expect(session.isStreaming, isTrue);
+    expect(editor.controller.text, isEmpty);
+    expect(
+      find.textContaining(MockScript.suggestions.last, findRichText: true),
+      findsOneWidget,
+    );
+    session.stop();
     await tester.pump(const Duration(seconds: 5));
   });
 
