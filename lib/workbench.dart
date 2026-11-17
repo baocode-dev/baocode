@@ -3648,7 +3648,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   }
 
   /// The remote browser for [request]: the host by its name, the folders
-  /// opened there lately at its left, what it shows kept.
+  /// browsed or opened there lately at its left, what it shows kept.
   Future<String?> _browseRemote(RemoteBrowseRequest request) async {
     if (!mounted) return null;
     final host = request.host;
@@ -3664,7 +3664,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       context,
       request,
       hostLabel: _workspace.hostLabel(host),
-      recent: [...recent],
+      // Those browsed, then those opened as projects there.
+      locations: [
+        ...{..._workspace.remoteLocations(host), ...recent},
+      ],
+      onLocations: (paths) => _workspace.keepRemoteLocations(host, paths),
       view: RemoteBrowserView.fromJson(_workspace.remoteBrowserView),
       onView: (view) => _workspace.keepRemoteBrowserView(view.toJson()),
     );

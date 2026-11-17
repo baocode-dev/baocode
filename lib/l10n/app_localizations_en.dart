@@ -14156,7 +14156,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get remoteBrowserPlaces => 'Locations';
 
   @override
-  String get remoteBrowserRecent => 'Recent';
+  String get remoteBrowserRecent => 'Recent Locations';
 
   @override
   String get remoteBrowserHome => 'Home';

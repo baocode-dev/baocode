@@ -93,10 +93,17 @@ class RemoteBrowserView {
 
 enum RemoteBrowserPhase { connecting, failed, ready }
 
+/// The recent locations kept for a host, at most.
+const remoteRecentLocationsKept = 20;
+
 /// The browser's state: the connection, where it is, what is there and
 /// what is selected, and the way back and forward.
 class RemoteBrowserModel extends ChangeNotifier {
-  RemoteBrowserModel(this.request, {this._view = const RemoteBrowserView()});
+  RemoteBrowserModel(
+    this.request, {
+    this._view = const RemoteBrowserView(),
+    List<String> locations = const [],
+  }) : _locations = [...locations.take(remoteRecentLocationsKept)];
 
   final RemoteBrowseRequest request;
 
@@ -127,6 +134,21 @@ class RemoteBrowserModel extends ChangeNotifier {
   /// Where it is; null: the drives (Explorer's This PC).
   String? get directory => _directory;
   String? _directory;
+
+  /// The folders it was in there lately, the latest first (see
+  /// [remember]).
+  List<String> get locations => List.unmodifiable(_locations);
+  final List<String> _locations;
+
+  /// Keeps [path] first among the recent locations.
+  void remember(String path) {
+    _locations
+      ..remove(path)
+      ..insert(0, path);
+    if (_locations.length > remoteRecentLocationsKept) {
+      _locations.removeRange(remoteRecentLocationsKept, _locations.length);
+    }
+  }
 
   /// Its entries as read, every one.
   List<BrowseEntry> get entries => _entries;

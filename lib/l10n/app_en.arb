@@ -8965,7 +8965,7 @@
   "remoteBrowserFileTitle": "Open a File on {host}",
   "@remoteBrowserFileTitle": {"placeholders": {"host": {"type": "String"}}},
   "remoteBrowserPlaces": "Locations",
-  "remoteBrowserRecent": "Recent",
+  "remoteBrowserRecent": "Recent Locations",
   "remoteBrowserHome": "Home",
   "remoteBrowserThisPc": "This PC",
   "remoteBrowserRoot": "Root",

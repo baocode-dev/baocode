@@ -13354,7 +13354,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get remoteBrowserPlaces => '位置';
 
   @override
-  String get remoteBrowserRecent => '最近';
+  String get remoteBrowserRecent => '最近位置';
 
   @override
   String get remoteBrowserHome => '主目录';

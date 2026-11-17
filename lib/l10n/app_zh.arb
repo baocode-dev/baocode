@@ -3816,7 +3816,7 @@
   "remoteBrowserFolderTitle": "在 {host} 上打开文件夹",
   "remoteBrowserFileTitle": "在 {host} 上打开文件",
   "remoteBrowserPlaces": "位置",
-  "remoteBrowserRecent": "最近",
+  "remoteBrowserRecent": "最近位置",
   "remoteBrowserHome": "主目录",
   "remoteBrowserThisPc": "此电脑",
   "remoteBrowserRoot": "根目录",
