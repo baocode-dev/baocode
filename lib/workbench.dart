@@ -2217,7 +2217,13 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     _workspace.closeIdeFolder();
   }
 
+  /// Open Folder… in the IDE: a remote project's host's folders browsed,
+  /// as VS Code's in a remote window; else this machine's.
   Future<void> _pickIdeFolder() async {
+    if (_remoteBeside(_ideFolder) case (:final host, :final directory)) {
+      _openRemoteProject(host: host, directory: directory, inIde: true);
+      return;
+    }
     final held = _newWindowHeld;
     final path = await WindowControls.pickDirectory();
     if (path == null || !mounted) return;
@@ -3607,6 +3613,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     bool inIde = false,
     ValueChanged<String>? onOpen,
     String? host,
+    String? directory,
     bool switchTo = false,
   }) {
     final held = _newWindowHeld;
@@ -3641,10 +3648,23 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
       },
     );
     if (host != null) {
-      flow.startAt(host);
+      flow.startAt(host, directory: directory);
     } else {
       unawaited(flow.start());
     }
+  }
+
+  /// Where a folder is picked beside [location] (a project's, the IDE's):
+  /// on its host, in the folder holding it; null where it is this
+  /// machine's, for the file manager.
+  ({String host, String directory})? _remoteBeside(String? location) {
+    final host = location == null ? null : RemoteLocation.hostOf(location);
+    if (host == null || host.isEmpty) return null;
+    final path = RemoteLocation.pathOf(location!);
+    return (
+      host: host,
+      directory: RemoteLocation.pathsOf(location).dirname(path),
+    );
   }
 
   /// The remote browser for [request]: the host by its name, the folders
@@ -3851,10 +3871,28 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   /// (set as the item is built).
   Rect _statusAnchor = Rect.zero;
 
+  /// Open Folder… on the chat's side: on the current agent's host, its
+  /// folders browsed (as VS Code's in a remote window), else this
+  /// machine's in the file manager.
   Future<void> _openFolder() async {
+    if (_remoteBeside(_workspace.current?.project.path) case (
+      :final host,
+      :final directory,
+    )) {
+      _openRemoteProject(
+        host: host,
+        directory: directory,
+        onOpen: (location) => unawaited(_openedFolder(location)),
+      );
+      return;
+    }
     final path = await WindowControls.pickDirectory();
     if (path == null || !mounted) return;
-    final thread = await _workspace.openFolder(path);
+    await _openedFolder(path);
+  }
+
+  Future<void> _openedFolder(String location) async {
+    final thread = await _workspace.openFolder(location);
     _closeDrawer();
     if (mounted) _watchFirstTurn(thread);
   }
@@ -5104,8 +5142,11 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
             : NewChatFolderBar(
                 workspace: _workspace,
                 thread: thread,
-                openRemote: (onOpen, {host}) =>
-                    _openRemoteProject(onOpen: onOpen, host: host),
+                openRemote: (onOpen, {host, directory}) => _openRemoteProject(
+                  onOpen: onOpen,
+                  host: host,
+                  directory: directory,
+                ),
               ),
         // The setup checklist, over the new agent's composer.
         startHint: switch (_tips) {

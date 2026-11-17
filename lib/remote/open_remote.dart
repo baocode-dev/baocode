@@ -96,17 +96,19 @@ class OpenRemoteFlow {
   ).start();
 
   /// Opens a folder of [host], known already: connects (its progress
-  /// shown), then browses its home.
-  void startAt(String host) => _connect(host, now: true);
+  /// shown), then browses [directory] there, else its home.
+  void startAt(String host, {String? directory}) =>
+      _connect(host, now: true, directory: directory);
 
   /// The browser for a folder of [host], connecting to it first (once the
   /// host picker has hidden, unless [now]): the folder picked opened.
-  void _connect(String host, {bool now = false}) {
+  void _connect(String host, {bool now = false, String? directory}) {
     final ssh = hosts[host];
     void run() => unawaited(() async {
       final path = await browse(
         RemoteBrowseRequest(
           host: host,
+          directory: directory,
           connect: () async {
             final client = await ssh.reconnect();
             onConnected?.call(host);
