@@ -156,6 +156,16 @@ final registry = MasonRegistry.fromJson({
       'bin': {'fake-cargo-ls': 'cargo:fake-cargo-ls'},
     },
     {
+      'name': 'jdtls',
+      'source': {
+        'id': 'pkg:generic/eclipse/eclipse.jdt.ls@v1.61.0',
+        'download': {
+          'files': {'fake-ls.gz': 'https://example.com/fake-ls.gz'},
+        },
+      },
+      'bin': {'jdtls': 'python:bin/jdtls'},
+    },
+    {
       'name': 'fake-opam',
       'source': {'id': 'pkg:opam/fake-opam-ls@1'},
       'bin': {'fake-opam-ls': 'opam:fake-opam-ls'},
@@ -604,11 +614,109 @@ void main() {
     MasonServerProvider windows() => MasonServerProvider(
       registry: registry,
       installRoot: root,
-      downloader: FakeDownloader(const {}),
+      downloader: FakeDownloader({'fake-ls.gz': 'fake-ls.gz'}),
       runner: FakeRunner(),
       environment: () async => environment,
       platform: const MasonPlatform('win', 'x64'),
     );
+
+    Future<void> javaHome({String name = 'JAVA_HOME'}) async {
+      final home = p.join(temp.path, 'java home');
+      await File(p.join(home, 'bin', 'java.exe')).create(recursive: true);
+      environment[name] = home;
+    }
+
+    test('jdtls finds Java in JAVA_HOME without it on PATH', () async {
+      await javaHome();
+      expect(await windows().which('java', environment), isNull);
+      expect(
+        await windows().locate(server('jdtls')),
+        isA<LspServerMissing>()
+            .having((m) => m.package, 'package', 'jdtls')
+            .having((m) => m.missingRuntime, 'runtime', isNull),
+      );
+    });
+
+    test('jdtls install recognizes JAVA_HOME too', () async {
+      await javaHome();
+      final mason = windows();
+      final messages = <String>[];
+      await mason.install('jdtls', onProgress: messages.add);
+      expect(messages, isNot(contains(startsWith('Note:'))));
+      final location = await mason.locate(server('jdtls'));
+      expect(location, isA<LspServerFound>());
+      expect(
+        File((location as LspServerFound).executable).readAsStringSync(),
+        jdtlsLauncher(windows: true),
+      );
+    });
+
+    test('jdtls uses PATH when JAVA_HOME is unset or empty', () async {
+      await File(p.join(toolsDir, 'java.exe')).create();
+      for (final home in [null, '']) {
+        if (home == null) {
+          environment.remove('JAVA_HOME');
+        } else {
+          environment['JAVA_HOME'] = home;
+        }
+        expect(
+          await windows().locate(server('jdtls')),
+          isA<LspServerMissing>().having(
+            (m) => m.missingRuntime,
+            'runtime',
+            isNull,
+          ),
+        );
+      }
+    });
+
+    test('jdtls reports missing Java when neither location has it', () async {
+      expect(
+        await windows().locate(server('jdtls')),
+        isA<LspServerMissing>().having(
+          (m) => m.missingRuntime,
+          'runtime',
+          'java',
+        ),
+      );
+    });
+
+    test(
+      'jdtls honors an invalid JAVA_HOME instead of accepting PATH',
+      () async {
+        environment['JAVA_HOME'] = p.join(temp.path, 'missing java home');
+        await File(p.join(toolsDir, 'java.exe')).create();
+        expect(
+          await windows().locate(server('jdtls')),
+          isA<LspServerMissing>().having(
+            (m) => m.missingRuntime,
+            'runtime',
+            'java',
+          ),
+        );
+        final messages = <String>[];
+        await windows().install('jdtls', onProgress: messages.add);
+        expect(
+          messages,
+          contains(
+            'Note: jdtls runs with java, which is not in JAVA_HOME '
+            '(${environment['JAVA_HOME']})',
+          ),
+        );
+      },
+    );
+
+    test('jdtls reads JAVA_HOME named in any case, as cmd does', () async {
+      await javaHome(name: 'Java_Home');
+      expect(
+        await windows().locate(server('jdtls')),
+        isA<LspServerMissing>().having(
+          (m) => m.missingRuntime,
+          'runtime',
+          isNull,
+        ),
+      );
+    });
 
     test('runs npm-cli.js with node, not npm.cmd through cmd.exe', () async {
       final npm = p.join(toolsDir, 'npm.cmd');
