@@ -651,6 +651,7 @@ void main() {
           '/code/site/index.html': '<p>',
           '/code/api/main.go': 'package main',
           '/code/api/go.mod': 'module api',
+          '${made.path}/shot.png': 'png',
         }),
         paths: p.posix,
       ),
@@ -661,6 +662,15 @@ void main() {
     final listed =
         (await peer.call(LinkMethods.files, {'project': made.path}))! as Map;
     expect(listed['paths'], ['site/index.html', 'api/go.mod', 'api/main.go']);
+    // A picture in the workspace's own folder (an agent's working there),
+    // named from the project's path as the phone names it.
+    expect(
+      await peer.call(LinkMethods.image, {
+        'project': made.path,
+        'path': 'shot.png',
+      }),
+      containsPair('type', 'image/png'),
+    );
     expect(await peer.call(LinkMethods.folder, {'project': made.path}), {
       'folders': ['site', 'api'],
       'files': <String>[],

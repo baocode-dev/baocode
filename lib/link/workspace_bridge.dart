@@ -965,7 +965,18 @@ class WorkspaceBridge {
   Future<Map<String, Object?>> _readImage(Project project, String path) async {
     await _reach(project);
     final (:files, :paths) = _filesOf(project);
-    final candidates = _candidates(project, path);
+    final candidates = [
+      ..._candidates(project, path),
+      // A workspace's own folder too, not one of its roots: a picture an
+      // agent working there made (a screenshot) and showed, named by the
+      // phone from the project's path, as it names any file under that.
+      if (workspace.workspaceAt(project.path) != null &&
+          !paths.isAbsolute(path) &&
+          path.isNotEmpty)
+        if (paths.normalize(paths.join(project.root, path)) case final full
+            when paths.isWithin(project.root, full))
+          full,
+    ];
     final type = switch (paths.extension(path).toLowerCase()) {
       '.png' => 'image/png',
       '.jpg' || '.jpeg' => 'image/jpeg',
