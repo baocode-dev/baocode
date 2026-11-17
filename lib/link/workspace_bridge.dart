@@ -29,6 +29,7 @@ import '../workspace/session_tools.dart';
 import '../workspace/workspace.dart';
 import 'chat_codec.dart';
 import 'interaction_codec.dart';
+import 'link_quota.dart';
 
 /// A project's files, on its host, and how it spells their paths.
 typedef ProjectFiles = ({IdeFileService files, p.Context paths});
@@ -83,6 +84,7 @@ class WorkspaceBridge {
     this.uploadsOf = phoneUploadsOf,
     this.customizations,
     this.bots,
+    this.quota,
     this.throttle = const Duration(milliseconds: 150),
     this.outputEvery = const Duration(milliseconds: 500),
   });
@@ -120,6 +122,9 @@ class WorkspaceBridge {
 
   /// The user's bots; none told without.
   final Bots? bots;
+
+  /// The conversations' quota; none told without.
+  final LinkQuota? quota;
 
   /// How often a phone hears of changes at most: a turn's text streams in
   /// many more times than that.
@@ -531,6 +536,7 @@ class WorkspaceBridge {
           window: params['window'] as int?,
           pathOf: (full) => _phonePath(thread.project, full),
           sessionOf: _phoneSession,
+          quota: quota,
         );
         return follow.start(
           have: [
@@ -547,6 +553,10 @@ class WorkspaceBridge {
           );
         }
         return follow.earlier(params['count'] as int? ?? 50);
+      case LinkMethods.quota:
+        final thread = _thread(params['session']);
+        await quota?.refresh(thread.session);
+        return null;
       case LinkMethods.close:
         if (params['session'] case final String id) {
           _follows.remove(id)?.dispose();
@@ -1421,6 +1431,7 @@ class _Follow {
     required this.pathOf,
     required this.sessionOf,
     this.window,
+    this.quota,
   });
 
   final String id;
@@ -1437,6 +1448,7 @@ class _Follow {
     pathOf: pathOf,
     sessionOf: sessionOf,
     window: window,
+    quota: quota,
   );
 
   /// How many of the last items the phone follows at first, if it pages
@@ -1449,6 +1461,9 @@ class _Follow {
 
   /// A conversation's id as the phone knows it, for one an item names.
   final String Function(String id) sessionOf;
+
+  /// Its quota, told as it changes.
+  final LinkQuota? quota;
 
   Map<String, Object?> _encode(ChatItem item) =>
       ChatCodec.encode(item, session: sessionOf);
@@ -1497,6 +1512,11 @@ class _Follow {
     session
       ..attach()
       ..addListener(_changed);
+    if (quota case final quota?) {
+      quota.changes.addListener(_changed);
+      // Not known, or old: nothing on the desktop may be asking now.
+      unawaited(quota.refresh(session, force: false).catchError((_) {}));
+    }
     if (_had(have) case (:final from, :final same)) {
       _from = from;
       _sent = [for (var i = from; i < from + same; i++) session.itemAt(i)];
@@ -1591,6 +1611,7 @@ class _Follow {
         : _from > 0 || session.hasEarlierHistory || session.loadingEarlier;
     final goal = _goal(session.goal);
     final context = _context(session.context);
+    final quota = this.quota?.of(session);
     final restText = jsonEncode([
       earlier,
       goal,
@@ -1600,6 +1621,7 @@ class _Follow {
       [for (final choice in choices) choice.toJson()],
       changes,
       [for (final task in tasks) task.toJson()],
+      quota,
     ]);
     if (!full &&
         start == count &&
@@ -1633,6 +1655,7 @@ class _Follow {
       earlier: earlier,
       goal: goal,
       context: context,
+      quota: quota,
     );
   }
 
@@ -1777,6 +1800,7 @@ class _Follow {
     _disposed = true;
     _timer?.cancel();
     session.removeListener(_changed);
+    quota?.changes.removeListener(_changed);
     session.detach();
   }
 }

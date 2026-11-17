@@ -533,7 +533,7 @@ class _ChatScreenState extends State<ChatScreen>
 
   void _toggleContextPanel() {
     setState(() => _contextPanelOpen = !_contextPanelOpen);
-    if (_contextPanelOpen) _session.refreshUsage();
+    if (_contextPanelOpen) unawaited(_session.refreshUsage());
   }
 
   void _answer(InteractionAnswer answer) {
