@@ -8994,5 +8994,7 @@
   "remoteBrowserNotFolder": "{path} is a file, not a folder.",
   "@remoteBrowserNotFolder": {"placeholders": {"path": {"type": "String"}}},
   "remoteBrowserMakeFailed": "Could not make the folder: {error}",
-  "@remoteBrowserMakeFailed": {"placeholders": {"error": {"type": "String"}}}
+  "@remoteBrowserMakeFailed": {"placeholders": {"error": {"type": "String"}}},
+  "remoteBrowserFolderAction": "Open Folder",
+  "remoteBrowserFileAction": "Open File"
 }

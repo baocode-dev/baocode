@@ -13436,4 +13436,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String remoteBrowserMakeFailed(String error) {
     return '无法新建文件夹：$error';
   }
+
+  @override
+  String get remoteBrowserFolderAction => '打开文件夹';
+
+  @override
+  String get remoteBrowserFileAction => '打开文件';
 }

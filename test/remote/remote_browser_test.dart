@@ -82,7 +82,7 @@ void main() {
     );
     await tester.tap(find.text('browse'));
     await tester.pump();
-    expect(find.text('Open a Folder on dev'), findsOneWidget);
+    expect(find.text('Open Folder'), findsOneWidget);
     // Folders only, the hidden one left out; the recent one at the left.
     const list = RemoteBrowserDialog.entriesKey;
     await pumpUntil(

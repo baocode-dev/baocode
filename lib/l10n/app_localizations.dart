@@ -23094,6 +23094,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not make the folder: {error}'**
   String remoteBrowserMakeFailed(String error);
+
+  /// No description provided for @remoteBrowserFolderAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Folder'**
+  String get remoteBrowserFolderAction;
+
+  /// No description provided for @remoteBrowserFileAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open File'**
+  String get remoteBrowserFileAction;
 }
 
 class _AppLocalizationsDelegate

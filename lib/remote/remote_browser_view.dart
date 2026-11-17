@@ -431,55 +431,46 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
         autofocus: true,
         child: Align(
           alignment: const Alignment(0, -0.3),
-          child: Material(
-            type: MaterialType.transparency,
-            child: Container(
-              width: width,
-              height: math.max(320, height),
-              clipBehavior: Clip.antiAlias,
-              // The window's color, the entries on a card of the editor's,
-              // apart by a gap rather than a line: an island's, its
-              // corners round the card's at the gap.
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                border: Border.all(color: Islands.border),
-                borderRadius: BorderRadius.circular(
-                  Islands.radius + Islands.gap,
+          child: Semantics(
+            scopesRoute: true,
+            namesRoute: true,
+            explicitChildNodes: true,
+            label: widget.request.files
+                ? l10n.remoteBrowserFileTitle(widget.hostLabel)
+                : l10n.remoteBrowserFolderTitle(widget.hostLabel),
+            child: Material(
+              type: MaterialType.transparency,
+              child: Container(
+                width: width,
+                height: math.max(320, height),
+                clipBehavior: Clip.antiAlias,
+                // The window's color, the entries on a card of the editor's,
+                // apart by a gap rather than a line: an island's, its
+                // corners round the card's at the gap.
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  border: Border.all(color: Islands.border),
+                  borderRadius: BorderRadius.circular(
+                    Islands.radius + Islands.gap,
+                  ),
+                  boxShadow: [
+                    const BoxShadow(
+                      color: Color(0x40000000),
+                      blurRadius: 32,
+                      offset: Offset(0, 12),
+                    ),
+                    if (shadow != null) BoxShadow(color: shadow, blurRadius: 8),
+                  ],
                 ),
-                boxShadow: [
-                  const BoxShadow(
-                    color: Color(0x40000000),
-                    blurRadius: 32,
-                    offset: Offset(0, 12),
-                  ),
-                  if (shadow != null) BoxShadow(color: shadow, blurRadius: 8),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _TitleBar(
-                    title: widget.request.files
-                        ? l10n.remoteBrowserFileTitle(widget.hostLabel)
-                        : l10n.remoteBrowserFolderTitle(widget.hostLabel),
-                    onClose: _close,
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: Islands.gap,
-                      ),
-                      child: switch (_model.phase) {
-                        RemoteBrowserPhase.connecting => _card(
-                          _Status(
-                            icon: const IdeSpinning(
-                              Icon(Codicons.loading, size: 20),
-                            ),
-                            message: l10n.remoteConnecting(widget.hostLabel),
-                          ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Islands.gap,
                         ),
-                        RemoteBrowserPhase.failed => _card(_failure(l10n)),
-                        RemoteBrowserPhase.ready => Row(
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             _sidebar(l10n),
@@ -488,17 +479,32 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   _toolbar(l10n),
-                                  Expanded(child: _card(_list(l10n))),
+                                  Expanded(
+                                    child: _card(switch (_model.phase) {
+                                      RemoteBrowserPhase.connecting => _Status(
+                                        icon: const IdeSpinning(
+                                          Icon(Codicons.loading, size: 20),
+                                        ),
+                                        message: l10n.remoteConnecting(
+                                          widget.hostLabel,
+                                        ),
+                                      ),
+                                      RemoteBrowserPhase.failed => _failure(
+                                        l10n,
+                                      ),
+                                      RemoteBrowserPhase.ready => _list(l10n),
+                                    }),
+                                  ),
                                 ],
                               ),
                             ),
                           ],
                         ),
-                      },
+                      ),
                     ),
-                  ),
-                  _footer(l10n),
-                ],
+                    _footer(l10n),
+                  ],
+                ),
               ),
             ),
           ),
@@ -547,50 +553,67 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     final directory = _model.directory;
     final roots = _model.roots;
     final home = _model.home;
-    // On the window's color, as the agents' window's sidebar.
+    final ready = _model.phase == RemoteBrowserPhase.ready;
+    // On the window's color, as the agents' window's sidebar; what it is
+    // for at its top, beside the toolbar, in place of a title bar.
     return SizedBox(
       width: 200,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(4, 4, 10, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SectionLabel(l10n.remoteBrowserPlaces),
-          if (home.isNotEmpty)
-            _Place(
-              icon: const FinderFolderIcon(size: 18, home: true),
-              label: l10n.remoteBrowserHome,
-              tooltip: home,
-              selected: directory == home,
-              onTap: () => unawaited(_model.open(home)),
-            ),
-          if (_model.isWindows)
-            _Place(
-              icon: const FinderComputerIcon(size: 18),
-              label: l10n.remoteBrowserThisPc,
-              selected: directory == null,
-              onTap: () => unawaited(_model.open(null)),
-            ),
-          for (final root in roots)
-            _Place(
-              icon: FinderDiskIcon(size: 18, kind: root.kind),
-              label: _rootLabel(root, l10n),
-              tooltip: root.path,
-              selected: directory == root.path,
-              onTap: () => unawaited(_model.open(root.path)),
-            ),
-          if (_model.locations.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            _SectionLabel(l10n.remoteBrowserRecent),
-            for (final path in _model.locations.take(10))
-              _Place(
-                icon: const FinderFolderIcon(size: 18),
-                label: _model.paths.basename(path).isEmpty
-                    ? path
-                    : _model.paths.basename(path),
-                tooltip: path,
-                selected: directory == path,
-                onTap: () => unawaited(_model.goTo(path)),
+          _Heading(
+            host: widget.hostLabel,
+            action: widget.request.files
+                ? l10n.remoteBrowserFileAction
+                : l10n.remoteBrowserFolderAction,
+            height: _toolbarHeight,
+          ),
+          if (ready)
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(4, 4, 10, 8),
+                children: [
+                  _SectionLabel(l10n.remoteBrowserPlaces),
+                  if (home.isNotEmpty)
+                    _Place(
+                      icon: const FinderFolderIcon(size: 18, home: true),
+                      label: l10n.remoteBrowserHome,
+                      tooltip: home,
+                      selected: directory == home,
+                      onTap: () => unawaited(_model.open(home)),
+                    ),
+                  if (_model.isWindows)
+                    _Place(
+                      icon: const FinderComputerIcon(size: 18),
+                      label: l10n.remoteBrowserThisPc,
+                      selected: directory == null,
+                      onTap: () => unawaited(_model.open(null)),
+                    ),
+                  for (final root in roots)
+                    _Place(
+                      icon: FinderDiskIcon(size: 18, kind: root.kind),
+                      label: _rootLabel(root, l10n).name,
+                      suffix: _rootLabel(root, l10n).suffix,
+                      selected: directory == root.path,
+                      onTap: () => unawaited(_model.open(root.path)),
+                    ),
+                  if (_model.locations.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _SectionLabel(l10n.remoteBrowserRecent),
+                    for (final path in _model.locations.take(10))
+                      _Place(
+                        icon: const FinderFolderIcon(size: 18),
+                        label: _model.paths.basename(path).isEmpty
+                            ? path
+                            : _model.paths.basename(path),
+                        tooltip: path,
+                        selected: directory == path,
+                        onTap: () => unawaited(_model.goTo(path)),
+                      ),
+                  ],
+                ],
               ),
-          ],
+            ),
         ],
       ),
     );
@@ -598,73 +621,92 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
 
   /// Back, forward, up; where it is; refresh, the view, the filter.
   Widget _toolbar(AppLocalizations l10n) {
+    final close = IdeActionButton(
+      icon: Codicons.close,
+      tooltip: l10n.dialogCloseDialog,
+      onPressed: _close,
+    );
     // About the card, so over it on the window's color.
     return Container(
-      height: 30 + 2 * Islands.gap,
-      padding: const EdgeInsets.symmetric(vertical: Islands.gap),
+      height: _toolbarHeight,
+      padding: const EdgeInsets.only(top: 8, bottom: Islands.gap),
       child: Row(
-        children: [
-          IdeActionButton(
-            icon: Codicons.arrowLeft,
-            tooltip: l10n.remoteBrowserBack,
-            onPressed: _model.canGoBack ? () => unawaited(_model.back()) : null,
-          ),
-          IdeActionButton(
-            icon: Codicons.arrowRight,
-            tooltip: l10n.remoteBrowserForward,
-            onPressed: _model.canGoForward
-                ? () => unawaited(_model.forward())
-                : null,
-          ),
-          IdeActionButton(
-            icon: Codicons.arrowUp,
-            tooltip: l10n.remoteParentFolder,
-            onPressed: _model.canGoUp ? () => unawaited(_model.up()) : null,
-          ),
-          const SizedBox(width: 6),
-          Expanded(child: _path == null ? _crumbs(l10n) : _pathField(l10n)),
-          const SizedBox(width: 6),
-          IdeActionButton(
-            icon: Codicons.refresh,
-            tooltip: l10n.remoteBrowserRefresh,
-            onPressed: () => unawaited(_model.refresh()),
-          ),
-          Builder(
-            builder: (context) => IdeActionButton(
-              icon: _model.view.hidden ? Codicons.eye : Codicons.eyeClosed,
-              tooltip: l10n.remoteBrowserView,
-              onPressed: () {
-                final box = context.findRenderObject();
-                if (box is! RenderBox) return;
-                unawaited(
-                  _showViewMenu(box.localToGlobal(Offset.zero) & box.size),
-                );
-              },
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 170,
-            child: IdeInputBox(
-              controller: _filter,
-              focusNode: _filterFocus,
-              autofocus: true,
-              placeholder: l10n.remoteBrowserFilter,
-              semanticsLabel: l10n.remoteBrowserFilter,
-              radius: Islands.controlRadius,
-              padding: _controlPadding,
-              onChanged: (value) {
-                _model.filter = value;
-                if (_scroll.hasClients) _scroll.jumpTo(0);
-              },
-              onSubmitted: (_) {
-                _submit();
-                _filterFocus.requestFocus();
-              },
-              shortcuts: _keys,
-            ),
-          ),
-        ],
+        children: _model.phase != RemoteBrowserPhase.ready
+            ? [const Spacer(), close]
+            : [
+                IdeActionButton(
+                  icon: Codicons.arrowLeft,
+                  tooltip: l10n.remoteBrowserBack,
+                  onPressed: _model.canGoBack
+                      ? () => unawaited(_model.back())
+                      : null,
+                ),
+                IdeActionButton(
+                  icon: Codicons.arrowRight,
+                  tooltip: l10n.remoteBrowserForward,
+                  onPressed: _model.canGoForward
+                      ? () => unawaited(_model.forward())
+                      : null,
+                ),
+                IdeActionButton(
+                  icon: Codicons.arrowUp,
+                  tooltip: l10n.remoteParentFolder,
+                  onPressed: _model.canGoUp
+                      ? () => unawaited(_model.up())
+                      : null,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _path == null ? _crumbs(l10n) : _pathField(l10n),
+                ),
+                const SizedBox(width: 6),
+                IdeActionButton(
+                  icon: Codicons.refresh,
+                  tooltip: l10n.remoteBrowserRefresh,
+                  onPressed: () => unawaited(_model.refresh()),
+                ),
+                Builder(
+                  builder: (context) => IdeActionButton(
+                    icon: _model.view.hidden
+                        ? Codicons.eye
+                        : Codicons.eyeClosed,
+                    tooltip: l10n.remoteBrowserView,
+                    onPressed: () {
+                      final box = context.findRenderObject();
+                      if (box is! RenderBox) return;
+                      unawaited(
+                        _showViewMenu(
+                          box.localToGlobal(Offset.zero) & box.size,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 170,
+                  child: IdeInputBox(
+                    controller: _filter,
+                    focusNode: _filterFocus,
+                    autofocus: true,
+                    placeholder: l10n.remoteBrowserFilter,
+                    semanticsLabel: l10n.remoteBrowserFilter,
+                    radius: Islands.controlRadius,
+                    padding: _controlPadding,
+                    onChanged: (value) {
+                      _model.filter = value;
+                      if (_scroll.hasClients) _scroll.jumpTo(0);
+                    },
+                    onSubmitted: (_) {
+                      _submit();
+                      _filterFocus.requestFocus();
+                    },
+                    shortcuts: _keys,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                close,
+              ],
       ),
     );
   }
@@ -812,7 +854,10 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
         rows.add(
           _EntryRow(
             icon: FinderDiskIcon(size: 18, kind: root.kind),
-            name: _rootLabel(root, l10n),
+            name: switch (_rootLabel(root, l10n)) {
+              (:final name, suffix: final suffix?) => '$name $suffix',
+              (:final name, suffix: null) => name,
+            },
             selected: _model.selected == root.path,
             onTap: () => _clicked(root.path),
           ),
@@ -878,9 +923,9 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         Islands.gap * 2,
+        Islands.gap,
         Islands.gap * 2,
-        Islands.gap * 2,
-        Islands.gap * 2,
+        Islands.gap + 2,
       ),
       child: Row(
         children: [
@@ -898,10 +943,9 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
             ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
+            child: _FitText(
               target ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              middle: true,
               style: TextStyle(
                 fontSize: 12,
                 color: colors['descriptionForeground'],
@@ -929,6 +973,9 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
   }
 }
 
+/// The toolbar's height, and the sidebar's heading's beside it.
+const _toolbarHeight = 8 + Islands.controlHeight + Islands.gap;
+
 /// An input's padding inside, for [Islands.controlHeight]: its 18 px line
 /// and border in 30.
 const _controlPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 5);
@@ -937,55 +984,166 @@ const _controlPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 5);
 const _buttonPadding = EdgeInsets.symmetric(horizontal: 14, vertical: 7);
 
 /// A drive as Explorer names it (`Windows (C:)`, `Local Disk (D:)`); the
-/// root elsewhere, and a Mac's volumes by their names.
-String _rootLabel(BrowseRoot root, AppLocalizations l10n) {
+/// root elsewhere, and a Mac's volumes by their names. Its letter apart
+/// ([suffix]), kept when a long name is cut.
+({String name, String? suffix}) _rootLabel(
+  BrowseRoot root,
+  AppLocalizations l10n,
+) {
   final path = root.path;
   final drive = RegExp(r'^([A-Za-z]:)[\\/]?$').firstMatch(path)?[1];
   if (drive == null) {
-    if (root.label.isNotEmpty) return root.label;
-    return path == '/' ? '${l10n.remoteBrowserRoot} (/)' : path;
+    if (root.label.isNotEmpty) return (name: root.label, suffix: null);
+    return path == '/'
+        ? (name: l10n.remoteBrowserRoot, suffix: '(/)')
+        : (name: path, suffix: null);
   }
-  if (root.label.isNotEmpty) return '${root.label} ($drive)';
-  return root.kind == BrowseRootKind.fixed
-      ? l10n.remoteBrowserLocalDisk(drive)
-      : drive;
+  if (root.label.isNotEmpty) return (name: root.label, suffix: '($drive)');
+  return (
+    name: root.kind == BrowseRootKind.fixed
+        ? l10n.remoteBrowserLocalDisk(drive)
+        : drive,
+    suffix: null,
+  );
 }
 
-/// The dialog's top: its title and its close button.
-class _TitleBar extends StatelessWidget {
-  const _TitleBar({required this.title, required this.onClose});
+/// [text] on one line, cut to fit: at its end (a [suffix] after it kept
+/// whole), or in its middle when [middle] (a path's start and its last
+/// folders kept). Cut, the whole of it on hover; [hover] instead, if
+/// given, whether cut or not.
+class _FitText extends StatelessWidget {
+  const _FitText(
+    this.text, {
+    required this.style,
+    this.suffix,
+    this.middle = false,
+    this.hover,
+  });
 
-  final String title;
-  final VoidCallback onClose;
+  final String text;
+  final String? suffix;
+  final TextStyle style;
+  final bool middle;
+  final String? hover;
+
+  String get _whole => suffix == null ? text : '$text $suffix';
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.only(left: 18, right: 10, top: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-                color: themeColors['editorWidget.foreground'],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final scale = MediaQuery.textScalerOf(context);
+      final direction = Directionality.of(context);
+      final style = DefaultTextStyle.of(context).style.merge(this.style);
+      bool fits(String value) {
+        final painter = TextPainter(
+          text: TextSpan(text: value, style: style),
+          textDirection: direction,
+          textScaler: scale,
+          maxLines: 1,
+        )..layout();
+        final width = painter.width;
+        painter.dispose();
+        return width <= constraints.maxWidth;
+      }
+
+      final cut = constraints.hasBoundedWidth && !fits(_whole);
+      Widget child;
+      if (!cut) {
+        child = Text(_whole, maxLines: 1, style: this.style);
+      } else if (middle) {
+        child = Text(
+          _middleCut(fits),
+          maxLines: 1,
+          overflow: TextOverflow.clip,
+          style: this.style,
+        );
+      } else {
+        child = Row(
+          children: [
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: this.style,
               ),
             ),
-          ),
-          IdeActionButton(
-            icon: Codicons.close,
-            tooltip: context.l10n.dialogCloseDialog,
-            onPressed: onClose,
-          ),
-        ],
-      ),
-    );
+            if (suffix case final suffix?)
+              Text(' $suffix', maxLines: 1, style: this.style),
+          ],
+        );
+      }
+      final tip = hover ?? (cut ? _whole : null);
+      return tip == null ? child : IdeHover(message: tip, child: child);
+    },
+  );
+
+  /// The most of [text] that [fits], its middle given up for `…`: two
+  /// fifths of what is kept from its start, the rest from its end.
+  String _middleCut(bool Function(String) fits) {
+    String kept(int count) {
+      final head = (count * 2 / 5).floor();
+      return '${text.substring(0, head)}…'
+          '${text.substring(text.length - (count - head))}';
+    }
+
+    var low = 0, high = text.length - 1;
+    while (low < high) {
+      final count = (low + high + 1) ~/ 2;
+      if (fits(kept(count))) {
+        low = count;
+      } else {
+        high = count - 1;
+      }
+    }
+    return kept(low);
   }
+}
+
+/// What the browser is for, atop its sidebar: the host, and Open Folder
+/// or Open File under it.
+class _Heading extends StatelessWidget {
+  const _Heading({
+    required this.host,
+    required this.action,
+    required this.height,
+  });
+
+  final String host;
+  final String action;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: height,
+    padding: const EdgeInsets.fromLTRB(12, 8, 8, Islands.gap),
+    alignment: Alignment.centerLeft,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FitText(
+          host,
+          style: TextStyle(
+            fontSize: 13,
+            height: 16 / 13,
+            fontWeight: FontWeight.w600,
+            color: themeColors['editorWidget.foreground'],
+          ),
+        ),
+        Text(
+          action,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11,
+            height: 14 / 11,
+            color: themeColors['descriptionForeground'],
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Something said in the middle (connecting, why not, nothing here), with
@@ -1075,11 +1233,17 @@ class _Place extends StatefulWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.suffix,
     this.tooltip,
   });
 
   final Widget icon;
   final String label;
+
+  /// After [label], kept when it is cut: a drive's letter.
+  final String? suffix;
+
+  /// On hover (a place's path); the whole label when cut, if not given.
   final String? tooltip;
   final bool selected;
   final VoidCallback onTap;
@@ -1094,7 +1258,7 @@ class _PlaceState extends State<_Place> {
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
-    Widget row = MouseRegion(
+    final row = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -1116,10 +1280,10 @@ class _PlaceState extends State<_Place> {
               widget.icon,
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: _FitText(
                   widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  suffix: widget.suffix,
+                  hover: widget.tooltip,
                   style: TextStyle(
                     fontSize: 12.5,
                     color: colors['sideBar.foreground'],
@@ -1131,13 +1295,6 @@ class _PlaceState extends State<_Place> {
         ),
       ),
     );
-    if (widget.tooltip case final tooltip? when tooltip != widget.label) {
-      row = IdeHover(
-        message: tooltip,
-        position: IdeHoverPosition.right,
-        child: row,
-      );
-    }
     return Semantics(
       button: true,
       selected: widget.selected,
