@@ -14251,4 +14251,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get remoteBrowserFileAction => 'Open File';
+
+  @override
+  String remoteBrowserSaveTitle(String host) {
+    return 'Save to $host';
+  }
+
+  @override
+  String get remoteBrowserSaveAction => 'Save As';
+
+  @override
+  String get remoteBrowserSaveName => 'Save As:';
+
+  @override
+  String get remoteBrowserSave => 'Save';
+
+  @override
+  String remoteBrowserReplace(String name) {
+    return '“$name” already exists. Replace it?';
+  }
 }

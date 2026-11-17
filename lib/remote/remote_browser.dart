@@ -1,5 +1,6 @@
-// Browsing a host for a folder (Open Remote Project…) or a file (Open
-// File…), as Finder's and Explorer's open panels do: the host connected to,
+// Browsing a host for a folder (Open Remote Project…), a file (Open
+// File…) or where to save one (Save As…), as Finder's and Explorer's
+// panels do: the host connected to,
 // its places (home, its drives, the folders recently opened there), a
 // folder's entries with the hidden ones left out until asked, and the path
 // walked by. What the window shows of it is remote_browser_view.dart's.
@@ -23,6 +24,7 @@ class RemoteBrowseRequest {
     required this.host,
     required this.connect,
     this.files = false,
+    this.saveName,
     this.directory,
     this.failureActions,
   });
@@ -34,6 +36,11 @@ class RemoteBrowseRequest {
 
   /// For a file (folders walked into), not a folder.
   final bool files;
+
+  /// Where to save a file (Save As…), this the name it is offered: the
+  /// files there shown beside the folders, one clicked its name taken.
+  final String? saveName;
+  bool get saving => saveName != null;
 
   /// Where to start: the host's home when null.
   final String? directory;
@@ -103,9 +110,22 @@ class RemoteBrowserModel extends ChangeNotifier {
     this.request, {
     this._view = const RemoteBrowserView(),
     List<String> locations = const [],
-  }) : _locations = [...locations.take(remoteRecentLocationsKept)];
+  }) : _locations = [...locations.take(remoteRecentLocationsKept)],
+       _name = request.saveName ?? '';
 
   final RemoteBrowseRequest request;
+
+  /// Saving, the name it is to have (see [RemoteBrowseRequest.saveName]).
+  String get name => _name;
+  String _name;
+  set name(String value) {
+    if (value == _name) return;
+    _name = value;
+    _changed();
+  }
+
+  /// Whether the folders' files are listed: for a file, or saving one.
+  bool get _listsFiles => request.files || request.saving;
 
   RemoteBrowserPhase get phase => _phase;
   RemoteBrowserPhase _phase = RemoteBrowserPhase.connecting;
@@ -301,7 +321,7 @@ class RemoteBrowserModel extends ChangeNotifier {
     final filter = _filter.toLowerCase();
     return [
       for (final entry in _entries)
-        if ((request.files || entry.isDirectory) &&
+        if ((_listsFiles || entry.isDirectory) &&
             _shows(entry) &&
             (filter.isEmpty || entry.name.toLowerCase().contains(filter)))
           entry,
@@ -314,7 +334,7 @@ class RemoteBrowserModel extends ChangeNotifier {
   /// How many of the entries the view hides (the filter aside).
   int get hiddenCount => [
     for (final entry in _entries)
-      if ((request.files || entry.isDirectory) && !_shows(entry)) entry,
+      if ((_listsFiles || entry.isDirectory) && !_shows(entry)) entry,
   ].length;
 
   /// The drives shown where the drives are, the filter leaving them.
@@ -358,6 +378,9 @@ class RemoteBrowserModel extends ChangeNotifier {
   void select(String? key) {
     if (key == _selected) return;
     _selected = key;
+    // Saving, a file clicked: its name taken, to write over it.
+    final entry = request.saving ? selectedEntry : null;
+    if (entry != null && !entry.isDirectory) _name = entry.name;
     _changed();
   }
 
@@ -385,14 +408,33 @@ class RemoteBrowserModel extends ChangeNotifier {
     return null;
   }
 
+  /// What is there by [name] already (case aside on Windows): saving, a
+  /// folder walked into, a file asked to be written over.
+  BrowseEntry? entryNamed(String name) {
+    if (_directory == null) return null;
+    for (final entry in _entries) {
+      if (isWindows
+          ? entry.name.toLowerCase() == name.toLowerCase()
+          : entry.name == name) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
   /// The path of [name] where it is.
   String pathOf(String name) =>
       _directory == null ? name : paths.join(_directory!, name);
 
   /// Where Open goes: for a folder, the one selected, else where it is;
-  /// for a file, the one selected. Null: nothing to open.
+  /// for a file, the one selected; saving, [name] where it is. Null:
+  /// nothing to open.
   String? get target {
     if (_phase != RemoteBrowserPhase.ready) return null;
+    if (request.saving) {
+      final name = _name.trim();
+      return _directory == null || name.isEmpty ? null : pathOf(name);
+    }
     if (_directory == null) {
       return request.files || _selected == null ? null : _selected;
     }

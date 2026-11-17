@@ -8996,5 +8996,12 @@
   "remoteBrowserMakeFailed": "Could not make the folder: {error}",
   "@remoteBrowserMakeFailed": {"placeholders": {"error": {"type": "String"}}},
   "remoteBrowserFolderAction": "Open Folder",
-  "remoteBrowserFileAction": "Open File"
+  "remoteBrowserFileAction": "Open File",
+  "remoteBrowserSaveTitle": "Save to {host}",
+  "@remoteBrowserSaveTitle": {"placeholders": {"host": {"type": "String"}}},
+  "remoteBrowserSaveAction": "Save As",
+  "remoteBrowserSaveName": "Save As:",
+  "remoteBrowserSave": "Save",
+  "remoteBrowserReplace": "“{name}” already exists. Replace it?",
+  "@remoteBrowserReplace": {"placeholders": {"name": {"type": "String"}}}
 }

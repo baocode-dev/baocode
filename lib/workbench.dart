@@ -162,7 +162,6 @@ import 'workspace/window_controls.dart';
 import 'workspace/window_header/window_header.dart';
 import 'workspace/workspace.dart';
 import 'workspace/workspace_dialog.dart';
-import 'ide/host_paths.dart';
 import 'remote/local_tools.dart';
 import 'remote/port_forwards.dart';
 
@@ -2410,20 +2409,30 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   /// Asks where to save [doc] of [space] (Save As…, an untitled file's
   /// first save): where it is, or in the folder; noted among the recent.
-  Future<String?> _askSavePath(IdeWorkspace space, IdeDocument doc) async {
-    // A remote project's folders are not this machine's, where the panel is.
-    final local = space.files is! IdeHostFiles;
+  Future<String?> _askSavePath(
+    IdeWorkspace space,
+    IdeDocument doc, {
+    String? host,
+  }) async {
+    final directory = doc.isUntitled
+        ? (space.hasFolder ? space.root : null)
+        : space.paths.dirname(doc.path);
+    final name = doc.isUntitled ? doc.path : space.paths.basename(doc.path);
+    // A remote project's: its host's folders, not this machine's, where
+    // the save panel is.
+    if (host != null) {
+      return _browseRemote(
+        RemoteBrowseRequest(
+          host: host,
+          saveName: name,
+          directory: directory,
+          connect: SshHosts.instance[host].reconnect,
+        ),
+      );
+    }
     final path = await WindowControls.pickSaveFile(
-      directory: !local
-          ? null
-          : doc.isUntitled
-          ? (space.hasFolder ? space.root : null)
-          : p.dirname(doc.path),
-      name: doc.isUntitled
-          ? doc.path
-          : local
-          ? p.basename(doc.path)
-          : hostPathsFor(doc.path).basename(doc.path),
+      directory: directory,
+      name: name,
     );
     if (path != null) _workspace.addRecentFile(path);
     return path;
@@ -3372,7 +3381,8 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
     }
     if (_ideWindow) _trackEdited(space);
     if (folder == _noFolder) space.addListener(() => _followLooseFile(space));
-    return space..askSavePath = (doc) => _askSavePath(space, doc);
+    return space
+      ..askSavePath = (doc) => _askSavePath(space, doc, host: host.name);
   });
 
   /// Where the IDE's chat is without a folder open: in that of the file in

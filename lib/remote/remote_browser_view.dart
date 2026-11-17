@@ -2,7 +2,8 @@
 // app's others, over the window dimmed. Its places at the left; at the top
 // the way back, forward and up, where it is as a path to click back along
 // (or, clicked beside it, to type), and the filter; the entries; at the
-// foot a new folder, what Open takes, Cancel and Open.
+// foot a new folder, what Open takes (saving, the name to save by), Cancel
+// and Open (Save).
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -14,6 +15,7 @@ import 'package:flutter/services.dart';
 import '../base/smooth_scroll.dart';
 import '../ide/ide_button.dart';
 import '../ide/ide_commands.dart' show ideUsesMacKeys;
+import '../ide/ide_dialog.dart';
 import '../ide/ide_hover.dart';
 import '../ide/ide_input.dart';
 import '../ide/ide_menu.dart';
@@ -103,6 +105,14 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
   final _filterFocus = FocusNode();
   final _scroll = SmoothScrollController();
 
+  /// Saving, the name it is to have, at the foot.
+  late final TextEditingController? _name = _saving
+      ? TextEditingController(text: _model.name)
+      : null;
+  final _nameFocus = FocusNode();
+
+  bool get _saving => widget.request.saving;
+
   /// Typing a path in place of the crumbs, and why the last could not be
   /// gone to.
   TextEditingController? _path;
@@ -121,6 +131,14 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
   void initState() {
     super.initState();
     _model.addListener(_changed);
+    // Its name selected, the extension aside, to type over.
+    if (_name case final name?) {
+      final dot = name.text.lastIndexOf('.');
+      name.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: dot > 0 ? dot : name.text.length,
+      );
+    }
     // After this frame: connecting tells the hosts' listeners (the status
     // bar's), which may not be marked while this one builds.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -135,6 +153,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
       ..dispose();
     _filter.dispose();
     _filterFocus.dispose();
+    _name?.dispose();
+    _nameFocus.dispose();
     _scroll.dispose();
     _path?.dispose();
     _newFolder?.dispose();
@@ -145,6 +165,10 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     if (!mounted) return;
     // The filter cleared as it walked on.
     if (_filter.text != _model.filter) _filter.text = _model.filter;
+    // A file clicked while saving: its name.
+    if (_name case final name? when name.text != _model.name) {
+      name.text = _model.name;
+    }
     setState(() {});
   }
 
@@ -153,16 +177,50 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     // locations.
     if (_model.directory case final directory?) _model.remember(directory);
     if (path != null) {
-      _model.remember(widget.request.files ? _model.paths.dirname(path) : path);
+      _model.remember(
+        widget.request.files || _saving ? _model.paths.dirname(path) : path,
+      );
     }
     widget.onLocations?.call(_model.locations);
     Navigator.of(context).pop(path);
   }
 
   void _accept() {
+    if (_saving) {
+      unawaited(_save());
+      return;
+    }
     final target = _model.target;
     if (target != null) _close(target);
   }
+
+  /// Save: a folder by the name walked into, its name back as offered; a
+  /// file by it written over once the user agrees.
+  Future<void> _save() async {
+    final target = _model.target;
+    if (target == null) return;
+    final there = _model.entryNamed(_model.name.trim());
+    if (there != null && there.isDirectory) {
+      await _model.open(_model.pathOf(there.name));
+      _model.name = widget.request.saveName ?? '';
+      return;
+    }
+    if (there != null) {
+      final l10n = context.l10n;
+      final choice = await showIdeDialog(
+        context,
+        type: IdeDialogType.question,
+        message: l10n.remoteBrowserReplace(there.name),
+        buttons: [l10n.explorerDownloadReplace],
+      );
+      if (choice != 0 || !mounted) return;
+    }
+    _close(target);
+  }
+
+  /// Where typing goes in the window: the name while saving, else the
+  /// filter.
+  void _focusMain() => (_saving ? _nameFocus : _filterFocus).requestFocus();
 
   /// A row opened (a double click, Enter in a file's browse, ⌘↓): a folder
   /// or a drive walked into, a file picked.
@@ -177,13 +235,16 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
       unawaited(_model.open(_model.pathOf(key)));
     } else if (widget.request.files) {
       _close(_model.pathOf(key));
+    } else if (_saving) {
+      // Its name taken as it was selected: written over, once agreed.
+      _accept();
     }
   }
 
   /// Enter: Open, but in a file's browse a folder selected is walked into.
   void _submit() {
     final entry = _model.selectedEntry;
-    if (widget.request.files &&
+    if ((widget.request.files || _saving) &&
         (_model.directory == null && _model.selected != null ||
             entry != null && entry.isDirectory)) {
       _activate(_model.selected!);
@@ -200,7 +261,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     _lastClicked = double ? null : key;
     _lastClickedAt = now;
     _model.select(key);
-    _filterFocus.requestFocus();
+    _focusMain();
     if (double) _activate(key);
   }
 
@@ -251,7 +312,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     });
     // Disposed once the field holding it is gone.
     WidgetsBinding.instance.addPostFrameCallback((_) => path.dispose());
-    _filterFocus.requestFocus();
+    _focusMain();
   }
 
   Future<void> _goToTyped(String text) async {
@@ -293,7 +354,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
       _newFolderError = null;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
-    _filterFocus.requestFocus();
+    _focusMain();
   }
 
   Future<void> _makeFolder(String name) async {
@@ -439,7 +500,9 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
             scopesRoute: true,
             namesRoute: true,
             explicitChildNodes: true,
-            label: widget.request.files
+            label: _saving
+                ? l10n.remoteBrowserSaveTitle(widget.hostLabel)
+                : widget.request.files
                 ? l10n.remoteBrowserFileTitle(widget.hostLabel)
                 : l10n.remoteBrowserFolderTitle(widget.hostLabel),
             child: Material(
@@ -565,7 +628,9 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
         children: [
           _Heading(
             host: widget.hostLabel,
-            action: widget.request.files
+            action: _saving
+                ? l10n.remoteBrowserSaveAction
+                : widget.request.files
                 ? l10n.remoteBrowserFileAction
                 : l10n.remoteBrowserFolderAction,
             height: _toolbarHeight,
@@ -686,7 +751,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
                   child: IdeInputBox(
                     controller: _filter,
                     focusNode: _filterFocus,
-                    autofocus: true,
+                    autofocus: !_saving,
                     placeholder: l10n.remoteBrowserFilter,
                     semanticsLabel: l10n.remoteBrowserFilter,
                     radius: Islands.controlRadius,
@@ -881,7 +946,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
             ? l10n.remoteBrowserNoMatch(_model.filter)
             : hidden > 0
             ? l10n.remoteBrowserHiddenCount(hidden)
-            : widget.request.files
+            : widget.request.files || _saving
             ? l10n.remoteBrowserEmpty
             : l10n.remoteBrowserNoFolders,
         actions: [
@@ -910,7 +975,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     );
   }
 
-  /// A new folder, what Open takes, Cancel and Open.
+  /// A new folder, what Open takes (saving, the name), Cancel and Open
+  /// (Save).
   Widget _footer(AppLocalizations l10n) {
     final colors = themeColors;
     final ready = _model.phase == RemoteBrowserPhase.ready;
@@ -934,24 +1000,57 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
             ),
             const SizedBox(width: 14),
           ],
-          // What Open takes, by its icon as in the list.
-          if (target != null) ...[
-            if (widget.request.files)
-              FinderFileIcon(target, size: 16)
-            else
-              const FinderFolderIcon(size: 16),
-            const SizedBox(width: 6),
-          ],
-          Expanded(
-            child: _FitText(
-              target ?? '',
-              middle: true,
+          if (_name case final name?) ...[
+            // Saving: the name, Save As: in Finder's save panel.
+            Text(
+              l10n.remoteBrowserSaveName,
               style: TextStyle(
-                fontSize: 12,
-                color: colors['descriptionForeground'],
+                fontSize: 12.5,
+                color: colors['editorWidget.foreground'],
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: IdeInputBox(
+                    controller: name,
+                    focusNode: _nameFocus,
+                    autofocus: true,
+                    semanticsLabel: l10n.remoteBrowserSaveName,
+                    radius: Islands.controlRadius,
+                    padding: _controlPadding,
+                    onChanged: (value) => _model.name = value,
+                    onSubmitted: (_) {
+                      _accept();
+                      _nameFocus.requestFocus();
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ] else ...[
+            // What Open takes, by its icon as in the list.
+            if (target != null) ...[
+              if (widget.request.files)
+                FinderFileIcon(target, size: 16)
+              else
+                const FinderFolderIcon(size: 16),
+              const SizedBox(width: 6),
+            ],
+            Expanded(
+              child: _FitText(
+                target ?? '',
+                middle: true,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors['descriptionForeground'],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(width: 12),
           IdeButton(
             label: l10n.commonCancel,
@@ -962,7 +1061,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
           ),
           const SizedBox(width: 8),
           IdeButton(
-            label: l10n.remoteBrowserOpen,
+            label: _saving ? l10n.remoteBrowserSave : l10n.remoteBrowserOpen,
             radius: Islands.controlRadius,
             padding: _buttonPadding,
             onPressed: target == null ? null : _accept,
