@@ -193,7 +193,11 @@ class MasonServerProvider implements LspServerProvider {
     for (final runtime in _runtimes(plan, installing: false)) {
       if (!tools.containsKey(runtime) &&
           await _runtime(plan, runtime, environment) == null) {
-        progress('Note: $name runs with $runtime, which is not on PATH');
+        final where = switch (_javaHome(plan, runtime, environment)) {
+          final home? => 'in JAVA_HOME ($home)',
+          null => 'on PATH',
+        };
+        progress('Note: $name runs with $runtime, which is not $where');
       }
     }
 
@@ -255,18 +259,32 @@ class MasonServerProvider implements LspServerProvider {
     String runtime,
     Map<String, String> environment,
   ) async {
-    if (plan.package.name == 'jdtls' && runtime == 'java') {
-      final home = environment['JAVA_HOME'];
-      if (home != null && home.isNotEmpty) {
-        final java = p.join(
-          home,
-          'bin',
-          platform.isWindows ? 'java.exe' : 'java',
-        );
-        return await _isExecutable(java) ? java : null;
-      }
+    if (_javaHome(plan, runtime, environment) case final home?) {
+      final java = p.join(
+        home,
+        'bin',
+        platform.isWindows ? 'java.exe' : 'java',
+      );
+      return await _isExecutable(java) ? java : null;
     }
     return which(runtime, environment);
+  }
+
+  /// The JAVA_HOME jdtls's launcher runs [runtime] from, if set: named in
+  /// any case on Windows, as cmd reads it.
+  String? _javaHome(
+    MasonInstallPlan plan,
+    String runtime,
+    Map<String, String> environment,
+  ) {
+    if (plan.package.name != 'jdtls' || runtime != 'java') return null;
+    final home = platform.isWindows
+        ? environment.entries
+              .where((entry) => entry.key.toUpperCase() == 'JAVA_HOME')
+              .firstOrNull
+              ?.value
+        : environment['JAVA_HOME'];
+    return home == null || home.isEmpty ? null : home;
   }
 
   /// Runtimes to install with ([installing]) or to run the bins with.

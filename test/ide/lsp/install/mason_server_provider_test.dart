@@ -620,10 +620,10 @@ void main() {
       platform: const MasonPlatform('win', 'x64'),
     );
 
-    Future<void> javaHome() async {
+    Future<void> javaHome({String name = 'JAVA_HOME'}) async {
       final home = p.join(temp.path, 'java home');
       await File(p.join(home, 'bin', 'java.exe')).create(recursive: true);
-      environment['JAVA_HOME'] = home;
+      environment[name] = home;
     }
 
     test('jdtls finds Java in JAVA_HOME without it on PATH', () async {
@@ -694,8 +694,29 @@ void main() {
             'java',
           ),
         );
+        final messages = <String>[];
+        await windows().install('jdtls', onProgress: messages.add);
+        expect(
+          messages,
+          contains(
+            'Note: jdtls runs with java, which is not in JAVA_HOME '
+            '(${environment['JAVA_HOME']})',
+          ),
+        );
       },
     );
+
+    test('jdtls reads JAVA_HOME named in any case, as cmd does', () async {
+      await javaHome(name: 'Java_Home');
+      expect(
+        await windows().locate(server('jdtls')),
+        isA<LspServerMissing>().having(
+          (m) => m.missingRuntime,
+          'runtime',
+          isNull,
+        ),
+      );
+    });
 
     test('runs npm-cli.js with node, not npm.cmd through cmd.exe', () async {
       final npm = p.join(toolsDir, 'npm.cmd');
