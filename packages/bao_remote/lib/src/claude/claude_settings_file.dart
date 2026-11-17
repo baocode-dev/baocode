@@ -7,7 +7,8 @@ import 'package:path/path.dart' as p;
 /// Flag settings that hold a key, written for `--settings` to a file only
 /// the user reads: in a folder of this run made like mkdtemp (a new name,
 /// 0700; the user's own temp folder on Windows), one file a launch,
-/// removed once the process is gone.
+/// removed once the process is gone. The system prompt goes there too
+/// ([writePrompt]).
 abstract final class ClaudeSettingsFile {
   static Directory? _folder;
 
@@ -27,14 +28,28 @@ abstract final class ClaudeSettingsFile {
   }
 
   /// Writes [settings]; the file's path.
-  static Future<String> write(Map<String, Object?> settings) async {
+  static Future<String> write(Map<String, Object?> settings) =>
+      _write('settings', 'json', jsonEncode(settings));
+
+  /// Writes [prompt], for `--system-prompt-file` or
+  /// `--append-system-prompt-file`; the file's path. On the command line, a
+  /// bot's (its memory, its group chats) can pass the most Windows starts a
+  /// process with (32,767 characters), and the process then never starts.
+  static Future<String> writePrompt(String prompt) =>
+      _write('prompt', 'md', prompt);
+
+  static Future<String> _write(
+    String kind,
+    String extension,
+    String text,
+  ) async {
     final random = Random.secure();
     final name = [
       for (var i = 0; i < 8; i++)
         random.nextInt(256).toRadixString(16).padLeft(2, '0'),
     ].join();
-    final file = File(p.join(_directory.path, 'settings-$name.json'));
-    await file.writeAsString(jsonEncode(settings), flush: true);
+    final file = File(p.join(_directory.path, '$kind-$name.$extension'));
+    await file.writeAsString(text, flush: true);
     return file.path;
   }
 
