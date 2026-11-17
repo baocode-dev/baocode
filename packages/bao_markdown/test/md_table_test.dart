@@ -1,5 +1,6 @@
 import 'package:bao_markdown/bao_markdown.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -367,6 +368,75 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.widget<RawScrollbar>(bar).thumbVisibility, isFalse);
   });
+
+  for (final readOnly in [false, true]) {
+    testWidgets('the scrollbar owns its cursor and presses, not the text '
+        '(readOnly: $readOnly)', (tester) async {
+      final wide = List.filled(3, 'word ' * 30).join(' | ');
+      final source = 'a\n| x | y | z |\n|---|---|---|\n| $wide |\n\nb';
+      final controller = MarkdownController(text: source);
+      await _pump(tester, controller, readOnly: readOnly);
+      final bar = find.descendant(
+        of: find.byType(MdTable),
+        matching: find.byType(RawScrollbar),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      final bounds = tester.getRect(bar);
+      await mouse.moveTo(bounds.centerLeft + const Offset(30, 0));
+      await tester.pumpAndSettle();
+      final paint = find.descendant(
+        of: bar,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is CustomPaint &&
+              widget.foregroundPainter is ScrollbarPainter,
+        ),
+      );
+      final painter =
+          tester.widget<CustomPaint>(paint).foregroundPainter!
+              as ScrollbarPainter;
+      final origin = tester.getTopLeft(paint);
+      final points = [
+        for (var x = bounds.left; x < bounds.right; x++)
+          if (painter.hitTestOnlyThumbInteractive(
+            Offset(x, bounds.bottom - 5) - origin,
+            PointerDeviceKind.mouse,
+          ))
+            Offset(x, bounds.bottom - 5),
+      ];
+      expect(points, isNotEmpty);
+      final thumb = (points.first + points.last) / 2;
+      await mouse.moveTo(thumb);
+      await tester.pumpAndSettle();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.basic,
+      );
+      final selection = controller.selection;
+      await mouse.down(thumb);
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(controller.selection, selection);
+      await mouse.moveBy(const Offset(100, 0));
+      await tester.pumpAndSettle();
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<RawScrollbar>(bar).controller!.offset,
+        greaterThan(0),
+      );
+      expect(controller.selection, selection);
+      expect(_cell(tester), isNull);
+      expect(controller.text, source);
+      await mouse.moveTo(bounds.centerLeft + const Offset(30, 0));
+      await tester.pumpAndSettle();
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.text,
+      );
+    }, variant: const TargetPlatformVariant({TargetPlatform.windows}));
+  }
 
   testWidgets('over the table, a row\'s handle and the bars put rows and '
       'columns in', (tester) async {
