@@ -3002,6 +3002,48 @@ abstract class AppLocalizations {
   /// **'{action, select, tabs{Listing tabs} open{Opening} navigate{Going to} back{Going back} forward{Going forward} reload{Reloading} snapshot{Reading the page} screenshot{Taking a screenshot} click{Clicking} type{Typing} press{Pressing} scroll{Scrolling} evaluate{Running} close{Closing the tab} console{Reading the console} network{Listing requests} request{Reading the request} performance{Profiling} recordStart{Starting to profile} recordStop{Profiling} emulate{Emulating} watch{Watching you} act{Acting} inspect{Inspecting} sources{Reading the sources} breakpoints{Setting breakpoints} debugger{Debugging} intercept{Intercepting requests} storage{Reading site data} dialog{Answering the dialog} coverage{Measuring coverage} memory{Measuring memory} history{Reading the debugging history} other{Using the browser}}'**
   String browserStepRunning(String action);
 
+  /// A coordinating step's verb once done, by the session tool it called; the conversation's title follows.
+  ///
+  /// In en, this message translates to:
+  /// **'{action, select, new{Started} send{Handed work to} wait{Waited for} read{Read} stop{Stopped} changes{Checked the changes of} list{Listed the conversations} other{Coordinated}}'**
+  String sessionStepDone(String action);
+
+  /// A coordinating step's verb while it runs (see sessionStepDone).
+  ///
+  /// In en, this message translates to:
+  /// **'{action, select, new{Starting} send{Handing work to} wait{Waiting for} read{Reading} stop{Stopping} changes{Checking the changes of} list{Listing the conversations} other{Coordinating}}'**
+  String sessionStepRunning(String action);
+
+  /// No description provided for @sessionOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the conversation'**
+  String get sessionOpen;
+
+  /// How a conversation handed work stands, in the strip over the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'{status, select, running{Working} waiting{Waiting on you} done{Done} failed{Failed} other{}}'**
+  String sessionStatus(String status);
+
+  /// Goes to a conversation that waits on the user, to answer it there.
+  ///
+  /// In en, this message translates to:
+  /// **'Answer'**
+  String get sessionAnswer;
+
+  /// No description provided for @sessionShowMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more'**
+  String get sessionShowMore;
+
+  /// No description provided for @sessionShowLess.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get sessionShowLess;
+
   /// The side panel's plan page: the plan the agent wrote in plan mode, shown while there is one.
   ///
   /// In en, this message translates to:

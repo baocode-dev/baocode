@@ -19,6 +19,7 @@ class UserMessageItem extends ChatItem {
     this.stopped = false,
     this.sentAt,
     this.fromAgent,
+    this.fromSession,
   });
 
   final String text;
@@ -26,6 +27,10 @@ class UserMessageItem extends ChatItem {
   /// Sent by a subagent (SendMessage), not typed: what it was given to do,
   /// else its id. Shown as its, and not to be edited.
   final String? fromAgent;
+
+  /// Sent by another conversation of the user's (session_send, a report
+  /// back): its session's id, to open it by; with [fromAgent] its title.
+  final String? fromSession;
 
   /// Pictures sent with it (screenshots, mockups…).
   final List<ImageAttachment> images;
@@ -61,6 +66,7 @@ class UserMessageItem extends ChatItem {
     stopped: stopped ?? this.stopped,
     sentAt: sentAt,
     fromAgent: fromAgent,
+    fromSession: fromSession,
   );
 }
 

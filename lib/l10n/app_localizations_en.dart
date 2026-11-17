@@ -1625,6 +1625,60 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String sessionStepDone(String action) {
+    String _temp0 = intl.Intl.selectLogic(action, {
+      'new': 'Started',
+      'send': 'Handed work to',
+      'wait': 'Waited for',
+      'read': 'Read',
+      'stop': 'Stopped',
+      'changes': 'Checked the changes of',
+      'list': 'Listed the conversations',
+      'other': 'Coordinated',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String sessionStepRunning(String action) {
+    String _temp0 = intl.Intl.selectLogic(action, {
+      'new': 'Starting',
+      'send': 'Handing work to',
+      'wait': 'Waiting for',
+      'read': 'Reading',
+      'stop': 'Stopping',
+      'changes': 'Checking the changes of',
+      'list': 'Listing the conversations',
+      'other': 'Coordinating',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get sessionOpen => 'Open the conversation';
+
+  @override
+  String sessionStatus(String status) {
+    String _temp0 = intl.Intl.selectLogic(status, {
+      'running': 'Working',
+      'waiting': 'Waiting on you',
+      'done': 'Done',
+      'failed': 'Failed',
+      'other': '',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get sessionAnswer => 'Answer';
+
+  @override
+  String get sessionShowMore => 'Show more';
+
+  @override
+  String get sessionShowLess => 'Show less';
+
+  @override
   String get sidePanelPlan => 'Plan';
 
   @override

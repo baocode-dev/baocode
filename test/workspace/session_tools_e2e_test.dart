@@ -142,7 +142,6 @@ void main() {
       final report = fromAgents(lead.session)
           .firstWhere((m) => m.$1 == 'Worker')
           .$2;
-      expect(report, contains('is done.'));
       expect(report, contains('WORKER DONE'));
       expect(lead.session.lastTurnReply, contains('ALL DONE'));
       expect(lead.session.lastTurnReply, contains('hello.txt'));

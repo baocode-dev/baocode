@@ -246,6 +246,7 @@ abstract final class ChatCodec {
       if (item.stopped) 'stopped': true,
       'at': ?item.sentAt?.millisecondsSinceEpoch,
       'agent': ?item.fromAgent,
+      'agentSession': ?item.fromSession,
       if (item.usage case final usage?)
         'usage': {
           'in': ?usage.inputTokens,
@@ -392,6 +393,7 @@ abstract final class ChatCodec {
         stopped: json['stopped'] == true,
         sentAt: time('at'),
         fromAgent: json['agent'] as String?,
+        fromSession: json['agentSession'] as String?,
         usage: switch (json['usage']) {
           final Map<String, Object?> usage => TurnUsage(
             inputTokens: (usage['in'] as num?)?.toInt(),

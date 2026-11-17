@@ -113,7 +113,7 @@ abstract final class SessionTools {
 
     AgentThread chat(Object? id, ClaudeSdkCall call) {
       for (final thread in workspace.threads) {
-        if (BotTools.idOf(thread) != id) continue;
+        if (thread.id != id && BotTools.idOf(thread) != id) continue;
         if (_isCaller(thread, call)) {
           throw ArgumentError('That is this conversation.');
         }
@@ -221,7 +221,7 @@ abstract final class SessionTools {
                   (query == null ||
                       thread.title.toLowerCase().contains(query)) &&
                   (!onlyMine || yours.contains(thread)))
-                '${BotTools.idOf(thread)} | ${thread.project.name} | '
+                '${idOf(thread)} | ${thread.project.name} | '
                     '${thread.title} | ${BotTools.statusOf(thread)} | '
                     '${BotTools.ago(thread.updatedAt)}'
                     '${yours.contains(thread) ? ' | yours' : ''}',
@@ -357,7 +357,7 @@ abstract final class SessionTools {
             null => text,
           });
           return [
-            'Started: ${BotTools.idOf(thread)} in ${project.name}'
+            'Started: ${idOf(thread)} in ${project.name}'
                 '${model == null ? '' : ', on ${model.id}'}.',
             if (worktree case (:final path, :final branch))
               'It works in $path, on the new branch $branch.',
@@ -389,7 +389,7 @@ abstract final class SessionTools {
             return 'Not delivered: it waits on the user. $asked Only they '
                 'can answer it: tell them.';
           }
-          final target = BotTools.idOf(thread);
+          final target = idOf(thread);
           final key = (call.sessionId, target);
           final now = DateTime.now();
           if (_sent[key] case (final last, final at)
@@ -463,7 +463,7 @@ abstract final class SessionTools {
           final done = stopped();
           final working = [
             for (final thread in threads)
-              if (!done.contains(thread)) BotTools.idOf(thread),
+              if (!done.contains(thread)) idOf(thread),
           ];
           if (done.isEmpty) {
             return 'Still working after $seconds seconds: '
@@ -555,13 +555,17 @@ abstract final class SessionTools {
     thread.session.send(
       ComposerMessage(
         text: thread.kernel.id == 'claude-code'
-            ? agentMessage(from?.title ?? 'Another conversation', text)
+            ? agentMessage(
+                from?.title ?? 'Another conversation',
+                text,
+                session: from == null ? null : idOf(from),
+              )
             : text,
       ),
       notes: [
         '<system-reminder>This message comes from another of the user\'s '
             'agent conversations'
-            '${from == null ? '' : ' ("${from.title}" in ${from.project.name}, session ${BotTools.idOf(from)})'}'
+            '${from == null ? '' : ' ("${from.title}" in ${from.project.name}, session ${idOf(from)})'}'
             ', which the user has coordinating their conversations: take it '
             'up as their request. Your reply, once your turn ends, goes back '
             'to it by itself: no need to write to it.</system-reminder>',
@@ -571,9 +575,54 @@ abstract final class SessionTools {
 
   /// [text] as a message from another agent, [from] it: shown as its card.
   @visibleForTesting
-  static String agentMessage(String from, String text) =>
-      '<agent-message from="${from.replaceAll('"', "'")}">$text'
-      '</agent-message>';
+  static String agentMessage(String from, String text, {String? session}) =>
+      '<agent-message from="${from.replaceAll('"', "'")}"'
+      '${session == null ? '' : ' session="${session.replaceAll('"', '')}"'}>'
+      '$text</agent-message>';
+
+  /// [thread]'s id for these tools: its session's once it has one (kept
+  /// from run to run), else the one it goes by until then.
+  static String idOf(AgentThread thread) => thread.id ?? BotTools.idOf(thread);
+
+  /// The conversation [id] names ([idOf], or the one it went by before its
+  /// session started); null for none.
+  static AgentThread? threadOf(Workspace workspace, String id) {
+    for (final thread in workspace.threads) {
+      if (thread.id == id || BotTools.idOf(thread) == id) return thread;
+    }
+    return null;
+  }
+
+  /// The conversations [session] handed work to (session_new,
+  /// session_send) or heard from, in the order it first did: as its steps
+  /// and messages say, from run to run.
+  static List<AgentThread> handedFrom(
+    ChatSession session,
+    Workspace workspace,
+  ) {
+    final ids = <String>{};
+    for (var i = 0; i < session.itemCount; i++) {
+      switch (session.itemAt(i)) {
+        case ToolCallItem(tool: 'session_new', :final output?):
+          if (_started.firstMatch(output)?[1] case final id?) ids.add(id);
+        case ToolCallItem(tool: 'session_send', :final input):
+          if (input['session'] case final String id) ids.add(id);
+        case UserMessageItem(fromSession: final id?):
+          ids.add(id);
+        default:
+      }
+    }
+    final threads = <AgentThread>[];
+    for (final id in ids) {
+      if (threadOf(workspace, id) case final thread?
+          when !threads.contains(thread)) {
+        threads.add(thread);
+      }
+    }
+    return threads;
+  }
+
+  static final _started = RegExp(r'^Started: (\S+)');
 
   static KernelOption _modelNamed(List<KernelOption> options, String name) {
     final wanted = name.toLowerCase();
@@ -655,7 +704,7 @@ abstract final class SessionTools {
   /// Where [thread] stands, for the agent that handed it work: with its
   /// whole reply once it stopped.
   static String _standing(AgentThread thread, ChatSession session) {
-    final name = '${BotTools.idOf(thread)} ("${thread.title}")';
+    final name = '${idOf(thread)} ("${thread.title}")';
     String reply() => switch (session.lastTurnReply) {
       final reply? => '\nIts reply:\n\n${_clip(reply, _whole)}',
       null => '\nIt said nothing since it was last written to.',
@@ -670,6 +719,69 @@ abstract final class SessionTools {
             '${reply()}',
       _State.done => '$name is done.${reply()}',
     };
+  }
+
+  /// [thread]'s report back, once it stopped: [text] as the user reads it
+  /// in the card (its reply whole, or what it asks them), [note] for the
+  /// agent, how it stands.
+  static ({String text, String note}) _report(
+    AgentThread thread,
+    ChatSession session,
+  ) {
+    final name = '${idOf(thread)} ("${thread.title}")';
+    final reply = switch (session.lastTurnReply) {
+      final reply? => _clip(reply, _whole),
+      null => null,
+    };
+    return switch (_stateOf(thread)) {
+      _State.waiting => (
+        text: _asked(session) ?? thread.title,
+        note:
+            '$name waits on the user. ${_waitsFor(session) ?? ''} Only they '
+            'can answer it: tell them, rather than waiting.',
+      ),
+      _State.failed => (
+        text: [_error(session) ?? 'Error', ?reply].join('\n\n'),
+        note:
+            '$name stopped on an error: the message has it, and what it said '
+            'before.',
+      ),
+      _ => (
+        text: reply ?? '…',
+        note: reply == null
+            ? '$name is done, and said nothing.'
+            : '$name is done: the message is its whole reply.',
+      ),
+    };
+  }
+
+  /// What [session] asks the user, as they would read it: its questions
+  /// and their options, the command it asks leave for, its plan's title;
+  /// null for nothing.
+  static String? _asked(ChatSession session) {
+    switch (session.pendingInteraction) {
+      case QuestionRequest(:final questions):
+        return [
+          for (final question in questions)
+            [
+              question.prompt,
+              for (final option in question.options) '- ${option.label}',
+            ].join('\n'),
+        ].join('\n\n');
+      case ApprovalRequest(:final toolName, :final preview, :final title):
+        return switch (preview) {
+          CommandPreview(:final command) => '`$toolName`\n\n```\n$command\n```',
+          DiffPreview(:final path) => '`$toolName` $path',
+          TextPreview(:final text) => '`$toolName`\n\n${_clip(text, 600)}',
+          null => title.isEmpty ? '`$toolName`' : title,
+        };
+      case null:
+    }
+    if (session.canStartPlan) {
+      final plan = session.awaitingPlan!;
+      return plan.title ?? plan.path;
+    }
+    return null;
   }
 
   /// What [session] waits on the user for, in a line or so; null for
@@ -757,8 +869,9 @@ class _Reports {
   final List<(String, Set<AgentThread>)> _waits = [];
 
   /// Reports not given yet (the agent to tell waits on the user, say):
-  /// who to, from which conversation, and what.
-  final List<(String, String, String)> _undelivered = [];
+  /// who to, from which conversation, and what (see [SessionTools._report]).
+  final List<(String, AgentThread, ({String text, String note}))> _undelivered =
+      [];
 
   void follow(String by, AgentThread thread) {
     (mine[by] ??= {}).add(thread);
@@ -818,7 +931,7 @@ class _Reports {
         _ => false,
       };
       if (!tell) continue;
-      final report = SessionTools._standing(thread, thread.session);
+      final report = SessionTools._report(thread, thread.session);
       for (final by in [...told]) {
         // Told it once: until written to again; but what it waits on the
         // user for, it goes on from.
@@ -826,7 +939,7 @@ class _Reports {
         final waited = _waits.any(
           (wait) => wait.$1 == by && wait.$2.contains(thread),
         );
-        if (!waited) _undelivered.add((by, thread.title, report));
+        if (!waited) _undelivered.add((by, thread, report));
       }
       if (told.isEmpty) _forget(thread);
     }
@@ -834,7 +947,7 @@ class _Reports {
 
   void _deliver() {
     for (final report in [..._undelivered]) {
-      final (to, from, text) = report;
+      final (to, from, (:text, :note)) = report;
       final agent = SessionTools._threadWithId(workspace, to);
       if (agent == null || agent.archived) {
         _undelivered.remove(report);
@@ -850,12 +963,18 @@ class _Reports {
       }
       _undelivered.remove(report);
       session.send(
-        ComposerMessage(text: SessionTools.agentMessage(from, text)),
-        notes: const [
+        ComposerMessage(
+          text: SessionTools.agentMessage(
+            from.title,
+            text,
+            session: SessionTools.idOf(from),
+          ),
+        ),
+        notes: [
           '<system-reminder>A report from a conversation you handed work '
               'to (session_new or session_send), sent by the app, not by the '
-              'user: go on with the coordinating as it needs, and tell the '
-              'user what they should know.</system-reminder>',
+              'user: $note Go on with the coordinating as it needs, and tell '
+              'the user what they should know.</system-reminder>',
         ],
       );
     }
