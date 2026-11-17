@@ -69,17 +69,12 @@ class ClaudeLaunch {
     this.tools,
     this.userServers = false,
     this.allowed = const [],
-    this.promptSuggestions = true,
     this.switches = ExtensionSwitches.none,
   });
 
   /// The skills, MCP servers and tools turned off (Settings → Customize):
   /// permission rules and `skillOverrides` of the flag settings.
   final ExtensionSwitches switches;
-
-  /// Whether it suggests the next prompt after each turn
-  /// (`--prompt-suggestions`), each a request of its own.
-  final bool promptSuggestions;
 
   /// Folders it may read without asking, its tools' work outside them
   /// aside: where the long pastes it is told of are kept (PasteStore).
@@ -209,7 +204,6 @@ class ClaudeLaunch {
     sdkServers: sdkServers,
     tools: tools,
     allowed: allowed,
-    promptSuggestions: promptSuggestions,
     switches: switches,
   );
 
@@ -320,8 +314,6 @@ class ClaudeLaunch {
     'stdio',
     '--thinking-display',
     thinkingDisplay,
-    // A prompt_suggestion message after each turn.
-    if (promptSuggestions) '--prompt-suggestions',
     if (permissionMode case final mode?) ...['--permission-mode', mode],
     if (model case final model? when model != 'default') ...['--model', model],
     if (effort case final effort?) ...['--effort', effort],

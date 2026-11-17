@@ -6,6 +6,7 @@ import 'package:bao_link/bao_link.dart';
 import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
 import 'package:baocode/chat/chat_session.dart' show ComposerMessage, UserPlace;
 import 'package:baocode/chat/chat_models.dart';
+import 'package:baocode/chat/reply_suggestions.dart';
 import 'package:baocode/bots/bot_folders.dart';
 import 'package:baocode/bots/bot_groups.dart';
 import 'package:baocode/bots/bots.dart';
@@ -346,7 +347,9 @@ void main() {
     final content = (cli.users.last['message']! as Map)['content']! as List;
     expect(
       [for (final block in content) (block as Map)['text']],
-      [UserPlace.phone.note, 'go'],
+      // The user's, as one written at the computer is: suggestions asked
+      // for too.
+      [UserPlace.phone.note, ReplySuggestions.on, 'go'],
     );
   });
 

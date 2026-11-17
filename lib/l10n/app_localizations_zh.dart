@@ -3564,11 +3564,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get generalSettingsQueuedDuringTurn => '插入当前任务';
 
   @override
-  String get generalSettingsPromptSuggestions => '建议下一条提示';
+  String get generalSettingsPromptSuggestions => '推荐回复';
 
   @override
   String get generalSettingsPromptSuggestionsDescription =>
-      '每轮结束后在输入框里给出灰色的下一条消息建议，按 Tab 采用。每条建议都会带着整段对话额外请求一次模型，关掉可以节省 token。从下一条消息起生效；目前仅支持 Claude Code。';
+      '每轮结束后，在输入框上方给出两三句你可能想发的话：点一下放进输入框，改完再发；按 Tab 采用第一句。由 Agent 在回复末尾顺手写出，不额外请求模型。从下一条消息起生效。';
 
   @override
   String generalSettingsCommitAttributionLabel(String name) {

@@ -18,6 +18,9 @@ import 'package:baocode/chat/panels/interaction_panel.dart';
 import 'package:baocode/chat/panels/context_usage_panel.dart';
 import 'package:baocode/chat/panels/mcp_servers_panel.dart';
 import 'package:baocode/chat/panels/queue_panel.dart';
+import 'package:baocode/chat/panels/reply_suggestion_bar.dart';
+import 'package:baocode/chat/reply_suggestions.dart';
+import 'package:baocode/kernel/mock/mock_script.dart';
 import 'package:baocode/chat/side_panel/file_open.dart';
 import 'package:baocode/chat/composer/composer_embeds.dart';
 import 'package:baocode/chat/widgets/activity_row.dart';
@@ -700,13 +703,12 @@ void main() {
     );
   });
 
-  testWidgets('after a turn, Tab takes the prompt Claude suggests', (
-    tester,
-  ) async {
+  testWidgets('after a turn, its suggested replies show over the composer: '
+      'Tab takes the first, a click any', (tester) async {
     final session = await pumpSession(tester, MockKernels.claudeCode);
     session.send(const ComposerMessage(text: '把输入框改成随内容增高'));
     await tester.pump();
-    expect(session.promptSuggestion, isNull);
+    expect(find.byType(ReplySuggestionBar), findsNothing);
     // Answering whatever it asks, until it is done.
     for (var i = 0; i < 400 && session.isStreaming; i++) {
       switch (session.pendingInteraction) {
@@ -716,37 +718,83 @@ void main() {
           session.answer(const ApprovalAnswer(ApprovalDecision.allowOnce));
         default:
       }
+      // Never their tags, while written.
+      expect(
+        find.textContaining(ReplySuggestions.tag, findRichText: true),
+        findsNothing,
+      );
       await tester.pump(const Duration(milliseconds: 100));
     }
     await tester.pump(const Duration(milliseconds: 300));
-    expect(session.promptSuggestion, 'Run the tests');
+    expect(session.replySuggestions, MockScript.suggestions);
+    final bar = find.byType(ReplySuggestionBar);
+    expect(bar, findsOneWidget);
     expect(
       find.descendant(
-        of: find.byType(ChatComposer),
-        matching: find.textContaining('Run the tests', findRichText: true),
+        of: bar,
+        matching: find.textContaining(
+          '${MockScript.suggestions.first}  Tab',
+          findRichText: true,
+        ),
       ),
       findsOneWidget,
+    );
+    expect(
+      find.textContaining(ReplySuggestions.tag, findRichText: true),
+      findsNothing,
     );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
-    expect(editor.controller.text, 'Run the tests');
+    expect(editor.controller.text, MockScript.suggestions.first);
+    // Something typed: gone.
+    await tester.pump();
+    expect(bar, findsNothing);
+
+    editor.controller.replace(0, editor.controller.length, '');
+    await tester.pump();
+    expect(bar, findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: bar,
+        matching: find.textContaining(
+          MockScript.suggestions[1],
+          findRichText: true,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(editor.controller.text, MockScript.suggestions[1]);
+    expect(bar, findsNothing);
     await tester.pump(const Duration(seconds: 5));
   });
 
-  testWidgets('Tab takes the suggested prompt past an empty composition an '
+  testWidgets('Tab takes the suggested reply past an empty composition an '
       'input method left', (tester) async {
     // #143: a macOS input method, its letters deleted or committed, may
     // leave an empty composition until its next; the composer took it for
     // one under way and Tab went in as a tab.
     final (:session, :cli) = await pumpScripted(tester);
     cli
-      ..push({'type': 'result', 'subtype': 'success', 'is_error': false})
-      ..push({'type': 'prompt_suggestion', 'suggestion': 'Run the tests'});
+      ..push({
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'msg-done',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'text',
+              'text': ReplySuggestions.write('Done.', ['Run the tests']),
+            },
+          ],
+        },
+      })
+      ..push({'type': 'result', 'subtype': 'success', 'is_error': false});
     await tester.pump();
     await tester.pump();
-    expect(session.promptSuggestion, 'Run the tests');
+    expect(session.replySuggestions, ['Run the tests']);
     tester.testTextInput.updateEditingValue(
       const TextEditingValue(
         text: '',
@@ -767,41 +815,6 @@ void main() {
         selection: TextSelection.collapsed(offset: 13),
       ),
     );
-    await tester.pump(const Duration(seconds: 5));
-  });
-
-  testWidgets('a suggested prompt with a Windows path, quotes and a line '
-      'break shows in the placeholder, the input still there', (tester) async {
-    // A backslash or a line break in the placeholder once broke the
-    // editor's build, and the input turned into a grey box until the app
-    // restarted.
-    const suggestion =
-        r'Run release\win-unpacked\BaoCode.exe'
-        '\n'
-        r'then open "C:\Users"';
-    final (:session, :cli) = await pumpScripted(tester);
-    cli
-      ..push({'type': 'result', 'subtype': 'success', 'is_error': false})
-      ..push({'type': 'prompt_suggestion', 'suggestion': suggestion});
-    await tester.pump();
-    await tester.pump();
-    expect(session.promptSuggestion, suggestion);
-    expect(
-      find.descendant(
-        of: find.byType(ChatComposer),
-        matching: find.text(
-          r'Run release\win-unpacked\BaoCode.exe then open "C:\Users"    Tab',
-          findRichText: true,
-        ),
-      ),
-      findsOneWidget,
-    );
-
-    // Taken, it is the text as suggested.
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.pump();
-    final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
-    expect(editor.controller.text, suggestion);
     await tester.pump(const Duration(seconds: 5));
   });
 

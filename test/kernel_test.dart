@@ -6132,31 +6132,6 @@ void main() {
       });
     });
 
-    test(
-      'suggests the next prompt once a turn ends, until one is sent',
-      () async {
-        final cli = FakeCli();
-        final (:kernel, :transcript, events: _) = claude(cli);
-        kernel.send(const KernelTurn(id: 'u1', text: 'hi'));
-        await pumpEventQueue();
-        expect(cli.requests('initialize').single['promptSuggestions'], isTrue);
-        cli
-          ..push({'type': 'result', 'subtype': 'success', 'is_error': false})
-          ..push({'type': 'prompt_suggestion', 'suggestion': 'Run the tests'});
-        await pumpEventQueue();
-        expect(transcript.activeTurn, isNull);
-        expect(kernel.promptSuggestion, 'Run the tests');
-
-        kernel.send(const KernelTurn(id: 'u2', text: 'something else'));
-        expect(kernel.promptSuggestion, isNull);
-        // Late, for a turn now past: not offered.
-        cli.push({'type': 'prompt_suggestion', 'suggestion': 'Stale'});
-        await pumpEventQueue();
-        expect(kernel.promptSuggestion, isNull);
-        kernel.dispose();
-      },
-    );
-
     test('lists MCP servers; toggling and signing in go to the CLI', () async {
       final cli = FakeCli(
         answers: {

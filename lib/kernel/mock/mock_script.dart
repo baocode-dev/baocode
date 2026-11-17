@@ -107,6 +107,10 @@ abstract final class MockScript {
       '修改已完成：\n- 输入框使用 `MarkdownEditor`，随内容增高\n- 支持 `@` 提及和 `/` 命令\n'
       '- 测试正在后台运行，结束后会更新状态';
 
+  /// What it suggests the user send next, at the end of [summary] (see
+  /// ReplySuggestions).
+  static const suggestions = ['等测试跑完告诉我', '把最大高度改成 8 行', '提交这些改动'];
+
   static const codexSummary = '修改已完成：\n- 输入框随内容增高，最多 8 行\n- `flutter test` 已通过';
 
   static const codexDeclined = '好的，先不运行测试。改动已经写入，你可以稍后自己运行 `flutter test`。';

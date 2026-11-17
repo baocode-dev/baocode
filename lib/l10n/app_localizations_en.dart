@@ -3714,11 +3714,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get generalSettingsQueuedDuringTurn => 'Join the Current Task';
 
   @override
-  String get generalSettingsPromptSuggestions => 'Suggest Next Prompt';
+  String get generalSettingsPromptSuggestions => 'Suggest Replies';
 
   @override
   String get generalSettingsPromptSuggestionsDescription =>
-      'After each turn, a greyed-out suggestion for your next message, taken with Tab. Each one is an extra request with the whole conversation; turn it off to save tokens. Applies from the next message; Claude Code only.';
+      'After each turn, two or three things you might send next, over the composer: click one to put it in and edit it before sending; Tab takes the first. The agent writes them at the end of its reply, with no extra request. Applies from the next message.';
 
   @override
   String generalSettingsCommitAttributionLabel(String name) {
