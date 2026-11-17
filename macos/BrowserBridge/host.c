@@ -30,6 +30,10 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#ifdef __APPLE__
+#include <libproc.h>
+#endif
+
 #define MAX_MESSAGE (64 * 1024 * 1024)
 
 static pthread_mutex_t out_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -92,6 +96,36 @@ static void tell_browser(int connected) {
   to_browser(text, (uint32_t)strlen(text));
 }
 
+// The browser's executable, as the process that started this one runs it:
+// the path says which browser it is (a fork's chrome is not Chrome's). ""
+// when it is not to be had.
+static void browser_path(char* buffer, size_t size) {
+  buffer[0] = '\0';
+#ifdef __APPLE__
+  if (proc_pidpath(getppid(), buffer, (uint32_t)size) <= 0) buffer[0] = '\0';
+#else
+  char link[64];
+  snprintf(link, sizeof link, "/proc/%d/exe", (int)getppid());
+  const ssize_t n = readlink(link, buffer, size - 1);
+  if (n <= 0) {
+    buffer[0] = '\0';
+    return;
+  }
+  buffer[n] = '\0';
+#endif
+}
+
+// [text] as it goes in JSON: its quotes and backslashes escaped (a path
+// has no control characters in it).
+static void escape_json(const char* text, char* out, size_t size) {
+  size_t j = 0;
+  for (const char* p = text; *p && j + 3 < size; p++) {
+    if (*p == '"' || *p == '\\') out[j++] = '\\';
+    out[j++] = *p;
+  }
+  out[j] = '\0';
+}
+
 // As BrowserBridge.socketPath finds it.
 static int socket_path(char* path, size_t size) {
   const char* dir = NULL;
@@ -151,10 +185,16 @@ static void* from_bao(void* unused) {
       sleep(1);
       continue;
     }
-    // Who it is: the extension's origin, as the browser gave it.
-    char hello[512];
+    // Who it is: the extension's origin, as the browser gave it; and the
+    // browser's own executable, which tells one from another.
+    char path[1024];
+    char escaped[2048];
+    browser_path(path, sizeof path);
+    escape_json(path, escaped, sizeof escaped);
+    char hello[4096];
     int n = snprintf(hello, sizeof hello,
-                     "{\"type\":\"hello\",\"origin\":\"%s\"}", origin);
+                     "{\"type\":\"hello\",\"origin\":\"%s\",\"path\":\"%s\"}",
+                     origin, escaped);
     if (n <= 0 || n >= (int)sizeof hello ||
         write_message(fd, hello, (uint32_t)n) != 0) {
       close(fd);
