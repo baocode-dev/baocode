@@ -5721,28 +5721,7 @@
   "remoteSignInRefused": "That was not accepted. Try again.",
   "remoteSignInRemember": "Remember on this computer (in the system keychain)",
   "remoteSignInConnect": "Connect",
-  "remoteFolderPlaceholder": "A folder on {host}: pick one, or type a path",
-  "@remoteFolderPlaceholder": {
-    "placeholders": {
-      "host": {
-        "type": "String"
-      }
-    }
-  },
-  "remoteFolderRefresh": "Read the folders again",
-  "@remoteFolderRefresh": {
-    "description": "The button at the right of the quick pick browsing a remote host's folders: it lists the folder again, e.g. one made in a terminal since."
-  },
-  "remoteOpenThisFolder": "Open This Folder",
   "remoteParentFolder": "Parent Folder",
-  "remoteGoTo": "Go to {path}",
-  "@remoteGoTo": {
-    "placeholders": {
-      "path": {
-        "type": "String"
-      }
-    }
-  },
   "remoteListFailed": "Could not list {path}",
   "@remoteListFailed": {
     "placeholders": {
@@ -5760,30 +5739,6 @@
     }
   },
   "remoteFileHostPlaceholder": "Select a host, to browse its files",
-  "remoteFilePlaceholder": "A file on {host}: pick one, or type a path",
-  "@remoteFilePlaceholder": {
-    "placeholders": {
-      "host": {
-        "type": "String"
-      }
-    }
-  },
-  "remoteOpenFile": "Open {path}",
-  "@remoteOpenFile": {
-    "placeholders": {
-      "path": {
-        "type": "String"
-      }
-    }
-  },
-  "remoteOpenFailed": "Could not open {path}",
-  "@remoteOpenFailed": {
-    "placeholders": {
-      "path": {
-        "type": "String"
-      }
-    }
-  },
   "remoteRecentFiles": "Recent Remote Files",
   "remoteOpenFileOn": "Open File on {host}...",
   "@remoteOpenFileOn": {
@@ -9004,5 +8959,40 @@
     }
   },
   "commandLineCustomPath": "Custom shell",
-  "commandLineCustomPathDescription": "The program to run commands with: a bash.exe, cmd.exe, powershell.exe or pwsh.exe."
+  "commandLineCustomPathDescription": "The program to run commands with: a bash.exe, cmd.exe, powershell.exe or pwsh.exe.",
+  "remoteBrowserFolderTitle": "Open a Folder on {host}",
+  "@remoteBrowserFolderTitle": {"placeholders": {"host": {"type": "String"}}},
+  "remoteBrowserFileTitle": "Open a File on {host}",
+  "@remoteBrowserFileTitle": {"placeholders": {"host": {"type": "String"}}},
+  "remoteBrowserPlaces": "Locations",
+  "remoteBrowserRecent": "Recent",
+  "remoteBrowserHome": "Home",
+  "remoteBrowserThisPc": "This PC",
+  "remoteBrowserRoot": "Root",
+  "remoteBrowserLocalDisk": "Local Disk ({drive})",
+  "@remoteBrowserLocalDisk": {"placeholders": {"drive": {"type": "String"}}},
+  "remoteBrowserBack": "Back",
+  "remoteBrowserForward": "Forward",
+  "remoteBrowserRefresh": "Refresh",
+  "remoteBrowserFilter": "Filter",
+  "remoteBrowserView": "View Options",
+  "remoteBrowserShowHidden": "Hidden Items",
+  "remoteBrowserShowSystem": "Protected Operating System Files",
+  "remoteBrowserNewFolder": "New Folder",
+  "remoteBrowserOpen": "Open",
+  "remoteBrowserEmpty": "This folder is empty.",
+  "remoteBrowserNoFolders": "No folders here.",
+  "remoteBrowserNoMatch": "Nothing here matches “{filter}”.",
+  "@remoteBrowserNoMatch": {"placeholders": {"filter": {"type": "String"}}},
+  "remoteBrowserHiddenCount": "{count, plural, =1{1 hidden item} other{{count} hidden items}}",
+  "@remoteBrowserHiddenCount": {"placeholders": {"count": {"type": "int"}}},
+  "remoteBrowserShowHiddenNow": "Show",
+  "remoteBrowserEditPath": "Go to a Path",
+  "remoteBrowserPathPlaceholder": "A path: ~/code, /srv/app, D:\\work",
+  "remoteBrowserNotFound": "{path} does not exist.",
+  "@remoteBrowserNotFound": {"placeholders": {"path": {"type": "String"}}},
+  "remoteBrowserNotFolder": "{path} is a file, not a folder.",
+  "@remoteBrowserNotFolder": {"placeholders": {"path": {"type": "String"}}},
+  "remoteBrowserMakeFailed": "Could not make the folder: {error}",
+  "@remoteBrowserMakeFailed": {"placeholders": {"error": {"type": "String"}}}
 }

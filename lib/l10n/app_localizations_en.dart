@@ -8069,23 +8069,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get remoteSignInConnect => 'Connect';
 
   @override
-  String remoteFolderPlaceholder(String host) {
-    return 'A folder on $host: pick one, or type a path';
-  }
-
-  @override
-  String get remoteFolderRefresh => 'Read the folders again';
-
-  @override
-  String get remoteOpenThisFolder => 'Open This Folder';
-
-  @override
   String get remoteParentFolder => 'Parent Folder';
-
-  @override
-  String remoteGoTo(String path) {
-    return 'Go to $path';
-  }
 
   @override
   String remoteListFailed(String path) {
@@ -8099,21 +8083,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get remoteFileHostPlaceholder => 'Select a host, to browse its files';
-
-  @override
-  String remoteFilePlaceholder(String host) {
-    return 'A file on $host: pick one, or type a path';
-  }
-
-  @override
-  String remoteOpenFile(String path) {
-    return 'Open $path';
-  }
-
-  @override
-  String remoteOpenFailed(String path) {
-    return 'Could not open $path';
-  }
 
   @override
   String get remoteRecentFiles => 'Recent Remote Files';
@@ -14172,4 +14141,108 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get commandLineCustomPathDescription =>
       'The program to run commands with: a bash.exe, cmd.exe, powershell.exe or pwsh.exe.';
+
+  @override
+  String remoteBrowserFolderTitle(String host) {
+    return 'Open a Folder on $host';
+  }
+
+  @override
+  String remoteBrowserFileTitle(String host) {
+    return 'Open a File on $host';
+  }
+
+  @override
+  String get remoteBrowserPlaces => 'Locations';
+
+  @override
+  String get remoteBrowserRecent => 'Recent';
+
+  @override
+  String get remoteBrowserHome => 'Home';
+
+  @override
+  String get remoteBrowserThisPc => 'This PC';
+
+  @override
+  String get remoteBrowserRoot => 'Root';
+
+  @override
+  String remoteBrowserLocalDisk(String drive) {
+    return 'Local Disk ($drive)';
+  }
+
+  @override
+  String get remoteBrowserBack => 'Back';
+
+  @override
+  String get remoteBrowserForward => 'Forward';
+
+  @override
+  String get remoteBrowserRefresh => 'Refresh';
+
+  @override
+  String get remoteBrowserFilter => 'Filter';
+
+  @override
+  String get remoteBrowserView => 'View Options';
+
+  @override
+  String get remoteBrowserShowHidden => 'Hidden Items';
+
+  @override
+  String get remoteBrowserShowSystem => 'Protected Operating System Files';
+
+  @override
+  String get remoteBrowserNewFolder => 'New Folder';
+
+  @override
+  String get remoteBrowserOpen => 'Open';
+
+  @override
+  String get remoteBrowserEmpty => 'This folder is empty.';
+
+  @override
+  String get remoteBrowserNoFolders => 'No folders here.';
+
+  @override
+  String remoteBrowserNoMatch(String filter) {
+    return 'Nothing here matches “$filter”.';
+  }
+
+  @override
+  String remoteBrowserHiddenCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count hidden items',
+      one: '1 hidden item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get remoteBrowserShowHiddenNow => 'Show';
+
+  @override
+  String get remoteBrowserEditPath => 'Go to a Path';
+
+  @override
+  String get remoteBrowserPathPlaceholder =>
+      'A path: ~/code, /srv/app, D:\\work';
+
+  @override
+  String remoteBrowserNotFound(String path) {
+    return '$path does not exist.';
+  }
+
+  @override
+  String remoteBrowserNotFolder(String path) {
+    return '$path is a file, not a folder.';
+  }
+
+  @override
+  String remoteBrowserMakeFailed(String error) {
+    return 'Could not make the folder: $error';
+  }
 }

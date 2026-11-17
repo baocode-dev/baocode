@@ -6,6 +6,7 @@ import '../claude/claude_history_page.dart';
 import '../claude/claude_release.dart';
 import '../claude/claude_sessions.dart';
 import '../claude/claude_unavailable.dart';
+import '../files/browse.dart';
 import '../files/ide_file.dart';
 import '../files/recursive_watch.dart';
 import '../git/git_types.dart';
@@ -574,6 +575,20 @@ class RemoteClient {
   /// [IdeFileNotFoundException] for none.
   Future<String> realPath(String path) =>
       _call(RemoteProtocol.fsRealPath, {'path': path});
+
+  /// Where to browse the host from: its drives on Windows, `/` elsewhere.
+  Future<List<BrowseRoot>> roots() async => [
+    for (final root in await _call<List>(RemoteProtocol.fsRoots, const {}))
+      BrowseRoot.fromJson((root as List).cast()),
+  ];
+
+  /// [path]'s entries as a file browser lists them, hidden ones marked.
+  Future<List<BrowseEntry>> browse(String path) async => [
+    for (final entry in await _call<List>(RemoteProtocol.fsBrowse, {
+      'path': path,
+    }))
+      BrowseEntry.fromJson((entry as List).cast()),
+  ];
 
   // --- Search and Git ----------------------------------------------------------
 

@@ -215,6 +215,28 @@ void main() {
       );
     });
 
+    test('browsed from its root, the hidden entries marked', () async {
+      Directory(at('src')).createSync();
+      Directory(at('.cache')).createSync();
+      File(at('.env')).writeAsStringSync('');
+      File(at('a.txt')).writeAsStringSync('');
+      Link(at('linked')).createSync(at('src'));
+      final roots = await client().roots();
+      expect(roots.first.path, '/');
+      final entries = {
+        for (final entry in await client().browse(root))
+          entry.name: (entry.isDirectory, entry.hidden, entry.system),
+      };
+      expect(entries, {
+        'src': (true, false, false),
+        '.cache': (true, true, false),
+        '.env': (false, true, false),
+        'a.txt': (false, false, false),
+        'linked': (true, false, false),
+      });
+      await expectLater(client().browse(at('none')), throwsA(anything));
+    });
+
     test('a folder is watched until the subscription ends', () async {
       final changes = <void>[];
       final subscription = client().watchDirectory(root).listen(changes.add);
