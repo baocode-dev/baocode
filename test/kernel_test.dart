@@ -6465,6 +6465,38 @@ void main() {
     expect(theirs, isNot(contains('--strict-mcp-config')));
   });
 
+  test('the system prompt in a file: not on the command line, whose length '
+      'Windows limits', () {
+    const own = ClaudeLaunch(
+      cwd: '/p',
+      instructions: 'a bot',
+      ownPrompt: true,
+      tools: ['Read'],
+      userServers: true,
+    );
+    final filed = own.withPromptFile('/t/prompt.md');
+    expect(
+      filed.arguments,
+      containsAllInOrder(['--system-prompt-file', '/t/prompt.md']),
+    );
+    expect(filed.arguments, isNot(contains('a bot')));
+    expect(filed.arguments, isNot(contains('--system-prompt')));
+    expect(filed.systemPrompt, 'a bot');
+    // Copied whole: its MCP servers kept.
+    expect(filed.arguments, isNot(contains('--strict-mcp-config')));
+    const appended = ClaudeLaunch(cwd: '/p', instructions: 'a workspace');
+    final arguments = appended.withPromptFile('/t/prompt.md').arguments;
+    expect(
+      arguments,
+      containsAllInOrder(['--append-system-prompt-file', '/t/prompt.md']),
+    );
+    expect(arguments, isNot(contains('--append-system-prompt')));
+    expect(
+      appended.systemPrompt,
+      '${ClaudeLaunch.appendedSystemPrompt}\n\na workspace',
+    );
+  });
+
   group('commit attribution', () {
     /// What `--settings` gives Claude Code besides the environment always
     /// unset, if anything.
