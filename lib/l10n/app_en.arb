@@ -4944,7 +4944,7 @@
   },
   "quotaBarNone": "No account can be used",
   "quotaBarThisChat": "This chat",
-  "quotaBarRefresh": "Refresh Quota",
+  "quotaBarRefresh": "Check Quota Again",
   "modelsQuotaResetsIn": "resets in {time}",
   "@modelsQuotaResetsIn": {
     "placeholders": {
