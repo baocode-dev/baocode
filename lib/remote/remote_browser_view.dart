@@ -20,9 +20,11 @@ import '../ide/ide_menu.dart';
 import '../ide/ide_motion.dart';
 import '../ide/ide_spinning.dart';
 import '../l10n/l10n.dart';
+import '../theme/app_theme.dart' show AppColors;
 import '../theme/codicons.dart';
 import '../theme/finder_icons.dart';
 import '../theme/workbench_theme.dart' show themeColors;
+import '../workspace/islands.dart';
 import '../workspace/window_controls.dart';
 import 'remote_browser.dart';
 import 'remote_status.dart' show sshErrorText;
@@ -208,7 +210,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     final index = _model.selectedIndex;
     if (index < 0 || !_scroll.hasClients) return;
     final extra = _newFolder == null ? 0.0 : RemoteBrowserDialog.rowHeight;
-    final top = index * RemoteBrowserDialog.rowHeight + extra + 4;
+    final top =
+        index * RemoteBrowserDialog.rowHeight + extra + Islands.listInset;
     final bottom = top + RemoteBrowserDialog.rowHeight;
     final position = _scroll.position;
     if (top < position.pixels) {
@@ -412,9 +415,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final colors = themeColors;
-    final border = colors.get('widget.border');
-    final shadow = colors.get('widget.shadow');
+    final shadow = themeColors.get('widget.shadow');
     final size = MediaQuery.sizeOf(context);
     final width = math.min(880.0, size.width - 48);
     final height = math.min(
@@ -436,10 +437,15 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
               width: width,
               height: math.max(320, height),
               clipBehavior: Clip.antiAlias,
+              // The window's color, the entries on a card of the editor's,
+              // apart by a gap rather than a line: an island's, its
+              // corners round the card's at the gap.
               decoration: BoxDecoration(
-                color: colors['editorWidget.background'],
-                border: border == null ? null : Border.all(color: border),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.background,
+                border: Border.all(color: Islands.border),
+                borderRadius: BorderRadius.circular(
+                  Islands.radius + Islands.gap,
+                ),
                 boxShadow: [
                   const BoxShadow(
                     color: Color(0x40000000),
@@ -459,30 +465,37 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
                     onClose: _close,
                   ),
                   Expanded(
-                    child: switch (_model.phase) {
-                      RemoteBrowserPhase.connecting => _Status(
-                        icon: const IdeSpinning(
-                          Icon(Codicons.loading, size: 20),
-                        ),
-                        message: l10n.remoteConnecting(widget.hostLabel),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Islands.gap,
                       ),
-                      RemoteBrowserPhase.failed => _failure(l10n),
-                      RemoteBrowserPhase.ready => Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _sidebar(l10n),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _toolbar(l10n),
-                                Expanded(child: _list(l10n)),
-                              ],
+                      child: switch (_model.phase) {
+                        RemoteBrowserPhase.connecting => _card(
+                          _Status(
+                            icon: const IdeSpinning(
+                              Icon(Codicons.loading, size: 20),
                             ),
+                            message: l10n.remoteConnecting(widget.hostLabel),
                           ),
-                        ],
-                      ),
-                    },
+                        ),
+                        RemoteBrowserPhase.failed => _card(_failure(l10n)),
+                        RemoteBrowserPhase.ready => Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _sidebar(l10n),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _toolbar(l10n),
+                                  Expanded(child: _card(_list(l10n))),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      },
+                    ),
                   ),
                   _footer(l10n),
                 ],
@@ -493,6 +506,9 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
       ),
     );
   }
+
+  /// [child] on the card, of the editor's color.
+  Widget _card(Widget child) => Island(color: AppColors.code, child: child);
 
   Widget _failure(AppLocalizations l10n) {
     final (message, detail) = sshErrorText(_model.connectError, l10n);
@@ -509,6 +525,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
           IdeButton(
             label: l10n.remoteRetry,
             icon: Codicons.refresh,
+            radius: Islands.controlRadius,
+            padding: _buttonPadding,
             onPressed: () => unawaited(_model.connect()),
           ),
         for (final action in _model.failureActions)
@@ -516,6 +534,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
             label: action.label,
             icon: action.icon,
             secondary: true,
+            radius: Islands.controlRadius,
+            padding: _buttonPadding,
             onPressed: () => unawaited(_runFailureAction(action)),
           ),
       ],
@@ -524,21 +544,14 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
 
   /// Home, the drives, and the folders it was in there lately.
   Widget _sidebar(AppLocalizations l10n) {
-    final colors = themeColors;
-    final border = colors.get('widget.border');
     final directory = _model.directory;
     final roots = _model.roots;
     final home = _model.home;
-    return Container(
+    // On the window's color, as the agents' window's sidebar.
+    return SizedBox(
       width: 200,
-      decoration: BoxDecoration(
-        color: colors.get('sideBar.background'),
-        border: border == null
-            ? null
-            : Border(right: BorderSide(color: border)),
-      ),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+        padding: const EdgeInsets.fromLTRB(4, 4, 10, 8),
         children: [
           _SectionLabel(l10n.remoteBrowserPlaces),
           if (home.isNotEmpty)
@@ -585,15 +598,10 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
 
   /// Back, forward, up; where it is; refresh, the view, the filter.
   Widget _toolbar(AppLocalizations l10n) {
-    final border = themeColors.get('widget.border');
+    // About the card, so over it on the window's color.
     return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        border: border == null
-            ? null
-            : Border(bottom: BorderSide(color: border)),
-      ),
+      height: 30 + 2 * Islands.gap,
+      padding: const EdgeInsets.symmetric(vertical: Islands.gap),
       child: Row(
         children: [
           IdeActionButton(
@@ -643,6 +651,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
               autofocus: true,
               placeholder: l10n.remoteBrowserFilter,
               semanticsLabel: l10n.remoteBrowserFilter,
+              radius: Islands.controlRadius,
+              padding: _controlPadding,
               onChanged: (value) {
                 _model.filter = value;
                 if (_scroll.hasClients) _scroll.jumpTo(0);
@@ -691,11 +701,11 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
         behavior: HitTestBehavior.opaque,
         onTap: _editPath,
         child: Container(
-          height: 28,
+          height: Islands.controlHeight,
           decoration: BoxDecoration(
             color: IdeInputColors.background,
             border: Border.all(color: IdeInputColors.border),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(Islands.controlRadius),
           ),
           // Scrolled to its end when long, at its start when short.
           child: LayoutBuilder(
@@ -742,6 +752,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
       autofocus: true,
       placeholder: l10n.remoteBrowserPathPlaceholder,
       semanticsLabel: l10n.remoteBrowserEditPath,
+      radius: Islands.controlRadius,
+      padding: _controlPadding,
       validation: _pathError == null ? null : IdeInputValidation(_pathError!),
       floatingValidation: true,
       onChanged: (_) {
@@ -849,7 +861,7 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
       child: ListView.builder(
         key: RemoteBrowserDialog.entriesKey,
         controller: _scroll,
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+        padding: const EdgeInsets.all(Islands.listInset),
         itemExtent: RemoteBrowserDialog.rowHeight,
         itemCount: rows.length,
         itemBuilder: (context, index) => rows[index],
@@ -860,14 +872,15 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
   /// A new folder, what Open takes, Cancel and Open.
   Widget _footer(AppLocalizations l10n) {
     final colors = themeColors;
-    final border = colors.get('widget.border');
     final ready = _model.phase == RemoteBrowserPhase.ready;
     final target = _model.target;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 16, 10),
-      decoration: BoxDecoration(
-        color: colors.get('sideBar.background'),
-        border: border == null ? null : Border(top: BorderSide(color: border)),
+    // Under the cards, on the window's color.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        Islands.gap * 2,
+        Islands.gap * 2,
+        Islands.gap * 2,
+        Islands.gap * 2,
       ),
       child: Row(
         children: [
@@ -879,6 +892,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
                 child: const FinderFolderIcon(add: true),
               ),
               secondary: true,
+              radius: Islands.controlRadius,
+              padding: _buttonPadding,
               onPressed: _canMakeFolder ? _startNewFolder : null,
             ),
           const SizedBox(width: 12),
@@ -897,11 +912,15 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
           IdeButton(
             label: l10n.commonCancel,
             secondary: true,
+            radius: Islands.controlRadius,
+            padding: _buttonPadding,
             onPressed: _close,
           ),
           const SizedBox(width: 8),
           IdeButton(
             label: l10n.remoteBrowserOpen,
+            radius: Islands.controlRadius,
+            padding: _buttonPadding,
             onPressed: target == null ? null : _accept,
           ),
         ],
@@ -909,6 +928,13 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     );
   }
 }
+
+/// An input's padding inside, for [Islands.controlHeight]: its 18 px line
+/// and border in 30.
+const _controlPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 5);
+
+/// A button's, as high: 16 px of label in 30.
+const _buttonPadding = EdgeInsets.symmetric(horizontal: 14, vertical: 7);
 
 /// A drive as Explorer names it (`Windows (C:)`, `Local Disk (D:)`); the
 /// root elsewhere, and a Mac's volumes by their names.
@@ -934,15 +960,9 @@ class _TitleBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final border = themeColors.get('widget.border');
     return Container(
       height: 44,
-      padding: const EdgeInsets.only(left: 16, right: 8),
-      decoration: BoxDecoration(
-        border: border == null
-            ? null
-            : Border(bottom: BorderSide(color: border)),
-      ),
+      padding: const EdgeInsets.only(left: 18, right: 10, top: 4),
       child: Row(
         children: [
           Expanded(
@@ -1082,15 +1102,14 @@ class _PlaceState extends State<_Place> {
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         child: Container(
-          height: 28,
+          height: 30,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
-            color: widget.selected
-                ? colors.get('list.inactiveSelectionBackground')
-                : _hover
-                ? colors.get('list.hoverBackground')
-                : null,
-            borderRadius: BorderRadius.circular(5),
+            color: Islands.segmentFill(
+              selected: widget.selected,
+              hovered: _hover,
+            ),
+            borderRadius: BorderRadius.circular(Islands.rowRadius),
           ),
           child: Row(
             children: [
@@ -1245,7 +1264,7 @@ class _EntryRowState extends State<_EntryRow> {
                   : _hover
                   ? colors.get('list.hoverBackground')
                   : null,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(Islands.rowRadius),
             ),
             child: Opacity(
               opacity: widget.dimmed ? 0.55 : 1,
