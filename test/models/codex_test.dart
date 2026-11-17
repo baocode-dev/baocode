@@ -1896,6 +1896,34 @@ void main() {
         expect(errors.last, isNotNull);
       });
 
+      test('all out of quota as last learned: asked again first', () async {
+        openai.reply = (path, _, _) => switch (path) {
+          '/oauth/token' => tokens('access'),
+          '/backend-api/wham/usage' => (
+            200,
+            const {},
+            [
+              jsonEncode({
+                'rate_limit': {
+                  'primary_window': {'used_percent': 0},
+                },
+              }),
+            ],
+          ),
+          _ => (200, const {}, _stream),
+        };
+        // Started over early, as nothing here watched.
+        final later = DateTime.now().add(const Duration(days: 3));
+        accounts
+          ..markLimited(provider(), a, later)
+          ..markLimited(provider(), b, later);
+        final answer = await ask();
+        expect(answer.status, 200);
+        expect(answer.text, contains('"text":"hi"'));
+        expect(openai.to('/backend-api/wham/usage'), hasLength(2));
+        expect(accounts.backAt(provider()), isNull);
+      });
+
       test('reasoning another account encrypted is dropped', () async {
         openai.reply = (path, _, body) {
           if (path == '/oauth/token') return tokens('access');

@@ -501,10 +501,11 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     _ => null,
   };
 
-  /// Asks for the account's limits now (see [ReportsUsage.refreshUsage]).
-  void refreshUsage() {
+  /// Asks for the account's limits now (see [ReportsUsage.refreshUsage]);
+  /// done once they came.
+  Future<void> refreshUsage() async {
     if (_kernel case final ReportsUsage kernel) {
-      unawaited(kernel.refreshUsage());
+      await kernel.refreshUsage();
     }
   }
 

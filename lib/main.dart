@@ -69,6 +69,7 @@ import 'chat/composer/composer_polish.dart' show ComposerPolishSetting;
 import 'kernel/queued_messages.dart';
 import 'keybindings/keybindings_sync.dart';
 import 'link/link_host.dart';
+import 'link/link_quota.dart';
 import 'keybindings/keymap.dart';
 import 'keybindings/vscode_import.dart';
 import 'l10n/l10n.dart';
@@ -271,6 +272,10 @@ Future<void> main(List<String> arguments) async {
           workspace: workspace,
           customizations: customizations,
           bots: bots,
+          quota: LinkQuota(
+            providers: ModelProviders.current,
+            codex: codexService,
+          ),
         );
   if (bots != null && link != null) {
     // The bots are the phones': with none paired, told of nothing.

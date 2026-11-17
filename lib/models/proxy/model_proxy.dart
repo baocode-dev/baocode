@@ -729,8 +729,18 @@ class ModelProxy {
     var stripped = false;
     String? lastError;
     var lastStatus = 429;
+    var askedQuota = false;
     while (true) {
       final account = codex.pick(provider, session: cacheKey, exclude: tried);
+      // Out of quota as last learned: asked again first (not more often
+      // than its age allows), as it may have started over early. Nothing
+      // else asks while the desktop's window is not shown, as when the
+      // user is on the phone.
+      if (account == null && !askedQuota && codex.backAt(provider) != null) {
+        askedQuota = true;
+        await codex.refreshUsage(provider, force: false).catchError((_) {});
+        continue;
+      }
       if (account == null) {
         final back = codex.backAt(provider);
         final message = back != null
