@@ -11130,7 +11130,7 @@ abstract class AppLocalizations {
   /// No description provided for @quotaBarRefresh.
   ///
   /// In en, this message translates to:
-  /// **'Check Quota Again'**
+  /// **'Refresh Quota Data'**
   String get quotaBarRefresh;
 
   /// No description provided for @modelsQuotaResetsIn.

@@ -1837,7 +1837,7 @@
   "quotaBarBackAt": "额度已用尽 · {time} 恢复",
   "quotaBarNone": "没有可用的账号",
   "quotaBarThisChat": "当前对话",
-  "quotaBarRefresh": "重新查询额度",
+  "quotaBarRefresh": "刷新额度数据",
   "modelsQuotaResetsIn": "{time}后重置",
   "modelsQuotaResetsAt": "{time} 重置",
   "modelsQuotaCredits": "额外点数：{credits}",
