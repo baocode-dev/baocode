@@ -81,17 +81,26 @@ class FinderFileIcon extends StatelessWidget {
 }
 
 /// A folder as Finder draws one: blue, its tab at the back; the home
-/// folder's with a house on its front ([home]).
+/// folder's with a house on its front ([home]); a new one's with a green
+/// plus at its corner ([add]).
 class FinderFolderIcon extends StatelessWidget {
-  const FinderFolderIcon({super.key, this.size = 16, this.home = false});
+  const FinderFolderIcon({
+    super.key,
+    this.size = 16,
+    this.home = false,
+    this.add = false,
+  });
 
   final double size;
   final bool home;
+  final bool add;
 
   @override
   Widget build(BuildContext context) => SizedBox.square(
     dimension: size,
-    child: CustomPaint(painter: _FolderPainter(home: home)),
+    child: CustomPaint(
+      painter: _FolderPainter(home: home, add: add),
+    ),
   );
 }
 
@@ -142,6 +151,7 @@ abstract final class _Finder {
   static const folderBottom = Color(0xFF6DB8F4);
   static const folderEdge = Color(0xFFB6E1FD);
   static const folderMark = Color(0xFF2A73C2);
+  static const add = Color(0xFF34C759);
 
   static const diskTop = Color(0xFFF2F2F4);
   static const diskBottom = Color(0xFFD1D1D6);
@@ -417,9 +427,10 @@ class _PagePainter extends CustomPainter {
 }
 
 class _FolderPainter extends CustomPainter {
-  const _FolderPainter({this.home = false});
+  const _FolderPainter({this.home = false, this.add = false});
 
   final bool home;
+  final bool add;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -478,6 +489,33 @@ class _FolderPainter extends CustomPainter {
       )
       ..restore();
     if (home) _house(canvas, front.outerRect, s);
+    if (add) _plus(canvas, box, s);
+  }
+
+  /// A white plus on a green disc, over the front's lower right corner.
+  void _plus(Canvas canvas, Rect box, double s) {
+    final radius = s * 0.25;
+    final center = Offset(box.right - radius * 0.7, box.bottom - radius * 0.7);
+    final arm = radius * 0.52;
+    canvas
+      ..drawCircle(
+        center,
+        radius + math.max(0.75, s * 0.04),
+        Paint()..color = const Color(0x33000000),
+      )
+      ..drawCircle(center, radius, Paint()..color = _Finder.add)
+      ..drawPath(
+        Path()
+          ..moveTo(center.dx - arm, center.dy)
+          ..lineTo(center.dx + arm, center.dy)
+          ..moveTo(center.dx, center.dy - arm)
+          ..lineTo(center.dx, center.dy + arm),
+        Paint()
+          ..color = const Color(0xFFFFFFFF)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.2, s * 0.09)
+          ..strokeCap = StrokeCap.round,
+      );
   }
 
   /// A house pressed into the front, as the home folder's.
@@ -502,7 +540,7 @@ class _FolderPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FolderPainter old) => old.home != home;
+  bool shouldRepaint(_FolderPainter old) => old.home != home || old.add != add;
 }
 
 class _DiskPainter extends CustomPainter {
