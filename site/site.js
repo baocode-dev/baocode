@@ -371,6 +371,7 @@ function showDownloads(downloads, v) {
     for (const el of document.querySelectorAll(`[data-size="${os}"]`)) {
       el.textContent = `≈ ${Math.round(file.size / 1e6)} MB`;
     }
+    showHash(os, file.sha256);
   }
   // Whoever came through a channel listed with its account site gets the
   // channel build, where the manifest has one: anyone else could not use
@@ -380,8 +381,19 @@ function showDownloads(downloads, v) {
     for (const [os, file] of Object.entries(downloads || {})) {
       if (!file.channel?.url) continue;
       for (const a of document.querySelectorAll(`[data-file="${os}"]`)) a.href = file.channel.url;
+      showHash(os, file.channel.sha256);
     }
   });
+}
+
+// A download's SHA-256, to check it by (the Windows installers': download
+// page). Its paragraph is shown once one is in.
+function showHash(os, sha256) {
+  if (typeof sha256 !== 'string') return;
+  for (const el of document.querySelectorAll(`[data-sha256="${os}"]`)) {
+    el.textContent = sha256;
+    el.closest('[data-hashes]')?.removeAttribute('hidden');
+  }
 }
 
 // The background grid: tilted, zooming in for ever. Each level of lines is
