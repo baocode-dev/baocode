@@ -627,11 +627,14 @@ void followSettingsFiles(SettingsFiles files) {
     files.settings,
     () => files.settings[SidebarTimes.settingKey],
   );
-  // Settings → Browser: whether the agents may use the user's browsers.
-  BrowserBridge.instance.follow(
-    files.settings,
-    () => files.settings[BrowserBridge.settingKey],
-  );
+  // Settings → Browser: whether the agents may use the user's browsers,
+  // and which one they use.
+  BrowserBridge.instance
+    ..follow(files.settings, () => files.settings[BrowserBridge.settingKey])
+    ..followPreferred(
+      files.settings,
+      () => files.settings[BrowserBridge.preferredKey],
+    );
   // Settings → Browser: whether the history keeps bodies and steps too.
   BrowserHistory.instance.follow(
     files.settings,

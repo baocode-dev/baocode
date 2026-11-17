@@ -149,10 +149,10 @@ abstract final class BrowserTools {
   }
 
   static Future<void> _watch(int tabId) async {
-    final browsers = BrowserBridge.instance.browsers;
-    if (browsers.isEmpty) return;
+    final browser = BrowserBridge.instance.active;
+    if (browser == null) return;
     try {
-      await BrowserRecords.instance.watch(BrowserTab(browsers.first, tabId));
+      await BrowserRecords.instance.watch(BrowserTab(browser, tabId));
     } on Object {
       // Not shared, or gone: the tool says so.
     }
@@ -219,11 +219,11 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
         final browser = _browser();
         final tabs = await browser.request('tabs.list') as List? ?? const [];
         if (tabs.isEmpty) {
-          return 'No tab is shared with BaoCode in ${browser.browser}. '
+          return 'No tab is shared with BaoCode in ${browser.displayName}. '
               'Open one with browser_open.';
         }
         return [
-          '${browser.browser}:',
+          '${browser.displayName}:',
           for (final tab in tabs.cast<Map>()) _describeTab(tab),
         ].join('\n');
       },
@@ -337,23 +337,30 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
     ),
   ];
 
-  /// The browser to use: the last connected.
+  /// The browser to use: the one chosen in Settings → Browser, or the last
+  /// connected when none is (see [BrowserBridge.active]).
   static BrowserConnection _browser() {
     final bridge = BrowserBridge.instance;
-    final browsers = bridge.browsers;
-    if (browsers.isNotEmpty) return browsers.first;
+    final browser = bridge.active;
+    if (browser != null) return browser;
     if (bridge.otherApp) {
       throw StateError(
         'Another BaoCode is connected to the browser: quit it first.',
       );
     }
+    if (bridge.preferred case final chosen?) {
+      throw StateError(
+        'The browser chosen in Settings → Browser is not connected: '
+        '$chosen. Open it, or choose another one there.',
+      );
+    }
     if (bridge.mismatched case [final browser, ...]) {
       throw StateError(
         browser.protocol < BrowserBridge.protocol
-            ? "BaoCode's extension in ${browser.browser} is too old for "
+            ? "BaoCode's extension in ${browser.displayName} is too old for "
                   'this BaoCode: the user needs to update it (Settings → '
                   'Browser says how).'
-            : "BaoCode's extension in ${browser.browser} is newer than "
+            : "BaoCode's extension in ${browser.displayName} is newer than "
                   'this BaoCode: the user needs to update BaoCode.',
       );
     }

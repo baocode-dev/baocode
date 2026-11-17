@@ -101,7 +101,7 @@ class _BrowserWelcomeState extends State<BrowserWelcome>
   Widget _build(BuildContext context) {
     final l10n = context.l10n;
     final bridge = widget.bridge;
-    final connected = bridge.browsers.firstOrNull;
+    final connected = bridge.active ?? bridge.browsers.firstOrNull;
     final lines = [
       (
         const Icon(Codicons.lock, size: 15),
@@ -122,7 +122,7 @@ class _BrowserWelcomeState extends State<BrowserWelcome>
     final String title;
     final String text;
     if (connected != null) {
-      title = l10n.browserWelcomeConnected(connected.browser ?? '');
+      title = l10n.browserWelcomeConnected(connected.displayName);
       text = l10n.browserWelcomeTry;
     } else if (!bridge.enabled) {
       title = l10n.browserWelcomeInstallTitle;

@@ -10268,6 +10268,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get browserSettingsStatus => 'Status';
 
   @override
+  String get browserSettingsStatusDescription =>
+      'Agents use the browser marked In Use; choose another to switch.';
+
+  @override
   String get browserSettingsNotInstalled => 'No browser has connected yet';
 
   @override
@@ -10303,6 +10307,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String browserSettingsExtensionVersion(String version) {
     return 'Extension $version';
   }
+
+  @override
+  String get browserSettingsUse => 'Use This Browser';
+
+  @override
+  String get browserSettingsUsing => 'In Use';
+
+  @override
+  String get browserSettingsChosenMissing =>
+      'The browser chosen is not connected';
 
   @override
   String get browserSettingsExtensionOld =>

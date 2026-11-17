@@ -40,11 +40,37 @@ class BrowserBridge extends ChangeNotifier {
   /// user's browsers, as Settings → Browser turns it on or off. Unset: on.
   static const settingKey = 'browser.enabled';
 
+  /// settings.json's `browser.preferred`: the browser the agents use, by
+  /// the path of its executable ([BrowserConnection.executable]). Unset:
+  /// the last connected.
+  static const preferredKey = 'browser.preferred';
+
   /// Sets [enabled] from [read] now and whenever [changes] notifies.
   void follow(Listenable changes, Object? Function() read) {
     void update() => enabled = read() != false;
     update();
     changes.addListener(update);
+  }
+
+  /// Sets [preferred] from [read] now and whenever [changes] notifies.
+  void followPreferred(Listenable changes, Object? Function() read) {
+    void update() => preferred = switch (read()) {
+      final String path when path.trim().isNotEmpty => path.trim(),
+      _ => null,
+    };
+    update();
+    changes.addListener(update);
+  }
+
+  /// The path of the browser chosen in Settings → Browser; null for none
+  /// chosen, where the last connected is used.
+  String? get preferred => _preferred;
+  String? _preferred;
+
+  set preferred(String? value) {
+    if (_preferred == value) return;
+    _preferred = value;
+    notifyListeners();
   }
 
   /// Where the host finds the app: the same folder for both, the user's
@@ -153,6 +179,31 @@ class BrowserBridge extends ChangeNotifier {
     for (final connection in _connections.reversed)
       if (connection.browser != null && connection.compatible) connection,
   ];
+
+  /// The browser the agents use: [preferred]'s while it is connected, the
+  /// last connected when none is chosen; null when none is (and when the
+  /// one chosen is not connected).
+  BrowserConnection? get active {
+    final browsers = this.browsers;
+    if (browsers.isEmpty) return null;
+    final chosen = _preferred;
+    if (chosen == null) return browsers.first;
+    for (final browser in browsers) {
+      if (_samePath(browser.executable, chosen)) return browser;
+    }
+    return null;
+  }
+
+  /// Whether [browser] is the one the agents use now.
+  bool isActive(BrowserConnection browser) => identical(active, browser);
+
+  /// Whether [a] and [b] name the same executable: the same path, whatever
+  /// the slashes or the case.
+  static bool _samePath(String? a, String? b) {
+    if (a == null || b == null || a.isEmpty || b.isEmpty) return false;
+    String plain(String path) => path.replaceAll('\\', '/').toLowerCase();
+    return plain(a) == plain(b);
+  }
 
   /// The browsers whose extension is connected but speaks another
   /// [protocol]: one of them, or BaoCode, has to be updated.
@@ -531,6 +582,54 @@ class BrowserConnection {
   /// (its "Allow access to file URLs"): null for one from before it said.
   bool? fileAccess;
 
+  /// The browser's executable, as its host said: the folder tells a browser
+  /// that borrows another's name (Cent Browser's extension says Google
+  /// Chrome). Null for one from before the host said.
+  String? executable;
+
+  /// The browser's engine and its version, as the extension said:
+  /// `Chromium 116.0.5845.188` under the browsers here.
+  String? engine;
+
+  /// The browser's name: its executable's where that says one (Cent
+  /// Browser's chrome.exe is not Chrome's), the extension's brand
+  /// otherwise.
+  String get displayName => _nameOf(executable) ?? browser ?? 'Browser';
+
+  /// The browsers whose executable says their name, which the extension
+  /// may not (Cent Browser's, Google Chrome's): a part of the path, and
+  /// the name.
+  static const _names = [
+    ('centbrowser', 'Cent Browser'),
+    ('brave', 'Brave'),
+    ('vivaldi', 'Vivaldi'),
+    ('microsoft edge', 'Microsoft Edge'),
+    ('microsoft/edge', 'Microsoft Edge'),
+    ('msedge', 'Microsoft Edge'),
+    ('google chrome', 'Google Chrome'),
+    ('google/chrome', 'Google Chrome'),
+    ('google-chrome', 'Google Chrome'),
+    ('chromium', 'Chromium'),
+    ('arc.app', 'Arc'),
+    ('opera', 'Opera'),
+    ('qqbrowser', 'QQ Browser'),
+    ('360se', '360 Browser'),
+    ('360chrome', '360 Browser'),
+    ('sogou', 'Sogou Explorer'),
+    ('yandex', 'Yandex'),
+    ('whale', 'Naver Whale'),
+    ('ucbrowser', 'UC Browser'),
+  ];
+
+  static String? _nameOf(String? path) {
+    if (path == null || path.isEmpty) return null;
+    final lower = path.replaceAll('\\', '/').toLowerCase();
+    for (final (part, name) in _names) {
+      if (lower.contains(part)) return name;
+    }
+    return null;
+  }
+
   /// What to tell when [fileAccess] is false: only the user can turn it on.
   static const fileAccessHelp =
       'The browser does not let BaoCode\'s extension reach local files. Ask '
@@ -681,16 +780,24 @@ class BrowserConnection {
     }
     switch (message['type']) {
       case 'hello' when message['origin'] != null:
-        // The host's: who started it.
+        // The host's: who started it, and the browser it runs in.
         origin = message['origin'] as String?;
         final allowed = BrowserBridge.extensionIds.any(
           (id) => origin == 'chrome-extension://$id/',
         );
         if (!allowed) _close();
+        if (message['path'] case final String path
+            when path.trim().isNotEmpty) {
+          executable = path.trim();
+        }
       case 'hello':
         browser = message['browser'] as String? ?? 'Browser';
         version = message['version'] as String?;
         fileAccess = message['fileAccess'] as bool?;
+        if (message['engine'] case final String engine
+            when engine.trim().isNotEmpty) {
+          this.engine = engine.trim();
+        }
         protocol = (message['protocol'] as num?)?.toInt() ?? 1;
         capabilities = {
           for (final capability in message['capabilities'] as List? ?? [])

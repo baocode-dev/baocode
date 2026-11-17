@@ -54,7 +54,11 @@ void main() {
   /// origin, then the extension's. Over loopback, as host.cpp is: at the
   /// port the bridge's file says, the token in its hello ([token] instead,
   /// when given).
-  Future<Socket> connect(Map<String, Object?> hello, {String? token}) async {
+  Future<Socket> connect(
+    Map<String, Object?> hello, {
+    String? token,
+    String? path,
+  }) async {
     final Socket socket;
     String? said;
     if (BrowserBridge.loopback) {
@@ -78,6 +82,7 @@ void main() {
     send(socket, {
       'type': 'hello',
       'origin': 'chrome-extension://${BrowserBridge.extensionIds.first}/',
+      'path': ?path,
       'token': ?said,
     });
     send(socket, {'type': 'hello', ...hello});
@@ -118,10 +123,12 @@ void main() {
       (
         l10n.browserSettingsConnected('Google Chrome'),
         l10n.browserSettingsExtensionVersion('0.1.0'),
+        bridge.browsers.single,
       ),
       (
         l10n.browserSettingsIncompatible('Microsoft Edge'),
         l10n.browserSettingsAppOld,
+        null,
       ),
     ]);
   }, skip: Platform.isWindows);
@@ -142,10 +149,64 @@ void main() {
       BrowserSettingsPage.status(l10n, bridge),
       contains((
         l10n.browserSettingsNoFileAccess,
-        l10n.browserSettingsNoFileAccessDescription,
+        'Google Chrome: ${l10n.browserSettingsNoFileAccessDescription}',
+        null,
       )),
     );
   }, skip: Platform.isWindows);
+
+  test(
+    'a browser says which it is, and the one chosen is the one used',
+    () async {
+      addTearDown(() => bridge.preferred = null);
+      await bridge.start();
+      const chromePath =
+          r'C:\Program Files\Google\Chrome\Application\chrome.exe';
+      const centPath =
+          r'E:\soft_ware\cent\CentBrowser\Application\chrome.exe';
+      final chrome = await connect({
+        'browser': 'Google Chrome',
+        'version': '0.2.1',
+        'engine': 'Chromium 157.0.8103.52',
+      }, path: chromePath);
+      addTearDown(chrome.destroy);
+      final cent = await connect({
+        'browser': 'Google Chrome',
+        'version': '0.2.1',
+        'engine': 'Chromium 116.0.5845.188',
+      }, path: centPath);
+      addTearDown(cent.destroy);
+      await until(() => bridge.browsers.length == 2);
+
+      // The path says which browser a borrowed name hides: Cent Browser's
+      // extension says Google Chrome too.
+      final byPath = {
+        for (final browser in bridge.browsers) browser.executable: browser,
+      };
+      expect(byPath[chromePath]?.displayName, 'Google Chrome');
+      expect(byPath[centPath]?.displayName, 'Cent Browser');
+      expect(byPath[centPath]?.engine, 'Chromium 116.0.5845.188');
+
+      // None chosen: the last connected, as before.
+      expect(bridge.active, bridge.browsers.first);
+
+      // Chosen: that one, while it is connected.
+      bridge.preferred = centPath;
+      expect(bridge.active, byPath[centPath]);
+      expect(bridge.isActive(byPath[centPath]!), isTrue);
+      expect(bridge.isActive(byPath[chromePath]!), isFalse);
+
+      // The same path, whatever the slashes or the case.
+      bridge.preferred =
+          r'e:/SOFT_ware/CENT/CentBrowser/Application/chrome.exe';
+      expect(bridge.active, byPath[centPath]);
+
+      // Chosen but not connected: none, not another browser in its place.
+      bridge.preferred = r'C:\nowhere\chrome.exe';
+      expect(bridge.active, isNull);
+    },
+    skip: Platform.isWindows,
+  );
 
   test('a big answer, in many chunks, is read whole', () async {
     await bridge.start();
@@ -189,6 +250,7 @@ void main() {
     final sandboxed = (
       l10n.browserSettingsSandboxed,
       l10n.browserSettingsSandboxedDescription,
+      null,
     );
     expect(bridge.sandboxedBrowsers, isFalse);
     expect(
