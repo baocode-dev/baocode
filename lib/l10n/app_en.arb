@@ -693,6 +693,26 @@
     "description": "A browser step's verb while it runs (see browserStepDone).",
     "placeholders": {"action": {"type": "String"}}
   },
+  "sessionStepDone": "{action, select, new{Started} send{Handed work to} wait{Waited for} read{Read} stop{Stopped} changes{Checked the changes of} list{Listed the conversations} other{Coordinated}}",
+  "@sessionStepDone": {
+    "description": "A coordinating step's verb once done, by the session tool it called; the conversation's title follows.",
+    "placeholders": {"action": {"type": "String"}}
+  },
+  "sessionStepRunning": "{action, select, new{Starting} send{Handing work to} wait{Waiting for} read{Reading} stop{Stopping} changes{Checking the changes of} list{Listing the conversations} other{Coordinating}}",
+  "@sessionStepRunning": {
+    "description": "A coordinating step's verb while it runs (see sessionStepDone).",
+    "placeholders": {"action": {"type": "String"}}
+  },
+  "sessionOpen": "Open the conversation",
+  "sessionStatus": "{status, select, running{Working} waiting{Waiting on you} done{Done} failed{Failed} other{}}",
+  "@sessionStatus": {
+    "description": "How a conversation handed work stands, in the strip over the composer.",
+    "placeholders": {"status": {"type": "String"}}
+  },
+  "sessionAnswer": "Answer",
+  "@sessionAnswer": {"description": "Goes to a conversation that waits on the user, to answer it there."},
+  "sessionShowMore": "Show more",
+  "sessionShowLess": "Show less",
   "sidePanelPlan": "Plan",
   "@sidePanelPlan": {
     "description": "The side panel's plan page: the plan the agent wrote in plan mode, shown while there is one."

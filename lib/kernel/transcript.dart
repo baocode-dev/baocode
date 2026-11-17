@@ -254,6 +254,7 @@ class Transcript {
             stopped: taken.stopped,
             sentAt: sent,
             fromAgent: taken.fromAgent,
+            fromSession: taken.fromSession,
           ),
         _ => item,
       };

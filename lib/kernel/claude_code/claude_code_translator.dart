@@ -1026,12 +1026,12 @@ class ClaudeTranslator {
     }
     // A subagent's message to the agent (SendMessage), not the user's: by
     // what it was given to do.
-    if (_agentMessage.firstMatch(trimmed) case final match?) {
-      final from = match[1]!;
+    if (agentMessage(trimmed) case (:final from, :final session, :final text)) {
       final item = UserMessageItem(
-        text: match[2]!.trim(),
+        text: text,
         sentAt: _sentAt(message),
         fromAgent: _agents[_agentCalls[from]]?.item.description ?? from,
+        fromSession: session,
       );
       _put(id, item);
       if (replaying) _replayPrompt(id, item, message);
@@ -2189,18 +2189,26 @@ class ClaudeTranslator {
 
   /// A subagent's message as the agent is given it: its id, and what it
   /// says.
+  /// Another conversation's has its session too (`session="…"`).
   static final _agentMessage = RegExp(
-    r'^<agent-message from="([^"]*)">([\s\S]*)</agent-message>$',
+    r'^<agent-message from="([^"]*)"(?: session="([^"]*)")?>'
+    r'([\s\S]*)</agent-message>$',
   );
 
   /// [text] as a message another agent sent (`<agent-message from="…">`,
-  /// a subagent's or another conversation's): who from, and what it says;
-  /// null for any other.
-  static ({String from, String text})? agentMessage(String text) =>
-      switch (_agentMessage.firstMatch(text.trim())) {
-        final match? => (from: match[1]!, text: match[2]!.trim()),
-        null => null,
-      };
+  /// a subagent's or another conversation's): who from (and that one's
+  /// session, another conversation's), and what it says; null for any
+  /// other.
+  static ({String from, String? session, String text})? agentMessage(
+    String text,
+  ) => switch (_agentMessage.firstMatch(text.trim())) {
+    final match? => (
+      from: match[1]!,
+      session: match[2],
+      text: match[3]!.trim(),
+    ),
+    null => null,
+  };
 
   static String? _tag(String text, String tag) {
     final start = text.indexOf('<$tag>');

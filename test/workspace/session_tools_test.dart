@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:baocode/bots/bot_tools.dart';
 import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
@@ -122,11 +121,11 @@ void main() {
     tests.session.send(const ComposerMessage(text: 'run the tests'));
     await settle(tests);
     final leadId = lead.id!;
-    final testsId = BotTools.idOf(tests);
+    final testsId = SessionTools.idOf(tests);
 
     final listed = await call('session_list', {}, from: leadId);
     expect(listed, contains('$testsId | app | Tests | idle'));
-    expect(listed, isNot(contains(BotTools.idOf(lead))));
+    expect(listed, isNot(contains(SessionTools.idOf(lead))));
 
     final started = launches.length;
     final read = await call('session_read', {'session': testsId}, from: leadId);
@@ -157,7 +156,7 @@ void main() {
     );
     expect(
       await call('session_send', {
-        'session': BotTools.idOf(lead),
+        'session': SessionTools.idOf(lead),
         'text': 'x',
       }, from: leadId),
       endsWith('That is this conversation.'),
@@ -224,7 +223,7 @@ void main() {
 
   AgentThread started(String answer) {
     final id = RegExp(r'Started: (\S+) in').firstMatch(answer)![1];
-    return workspace.threads.firstWhere((t) => BotTools.idOf(t) == id);
+    return SessionTools.threadOf(workspace, id!)!;
   }
 
   test('a conversation started reports back by itself, its reply whole, '
@@ -250,24 +249,36 @@ void main() {
     await until(() => fromAgents(boss).isNotEmpty);
     final (from, report) = fromAgents(boss).single;
     expect(from, 'Tests');
-    expect(report, contains('is done.\nIts reply:\n\n$_quickReply'));
+    // As the user reads it: what it said, whole.
+    expect(report, _quickReply);
+    // Each card names the conversation it came from; the lead's steps and
+    // cards, the one it handed work to.
+    UserMessageItem card(AgentThread thread) => [
+      for (var i = 0; i < thread.session.itemCount; i++)
+        if (thread.session.itemAt(i) case final UserMessageItem item
+            when item.fromAgent != null)
+          item,
+    ].first;
+    expect(card(tests).fromSession, boss.id);
+    expect(card(boss).fromSession, tests.id);
+    expect(SessionTools.handedFrom(boss.session, workspace), [tests]);
     await settle(boss);
 
     // Waited on: said by the wait, not told again.
     expect(
       await call('session_send', {
-        'session': BotTools.idOf(tests),
+        'session': SessionTools.idOf(tests),
         'text': 'and the docs (quick)',
       }, from: boss.id),
       startsWith('Sent'),
     );
     final waited = await call('session_wait', {
-      'sessions': [BotTools.idOf(tests)],
+      'sessions': [SessionTools.idOf(tests)],
       'seconds': 10,
     }, from: boss.id);
     expect(
       waited,
-      '${BotTools.idOf(tests)} ("Tests") is done.\nIts reply:\n\n'
+      '${SessionTools.idOf(tests)} ("Tests") is done.\nIts reply:\n\n'
       '$_quickReply',
     );
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -275,7 +286,7 @@ void main() {
 
     expect(
       await call('session_changes', {
-        'session': BotTools.idOf(tests),
+        'session': SessionTools.idOf(tests),
       }, from: boss.id),
       'It edited no files.',
     );
@@ -293,32 +304,26 @@ void main() {
     // It asks the user: told the lead.
     await until(() => fromAgents(boss).isNotEmpty);
     final (_, report) = fromAgents(boss).single;
-    expect(
-      report,
-      contains(
-        'waits on the user. It asks them: Which one? (This / That) Only '
-        'they can answer it',
-      ),
-    );
+    expect(report, 'Which one?\n- This\n- That');
     await settle(boss);
     // Answering it is the user's.
     expect(tests.session.pendingInteraction, isNotNull);
     expect(
       await call('session_send', {
-        'session': BotTools.idOf(tests),
+        'session': SessionTools.idOf(tests),
         'text': 'pick the first',
       }, from: boss.id),
       startsWith('Not delivered: it waits on the user. It asks them'),
     );
     final read = await call('session_read', {
-      'session': BotTools.idOf(tests),
+      'session': SessionTools.idOf(tests),
       'full': true,
     }, from: boss.id);
     expect(read, contains('Only the user can answer it.'));
     expect(read, contains('From "Lead": fix the input (ask)'));
     expect(
       await call('session_read', {
-        'session': BotTools.idOf(tests),
+        'session': SessionTools.idOf(tests),
         'skip': 1,
       }, from: boss.id),
       endsWith('From "Lead": fix the input (ask)'),
@@ -326,7 +331,7 @@ void main() {
 
     expect(
       await call('session_stop', {
-        'session': BotTools.idOf(tests),
+        'session': SessionTools.idOf(tests),
       }, from: boss.id),
       'Stopped.',
     );

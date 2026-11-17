@@ -24,6 +24,7 @@ import 'chat/aside_layers.dart';
 import 'chat/chat_keys.dart';
 import 'chat/chat_models.dart' show FileChange, FileChangeKind;
 import 'chat/chat_screen.dart';
+import 'chat/session_links.dart';
 import 'chat/chat_session.dart' show ChatSession, ComposerMessage;
 import 'chat/composer/composer_files.dart' show CodeReference, ComposerFile;
 import 'chat/composer/composer_mock_data.dart' show Suggestion;
@@ -160,6 +161,7 @@ import 'workspace/project_workspace.dart' show ProjectWorkspace;
 import 'workspace/title_bar_double_click.dart';
 import 'workspace/window_controls.dart';
 import 'workspace/window_header/window_header.dart';
+import 'workspace/session_links_host.dart';
 import 'workspace/workspace.dart';
 import 'workspace/workspace_dialog.dart';
 import 'remote/local_tools.dart';
@@ -347,6 +349,18 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
   bool _narrow = false;
 
   Workspace get _workspace => widget.workspace;
+
+  /// The conversations' names and states, for each conversation's steps,
+  /// cards and strip to show and open (see [SessionLinks]).
+  late final _sessionLinks = WorkspaceSessionLinks(
+    _workspace,
+    onOpen: _openLinkedAgent,
+  );
+
+  /// A conversation named in another's steps or cards, opened as the
+  /// sidebar would: in this window.
+  void _openLinkedAgent(AgentThread thread) =>
+      _agentWindow ? _showInWindow(thread) : _openAgent(thread);
 
   /// The IDE's workspaces by folder, each kept once shown; [_noFolder]'s is
   /// its empty window.
@@ -877,6 +891,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   @override
   void dispose() {
+    _sessionLinks.dispose();
     ChannelGate.current?.removeListener(_channelGateChanged);
     for (final edits in _ideAgentEdits.values) {
       edits.dispose();
@@ -2875,7 +2890,7 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
           // progress in the window's toasts.
           child: IdeNotificationsScope(
             notifications: _notifications,
-            child: content,
+            child: SessionLinks(host: _sessionLinks, child: content),
           ),
         );
       },

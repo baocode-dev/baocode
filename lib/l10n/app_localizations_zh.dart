@@ -1590,6 +1590,60 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String sessionStepDone(String action) {
+    String _temp0 = intl.Intl.selectLogic(action, {
+      'new': '开了对话',
+      'send': '派活给',
+      'wait': '等了',
+      'read': '看了',
+      'stop': '停下了',
+      'changes': '查看了改动',
+      'list': '列出了对话',
+      'other': '统筹了',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String sessionStepRunning(String action) {
+    String _temp0 = intl.Intl.selectLogic(action, {
+      'new': '正在开对话',
+      'send': '正在派活给',
+      'wait': '正在等',
+      'read': '正在看',
+      'stop': '正在停下',
+      'changes': '正在查看改动',
+      'list': '正在列出对话',
+      'other': '正在统筹',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get sessionOpen => '打开对话';
+
+  @override
+  String sessionStatus(String status) {
+    String _temp0 = intl.Intl.selectLogic(status, {
+      'running': '进行中',
+      'waiting': '等你回答',
+      'done': '已完成',
+      'failed': '出错了',
+      'other': '',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get sessionAnswer => '去回答';
+
+  @override
+  String get sessionShowMore => '展开';
+
+  @override
+  String get sessionShowLess => '收起';
+
+  @override
   String get sidePanelPlan => '计划';
 
   @override
