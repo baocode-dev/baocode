@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../chat/chat_models.dart';
 import '../chat/reply_suggestions.dart';
+import '../chat/session_links.dart' show isSessionTool, sessionIdsOf;
 
 /// The history's items as JSON, for the phones paired with the desktop
 /// (see `package:bao_link`). The phone has this file as it is (its
@@ -236,7 +237,12 @@ abstract final class ChatCodec {
 
   static final _stickerText = RegExp(r'^\[Sticker: ([\w-]+)\]$');
 
-  static Map<String, Object?> encode(ChatItem item) => switch (item) {
+  /// [item] for a phone; [session] gives a conversation's id as the phone
+  /// knows it, for one that sent or was handed work ([SessionTools] ids).
+  static Map<String, Object?> encode(
+    ChatItem item, {
+    String Function(String id) session = _same,
+  }) => switch (item) {
     UserMessageItem() => {
       't': 'user',
       'text': item.text,
@@ -246,7 +252,10 @@ abstract final class ChatCodec {
       if (item.stopped) 'stopped': true,
       'at': ?item.sentAt?.millisecondsSinceEpoch,
       'agent': ?item.fromAgent,
-      'agentSession': ?item.fromSession,
+      'agentSession': ?switch (item.fromSession) {
+        final id? => session(id),
+        null => null,
+      },
       if (item.usage case final usage?)
         'usage': {
           'in': ?usage.inputTokens,
@@ -280,6 +289,15 @@ abstract final class ChatCodec {
       'status': item.status.name,
       'output': ?_head(item.output),
       'tool': ?item.tool,
+      // The conversations a step of coordinating is about, and what was
+      // handed them, for its line to name and open them.
+      if (isSessionTool(item.tool)) ...{
+        'sessions': [for (final id in sessionIdsOf(item)) session(id)],
+        'handed': ?switch (item.input['text']) {
+          final String text when text.trim().isNotEmpty => _head(text.trim()),
+          _ => null,
+        },
+      },
       'url': ?botImageUrl(item),
       'sent': ?botSentToUser(item),
       // What a browser's call does, for its line to say.
@@ -320,7 +338,9 @@ abstract final class ChatCodec {
       'ranBefore': ?item.ranBefore?.inMilliseconds,
       'model': ?item.model,
       if (item.children.isNotEmpty)
-        'children': [for (final child in item.children) encode(child)],
+        'children': [
+          for (final child in item.children) encode(child, session: session),
+        ],
       'result': ?item.result,
       if (item.background) 'background': true,
     },
@@ -538,6 +558,8 @@ abstract final class ChatCodec {
           number: (image['n'] as num?)?.toInt(),
         ),
   ];
+
+  static String _same(String id) => id;
 
   static String? _head(String? text) => text == null || text.length <= maxOutput
       ? text

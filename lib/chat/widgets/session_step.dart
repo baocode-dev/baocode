@@ -23,23 +23,13 @@ class SessionStep extends StatelessWidget {
   final bool expanded;
   final VoidCallback? onToggle;
 
-  /// The conversations [item] is about, by their ids.
-  static List<String> idsOf(ToolCallItem item) => [
-    if (item.tool == 'session_new') ?_started.firstMatch(item.output ?? '')?[1],
-    if (item.input['session'] case final String id when id.isNotEmpty) id,
-    if (item.input['sessions'] case final List<Object?> ids)
-      ...ids.whereType<String>(),
-  ];
-
-  static final _started = RegExp(r'^Started: (\S+)');
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final links = SessionLinks.of(context);
     final action = (item.tool ?? '').replaceFirst('session_', '');
     final running = item.status == ToolStatus.running;
-    final ids = idsOf(item);
+    final ids = sessionIdsOf(item);
     final names = [for (final id in ids) links?.titleOf(id)];
     final object = switch (item.tool) {
       'session_new' =>
