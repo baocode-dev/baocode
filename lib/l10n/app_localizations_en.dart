@@ -3272,6 +3272,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get queuedRemove => 'Remove from the queue';
 
   @override
+  String get replySuggestionHint =>
+      'Click to put it in the input and edit it · Double-click to send it';
+
+  @override
   String get stopConfirmMessage => 'Stop the agent?';
 
   @override
