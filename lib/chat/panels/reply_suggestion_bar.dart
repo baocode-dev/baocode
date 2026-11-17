@@ -70,10 +70,19 @@ class _Pill extends StatelessWidget {
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: hovered ? AppColors.bubbleHover : AppColors.bubbleFill,
+                // Hovered, the hover's tint over the fill, not in its
+                // place: the tint is faint, and on its way to it the
+                // fill would turn see-through, the page dark through it.
+                color: hovered
+                    ? Color.alphaBlend(
+                        AppColors.bubbleHover,
+                        AppColors.bubbleFill,
+                      )
+                    : AppColors.bubbleFill,
                 // A pill on one line; on more, its corners as round.
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(color: AppColors.bubbleBorder()),

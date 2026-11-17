@@ -1598,10 +1598,11 @@ class _ChatScreenState extends State<ChatScreen>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // On top of all: what the agent suggests to put in the composer.
+        // On top of all: what the agent suggests to put in the composer,
+        // coming and going softly.
         ListenableBuilder(
           listenable: _session.draft,
-          builder: (context, _) => _PanelSlot(child: _buildReplySuggestions()),
+          builder: (context, _) => _SoftSlot(child: _buildReplySuggestions()),
         ),
         // Then: the agent stopped, till the usage limit resets.
         ListenableBuilder(
@@ -2016,7 +2017,7 @@ class _HistoryLoadingState extends State<_HistoryLoading> {
 /// disappears at once (no size or fade transition): the history above
 /// yields the height.
 class _PanelSlot extends StatelessWidget {
-  const _PanelSlot({required this.child});
+  const _PanelSlot({super.key, required this.child});
 
   final Widget? child;
 
@@ -2029,6 +2030,49 @@ class _PanelSlot extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: gap),
       child: panel,
+    );
+  }
+}
+
+/// A [_PanelSlot] that, unlike the others, comes and goes softly: fading in
+/// as its room opens, out as it closes, the history above giving way as
+/// briefly. For the reply suggestions, which come at each turn's end and go
+/// at the first key.
+class _SoftSlot extends StatelessWidget {
+  const _SoftSlot({required this.child});
+
+  final Widget? child;
+
+  static const _duration = Duration(milliseconds: 150);
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSize(
+      duration: _duration,
+      curve: Curves.easeOut,
+      alignment: Alignment.bottomCenter,
+      child: AnimatedSwitcher(
+        duration: _duration,
+        switchInCurve: Curves.easeOut,
+        switchOutCurve: Curves.easeOut,
+        // What goes takes no room, nor clicks: the room closes as it
+        // fades, from the top down, it on the composer till gone.
+        layoutBuilder: (current, gone) => Stack(
+          fit: StackFit.passthrough,
+          clipBehavior: Clip.none,
+          children: [
+            for (final panel in gone)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(child: panel),
+              ),
+            ?current,
+          ],
+        ),
+        child: _PanelSlot(key: ValueKey(child != null), child: child),
+      ),
     );
   }
 }

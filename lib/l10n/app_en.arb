@@ -2158,7 +2158,7 @@
   "queuedEdit": "Take back to edit",
   "queuedSendNow": "Stop the agent and send this now",
   "queuedRemove": "Remove from the queue",
-  "replySuggestionHint": "Click to put it in the input and edit it · Double-click to send it",
+  "replySuggestionHint": "Click to put it in the input, double-click to send it",
   "@replySuggestionHint": {
     "description": "Hover of a reply the agent suggests, over the composer."
   },

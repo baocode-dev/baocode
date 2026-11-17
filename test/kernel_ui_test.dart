@@ -750,13 +750,16 @@ void main() {
     await tester.pump();
     final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
     expect(editor.controller.text, MockScript.suggestions.first);
-    // Something typed: gone.
+    // Something typed: gone, once faded.
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     expect(bar, findsNothing);
 
     editor.controller.replace(0, editor.controller.length, '');
     await tester.pump();
     expect(bar, findsOneWidget);
+    // Its room opened.
+    await tester.pump(const Duration(milliseconds: 200));
     await tester.tap(
       find.descendant(
         of: bar,
@@ -769,6 +772,7 @@ void main() {
     // Once it is no double click.
     await tester.pump(kDoubleTapTimeout);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     expect(editor.controller.text, MockScript.suggestions[1]);
     expect(bar, findsNothing);
     expect(session.isStreaming, isFalse);
@@ -776,6 +780,7 @@ void main() {
     // A double click sends it as it is.
     editor.controller.replace(0, editor.controller.length, '');
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
     final last = find.descendant(
       of: bar,
       matching: find.textContaining(
@@ -789,9 +794,12 @@ void main() {
     await tester.pump();
     expect(session.isStreaming, isTrue);
     expect(editor.controller.text, isEmpty);
+    // In the conversation; the bar faded.
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(bar, findsNothing);
     expect(
       find.textContaining(MockScript.suggestions.last, findRichText: true),
-      findsOneWidget,
+      findsWidgets,
     );
     session.stop();
     await tester.pump(const Duration(seconds: 5));

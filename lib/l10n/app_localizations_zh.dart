@@ -3199,7 +3199,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get queuedRemove => '移出队列';
 
   @override
-  String get replySuggestionHint => '单击放进输入框润色 · 双击直接发送';
+  String get replySuggestionHint => '单击放进输入框，双击直接发送';
 
   @override
   String get stopConfirmMessage => '要停止 Agent 吗？';
