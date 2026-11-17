@@ -246,6 +246,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
     }
   }
 
+  bool get _canMakeFolder => _model.directory != null && _newFolder == null;
+
   void _startNewFolder() {
     if (_model.directory == null) return;
     final name = _model.freeName(context.l10n.remoteBrowserNewFolder);
@@ -847,11 +849,12 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
           if (!widget.request.files && ready)
             IdeButton(
               label: l10n.remoteBrowserNewFolder,
-              icon: Codicons.newFolder,
+              leading: Opacity(
+                opacity: _canMakeFolder ? 1 : 0.5,
+                child: const FinderFolderIcon(add: true),
+              ),
               secondary: true,
-              onPressed: _model.directory == null || _newFolder != null
-                  ? null
-                  : _startNewFolder,
+              onPressed: _canMakeFolder ? _startNewFolder : null,
             ),
           const SizedBox(width: 12),
           Expanded(
