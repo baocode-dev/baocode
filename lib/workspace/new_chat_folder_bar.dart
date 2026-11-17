@@ -36,9 +36,14 @@ class NewChatFolderBar extends StatelessWidget {
   final AgentThread thread;
 
   /// Open Remote Project…: walks the user to a folder on an SSH host (on
-  /// [host], given one), then gives its location to the function given.
-  /// None, none offered.
-  final void Function(ValueChanged<String> onOpen, {String? host})? openRemote;
+  /// [host], given one, from its [directory]), then gives its location to
+  /// the function given. None, none offered.
+  final void Function(
+    ValueChanged<String> onOpen, {
+    String? host,
+    String? directory,
+  })?
+  openRemote;
 
   /// The menu's row for Open Remote Project….
   static const _openRemoteId = 'baocode.remote.openFolder';
@@ -71,7 +76,19 @@ class NewChatFolderBar extends StatelessWidget {
 
   void _moveTo(String path) => workspace.moveNew(thread, path);
 
+  /// The button's: a folder of the host the agent is to work on, from the
+  /// one holding where it is now; else this machine's.
   Future<void> _pick() async {
+    final location = thread.project.path;
+    if ((openRemote, thread.project.host) case (final open?, final host?)) {
+      open(
+        _moveTo,
+        host: host,
+        directory: RemoteLocation.pathsOf(location)
+            .dirname(RemoteLocation.pathOf(location)),
+      );
+      return;
+    }
     final path = await pickDirectory();
     if (path != null) workspace.moveNew(thread, path);
   }
@@ -291,7 +308,11 @@ class NewChatFolderBar extends StatelessWidget {
           const SizedBox(width: 2),
           _Button(
             icon: Codicons.folderOpened,
-            label: l10n.newChatOpenFrom(fileManager),
+            // On a host, its folders: not this machine's file manager.
+            label: l10n.newChatOpenFrom(switch (current.host) {
+              final host? when openRemote != null => workspace.hostLabel(host),
+              _ => fileManager,
+            }),
             onTap: _pick,
           ),
         ],

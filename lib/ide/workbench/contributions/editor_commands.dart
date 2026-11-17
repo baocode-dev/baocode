@@ -20,6 +20,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../../l10n/l10n.dart';
 import '../../../workspace/window_controls.dart';
+import '../../file_service.dart' show IdeHostFiles;
 import '../../ide_quick_input.dart';
 import '../../ide_status_bar.dart' show IdeLanguageNames, ideEolLabel;
 import '../../ide_tab_bar.dart' show IdeTabAction;
@@ -269,8 +270,10 @@ class EditorCommandsContribution extends WorkbenchRegistrations {
           () => unawaited(
             WindowControls.revealInFileManager(_revealPath(services)!),
           ),
+          // Not a remote project's: its files are not this machine's.
           precondition: (_) =>
               WindowControls.canRevealInFileManager &&
+              services.find<IdeWorkspace>()?.files is! IdeHostFiles &&
               _revealPath(services) != null,
         ),
         WorkbenchAction(

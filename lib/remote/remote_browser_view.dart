@@ -121,7 +121,11 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
   void initState() {
     super.initState();
     _model.addListener(_changed);
-    unawaited(_model.connect());
+    // After this frame: connecting tells the hosts' listeners (the status
+    // bar's), which may not be marked while this one builds.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_model.connect());
+    });
   }
 
   @override
