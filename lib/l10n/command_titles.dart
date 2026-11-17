@@ -175,6 +175,7 @@ String localizedCommandLabel(AppLocalizations l10n, String id, String english) {
     ChatCommandIds.cancelEdit => l10n.cmdChatCancelEdit,
     ChatCommandIds.showPreviousPrompt => l10n.cmdChatShowPreviousPrompt,
     ChatCommandIds.showNextPrompt => l10n.cmdChatShowNextPrompt,
+    ChatCommandIds.acceptPromptSuggestion => l10n.cmdChatAcceptPromptSuggestion,
     ChatCommandIds.openModePicker => l10n.cmdChatOpenModePicker,
     ChatCommandIds.nextMode => l10n.cmdChatNextMode,
     ChatCommandIds.openModelPicker => l10n.cmdChatOpenModelPicker,

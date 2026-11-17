@@ -603,6 +603,23 @@ class ChatComposerState extends State<ChatComposer>
 
   bool get _canSend => _hasContent || _images.isNotEmpty;
 
+  // --- Suggested reply -----------------------------------------------------
+
+  /// The first of what the agent suggests sending next, shown over an empty
+  /// dock composer (see ReplySuggestionBar); Tab takes it.
+  String? _suggestion;
+
+  void _acceptSuggestion() {
+    final suggestion = MdAtoms.strip(_suggestion ?? '');
+    if (suggestion.isEmpty) return;
+    _controller.replace(
+      0,
+      0,
+      suggestion,
+      selection: TextSelection.collapsed(offset: suggestion.length),
+    );
+  }
+
   /// The text area's own scroll position (it scrolls past its maximum
   /// height), or null before it is laid out.
   ScrollPosition? get editorScrollPosition =>
@@ -1070,6 +1087,7 @@ class ChatComposerState extends State<ChatComposer>
     ChatContextKeys.cursorAtTop => _caretAtStart,
     ChatContextKeys.cursorAtBottom => _caretAtEnd,
     ChatContextKeys.suggestWidgetVisible => _trigger != null,
+    ChatContextKeys.hasPromptSuggestion => _suggestion != null,
     ChatContextKeys.currentlyEditing => widget.onSubmit != null,
     _ => null,
   };
@@ -1088,6 +1106,8 @@ class ChatComposerState extends State<ChatComposer>
         ChatCommandIds.showPreviousPrompt: () => _showPrompt(-1),
       if (history && _historyAt != null)
         ChatCommandIds.showNextPrompt: () => _showPrompt(1),
+      if (_suggestion != null)
+        ChatCommandIds.acceptPromptSuggestion: _acceptSuggestion,
       if (_modePickerKey.currentState case final picker?)
         ChatCommandIds.openModePicker: picker.toggle,
       if (widget.session.modes case final modes?)
@@ -1477,6 +1497,9 @@ class ChatComposerState extends State<ChatComposer>
   Widget build(BuildContext context) {
     _shownBuilt = _shownOfText();
     final focused = _focusNode.hasFocus;
+    _suggestion = widget.onSubmit == null
+        ? widget.session.replySuggestions.firstOrNull
+        : null;
     final colors = themeColors;
     if (!identical(colors, _editorColors)) {
       _editorColors = colors;

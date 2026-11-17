@@ -704,7 +704,9 @@ void main() {
   });
 
   testWidgets('after a turn, its suggested replies show over the composer: '
-      'a click puts one in, a double click sends it', (tester) async {
+      'Tab takes the first, a click puts one in, a double click sends it', (
+    tester,
+  ) async {
     final session = await pumpSession(tester, MockKernels.claudeCode);
     session.send(const ComposerMessage(text: '把输入框改成随内容增高'));
     await tester.pump();
@@ -734,6 +736,7 @@ void main() {
       tester.getBottomLeft(bar).dy,
       lessThan(tester.getTopLeft(find.byType(ActivityStrip)).dy),
     );
+    // No key shown on them.
     expect(
       find.descendant(of: bar, matching: find.text(MockScript.suggestions[0])),
       findsOneWidget,
@@ -743,11 +746,14 @@ void main() {
       findsNothing,
     );
 
-    // Tab is a tab, no suggestion's.
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
-    expect(editor.controller.text, isNot(MockScript.suggestions.first));
+    expect(editor.controller.text, MockScript.suggestions.first);
+    // Something typed: gone.
+    await tester.pump();
+    expect(bar, findsNothing);
+
     editor.controller.replace(0, editor.controller.length, '');
     await tester.pump();
     expect(bar, findsOneWidget);
@@ -788,6 +794,54 @@ void main() {
       findsOneWidget,
     );
     session.stop();
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('Tab takes the suggested reply past an empty composition an '
+      'input method left', (tester) async {
+    // #143: a macOS input method, its letters deleted or committed, may
+    // leave an empty composition until its next; the composer took it for
+    // one under way and Tab went in as a tab.
+    final (:session, :cli) = await pumpScripted(tester);
+    cli
+      ..push({
+        'type': 'assistant',
+        'parent_tool_use_id': null,
+        'message': {
+          'id': 'msg-done',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'text',
+              'text': ReplySuggestions.write('Done.', ['Run the tests']),
+            },
+          ],
+        },
+      })
+      ..push({'type': 'result', 'subtype': 'success', 'is_error': false});
+    await tester.pump();
+    await tester.pump();
+    expect(session.replySuggestions, ['Run the tests']);
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+        composing: TextRange.collapsed(0),
+      ),
+    );
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
+    expect(editor.controller.text, 'Run the tests');
+    // The input method's next state ends it.
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'Run the tests',
+        selection: TextSelection.collapsed(offset: 13),
+      ),
+    );
     await tester.pump(const Duration(seconds: 5));
   });
 
