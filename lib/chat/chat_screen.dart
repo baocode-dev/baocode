@@ -824,6 +824,8 @@ class _ChatScreenState extends State<ChatScreen>
     }
     return ReplySuggestionBar(
       suggestions: suggestions,
+      playKey:
+          '${identityHashCode(_session)}\u0000${suggestions.join('\u0000')}',
       onPick: (said) {
         draft.restore(said, const []);
         _pickedReplyFor?.cancel();
@@ -2067,11 +2069,16 @@ class _SoftSlot extends StatelessWidget {
 
   static const _duration = Duration(milliseconds: 150);
 
+  /// Its room opening: as a bot's message's on the phone (its Reveal), the
+  /// suggestions coming into it one by one.
+  static const _opening = Duration(milliseconds: 340);
+
   @override
   Widget build(BuildContext context) {
     return AnimatedSize(
-      duration: _duration,
-      curve: Curves.easeOut,
+      duration: _opening,
+      reverseDuration: _duration,
+      curve: Curves.easeOutCubic,
       alignment: Alignment.bottomCenter,
       child: AnimatedSwitcher(
         duration: _duration,
