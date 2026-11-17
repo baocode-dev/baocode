@@ -3839,5 +3839,7 @@
   "remoteBrowserPathPlaceholder": "输入路径，如 ~/code、/srv/app、D:\\work",
   "remoteBrowserNotFound": "找不到 {path}。",
   "remoteBrowserNotFolder": "{path} 是文件，不是文件夹。",
-  "remoteBrowserMakeFailed": "无法新建文件夹：{error}"
+  "remoteBrowserMakeFailed": "无法新建文件夹：{error}",
+  "remoteBrowserFolderAction": "打开文件夹",
+  "remoteBrowserFileAction": "打开文件"
 }
