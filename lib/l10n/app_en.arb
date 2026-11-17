@@ -162,7 +162,6 @@
   "cmdChatCancelEdit": "Cancel Edit",
   "cmdChatShowPreviousPrompt": "Show Previous Prompt",
   "cmdChatShowNextPrompt": "Show Next Prompt",
-  "cmdChatAcceptPromptSuggestion": "Accept Suggested Prompt",
   "cmdChatOpenModePicker": "Open Mode Picker",
   "cmdChatNextMode": "Switch to Next Mode",
   "cmdChatOpenModelPicker": "Open Model Picker",
@@ -2530,7 +2529,7 @@
   "@generalSettingsPromptSuggestions": {
     "description": "Settings → General switch: whether the agent suggests, at the end of each turn, what the user might send next, shown over the composer."
   },
-  "generalSettingsPromptSuggestionsDescription": "After each turn, two or three things you might send next, over the composer: click one to put it in and edit it before sending; Tab takes the first. The agent writes them at the end of its reply, with no extra request. Applies from the next message.",
+  "generalSettingsPromptSuggestionsDescription": "After each turn, two or three things you might send next, over the composer: click one to put it in the input and edit it, double-click to send it as it is. The agent writes them at the end of its reply, with no extra request. Applies from the next message.",
   "generalSettingsCommitAttributionLabel": "Commit Attribution: {name}",
   "@generalSettingsCommitAttributionLabel": {
     "description": "The commit attribution dropdown, as read out: its setting and the choice in effect.",

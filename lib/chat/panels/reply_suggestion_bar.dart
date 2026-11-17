@@ -8,8 +8,7 @@ import '../widgets/hover_builder.dart';
 /// What the agent suggests the user send next (see ReplySuggestions), on
 /// top of what is over the empty composer: each a pill, put in the
 /// composer at a click ([onPick]) to be edited and sent, sent as it is at a
-/// double click ([onSend]); each says so on hover. The first is taken with
-/// [firstKey] too (Tab), shown after it. They flow as words do: on to
+/// double click ([onSend]); each says so on hover. They flow as words do: on to
 /// the next line when the row is full; one wider than the row, its text
 /// on more lines.
 class ReplySuggestionBar extends StatelessWidget {
@@ -18,13 +17,11 @@ class ReplySuggestionBar extends StatelessWidget {
     required this.suggestions,
     required this.onPick,
     required this.onSend,
-    this.firstKey,
   });
 
   final List<String> suggestions;
   final ValueChanged<String> onPick;
   final ValueChanged<String> onSend;
-  final String? firstKey;
 
   @override
   Widget build(BuildContext context) {
@@ -34,10 +31,9 @@ class ReplySuggestionBar extends StatelessWidget {
         spacing: 6,
         runSpacing: 6,
         children: [
-          for (final (i, said) in suggestions.indexed)
+          for (final said in suggestions)
             _Pill(
               text: said,
-              keyLabel: i == 0 ? firstKey : null,
               onTap: () => onPick(said),
               onDoubleTap: () => onSend(said),
             ),
@@ -52,11 +48,9 @@ class _Pill extends StatelessWidget {
     required this.text,
     required this.onTap,
     required this.onDoubleTap,
-    this.keyLabel,
   });
 
   final String text;
-  final String? keyLabel;
   final VoidCallback onTap;
   final VoidCallback onDoubleTap;
 
@@ -84,20 +78,8 @@ class _Pill extends StatelessWidget {
                 borderRadius: BorderRadius.circular(13),
                 border: Border.all(color: AppColors.bubbleBorder()),
               ),
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(text: line),
-                    if (keyLabel case final key?)
-                      TextSpan(
-                        text: '  $key',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                        ),
-                      ),
-                  ],
-                ),
+              child: Text(
+                line,
                 style: TextStyle(color: AppColors.text, fontSize: 12.5),
               ),
             ),

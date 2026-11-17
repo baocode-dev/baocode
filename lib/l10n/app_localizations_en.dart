@@ -223,9 +223,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cmdChatShowNextPrompt => 'Show Next Prompt';
 
   @override
-  String get cmdChatAcceptPromptSuggestion => 'Accept Suggested Prompt';
-
-  @override
   String get cmdChatOpenModePicker => 'Open Mode Picker';
 
   @override
@@ -3722,7 +3719,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get generalSettingsPromptSuggestionsDescription =>
-      'After each turn, two or three things you might send next, over the composer: click one to put it in and edit it before sending; Tab takes the first. The agent writes them at the end of its reply, with no extra request. Applies from the next message.';
+      'After each turn, two or three things you might send next, over the composer: click one to put it in the input and edit it, double-click to send it as it is. The agent writes them at the end of its reply, with no extra request. Applies from the next message.';
 
   @override
   String generalSettingsCommitAttributionLabel(String name) {
