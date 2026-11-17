@@ -6480,7 +6480,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get quotaBarThisChat => '当前对话';
 
   @override
-  String get quotaBarRefresh => '重新查询额度';
+  String get quotaBarRefresh => '刷新额度数据';
 
   @override
   String modelsQuotaResetsIn(String time) {
