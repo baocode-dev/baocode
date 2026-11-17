@@ -592,8 +592,8 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
                   for (final root in roots)
                     _Place(
                       icon: FinderDiskIcon(size: 18, kind: root.kind),
-                      label: _rootLabel(root, l10n),
-                      tooltip: root.path,
+                      label: _rootLabel(root, l10n).name,
+                      suffix: _rootLabel(root, l10n).suffix,
                       selected: directory == root.path,
                       onTap: () => unawaited(_model.open(root.path)),
                     ),
@@ -854,7 +854,10 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
         rows.add(
           _EntryRow(
             icon: FinderDiskIcon(size: 18, kind: root.kind),
-            name: _rootLabel(root, l10n),
+            name: switch (_rootLabel(root, l10n)) {
+              (:final name, suffix: final suffix?) => '$name $suffix',
+              (:final name, suffix: null) => name,
+            },
             selected: _model.selected == root.path,
             onTap: () => _clicked(root.path),
           ),
@@ -940,10 +943,9 @@ class _RemoteBrowserDialogState extends State<RemoteBrowserDialog> {
             ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
+            child: _FitText(
               target ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              middle: true,
               style: TextStyle(
                 fontSize: 12,
                 color: colors['descriptionForeground'],
@@ -982,18 +984,120 @@ const _controlPadding = EdgeInsets.symmetric(horizontal: 8, vertical: 5);
 const _buttonPadding = EdgeInsets.symmetric(horizontal: 14, vertical: 7);
 
 /// A drive as Explorer names it (`Windows (C:)`, `Local Disk (D:)`); the
-/// root elsewhere, and a Mac's volumes by their names.
-String _rootLabel(BrowseRoot root, AppLocalizations l10n) {
+/// root elsewhere, and a Mac's volumes by their names. Its letter apart
+/// ([suffix]), kept when a long name is cut.
+({String name, String? suffix}) _rootLabel(
+  BrowseRoot root,
+  AppLocalizations l10n,
+) {
   final path = root.path;
   final drive = RegExp(r'^([A-Za-z]:)[\\/]?$').firstMatch(path)?[1];
   if (drive == null) {
-    if (root.label.isNotEmpty) return root.label;
-    return path == '/' ? '${l10n.remoteBrowserRoot} (/)' : path;
+    if (root.label.isNotEmpty) return (name: root.label, suffix: null);
+    return path == '/'
+        ? (name: l10n.remoteBrowserRoot, suffix: '(/)')
+        : (name: path, suffix: null);
   }
-  if (root.label.isNotEmpty) return '${root.label} ($drive)';
-  return root.kind == BrowseRootKind.fixed
-      ? l10n.remoteBrowserLocalDisk(drive)
-      : drive;
+  if (root.label.isNotEmpty) return (name: root.label, suffix: '($drive)');
+  return (
+    name: root.kind == BrowseRootKind.fixed
+        ? l10n.remoteBrowserLocalDisk(drive)
+        : drive,
+    suffix: null,
+  );
+}
+
+/// [text] on one line, cut to fit: at its end (a [suffix] after it kept
+/// whole), or in its middle when [middle] (a path's start and its last
+/// folders kept). Cut, the whole of it on hover; [hover] instead, if
+/// given, whether cut or not.
+class _FitText extends StatelessWidget {
+  const _FitText(
+    this.text, {
+    required this.style,
+    this.suffix,
+    this.middle = false,
+    this.hover,
+  });
+
+  final String text;
+  final String? suffix;
+  final TextStyle style;
+  final bool middle;
+  final String? hover;
+
+  String get _whole => suffix == null ? text : '$text $suffix';
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final scale = MediaQuery.textScalerOf(context);
+      final direction = Directionality.of(context);
+      final style = DefaultTextStyle.of(context).style.merge(this.style);
+      bool fits(String value) {
+        final painter = TextPainter(
+          text: TextSpan(text: value, style: style),
+          textDirection: direction,
+          textScaler: scale,
+          maxLines: 1,
+        )..layout();
+        final width = painter.width;
+        painter.dispose();
+        return width <= constraints.maxWidth;
+      }
+
+      final cut = constraints.hasBoundedWidth && !fits(_whole);
+      Widget child;
+      if (!cut) {
+        child = Text(_whole, maxLines: 1, style: this.style);
+      } else if (middle) {
+        child = Text(
+          _middleCut(fits),
+          maxLines: 1,
+          overflow: TextOverflow.clip,
+          style: this.style,
+        );
+      } else {
+        child = Row(
+          children: [
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: this.style,
+              ),
+            ),
+            if (suffix case final suffix?)
+              Text(' $suffix', maxLines: 1, style: this.style),
+          ],
+        );
+      }
+      final tip = hover ?? (cut ? _whole : null);
+      return tip == null ? child : IdeHover(message: tip, child: child);
+    },
+  );
+
+  /// The most of [text] that [fits], its middle given up for `…`: two
+  /// fifths of what is kept from its start, the rest from its end.
+  String _middleCut(bool Function(String) fits) {
+    String kept(int count) {
+      final head = (count * 2 / 5).floor();
+      return '${text.substring(0, head)}…'
+          '${text.substring(text.length - (count - head))}';
+    }
+
+    var low = 0, high = text.length - 1;
+    while (low < high) {
+      final count = (low + high + 1) ~/ 2;
+      if (fits(kept(count))) {
+        low = count;
+      } else {
+        high = count - 1;
+      }
+    }
+    return kept(low);
+  }
 }
 
 /// What the browser is for, atop its sidebar: the host, and Open Folder
@@ -1018,10 +1122,8 @@ class _Heading extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        _FitText(
           host,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 13,
             height: 16 / 13,
@@ -1131,11 +1233,17 @@ class _Place extends StatefulWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.suffix,
     this.tooltip,
   });
 
   final Widget icon;
   final String label;
+
+  /// After [label], kept when it is cut: a drive's letter.
+  final String? suffix;
+
+  /// On hover (a place's path); the whole label when cut, if not given.
   final String? tooltip;
   final bool selected;
   final VoidCallback onTap;
@@ -1150,7 +1258,7 @@ class _PlaceState extends State<_Place> {
   @override
   Widget build(BuildContext context) {
     final colors = themeColors;
-    Widget row = MouseRegion(
+    final row = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -1172,10 +1280,10 @@ class _PlaceState extends State<_Place> {
               widget.icon,
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
+                child: _FitText(
                   widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  suffix: widget.suffix,
+                  hover: widget.tooltip,
                   style: TextStyle(
                     fontSize: 12.5,
                     color: colors['sideBar.foreground'],
@@ -1187,13 +1295,6 @@ class _PlaceState extends State<_Place> {
         ),
       ),
     );
-    if (widget.tooltip case final tooltip? when tooltip != widget.label) {
-      row = IdeHover(
-        message: tooltip,
-        position: IdeHoverPosition.right,
-        child: row,
-      );
-    }
     return Semantics(
       button: true,
       selected: widget.selected,
