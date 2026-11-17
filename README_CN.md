@@ -94,3 +94,5 @@ dart run tool/build_remote_server.dart    # 用于 Linux x64 和 arm64 的 SSH �
 BaoCode 使用 [GNU General Public License v3.0](LICENSE)（GPL-3.0-only）许可证。[packages/](packages) 中的编辑器和终端相关包（bao_editor、bao_xterm、bao_pty）使用 MIT 许可证。第三方组件保留其自身许可证，具体文件位于对应源码旁。
 
 BaoCode 是独立项目，与 Anthropic 无隶属关系，也未获得其背书。
+
+<img width="720" height="1094" alt="image" src="https://github.com/user-attachments/assets/317028c7-4baa-4009-9ca4-6a900ba200a8" />
