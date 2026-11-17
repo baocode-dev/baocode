@@ -399,6 +399,19 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
     _ => false,
   };
 
+  /// The model answering in place of the one picked ([models]' selected),
+  /// by name, since its safeguards flagged a message; null while the
+  /// picked one answers.
+  String? get fallbackModel => switch (_kernel) {
+    final ReportsModelFallback kernel => kernel.fallbackModel,
+    _ => null,
+  };
+
+  /// Back to the model picked, from [fallbackModel].
+  void endModelFallback() {
+    if (_kernel case final ReportsModelFallback kernel) kernel.endFallback();
+  }
+
   KernelChoice? get modes => switch (_kernel) {
     final SelectsMode kernel => _choice(kernel.mode),
     _ => null,

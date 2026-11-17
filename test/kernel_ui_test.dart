@@ -1211,6 +1211,51 @@ void main() {
     expect(box.right - send.right, lessThan(12));
   });
 
+  testWidgets('a model answering in place of the one picked shows in its '
+      'pill, the picked one a click away', (tester) async {
+    final (:session, :cli) = await pumpScripted(tester);
+    Future<void> settle() async {
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+    }
+
+    session.models!.onSelected(
+      session.models!.options.firstWhere((o) => o.id == 'opus'),
+    );
+    await settle();
+    final label = find.byWidgetPredicate(
+      (w) => w is Text && (w.data?.startsWith('Opus') ?? false),
+    );
+    expect(label, findsOneWidget);
+
+    cli.push({
+      'type': 'system',
+      'subtype': 'model_refusal_fallback',
+      'scope': 'session',
+      'original_model': 'claude-opus-5-5',
+      'fallback_model': 'claude-opus-4-8',
+      'content': 'Switched to Opus 4.8.',
+      'uuid': 'f1',
+    });
+    await settle();
+    final fallback = find.byWidgetPredicate(
+      (w) => w is Text && (w.data?.startsWith('Opus 4.8') ?? false),
+    );
+    expect(fallback, findsOneWidget);
+    expect(find.text('Switched to Opus 4.8.'), findsOneWidget);
+
+    final asked = cli.requests('set_model').length;
+    await tester.tap(fallback);
+    await settle();
+    await tester.tap(find.text('Switch Back to Opus'));
+    await settle();
+    expect(cli.requests('set_model'), hasLength(asked + 1));
+    expect(session.fallbackModel, isNull);
+    expect(label, findsOneWidget);
+    expect(fallback, findsNothing);
+  });
+
   testWidgets('the model menu lists models only; context and effort are '
       'picked at their side', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);

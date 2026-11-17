@@ -157,6 +157,17 @@ abstract interface class ConfirmsModelSwitch {
   bool switchRestarts(String model);
 }
 
+/// Answers on another model than the one picked, until switched back: e.g.
+/// Claude Code's, once the picked model's safeguards flagged a message.
+abstract interface class ReportsModelFallback {
+  /// The model answering in the picked one's place, by name (`Opus 4.8`);
+  /// null while the picked one answers.
+  String? get fallbackModel;
+
+  /// Back to the model picked ([SelectsModel.model]'s selected).
+  void endFallback();
+}
+
 /// What the agent does with a message: e.g. act on it, only discuss it,
 /// or plan first.
 abstract interface class SelectsMode {

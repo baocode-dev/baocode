@@ -1607,6 +1607,7 @@ class ChatComposerState extends State<ChatComposer>
         session.permissions,
         model,
       ]) ...[choice?.options, choice?.selected],
+      session.fallbackModel,
       // What the model's label says of its settings (see
       // SessionModelPicker): their lists are made anew each time.
       if (model != null)
