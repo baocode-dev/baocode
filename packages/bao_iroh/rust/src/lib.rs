@@ -666,7 +666,7 @@ async fn write_loop(
     loop {
         let next = tokio::select! {
             biased;
-            _ = reset.wait_for(|reset| *reset) => {
+            _ = reset_asked(&mut reset) => {
                 let _ = send.reset(VarInt::from_u32(0));
                 break;
             }
@@ -682,7 +682,7 @@ async fn write_loop(
                     Err(e) => Err(Fail::Err(e)),
                     Ok(frame) => tokio::select! {
                         written = send.write_all(&frame) => written.map_err(|e| Fail::End(e.to_string())),
-                        _ = reset.wait_for(|reset| *reset) => Err(Fail::End("reset".into())),
+                        _ = reset_asked(&mut reset) => Err(Fail::End("reset".into())),
                     },
                 };
                 answer(generation, req, written.map(|()| (Vec::new(), 0)));
@@ -698,6 +698,15 @@ async fn write_loop(
     while let Some(out) = queue.recv().await {
         let (Out::Message(_, req, generation) | Out::Finish(req, generation)) = out;
         answer(generation, req, Err(Fail::End("reset".into())));
+    }
+}
+
+/// Once the stream is to be reset. Let go of without that (the handle
+/// released, by Dart or its garbage collector), never: what was asked is
+/// still written, then the stream finished.
+async fn reset_asked(reset: &mut watch::Receiver<bool>) {
+    if reset.wait_for(|reset| *reset).await.is_err() {
+        std::future::pending::<()>().await;
     }
 }
 
