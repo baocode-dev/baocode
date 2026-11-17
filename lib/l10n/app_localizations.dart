@@ -494,12 +494,6 @@ abstract class AppLocalizations {
   /// **'Show Next Prompt'**
   String get cmdChatShowNextPrompt;
 
-  /// No description provided for @cmdChatAcceptPromptSuggestion.
-  ///
-  /// In en, this message translates to:
-  /// **'Accept Suggested Prompt'**
-  String get cmdChatAcceptPromptSuggestion;
-
   /// No description provided for @cmdChatOpenModePicker.
   ///
   /// In en, this message translates to:
@@ -5636,6 +5630,12 @@ abstract class AppLocalizations {
   /// **'Remove from the queue'**
   String get queuedRemove;
 
+  /// Hover of a reply the agent suggests, over the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Click to put it in the input and edit it · Double-click to send it'**
+  String get replySuggestionHint;
+
   /// No description provided for @stopConfirmMessage.
   ///
   /// In en, this message translates to:
@@ -6335,7 +6335,7 @@ abstract class AppLocalizations {
   /// No description provided for @generalSettingsPromptSuggestionsDescription.
   ///
   /// In en, this message translates to:
-  /// **'After each turn, two or three things you might send next, over the composer: click one to put it in and edit it before sending; Tab takes the first. The agent writes them at the end of its reply, with no extra request. Applies from the next message.'**
+  /// **'After each turn, two or three things you might send next, over the composer: click one to put it in the input and edit it, double-click to send it as it is. The agent writes them at the end of its reply, with no extra request. Applies from the next message.'**
   String get generalSettingsPromptSuggestionsDescription;
 
   /// The commit attribution dropdown, as read out: its setting and the choice in effect.

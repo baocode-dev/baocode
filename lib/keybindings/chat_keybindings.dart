@@ -121,7 +121,6 @@ abstract final class ChatCommandIds {
   static const cancelEdit = 'workbench.edit.chat.cancel';
   static const showPreviousPrompt = 'baocode.chat.showPreviousPrompt';
   static const showNextPrompt = 'baocode.chat.showNextPrompt';
-  static const acceptPromptSuggestion = 'baocode.chat.acceptPromptSuggestion';
   static const openModePicker = 'workbench.action.chat.openModePicker';
   static const nextMode = 'baocode.chat.nextMode';
   static const openModelPicker = 'workbench.action.chat.openModelPicker';
@@ -178,9 +177,6 @@ abstract final class ChatContextKeys {
 
   /// The input's @ or / menu is open.
   static const suggestWidgetVisible = 'chatSuggestWidgetVisible';
-
-  /// The input offers a prompt the agent suggests (Tab takes it).
-  static const hasPromptSuggestion = 'chatHasPromptSuggestion';
 
   /// The chat's agent is at work (upstream `chatSessionRequestInProgress`).
   static const requestInProgress = 'chatSessionRequestInProgress';
@@ -257,7 +253,6 @@ final List<CommandInfo> chatExtraCommands = [
     (ChatCommandIds.cancelEdit, 'Cancel Edit'),
     (ChatCommandIds.showPreviousPrompt, 'Show Previous Prompt'),
     (ChatCommandIds.showNextPrompt, 'Show Next Prompt'),
-    (ChatCommandIds.acceptPromptSuggestion, 'Accept Suggested Prompt'),
     (ChatCommandIds.openModePicker, 'Open Mode Picker'),
     (ChatCommandIds.nextMode, 'Switch to Next Mode'),
     (ChatCommandIds.openModelPicker, 'Open Model Picker'),
@@ -603,13 +598,6 @@ final List<KeybindingEntry> chatExtraKeybindings = [
     when: _nextPrompt,
   ),
   const KeybindingEntry(
-    key: 'tab',
-    command: ChatCommandIds.acceptPromptSuggestion,
-    when:
-        '$_input && ${ChatContextKeys.hasPromptSuggestion} && '
-        '!${ChatContextKeys.inputHasText}',
-  ),
-  const KeybindingEntry(
     key: 'ctrl+.',
     mac: 'cmd+.',
     command: ChatCommandIds.openModePicker,
@@ -737,7 +725,6 @@ const Set<String> chatContextKeys = {
   ChatContextKeys.cursorAtTop,
   ChatContextKeys.cursorAtBottom,
   ChatContextKeys.suggestWidgetVisible,
-  ChatContextKeys.hasPromptSuggestion,
   ChatContextKeys.requestInProgress,
   ChatContextKeys.currentlyEditing,
   ChatContextKeys.hasToolConfirmation,

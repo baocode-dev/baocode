@@ -6,14 +6,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:baocode/chat/chat_screen.dart';
-import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/panels/interaction_panel.dart';
-import 'package:baocode/chat/panels/reply_suggestion_bar.dart';
 import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/kernel/kernel_types.dart';
-import 'package:baocode/kernel/mock/mock_kernels.dart';
-import 'package:baocode/kernel/mock/mock_script.dart';
 import 'package:baocode/keybindings/chat_keybindings.dart';
 import 'package:bao_editor/monaco/flutter/keybinding_entry.dart';
 import 'package:baocode/keybindings/keybinding_service.dart';
@@ -237,49 +232,5 @@ void main() {
         containsAll(['Allow once (⌘Enter)', 'Deny (⌥⌘Enter)']),
       );
     }, variant: _mac);
-  });
-
-  testWidgets('the suggested reply shows the key that takes it, as the '
-      'keybindings have it', (tester) async {
-    final session = ChatSession(
-      kernel: MockKernels.claudeCode,
-      historyCount: 0,
-    );
-    addTearDown(session.dispose);
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildAppTheme(),
-        home: ChatScreen(session: session),
-      ),
-    );
-    await tester.pump();
-    session.send(const ComposerMessage(text: 'make the input grow'));
-    for (var i = 0; i < 400 && session.isStreaming; i++) {
-      switch (session.pendingInteraction) {
-        case QuestionRequest():
-          session.answer(const QuestionAnswer([], skipped: true));
-        case ApprovalRequest():
-          session.answer(const ApprovalAnswer(ApprovalDecision.allowOnce));
-        default:
-      }
-      await tester.pump(const Duration(milliseconds: 100));
-    }
-    await tester.pump(const Duration(milliseconds: 300));
-    final first = MockScript.suggestions.first;
-    Finder pill(String text) => find.descendant(
-      of: find.byType(ReplySuggestionBar),
-      matching: find.text(text, findRichText: true),
-    );
-    expect(pill('$first  Tab'), findsOneWidget);
-
-    KeybindingService.instance.userEntries = const [
-      KeybindingEntry(command: '-${ChatCommandIds.acceptPromptSuggestion}'),
-    ];
-    // As the window builds again.
-    tester.element(find.byType(ChatScreen)).markNeedsBuild();
-    await tester.pump();
-    expect(pill('$first  Tab'), findsNothing);
-    expect(pill(first), findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
   });
 }

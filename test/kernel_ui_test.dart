@@ -704,7 +704,7 @@ void main() {
   });
 
   testWidgets('after a turn, its suggested replies show over the composer: '
-      'Tab takes the first, a click any', (tester) async {
+      'a click puts one in, a double click sends it', (tester) async {
     final session = await pumpSession(tester, MockKernels.claudeCode);
     session.send(const ComposerMessage(text: '把输入框改成随内容增高'));
     await tester.pump();
@@ -729,14 +729,13 @@ void main() {
     expect(session.replySuggestions, MockScript.suggestions);
     final bar = find.byType(ReplySuggestionBar);
     expect(bar, findsOneWidget);
+    // On top of all over the composer: the changes under it.
     expect(
-      find.descendant(
-        of: bar,
-        matching: find.textContaining(
-          '${MockScript.suggestions.first}  Tab',
-          findRichText: true,
-        ),
-      ),
+      tester.getBottomLeft(bar).dy,
+      lessThan(tester.getTopLeft(find.byType(ActivityStrip)).dy),
+    );
+    expect(
+      find.descendant(of: bar, matching: find.text(MockScript.suggestions[0])),
       findsOneWidget,
     );
     expect(
@@ -744,14 +743,11 @@ void main() {
       findsNothing,
     );
 
+    // Tab is a tab, no suggestion's.
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
-    expect(editor.controller.text, MockScript.suggestions.first);
-    // Something typed: gone.
-    await tester.pump();
-    expect(bar, findsNothing);
-
+    expect(editor.controller.text, isNot(MockScript.suggestions.first));
     editor.controller.replace(0, editor.controller.length, '');
     await tester.pump();
     expect(bar, findsOneWidget);
@@ -764,57 +760,34 @@ void main() {
         ),
       ),
     );
+    // Once it is no double click.
+    await tester.pump(kDoubleTapTimeout);
     await tester.pump();
     expect(editor.controller.text, MockScript.suggestions[1]);
     expect(bar, findsNothing);
-    await tester.pump(const Duration(seconds: 5));
-  });
+    expect(session.isStreaming, isFalse);
 
-  testWidgets('Tab takes the suggested reply past an empty composition an '
-      'input method left', (tester) async {
-    // #143: a macOS input method, its letters deleted or committed, may
-    // leave an empty composition until its next; the composer took it for
-    // one under way and Tab went in as a tab.
-    final (:session, :cli) = await pumpScripted(tester);
-    cli
-      ..push({
-        'type': 'assistant',
-        'parent_tool_use_id': null,
-        'message': {
-          'id': 'msg-done',
-          'role': 'assistant',
-          'content': [
-            {
-              'type': 'text',
-              'text': ReplySuggestions.write('Done.', ['Run the tests']),
-            },
-          ],
-        },
-      })
-      ..push({'type': 'result', 'subtype': 'success', 'is_error': false});
+    // A double click sends it as it is.
+    editor.controller.replace(0, editor.controller.length, '');
     await tester.pump();
-    await tester.pump();
-    expect(session.replySuggestions, ['Run the tests']);
-    tester.testTextInput.updateEditingValue(
-      const TextEditingValue(
-        text: '',
-        selection: TextSelection.collapsed(offset: 0),
-        composing: TextRange.collapsed(0),
+    final last = find.descendant(
+      of: bar,
+      matching: find.textContaining(
+        MockScript.suggestions.last,
+        findRichText: true,
       ),
     );
+    await tester.tap(last);
+    await tester.pump(kDoubleTapMinTime);
+    await tester.tap(last);
     await tester.pump();
-
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.pump();
-    final editor = tester.widget<MarkdownEditor>(find.byType(MarkdownEditor));
-    expect(editor.controller.text, 'Run the tests');
-    // The input method's next state ends it.
-    tester.testTextInput.updateEditingValue(
-      const TextEditingValue(
-        text: 'Run the tests',
-        selection: TextSelection.collapsed(offset: 13),
-      ),
+    expect(session.isStreaming, isTrue);
+    expect(editor.controller.text, isEmpty);
+    expect(
+      find.textContaining(MockScript.suggestions.last, findRichText: true),
+      findsOneWidget,
     );
+    session.stop();
     await tester.pump(const Duration(seconds: 5));
   });
 

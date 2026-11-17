@@ -815,8 +815,12 @@ class _ChatScreenState extends State<ChatScreen>
     }
     return ReplySuggestionBar(
       suggestions: suggestions,
-      firstKey: replySuggestionKey(),
       onPick: (said) => draft.restore(said, const []),
+      onSend: (said) => _session.send(
+        ComposerMessage(text: said),
+        editor: widget.openEditor,
+        from: UserPlace.computer,
+      ),
     );
   }
 
@@ -1594,7 +1598,12 @@ class _ChatScreenState extends State<ChatScreen>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Before all: the agent stopped, till the usage limit resets.
+        // On top of all: what the agent suggests to put in the composer.
+        ListenableBuilder(
+          listenable: _session.draft,
+          builder: (context, _) => _PanelSlot(child: _buildReplySuggestions()),
+        ),
+        // Then: the agent stopped, till the usage limit resets.
         ListenableBuilder(
           listenable: ResumeAfterReset.current,
           builder: (context, _) => _PanelSlot(child: _buildLimitPanel()),
@@ -1640,11 +1649,6 @@ class _ChatScreenState extends State<ChatScreen>
           },
         ),
         _activityStrip(),
-        // Right over the composer: what the agent suggests to put in it.
-        ListenableBuilder(
-          listenable: _session.draft,
-          builder: (context, _) => _PanelSlot(child: _buildReplySuggestions()),
-        ),
         ChatComposer(
           key: _composerKey,
           session: _session,
