@@ -3788,7 +3788,7 @@
   "settingsTransferNotAFile": "这不是 BaoCode 导出的设置文件。",
   "settingsTransferFailed": "没能完成：{error}",
   "generalSettingsSessionTools": "Agent 可以统筹其他对话",
-  "generalSettingsSessionToolsDescription": "Agent 能列出你的其他对话、在不唤醒的情况下查看进展、给它们派活（没在运行的会恢复，正忙的会排队）并等待结果。适合用一个对话统筹其他对话；改动后新启动的 Agent 才有。",
+  "generalSettingsSessionToolsDescription": "Agent 能列出你的其他对话、在不唤醒的情况下查看进展、开新对话或给已有对话派活（需要时放进单独的 worktree），对方做完、出错或等你回答时会自动回报；也能停下它们、查看改了哪些文件。适合用一个对话统筹其他对话；改动后新启动的 Agent 才有。",
   "generalSettingsCommandLine": "命令行",
   "baoBashRecommended": "BaoCode Bash（推荐）",
   "baoBashDescription": "让智能体在 Windows 上用上完整的 bash：自带 rg、grep、sed、awk、find、jq、tar 等八十多个常用命令，不需要装 Git for Windows；C:\\ 和 /c/ 两种路径都认。内置内核和 Claude Code 内核都会用它运行命令。",

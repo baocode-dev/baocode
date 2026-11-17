@@ -1000,18 +1000,7 @@ class ClaudeCodeKernel
       _suggestion = null;
       emitInfoChanged();
     }
-    emit(
-      ItemUpserted(
-        nextSeq,
-        turn.id,
-        UserMessageItem(
-          text: turn.text,
-          queued: busy,
-          images: turn.images,
-          sentAt: DateTime.now(),
-        ),
-      ),
-    );
+    emit(ItemUpserted(nextSeq, turn.id, _sentItem(turn, queued: busy)));
     // Taken now, as the message was sent.
     final ask = _work == 'ask';
     if (hold) {
@@ -1104,6 +1093,19 @@ class ClaudeCodeKernel
       // taken up next, as when the user stops the turn.
       if (turn.now && _queued.contains(turn.id) && !spareBackground) cancel();
     });
+  }
+
+  /// [turn] as it shows once sent, until the CLI reads it back: a message
+  /// another agent sent (`<agent-message>`), as its card, as read back.
+  static UserMessageItem _sentItem(KernelTurn turn, {bool queued = false}) {
+    final fromAgent = ClaudeTranslator.agentMessage(turn.text);
+    return UserMessageItem(
+      text: fromAgent?.text ?? turn.text,
+      queued: queued,
+      images: turn.images,
+      sentAt: DateTime.now(),
+      fromAgent: fromAgent?.from,
+    );
   }
 
   void _beginTurn(String id, {bool unprompted = false}) {
@@ -2185,15 +2187,10 @@ class ClaudeCodeKernel
       case 'started':
         if (_queued.remove(id)) {
           emit(
-            ItemUpserted(
-              nextSeq,
-              id,
-              UserMessageItem(
-                text: _sent[id]?.text ?? '',
-                images: _sent[id]?.images ?? const [],
-                sentAt: DateTime.now(),
-              ),
-            ),
+            ItemUpserted(nextSeq, id, switch (_sent[id]) {
+              final turn? => _sentItem(turn),
+              null => UserMessageItem(text: '', sentAt: DateTime.now()),
+            }),
           );
         }
         if (_turn != id &&

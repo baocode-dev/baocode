@@ -2193,6 +2193,15 @@ class ClaudeTranslator {
     r'^<agent-message from="([^"]*)">([\s\S]*)</agent-message>$',
   );
 
+  /// [text] as a message another agent sent (`<agent-message from="…">`,
+  /// a subagent's or another conversation's): who from, and what it says;
+  /// null for any other.
+  static ({String from, String text})? agentMessage(String text) =>
+      switch (_agentMessage.firstMatch(text.trim())) {
+        final match? => (from: match[1]!, text: match[2]!.trim()),
+        null => null,
+      };
+
   static String? _tag(String text, String tag) {
     final start = text.indexOf('<$tag>');
     final end = text.indexOf('</$tag>');

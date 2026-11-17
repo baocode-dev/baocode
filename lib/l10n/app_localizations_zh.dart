@@ -13248,7 +13248,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get generalSettingsSessionToolsDescription =>
-      'Agent 能列出你的其他对话、在不唤醒的情况下查看进展、给它们派活（没在运行的会恢复，正忙的会排队）并等待结果。适合用一个对话统筹其他对话；改动后新启动的 Agent 才有。';
+      'Agent 能列出你的其他对话、在不唤醒的情况下查看进展、开新对话或给已有对话派活（需要时放进单独的 worktree），对方做完、出错或等你回答时会自动回报；也能停下它们、查看改了哪些文件。适合用一个对话统筹其他对话；改动后新启动的 Agent 才有。';
 
   @override
   String get generalSettingsCommandLine => '命令行';
