@@ -23106,6 +23106,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open File'**
   String get remoteBrowserFileAction;
+
+  /// No description provided for @remoteBrowserSaveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to {host}'**
+  String remoteBrowserSaveTitle(String host);
+
+  /// No description provided for @remoteBrowserSaveAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Save As'**
+  String get remoteBrowserSaveAction;
+
+  /// No description provided for @remoteBrowserSaveName.
+  ///
+  /// In en, this message translates to:
+  /// **'Save As:'**
+  String get remoteBrowserSaveName;
+
+  /// No description provided for @remoteBrowserSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get remoteBrowserSave;
+
+  /// No description provided for @remoteBrowserReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'“{name}” already exists. Replace it?'**
+  String remoteBrowserReplace(String name);
 }
 
 class _AppLocalizationsDelegate

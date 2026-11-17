@@ -3841,5 +3841,10 @@
   "remoteBrowserNotFolder": "{path} 是文件，不是文件夹。",
   "remoteBrowserMakeFailed": "无法新建文件夹：{error}",
   "remoteBrowserFolderAction": "打开文件夹",
-  "remoteBrowserFileAction": "打开文件"
+  "remoteBrowserFileAction": "打开文件",
+  "remoteBrowserSaveTitle": "保存到 {host}",
+  "remoteBrowserSaveAction": "另存为",
+  "remoteBrowserSaveName": "保存为：",
+  "remoteBrowserSave": "保存",
+  "remoteBrowserReplace": "“{name}”已存在，要替换它吗？"
 }

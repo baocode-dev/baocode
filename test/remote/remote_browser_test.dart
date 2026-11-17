@@ -126,4 +126,74 @@ void main() {
     // What was picked, the latest of the recent locations.
     expect(locations.single, [p.join(root, 'app'), '/srv/old']);
   });
+
+  testWidgets('saving: a folder by the name walked into; a file there '
+      'written over once agreed', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    Directory(p.join(root, 'src')).createSync();
+    File(p.join(root, 'notes.md')).writeAsStringSync('');
+    String? picked;
+    var closed = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Center(
+            child: GestureDetector(
+              onTap: () async {
+                picked = await showRemoteBrowser(
+                  context,
+                  RemoteBrowseRequest(
+                    host: 'dev',
+                    saveName: 'Untitled-1',
+                    directory: root,
+                    connect: hosts['dev'].reconnect,
+                  ),
+                  hostLabel: 'dev',
+                );
+                closed = true;
+              },
+              child: const Text('save'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('save'));
+    await tester.pump();
+    const list = RemoteBrowserDialog.entriesKey;
+    await pumpUntil(
+      tester,
+      find.descendant(of: find.byKey(list), matching: find.text('notes.md')),
+    );
+    expect(find.text('Save As:'), findsOneWidget);
+    expect(find.text('Untitled-1'), findsOneWidget);
+
+    // The name of a folder there: walked into, the name as offered again.
+    await tester.enterText(find.text('Untitled-1'), 'src');
+    await tester.tap(find.text('Save'));
+    await pumpUntil(tester, find.text('This folder is empty.'));
+    expect(find.text('Untitled-1'), findsOneWidget);
+    expect(closed, isFalse);
+    await tester.tap(find.byTooltip('Back'));
+    await pumpUntil(
+      tester,
+      find.descendant(of: find.byKey(list), matching: find.text('notes.md')),
+    );
+
+    // A file clicked: its name; saved over once Replace is chosen.
+    await tester.tap(
+      find.descendant(of: find.byKey(list), matching: find.text('notes.md')),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('“notes.md” already exists. Replace it?'), findsOneWidget);
+    await tester.tap(find.text('Replace'));
+    await tester.pumpAndSettle();
+    expect(closed, isTrue);
+    expect(picked, p.join(root, 'notes.md'));
+  });
 }

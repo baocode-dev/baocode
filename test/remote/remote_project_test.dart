@@ -1222,6 +1222,38 @@ printf '%s\n' "$line"
       expect(model.target, root);
     });
 
+    test('saving: files listed beside the folders, one clicked its name '
+        'taken; where to save, the name where it is', () async {
+      Directory(p.join(root, 'src')).createSync();
+      File(p.join(root, 'notes.md')).writeAsStringSync('');
+      final model = RemoteBrowserModel(
+        RemoteBrowseRequest(
+          host: 'dev',
+          saveName: 'Untitled-1',
+          directory: root,
+          connect: hosts['dev'].reconnect,
+        ),
+      );
+      addTearDown(model.dispose);
+      await model.connect();
+      expect(model.directory, root);
+      expect(model.visible.map((e) => e.name), ['src', 'notes.md']);
+      expect(model.name, 'Untitled-1');
+      expect(model.target, p.join(root, 'Untitled-1'));
+
+      // A folder selected keeps the name; a file gives its own.
+      model.select('src');
+      expect(model.name, 'Untitled-1');
+      model.select('notes.md');
+      expect(model.name, 'notes.md');
+      expect(model.entryNamed('notes.md')?.isDirectory, isFalse);
+      expect(model.entryNamed('src')?.isDirectory, isTrue);
+      expect(model.entryNamed('new.md'), isNull);
+
+      model.name = '  ';
+      expect(model.target, isNull);
+    });
+
     test('recent locations: the latest first, each once, so many kept', () {
       final model = RemoteBrowserModel(
         RemoteBrowseRequest(

@@ -13442,4 +13442,23 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get remoteBrowserFileAction => '打开文件';
+
+  @override
+  String remoteBrowserSaveTitle(String host) {
+    return '保存到 $host';
+  }
+
+  @override
+  String get remoteBrowserSaveAction => '另存为';
+
+  @override
+  String get remoteBrowserSaveName => '保存为：';
+
+  @override
+  String get remoteBrowserSave => '保存';
+
+  @override
+  String remoteBrowserReplace(String name) {
+    return '“$name”已存在，要替换它吗？';
+  }
 }
