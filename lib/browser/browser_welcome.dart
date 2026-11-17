@@ -101,7 +101,7 @@ class _BrowserWelcomeState extends State<BrowserWelcome>
   Widget _build(BuildContext context) {
     final l10n = context.l10n;
     final bridge = widget.bridge;
-    final connected = bridge.active ?? bridge.browsers.firstOrNull;
+    final connected = bridge.active;
     final lines = [
       (
         const Icon(Codicons.lock, size: 15),

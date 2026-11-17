@@ -181,15 +181,22 @@ class BrowserBridge extends ChangeNotifier {
   ];
 
   /// The browser the agents use: [preferred]'s while it is connected, the
-  /// last connected when none is chosen; null when none is (and when the
-  /// one chosen is not connected).
+  /// last connected otherwise (none chosen, or the one chosen closed);
+  /// null when none is.
   BrowserConnection? get active {
     final browsers = this.browsers;
     if (browsers.isEmpty) return null;
-    final chosen = _preferred;
-    if (chosen == null) return browsers.first;
+    if (chosen case final chosen?) return chosen;
+    return browsers.first;
+  }
+
+  /// The browser chosen in Settings → Browser ([preferred]), while it is
+  /// connected.
+  BrowserConnection? get chosen {
+    final path = _preferred;
+    if (path == null) return null;
     for (final browser in browsers) {
-      if (_samePath(browser.executable, chosen)) return browser;
+      if (_samePath(browser.executable, path)) return browser;
     }
     return null;
   }

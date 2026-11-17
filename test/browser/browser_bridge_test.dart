@@ -162,8 +162,7 @@ void main() {
       await bridge.start();
       const chromePath =
           r'C:\Program Files\Google\Chrome\Application\chrome.exe';
-      const centPath =
-          r'E:\soft_ware\cent\CentBrowser\Application\chrome.exe';
+      const centPath = r'E:\soft_ware\cent\CentBrowser\Application\chrome.exe';
       final chrome = await connect({
         'browser': 'Google Chrome',
         'version': '0.2.1',
@@ -201,9 +200,23 @@ void main() {
           r'e:/SOFT_ware/CENT/CentBrowser/Application/chrome.exe';
       expect(bridge.active, byPath[centPath]);
 
-      // Chosen but not connected: none, not another browser in its place.
+      // Chosen but not connected: the last connected meantime, and the
+      // settings say so.
       bridge.preferred = r'C:\nowhere\chrome.exe';
-      expect(bridge.active, isNull);
+      expect(bridge.chosen, isNull);
+      expect(bridge.active, bridge.browsers.first);
+      final l10n = AppLocalizationsEn();
+      expect(
+        BrowserSettingsPage.status(l10n, bridge),
+        contains((
+          l10n.browserSettingsChosenMissing,
+          l10n.browserSettingsChosenMissingDescription(
+            r'C:\nowhere\chrome.exe',
+            bridge.browsers.first.displayName,
+          ),
+          null,
+        )),
+      );
     },
     skip: Platform.isWindows,
   );

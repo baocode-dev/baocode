@@ -9767,6 +9767,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get browserSettingsChosenMissing => '所选的浏览器没有连接';
 
   @override
+  String browserSettingsChosenMissingDescription(String path, String browser) {
+    return '$path：它重新连上之前，agent 先用 $browser。';
+  }
+
+  @override
   String get browserSettingsExtensionOld =>
       '扩展版本太旧，需要更新。商店版会自动更新，也可以在 chrome://extensions 里点「更新」；手动安装的请重新下载 zip，覆盖原来的文件夹后点刷新。';
 

@@ -2794,6 +2794,7 @@
   "browserSettingsUse": "使用这个浏览器",
   "browserSettingsUsing": "使用中",
   "browserSettingsChosenMissing": "所选的浏览器没有连接",
+  "browserSettingsChosenMissingDescription": "{path}：它重新连上之前，agent 先用 {browser}。",
   "browserSettingsExtensionOld": "扩展版本太旧，需要更新。商店版会自动更新，也可以在 chrome://extensions 里点「更新」；手动安装的请重新下载 zip，覆盖原来的文件夹后点刷新。",
   "browserSettingsAppOld": "扩展比当前的 BaoCode 新，请更新 BaoCode。",
   "browserSettingsNoFileAccess": "没有开文件访问权限",

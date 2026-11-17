@@ -662,11 +662,11 @@ final _historyTool = ClaudeSdkTool(
       }
       return true;
     });
-    final browsers = BrowserBridge.instance.browsers;
+    final browser = BrowserBridge.instance.active;
     BrowserTab? live(Object? tab) {
       final id = int.tryParse('$tab');
-      if (id == null || browsers.isEmpty) return null;
-      final open = BrowserTab(browsers.first, id);
+      if (id == null || browser == null) return null;
+      final open = BrowserTab(browser, id);
       return BrowserRecords.instance.watching(open) ? open : null;
     }
 

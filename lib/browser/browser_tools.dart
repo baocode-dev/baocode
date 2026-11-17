@@ -348,12 +348,6 @@ Do not use the browser tools to scrape or bulk-collect data from government, hea
         'Another BaoCode is connected to the browser: quit it first.',
       );
     }
-    if (bridge.preferred case final chosen?) {
-      throw StateError(
-        'The browser chosen in Settings → Browser is not connected: '
-        '$chosen. Open it, or choose another one there.',
-      );
-    }
     if (bridge.mismatched case [final browser, ...]) {
       throw StateError(
         browser.protocol < BrowserBridge.protocol

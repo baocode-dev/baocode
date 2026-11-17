@@ -16825,6 +16825,12 @@ abstract class AppLocalizations {
   /// **'The browser chosen is not connected'**
   String get browserSettingsChosenMissing;
 
+  /// Under browserSettingsChosenMissing: the chosen browser's executable, and the connected one used meanwhile.
+  ///
+  /// In en, this message translates to:
+  /// **'{path}: agents use {browser} until it connects again.'**
+  String browserSettingsChosenMissingDescription(String path, String browser);
+
   /// No description provided for @browserSettingsExtensionOld.
   ///
   /// In en, this message translates to:

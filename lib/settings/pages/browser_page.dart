@@ -262,8 +262,16 @@ class BrowserSettingsPage extends StatelessWidget {
           _details(browser, l10n),
           browser,
         ),
-      if (bridge.preferred case final chosen? when bridge.active == null)
-        (l10n.browserSettingsChosenMissing, chosen, null),
+      if (bridge.preferred case final path?
+          when bridge.chosen == null && bridge.active != null)
+        (
+          l10n.browserSettingsChosenMissing,
+          l10n.browserSettingsChosenMissingDescription(
+            path,
+            bridge.active!.displayName,
+          ),
+          null,
+        ),
       for (final browser in browsers)
         if (browser.fileAccess == false)
           (
@@ -286,8 +294,8 @@ class BrowserSettingsPage extends StatelessWidget {
   /// A connected browser's row under its name: its engine, its executable
   /// and its extension's version, ` · ` between.
   static String _details(BrowserConnection browser, AppLocalizations l10n) => [
-    if (browser.engine case final engine?) engine,
-    if (browser.executable case final path?) path,
+    ?browser.engine,
+    ?browser.executable,
     l10n.browserSettingsExtensionVersion(browser.version ?? '?'),
   ].join(' · ');
 }

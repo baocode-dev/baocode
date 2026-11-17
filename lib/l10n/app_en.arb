@@ -7383,6 +7383,8 @@
   "browserSettingsUse": "Use This Browser",
   "browserSettingsUsing": "In Use",
   "browserSettingsChosenMissing": "The browser chosen is not connected",
+  "browserSettingsChosenMissingDescription": "{path}: agents use {browser} until it connects again.",
+  "@browserSettingsChosenMissingDescription": {"description": "Under browserSettingsChosenMissing: the chosen browser's executable, and the connected one used meanwhile.", "placeholders": {"path": {"type": "String"}, "browser": {"type": "String"}}},
   "browserSettingsExtensionOld": "The extension is out of date. From the store, it updates automatically, or click Update in chrome://extensions; installed manually, download the zip again, replace the folder's contents and click reload.",
   "browserSettingsAppOld": "The extension is newer than this BaoCode. Update BaoCode.",
   "browserSettingsNoFileAccess": "File access is off",
