@@ -3327,7 +3327,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get replySuggestionHint =>
-      'Click to put it in the input and edit it · Double-click to send it';
+      'Click to put it in the input, double-click to send it';
 
   @override
   String get stopConfirmMessage => 'Stop the agent?';

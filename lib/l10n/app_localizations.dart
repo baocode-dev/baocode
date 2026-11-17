@@ -5639,7 +5639,7 @@ abstract class AppLocalizations {
   /// Hover of a reply the agent suggests, over the composer.
   ///
   /// In en, this message translates to:
-  /// **'Click to put it in the input and edit it · Double-click to send it'**
+  /// **'Click to put it in the input, double-click to send it'**
   String get replySuggestionHint;
 
   /// No description provided for @stopConfirmMessage.

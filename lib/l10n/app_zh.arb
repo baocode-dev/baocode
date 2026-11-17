@@ -923,7 +923,7 @@
   "queuedEdit": "撤回并编辑",
   "queuedSendNow": "中断当前任务，立即发送",
   "queuedRemove": "移出队列",
-  "replySuggestionHint": "单击放进输入框润色 · 双击直接发送",
+  "replySuggestionHint": "单击放进输入框，双击直接发送",
   "stopConfirmMessage": "要停止 Agent 吗？",
   "stopConfirmDetail": "{count, plural, other{后台运行中的 {count} 个任务也会一并停止。}}",
   "stopConfirmStop": "停止",
