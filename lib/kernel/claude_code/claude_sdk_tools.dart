@@ -62,8 +62,8 @@ class ClaudeSdkTool {
     this.asksItself = false,
   });
 
-  /// Whether it asks the user itself, each time, whatever the mode
-  /// ([ClaudeSdkCall.ask]): the CLI's leave not asked for it too.
+  /// Whether it asks the user itself ([ClaudeSdkCall.ask], which answers
+  /// for them in full access): the CLI's leave not asked for it too.
   final bool asksItself;
 
   /// Whether an agent working in a folder (its location) is offered it, as

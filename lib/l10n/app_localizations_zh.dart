@@ -7020,6 +7020,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelsSwitchConfirm => '切换';
 
   @override
+  String modelsFallbackHint(String picked, String fallback) {
+    return '$picked 的安全检查拦下了一条消息，Claude Code 已改用 $fallback 回答。可在菜单里切回。';
+  }
+
+  @override
+  String modelsFallbackSwitchBack(String name) {
+    return '切回 $name';
+  }
+
+  @override
   String get modelsAuxiliary => '辅助模型';
 
   @override

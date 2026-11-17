@@ -12069,6 +12069,18 @@ abstract class AppLocalizations {
   /// **'Switch'**
   String get modelsSwitchConfirm;
 
+  /// No description provided for @modelsFallbackHint.
+  ///
+  /// In en, this message translates to:
+  /// **'{picked} flagged a message, so Claude Code answers on {fallback} instead. Switch back from the menu.'**
+  String modelsFallbackHint(String picked, String fallback);
+
+  /// No description provided for @modelsFallbackSwitchBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch Back to {name}'**
+  String modelsFallbackSwitchBack(String name);
+
   /// No description provided for @modelsAuxiliary.
   ///
   /// In en, this message translates to:

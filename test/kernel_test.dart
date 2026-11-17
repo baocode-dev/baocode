@@ -2065,6 +2065,130 @@ void main() {
       kernel.dispose();
     });
 
+    test("in full access one of the app's tools that asks is answered "
+        'without asking', () async {
+      ClaudeSdkTools.register(
+        ClaudeSdkTool(
+          name: 'ask_me',
+          description: 'Asks.',
+          inputSchema: const {'type': 'object'},
+          asksItself: true,
+          run: (input, call) async =>
+              '${await call.ask!(const ApprovalRequest(id: '', title: 'Run it here?', toolName: 'mcp__baocode__ask_me'))}',
+        ),
+      );
+      addTearDown(() => ClaudeSdkTools.unregister('ask_me'));
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(
+        cli,
+        context: const KernelContext(
+          cwd: '/p',
+          settings: {'permission': 'bypassPermissions'},
+        ),
+      );
+      kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+      await pumpEventQueue();
+      cli.push({
+        'type': 'control_request',
+        'request_id': 'm1',
+        'request': {
+          'subtype': 'mcp_message',
+          'server_name': 'baocode',
+          'message': {
+            'jsonrpc': '2.0',
+            'id': 5,
+            'method': 'tools/call',
+            'params': {'name': 'ask_me', 'arguments': <String, Object?>{}},
+          },
+        },
+      });
+      await pumpEventQueue();
+      expect(transcript.pendingInteraction, isNull);
+      final mcp = cli.responses.last['mcp_response']! as Map;
+      expect(((mcp['result'] as Map)['content'] as List).single, {
+        'type': 'text',
+        'text': 'ApprovalDecision.allowOnce',
+      });
+      kernel.dispose();
+    });
+
+    test("the picked model's safeguards flag a message: the one answering "
+        'instead is shown until the picked one is switched back to', () async {
+      final cli = FakeCli();
+      final (:kernel, :transcript, events: _) = claude(
+        cli,
+        context: const KernelContext(cwd: '/p', settings: {'model': 'opus'}),
+      );
+      kernel.send(const KernelTurn(id: 'u1', text: 'go'));
+      await pumpEventQueue();
+      expect(kernel.model.selected, 'opus');
+      expect(kernel.fallbackModel, isNull);
+
+      // A subagent's alone leaves the session's model as it is.
+      cli.push({
+        'type': 'system',
+        'subtype': 'model_refusal_fallback',
+        'direction': 'retry',
+        'scope': 'local',
+        'original_model': 'claude-opus-5-5',
+        'fallback_model': 'claude-opus-4-8',
+        'uuid': 'f0',
+      });
+      await pumpEventQueue();
+      expect(kernel.fallbackModel, isNull);
+
+      cli.push({
+        'type': 'system',
+        'subtype': 'model_refusal_fallback',
+        'direction': 'retry',
+        'scope': 'session',
+        'original_model': 'claude-opus-5-5',
+        'fallback_model': 'claude-opus-4-8',
+        'content': 'Switched to Opus 4.8.',
+        'uuid': 'f1',
+      });
+      await pumpEventQueue();
+      expect(kernel.fallbackModel, 'Opus 4.8');
+      // Still the one picked, the one to go back to.
+      expect(kernel.model.selected, 'opus');
+      expect(
+        shown(transcript),
+        contains('notice warning: Switched to Opus 4.8.'),
+      );
+
+      // Picking it again switches back, though it is the one picked.
+      final asked = cli.requests('set_model').length;
+      kernel.model.select('opus');
+      await pumpEventQueue();
+      expect(cli.requests('set_model'), hasLength(asked + 1));
+      expect(cli.requests('set_model').last['model'], 'opus');
+      expect(kernel.fallbackModel, isNull);
+
+      // As endFallback does.
+      cli.push({
+        'type': 'system',
+        'subtype': 'model_refusal_fallback',
+        'scope': 'session',
+        'fallback_model': 'claude-opus-4-8',
+        'uuid': 'f2',
+      });
+      await pumpEventQueue();
+      expect(kernel.fallbackModel, 'Opus 4.8');
+      kernel.endFallback();
+      await pumpEventQueue();
+      expect(cli.requests('set_model'), hasLength(asked + 2));
+      expect(kernel.fallbackModel, isNull);
+      kernel.dispose();
+    });
+
+    test('Claude model ids as names', () {
+      expect(claudeModelName('claude-opus-4-8'), 'Opus 4.8');
+      expect(claudeModelName('claude-sonnet-4-5-20250929'), 'Sonnet 4.5');
+      expect(claudeModelName('claude-opus-5-5[1m]'), 'Opus 5.5');
+      expect(claudeModelName('claude-haiku-5'), 'Haiku 5');
+      expect(claudeModelName('gpt-5'), 'gpt-5');
+    });
+
     test('a tool asks leave; always allowing sends its rules', () async {
       final cli = FakeCli();
       final (:kernel, :transcript, events: _) = claude(cli);

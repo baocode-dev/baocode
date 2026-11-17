@@ -7461,6 +7461,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelsSwitchConfirm => 'Switch';
 
   @override
+  String modelsFallbackHint(String picked, String fallback) {
+    return '$picked flagged a message, so Claude Code answers on $fallback instead. Switch back from the menu.';
+  }
+
+  @override
+  String modelsFallbackSwitchBack(String name) {
+    return 'Switch Back to $name';
+  }
+
+  @override
   String get modelsAuxiliary => 'Auxiliary Model';
 
   @override

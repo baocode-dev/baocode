@@ -1994,6 +1994,8 @@
   "modelsSwitchTitle": "切换到 {name}？",
   "modelsSwitchDetail": "Claude Code 会在新上游上重启，并用 --resume 接续当前对话。历史记录会原样发给新模型，部分上游首次处理会较慢。如果还有回复在进行，发送下一条消息时会先停止它。",
   "modelsSwitchConfirm": "切换",
+  "modelsFallbackHint": "{picked} 的安全检查拦下了一条消息，Claude Code 已改用 {fallback} 回答。可在菜单里切回。",
+  "modelsFallbackSwitchBack": "切回 {name}",
   "modelsAuxiliary": "辅助模型",
   "modelsAuxiliaryDescription": "用于一些辅助性的工作，比如生成对话标题、提交信息等。自动：使用会话的模型（提交信息使用新会话默认模型），属于上游时取该上游的 Haiku 档位。",
   "modelsAuxiliaryAuto": "自动",

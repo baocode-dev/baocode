@@ -1830,6 +1830,12 @@ class ClaudeTranslator {
             content,
           ),
         );
+      // The model's safeguards flagged a message, answered on another: as
+      // the CLI says, which and until when.
+      case 'model_refusal_fallback':
+        if (_string(message['content']) case final text? when text.isNotEmpty) {
+          _put(uuid, NoticeItem(NoticeKind.warning, text));
+        }
       case 'notification' when !replaying:
         if (_string(message['text']) case final text? when text.isNotEmpty) {
           _put(
