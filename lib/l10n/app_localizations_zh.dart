@@ -9785,6 +9785,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get browserSettingsStatus => '状态';
 
   @override
+  String get browserSettingsStatusDescription =>
+      'agent 使用标着「使用中」的浏览器；选另一个即可切换。';
+
+  @override
   String get browserSettingsNotInstalled => '还没有浏览器连接过';
 
   @override
@@ -9818,6 +9822,20 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String browserSettingsExtensionVersion(String version) {
     return '扩展版本 $version';
+  }
+
+  @override
+  String get browserSettingsUse => '使用这个浏览器';
+
+  @override
+  String get browserSettingsUsing => '使用中';
+
+  @override
+  String get browserSettingsChosenMissing => '所选的浏览器没有连接';
+
+  @override
+  String browserSettingsChosenMissingDescription(String path, String browser) {
+    return '$path：它重新连上之前，agent 先用 $browser。';
   }
 
   @override
