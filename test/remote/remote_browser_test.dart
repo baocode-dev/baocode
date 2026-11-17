@@ -1,0 +1,125 @@
+@TestOn('mac-os || linux')
+library;
+
+import 'dart:io';
+
+import 'package:baocode/l10n/l10n.dart';
+import 'package:baocode/remote/remote_browser.dart';
+import 'package:baocode/remote/remote_browser_view.dart';
+import 'package:baocode/remote/ssh_host.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
+
+import 'remote_harness.dart';
+
+/// The remote browser's window: a host's folders, read again at Refresh,
+/// the hidden ones shown when asked, one walked into and opened.
+void main() {
+  late Directory dataDir;
+  late Directory home;
+  late String root;
+  late SshHosts hosts;
+
+  setUp(() {
+    dataDir = Directory.systemTemp.createTempSync('baocode-remote-data-');
+    home = Directory.systemTemp.createTempSync('baocode-remote-home-');
+    root = home.resolveSymbolicLinksSync();
+    hosts = SshHosts(connect: MemoryConnector(dataDir.path).call);
+  });
+  tearDown(() async {
+    await hosts.closeAll();
+    dataDir.deleteSync(recursive: true);
+    home.deleteSync(recursive: true);
+  });
+
+  /// Pumps until [finder] finds something, the host's replies let in.
+  Future<void> pumpUntil(WidgetTester tester, Finder finder) async {
+    for (var i = 0; i < 200 && finder.evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump();
+    }
+    expect(finder, findsWidgets);
+  }
+
+  testWidgets('a folder walked into and opened; read again at Refresh; '
+      'the hidden ones shown when asked', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    Directory(p.join(root, 'app', 'lib')).createSync(recursive: true);
+    Directory(p.join(root, '.cache')).createSync();
+    final views = <RemoteBrowserView>[];
+    String? picked;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Center(
+            child: GestureDetector(
+              onTap: () async {
+                picked = await showRemoteBrowser(
+                  context,
+                  RemoteBrowseRequest(
+                    host: 'dev',
+                    directory: root,
+                    connect: hosts['dev'].reconnect,
+                  ),
+                  hostLabel: 'dev',
+                  recent: [p.join(root, 'app')],
+                  onView: views.add,
+                );
+              },
+              child: const Text('browse'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('browse'));
+    await tester.pump();
+    expect(find.text('Open a Folder on dev'), findsOneWidget);
+    // Folders only, the hidden one left out; the recent one at the left.
+    const list = RemoteBrowserDialog.entriesKey;
+    await pumpUntil(
+      tester,
+      find.descendant(of: find.byKey(list), matching: find.text('app')),
+    );
+    expect(find.text('.cache'), findsNothing);
+
+    // One made in a terminal since: read again at Refresh.
+    Directory(p.join(root, 'api')).createSync();
+    expect(
+      find.descendant(of: find.byKey(list), matching: find.text('api')),
+      findsNothing,
+    );
+    await tester.tap(find.byTooltip('Refresh'));
+    await pumpUntil(
+      tester,
+      find.descendant(of: find.byKey(list), matching: find.text('api')),
+    );
+
+    // Asked for, the hidden ones; the view kept.
+    await tester.tap(find.byTooltip('View Options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hidden Items'));
+    await tester.pumpAndSettle();
+    expect(find.text('.cache'), findsOneWidget);
+    expect(views.single.hidden, isTrue);
+
+    // Double-clicked, walked into; Open takes where it is.
+    final app = find.descendant(
+      of: find.byKey(list),
+      matching: find.text('app'),
+    );
+    await tester.tap(app);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(app);
+    await pumpUntil(tester, find.text('lib'));
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(picked, p.join(root, 'app'));
+  });
+}

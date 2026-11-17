@@ -14,12 +14,14 @@
 @Tags(['wsl-e2e'])
 library;
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:baocode/ide/ide_quick_input.dart';
 import 'package:baocode/l10n/l10n.dart';
 import 'package:baocode/remote/open_remote.dart';
+import 'package:baocode/remote/remote_browser.dart';
 import 'package:baocode/remote/remote_location.dart';
 import 'package:baocode/remote/remote_status.dart';
 import 'package:baocode/remote/ssh_host.dart';
@@ -58,8 +60,15 @@ void main() {
     final shown = <IdeQuickPick>[];
     String? opened;
     String? connected;
+    // The browser, as a model: what the test asks of it, once connected.
+    final requests = <RemoteBrowseRequest>[];
+    final answer = Completer<String?>();
     final flow = OpenRemoteFlow(
       show: shown.add,
+      browse: (request) {
+        requests.add(request);
+        return answer.future;
+      },
       l10n: englishLocalizations,
       onOpen: (location) => opened = location,
       onConnected: (host) => connected = host,
@@ -115,17 +124,20 @@ void main() {
     final item = items.whereType<IdeQuickPickItem>().firstWhere(
       (item) => item.label == distro,
     );
+    late final RemoteBrowserModel model;
     await tester.runAsync(() async {
       pick.onDidAccept!(item);
-      await until(
-        () => connected != null || hosts[host].state == SshHostState.failed,
-        timeout: const Duration(seconds: 60),
-      );
+      await until(() => requests.isNotEmpty);
+      model = RemoteBrowserModel(requests.single);
+      await model.connect().timeout(const Duration(seconds: 60));
     });
+    addTearDown(model.dispose);
     expect(hosts[host].error, isNull);
     expect(connected, host);
+    expect(model.phase, RemoteBrowserPhase.ready);
     final client = hosts[host].client!;
     final home = client.hello!.home;
+    expect(model.directory, home);
     await tester.runAsync(() async {
       await client.run('rm', ['-rf', '$home/wsl-app-e2e']);
       await client.run('mkdir', ['-p', '$home/wsl-app-e2e/app']);
@@ -133,56 +145,11 @@ void main() {
         '-c',
         'cd "$home/wsl-app-e2e/app" && git init -q && echo hi > a.txt',
       ]);
-    });
-    // The pick shown after [after] (of those so far) that lists [label].
-    // [accept] first, in real time: the next pick is shown by a timer.
-    Future<IdeQuickPick> listing(
-      String label,
-      int after, [
-      void Function()? accept,
-    ]) async {
-      IdeQuickPick? found;
-      await tester.runAsync(() async {
-        accept?.call();
-        await until(() {
-          for (final pick in shown.skip(after)) {
-            final labels = [
-              for (final item in pick.itemsFor?.call('') ?? const [])
-                if (item is IdeQuickPickItem) item.label,
-            ];
-            if (labels.contains(label)) found = pick;
-          }
-          return found != null;
-        }, timeout: const Duration(seconds: 30));
-      });
-      return found!;
-    }
-
-    // Its home first; the folder typed gone to.
-    final browse = await listing(englishLocalizations.remoteOpenThisFolder, 1);
-    var seen = shown.length;
-    final there = browse.itemsFor!('$home/wsl-app-e2e');
-    final inFolder = await listing(
-      'app',
-      seen,
-      (there.first as IdeQuickPickItem).onAccept,
-    );
-    seen = shown.length;
-    final inApp = await listing(
-      englishLocalizations.remoteOpenThisFolder,
-      seen,
-      inFolder.itemsFor!('')
-          .whereType<IdeQuickPickItem>()
-          .firstWhere((i) => i.label == 'app')
-          .onAccept,
-    );
-    await tester.runAsync(() async {
-      inApp.itemsFor!('')
-          .whereType<IdeQuickPickItem>()
-          .firstWhere(
-            (i) => i.label == englishLocalizations.remoteOpenThisFolder,
-          )
-          .onAccept!();
+      // The folder typed gone to, the one in it picked.
+      expect(await model.goTo('$home/wsl-app-e2e'), isNull);
+      expect(model.visible.map((e) => e.name), ['app']);
+      model.select('app');
+      answer.complete(model.target);
       await until(() => opened != null);
     });
     expect(opened, 'ssh://$host$home/wsl-app-e2e/app');

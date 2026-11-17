@@ -15,7 +15,7 @@ import 'search/text_query.dart';
 abstract final class RemoteProtocol {
   /// Raise it whenever a method or a shape changes: an app and a server of
   /// another version do not talk, and the app puts its own server in place.
-  static const version = 10;
+  static const version = 11;
 
   static const initialize = 'initialize';
   static const shutdown = 'shutdown';
@@ -53,6 +53,14 @@ abstract final class RemoteProtocol {
   static const fsStat = 'fs/stat';
   static const fsEntries = 'fs/entries';
   static const fsRealPath = 'fs/realPath';
+
+  /// Where to browse the machine from: its drives on Windows, `/` elsewhere
+  /// (`BrowseRoot`s).
+  static const fsRoots = 'fs/roots';
+
+  /// A folder's entries as a file browser lists them, each with whether
+  /// the system hides it (`BrowseEntry`s).
+  static const fsBrowse = 'fs/browse';
 
   // Search and Git.
   static const searchText = 'search/text';

@@ -13095,35 +13095,11 @@ abstract class AppLocalizations {
   /// **'Connect'**
   String get remoteSignInConnect;
 
-  /// No description provided for @remoteFolderPlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'A folder on {host}: pick one, or type a path'**
-  String remoteFolderPlaceholder(String host);
-
-  /// The button at the right of the quick pick browsing a remote host's folders: it lists the folder again, e.g. one made in a terminal since.
-  ///
-  /// In en, this message translates to:
-  /// **'Read the folders again'**
-  String get remoteFolderRefresh;
-
-  /// No description provided for @remoteOpenThisFolder.
-  ///
-  /// In en, this message translates to:
-  /// **'Open This Folder'**
-  String get remoteOpenThisFolder;
-
   /// No description provided for @remoteParentFolder.
   ///
   /// In en, this message translates to:
   /// **'Parent Folder'**
   String get remoteParentFolder;
-
-  /// No description provided for @remoteGoTo.
-  ///
-  /// In en, this message translates to:
-  /// **'Go to {path}'**
-  String remoteGoTo(String path);
 
   /// No description provided for @remoteListFailed.
   ///
@@ -13142,24 +13118,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Select a host, to browse its files'**
   String get remoteFileHostPlaceholder;
-
-  /// No description provided for @remoteFilePlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'A file on {host}: pick one, or type a path'**
-  String remoteFilePlaceholder(String host);
-
-  /// No description provided for @remoteOpenFile.
-  ///
-  /// In en, this message translates to:
-  /// **'Open {path}'**
-  String remoteOpenFile(String path);
-
-  /// No description provided for @remoteOpenFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not open {path}'**
-  String remoteOpenFailed(String path);
 
   /// No description provided for @remoteRecentFiles.
   ///
@@ -22974,6 +22932,168 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The program to run commands with: a bash.exe, cmd.exe, powershell.exe or pwsh.exe.'**
   String get commandLineCustomPathDescription;
+
+  /// No description provided for @remoteBrowserFolderTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a Folder on {host}'**
+  String remoteBrowserFolderTitle(String host);
+
+  /// No description provided for @remoteBrowserFileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open a File on {host}'**
+  String remoteBrowserFileTitle(String host);
+
+  /// No description provided for @remoteBrowserPlaces.
+  ///
+  /// In en, this message translates to:
+  /// **'Locations'**
+  String get remoteBrowserPlaces;
+
+  /// No description provided for @remoteBrowserRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get remoteBrowserRecent;
+
+  /// No description provided for @remoteBrowserHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get remoteBrowserHome;
+
+  /// No description provided for @remoteBrowserThisPc.
+  ///
+  /// In en, this message translates to:
+  /// **'This PC'**
+  String get remoteBrowserThisPc;
+
+  /// No description provided for @remoteBrowserRoot.
+  ///
+  /// In en, this message translates to:
+  /// **'Root'**
+  String get remoteBrowserRoot;
+
+  /// No description provided for @remoteBrowserLocalDisk.
+  ///
+  /// In en, this message translates to:
+  /// **'Local Disk ({drive})'**
+  String remoteBrowserLocalDisk(String drive);
+
+  /// No description provided for @remoteBrowserBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get remoteBrowserBack;
+
+  /// No description provided for @remoteBrowserForward.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward'**
+  String get remoteBrowserForward;
+
+  /// No description provided for @remoteBrowserRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get remoteBrowserRefresh;
+
+  /// No description provided for @remoteBrowserFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Filter'**
+  String get remoteBrowserFilter;
+
+  /// No description provided for @remoteBrowserView.
+  ///
+  /// In en, this message translates to:
+  /// **'View Options'**
+  String get remoteBrowserView;
+
+  /// No description provided for @remoteBrowserShowHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'Hidden Items'**
+  String get remoteBrowserShowHidden;
+
+  /// No description provided for @remoteBrowserShowSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'Protected Operating System Files'**
+  String get remoteBrowserShowSystem;
+
+  /// No description provided for @remoteBrowserNewFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'New Folder'**
+  String get remoteBrowserNewFolder;
+
+  /// No description provided for @remoteBrowserOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get remoteBrowserOpen;
+
+  /// No description provided for @remoteBrowserEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This folder is empty.'**
+  String get remoteBrowserEmpty;
+
+  /// No description provided for @remoteBrowserNoFolders.
+  ///
+  /// In en, this message translates to:
+  /// **'No folders here.'**
+  String get remoteBrowserNoFolders;
+
+  /// No description provided for @remoteBrowserNoMatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing here matches “{filter}”.'**
+  String remoteBrowserNoMatch(String filter);
+
+  /// No description provided for @remoteBrowserHiddenCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 hidden item} other{{count} hidden items}}'**
+  String remoteBrowserHiddenCount(int count);
+
+  /// No description provided for @remoteBrowserShowHiddenNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get remoteBrowserShowHiddenNow;
+
+  /// No description provided for @remoteBrowserEditPath.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to a Path'**
+  String get remoteBrowserEditPath;
+
+  /// No description provided for @remoteBrowserPathPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'A path: ~/code, /srv/app, D:\\work'**
+  String get remoteBrowserPathPlaceholder;
+
+  /// No description provided for @remoteBrowserNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'{path} does not exist.'**
+  String remoteBrowserNotFound(String path);
+
+  /// No description provided for @remoteBrowserNotFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'{path} is a file, not a folder.'**
+  String remoteBrowserNotFolder(String path);
+
+  /// No description provided for @remoteBrowserMakeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not make the folder: {error}'**
+  String remoteBrowserMakeFailed(String error);
 }
 
 class _AppLocalizationsDelegate
