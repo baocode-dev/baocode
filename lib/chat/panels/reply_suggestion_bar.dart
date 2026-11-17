@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 
 import '../../ide/ide_hover.dart';
@@ -8,7 +9,8 @@ import '../widgets/hover_builder.dart';
 /// What the agent suggests the user send next (see ReplySuggestions), on
 /// top of what is over the empty composer: each a pill, put in the
 /// composer at a click ([onPick]) to be edited and sent, sent as it is at a
-/// double click ([onSend]); each says so on hover. They flow as words do: on to
+/// second click soon after ([onSend]; the bar is kept that long); each
+/// says so on hover. They flow as words do: on to
 /// the next line when the row is full; one wider than the row, its text
 /// on more lines.
 class ReplySuggestionBar extends StatelessWidget {
@@ -43,7 +45,7 @@ class ReplySuggestionBar extends StatelessWidget {
   }
 }
 
-class _Pill extends StatelessWidget {
+class _Pill extends StatefulWidget {
   const _Pill({
     required this.text,
     required this.onTap,
@@ -55,18 +57,36 @@ class _Pill extends StatelessWidget {
   final VoidCallback onDoubleTap;
 
   @override
+  State<_Pill> createState() => _PillState();
+}
+
+class _PillState extends State<_Pill> {
+  /// When it was last clicked: clicked again within a double click's time,
+  /// it is sent. A click is taken at once, not once no second one came.
+  Duration? _clickedAt;
+
+  void _click() {
+    final at = _clock.elapsed;
+    final before = _clickedAt;
+    if (before != null && at - before <= kDoubleTapTimeout) {
+      _clickedAt = null;
+      widget.onDoubleTap();
+    } else {
+      _clickedAt = at;
+      widget.onTap();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final line = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final line = widget.text.replaceAll(RegExp(r'\s+'), ' ').trim();
     return IdeHover(
       message: context.l10n.replySuggestionHint,
       position: IdeHoverPosition.above,
       child: HoverBuilder(
         builder: (context, hovered) => GestureDetector(
           behavior: HitTestBehavior.opaque,
-          // A click waits out a double click's time: the composer gets it
-          // only once it is not one.
-          onTap: onTap,
-          onDoubleTap: onDoubleTap,
+          onTap: _click,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: AnimatedContainer(
@@ -98,3 +118,6 @@ class _Pill extends StatelessWidget {
     );
   }
 }
+
+/// The time, for clicks.
+final _clock = Stopwatch()..start();
