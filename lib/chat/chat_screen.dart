@@ -814,7 +814,6 @@ class _ChatScreenState extends State<ChatScreen>
     }
     return ReplySuggestionBar(
       suggestions: suggestions,
-      firstKey: replySuggestionKey(),
       onPick: (said) => draft.restore(said, const []),
       onSend: (said) => _session.send(
         ComposerMessage(text: said),
