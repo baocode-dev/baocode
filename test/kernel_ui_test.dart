@@ -769,11 +769,14 @@ void main() {
         ),
       ),
     );
-    // Once it is no double click.
+    // At once, not once it is no double click.
+    await tester.pump();
+    expect(editor.controller.text, MockScript.suggestions[1]);
+    // The bar kept for a second click till then; gone after.
+    expect(bar, findsOneWidget);
     await tester.pump(kDoubleTapTimeout);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
-    expect(editor.controller.text, MockScript.suggestions[1]);
     expect(bar, findsNothing);
     expect(session.isStreaming, isFalse);
 

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:bao_editor/textmate/textmate_syntax.dart' show TextMateSyntax;
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -327,6 +328,11 @@ class _ChatScreenState extends State<ChatScreen>
 
   late final ChatSession _session = widget.session ?? ChatSession();
   final GlobalKey<ChatComposerState> _composerKey = GlobalKey();
+
+  /// The suggested reply just put in the composer: its bar stays a double
+  /// click's time more, for a second click to send it.
+  String? _pickedReply;
+  Timer? _pickedReplyFor;
   final GlobalKey _historyKey = GlobalKey();
   bool _contextPanelOpen = false;
   bool _renaming = false;
@@ -514,6 +520,7 @@ class _ChatScreenState extends State<ChatScreen>
 
   @override
   void dispose() {
+    _pickedReplyFor?.cancel();
     _backMinimapRoom.dispose();
     _session.removeListener(_checkStarting);
     _session.removeListener(_followPlan);
@@ -809,18 +816,33 @@ class _ChatScreenState extends State<ChatScreen>
     final suggestions = _session.replySuggestions;
     if (suggestions.isEmpty) return null;
     final draft = _session.draft;
-    if ((draft.content?.trim().isNotEmpty ?? false) ||
-        draft.images.isNotEmpty) {
+    final picked = _pickedReply != null && draft.content == _pickedReply;
+    if (!picked &&
+        ((draft.content?.trim().isNotEmpty ?? false) ||
+            draft.images.isNotEmpty)) {
       return null;
     }
     return ReplySuggestionBar(
       suggestions: suggestions,
-      onPick: (said) => draft.restore(said, const []),
-      onSend: (said) => _session.send(
-        ComposerMessage(text: said),
-        editor: widget.openEditor,
-        from: UserPlace.computer,
-      ),
+      onPick: (said) {
+        draft.restore(said, const []);
+        _pickedReplyFor?.cancel();
+        setState(() => _pickedReply = said);
+        _pickedReplyFor = Timer(kDoubleTapTimeout, () {
+          if (mounted) setState(() => _pickedReply = null);
+        });
+      },
+      onSend: (said) {
+        _pickedReplyFor?.cancel();
+        // Put in at the first click: sent now, not left there too.
+        if (_pickedReply == said) _composerKey.currentState?.clear();
+        _pickedReply = null;
+        _session.send(
+          ComposerMessage(text: said),
+          editor: widget.openEditor,
+          from: UserPlace.computer,
+        );
+      },
     );
   }
 
