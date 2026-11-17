@@ -22834,7 +22834,7 @@ abstract class AppLocalizations {
   /// No description provided for @generalSettingsSessionToolsDescription.
   ///
   /// In en, this message translates to:
-  /// **'An agent can list your other conversations, read where they stand without waking them, start new ones or hand work to others (in a worktree of their own if need be), and hears back by itself when each is done, fails or waits on you; it can also stop them and see which files they changed. For one conversation that coordinates the others; agents started after the change have it.'**
+  /// **'An agent can list your other conversations, read where they stand without waking them, start new ones or hand work to others (in a worktree of their own if need be), and hears back by itself when each is done, fails or waits on you; it can also stop them and see which files they changed. For one conversation that coordinates the others. Off, agents neither see nor act on other conversations, and those handed work no longer report back.'**
   String get generalSettingsSessionToolsDescription;
 
   /// No description provided for @generalSettingsCommandLine.

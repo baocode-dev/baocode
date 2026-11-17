@@ -23,10 +23,14 @@ import 'workspace.dart';
 abstract final class SessionToolsSetting {
   static const settingKey = 'chat.sessionTools';
 
-  static bool enabled(Object? setting) => setting == true;
+  /// Written when off; on, the setting is left out.
+  static const off = false;
+
+  /// On unless set to false.
+  static bool enabled(Object? setting) => setting != false;
 
   /// The setting as it is now; main() points it at settings.json.
-  static bool Function() current = () => false;
+  static bool Function() current = () => true;
 }
 
 /// The tools an agent coordinating others has (`mcp__baocode__session_*`),
@@ -992,6 +996,17 @@ class _Reports {
   }
 
   void _changed() {
+    // Turned off: no conversation hears of another any more, those
+    // followed forgotten (their tools are refused as well).
+    if (!SessionToolsSetting.current()) {
+      if (_told.isNotEmpty || _undelivered.isNotEmpty || mine.isNotEmpty) {
+        _told.clear();
+        _was.clear();
+        _undelivered.clear();
+        mine.clear();
+      }
+      return;
+    }
     if (_told.isNotEmpty) _look();
     if (_undelivered.isNotEmpty) scheduleMicrotask(_deliver);
   }
