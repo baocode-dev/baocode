@@ -30,6 +30,28 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v2.0.2">
+    <h2 class="plain"><a href="#v2.0.2">2.0.2</a></h2>
+    <p>Mostly fixes in this one: the mouse wheel no longer stops working on Windows, and workspace windows are titled by their name, not an ID. New models of a ChatGPT subscription show up without waiting for a BaoCode release.</p>
+    <p>New</p>
+    <ul>
+    <li>New models of a ChatGPT subscription no longer wait for a BaoCode update: the model list asks baocode.dev for the latest Codex version first, so a new model shows up without a restart. The per-upstream &quot;Codex Version&quot; setting is gone.</li>
+    </ul>
+    <p>Phone (phone app 0.2.2)</p>
+    <ul>
+    <li>Push your iPhone with curl: turn on Settings → Notifications → Push from scripts, and your scripts, shortcuts and CI can notify the phone; a tap can open a link or run a shortcut. See baocode.dev/push.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Windows: the mouse wheel no longer stops scrolling altogether after a display change or waking from sleep, until the window was resized.</li>
+    <li>A workspace's window title, the Window menu and Switch Window show the workspace's name instead of an ID, and follow it when renamed.</li>
+    <li>Conversations an agent starts by itself in a temporary folder (/tmp and the like) no longer fill the sidebar; only those you opened or wrote to from the app are listed.</li>
+    <li>With the automatic core and no upstream model, connecting to an SSH host no longer installs Claude Code on it; you're asked to pick a model instead.</li>
+    <li>Suggested replies a model writes together are split into separate ones again, instead of one long pill.</li>
+    <li>Diagnostics: a key that types nothing in a text field is now logged, to track down &quot;a key suddenly stopped typing&quot;.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v2.0.1">
     <h2 class="plain"><a href="#v2.0.1">2.0.1</a></h2>
     <p>This release completes conversations working together: a coordinating agent can start conversations on the model it picks, and those it handed work report back by themselves. Suggested replies now come in the agent's own reply, with no extra request. SSH hosts get a folder window like Finder's. The phone shows the quota, and big pictures arrive.</p>
