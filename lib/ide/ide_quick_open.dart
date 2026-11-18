@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../l10n/command_titles.dart';
 import '../l10n/l10n.dart';
+import 'file_index_store.dart';
 import 'file_service.dart';
 import 'ide_commands.dart';
 import '../theme/material_file_icons.dart';
@@ -13,23 +14,43 @@ import 'ide_fuzzy.dart';
 import 'ide_quick_input.dart';
 import 'ide_workspace.dart';
 
+/// A file Quick Open found: absolute, and relative as it shows it.
+typedef IdeFileHit = ({String path, String relative});
+
 /// A cached listing of the project's files for Quick Open. The cache is shown
 /// at once and refreshed in the background each time Quick Open opens (a
 /// remote project's, once it is a while old).
+///
+/// A large listing is kept packed on an isolate of its own (see
+/// [FileIndexWorker]), as VS Code keeps its in the extension host: a filter
+/// goes there and the best few come back, and the listing is let go once
+/// nothing has asked for a while. A small one is matched here.
 class IdeFileIndex extends ChangeNotifier {
   IdeFileIndex(
     this.files,
     this.root, {
-    Future<IdeFileListing> Function(IdeFileService files, String root)? lister,
+    this._lister,
     List<String>? roots,
     p.Context? pathContext,
   }) : pathContext = pathContext ?? p.context,
-       _lister = lister ?? listProjectFiles,
        _roots = roots == null ? null : [...roots];
 
   final IdeFileService files;
   final String root;
   final p.Context pathContext;
+
+  /// At most this many files are listed: past it, Quick Open says so.
+  static const maxFiles = 1000000;
+
+  /// Above this many files, the listing is kept and matched off the UI
+  /// isolate.
+  static const backgroundAbove = 5000;
+
+  /// A listing kept off the UI isolate is let go after this long unused.
+  static const idleRelease = Duration(minutes: 5);
+
+  /// How many files of the listing are kept here, for no filter.
+  static const _headSize = 500;
 
   /// A multi-folder workspace's folders, listed in place of [root]: each
   /// file's relative path then starts with its folder's name, as VS Code
@@ -62,40 +83,44 @@ class IdeFileIndex extends ChangeNotifier {
     return path.replaceAll(r'\', '/');
   }
 
-  /// The files of [root], or of each of [roots].
-  Future<IdeFileListing> _list() async {
-    final roots = _roots;
-    if (roots == null) return _lister(files, root);
+  final Future<IdeFileListing> Function(IdeFileService, String)? _lister;
+
+  /// The files of [root], or of each of [roots], listed here.
+  Future<IdeFileListing> _list(List<String> folders) async {
+    final lister =
+        _lister ??
+        (files, root) => listProjectFiles(files, root, limit: maxFiles);
     final listings = await Future.wait([
-      for (final folder in roots) _lister(files, folder),
+      for (final folder in folders) lister(files, folder),
     ]);
-    return IdeFileListing(
-      [for (final listing in listings) ...listing.paths]..sort(),
-      truncated: listings.any((listing) => listing.truncated),
-    );
+    return IdeFileListing([
+      for (final listing in listings) ...listing.paths,
+    ], truncated: listings.any((listing) => listing.truncated));
   }
 
-  final Future<IdeFileListing> Function(IdeFileService, String) _lister;
+  /// The folders listed last, and the start of their files' relative paths
+  /// (their names, in a multi-folder workspace).
+  List<String> _folders = const [];
+  List<int> _prefixLengths = const [];
 
-  List<String> _paths = const [];
-  List<String> _relative = const [];
-  Set<String>? _pathSet;
-  List<({String path, String relative})>? _folders;
+  /// The listing, when kept here.
+  FileIndexStore? _store;
 
-  /// The last filter, and the indices of the paths it matched: a filter
-  /// typed on from it matches only among those.
-  String _lastFilter = '';
-  List<int>? _lastMatches;
+  /// Where the listing is kept otherwise.
+  FileIndexWorker? _worker;
+  Timer? _idle;
+
+  List<IdeFileHit> _head = const [];
+  int _count = 0;
   bool _truncated = false;
   bool _loaded = false;
   Future<void>? _pending;
   bool _disposed = false;
 
-  /// Absolute paths, sorted.
-  List<String> get paths => _paths;
+  /// How many files are listed.
+  int get count => _count;
 
-  /// [paths] relative to [root], with `/` separators, same order.
-  List<String> get relativePaths => _relative;
+  /// Whether more files are there than were listed (see [maxFiles]).
   bool get truncated => _truncated;
   bool get loaded => _loaded;
   bool get loading => _pending != null;
@@ -103,81 +128,43 @@ class IdeFileIndex extends ChangeNotifier {
   /// Whether a filter is being matched off the UI isolate (see [bestFor]).
   bool get searching => _finding != null;
 
-  /// Whether [path] is one of [paths].
-  bool contains(String path) => (_pathSet ??= _paths.toSet()).contains(path);
+  /// [entry] as found: its absolute path made again from its folder's.
+  IdeFileHit _hitOf(FileIndexEntry entry) {
+    if (entry.absolute case final path?) {
+      return (path: path, relative: entry.relative);
+    }
+    final folder = _folders[entry.folder];
+    final rest = entry.relative.length > _prefixLengths[entry.folder]
+        ? entry.relative.substring(_prefixLengths[entry.folder])
+        : '';
+    return (
+      path: rest.isEmpty
+          ? folder
+          : pathContext.joinAll([folder, ...rest.split('/')]),
+      relative: entry.relative,
+    );
+  }
 
-  /// The folders [paths] are in, below [root] (a workspace's folders among
-  /// them): each absolute, and relative as [relativePaths] has it. Found
-  /// once a listing.
-  List<({String path, String relative})> get folders {
-    if (_folders case final folders?) return folders;
-    final seen = <String>{};
-    final folders = <({String path, String relative})>[];
-    for (var i = 0; i < _paths.length; i++) {
-      var path = _paths[i];
-      var relative = _relative[i];
-      while (true) {
-        final cut = relative.lastIndexOf('/');
-        if (cut <= 0) break;
-        relative = relative.substring(0, cut);
-        path = pathContext.dirname(path);
-        // Its own folders were seen with it.
-        if (!seen.add(relative)) break;
-        folders.add((path: path, relative: relative));
+  /// [path] as the listing of [folders] keeps it.
+  FileIndexEntry _entryOf(String path, List<String> folders) {
+    for (var i = 0; i < folders.length; i++) {
+      if (pathContext.isWithin(folders[i], path)) {
+        return (relative: relativeOf(path), folder: i, absolute: null);
       }
     }
-    return _folders = folders;
+    return (
+      relative: relativeOf(path),
+      folder: fileIndexNoFolder,
+      absolute: path,
+    );
   }
 
-  /// The indices of the paths that may match [filter] (a subsequence of
-  /// their relative path): those the last filter matched when [filter]
-  /// extends it, else all.
-  Iterable<int> _candidates(String filter) {
-    final last = _lastMatches;
-    if (last != null && filter.startsWith(_lastFilter)) return last;
-    return Iterable<int>.generate(_paths.length);
-  }
+  /// The best matches of the filter last matched, whichever it was: shown,
+  /// matched anew, while [bestFor] finds those of the filter typed since.
+  List<IdeFileHit> get lastFound => _found?.best ?? const [];
 
-  void _matched(String filter, List<int> matches) {
-    _lastFilter = filter;
-    _lastMatches = matches;
-  }
-
-  /// The paths matching [filter] (see [scoreFilePath]), best first, at most
-  /// [limit]: each absolute, and relative as [relativePaths] has it.
-  List<({String path, String relative})> search(
-    String filter, {
-    int limit = 50,
-  }) {
-    final scored = <({int index, int score})>[];
-    final matches = <int>[];
-    for (final i in _candidates(filter)) {
-      final result = scoreFilePath(filter, _relative[i]);
-      if (result == null) continue;
-      matches.add(i);
-      scored.add((index: i, score: result.score));
-    }
-    _matched(filter, matches);
-    scored.sort((a, b) {
-      final byScore = b.score.compareTo(a.score);
-      if (byScore != 0) return byScore;
-      final x = _relative[a.index], y = _relative[b.index];
-      final byLength = x.length.compareTo(y.length);
-      return byLength != 0 ? byLength : x.compareTo(y);
-    });
-    return [
-      for (final entry in scored.take(limit))
-        (path: _paths[entry.index], relative: _relative[entry.index]),
-    ];
-  }
-
-  /// Above this many paths, a filter is matched off the UI isolate (see
-  /// [bestFor]): a key typed does not wait for every path to be scored.
-  static const backgroundAbove = 5000;
-
-  /// The paths best matching the filter last matched off the UI isolate:
-  /// indices into [paths], best first.
-  ({String filter, List<int> best})? _found;
+  /// The filter last matched, the limit it was matched to, and its best.
+  ({String filter, int limit, List<IdeFileHit> best})? _found;
 
   /// The filter being matched off the UI isolate, if any.
   String? _finding;
@@ -190,16 +177,22 @@ class IdeFileIndex extends ChangeNotifier {
   int _requests = 0;
   int _foundRequest = 0;
 
-  /// The paths best matching the filter last matched off the UI isolate,
-  /// whichever it was: shown, matched anew, while [bestFor] finds those of
-  /// the filter typed since.
-  List<int> get lastFound => _found?.best ?? const [];
-
-  /// The paths best matching [filter] (see [scoreFilePath]): indices into
-  /// [paths], best first, at most [limit]. Found off the UI isolate, null
-  /// until then; listeners hear when they are.
-  List<int>? bestFor(String filter, {required int limit}) {
-    if (_found case (filter: final found, :final best) when found == filter) {
+  /// The files best matching [filter] (see [scoreFilePath]), best first, at
+  /// most [limit]; the first listed for no filter. Off the UI isolate for a
+  /// large listing: null until found, listeners hear when they are.
+  List<IdeFileHit>? bestFor(String filter, {required int limit}) {
+    if (filter.isEmpty) return _head.take(limit).toList();
+    if (_store case final store?) {
+      final best = [
+        for (final entry in store.find(filter, limit)) _hitOf(entry),
+      ];
+      _found = (filter: filter, limit: limit, best: best);
+      return best;
+    }
+    if (_worker == null) return const [];
+    _touch();
+    if (_found case (filter: final found, limit: final kept, :final best)
+        when found == filter && kept == limit) {
       return best;
     }
     if (_finding != filter) {
@@ -210,27 +203,74 @@ class IdeFileIndex extends ChangeNotifier {
   }
 
   Future<void> _find(String filter, int limit) async {
+    final worker = _worker!;
     final generation = _generation;
     final request = ++_requests;
-    final last = _lastMatches;
-    final candidates = last != null && filter.startsWith(_lastFilter)
-        ? last
-        : null;
-    final found = await compute(_bestPaths, (
-      filter: filter,
-      relative: _relative,
-      candidates: candidates,
-      limit: limit,
-    ));
+    List<FileIndexEntry> found;
+    try {
+      found = await worker.find(filter, limit);
+    } on StateError {
+      // Let go meanwhile.
+      if (_finding == filter) _finding = null;
+      return;
+    }
     if (_disposed || generation != _generation) return;
     if (_finding == filter) _finding = null;
     // Matched while a later filter was typed: still the nearest there is
     // to show, unless that one was found first.
     if (request < _foundRequest) return;
     _foundRequest = request;
-    _found = (filter: filter, best: found.best);
-    _matched(filter, found.matched);
+    _found = (
+      filter: filter,
+      limit: limit,
+      best: [for (final entry in found) _hitOf(entry)],
+    );
     notifyListeners();
+  }
+
+  /// The files best matching [filter], at most [limit], once found: as
+  /// [bestFor], waited for.
+  Future<List<IdeFileHit>> find(String filter, {required int limit}) async {
+    if (filter.isEmpty || _store != null) return bestFor(filter, limit: limit)!;
+    final worker = _worker;
+    if (worker == null) return const [];
+    _touch();
+    final generation = _generation;
+    try {
+      final found = await worker.find(filter, limit);
+      if (generation != _generation) return const [];
+      return [for (final entry in found) _hitOf(entry)];
+    } on StateError {
+      return const [];
+    }
+  }
+
+  /// The folders of the files whose paths match [filter] scoring [minScore]
+  /// or more (see [scoreFilePath]), the best [limit], best first.
+  Future<List<({IdeFileHit folder, int score})>> findFolders(
+    String filter, {
+    required int limit,
+    int minScore = 0,
+  }) async {
+    List<({FileIndexEntry entry, int score})> found;
+    final generation = _generation;
+    if (_store case final store?) {
+      found = store.findFolders(filter, limit, minScore);
+    } else if (_worker case final worker?) {
+      _touch();
+      try {
+        found = await worker.findFolders(filter, limit, minScore);
+      } on StateError {
+        return const [];
+      }
+      if (generation != _generation) return const [];
+    } else {
+      return const [];
+    }
+    return [
+      for (final (:entry, :score) in found)
+        (folder: _hitOf(entry), score: score),
+    ];
   }
 
   /// When the paths were last listed.
@@ -250,62 +290,115 @@ class IdeFileIndex extends ChangeNotifier {
   }
 
   Future<void> _load() async {
+    // A worker spawned for this listing: let go unless it keeps it.
+    FileIndexWorker? spawned;
     try {
-      final listing = await _list();
+      final folders = _roots ?? [root];
+      final multi = _roots != null;
+      final prefixes = [
+        for (final folder in folders)
+          multi ? '${pathContext.basename(folder)}/' : '',
+      ];
+      // Kept here, or by the worker.
+      FileIndexStore? store;
+      FileIndexWorker? worker;
+      List<FileIndexEntry> head;
+      int count;
+      bool truncated;
+      if (_lister == null && !kIsWeb && isLocalFileService(files)) {
+        // Listed there, and kept there unless few.
+        final there = _worker ?? (spawned = await FileIndexWorker.spawn());
+        final listing = await there.listLocal(
+          folders,
+          prefixes,
+          limit: maxFiles,
+          head: _headSize,
+          returnAtMost: backgroundAbove,
+        );
+        if (listing.all case final all?) {
+          store = FileIndexStore(all);
+        } else {
+          worker = there;
+        }
+        head = listing.head;
+        count = listing.count;
+        truncated = listing.truncated;
+      } else {
+        final listing = await _list(folders);
+        final entries = [
+          for (final path in listing.paths) _entryOf(path, folders),
+        ];
+        count = entries.length;
+        truncated = listing.truncated;
+        if (kIsWeb || count <= backgroundAbove) {
+          store = FileIndexStore(entries);
+          head = store.head(_headSize);
+        } else {
+          final there = _worker ?? (spawned = await FileIndexWorker.spawn());
+          await there.load(entries);
+          worker = there;
+          // As the worker sorts them.
+          entries.sort((a, b) => a.relative.compareTo(b.relative));
+          head = entries.take(_headSize).toList();
+        }
+      }
       if (_disposed) return;
-      _paths = listing.paths;
-      _relative = [for (final path in listing.paths) relativeOf(path)];
-      _truncated = listing.truncated;
+      if (!identical(worker, _worker)) _worker?.dispose();
+      _worker = worker;
+      _store = store;
+      _folders = folders;
+      _prefixLengths = [for (final prefix in prefixes) prefix.length];
+      _head = [for (final entry in head) _hitOf(entry)];
+      _count = count;
+      _truncated = truncated;
       _loaded = true;
       _listedAt = DateTime.now();
-      _pathSet = null;
-      _folders = null;
-      _lastMatches = null;
       _generation++;
       _found = null;
       _finding = null;
+      _touch();
     } catch (_) {
       // Keep the previous listing; Quick Open still offers recent files.
     } finally {
+      if (spawned != null && !identical(spawned, _worker)) spawned.dispose();
       _pending = null;
       if (!_disposed) notifyListeners();
     }
   }
 
+  /// Puts off letting go of a listing kept off the UI isolate.
+  void _touch() {
+    _idle?.cancel();
+    _idle = _worker == null ? null : Timer(idleRelease, _release);
+  }
+
+  /// Lets the listing kept off the UI isolate go, unless something shows
+  /// it: listed again when next asked for.
+  void _release() {
+    if (hasListeners || _pending != null) {
+      _touch();
+      return;
+    }
+    _worker?.dispose();
+    _worker = null;
+    _idle = null;
+    _head = const [];
+    _count = 0;
+    _loaded = false;
+    _listedAt = null;
+    _generation++;
+    _found = null;
+    _finding = null;
+  }
+
   @override
   void dispose() {
     _disposed = true;
+    _idle?.cancel();
+    _worker?.dispose();
+    _worker = null;
     super.dispose();
   }
-}
-
-/// Of [relative] (at [candidates] only, if given), the indices of the paths
-/// matching [filter]: the best [limit], best first, and all that matched.
-/// Run off the UI isolate (see [IdeFileIndex.bestFor]).
-({List<int> best, List<int> matched}) _bestPaths(
-  ({String filter, List<String> relative, List<int>? candidates, int limit})
-  query,
-) {
-  final relative = query.relative;
-  final scored = <({int index, int score})>[];
-  final matched = <int>[];
-  for (final i in query.candidates ?? Iterable<int>.generate(relative.length)) {
-    final result = scoreFilePath(query.filter, relative[i]);
-    if (result == null) continue;
-    matched.add(i);
-    scored.add((index: i, score: result.score));
-  }
-  scored.sort((a, b) {
-    final byScore = b.score.compareTo(a.score);
-    if (byScore != 0) return byScore;
-    final x = relative[a.index], y = relative[b.index];
-    final byLength = x.length.compareTo(y.length);
-    return byLength != 0 ? byLength : x.compareTo(y);
-  });
-  return (
-    best: [for (final entry in scored.take(query.limit)) entry.index],
-    matched: matched,
-  );
 }
 
 /// A Quick Open query: a file filter with an optional `:line[:column]`.
@@ -430,14 +523,11 @@ List<IdeQuickPickItem> fileQuickPicks(
       );
     }
     var first = true;
-    for (var i = 0; i < index.paths.length && items.length < limit; i++) {
-      if (!seen.add(index.paths[i])) continue;
+    for (final (:path, :relative) in index.bestFor('', limit: limit)!) {
+      if (items.length >= limit) break;
+      if (!seen.add(path)) continue;
       items.add(
-        item(
-          index.paths[i],
-          index.relativePaths[i],
-          group: first ? strings.quickOpenFiles : null,
-        ),
+        item(path, relative, group: first ? strings.quickOpenFiles : null),
       );
       first = false;
     }
@@ -480,29 +570,17 @@ List<IdeQuickPickItem> fileQuickPicks(
     return true;
   }
 
-  if (index.paths.length > IdeFileIndex.backgroundAbove) {
-    // Many: the best are found off the UI isolate, those of the filter
-    // found last shown (those still matching) until they are. Recently
-    // opened files are matched here, all of them, for their rank to count.
-    final recentSet = recent.toSet();
-    final best = index.bestFor(query.filter, limit: limit) ?? index.lastFound;
-    for (final i in best) {
-      if (!recentSet.contains(index.paths[i])) {
-        consider(index.paths[i], index.relativePaths[i]);
-      }
-    }
-    for (final path in recentSet) {
-      consider(path, relativeOf(path));
-    }
-  } else {
-    final matches = <int>[];
-    for (final i in index._candidates(query.filter)) {
-      if (consider(index.paths[i], index.relativePaths[i])) matches.add(i);
-    }
-    index._matched(query.filter, matches);
-    for (final path in recent) {
-      if (!index.contains(path)) consider(path, relativeOf(path));
-    }
+  // A large listing's best are found off the UI isolate, those of the
+  // filter found last shown (those still matching) until they are.
+  // Recently opened files are matched here, all of them, for their rank to
+  // count.
+  final recentSet = recent.toSet();
+  final best = index.bestFor(query.filter, limit: limit) ?? index.lastFound;
+  for (final (:path, :relative) in best) {
+    if (!recentSet.contains(path)) consider(path, relative);
+  }
+  for (final path in recentSet) {
+    consider(path, relativeOf(path));
   }
   scored.sort((a, b) {
     final byScore = b.score.compareTo(a.score);
@@ -528,6 +606,11 @@ List<IdeQuickPickItem> fileQuickPicks(
             ? strings.quickOpenSearchingFiles
             : strings.quickOpenNoMatchingResults,
       ),
+    );
+  }
+  if (index.truncated) {
+    items.add(
+      IdeQuickPickItem(label: strings.quickOpenTooManyFiles(index.count)),
     );
   }
   return items;

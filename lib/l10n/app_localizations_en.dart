@@ -1394,6 +1394,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get quickOpenNoMatchingResults => 'No matching results';
 
   @override
+  String quickOpenTooManyFiles(int count) {
+    return 'Only the first $count files are searched: this project has more';
+  }
+
+  @override
   String get quickOpenRecentlyUsed => 'recently used';
 
   @override

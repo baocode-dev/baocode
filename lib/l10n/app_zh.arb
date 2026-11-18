@@ -442,6 +442,7 @@
   "quickOpenSearchingFiles": "正在搜索文件…",
   "quickOpenNoFiles": "此项目中没有文件",
   "quickOpenNoMatchingResults": "没有匹配的结果",
+  "quickOpenTooManyFiles": "只搜索了前 {count} 个文件，项目里的文件更多",
   "quickOpenRecentlyUsed": "最近使用",
   "quickOpenOtherCommands": "其他命令",
   "quickOpenNoMatchingCommands": "没有匹配的命令",

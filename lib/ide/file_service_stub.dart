@@ -79,4 +79,10 @@ Future<IdeFileListing> walkProjectFiles(
   int limit,
 ) async => IdeFileListing(const []);
 
+IdeFileListing listProjectFilesSync(
+  String root,
+  Set<String> excluded,
+  int limit,
+) => IdeFileListing(const []);
+
 Stream<void> watchDirectory(String directory) => const Stream.empty();

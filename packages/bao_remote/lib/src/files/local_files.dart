@@ -469,11 +469,16 @@ Future<IdeFileListing> walkProjectFiles(
   String root,
   Set<String> excluded,
   int limit,
-) => Isolate.run(
-  () =>
-      _gitProjectFiles(root, excluded, limit) ??
-      _walkProjectFiles(root, excluded, limit),
-);
+) => Isolate.run(() => listProjectFilesSync(root, excluded, limit));
+
+/// As [walkProjectFiles], on this isolate: for one that is not the UI's.
+IdeFileListing listProjectFilesSync(
+  String root,
+  Set<String> excluded,
+  int limit,
+) =>
+    _gitProjectFiles(root, excluded, limit) ??
+    _walkProjectFiles(root, excluded, limit);
 
 /// The files Git sees under [root], tracked or not, without those its
 /// ignore files ignore (as VS Code's Quick Open, through ripgrep, honors

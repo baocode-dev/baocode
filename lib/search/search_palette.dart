@@ -475,27 +475,19 @@ class _SearchPaletteState extends State<SearchPalette> {
   List<_Entry> _fileEntries(String query, int limit) {
     final index = widget.files!;
     final filter = IdeQuickOpenQuery.parse(query).filter;
-    final scored = <({int i, int score, List<int> label})>[];
-    final relative = index.relativePaths;
-    if (filter.isEmpty) {
-      for (var i = 0; i < relative.length && i < limit; i++) {
-        scored.add((i: i, score: 0, label: const []));
-      }
-    } else {
-      for (var i = 0; i < relative.length; i++) {
-        if (scoreFilePath(filter, relative[i]) case final match?) {
-          scored.add((i: i, score: match.score, label: match.label));
-        }
-      }
-      scored.sort((a, b) => b.score.compareTo(a.score));
-    }
+    // A large listing's are found off the UI isolate: those of the filter
+    // found last meanwhile, the palette rebuilt as the index tells.
+    final hits = index.bestFor(filter, limit: limit) ?? index.lastFound;
+    final scored = <({IdeFileHit hit, int score, List<int> label})>[
+      for (final hit in hits)
+        if (filter.isEmpty)
+          (hit: hit, score: 0, label: const [])
+        else if (scoreFilePath(filter, hit.relative) case final match?)
+          (hit: hit, score: match.score, label: match.label),
+    ]..sort((a, b) => b.score.compareTo(a.score));
     return [
       for (final match in scored.take(limit))
-        _fileEntry(
-          index.paths[match.i],
-          relative[match.i],
-          matches: match.label,
-        ),
+        _fileEntry(match.hit.path, match.hit.relative, matches: match.label),
     ];
   }
 

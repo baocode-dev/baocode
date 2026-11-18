@@ -2750,6 +2750,12 @@ abstract class AppLocalizations {
   /// **'No matching results'**
   String get quickOpenNoMatchingResults;
 
+  /// No description provided for @quickOpenTooManyFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Only the first {count} files are searched: this project has more'**
+  String quickOpenTooManyFiles(int count);
+
   /// Command palette group label.
   ///
   /// In en, this message translates to:
