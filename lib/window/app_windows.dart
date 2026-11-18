@@ -151,8 +151,10 @@ class AppWindow {
     (_, null) => l10n.windowWelcomeTitle,
   };
 
-  /// The title the system shows: `folder — BaoCode`.
-  String title(AppLocalizations l10n) => '${label(l10n)} — BaoCode';
+  /// The title the system shows: `name — BaoCode` ([label] when [name] is
+  /// null).
+  String title(AppLocalizations l10n, {String? name}) =>
+      '${name ?? label(l10n)} — BaoCode';
 
   /// The folder's name; a remote one's with its host, as VS Code shows
   /// one (`app [SSH: dev]`, `app [WSL: Ubuntu]`).
@@ -393,6 +395,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   Future<bool> start() async {
     _started = await host.start(this);
     _separate = _settings().ideWindows == IdeWindows.separate;
+    if (_started) _watchWorkspace();
     if (multi) {
       workspace.ideWindows = _routeIde;
       _syncWorkspace();
@@ -635,11 +638,10 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     bool show = true,
   }) async {
     if (folder != null) workspace.noteIdeFolder(folder);
-    final l10n = _l10n();
     final window = AppWindow._(AppWindowKind.ide, -1, folder);
     final viewId = await host.create(
       frame: frame ?? await _newFrame(),
-      title: window.title(l10n),
+      title: _title(window),
     );
     if (viewId == null) return null;
     if (await host.waitForView(viewId) == null) {
@@ -654,13 +656,12 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     );
     _ide.add(created);
     _mru.insert(0, created);
+    _titles[created] = _title(created);
     _changed();
     // Shown once it has something to show.
     await _nextFrame();
     if (show) _focus(created);
-    unawaited(
-      host.setTitle(viewId, created.title(l10n), path: _localOnly(folder)),
-    );
+    unawaited(host.setTitle(viewId, _title(created), path: _localOnly(folder)));
     return created;
   }
 
@@ -921,12 +922,8 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
 
   /// Opens a window of [thread]'s own, [agentWidth] wide.
   Future<AppWindow?> _createAgent(AgentThread thread) async {
-    final l10n = _l10n();
     final pending = AppWindow._(AppWindowKind.agent, -1, null, thread: thread);
-    final viewId = await host.create(
-      title: pending.title(l10n),
-      width: agentWidth,
-    );
+    final viewId = await host.create(title: _title(pending), width: agentWidth);
     if (viewId == null) return null;
     if (await host.waitForView(viewId) == null) {
       await host.close(viewId);
@@ -940,8 +937,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     );
     _agents.add(created);
     _mru.insert(0, created);
-    _titles[created] = pending.title(l10n);
-    _watchAgents();
+    _titles[created] = _title(pending);
     _changed();
     // Shown once it has something to show.
     await _nextFrame();
@@ -949,20 +945,43 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     return created;
   }
 
-  /// The agents' windows' titles, as last set: an agent titled after its
-  /// first message (or renamed), its window's title follows.
+  /// The windows' titles, as last set: an agent titled after its first
+  /// message (or renamed), its window's title follows; a workspace renamed,
+  /// its IDE windows' follow.
   final Map<AppWindow, String> _titles = {};
   bool _watching = false;
 
-  void _watchAgents() {
+  /// Has the windows' titles follow the workspace: an agent renamed (or
+  /// dropped), a workspace renamed.
+  void _watchWorkspace() {
     if (_watching) return;
     _watching = true;
-    workspace.addListener(_agentsChanged);
+    workspace.addListener(_syncTitles);
   }
 
-  void _agentsChanged() {
+  /// The name of the workspace whose own folder [window] shows, or null: a
+  /// workspace's folder is an id under the data directory's workspaces, so
+  /// its name says more than its folder's does.
+  String? _workspaceName(AppWindow window) {
+    if (!window.isIde) return null;
+    final folder = window.folder;
+    if (folder == null) return null;
+    final at = workspace.workspaceAt(folder);
+    return at == null || at.name.isEmpty ? null : at.name;
+  }
+
+  /// A window's name: its workspace's, else its folder's (or its thread's,
+  /// the chat's).
+  String _label(AppWindow window) =>
+      _workspaceName(window) ?? window.label(_l10n());
+
+  /// What the system shows of [window]: `<name> — BaoCode`.
+  String _title(AppWindow window) =>
+      window.title(_l10n(), name: _workspaceName(window));
+
+  /// Sets again the titles that changed, and the menus with them.
+  void _syncTitles() {
     if (!_started) return;
-    final l10n = _l10n();
     var retitled = false;
     for (final window in [..._agents]) {
       // Deleted (or dropped) meanwhile: its window goes.
@@ -970,19 +989,31 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
         unawaited(_remove(window));
         continue;
       }
-      final title = window.title(l10n);
+      final title = _title(window);
       if (_titles[window] == title) continue;
       _titles[window] = title;
       unawaited(host.setTitle(window.viewId, title));
       retitled = true;
     }
-    _titles.removeWhere((window, _) => !_agents.contains(window));
+    // A workspace renamed is its IDE windows' title again.
+    for (final window in [..._ide]) {
+      final title = _title(window);
+      if (_titles[window] == title) continue;
+      _titles[window] = title;
+      unawaited(
+        host.setTitle(window.viewId, title, path: _localOnly(window.folder)),
+      );
+      retitled = true;
+    }
+    _titles.removeWhere(
+      (window, _) => !_agents.contains(window) && !_ide.contains(window),
+    );
     if (retitled) _syncMenus();
   }
 
   @override
   void dispose() {
-    if (_watching) workspace.removeListener(_agentsChanged);
+    if (_watching) workspace.removeListener(_syncTitles);
     super.dispose();
   }
 
@@ -1038,11 +1069,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     window._setFolder(folder);
     _focus(window);
     unawaited(
-      host.setTitle(
-        window.viewId,
-        window.title(_l10n()),
-        path: _localOnly(folder),
-      ),
+      host.setTitle(window.viewId, _title(window), path: _localOnly(folder)),
     );
     unawaited(host.setEdited(window.viewId, false));
     _changed();
@@ -1438,7 +1465,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
     final old = window.thread;
     if (!window.isAgent || identical(old, thread)) return;
     window._thread = thread;
-    _agentsChanged();
+    _syncTitles();
     _changed();
     if (old != null) workspace.closeWindowAgent(old);
   }
@@ -1506,12 +1533,11 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
   /// The titles and menus again, in the app's language (it changed).
   void relabel() {
     if (!_started) return;
-    final l10n = _l10n();
     for (final window in _mru) {
       unawaited(
         host.setTitle(
           window.viewId,
-          window.title(l10n),
+          _title(window),
           path: _localOnly(window.folder),
         ),
       );
@@ -1532,7 +1558,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
         ..._mru.where((w) => !w.shown),
       ])
         IdeQuickPickItem(
-          label: window.label(l10n),
+          label: _label(window),
           description: [
             if (identical(window, from)) l10n.windowCurrent,
             ?window.folder,
@@ -1570,7 +1596,7 @@ class AppWindows extends ChangeNotifier implements WindowHostEvents {
       for (final window in [chat, ..._ide, ..._agents])
         WindowMenuEntry(
           viewId: window.viewId,
-          title: window.label(l10n),
+          title: _label(window),
           edited: window.edited,
         ),
     ];

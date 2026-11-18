@@ -33,7 +33,7 @@ class _Harness {
   }) : host = FakeWindowHost(tester.view, available: available),
        store = MemoryPreferenceStore(kept),
        workspace = Workspace.mock(),
-       directories = const {'/w/a', '/w/b', '/w/c'} {
+       directories = {'/w/a', '/w/b', '/w/c'} {
     windows = AppWindows(
       host: host,
       workspace: workspace,
@@ -209,6 +209,29 @@ void main() {
       await harness.windows.newWindow();
       expect(harness.folders, [null, null]);
       expect(harness.host.created.first.title, 'Welcome — BaoCode');
+    });
+
+    testWidgets('a workspace window is named by its workspace, not its folder '
+        'id', (tester) async {
+      final harness = _Harness(tester);
+      await harness.start();
+      final workspace = harness.workspace.createWorkspace('中台综合项目', [
+        '/w/a',
+        '/w/b',
+      ])!;
+      harness.directories.add(workspace.path);
+      final window = (await harness.windows.showFolder(workspace.path))!;
+      String menuTitle() => harness.host.menu
+          .firstWhere((entry) => entry.viewId == window.viewId)
+          .title;
+      expect(harness.host.created.last.title, '中台综合项目 — BaoCode');
+      expect(menuTitle(), '中台综合项目');
+
+      // Renamed, its window and its menu entry follow.
+      harness.workspace.updateWorkspace(workspace, name: '综合项目管理');
+      await tester.pump();
+      expect(harness.host.titles[window.viewId], '综合项目管理 — BaoCode');
+      expect(menuTitle(), '综合项目管理');
     });
 
     testWidgets('window.newWindowDimensions: inherit, below and right of the '
