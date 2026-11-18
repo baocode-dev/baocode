@@ -623,7 +623,6 @@ class ModelProvider {
     this.balance = AccountBalance.roundRobin,
     this.autoResetCredits = false,
     this.resetCreditsFiveHours = false,
-    this.clientVersion,
     this.icon,
     this.follows,
   });
@@ -691,10 +690,6 @@ class ModelProvider {
   final bool autoResetCredits;
   final bool resetCreditsFiveHours;
 
-  /// Codex: the Codex CLI's version it speaks as (`0.159.0`), for models
-  /// the backend offers only to a newer one; the app's when null.
-  final String? clientVersion;
-
   /// What the picker heads its models with, picked in the icon picker
   /// (the site's icon among its choices); its maker's logo, as its base URL
   /// says, when null ([ModelBrand.ofProvider]).
@@ -706,10 +701,6 @@ class ModelProvider {
 
   /// Whether it follows magpie's gateway (lib/models/magpie.dart).
   bool get followsMagpie => follows == 'magpie';
-
-  /// Whether [text] can be a [clientVersion]: digits, letters, `.+-`.
-  static bool isClientVersion(String text) =>
-      RegExp(r'^[0-9A-Za-z][0-9A-Za-z.+-]*$').hasMatch(text);
 
   /// Where its key is kept in the keychain.
   String get keyRef => keyRefFor(id);
@@ -888,7 +879,6 @@ class ModelProvider {
     AccountBalance? balance,
     bool? autoResetCredits,
     bool? resetCreditsFiveHours,
-    String? Function()? clientVersion,
     ProjectIcon? Function()? icon,
   }) => ModelProvider(
     id: id,
@@ -911,7 +901,6 @@ class ModelProvider {
     balance: balance ?? this.balance,
     autoResetCredits: autoResetCredits ?? this.autoResetCredits,
     resetCreditsFiveHours: resetCreditsFiveHours ?? this.resetCreditsFiveHours,
-    clientVersion: clientVersion == null ? this.clientVersion : clientVersion(),
     icon: icon == null ? this.icon : icon(),
     follows: follows,
   );
@@ -957,7 +946,6 @@ class ModelProvider {
     if (balance != AccountBalance.roundRobin) 'balance': balance.id,
     if (autoResetCredits) 'autoResetCredits': true,
     if (resetCreditsFiveHours) 'resetCreditsFiveHours': true,
-    'clientVersion': ?clientVersion,
     'icon': ?icon?.toJson(),
     'follows': ?follows,
   };
@@ -1003,11 +991,6 @@ class ModelProvider {
       balance: AccountBalance.parse(json['balance']),
       autoResetCredits: json['autoResetCredits'] == true,
       resetCreditsFiveHours: json['resetCreditsFiveHours'] == true,
-      clientVersion: switch (json['clientVersion']) {
-        final String version when isClientVersion(version.trim()) =>
-          version.trim(),
-        _ => null,
-      },
       icon: ProjectIcon.fromJson(json['icon']),
       follows: switch (json['follows']) {
         final String app when app.isNotEmpty => app,

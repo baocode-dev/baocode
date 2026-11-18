@@ -782,7 +782,6 @@ class ModelProxy {
           accountId: account.accountId,
           session: '${outgoing['prompt_cache_key'] ?? cacheKey ?? ''}',
           events: true,
-          version: codexVersionOf(provider),
         ).forEach(request.headers.set);
         custom.forEach(request.headers.set);
         request.headers.contentType = ContentType.json;

@@ -785,7 +785,7 @@ class CodexAccounts extends CodexService {
       );
     }
     try {
-      final url = endpoints.models(codexVersionOf(provider));
+      final url = endpoints.models;
       final (status, text) = await _get(provider, account, url);
       if (status >= 400) {
         throw UpstreamException(
@@ -845,7 +845,6 @@ class CodexAccounts extends CodexService {
             accountId: account.accountId,
             session: session,
             events: events,
-            version: codexVersionOf(provider),
           ).forEach(request.headers.set);
           request.headers.contentType = contentType;
           request.add(body);
@@ -921,7 +920,6 @@ class CodexAccounts extends CodexService {
       codexHeaders(
         token,
         accountId: account.accountId,
-        version: codexVersionOf(provider),
       ).forEach(request.headers.set);
       if (body != null) {
         request.headers.contentType = ContentType.json;

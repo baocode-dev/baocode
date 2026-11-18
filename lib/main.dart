@@ -73,6 +73,7 @@ import 'link/link_quota.dart';
 import 'keybindings/keymap.dart';
 import 'keybindings/vscode_import.dart';
 import 'l10n/l10n.dart';
+import 'models/codex/codex_api.dart' show loadCodexVersion;
 import 'models/featured_upstreams.dart';
 import 'models/magpie_follow.dart';
 import 'models/model_icons.dart';
@@ -600,6 +601,8 @@ void followSettingsFiles(SettingsFiles files) {
   // The logos of the sites listed, for their upstreams' icons, as kept
   // last time (Settings → Models gets the list again).
   unawaited(FeaturedUpstream.readKept());
+  // The Codex CLI's version ChatGPT accounts' requests go as.
+  unawaited(loadCodexVersion());
   // Settings → Appearance: how wide the conversation grows.
   ChatWidth.follow(files.settings, () => files.settings[ChatWidth.settingKey]);
   // Settings → Appearance: how the user's messages show.
