@@ -237,12 +237,24 @@ class KeybindingService extends ChangeNotifier {
     final lookup = withPlatformKeys(context);
     bool runs(KeybindingItem item) =>
         isSupported(item.command) && (canRun?.call(item) ?? true);
-    final result = resolver.resolve(lookup, pending, chord, canRun: runs);
-    if (result is! NoKeybinding) return result;
-    final character = KeyChord.characterChordOf(event, keyboard);
-    if (character == null) return result;
-    return resolver.resolve(lookup, pending, character, canRun: runs);
+    var result = resolver.resolve(lookup, pending, chord, canRun: runs);
+    if (result is NoKeybinding) {
+      if (KeyChord.characterChordOf(event, keyboard) case final character?) {
+        result = resolver.resolve(lookup, pending, character, canRun: runs);
+      }
+    }
+    onResolved?.call(event, pending, result);
+    return result;
   }
+
+  /// Told each [resolveEvent]'s answer: the diagnostics' (KeyWatch), to
+  /// name the keybinding that took a key a text field never got.
+  static void Function(
+    KeyEvent event,
+    List<KeyChord> pending,
+    KeybindingResolution result,
+  )?
+  onResolved;
 
   /// The keybinding shown for [command] on [platform] (this one by
   /// default); null when it has none.
