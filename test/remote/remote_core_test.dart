@@ -33,6 +33,7 @@ void main() {
     String host, {
     required bool model,
     required bool installed,
+    bool install = false,
   }) async {
     final tried = <String?>[];
     Object? outcome;
@@ -40,7 +41,7 @@ void main() {
       outcome = await startRemoteCore(
         hosts[host],
         model: model,
-        install: false,
+        install: install,
         start: (core) async {
           tried.add(core);
           if (core == null && !installed) {
@@ -63,15 +64,17 @@ void main() {
     expect(outcome, isA<RemoteProcess>());
   });
 
-  test("automatic, on Claude Code's own model: the CLI, which the built-in "
-      'core cannot run', () async {
+  test("automatic, on Claude Code's own model: the CLI the host has; else "
+      'a model asked for, nothing installed', () async {
+    expect((await start('auto', model: false, installed: true)).$1, [null]);
     final (tried, outcome) = await start(
       'auto',
       model: false,
       installed: false,
+      install: true,
     );
     expect(tried, [null]);
-    expect(outcome, isA<ClaudeNotInstalled>());
+    expect(outcome, isA<ClaudeNoModel>());
   });
 
   test('a host not saved in the app: automatic', () async {
