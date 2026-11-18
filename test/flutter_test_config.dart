@@ -16,6 +16,7 @@ import 'package:baocode/ide/ide_diff_options.dart';
 import 'package:baocode/ide/lsp/packs/language_packs.dart';
 import 'package:baocode/kernel/claude_code/claude_core_setting.dart';
 import 'package:baocode/kernel/kernel_registry.dart';
+import 'package:baocode/models/codex/codex_api.dart';
 import 'package:baocode/models/featured_upstreams.dart';
 import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/platform/context_menu.dart';
@@ -36,7 +37,8 @@ import 'semantics_tree.dart';
 /// for, not the app's default. The `code` command and
 /// the context menu are stand-ins, never installed: none looks at the
 /// machine's own. No MCP server is started to see whether it answers, and
-/// the upstreams Settings → Models lists are not got from baocode.dev.
+/// neither the upstreams Settings → Models lists nor the Codex CLI's
+/// version is got from baocode.dev.
 /// Sessions are the CLI's, with Claude Code as set up on the machine to
 /// pick, which the kernel's tests were written for: those of BaoCode's
 /// own core say so. Diffs show as they do by default. The projects in
@@ -58,6 +60,8 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     FeaturedUpstream.loader = () async => const [];
     FeaturedUpstream.keptLoader = () async => const [];
     FeaturedUpstream.forget();
+    codexFeed = (_) async => null;
+    codexVersion = codexClientVersion;
     Workspace.inTempFolder = (_) => false;
     WorkbenchThemeService.instance = WorkbenchThemeService(
       initial: ColorThemeData.fromStorageData(defaultTheme)!..isLoaded = true,

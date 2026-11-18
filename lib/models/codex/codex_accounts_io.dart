@@ -784,6 +784,8 @@ class CodexAccounts extends CodexService {
             : 'No account can be used now.',
       );
     }
+    // The version baocode.dev says now: a new model shows without a restart.
+    await loadCodexVersion();
     try {
       final url = endpoints.models;
       final (status, text) = await _get(provider, account, url);

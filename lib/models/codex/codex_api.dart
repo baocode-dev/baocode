@@ -2,6 +2,7 @@
 // a request to it is made, and what it answers. After CLIProxyAPI's Codex
 // executor (see proxy/translate/NOTICE.md).
 
+import 'dart:async';
 import 'dart:convert';
 
 import '../upstream.dart';
@@ -13,8 +14,8 @@ const codexClientVersion = '0.169.1';
 
 /// The Codex CLI's version this speaks as: the backend lists the models of
 /// it ([CodexEndpoints.models]), a model newer than it left out. As
-/// [codexVersionFeed] says once asked at the app's start, so that a new
-/// one needs no release.
+/// [codexVersionFeed] says, asked at the app's start and again before the
+/// models are listed, so that a new one needs no release.
 String codexVersion = codexClientVersion;
 
 /// Where baocode.dev keeps the version ([codexVersion]): site/codex.json.
@@ -33,12 +34,22 @@ String? parseCodexVersion(String text) {
   return null;
 }
 
+/// How [loadCodexVersion] gets codex.json's text: null where baocode.dev
+/// does not answer. Tests set their own.
+Future<String?> Function(Uri url) codexFeed = fetchCodexFeed;
+
 /// Sets [codexVersion] as [codexVersionFeed] says; left as it is where
-/// baocode.dev does not answer.
-Future<void> loadCodexVersion() async {
-  if (await fetchCodexFeed(codexVersionFeed) case final text?) {
-    codexVersion = parseCodexVersion(text) ?? codexVersion;
+/// baocode.dev does not answer in [timeout].
+Future<void> loadCodexVersion({
+  Duration timeout = const Duration(seconds: 5),
+}) async {
+  final String? text;
+  try {
+    text = await codexFeed(codexVersionFeed).timeout(timeout);
+  } on TimeoutException {
+    return;
   }
+  if (text != null) codexVersion = parseCodexVersion(text) ?? codexVersion;
 }
 
 /// The image model the Codex CLI makes pictures with (its `image_gen`):

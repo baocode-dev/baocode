@@ -851,9 +851,11 @@ void main() {
       expect(asked.headers['chatgpt-account-id'], 'ws-a');
       expect(asked.query['client_version'], codexClientVersion);
 
-      // A version baocode.dev says: asked as that Codex CLI.
-      codexVersion = '0.170.0';
-      addTearDown(() => codexVersion = codexClientVersion);
+      // A version baocode.dev says now: asked as that Codex CLI.
+      codexFeed = (url) async {
+        expect(url, codexVersionFeed);
+        return '{"clientVersion": "0.170.0"}';
+      };
       await accounts.listModels(provider());
       final newer = openai.to('/backend-api/codex/models').last;
       expect(newer.query['client_version'], '0.170.0');
