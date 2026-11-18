@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Push your phone with curl · BaoCode</title>
+<meta name="description" content="One curl command from a script, a shortcut or CI notifies the iPhone BaoCode is on; a tap can open a link or run a shortcut.">
+<link rel="icon" href="/icon.png">
+<link rel="stylesheet" href="/style.css">
+<script src="/head.js"></script>
+<link rel="alternate" hreflang="en" href="https://baocode.dev/push">
+<link rel="alternate" hreflang="zh" href="https://baocode.dev/zh/push">
+</head>
+<body>
+<canvas class="grid" aria-hidden="true"></canvas>
+<svg class="sprite" aria-hidden="true">
+  <!-- Lucide (ISC), https://lucide.dev -->
+  <symbol id="ic-github" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5c.08-1.25-.27-2.48-1-3.5c.28-1.15.28-2.35 0-3.5c0 0-1 0-3 1.5c-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5c-.39.49-.68 1.05-.85 1.65S8.93 17.38 9 18v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></g></symbol>
+</svg>
+<header class="top">
+  <a class="brand" href="/"><img src="/icon.png" alt="">BaoCode</a>
+  <a href="/download">Download</a>
+  <a href="/changelog">Changelog</a>
+  <a href="https://github.com/baocode-dev/baocode"><svg class="ic" aria-hidden="true"><use href="#ic-github"/></svg>GitHub</a>
+  <a class="lang" href="/zh/push" hreflang="zh" lang="zh-CN">中文</a>
+</header>
+
+<main class="page">
+  <h1>Push your phone with curl</h1>
+  <p class="subtitle">A script done, CI failing, a cron job due: send a notification to your iPhone. A tap on it can open a link, or run a shortcut.</p>
+
+  <h2>Get your push address</h2>
+  <p>In BaoCode on your iPhone, open Settings → Notifications → Push from scripts and tap Turn on. A curl command shows below it, copied with a tap; the address in it is yours:</p>
+  <pre><code>https://push.baocode.dev/v1/notify/&lt;your key&gt;</code></pre>
+  <p>Tap Send a test: if it arrives, you're set. No computer needs to be paired, and there's no account. iPhone only for now: the Android app has no push channel.</p>
+
+  <h2>Send a notification</h2>
+  <p>The simplest is curl's form fields; <code>--data-urlencode</code> encodes spaces, <code>&amp;</code> and any language for you:</p>
+  <div class="copyable"><pre><code>curl https://push.baocode.dev/v1/notify/&lt;your key&gt; \
+  --data-urlencode "title=Build finished" \
+  --data-urlencode "body=Tests passed on main"</code></pre><button class="copy" type="button" data-copy data-done="Copied">Copy</button></div>
+  <p>Or JSON:</p>
+  <div class="copyable"><pre><code>curl https://push.baocode.dev/v1/notify/&lt;your key&gt; \
+  -H 'content-type: application/json' \
+  -d '{"title": "Deploy failed", "body": "Tap for the logs", "url": "https://github.com/me/app/actions"}'</code></pre><button class="copy" type="button" data-copy data-done="Copied">Copy</button></div>
+  <p>Or just open an address (GET), for places that can only fetch a link. Encode the parameters yourself:</p>
+  <pre><code>https://push.baocode.dev/v1/notify/&lt;your key&gt;?title=Time%27s%20up</code></pre>
+
+  <h2>Parameters</h2>
+  <p>They go after the address's <code>?</code>, or in a JSON or form body; where both have one, the body's wins.</p>
+  <div class="table"><table>
+    <thead><tr><th>Parameter</th><th></th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><code>title</code></td><td>One of two</td><td>The title, up to 200 characters.</td></tr>
+      <tr><td><code>body</code></td><td>One of two</td><td>The text, up to 1000 characters. At least one of <code>title</code> and <code>body</code> is needed.</td></tr>
+      <tr><td><code>url</code></td><td>Optional</td><td>What a tap opens: a web page (<code>https://…</code>) or another app's link (<code>shortcuts://…</code>, <code>spotify:</code>…). Up to 2000 characters.</td></tr>
+      <tr><td><code>group</code></td><td>Optional</td><td>A group name: notifications in one stack together in Notification Center. Up to 64 characters.</td></tr>
+      <tr><td><code>replace</code></td><td>Optional</td><td>A tag: a new notification replaces the unread one before it with the same tag. Good for progress. Up to 64 characters.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Run a shortcut from a notification</h2>
+  <p>Set <code>url</code> to a shortcut's link and a tap runs it. Make a shortcut called "Text Mom" in the Shortcuts app, then:</p>
+  <div class="copyable"><pre><code>curl https://push.baocode.dev/v1/notify/&lt;your key&gt; \
+  --data-urlencode "title=Time to text Mom" \
+  --data-urlencode "url=shortcuts://run-shortcut?name=Text Mom"</code></pre><button class="copy" type="button" data-copy data-done="Copied">Copy</button></div>
+  <ul>
+    <li>A tap opens BaoCode, which goes straight on to the other app. iOS doesn't let a notification run anything by itself: it takes your tap.</li>
+    <li>The first time a kind of link comes (<code>shortcuts://</code>, say), BaoCode asks you to allow it; once allowed, links of that kind open directly. Web links aren't asked about.</li>
+    <li>Some shortcut actions, such as sending a message, have iOS ask you once more.</li>
+  </ul>
+
+  <h2>Push from a shortcut</h2>
+  <p>Use the Get Contents of URL action: your push address as the URL, POST as the method, a JSON request body with <code>title</code>, <code>body</code> and the rest. With Automation, it reminds you as you get home, plug in, or open an app.</p>
+
+  <h2>What comes back</h2>
+  <div class="table"><table>
+    <thead><tr><th>Status</th><th></th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>200</code></td><td></td><td><code>{"ok":true}</code>: Apple took it; it usually arrives in seconds.</td></tr>
+      <tr><td><code>400</code></td><td></td><td>A parameter is wrong; <code>error</code> says which.</td></tr>
+      <tr><td><code>404</code></td><td></td><td>No such key: it may have been reset. Use the command the app shows now.</td></tr>
+      <tr><td><code>410</code></td><td></td><td>BaoCode was deleted from the phone, or reinstalled. Open it again and the key comes back.</td></tr>
+      <tr><td><code>429</code></td><td></td><td>Too many: up to 30 a minute per key.</td></tr>
+      <tr><td><code>502</code></td><td></td><td>Apple refused it; <code>error</code> has Apple's reason.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Security and privacy</h2>
+  <ul>
+    <li>Whoever has the key can notify your phone, and have you tap a link of their choosing. Don't paste the command anywhere public. If it leaks, tap Reset key in the app: the old key stops at once.</li>
+    <li>Pushes go through push.baocode.dev on to Apple's push service (APNs). It keeps only the key, the phone's push address and a hash to check them by, never what is pushed.</li>
+    <li>A key whose app hasn't been opened for 180 days is deleted; opening BaoCode again brings it back, unchanged.</li>
+  </ul>
+</main>
+
+<script src="/site.js"></script>
+</body>
+</html>

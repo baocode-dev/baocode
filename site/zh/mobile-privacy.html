@@ -27,7 +27,7 @@
 
 <main class="page">
   <h1>手机上的 BaoCode 与你的隐私</h1>
-  <p class="meta"><span>更新于 2026 年 10 月 21 日</span></p>
+  <p class="meta"><span>更新于 2026 年 11 月 18 日</span></p>
 
   <p>手机上的 BaoCode 连接你电脑上的桌面应用 BaoCode，让你不在电脑前也能查看那里的 agent、回答它们、给它们发消息。本页说明手机版保存什么、发送什么，以及发给谁。</p>
 
@@ -42,8 +42,12 @@
     <li><strong>相机</strong>：扫描电脑上显示的二维码来配对，以及拍照发给 agent。</li>
     <li><strong>照片</strong>：把你选的照片发给 agent。它只能看到你选的那几张。</li>
     <li><strong>本地网络</strong>：在同一网络里找到你的电脑并连接。</li>
-    <li><strong>通知</strong>：agent 问你问题或做完时提醒你。通知由手机自己显示，不经过任何推送服务。</li>
+    <li><strong>通知</strong>：agent 问你问题或做完时提醒你；如果你开启了，也用来显示你自己的脚本推来的通知。</li>
   </ul>
+
+  <h2 class="plain">iPhone 上的通知</h2>
+  <p>App 打开着或刚切到后台时，通知由手机自己显示。被 iOS 挂起后，改由你的电脑经 push.baocode.dev 转给苹果的推送服务（APNs）发出：通知的标题和正文会经过它，但不保存。安卓上没有推送服务，App 在后台保持连接，自己显示通知。</p>
+  <p>如果你开启了 设置 → 通知 → 用 curl 推送，App 会生成一个推送 key，连同手机的推送地址交给 push.baocode.dev。服务端保存这两者，以及一个只有 App 知道的密钥的哈希；推送的内容只经过、不保存。重置 key 后旧的会被删除，180 天没打开过 App 的 key 也会被删除。<a href="/zh/push">用 curl 推送的说明</a>。</p>
 
   <h2 class="plain">你的电脑和你的 AI 服务商</h2>
   <p>你在手机上发出的内容（消息、回答和照片）会交给你电脑上的 BaoCode，就像你在电脑上输入的一样。那里的 agent 会把对话发送给你使用的 AI 模型（Claude Code 用的是 Anthropic 的模型，或你自己配置的服务商），适用该服务商的条款。</p>
