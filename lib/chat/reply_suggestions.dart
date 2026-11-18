@@ -58,15 +58,16 @@ abstract final class ReplySuggestions {
   };
 
   /// The suggestions at the end of [text], each whole; at most [max], none
-  /// too long.
+  /// too long. Each line of a tag is one: some models put them all in one.
   static List<String> of(String text) {
     final at = _tailAt(text);
     if (at == null) return const [];
     return [
       for (final match in _whole.allMatches(text, at))
-        if (match[1]!.trim() case final said
-            when said.isNotEmpty && said.length <= maxLength)
-          said,
+        for (final line in match[1]!.split('\n'))
+          if (line.trim() case final said
+              when said.isNotEmpty && said.length <= maxLength)
+            said,
     ].take(max).toList();
   }
 
