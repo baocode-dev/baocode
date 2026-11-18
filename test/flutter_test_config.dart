@@ -21,6 +21,7 @@ import 'package:baocode/kernel/mock/mock_kernels.dart';
 import 'package:baocode/platform/context_menu.dart';
 import 'package:baocode/platform/shell_command.dart';
 import 'package:baocode/theme/workbench_theme.dart';
+import 'package:baocode/workspace/workspace.dart';
 
 import 'semantics_tree.dart';
 
@@ -38,7 +39,8 @@ import 'semantics_tree.dart';
 /// the upstreams Settings → Models lists are not got from baocode.dev.
 /// Sessions are the CLI's, with Claude Code as set up on the machine to
 /// pick, which the kernel's tests were written for: those of BaoCode's
-/// own core say so. Diffs show as they do by default.
+/// own core say so. Diffs show as they do by default. The projects in
+/// `/tmp` are listed like any other.
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   checkDesktopSemantics();
   KernelRegistry.use(MockKernels.all);
@@ -56,6 +58,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     FeaturedUpstream.loader = () async => const [];
     FeaturedUpstream.keptLoader = () async => const [];
     FeaturedUpstream.forget();
+    Workspace.inTempFolder = (_) => false;
     WorkbenchThemeService.instance = WorkbenchThemeService(
       initial: ColorThemeData.fromStorageData(defaultTheme)!..isLoaded = true,
     );
