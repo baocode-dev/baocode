@@ -82,9 +82,10 @@ Future<({ChatSession session, FakeCli cli})> pumpScripted(
   FakeCli? cli,
   double zoom = 1,
   TargetPlatform? platform,
+  double devicePixelRatio = 1,
 }) async {
-  tester.view.physicalSize = const Size(1200, 900);
-  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1200, 900) * devicePixelRatio;
+  tester.view.devicePixelRatio = devicePixelRatio;
   addTearDown(tester.view.reset);
   cli ??= FakeCli();
   final fake = cli;
@@ -304,6 +305,7 @@ void main() {
         tester,
         zoom: zoom,
         platform: touch ? TargetPlatform.iOS : TargetPlatform.macOS,
+        devicePixelRatio: zoom > 1 ? 2 : 1,
         cli: FakeCli(
           answers: {
             'cancel_async_message': {'cancelled': true},
@@ -320,7 +322,7 @@ void main() {
       expect(order(), ['then the tests', 'and lint']);
 
       final row = find.text('and lint');
-      final before = tester.getTopLeft(row);
+      final before = tester.getRect(row);
       final gesture = await tester.startGesture(
         tester.getCenter(row),
         kind: touch ? ui.PointerDeviceKind.touch : ui.PointerDeviceKind.mouse,
@@ -337,13 +339,17 @@ void main() {
       );
       expect(
         tester.getTopLeft(proxy),
-        offsetMoreOrLessEquals(before + step, epsilon: 0.01),
+        offsetMoreOrLessEquals(before.topLeft + step, epsilon: 0.01),
       );
       await gesture.moveBy(step);
       await tester.pump();
       expect(
         tester.getTopLeft(proxy),
-        offsetMoreOrLessEquals(before + step * 2, epsilon: 0.01),
+        offsetMoreOrLessEquals(before.topLeft + step * 2, epsilon: 0.01),
+      );
+      expect(
+        tester.getBottomRight(proxy),
+        offsetMoreOrLessEquals(before.bottomRight + step * 2, epsilon: 0.01),
       );
       expect(order(), ['then the tests', 'and lint']);
       await gesture.up();
@@ -376,11 +382,12 @@ void main() {
       session.send(ComposerMessage(text: text));
     }
     await tester.pump(const Duration(milliseconds: 100));
-    final viewport = find.descendant(
-      of: find.byType(QueuePanel),
-      matching: find.byType(SingleChildScrollView),
-    );
-    final scroll = tester.widget<SingleChildScrollView>(viewport).controller!;
+    final viewport = find.byType(ReorderableListView);
+    final scroll = tester
+        .state<ScrollableState>(
+          find.descendant(of: viewport, matching: find.byType(Scrollable)),
+        )
+        .position;
     Future<TestGesture> dragToBottom() async {
       final first = tester.getCenter(find.text(messages.first));
       final gesture = await tester.startGesture(
@@ -388,8 +395,10 @@ void main() {
         kind: ui.PointerDeviceKind.mouse,
       );
       await gesture.moveTo(Offset(first.dx, tester.getBottomLeft(viewport).dy));
-      await tester.pump(const Duration(milliseconds: 800));
-      expect(scroll.offset, scroll.position.maxScrollExtent);
+      for (var i = 0; i < 30 && scroll.pixels < scroll.maxScrollExtent; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(scroll.pixels, scroll.maxScrollExtent);
       return gesture;
     }
 
@@ -403,6 +412,8 @@ void main() {
     await tester.pump();
     final dropped = await dragToBottom();
     await dropped.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 100));
     expect(
       [for (final (_, item) in session.queued) item.text],
