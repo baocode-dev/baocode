@@ -81,15 +81,21 @@ class SshStatusIndicator implements IdeRemoteIndicator {
         onTapRect: onChoose,
       ),
       SshHostState.reconnecting => IdeStatusBarItem(
-        l10n.remoteStatusReconnecting(kind, name),
-        icon: Codicons.sync,
+        host.down
+            ? l10n.remoteStatusDown(kind, name)
+            : l10n.remoteStatusReconnecting(kind, name),
+        icon: host.down ? Codicons.debugDisconnect : Codicons.sync,
         // The session there kept, or gone too.
         tooltip: tooltip(
-          host.client != null
-              ? l10n.remoteStatusTooltipResuming(name)
-              : l10n.remoteStatusTooltipLost(name),
+          [
+            host.client != null
+                ? l10n.remoteStatusTooltipResuming(name)
+                : l10n.remoteStatusTooltipLost(name),
+            if (host.down) ?sshErrorText(host.error, l10n).$1,
+          ].join('\n'),
         ),
         onTapRect: onChoose,
+        color: host.down ? themeColors['errorForeground'] : null,
       ),
       SshHostState.failed || SshHostState.idle => IdeStatusBarItem(
         l10n.remoteStatusFailed(kind, name),
@@ -235,9 +241,9 @@ class _InstallCard extends StatelessWidget {
   }
 }
 
-/// Over a remote project's composer while its host cannot be reached (and
-/// is not being tried again by itself): why, with a way to try again.
-/// Nothing otherwise.
+/// Over a remote project's composer while its host cannot be reached
+/// ([SshHost.down]: failed, or lost and not back for a while, what is sent
+/// meanwhile waiting): why, with a way to try again now. Nothing otherwise.
 class SshHostBanner extends StatelessWidget {
   const SshHostBanner({super.key, required this.location, this.hosts});
 
@@ -255,18 +261,29 @@ class SshHostBanner extends StatelessWidget {
     return ListenableBuilder(
       listenable: host,
       builder: (context, _) {
-        if (host.state != SshHostState.failed) return const SizedBox.shrink();
+        if (!host.down) return const SizedBox.shrink();
         final (message, detail) = sshErrorText(host.error, context.l10n);
+        final hostName = RemoteLocation.hostName(name);
+        // Lost: being tried again, and what is sent waits, said first; why
+        // under Details.
+        final lost = host.state != SshHostState.failed;
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: HealthBanner(
             health: KernelHealth(
               KernelHealthStatus.failed,
-              message: [
-                context.l10n.remoteConnectFailed(RemoteLocation.hostName(name)),
-                ?message,
-              ].join(': '),
-              detail: detail,
+              message: lost
+                  ? context.l10n.remoteConnectionLost(hostName)
+                  : [
+                      context.l10n.remoteConnectFailed(hostName),
+                      ?message,
+                    ].join(': '),
+              detail: lost
+                  ? switch ([?message, ?detail]) {
+                      [] => null,
+                      final lines => lines.join('\n'),
+                    }
+                  : detail,
             ),
             kernelName: name,
             onRetry: () => host.reconnect().ignore(),

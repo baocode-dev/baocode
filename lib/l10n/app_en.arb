@@ -5758,6 +5758,14 @@
       }
     }
   },
+  "remoteConnectionLost": "The connection to {host} is lost, and being tried again by itself. What you send waits until it is back",
+  "@remoteConnectionLost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
   "remoteRetry": "Retry",
   "remoteSignInTitle": "Sign in to {host}",
   "@remoteSignInTitle": {
@@ -5843,6 +5851,18 @@
   },
   "remoteStatusFailed": "{kind}: {host} (disconnected)",
   "@remoteStatusFailed": {
+    "placeholders": {
+      "kind": {
+        "type": "String",
+        "description": "How the host is reached: SSH, or WSL for a WSL distribution."
+      },
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteStatusDown": "{kind}: {host} (disconnected, retrying...)",
+  "@remoteStatusDown": {
     "placeholders": {
       "kind": {
         "type": "String",
@@ -6539,6 +6559,7 @@
   "sidebarHostConnected": "Connected",
   "sidebarHostConnecting": "Connecting...",
   "sidebarHostDisconnected": "Disconnected",
+  "sidebarHostDown": "Disconnected, retrying...",
   "sidebarHostIdle": "Not connected",
   "sidebarDisconnectHost": "Disconnect",
   "sidebarRemoveHost": "Remove Host",

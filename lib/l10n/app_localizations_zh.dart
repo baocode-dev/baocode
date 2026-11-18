@@ -7647,6 +7647,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String remoteConnectionLost(String host) {
+    return '与 $host 的连接已断开，正在自动重试。发出的消息会等连上后再处理';
+  }
+
+  @override
   String get remoteRetry => '重试';
 
   @override
@@ -7710,6 +7715,11 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String remoteStatusFailed(String kind, String host) {
     return '$kind: $host（已断开）';
+  }
+
+  @override
+  String remoteStatusDown(String kind, String host) {
+    return '$kind: $host（已断开，正在重试...）';
   }
 
   @override
@@ -8440,6 +8450,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sidebarHostDisconnected => '已断开';
+
+  @override
+  String get sidebarHostDown => '已断开，正在重试...';
 
   @override
   String get sidebarHostIdle => '未连接';
