@@ -9,7 +9,7 @@ import 'file_service.dart';
 import 'host_paths.dart';
 
 export 'package:bao_remote/local.dart'
-    show readFileBytes, walkProjectFiles, watchDirectory;
+    show listProjectFilesSync, readFileBytes, walkProjectFiles, watchDirectory;
 
 class LocalIdeFileService extends LocalFiles implements IdeFileService {
   LocalIdeFileService(super.root);

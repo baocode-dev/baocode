@@ -1357,6 +1357,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get quickOpenNoMatchingResults => '没有匹配的结果';
 
   @override
+  String quickOpenTooManyFiles(int count) {
+    return '只搜索了前 $count 个文件，项目里的文件更多';
+  }
+
+  @override
   String get quickOpenRecentlyUsed => '最近使用';
 
   @override

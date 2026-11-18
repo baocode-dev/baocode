@@ -566,6 +566,14 @@
   "quickOpenSearchingFiles": "Searching files…",
   "quickOpenNoFiles": "No files in this project",
   "quickOpenNoMatchingResults": "No matching results",
+  "quickOpenTooManyFiles": "Only the first {count} files are searched: this project has more",
+  "@quickOpenTooManyFiles": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "quickOpenRecentlyUsed": "recently used",
   "@quickOpenRecentlyUsed": {
     "description": "Command palette group label."
