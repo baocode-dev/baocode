@@ -27,7 +27,7 @@
 
 <main class="page">
   <h1>BaoCode on your phone and your privacy</h1>
-  <p class="meta"><span>Updated 21 October 2026</span></p>
+  <p class="meta"><span>Updated 18 November 2026</span></p>
 
   <p>BaoCode on your phone connects to BaoCode on your computers, the desktop app, so you can follow its agents, answer them and send them messages while you’re away. This page says what the phone app keeps, what it sends, and to whom.</p>
 
@@ -42,8 +42,12 @@
     <li><strong>Camera</strong>: to scan the QR code your computer shows to pair, and to take a photo you send to an agent.</li>
     <li><strong>Photos</strong>: to send the photos you pick to an agent. It sees only the ones you pick.</li>
     <li><strong>Local network</strong>: to find your computers on the same network, and connect to them.</li>
-    <li><strong>Notifications</strong>: to tell you when an agent asks you something or finishes. They are shown by the phone itself; no push service is involved.</li>
+    <li><strong>Notifications</strong>: to tell you when an agent asks you something or finishes, and to show what your own scripts push you, if you turn that on.</li>
   </ul>
+
+  <h2 class="plain">Notifications on an iPhone</h2>
+  <p>While the app is open, or just in the background, it shows notifications itself. Once iOS suspends it, your computer sends them instead, through push.baocode.dev on to Apple’s push service (APNs): the notification’s title and text pass through, and aren’t kept. On Android there is no push service: the app stays connected in the background and shows them itself.</p>
+  <p>If you turn on Settings → Notifications → Push from scripts, the app makes a push key and gives it, with the phone’s push address, to push.baocode.dev, which keeps the two and a hash of a secret only the app knows; what is pushed passes through, and isn’t kept. Reset the key and the old one is deleted; a key whose app isn’t opened for 180 days is deleted too. <a href="/push">How pushing from scripts works</a>.</p>
 
   <h2 class="plain">Your computer and your AI provider</h2>
   <p>What you send from the phone, messages, answers and photos, goes to BaoCode on your computer, as if you had typed it there. The agents there send their conversations to the AI model you use (Anthropic’s for Claude Code, or a provider you set up yourself), under that provider’s terms.</p>

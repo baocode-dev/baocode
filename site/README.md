@@ -33,6 +33,9 @@ served as it is, `/download` being `download.html`.
   private baocode.dev repository), seen on its dashboard. The README's
   picture of them, `docs/readme/reviews*.png`, is drawn as HTML and
   screenshot.
+- `push.html`, `zh/push.html`: pushing the iPhone app from the user's own
+  scripts (`push.baocode.dev/v1/notify/<key>`, in the private baocode.dev
+  repository), linked from the app's notification settings.
 - `qr/`: the phone cards' QR codes, made by
   `dart run tool/make_download_qr.dart`.
 - Copy marked `<mark class="todo">` is still to be written.
