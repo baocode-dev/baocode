@@ -534,6 +534,13 @@ void main() {
       );
     });
 
+    test("baocode.dev's Codex version, none where it has none", () {
+      expect(parseCodexVersion('{"clientVersion": " 0.170.0 "}'), '0.170.0');
+      expect(parseCodexVersion('{"clientVersion": ""}'), isNull);
+      expect(parseCodexVersion('{"clientVersion": 170}'), isNull);
+      expect(parseCodexVersion('<html>'), isNull);
+    });
+
     test('the models it lists, with their efforts', () {
       final models = parseCodexModels({
         'models': [
@@ -844,12 +851,13 @@ void main() {
       expect(asked.headers['chatgpt-account-id'], 'ws-a');
       expect(asked.query['client_version'], codexClientVersion);
 
-      // A version of the provider's own: asked as that Codex CLI.
-      await providers.save(provider().copyWith(clientVersion: () => '0.170.0'));
+      // A version baocode.dev says: asked as that Codex CLI.
+      codexVersion = '0.170.0';
+      addTearDown(() => codexVersion = codexClientVersion);
       await accounts.listModels(provider());
       final newer = openai.to('/backend-api/codex/models').last;
       expect(newer.query['client_version'], '0.170.0');
-      expect(newer.headers['user-agent'], codexUserAgent('0.170.0'));
+      expect(newer.headers['user-agent'], contains('codex-tui/0.170.0'));
     });
 
     group('reset credits', () {
@@ -1993,6 +2001,6 @@ void main() {
       UpstreamUrls.conversation(provider),
       const CodexEndpoints().responses,
     );
-    expect(UpstreamUrls.models(provider), [const CodexEndpoints().models()]);
+    expect(UpstreamUrls.models(provider), [const CodexEndpoints().models]);
   });
 }

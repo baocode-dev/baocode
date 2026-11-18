@@ -39,6 +39,11 @@
 /featured/*
   Cache-Control: public, max-age=300
 
+# The Codex CLI's version ChatGPT accounts' requests go as
+# (lib/models/codex/codex_api.dart): a new one taken within minutes.
+/codex.json
+  Cache-Control: public, max-age=300
+
 # The channels' editions (site.js): a change shows
 # within minutes.
 /channels.json

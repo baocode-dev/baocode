@@ -120,14 +120,12 @@ void main() {
         preserveThinking: true,
         promptCacheKey: false,
         env: {'A': '1'},
-        clientVersion: '0.170.0',
         icon: BrandIcon('deepseek'),
       );
       final back = ModelProvider.fromJson(provider.toJson())!;
       expect(back.toJson(), provider.toJson());
       expect(back.models.single, provider.models.single);
       expect(back.roles, provider.roles);
-      expect(back.clientVersion, '0.170.0');
       expect(back.icon, const BrandIcon('deepseek'));
       // A logo this version does not have is none.
       expect(
@@ -211,19 +209,6 @@ void main() {
       expect(
         substituteVariables('{{REQUEST_ID}}', const {'REQUEST_ID': 'r-9'}),
         'r-9',
-      );
-    });
-
-    test('a Codex version that is not one is read as none', () {
-      ModelProvider read(Object? version) =>
-          ModelProvider.fromJson({'id': 'p', 'clientVersion': version})!;
-      expect(read(' 0.170.0 ').clientVersion, '0.170.0');
-      expect(read('').clientVersion, isNull);
-      expect(read('0.1\r\nx: y').clientVersion, isNull);
-      expect(read(170).clientVersion, isNull);
-      expect(
-        const ModelProvider(id: 'p', name: 'P').toJson(),
-        isNot(contains('clientVersion')),
       );
     });
 

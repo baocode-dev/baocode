@@ -89,9 +89,7 @@ abstract final class UpstreamUrls {
   /// rest still after: should they move it, or list at the endpoint.
   static List<Uri> modelsByBase(ModelProvider provider) =>
       switch (provider.protocol) {
-        ProviderProtocol.codex => [
-          const CodexEndpoints().models(codexVersionOf(provider)),
-        ],
+        ProviderProtocol.codex => [const CodexEndpoints().models],
         ProviderProtocol.anthropic => switch (anthropicBase(provider.baseUrl)) {
           final base? => _anthropicModels(Uri.parse(base)),
           null => const [],
