@@ -7501,7 +7501,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceSettingsMinimapDescription =>
-      '在对话左侧显示整段对话的缩略图，滚动时显示当前所在位置，点击或拖动即可跳转。开启时代替右侧滚动条；窗口太窄时不显示。关闭后恢复右侧滚动条。';
+      '在对话旁显示整段对话的缩略图，滚动时显示当前所在位置，点击或拖动即可跳转。开启时代替右侧滚动条；窗口太窄时不显示。关闭后恢复右侧滚动条。';
 
   @override
   String get appearanceSettingsWindowBlur => '原生高斯模糊';
@@ -7552,6 +7552,24 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get minimapElasticityBouncy => 'Q 弹';
+
+  @override
+  String get appearanceSettingsMinimapSide => '缩略图位置';
+
+  @override
+  String get appearanceSettingsMinimapSideDescription =>
+      '缩略图放在对话的左侧还是右侧。放在右侧时占用滚动条的位置，在侧边面板按钮的下方。';
+
+  @override
+  String appearanceSettingsMinimapSideLabel(String side) {
+    return '缩略图位置：$side';
+  }
+
+  @override
+  String get minimapSideLeft => '左侧';
+
+  @override
+  String get minimapSideRight => '右侧';
 
   @override
   String get appearanceSettingsCodeFont => '代码字体';

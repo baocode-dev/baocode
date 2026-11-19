@@ -109,7 +109,13 @@ class SubagentHeader extends StatelessWidget {
   final bool minimap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    // The side its room is on.
+    valueListenable: ChatMinimap.side,
+    builder: (context, _, _) => _build(context),
+  );
+
+  Widget _build(BuildContext context) {
     return Semantics(
       container: true,
       header: true,
@@ -122,6 +128,7 @@ class SubagentHeader extends StatelessWidget {
         // Level with the history's, its padding as wide as its margin.
         room: minimap ? ChatMinimap.room - 24 : 0,
         roomFrom: ChatMinimap.roomFrom + 48,
+        roomRight: ChatMinimap.side.value == ChatMinimapSide.right,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 6, 24, 4),
           child: Row(

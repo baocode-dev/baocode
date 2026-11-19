@@ -65,9 +65,10 @@ class ChatHistoryView extends StatefulWidget {
   final ChatFeed feed;
   final double maxContentWidth;
 
-  /// Whether a minimap of it shows in the margin left of its column, when
-  /// there is room for one (see [ChatMinimap]). Its room is kept only
-  /// once the conversation is long: until then there is none to show.
+  /// Whether a minimap of it shows in the margin beside its column (on
+  /// [ChatMinimap.side]), when there is room for one (see [ChatMinimap]).
+  /// Its room is kept only once the conversation is long: until then there
+  /// is none to show.
   final bool minimap;
 
   /// Told whether the column keeps the minimap's room, for what is level
@@ -685,6 +686,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     _scrollController.addListener(_handleScroll);
     _feed.addListener(_handleSessionChanged);
     UserMessageStyle.current.addListener(_handleStyleChanged);
+    ChatMinimap.side.addListener(_handleStyleChanged);
     // Its size, for a slow frame's line in the event log.
     FrameWatch.notes[this] = _frameNote;
     _wasLive = _feed.isStreaming;
@@ -876,6 +878,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       ..removeListener(_findChanged)
       ..dispose();
     UserMessageStyle.current.removeListener(_handleStyleChanged);
+    ChatMinimap.side.removeListener(_handleStyleChanged);
     _reselectTimer?.cancel();
     _scrubEnded?.cancel();
     _leavingDone?.cancel();
@@ -2088,6 +2091,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                         left: _columnLeft,
                         room: _room,
                         roomFrom: ChatMinimap.roomFrom,
+                        roomRight: _roomRight,
                         child: UserMessageBubble(
                           key: ValueKey(('sticky', index)),
                           text: item.text,
@@ -2137,6 +2141,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                     left: _columnLeft,
                     room: _room,
                     roomFrom: ChatMinimap.roomFrom,
+                    roomRight: _roomRight,
                     // Opening, the message's frame grows into the editor's;
                     // without one, as much of it as its placeholder has room
                     // for. It does not cover what is below it yet.
@@ -2353,6 +2358,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
         left: _columnLeft,
         room: _room,
         roomFrom: ChatMinimap.roomFrom,
+        roomRight: _roomRight,
         child: Padding(
           // All but the user's messages a little narrower than those.
           padding: EdgeInsets.only(
@@ -2709,6 +2715,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
       left: math.max(0.0, _insetLeft - gutter),
       room: _roomAt(gutter),
       roomFrom: ChatMinimap.roomFrom,
+      roomRight: _roomRight,
     );
     return (left: gutter + column.left, width: column.width);
   }
@@ -2765,6 +2772,9 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
 
   double get _room => _roomAt(_gutter);
 
+  /// Whether the room is the column's right (see [ChatMinimap.side]).
+  bool get _roomRight => ChatMinimap.side.value == ChatMinimapSide.right;
+
   /// Whether the minimap has room beside the column, as last built.
   bool _minimapFits = false;
 
@@ -2799,7 +2809,12 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
           final left = math.max(0.0, insetLeft - gutter);
           final minimapFits =
               widget.minimap &&
-              ChatMinimap.besides(_columnIn(constraints.maxWidth)) != null;
+              ChatMinimap.besides(
+                    _columnIn(constraints.maxWidth),
+                    width: constraints.maxWidth,
+                    side: ChatMinimap.side.value,
+                  ) !=
+                  null;
           if (_built == null ||
               gutter != _gutter ||
               right != _columnRight ||
@@ -3029,6 +3044,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
                         _editorMoved,
                       ]),
                       columnIn: _columnIn,
+                      at: ChatMinimap.side.value,
                       long: _long,
                       scrolling: () =>
                           _scrollController.hasClients && _userScrolling,

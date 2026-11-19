@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:baocode/chat/chat_column.dart';
 import 'package:baocode/chat/chat_feed.dart';
 import 'package:baocode/chat/chat_history_view.dart';
 import 'package:baocode/chat/chat_models.dart';
@@ -71,20 +72,33 @@ Future<void> _pump(
   double width = 1200,
   double maxWidth = 720,
   bool minimap = true,
+  ChatMinimapSide side = ChatMinimapSide.left,
+  ({double left, double right, Rect? rail})? inset,
 }) async {
   tester.view.physicalSize = Size(width, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
+  ChatMinimap.side.value = side;
+  addTearDown(() => ChatMinimap.side.value = ChatMinimap.defaultSide);
+  Widget history = ChatHistoryView(
+    feed: feed,
+    maxContentWidth: maxWidth,
+    minimap: minimap,
+  );
+  if (inset != null) {
+    final rail = ValueNotifier<Rect?>(inset.rail);
+    addTearDown(rail.dispose);
+    history = ChatColumnInset(
+      left: inset.left,
+      right: inset.right,
+      rail: rail,
+      child: history,
+    );
+  }
   await tester.pumpWidget(
     MaterialApp(
       theme: buildAppTheme(),
-      home: Scaffold(
-        body: ChatHistoryView(
-          feed: feed,
-          maxContentWidth: maxWidth,
-          minimap: minimap,
-        ),
-      ),
+      home: Scaffold(body: history),
     ),
   );
   await tester.pumpAndSettle();
@@ -162,6 +176,102 @@ void main() {
       },
     );
   }
+
+  // At the right: the column's left level with the composer's (which keeps
+  // the room either side), its right clear of the minimap.
+  for (final (width, maxWidth) in [
+    (1300.0, 1200.0),
+    (1200.0, 720.0),
+    (790.0, 1200.0),
+    (600.0, 720.0),
+  ]) {
+    testWidgets('at the right of a column ${maxWidth.round()} at most, in a '
+        '${width.round()} window', (tester) async {
+      await _pump(
+        tester,
+        _Feed(_conversation(30)),
+        width: width,
+        maxWidth: maxWidth,
+        side: ChatMinimapSide.right,
+      );
+      expect(_opacity(tester), 1);
+      final strip = _track(tester);
+      expect(strip.width, 24);
+      expect(width - strip.right, greaterThanOrEqualTo(12));
+      for (final text in find.byType(AssistantText).evaluate()) {
+        final rect = tester.getRect(find.byWidget(text.widget));
+        expect(strip.left, greaterThanOrEqualTo(rect.right + 20));
+      }
+      final text = tester.getRect(find.byType(AssistantText).first);
+      if (width < maxWidth + 2 * ChatMinimap.room) {
+        expect(text.left, greaterThanOrEqualTo(ChatMinimap.room));
+      } else {
+        // Room enough: in the middle, as on the left.
+        expect(text.left, greaterThan(strip.width + 2 * ChatMinimap.room));
+      }
+      expect(_scrollbar(tester).interactive, isFalse);
+    });
+  }
+
+  testWidgets('the side chosen moves it, and the column, at once', (
+    tester,
+  ) async {
+    await _pump(tester, _Feed(_conversation(30)), width: 790, maxWidth: 1200);
+    final text = tester.getRect(find.byType(AssistantText).first);
+    expect(_track(tester).right, lessThanOrEqualTo(text.left - 20));
+    ChatMinimap.side.value = ChatMinimapSide.right;
+    await tester.pumpAndSettle();
+    final moved = tester.getRect(find.byType(AssistantText).first);
+    expect(_track(tester).left, greaterThanOrEqualTo(moved.right + 20));
+    expect(moved.left, text.left);
+  });
+
+  // The side panel's rail floats over the margin's top: under it, the
+  // minimap starts below it; beside it, as it would.
+  for (final side in ChatMinimapSide.values) {
+    testWidgets('under the rail at the ${side.name}, below it', (tester) async {
+      const width = 900.0;
+      const railInset = 56.0;
+      final right = side == ChatMinimapSide.right;
+      final rail = right
+          ? const Rect.fromLTWH(width - 48, 12, 36, 130)
+          : const Rect.fromLTWH(12, 12, 36, 130);
+      await _pump(
+        tester,
+        _Feed(_conversation(30)),
+        width: width,
+        maxWidth: 1200,
+        side: side,
+        inset: (
+          left: right ? 0 : railInset,
+          right: right ? railInset : 0,
+          rail: rail,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(_opacity(tester), 1);
+      final strip = _track(tester);
+      expect(strip.left, lessThan(rail.right));
+      expect(strip.right, greaterThan(rail.left));
+      expect(strip.top, greaterThanOrEqualTo(rail.bottom + 8));
+      expect(strip.bottom, 800 - 14);
+    });
+  }
+
+  testWidgets('beside the rail, not under it, from the top', (tester) async {
+    const width = 1400.0;
+    const rail = Rect.fromLTWH(width - 48, 12, 36, 130);
+    await _pump(
+      tester,
+      _Feed(_conversation(30)),
+      width: width,
+      side: ChatMinimapSide.right,
+      inset: (left: 0, right: 56, rail: rail),
+    );
+    final strip = _track(tester);
+    expect(strip.right, lessThan(rail.left));
+    expect(strip.top, 14);
+  });
 
   testWidgets('gives way in a very narrow pane only', (tester) async {
     await _pump(tester, _Feed(_conversation(30)), width: 600);
@@ -366,6 +476,29 @@ void main() {
     await tester.sendEventToBinding(pointer.hover(history.center));
     await tester.pumpAndSettle();
     expect(peek, findsNothing);
+  });
+
+  testWidgets('at the right, it peeks to its left', (tester) async {
+    await _pump(tester, _Feed(_conversation(30)), side: ChatMinimapSide.right);
+    final strip = tester.getRect(_strip);
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    final peek = find.descendant(
+      of: find.byType(ChatMinimap),
+      matching: find.textContaining('问题'),
+    );
+    for (var y = strip.top + 2; y < strip.bottom; y += 3) {
+      // Beside it, toward the edge: near enough.
+      await tester.sendEventToBinding(
+        pointer.hover(Offset(strip.right + 6, y)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      if (peek.evaluate().isNotEmpty) break;
+    }
+    expect(peek, findsOneWidget);
+    await tester.pumpAndSettle();
+    final card = tester.getRect(peek);
+    expect(card.right, lessThanOrEqualTo(strip.left));
+    expect(card.left, greaterThan(0));
   });
 
   testWidgets('the wheel over it scrolls the history', (tester) async {

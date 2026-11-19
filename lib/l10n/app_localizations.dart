@@ -12864,7 +12864,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceSettingsMinimapDescription.
   ///
   /// In en, this message translates to:
-  /// **'A minimap of the whole conversation at the left of its column, where you are in it shown as you scroll; click or drag it to get somewhere. It stands in for the scrollbar, and is not shown in a window too narrow for it. Off: the scrollbar.'**
+  /// **'A minimap of the whole conversation beside its column, where you are in it shown as you scroll; click or drag it to get somewhere. It stands in for the scrollbar, and is not shown in a window too narrow for it. Off: the scrollbar.'**
   String get appearanceSettingsMinimapDescription;
 
   /// No description provided for @appearanceSettingsWindowBlur.
@@ -12950,6 +12950,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bouncy'**
   String get minimapElasticityBouncy;
+
+  /// No description provided for @appearanceSettingsMinimapSide.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimap Position'**
+  String get appearanceSettingsMinimapSide;
+
+  /// No description provided for @appearanceSettingsMinimapSideDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Which side of the conversation\'s column the minimap is on. At the right it takes the scrollbar\'s place, below the side panel\'s buttons.'**
+  String get appearanceSettingsMinimapSideDescription;
+
+  /// No description provided for @appearanceSettingsMinimapSideLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Minimap position: {side}'**
+  String appearanceSettingsMinimapSideLabel(String side);
+
+  /// No description provided for @minimapSideLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Left'**
+  String get minimapSideLeft;
+
+  /// No description provided for @minimapSideRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Right'**
+  String get minimapSideRight;
 
   /// No description provided for @appearanceSettingsCodeFont.
   ///

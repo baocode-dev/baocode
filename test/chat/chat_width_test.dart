@@ -72,6 +72,15 @@ void main() {
     expect(ChatMinimap.setting(false), isFalse);
   });
 
+  test('settings.json\'s chat.minimapSide: unset or unknown is the left, '
+      'only the right is written', () {
+    expect(ChatMinimap.parseSide(null), ChatMinimapSide.left);
+    expect(ChatMinimap.parseSide('middle'), ChatMinimapSide.left);
+    expect(ChatMinimap.parseSide('right'), ChatMinimapSide.right);
+    expect(ChatMinimap.sideSetting(ChatMinimapSide.left), isNull);
+    expect(ChatMinimap.sideSetting(ChatMinimapSide.right), 'right');
+  });
+
   test('settings.json\'s chat.minimapGlass: a step, unset or not a number '
       'is 75%, only another is written', () {
     expect(ChatMinimap.parseGlass(null), 0.75);
