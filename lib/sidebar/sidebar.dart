@@ -1321,6 +1321,13 @@ class _SidebarState extends State<Sidebar>
         final elsewhere = _needingYou(
           where: (host) => !_workspace.listsHost(host),
         );
+        // All's: the hosts of its projects that cannot be reached, which
+        // it lists as if they could.
+        final down = [
+          if (all)
+            for (final host in _workspace.sshHosts)
+              if (hosts[host].down) host,
+        ];
         final icon = _HostIcon(
           key: _hostIconKey,
           workspace: _workspace,
@@ -1361,6 +1368,9 @@ class _SidebarState extends State<Sidebar>
               content: (context) => Text(
                 [
                   if (current != null && label != current) current,
+                  for (final host in down)
+                    '${_workspace.hostLabel(host)}: '
+                        '${_hostStateLabel(l10n, hosts[host])}',
                   elsewhere.isEmpty
                       ? l10n.sidebarSwitchHost
                       : l10n.sidebarElsewhereNeedsYou(elsewhere.length),
@@ -1397,6 +1407,9 @@ class _SidebarState extends State<Sidebar>
                       if (current != null) ...[
                         const SizedBox(width: 5),
                         _HostDot(hosts[current]),
+                      ] else if (all && down.isNotEmpty) ...[
+                        const SizedBox(width: 5),
+                        const _HostDot.down(),
                       ],
                       Icon(
                         Icons.keyboard_arrow_down_rounded,
@@ -1473,7 +1486,10 @@ class _SidebarState extends State<Sidebar>
             host: host,
             attention: null,
           ),
-          detail: waiting(host) ?? _stateLabel(l10n, hosts[host]),
+          // Down, said over what waits there: it waits on the host too.
+          detail: hosts[host].down
+              ? _hostStateLabel(l10n, hosts[host])
+              : waiting(host) ?? _hostStateLabel(l10n, hosts[host]),
           checked: current == host,
           onSelected: () => _workspace.sidebarHost = host,
         ),
@@ -1542,15 +1558,6 @@ class _SidebarState extends State<Sidebar>
       anchor: box.localToGlobal(Offset.zero) & box.size,
     );
   }
-
-  static String _stateLabel(AppLocalizations l10n, SshHost host) =>
-      switch (host.state) {
-        SshHostState.connected => l10n.sidebarHostConnected,
-        SshHostState.connecting ||
-        SshHostState.reconnecting => l10n.sidebarHostConnecting,
-        SshHostState.failed => l10n.sidebarHostDisconnected,
-        SshHostState.idle => l10n.sidebarHostIdle,
-      };
 
   Future<void> _confirmRemoveHost(String host) async {
     final confirmed = await showDialog<bool>(
@@ -1845,6 +1852,12 @@ class _SidebarState extends State<Sidebar>
     final collapsible = _collapsible(group);
     final header = _GroupHeader(
       group: group,
+      // Every host's together: how each remote project's host is, which
+      // the heading does not say then.
+      host: switch (project?.host) {
+        final host? when _workspace.sidebarAllHosts => SshHosts.instance[host],
+        _ => null,
+      },
       collapsed: _collapsed(group),
       statuses: _collapsed(group) ? _groupStatuses(group) : const {},
       light: !collapsible,
@@ -2756,6 +2769,7 @@ class _GroupHeader extends StatelessWidget {
     required this.group,
     required this.collapsed,
     required this.onToggle,
+    this.host,
     this.statuses = const {},
     this.light = false,
     this.onCreate,
@@ -2772,6 +2786,11 @@ class _GroupHeader extends StatelessWidget {
 
   final _Group group;
   final bool collapsed;
+
+  /// The remote project's host, where the heading does not say how it is
+  /// (All): its dot after the name while it is not connected, the name
+  /// dimmed while it is [SshHost.down].
+  final SshHost? host;
 
   /// Folded, how many of its agents are at work, waiting on the user, or
   /// finished unseen (see [_SidebarState._groupStatuses]).
@@ -2886,7 +2905,36 @@ class _GroupHeader extends StatelessWidget {
                 Expanded(
                   child: Row(
                     children: [
-                      Flexible(child: _label(project)),
+                      Flexible(
+                        child: switch (host) {
+                          final host? => ListenableBuilder(
+                            listenable: host,
+                            builder: (context, child) => Opacity(
+                              opacity: host.down ? 0.55 : 1,
+                              child: child,
+                            ),
+                            child: _label(project),
+                          ),
+                          null => _label(project),
+                        },
+                      ),
+                      if (host case final host?)
+                        ListenableBuilder(
+                          listenable: host,
+                          builder: (context, _) =>
+                              host.state == SshHostState.connected ||
+                                  host.state == SshHostState.idle
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(left: 5),
+                                  child: _RowHover(
+                                    content: (context) => Text(
+                                      _hostStateLabel(context.l10n, host),
+                                    ),
+                                    child: _HostDot(host),
+                                  ),
+                                ),
+                        ),
                       if (pinned) ...[
                         const SizedBox(width: 4),
                         Icon(
@@ -4573,22 +4621,40 @@ class _HostIcon extends StatelessWidget {
   }
 }
 
-/// How [host]'s connection is: green while connected, red once failed,
-/// hollow otherwise.
-class _HostDot extends StatelessWidget {
-  const _HostDot(this.host);
+/// How [host]'s connection is, in words: lost a while ([SshHost.down]) not
+/// as one just being made.
+String _hostStateLabel(AppLocalizations l10n, SshHost host) =>
+    switch (host.state) {
+      SshHostState.connected => l10n.sidebarHostConnected,
+      SshHostState.reconnecting when host.down => l10n.sidebarHostDown,
+      SshHostState.connecting ||
+      SshHostState.reconnecting => l10n.sidebarHostConnecting,
+      SshHostState.failed => l10n.sidebarHostDisconnected,
+      SshHostState.idle => l10n.sidebarHostIdle,
+    };
 
-  final SshHost host;
+/// How [host]'s connection is: green while connected, red once
+/// [SshHost.down], yellow while being made, hollow otherwise; red alone
+/// ([_HostDot.down]) for some host of All's down.
+class _HostDot extends StatelessWidget {
+  const _HostDot(SshHost this.host);
+
+  const _HostDot.down() : host = null;
+
+  final SshHost? host;
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (host.state) {
-      SshHostState.connected => themeColors['charts.green'],
-      SshHostState.failed => themeColors['errorForeground'],
-      SshHostState.connecting ||
-      SshHostState.reconnecting => themeColors['charts.yellow'],
-      SshHostState.idle => null,
-    };
+    final host = this.host;
+    final color = host == null || host.down
+        ? themeColors['errorForeground']
+        : switch (host.state) {
+            SshHostState.connected => themeColors['charts.green'],
+            SshHostState.connecting ||
+            SshHostState.reconnecting => themeColors['charts.yellow'],
+            SshHostState.failed => themeColors['errorForeground'],
+            SshHostState.idle => null,
+          };
     return Container(
       width: 6,
       height: 6,

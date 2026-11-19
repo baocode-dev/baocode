@@ -13209,6 +13209,12 @@ abstract class AppLocalizations {
   /// **'Could not connect to {host}'**
   String remoteConnectFailed(String host);
 
+  /// No description provided for @remoteConnectionLost.
+  ///
+  /// In en, this message translates to:
+  /// **'The connection to {host} is lost, and being tried again by itself. What you send waits until it is back'**
+  String remoteConnectionLost(String host);
+
   /// No description provided for @remoteRetry.
   ///
   /// In en, this message translates to:
@@ -13304,6 +13310,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{kind}: {host} (disconnected)'**
   String remoteStatusFailed(String kind, String host);
+
+  /// No description provided for @remoteStatusDown.
+  ///
+  /// In en, this message translates to:
+  /// **'{kind}: {host} (disconnected, retrying...)'**
+  String remoteStatusDown(String kind, String host);
 
   /// No description provided for @remoteStatusInstalling.
   ///
@@ -14528,6 +14540,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Disconnected'**
   String get sidebarHostDisconnected;
+
+  /// No description provided for @sidebarHostDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected, retrying...'**
+  String get sidebarHostDown;
 
   /// No description provided for @sidebarHostIdle.
   ///

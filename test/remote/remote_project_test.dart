@@ -216,6 +216,35 @@ void main() {
       await until(() => host.state == SshHostState.connected);
     });
 
+    test('lost for a while: down, not still connecting; back: not', () async {
+      final host = SshHost(
+        'dev',
+        connect: connector.call,
+        maxBackoff: const Duration(milliseconds: 1),
+        downAfter: const Duration(milliseconds: 100),
+      );
+      addTearDown(host.close);
+      await host.ready;
+      expect(host.down, isFalse);
+      connector.failure = const SshConnectException(
+        SshFailure.unreachable,
+        'The host could not be reached.',
+      );
+      await connector.links.single.drop();
+      await until(() => host.state == SshHostState.reconnecting);
+      // Lost a moment: just being made again.
+      expect(host.down, isFalse);
+      var told = false;
+      host.addListener(() => told |= host.down);
+      await until(() => host.down);
+      expect(told, isTrue, reason: 'listeners are told it is down');
+      expect(host.state, SshHostState.reconnecting);
+
+      connector.failure = null;
+      await until(() => host.state == SshHostState.connected);
+      expect(host.down, isFalse);
+    });
+
     test('a project\'s sessions are listed once its host is reached', () async {
       final mock = MockKernels.claudeCode;
       final workspace = Workspace(
@@ -290,6 +319,48 @@ void main() {
       await tester.pump();
       expect(
         find.text('https://dl.baocode.dev/x.gz: HTTP 404'),
+        findsOneWidget,
+      );
+
+      connector.failure = null;
+      await tester.tap(find.text('Retry'));
+      await tester.runAsync(
+        () => until(() => hosts['dev'].state == SshHostState.connected),
+      );
+      await tester.pump();
+      expect(find.byType(HealthBanner), findsNothing);
+    });
+
+    testWidgets('one lost for a while is said over the chat, though tried '
+        'again by itself', (tester) async {
+      hosts = SshHosts.instance = SshHosts(
+        connect: connector.call,
+        downAfter: const Duration(milliseconds: 100),
+      );
+      final location = RemoteLocation.of('dev', root);
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: SshHostBanner(location: location)),
+        ),
+      );
+      await tester.runAsync(() => hosts['dev'].ready);
+      connector.failure = const SshConnectException(
+        SshFailure.unreachable,
+        'The host could not be reached.',
+      );
+      await tester.runAsync(() async {
+        await connector.links.single.drop();
+        await until(() => hosts['dev'].state == SshHostState.reconnecting);
+      });
+      await tester.pump();
+      expect(find.byType(HealthBanner), findsNothing);
+
+      await tester.runAsync(() => until(() => hosts['dev'].down));
+      await tester.pump();
+      expect(
+        find.textContaining('The connection to dev is lost'),
         findsOneWidget,
       );
 
