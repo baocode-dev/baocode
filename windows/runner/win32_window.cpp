@@ -808,12 +808,17 @@ void Win32Window::CheckFrameShown() {
     return;
   }
   // What DWM leaves out of the border at each side is its invisible part;
-  // the rest it shows, the outline its last pixel.
+  // the rest it shows, the outline its last pixels. The outline grows with
+  // the dpi (2 px at 150%: 2 of 11 or 13 shown, on builds 26100 and 26200),
+  // so it is most of the border shown that counts (6 of 9 on build 22000):
+  // taken for more, an outline moved the border inside where it was
+  // invisible — the content's outer pixels then resized the window, the
+  // scrollbar at the right edge among them, and could not be pressed.
   const SIZE border = ResizeBorder();
   const LONG shown = std::max({border.cx - (frame.left - bounds.left),
                                border.cx - (bounds.right - frame.right),
                                border.cy - (bounds.bottom - frame.bottom)});
-  if (shown <= 1) {
+  if (shown * 2 <= std::max(border.cx, border.cy)) {
     return;
   }
   LogContent(
