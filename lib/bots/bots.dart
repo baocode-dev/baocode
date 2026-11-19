@@ -40,7 +40,7 @@ typedef BotAvatarImage = ({Uint8List bytes, String type});
 /// sidebar does not list. Their tools are theirs ([ClaudeSdkGate]): those
 /// of the abilities the user turned on; and they write first of what
 /// happens to the agents, paced ([BotPacer]).
-class Bots extends ChangeNotifier implements ClaudeSdkGate {
+class Bots extends ChangeNotifier implements ClaudeSdkGate, SessionToolsBots {
   Bots({
     required this.workspace,
     BotFolders? folders,
@@ -169,7 +169,7 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     workspace.agentSetup = _setup;
     ClaudeSdkTools.gate = this;
     BotTools.register(this);
-    SessionTools.register(workspace);
+    SessionTools.register(workspace, bots: this);
     // The conversations kept from the last run listed first: else each
     // bot, finding none yet, would start another and go on in that.
     if (workspace.loading) await workspace.loaded;
@@ -535,6 +535,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
   bool offersTool(String cwd, String tool) {
     final ability = BotTools.abilityOf(tool);
     final bot = botAt(cwd);
+    // A project agent's as well, for one looking after the agents.
+    if (SessionTools.names.contains(tool)) {
+      return bot == null || bot.can(BotAbility.agents);
+    }
     if (bot == null) return ability == null;
     if (ability != null) return ability.allows(bot);
     // The app's other tools: pictures made; the browser's, if it may use
@@ -546,6 +550,38 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate {
     if (browser) return bot.can(BotAbility.browser);
     return !bot.chatOnly;
   }
+
+  // --- The session tools, a bot's ---------------------------------------------
+
+  @override
+  String? botNameAt(String cwd) => botAt(cwd)?.name;
+
+  @override
+  void handed(String cwd, AgentThread thread) {
+    if (botAt(cwd) case final bot?) watch(bot, thread);
+  }
+
+  @override
+  Set<AgentThread> handedBy(String cwd) => switch (botAt(cwd)) {
+    final bot? => {
+      for (final id in watching(bot)) ?SessionTools.threadOf(workspace, id),
+    },
+    null => const {},
+  };
+
+  @override
+  String toldOf(String cwd) => switch (botAt(cwd)) {
+    final bot? when bot.can(BotAbility.proactive) && _hasPhone =>
+      'You are told when it is done or needs the user, as your rules say '
+          '(bot_watch).',
+    _ => 'You are not told of it: look (session_read) when the user asks.',
+  };
+
+  /// The session tools, a bot's own as its bot_* are: never behind the
+  /// tool search, which one that only chats may not have.
+  @override
+  bool loadsTool(String cwd, String tool) =>
+      SessionTools.names.contains(tool) && botAt(cwd) != null;
 
   /// Not a bot's: there is no one at the computer to ask, its user on the
   /// phone.

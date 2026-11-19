@@ -33,13 +33,31 @@ abstract final class SessionToolsSetting {
   static bool Function() current = () => true;
 }
 
+/// The bots, as the session tools see them: a bot looking after the user's
+/// agents has the tools as a project's agent does, but for what it is told
+/// of those it hands work to, which its own rules decide.
+abstract interface class SessionToolsBots {
+  /// The name of the bot working in [cwd]; null for none.
+  String? botNameAt(String cwd);
+
+  /// The bot in [cwd] handed [thread] work: told of it as its rules say.
+  void handed(String cwd, AgentThread thread);
+
+  /// Those the bot in [cwd] handed work to.
+  Set<AgentThread> handedBy(String cwd);
+
+  /// What the bot in [cwd] is told of one it handed work to, for the
+  /// tools' answers.
+  String toldOf(String cwd);
+}
+
 /// The tools an agent coordinating others has (`mcp__baocode__session_*`),
 /// with [SessionToolsSetting] on: the user's conversations listed, read
 /// (without waking them), started, written to (one with no process
 /// resumed as it was, one at work given it in its queue), stopped and
 /// waited on, and the files each edited listed. Each the agent started or
-/// wrote to reports back to it by itself ([_Reports]). What the phones'
-/// assistant does with its bot_* tools, for a project's agents.
+/// wrote to reports back to it by itself ([_Reports]). The bots that look
+/// after the user's agents have them too ([SessionToolsBots]).
 abstract final class SessionTools {
   static const names = [
     'session_list',
@@ -79,9 +97,12 @@ abstract final class SessionTools {
 
   static _Reports? _reports;
 
-  static void register(Workspace workspace) {
+  static SessionToolsBots? _bots;
+
+  static void register(Workspace workspace, {SessionToolsBots? bots}) {
     _reports?.dispose();
     _reports = _Reports(workspace);
+    _bots = bots;
     for (final tool in _tools(workspace)) {
       ClaudeSdkTools.register(tool);
     }
@@ -98,11 +119,22 @@ abstract final class SessionTools {
     ClaudeSdkTools.instruct(_feature, null);
     _reports?.dispose();
     _reports = null;
+    _bots = null;
     _sent.clear();
   }
 
+  /// A project's agent's with the setting on; a bot's whatever it says
+  /// (its abilities decide, [ClaudeSdkTools.gate]).
   static bool _offeredIn(Workspace workspace, String cwd) =>
+      _botAt(cwd) != null ||
       SessionToolsSetting.current() && !workspace.isAppFolder(cwd);
+
+  static String? _botAt(String cwd) => _bots?.botNameAt(cwd);
+
+  /// What the agent in [cwd] is told of one it handed work to.
+  static String _toldOf(String cwd) => _botAt(cwd) == null
+      ? 'It reports back to you by itself: go on meanwhile.'
+      : _bots!.toldOf(cwd);
 
   static List<ClaudeSdkTool> _tools(Workspace workspace) {
     bool offeredIn(String cwd) => _offeredIn(workspace, cwd);
@@ -130,27 +162,32 @@ abstract final class SessionTools {
     }
 
     /// Those the agent asking started or wrote to.
-    Set<AgentThread> mine(ClaudeSdkCall call) =>
-        _reports?.mine[call.sessionId] ?? const {};
+    Set<AgentThread> mine(ClaudeSdkCall call) => _botAt(call.cwd) == null
+        ? _reports?.mine[call.sessionId] ?? const {}
+        : _bots!.handedBy(call.cwd);
 
     /// The project [name] names (its name or folder); the asking agent's
-    /// own for none.
+    /// own for none, a project's agent's.
     Project projectNamed(Object? name, ClaudeSdkCall call) {
-      if (name is! String || name.trim().isEmpty) {
-        return _callerOf(workspace, call)?.project ??
-            workspace.projectAt(call.cwd);
-      }
-      final named = name.trim();
       final listed = [
         for (final project in workspace.sidebarProjects)
           if (!workspace.isAppFolder(project.path)) project,
       ];
+      String theirs() =>
+          'Theirs: ${listed.map((project) => '${project.name} (${project.path})').join(', ')}';
+      if (name is! String || name.trim().isEmpty) {
+        final own =
+            _callerOf(workspace, call)?.project ??
+            workspace.projectAt(call.cwd);
+        if (workspace.isAppFolder(own.path)) {
+          throw ArgumentError('Name its project. ${theirs()}');
+        }
+        return own;
+      }
+      final named = name.trim();
       return listed.where((project) => project.path == named).firstOrNull ??
           listed.where((project) => project.name == named).firstOrNull ??
-          (throw ArgumentError(
-            'No project "$named". Theirs: '
-            '${listed.map((project) => '${project.name} (${project.path})').join(', ')}',
-          ));
+          (throw ArgumentError('No project "$named". ${theirs()}'));
     }
 
     String titled(Map<String, Object?> input, String? _) =>
@@ -358,9 +395,13 @@ abstract final class SessionTools {
           if (model != null) {
             _select(session.models, model.id);
           }
-          if (caller?.session.selected(KernelChoiceKind.permission)
-              case final permission?) {
-            _select(session.permissions, permission);
+          // A bot's leave (all, with no one at the computer) not passed on:
+          // the user's default for new conversations.
+          if (_botAt(call.cwd) == null) {
+            if (caller?.session.selected(KernelChoiceKind.permission)
+                case final permission?) {
+              _select(session.permissions, permission);
+            }
           }
           if (input['title'] case final String title
               when title.trim().isNotEmpty) {
@@ -381,7 +422,7 @@ abstract final class SessionTools {
                 }}.',
             if (worktree case (:final path, :final branch))
               'It works in $path, on the new branch $branch.',
-            'It reports back to you by itself: go on meanwhile.',
+            _toldOf(call.cwd),
           ].join(' ');
         },
         required: ['text'],
@@ -446,8 +487,8 @@ abstract final class SessionTools {
           _sent[key] = (text, now);
           return working
               ? 'Queued: it is at work, and takes this up once its turn '
-                    'ends. It reports back to you by itself.'
-              : 'Sent: it is on it, and reports back to you by itself.';
+                    'ends. ${_toldOf(call.cwd)}'
+              : 'Sent: it is on it. ${_toldOf(call.cwd)}';
         },
         required: ['session', 'text'],
         summary: titled,
@@ -621,25 +662,37 @@ abstract final class SessionTools {
     AgentThread thread,
     String text,
   ) {
+    final bot = _botAt(call.cwd);
     final from = _callerOf(workspace, call);
-    if (call.sessionId case final by?) _reports?.follow(by, thread);
+    if (bot != null) {
+      _bots!.handed(call.cwd, thread);
+    } else if (call.sessionId case final by?) {
+      _reports?.follow(by, thread);
+    }
     thread.session.send(
       ComposerMessage(
         text: thread.kernel.id == 'claude-code'
             ? agentMessage(
-                from?.title ?? 'Another conversation',
+                bot ?? from?.title ?? 'Another conversation',
                 text,
-                session: from == null ? null : idOf(from),
+                session: from == null || bot != null ? null : idOf(from),
               )
             : text,
       ),
       notes: [
-        '<system-reminder>This message comes from another of the user\'s '
-            'agent conversations'
-            '${from == null ? '' : ' ("${from.title}" in ${from.project.name}, session ${idOf(from)})'}'
-            ', which the user has coordinating their conversations: take it '
-            'up as their request. Your reply, once your turn ends, goes back '
-            'to it by itself: no need to write to it.</system-reminder>',
+        if (bot != null)
+          '<system-reminder>This message comes from $bot, the user\'s '
+              'bot looking after their agents for them on their phone: take '
+              'it up as their request. Your reply, once your turn ends, '
+              'reaches it by itself: no need to write to it.'
+              '</system-reminder>'
+        else
+          '<system-reminder>This message comes from another of the user\'s '
+              'agent conversations'
+              '${from == null ? '' : ' ("${from.title}" in ${from.project.name}, session ${idOf(from)})'}'
+              ', which the user has coordinating their conversations: take it '
+              'up as their request. Your reply, once your turn ends, goes back '
+              'to it by itself: no need to write to it.</system-reminder>',
       ],
     );
   }

@@ -11,7 +11,7 @@ abstract final class BotPermissions {
   /// a plan to approve), nor what is not a chat's on a phone (workflows,
   /// worktrees, a review's findings), nor what the app does better its
   /// own way (the CLI's timers and messages, gone with its session:
-  /// bot_later, bot_watch, bot_send_to_chat). Named, not all but some: a
+  /// bot_later, bot_watch, session_send). Named, not all but some: a
   /// new tool of Claude Code's is a bot's once it is seen to suit one.
   static const agentTools = [
     'Bash',
