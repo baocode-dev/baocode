@@ -608,17 +608,35 @@ class ChatSession extends ChangeNotifier implements ChatFeed {
   };
 
   /// Copies the conversation into a new session titled [title] (see
-  /// [ForksConversation.fork]): all of it but a turn under way; null when
-  /// it could not.
-  Future<SessionRecord?> fork({required String title}) async {
+  /// [ForksConversation.fork]): all of it but a turn under way, or up to
+  /// the user's message [before] (by its id) when given; null when it
+  /// could not.
+  Future<SessionRecord?> fork({required String title, String? before}) async {
     if (_kernel case final ForksConversation kernel when kernel.canFork) {
-      final before = switch (_transcript.activeTurn) {
+      before ??= switch (_transcript.activeTurn) {
         final turn? when _transcript.indexOf(turn) != null => turn,
         _ => null,
       };
       return kernel.fork(before: before, title: title);
     }
     return null;
+  }
+
+  /// Where a fork from the end of the turn item [index] ends (see [fork]):
+  /// before the user's next message, by its id, or at the end (null) when
+  /// none follows. Null where it cannot be forked there: one that cannot
+  /// be forked at all, or a next message of an earlier history read whole,
+  /// which has no id.
+  ({String? before})? forkCutAfter(int index) {
+    if (!canFork) return null;
+    for (var i = index + 1; i < _transcript.length; i++) {
+      if (_transcript.itemAt(i) is! UserMessageItem) continue;
+      return switch (_transcript.idAt(i)) {
+        final id? => (before: id),
+        null => null,
+      };
+    }
+    return (before: null);
   }
 
   /// The id of the last item a fork made now would hold (see [fork]): all
