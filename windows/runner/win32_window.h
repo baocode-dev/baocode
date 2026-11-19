@@ -164,8 +164,8 @@ class Win32Window {
   // so once the window shows (CheckFrameShown), the border goes inside.
   bool frame_inside_ = false;
 
-  // Whether DWM shows more of the border outside the client than its one
-  // pixel of outline, the window shown and neither maximized nor full screen:
+  // Whether DWM shows most of the border outside the client, not just its
+  // outline, the window shown and neither maximized nor full screen:
   // if so, the border is moved inside (see frame_inside_), and logged.
   void CheckFrameShown();
 
