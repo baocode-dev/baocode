@@ -5192,6 +5192,14 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
         onSideQuestion: (question) => _askBeside(thread, question),
         onFork: (message) =>
             unawaited(_forkFromComposer(thread, message, embedded: embedded)),
+        onForkBefore: (before) => unawaited(
+          _forkFromComposer(
+            thread,
+            const ComposerMessage(text: ''),
+            embedded: embedded,
+            before: before,
+          ),
+        ),
         asideAt: _asideCards(thread, embedded: embedded),
         back: switch (_workspace.parentOf(thread)) {
           final parent? => (
@@ -5267,17 +5275,23 @@ class _WorkbenchState extends State<Workbench> implements WindowDelegate {
 
   /// `/fork` in [thread]: copied as the sidebar's Fork does and the copy
   /// opened where [thread] shows (in the IDE's chat, as a tab of its own),
-  /// [message] sent there; a notice where [thread] cannot be copied.
+  /// [message] sent there; a notice where [thread] cannot be copied. Up to
+  /// the user's message [before] when given: a turn footer's fork.
   Future<void> _forkFromComposer(
     AgentThread thread,
     ComposerMessage message, {
     required bool embedded,
+    String? before,
   }) async {
     if (thread.id == null || !thread.session.canFork) {
       _notifications.notify(IdeSeverity.info, context.l10n.forkUnavailable);
       return;
     }
-    final forked = await _workspace.fork(thread, message: message);
+    final forked = await _workspace.fork(
+      thread,
+      message: message,
+      before: before,
+    );
     if (forked == null || !mounted) return;
     if (embedded) {
       _openIdeChat(thread.project.path, forked);

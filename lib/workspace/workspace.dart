@@ -3651,14 +3651,18 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   /// Copies [thread]'s conversation into a new agent of its project (see
   /// [ChatSession.fork]): listed, with [thread]'s settings, not shown. Null
   /// when it could not be (its conversation says why). [message], when not
-  /// empty, is sent there once what it copied is read (`/fork …`).
+  /// empty, is sent there once what it copied is read (`/fork …`). Up to
+  /// the user's message [before] (by its id) when given: a fork from the
+  /// turn before it.
   Future<AgentThread?> fork(
     AgentThread thread, {
     ComposerMessage? message,
+    String? before,
   }) async {
     final forked = await _fork(
       thread,
       '${thread.localizedTitle(l10n())} (fork)',
+      before: before,
     );
     if (forked != null && message != null && !message.isEmpty) {
       unawaited(_sendOnceRead(forked, message));
@@ -3680,9 +3684,13 @@ class Workspace extends ChangeNotifier implements ColorThemeStorage {
   }
 
   /// [fork], the copy titled [title].
-  Future<AgentThread?> _fork(AgentThread thread, String title) async {
+  Future<AgentThread?> _fork(
+    AgentThread thread,
+    String title, {
+    String? before,
+  }) async {
     final session = thread.session;
-    final record = await session.fork(title: title);
+    final record = await session.fork(title: title, before: before);
     if (record == null || _disposed) return null;
     final settings = {
       for (final kind in KernelChoiceKind.values)

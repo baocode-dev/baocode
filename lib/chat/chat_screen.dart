@@ -112,6 +112,7 @@ class ChatScreen extends StatefulWidget {
     this.openEditor,
     this.onSideQuestion,
     this.onFork,
+    this.onForkBefore,
     this.asideAt,
     this.back,
   });
@@ -281,6 +282,11 @@ class ChatScreen extends StatefulWidget {
   /// copied into a new one, as the sidebar's Fork, and what follows the
   /// command (empty for none) is sent there.
   final ValueChanged<ComposerMessage>? onFork;
+
+  /// Given, a finished turn's footer forks the conversation from there:
+  /// told the user's message after it (by its id) to copy up to, null for
+  /// all of it (see [ChatSession.forkCutAfter]).
+  final ValueChanged<String?>? onForkBefore;
 
   /// What shows under the conversation's item of the id given: the
   /// conversations asked beside it from there (see [onSideQuestion]).
@@ -1411,6 +1417,14 @@ class _ChatScreenState extends State<ChatScreen>
                           index,
                         )) {
                           final id? => asideAt(id),
+                          null => null,
+                        },
+                        null => null,
+                      },
+                      forkAfter: switch (widget.onForkBefore) {
+                        final onForkBefore? => (index) => switch (_session
+                            .forkCutAfter(index)) {
+                          (:final before) => () => onForkBefore(before),
                           null => null,
                         },
                         null => null,

@@ -13,6 +13,7 @@ import 'package:baocode/chat/chat_models.dart';
 import 'package:baocode/chat/chat_session.dart';
 import 'package:baocode/chat/composer/composer_controller.dart';
 import 'package:baocode/chat/widgets/agent_step.dart';
+import 'package:baocode/ide/ide_hover.dart';
 import 'package:baocode/ide/ide_list.dart';
 import 'package:baocode/kernel/agent_kernel.dart';
 import 'package:baocode/kernel/claude_code/claude_code_kernel.dart';
@@ -41,6 +42,10 @@ class _Catalog implements SessionCatalog {
 
   /// The copies made, kept as Claude Code keeps sessions: listed after.
   static final List<SessionRecord> forks = [];
+
+  /// Where each copy ends: before the user's message of the id, or null
+  /// for all of it.
+  static final List<String?> cuts = [];
 
   static final List<String> deleted = [];
 
@@ -110,6 +115,7 @@ final KernelDescriptor _claude = KernelDescriptor(
         if (line.isNotEmpty) (jsonDecode(line) as Map).cast<String, Object?>(),
     ],
     forkSession: (cwd, id, into, {before, title}) async {
+      _Catalog.cuts.add(before);
       _Catalog.forks.add(
         SessionRecord(
           id: into,
@@ -178,6 +184,7 @@ Future<void> _stopAll(WidgetTester tester, Workspace workspace) async {
 void main() {
   tearDown(() {
     _Catalog.forks.clear();
+    _Catalog.cuts.clear();
     _Catalog.deleted.clear();
     _sent.clear();
   });
@@ -471,6 +478,64 @@ void main() {
     final user = _sent.last.lastWhere((message) => message['type'] == 'user');
     expect(jsonEncode(user), contains('Try it another way'));
     expect(jsonEncode(_sent), isNot(contains('/fork')));
+    await _stopAll(tester, workspace);
+  });
+
+  testWidgets('a finished turn\'s footer forks from there: up to the next '
+      'message, or all of it after the last turn; the copy opened', (
+    tester,
+  ) async {
+    final workspace = await _pumpLoaded(tester);
+    final kept = await _showKept(tester, workspace);
+    kept.session.send(
+      const ComposerMessage(text: 'And once more, in Ask mode'),
+    );
+    for (var i = 0; i < 500 && kept.session.isStreaming; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(kept.session.isStreaming, isFalse);
+    final asked = [
+      for (var i = 0; i < kept.session.itemCount; i++)
+        if (kept.session.itemAt(i) is UserMessageItem) i,
+    ];
+    expect(asked, hasLength(2));
+    final second = kept.session.itemIdAt(asked.last);
+    expect(second, isNotNull);
+
+    final forks = find.byWidgetPredicate(
+      (widget) =>
+          widget is IdeHover && widget.message == englishLocalizations.turnFork,
+    );
+    expect(forks, findsNWidgets(2));
+
+    Future<AgentThread> forkFrom(int which) async {
+      final count = _Catalog.forks.length;
+      await tester.tap(forks.at(which));
+      for (var i = 0; i < 20 && _Catalog.forks.length == count; i++) {
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        await tester.pump();
+      }
+      await tester.pump();
+      return workspace.threads.firstWhere(
+        (thread) => thread.id == _Catalog.forks.last.id,
+      );
+    }
+
+    final first = await forkFrom(0);
+    expect(_Catalog.cuts, [second]);
+    expect(workspace.current, same(first));
+    expect(first.title, '${kept.localizedTitle(englishLocalizations)} (fork)');
+
+    workspace.select(kept);
+    await tester.pump();
+    final last = await forkFrom(1);
+    expect(_Catalog.cuts, [second, null]);
+    expect(workspace.current, same(last));
+    // Nothing sent in either.
+    expect(jsonEncode(_sent), isNot(contains('(fork)')));
     await _stopAll(tester, workspace);
   });
 

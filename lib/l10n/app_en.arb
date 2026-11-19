@@ -1610,6 +1610,10 @@
   "@turnCopy": {
     "description": "Hint of the button at the end of a finished turn that copies its answer."
   },
+  "turnFork": "Fork from here",
+  "@turnFork": {
+    "description": "Hint of the button at the end of a finished turn that copies the conversation up to there into a new one."
+  },
   "turnCopied": "Copied",
   "turnSpeed": "{speed} tok/s",
   "@turnSpeed": {

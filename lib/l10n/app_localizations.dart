@@ -4736,6 +4736,12 @@ abstract class AppLocalizations {
   /// **'Copy reply'**
   String get turnCopy;
 
+  /// Hint of the button at the end of a finished turn that copies the conversation up to there into a new one.
+  ///
+  /// In en, this message translates to:
+  /// **'Fork from here'**
+  String get turnFork;
+
   /// No description provided for @turnCopied.
   ///
   /// In en, this message translates to:

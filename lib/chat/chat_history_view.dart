@@ -58,6 +58,7 @@ class ChatHistoryView extends StatefulWidget {
     this.onSetGoal,
     this.onFindClosed,
     this.after,
+    this.forkAfter,
     this.underTitle = false,
   });
 
@@ -88,6 +89,10 @@ class ChatHistoryView extends StatefulWidget {
   /// conversation itself (the conversations asked beside it there); none
   /// for most.
   final Widget? Function(int index)? after;
+
+  /// What forks the conversation from the end of the turn item [index]
+  /// ends, its footer's button; none where it cannot be forked there.
+  final VoidCallback? Function(int index)? forkAfter;
 
   /// Whether a row is right over it (its card's title): room of its own
   /// above the history, which then keeps less above its first item and a
@@ -254,7 +259,8 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
   ];
 
   /// The footer under item [index], when it ends a finished turn: its
-  /// answer to copy, how fast, how long, and what it cost.
+  /// answer to copy, a fork from there, how fast, how long, and what it
+  /// cost.
   Widget? _turnFooter(int index) {
     final prompt = _folds.turnEndingAt(index);
     if (prompt == null) return null;
@@ -272,6 +278,7 @@ class _ChatHistoryViewState extends State<ChatHistoryView>
     }
     return TurnFooter(
       answer: words.isEmpty ? null : words.join('\n\n'),
+      onFork: widget.forkAfter?.call(index),
       worked: message.worked,
       usage: message.usage,
     );
