@@ -26,6 +26,7 @@ import 'package:baocode/workspace/preference_store.dart';
 import 'package:baocode/images/image_tools.dart';
 import 'package:baocode/workspace/workspace.dart';
 import 'package:bao_link/bao_link.dart' show linkGroupLeastPasses;
+import 'package:bao_remote/claude.dart' show ClaudeHistoryPage;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
@@ -931,6 +932,90 @@ void main() {
         for (final t in loading.threads)
           if (t.project.path == assistant.folder) t,
       ], hasLength(1));
+    });
+
+    test('its chat read again as the app starts, and read further back, '
+        'is nothing new', () async {
+      Map<String, Object?> turn(String id) => {
+        'type': 'assistant',
+        'uuid': 'a-$id',
+        'message': {
+          'id': 'm-$id',
+          'role': 'assistant',
+          'model': 'claude-opus-5-5',
+          'content': [
+            {'type': 'text', 'text': '<bot_say>$id</bot_say>'},
+          ],
+        },
+      };
+      final reading = Completer<void>();
+      late final KernelDescriptor reads;
+      reads = KernelDescriptor(
+        id: kernel.id,
+        label: kernel.label,
+        icon: kernel.icon,
+        description: kernel.description,
+        catalog: _Catalog(
+          Future.value([
+            ProjectRecord(
+              path: '/bots/assistant',
+              sessions: [
+                SessionRecord(
+                  id: 'kept',
+                  title: '在吗',
+                  updatedAt: now.subtract(const Duration(hours: 1)),
+                  cwd: '/bots/assistant',
+                ),
+              ],
+            ),
+          ]),
+        ),
+        create: (context) => ClaudeCodeKernel(
+          reads,
+          context,
+          start: MockClaudeCodeTransport.start,
+          readHistoryPage: (session, {required turns, before}) async {
+            if (before == null) {
+              await reading.future;
+              return ClaudeHistoryPage([
+                turn('b4'),
+                turn('b5'),
+              ], earlier: 'a-b4');
+            }
+            return ClaudeHistoryPage([turn('b1'), turn('b2'), turn('b3')]);
+          },
+        ),
+      );
+      final kept = Workspace(kernels: [reads], projects: [Project('app', app)])
+        ..load();
+      addTearDown(kept.dispose);
+      final later = Bots(
+        workspace: kept,
+        folders: MemoryBotFolders(),
+        store: MemoryPreferenceStore(),
+        chinese: true,
+        clock: () => now,
+        computer: () async => 'Leo 的 MacBook',
+      );
+      addTearDown(later.dispose);
+      await later.start();
+      final assistant = later.bots.single;
+      final session = later.threadFor(assistant).session;
+      for (var i = 0; i < 100 && !session.loadingHistory; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(session.loadingHistory, isTrue);
+      // Asked while it is read (the phones', the pushes'): none yet.
+      expect(later.unread(assistant), 0);
+      reading.complete();
+      for (var i = 0; i < 100 && session.loadingHistory; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(session.itemCount, greaterThan(0));
+      expect(later.unread(assistant), 0);
+      await session.loadEarlier();
+      expect(session.prependedCount, greaterThan(0));
+      expect(later.unread(assistant), 0);
     });
 
     test('it comes back later on its own, when it said', () async {

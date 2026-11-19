@@ -120,8 +120,10 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate, SessionToolsBots {
   /// The bots to start again once they stop answering: changed meanwhile.
   final Set<String> _restartWhenIdle = {};
 
-  /// The last turn end of each bot's the user has seen, by its id.
-  final Map<String, int> _seen = {};
+  /// Where the user has read each bot's chat to, by its id: the index then,
+  /// and how many items its history had put before the others by then
+  /// ([ChatSession.prependedCount]), which move it on.
+  final Map<String, (int, int)> _seen = {};
 
   /// How each agent stood when last looked at, to tell what changed.
   final Map<AgentThread, ThreadStatus> _statuses = {};
@@ -685,8 +687,11 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate, SessionToolsBots {
     final thread = threadOf(bot);
     if (thread == null || !thread.isOpen) return 0;
     final session = thread.session;
+    // Its history being read (as the app starts): none of it new.
+    if (session.loadingHistory) return 0;
     final count = session.itemCount;
-    final seen = (_seen[bot.id] ??= count).clamp(0, count);
+    final (at, before) = _seen[bot.id] ??= (count, session.prependedCount);
+    final seen = (at + session.prependedCount - before).clamp(0, count);
     final places = _places(session);
     var unread = 0;
     for (var i = seen; i < count; i++) {
@@ -699,7 +704,8 @@ class Bots extends ChangeNotifier implements ClaudeSdkGate, SessionToolsBots {
   void seen(Bot bot) {
     final thread = threadOf(bot);
     if (thread == null || !thread.isOpen) return;
-    _seen[bot.id] = thread.session.itemCount;
+    final session = thread.session;
+    _seen[bot.id] = (session.itemCount, session.prependedCount);
     notifyListeners();
   }
 
