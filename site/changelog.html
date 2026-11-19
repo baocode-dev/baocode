@@ -30,6 +30,26 @@
   <h1>Changelog</h1>
   <p class="subtitle">What changed in each version of BaoCode.</p>
 
+  <section class="release" id="v2.0.3">
+    <h2 class="plain"><a href="#v2.0.3">2.0.3</a></h2>
+    <p>Mostly about bots looking after your agents: they start conversations, hand out work, wait for it and check the files changed, just as an agent in a conversation does. Also, Quick Open finds every file of a large project, and big folders on a Linux remote host no longer stall the connection.</p>
+    <p>New</p>
+    <ul>
+    <li>Bots manage agents with the same tools as a conversation: a new conversation can be given a model or a worktree on a new branch; a message to a busy one is queued instead of refused; whole replies are read, a conversation waited for, and the files it changed checked.</li>
+    <li>When a conversation is compacted early, the divider says why: the provider refused the request as too long, the model taking less than the context set. The divider is translated too.</li>
+    <li>Java: the modules of a multi-module project share one language server; when a project fails to import you get a notice with its log, instead of only "No references found". Thanks to @bestK.</li>
+    </ul>
+    <p>Fixed</p>
+    <ul>
+    <li>Conversations a bot handed work to are still known as its own after the desktop restarts, and it is still told when they are done.</li>
+    <li>After the desktop restarts, the phone is no longer pushed the bot's earlier messages again.</li>
+    <li>A bot without Agent notifications tells you, when it hands out work, that it won't hear when it is done.</li>
+    <li>Quick Open (⌘P / Ctrl+P) finds every file of a very large project, not only the first 50,000.</li>
+    <li>Linux remote hosts: with tens of thousands of folders watched, a batch rename or a reconnect no longer stalls the connection for tens of seconds.</li>
+    <li>Diagnostics: on a Mac, the window suddenly not taking clicks while typing with an input method is now logged, to track it down.</li>
+    </ul>
+  </section>
+
   <section class="release" id="v2.0.2">
     <h2 class="plain"><a href="#v2.0.2">2.0.2</a></h2>
     <p>Mostly fixes in this one: the mouse wheel no longer stops working on Windows, and workspace windows are titled by their name, not an ID. New models of a ChatGPT subscription show up without waiting for a BaoCode release.</p>
