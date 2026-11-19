@@ -64,6 +64,8 @@ class _CountingSecretStore implements SecretStore {
   Future<void> delete(String id) async => value = null;
 }
 
+const _loginKeychain = '/Users/me/Library/Keychains/login.keychain-db';
+
 void main() {
   group('ModelProvider', () {
     test('labelOf tells apart the models going by one name', () {
@@ -1432,6 +1434,9 @@ void main() {
       final store = KeychainSecretStore(
         run: (executable, arguments, {input}) async {
           expect(executable, '/usr/bin/security');
+          if (arguments.first == 'default-keychain') {
+            return ProcessResult(0, 0, '    "$_loginKeychain"\n', '');
+          }
           calls.add((arguments, input));
           return ProcessResult(0, exitCode, stdout, '');
         },
@@ -1440,7 +1445,8 @@ void main() {
       expect(calls.single.$1, ['-i']);
       expect(
         calls.single.$2,
-        'add-generic-password -U -s BaoCode -a "provider.gw" -X 736b2dc3a9\n',
+        'add-generic-password -U -s BaoCode -a "provider.gw" -X 736b2dc3a9 '
+        '"$_loginKeychain"\n',
       );
       expect(calls.single.$1.join(' '), isNot(contains('sk-')));
 
@@ -1453,6 +1459,7 @@ void main() {
         '-a',
         'provider.gw',
         '-w',
+        _loginKeychain,
       ]);
 
       exitCode = 44;
@@ -1461,6 +1468,75 @@ void main() {
 
       exitCode = 1;
       expect(store.read('provider.gw'), throwsA(isA<SecretStoreException>()));
+    });
+
+    test('macOS: the default keychain off the search list', () async {
+      // The item in the default keychain, which the search list does not
+      // name: unnamed, find says none and add -U meets it (-25299).
+      final items = <String, String>{};
+      final store = KeychainSecretStore(
+        run: (executable, arguments, {input}) async {
+          if (arguments.first == 'default-keychain') {
+            return ProcessResult(0, 0, '    "$_loginKeychain"\n', '');
+          }
+          final named = arguments.last == _loginKeychain;
+          switch (arguments.first) {
+            case 'find-generic-password':
+              final value = named ? items[arguments[4]] : null;
+              return value == null
+                  ? ProcessResult(0, 44, '', 'could not be found')
+                  : ProcessResult(0, 0, '$value\n', '');
+            case 'delete-generic-password':
+              final had = named && items.remove(arguments[4]) != null;
+              return ProcessResult(0, had ? 0 : 44, '', '');
+            default:
+              expect(input, endsWith('"$_loginKeychain"\n'));
+              items['provider.gw'] = 'sk-new';
+              return ProcessResult(0, 0, '', '');
+          }
+        },
+      );
+      items['provider.gw'] = 'sk-old';
+      expect(await store.read('provider.gw'), 'sk-old');
+      await store.write('provider.gw', 'sk-new');
+      expect(await store.read('provider.gw'), 'sk-new');
+      await store.delete('provider.gw');
+      expect(items, isEmpty);
+      expect(await store.read('provider.gw'), isNull);
+    });
+
+    test('macOS: an item add -U does not find is replaced', () async {
+      final inputs = <String?>[];
+      var deleted = false;
+      final store = KeychainSecretStore(
+        run: (executable, arguments, {input}) async {
+          if (arguments.first == 'default-keychain') {
+            return ProcessResult(0, 1, '', 'no default');
+          }
+          if (arguments.first == 'delete-generic-password') {
+            deleted = true;
+            return ProcessResult(0, 0, '', '');
+          }
+          inputs.add(input);
+          return deleted
+              ? ProcessResult(0, 0, '', '')
+              : ProcessResult(
+                  0,
+                  45,
+                  '',
+                  'security: SecKeychainItemCreateFromContent (<default>): '
+                      'The specified item already exists in the keychain.\n'
+                      'add-generic-password: returned -25299\n',
+                );
+        },
+      );
+      await store.write('provider.gw', 'sk');
+      expect(deleted, isTrue);
+      expect(inputs, hasLength(2));
+      expect(
+        inputs.last,
+        'add-generic-password -U -s BaoCode -a "provider.gw" -X 736b\n',
+      );
     });
 
     test('elsewhere, a file only the user reads', () async {
