@@ -8055,6 +8055,60 @@ abstract class AppLocalizations {
   /// **'{id} is running'**
   String langRunning(String id);
 
+  /// No description provided for @langError.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} reported an error'**
+  String langError(String id);
+
+  /// No description provided for @langWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} reported a warning'**
+  String langWarning(String id);
+
+  /// No description provided for @langClickForDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Click for log and settings'**
+  String get langClickForDetails;
+
+  /// No description provided for @langViewLog.
+  ///
+  /// In en, this message translates to:
+  /// **'View Log'**
+  String get langViewLog;
+
+  /// No description provided for @langOpenLspSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open LSP Settings'**
+  String get langOpenLspSettings;
+
+  /// No description provided for @langServerLogLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'LSP Log'**
+  String get langServerLogLabel;
+
+  /// No description provided for @langNoLogOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'No log output from {id} yet.'**
+  String langNoLogOutput(String id);
+
+  /// No description provided for @langServerInitializing.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} is still initializing (click the status bar for details)'**
+  String langServerInitializing(String id);
+
+  /// No description provided for @langServerImportError.
+  ///
+  /// In en, this message translates to:
+  /// **'{id} failed to load the project (click the status bar for details)'**
+  String langServerImportError(String id);
+
   /// No description provided for @langRestarting.
   ///
   /// In en, this message translates to:

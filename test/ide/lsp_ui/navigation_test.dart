@@ -482,4 +482,77 @@ void main() {
     await settle(tester, const Duration(seconds: 3));
     expect(find.text("No definition found for 'foo'"), findsNothing);
   });
+
+  testWidgets(
+    'empty references explains when the server is still initializing or failed to import',
+    (tester) async {
+      final languages = FakeLanguageFeatures()
+        ..statuses[inRoot(_a)] = const [
+          LanguageServerStatus(
+            serverId: 'jdtls',
+            state: LanguageServerState.running,
+            progress: 'Importing Maven project...',
+          ),
+        ];
+      await pumpLanguageWorkbench(tester, _files, languages, open: [_a]);
+      await caretAt(tester, offsetOf(tester, 'foo'));
+
+      await press(tester, LogicalKeyboardKey.f12, shift: true);
+      expect(
+        find.text(
+          'jdtls is still initializing (click the status bar for details)',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('No references found'), findsNothing);
+
+      // Once an import error is recorded, show the import-error notice instead.
+      languages.setStatus(inRoot(_a), const [
+        LanguageServerStatus(
+          serverId: 'jdtls',
+          state: LanguageServerState.running,
+          error: 'Non-resolvable parent POM',
+          severity: LanguageServerSeverity.error,
+        ),
+      ]);
+      await settle(tester);
+      await press(tester, LogicalKeyboardKey.f12, shift: true);
+      expect(
+        find.text(
+          'jdtls failed to load the project (click the status bar for details)',
+        ),
+        findsOneWidget,
+      );
+
+      // A non-fatal warning is not reported as a failed project import.
+      languages.setStatus(inRoot(_a), const [
+        LanguageServerStatus(
+          serverId: 'jdtls',
+          state: LanguageServerState.running,
+          error: 'Using fallback JDK',
+          severity: LanguageServerSeverity.warning,
+        ),
+      ]);
+      await press(tester, LogicalKeyboardKey.f12, shift: true);
+      expect(find.text("No references found for 'foo'"), findsOneWidget);
+
+      // Also applies when the server hasn't registered referencesProvider yet.
+      languages.setStatus(inRoot(_a), const [
+        LanguageServerStatus(
+          serverId: 'jdtls',
+          state: LanguageServerState.running,
+          error: 'Non-resolvable parent POM',
+          severity: LanguageServerSeverity.error,
+        ),
+      ]);
+      languages.supported.remove(LanguageRequest.references);
+      await press(tester, LogicalKeyboardKey.f12, shift: true);
+      expect(
+        find.text(
+          'jdtls failed to load the project (click the status bar for details)',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 }

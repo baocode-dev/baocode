@@ -658,6 +658,28 @@ class EditorLanguageSession extends ChangeNotifier
       ? l10n.langNoneFound(kind.name)
       : l10n.langNoneFoundFor(kind.name, word);
 
+  /// Explains an empty navigation result when a server attached to [path] is
+  /// still initializing/importing or has reported a project-load error, so the
+  /// user is not misled by a plain "No references found".
+  String? _serverIssueNotice() {
+    final statuses = languages.statusFor(path);
+    for (final status in statuses) {
+      if (status.state == LanguageServerState.running &&
+          (status.severity == LanguageServerSeverity.error ||
+              (status.severity == null && status.error != null))) {
+        return l10n.langServerImportError(status.serverId);
+      }
+    }
+    for (final status in statuses) {
+      if (status.state == LanguageServerState.starting ||
+          (status.state == LanguageServerState.running &&
+              status.progress != null)) {
+        return l10n.langServerInitializing(status.serverId);
+      }
+    }
+    return null;
+  }
+
   /// Go to Definition (and friends) at [offset] or the caret: one target
   /// opens, several also list in the references panel, references always
   /// list there.
@@ -697,10 +719,13 @@ class EditorLanguageSession extends ChangeNotifier
     if (targets.isEmpty) {
       if (!supports(_goToLanguage[kind]!)) {
         if (onNavigationUnavailable?.call(path) != true) {
-          showMessage(l10n.langNavigationUnavailable, offset: at);
+          showMessage(
+            _serverIssueNotice() ?? l10n.langNavigationUnavailable,
+            offset: at,
+          );
         }
       } else {
-        showMessage(_noneFound(kind, word), offset: at);
+        showMessage(_serverIssueNotice() ?? _noneFound(kind, word), offset: at);
       }
       return;
     }

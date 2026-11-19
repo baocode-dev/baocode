@@ -759,6 +759,103 @@ void main() {
     );
   });
 
+  test(
+    'multi-module projects share one server at the outermost root marker',
+    () async {
+      final lsp = manager([
+        fakeServer('fake', rootMarkers: ['pom.xml']),
+      ]);
+      File(p.join(root, 'pom.xml')).createSync(recursive: true);
+      File(p.join(root, 'mod-a', 'pom.xml')).createSync(recursive: true);
+      File(p.join(root, 'mod-b', 'pom.xml')).createSync(recursive: true);
+      final (_, a) = await open(lsp, p.join('mod-a', 'src', 'a.fake'), 'a');
+      final (_, b) = await open(lsp, p.join('mod-b', 'src', 'b.fake'), 'b');
+      await running(lsp, a.path);
+      await running(lsp, b.path);
+      Future<String> rootOf(IdeDocument doc) async =>
+          ((await state(lsp, 'fake', doc.path))['initializeParams']!
+                  as Map)['rootUri']
+              as String;
+      expect(await rootOf(a), Uri.directory(root).toString());
+      expect(await rootOf(b), Uri.directory(root).toString());
+      expect(
+        lsp.clientFor('fake', path: a.path)!.process.pid,
+        lsp.clientFor('fake', path: b.path)!.process.pid,
+      );
+    },
+  );
+
+  test(
+    'nested multi-module project uses outermost marker within workspace',
+    () async {
+      final lsp = manager([
+        fakeServer('fake', rootMarkers: ['pom.xml']),
+      ]);
+      File(p.join(root, 'backend', 'pom.xml')).createSync(recursive: true);
+      File(p.join(root, 'backend', 'mod-a', 'pom.xml'))
+          .createSync(recursive: true);
+      File(p.join(root, 'backend', 'mod-b', 'pom.xml'))
+          .createSync(recursive: true);
+      final (_, a) = await open(
+        lsp,
+        p.join('backend', 'mod-a', 'src', 'a.fake'),
+        'a',
+      );
+      final (_, b) = await open(
+        lsp,
+        p.join('backend', 'mod-b', 'src', 'b.fake'),
+        'b',
+      );
+      await running(lsp, a.path);
+      await running(lsp, b.path);
+      final expected = Uri.directory(p.join(root, 'backend')).toString();
+      Future<String> rootOf(IdeDocument doc) async =>
+          ((await state(lsp, 'fake', doc.path))['initializeParams']!
+                  as Map)['rootUri']
+              as String;
+      expect(await rootOf(a), expected);
+      expect(await rootOf(b), expected);
+      expect(
+        lsp.clientFor('fake', path: a.path)!.process.pid,
+        lsp.clientFor('fake', path: b.path)!.process.pid,
+      );
+    },
+  );
+
+  test(
+    'remote async root markers also prefer outermost marker in workspace',
+    () async {
+      final outerMarker = p.join(root, 'pom.xml');
+      final innerMarker = p.join(root, 'mod-a', 'pom.xml');
+      final checked = <String>[];
+      final lsp = LspManager(
+        root,
+        FakeCatalog([fakeServer('fake')], rootMarkers: ['pom.xml']),
+        FakeProvider(),
+        pathExists: (path) async {
+          checked.add(path);
+          return p.equals(path, outerMarker) || p.equals(path, innerMarker);
+        },
+        shutdownTimeout: const Duration(seconds: 2),
+      );
+      managers.add(lsp);
+      final (_, doc) = await open(lsp, p.join('mod-a', 'src', 'a.fake'), 'a');
+      // The folder is looked for first: no server until it is found.
+      await until(
+        () => lsp.statusFor(doc.path).isNotEmpty,
+        reason: 'workspace folder found',
+      );
+      await running(lsp, doc.path);
+      final rootUri =
+          ((await state(lsp, 'fake', doc.path))['initializeParams']!
+                  as Map)['rootUri']
+              as String;
+      expect(rootUri, Uri.directory(root).toString());
+      // Stopped at the outermost marker without probing inner subdirectories.
+      expect(checked, [outerMarker]);
+    },
+  );
+
   test('documents opened before the catalog loads get servers after', () async {
     final catalog = _LateCatalog();
     final lsp = LspManager(root, catalog, FakeProvider());

@@ -4,7 +4,9 @@ import 'package:bao_editor/monaco/vs/editor/common/core/position.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:baocode/ide/ide_layout.dart';
+import 'package:baocode/ide/ide_notifications.dart';
 import 'package:baocode/ide/ide_workspace.dart';
+import 'package:baocode/ide/lsp/language_features.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/ide/lsp_ui/lsp_convert.dart';
 import 'package:baocode/ide/lsp_ui/problems_panel.dart';
@@ -192,4 +194,94 @@ void main() {
     expect(references.references, isNull);
     expect(keys.getValue('reference-list.isActive'), isFalse);
   });
+
+  testWidgets(
+    'server error/warning messages notify with log and settings actions',
+    (tester) async {
+      await setUpServices(tester);
+      languages.logs['jdtls'] = [
+        '[status] Starting: Importing Maven project...',
+        '[status] Error: Non-resolvable parent POM',
+      ];
+      languages.emitServerMessage(
+        LspServerMessage(
+          serverId: 'jdtls',
+          type: LspMessageType.error,
+          message: 'Non-resolvable parent POM',
+          path: inRoot('a.dart'),
+        ),
+      );
+      await tester.pump();
+
+      expect(workspace.notifications.notifications.length, 1);
+      final notice = workspace.notifications.notifications.single;
+      expect(notice.severity, IdeSeverity.error);
+      expect(notice.source, 'jdtls');
+      expect(notice.message, '[jdtls] Non-resolvable parent POM');
+      expect(notice.primary.map((a) => a.label), [
+        'View Log',
+        'Open LSP Settings',
+      ]);
+
+      // View Log opens a read-only revision tab with the server's log.
+      notice.primary[0].run();
+      await tester.pump();
+      final logDoc = workspace.active!;
+      expect(logDoc.readOnly, isTrue);
+      expect(logDoc.name, 'jdtls.log');
+      expect(
+        logDoc.text,
+        '[status] Starting: Importing Maven project...\n'
+        '[status] Error: Non-resolvable parent POM',
+      );
+
+      // Reopening View Log refreshes the tab with newly appended lines.
+      languages.logs['jdtls']!.add('[stderr] retry failed');
+      await language.openServerLog('jdtls', path: inRoot('a.dart'));
+      expect(workspace.active, same(logDoc));
+      expect(logDoc.text, contains('[stderr] retry failed'));
+
+      // Open LSP Settings invokes the command.
+      notice.primary[1].run();
+      expect(
+        host.calls,
+        contains('executeCommand baocode.openLspSettings null'),
+      );
+
+      languages.emitServerMessage(
+        const LspServerMessage(
+          serverId: 'jdtls',
+          type: LspMessageType.warning,
+          message: 'Using fallback JDK',
+        ),
+      );
+      await tester.pump();
+      expect(
+        workspace.notifications.notifications.first.severity,
+        IdeSeverity.warning,
+      );
+
+      // Informational traffic is logged, not turned into toasts.
+      languages.emitServerMessage(
+        const LspServerMessage(
+          serverId: 'jdtls',
+          type: LspMessageType.info,
+          message: 'Ready',
+        ),
+      );
+      await tester.pump();
+      expect(workspace.notifications.notifications, hasLength(2));
+
+      language.detach();
+      languages.emitServerMessage(
+        const LspServerMessage(
+          serverId: 'jdtls',
+          type: LspMessageType.error,
+          message: 'Late message',
+        ),
+      );
+      await tester.pump();
+      expect(workspace.notifications.notifications, hasLength(2));
+    },
+  );
 }
