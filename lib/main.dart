@@ -846,9 +846,8 @@ class BaoCodeApp extends StatefulWidget {
   final TerminalBackend? terminalBackend;
 
   /// Whether each window's app has no semantics (see
-  /// _BaoCodeAppState._withoutSemantics): on Windows itself, unless a test
-  /// says. Tests that target Windows from another host keep theirs, to find
-  /// widgets by.
+  /// _BaoCodeAppState._withoutSemantics): on Windows itself and in the
+  /// macOS app, unless a test says. Tests keep theirs, to find widgets by.
   @visibleForTesting
   static bool? debugWithoutSemantics;
 
@@ -1139,17 +1138,22 @@ class _BaoCodeAppState extends State<BaoCodeApp>
     ),
   );
 
-  /// [app] with no semantics on Windows: only a screen reader would read
-  /// them, and the app makes no claim to work with one. Windows' engine
-  /// turns them on at another app's first question for the view's
+  /// [app] with no semantics on Windows and macOS: only a screen reader
+  /// would read them, and the app makes no claim to work with one. Windows'
+  /// engine turns them on at another app's first question for the view's
   /// accessibility (input methods and translators ask too, before the view
   /// answers them itself, see view_window.cpp), and its bridge then
   /// crashes on the tree as the app's changes move it: on a node with no
   /// parent in CreateRemoveReparentedNodesUpdate (at every start on 1.9.4,
-  /// on some machines), or in HitTestSync. With nothing under the root
-  /// there is nothing to move, and no tree to keep up each frame.
+  /// on some machines), or in HitTestSync. macOS' engine shares that
+  /// bridge, made anew each time another app (a window manager, a
+  /// translator) turns accessibility on, and crashes there as well (2.0.2,
+  /// twice within a second of semantics on: flutter#175041). With nothing
+  /// under the root there is nothing to move, and no tree to keep up each
+  /// frame.
   static Widget _withoutSemantics(Widget app) =>
-      (BaoCodeApp.debugWithoutSemantics ?? AppPlatform.isWindowsHost)
+      (BaoCodeApp.debugWithoutSemantics ??
+          (AppPlatform.isWindowsHost || AppPlatform.isMacOSApp))
       ? ExcludeSemantics(child: app)
       : app;
 }
