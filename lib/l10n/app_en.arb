@@ -3498,6 +3498,50 @@
       }
     }
   },
+  "langError": "{id} reported an error",
+  "@langError": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langWarning": "{id} reported a warning",
+  "@langWarning": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langClickForDetails": "Click for log and settings",
+  "langViewLog": "View Log",
+  "langOpenLspSettings": "Open LSP Settings",
+  "langServerLogLabel": "LSP Log",
+  "langNoLogOutput": "No log output from {id} yet.",
+  "@langNoLogOutput": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langServerInitializing": "{id} is still initializing (click the status bar for details)",
+  "@langServerInitializing": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "langServerImportError": "{id} failed to load the project (click the status bar for details)",
+  "@langServerImportError": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
   "langRestarting": "{id}: restarting…",
   "@langRestarting": {
     "placeholders": {

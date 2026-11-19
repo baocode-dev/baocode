@@ -1,9 +1,14 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bao_editor/monaco/flutter/editor_surface.dart';
 import 'package:baocode/ide/ide_breadcrumbs.dart';
 import 'package:baocode/ide/ide_quick_input.dart';
+import 'package:baocode/ide/ide_status_bar.dart';
 import 'package:baocode/ide/lsp/language_features.dart';
 import 'package:baocode/ide/lsp/lsp_protocol.dart';
 import 'package:baocode/ide/lsp_ui/document_symbols.dart';
@@ -173,7 +178,7 @@ void main() {
       LspSemanticToken(2, 4, 5, 'class', {}),
     ];
     final languages = FakeLanguageFeatures()
-      ..onSemanticTokens = (path) => path.endsWith(_a) ? answer : null;
+      ..onSemanticTokens = (path) => path == inRoot(_a) ? answer : null;
     const b = 'lib/b.dart';
     final workspace = await pumpLanguageWorkbench(
       tester,
@@ -198,13 +203,13 @@ void main() {
     expect(printColor(), classColor);
 
     workspace.select(
-      workspace.documents.firstWhere((d) => d.path.endsWith(b)).key,
+      workspace.documents.firstWhere((d) => d.path == inRoot(b)).key,
     );
     await settle(tester, const Duration(milliseconds: 350));
     // The server has no answer yet when the tab is shown again.
     answer = null;
     workspace.select(
-      workspace.documents.firstWhere((d) => d.path.endsWith(_a)).key,
+      workspace.documents.firstWhere((d) => d.path == inRoot(_a)).key,
     );
     await tester.pump();
     expect(printColor(), classColor);
@@ -425,6 +430,110 @@ void main() {
       commands['workbench.actions.view.problems']!.shortcutLabel(),
       'Ctrl+Shift+M',
     );
+  });
+
+  testWidgets('status bar: running server error badge and menu opens log tab', (
+    tester,
+  ) async {
+    await _loadStatusFonts(tester);
+    final languages = FakeLanguageFeatures()
+      ..logs['jdtls'] = ['[status] Error: Non-resolvable parent POM']
+      ..statuses[inRoot(_a)] = const [
+        LanguageServerStatus(
+          serverId: 'jdtls',
+          state: LanguageServerState.running,
+          error: 'Non-resolvable parent POM',
+          severity: LanguageServerSeverity.error,
+        ),
+      ];
+    final workspace = await pumpLanguageWorkbench(
+      tester,
+      {_a: _source},
+      languages,
+      open: [_a],
+    );
+    await settle(tester);
+
+    // Runtime errors must keep an error icon even while further work progresses.
+    expect(find.text('jdtls'), findsOneWidget);
+    expect(find.byIcon(Codicons.error), findsWidgets);
+    languages.setStatus(inRoot(_a), const [
+      LanguageServerStatus(
+        serverId: 'jdtls',
+        state: LanguageServerState.running,
+        progress: 'Retrying Maven import…',
+        error: 'Non-resolvable parent POM',
+        severity: LanguageServerSeverity.error,
+      ),
+    ]);
+    await settle(tester);
+    expect(find.text('jdtls: Retrying Maven import…'), findsOneWidget);
+    final statusBar = tester.widget<IdeStatusBar>(find.byType(IdeStatusBar));
+    final item = statusBar.left.firstWhere(
+      (item) => item.text.startsWith('jdtls'),
+    );
+    expect(item.icon, Codicons.error);
+    languages.setStatus(inRoot(_a), const [
+      LanguageServerStatus(
+        serverId: 'jdtls',
+        state: LanguageServerState.running,
+        error: 'Non-resolvable parent POM',
+        severity: LanguageServerSeverity.error,
+      ),
+    ]);
+    await settle(tester);
+
+    // Tapping the status bar item opens the menu with View Log & Open LSP Settings.
+    await tester.tap(find.text('jdtls'));
+    await tester.pumpAndSettle();
+    expect(find.text('View Log'), findsOneWidget);
+    expect(find.text('Open LSP Settings'), findsOneWidget);
+    await _captureStatus(tester, 'server-menu');
+
+    await tester.tap(find.text('View Log'));
+    await tester.pumpAndSettle();
+    expect(workspace.active!.readOnly, isTrue);
+    expect(workspace.active!.name, 'jdtls.log');
+    expect(workspace.active!.text, '[status] Error: Non-resolvable parent POM');
+    await _captureStatus(tester, 'server-log');
+  });
+}
+
+/// Optional rendered evidence with real fonts: no files without SHOTS.
+Future<void> _loadStatusFonts(WidgetTester tester) async {
+  if (Platform.environment['SHOTS'] == null) return;
+  await tester.runAsync(() async {
+    for (final (family, path) in [
+      ('Ahem', 'C:/Windows/Fonts/segoeui.ttf'),
+      ('Roboto', 'C:/Windows/Fonts/segoeui.ttf'),
+      ('monospace', 'C:/Windows/Fonts/consola.ttf'),
+      ('JetBrains Mono', 'C:/Windows/Fonts/consola.ttf'),
+      ('Fira Code', 'C:/Windows/Fonts/consola.ttf'),
+      ('Menlo', 'C:/Windows/Fonts/consola.ttf'),
+      ('Consolas', 'C:/Windows/Fonts/consola.ttf'),
+      (Codicons.fontFamily, 'assets/codicons/codicon.ttf'),
+    ]) {
+      final file = File(path);
+      if (!file.existsSync()) continue;
+      final loader = FontLoader(family)
+        ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
+      await loader.load();
+    }
+  });
+}
+
+Future<void> _captureStatus(WidgetTester tester, String name) async {
+  final output = Platform.environment['SHOTS'];
+  if (output == null) return;
+  final renderView = tester.binding.renderViews.single;
+  await tester.runAsync(() async {
+    final image = await (renderView.debugLayer! as OffsetLayer).toImage(
+      renderView.paintBounds,
+    );
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    final file = File('$output/$name.png')..parent.createSync(recursive: true);
+    await file.writeAsBytes(bytes!.buffer.asUint8List());
+    image.dispose();
   });
 }
 

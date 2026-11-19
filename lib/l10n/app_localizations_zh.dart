@@ -4660,6 +4660,43 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String langError(String id) {
+    return '$id 发生错误';
+  }
+
+  @override
+  String langWarning(String id) {
+    return '$id 发出警告';
+  }
+
+  @override
+  String get langClickForDetails => '单击查看日志和设置';
+
+  @override
+  String get langViewLog => '查看日志';
+
+  @override
+  String get langOpenLspSettings => '打开 LSP 设置';
+
+  @override
+  String get langServerLogLabel => 'LSP 日志';
+
+  @override
+  String langNoLogOutput(String id) {
+    return '$id 暂无日志输出。';
+  }
+
+  @override
+  String langServerInitializing(String id) {
+    return '$id 正在初始化（点击状态栏查看详情）';
+  }
+
+  @override
+  String langServerImportError(String id) {
+    return '$id 项目加载失败（点击状态栏查看详情）';
+  }
+
+  @override
   String langRestarting(String id) {
     return '$id: 正在重启…';
   }

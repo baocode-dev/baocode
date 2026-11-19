@@ -4980,6 +4980,43 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String langError(String id) {
+    return '$id reported an error';
+  }
+
+  @override
+  String langWarning(String id) {
+    return '$id reported a warning';
+  }
+
+  @override
+  String get langClickForDetails => 'Click for log and settings';
+
+  @override
+  String get langViewLog => 'View Log';
+
+  @override
+  String get langOpenLspSettings => 'Open LSP Settings';
+
+  @override
+  String get langServerLogLabel => 'LSP Log';
+
+  @override
+  String langNoLogOutput(String id) {
+    return 'No log output from $id yet.';
+  }
+
+  @override
+  String langServerInitializing(String id) {
+    return '$id is still initializing (click the status bar for details)';
+  }
+
+  @override
+  String langServerImportError(String id) {
+    return '$id failed to load the project (click the status bar for details)';
+  }
+
+  @override
   String langRestarting(String id) {
     return '$id: restarting…';
   }

@@ -78,6 +78,7 @@ class LspClient {
     this.onDiagnostics,
     this.onChanged,
     this.onProgress,
+    this.onMessage,
     this.onApplyEdit,
     this.onExit,
     this.notifications = const {},
@@ -131,6 +132,9 @@ class LspClient {
   /// [progress] changed: [onChanged] when null. Apart, as a server indexing
   /// reports it many times a second and only a status bar shows it.
   final void Function()? onProgress;
+
+  /// `window/showMessage` and `window/showMessageRequest` from the server.
+  final void Function(LspMessageType type, String message)? onMessage;
 
   /// `workspace/applyEdit`: completes with whether the edit was applied.
   final Future<bool> Function(LspWorkspaceEdit edit, String? label)?
@@ -695,13 +699,13 @@ class LspClient {
       })
       ..onNotification(r'$/progress', _onProgress)
       ..onNotification('window/showMessage', (params) {
-        _logMessage(params);
+        _handleShowMessage(params);
       })
       ..onNotification('window/logMessage', (params) {
         _logMessage(params);
       })
       ..onRequest('window/showMessageRequest', (params) {
-        _logMessage(params);
+        _handleShowMessage(params);
         return null;
       })
       ..onRequest('window/showDocument', (_) => {'success': false})
@@ -829,19 +833,46 @@ class LspClient {
     (onProgress ?? onChanged)?.call();
   }
 
+  void _handleShowMessage(Object? params) {
+    final parsed = _parseMessage(params);
+    if (parsed == null) return;
+    _logParsedMessage(parsed.$1, parsed.$2);
+    if (parsed.$2.trim().isNotEmpty) {
+      onMessage?.call(parsed.$1, parsed.$2);
+    }
+  }
+
   void _logMessage(Object? params) {
+    final parsed = _parseMessage(params);
+    if (parsed == null) return;
+    _logParsedMessage(parsed.$1, parsed.$2);
+  }
+
+  (LspMessageType, String)? _parseMessage(Object? params) {
     final map = _asMap(params);
     final message = map?['message'];
-    if (message is! String) return;
-    final level = switch ((map?['type'] as num?)?.toInt()) {
-      1 => 'error',
-      2 => 'warning',
-      3 => 'info',
-      _ => 'log',
+    if (message is! String) return null;
+    final type = switch ((map?['type'] as num?)?.toInt()) {
+      1 => LspMessageType.error,
+      2 => LspMessageType.warning,
+      3 => LspMessageType.info,
+      _ => LspMessageType.log,
     };
-    // Kept for [log], read when asked: nothing shows it as it comes.
+    return (type, message);
+  }
+
+  void _logParsedMessage(LspMessageType type, String message) {
+    final level = type.name;
     for (final line in const LineSplitter().convert(message)) {
       _log('[$level] $line');
+    }
+  }
+
+  /// Appends [line] to [log] (e.g. server-specific notifications such as
+  /// JDTLS `language/status`).
+  void recordLog(String line) {
+    for (final part in const LineSplitter().convert(line)) {
+      _log(part);
     }
   }
 
